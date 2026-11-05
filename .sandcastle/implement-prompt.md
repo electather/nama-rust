@@ -1,4 +1,8 @@
-/implement #{{ISSUE_NUMBER}} ({{ISSUE_TITLE}})
+Implement ticket #{{ISSUE_NUMBER}} ({{ISSUE_TITLE}}) by following these skill instructions:
+
+<skill name="implement">
+!`awk 'f>=2{print} /^---$/{f++}' ~/.claude/skills/implement/SKILL.md`
+</skill>
 
 You are running AFK inside the sandcastle factory, on branch `{{BRANCH}}` forked from `origin/main`. Nobody can answer questions. Where the skill says "ask", decide yourself and record the decision in the commit body, or give up with `<blocked>`.
 
