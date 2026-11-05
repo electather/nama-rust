@@ -3,7 +3,7 @@
 use std::net::SocketAddr;
 
 use connectrpc::client::{ClientConfig, HttpClient};
-use nama_proto::nama::v1::{GetServerInfoRequest, ServerServiceClient};
+use nama_proto::nama::v1::{GetServerInfoRequest, GetServerInfoResponse, ServerServiceClient};
 use nama_server::config::Config;
 use tokio::{net::TcpListener, sync::oneshot};
 
@@ -39,16 +39,21 @@ fn named(name: &str) -> Config {
     }
 }
 
+/// Calls `GetServerInfo` through the generated client and returns the owned response.
+async fn get_server_info(client: &ServerServiceClient<HttpClient>) -> GetServerInfoResponse {
+    client
+        .get_server_info(GetServerInfoRequest::default())
+        .await
+        .unwrap()
+        .into_owned()
+}
+
 #[tokio::test]
 async fn get_server_info_returns_the_server_name_and_version_over_http1_json() {
     let server = TestServer::start(named("Living Room")).await;
     let client = ServerServiceClient::new(HttpClient::plaintext(), server.client_config().json());
 
-    let info = client
-        .get_server_info(GetServerInfoRequest::default())
-        .await
-        .unwrap()
-        .into_owned();
+    let info = get_server_info(&client).await;
 
     assert_eq!(info.name, "Living Room");
     assert_eq!(info.version, env!("CARGO_PKG_VERSION"));
@@ -62,11 +67,7 @@ async fn get_server_info_works_over_http2_with_binary_protobuf() {
         server.client_config().proto(),
     );
 
-    let info = client
-        .get_server_info(GetServerInfoRequest::default())
-        .await
-        .unwrap()
-        .into_owned();
+    let info = get_server_info(&client).await;
 
     assert_eq!(info.name, "Basement");
     assert_eq!(info.version, env!("CARGO_PKG_VERSION"));

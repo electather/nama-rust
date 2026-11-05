@@ -23,7 +23,7 @@ struct ServerServiceHandler {
 
 // The trait returns `impl Encodable<_>` so handlers can answer with borrowed views. Ours return
 // the owned message, which is narrower; that's fine for a private type.
-#[allow(refining_impl_trait_internal)]
+#[expect(refining_impl_trait_internal)]
 impl ServerService for ServerServiceHandler {
     async fn get_server_info(
         &self,
