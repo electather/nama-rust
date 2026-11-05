@@ -17,6 +17,10 @@ pub const DEFAULT_FILE: &str = "nama.toml";
 /// Prefix of the environment variables that override the config file, e.g. `NAMA_DATA_DIR`.
 pub const ENV_PREFIX: &str = "NAMA_";
 
+/// Environment variable naming the config file. It picks the file rather than setting a key, so the
+/// `NAMA_*` layer skips it.
+pub const FILE_ENV: &str = "NAMA_CONFIG";
+
 /// Everything a Server needs to know before it starts.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Config {
@@ -47,6 +51,8 @@ impl Config {
         if let Some(file) = file {
             figment = figment.merge(Toml::file_exact(file));
         }
-        Ok(figment.merge(Env::prefixed(ENV_PREFIX)).extract()?)
+        Ok(figment
+            .merge(Env::prefixed(ENV_PREFIX).ignore(&["config"]))
+            .extract()?)
     }
 }

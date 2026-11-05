@@ -8,7 +8,7 @@ use std::{
 };
 
 use clap::Parser;
-use nama_server::config::Config;
+use nama_server::config::{self, Config};
 use tracing::{error, info};
 use tracing_subscriber::EnvFilter;
 
@@ -16,7 +16,7 @@ use tracing_subscriber::EnvFilter;
 #[command(version, about)]
 struct Args {
     /// TOML config file. Defaults to `nama.toml` in the working directory, if it exists.
-    #[arg(long, env = "NAMA_CONFIG")]
+    #[arg(long, env = config::FILE_ENV)]
     config: Option<PathBuf>,
 }
 
@@ -78,7 +78,7 @@ fn shutdown_signal() -> io::Result<impl Future<Output = ()>> {
 }
 
 /// Resolves on Ctrl-C.
-#[cfg(not(unix))]
+#[cfg(windows)]
 fn shutdown_signal() -> io::Result<impl Future<Output = ()>> {
     let mut ctrl_c = tokio::signal::windows::ctrl_c()?;
     Ok(async move {
