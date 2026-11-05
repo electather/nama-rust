@@ -1,0 +1,14 @@
+{
+  "name": "nama-factory",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "factory": "cd .. && tsx .sandcastle/main.ts"
+  },
+  "devDependencies": {
+    "@ai-hero/sandcastle": "^0.14.0",
+    "@types/node": "^26.6.6",
+    "tsx": "^4.23.15",
+    "zod": "^4.6.7"
+  }
+}
