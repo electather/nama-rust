@@ -54,9 +54,9 @@ fn server_logs_its_config_and_exits_cleanly_on_ctrl_c() {
         .unwrap();
     assert!(kill.success());
 
-    let (status_tx, status) = mpsc::channel();
-    thread::spawn(move || status_tx.send(child.wait_with_output().unwrap()));
-    let output = status
+    let (exited_tx, exited) = mpsc::channel();
+    thread::spawn(move || exited_tx.send(child.wait_with_output().unwrap()));
+    let output = exited
         .recv_timeout(TIMEOUT)
         .expect("server did not exit after Ctrl-C");
     assert!(

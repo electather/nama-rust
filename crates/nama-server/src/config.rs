@@ -42,13 +42,10 @@ impl Config {
     /// If `file` is given it must exist. If it isn't, [`DEFAULT_FILE`] in the working directory is
     /// read when present and skipped otherwise.
     pub fn load(file: Option<&Path>) -> Result<Config, Box<figment::Error>> {
+        let file = file.or_else(|| Some(Path::new(DEFAULT_FILE)).filter(|f| f.is_file()));
         let mut figment = Figment::from(Serialized::defaults(Config::default()));
-        match file {
-            Some(file) => figment = figment.merge(Toml::file_exact(file)),
-            None if Path::new(DEFAULT_FILE).is_file() => {
-                figment = figment.merge(Toml::file_exact(DEFAULT_FILE));
-            }
-            None => {}
+        if let Some(file) = file {
+            figment = figment.merge(Toml::file_exact(file));
         }
         Ok(figment.merge(Env::prefixed(ENV_PREFIX)).extract()?)
     }
