@@ -1,0 +1,18 @@
+[package]
+name = "nama-server"
+version = "0.1.0"
+description = "The Nama Server: owns Libraries, streams media and handles Requests"
+license = "AGPL-3.0-only"
+edition.workspace = true
+repository.workspace = true
+
+[dependencies]
+clap = { version = "4", features = ["derive", "env"] }
+figment = { version = "0.10", features = ["env", "toml"] }
+serde = { version = "1", features = ["derive"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[dev-dependencies]
+figment = { version = "0.10", features = ["test"] }
