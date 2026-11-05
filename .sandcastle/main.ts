@@ -71,7 +71,8 @@ function readyIssues(): Issue[] {
   return issues
     .filter(
       (i) =>
-        gh("api", `repos/{owner}/{repo}/issues/${i.number}`, "--jq", ".issue_dependencies_summary.blocked_by") === "0",
+        // blockedBy, not issue_dependencies_summary: the summary lags seconds behind closes/edits
+        gh("issue", "view", String(i.number), "--json", "blockedBy", "--jq", '[.blockedBy.nodes[] | select(.state == "OPEN")] | length') === "0",
     )
     .sort((a, b) => a.number - b.number);
 }
