@@ -1,0 +1,8 @@
+# The Nama API schema (ADR 0007). Run `buf` commands from this directory.
+version: v2
+lint:
+  use:
+    - STANDARD
+breaking:
+  use:
+    - FILE

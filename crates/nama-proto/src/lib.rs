@@ -1,3 +1,26 @@
 //! Rust types generated from the `.proto` schema in `proto/` (ADR 0007).
 //!
-//! Nothing is generated yet; this crate is a placeholder in the workspace layout.
+//! Each proto package is a module here, so `nama.v1.GetServerInfoRequest` is
+//! [`nama::v1::GetServerInfoRequest`]. A package module holds the message types (from `buffa`) and
+//! the ConnectRPC service trait, server and client (from `connectrpc`) side by side.
+//!
+//! The code under `src/generated/` is checked in and comes from `buf generate`; see the README.
+
+// The plugins write messages and services to separate trees. The service stubs find the messages
+// at `crate::messages` (the `buffa_module` option in `proto/buf.gen.yaml`). rustfmt must leave
+// them as `buf generate` wrote them, or CI's check that they are up to date fails.
+#[rustfmt::skip]
+#[path = "generated/buffa/mod.rs"]
+mod messages;
+#[rustfmt::skip]
+#[path = "generated/connect/mod.rs"]
+mod services;
+
+/// The `nama` proto packages.
+pub mod nama {
+    /// The `nama.v1` proto package.
+    pub mod v1 {
+        pub use crate::messages::nama::v1::*;
+        pub use crate::services::nama::v1::*;
+    }
+}

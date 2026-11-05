@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package nama.v1;
+
+// Facts about a Server that any client can read, before signing in.
+service ServerService {
+  // Returns the Server's name and the version of Nama it runs.
+  rpc GetServerInfo(GetServerInfoRequest) returns (GetServerInfoResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+}
+
+message GetServerInfoRequest {}
+
+message GetServerInfoResponse {
+  // The Server's display name, set by its admin.
+  string name = 1;
+  // The version of the Server program, e.g. "0.1.0".
+  string version = 2;
+}
