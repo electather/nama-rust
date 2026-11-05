@@ -1,0 +1,7 @@
+[package]
+name = "nama-plugin-api"
+version = "0.1.0"
+description = "Extension Point traits through which Plugins take part in a Nama Server"
+license = "AGPL-3.0-only"
+edition.workspace = true
+repository.workspace = true

@@ -1,0 +1,17 @@
+[workspace]
+resolver = "3"
+members = ["crates/*", "plugins/*"]
+
+[workspace.package]
+edition = "2024"
+repository = "https://github.com/electather/nama-rust"
+
+[workspace.dependencies]
+nama-proto = { path = "crates/nama-proto" }
+nama-plugin-api = { path = "crates/nama-plugin-api" }
+nama-pdk = { path = "crates/nama-pdk" }
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"
