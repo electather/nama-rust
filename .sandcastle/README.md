@@ -1,8 +1,10 @@
 # AI factory (sandcastle)
 
 Takes open `ready-for-agent` issues with no open blockers, up to 3 at a time, through:
-`/implement` → `code-review` + fixes → PR (`Closes #N`) → CI (one auto-fix attempt) → squash-merge.
+`implement` skill → `code-review` skill + fixes → PR (`Closes #N`) → CI (one auto-fix attempt) → squash-merge.
 Anything stuck is relabelled `ready-for-human` with a comment.
+
+Agents are Claude Code (`claude-opus-5-5`, effort `high`) in Docker. Your host skills come from `~/.agents/skills`, mounted read-only.
 
 One-time setup (from the repo root):
 
@@ -10,8 +12,16 @@ One-time setup (from the repo root):
     npx --prefix .sandcastle sandcastle docker build-image   # rebuild after editing Dockerfile
     cp .sandcastle/.env.example .sandcastle/.env              # CLAUDE_CODE_OAUTH_TOKEN (`claude setup-token`), GH_TOKEN (`gh auth token`)
 
-Run (drains the queue, then exits):
+Run from the repo root:
 
-    npm --prefix .sandcastle run factory
+    npm --prefix .sandcastle run factory                  # drain the queue (max 20 batches), then exit
+    MAX_CYCLES=1 npm --prefix .sandcastle run factory     # one batch, then stop
 
-Logs: `.sandcastle/logs/`. Agents use the host skills mounted from `~/.agents/skills`.
+Logs: `.sandcastle/logs/`.
+
+Stopping and resuming: Ctrl-C keeps branches, commits and worktrees. The next run continues on the same `agent/issue-N` branch and PR. Remove leftover containers with `docker ps --filter ancestor=sandcastle:nama-rust`.
+
+Failures:
+
+- **Agent gives up or CI stays red:** the issue is relabelled `ready-for-human`.
+- **Infra error (Docker, auth, Claude usage limit):** nothing is relabelled. The run finishes shipping what is already built, then exits with code 1. Rerun once the problem is fixed.
