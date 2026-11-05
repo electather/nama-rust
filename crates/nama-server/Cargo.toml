@@ -8,19 +8,19 @@ repository.workspace = true
 
 [dependencies]
 axum = { version = "0.8", default-features = false, features = ["http1", "http2", "tokio"] }
-connectrpc = { version = "0.9.1", features = ["axum"] }
-nama-proto = { path = "../nama-proto" }
 clap = { version = "4", features = ["derive", "env"] }
+connectrpc = { version = "0.9.1", features = ["axum"] }
 figment = { version = "0.10", features = ["env", "toml"] }
+nama-proto = { path = "../nama-proto" }
 serde = { version = "1", features = ["derive"] }
 tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "signal"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 [dev-dependencies]
+connectrpc = { version = "0.9.1", features = ["client"] }
+figment = { version = "0.10", features = ["test"] }
 http-body-util = "0.1"
 hyper = { version = "1", features = ["client", "http1"] }
 hyper-util = { version = "0.1", features = ["tokio"] }
 serde_json = "1"
-connectrpc = { version = "0.9.1", features = ["client"] }
-figment = { version = "0.10", features = ["test"] }

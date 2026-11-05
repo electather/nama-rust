@@ -60,7 +60,10 @@ async fn main() -> ExitCode {
     // Log the bound address, which differs from `listen` when that asks for port 0.
     match listener.local_addr() {
         Ok(addr) => info!(%addr, "listening"),
-        Err(err) => error!("could not read the bound address: {err}"),
+        Err(err) => {
+            error!("could not read the address listened on: {err}");
+            return ExitCode::FAILURE;
+        }
     }
 
     let shutdown = async {

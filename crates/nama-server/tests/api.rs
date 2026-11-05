@@ -14,6 +14,7 @@ struct TestServer {
 }
 
 impl TestServer {
+    /// Starts serving `config` on a free port.
     async fn start(config: Config) -> TestServer {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
@@ -24,11 +25,13 @@ impl TestServer {
         TestServer { addr, _stop: stop }
     }
 
+    /// Client settings that point at this Server.
     fn client_config(&self) -> ClientConfig {
         ClientConfig::new(format!("http://{}", self.addr).parse().unwrap())
     }
 }
 
+/// The default config with the Server named `name`.
 fn named(name: &str) -> Config {
     Config {
         name: name.to_owned(),

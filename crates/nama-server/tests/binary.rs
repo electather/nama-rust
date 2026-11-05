@@ -34,6 +34,18 @@ impl Drop for RemoveOnDrop {
     }
 }
 
+/// Returns the first log line containing `needle`, skipping earlier lines.
+fn wait_for_line(lines: &mpsc::Receiver<String>, needle: &str) -> String {
+    loop {
+        let line = lines
+            .recv_timeout(TIMEOUT)
+            .unwrap_or_else(|err| panic!("server never logged {needle:?}: {err}"));
+        if line.contains(needle) {
+            return line;
+        }
+    }
+}
+
 #[test]
 fn server_logs_its_config_serves_the_api_and_exits_cleanly_on_ctrl_c() {
     let dir = std::env::temp_dir().join(format!("nama-server-binary-{}", std::process::id()));
@@ -68,26 +80,12 @@ fn server_logs_its_config_serves_the_api_and_exits_cleanly_on_ctrl_c() {
         }
     });
 
-    let config_line = loop {
-        let line = lines
-            .recv_timeout(TIMEOUT)
-            .expect("server never logged its config");
-        if line.contains("loaded config") {
-            break line;
-        }
-    };
+    let config_line = wait_for_line(&lines, "loaded config");
     assert!(config_line.contains("127.0.0.1:0"), "{config_line}");
     assert!(config_line.contains("/srv/from-file"), "{config_line}");
 
     // Port 0 asks the OS for a free port; the Server logs the one it got.
-    let listening_line = loop {
-        let line = lines
-            .recv_timeout(TIMEOUT)
-            .expect("server never logged that it was listening");
-        if line.contains("listening") {
-            break line;
-        }
-    };
+    let listening_line = wait_for_line(&lines, "listening");
     let addr = listening_line
         .split_whitespace()
         .find_map(|word| {

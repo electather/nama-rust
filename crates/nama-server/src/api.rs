@@ -10,21 +10,21 @@ use crate::config::Config;
 /// Routes every Connect RPC the Server answers.
 pub(crate) fn router(config: &Config) -> axum::Router {
     connectrpc::Router::new()
-        .add_service(Arc::new(ServerInfo {
+        .add_service(Arc::new(ServerServiceHandler {
             name: config.name.clone(),
         }))
         .into_axum_router()
 }
 
 /// `nama.v1.ServerService`: facts about this Server that any client can read.
-struct ServerInfo {
+struct ServerServiceHandler {
     name: String,
 }
 
 // The trait returns `impl Encodable<_>` so handlers can answer with borrowed views. Ours return
 // the owned message, which is narrower; that's fine for a private type.
 #[allow(refining_impl_trait_internal)]
-impl ServerService for ServerInfo {
+impl ServerService for ServerServiceHandler {
     async fn get_server_info(
         &self,
         _ctx: RequestContext,
