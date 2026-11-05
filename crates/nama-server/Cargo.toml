@@ -16,3 +16,6 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 [dev-dependencies]
 figment = { version = "0.10", features = ["test"] }
+
+[lints]
+workspace = true

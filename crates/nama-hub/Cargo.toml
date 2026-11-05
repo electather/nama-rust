@@ -9,3 +9,6 @@ repository.workspace = true
 # The Hub is a stub until its own milestone, so there is nothing to release yet.
 [package.metadata.dist]
 dist = false
+
+[lints]
+workspace = true
