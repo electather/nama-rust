@@ -10,3 +10,104 @@ repository = "https://github.com/electather/nama-rust"
 [profile.dist]
 inherits = "release"
 lto = "thin"
+
+# Strict lints for every crate (each opts in with `[lints] workspace = true`).
+# Local builds only warn, so work in progress still compiles; CI denies all warnings.
+# To silence one where it's genuinely wrong, use `#[expect(clippy::lint, reason = "...")]`
+# on the smallest item possible. A plain `#[allow]` without a reason is itself a lint error.
+[workspace.lints.rust]
+unsafe_code = "deny"            # deny, not forbid: Extism plugins may need a reviewed `#[expect]`
+missing_docs = "warn"           # every pub item in a library says what it is for
+unreachable_pub = "warn"        # `pub` that nothing outside the crate can reach: use pub(crate)
+rust_2018_idioms = { level = "warn", priority = -1 }
+meta_variable_misuse = "warn"
+missing_debug_implementations = "warn"
+non_ascii_idents = "deny"
+redundant_lifetimes = "warn"
+single_use_lifetimes = "warn"
+trivial_casts = "warn"
+trivial_numeric_casts = "warn"
+unit_bindings = "warn"
+unused_import_braces = "warn"
+unused_lifetimes = "warn"
+unused_macro_rules = "warn"
+unused_qualifications = "warn"
+
+[workspace.lints.clippy]
+# Whole groups.
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+cargo = { level = "warn", priority = -1 }
+# Pedantic/cargo lints that are noise here.
+module_name_repetitions = "allow"
+multiple_crate_versions = "allow"  # transitive deps, not ours to fix; cargo-deny reports them
+cargo_common_metadata = "allow"    # crates aren't published to crates.io
+
+# Picks from `restriction`: no panics, no leftovers, no silent shortcuts.
+unwrap_used = "warn"
+expect_used = "warn"
+panic = "warn"
+todo = "warn"
+unimplemented = "warn"
+unreachable = "warn"
+dbg_macro = "warn"
+print_stdout = "warn"
+print_stderr = "warn"
+exit = "warn"
+indexing_slicing = "warn"
+string_slice = "warn"
+get_unwrap = "warn"
+mem_forget = "warn"
+allow_attributes = "warn"                 # use #[expect], which errors once it stops being needed
+allow_attributes_without_reason = "warn"
+undocumented_unsafe_blocks = "warn"
+multiple_unsafe_ops_per_block = "warn"
+wildcard_enum_match_arm = "warn"          # adding an enum variant must be a compile error at every match
+clone_on_ref_ptr = "warn"
+rc_buffer = "warn"
+rc_mutex = "warn"
+str_to_string = "warn"
+rest_pat_in_fully_bound_structs = "warn"
+map_err_ignore = "warn"                   # don't throw away the original error
+let_underscore_untyped = "warn"            # ignoring a value? name its type
+unused_result_ok = "warn"
+if_then_some_else_none = "warn"
+lossy_float_literal = "warn"
+float_cmp_const = "warn"
+fn_to_numeric_cast_any = "warn"
+format_push_string = "warn"
+empty_structs_with_brackets = "warn"
+empty_drop = "warn"
+mod_module_files = "warn"                 # `foo.rs` + `foo/`, never `foo/mod.rs`
+partial_pub_fields = "warn"
+pub_without_shorthand = "warn"
+redundant_type_annotations = "warn"
+renamed_function_params = "warn"
+same_name_method = "warn"
+self_named_module_files = "allow"         # the opposite of mod_module_files
+shadow_unrelated = "warn"
+try_err = "warn"
+unneeded_field_pattern = "warn"
+unnecessary_self_imports = "warn"
+unseparated_literal_suffix = "warn"
+verbose_file_reads = "warn"
+infinite_loop = "warn"
+large_include_file = "warn"
+assertions_on_result_states = "warn"
+cfg_not_test = "warn"
+
+# Picks from `nursery` that are stable and useful.
+use_self = "warn"
+redundant_clone = "warn"
+needless_pass_by_ref_mut = "warn"
+or_fun_call = "warn"
+equatable_if_let = "warn"
+useless_let_if_seq = "warn"
+trait_duplication_in_bounds = "warn"
+type_repetition_in_bounds = "warn"
+derive_partial_eq_without_eq = "warn"
+suboptimal_flops = "warn"
+debug_assert_with_mut_call = "warn"
+iter_on_single_items = "warn"
+iter_on_empty_collections = "warn"
+string_lit_as_bytes = "warn"

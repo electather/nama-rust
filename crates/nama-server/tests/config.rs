@@ -1,5 +1,8 @@
-// `figment::Jail` closures must return `figment::Result`, whose error is large; that is fine in tests.
-#![allow(clippy::result_large_err)]
+//! Loading the Server config from defaults, a file and the environment.
+#![expect(
+    clippy::result_large_err,
+    reason = "`figment::Jail` closures must return `figment::Result`, whose error is large; fine in tests"
+)]
 
 use std::path::PathBuf;
 
@@ -62,7 +65,7 @@ fn a_named_config_file_that_does_not_exist_is_an_error() {
     Jail::expect_with(|jail| {
         let missing = jail.directory().join("missing.toml");
 
-        assert!(Config::load(Some(&missing)).is_err());
+        Config::load(Some(&missing)).unwrap_err();
         Ok(())
     });
 }

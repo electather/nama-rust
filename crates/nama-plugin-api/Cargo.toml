@@ -5,3 +5,6 @@ description = "Extension Point traits through which Plugins take part in a Nama 
 license = "AGPL-3.0-only"
 edition.workspace = true
 repository.workspace = true
+
+[lints]
+workspace = true
