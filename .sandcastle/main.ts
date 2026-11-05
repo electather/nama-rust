@@ -7,7 +7,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 import * as sandcastle from "@ai-hero/sandcastle";
 import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
 
-const MAX_CYCLES = 20;
+const MAX_CYCLES = Number(process.env.MAX_CYCLES ?? 20); // MAX_CYCLES=1 → one batch, then stop
 const MAX_PARALLEL = 3;
 const MODEL = "claude-opus-5-5";
 const READY = "ready-for-agent";
@@ -166,8 +166,10 @@ for (let cycle = 1; cycle <= MAX_CYCLES && !crashed; cycle++) {
       continue;
     }
     const box = outcome.value;
+    let merged = false;
     try {
       await ship(issue, box);
+      merged = true;
     } catch (e) {
       if (e instanceof Blocked) handBack(issue, e.message);
       else {
@@ -176,6 +178,7 @@ for (let cycle = 1; cycle <= MAX_CYCLES && !crashed; cycle++) {
       }
     } finally {
       await box.close();
+      if (merged) ok("git", "branch", "-D", branchOf(issue)); // squash-merged; the local branch is dead weight
     }
   }
 }
