@@ -73,6 +73,9 @@ pub mod __buffa {
         reg.register_json_any(super::__SET_MATCH_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__CLEAR_MATCH_REQUEST_JSON_ANY);
         reg.register_json_any(super::__CLEAR_MATCH_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__LIST_UNMATCHED_ITEMS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_UNMATCHED_ITEMS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__UNMATCHED_ITEM_JSON_ANY);
         reg.register_json_any(super::__GET_SERVER_INFO_REQUEST_JSON_ANY);
         reg.register_json_any(super::__GET_SERVER_INFO_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__USER_JSON_ANY);
@@ -211,6 +214,18 @@ pub use self::__buffa::view::ClearMatchRequestOwnedView;
 pub use self::__buffa::view::ClearMatchResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::ClearMatchResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListUnmatchedItemsRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListUnmatchedItemsRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListUnmatchedItemsResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListUnmatchedItemsResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::UnmatchedItemView;
+#[doc(inline)]
+pub use self::__buffa::view::UnmatchedItemOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::GetServerInfoRequestView;
 #[doc(inline)]

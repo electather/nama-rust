@@ -22,6 +22,14 @@ pub type OwnedClearMatchRequestView = ::buffa::view::OwnedView<
 pub type OwnedClearMatchResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::ClearMatchResponseView<'static>,
 >;
+///Shorthand for `OwnedView<ListUnmatchedItemsRequestView<'static>>`.
+pub type OwnedListUnmatchedItemsRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ListUnmatchedItemsRequestView<'static>,
+>;
+///Shorthand for `OwnedView<ListUnmatchedItemsResponseView<'static>>`.
+pub type OwnedListUnmatchedItemsResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ListUnmatchedItemsResponseView<'static>,
+>;
 impl ::connectrpc::Encodable<crate::messages::nama::v1::SearchMetadataResponse>
 for crate::messages::nama::v1::__buffa::view::SearchMetadataResponseView<'_> {
     fn encode(
@@ -124,6 +132,40 @@ for ::buffa::view::OwnedView<
         )
     }
 }
+impl ::connectrpc::Encodable<crate::messages::nama::v1::ListUnmatchedItemsResponse>
+for crate::messages::nama::v1::__buffa::view::ListUnmatchedItemsResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::ListUnmatchedItemsResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ListUnmatchedItemsResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
 /// Full service name for this service.
 pub const MATCH_SERVICE_SERVICE_NAME: &str = "nama.v1.MatchService";
 /// Static [`Spec`](::connectrpc::Spec) for the `SearchMetadata` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
@@ -144,6 +186,12 @@ pub const MATCH_SERVICE_CLEAR_MATCH_SPEC: ::connectrpc::Spec = ::connectrpc::Spe
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
+/// Static [`Spec`](::connectrpc::Spec) for the `ListUnmatchedItems` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const MATCH_SERVICE_LIST_UNMATCHED_ITEMS_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.MatchService/ListUnmatchedItems",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
 /// Fixing Matches by hand: finding titles in the metadata source, and Matching items to them.
 ///
 /// A Match set or cleared here is pinned to what the item's file names: the title and year (and
@@ -279,6 +327,32 @@ pub trait MatchService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
+    /// Lists the items of a Library that need a Match, by path: those Matching left Unmatched, and
+    /// those it hasn't Matched yet, such as when no metadata Provider was enabled. Items pinned
+    /// Unmatched with `ClearMatch` aren't listed, since an Admin has already decided about them.
+    /// Fails with `not_found` if there is no such Library.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn list_unmatched_items<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::ListUnmatchedItemsRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::ListUnmatchedItemsResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
 }
 /// Extension trait for registering a service implementation with a Router.
 ///
@@ -398,6 +472,35 @@ impl<S: MatchService> MatchServiceExt for S {
                 },
             )
             .with_spec(MATCH_SERVICE_CLEAR_MATCH_SPEC)
+            .route_view_idempotent(
+                MATCH_SERVICE_SERVICE_NAME,
+                "ListUnmatchedItems",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::ListUnmatchedItemsRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::ListUnmatchedItemsRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.list_unmatched_items(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::ListUnmatchedItemsResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(MATCH_SERVICE_LIST_UNMATCHED_ITEMS_SPEC)
     }
 }
 /// Type-inference marker used by [`Router::add_service`](::connectrpc::Router::add_service).
@@ -468,6 +571,12 @@ impl<T: MatchService> ::connectrpc::Dispatcher for MatchServiceServer<T> {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
                         .with_spec(MATCH_SERVICE_CLEAR_MATCH_SPEC),
+                )
+            }
+            "ListUnmatchedItems" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
+                        .with_spec(MATCH_SERVICE_LIST_UNMATCHED_ITEMS_SPEC),
                 )
             }
             _ => None,
@@ -545,6 +654,28 @@ impl<T: MatchService> ::connectrpc::Dispatcher for MatchServiceServer<T> {
                     svc.clear_match(ctx, req)
                         .await?
                         .encode::<crate::messages::nama::v1::ClearMatchResponse>(format)
+                })
+            }
+            "ListUnmatchedItems" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::ListUnmatchedItemsRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::ListUnmatchedItemsRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::ListUnmatchedItemsRequest,
+                    >::from_parts(&req, &body);
+                    svc.list_unmatched_items(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::ListUnmatchedItemsResponse,
+                        >(format)
                 })
             }
             _ => ::connectrpc::dispatcher::codegen::unimplemented_unary(path),
@@ -796,6 +927,51 @@ where
                 &self.transport,
                 &self.config,
                 MATCH_SERVICE_CLEAR_MATCH_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the ListUnmatchedItems RPC. Sends a request to /nama.v1.MatchService/ListUnmatchedItems.
+    pub async fn list_unmatched_items(
+        &self,
+        request: crate::messages::nama::v1::ListUnmatchedItemsRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::ListUnmatchedItemsResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.list_unmatched_items_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the ListUnmatchedItems RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn list_unmatched_items_with_options(
+        &self,
+        request: crate::messages::nama::v1::ListUnmatchedItemsRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::ListUnmatchedItemsResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                MATCH_SERVICE_LIST_UNMATCHED_ITEMS_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,

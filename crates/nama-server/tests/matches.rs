@@ -21,8 +21,8 @@ use nama_plugin_tmdb::{
 };
 use nama_proto::nama::v1::{
     ClearMatchRequest, CreateLibraryRequest, ExternalId, LibraryKind, LibraryServiceClient,
-    MatchServiceClient, ScanLibraryRequest, SearchMetadataRequest, SetMatchRequest,
-    SetMatchResponse, TitleKind, external_id,
+    ListUnmatchedItemsRequest, MatchServiceClient, ScanLibraryRequest, SearchMetadataRequest,
+    SetMatchRequest, SetMatchResponse, TitleKind, UnmatchedItem, external_id,
 };
 use nama_server::{config::Config, contents::Contents, plugins::Registry};
 use server::TestServer;
@@ -41,15 +41,15 @@ struct Decision {
     tmdb_id: Option<i64>,
 }
 
-/// A Server with one Library, the TMDB Plugin enabled against a fake TMDB, and clients for its
-/// `LibraryService` and `MatchService`.
+/// A Server with one Library, usually the TMDB Plugin enabled against a fake TMDB, and clients
+/// for its `LibraryService` and `MatchService`.
 struct Fixture {
     library: i64,
     folder: PathBuf,
     libraries: LibraryServiceClient<HttpClient>,
     matches: MatchServiceClient<HttpClient>,
     contents: Contents,
-    _tmdb: FakeTmdb,
+    _tmdb: Option<FakeTmdb>,
     _server: TestServer,
     _media: TempDir,
 }
@@ -70,6 +70,16 @@ impl Fixture {
         plugins
             .enable_with_settings(Arc::new(Tmdb::with_endpoints(tmdb.endpoints())), settings)
             .unwrap();
+        Self::start_with(kind, plugins, Some(tmdb)).await
+    }
+
+    /// Starts a Server with a Library of `kind` and no metadata Provider, so nothing is Matched.
+    async fn start_without_metadata(kind: LibraryKind) -> Self {
+        Self::start_with(kind, Registry::new(), None).await
+    }
+
+    /// Starts a Server with a Library of `kind` and `plugins`, keeping `tmdb` running for them.
+    async fn start_with(kind: LibraryKind, plugins: Registry, tmdb: Option<FakeTmdb>) -> Self {
         let (server, db) = TestServer::start_with_db(Config::default(), plugins).await;
         let config = server.client_config();
         let libraries = LibraryServiceClient::new(HttpClient::plaintext(), config.clone());
@@ -107,9 +117,8 @@ impl Fixture {
         fs::write(path, contents).unwrap();
     }
 
-    /// Scans the Library, and waits until the file at `relative` is stored with `contents`'s
-    /// size and Matching has decided about its item.
-    async fn scan_until_decided(&self, relative: &str, contents: &[u8]) -> (i64, Decision) {
+    /// Starts a scan of the Library.
+    async fn scan(&self) {
         self.libraries
             .scan_library(ScanLibraryRequest {
                 id: self.library,
@@ -117,6 +126,39 @@ impl Fixture {
             })
             .await
             .unwrap();
+    }
+
+    /// Scans the Library, and waits until the file at `relative` is stored with an item, whose
+    /// id it returns.
+    async fn scan_until_stored(&self, relative: &str) -> i64 {
+        self.scan().await;
+        let path = self.path(relative);
+        tokio::time::timeout(Duration::from_secs(5), self.wait_for_item(&path))
+            .await
+            .unwrap()
+    }
+
+    /// Waits until [`Self::stored_item`] has one.
+    async fn wait_for_item(&self, path: &str) -> i64 {
+        loop {
+            if let Some(item) = self.stored_item(path).await {
+                return item;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    }
+
+    /// The id of the first item stored for the file at `path`, once there is one.
+    async fn stored_item(&self, path: &str) -> Option<i64> {
+        let files = self.contents.files(self.library).await.unwrap();
+        let file = files.into_iter().find(|file| file.path == path)?;
+        file.items.first().map(|item| item.id)
+    }
+
+    /// Scans the Library, and waits until the file at `relative` is stored with `contents`'s
+    /// size and Matching has decided about its item.
+    async fn scan_until_decided(&self, relative: &str, contents: &[u8]) -> (i64, Decision) {
+        self.scan().await;
         let path = self.folder.join(relative);
         let size = i64::try_from(contents.len()).unwrap();
         tokio::time::timeout(Duration::from_secs(5), self.wait_for_decision(&path, size))
@@ -166,6 +208,24 @@ impl Fixture {
             })
             .await?
             .into_owned())
+    }
+
+    /// The Library's items that need a Match.
+    async fn unmatched(&self) -> Vec<UnmatchedItem> {
+        self.matches
+            .list_unmatched_items(ListUnmatchedItemsRequest {
+                library_id: self.library,
+                ..Default::default()
+            })
+            .await
+            .unwrap()
+            .into_owned()
+            .items
+    }
+
+    /// The absolute path of the file at `relative` in the Library's folder.
+    fn path(&self, relative: &str) -> String {
+        self.folder.join(relative).to_str().unwrap().to_owned()
     }
 }
 
@@ -336,4 +396,114 @@ async fn re_matching_a_show_by_hand_re_matches_its_episodes() {
     assert_eq!((to_american.matched, to_british.matched), (2, 2));
     assert_eq!(us, [matched(2_316_001), matched(2_316_002)]);
     assert_eq!(uk, [matched(2_996_001), matched(2_996_002)]);
+}
+
+/// The Movie `title` from `year` held by the file at `path`, as `ListUnmatchedItems` lists it.
+fn unmatched_movie(item: i64, path: String, title: &str, year: i32) -> UnmatchedItem {
+    UnmatchedItem {
+        item_id: item,
+        path,
+        kind: TitleKind::TITLE_KIND_MOVIE.into(),
+        title: title.to_owned(),
+        year: Some(year),
+        ..Default::default()
+    }
+}
+
+#[tokio::test]
+async fn an_unmatched_item_is_listed_with_what_its_name_was_parsed_as_and_a_matched_one_is_not() {
+    let fx = Fixture::start(LibraryKind::LIBRARY_KIND_MOVIES).await;
+    let alien = "Alien (1979)/Alien (1979).mkv";
+    fx.write(alien, VIDEO);
+    fx.write(HOME_MOVIES, VIDEO);
+    let (_, alien_decided) = fx.scan_until_decided(alien, VIDEO).await;
+    let (home_movies, home_movies_decided) = fx.scan_until_decided(HOME_MOVIES, VIDEO).await;
+
+    let listed = fx.unmatched().await;
+
+    assert_eq!(
+        (alien_decided, home_movies_decided),
+        (matched(348), unmatched())
+    );
+    assert_eq!(
+        listed,
+        [unmatched_movie(
+            home_movies,
+            fx.path(HOME_MOVIES),
+            "Home Movies",
+            2019
+        )]
+    );
+}
+
+#[tokio::test]
+async fn an_unmatched_item_matched_by_hand_drops_off_the_list() {
+    let fx = Fixture::start(LibraryKind::LIBRARY_KIND_MOVIES).await;
+    fx.write(HOME_MOVIES, VIDEO);
+    let (item, _) = fx.scan_until_decided(HOME_MOVIES, VIDEO).await;
+    let before = fx.unmatched().await;
+
+    fx.set_match(item, 949).await.unwrap();
+
+    assert_eq!(before.len(), 1);
+    assert_eq!(fx.unmatched().await, []);
+}
+
+#[tokio::test]
+async fn an_episode_not_matched_yet_is_listed_with_its_season_and_number() {
+    let fx = Fixture::start_without_metadata(LibraryKind::LIBRARY_KIND_SHOWS).await;
+    let episode = "The Office/Season 01/The Office - S01E02.mkv";
+    fx.write(episode, VIDEO);
+    let item = fx.scan_until_stored(episode).await;
+
+    let listed = fx.unmatched().await;
+
+    assert_eq!(
+        listed,
+        [UnmatchedItem {
+            item_id: item,
+            path: fx.path(episode),
+            kind: TitleKind::TITLE_KIND_SHOW.into(),
+            title: "The Office".to_owned(),
+            year: None,
+            season: Some(1),
+            episode: Some(2),
+            ..Default::default()
+        }]
+    );
+}
+
+#[tokio::test]
+async fn an_item_pinned_unmatched_is_not_listed() {
+    let fx = Fixture::start(LibraryKind::LIBRARY_KIND_MOVIES).await;
+    fx.write(HOME_MOVIES, VIDEO);
+    let (item, _) = fx.scan_until_decided(HOME_MOVIES, VIDEO).await;
+    let before = fx.unmatched().await;
+
+    fx.matches
+        .clear_match(ClearMatchRequest {
+            item_id: item,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    assert_eq!(before.len(), 1);
+    assert_eq!(fx.unmatched().await, []);
+}
+
+#[tokio::test]
+async fn listing_the_unmatched_items_of_a_library_that_does_not_exist_is_not_found() {
+    let fx = Fixture::start(LibraryKind::LIBRARY_KIND_MOVIES).await;
+
+    let err = fx
+        .matches
+        .list_unmatched_items(ListUnmatchedItemsRequest {
+            library_id: fx.library + 1,
+            ..Default::default()
+        })
+        .await
+        .unwrap_err();
+
+    assert_eq!(err.code, ErrorCode::NotFound, "{err:?}");
 }

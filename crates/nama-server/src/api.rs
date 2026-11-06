@@ -19,19 +19,20 @@ use nama_proto::nama::v1::{
     CreateLibraryResponse, DeleteLibraryRequest, DeleteLibraryResponse, EventService, EventType,
     GetLibraryRequest, GetLibraryResponse, GetServerInfoRequest, GetServerInfoResponse,
     LIBRARY_SERVICE_SERVICE_NAME, LibraryKind, LibraryService, ListLibrariesRequest,
-    ListLibrariesResponse, MATCH_SERVICE_SERVICE_NAME, MatchService,
-    SERVER_SERVICE_GET_SERVER_INFO_SPEC, SIGN_IN_SERVICE_SETUP_SPEC, SIGN_IN_SERVICE_SIGN_IN_SPEC,
-    ScanLibraryRequest, ScanLibraryResponse, SearchMetadataRequest, SearchMetadataResponse,
-    ServerService, SessionDelivery, SetMatchRequest, SetMatchResponse, SetupRequest, SetupResponse,
-    SignInRequest, SignInResponse, SignInService, SignOutRequest, SignOutResponse,
-    SubscribeRequest, SubscribeResponse, UpdateLibraryRequest, UpdateLibraryResponse,
-    WhoAmIRequest, WhoAmIResponse, external_id,
+    ListLibrariesResponse, ListUnmatchedItemsRequest, ListUnmatchedItemsResponse,
+    MATCH_SERVICE_SERVICE_NAME, MatchService, SERVER_SERVICE_GET_SERVER_INFO_SPEC,
+    SIGN_IN_SERVICE_SETUP_SPEC, SIGN_IN_SERVICE_SIGN_IN_SPEC, ScanLibraryRequest,
+    ScanLibraryResponse, SearchMetadataRequest, SearchMetadataResponse, ServerService,
+    SessionDelivery, SetMatchRequest, SetMatchResponse, SetupRequest, SetupResponse, SignInRequest,
+    SignInResponse, SignInService, SignOutRequest, SignOutResponse, SubscribeRequest,
+    SubscribeResponse, UpdateLibraryRequest, UpdateLibraryResponse, WhoAmIRequest, WhoAmIResponse,
+    external_id,
 };
 use tokio::sync::OwnedMutexGuard;
 
 use crate::{
     config::Config,
-    contents::Contents,
+    contents::{Contents, Item, Unmatched},
     db::Database,
     events::{EventBus, Filter},
     libraries::{self, Kind, Libraries, Library},
@@ -70,6 +71,7 @@ pub(crate) fn router(
         .add_service(Arc::new(MatchServiceHandler {
             matcher: Matcher::new(Arc::clone(&db), plugins, events.clone()),
             contents: Contents::new(Arc::clone(&db)),
+            libraries: Libraries::new(Arc::clone(&db)),
             scanner: scanner.clone(),
         }))
         .add_service(Arc::new(LibraryServiceHandler {
@@ -373,6 +375,8 @@ impl LibraryService for LibraryServiceHandler {
 struct MatchServiceHandler {
     matcher: Matcher,
     contents: Contents,
+    /// Which Libraries there are.
+    libraries: Libraries,
     /// Whose scan lock a Match is fixed under, so the scan doesn't change the items meanwhile.
     scanner: Scanner,
 }
@@ -449,6 +453,23 @@ impl MatchService for MatchServiceHandler {
         let summary = self.matcher.clear_match(request.item_id).await?;
         Response::ok(ClearMatchResponse {
             unmatched: summary.unmatched,
+            ..Default::default()
+        })
+    }
+
+    async fn list_unmatched_items(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, ListUnmatchedItemsRequest>,
+    ) -> ServiceResult<ListUnmatchedItemsResponse> {
+        self.libraries.get(request.library_id).await?;
+        let unmatched = self
+            .contents
+            .unmatched(request.library_id)
+            .await
+            .map_err(|err| database_failed(&err))?;
+        Response::ok(ListUnmatchedItemsResponse {
+            items: unmatched.into_iter().map(unmatched_to_proto).collect(),
             ..Default::default()
         })
     }
@@ -559,6 +580,40 @@ fn candidate_to_proto(candidate: Candidate) -> proto::TitleCandidate {
         year: candidate.year,
         ..Default::default()
     }
+}
+
+/// An Item that needs a Match as clients see it.
+fn unmatched_to_proto(unmatched: Unmatched) -> proto::UnmatchedItem {
+    let (kind, title, year, numbers) = match unmatched.item {
+        Item::Movie { title, year, .. } => (proto::TitleKind::TITLE_KIND_MOVIE, title, year, None),
+        Item::Episode {
+            show,
+            year,
+            season,
+            episode,
+            ..
+        } => (
+            proto::TitleKind::TITLE_KIND_SHOW,
+            show,
+            year,
+            Some((season, episode)),
+        ),
+    };
+    proto::UnmatchedItem {
+        item_id: unmatched.id,
+        path: unmatched.path,
+        kind: kind.into(),
+        title,
+        year: year.and_then(int32),
+        season: numbers.and_then(|(season, _)| int32(season)),
+        episode: numbers.and_then(|(_, episode)| int32(episode)),
+        ..Default::default()
+    }
+}
+
+/// `n` as a proto `int32`, or `None` if it doesn't fit, which no name a scan parses gives.
+fn int32(n: i64) -> Option<i32> {
+    i32::try_from(n).ok()
 }
 
 /// An id of a title as clients send it.

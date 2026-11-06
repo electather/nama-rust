@@ -10,7 +10,7 @@ import type { Message, UnknownEnum } from "@bufbuild/protobuf";
  * Describes the file nama/v1/match.proto.
  */
 export const file_nama_v1_match: GenFile = /*@__PURE__*/
-  fileDesc("ChNuYW1hL3YxL21hdGNoLnByb3RvEgduYW1hLnYxIkIKCkV4dGVybmFsSWQSDgoEdG1kYhgBIAEoA0gAEg4KBGltZGIYAiABKAlIABIOCgR0dmRiGAMgASgDSABCBAoCaWQijAEKDlRpdGxlQ2FuZGlkYXRlEh8KAmlkGAEgASgLMhMubmFtYS52MS5FeHRlcm5hbElkEg0KBXRpdGxlGAIgASgJEhsKDm9yaWdpbmFsX3RpdGxlGAMgASgJSACIAQESEQoEeWVhchgEIAEoBUgBiAEBQhEKD19vcmlnaW5hbF90aXRsZUIHCgVfeWVhciJkChVTZWFyY2hNZXRhZGF0YVJlcXVlc3QSIAoEa2luZBgBIAEoDjISLm5hbWEudjEuVGl0bGVLaW5kEg0KBXRpdGxlGAIgASgJEhEKBHllYXIYAyABKAVIAIgBAUIHCgVfeWVhciJFChZTZWFyY2hNZXRhZGF0YVJlc3BvbnNlEisKCmNhbmRpZGF0ZXMYASADKAsyFy5uYW1hLnYxLlRpdGxlQ2FuZGlkYXRlIkkKD1NldE1hdGNoUmVxdWVzdBIPCgdpdGVtX2lkGAEgASgDEiUKCHRpdGxlX2lkGAIgASgLMhMubmFtYS52MS5FeHRlcm5hbElkIjYKEFNldE1hdGNoUmVzcG9uc2USDwoHbWF0Y2hlZBgBIAEoBBIRCgl1bm1hdGNoZWQYAiABKAQiJAoRQ2xlYXJNYXRjaFJlcXVlc3QSDwoHaXRlbV9pZBgBIAEoAyInChJDbGVhck1hdGNoUmVzcG9uc2USEQoJdW5tYXRjaGVkGAEgASgEKlIKCVRpdGxlS2luZBIaChZUSVRMRV9LSU5EX1VOU1BFQ0lGSUVEEAASFAoQVElUTEVfS0lORF9NT1ZJRRABEhMKD1RJVExFX0tJTkRfU0hPVxACMvgBCgxNYXRjaFNlcnZpY2USVgoOU2VhcmNoTWV0YWRhdGESHi5uYW1hLnYxLlNlYXJjaE1ldGFkYXRhUmVxdWVzdBofLm5hbWEudjEuU2VhcmNoTWV0YWRhdGFSZXNwb25zZSIDkAIBEkQKCFNldE1hdGNoEhgubmFtYS52MS5TZXRNYXRjaFJlcXVlc3QaGS5uYW1hLnYxLlNldE1hdGNoUmVzcG9uc2UiA5ACAhJKCgpDbGVhck1hdGNoEhoubmFtYS52MS5DbGVhck1hdGNoUmVxdWVzdBobLm5hbWEudjEuQ2xlYXJNYXRjaFJlc3BvbnNlIgOQAgJiBnByb3RvMw");
+  fileDesc("ChNuYW1hL3YxL21hdGNoLnByb3RvEgduYW1hLnYxIkIKCkV4dGVybmFsSWQSDgoEdG1kYhgBIAEoA0gAEg4KBGltZGIYAiABKAlIABIOCgR0dmRiGAMgASgDSABCBAoCaWQijAEKDlRpdGxlQ2FuZGlkYXRlEh8KAmlkGAEgASgLMhMubmFtYS52MS5FeHRlcm5hbElkEg0KBXRpdGxlGAIgASgJEhsKDm9yaWdpbmFsX3RpdGxlGAMgASgJSACIAQESEQoEeWVhchgEIAEoBUgBiAEBQhEKD19vcmlnaW5hbF90aXRsZUIHCgVfeWVhciJkChVTZWFyY2hNZXRhZGF0YVJlcXVlc3QSIAoEa2luZBgBIAEoDjISLm5hbWEudjEuVGl0bGVLaW5kEg0KBXRpdGxlGAIgASgJEhEKBHllYXIYAyABKAVIAIgBAUIHCgVfeWVhciJFChZTZWFyY2hNZXRhZGF0YVJlc3BvbnNlEisKCmNhbmRpZGF0ZXMYASADKAsyFy5uYW1hLnYxLlRpdGxlQ2FuZGlkYXRlIkkKD1NldE1hdGNoUmVxdWVzdBIPCgdpdGVtX2lkGAEgASgDEiUKCHRpdGxlX2lkGAIgASgLMhMubmFtYS52MS5FeHRlcm5hbElkIjYKEFNldE1hdGNoUmVzcG9uc2USDwoHbWF0Y2hlZBgBIAEoBBIRCgl1bm1hdGNoZWQYAiABKAQiJAoRQ2xlYXJNYXRjaFJlcXVlc3QSDwoHaXRlbV9pZBgBIAEoAyInChJDbGVhck1hdGNoUmVzcG9uc2USEQoJdW5tYXRjaGVkGAEgASgEIi8KGUxpc3RVbm1hdGNoZWRJdGVtc1JlcXVlc3QSEgoKbGlicmFyeV9pZBgBIAEoAyJDChpMaXN0VW5tYXRjaGVkSXRlbXNSZXNwb25zZRIlCgVpdGVtcxgBIAMoCzIWLm5hbWEudjEuVW5tYXRjaGVkSXRlbSK9AQoNVW5tYXRjaGVkSXRlbRIPCgdpdGVtX2lkGAEgASgDEgwKBHBhdGgYAiABKAkSIAoEa2luZBgDIAEoDjISLm5hbWEudjEuVGl0bGVLaW5kEg0KBXRpdGxlGAQgASgJEhEKBHllYXIYBSABKAVIAIgBARITCgZzZWFzb24YBiABKAVIAYgBARIUCgdlcGlzb2RlGAcgASgFSAKIAQFCBwoFX3llYXJCCQoHX3NlYXNvbkIKCghfZXBpc29kZSpSCglUaXRsZUtpbmQSGgoWVElUTEVfS0lORF9VTlNQRUNJRklFRBAAEhQKEFRJVExFX0tJTkRfTU9WSUUQARITCg9USVRMRV9LSU5EX1NIT1cQAjLcAgoMTWF0Y2hTZXJ2aWNlElYKDlNlYXJjaE1ldGFkYXRhEh4ubmFtYS52MS5TZWFyY2hNZXRhZGF0YVJlcXVlc3QaHy5uYW1hLnYxLlNlYXJjaE1ldGFkYXRhUmVzcG9uc2UiA5ACARJECghTZXRNYXRjaBIYLm5hbWEudjEuU2V0TWF0Y2hSZXF1ZXN0GhkubmFtYS52MS5TZXRNYXRjaFJlc3BvbnNlIgOQAgISSgoKQ2xlYXJNYXRjaBIaLm5hbWEudjEuQ2xlYXJNYXRjaFJlcXVlc3QaGy5uYW1hLnYxLkNsZWFyTWF0Y2hSZXNwb25zZSIDkAICEmIKEkxpc3RVbm1hdGNoZWRJdGVtcxIiLm5hbWEudjEuTGlzdFVubWF0Y2hlZEl0ZW1zUmVxdWVzdBojLm5hbWEudjEuTGlzdFVubWF0Y2hlZEl0ZW1zUmVzcG9uc2UiA5ACAWIGcHJvdG8z");
 
 /**
  * An id of a title in a metadata source. Movies and Shows have separate id spaces.
@@ -238,6 +238,106 @@ export const ClearMatchResponseSchema: GenMessage<ClearMatchResponse> = /*@__PUR
   messageDesc(file_nama_v1_match, 7);
 
 /**
+ * @generated from message nama.v1.ListUnmatchedItemsRequest
+ */
+export type ListUnmatchedItemsRequest = Message<"nama.v1.ListUnmatchedItemsRequest"> & {
+  /**
+   * The Library whose items to list.
+   *
+   * @generated from field: int64 library_id = 1;
+   */
+  libraryId: bigint;
+};
+
+/**
+ * Describes the message nama.v1.ListUnmatchedItemsRequest.
+ * Use `create(ListUnmatchedItemsRequestSchema)` to create a new message.
+ */
+export const ListUnmatchedItemsRequestSchema: GenMessage<ListUnmatchedItemsRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_match, 8);
+
+/**
+ * @generated from message nama.v1.ListUnmatchedItemsResponse
+ */
+export type ListUnmatchedItemsResponse = Message<"nama.v1.ListUnmatchedItemsResponse"> & {
+  /**
+   * @generated from field: repeated nama.v1.UnmatchedItem items = 1;
+   */
+  items: UnmatchedItem[];
+};
+
+/**
+ * Describes the message nama.v1.ListUnmatchedItemsResponse.
+ * Use `create(ListUnmatchedItemsResponseSchema)` to create a new message.
+ */
+export const ListUnmatchedItemsResponseSchema: GenMessage<ListUnmatchedItemsResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_match, 9);
+
+/**
+ * An item that needs a Match, and what its file's name was parsed as. `kind`, `title` and `year`
+ * are what to pass to `SearchMetadata` to find its title.
+ *
+ * @generated from message nama.v1.UnmatchedItem
+ */
+export type UnmatchedItem = Message<"nama.v1.UnmatchedItem"> & {
+  /**
+   * The item to pass to `SetMatch`.
+   *
+   * @generated from field: int64 item_id = 1;
+   */
+  itemId: bigint;
+
+  /**
+   * The absolute path of the file that holds it.
+   *
+   * @generated from field: string path = 2;
+   */
+  path: string;
+
+  /**
+   * `TITLE_KIND_MOVIE` for a Movie, or `TITLE_KIND_SHOW` for an Episode of a Show.
+   *
+   * @generated from field: nama.v1.TitleKind kind = 3;
+   */
+  kind: TitleKind;
+
+  /**
+   * The Movie's title, or the title of the Show the Episode is in.
+   *
+   * @generated from field: string title = 4;
+   */
+  title: string;
+
+  /**
+   * The year the Movie was released or the Show first aired, if the name says.
+   *
+   * @generated from field: optional int32 year = 5;
+   */
+  year?: number | undefined;
+
+  /**
+   * For an Episode, its Season number; 0 holds specials.
+   *
+   * @generated from field: optional int32 season = 6;
+   */
+  season?: number | undefined;
+
+  /**
+   * For an Episode, its number within the Season.
+   *
+   * @generated from field: optional int32 episode = 7;
+   */
+  episode?: number | undefined;
+};
+
+/**
+ * Describes the message nama.v1.UnmatchedItem.
+ * Use `create(UnmatchedItemSchema)` to create a new message.
+ */
+export const UnmatchedItemSchema: GenMessage<UnmatchedItem> = /*@__PURE__*/
+  messageDesc(file_nama_v1_match, 10);
+
+/**
  * Whether a title is a Movie or a Show.
  *
  * @generated from enum nama.v1.TitleKind
@@ -322,6 +422,19 @@ export const MatchService: GenService<{
     methodKind: "unary";
     input: typeof ClearMatchRequestSchema;
     output: typeof ClearMatchResponseSchema;
+  },
+  /**
+   * Lists the items of a Library that need a Match, by path: those Matching left Unmatched, and
+   * those it hasn't Matched yet, such as when no metadata Provider was enabled. Items pinned
+   * Unmatched with `ClearMatch` aren't listed, since an Admin has already decided about them.
+   * Fails with `not_found` if there is no such Library.
+   *
+   * @generated from rpc nama.v1.MatchService.ListUnmatchedItems
+   */
+  listUnmatchedItems: {
+    methodKind: "unary";
+    input: typeof ListUnmatchedItemsRequestSchema;
+    output: typeof ListUnmatchedItemsResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_nama_v1_match, 0);
