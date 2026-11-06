@@ -41,10 +41,16 @@ use nama_plugin_api::{
         SearchQuery, Season, Show, TitleKind,
     },
 };
+use nama_proto::nama::v1::{Event, ItemMatched};
 use sqlx::SqliteConnection;
 use tokio_util::sync::CancellationToken;
 
-use crate::{db::Database, plugins::Registry, scanner::ItemKind};
+use crate::{
+    db::Database,
+    events::{EventBus, event},
+    plugins::Registry,
+    scanner::ItemKind,
+};
 
 use confidence::Decision;
 
@@ -92,6 +98,7 @@ pub(crate) enum ManualError {
 pub(crate) struct Matcher {
     db: Arc<Database>,
     plugins: Registry,
+    events: EventBus,
 }
 
 /// The title an item names: a Movie, or the Show an Episode is in.
@@ -262,9 +269,14 @@ impl Metadata {
 }
 
 impl Matcher {
-    /// A matcher storing Matches in `db`, asking the metadata Provider enabled in `plugins`.
-    pub(crate) const fn new(db: Arc<Database>, plugins: Registry) -> Self {
-        Self { db, plugins }
+    /// A matcher storing Matches in `db`, asking the metadata Provider enabled in `plugins`, and
+    /// publishing the Matches it stores on `events`.
+    pub(crate) const fn new(db: Arc<Database>, plugins: Registry, events: EventBus) -> Self {
+        Self {
+            db,
+            plugins,
+            events,
+        }
     }
 
     /// The titles the metadata Provider finds for `query`, best fit first.
@@ -369,7 +381,7 @@ impl Matcher {
             let decided = unnumbered
                 .into_iter()
                 .map(|item| (item, Err(Miss::Unmatched)));
-            self.store(decided.collect(), &mut summary).await?;
+            self.store(library, decided.collect(), &mut summary).await?;
         }
         // Once the Provider fails (or there is none), asking about the other titles would only
         // fail too, so the rest is left for the next scan.
@@ -385,7 +397,7 @@ impl Matcher {
             let outcome = self.match_movie(&key).await;
             available = !matches!(outcome, Err(Miss::Undecided));
             let decided = items.into_iter().map(|item| (item, outcome.clone()));
-            self.store(decided.collect(), &mut summary).await?;
+            self.store(library, decided.collect(), &mut summary).await?;
         }
         for (key, episodes) in shows {
             if cancel.is_cancelled() {
@@ -399,7 +411,7 @@ impl Matcher {
             available = !decided
                 .iter()
                 .any(|(_, outcome)| matches!(outcome, Err(Miss::Undecided)));
-            self.store(decided, &mut summary).await?;
+            self.store(library, decided, &mut summary).await?;
         }
         if summary != Summary::default() {
             tracing::info!(library, ?summary, "matched a Library");
@@ -684,9 +696,11 @@ impl Matcher {
         }
     }
 
-    /// Stores what was decided about each item, counting it in `summary`.
+    /// Stores what was decided about each item of the Library `library`, counting it in
+    /// `summary`.
     async fn store(
         &self,
+        library: i64,
         outcomes: Vec<(i64, Result<Metadata, Miss>)>,
         summary: &mut Summary,
     ) -> Result<(), sqlx::Error> {
@@ -694,10 +708,13 @@ impl Matcher {
         if decided.is_empty() {
             return Ok(());
         }
+        let matched = matched_events(library, &decided);
         let now = now();
         self.db
             .write(move |tx| Box::pin(insert_decisions(tx, decided, now)))
-            .await
+            .await?;
+        self.events.publish(matched);
+        Ok(())
     }
 
     /// Pins `pin` for the items `named` names, and stores what was decided about them, in one
@@ -717,16 +734,18 @@ impl Matcher {
             ?summary,
             "fixing a Match by hand"
         );
+        let matched = matched_events(named.library, &decided);
         let now = now();
         self.db
             .write(move |tx| Box::pin(store_pin(tx, named, pin, decided, now)))
             .await?;
+        self.events.publish(matched);
         Ok(summary)
     }
 }
 
 /// `n` items, as a [`Summary`] counts them.
-fn count(n: usize) -> u64 {
+pub(crate) fn count(n: usize) -> u64 {
     u64::try_from(n).unwrap_or(u64::MAX)
 }
 
@@ -750,6 +769,22 @@ fn tally(
         }
     }
     decided
+}
+
+/// The events for the items of the Library `library` that `decided` Matches.
+fn matched_events(library: i64, decided: &[(i64, Decided)]) -> Vec<Event> {
+    decided
+        .iter()
+        .filter_map(|(item, decision)| match decision {
+            Decided::Matched(metadata) => Some(event(ItemMatched {
+                library_id: library,
+                item_id: *item,
+                title: metadata.title.clone(),
+                ..Default::default()
+            })),
+            Decided::Unmatched => None,
+        })
+        .collect()
 }
 
 /// Now, in seconds since the Unix epoch.
@@ -983,6 +1018,7 @@ impl Matcher {
 mod tests {
     use std::{collections::BTreeMap, fs, path::PathBuf, sync::Arc};
 
+    use futures_util::{FutureExt, StreamExt};
     use nama_plugin_api::{
         PluginId,
         metadata::{ExternalId, ExternalIds},
@@ -992,11 +1028,13 @@ mod tests {
         Tmdb,
         testing::{API_KEY, FakeTmdb},
     };
+    use nama_proto::nama::v1::{EventType, ItemMatched, subscribe_response};
     use tempfile::TempDir;
 
     use super::{ManualError, MatchState, Matcher, Stored};
     use crate::{
         db::Database,
+        events::{EventBus, Filter, event},
         libraries::{Kind, Libraries},
         plugins::Registry,
         scanner::Scanner,
@@ -1007,6 +1045,7 @@ mod tests {
         scanner: Scanner,
         matcher: Matcher,
         plugins: Registry,
+        events: EventBus,
         tmdb: FakeTmdb,
         movies: Library,
         shows: Library,
@@ -1061,10 +1100,12 @@ mod tests {
             let movies = create("Movies", Kind::Movies).await;
             let shows = create("Shows", Kind::Shows).await;
             let plugins = Registry::new();
+            let events = EventBus::new(Registry::new());
             Self {
-                scanner: Scanner::new(Arc::clone(&db), plugins.clone()),
-                matcher: Matcher::new(db, plugins.clone()),
+                scanner: Scanner::new(Arc::clone(&db), plugins.clone(), events.clone()),
+                matcher: Matcher::new(db, plugins.clone(), events.clone()),
                 plugins,
+                events,
                 tmdb: FakeTmdb::start().await,
                 movies,
                 shows,
@@ -1239,6 +1280,38 @@ mod tests {
         assert_eq!(
             alien.poster.as_deref(),
             Some("/vfrQk5IPloGg1v9Rzbh2Eg3VGyM.jpg")
+        );
+    }
+
+    #[tokio::test]
+    async fn a_match_is_published_once_stored() {
+        let media = Fixture::new().await;
+        let movies = &media.movies;
+        movies.write("Alien (1979)/Alien (1979).mkv");
+        // Unmatched, which publishes nothing.
+        movies.write("Home Movies (2019)/Home Movies (2019).mkv");
+        let filter = Filter {
+            types: vec![EventType::EVENT_TYPE_ITEM_MATCHED],
+            libraries: vec![],
+        };
+        let mut matches = Box::pin(media.events.subscribe(filter));
+
+        media.scan(movies).await;
+
+        let alien = media.item(movies, "Alien (1979)/Alien (1979).mkv").await;
+        let expected = event(ItemMatched {
+            library_id: movies.id,
+            item_id: alien,
+            title: "Alien".to_owned(),
+            ..Default::default()
+        });
+        assert_eq!(
+            matches.next().await.and_then(|response| response.message),
+            Some(subscribe_response::Message::from(expected))
+        );
+        assert!(
+            matches.next().now_or_never().is_none(),
+            "an Unmatched item was published"
         );
     }
 

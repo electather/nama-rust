@@ -1,0 +1,113 @@
+syntax = "proto3";
+
+package nama.v1;
+
+// Live updates: what happens on the Server as it happens. Observers receive the same `Event`s.
+service EventService {
+  // Streams the events that happen from now on, as filtered by the request, until the client
+  // hangs up. Events about Libraries' files arrive in batches, each once the database has stored
+  // the changes it describes.
+  //
+  // A client that reads more slowly than events happen doesn't hold up the Server. Once more
+  // events are waiting for it than the Server buffers, the oldest are dropped and the client gets
+  // a `Lagged` in their place, after which it may want to read again what it shows.
+  rpc Subscribe(SubscribeRequest) returns (stream SubscribeResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+}
+
+// The kinds of `Event`, one per field of its `event`.
+enum EventType {
+  EVENT_TYPE_UNSPECIFIED = 0;
+  EVENT_TYPE_SCAN_STARTED = 1;
+  EVENT_TYPE_SCAN_PROGRESS = 2;
+  EVENT_TYPE_SCAN_FINISHED = 3;
+  EVENT_TYPE_LIBRARY_ITEM_ADDED = 4;
+  EVENT_TYPE_LIBRARY_ITEM_REMOVED = 5;
+  EVENT_TYPE_ITEM_MATCHED = 6;
+}
+
+message SubscribeRequest {
+  // Only events of these types. Empty means every type.
+  repeated EventType types = 1;
+  // Only events about these Libraries. Empty means every Library.
+  repeated int64 library_ids = 2;
+}
+
+message SubscribeResponse {
+  oneof message {
+    // Something that happened.
+    Event event = 1;
+    // Events were dropped here because the client fell behind.
+    Lagged lagged = 2;
+  }
+}
+
+// Events this client didn't read in time were dropped.
+message Lagged {
+  // How many were dropped, counting those the filter would have left out.
+  uint64 dropped = 1;
+}
+
+// Something that happened on the Server.
+message Event {
+  oneof event {
+    ScanStarted scan_started = 1;
+    ScanProgress scan_progress = 2;
+    ScanFinished scan_finished = 3;
+    LibraryItemAdded library_item_added = 4;
+    LibraryItemRemoved library_item_removed = 5;
+    ItemMatched item_matched = 6;
+  }
+}
+
+// A scan of a Library's folders began.
+message ScanStarted {
+  int64 library_id = 1;
+}
+
+// A scan stored another batch of the changes it found. Files that haven't changed since the last
+// scan aren't counted.
+message ScanProgress {
+  int64 library_id = 1;
+  // How many new, changed or gone files have been stored or removed so far.
+  uint64 files_done = 2;
+  // How many new, changed or gone files the scan found.
+  uint64 files_total = 3;
+}
+
+// A scan stored every change it found. Matching the new Items follows. A scan that fails or is
+// cancelled sends none.
+message ScanFinished {
+  int64 library_id = 1;
+  // Files found that weren't stored before.
+  uint64 added = 2;
+  // Stored files whose size or modified time changed.
+  uint64 updated = 3;
+  // Stored files that are gone.
+  uint64 removed = 4;
+  // Stored files left as they were.
+  uint64 unchanged = 5;
+}
+
+// A scan stored an Item, for a new file or one that changed.
+message LibraryItemAdded {
+  int64 library_id = 1;
+  int64 item_id = 2;
+  // The absolute path, on the Server, of the file holding the Item.
+  string path = 3;
+}
+
+// An Item is gone, because its file is gone or changed.
+message LibraryItemRemoved {
+  int64 library_id = 1;
+  int64 item_id = 2;
+}
+
+// An Item was Matched, automatically or by hand.
+message ItemMatched {
+  int64 library_id = 1;
+  int64 item_id = 2;
+  // The title of the Movie or Episode it was Matched to.
+  string title = 3;
+}
