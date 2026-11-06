@@ -1,6 +1,6 @@
 # TASK
 
-Branch `{{BRANCH}}` (issue #{{ISSUE_NUMBER}}: {{ISSUE_TITLE}}) can't merge yet:
+Branch `{{BRANCH}}` (issue #{{ISSUE_NUMBER}}: {{ISSUE_TITLE}}, parent issue: {{PARENT}}) can't merge yet:
 
 {{PROBLEM}}
 
