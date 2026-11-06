@@ -1,0 +1,21 @@
+# Only install versions that have been public for a day, so a compromised release has time to be
+# caught and pulled before it reaches us. In minutes.
+minimumReleaseAge: 1440
+
+# Dependencies allowed to run install scripts. None needs to yet; pnpm skips any that asks.
+allowBuilds: {}
+
+# `vp` pins Node and pnpm (devEngines in package.json), so pnpm leaves the versions to it.
+runtimeOnFail: ignore
+pmOnFail: ignore
+
+catalog:
+  vite: npm:@voidzero-dev/vite-plus-core@1.5.0
+  vite-plus: 1.5.0
+overrides:
+  vite@*: "catalog:"
+peerDependencyRules:
+  allowAny:
+    - vite
+  allowedVersions:
+    vite: "*"

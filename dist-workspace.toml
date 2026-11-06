@@ -16,3 +16,7 @@ hosting = "github"
 # Don't run release jobs on pull requests: they need GitHub-hosted runners, and the
 # account has no Actions minutes. CI (ci.yml) covers PRs on the self-hosted runners.
 pr-run-mode = "skip"
+# Release binaries embed and serve the web app (ADR 0004). `.github/build-setup.yml` runs
+# `vp build` before cargo, since the feature embeds web/dist.
+features = ["web"]
+github-build-setup = "../build-setup.yml"

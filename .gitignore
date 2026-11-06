@@ -1,2 +1,5 @@
 /target
 .env
+# pnpm keeps its store on the same filesystem as web/, at the mount root when that differs
+# from the home directory's.
+/.pnpm-store

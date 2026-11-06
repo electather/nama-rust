@@ -44,6 +44,8 @@ cargo deny check
 
 It also checks that the generated code and the sqlx query data are current. If you change `proto/`, see [`crates/nama-proto/README.md`](crates/nama-proto/README.md). If you change a query or a migration, see [`crates/nama-server/README.md`](crates/nama-server/README.md).
 
+A `web` job runs the web app's checks ([`web/README.md`](web/README.md), "Checks"), then `cargo test -p nama-server --features web --test web` against its build.
+
 ## License
 
 The Server, Hub, `nama-plugin-api` and Built-in Plugins are AGPL-3.0-only ([`LICENSE`](LICENSE)). The contracts that others build against, `nama-proto`, `nama-pdk` and `proto/`, are MIT OR Apache-2.0 (ADR 0009). Each crate's `Cargo.toml` states its license.
