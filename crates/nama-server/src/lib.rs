@@ -9,6 +9,7 @@ mod events;
 mod libraries;
 mod matching;
 pub mod plugins;
+mod rate_limits;
 mod scanner;
 mod sessions;
 mod sign_in_codes;
@@ -16,7 +17,7 @@ pub mod users;
 #[cfg(feature = "web")]
 mod web;
 
-use std::{future::Future, io, sync::Arc};
+use std::{future::Future, io, net::SocketAddr, sync::Arc};
 
 use tokio::net::TcpListener;
 
@@ -37,6 +38,8 @@ use crate::{
 /// to stop.
 ///
 /// While the Server has no Users, `Setup` creates the first Admin for whoever gives `setup_code`.
+/// `Setup` and `SignIn` are rate limited by the peer's IP address. Forwarded-for headers aren't
+/// trusted, so behind a reverse proxy every client shares the proxy's address and its limit.
 ///
 /// Clients speak the Connect protocol over HTTP/1.1 or cleartext HTTP/2, with JSON or binary
 /// protobuf bodies. With the `web` feature, any other `GET` gets the web app.
@@ -71,13 +74,17 @@ pub fn serve(
     let app = app.layer(axum::middleware::from_fn(web::serve));
     async move {
         scanner.start_all().await;
-        let served = axum::serve(listener, app)
-            .with_graceful_shutdown(async move {
-                shutdown.await;
-                // A subscription never ends by itself, and the shutdown waits for every response.
-                events.close();
-            })
-            .await;
+        let served = axum::serve(
+            listener,
+            // Sign-in and setup are rate limited by the peer's address.
+            app.into_make_service_with_connect_info::<SocketAddr>(),
+        )
+        .with_graceful_shutdown(async move {
+            shutdown.await;
+            // A subscription never ends by itself, and the shutdown waits for every response.
+            events.close();
+        })
+        .await;
         scanner.shutdown().await;
         served
     }

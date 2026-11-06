@@ -1,10 +1,18 @@
 //! The Server's ConnectRPC API (ADR 0007), served on axum.
 
-use std::{future, sync::Arc, time::Instant};
+use std::{
+    future,
+    net::{IpAddr, SocketAddr},
+    sync::Arc,
+    time::Instant,
+};
 
 use axum::{
-    extract::Request,
-    http::{HeaderMap, header::SET_COOKIE},
+    extract::{ConnectInfo, Request},
+    http::{
+        HeaderMap, HeaderValue,
+        header::{RETRY_AFTER, SET_COOKIE},
+    },
     middleware::{self, Next},
     response::IntoResponse,
 };
@@ -41,6 +49,7 @@ use crate::{
     libraries::{self, Kind, Libraries, Library},
     matching::{ManualError, Matcher},
     plugins::Registry,
+    rate_limits::{Blocked, SignInLimits},
     scanner::Scanner,
     sessions::{cleared_session_cookie, identify_caller, in_session_cookie, session_cookie},
     sign_in_codes::{self, Poll, SignInCodes},
@@ -71,6 +80,7 @@ pub(crate) fn router(
         .add_service(Arc::new(SignInServiceHandler {
             users: users.clone(),
             setup_code,
+            limits: SignInLimits::default(),
             sign_in_codes: SignInCodes::default(),
         }))
         .add_service(Arc::new(MatchServiceHandler {
@@ -184,6 +194,8 @@ struct SignInServiceHandler {
     users: Users,
     /// What `Setup` must be given. `None` once the Server started with Users.
     setup_code: Option<SetupCode>,
+    /// The recent failures of `Setup` and `SignIn`, which slow guessing down.
+    limits: SignInLimits,
     sign_in_codes: SignInCodes,
 }
 
@@ -199,6 +211,7 @@ impl SignInService for SignInServiceHandler {
         request: ServiceRequest<'_, SetupRequest>,
     ) -> ServiceResult<SetupResponse> {
         let request = request.to_owned_message();
+        let attempt = self.limits.admit(peer_ip(&ctx)?, None)?;
         let wants_token = wants_token(request.delivery)?;
         // The Server only made no code because it started with Users. Users are checked before the
         // code, so once there are any every attempt is refused as already set up, as documented.
@@ -218,6 +231,7 @@ impl SignInService for SignInServiceHandler {
             .users
             .create_first_admin(&request.name, &request.password, &request.device_name)
             .await?;
+        self.limits.succeeded(&attempt);
         Ok(hand_out_session(
             signed_in,
             wants_token,
@@ -237,11 +251,13 @@ impl SignInService for SignInServiceHandler {
         request: ServiceRequest<'_, SignInRequest>,
     ) -> ServiceResult<SignInResponse> {
         let request = request.to_owned_message();
+        let attempt = self.limits.admit(peer_ip(&ctx)?, Some(&request.name))?;
         let wants_token = wants_token(request.delivery)?;
         let signed_in = self
             .users
             .sign_in(&request.name, &request.password, &request.device_name)
             .await?;
+        self.limits.succeeded(&attempt);
         Ok(hand_out_session(
             signed_in,
             wants_token,
@@ -764,6 +780,26 @@ impl From<users::Error> for ConnectError {
                 Self::internal("the Server failed")
             }
         }
+    }
+}
+
+/// The IP address `ctx` came from, which rate limits count by. Forwarded-for headers are ignored:
+/// any client can set them to dodge its limit.
+fn peer_ip(ctx: &RequestContext) -> Result<IpAddr, ConnectError> {
+    let peer = ctx.extensions().get::<ConnectInfo<SocketAddr>>();
+    peer.map(|ConnectInfo(addr)| addr.ip()).ok_or_else(|| {
+        tracing::error!("a request came without its peer's address");
+        ConnectError::internal("the Server failed")
+    })
+}
+
+/// The Connect error a client gets for a rate-limited attempt, with the delay to wait in
+/// `Retry-After`.
+impl From<Blocked> for ConnectError {
+    fn from(blocked: Blocked) -> Self {
+        let retry_after = HeaderValue::from(blocked.retry_after_secs());
+        let headers = HeaderMap::from_iter([(RETRY_AFTER, retry_after)]);
+        Self::resource_exhausted(blocked.to_string()).with_headers(headers)
     }
 }
 
