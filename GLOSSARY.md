@@ -30,6 +30,14 @@ _Avoid_: profile, member, local user
 A client installation signed in to a Server as a User, with its own session that can be revoked.
 _Avoid_: client, session, token
 
+**Sign-in Code**:
+A short code a new Device shows so a User already signed in elsewhere can sign it in without typing a password on it.
+_Avoid_: pairing code, PIN, device code
+
+**Setup Code**:
+A one-time code a fresh Server prints to its log, which whoever creates the first Admin must enter.
+_Avoid_: claim token, bootstrap code
+
 **Role**:
 What a User is allowed to do on a Server, either Admin or Member.
 _Avoid_: group, permission level
@@ -77,7 +85,7 @@ A Plugin's handler that can let an action continue, modify it, or veto it before
 _Avoid_: middleware, filter
 
 **Provider**:
-A Plugin's implementation of a capability the Server needs, such as metadata or Request fulfillment.
+A Plugin's implementation of a capability the Server needs, such as metadata, checking a User's credentials, or Request fulfillment.
 _Avoid_: driver, backend, adapter
 
 ## Media
@@ -89,6 +97,26 @@ _Avoid_: collection, section
 **Item**:
 What a file in a Library holds, going by its name: one Movie, or one or more Episodes of a Show. Each Item is Matched on its own.
 _Avoid_: entry, media item, title
+
+**Movie**:
+A film, as a metadata source describes it.
+_Avoid_: film, title, item
+
+**Show**:
+A TV series, as a metadata source describes it, made up of Seasons of Episodes.
+_Avoid_: series, TV show, title
+
+**Season**:
+One numbered run of a Show's Episodes.
+_Avoid_: series
+
+**Episode**:
+One installment of a Show, numbered within a Season.
+_Avoid_: chapter, part
+
+**Version**:
+One of the files a Movie or Episode is available in. A Movie with two Matched files has two Versions.
+_Avoid_: copy, edition, file
 
 **Match**:
 The link between an Item in a Library and a title in a metadata source. An Item without one is Unmatched.
