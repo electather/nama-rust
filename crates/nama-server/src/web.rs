@@ -22,19 +22,22 @@ pub(crate) async fn serve(request: Request, next: Next) -> Response {
     }
     match asset(path) {
         Some(body) => ([(header::CONTENT_TYPE, content_type(path))], body).into_response(),
-        None => ([(header::CONTENT_TYPE, HTML)], SHELL).into_response(),
+        None => ([(header::CONTENT_TYPE, HTML_CONTENT_TYPE)], SHELL).into_response(),
     }
 }
 
-const HTML: &str = "text/html; charset=utf-8";
+const HTML_CONTENT_TYPE: &str = "text/html; charset=utf-8";
 
 /// The media type of a file `vp build` writes, by its extension.
 fn content_type(path: &str) -> &'static str {
     match path.rsplit_once('.').map(|(_, extension)| extension) {
-        Some("html") => HTML,
+        Some("html") => HTML_CONTENT_TYPE,
         Some("js") => "text/javascript; charset=utf-8",
         Some("css") => "text/css; charset=utf-8",
         Some("woff2") => "font/woff2",
+        Some("svg") => "image/svg+xml",
+        Some("png") => "image/png",
+        Some("ico") => "image/x-icon",
         _ => "application/octet-stream",
     }
 }
