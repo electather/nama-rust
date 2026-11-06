@@ -34,6 +34,8 @@ const sandbox = () =>
       { hostPath: cargoCache, sandboxPath: "~/.cargo/registry" },
       // your mattpocock skills (tdd, code-review, …) available to agents in the container
       { hostPath: "~/.agents/skills", sandboxPath: "~/.claude/skills", readonly: true },
+      // ponytail is a plugin, not in ~/.agents/skills; same path in and out so implement-prompt.md finds it either way
+      { hostPath: "~/.claude/plugins/cache/ponytail/ponytail", sandboxPath: "~/.claude/plugins/cache/ponytail/ponytail", readonly: true },
     ],
   });
 
@@ -86,7 +88,13 @@ function handBack(issue: Issue, why: string) {
   );
 }
 
-async function build(issue: Issue): Promise<Box> {
+// The reviewer writes the PR body with the `pr` skill; fall back to a stub if it didn't.
+function prBody(issue: Issue, reviewOut: string) {
+  const written = [...reviewOut.matchAll(/<pr-body>([\s\S]*?)<\/pr-body>/g)].pop()?.[1]?.trim();
+  return `Closes #${issue.number}\n\n${written || "Built by the sandcastle factory (implement → code-review → fix)."}`;
+}
+
+async function build(issue: Issue): Promise<{ box: Box; body: string }> {
   const box = await sandcastle.createSandbox({
     branch: branchOf(issue),
     baseBranch: `origin/${BASE}`,
@@ -95,8 +103,8 @@ async function build(issue: Issue): Promise<Box> {
   try {
     await agent(box, issue, "implement");
     if (!ahead(branchOf(issue))) throw new Blocked("implementer made no commits");
-    await agent(box, issue, "review");
-    return box;
+    const review = await agent(box, issue, "review");
+    return { box, body: prBody(issue, review.stdout) };
   } catch (e) {
     await box.close();
     throw e;
@@ -112,7 +120,7 @@ async function waitForChecks(pr: string): Promise<"pass" | "fail" | "none"> {
   return "fail";
 }
 
-async function ship(issue: Issue, box: Box) {
+async function ship(issue: Issue, box: Box, body: string) {
   const branch = branchOf(issue);
   git("fetch", "origin");
   if (!ok("git", "merge-base", "--is-ancestor", `origin/${BASE}`, branch)) {
@@ -121,10 +129,10 @@ async function ship(issue: Issue, box: Box) {
   git("push", "--force-with-lease", "origin", `${branch}:${branch}`);
 
   const existing = gh("pr", "list", "--head", branch, "--state", "open", "--json", "number", "--jq", ".[0].number");
+  if (existing) gh("pr", "edit", existing, "--body", body); // resumed run: refresh the body for the new review
   const pr =
     existing ||
-    gh("pr", "create", "--base", BASE, "--head", branch, "--title", issue.title,
-      "--body", `Closes #${issue.number}\n\nBuilt by the sandcastle factory (implement → code-review → fix).`)
+    gh("pr", "create", "--base", BASE, "--head", branch, "--title", issue.title, "--body", body)
       .split("/").pop()!;
 
   let checks = await waitForChecks(pr);
@@ -165,10 +173,10 @@ for (let cycle = 1; cycle <= MAX_CYCLES && !crashed; cycle++) {
       }
       continue;
     }
-    const box = outcome.value;
+    const { box, body } = outcome.value;
     let merged = false;
     try {
-      await ship(issue, box);
+      await ship(issue, box, body);
       merged = true;
     } catch (e) {
       if (e instanceof Blocked) handBack(issue, e.message);
