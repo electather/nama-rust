@@ -1249,6 +1249,7 @@ dependencies = [
  "nama-plugin-log-events",
  "nama-plugin-tmdb",
  "nama-proto",
+ "nama-server",
  "regex",
  "serde",
  "serde_json",

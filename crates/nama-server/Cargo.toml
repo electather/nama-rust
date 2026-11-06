@@ -6,6 +6,10 @@ license = "AGPL-3.0-only"
 edition.workspace = true
 repository.workspace = true
 
+[features]
+# `contents::Contents::files`: what a Library holds, as integration tests read it back.
+testing = []
+
 [dependencies]
 axum = { version = "0.8", default-features = false, features = ["http1", "http2", "tokio"] }
 buffa = "0.9.2"
@@ -33,6 +37,7 @@ figment = { version = "0.10", features = ["test"] }
 http-body-util = "0.1"
 hyper = { version = "1", features = ["client", "http1"] }
 hyper-util = { version = "0.1", features = ["tokio"] }
+nama-server = { path = ".", features = ["testing"] }
 nama-plugin-tmdb = { version = "0.1.0", path = "../../plugins/tmdb", features = ["testing"] }
 serde_json = "1"
 tempfile = "3"

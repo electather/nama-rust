@@ -27,12 +27,7 @@
 
 mod confidence;
 
-use std::{
-    collections::BTreeMap,
-    future::Future,
-    sync::Arc,
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::{collections::BTreeMap, future::Future, sync::Arc};
 
 use nama_plugin_api::{
     PluginId,
@@ -42,14 +37,13 @@ use nama_plugin_api::{
     },
 };
 use nama_proto::nama::v1::{Event, ItemMatched};
-use sqlx::SqliteConnection;
 use tokio_util::sync::CancellationToken;
 
 use crate::{
+    contents::{Contents, Decided, Item, Metadata, Name, Named, Pin},
     db::Database,
     events::{EventBus, event},
     plugins::Registry,
-    scanner::ItemKind,
 };
 
 use confidence::Decision;
@@ -96,7 +90,7 @@ pub(crate) enum ManualError {
 /// Matches the items of Libraries using the enabled metadata Provider.
 #[derive(Debug, Clone)]
 pub(crate) struct Matcher {
-    db: Arc<Database>,
+    contents: Contents,
     plugins: Registry,
     events: EventBus,
 }
@@ -104,71 +98,9 @@ pub(crate) struct Matcher {
 /// The title an item names: a Movie, or the Show an Episode is in.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 struct TitleKey {
-    title: String,
-    year: Option<i64>,
-    /// From an ID hint.
-    tmdb_id: Option<i64>,
+    name: Name,
     /// What an admin pinned for items named so.
     pin: Option<Pin>,
-}
-
-/// A Match an admin set or cleared by hand, which Matching follows instead of searching.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-enum Pin {
-    /// Match the Movie, or for Episodes the Show, with this id.
-    Title(ExternalId),
-    /// Leave the items Unmatched.
-    Unmatched,
-}
-
-impl Pin {
-    /// The pin stored in the `match_pins` row, if there is one, holding the id in `ids`.
-    fn from_row(pinned: bool, ids: ExternalIds) -> Option<Self> {
-        if !pinned {
-            return None;
-        }
-        let id = ids
-            .tmdb
-            .map(ExternalId::Tmdb)
-            .or_else(|| ids.imdb.map(ExternalId::Imdb))
-            .or_else(|| ids.tvdb.map(ExternalId::Tvdb));
-        Some(id.map_or(Self::Unmatched, Self::Title))
-    }
-
-    /// The pinned id, as the `pinned_*` columns of `match_pins` hold it.
-    fn columns(&self) -> ExternalIds {
-        let mut ids = ExternalIds::default();
-        match self {
-            Self::Title(ExternalId::Tmdb(id)) => ids.tmdb = Some(*id),
-            Self::Title(ExternalId::Imdb(id)) => ids.imdb = Some(id.clone()),
-            Self::Title(ExternalId::Tvdb(id)) => ids.tvdb = Some(*id),
-            Self::Unmatched => {}
-        }
-        ids
-    }
-}
-
-/// The items of a Library named like one item: copies of the same Movie, or the Episodes of the
-/// same Show.
-#[derive(Debug)]
-struct Named {
-    /// The item they were looked up through.
-    item: i64,
-    library: i64,
-    kind: ItemKind,
-    key: TitleKey,
-    /// The Movies; empty for a Show.
-    movies: Vec<i64>,
-    /// The Episodes; empty for a Movie.
-    episodes: Vec<PendingEpisode>,
-}
-
-impl Named {
-    /// Every item's id.
-    fn items(&self) -> impl Iterator<Item = i64> {
-        let episodes = self.episodes.iter().map(|episode| episode.item);
-        self.movies.iter().copied().chain(episodes)
-    }
 }
 
 /// A Show the metadata Provider has, and the Plugin whose Provider it came from.
@@ -186,9 +118,6 @@ struct Pending {
     movies: BTreeMap<TitleKey, Vec<i64>>,
     /// Episodes, grouped by the Show they're in.
     shows: BTreeMap<TitleKey, Vec<PendingEpisode>>,
-    /// Episodes stored without a Season or Episode number, which no title can fit. The schema
-    /// forbids them, so there should be none.
-    unnumbered: Vec<i64>,
 }
 
 /// An Episode waiting to be Matched.
@@ -199,6 +128,22 @@ struct PendingEpisode {
     episode: i64,
 }
 
+impl PendingEpisode {
+    /// The Item `item`, `what` it is, if that's an Episode.
+    const fn of(item: i64, what: &Item) -> Option<Self> {
+        match *what {
+            Item::Episode {
+                season, episode, ..
+            } => Some(Self {
+                item,
+                season,
+                episode,
+            }),
+            Item::Movie { .. } => None,
+        }
+    }
+}
+
 /// Why Matching found no title for an item.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Miss {
@@ -207,31 +152,6 @@ enum Miss {
     /// The metadata Provider couldn't answer: the item is Unmatched for now, but undecided, so
     /// the next scan tries again.
     Undecided,
-}
-
-/// What Matching decided about one item.
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum Decided {
-    Matched(Box<Metadata>),
-    Unmatched,
-}
-
-/// The metadata stored with a Match, as a row of `item_matches`.
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct Metadata {
-    /// The Plugin whose metadata Provider made the Match.
-    plugin: PluginId,
-    ids: ExternalIds,
-    /// For an Episode, its Show's.
-    show_ids: ExternalIds,
-    title: String,
-    original_title: Option<String>,
-    show_title: Option<String>,
-    overview: Option<String>,
-    release_date: Option<String>,
-    runtime_minutes: Option<u32>,
-    poster: Option<String>,
-    backdrop: Option<String>,
 }
 
 impl Metadata {
@@ -273,7 +193,7 @@ impl Matcher {
     /// publishing the Matches it stores on `events`.
     pub(crate) const fn new(db: Arc<Database>, plugins: Registry, events: EventBus) -> Self {
         Self {
-            db,
+            contents: Contents::new(db),
             plugins,
             events,
         }
@@ -297,20 +217,6 @@ impl Matcher {
         }
     }
 
-    /// The Library the item `item` is in.
-    pub(crate) async fn library_of(&self, item: i64) -> Result<i64, ManualError> {
-        sqlx::query_scalar!(
-            "SELECT library_files.library_id
-             FROM library_items
-             JOIN library_files ON library_files.id = library_items.file_id
-             WHERE library_items.id = ?",
-            item
-        )
-        .fetch_optional(self.db.reader())
-        .await?
-        .ok_or(ManualError::NoSuchItem(item))
-    }
-
     /// Matches the item `item` to the title `id` by hand, with every item named like it, and
     /// pins that Match. For an Episode, `id` names its Show, and each Episode of the Show is
     /// Matched through its Season, or Unmatched if the Show doesn't have it. Nothing changes
@@ -325,17 +231,23 @@ impl Matcher {
             Miss::Unmatched => ManualError::NoSuchTitle(id.clone()),
             Miss::Undecided => ManualError::Unavailable,
         };
-        let outcomes = match named.kind {
-            ItemKind::Movie => {
+        let outcomes = match named.name.kind() {
+            TitleKind::Movie => {
                 let movie = self.fetch_movie(id).await.map_err(refusal)?;
                 named
-                    .items()
-                    .map(|alike| (alike, Ok(movie.clone())))
+                    .items
+                    .iter()
+                    .map(|&(alike, _)| (alike, Ok(movie.clone())))
                     .collect()
             }
-            ItemKind::Episode => {
+            TitleKind::Show => {
                 let show = self.fetch_show(id).await.map_err(refusal)?;
-                self.match_in_show(&show, &named.episodes).await
+                let episodes: Vec<PendingEpisode> = named
+                    .items
+                    .iter()
+                    .filter_map(|(alike, what)| PendingEpisode::of(*alike, what))
+                    .collect();
+                self.match_in_show(&show, &episodes).await
             }
         };
         if outcomes
@@ -344,7 +256,8 @@ impl Matcher {
         {
             return Err(ManualError::Unavailable);
         }
-        self.pin(named, Pin::Title(id.clone()), outcomes).await
+        self.pin(item, named, Pin::Title(id.clone()), outcomes)
+            .await
     }
 
     /// Removes the Match of the item `item` and of every item named like it, and pins them
@@ -352,10 +265,11 @@ impl Matcher {
     pub(crate) async fn clear_match(&self, item: i64) -> Result<Summary, ManualError> {
         let named = self.named_like(item).await?;
         let outcomes = named
-            .items()
-            .map(|alike| (alike, Err(Miss::Unmatched)))
+            .items
+            .iter()
+            .map(|&(alike, _)| (alike, Err(Miss::Unmatched)))
             .collect();
-        self.pin(named, Pin::Unmatched, outcomes).await
+        self.pin(item, named, Pin::Unmatched, outcomes).await
     }
 
     /// Matches the items of the Library `library` that Matching hasn't decided yet, until
@@ -366,23 +280,8 @@ impl Matcher {
         library: i64,
         cancel: &CancellationToken,
     ) -> Result<Summary, Error> {
-        let Pending {
-            movies,
-            shows,
-            unnumbered,
-        } = self.undecided(library).await?;
+        let Pending { movies, shows } = self.undecided(library).await?;
         let mut summary = Summary::default();
-        if !unnumbered.is_empty() {
-            tracing::error!(
-                library,
-                items = ?unnumbered,
-                "Episodes without a Season or Episode number; left Unmatched"
-            );
-            let decided = unnumbered
-                .into_iter()
-                .map(|item| (item, Err(Miss::Unmatched)));
-            self.store(library, decided.collect(), &mut summary).await?;
-        }
         // Once the Provider fails (or there is none), asking about the other titles would only
         // fail too, so the rest is left for the next scan.
         let mut available = true;
@@ -427,100 +326,26 @@ impl Matcher {
 
     /// The Library's undecided Movies and Episodes, grouped by the title they name.
     async fn undecided(&self, library: i64) -> Result<Pending, sqlx::Error> {
-        let rows = sqlx::query!(
-            r#"SELECT library_items.id AS "id!", library_items.kind AS "kind: ItemKind",
-                      library_items.title, library_items.year, library_items.tmdb_id,
-                      library_items.season, library_items.episode,
-                      match_pins.pinned_at IS NOT NULL AS "pinned!: bool",
-                      match_pins.pinned_tmdb_id, match_pins.pinned_imdb_id,
-                      match_pins.pinned_tvdb_id
-               FROM library_items
-               JOIN library_files ON library_files.id = library_items.file_id
-               LEFT JOIN match_pins ON match_pins.library_id = library_files.library_id
-                                   AND match_pins.kind = library_items.kind
-                                   AND match_pins.title = library_items.title
-                                   AND match_pins.year IS library_items.year
-                                   AND match_pins.tmdb_id IS library_items.tmdb_id
-               WHERE library_files.library_id = ?
-                 AND NOT EXISTS (SELECT 1 FROM item_matches
-                                 WHERE item_matches.item_id = library_items.id)
-               ORDER BY library_items.id"#,
-            library
-        )
-        .fetch_all(self.db.reader())
-        .await?;
         let mut pending = Pending::default();
-        for row in rows {
-            let pinned = ExternalIds {
-                tmdb: row.pinned_tmdb_id,
-                imdb: row.pinned_imdb_id,
-                tvdb: row.pinned_tvdb_id,
-            };
+        for (id, item, pin) in self.contents.undecided(library).await? {
             let key = TitleKey {
-                title: row.title,
-                year: row.year,
-                tmdb_id: row.tmdb_id,
-                pin: Pin::from_row(row.pinned, pinned),
+                name: item.name(),
+                pin,
             };
-            match (row.kind, row.season, row.episode) {
-                (ItemKind::Movie, _, _) => pending.movies.entry(key).or_default().push(row.id),
-                (ItemKind::Episode, Some(season), Some(episode)) => {
-                    pending.shows.entry(key).or_default().push(PendingEpisode {
-                        item: row.id,
-                        season,
-                        episode,
-                    });
-                }
-                (ItemKind::Episode, _, _) => pending.unnumbered.push(row.id),
+            match PendingEpisode::of(id, &item) {
+                Some(episode) => pending.shows.entry(key).or_default().push(episode),
+                None => pending.movies.entry(key).or_default().push(id),
             }
         }
         Ok(pending)
     }
 
-    /// The items of the item `item`'s Library named like it, with the pin they share, if any.
+    /// The items of the item `item`'s Library named like it.
     async fn named_like(&self, item: i64) -> Result<Named, ManualError> {
-        let rows = sqlx::query!(
-            r#"SELECT files.library_id, named.id AS "id!", named.kind AS "kind: ItemKind",
-                      named.title, named.year, named.tmdb_id, named.season, named.episode
-               FROM library_items AS this
-               JOIN library_files AS this_file ON this_file.id = this.file_id
-               JOIN library_files AS files ON files.library_id = this_file.library_id
-               JOIN library_items AS named ON named.file_id = files.id
-               WHERE this.id = ?
-                 AND named.kind = this.kind
-                 AND named.title = this.title
-                 AND named.year IS this.year
-                 AND named.tmdb_id IS this.tmdb_id
-               ORDER BY named.id"#,
-            item
-        )
-        .fetch_all(self.db.reader())
-        .await?;
-        let first = rows.first().ok_or(ManualError::NoSuchItem(item))?;
-        let mut named = Named {
-            item,
-            library: first.library_id,
-            kind: first.kind,
-            key: TitleKey {
-                title: first.title.clone(),
-                year: first.year,
-                tmdb_id: first.tmdb_id,
-                pin: None,
-            },
-            movies: Vec::new(),
-            episodes: Vec::new(),
-        };
-        for row in rows {
-            match (row.season, row.episode) {
-                (Some(season), Some(episode)) => named.episodes.push(PendingEpisode {
-                    item: row.id,
-                    season,
-                    episode,
-                }),
-                _ => named.movies.push(row.id),
-            }
-        }
-        Ok(named)
+        self.contents
+            .named_like(item)
+            .await?
+            .ok_or(ManualError::NoSuchItem(item))
     }
 
     /// Finds and fetches the Movie `key` names.
@@ -620,23 +445,24 @@ impl Matcher {
             Some(Pin::Unmatched) => return Err(Miss::Unmatched),
             None => {}
         }
-        if let Some(id) = key.tmdb_id {
+        let name = &key.name;
+        if let Some(id) = name.tmdb_id {
             return Ok(ExternalId::Tmdb(id));
         }
-        let year = key.year.and_then(|year| i32::try_from(year).ok());
-        let mut decision = self.search(kind, &key.title, year, year).await?;
+        let year = name.year.and_then(|year| i32::try_from(year).ok());
+        let mut decision = self.search(kind, &name.title, year, year).await?;
         // A metadata source may only return titles from exactly the year searched for, so a year
         // off by one (release dates differ by country) finds nothing. Search again without it,
         // and let the confidence score weigh the year.
         if decision == Decision::NoMatch && year.is_some() {
-            decision = self.search(kind, &key.title, None, year).await?;
+            decision = self.search(kind, &name.title, None, year).await?;
         }
         match decision {
             Decision::Match(id) => Ok(id),
             Decision::Ambiguous => {
                 tracing::info!(
-                    title = %key.title,
-                    year = ?key.year,
+                    title = %name.title,
+                    year = ?name.year,
                     "more than one title fits; left Unmatched"
                 );
                 Err(Miss::Unmatched)
@@ -709,18 +535,16 @@ impl Matcher {
             return Ok(());
         }
         let matched = matched_events(library, &decided);
-        let now = now();
-        self.db
-            .write(move |tx| Box::pin(insert_decisions(tx, decided, now)))
-            .await?;
+        self.contents.record(decided).await?;
         self.events.publish(matched);
         Ok(())
     }
 
-    /// Pins `pin` for the items `named` names, and stores what was decided about them, in one
-    /// write.
+    /// Pins `pin` for the items `named` names, which were looked up through the item `item`, and
+    /// stores what was decided about them, in one write.
     async fn pin(
         &self,
+        item: i64,
         named: Named,
         pin: Pin,
         outcomes: Vec<(i64, Result<Metadata, Miss>)>,
@@ -729,16 +553,20 @@ impl Matcher {
         let decided = tally(outcomes, &mut summary);
         tracing::info!(
             library = named.library,
-            title = %named.key.title,
+            title = %named.name.title,
             ?pin,
             ?summary,
             "fixing a Match by hand"
         );
         let matched = matched_events(named.library, &decided);
-        let now = now();
-        self.db
-            .write(move |tx| Box::pin(store_pin(tx, named, pin, decided, now)))
-            .await?;
+        // The Library may have been deleted since its items were read.
+        if !self
+            .contents
+            .pin(named.library, named.name, pin, decided)
+            .await?
+        {
+            return Err(ManualError::NoSuchItem(item));
+        }
         self.events.publish(matched);
         Ok(summary)
     }
@@ -787,233 +615,6 @@ fn matched_events(library: i64, decided: &[(i64, Decided)]) -> Vec<Event> {
         .collect()
 }
 
-/// Now, in seconds since the Unix epoch.
-fn now() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_or(0, |since| {
-            i64::try_from(since.as_secs()).unwrap_or(i64::MAX)
-        })
-}
-
-/// Stores `pin` for the items `named` names and what was `decided` about them, as of `now`.
-async fn store_pin(
-    conn: &mut SqliteConnection,
-    named: Named,
-    pin: Pin,
-    decided: Vec<(i64, Decided)>,
-    now: i64,
-) -> Result<(), ManualError> {
-    // The Library may have been deleted since its items were read.
-    if !insert_pin(conn, &named, &pin, now).await? {
-        return Err(ManualError::NoSuchItem(named.item));
-    }
-    insert_decisions(conn, decided, now).await?;
-    Ok(())
-}
-
-/// Stores `pin` for the items `named` names, as of `now`, replacing any pin they had. Returns
-/// whether it was stored: it isn't if their Library is gone.
-async fn insert_pin(
-    conn: &mut SqliteConnection,
-    named: &Named,
-    pin: &Pin,
-    now: i64,
-) -> Result<bool, sqlx::Error> {
-    let pinned = pin.columns();
-    let inserted = sqlx::query!(
-        "INSERT OR REPLACE INTO match_pins (
-             library_id, kind, title, year, tmdb_id,
-             pinned_tmdb_id, pinned_imdb_id, pinned_tvdb_id, pinned_at)
-         SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?
-         WHERE EXISTS (SELECT 1 FROM libraries WHERE id = ?)",
-        named.library,
-        named.kind,
-        named.key.title,
-        named.key.year,
-        named.key.tmdb_id,
-        pinned.tmdb,
-        pinned.imdb,
-        pinned.tvdb,
-        now,
-        named.library,
-    )
-    .execute(conn)
-    .await?;
-    Ok(inserted.rows_affected() > 0)
-}
-
-/// Stores `decided` as of `now`, for the items that still exist.
-async fn insert_decisions(
-    conn: &mut SqliteConnection,
-    decided: Vec<(i64, Decided)>,
-    now: i64,
-) -> Result<(), sqlx::Error> {
-    for (item, decision) in decided {
-        let row = MatchRow::from(&decision);
-        sqlx::query!(
-            "INSERT OR REPLACE INTO item_matches (
-                 item_id, state, plugin, tmdb_id, imdb_id, tvdb_id,
-                 show_tmdb_id, show_imdb_id, show_tvdb_id, title, original_title, show_title,
-                 overview, release_date, runtime_minutes, poster, backdrop, decided_at)
-             SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-             WHERE EXISTS (SELECT 1 FROM library_items WHERE id = ?)",
-            item,
-            row.state,
-            row.plugin,
-            row.ids.tmdb,
-            row.ids.imdb,
-            row.ids.tvdb,
-            row.show_ids.tmdb,
-            row.show_ids.imdb,
-            row.show_ids.tvdb,
-            row.metadata.title,
-            row.metadata.original_title,
-            row.metadata.show_title,
-            row.metadata.overview,
-            row.metadata.release_date,
-            row.metadata.runtime_minutes,
-            row.metadata.poster,
-            row.metadata.backdrop,
-            now,
-            item,
-        )
-        .execute(&mut *conn)
-        .await?;
-    }
-    Ok(())
-}
-
-/// Whether an item is Matched, as stored.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, sqlx::Type)]
-#[sqlx(rename_all = "lowercase")]
-pub(crate) enum MatchState {
-    /// The item has a Match.
-    Matched,
-    /// No title fit the item confidently.
-    Unmatched,
-}
-
-/// A decision as the columns of `item_matches`.
-#[derive(Debug)]
-struct MatchRow<'a> {
-    state: MatchState,
-    plugin: Option<&'a str>,
-    ids: ExternalIds,
-    show_ids: ExternalIds,
-    metadata: MetadataColumns<'a>,
-}
-
-/// A Match's metadata as columns of `item_matches`; all empty for an Unmatched item.
-#[derive(Debug, Default)]
-struct MetadataColumns<'a> {
-    title: Option<&'a str>,
-    original_title: Option<&'a str>,
-    show_title: Option<&'a str>,
-    overview: Option<&'a str>,
-    release_date: Option<&'a str>,
-    runtime_minutes: Option<u32>,
-    poster: Option<&'a str>,
-    backdrop: Option<&'a str>,
-}
-
-impl<'a> From<&'a Decided> for MatchRow<'a> {
-    fn from(decided: &'a Decided) -> Self {
-        match decided {
-            Decided::Unmatched => Self {
-                state: MatchState::Unmatched,
-                plugin: None,
-                ids: ExternalIds::default(),
-                show_ids: ExternalIds::default(),
-                metadata: MetadataColumns::default(),
-            },
-            Decided::Matched(metadata) => Self {
-                state: MatchState::Matched,
-                plugin: Some(metadata.plugin.as_str()),
-                ids: metadata.ids.clone(),
-                show_ids: metadata.show_ids.clone(),
-                metadata: MetadataColumns {
-                    title: Some(&metadata.title),
-                    original_title: metadata.original_title.as_deref(),
-                    show_title: metadata.show_title.as_deref(),
-                    overview: metadata.overview.as_deref(),
-                    release_date: metadata.release_date.as_deref(),
-                    runtime_minutes: metadata.runtime_minutes,
-                    poster: metadata.poster.as_deref(),
-                    backdrop: metadata.backdrop.as_deref(),
-                },
-            },
-        }
-    }
-}
-
-/// What Matching stored for an item, as tests read it back.
-#[cfg(test)]
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct Stored {
-    /// The item's id.
-    pub(crate) item: i64,
-    /// The file's path.
-    pub(crate) path: String,
-    /// For an Episode, its Season and number.
-    pub(crate) episode: Option<(i64, i64)>,
-    /// `None` while undecided.
-    pub(crate) state: Option<MatchState>,
-    pub(crate) plugin: Option<String>,
-    pub(crate) ids: ExternalIds,
-    pub(crate) show_ids: ExternalIds,
-    pub(crate) title: Option<String>,
-    pub(crate) show_title: Option<String>,
-    pub(crate) poster: Option<String>,
-}
-
-#[cfg(test)]
-impl Matcher {
-    /// Every item of the Library `library` and what Matching stored for it, by path.
-    pub(crate) async fn stored(&self, library: i64) -> Vec<Stored> {
-        sqlx::query!(
-            r#"SELECT library_items.id AS "item!", library_files.path, library_items.season,
-                      library_items.episode,
-                      item_matches.state AS "state?: MatchState", item_matches.plugin,
-                      item_matches.tmdb_id, item_matches.imdb_id, item_matches.tvdb_id,
-                      item_matches.show_tmdb_id, item_matches.show_imdb_id,
-                      item_matches.show_tvdb_id, item_matches.title, item_matches.show_title,
-                      item_matches.poster
-               FROM library_items
-               JOIN library_files ON library_files.id = library_items.file_id
-               LEFT JOIN item_matches ON item_matches.item_id = library_items.id
-               WHERE library_files.library_id = ?
-               ORDER BY library_files.path, library_items.id"#,
-            library
-        )
-        .fetch_all(self.db.reader())
-        .await
-        .unwrap()
-        .into_iter()
-        .map(|row| Stored {
-            item: row.item,
-            path: row.path,
-            episode: row.season.zip(row.episode),
-            state: row.state,
-            plugin: row.plugin,
-            ids: ExternalIds {
-                tmdb: row.tmdb_id,
-                imdb: row.imdb_id,
-                tvdb: row.tvdb_id,
-            },
-            show_ids: ExternalIds {
-                tmdb: row.show_tmdb_id,
-                imdb: row.show_imdb_id,
-                tvdb: row.show_tvdb_id,
-            },
-            title: row.title,
-            show_title: row.show_title,
-            poster: row.poster,
-        })
-        .collect()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::{collections::BTreeMap, fs, path::PathBuf, sync::Arc};
@@ -1031,8 +632,9 @@ mod tests {
     use nama_proto::nama::v1::{EventType, ItemMatched, subscribe_response};
     use tempfile::TempDir;
 
-    use super::{ManualError, MatchState, Matcher, Stored};
+    use super::{ManualError, Matcher};
     use crate::{
+        contents::{Contents, FileItem, Item, Recorded},
         db::Database,
         events::{EventBus, Filter, event},
         libraries::{Kind, Libraries},
@@ -1044,6 +646,7 @@ mod tests {
     struct Fixture {
         scanner: Scanner,
         matcher: Matcher,
+        contents: Contents,
         plugins: Registry,
         events: EventBus,
         tmdb: FakeTmdb,
@@ -1103,7 +706,8 @@ mod tests {
             let events = EventBus::new(Registry::new());
             Self {
                 scanner: Scanner::new(Arc::clone(&db), plugins.clone(), events.clone()),
-                matcher: Matcher::new(db, plugins.clone(), events.clone()),
+                matcher: Matcher::new(Arc::clone(&db), plugins.clone(), events.clone()),
+                contents: Contents::new(db),
                 plugins,
                 events,
                 tmdb: FakeTmdb::start().await,
@@ -1131,16 +735,36 @@ mod tests {
             self.scanner.scan(library.id).await.unwrap();
         }
 
+        /// Each item of `library`, by path relative to its folder, with what was stored for it.
+        async fn items(&self, library: &Library) -> Vec<(String, FileItem)> {
+            self.contents
+                .files(library.id)
+                .await
+                .unwrap()
+                .into_iter()
+                .flat_map(|file| {
+                    let relative = library.relative(&file.path);
+                    file.items
+                        .into_iter()
+                        .map(move |item| (relative.clone(), item))
+                })
+                .collect()
+        }
+
         /// What was stored for each item of `library`, as (path relative to its folder, Season
         /// and Episode, what it Matched).
         async fn stored(&self, library: &Library) -> Vec<(String, Option<(i64, i64)>, Outcome)> {
-            self.matcher
-                .stored(library.id)
+            self.items(library)
                 .await
                 .into_iter()
-                .map(|stored| {
-                    let relative = library.relative(&stored.path);
-                    (relative, stored.episode, Outcome::of(&stored))
+                .map(|(relative, stored)| {
+                    let episode = match stored.item {
+                        Item::Episode {
+                            season, episode, ..
+                        } => Some((season, episode)),
+                        Item::Movie { .. } => None,
+                    };
+                    (relative, episode, Outcome::of(stored.recorded.as_ref()))
                 })
                 .collect()
         }
@@ -1154,15 +778,20 @@ mod tests {
                 .collect()
         }
 
+        /// What Matching stored for the first item of `library`.
+        async fn first_recorded(&self, library: &Library) -> Recorded {
+            self.items(library).await.remove(0).1.recorded.unwrap()
+        }
+
         /// The id of the first item stored for the file at `relative` in `library`.
         async fn item(&self, library: &Library, relative: &str) -> i64 {
-            self.matcher
-                .stored(library.id)
+            self.items(library)
                 .await
                 .into_iter()
-                .find(|stored| library.relative(&stored.path) == relative)
+                .find(|(path, _)| path == relative)
                 .unwrap()
-                .item
+                .1
+                .id
         }
 
         /// How many searches TMDB was asked for.
@@ -1198,12 +827,12 @@ mod tests {
     }
 
     impl Outcome {
-        fn of(stored: &Stored) -> Self {
-            match stored.state {
-                Some(MatchState::Matched) => {
-                    Self::Matched(stored.ids.tmdb.unwrap(), stored.title.clone().unwrap())
+        fn of(recorded: Option<&Recorded>) -> Self {
+            match recorded {
+                Some(recorded) if recorded.matched => {
+                    Self::Matched(recorded.ids.tmdb.unwrap(), recorded.title.clone().unwrap())
                 }
-                Some(MatchState::Unmatched) => Self::Unmatched,
+                Some(_) => Self::Unmatched,
                 None => Self::Undecided,
             }
         }
@@ -1267,7 +896,7 @@ mod tests {
                 ),
             ]
         );
-        let alien = media.matcher.stored(movies.id).await.remove(0);
+        let alien = media.first_recorded(movies).await;
         assert_eq!(alien.plugin.as_deref(), Some("tmdb"));
         assert_eq!(
             alien.ids,
@@ -1359,7 +988,7 @@ mod tests {
                 ),
             ]
         );
-        let secrets = media.matcher.stored(shows.id).await.remove(0);
+        let secrets = media.first_recorded(shows).await;
         assert_eq!(secrets.show_title.as_deref(), Some("Dark"));
         assert_eq!(
             secrets.show_ids,

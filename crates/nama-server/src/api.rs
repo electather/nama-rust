@@ -21,6 +21,7 @@ use tokio::sync::OwnedMutexGuard;
 
 use crate::{
     config::Config,
+    contents::Contents,
     db::Database,
     events::{EventBus, Filter},
     libraries::{self, Kind, Libraries, Library},
@@ -43,6 +44,7 @@ pub(crate) fn router(
         }))
         .add_service(Arc::new(MatchServiceHandler {
             matcher: Matcher::new(Arc::clone(&db), plugins, events.clone()),
+            contents: Contents::new(Arc::clone(&db)),
             scanner: scanner.clone(),
         }))
         .add_service(Arc::new(LibraryServiceHandler {
@@ -170,6 +172,7 @@ impl LibraryService for LibraryServiceHandler {
 // through; once there are, check here that the caller's Role is Admin.
 struct MatchServiceHandler {
     matcher: Matcher,
+    contents: Contents,
     /// Whose scan lock a Match is fixed under, so the scan doesn't change the items meanwhile.
     scanner: Scanner,
 }
@@ -178,7 +181,11 @@ impl MatchServiceHandler {
     /// Waits for any scan of the Library the item `item` is in, and keeps another from starting
     /// until the returned guard is dropped.
     async fn lock_library_of(&self, item: i64) -> Result<OwnedMutexGuard<()>, ManualError> {
-        let library = self.matcher.library_of(item).await?;
+        let library = self
+            .contents
+            .library_of(item)
+            .await?
+            .ok_or(ManualError::NoSuchItem(item))?;
         Ok(self.scanner.lock(library).await)
     }
 }

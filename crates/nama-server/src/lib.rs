@@ -3,6 +3,7 @@
 mod api;
 pub mod artwork;
 pub mod config;
+pub mod contents;
 pub mod db;
 mod events;
 mod libraries;

@@ -27,22 +27,18 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use nama_proto::nama::v1::{
-    Event, LibraryItemAdded, LibraryItemRemoved, ScanFinished, ScanProgress, ScanStarted,
-};
-use sqlx::SqliteConnection;
+use nama_proto::nama::v1::{ScanFinished, ScanProgress, ScanStarted};
 use tokio_util::{sync::CancellationToken, task::TaskTracker};
 use walkdir::{DirEntry, WalkDir};
 
 use crate::{
+    contents::{Change, Contents, Stored},
     db::Database,
     events::{EventBus, event},
     libraries::{self, Kind, Libraries},
     matching::{self, Matcher, count},
     plugins::Registry,
 };
-
-use names::Item;
 
 /// Extensions, in lowercase, of the files the scanner treats as video.
 const VIDEO_EXTENSIONS: &[&str] = &[
@@ -102,7 +98,7 @@ pub(crate) struct Scanner {
 
 #[derive(Debug)]
 struct Inner {
-    db: Arc<Database>,
+    contents: Contents,
     libraries: Libraries,
     matcher: Matcher,
     events: EventBus,
@@ -125,7 +121,7 @@ impl Scanner {
                 libraries: Libraries::new(Arc::clone(&db)),
                 matcher: Matcher::new(Arc::clone(&db), plugins, events.clone()),
                 events,
-                db,
+                contents: Contents::new(db),
                 tasks: TaskTracker::new(),
                 cancel: CancellationToken::new(),
                 queued: Mutex::default(),
@@ -198,7 +194,7 @@ impl Scanner {
             library_id: id,
             ..Default::default()
         })]);
-        let stored = self.stored(id).await?;
+        let stored = self.inner.contents.stored(id).await?;
         let walking = cancel.clone();
         let found = tokio::task::spawn_blocking(move || walk(&library.folders, &walking)).await??;
         let (changes, summary) = plan(library.kind, stored, found);
@@ -220,11 +216,7 @@ impl Scanner {
                 files_total,
                 ..Default::default()
             });
-            let items = self
-                .inner
-                .db
-                .write(move |tx| Box::pin(apply(tx, id, batch)))
-                .await?;
+            let items = self.inner.contents.apply(id, batch).await?;
             self.inner
                 .events
                 .publish(std::iter::once(progress).chain(items).collect());
@@ -241,40 +233,11 @@ impl Scanner {
         self.inner.matcher.match_library(id, &cancel).await?;
         Ok(summary)
     }
-
-    /// The files stored for the Library `id`, by path.
-    async fn stored(&self, id: i64) -> Result<HashMap<String, Stored>, sqlx::Error> {
-        Ok(sqlx::query!(
-            r#"SELECT id AS "id!", path, size, modified_ns FROM library_files
-               WHERE library_id = ?"#,
-            id
-        )
-        .fetch_all(self.inner.db.reader())
-        .await?
-        .into_iter()
-        .map(|row| {
-            let stored = Stored {
-                id: row.id,
-                size: row.size,
-                modified_ns: row.modified_ns,
-            };
-            (row.path, stored)
-        })
-        .collect())
-    }
 }
 
 /// Locks `mutex`, which no code panics while holding.
 fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(PoisonError::into_inner)
-}
-
-/// A file as the last scan stored it.
-#[derive(Debug)]
-struct Stored {
-    id: i64,
-    size: i64,
-    modified_ns: i64,
 }
 
 /// A video file on disk.
@@ -294,20 +257,6 @@ struct Walked {
     files: Vec<Found>,
     /// Folders and files that couldn't be read. What's stored under them is kept.
     unreadable: Vec<PathBuf>,
-}
-
-/// A change to the stored files.
-#[derive(Debug)]
-enum Change {
-    /// Store a file that's new or changed, with what it holds, replacing what was stored.
-    Store {
-        path: String,
-        size: i64,
-        modified_ns: i64,
-        items: Vec<Item>,
-    },
-    /// Remove the stored file with this id.
-    Remove(i64),
 }
 
 /// Walks `folders` for video files, leaving out hidden files and folders and extras, until
@@ -419,174 +368,6 @@ fn plan(kind: Kind, mut stored: HashMap<String, Stored>, found: Walked) -> (Vec<
     (changes, summary)
 }
 
-/// Applies `changes` to the files of the Library `library`, and returns the events for the Items
-/// that removes and adds.
-async fn apply(
-    conn: &mut SqliteConnection,
-    library: i64,
-    changes: Vec<Change>,
-) -> Result<Vec<Event>, sqlx::Error> {
-    let mut events = Vec::new();
-    for change in changes {
-        match change {
-            Change::Store {
-                path,
-                size,
-                modified_ns,
-                items,
-            } => {
-                let file = sqlx::query_scalar!(
-                    r#"INSERT INTO library_files (library_id, path, size, modified_ns)
-                       VALUES (?, ?, ?, ?)
-                       ON CONFLICT (library_id, path)
-                       DO UPDATE SET size = excluded.size, modified_ns = excluded.modified_ns
-                       RETURNING id AS "id!""#,
-                    library,
-                    path,
-                    size,
-                    modified_ns,
-                )
-                .fetch_one(&mut *conn)
-                .await?;
-                let removed = remove_items(conn, file).await?;
-                let added = insert_items(conn, file, &items).await?;
-                events.extend(removed.into_iter().map(|item| item_removed(library, item)));
-                events.extend(
-                    added
-                        .into_iter()
-                        .map(|item| item_added(library, item, path.clone())),
-                );
-            }
-            Change::Remove(file) => {
-                let removed = remove_items(conn, file).await?;
-                sqlx::query!("DELETE FROM library_files WHERE id = ?", file)
-                    .execute(&mut *conn)
-                    .await?;
-                events.extend(removed.into_iter().map(|item| item_removed(library, item)));
-            }
-        }
-    }
-    Ok(events)
-}
-
-/// The event for the Item `item`, held by the file at `path`, being added to the Library
-/// `library`.
-fn item_added(library: i64, item: i64, path: String) -> Event {
-    event(LibraryItemAdded {
-        library_id: library,
-        item_id: item,
-        path,
-        ..Default::default()
-    })
-}
-
-/// The event for the Item `item` of the Library `library` being removed.
-fn item_removed(library: i64, item: i64) -> Event {
-    event(LibraryItemRemoved {
-        library_id: library,
-        item_id: item,
-        ..Default::default()
-    })
-}
-
-/// Removes the items stored for `file`, and returns their ids.
-async fn remove_items(conn: &mut SqliteConnection, file: i64) -> Result<Vec<i64>, sqlx::Error> {
-    sqlx::query_scalar!(
-        r#"DELETE FROM library_items WHERE file_id = ? RETURNING id AS "id!""#,
-        file
-    )
-    .fetch_all(conn)
-    .await
-}
-
-/// Stores `items` for `file`, and returns their ids.
-async fn insert_items(
-    conn: &mut SqliteConnection,
-    file: i64,
-    items: &[Item],
-) -> Result<Vec<i64>, sqlx::Error> {
-    let mut ids = Vec::with_capacity(items.len());
-    for item in items {
-        let row = ItemRow::from(item);
-        let id = sqlx::query_scalar!(
-            r#"INSERT INTO library_items (file_id, kind, title, year, tmdb_id, season, episode)
-               VALUES (?, ?, ?, ?, ?, ?, ?)
-               RETURNING id AS "id!""#,
-            file,
-            row.kind,
-            row.title,
-            row.year,
-            row.tmdb_id,
-            row.season,
-            row.episode,
-        )
-        .fetch_one(&mut *conn)
-        .await?;
-        ids.push(id);
-    }
-    Ok(ids)
-}
-
-/// The kind of an item, as stored.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, sqlx::Type)]
-#[sqlx(rename_all = "lowercase")]
-pub(crate) enum ItemKind {
-    Movie,
-    Episode,
-}
-
-/// An item as a row of `library_items`.
-#[derive(Debug)]
-struct ItemRow<'a> {
-    kind: ItemKind,
-    title: &'a str,
-    year: Option<i64>,
-    tmdb_id: Option<i64>,
-    season: Option<i64>,
-    episode: Option<i64>,
-}
-
-impl<'a> From<&'a Item> for ItemRow<'a> {
-    fn from(item: &'a Item) -> Self {
-        match *item {
-            Item::Movie {
-                ref title,
-                year,
-                tmdb_id,
-            } => Self {
-                kind: ItemKind::Movie,
-                title,
-                year,
-                tmdb_id,
-                season: None,
-                episode: None,
-            },
-            Item::Episode {
-                ref show,
-                year,
-                tmdb_id,
-                season,
-                episode,
-            } => Self {
-                kind: ItemKind::Episode,
-                title: show,
-                year,
-                tmdb_id,
-                season: Some(season),
-                episode: Some(episode),
-            },
-        }
-    }
-}
-
-/// A stored file and its items, as tests read them back.
-#[cfg(test)]
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct File {
-    path: PathBuf,
-    items: Vec<Item>,
-}
-
 #[cfg(test)]
 impl Scanner {
     /// Scans the Library `id` now, after any scan of it that's running, and returns what
@@ -595,50 +376,6 @@ impl Scanner {
         let library = self.library_mutex(id);
         let _running = library.lock().await;
         self.scan_locked(id).await
-    }
-
-    /// The files stored for the Library `id`, by path, with their items in the order stored.
-    async fn files(&self, id: i64) -> Vec<File> {
-        let rows = sqlx::query!(
-            r#"SELECT library_files.path, library_items.kind AS "kind?: ItemKind",
-                      library_items.title AS "title?", library_items.year, library_items.tmdb_id,
-                      library_items.season, library_items.episode
-               FROM library_files
-               LEFT JOIN library_items ON library_items.file_id = library_files.id
-               WHERE library_files.library_id = ?
-               ORDER BY library_files.path, library_items.id"#,
-            id
-        )
-        .fetch_all(self.inner.db.reader())
-        .await
-        .unwrap();
-        let mut files: Vec<File> = Vec::new();
-        for row in rows {
-            let path = PathBuf::from(&row.path);
-            if files.last().is_none_or(|file| file.path != path) {
-                files.push(File {
-                    path,
-                    items: Vec::new(),
-                });
-            }
-            let item = match (row.kind, row.title) {
-                (Some(ItemKind::Movie), Some(title)) => Item::Movie {
-                    title,
-                    year: row.year,
-                    tmdb_id: row.tmdb_id,
-                },
-                (Some(ItemKind::Episode), Some(show)) => Item::Episode {
-                    show,
-                    year: row.year,
-                    tmdb_id: row.tmdb_id,
-                    season: row.season.unwrap(),
-                    episode: row.episode.unwrap(),
-                },
-                _ => continue,
-            };
-            files.last_mut().unwrap().items.push(item);
-        }
-        files
     }
 
     /// Waits until no background scan is running or waiting.
@@ -657,8 +394,9 @@ mod tests {
     use nama_proto::nama::v1::{Lagged, subscribe_response};
     use tempfile::TempDir;
 
-    use super::{File, Item, Scanner, Summary};
+    use super::{Scanner, Summary};
     use crate::{
+        contents::{Contents, File, Item},
         db::Database,
         events::{EventBus, Filter},
         libraries::{self, Kind, Libraries},
@@ -672,6 +410,7 @@ mod tests {
     /// a bus whose subscribers lag once [`BUFFERED`] events behind.
     struct Fixture {
         scanner: Scanner,
+        contents: Contents,
         events: EventBus,
         library: i64,
         root: PathBuf,
@@ -692,7 +431,8 @@ mod tests {
                 .unwrap();
             let events = EventBus::with_capacity(Registry::new(), BUFFERED);
             Self {
-                scanner: Scanner::new(db, Registry::new(), events.clone()),
+                scanner: Scanner::new(Arc::clone(&db), Registry::new(), events.clone()),
+                contents: Contents::new(db),
                 events,
                 library: library.id,
                 root,
@@ -719,16 +459,19 @@ mod tests {
         /// The stored files, as `/`-separated paths relative to the Library folder, whatever
         /// separator the platform uses.
         async fn files(&self) -> Vec<(String, Vec<Item>)> {
-            self.scanner
+            self.contents
                 .files(self.library)
                 .await
+                .unwrap()
                 .into_iter()
-                .map(|File { path, items }| {
+                .map(|File { path, items, .. }| {
+                    let path = PathBuf::from(path);
                     let relative = path.strip_prefix(&self.root).unwrap();
                     let parts: Vec<&str> = relative
                         .components()
                         .map(|part| part.as_os_str().to_str().unwrap())
                         .collect();
+                    let items = items.into_iter().map(|stored| stored.item).collect();
                     (parts.join("/"), items)
                 })
                 .collect()
