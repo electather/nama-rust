@@ -148,8 +148,8 @@ pub const MATCH_SERVICE_CLEAR_MATCH_SPEC: ::connectrpc::Spec = ::connectrpc::Spe
 ///
 /// A Match set or cleared here is pinned to what the item's file names: the title and year (and
 /// ID hint) of a Movie, or of the Show an Episode is in. Automatic Matching follows the pin instead
-/// of searching, so it holds when the file changes or is renamed, and new Episodes of a pinned Show
-/// Match the pinned Show.
+/// of searching, so it holds when the file changes, or is renamed to a name that still says the same
+/// title, year and ID hint, and new Episodes of a pinned Show Match the pinned Show.
 ///
 /// # Implementing handlers
 ///

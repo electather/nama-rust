@@ -90,6 +90,10 @@ _Avoid_: collection, section
 The link between a file in a Library and a title in a metadata source. A file without one is Unmatched.
 _Avoid_: identification, lookup
 
+**Pinned Match**:
+A Match an admin set or cleared by hand. Automatic Matching follows it instead of searching, so it isn't overwritten.
+_Avoid_: locked match, override, manual lock
+
 **Watch State**:
 A User's progress through a Movie or Episode: whether it's been played, how far in, and when.
 _Avoid_: watched status, play state, progress

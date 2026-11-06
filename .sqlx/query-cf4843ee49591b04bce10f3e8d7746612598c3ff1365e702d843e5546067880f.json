@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT OR REPLACE INTO match_pins (\n             library_id, kind, title, year, tmdb_id,\n             pinned_tmdb_id, pinned_imdb_id, pinned_tvdb_id, pinned_at)\n         SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?\n         WHERE EXISTS (SELECT 1 FROM libraries WHERE id = ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 10
+    },
+    "nullable": []
+  },
+  "hash": "cf4843ee49591b04bce10f3e8d7746612598c3ff1365e702d843e5546067880f"
+}

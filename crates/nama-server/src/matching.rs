@@ -15,8 +15,9 @@
 //! An admin can fix a Match by hand ([`Matcher::set_match`], [`Matcher::clear_match`]). That pins
 //! the Match to what the item's file names, its title, year and ID hint, for every item in the
 //! Library named the same way; for an Episode, that is every Episode of its Show. Matching follows
-//! a pin instead of searching, so a pinned Match holds when a file changes or is renamed, and a
-//! new Episode of a pinned Show Matches the pinned Show.
+//! a pin instead of searching, so a pinned Match holds when a file changes, or is renamed to a
+//! name that still says the same title, year and ID hint, and a new Episode of a pinned Show
+//! Matches the pinned Show. A rename that changes any of those is a new name, which isn't pinned.
 //!
 //! A Matched or Unmatched item stays so on later scans until its file changes. An item Matching
 //! couldn't decide, because no metadata Provider is enabled or the Provider failed (such as when
@@ -79,7 +80,7 @@ pub(crate) enum ManualError {
     #[error("the metadata source has no title {0}")]
     NoSuchTitle(ExternalId),
     /// No metadata Provider is enabled, or it failed.
-    #[error("no metadata provider could answer")]
+    #[error("no metadata Provider could answer")]
     Unavailable,
     /// The database failed.
     #[error("database error: {0}")]
@@ -144,6 +145,8 @@ impl Pin {
 /// same Show.
 #[derive(Debug)]
 struct Named {
+    /// The item they were looked up through.
+    item: i64,
     library: i64,
     kind: ItemKind,
     key: TitleKey,
@@ -483,6 +486,7 @@ impl Matcher {
         .await?;
         let first = rows.first().ok_or(ManualError::NoSuchItem(item))?;
         let mut named = Named {
+            item,
             library: first.library_id,
             kind: first.kind,
             key: TitleKey {
@@ -715,12 +719,7 @@ impl Matcher {
         );
         let now = now();
         self.db
-            .write(move |tx| {
-                Box::pin(async move {
-                    insert_pin(tx, &named, &pin, now).await?;
-                    insert_decisions(tx, decided, now).await
-                })
-            })
+            .write(move |tx| Box::pin(store_pin(tx, named, pin, decided, now)))
             .await?;
         Ok(summary)
     }
@@ -762,19 +761,37 @@ fn now() -> i64 {
         })
 }
 
-/// Stores `pin` for the items `named` names, as of `now`, replacing any pin they had.
+/// Stores `pin` for the items `named` names and what was `decided` about them, as of `now`.
+async fn store_pin(
+    conn: &mut SqliteConnection,
+    named: Named,
+    pin: Pin,
+    decided: Vec<(i64, Decided)>,
+    now: i64,
+) -> Result<(), ManualError> {
+    // The Library may have been deleted since its items were read.
+    if !insert_pin(conn, &named, &pin, now).await? {
+        return Err(ManualError::NoSuchItem(named.item));
+    }
+    insert_decisions(conn, decided, now).await?;
+    Ok(())
+}
+
+/// Stores `pin` for the items `named` names, as of `now`, replacing any pin they had. Returns
+/// whether it was stored: it isn't if their Library is gone.
 async fn insert_pin(
     conn: &mut SqliteConnection,
     named: &Named,
     pin: &Pin,
     now: i64,
-) -> Result<(), sqlx::Error> {
+) -> Result<bool, sqlx::Error> {
     let pinned = pin.columns();
-    sqlx::query!(
+    let inserted = sqlx::query!(
         "INSERT OR REPLACE INTO match_pins (
              library_id, kind, title, year, tmdb_id,
              pinned_tmdb_id, pinned_imdb_id, pinned_tvdb_id, pinned_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+         SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?
+         WHERE EXISTS (SELECT 1 FROM libraries WHERE id = ?)",
         named.library,
         named.kind,
         named.key.title,
@@ -784,10 +801,11 @@ async fn insert_pin(
         pinned.imdb,
         pinned.tvdb,
         now,
+        named.library,
     )
     .execute(conn)
     .await?;
-    Ok(())
+    Ok(inserted.rows_affected() > 0)
 }
 
 /// Stores `decided` as of `now`, for the items that still exist.

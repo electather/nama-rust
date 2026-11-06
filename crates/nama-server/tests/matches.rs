@@ -40,8 +40,8 @@ struct Decision {
     tmdb_id: Option<i64>,
 }
 
-/// A Server with a Movies Library, the TMDB Plugin enabled against a fake TMDB, and clients for
-/// its `LibraryService` and `MatchService`.
+/// A Server with one Library, the TMDB Plugin enabled against a fake TMDB, and clients for its
+/// `LibraryService` and `MatchService`.
 struct Fixture {
     library: i64,
     folder: PathBuf,
@@ -59,7 +59,8 @@ struct Fixture {
     reason = "a test helper fails its test by panicking"
 )]
 impl Fixture {
-    async fn start() -> Self {
+    /// Starts a Server with a Library of `kind`.
+    async fn start(kind: LibraryKind) -> Self {
         let tmdb = FakeTmdb::start().await;
         let plugins = Registry::new();
         let settings = Settings::new(BTreeMap::from([(
@@ -92,8 +93,8 @@ impl Fixture {
         let folder = media.path().canonicalize().unwrap();
         let library = libraries
             .create_library(CreateLibraryRequest {
-                name: "Movies".to_owned(),
-                kind: LibraryKind::LIBRARY_KIND_MOVIES.into(),
+                name: "Media".to_owned(),
+                kind: kind.into(),
                 folders: vec![folder.to_str().unwrap().to_owned()],
                 ..Default::default()
             })
@@ -212,7 +213,7 @@ fn matched(tmdb_id: i64) -> Decision {
 
 #[tokio::test]
 async fn an_unmatched_file_matched_by_hand_stays_matched_when_it_changes_and_is_rescanned() {
-    let fx = Fixture::start().await;
+    let fx = Fixture::start(LibraryKind::LIBRARY_KIND_MOVIES).await;
     fx.write(HOME_MOVIES, VIDEO);
     let (item, before) = fx.scan_until_decided(HOME_MOVIES, VIDEO).await;
 
@@ -228,7 +229,7 @@ async fn an_unmatched_file_matched_by_hand_stays_matched_when_it_changes_and_is_
 
 #[tokio::test]
 async fn a_cleared_match_is_unmatched() {
-    let fx = Fixture::start().await;
+    let fx = Fixture::start(LibraryKind::LIBRARY_KIND_MOVIES).await;
     fx.write("Alien (1979)/Alien (1979).mkv", VIDEO);
     let (item, before) = fx
         .scan_until_decided("Alien (1979)/Alien (1979).mkv", VIDEO)
@@ -253,7 +254,7 @@ async fn a_cleared_match_is_unmatched() {
 
 #[tokio::test]
 async fn search_metadata_passes_the_search_to_the_metadata_provider() {
-    let fx = Fixture::start().await;
+    let fx = Fixture::start(LibraryKind::LIBRARY_KIND_MOVIES).await;
 
     let response = fx
         .matches
@@ -276,7 +277,7 @@ async fn search_metadata_passes_the_search_to_the_metadata_provider() {
 
 #[tokio::test]
 async fn search_metadata_without_a_kind_is_invalid() {
-    let fx = Fixture::start().await;
+    let fx = Fixture::start(LibraryKind::LIBRARY_KIND_MOVIES).await;
 
     let err = fx
         .matches
@@ -292,7 +293,7 @@ async fn search_metadata_without_a_kind_is_invalid() {
 
 #[tokio::test]
 async fn set_match_for_an_item_that_does_not_exist_is_not_found() {
-    let fx = Fixture::start().await;
+    let fx = Fixture::start(LibraryKind::LIBRARY_KIND_MOVIES).await;
 
     let err = fx.set_match(42, 949).await.unwrap_err();
 
@@ -301,7 +302,7 @@ async fn set_match_for_an_item_that_does_not_exist_is_not_found() {
 
 #[tokio::test]
 async fn set_match_to_a_title_tmdb_does_not_have_is_invalid() {
-    let fx = Fixture::start().await;
+    let fx = Fixture::start(LibraryKind::LIBRARY_KIND_MOVIES).await;
     fx.write(HOME_MOVIES, VIDEO);
     let (item, _) = fx.scan_until_decided(HOME_MOVIES, VIDEO).await;
 
@@ -312,7 +313,7 @@ async fn set_match_to_a_title_tmdb_does_not_have_is_invalid() {
 
 #[tokio::test]
 async fn set_match_without_a_title_is_invalid() {
-    let fx = Fixture::start().await;
+    let fx = Fixture::start(LibraryKind::LIBRARY_KIND_MOVIES).await;
     fx.write(HOME_MOVIES, VIDEO);
     let (item, _) = fx.scan_until_decided(HOME_MOVIES, VIDEO).await;
 
@@ -326,4 +327,34 @@ async fn set_match_without_a_title_is_invalid() {
         .unwrap_err();
 
     assert_eq!(err.code, ErrorCode::InvalidArgument, "{err:?}");
+}
+
+#[tokio::test]
+async fn re_matching_a_show_by_hand_re_matches_its_episodes() {
+    let fx = Fixture::start(LibraryKind::LIBRARY_KIND_SHOWS).await;
+    let pilot = "The Office/Season 01/The Office - S01E01.mkv";
+    let second = "The Office/Season 01/The Office - S01E02.mkv";
+    fx.write(pilot, VIDEO);
+    fx.write(second, VIDEO);
+    // Both the US and the UK Office fit, so the scan leaves them Unmatched.
+    let (item, before) = fx.scan_until_decided(pilot, VIDEO).await;
+    let size = i64::try_from(VIDEO.len()).unwrap();
+    let episodes = || async {
+        let mut decisions = Vec::new();
+        for relative in [pilot, second] {
+            let (_, decision) = fx.decision(&fx.folder.join(relative), size).await.unwrap();
+            decisions.push(decision);
+        }
+        decisions
+    };
+
+    let to_american = fx.set_match(item, 2316).await.unwrap();
+    let us = episodes().await;
+    let to_british = fx.set_match(item, 2996).await.unwrap();
+    let uk = episodes().await;
+
+    assert_eq!(before, unmatched());
+    assert_eq!((to_american.matched, to_british.matched), (2, 2));
+    assert_eq!(us, [matched(2_316_001), matched(2_316_002)]);
+    assert_eq!(uk, [matched(2_996_001), matched(2_996_002)]);
 }

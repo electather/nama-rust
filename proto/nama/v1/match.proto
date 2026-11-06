@@ -6,8 +6,8 @@ package nama.v1;
 //
 // A Match set or cleared here is pinned to what the item's file names: the title and year (and
 // ID hint) of a Movie, or of the Show an Episode is in. Automatic Matching follows the pin instead
-// of searching, so it holds when the file changes or is renamed, and new Episodes of a pinned Show
-// Match the pinned Show.
+// of searching, so it holds when the file changes, or is renamed to a name that still says the same
+// title, year and ID hint, and new Episodes of a pinned Show Match the pinned Show.
 service MatchService {
   // Searches the enabled metadata Provider for titles, best fit first. Fails with
   // `invalid_argument` if the kind is unspecified or the title blank, and with `unavailable` if
