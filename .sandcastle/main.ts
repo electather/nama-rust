@@ -14,7 +14,7 @@ const READY = "ready-for-agent";
 const HUMAN = "ready-for-human";
 const BASE = "main";
 
-type Issue = { number: number; title: string };
+type Issue = { number: number; title: string; parent?: number };
 type Box = Awaited<ReturnType<typeof sandcastle.createSandbox>>;
 class Blocked extends Error {}
 
@@ -49,6 +49,7 @@ async function agent(box: Box, issue: Issue, step: string, extra: Record<string,
       ISSUE_NUMBER: String(issue.number),
       ISSUE_TITLE: issue.title,
       BRANCH: branchOf(issue),
+      PARENT: issue.parent ? `#${issue.parent}` : "none",
       ...extra,
     },
     maxIterations: 3,
@@ -65,18 +66,49 @@ const branchOf = (i: Issue) => `agent/issue-${i.number}`;
 const ahead = (branch: string) =>
   Number(git("rev-list", "--count", `origin/${BASE}..${branch}`)) > 0;
 
+type ListedIssue = {
+  number: number;
+  title: string;
+  parent: { number: number } | null;
+  subIssuesSummary: { total: number };
+  blockedBy: { nodes: { state: string }[] };
+};
+
 // Unblocked = no open native blocked-by (see docs/agents/issue-tracker.md).
+// An issue with sub-issues is never built itself: its children are, and closeFinishedParents closes it.
 function readyIssues(): Issue[] {
-  const issues: Issue[] = JSON.parse(
-    gh("issue", "list", "--label", READY, "--state", "open", "--limit", "100", "--json", "number,title"),
+  const issues: ListedIssue[] = JSON.parse(
+    gh("issue", "list", "--label", READY, "--state", "open", "--limit", "100",
+      // blockedBy, not issue_dependencies_summary: the summary lags seconds behind closes/edits
+      "--json", "number,title,parent,subIssuesSummary,blockedBy"),
   );
   return issues
-    .filter(
-      (i) =>
-        // blockedBy, not issue_dependencies_summary: the summary lags seconds behind closes/edits
-        gh("issue", "view", String(i.number), "--json", "blockedBy", "--jq", '[.blockedBy.nodes[] | select(.state == "OPEN")] | length') === "0",
-    )
+    .filter((i) => i.subIssuesSummary.total === 0)
+    .filter((i) => !i.blockedBy.nodes.some((b) => b.state === "OPEN"))
+    .map((i) => ({ number: i.number, title: i.title, parent: i.parent?.number }))
     .sort((a, b) => a.number - b.number);
+}
+
+// GitHub doesn't close a parent when its last sub-issue closes, and issues it blocks would wait forever.
+// A sweep rather than a per-merge check: it also catches children closed by hand or a summary that lagged.
+function closeFinishedParents() {
+  const open: { number: number; subIssuesSummary: { total: number; completed: number } }[] = JSON.parse(
+    gh("issue", "list", "--label", READY, "--state", "open", "--limit", "100", "--json", "number,subIssuesSummary"),
+  );
+  for (const { number, subIssuesSummary: s } of open) {
+    if (s.total === 0 || s.completed < s.total) continue;
+    gh("issue", "comment", String(number), "--body", `🏭 All ${s.total} sub-issues are closed, so this one is done.`);
+    gh("issue", "close", String(number));
+    console.log(`  ✓ parent #${number} closed (${s.total}/${s.total} sub-issues done)`);
+  }
+}
+
+// `Closes #N` closes the issue a few seconds after the merge, not during it.
+async function waitUntilClosed(issue: Issue) {
+  for (let tries = 0; tries < 12; tries++) {
+    if (gh("issue", "view", String(issue.number), "--json", "state", "--jq", ".state") === "CLOSED") return;
+    await sleep(5_000);
+  }
 }
 
 function handBack(issue: Issue, why: string) {
@@ -86,12 +118,17 @@ function handBack(issue: Issue, why: string) {
     "issue", "comment", String(issue.number), "--body",
     `🏭 The factory stopped on this one and handed it back.\n\n**Why:** ${why}\n\nWork so far is on branch \`${branchOf(issue)}\` (local and, if it got that far, pushed with a PR).`,
   );
+  // Siblings blocked by this one stall silently; the parent is where that shows.
+  if (issue.parent) {
+    gh("issue", "comment", String(issue.parent), "--body", `🏭 #${issue.number} was handed back to a human: ${why}`);
+  }
 }
 
 // The reviewer writes the PR body with the `pr` skill; fall back to a stub if it didn't.
 function prBody(issue: Issue, reviewOut: string) {
   const written = [...reviewOut.matchAll(/<pr-body>([\s\S]*?)<\/pr-body>/g)].pop()?.[1]?.trim();
-  return `Closes #${issue.number}\n\n${written || "Built by the sandcastle factory (implement → code-review → fix)."}`;
+  const links = issue.parent ? `Closes #${issue.number}\nPart of #${issue.parent}` : `Closes #${issue.number}`;
+  return `${links}\n\n${written || "Built by the sandcastle factory (implement → code-review → fix)."}`;
 }
 
 async function build(issue: Issue): Promise<{ box: Box; body: string }> {
@@ -146,11 +183,16 @@ async function ship(issue: Issue, box: Box, body: string) {
   gh("pr", "merge", pr, "--squash");
   ok("git", "push", "origin", "--delete", branch);
   console.log(`  ✓ #${issue.number} merged via PR #${pr} (CI: ${checks})`);
+  if (issue.parent) {
+    await waitUntilClosed(issue);
+    closeFinishedParents();
+  }
 }
 
 let crashed = false;
 for (let cycle = 1; cycle <= MAX_CYCLES && !crashed; cycle++) {
   git("fetch", "origin");
+  closeFinishedParents();
   // ponytail: fixed batches of MAX_PARALLEL instead of a worker pool; leftovers go in the next cycle
   const batch = readyIssues().slice(0, MAX_PARALLEL);
   if (batch.length === 0) {

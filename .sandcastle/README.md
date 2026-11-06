@@ -4,6 +4,8 @@ Takes open `ready-for-agent` issues with no open blockers, one at a time, throug
 `implement` skill → `code-review` skill + fixes → PR (`Closes #N`) → CI (one auto-fix attempt) → squash-merge.
 Anything stuck is relabelled `ready-for-human` with a comment.
 
+An issue with sub-issues is never built directly. The factory builds its sub-issues (each gets the parent as context) and closes the parent once the last one merges.
+
 Agents are Claude Code (`claude-opus-5-5`, effort `high`) in Docker. Your host skills come from `~/.agents/skills`, mounted read-only. The implement step also inlines `rust-best-practices`, `clean-code` and the `ponytail` plugin skill; the review step adds `tokio-async-code-review` for async diffs and writes the PR body with `pr`. Install the non-plugin ones with:
 
     npx skills@latest add mattpocock/skills --skill=pr -g

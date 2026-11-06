@@ -8,7 +8,7 @@ Commits under review:
 
 # REVIEW
 
-Use the `code-review` skill with fixed point `origin/main`. The spec is issue #{{ISSUE_NUMBER}} (`gh issue view {{ISSUE_NUMBER}}`). The standards are `AGENTS.md`, `GLOSSARY.md`, `docs/adr/` and idiomatic Rust (clippy clean, no `unwrap()` outside tests, no needless `unsafe`).
+Use the `code-review` skill with fixed point `origin/main`. The spec is issue #{{ISSUE_NUMBER}} (`gh issue view {{ISSUE_NUMBER}}`). Its parent issue is {{PARENT}}: if there is one, use it as context for the Decisions, but don't count the parent's criteria that belong to sibling sub-issues as Spec gaps. The standards are `AGENTS.md`, `GLOSSARY.md`, `docs/adr/` and idiomatic Rust (clippy clean, no `unwrap()` outside tests, no needless `unsafe`).
 
 If the diff touches async code (`async fn`, `tokio::`, `.await`, spawned tasks, channels, locks), also run the `tokio-async-code-review` skill over those files, and check its findings with `review-verification-protocol` as that skill says. Treat its Critical and Major findings as hard findings.
 
@@ -34,6 +34,6 @@ Once the branch meets the spec and every check passes, write the pull request bo
 !`awk 'f>=2{print} /^---$/{f++}' ~/.claude/skills/pr/SKILL.md`
 </skill>
 
-Use the real `cargo test` output you just ran as the Evidence. Output the body wrapped in a `pr-body` XML tag (opening and closing). Leave out `Closes #{{ISSUE_NUMBER}}`: the factory adds it.
+Use the real `cargo test` output you just ran as the Evidence. Output the body wrapped in a `pr-body` XML tag (opening and closing). Leave out `Closes #{{ISSUE_NUMBER}}` and any `Part of` line: the factory adds them.
 
 Then output <promise>COMPLETE</promise>.
