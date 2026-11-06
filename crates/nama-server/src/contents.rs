@@ -347,7 +347,7 @@ impl Contents {
     }
 
     /// The paths of the Library `library`'s files that hold no Items, because their names don't
-    /// follow the naming conventions, in order.
+    /// follow the naming conventions, by path.
     pub(crate) async fn unparsed(&self, library: i64) -> Result<Vec<String>, sqlx::Error> {
         sqlx::query_scalar!(
             "SELECT path FROM library_files

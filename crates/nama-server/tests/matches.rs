@@ -237,13 +237,16 @@ impl Fixture {
     async fn scan_until_unparsed(&self, relative: &str) {
         self.scan().await;
         let path = self.path(relative);
-        tokio::time::timeout(Duration::from_secs(5), async {
-            while !self.unparsed().await.contains(&path) {
-                tokio::time::sleep(Duration::from_millis(10)).await;
-            }
-        })
-        .await
-        .unwrap();
+        tokio::time::timeout(Duration::from_secs(5), self.wait_for_unparsed(&path))
+            .await
+            .unwrap();
+    }
+
+    /// Waits until [`Self::unparsed`] lists `path`.
+    async fn wait_for_unparsed(&self, path: &String) {
+        while !self.unparsed().await.contains(path) {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
     }
 
     /// The absolute path of the file at `relative` in the Library's folder.
