@@ -1,6 +1,6 @@
 // AI factory: ready-for-agent issues → implement → review → PR → CI → squash-merge.
 // Run from the repo root: `npm --prefix .sandcastle run factory`  (the script cd's back to the root)
-import { execFileSync, spawnSync } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { setTimeout as sleep } from "node:timers/promises";
@@ -162,39 +162,81 @@ async function waitForChecks(branch: string): Promise<"pass" | "fail"> {
       "--json", "databaseId", "--jq", ".[0].databaseId // empty");
   }
   if (!run) throw new Blocked(`no CI run started for ${sha.slice(0, 7)} within 5 minutes`);
-  const r = spawnSync("gh", ["run", "watch", run, "--exit-status", "--interval", "30"], { stdio: "ignore" });
-  return r.status === 0 ? "pass" : "fail";
+  // Async, not spawnSync: the other issue's agents keep running while this one waits.
+  const code = await new Promise<number | null>((resolve) =>
+    spawn("gh", ["run", "watch", run, "--exit-status", "--interval", "30"], { stdio: "ignore" }).on("close", resolve));
+  return code === 0 ? "pass" : "fail";
 }
 
-async function ship(issue: Issue, box: Box, body: string) {
+// Rebases onto main if another issue merged first, then pushes.
+// (A PR that conflicts with main gets no pull_request CI run at all.)
+async function syncAndPush(issue: Issue, box: Box) {
   const branch = branchOf(issue);
   git("fetch", "origin");
   if (!ok("git", "merge-base", "--is-ancestor", `origin/${BASE}`, branch)) {
     await agent(box, issue, "fix", { PROBLEM: `It is behind origin/${BASE} (other issues merged first) and may conflict.` });
   }
   git("push", "--force-with-lease", "origin", `${branch}:${branch}`);
+}
 
+// One fix attempt if CI fails.
+async function greenCi(issue: Issue, box: Box, pr: string) {
+  const branch = branchOf(issue);
+  if ((await waitForChecks(branch)) === "pass") return;
+  await agent(box, issue, "fix", { PROBLEM: `CI is failing on PR #${pr}.` });
+  git("push", "--force-with-lease", "origin", `${branch}:${branch}`);
+  if ((await waitForChecks(branch)) === "fail") throw new Blocked(`CI still failing on PR #${pr} after one fix attempt`);
+}
+
+// Runs as soon as review is done, in parallel with the other issues in the batch.
+async function openPr(issue: Issue, box: Box, body: string): Promise<string> {
+  const branch = branchOf(issue);
+  await syncAndPush(issue, box);
   const existing = gh("pr", "list", "--head", branch, "--state", "open", "--json", "number", "--jq", ".[0].number");
   if (existing) gh("pr", "edit", existing, "--body", body); // resumed run: refresh the body for the new review
   const pr =
     existing ||
     gh("pr", "create", "--base", BASE, "--head", branch, "--title", issue.title, "--body", body)
       .split("/").pop()!;
+  await greenCi(issue, box, pr);
+  return pr;
+}
 
-  let checks = await waitForChecks(branch);
-  if (checks === "fail") {
-    await agent(box, issue, "fix", { PROBLEM: `CI is failing on PR #${pr}.` });
-    git("push", "--force-with-lease", "origin", `${branch}:${branch}`);
-    checks = await waitForChecks(branch);
+// Runs one at a time (see `serially`), so each branch is checked against the latest main.
+async function mergePr(issue: Issue, box: Box, pr: string) {
+  const branch = branchOf(issue);
+  git("fetch", "origin");
+  if (!ok("git", "merge-base", "--is-ancestor", `origin/${BASE}`, branch)) {
+    await syncAndPush(issue, box); // another issue merged since CI went green: CI again on the rebased branch
+    await greenCi(issue, box, pr);
   }
-  if (checks === "fail") throw new Blocked(`CI still failing on PR #${pr} after one fix attempt`);
-
   gh("pr", "merge", pr, "--squash");
   ok("git", "push", "origin", "--delete", branch);
-  console.log(`  ✓ #${issue.number} merged via PR #${pr} (CI: ${checks})`);
+  console.log(`  ✓ #${issue.number} merged via PR #${pr}`);
   if (issue.parent) {
     await waitUntilClosed(issue);
     closeFinishedParents();
+  }
+}
+
+let mergeQueue: Promise<unknown> = Promise.resolve();
+function serially<T>(fn: () => Promise<T>): Promise<T> {
+  const next = mergeQueue.then(fn);
+  mergeQueue = next.catch(() => {});
+  return next;
+}
+
+// build → PR → green CI in parallel; only the merge waits its turn.
+async function pipeline(issue: Issue) {
+  const { box, body } = await build(issue);
+  let merged = false;
+  try {
+    const pr = await openPr(issue, box, body);
+    await serially(() => mergePr(issue, box, pr));
+    merged = true;
+  } finally {
+    await box.close();
+    if (merged) ok("git", "branch", "-D", branchOf(issue)); // squash-merged; the local branch is dead weight
   }
 }
 
@@ -210,34 +252,15 @@ for (let cycle = 1; cycle <= MAX_CYCLES && !crashed; cycle++) {
   }
   console.log(`\n=== Cycle ${cycle}: ${batch.map((i) => `#${i.number}`).join(", ")} ===`);
 
-  const built = await Promise.allSettled(batch.map(build));
-
-  // Merges go one at a time so each branch is checked against the latest main.
-  for (const [i, outcome] of built.entries()) {
+  const results = await Promise.allSettled(batch.map(pipeline));
+  for (const [i, outcome] of results.entries()) {
+    if (outcome.status === "fulfilled") continue;
     const issue = batch[i]!;
-    if (outcome.status === "rejected") {
-      if (outcome.reason instanceof Blocked) handBack(issue, outcome.reason.message);
-      else {
-        // Infra failure (docker, auth, network): don't relabel; stop after this cycle.
-        console.error(`  ✗ #${issue.number} crashed:`, outcome.reason);
-        crashed = true;
-      }
-      continue;
-    }
-    const { box, body } = outcome.value;
-    let merged = false;
-    try {
-      await ship(issue, box, body);
-      merged = true;
-    } catch (e) {
-      if (e instanceof Blocked) handBack(issue, e.message);
-      else {
-        console.error(`  ✗ #${issue.number} crashed while shipping:`, e);
-        crashed = true;
-      }
-    } finally {
-      await box.close();
-      if (merged) ok("git", "branch", "-D", branchOf(issue)); // squash-merged; the local branch is dead weight
+    if (outcome.reason instanceof Blocked) handBack(issue, outcome.reason.message);
+    else {
+      // Infra failure (docker, auth, network): don't relabel; stop after this cycle.
+      console.error(`  ✗ #${issue.number} crashed:`, outcome.reason);
+      crashed = true;
     }
   }
 }
