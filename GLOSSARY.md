@@ -27,8 +27,16 @@ A person's identity on one Server.
 _Avoid_: profile, member, local user
 
 **Device**:
-A client installation signed in to a Server as a User, with its own session that can be revoked.
-_Avoid_: client, session, token
+A client installation signed in to a Server as a User. Revoking a Device signs it out.
+_Avoid_: client, session, token (for the Device itself)
+
+**Sign-in Code**:
+A short code a new Device shows so a User already signed in elsewhere can sign it in without typing a password on it.
+_Avoid_: pairing code, PIN, device code
+
+**Setup Code**:
+A one-time code a fresh Server prints to its log, which whoever creates the first Admin must enter.
+_Avoid_: claim token, bootstrap code
 
 **Sign-in Code**:
 A short code a new Device shows so a User already signed in elsewhere can sign it in without typing a password on it.

@@ -8,3 +8,4 @@ A Device's session is an opaque random token, stored hashed and deleted to revok
 
 - **JWTs for Server sessions**: rejected. A Device must be revocable at once, which a self-contained token can't do without a denylist. Hub-signed JWTs (ADR 0011) are only presented to a Server to start a session, never used as one.
 - **Signed media URLs**: rejected. A second credential just for `/media/...`, and one that leaks through logs and shared links.
+- **One credential-checking trait for every kind of Provider**: rejected for now. Password sign-in finds the User by name, while Hub sign-in carries a Hub-signed JWT and finds the User through their Link. `local-auth` implements a password-only trait, and the Hub gets its own trait in M5. Both only answer "these credentials belong to this User".
