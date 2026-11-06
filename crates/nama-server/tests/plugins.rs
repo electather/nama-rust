@@ -549,3 +549,64 @@ async fn a_panicking_provider_is_disabled_and_the_next_provider_answers() {
     assert_eq!(greet(&registry).await, Some("hello"));
     assert_eq!(registry.enabled(), [PluginId::from_static("en")]);
 }
+
+#[tokio::test]
+async fn an_observer_whose_plugin_is_disabled_before_the_event_reaches_it_is_not_told() {
+    let (tx, mut rx) = mpsc::unbounded_channel();
+    let registry = Registry::new();
+    let forward_gone = Forward("gone", tx.clone());
+    registry
+        .enable(plugin("gone", move |r| {
+            r.observe::<Numbers>(forward_gone.clone());
+        }))
+        .unwrap();
+
+    // The test runtime has one thread, so the delivery task can't run before the disable.
+    registry.notify::<Numbers>(1);
+    registry.disable(&PluginId::from_static("gone"));
+
+    let forward_witness = Forward("witness", tx);
+    registry
+        .enable(plugin("witness", move |r| {
+            r.observe::<Numbers>(forward_witness.clone());
+        }))
+        .unwrap();
+    registry.notify::<Numbers>(2);
+    assert_eq!(next(&mut rx).await, ("witness", 2));
+    assert_eq!(rx.try_recv(), Err(TryRecvError::Empty));
+}
+
+/// An Interceptor that disables its own Plugin, enables a fresh copy of it, then panics.
+struct ReenableThenPanic(Registry);
+
+impl Interceptor<Words> for ReenableThenPanic {
+    fn intercept<'a>(&'a self, _action: &'a Vec<&'static str>) -> BoxFuture<'a, Decision<Words>> {
+        self.0.disable(&PluginId::from_static("flaky"));
+        self.0
+            .enable(interceptor::<Words>("flaky", Priority::DEFAULT, |a| {
+                Ok(append(a, "fresh"))
+            }))
+            .expect("the fresh copy enables");
+        panic!("stale interceptor bug")
+    }
+}
+
+#[tokio::test]
+async fn a_panic_from_a_stale_call_does_not_disable_the_plugin_enabled_since() {
+    let registry = Registry::new();
+    let handle = registry.clone();
+    registry
+        .enable(plugin("flaky", move |r| {
+            r.intercept::<Words>(Priority::DEFAULT, ReenableThenPanic(handle.clone()));
+        }))
+        .unwrap();
+
+    let outcome = registry.intercept::<Words>(vec![]).await;
+
+    assert_eq!(outcome, Outcome::Proceed(vec![]));
+    assert_eq!(registry.enabled(), [PluginId::from_static("flaky")]);
+    assert_eq!(
+        registry.intercept::<Words>(vec![]).await,
+        Outcome::Proceed(vec!["fresh"])
+    );
+}

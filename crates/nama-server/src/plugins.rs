@@ -30,17 +30,30 @@ pub struct Registry {
 
 #[derive(Default)]
 struct State {
-    plugins: BTreeMap<PluginId, Arc<dyn Plugin>>,
+    plugins: BTreeMap<PluginId, Enabled>,
+    /// The generation the next enabled Plugin gets.
+    next_generation: u64,
     /// Each Extension Point's handlers, in the order they run.
     points: HashMap<PointKey, Vec<Entry>>,
     /// The admin's ranking of Providers, by capability. It outlasts Plugins being disabled.
     precedence: HashMap<PointKey, Vec<PluginId>>,
 }
 
+/// One enabled Plugin.
+struct Enabled {
+    // Held so the Plugin lives as long as it is enabled.
+    _plugin: Arc<dyn Plugin>,
+    /// Tells this enablement apart from earlier ones of the same Plugin, so a call that started
+    /// before a disable can't reach or disable the Plugin enabled again since.
+    generation: u64,
+}
+
 /// One handler and the Plugin that registered it.
 #[derive(Clone)]
 struct Entry {
     plugin: PluginId,
+    /// The generation of the Plugin's enablement that registered it.
+    generation: u64,
     /// Position among the Plugin's own registrations, which breaks the last tie.
     index: usize,
     registration: Registration,
@@ -119,37 +132,69 @@ impl Registry {
 
         let count = registrations.len();
         let version = plugin.version().to_owned();
-        self.write(|state| {
+        // Plugin values the lock refuses are dropped after it is released, since a Plugin's `Drop`
+        // is Plugin code.
+        let refused = self.write(|state| {
             if state.plugins.contains_key(&id) {
-                return Err(EnableError::AlreadyEnabled(id.clone()));
+                return Some((plugin, registrations));
             }
-            state.plugins.insert(id.clone(), plugin);
+            let generation = state.next_generation;
+            state.next_generation += 1;
+            state.plugins.insert(
+                id.clone(),
+                Enabled {
+                    _plugin: plugin,
+                    generation,
+                },
+            );
             for (index, registration) in registrations.into_iter().enumerate() {
                 let entries = state.points.entry(registration.point()).or_default();
                 entries.push(Entry {
                     plugin: id.clone(),
+                    generation,
                     index,
                     registration,
                 });
                 entries.sort_by(|a, b| a.order().cmp(&b.order()));
             }
-            Ok(())
-        })?;
+            None
+        });
+        if refused.is_some() {
+            return Err(EnableError::AlreadyEnabled(id));
+        }
         info!(plugin = %id, %version, registrations = count, "enabled plugin");
         Ok(())
     }
 
     /// Disables the Plugin `id` and removes everything it registered. Returns whether it was
     /// enabled.
+    #[expect(
+        clippy::must_use_candidate,
+        reason = "callers often disable without caring whether the Plugin was enabled"
+    )]
     pub fn disable(&self, id: &PluginId) -> bool {
-        let was_enabled = self.write(|state| {
-            let was_enabled = state.plugins.remove(id).is_some();
+        self.disable_generation(id, None)
+    }
+
+    /// Disables the Plugin `id`, but only its enablement `generation` if one is given.
+    fn disable_generation(&self, id: &PluginId, generation: Option<u64>) -> bool {
+        // What is removed is dropped after the lock is released, since a Plugin's `Drop` is
+        // Plugin code.
+        let removed = self.write(|state| {
+            let current = state.plugins.get(id)?.generation;
+            if generation.is_some_and(|generation| generation != current) {
+                return None;
+            }
+            let plugin = state.plugins.remove(id)?;
+            let mut handlers = Vec::new();
             for entries in state.points.values_mut() {
-                entries.retain(|entry| entry.plugin != *id);
+                handlers.extend(entries.extract_if(.., |entry| entry.plugin == *id));
             }
             state.points.retain(|_, entries| !entries.is_empty());
-            was_enabled
+            Some((plugin, handlers))
         });
+        let was_enabled = removed.is_some();
+        drop(removed);
         if was_enabled {
             info!(plugin = %id, "disabled plugin");
         }
@@ -176,22 +221,23 @@ impl Registry {
             let Some(observer) = entry.registration.observer::<P>() else {
                 continue;
             };
-            tokio::spawn(
-                self.clone()
-                    .deliver(entry.plugin, observer, Arc::clone(&event)),
-            );
+            tokio::spawn(self.clone().deliver(entry, observer, Arc::clone(&event)));
         }
     }
 
     /// Tells one Observer about one event.
     async fn deliver<P: ObservePoint>(
         self,
-        plugin: PluginId,
+        entry: Entry,
         observer: Arc<dyn Observer<P>>,
         event: Arc<P::Event>,
     ) {
+        // The Plugin may have been disabled since `notify`.
+        if !self.is_current(&entry) {
+            return;
+        }
         if let Err(message) = contain(|| observer.observe(&event)).await {
-            self.panicked(&plugin, P::NAME, &message);
+            self.disable_after_panic(&entry, P::NAME, &message);
         }
     }
 
@@ -204,7 +250,7 @@ impl Registry {
                 continue;
             };
             // Skip Plugins disabled since the snapshot, such as one that panicked earlier in it.
-            if !self.is_enabled(&entry.plugin) {
+            if !self.is_current(&entry) {
                 continue;
             }
             let called =
@@ -212,11 +258,24 @@ impl Registry {
             let verdict = match called {
                 Ok(Ok(verdict)) => verdict,
                 Ok(Err(message)) => {
-                    self.panicked(&entry.plugin, P::NAME, &message);
+                    self.disable_after_panic(&entry, P::NAME, &message);
                     continue;
                 }
                 Err(elapsed) => Err(format!("timed out after {:?} ({elapsed})", P::TIMEOUT).into()),
             };
+            let verdict = verdict.or_else(|error| {
+                warn!(
+                    plugin = %entry.plugin,
+                    point = P::NAME,
+                    on_failure = ?P::ON_FAILURE,
+                    %error,
+                    "interceptor failed"
+                );
+                match P::ON_FAILURE {
+                    OnFailure::Allow => Ok(Verdict::Continue),
+                    OnFailure::Block => Err(error),
+                }
+            });
             match verdict {
                 Ok(Verdict::Continue) => {}
                 Ok(Verdict::Modify(modified)) => action = modified,
@@ -226,28 +285,12 @@ impl Registry {
                         reason,
                     };
                 }
-                Err(error) => match P::ON_FAILURE {
-                    OnFailure::Allow => {
-                        warn!(
-                            plugin = %entry.plugin,
-                            point = P::NAME,
-                            %error,
-                            "interceptor failed; letting the action through"
-                        );
-                    }
-                    OnFailure::Block => {
-                        warn!(
-                            plugin = %entry.plugin,
-                            point = P::NAME,
-                            %error,
-                            "interceptor failed; blocking the action"
-                        );
-                        return Outcome::Failed {
-                            by: entry.plugin,
-                            error: error.to_string(),
-                        };
-                    }
-                },
+                Err(error) => {
+                    return Outcome::Failed {
+                        by: entry.plugin,
+                        error: error.to_string(),
+                    };
+                }
             }
         }
         Outcome::Proceed(action)
@@ -278,12 +321,12 @@ impl Registry {
             let Some(provider) = entry.registration.provider::<T>() else {
                 continue;
             };
-            if !self.is_enabled(&entry.plugin) {
+            if !self.is_current(&entry) {
                 continue;
             }
             match contain(|| call(provider)).await {
                 Ok(result) => return Some(result),
-                Err(message) => self.panicked(&entry.plugin, point.name(), &message),
+                Err(message) => self.disable_after_panic(&entry, point.name(), &message),
             }
         }
         None
@@ -296,14 +339,21 @@ impl Registry {
         self.write(|state| state.precedence.insert(PointKey::provide::<T>(), plugins));
     }
 
-    fn is_enabled(&self, id: &PluginId) -> bool {
-        self.read(|state| state.plugins.contains_key(id))
+    /// Whether the enablement that registered `entry` is still the enabled one.
+    fn is_current(&self, entry: &Entry) -> bool {
+        self.read(|state| {
+            state
+                .plugins
+                .get(&entry.plugin)
+                .is_some_and(|enabled| enabled.generation == entry.generation)
+        })
     }
 
-    /// Logs that a Plugin panicked at `point` and disables it.
-    fn panicked(&self, plugin: &PluginId, point: &str, message: &str) {
-        error!(%plugin, point, message, "plugin panicked; disabling it");
-        self.disable(plugin);
+    /// Logs that the handler `entry` panicked at `point` and disables the enablement of its Plugin
+    /// that registered it. A Plugin enabled again since is left alone.
+    fn disable_after_panic(&self, entry: &Entry, point: &str, message: &str) {
+        error!(plugin = %entry.plugin, point, message, "plugin panicked; disabling it");
+        self.disable_generation(&entry.plugin, Some(entry.generation));
     }
 
     /// A snapshot of the handlers at `point`, in the order they run.
@@ -311,7 +361,8 @@ impl Registry {
         self.read(|state| state.points.get(&point).cloned().unwrap_or_default())
     }
 
-    // No Plugin code runs while the lock is held, so a poisoned lock's state is still whole.
+    // No Plugin code runs while the lock is held (not even a Plugin's `Drop`), so a poisoned lock's
+    // state is still whole.
     fn read<T>(&self, f: impl FnOnce(&State) -> T) -> T {
         f(&self.state.read().unwrap_or_else(PoisonError::into_inner))
     }

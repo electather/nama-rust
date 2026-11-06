@@ -57,18 +57,6 @@ impl PluginId {
     }
 }
 
-impl From<String> for PluginId {
-    fn from(id: String) -> Self {
-        Self(Cow::Owned(id))
-    }
-}
-
-impl From<&'static str> for PluginId {
-    fn from(id: &'static str) -> Self {
-        Self::from_static(id)
-    }
-}
-
 impl fmt::Display for PluginId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.0)
@@ -173,14 +161,12 @@ pub trait Interceptor<P: InterceptPoint>: Send + Sync + 'static {
     ) -> BoxFuture<'a, Result<Verdict<P::Action>, PluginError>>;
 }
 
-/// The kind of an Extension Point.
+/// The kind of an Extension Point. Part of [`PointKey`], so one type can't be confused across
+/// kinds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Kind {
-    /// See [`ObservePoint`].
+enum Kind {
     Observe,
-    /// See [`InterceptPoint`].
     Intercept,
-    /// A capability looked up by its trait.
     Provide,
 }
 
@@ -221,12 +207,6 @@ impl PointKey {
             type_id: TypeId::of::<T>(),
             name: std::any::type_name::<T>(),
         }
-    }
-
-    /// The Extension Point's kind.
-    #[must_use]
-    pub const fn kind(&self) -> Kind {
-        self.kind
     }
 
     /// The Extension Point's name, for the log.

@@ -63,8 +63,7 @@ fn bound_addr(listening_line: &str) -> SocketAddr {
 }
 
 #[test]
-fn server_logs_its_config_creates_its_database_enables_plugins_serves_the_api_and_exits_cleanly_on_ctrl_c()
- {
+fn server_logs_its_config_creates_its_database_serves_the_api_and_exits_cleanly_on_ctrl_c() {
     let dir = std::env::temp_dir().join(format!("nama-server-binary-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let dir = RemoveOnDrop(dir);
