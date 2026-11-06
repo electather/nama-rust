@@ -87,7 +87,7 @@ jobs:
           sqlx database create
           sqlx migrate run --source crates/nama-server/migrations
           cargo sqlx prepare --check --workspace -- --all-targets || {
-            echo "::error::.sqlx is stale; see crates/nama-server/src/db.rs for how to regenerate it"
+            echo "::error::.sqlx is stale; see crates/nama-server/README.md for how to regenerate it"
             exit 1
           }
 
