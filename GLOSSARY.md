@@ -86,8 +86,12 @@ _Avoid_: driver, backend, adapter
 A named collection of one kind of media (Movies or Shows) on a Server, backed by one or more folders.
 _Avoid_: collection, section
 
+**Item**:
+What a file in a Library holds, going by its name: one Movie, or one or more Episodes of a Show. Each Item is Matched on its own.
+_Avoid_: entry, media item, title
+
 **Match**:
-The link between a file in a Library and a title in a metadata source. A file without one is Unmatched.
+The link between an Item in a Library and a title in a metadata source. An Item without one is Unmatched.
 _Avoid_: identification, lookup
 
 **Pinned Match**:
