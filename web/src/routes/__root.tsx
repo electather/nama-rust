@@ -34,7 +34,7 @@ function RootDocument({ children }: { children: ReactNode }) {
 function NotFound() {
   return (
     <main className="mx-auto max-w-prose px-6 py-16">
-      <h1 className="text-2xl font-semibold">Page not found</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">Page not found</h1>
       <p className="mt-2 text-muted-foreground">There’s nothing at this address.</p>
     </main>
   );

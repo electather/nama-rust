@@ -1,7 +1,66 @@
-<!-- SEED: re-run /impeccable document once there's code to capture the actual tokens and components. -->
 ---
 name: Nama
 description: A self-hosted media server with Requests built in. Quiet chrome, loud artwork.
+colors:
+  primary: "oklch(0.714 0.171 155)"
+  on-primary: "oklch(0 0 0)"
+  background: "oklch(0.145 0 0)"
+  surface-raised: "oklch(0.185 0 0)"
+  muted: "oklch(0.25 0 0)"
+  foreground: "oklch(0.985 0 0)"
+  muted-foreground: "oklch(0.65 0 0)"
+  border: "oklch(1 0 0 / 8%)"
+  input: "oklch(1 0 0 / 14%)"
+  destructive: "oklch(0.704 0.191 22.216)"
+  scrim: "oklch(0 0 0 / 70%)"
+typography:
+  display:
+    fontFamily: "Geist Variable, sans-serif"
+    fontSize: "2.5rem"
+    fontWeight: 500
+    lineHeight: 1.05
+    letterSpacing: "-0.035em"
+  headline:
+    fontFamily: "Geist Variable, sans-serif"
+    fontSize: "1.5rem"
+    fontWeight: 600
+    lineHeight: 1.2
+    letterSpacing: "-0.025em"
+  title:
+    fontFamily: "Geist Variable, sans-serif"
+    fontSize: "0.9375rem"
+    fontWeight: 500
+    lineHeight: 1.4
+  body:
+    fontFamily: "Geist Variable, sans-serif"
+    fontSize: "1rem"
+    fontWeight: 400
+    lineHeight: 1.6
+  label:
+    fontFamily: "Geist Variable, sans-serif"
+    fontSize: "0.8125rem"
+    fontWeight: 400
+    lineHeight: 1.4
+rounded:
+  md: "8px"
+  lg: "10px"
+  xl: "14px"
+  full: "9999px"
+components:
+  button-primary:
+    backgroundColor: "{colors.primary}"
+    textColor: "{colors.on-primary}"
+    rounded: "{rounded.lg}"
+    padding: "9px 16px"
+  button-secondary:
+    backgroundColor: "{colors.foreground}"
+    textColor: "{colors.background}"
+    rounded: "{rounded.lg}"
+    padding: "9px 16px"
+  card:
+    backgroundColor: "{colors.surface-raised}"
+    rounded: "{rounded.xl}"
+    padding: "18px"
 ---
 
 # Design System: Nama
@@ -18,23 +77,30 @@ The system rejects Plex's busy home screen with its promoted rows and upsells, t
 
 **Key Characteristics:**
 - Artwork is the loudest element on every screen. The interface never competes with it.
-- Restrained colour: tinted neutrals plus a single accent.
-- One warm humanist sans in several weights. No second family.
+- Restrained colour: pure black-and-grey neutrals plus a single green accent.
+- One clean sans (Geist) in several weights. No second family.
 - Flat surfaces separated by tone, not by shadows or borders.
 - Responsive motion that confirms and connects, and is never decorative.
 
 ## 2. Colors
 
-A restrained palette of tinted neutrals with a single accent. The artwork supplies the colour, so the interface doesn't have to.
+A restrained palette of pure neutrals with a single accent. The artwork supplies the colour, so the interface doesn't have to.
 
 ### Primary
-- **Accent** [hue and value to be resolved during implementation]: used only for the primary action on a screen (Play, Request), focus rings, and progress (Watch State bars, Request progress). Choose a hue that sits comfortably next to arbitrary poster art and still meets AA contrast on the neutral surfaces. In code this is shadcn's `--primary`, and `--ring` for focus. shadcn's own `--accent` is a quiet neutral hover background, never this colour (ADR 0016).
+- **Signal Green** (`#16C172`, `oklch(0.714 0.171 155)`): used only for the primary action on a screen (Play, Resume, Request), focus rings, and progress (Watch State bars, Request progress). It reads 8.4:1 on the page, so it carries black ink (`on-primary`, 8.9:1) in semibold, never white (2.4:1). It may also appear as a 14% tint behind a positive state label, such as an Available Request, always with its label and icon. In code this is shadcn's `--primary`, and `--ring` for focus. shadcn's own `--accent` is a quiet neutral hover background, never this colour (ADR 0016).
 
 ### Neutral
-- **Surfaces, ink and dividers** [to be resolved during implementation]: a tonal ramp tinted 0.005–0.015 chroma toward the accent's hue. The theme is dark, chosen for the physical scene in PRODUCT.md: a couch, evening, often dim light. The values live in shadcn's `.dark` tokens, so a light theme later only needs new `:root` values (ADR 0016).
+- **Living-room black** (`oklch(0.145 0 0)`, about `#0a0a0a`): the page.
+- **Raised black** (`oklch(0.185 0 0)`): cards, popovers and `--surface-raised`, one step above the page.
+- **Muted** (`oklch(0.25 0 0)`): hover backgrounds, inactive progress tracks.
+- **Ink** (`oklch(0.985 0 0)`): text, and the secondary button's fill.
+- **Quiet ink** (`oklch(0.65 0 0)`): metadata and supporting text, at least 4.9:1 on every surface.
+- **Hairline** (white at 8%, inputs at 14%): borders and dividers.
+
+The neutrals have no chroma. Both reference directions (shadcn, and dark product sites that keep one green) showed that a coloured background competes with the artwork, so the ramp is pure grey. The values live in shadcn's `.dark` tokens, so a light theme later only needs new `:root` values (ADR 0016).
 
 ### Named Rules
-**The One Voice Rule.** The accent covers 10% of any screen at most. If two things on a screen are accent-coloured and only one of them is the primary action, one of them is wrong.
+**The One Voice Rule.** The accent covers 10% of any screen at most. Solid accent fill belongs to one element per screen, the primary action. Focus rings, progress bars and a positive state tint are the only other places it appears.
 
 **The Artwork Owns Colour Rule.** Interface chrome never uses saturated colour for decoration. Every hue that isn't the accent comes from the media.
 
@@ -42,18 +108,18 @@ A restrained palette of tinted neutrals with a single accent. The artwork suppli
 
 ## 3. Typography
 
-**Display Font:** [humanist sans to be chosen at implementation, from Google Fonts, bundled with the app through Fontsource]
+**Display Font:** Geist Variable (with `sans-serif`), bundled through Fontsource
 **Body Font:** the same family
 **Label/Mono Font:** none planned
 
-**Character:** a single warm humanist sans used in several weights. It should read as friendly and calm, never technical. Hierarchy comes from weight and size, not from a second family.
+**Character:** one clean sans in several weights, the face shadcn is built around. Large titles go lighter (medium) and tight-tracked, so they feel calm rather than loud. Hierarchy comes from weight and size, not from a second family.
 
 ### Hierarchy
-- **Display**: Movie and Show titles on title pages, set over backdrops.
-- **Headline**: Library names and section headings such as Continue Watching.
-- **Title**: poster captions and Request titles.
-- **Body**: overviews and descriptions, capped at 65–75ch.
-- **Label**: metadata such as year, runtime, rating and Request state. Sentence case, not tracked uppercase.
+- **Display** (500, 2.5rem, 1.05, -0.035em): Movie and Show titles on title pages, set over backdrops.
+- **Headline** (600, 1.5rem, 1.2, -0.025em): page headings and Library names.
+- **Title** (500, 0.9375rem, 1.4): section headings such as Continue Watching, poster captions and Request titles.
+- **Body** (400, 1rem, 1.6): overviews and descriptions, capped at 65–75ch.
+- **Label** (400, 0.8125rem, 1.4, Quiet ink): metadata such as year, runtime, rating and Request state. Sentence case, not tracked uppercase.
 
 ### Named Rules
 **The One Family Rule.** Nama uses one typeface. Hierarchy comes from weight (regular, medium, semibold) and size, never from adding a display or mono face.
@@ -62,19 +128,25 @@ A restrained palette of tinted neutrals with a single accent. The artwork suppli
 
 ## 4. Elevation
 
-Flat by default. Depth comes from tonal layering: each surface steps one notch along the neutral ramp. Shadows are reserved for elements that genuinely float above the content, such as the player controls overlay, menus and dialogs. The one step above the page surface is the `--surface-raised` token, and text over artwork sits on the `--scrim` token.
+Flat by default. Depth comes from tonal layering plus a hairline: each surface steps one notch along the neutral ramp and carries a 1px white-at-8% border. Shadows are reserved for elements that genuinely float above the content, such as the player controls overlay, menus and dialogs. The one step above the page surface is the `--surface-raised` token, and text over artwork sits on the `--scrim` token.
 
 ### Named Rules
 **The Flat-By-Default Rule.** Surfaces are flat at rest. If a poster grid needs shadows to separate its items, the spacing is wrong.
 
 ## 5. Components
 
-[No components exist yet. They'll be documented on the first scan-mode run.]
+Only the app shell exists so far. The tokens above set the shape every component inherits:
+
+- **Buttons**: 10px radius, 14px medium text. Primary is Signal Green with black semibold ink, once per screen. Disabled is Muted with Quiet ink, never a faded colour. Secondary is solid ink on black. Everything else is ghost: no fill until hover, then Muted.
+- **Cards**: Raised black, 14px radius, a hairline border, 18px padding. No shadow.
+- **Inputs**: transparent, 14% hairline, 10px radius. Focus turns the border Signal Green with a 3px green ring at 25%.
+- **Posters**: 2:3, 10px radius, a hairline border. A 2px progress bar sits under a poster with Watch State.
+- **State labels**: pill, hairline border, Quiet ink, with an icon. Only a positive state may use the green tint.
 
 ## 6. Do's and Don'ts
 
 ### Do:
-- **Do** let artwork carry the colour, and keep chrome in tinted neutrals with a single accent (The One Voice Rule).
+- **Do** let artwork carry the colour, and keep chrome in pure neutrals with a single accent (The One Voice Rule).
 - **Do** put the primary action (Play, or Request for a missing title) in the accent colour, and keep it to one per screen.
 - **Do** show Request state wherever the title appears, as a label plus colour, never colour alone.
 - **Do** use a scrim under any text that sits over artwork, so it keeps AA contrast.
