@@ -13,6 +13,7 @@ A self-hosted media server and request manager, with an optional central Hub for
 | [`crates/nama-proto`](crates/nama-proto) | Rust types and ConnectRPC stubs generated from `proto/` |
 | [`plugins/`](plugins) | Built-in Plugins |
 | [`proto/`](proto) | The Protobuf API schema |
+| [`spikes/`](spikes) | Throwaway prototypes, not workspace members |
 
 ## Metadata from TMDB
 
