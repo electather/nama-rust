@@ -38,7 +38,7 @@ impeccable runs from the repo root because that's where it finds `.impeccable/co
 
 How strict they are:
 
-- **oxlint**: the `typescript`, `react`, `jsx-a11y`, `import`, `unicorn`, `promise` and `oxc` plugins, plus `vitest` for tests. The `correctness`, `suspicious`, `pedantic` and `perf` categories are on in full, plus picked `restriction` rules. Every rule is `error`, never `warn`. A rule that turns out to be noise is turned off in `vite.config.ts` with a comment saying why.
+- **oxlint**: the `typescript`, `react`, `jsx-a11y`, `import`, `unicorn`, `promise` and `oxc` plugins, plus `vitest` for tests, and [`@shadcn/lint`](https://github.com/shadcn-ui/lint) for the design system: no raw palette colours, arbitrary values, inline styles, unknown or dynamic classes, or `className` restyles of `src/components/ui/` components. The `correctness`, `suspicious`, `pedantic` and `perf` categories are on in full, plus picked `restriction` rules. Every rule is `error`, never `warn`. A rule that turns out to be noise is turned off in `vite.config.ts` with a comment saying why.
 - **TypeScript**: `strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noImplicitOverride`, `noImplicitReturns`, `noFallthroughCasesInSwitch`, `noPropertyAccessFromIndexSignature`, `verbatimModuleSyntax`, `isolatedModules` and `erasableSyntaxOnly`. Unused locals are reported by oxlint, not tsc.
 - **Fallow**: every rule is `error`, except `coverage-gaps`, which needs the runtime coverage sidecar. Any duplicated code fails. The complexity limits are 15 cyclomatic and 15 cognitive. Generated code is ignored, and so are unused exports in `src/components/ui/`, since shadcn files export every sub-part. An unused file there still fails.
 

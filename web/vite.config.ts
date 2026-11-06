@@ -34,7 +34,11 @@ export default defineConfig({
   lint: {
     ignorePatterns: generated,
     plugins: ["typescript", "react", "jsx-a11y", "import", "unicorn", "promise", "oxc", "vitest"],
-    jsPlugins: [{ name: "vite-plus", specifier: "vite-plus/oxlint-plugin" }],
+    jsPlugins: [
+      { name: "vite-plus", specifier: "vite-plus/oxlint-plugin" },
+      // Design-system rules, read from components.json and src/styles.css.
+      { name: "shadcn", specifier: "@shadcn/lint" },
+    ],
     categories: {
       correctness: "error",
       suspicious: "error",
@@ -43,6 +47,12 @@ export default defineConfig({
     },
     rules: {
       "vite-plus/prefer-vite-plus-imports": "error",
+      "shadcn/no-restyle": "error",
+      "shadcn/no-raw-colors": "error",
+      "shadcn/no-arbitrary-values": "error",
+      "shadcn/no-inline-styles": "error",
+      "shadcn/no-unknown-classes": "error",
+      "shadcn/require-static-classes": "error",
       // Picked from `restriction`.
       eqeqeq: "error",
       "no-console": "error",
