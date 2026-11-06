@@ -151,13 +151,19 @@ async function build(issue: Issue): Promise<{ box: Box; body: string }> {
   }
 }
 
-// "pass" | "fail" | "none" (repo has no CI yet; the reviewer's cargo run is the gate)
-async function waitForChecks(pr: string): Promise<"pass" | "fail" | "none"> {
-  await sleep(20_000); // ponytail: let GitHub register the checks; poll for check-suite creation if 20s proves flaky
-  const r = spawnSync("gh", ["pr", "checks", pr, "--watch", "--fail-fast", "--interval", "30"], { encoding: "utf8" });
-  if (r.status === 0) return "pass";
-  if (/no checks reported/i.test(r.stderr + r.stdout)) return "none";
-  return "fail";
+// Waits for the whole CI workflow run on the branch's pushed commit. `gh pr checks --watch` isn't
+// enough: a job behind `needs` (test after lint) has no check until it starts, so it can pass early.
+async function waitForChecks(branch: string): Promise<"pass" | "fail"> {
+  const sha = git("rev-parse", branch);
+  let run = "";
+  for (let i = 0; i < 30 && !run; i++) {
+    await sleep(10_000);
+    run = gh("run", "list", "--workflow", "CI", "--commit", sha, "--event", "pull_request",
+      "--json", "databaseId", "--jq", ".[0].databaseId // empty");
+  }
+  if (!run) throw new Blocked(`no CI run started for ${sha.slice(0, 7)} within 5 minutes`);
+  const r = spawnSync("gh", ["run", "watch", run, "--exit-status", "--interval", "30"], { stdio: "ignore" });
+  return r.status === 0 ? "pass" : "fail";
 }
 
 async function ship(issue: Issue, box: Box, body: string) {
@@ -175,11 +181,11 @@ async function ship(issue: Issue, box: Box, body: string) {
     gh("pr", "create", "--base", BASE, "--head", branch, "--title", issue.title, "--body", body)
       .split("/").pop()!;
 
-  let checks = await waitForChecks(pr);
+  let checks = await waitForChecks(branch);
   if (checks === "fail") {
     await agent(box, issue, "fix", { PROBLEM: `CI is failing on PR #${pr}.` });
     git("push", "--force-with-lease", "origin", `${branch}:${branch}`);
-    checks = await waitForChecks(pr);
+    checks = await waitForChecks(branch);
   }
   if (checks === "fail") throw new Blocked(`CI still failing on PR #${pr} after one fix attempt`);
 
