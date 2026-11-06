@@ -16,12 +16,15 @@ futures-util = { version = "0.3", default-features = false, features = ["std"] }
 nama-plugin-api = { version = "0.1.0", path = "../nama-plugin-api" }
 nama-plugin-log-events = { version = "0.1.0", path = "../../plugins/log-events" }
 nama-proto = { version = "0.1.0", path = "../nama-proto" }
+regex = "1"
 serde = { version = "1", features = ["derive"] }
 sqlx = { version = "0.9", default-features = false, features = ["macros", "migrate", "runtime-tokio", "sqlite-bundled"] }
 thiserror = "2"
 tokio = { version = "1", features = ["fs", "macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
+tokio-util = { version = "0.7", features = ["rt"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+walkdir = "2"
 
 [dev-dependencies]
 connectrpc = { version = "0.9.1", features = ["client"] }

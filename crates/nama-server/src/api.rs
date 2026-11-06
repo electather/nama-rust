@@ -10,23 +10,26 @@ use nama_proto::nama::v1::{
     self as proto, CreateLibraryRequest, CreateLibraryResponse, DeleteLibraryRequest,
     DeleteLibraryResponse, GetLibraryRequest, GetLibraryResponse, GetServerInfoRequest,
     GetServerInfoResponse, LibraryKind, LibraryService, ListLibrariesRequest,
-    ListLibrariesResponse, ServerService, UpdateLibraryRequest, UpdateLibraryResponse,
+    ListLibrariesResponse, ScanLibraryRequest, ScanLibraryResponse, ServerService,
+    UpdateLibraryRequest, UpdateLibraryResponse,
 };
 
 use crate::{
     config::Config,
     db::Database,
     libraries::{self, Kind, Libraries, Library},
+    scanner::{self, Scanner},
 };
 
 /// Routes every RPC the Server answers.
-pub(crate) fn router(config: &Config, db: Arc<Database>) -> axum::Router {
+pub(crate) fn router(config: &Config, db: Arc<Database>, scanner: Scanner) -> axum::Router {
     connectrpc::Router::new()
         .add_service(Arc::new(ServerServiceHandler {
             name: config.name.clone(),
         }))
         .add_service(Arc::new(LibraryServiceHandler {
             libraries: Libraries::new(db),
+            scanner,
         }))
         .into_axum_router()
 }
@@ -57,6 +60,7 @@ impl ServerService for ServerServiceHandler {
 // let through; once there are, check here that the caller's Role is Admin.
 struct LibraryServiceHandler {
     libraries: Libraries,
+    scanner: Scanner,
 }
 
 #[expect(
@@ -130,6 +134,15 @@ impl LibraryService for LibraryServiceHandler {
         self.libraries.delete(request.id).await?;
         Response::ok(DeleteLibraryResponse::default())
     }
+
+    async fn scan_library(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, ScanLibraryRequest>,
+    ) -> ServiceResult<ScanLibraryResponse> {
+        self.scanner.start(request.id).await?;
+        Response::ok(ScanLibraryResponse::default())
+    }
 }
 
 /// The kind a request asks for, which must be one the Server knows.
@@ -169,6 +182,20 @@ impl From<libraries::Error> for ConnectError {
             libraries::Error::Database(_) => {
                 tracing::error!("a Library request failed: {err}");
                 Self::internal("the Server's database failed")
+            }
+        }
+    }
+}
+
+/// The Connect error a client gets for a scan that couldn't start.
+impl From<scanner::Error> for ConnectError {
+    fn from(err: scanner::Error) -> Self {
+        match err {
+            scanner::Error::Library(err) => err.into(),
+            scanner::Error::Database(err) => libraries::Error::Database(err).into(),
+            scanner::Error::Walk(_) | scanner::Error::Cancelled => {
+                tracing::error!("a scan request failed: {err}");
+                Self::unavailable("the scan could not run")
             }
         }
     }

@@ -27,6 +27,13 @@ service LibraryService {
   rpc DeleteLibrary(DeleteLibraryRequest) returns (DeleteLibraryResponse) {
     option idempotency_level = IDEMPOTENT;
   }
+  // Starts scanning a Library's folders for video files, and returns without waiting for the
+  // scan to finish. If the Library is already being scanned, one more scan follows it, so
+  // changes made since the running scan began are picked up. Fails with `not_found` if there is
+  // no such Library.
+  rpc ScanLibrary(ScanLibraryRequest) returns (ScanLibraryResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
 }
 
 // The kind of media a Library holds. A Library holds exactly one kind.
@@ -99,3 +106,10 @@ message DeleteLibraryRequest {
 }
 
 message DeleteLibraryResponse {}
+
+message ScanLibraryRequest {
+  // The Library to scan.
+  int64 id = 1;
+}
+
+message ScanLibraryResponse {}

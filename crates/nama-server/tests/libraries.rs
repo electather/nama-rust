@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use connectrpc::{ConnectError, ErrorCode, client::HttpClient};
 use nama_proto::nama::v1::{
     CreateLibraryRequest, DeleteLibraryRequest, GetLibraryRequest, Library, LibraryKind,
-    LibraryServiceClient, ListLibrariesRequest, UpdateLibraryRequest,
+    LibraryServiceClient, ListLibrariesRequest, ScanLibraryRequest, UpdateLibraryRequest,
 };
 use nama_server::config::Config;
 use server::TestServer;
@@ -92,6 +92,16 @@ impl Fixture {
     async fn delete(&self, id: i64) -> Result<(), ConnectError> {
         self.client
             .delete_library(DeleteLibraryRequest {
+                id,
+                ..Default::default()
+            })
+            .await?;
+        Ok(())
+    }
+
+    async fn scan(&self, id: i64) -> Result<(), ConnectError> {
+        self.client
+            .scan_library(ScanLibraryRequest {
                 id,
                 ..Default::default()
             })
@@ -383,4 +393,21 @@ async fn a_symlink_to_a_folder_that_backs_a_library_is_refused_as_already_existi
         .unwrap_err();
 
     assert_eq!(err.code, ErrorCode::AlreadyExists, "{err:?}");
+}
+
+#[tokio::test]
+async fn a_scan_can_be_started_for_a_library_but_not_for_one_that_doesnt_exist() {
+    let fx = Fixture::start().await;
+    let films = fx.folder("films");
+    let movies = fx
+        .create("Movies", LibraryKind::LIBRARY_KIND_MOVIES, &[&films])
+        .await
+        .unwrap();
+
+    fx.scan(movies.id).await.unwrap();
+    // Asking again while that scan may still be running is fine too.
+    fx.scan(movies.id).await.unwrap();
+
+    let missing = fx.scan(movies.id + 1).await.unwrap_err();
+    assert_eq!(missing.code, ErrorCode::NotFound, "{missing:?}");
 }

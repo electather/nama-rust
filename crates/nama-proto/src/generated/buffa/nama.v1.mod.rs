@@ -35,6 +35,8 @@ pub mod __buffa {
         reg.register_json_any(super::__UPDATE_LIBRARY_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__DELETE_LIBRARY_REQUEST_JSON_ANY);
         reg.register_json_any(super::__DELETE_LIBRARY_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__SCAN_LIBRARY_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__SCAN_LIBRARY_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__GET_SERVER_INFO_REQUEST_JSON_ANY);
         reg.register_json_any(super::__GET_SERVER_INFO_RESPONSE_JSON_ANY);
     }
@@ -83,6 +85,14 @@ pub use self::__buffa::view::DeleteLibraryRequestOwnedView;
 pub use self::__buffa::view::DeleteLibraryResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::DeleteLibraryResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ScanLibraryRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ScanLibraryRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ScanLibraryResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ScanLibraryResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::GetServerInfoRequestView;
 #[doc(inline)]

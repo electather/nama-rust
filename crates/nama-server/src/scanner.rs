@@ -1,0 +1,821 @@
+//! The scanner: walks each Library's folders and stores the video files in them, and what their
+//! names say they hold (see [`names`]).
+//!
+//! A rescan is incremental. A file whose size and modified time are what was stored is skipped;
+//! a new or changed file is parsed and stored; a stored file that's gone is removed, except
+//! under a folder that couldn't be read, so a drive that isn't mounted doesn't empty the
+//! Library. A renamed file is a file gone and a file found. Changes are written through the
+//! database's single writer in batches of [`BATCH_SIZE`], so other writes and every read carry
+//! on while a scan runs.
+//!
+//! Files are only listed and their metadata read, never opened: sidecars such as `.nfo` files
+//! are ignored.
+
+mod names;
+
+use std::{
+    collections::{HashMap, HashSet},
+    ffi::OsStr,
+    path::{Path, PathBuf},
+    sync::{Arc, Mutex, PoisonError},
+    time::{SystemTime, UNIX_EPOCH},
+};
+
+use sqlx::SqliteConnection;
+use tokio_util::{sync::CancellationToken, task::TaskTracker};
+use walkdir::{DirEntry, WalkDir};
+
+use crate::{
+    db::Database,
+    libraries::{self, Kind, Libraries},
+};
+
+pub(crate) use names::Item;
+
+/// Extensions, in lowercase, of the files the scanner treats as video.
+const VIDEO_EXTENSIONS: &[&str] = &[
+    "3gp", "avi", "divx", "flv", "m2ts", "m4v", "mkv", "mov", "mp4", "mpeg", "mpg", "mts", "ogm",
+    "ogv", "ts", "webm", "wmv",
+];
+
+/// How many changed files one write stores or removes. Small enough that other writes don't
+/// wait long behind a scan.
+const BATCH_SIZE: usize = 200;
+
+/// What one scan changed.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(crate) struct Summary {
+    /// Files found that weren't stored before.
+    pub(crate) added: u64,
+    /// Stored files whose size or modified time changed, which were parsed again.
+    pub(crate) updated: u64,
+    /// Stored files that are gone.
+    pub(crate) removed: u64,
+    /// Stored files left as they were: those with the same size and modified time, and those
+    /// under a folder that couldn't be read.
+    pub(crate) unchanged: u64,
+}
+
+/// Why a scan failed.
+#[derive(Debug, thiserror::Error)]
+pub(crate) enum Error {
+    /// The Library couldn't be read, or there is no such Library.
+    #[error(transparent)]
+    Library(#[from] libraries::Error),
+    /// The database failed.
+    #[error("database error: {0}")]
+    Database(#[from] sqlx::Error),
+    /// Walking the Library's folders panicked.
+    #[error("walking the folders failed: {0}")]
+    Walk(#[from] tokio::task::JoinError),
+    /// The Server is shutting down.
+    #[error("the scan was cancelled")]
+    Cancelled,
+}
+
+/// Scans Libraries, one scan per Library at a time, either now or in the background.
+#[derive(Debug, Clone)]
+pub(crate) struct Scanner {
+    inner: Arc<Inner>,
+}
+
+#[derive(Debug)]
+struct Inner {
+    db: Arc<Database>,
+    /// Background scans, so shutting down can wait for them.
+    tasks: TaskTracker,
+    /// Cancelled when the Server shuts down.
+    cancel: CancellationToken,
+    /// Libraries with a background scan waiting to start.
+    queued: Mutex<HashSet<i64>>,
+    /// Held by the scan of each Library while it runs.
+    running: Mutex<HashMap<i64, Arc<tokio::sync::Mutex<()>>>>,
+}
+
+impl Scanner {
+    /// A scanner storing what it finds in `db`.
+    pub(crate) fn new(db: Arc<Database>) -> Self {
+        Self {
+            inner: Arc::new(Inner {
+                db,
+                tasks: TaskTracker::new(),
+                cancel: CancellationToken::new(),
+                queued: Mutex::default(),
+                running: Mutex::default(),
+            }),
+        }
+    }
+
+    /// Starts scanning the Library `id` in the background. If a scan of it is running, one more
+    /// follows, so what changed since the running scan began is picked up; if one is already
+    /// waiting to follow, that one does.
+    pub(crate) async fn start(&self, id: i64) -> Result<(), Error> {
+        Libraries::new(Arc::clone(&self.inner.db)).get(id).await?;
+        self.queue(id);
+        Ok(())
+    }
+
+    /// Starts scanning every Library in the background.
+    pub(crate) async fn start_all(&self) {
+        match Libraries::new(Arc::clone(&self.inner.db)).list().await {
+            Ok(libraries) => libraries.iter().for_each(|library| self.queue(library.id)),
+            Err(err) => tracing::error!("could not list the Libraries to scan: {err}"),
+        }
+    }
+
+    /// Cancels the scans running or waiting, waits for them to stop, and starts no more.
+    pub(crate) async fn shutdown(&self) {
+        self.inner.cancel.cancel();
+        self.inner.tasks.close();
+        self.inner.tasks.wait().await;
+    }
+
+    /// Queues a background scan of the Library `id`, unless one is already waiting.
+    fn queue(&self, id: i64) {
+        if self.inner.cancel.is_cancelled() || !lock(&self.inner.queued).insert(id) {
+            return;
+        }
+        let this = self.clone();
+        self.inner.tasks.spawn(async move {
+            let library = this.lock(id);
+            let _running = library.lock().await;
+            lock(&this.inner.queued).remove(&id);
+            match this.scan_locked(id).await {
+                Ok(_) | Err(Error::Cancelled) => {}
+                Err(err) => tracing::error!(library = id, "scanning a Library failed: {err}"),
+            }
+        });
+    }
+
+    /// The lock a scan of the Library `id` holds while it runs.
+    fn lock(&self, id: i64) -> Arc<tokio::sync::Mutex<()>> {
+        Arc::clone(lock(&self.inner.running).entry(id).or_default())
+    }
+
+    /// Scans the Library `id`, whose lock the caller holds.
+    async fn scan_locked(&self, id: i64) -> Result<Summary, Error> {
+        let cancel = self.inner.cancel.clone();
+        if cancel.is_cancelled() {
+            return Err(Error::Cancelled);
+        }
+        let library = Libraries::new(Arc::clone(&self.inner.db)).get(id).await?;
+        let stored = self.stored(id).await?;
+        let walking = cancel.clone();
+        let found = tokio::task::spawn_blocking(move || walk(&library.folders, &walking)).await??;
+        let (changes, summary) = plan(library.kind, stored, found);
+        let mut changes = changes.into_iter();
+        loop {
+            let batch: Vec<Change> = changes.by_ref().take(BATCH_SIZE).collect();
+            if batch.is_empty() {
+                break;
+            }
+            if cancel.is_cancelled() {
+                return Err(Error::Cancelled);
+            }
+            self.inner
+                .db
+                .write(move |tx| Box::pin(apply(tx, id, batch)))
+                .await?;
+        }
+        tracing::info!(library = id, ?summary, "scanned a Library");
+        Ok(summary)
+    }
+
+    /// The files stored for the Library `id`, by path.
+    async fn stored(&self, id: i64) -> Result<HashMap<String, Stored>, sqlx::Error> {
+        Ok(sqlx::query!(
+            r#"SELECT id AS "id!", path, size, modified_ns FROM library_files
+               WHERE library_id = ?"#,
+            id
+        )
+        .fetch_all(self.inner.db.reader())
+        .await?
+        .into_iter()
+        .map(|row| {
+            let stored = Stored {
+                id: row.id,
+                size: row.size,
+                modified_ns: row.modified_ns,
+            };
+            (row.path, stored)
+        })
+        .collect())
+    }
+}
+
+/// Locks `mutex`, which no code panics while holding.
+fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    mutex.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+/// A file as the last scan stored it.
+#[derive(Debug)]
+struct Stored {
+    id: i64,
+    size: i64,
+    modified_ns: i64,
+}
+
+/// A video file on disk.
+#[derive(Debug)]
+struct Found {
+    /// The absolute path.
+    path: String,
+    /// The path relative to the Library folder it was found in, which is what's parsed.
+    relative: PathBuf,
+    size: i64,
+    modified_ns: i64,
+}
+
+/// What walking a Library's folders found.
+#[derive(Debug, Default)]
+struct Walked {
+    files: Vec<Found>,
+    /// Folders and files that couldn't be read. What's stored under them is kept.
+    unreadable: Vec<PathBuf>,
+}
+
+/// A change to the stored files.
+#[derive(Debug)]
+enum Change {
+    /// Store a file that's new or changed, with what it holds, replacing what was stored.
+    Store {
+        path: String,
+        size: i64,
+        modified_ns: i64,
+        items: Vec<Item>,
+    },
+    /// Remove the stored file with this id.
+    Remove(i64),
+}
+
+/// Walks `folders` for video files, leaving out hidden files and folders and extras, until
+/// `cancel` is cancelled. Blocks.
+fn walk(folders: &[String], cancel: &CancellationToken) -> Result<Walked, Error> {
+    let mut walked = Walked::default();
+    for folder in folders {
+        let root = Path::new(folder);
+        let entries = WalkDir::new(root)
+            .follow_links(true)
+            .into_iter()
+            .filter_entry(|entry| entry.depth() == 0 || !is_hidden(entry.file_name()));
+        for entry in entries {
+            if cancel.is_cancelled() {
+                return Err(Error::Cancelled);
+            }
+            match entry.and_then(|entry| video_file(root, &entry)) {
+                Ok(Some(file)) => walked.files.push(file),
+                Ok(None) => {}
+                Err(err) => {
+                    let path = err.path().unwrap_or(root).to_owned();
+                    tracing::warn!("could not read {}: {err}", path.display());
+                    walked.unreadable.push(path);
+                }
+            }
+        }
+    }
+    Ok(walked)
+}
+
+/// Whether a file or folder is hidden: dot files, and the thumbnails Synology NASes leave.
+fn is_hidden(name: &OsStr) -> bool {
+    name.as_encoded_bytes().starts_with(b".") || name == "@eaDir"
+}
+
+/// The video file at `entry`, under the Library folder `root`, unless it's something else or an
+/// extra.
+fn video_file(root: &Path, entry: &DirEntry) -> Result<Option<Found>, walkdir::Error> {
+    let path = entry.path();
+    let is_video = path
+        .extension()
+        .and_then(OsStr::to_str)
+        .is_some_and(|ext| VIDEO_EXTENSIONS.contains(&ext.to_ascii_lowercase().as_str()));
+    if !entry.file_type().is_file() || !is_video {
+        return Ok(None);
+    }
+    let Ok(relative) = path.strip_prefix(root) else {
+        return Ok(None);
+    };
+    if names::is_extra(relative) {
+        return Ok(None);
+    }
+    let Some(utf8) = path.to_str() else {
+        tracing::warn!("skipped {}: its path isn't valid UTF-8", path.display());
+        return Ok(None);
+    };
+    let metadata = entry.metadata()?;
+    Ok(Some(Found {
+        path: utf8.to_owned(),
+        relative: relative.to_owned(),
+        size: i64::try_from(metadata.len()).unwrap_or(i64::MAX),
+        modified_ns: metadata.modified().map_or(0, nanos_since_epoch),
+    }))
+}
+
+/// `time` in nanoseconds since the Unix epoch, saturating.
+fn nanos_since_epoch(time: SystemTime) -> i64 {
+    match time.duration_since(UNIX_EPOCH) {
+        Ok(after) => i64::try_from(after.as_nanos()).unwrap_or(i64::MAX),
+        Err(before) => i64::try_from(before.duration().as_nanos()).map_or(i64::MIN, |n| -n),
+    }
+}
+
+/// The changes that bring the `stored` files of a Library of `kind` in line with what was
+/// `found`.
+fn plan(kind: Kind, mut stored: HashMap<String, Stored>, found: Walked) -> (Vec<Change>, Summary) {
+    let mut changes = Vec::new();
+    let mut summary = Summary::default();
+    // A file under two of the Library's folders, one inside the other, is found twice.
+    let mut seen = HashSet::new();
+    for file in found.files {
+        if !seen.insert(file.path.clone()) {
+            continue;
+        }
+        match stored.remove(&file.path) {
+            Some(old) if old.size == file.size && old.modified_ns == file.modified_ns => {
+                summary.unchanged += 1;
+                continue;
+            }
+            Some(_) => summary.updated += 1,
+            None => summary.added += 1,
+        }
+        changes.push(Change::Store {
+            items: names::parse(kind, &file.relative).unwrap_or_default(),
+            path: file.path,
+            size: file.size,
+            modified_ns: file.modified_ns,
+        });
+    }
+    for (path, old) in stored {
+        let path = Path::new(&path);
+        if found.unreadable.iter().any(|dir| path.starts_with(dir)) {
+            summary.unchanged += 1;
+        } else {
+            summary.removed += 1;
+            changes.push(Change::Remove(old.id));
+        }
+    }
+    (changes, summary)
+}
+
+/// Applies `changes` to the files of the Library `library`.
+async fn apply(
+    conn: &mut SqliteConnection,
+    library: i64,
+    changes: Vec<Change>,
+) -> Result<(), sqlx::Error> {
+    for change in changes {
+        match change {
+            Change::Store {
+                path,
+                size,
+                modified_ns,
+                items,
+            } => {
+                let file = sqlx::query_scalar!(
+                    r#"INSERT INTO library_files (library_id, path, size, modified_ns)
+                       VALUES (?, ?, ?, ?)
+                       ON CONFLICT (library_id, path)
+                       DO UPDATE SET size = excluded.size, modified_ns = excluded.modified_ns
+                       RETURNING id AS "id!""#,
+                    library,
+                    path,
+                    size,
+                    modified_ns,
+                )
+                .fetch_one(&mut *conn)
+                .await?;
+                store_items(conn, file, &items).await?;
+            }
+            Change::Remove(file) => {
+                sqlx::query!("DELETE FROM library_files WHERE id = ?", file)
+                    .execute(&mut *conn)
+                    .await?;
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Replaces the items stored for `file` with `items`.
+async fn store_items(
+    conn: &mut SqliteConnection,
+    file: i64,
+    items: &[Item],
+) -> Result<(), sqlx::Error> {
+    sqlx::query!("DELETE FROM library_items WHERE file_id = ?", file)
+        .execute(&mut *conn)
+        .await?;
+    for item in items {
+        let row = ItemRow::from(item);
+        sqlx::query!(
+            "INSERT INTO library_items (file_id, kind, title, year, tmdb_id, season, episode)
+             VALUES (?, ?, ?, ?, ?, ?, ?)",
+            file,
+            row.kind,
+            row.title,
+            row.year,
+            row.tmdb_id,
+            row.season,
+            row.episode,
+        )
+        .execute(&mut *conn)
+        .await?;
+    }
+    Ok(())
+}
+
+/// The kind of an item, as stored.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, sqlx::Type)]
+#[sqlx(rename_all = "lowercase")]
+enum ItemKind {
+    Movie,
+    Episode,
+}
+
+/// An item as a row of `library_items`.
+#[derive(Debug)]
+struct ItemRow<'a> {
+    kind: ItemKind,
+    title: &'a str,
+    year: Option<i64>,
+    tmdb_id: Option<i64>,
+    season: Option<i64>,
+    episode: Option<i64>,
+}
+
+impl<'a> From<&'a Item> for ItemRow<'a> {
+    fn from(item: &'a Item) -> Self {
+        match *item {
+            Item::Movie {
+                ref title,
+                year,
+                tmdb_id,
+            } => Self {
+                kind: ItemKind::Movie,
+                title,
+                year,
+                tmdb_id,
+                season: None,
+                episode: None,
+            },
+            Item::Episode {
+                ref show,
+                year,
+                tmdb_id,
+                season,
+                episode,
+            } => Self {
+                kind: ItemKind::Episode,
+                title: show,
+                year,
+                tmdb_id,
+                season: Some(season),
+                episode: Some(episode),
+            },
+        }
+    }
+}
+
+/// A stored file and its items, as tests read them back.
+#[cfg(test)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct File {
+    path: PathBuf,
+    items: Vec<Item>,
+}
+
+#[cfg(test)]
+impl Scanner {
+    /// Scans the Library `id` now, after any scan of it that's running, and returns what
+    /// changed.
+    async fn scan(&self, id: i64) -> Result<Summary, Error> {
+        let library = self.lock(id);
+        let _running = library.lock().await;
+        self.scan_locked(id).await
+    }
+
+    /// The files stored for the Library `id`, by path, with their items in the order stored.
+    async fn files(&self, id: i64) -> Vec<File> {
+        let rows = sqlx::query!(
+            r#"SELECT library_files.path, library_items.kind AS "kind?: ItemKind",
+                      library_items.title AS "title?", library_items.year, library_items.tmdb_id,
+                      library_items.season, library_items.episode
+               FROM library_files
+               LEFT JOIN library_items ON library_items.file_id = library_files.id
+               WHERE library_files.library_id = ?
+               ORDER BY library_files.path, library_items.id"#,
+            id
+        )
+        .fetch_all(self.inner.db.reader())
+        .await
+        .unwrap();
+        let mut files: Vec<File> = Vec::new();
+        for row in rows {
+            let path = PathBuf::from(&row.path);
+            if files.last().is_none_or(|file| file.path != path) {
+                files.push(File {
+                    path,
+                    items: Vec::new(),
+                });
+            }
+            let item = match (row.kind, row.title) {
+                (Some(ItemKind::Movie), Some(title)) => Item::Movie {
+                    title,
+                    year: row.year,
+                    tmdb_id: row.tmdb_id,
+                },
+                (Some(ItemKind::Episode), Some(show)) => Item::Episode {
+                    show,
+                    year: row.year,
+                    tmdb_id: row.tmdb_id,
+                    season: row.season.unwrap(),
+                    episode: row.episode.unwrap(),
+                },
+                _ => continue,
+            };
+            files.last_mut().unwrap().items.push(item);
+        }
+        files
+    }
+
+    /// Waits until no background scan is running or waiting.
+    async fn idle(&self) {
+        self.inner.tasks.close();
+        self.inner.tasks.wait().await;
+        self.inner.tasks.reopen();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{fs, path::PathBuf, sync::Arc};
+
+    use tempfile::TempDir;
+
+    use super::{Error, File, Item, Scanner, Summary};
+    use crate::{
+        db::Database,
+        libraries::{self, Kind, Libraries},
+    };
+
+    /// A database, a Library of `kind` backed by one scratch folder, and a scanner.
+    struct Fixture {
+        scanner: Scanner,
+        library: i64,
+        root: PathBuf,
+        _media: TempDir,
+        _data: TempDir,
+    }
+
+    impl Fixture {
+        async fn new(kind: Kind) -> Self {
+            let data = tempfile::tempdir().unwrap();
+            let media = tempfile::tempdir().unwrap();
+            let root = media.path().canonicalize().unwrap().join("library");
+            fs::create_dir(&root).unwrap();
+            let db = Arc::new(Database::open(data.path()).await.unwrap());
+            let library = Libraries::new(Arc::clone(&db))
+                .create("Media", kind, vec![root.to_str().unwrap().to_owned()])
+                .await
+                .unwrap();
+            Self {
+                scanner: Scanner::new(db),
+                library: library.id,
+                root,
+                _media: media,
+                _data: data,
+            }
+        }
+
+        /// Writes a file of `size` bytes at `relative`, creating its folders.
+        fn write(&self, relative: &str, size: usize) {
+            let path = self.root.join(relative);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(path, vec![0_u8; size]).unwrap();
+        }
+
+        fn path(&self, relative: &str) -> PathBuf {
+            self.root.join(relative)
+        }
+
+        async fn scan(&self) -> Summary {
+            self.scanner.scan(self.library).await.unwrap()
+        }
+
+        /// The stored files, as paths relative to the Library folder.
+        async fn files(&self) -> Vec<(String, Vec<Item>)> {
+            self.scanner
+                .files(self.library)
+                .await
+                .into_iter()
+                .map(|File { path, items }| {
+                    let relative = path.strip_prefix(&self.root).unwrap();
+                    (relative.to_str().unwrap().to_owned(), items)
+                })
+                .collect()
+        }
+    }
+
+    fn movie(title: &str, year: i64, tmdb_id: Option<i64>) -> Vec<Item> {
+        vec![Item::Movie {
+            title: title.to_owned(),
+            year: Some(year),
+            tmdb_id,
+        }]
+    }
+
+    fn summary(added: u64, updated: u64, removed: u64, unchanged: u64) -> Summary {
+        Summary {
+            added,
+            updated,
+            removed,
+            unchanged,
+        }
+    }
+
+    #[tokio::test]
+    async fn scanning_a_movies_library_stores_its_video_files_and_what_they_hold() {
+        let media = Fixture::new(Kind::Movies).await;
+        media.write("Blade Runner (1982)/Blade Runner (1982).mkv", 10);
+        media.write("Alien (1979)/Alien (1979).MP4", 10);
+        // Not video, an extra, hidden, and a name that doesn't parse.
+        media.write("Alien (1979)/Alien (1979).srt", 10);
+        media.write("Alien (1979)/Alien (1979).nfo", 10);
+        media.write("Alien (1979)/Featurettes/Making Alien.mkv", 10);
+        media.write("Alien (1979)/Alien (1979)-trailer.mkv", 10);
+        media.write(".trash/Heat (1995).mkv", 10);
+        media.write("Alien (1979)/._Alien (1979).mkv", 10);
+        media.write("home video.mkv", 10);
+
+        assert_eq!(media.scan().await, summary(3, 0, 0, 0));
+        assert_eq!(
+            media.files().await,
+            [
+                (
+                    "Alien (1979)/Alien (1979).MP4".to_owned(),
+                    movie("Alien", 1979, None)
+                ),
+                (
+                    "Blade Runner (1982)/Blade Runner (1982).mkv".to_owned(),
+                    movie("Blade Runner", 1982, None)
+                ),
+                // Stored, but Unmatched: there's nothing to Match it by.
+                ("home video.mkv".to_owned(), vec![]),
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn scanning_a_shows_library_stores_an_item_per_episode() {
+        let media = Fixture::new(Kind::Shows).await;
+        media.write("Dark (2017)/Season 01/Dark (2017) - S01E01-E02.mkv", 10);
+        media.write("Dark (2017)/Season 00/Dark (2017) - S00E01.mkv", 10);
+
+        assert_eq!(media.scan().await, summary(2, 0, 0, 0));
+        let episode = |season, episode| Item::Episode {
+            show: "Dark".to_owned(),
+            year: Some(2017),
+            tmdb_id: None,
+            season,
+            episode,
+        };
+        assert_eq!(
+            media.files().await,
+            [
+                (
+                    "Dark (2017)/Season 00/Dark (2017) - S00E01.mkv".to_owned(),
+                    vec![episode(0, 1)]
+                ),
+                (
+                    "Dark (2017)/Season 01/Dark (2017) - S01E01-E02.mkv".to_owned(),
+                    vec![episode(1, 1), episode(1, 2)]
+                ),
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn a_rescan_skips_unchanged_files_and_picks_up_added_changed_renamed_and_deleted_ones() {
+        let media = Fixture::new(Kind::Movies).await;
+        media.write("Blade Runner (1982)/Blade Runner (1982).mkv", 10);
+        media.write("Alien (1979)/Alien (1979).mkv", 10);
+        media.write("Heat (1995)/Heat (1995).mkv", 10);
+        media.write("home video.mkv", 10);
+        assert_eq!(media.scan().await, summary(4, 0, 0, 0));
+        assert_eq!(media.scan().await, summary(0, 0, 0, 4), "nothing changed");
+
+        // Added.
+        media.write("Up (2009)/Up (2009).mkv", 10);
+        // Changed: a new size.
+        media.write("Alien (1979)/Alien (1979).mkv", 20);
+        // Renamed, with an ID hint.
+        fs::rename(
+            media.path("Blade Runner (1982)"),
+            media.path("Blade Runner (1982) {tmdb-78}"),
+        )
+        .unwrap();
+        // Deleted.
+        fs::remove_file(media.path("home video.mkv")).unwrap();
+
+        assert_eq!(media.scan().await, summary(2, 1, 2, 1));
+        assert_eq!(
+            media.files().await,
+            [
+                (
+                    "Alien (1979)/Alien (1979).mkv".to_owned(),
+                    movie("Alien", 1979, None)
+                ),
+                (
+                    "Blade Runner (1982) {tmdb-78}/Blade Runner (1982).mkv".to_owned(),
+                    movie("Blade Runner", 1982, Some(78))
+                ),
+                (
+                    "Heat (1995)/Heat (1995).mkv".to_owned(),
+                    movie("Heat", 1995, None)
+                ),
+                (
+                    "Up (2009)/Up (2009).mkv".to_owned(),
+                    movie("Up", 2009, None)
+                ),
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn files_in_a_folder_that_cant_be_read_are_kept() {
+        let media = Fixture::new(Kind::Movies).await;
+        media.write("Alien (1979)/Alien (1979).mkv", 10);
+        assert_eq!(media.scan().await, summary(1, 0, 0, 0));
+
+        // The Library folder is gone, as when a drive isn't mounted.
+        let parked = media.root.with_file_name("parked");
+        fs::rename(&media.root, &parked).unwrap();
+        assert_eq!(media.scan().await, summary(0, 0, 0, 1));
+        assert_eq!(
+            media.files().await.len(),
+            1,
+            "an unreadable folder emptied the Library"
+        );
+        fs::rename(&parked, &media.root).unwrap();
+
+        assert_eq!(media.scan().await, summary(0, 0, 0, 1));
+    }
+
+    #[tokio::test]
+    async fn a_scan_started_in_the_background_stores_the_files() {
+        let media = Fixture::new(Kind::Movies).await;
+        media.write("Alien (1979)/Alien (1979).mkv", 10);
+
+        media.scanner.start(media.library).await.unwrap();
+        // Asking again while the first is queued or running changes nothing it finds.
+        media.scanner.start(media.library).await.unwrap();
+        media.scanner.idle().await;
+
+        assert_eq!(
+            media.files().await,
+            [(
+                "Alien (1979)/Alien (1979).mkv".to_owned(),
+                movie("Alien", 1979, None)
+            )]
+        );
+    }
+
+    #[tokio::test]
+    async fn every_library_is_scanned_when_asked_to_scan_all() {
+        let media = Fixture::new(Kind::Movies).await;
+        media.write("Alien (1979)/Alien (1979).mkv", 10);
+
+        media.scanner.start_all().await;
+        media.scanner.idle().await;
+
+        assert_eq!(media.files().await.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn starting_a_scan_of_a_library_that_doesnt_exist_fails() {
+        let media = Fixture::new(Kind::Movies).await;
+        let result = media.scanner.start(media.library + 1).await;
+        assert!(
+            matches!(result, Err(Error::Library(libraries::Error::NotFound(_)))),
+            "{result:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn shutting_down_stops_scans_and_starts_no_more() {
+        let media = Fixture::new(Kind::Movies).await;
+        media.write("Alien (1979)/Alien (1979).mkv", 10);
+        media.scanner.start(media.library).await.unwrap();
+        media.scanner.shutdown().await;
+
+        let before = media.files().await.len();
+        media.scanner.start(media.library).await.unwrap();
+        media.scanner.idle().await;
+        assert_eq!(
+            media.files().await.len(),
+            before,
+            "a scan ran after shutdown"
+        );
+    }
+}
