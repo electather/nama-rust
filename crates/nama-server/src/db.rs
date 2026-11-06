@@ -139,14 +139,19 @@ impl Database {
     /// # }
     /// ```
     ///
+    /// `write` can fail with any error a [`sqlx::Error`] converts into, so it can roll back
+    /// because of something it found, such as a row that's already taken, and say so in its own
+    /// terms.
+    ///
     /// # Errors
     ///
     /// Whatever `write` returns, or [`sqlx::Error::WorkerCrashed`] if `write` panicked. Either
     /// way nothing it did is committed, and later writes carry on.
-    pub async fn write<T, F>(&self, write: F) -> Result<T, sqlx::Error>
+    pub async fn write<T, E, F>(&self, write: F) -> Result<T, E>
     where
         T: Send + 'static,
-        F: for<'t> FnOnce(&'t mut Transaction<'_, Sqlite>) -> BoxFuture<'t, Result<T, sqlx::Error>>
+        E: From<sqlx::Error> + Send + 'static,
+        F: for<'t> FnOnce(&'t mut Transaction<'_, Sqlite>) -> BoxFuture<'t, Result<T, E>>
             + Send
             + 'static,
     {
@@ -159,10 +164,12 @@ impl Database {
         });
         // The writer runs until the last handle is dropped, so it's there to take the job.
         if self.jobs.send(job).await.is_err() {
-            return Err(sqlx::Error::PoolClosed);
+            return Err(sqlx::Error::PoolClosed.into());
         }
         // The job only drops its reply unsent if `write` panicked.
-        result.await.unwrap_or(Err(sqlx::Error::WorkerCrashed))
+        result
+            .await
+            .unwrap_or_else(|_| Err(sqlx::Error::WorkerCrashed.into()))
     }
 
     /// Versions of the migrations this open applied, oldest first. Empty when the database was
@@ -204,9 +211,10 @@ async fn run_writer(mut conn: SqliteConnection, mut queue: mpsc::Receiver<Job>) 
 }
 
 /// Runs `write` in a transaction on `conn`, committing on `Ok` and rolling back on `Err`.
-async fn in_transaction<T, F>(conn: &mut SqliteConnection, write: F) -> Result<T, sqlx::Error>
+async fn in_transaction<T, E, F>(conn: &mut SqliteConnection, write: F) -> Result<T, E>
 where
-    F: for<'t> FnOnce(&'t mut Transaction<'_, Sqlite>) -> BoxFuture<'t, Result<T, sqlx::Error>>,
+    E: From<sqlx::Error>,
+    F: for<'t> FnOnce(&'t mut Transaction<'_, Sqlite>) -> BoxFuture<'t, Result<T, E>>,
 {
     let mut tx = conn.begin().await?;
     match write(&mut tx).await {

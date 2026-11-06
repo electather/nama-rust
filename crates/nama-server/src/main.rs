@@ -5,6 +5,7 @@ use std::{
     io::{self, IsTerminal},
     path::PathBuf,
     process::ExitCode,
+    sync::Arc,
 };
 
 use clap::Parser;
@@ -102,8 +103,14 @@ async fn main() -> ExitCode {
         shutdown.await;
         info!("shutting down");
     };
-    let served = nama_server::serve(listener, &config, shutdown).await;
-    db.close().await;
+    let db = Arc::new(db);
+    let served = nama_server::serve(listener, &config, Arc::clone(&db), shutdown).await;
+    // Serving has finished, so this is the last handle and the database can close cleanly.
+    if let Some(db) = Arc::into_inner(db) {
+        db.close().await;
+    } else {
+        error!("the database was still in use at shutdown; it was not closed cleanly");
+    }
     if let Err(err) = served {
         error!("server failed: {err}");
         return ExitCode::FAILURE;
