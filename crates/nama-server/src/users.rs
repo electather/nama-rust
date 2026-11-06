@@ -44,7 +44,8 @@ pub(crate) const DEVICE_LIFETIME: i64 = 90 * 24 * 60 * 60;
 /// request would make every request wait for the one database writer.
 const LAST_SEEN_PRECISION: i64 = 60 * 60;
 
-/// How many sign-outs may happen before a waiter in [`Users::signed_out`] has seen them.
+/// How many sign-outs may happen before a waiter in [`Users::signed_out`] has seen them. One that
+/// falls further behind checks its Device in the database instead.
 const SIGN_OUTS_BUFFERED: usize = 64;
 
 /// The Server's Users, Devices and sessions, kept in its database.
@@ -248,20 +249,46 @@ impl Users {
         Ok(())
     }
 
-    /// Resolves once the Device `device` is signed out after this call, so whatever it opened can
-    /// end with it. It may also resolve early, if so many Devices are signed out at once that it
-    /// can't tell whether `device` was among them.
+    /// Resolves once the Device `device` is signed out, so whatever it opened can end with it. It
+    /// resolves at once if `device` was already signed out before this call, such as by a sign-out
+    /// that came after its session was checked, or if whether it was can't be found out.
     pub(crate) fn signed_out(&self, device: i64) -> impl Future<Output = ()> + Send + 'static {
-        let mut sign_outs = self.sign_outs.subscribe();
-        // Lagging may have skipped `device`, so that ends the wait too, rather than let what the
-        // Device opened outlive it.
-        async move {
-            while sign_outs
-                .recv()
-                .await
-                .is_ok_and(|signed_out| signed_out != device)
-            {}
+        // Listening before looking `device` up means no sign-out falls between the two.
+        let sign_outs = self.sign_outs.subscribe();
+        self.clone().wait_for_sign_out(sign_outs, device)
+    }
+
+    /// Resolves once `sign_outs` hears that `device` was signed out, or the database says it has
+    /// been. The database is asked first, and again whenever `sign_outs` falls so far behind that
+    /// `device` may have been among the sign-outs it skipped.
+    async fn wait_for_sign_out(self, mut sign_outs: broadcast::Receiver<i64>, device: i64) {
+        let mut look = true;
+        loop {
+            if look && !self.still_signed_in(device).await {
+                return;
+            }
+            look = match sign_outs.recv().await {
+                Ok(signed_out) if signed_out == device => return,
+                Ok(_) => false,
+                Err(broadcast::error::RecvError::Lagged(_)) => true,
+                Err(broadcast::error::RecvError::Closed) => return,
+            };
         }
+    }
+
+    /// Whether the Device `device` still exists. If that can't be found out, it is taken not to,
+    /// so what it opened ends rather than outlive it.
+    async fn still_signed_in(&self, device: i64) -> bool {
+        let found = sqlx::query_scalar!(
+            r#"SELECT EXISTS (SELECT 1 FROM devices WHERE id = ?) AS "exists!: bool""#,
+            device
+        )
+        .fetch_one(self.db.reader())
+        .await;
+        found.unwrap_or_else(|err| {
+            tracing::error!("could not look up a Device: {err}");
+            false
+        })
     }
 
     /// The session `token` is, if it is one whose Device hasn't expired, as of now.
@@ -289,10 +316,14 @@ impl Users {
         let Some(row) = row else {
             return Ok(None);
         };
-        let refreshed = now - row.last_seen_at >= LAST_SEEN_PRECISION;
-        if refreshed {
-            self.saw_device(row.device_id, now).await?;
-        }
+        // A session that checks out still works if its last-seen time can't be written. It is
+        // only written again on a later use.
+        let refreshed = now - row.last_seen_at >= LAST_SEEN_PRECISION
+            && self
+                .saw_device(row.device_id, now)
+                .await
+                .inspect_err(|err| tracing::error!("could not record a Device's use: {err}"))
+                .is_ok();
         let caller = Caller {
             user: User {
                 id: row.user_id,
@@ -351,7 +382,7 @@ impl Users {
     /// The User whose name is `name` ignoring case, with those of their credentials an enabled
     /// Plugin made.
     async fn user_named(&self, name: &str) -> Result<Option<(User, Vec<Credential>)>, Error> {
-        let name_key = name.trim().to_lowercase();
+        let name_key = name_key(name.trim());
         let rows = sqlx::query!(
             r#"SELECT u.id AS "id!", u.name, u.role AS "role: Role", c.plugin, c.credential
                FROM users u JOIN user_credentials c ON c.user_id = u.id
@@ -537,9 +568,15 @@ async fn insert_first_admin(
     Ok(Caller { user, device })
 }
 
+/// What a User's trimmed `name` is stored and looked up under, so names are unique and found
+/// ignoring case.
+fn name_key(name: &str) -> String {
+    name.to_lowercase()
+}
+
 /// Stores a User named `name`, which has been checked, unless another has it ignoring case.
 async fn insert_user(conn: &mut SqliteConnection, name: &str, role: Role) -> Result<User, Error> {
-    let name_key = name.to_lowercase();
+    let name_key = name_key(name);
     let created_at = now();
     let id = sqlx::query_scalar!(
         r#"INSERT INTO users (name, name_key, role, created_at) VALUES (?, ?, ?, ?)
@@ -671,6 +708,52 @@ mod tests {
 
         assert!(used.unwrap().refreshed);
         assert!(later.unwrap().is_some(), "last seen wasn't written");
+    }
+
+    /// How long a test waits for a sign-out to be noticed before failing.
+    const WAIT: std::time::Duration = std::time::Duration::from_secs(10);
+
+    /// The id of the Device [`signed_in_device`] made, signed in at `signed_in_at`.
+    async fn device_id(users: &Users, signed_in_at: i64) -> i64 {
+        let session = users.session_at(TOKEN, signed_in_at).await.unwrap();
+        session.unwrap().caller.device.id
+    }
+
+    #[tokio::test]
+    async fn waiting_for_a_device_already_signed_out_ends_at_once() {
+        let data_dir = tempfile::tempdir().unwrap();
+        let (users, signed_in_at) = signed_in_device(data_dir.path()).await;
+        let device = device_id(&users, signed_in_at).await;
+
+        // As when the sign-out lands after the session was checked but before the wait began.
+        users.sign_out(device).await.unwrap();
+        let waited = tokio::time::timeout(WAIT, users.signed_out(device)).await;
+
+        assert!(waited.is_ok(), "the wait didn't end");
+    }
+
+    #[tokio::test]
+    async fn a_burst_of_other_sign_outs_doesnt_end_the_wait_for_a_device() {
+        let data_dir = tempfile::tempdir().unwrap();
+        let (users, signed_in_at) = signed_in_device(data_dir.path()).await;
+        let device = device_id(&users, signed_in_at).await;
+        let mut waiting = std::pin::pin!(users.signed_out(device));
+
+        // More than the waiter can buffer, so it falls behind.
+        for other in (device + 1..).take(SIGN_OUTS_BUFFERED * 2) {
+            users.sign_out(other).await.unwrap();
+        }
+        let during_burst =
+            tokio::time::timeout(std::time::Duration::from_millis(200), &mut waiting).await;
+        // Checked before waiting again, since a wait that ended can't be waited on.
+        assert!(during_burst.is_err(), "other sign-outs ended the wait");
+        users.sign_out(device).await.unwrap();
+        let after_sign_out = tokio::time::timeout(WAIT, waiting).await;
+
+        assert!(
+            after_sign_out.is_ok(),
+            "signing the Device out didn't end it"
+        );
     }
 
     #[tokio::test]
