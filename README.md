@@ -12,6 +12,7 @@ A self-hosted media server and request manager, with an optional central Hub for
 | [`crates/nama-pdk`](crates/nama-pdk) | Plugin development kit for Installed Plugins |
 | [`crates/nama-proto`](crates/nama-proto) | Rust types and ConnectRPC stubs generated from `proto/` |
 | [`plugins/`](plugins) | Built-in Plugins |
+| [`web/`](web) | The web app the Server serves |
 | [`proto/`](proto) | The Protobuf API schema |
 | [`spikes/`](spikes) | Throwaway prototypes, not workspace members |
 

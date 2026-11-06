@@ -28,10 +28,10 @@ The system rejects Plex's busy home screen with its promoted rows and upsells, t
 A restrained palette of tinted neutrals with a single accent. The artwork supplies the colour, so the interface doesn't have to.
 
 ### Primary
-- **Accent** [hue and value to be resolved during implementation]: used only for the primary action on a screen (Play, Request), focus rings, and progress (Watch State bars, Request progress). Choose a hue that sits comfortably next to arbitrary poster art and still meets AA contrast on the neutral surfaces.
+- **Accent** [hue and value to be resolved during implementation]: used only for the primary action on a screen (Play, Request), focus rings, and progress (Watch State bars, Request progress). Choose a hue that sits comfortably next to arbitrary poster art and still meets AA contrast on the neutral surfaces. In code this is shadcn's `--primary`, and `--ring` for focus. shadcn's own `--accent` is a quiet neutral hover background, never this colour (ADR 0016).
 
 ### Neutral
-- **Surfaces, ink and dividers** [to be resolved during implementation]: a tonal ramp tinted 0.005–0.015 chroma toward the accent's hue. Theme (light or dark) is still open. Decide it from the physical scene in PRODUCT.md: a couch, evening, often dim light.
+- **Surfaces, ink and dividers** [to be resolved during implementation]: a tonal ramp tinted 0.005–0.015 chroma toward the accent's hue. The theme is dark, chosen for the physical scene in PRODUCT.md: a couch, evening, often dim light. The values live in shadcn's `.dark` tokens, so a light theme later only needs new `:root` values (ADR 0016).
 
 ### Named Rules
 **The One Voice Rule.** The accent covers 10% of any screen at most. If two things on a screen are accent-coloured and only one of them is the primary action, one of them is wrong.
@@ -42,7 +42,7 @@ A restrained palette of tinted neutrals with a single accent. The artwork suppli
 
 ## 3. Typography
 
-**Display Font:** [humanist sans to be chosen at implementation]
+**Display Font:** [humanist sans to be chosen at implementation, from Google Fonts, bundled with the app through Fontsource]
 **Body Font:** the same family
 **Label/Mono Font:** none planned
 
@@ -62,7 +62,7 @@ A restrained palette of tinted neutrals with a single accent. The artwork suppli
 
 ## 4. Elevation
 
-Flat by default. Depth comes from tonal layering: each surface steps one notch along the neutral ramp. Shadows are reserved for elements that genuinely float above the content, such as the player controls overlay, menus and dialogs.
+Flat by default. Depth comes from tonal layering: each surface steps one notch along the neutral ramp. Shadows are reserved for elements that genuinely float above the content, such as the player controls overlay, menus and dialogs. The one step above the page surface is the `--surface-raised` token, and text over artwork sits on the `--scrim` token.
 
 ### Named Rules
 **The Flat-By-Default Rule.** Surfaces are flat at rest. If a poster grid needs shadows to separate its items, the spacing is wrong.

@@ -1,0 +1,82 @@
+# web
+
+The web app: React and TanStack Start in SPA mode, built into static files that the Server embeds and serves (ADR 0004). The decisions behind it are in issue #27 and ADRs 0016 and 0017. The web app shell issue (#28) sets up everything described here.
+
+## Toolchain
+
+Everything runs through [Vite+](https://viteplus.dev) (`vp`, ADR 0017). It pins Node 26 and pnpm 12 for this package, so install `vp` and run:
+
+```sh
+vp env install   # the pinned Node and pnpm
+vp install       # dependencies
+```
+
+| Job | Command | Tool underneath |
+|---|---|---|
+| Dev server | `vp dev` | Vite |
+| Build | `vp build` | Vite (Rolldown), output in `dist/` |
+| Format, lint, type-check | `vp check` (`vp check --fix` to apply fixes) | oxfmt, oxlint, tsgo |
+| Tests | `vp test` | Vitest on happy-dom |
+| Unused code, duplication, complexity, boundaries | `vp run fallow` | Fallow |
+| Design check | `impeccable detect --json <files>` | impeccable |
+
+All lint, type-check and Fallow config lives in `vite.config.ts`, `tsconfig.json` and the Fallow config. There is no `.oxlintrc`. pnpm's own settings (`minimumReleaseAge`, the allowlist for dependency build scripts, and `runtimeOnFail`/`pmOnFail` set to `ignore` so pnpm leaves Node and pnpm versions to `vp`) are in `pnpm-workspace.yaml`.
+
+## Checks
+
+CI's web job runs, and every finding fails it:
+
+```sh
+vp check
+vp test
+vp build
+vp run fallow   # fallow --ci
+impeccable detect --json src
+```
+
+How strict they are:
+
+- **oxlint**: the `typescript`, `react`, `jsx-a11y`, `import`, `unicorn`, `promise` and `oxc` plugins, plus `vitest` for tests. The `correctness`, `suspicious`, `pedantic` and `perf` categories are on in full, plus picked `restriction` rules. Every rule is `error`, never `warn`. A rule that turns out to be noise is turned off in `vite.config.ts` with a comment saying why.
+- **TypeScript**: `strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noImplicitOverride`, `noImplicitReturns`, `noFallthroughCasesInSwitch`, `noPropertyAccessFromIndexSignature`, `verbatimModuleSyntax`, `isolatedModules` and `erasableSyntaxOnly`. Unused locals are reported by oxlint, not tsc.
+- **Fallow**: every rule is `error`, except `coverage-gaps`, which needs the runtime coverage sidecar. Any duplicated code fails. The complexity limits are 15 cyclomatic and 15 cognitive. Generated code is ignored, and so are unused exports in `src/components/ui/`, since shadcn files export every sub-part. An unused file there still fails.
+
+## Generated client
+
+`src/gen/` holds the TypeScript messages and service descriptors that `protoc-gen-es` generates from `proto/` (ADR 0007). Like the Rust code in `crates/nama-proto`, it's checked in, and the CI `proto` job fails if it's stale. After changing the schema, run `vp install` here (that installs the plugin), then `buf generate` in `proto/`. Calls go through `@connectrpc/connect-query` with the generated descriptors, so there's no `protoc-gen-connect-query`.
+
+## Running against a Server
+
+Start a Server (it listens on `http://localhost:7980` by default), then run `vp dev`. The dev server proxies every Connect path (`/nama.…`) and `/media/…` to `NAMA_SERVER_URL`, which defaults to that address. The browser sees one origin, so the `SameSite=Strict` session cookie works as it does in production and no CORS is involved (ADR 0015).
+
+Tests never need a Server. They fake RPCs with Connect's `createRouterTransport`, built from the same generated descriptors.
+
+## How the app is put together
+
+- **Data**: all server state goes through connect-query and TanStack Query. Route loaders prefetch with `queryClient.ensureQueryData`. One app-wide `Subscribe` stream turns Events into query invalidations. There's no client-state library and no form library: forms are native `<form>`s with mutations, the Server validates, and Connect error details are shown next to the field.
+- **Errors**: a global query and mutation error handler sends `unauthenticated` to `/sign-in?redirect=…`. `permission_denied` shows an "Admins only" page. Anything else shows the route's `errorComponent` in plain words, never an error code.
+- **Styling**: Tailwind v4 and shadcn on Base UI, with tokens in `src/styles.css` (ADR 0016). Lucide icons. Fonts are Google Fonts families bundled through Fontsource, never loaded from Google's CDN. Dark only for now. English only, with no i18n library, but layout uses logical properties so right-to-left languages can be added later.
+- **Player**: a native `<video>` playing direct-play URLs, with controls built from Base UI primitives. hls.js arrives with HLS in M4.
+
+## Pages
+
+| Path | Who | Page |
+|---|---|---|
+| `/setup` | anyone, only while the Server needs setup | Setup Code and first Admin |
+| `/sign-in` | anyone | sign in with a password, or show a Sign-in Code |
+| `/` | signed in | Continue Watching, then your Libraries |
+| `/libraries/$libraryId` | signed in | a Library's Movies or Shows |
+| `/libraries/$libraryId/movies/$movieId` | signed in | a Movie |
+| `/libraries/$libraryId/shows/$showId?season=N` | signed in | a Show, one Season at a time |
+| `…/movies/$movieId/play?version=…` | signed in | the player for a Movie, full screen without app chrome |
+| `…/shows/$showId/seasons/$season/episodes/$episode/play?version=…` | signed in | the player for an Episode |
+| `/code` | signed in | enter a Sign-in Code to sign in a new Device |
+| `/settings` | signed in | your password and Devices |
+| `/admin/libraries`, `/admin/libraries/$libraryId` | Admin | Libraries, their folders and scans |
+| `/admin/needs-a-match` | Admin | Unmatched Items, filterable by Library |
+| `/admin/users` | Admin | Users and Roles |
+
+The root route's `beforeLoad` reads `GetServerInfo` and who is signed in, and redirects to `/setup` while setup is needed. A pathless `_member` layout requires a session, and an `_admin` layout inside it requires the Admin Role. Movie and Show IDs in URLs are the external IDs the API returns. When no `version` is given, the player plays the largest Version.
+
+## Tests
+
+Vitest with Testing Library on happy-dom. Test behaviour (redirects, forms, error and empty states), not markup snapshots. There's no end-to-end suite in M2.
