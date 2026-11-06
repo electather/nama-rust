@@ -8,7 +8,7 @@ import * as sandcastle from "@ai-hero/sandcastle";
 import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
 
 const MAX_CYCLES = Number(process.env.MAX_CYCLES ?? 20); // MAX_CYCLES=1 → one batch, then stop
-const MAX_PARALLEL = 3;
+const MAX_PARALLEL = 1; // one issue at a time
 const MODEL = "claude-opus-5-5";
 const READY = "ready-for-agent";
 const HUMAN = "ready-for-human";
