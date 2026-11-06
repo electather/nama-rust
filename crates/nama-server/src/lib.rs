@@ -12,6 +12,8 @@ pub mod plugins;
 mod scanner;
 mod sessions;
 pub mod users;
+#[cfg(feature = "web")]
+mod web;
 
 use std::{future::Future, io, sync::Arc};
 
@@ -36,7 +38,7 @@ use crate::{
 /// While the Server has no Users, `Setup` creates the first Admin for whoever gives `setup_code`.
 ///
 /// Clients speak the Connect protocol over HTTP/1.1 or cleartext HTTP/2, with JSON or binary
-/// protobuf bodies.
+/// protobuf bodies. With the `web` feature, any other `GET` gets the web app.
 ///
 /// # Errors
 ///
@@ -64,6 +66,8 @@ pub fn serve(
         events.clone(),
         setup_code,
     );
+    #[cfg(feature = "web")]
+    let app = app.layer(axum::middleware::from_fn(web::serve));
     async move {
         scanner.start_all().await;
         let served = axum::serve(listener, app)

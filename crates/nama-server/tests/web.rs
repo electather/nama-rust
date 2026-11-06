@@ -1,0 +1,92 @@
+//! The web app the Server serves, with the `web` feature on. Needs `vp build` in `web/` first.
+#![cfg(feature = "web")]
+
+#[path = "support/server.rs"]
+#[expect(
+    dead_code,
+    reason = "these tests call the Server over plain HTTP, not a Connect client"
+)]
+mod server;
+
+use std::{net::SocketAddr, path::Path};
+
+use nama_server::{config::Config, plugins::Registry};
+use server::TestServer;
+
+/// A deep link reloaded in the browser gets the app, which then routes to the page itself.
+#[tokio::test]
+async fn a_deep_link_serves_the_app() {
+    let server = TestServer::start(Config::default(), Registry::new()).await;
+
+    let (status, content_type, body) = http1_get(server.addr, "/libraries/3").await;
+
+    assert_eq!(status, 200);
+    assert_eq!(content_type, "text/html; charset=utf-8");
+    assert!(
+        String::from_utf8(body)
+            .unwrap()
+            .starts_with("<!DOCTYPE html>")
+    );
+}
+
+/// The stylesheet the app links to is served as CSS, not as the app's HTML.
+#[tokio::test]
+async fn the_app_s_stylesheet_is_served() {
+    let server = TestServer::start(Config::default(), Registry::new()).await;
+    let (_, _, shell) = http1_get(server.addr, "/").await;
+    let shell = String::from_utf8(shell).unwrap();
+    let stylesheet = shell
+        .split('"')
+        .find(|part| {
+            part.starts_with("/assets/") && Path::new(part).extension().is_some_and(|e| e == "css")
+        })
+        .unwrap();
+
+    let (status, content_type, _) = http1_get(server.addr, stylesheet).await;
+
+    assert_eq!(status, 200);
+    assert_eq!(content_type, "text/css; charset=utf-8");
+}
+
+/// The app never answers for the API or media, so a client that gets a path wrong sees a 404.
+#[tokio::test]
+async fn unknown_rpc_and_media_paths_are_not_found() {
+    let server = TestServer::start(Config::default(), Registry::new()).await;
+
+    for path in ["/nama.v1.NoSuchService/Nothing", "/media/42"] {
+        let (status, _, _) = http1_get(server.addr, path).await;
+
+        assert_eq!(status, 404, "{path}");
+    }
+}
+
+/// Sends a plain HTTP/1.1 `GET` for `path` and returns the status, `Content-Type` (empty if
+/// none) and body.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn http1_get(addr: SocketAddr, path: &str) -> (u16, String, Vec<u8>) {
+    use http_body_util::{BodyExt, Empty};
+    use hyper::{Request, body::Bytes, client::conn::http1};
+    use hyper_util::rt::TokioIo;
+
+    let stream = tokio::net::TcpStream::connect(addr).await.unwrap();
+    let (mut sender, connection) = http1::handshake(TokioIo::new(stream)).await.unwrap();
+    tokio::spawn(connection);
+
+    let request = Request::get(path)
+        .header("host", addr.to_string())
+        .body(Empty::<Bytes>::new())
+        .unwrap();
+    let response = sender.send_request(request).await.unwrap();
+
+    let status = response.status().as_u16();
+    let content_type = response
+        .headers()
+        .get("content-type")
+        .map(|value| value.to_str().unwrap().to_owned())
+        .unwrap_or_default();
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    (status, content_type, bytes.to_vec())
+}

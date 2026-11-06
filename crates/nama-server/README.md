@@ -20,3 +20,13 @@ cargo sqlx prepare --workspace -- --all-targets
 ```
 
 Commit the changes under `.sqlx/`. CI's `sqlx` job runs `cargo sqlx prepare --check` and fails if they're stale. When you upgrade the `sqlx` crate, bump the `sqlx-cli` version here and in `.github/workflows/ci.yml` to the same minor version.
+
+## Serving the web app
+
+The `web` feature embeds the web app's build output (`web/dist/client`) in the binary and serves it: RPCs and `/media/…` are untouched, and any other `GET` gets the matching file or else `_shell.html`, so deep links work (ADR 0004). It's off by default, so building and testing the Server needs no Node. Release builds turn it on in `dist-workspace.toml`. Build the web app first (see `web/README.md`), then:
+
+```sh
+vp -C web build
+cargo run -p nama-server --features web
+cargo test -p nama-server --features web --test web   # the tests that need it
+```

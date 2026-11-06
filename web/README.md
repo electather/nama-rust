@@ -11,14 +11,14 @@ vp env install   # the pinned Node and pnpm
 vp install       # dependencies
 ```
 
-| Job | Command | Tool underneath |
-|---|---|---|
-| Dev server | `vp dev` | Vite |
-| Build | `vp build` | Vite (Rolldown), output in `dist/` |
-| Format, lint, type-check | `vp check` (`vp check --fix` to apply fixes) | oxfmt, oxlint, tsgo |
-| Tests | `vp test` | Vitest on happy-dom |
-| Unused code, duplication, complexity, boundaries | `vp run fallow` | Fallow |
-| Design check | `impeccable detect --json <files>` | impeccable |
+| Job                                              | Command                                      | Tool underneath                    |
+| ------------------------------------------------ | -------------------------------------------- | ---------------------------------- |
+| Dev server                                       | `vp dev`                                     | Vite                               |
+| Build                                            | `vp build`                                   | Vite (Rolldown), output in `dist/` |
+| Format, lint, type-check                         | `vp check` (`vp check --fix` to apply fixes) | oxfmt, oxlint, tsgo                |
+| Tests                                            | `vp test`                                    | Vitest on happy-dom                |
+| Unused code, duplication, complexity, boundaries | `vp run fallow`                              | Fallow                             |
+| Design check                                     | `impeccable detect --json <files>`           | impeccable                         |
 
 All lint, type-check and Fallow config lives in `vite.config.ts`, `tsconfig.json` and the Fallow config. There is no `.oxlintrc`. pnpm's own settings (`minimumReleaseAge`, the allowlist for dependency build scripts, and `runtimeOnFail`/`pmOnFail` set to `ignore` so pnpm leaves Node and pnpm versions to `vp`) are in `pnpm-workspace.yaml`.
 
@@ -59,21 +59,21 @@ Tests never need a Server. They fake RPCs with Connect's `createRouterTransport`
 
 ## Pages
 
-| Path | Who | Page |
-|---|---|---|
-| `/setup` | anyone, only while the Server needs setup | Setup Code and first Admin |
-| `/sign-in` | anyone | sign in with a password, or show a Sign-in Code |
-| `/` | signed in | Continue Watching, then your Libraries |
-| `/libraries/$libraryId` | signed in | a Library's Movies or Shows |
-| `/libraries/$libraryId/movies/$movieId` | signed in | a Movie |
-| `/libraries/$libraryId/shows/$showId?season=N` | signed in | a Show, one Season at a time |
-| `…/movies/$movieId/play?version=…` | signed in | the player for a Movie, full screen without app chrome |
-| `…/shows/$showId/seasons/$season/episodes/$episode/play?version=…` | signed in | the player for an Episode |
-| `/code` | signed in | enter a Sign-in Code to sign in a new Device |
-| `/settings` | signed in | your password and Devices |
-| `/admin/libraries`, `/admin/libraries/$libraryId` | Admin | Libraries, their folders and scans |
-| `/admin/needs-a-match` | Admin | Unmatched Items, filterable by Library |
-| `/admin/users` | Admin | Users and Roles |
+| Path                                                               | Who                                       | Page                                                   |
+| ------------------------------------------------------------------ | ----------------------------------------- | ------------------------------------------------------ |
+| `/setup`                                                           | anyone, only while the Server needs setup | Setup Code and first Admin                             |
+| `/sign-in`                                                         | anyone                                    | sign in with a password, or show a Sign-in Code        |
+| `/`                                                                | signed in                                 | Continue Watching, then your Libraries                 |
+| `/libraries/$libraryId`                                            | signed in                                 | a Library's Movies or Shows                            |
+| `/libraries/$libraryId/movies/$movieId`                            | signed in                                 | a Movie                                                |
+| `/libraries/$libraryId/shows/$showId?season=N`                     | signed in                                 | a Show, one Season at a time                           |
+| `…/movies/$movieId/play?version=…`                                 | signed in                                 | the player for a Movie, full screen without app chrome |
+| `…/shows/$showId/seasons/$season/episodes/$episode/play?version=…` | signed in                                 | the player for an Episode                              |
+| `/code`                                                            | signed in                                 | enter a Sign-in Code to sign in a new Device           |
+| `/settings`                                                        | signed in                                 | your password and Devices                              |
+| `/admin/libraries`, `/admin/libraries/$libraryId`                  | Admin                                     | Libraries, their folders and scans                     |
+| `/admin/needs-a-match`                                             | Admin                                     | Unmatched Items, filterable by Library                 |
+| `/admin/users`                                                     | Admin                                     | Users and Roles                                        |
 
 The root route's `beforeLoad` reads `GetServerInfo` and who is signed in, and redirects to `/setup` while setup is needed. A pathless `_member` layout requires a session, and an `_admin` layout inside it requires the Admin Role. Movie and Show IDs in URLs are the external IDs the API returns. When no `version` is given, the player plays the largest Version.
 

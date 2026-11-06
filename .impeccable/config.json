@@ -5,7 +5,8 @@
       ".sandcastle/**",
       "spikes/**",
       "target/**",
-      "**/target/**"
+      "**/target/**",
+      "web/src/gen/**"
     ],
     "ignoreValues": []
   }
