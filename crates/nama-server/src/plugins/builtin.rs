@@ -2,22 +2,25 @@
 
 use std::{collections::BTreeMap, sync::Arc};
 
-use nama_plugin_api::Plugin;
+use nama_plugin_api::{Plugin, settings::Settings};
 use nama_plugin_log_events::LogEvents;
+use nama_plugin_tmdb::Tmdb;
 use tracing::{error, info, warn};
 
-use super::{Registry, contain_sync};
+use super::{EnableError, Registry, contain_sync};
 use crate::config::PluginConfig;
 
 /// Every Built-in Plugin.
 fn all() -> Vec<Arc<dyn Plugin>> {
-    vec![Arc::new(LogEvents)]
+    vec![Arc::new(LogEvents), Arc::new(Tmdb::new())]
 }
 
 impl Registry {
-    /// A registry with every Built-in Plugin enabled, except those `config` disables.
+    /// A registry with every Built-in Plugin enabled with its settings from `config`, except
+    /// those `config` disables.
     ///
-    /// A Plugin that fails to enable is logged and left out.
+    /// A Plugin that fails to enable, such as one missing a required setting, is logged and left
+    /// out.
     #[must_use]
     pub fn with_builtins(config: &BTreeMap<String, PluginConfig>) -> Self {
         let registry = Self::new();
@@ -32,15 +35,18 @@ impl Registry {
                 }
             };
             known.push(id.clone());
-            if config
-                .get(id.as_str())
-                .is_some_and(|settings| !settings.enabled)
-            {
+            let config = config.get(id.as_str()).cloned().unwrap_or_default();
+            if !config.enabled {
                 info!(plugin = %id, "plugin disabled in config");
                 continue;
             }
-            if let Err(err) = registry.enable(plugin) {
-                error!(plugin = %id, "could not enable plugin: {err}");
+            match registry.enable_with_settings(plugin, Settings::new(config.settings)) {
+                Ok(()) => {}
+                // Not an error: a Plugin such as TMDB needs an API key before it can run.
+                Err(err @ EnableError::InvalidSettings { .. }) => {
+                    warn!(plugin = %id, "plugin not enabled: {err}");
+                }
+                Err(err) => error!(plugin = %id, "could not enable plugin: {err}"),
             }
         }
         for id in config.keys() {

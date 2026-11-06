@@ -10,6 +10,9 @@
 //!
 //! Files are only listed and their metadata read, never opened: sidecars such as `.nfo` files
 //! are ignored.
+//!
+//! After each scan the Library's items are Matched (see [`crate::matching`]), still under the
+//! Library's scan lock, so Matching sees the items the scan stored.
 
 mod names;
 
@@ -28,6 +31,8 @@ use walkdir::{DirEntry, WalkDir};
 use crate::{
     db::Database,
     libraries::{self, Kind, Libraries},
+    matching::{self, Matcher},
+    plugins::Registry,
 };
 
 use names::Item;
@@ -73,6 +78,15 @@ pub(crate) enum Error {
     Cancelled,
 }
 
+impl From<matching::Error> for Error {
+    fn from(err: matching::Error) -> Self {
+        match err {
+            matching::Error::Database(err) => Self::Database(err),
+            matching::Error::Cancelled => Self::Cancelled,
+        }
+    }
+}
+
 /// Scans Libraries, one scan per Library at a time, either now or in the background.
 #[derive(Debug, Clone)]
 pub(crate) struct Scanner {
@@ -83,6 +97,7 @@ pub(crate) struct Scanner {
 struct Inner {
     db: Arc<Database>,
     libraries: Libraries,
+    matcher: Matcher,
     /// Background scans, so shutting down can wait for them.
     tasks: TaskTracker,
     /// Cancelled when the Server shuts down.
@@ -94,11 +109,13 @@ struct Inner {
 }
 
 impl Scanner {
-    /// A scanner storing what it finds in `db`.
-    pub(crate) fn new(db: Arc<Database>) -> Self {
+    /// A scanner storing what it finds in `db`, and Matching it with the metadata Provider
+    /// enabled in `plugins`.
+    pub(crate) fn new(db: Arc<Database>, plugins: Registry) -> Self {
         Self {
             inner: Arc::new(Inner {
                 libraries: Libraries::new(Arc::clone(&db)),
+                matcher: Matcher::new(Arc::clone(&db), plugins),
                 db,
                 tasks: TaskTracker::new(),
                 cancel: CancellationToken::new(),
@@ -181,6 +198,7 @@ impl Scanner {
                 .await?;
         }
         tracing::info!(library = id, ?summary, "scanned a Library");
+        self.inner.matcher.match_library(id, &cancel).await?;
         Ok(summary)
     }
 
@@ -431,7 +449,7 @@ async fn store_items(
 /// The kind of an item, as stored.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, sqlx::Type)]
 #[sqlx(rename_all = "lowercase")]
-enum ItemKind {
+pub(crate) enum ItemKind {
     Movie,
     Episode,
 }
@@ -492,7 +510,7 @@ struct File {
 impl Scanner {
     /// Scans the Library `id` now, after any scan of it that's running, and returns what
     /// changed.
-    async fn scan(&self, id: i64) -> Result<Summary, Error> {
+    pub(crate) async fn scan(&self, id: i64) -> Result<Summary, Error> {
         let library = self.library_mutex(id);
         let _running = library.lock().await;
         self.scan_locked(id).await
@@ -560,6 +578,7 @@ mod tests {
     use crate::{
         db::Database,
         libraries::{self, Kind, Libraries},
+        plugins::Registry,
     };
 
     /// A database, a Library of `kind` backed by one scratch folder, and a scanner.
@@ -583,7 +602,7 @@ mod tests {
                 .await
                 .unwrap();
             Self {
-                scanner: Scanner::new(db),
+                scanner: Scanner::new(db, Registry::new()),
                 library: library.id,
                 root,
                 _media: media,

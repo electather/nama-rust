@@ -1,0 +1,30 @@
+{
+  "adult": false,
+  "backdrop_path": "/3lBDg3i6nn5R2NKFCJ6oKyUo2j5.jpg",
+  "episode_run_time": [],
+  "first_air_date": "2017-12-01",
+  "genres": [{"id": 80, "name": "Crime"}, {"id": 18, "name": "Drama"}, {"id": 9648, "name": "Mystery"}],
+  "id": 70523,
+  "in_production": false,
+  "languages": ["de"],
+  "last_air_date": "2020-06-27",
+  "name": "Dark",
+  "number_of_episodes": 26,
+  "number_of_seasons": 3,
+  "origin_country": ["DE"],
+  "original_language": "de",
+  "original_name": "Dark",
+  "overview": "A missing child causes four families to help each other for answers. What they could not imagine is that this mystery would be connected to innumerable other secrets of the small town.",
+  "popularity": 60.5,
+  "poster_path": "/apbrbWs8M9lyOpJYU5WXrpFbk1Z.jpg",
+  "seasons": [
+    {"air_date": "2017-12-01", "episode_count": 10, "id": 90954, "name": "Season 1", "overview": "", "poster_path": "/5LoHuHWA4H8jElFlZDvsmU2n63b.jpg", "season_number": 1, "vote_average": 8.3},
+    {"air_date": "2019-06-21", "episode_count": 8, "id": 116658, "name": "Season 2", "overview": "", "poster_path": "/kaReZbBdlEAJzfUbuPBRQLrSh9z.jpg", "season_number": 2, "vote_average": 8.4},
+    {"air_date": "2020-06-27", "episode_count": 8, "id": 155193, "name": "Season 3", "overview": "", "poster_path": "/7zrgmb5rWWUBANFP6M9ODpfWsTO.jpg", "season_number": 3, "vote_average": 8.5}
+  ],
+  "status": "Ended",
+  "type": "Scripted",
+  "vote_average": 8.4,
+  "vote_count": 6900,
+  "external_ids": {"imdb_id": "tt5753856", "freebase_mid": null, "freebase_id": null, "tvdb_id": 334824, "tvrage_id": null, "wikidata_id": "Q30750960", "facebook_id": "DarkNetflix", "instagram_id": null, "twitter_id": "dark"}
+}

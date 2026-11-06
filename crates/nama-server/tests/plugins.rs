@@ -10,6 +10,7 @@ use std::{sync::Arc, time::Duration};
 use nama_plugin_api::{
     BoxFuture, InterceptPoint, Interceptor, ObservePoint, Observer, OnFailure, Plugin, PluginError,
     PluginId, Priority, Registrar, Verdict,
+    settings::{SettingField, SettingKind, SettingValue, Settings, SettingsSchema},
 };
 use nama_server::plugins::{EnableError, Outcome, Registry};
 use tokio::sync::mpsc::{self, error::TryRecvError};
@@ -668,4 +669,125 @@ async fn a_panic_from_a_stale_call_does_not_disable_the_plugin_enabled_since() {
         registry.intercept::<Words>(vec![]).await,
         Outcome::Proceed(vec!["fresh"])
     );
+}
+
+/// A Plugin taking a required `api_key` and a `language` that defaults to `en`, which tells the
+/// test the settings it was enabled with.
+struct Configurable(mpsc::UnboundedSender<Settings>);
+
+impl Plugin for Configurable {
+    fn id(&self) -> PluginId {
+        PluginId::from_static("configurable")
+    }
+
+    fn version(&self) -> &'static str {
+        "0.0.0"
+    }
+
+    fn settings_schema(&self) -> SettingsSchema {
+        let field = |key, kind, required, default| SettingField {
+            key,
+            label: key,
+            description: "",
+            kind,
+            required,
+            default,
+        };
+        SettingsSchema {
+            fields: vec![
+                field("api_key", SettingKind::Secret, true, None),
+                field(
+                    "language",
+                    SettingKind::Text,
+                    false,
+                    Some(SettingValue::Text("en".to_owned())),
+                ),
+            ],
+        }
+    }
+
+    fn register(&self, registrar: &mut Registrar) {
+        let _: Result<(), _> = self.0.send(registrar.settings().clone());
+    }
+}
+
+fn settings(values: &[(&str, SettingValue)]) -> Settings {
+    Settings::new(
+        values
+            .iter()
+            .map(|(key, value)| ((*key).to_owned(), value.clone()))
+            .collect(),
+    )
+}
+
+#[tokio::test]
+async fn a_plugin_is_enabled_with_its_settings_and_their_defaults() {
+    let registry = Registry::new();
+    let (tx, mut rx) = mpsc::unbounded_channel();
+    let key = SettingValue::Text("secret".to_owned());
+
+    registry
+        .enable_with_settings(
+            Arc::new(Configurable(tx)),
+            settings(&[("api_key", key.clone())]),
+        )
+        .expect("enable");
+
+    assert_eq!(
+        next(&mut rx).await,
+        settings(&[
+            ("api_key", key),
+            ("language", SettingValue::Text("en".to_owned()))
+        ])
+    );
+}
+
+#[test]
+fn a_plugin_whose_settings_do_not_fit_its_schema_is_not_enabled() {
+    let registry = Registry::new();
+    let (tx, _rx) = mpsc::unbounded_channel();
+
+    let missing =
+        registry.enable_with_settings(Arc::new(Configurable(tx.clone())), Settings::default());
+    let wrong_kind = registry.enable_with_settings(
+        Arc::new(Configurable(tx)),
+        settings(&[("api_key", SettingValue::Integer(1))]),
+    );
+
+    assert!(
+        matches!(missing, Err(EnableError::InvalidSettings { .. })),
+        "{missing:?}"
+    );
+    assert!(
+        matches!(wrong_kind, Err(EnableError::InvalidSettings { .. })),
+        "{wrong_kind:?}"
+    );
+    assert_eq!(registry.enabled(), Vec::<PluginId>::new());
+}
+
+#[tokio::test]
+async fn a_caller_can_learn_which_plugin_provided_and_ask_that_plugin_again() {
+    let registry = Registry::new();
+    registry
+        .enable(greeter("en", Priority::DEFAULT, Greeting("hello")))
+        .unwrap();
+    registry
+        .enable(greeter("fr", Priority::EARLY, Greeting("bonjour")))
+        .unwrap();
+    let en = PluginId::from_static("en");
+
+    let first = registry
+        .call_provider_with_id::<dyn Greeter, _, _>(|greeter| async move { greeter.greet() })
+        .await;
+    let from_en = registry
+        .call_provider_of::<dyn Greeter, _, _>(&en, |greeter| async move { greeter.greet() })
+        .await;
+    registry.disable(&en);
+    let from_disabled = registry
+        .call_provider_of::<dyn Greeter, _, _>(&en, |greeter| async move { greeter.greet() })
+        .await;
+
+    assert_eq!(first, Some((PluginId::from_static("fr"), "bonjour")));
+    assert_eq!(from_en, Some("hello"));
+    assert_eq!(from_disabled, None);
 }

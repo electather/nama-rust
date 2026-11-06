@@ -1,9 +1,11 @@
 //! The Nama Server as a library, so its pieces can be tested on their own.
 
 mod api;
+pub mod artwork;
 pub mod config;
 pub mod db;
 mod libraries;
+mod matching;
 pub mod plugins;
 mod scanner;
 
@@ -11,12 +13,13 @@ use std::{future::Future, io, sync::Arc};
 
 use tokio::net::TcpListener;
 
-use crate::{config::Config, db::Database, scanner::Scanner};
+use crate::{config::Config, db::Database, plugins::Registry, scanner::Scanner};
 
-/// Serves the Server's API on `listener`, backed by `db`, until `shutdown` resolves, then lets
-/// requests in flight finish. Once the returned future resolves the API holds no handle to `db`.
+/// Serves the Server's API on `listener`, backed by `db` and the Plugins enabled in `plugins`,
+/// until `shutdown` resolves, then lets requests in flight finish. Once the returned future
+/// resolves the API holds no handle to `db`.
 ///
-/// Every Library is scanned in the background when serving starts. Scans still running when
+/// Every Library is scanned, and its items Matched, in the background when serving starts. Scans still running when
 /// `shutdown` resolves are cancelled, and the returned future waits for them to stop.
 ///
 /// Clients speak the Connect protocol over HTTP/1.1 or cleartext HTTP/2, with JSON or binary
@@ -29,9 +32,10 @@ pub fn serve(
     listener: TcpListener,
     config: &Config,
     db: Arc<Database>,
+    plugins: Registry,
     shutdown: impl Future<Output = ()> + Send + 'static,
 ) -> impl Future<Output = io::Result<()>> + Send + 'static {
-    let scanner = Scanner::new(Arc::clone(&db));
+    let scanner = Scanner::new(Arc::clone(&db), plugins);
     let app = api::router(config, db, scanner.clone());
     async move {
         scanner.start_all().await;

@@ -16,6 +16,7 @@ use futures_util::FutureExt;
 use nama_plugin_api::{
     InterceptPoint, ObservePoint, Observer, OnFailure, Plugin, PluginId, PointKey, Priority,
     Registrar, Registration, Verdict,
+    settings::{Settings, SettingsError},
 };
 use thiserror::Error;
 use tracing::{error, info, warn};
@@ -98,6 +99,14 @@ pub enum EnableError {
         /// The panic's message.
         message: String,
     },
+    /// The Plugin's settings don't fit the schema it declares.
+    #[error("plugin {plugin} has invalid settings: {error}")]
+    InvalidSettings {
+        /// The Plugin.
+        plugin: PluginId,
+        /// What is wrong with them.
+        error: SettingsError,
+    },
     /// The Plugin panicked while being enabled, such as in [`Plugin::register`].
     #[error("plugin {plugin} panicked while being enabled: {message}")]
     Panicked {
@@ -115,13 +124,29 @@ impl Registry {
         Self::default()
     }
 
-    /// Enables `plugin`: calls its [`Plugin::register`] and records everything it registers
-    /// under its id.
+    /// Enables `plugin` with no settings: calls its [`Plugin::register`] and records everything
+    /// it registers under its id.
     ///
     /// # Errors
     ///
-    /// If a Plugin with the same id is already enabled, or the Plugin panics.
+    /// If a Plugin with the same id is already enabled, the Plugin requires a setting, or the
+    /// Plugin panics.
     pub fn enable(&self, plugin: Arc<dyn Plugin>) -> Result<(), EnableError> {
+        self.enable_with_settings(plugin, Settings::default())
+    }
+
+    /// Enables `plugin` with `settings`, once they are checked against its
+    /// [`Plugin::settings_schema`] and its defaults are filled in.
+    ///
+    /// # Errors
+    ///
+    /// If a Plugin with the same id is already enabled, the settings don't fit the Plugin's
+    /// schema, or the Plugin panics.
+    pub fn enable_with_settings(
+        &self,
+        plugin: Arc<dyn Plugin>,
+        settings: Settings,
+    ) -> Result<(), EnableError> {
         // Everything a Plugin does here (its `id`, `version`, `register` and `Drop`) is Plugin
         // code, so a panic in any of it is contained.
         let id = match contain_sync(|| plugin.id()) {
@@ -132,7 +157,7 @@ impl Registry {
                 return Err(EnableError::IdPanicked { message });
             }
         };
-        contain_sync(|| self.enable_as(&id, plugin)).unwrap_or_else(|message| {
+        contain_sync(|| self.enable_as(&id, plugin, settings)).unwrap_or_else(|message| {
             Err(EnableError::Panicked {
                 plugin: id,
                 message,
@@ -142,11 +167,22 @@ impl Registry {
 
     /// Enables `plugin`, whose id is `id`. Plugin code runs here, so only call it from within
     /// [`contain_sync`].
-    fn enable_as(&self, id: &PluginId, plugin: Arc<dyn Plugin>) -> Result<(), EnableError> {
+    fn enable_as(
+        &self,
+        id: &PluginId,
+        plugin: Arc<dyn Plugin>,
+        settings: Settings,
+    ) -> Result<(), EnableError> {
         if self.read(|state| state.plugins.contains_key(id)) {
             return Err(EnableError::AlreadyEnabled(id.clone()));
         }
-        let mut registrar = Registrar::new();
+        let settings = settings
+            .resolve(&plugin.settings_schema())
+            .map_err(|error| EnableError::InvalidSettings {
+                plugin: id.clone(),
+                error,
+            })?;
+        let mut registrar = Registrar::with_settings(settings);
         plugin.register(&mut registrar);
         let registrations = registrar.into_registrations();
         let count = registrations.len();
@@ -334,8 +370,55 @@ impl Registry {
         T: ?Sized + Send + Sync + 'static,
         F: Future<Output = R>,
     {
+        self.call_providers(None, call)
+            .await
+            .map(|(_, result)| result)
+    }
+
+    /// Like [`Registry::call_provider`], but also says which Plugin's Provider answered, so the
+    /// caller can go back to it with [`Registry::call_provider_of`].
+    pub async fn call_provider_with_id<T, R, F>(
+        &self,
+        call: impl Fn(Arc<T>) -> F,
+    ) -> Option<(PluginId, R)>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Future<Output = R>,
+    {
+        self.call_providers(None, call).await
+    }
+
+    /// Calls `call` with the Plugin `plugin`'s Provider of `T`, such as to fetch something that
+    /// Provider handed out earlier. Returns `None` if the Plugin isn't enabled, doesn't provide
+    /// `T`, or panics, which disables it.
+    pub async fn call_provider_of<T, R, F>(
+        &self,
+        plugin: &PluginId,
+        call: impl Fn(Arc<T>) -> F,
+    ) -> Option<R>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Future<Output = R>,
+    {
+        self.call_providers(Some(plugin), call)
+            .await
+            .map(|(_, result)| result)
+    }
+
+    /// Calls `call` with the first Provider of `T` that answers without panicking, in the order
+    /// [`Registry::call_provider`] describes, considering only `only`'s if given.
+    async fn call_providers<T, R, F>(
+        &self,
+        only: Option<&PluginId>,
+        call: impl Fn(Arc<T>) -> F,
+    ) -> Option<(PluginId, R)>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Future<Output = R>,
+    {
         let point = PointKey::provide::<T>();
         let mut entries = self.entries(point);
+        entries.retain(|entry| only.is_none_or(|plugin| entry.plugin == *plugin));
         let precedence =
             self.read(|state| state.precedence.get(&point).cloned().unwrap_or_default());
         // Stable, so Providers the admin didn't rank keep their priority order.
@@ -353,7 +436,7 @@ impl Registry {
                 continue;
             }
             match contain(|| call(provider)).await {
-                Ok(result) => return Some(result),
+                Ok(result) => return Some((entry.plugin, result)),
                 Err(message) => self.disable_after_panic(&entry, point.name(), &message),
             }
         }

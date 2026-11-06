@@ -7,6 +7,7 @@
 use std::{collections::BTreeMap, path::PathBuf};
 
 use figment::Jail;
+use nama_plugin_api::settings::SettingValue;
 use nama_server::config::{Config, PluginConfig};
 
 #[test]
@@ -114,11 +115,50 @@ fn the_config_file_can_turn_a_plugin_off() {
         assert_eq!(
             config.plugins,
             BTreeMap::from([
-                ("log-events".to_owned(), PluginConfig { enabled: false }),
-                ("other".to_owned(), PluginConfig { enabled: true }),
+                (
+                    "log-events".to_owned(),
+                    PluginConfig {
+                        enabled: false,
+                        ..PluginConfig::default()
+                    }
+                ),
+                ("other".to_owned(), PluginConfig::default()),
             ])
         );
         assert!(Config::default().plugins.is_empty());
+        Ok(())
+    });
+}
+
+#[test]
+fn a_plugins_other_keys_are_its_settings() {
+    Jail::expect_with(|jail| {
+        jail.create_file(
+            "nama.toml",
+            r#"
+                [plugins.tmdb]
+                api_key = "secret"
+                adult = false
+                retries = 3
+            "#,
+        )?;
+
+        let config = Config::load(None).unwrap();
+
+        assert_eq!(
+            config.plugins["tmdb"],
+            PluginConfig {
+                enabled: true,
+                settings: BTreeMap::from([
+                    ("adult".to_owned(), SettingValue::Bool(false)),
+                    (
+                        "api_key".to_owned(),
+                        SettingValue::Text("secret".to_owned())
+                    ),
+                    ("retries".to_owned(), SettingValue::Integer(3)),
+                ]),
+            }
+        );
         Ok(())
     });
 }

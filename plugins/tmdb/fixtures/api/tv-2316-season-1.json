@@ -1,0 +1,41 @@
+{
+  "air_date": "2005-03-24",
+  "episodes": [
+    {
+      "air_date": "2005-03-24",
+      "episode_number": 1,
+      "episode_type": "standard",
+      "id": 2316001,
+      "name": "Pilot",
+      "overview": "",
+      "runtime": null,
+      "season_number": 1,
+      "show_id": 2316,
+      "still_path": null
+    },
+    {
+      "air_date": "2005-03-24",
+      "episode_number": 2,
+      "episode_type": "standard",
+      "id": 2316002,
+      "name": "Diversity Day",
+      "overview": "",
+      "runtime": null,
+      "season_number": 1,
+      "show_id": 2316,
+      "still_path": null
+    }
+  ],
+  "name": "Season 1",
+  "overview": "",
+  "id": 23161,
+  "poster_path": null,
+  "season_number": 1,
+  "external_ids": {
+    "tvdb_id": null,
+    "freebase_mid": null,
+    "freebase_id": null,
+    "tvrage_id": null,
+    "wikidata_id": null
+  }
+}

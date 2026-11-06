@@ -3,22 +3,47 @@
 
 use std::{collections::BTreeMap, path::Path, process::Command};
 
-use nama_plugin_api::PluginId;
+use nama_plugin_api::{PluginId, settings::SettingValue};
 use nama_server::{
     config::{Config, PluginConfig},
     plugins::Registry,
 };
 
 #[test]
-fn every_builtin_plugin_is_enabled_by_default() {
-    let registry = Registry::with_builtins(&Config::default().plugins);
+fn every_builtin_plugin_is_enabled_by_default_once_it_has_the_settings_it_requires() {
+    let without_settings = Registry::with_builtins(&Config::default().plugins);
+    let tmdb = PluginConfig {
+        settings: BTreeMap::from([(
+            "api_key".to_owned(),
+            SettingValue::Text("secret".to_owned()),
+        )]),
+        ..PluginConfig::default()
+    };
+    let with_settings = Registry::with_builtins(&BTreeMap::from([("tmdb".to_owned(), tmdb)]));
 
-    assert_eq!(registry.enabled(), [PluginId::from_static("log-events")]);
+    // TMDB can't run without an API key.
+    assert_eq!(
+        without_settings.enabled(),
+        [PluginId::from_static("log-events")]
+    );
+    assert_eq!(
+        with_settings.enabled(),
+        [
+            PluginId::from_static("log-events"),
+            PluginId::from_static("tmdb")
+        ]
+    );
 }
 
 #[test]
 fn config_can_disable_a_builtin_plugin() {
-    let plugins = BTreeMap::from([("log-events".to_owned(), PluginConfig { enabled: false })]);
+    let plugins = BTreeMap::from([(
+        "log-events".to_owned(),
+        PluginConfig {
+            enabled: false,
+            ..PluginConfig::default()
+        },
+    )]);
 
     let registry = Registry::with_builtins(&plugins);
 
@@ -27,7 +52,7 @@ fn config_can_disable_a_builtin_plugin() {
 
 #[test]
 fn config_for_a_plugin_the_server_does_not_have_is_ignored() {
-    let plugins = BTreeMap::from([("no-such-plugin".to_owned(), PluginConfig { enabled: true })]);
+    let plugins = BTreeMap::from([("no-such-plugin".to_owned(), PluginConfig::default())]);
 
     let registry = Registry::with_builtins(&plugins);
 
@@ -65,8 +90,10 @@ fn builtin_plugin_crates_depend_on_no_workspace_crate_but_the_plugin_api_and_pro
         for dependency in package["dependencies"].as_array().unwrap() {
             let name = dependency["name"].as_str().unwrap();
             let in_workspace = dependency.get("path").is_some_and(|path| !path.is_null());
+            // A crate may depend on itself, to turn on its test helpers in its own tests.
+            let itself = package["name"].as_str() == Some(name);
             assert!(
-                !in_workspace || ["nama-plugin-api", "nama-proto"].contains(&name),
+                !in_workspace || itself || ["nama-plugin-api", "nama-proto"].contains(&name),
                 "{} depends on {name}",
                 package["name"]
             );

@@ -3,7 +3,7 @@
 use std::{net::SocketAddr, sync::Arc};
 
 use connectrpc::client::ClientConfig;
-use nama_server::{config::Config, db::Database};
+use nama_server::{config::Config, db::Database, plugins::Registry};
 use tempfile::TempDir;
 use tokio::{net::TcpListener, sync::oneshot};
 
@@ -26,9 +26,15 @@ impl TestServer {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         let (stop, stopped) = oneshot::channel::<()>();
-        tokio::spawn(nama_server::serve(listener, &config, db, async {
-            let _: Result<(), oneshot::error::RecvError> = stopped.await;
-        }));
+        tokio::spawn(nama_server::serve(
+            listener,
+            &config,
+            db,
+            Registry::new(),
+            async {
+                let _: Result<(), oneshot::error::RecvError> = stopped.await;
+            },
+        ));
         Self {
             addr,
             _stop: stop,

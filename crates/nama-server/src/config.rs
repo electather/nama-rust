@@ -10,6 +10,7 @@ use figment::{
     Figment,
     providers::{Env, Format, Serialized, Toml},
 };
+use nama_plugin_api::settings::SettingValue;
 use serde::{Deserialize, Serialize};
 
 /// The config file read from the working directory when no file is named.
@@ -37,18 +38,23 @@ pub struct Config {
     pub plugins: BTreeMap<String, PluginConfig>,
 }
 
-/// One Plugin's settings.
+/// One Plugin's config: whether it is enabled, and its settings.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PluginConfig {
     /// Whether the Server enables the Plugin at startup.
     #[serde(default = "enabled_by_default")]
     pub enabled: bool,
+    /// The Plugin's settings: every other key in its table, such as `api_key = "..."`. They are
+    /// checked against the schema the Plugin declares when it is enabled.
+    #[serde(flatten)]
+    pub settings: BTreeMap<String, SettingValue>,
 }
 
 impl Default for PluginConfig {
     fn default() -> Self {
         Self {
             enabled: enabled_by_default(),
+            settings: BTreeMap::new(),
         }
     }
 }
