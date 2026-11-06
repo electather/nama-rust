@@ -33,9 +33,11 @@ const ADMIN_ONLY: [&str; 9] = [
 ];
 
 /// Every other unary RPC that needs a session.
-const SIGNED_IN: [&str; 2] = [
+const SIGNED_IN: [&str; 4] = [
     "/nama.v1.SignInService/SignOut",
     "/nama.v1.SignInService/WhoAmI",
+    "/nama.v1.SignInService/LookUpSignInCode",
+    "/nama.v1.SignInService/ApproveSignInCode",
 ];
 
 /// How long a test waits for a stream before failing.

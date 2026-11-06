@@ -10,7 +10,7 @@ import type { Message, UnknownEnum } from "@bufbuild/protobuf";
  * Describes the file nama/v1/sign_in.proto.
  */
 export const file_nama_v1_sign_in: GenFile = /*@__PURE__*/
-  fileDesc("ChVuYW1hL3YxL3NpZ25faW4ucHJvdG8SB25hbWEudjEiPQoEVXNlchIKCgJpZBgBIAEoAxIMCgRuYW1lGAIgASgJEhsKBHJvbGUYAyABKA4yDS5uYW1hLnYxLlJvbGUiIgoGRGV2aWNlEgoKAmlkGAEgASgDEgwKBG5hbWUYAiABKAkigwEKDFNldHVwUmVxdWVzdBISCgpzZXR1cF9jb2RlGAEgASgJEgwKBG5hbWUYAiABKAkSEAoIcGFzc3dvcmQYAyABKAkSEwoLZGV2aWNlX25hbWUYBCABKAkSKgoIZGVsaXZlcnkYBSABKA4yGC5uYW1hLnYxLlNlc3Npb25EZWxpdmVyeSJcCg1TZXR1cFJlc3BvbnNlEhsKBHVzZXIYASABKAsyDS5uYW1hLnYxLlVzZXISHwoGZGV2aWNlGAIgASgLMg8ubmFtYS52MS5EZXZpY2USDQoFdG9rZW4YAyABKAkicAoNU2lnbkluUmVxdWVzdBIMCgRuYW1lGAEgASgJEhAKCHBhc3N3b3JkGAIgASgJEhMKC2RldmljZV9uYW1lGAMgASgJEioKCGRlbGl2ZXJ5GAQgASgOMhgubmFtYS52MS5TZXNzaW9uRGVsaXZlcnkiXQoOU2lnbkluUmVzcG9uc2USGwoEdXNlchgBIAEoCzINLm5hbWEudjEuVXNlchIfCgZkZXZpY2UYAiABKAsyDy5uYW1hLnYxLkRldmljZRINCgV0b2tlbhgDIAEoCSIQCg5TaWduT3V0UmVxdWVzdCIRCg9TaWduT3V0UmVzcG9uc2UiDwoNV2hvQW1JUmVxdWVzdCJOCg5XaG9BbUlSZXNwb25zZRIbCgR1c2VyGAEgASgLMg0ubmFtYS52MS5Vc2VyEh8KBmRldmljZRgCIAEoCzIPLm5hbWEudjEuRGV2aWNlKmwKD1Nlc3Npb25EZWxpdmVyeRIgChxTRVNTSU9OX0RFTElWRVJZX1VOU1BFQ0lGSUVEEAASGwoXU0VTU0lPTl9ERUxJVkVSWV9DT09LSUUQARIaChZTRVNTSU9OX0RFTElWRVJZX1RPS0VOEAIqPQoEUm9sZRIUChBST0xFX1VOU1BFQ0lGSUVEEAASDgoKUk9MRV9BRE1JThABEg8KC1JPTEVfTUVNQkVSEAIygAIKDVNpZ25JblNlcnZpY2USNgoFU2V0dXASFS5uYW1hLnYxLlNldHVwUmVxdWVzdBoWLm5hbWEudjEuU2V0dXBSZXNwb25zZRI5CgZTaWduSW4SFi5uYW1hLnYxLlNpZ25JblJlcXVlc3QaFy5uYW1hLnYxLlNpZ25JblJlc3BvbnNlEjwKB1NpZ25PdXQSFy5uYW1hLnYxLlNpZ25PdXRSZXF1ZXN0GhgubmFtYS52MS5TaWduT3V0UmVzcG9uc2USPgoGV2hvQW1JEhYubmFtYS52MS5XaG9BbUlSZXF1ZXN0GhcubmFtYS52MS5XaG9BbUlSZXNwb25zZSIDkAIBYgZwcm90bzM");
+  fileDesc("ChVuYW1hL3YxL3NpZ25faW4ucHJvdG8SB25hbWEudjEiPQoEVXNlchIKCgJpZBgBIAEoAxIMCgRuYW1lGAIgASgJEhsKBHJvbGUYAyABKA4yDS5uYW1hLnYxLlJvbGUiIgoGRGV2aWNlEgoKAmlkGAEgASgDEgwKBG5hbWUYAiABKAkigwEKDFNldHVwUmVxdWVzdBISCgpzZXR1cF9jb2RlGAEgASgJEgwKBG5hbWUYAiABKAkSEAoIcGFzc3dvcmQYAyABKAkSEwoLZGV2aWNlX25hbWUYBCABKAkSKgoIZGVsaXZlcnkYBSABKA4yGC5uYW1hLnYxLlNlc3Npb25EZWxpdmVyeSJcCg1TZXR1cFJlc3BvbnNlEhsKBHVzZXIYASABKAsyDS5uYW1hLnYxLlVzZXISHwoGZGV2aWNlGAIgASgLMg8ubmFtYS52MS5EZXZpY2USDQoFdG9rZW4YAyABKAkicAoNU2lnbkluUmVxdWVzdBIMCgRuYW1lGAEgASgJEhAKCHBhc3N3b3JkGAIgASgJEhMKC2RldmljZV9uYW1lGAMgASgJEioKCGRlbGl2ZXJ5GAQgASgOMhgubmFtYS52MS5TZXNzaW9uRGVsaXZlcnkiXQoOU2lnbkluUmVzcG9uc2USGwoEdXNlchgBIAEoCzINLm5hbWEudjEuVXNlchIfCgZkZXZpY2UYAiABKAsyDy5uYW1hLnYxLkRldmljZRINCgV0b2tlbhgDIAEoCSIQCg5TaWduT3V0UmVxdWVzdCIRCg9TaWduT3V0UmVzcG9uc2UiDwoNV2hvQW1JUmVxdWVzdCJOCg5XaG9BbUlSZXNwb25zZRIbCgR1c2VyGAEgASgLMg0ubmFtYS52MS5Vc2VyEh8KBmRldmljZRgCIAEoCzIPLm5hbWEudjEuRGV2aWNlIlkKFlN0YXJ0U2lnbkluQ29kZVJlcXVlc3QSEwoLZGV2aWNlX25hbWUYASABKAkSKgoIZGVsaXZlcnkYAiABKA4yGC5uYW1hLnYxLlNlc3Npb25EZWxpdmVyeSI3ChdTdGFydFNpZ25JbkNvZGVSZXNwb25zZRIMCgRjb2RlGAEgASgJEg4KBmhhbmRsZRgCIAEoCSInChdMb29rVXBTaWduSW5Db2RlUmVxdWVzdBIMCgRjb2RlGAEgASgJIi8KGExvb2tVcFNpZ25JbkNvZGVSZXNwb25zZRITCgtkZXZpY2VfbmFtZRgBIAEoCSIoChhBcHByb3ZlU2lnbkluQ29kZVJlcXVlc3QSDAoEY29kZRgBIAEoCSIbChlBcHByb3ZlU2lnbkluQ29kZVJlc3BvbnNlIicKFVBvbGxTaWduSW5Db2RlUmVxdWVzdBIOCgZoYW5kbGUYASABKAkikAEKFlBvbGxTaWduSW5Db2RlUmVzcG9uc2USKQoGc3RhdHVzGAEgASgOMhkubmFtYS52MS5TaWduSW5Db2RlU3RhdHVzEhsKBHVzZXIYAiABKAsyDS5uYW1hLnYxLlVzZXISHwoGZGV2aWNlGAMgASgLMg8ubmFtYS52MS5EZXZpY2USDQoFdG9rZW4YBCABKAkqbAoPU2Vzc2lvbkRlbGl2ZXJ5EiAKHFNFU1NJT05fREVMSVZFUllfVU5TUEVDSUZJRUQQABIbChdTRVNTSU9OX0RFTElWRVJZX0NPT0tJRRABEhoKFlNFU1NJT05fREVMSVZFUllfVE9LRU4QAio9CgRSb2xlEhQKEFJPTEVfVU5TUEVDSUZJRUQQABIOCgpST0xFX0FETUlOEAESDwoLUk9MRV9NRU1CRVIQAiqcAQoQU2lnbkluQ29kZVN0YXR1cxIjCh9TSUdOX0lOX0NPREVfU1RBVFVTX1VOU1BFQ0lGSUVEEAASHwobU0lHTl9JTl9DT0RFX1NUQVRVU19XQUlUSU5HEAESHwobU0lHTl9JTl9DT0RFX1NUQVRVU19FWFBJUkVEEAISIQodU0lHTl9JTl9DT0RFX1NUQVRVU19TSUdORURfSU4QAzLeBAoNU2lnbkluU2VydmljZRI2CgVTZXR1cBIVLm5hbWEudjEuU2V0dXBSZXF1ZXN0GhYubmFtYS52MS5TZXR1cFJlc3BvbnNlEjkKBlNpZ25JbhIWLm5hbWEudjEuU2lnbkluUmVxdWVzdBoXLm5hbWEudjEuU2lnbkluUmVzcG9uc2USPAoHU2lnbk91dBIXLm5hbWEudjEuU2lnbk91dFJlcXVlc3QaGC5uYW1hLnYxLlNpZ25PdXRSZXNwb25zZRI+CgZXaG9BbUkSFi5uYW1hLnYxLldob0FtSVJlcXVlc3QaFy5uYW1hLnYxLldob0FtSVJlc3BvbnNlIgOQAgESVAoPU3RhcnRTaWduSW5Db2RlEh8ubmFtYS52MS5TdGFydFNpZ25JbkNvZGVSZXF1ZXN0GiAubmFtYS52MS5TdGFydFNpZ25JbkNvZGVSZXNwb25zZRJXChBMb29rVXBTaWduSW5Db2RlEiAubmFtYS52MS5Mb29rVXBTaWduSW5Db2RlUmVxdWVzdBohLm5hbWEudjEuTG9va1VwU2lnbkluQ29kZVJlc3BvbnNlEloKEUFwcHJvdmVTaWduSW5Db2RlEiEubmFtYS52MS5BcHByb3ZlU2lnbkluQ29kZVJlcXVlc3QaIi5uYW1hLnYxLkFwcHJvdmVTaWduSW5Db2RlUmVzcG9uc2USUQoOUG9sbFNpZ25JbkNvZGUSHi5uYW1hLnYxLlBvbGxTaWduSW5Db2RlUmVxdWVzdBofLm5hbWEudjEuUG9sbFNpZ25JbkNvZGVSZXNwb25zZWIGcHJvdG8z");
 
 /**
  * A person's identity on one Server.
@@ -288,6 +288,186 @@ export const WhoAmIResponseSchema: GenMessage<WhoAmIResponse> = /*@__PURE__*/
   messageDesc(file_nama_v1_sign_in, 9);
 
 /**
+ * @generated from message nama.v1.StartSignInCodeRequest
+ */
+export type StartSignInCodeRequest = Message<"nama.v1.StartSignInCodeRequest"> & {
+  /**
+   * The signing-in Device's name: 1 to 64 characters.
+   *
+   * @generated from field: string device_name = 1;
+   */
+  deviceName: string;
+
+  /**
+   * How to hand out the session once the code is approved. Must be specified.
+   *
+   * @generated from field: nama.v1.SessionDelivery delivery = 2;
+   */
+  delivery: SessionDelivery;
+};
+
+/**
+ * Describes the message nama.v1.StartSignInCodeRequest.
+ * Use `create(StartSignInCodeRequestSchema)` to create a new message.
+ */
+export const StartSignInCodeRequestSchema: GenMessage<StartSignInCodeRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_sign_in, 10);
+
+/**
+ * @generated from message nama.v1.StartSignInCodeResponse
+ */
+export type StartSignInCodeResponse = Message<"nama.v1.StartSignInCodeResponse"> & {
+  /**
+   * The Sign-in Code to show, as `XXXX-XXXX`: 8 characters of Crockford's base32 alphabet, which
+   * has no I, L, O or U. It is matched ignoring case and dashes.
+   *
+   * @generated from field: string code = 1;
+   */
+  code: string;
+
+  /**
+   * What this Device polls `PollSignInCode` with. Keep it secret: whoever holds it gets the session.
+   *
+   * @generated from field: string handle = 2;
+   */
+  handle: string;
+};
+
+/**
+ * Describes the message nama.v1.StartSignInCodeResponse.
+ * Use `create(StartSignInCodeResponseSchema)` to create a new message.
+ */
+export const StartSignInCodeResponseSchema: GenMessage<StartSignInCodeResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_sign_in, 11);
+
+/**
+ * @generated from message nama.v1.LookUpSignInCodeRequest
+ */
+export type LookUpSignInCodeRequest = Message<"nama.v1.LookUpSignInCodeRequest"> & {
+  /**
+   * The Sign-in Code the other Device shows.
+   *
+   * @generated from field: string code = 1;
+   */
+  code: string;
+};
+
+/**
+ * Describes the message nama.v1.LookUpSignInCodeRequest.
+ * Use `create(LookUpSignInCodeRequestSchema)` to create a new message.
+ */
+export const LookUpSignInCodeRequestSchema: GenMessage<LookUpSignInCodeRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_sign_in, 12);
+
+/**
+ * @generated from message nama.v1.LookUpSignInCodeResponse
+ */
+export type LookUpSignInCodeResponse = Message<"nama.v1.LookUpSignInCodeResponse"> & {
+  /**
+   * The name the Device asking to sign in gave itself.
+   *
+   * @generated from field: string device_name = 1;
+   */
+  deviceName: string;
+};
+
+/**
+ * Describes the message nama.v1.LookUpSignInCodeResponse.
+ * Use `create(LookUpSignInCodeResponseSchema)` to create a new message.
+ */
+export const LookUpSignInCodeResponseSchema: GenMessage<LookUpSignInCodeResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_sign_in, 13);
+
+/**
+ * @generated from message nama.v1.ApproveSignInCodeRequest
+ */
+export type ApproveSignInCodeRequest = Message<"nama.v1.ApproveSignInCodeRequest"> & {
+  /**
+   * The Sign-in Code the other Device shows.
+   *
+   * @generated from field: string code = 1;
+   */
+  code: string;
+};
+
+/**
+ * Describes the message nama.v1.ApproveSignInCodeRequest.
+ * Use `create(ApproveSignInCodeRequestSchema)` to create a new message.
+ */
+export const ApproveSignInCodeRequestSchema: GenMessage<ApproveSignInCodeRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_sign_in, 14);
+
+/**
+ * @generated from message nama.v1.ApproveSignInCodeResponse
+ */
+export type ApproveSignInCodeResponse = Message<"nama.v1.ApproveSignInCodeResponse"> & {
+};
+
+/**
+ * Describes the message nama.v1.ApproveSignInCodeResponse.
+ * Use `create(ApproveSignInCodeResponseSchema)` to create a new message.
+ */
+export const ApproveSignInCodeResponseSchema: GenMessage<ApproveSignInCodeResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_sign_in, 15);
+
+/**
+ * @generated from message nama.v1.PollSignInCodeRequest
+ */
+export type PollSignInCodeRequest = Message<"nama.v1.PollSignInCodeRequest"> & {
+  /**
+   * The handle `StartSignInCode` returned.
+   *
+   * @generated from field: string handle = 1;
+   */
+  handle: string;
+};
+
+/**
+ * Describes the message nama.v1.PollSignInCodeRequest.
+ * Use `create(PollSignInCodeRequestSchema)` to create a new message.
+ */
+export const PollSignInCodeRequestSchema: GenMessage<PollSignInCodeRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_sign_in, 16);
+
+/**
+ * @generated from message nama.v1.PollSignInCodeResponse
+ */
+export type PollSignInCodeResponse = Message<"nama.v1.PollSignInCodeResponse"> & {
+  /**
+   * @generated from field: nama.v1.SignInCodeStatus status = 1;
+   */
+  status: SignInCodeStatus;
+
+  /**
+   * The User signed in as, the one who approved the code. Only when signed in.
+   *
+   * @generated from field: nama.v1.User user = 2;
+   */
+  user?: User | undefined;
+
+  /**
+   * The Device just signed in. Only when signed in.
+   *
+   * @generated from field: nama.v1.Device device = 3;
+   */
+  device?: Device | undefined;
+
+  /**
+   * The session token, when signed in with `SESSION_DELIVERY_TOKEN`. Empty for a cookie.
+   *
+   * @generated from field: string token = 4;
+   */
+  token: string;
+};
+
+/**
+ * Describes the message nama.v1.PollSignInCodeResponse.
+ * Use `create(PollSignInCodeResponseSchema)` to create a new message.
+ */
+export const PollSignInCodeResponseSchema: GenMessage<PollSignInCodeResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_sign_in, 17);
+
+/**
  * How a signed-in Device is given its session.
  *
  * @generated from enum nama.v1.SessionDelivery
@@ -367,6 +547,52 @@ export const RoleSchema: GenEnum<Role> = /*@__PURE__*/
   enumDesc(file_nama_v1_sign_in, 1);
 
 /**
+ * Where a sign-in with a Sign-in Code has got to.
+ *
+ * @generated from enum nama.v1.SignInCodeStatus
+ */
+export const SignInCodeStatus = {
+  /**
+   * @generated from enum value: SIGN_IN_CODE_STATUS_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED: 0,
+
+  /**
+   * Not approved yet. Poll again in a few seconds.
+   *
+   * @generated from enum value: SIGN_IN_CODE_STATUS_WAITING = 1;
+   */
+  WAITING: 1,
+
+  /**
+   * Not approved and polled within 10 minutes. Start again for a new code.
+   *
+   * @generated from enum value: SIGN_IN_CODE_STATUS_EXPIRED = 2;
+   */
+  EXPIRED: 2,
+
+  /**
+   * Approved: the response carries the session.
+   *
+   * @generated from enum value: SIGN_IN_CODE_STATUS_SIGNED_IN = 3;
+   */
+  SIGNED_IN: 3,
+} as const;
+
+/**
+ * Where a sign-in with a Sign-in Code has got to.
+ *
+ * @generated from enum nama.v1.SignInCodeStatus
+ */
+export type SignInCodeStatus = (typeof SignInCodeStatus)[keyof typeof SignInCodeStatus] | UnknownEnum;
+
+/**
+ * Describes the enum nama.v1.SignInCodeStatus.
+ */
+export const SignInCodeStatusSchema: GenEnum<SignInCodeStatus> = /*@__PURE__*/
+  enumDesc(file_nama_v1_sign_in, 2);
+
+/**
  * Signing Devices in to a Server as Users, and finding out who is signed in (ADR 0014).
  *
  * A signed-in Device holds a session: a cookie for browsers, or a bearer token (`Authorization:
@@ -424,6 +650,56 @@ export const SignInService: GenService<{
     methodKind: "unary";
     input: typeof WhoAmIRequestSchema;
     output: typeof WhoAmIResponseSchema;
+  },
+  /**
+   * Starts signing the calling Device in without a password typed on it. It shows the returned
+   * Sign-in Code, a User signed in on another Device approves it with `ApproveSignInCode`, and this
+   * Device then picks up its session with `PollSignInCode`. The code and the poll handle expire
+   * after 10 minutes, and a Server restart cancels them. Fails with `invalid_argument` if the
+   * Device name breaks the rules.
+   *
+   * @generated from rpc nama.v1.SignInService.StartSignInCode
+   */
+  startSignInCode: {
+    methodKind: "unary";
+    input: typeof StartSignInCodeRequestSchema;
+    output: typeof StartSignInCodeResponseSchema;
+  },
+  /**
+   * Returns the name of the Device a Sign-in Code would sign in, so the User can check it before
+   * approving. Approves nothing. Fails with `not_found` if no unexpired code matches,
+   * `failed_precondition` if it was already approved, and `unauthenticated` without a valid
+   * session.
+   *
+   * @generated from rpc nama.v1.SignInService.LookUpSignInCode
+   */
+  lookUpSignInCode: {
+    methodKind: "unary";
+    input: typeof LookUpSignInCodeRequestSchema;
+    output: typeof LookUpSignInCodeResponseSchema;
+  },
+  /**
+   * Approves a Sign-in Code, so the Device that shows it signs in as the calling User. Fails like
+   * `LookUpSignInCode`.
+   *
+   * @generated from rpc nama.v1.SignInService.ApproveSignInCode
+   */
+  approveSignInCode: {
+    methodKind: "unary";
+    input: typeof ApproveSignInCodeRequestSchema;
+    output: typeof ApproveSignInCodeResponseSchema;
+  },
+  /**
+   * Says whether the sign-in a poll handle stands for is still waiting for approval, expired, or
+   * signed in. Signed in hands out the new Device's session, once, the way `SignIn` does: after
+   * that, and for a handle the Server never gave out or has forgotten, it fails with `not_found`.
+   *
+   * @generated from rpc nama.v1.SignInService.PollSignInCode
+   */
+  pollSignInCode: {
+    methodKind: "unary";
+    input: typeof PollSignInCodeRequestSchema;
+    output: typeof PollSignInCodeResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_nama_v1_sign_in, 0);
