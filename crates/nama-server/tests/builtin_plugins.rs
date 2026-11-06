@@ -50,7 +50,10 @@ fn builtin_plugin_crates_depend_on_no_workspace_crate_but_the_plugin_api_and_pro
         String::from_utf8_lossy(&output.stderr)
     );
     let metadata: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
-    let plugins_dir = workspace.join("plugins").canonicalize().unwrap();
+    // Build the plugins directory from Cargo's own `workspace_root` so it has the same form as
+    // every `manifest_path`. `canonicalize` would give a `\\?\` verbatim path on Windows, which
+    // never prefixes Cargo's plain `D:\...` paths.
+    let plugins_dir = Path::new(metadata["workspace_root"].as_str().unwrap()).join("plugins");
 
     let mut checked = 0;
     for package in metadata["packages"].as_array().unwrap() {
