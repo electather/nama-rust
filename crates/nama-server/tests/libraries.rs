@@ -10,7 +10,7 @@ use nama_proto::nama::v1::{
     CreateLibraryRequest, DeleteLibraryRequest, GetLibraryRequest, Library, LibraryKind,
     LibraryServiceClient, ListLibrariesRequest, ScanLibraryRequest, UpdateLibraryRequest,
 };
-use nama_server::config::Config;
+use nama_server::{config::Config, plugins::Registry};
 use server::TestServer;
 use tempfile::TempDir;
 
@@ -27,7 +27,7 @@ struct Fixture {
 )]
 impl Fixture {
     async fn start() -> Self {
-        let server = TestServer::start(Config::default()).await;
+        let server = TestServer::start(Config::default(), Registry::new()).await;
         let client = LibraryServiceClient::new(HttpClient::plaintext(), server.client_config());
         Self {
             client,

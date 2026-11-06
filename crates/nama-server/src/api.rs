@@ -4,22 +4,25 @@ use std::{future, sync::Arc};
 
 use buffa::EnumValue;
 use connectrpc::{
-    ConnectError, Encodable, RequestContext, Response, ServiceRequest, ServiceResult,
+    ConnectError, Encodable, RequestContext, Response, ServiceRequest, ServiceResult, ServiceStream,
 };
+use futures_util::StreamExt;
 use nama_plugin_api::metadata::{Candidate, ExternalId, SearchQuery, TitleKind};
 use nama_proto::nama::v1::{
     self as proto, ClearMatchRequest, ClearMatchResponse, CreateLibraryRequest,
-    CreateLibraryResponse, DeleteLibraryRequest, DeleteLibraryResponse, GetLibraryRequest,
-    GetLibraryResponse, GetServerInfoRequest, GetServerInfoResponse, LibraryKind, LibraryService,
-    ListLibrariesRequest, ListLibrariesResponse, MatchService, ScanLibraryRequest,
-    ScanLibraryResponse, SearchMetadataRequest, SearchMetadataResponse, ServerService,
-    SetMatchRequest, SetMatchResponse, UpdateLibraryRequest, UpdateLibraryResponse, external_id,
+    CreateLibraryResponse, DeleteLibraryRequest, DeleteLibraryResponse, EventService, EventType,
+    GetLibraryRequest, GetLibraryResponse, GetServerInfoRequest, GetServerInfoResponse,
+    LibraryKind, LibraryService, ListLibrariesRequest, ListLibrariesResponse, MatchService,
+    ScanLibraryRequest, ScanLibraryResponse, SearchMetadataRequest, SearchMetadataResponse,
+    ServerService, SetMatchRequest, SetMatchResponse, SubscribeRequest, SubscribeResponse,
+    UpdateLibraryRequest, UpdateLibraryResponse, external_id,
 };
 use tokio::sync::OwnedMutexGuard;
 
 use crate::{
     config::Config,
     db::Database,
+    events::{EventBus, Filter},
     libraries::{self, Kind, Libraries, Library},
     matching::{ManualError, Matcher},
     plugins::Registry,
@@ -32,19 +35,21 @@ pub(crate) fn router(
     db: Arc<Database>,
     plugins: Registry,
     scanner: Scanner,
+    events: EventBus,
 ) -> axum::Router {
     connectrpc::Router::new()
         .add_service(Arc::new(ServerServiceHandler {
             name: config.name.clone(),
         }))
         .add_service(Arc::new(MatchServiceHandler {
-            matcher: Matcher::new(Arc::clone(&db), plugins),
+            matcher: Matcher::new(Arc::clone(&db), plugins, events.clone()),
             scanner: scanner.clone(),
         }))
         .add_service(Arc::new(LibraryServiceHandler {
             libraries: Libraries::new(db),
             scanner,
         }))
+        .add_service(Arc::new(EventServiceHandler { events }))
         .into_axum_router()
 }
 
@@ -239,6 +244,50 @@ impl MatchService for MatchServiceHandler {
             unmatched: summary.unmatched,
             ..Default::default()
         })
+    }
+}
+
+/// `nama.v1.EventService`: live updates.
+//
+// TODO(M2): once there are Users, only send a caller events about Libraries it may see.
+struct EventServiceHandler {
+    events: EventBus,
+}
+
+impl EventService for EventServiceHandler {
+    fn subscribe(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, SubscribeRequest>,
+    ) -> impl Future<
+        Output = ServiceResult<ServiceStream<impl Encodable<SubscribeResponse> + Send + use<>>>,
+    > + Send {
+        let request = request.to_owned_message();
+        let filter = request
+            .types
+            .into_iter()
+            .map(event_type_from_proto)
+            .collect::<Result<_, _>>()
+            .map(|types| Filter {
+                types,
+                libraries: request.library_ids,
+            });
+        let subscribed = filter.and_then(|filter| {
+            let stream: ServiceStream<SubscribeResponse> =
+                Box::pin(self.events.subscribe(filter).map(Ok));
+            Response::ok(stream)
+        });
+        future::ready(subscribed)
+    }
+}
+
+/// An event type a filter names, which must be one the Server knows.
+fn event_type_from_proto(kind: EnumValue<EventType>) -> Result<EventType, ConnectError> {
+    match kind {
+        EnumValue::Known(EventType::EVENT_TYPE_UNSPECIFIED) | EnumValue::Unknown(_) => Err(
+            ConnectError::invalid_argument("an event type must be one this Server knows"),
+        ),
+        EnumValue::Known(kind) => Ok(kind),
     }
 }
 

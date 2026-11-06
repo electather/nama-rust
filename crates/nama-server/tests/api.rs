@@ -7,7 +7,7 @@ use std::net::SocketAddr;
 
 use connectrpc::client::HttpClient;
 use nama_proto::nama::v1::{GetServerInfoRequest, GetServerInfoResponse, ServerServiceClient};
-use nama_server::config::Config;
+use nama_server::{config::Config, plugins::Registry};
 use server::TestServer;
 
 /// The default config with the Server named `name`.
@@ -35,7 +35,7 @@ async fn get_server_info(client: &ServerServiceClient<HttpClient>) -> GetServerI
 /// protobuf bodies.
 #[tokio::test]
 async fn get_server_info_returns_the_server_name_and_version_over_every_transport() {
-    let server = TestServer::start(config_named("Living Room")).await;
+    let server = TestServer::start(config_named("Living Room"), Registry::new()).await;
     let transports = [
         (
             "HTTP/1.1 JSON",
@@ -70,7 +70,7 @@ async fn get_server_info_returns_the_server_name_and_version_over_every_transpor
 /// What `curl -H 'Content-Type: application/json' -d '{}' .../GetServerInfo` sends.
 #[tokio::test]
 async fn a_plain_http1_json_post_gets_a_json_answer() {
-    let server = TestServer::start(config_named("Attic")).await;
+    let server = TestServer::start(config_named("Attic"), Registry::new()).await;
 
     let (status, content_type, body) =
         http1_post_json(server.addr, "/nama.v1.ServerService/GetServerInfo", "{}").await;

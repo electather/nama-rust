@@ -15,26 +15,21 @@ pub(crate) struct TestServer {
 }
 
 impl TestServer {
-    /// Starts serving `config` on a free port, with a fresh database.
+    /// Starts serving `config` on a free port, with a fresh database and the Plugins enabled in
+    /// `plugins`.
     #[expect(
         clippy::unwrap_used,
         reason = "a test helper fails its test by panicking"
     )]
-    pub(crate) async fn start(config: Config) -> Self {
+    pub(crate) async fn start(config: Config, plugins: Registry) -> Self {
         let data_dir = tempfile::tempdir().unwrap();
         let db = Arc::new(Database::open(data_dir.path()).await.unwrap());
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         let (stop, stopped) = oneshot::channel::<()>();
-        tokio::spawn(nama_server::serve(
-            listener,
-            &config,
-            db,
-            Registry::new(),
-            async {
-                let _: Result<(), oneshot::error::RecvError> = stopped.await;
-            },
-        ));
+        tokio::spawn(nama_server::serve(listener, &config, db, plugins, async {
+            let _: Result<(), oneshot::error::RecvError> = stopped.await;
+        }));
         Self {
             addr,
             _stop: stop,

@@ -11,6 +11,9 @@
 //! Files are only listed and their metadata read, never opened: sidecars such as `.nfo` files
 //! are ignored.
 //!
+//! A scan publishes its start, then after each batch is written its progress and the Items it
+//! added and removed, then its finish (see [`crate::events`]).
+//!
 //! After each scan the Library's items are Matched (see [`crate::matching`]), still under the
 //! Library's scan lock, so Matching sees the items the scan stored.
 
@@ -24,14 +27,18 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+use nama_proto::nama::v1::{
+    Event, LibraryItemAdded, LibraryItemRemoved, ScanFinished, ScanProgress, ScanStarted,
+};
 use sqlx::SqliteConnection;
 use tokio_util::{sync::CancellationToken, task::TaskTracker};
 use walkdir::{DirEntry, WalkDir};
 
 use crate::{
     db::Database,
+    events::{EventBus, event},
     libraries::{self, Kind, Libraries},
-    matching::{self, Matcher},
+    matching::{self, Matcher, count},
     plugins::Registry,
 };
 
@@ -98,6 +105,7 @@ struct Inner {
     db: Arc<Database>,
     libraries: Libraries,
     matcher: Matcher,
+    events: EventBus,
     /// Background scans, so shutting down can wait for them.
     tasks: TaskTracker,
     /// Cancelled when the Server shuts down.
@@ -109,13 +117,14 @@ struct Inner {
 }
 
 impl Scanner {
-    /// A scanner storing what it finds in `db`, and Matching it with the metadata Provider
-    /// enabled in `plugins`.
-    pub(crate) fn new(db: Arc<Database>, plugins: Registry) -> Self {
+    /// A scanner storing what it finds in `db`, Matching it with the metadata Provider enabled
+    /// in `plugins`, and publishing what it does on `events`.
+    pub(crate) fn new(db: Arc<Database>, plugins: Registry, events: EventBus) -> Self {
         Self {
             inner: Arc::new(Inner {
                 libraries: Libraries::new(Arc::clone(&db)),
-                matcher: Matcher::new(Arc::clone(&db), plugins),
+                matcher: Matcher::new(Arc::clone(&db), plugins, events.clone()),
+                events,
                 db,
                 tasks: TaskTracker::new(),
                 cancel: CancellationToken::new(),
@@ -185,10 +194,16 @@ impl Scanner {
             return Err(Error::Cancelled);
         }
         let library = self.inner.libraries.get(id).await?;
+        self.inner.events.publish(vec![event(ScanStarted {
+            library_id: id,
+            ..Default::default()
+        })]);
         let stored = self.stored(id).await?;
         let walking = cancel.clone();
         let found = tokio::task::spawn_blocking(move || walk(&library.folders, &walking)).await??;
         let (changes, summary) = plan(library.kind, stored, found);
+        let files_total = count(changes.len());
+        let mut files_done = 0;
         let mut changes = changes.into_iter();
         loop {
             let batch: Vec<Change> = changes.by_ref().take(BATCH_SIZE).collect();
@@ -198,12 +213,31 @@ impl Scanner {
             if cancel.is_cancelled() {
                 return Err(Error::Cancelled);
             }
-            self.inner
+            files_done += count(batch.len());
+            let progress = event(ScanProgress {
+                library_id: id,
+                files_done,
+                files_total,
+                ..Default::default()
+            });
+            let items = self
+                .inner
                 .db
                 .write(move |tx| Box::pin(apply(tx, id, batch)))
                 .await?;
+            self.inner
+                .events
+                .publish(std::iter::once(progress).chain(items).collect());
         }
         tracing::info!(library = id, ?summary, "scanned a Library");
+        self.inner.events.publish(vec![event(ScanFinished {
+            library_id: id,
+            added: summary.added,
+            updated: summary.updated,
+            removed: summary.removed,
+            unchanged: summary.unchanged,
+            ..Default::default()
+        })]);
         self.inner.matcher.match_library(id, &cancel).await?;
         Ok(summary)
     }
@@ -385,12 +419,14 @@ fn plan(kind: Kind, mut stored: HashMap<String, Stored>, found: Walked) -> (Vec<
     (changes, summary)
 }
 
-/// Applies `changes` to the files of the Library `library`.
+/// Applies `changes` to the files of the Library `library`, and returns the events for the Items
+/// that removes and adds.
 async fn apply(
     conn: &mut SqliteConnection,
     library: i64,
     changes: Vec<Change>,
-) -> Result<(), sqlx::Error> {
+) -> Result<Vec<Event>, sqlx::Error> {
+    let mut events = Vec::new();
     for change in changes {
         match change {
             Change::Store {
@@ -412,32 +448,62 @@ async fn apply(
                 )
                 .fetch_one(&mut *conn)
                 .await?;
-                store_items(conn, file, &items).await?;
+                let removed = remove_items(conn, file).await?;
+                let added = insert_items(conn, file, &items).await?;
+                events.extend(removed.into_iter().map(|item| item_removed(library, item)));
+                events.extend(added.into_iter().map(|item| {
+                    event(LibraryItemAdded {
+                        library_id: library,
+                        item_id: item,
+                        path: path.clone(),
+                        ..Default::default()
+                    })
+                }));
             }
             Change::Remove(file) => {
+                let removed = remove_items(conn, file).await?;
                 sqlx::query!("DELETE FROM library_files WHERE id = ?", file)
                     .execute(&mut *conn)
                     .await?;
+                events.extend(removed.into_iter().map(|item| item_removed(library, item)));
             }
         }
     }
-    Ok(())
+    Ok(events)
 }
 
-/// Replaces the items stored for `file` with `items`.
-async fn store_items(
+/// The event for the Item `item` of the Library `library` being removed.
+fn item_removed(library: i64, item: i64) -> Event {
+    event(LibraryItemRemoved {
+        library_id: library,
+        item_id: item,
+        ..Default::default()
+    })
+}
+
+/// Removes the items stored for `file`, and returns their ids.
+async fn remove_items(conn: &mut SqliteConnection, file: i64) -> Result<Vec<i64>, sqlx::Error> {
+    sqlx::query_scalar!(
+        r#"DELETE FROM library_items WHERE file_id = ? RETURNING id AS "id!""#,
+        file
+    )
+    .fetch_all(conn)
+    .await
+}
+
+/// Stores `items` for `file`, and returns their ids.
+async fn insert_items(
     conn: &mut SqliteConnection,
     file: i64,
     items: &[Item],
-) -> Result<(), sqlx::Error> {
-    sqlx::query!("DELETE FROM library_items WHERE file_id = ?", file)
-        .execute(&mut *conn)
-        .await?;
+) -> Result<Vec<i64>, sqlx::Error> {
+    let mut ids = Vec::with_capacity(items.len());
     for item in items {
         let row = ItemRow::from(item);
-        sqlx::query!(
-            "INSERT INTO library_items (file_id, kind, title, year, tmdb_id, season, episode)
-             VALUES (?, ?, ?, ?, ?, ?, ?)",
+        let id = sqlx::query_scalar!(
+            r#"INSERT INTO library_items (file_id, kind, title, year, tmdb_id, season, episode)
+               VALUES (?, ?, ?, ?, ?, ?, ?)
+               RETURNING id AS "id!""#,
             file,
             row.kind,
             row.title,
@@ -446,10 +512,11 @@ async fn store_items(
             row.season,
             row.episode,
         )
-        .execute(&mut *conn)
+        .fetch_one(&mut *conn)
         .await?;
+        ids.push(id);
     }
-    Ok(())
+    Ok(ids)
 }
 
 /// The kind of an item, as stored.
@@ -576,20 +643,28 @@ impl Scanner {
 
 #[cfg(test)]
 mod tests {
-    use std::{fs, path::PathBuf, sync::Arc};
+    use std::{fs, path::PathBuf, sync::Arc, time::Duration};
 
+    use futures_util::StreamExt;
+    use nama_proto::nama::v1::{Lagged, subscribe_response};
     use tempfile::TempDir;
 
     use super::{File, Item, Scanner, Summary};
     use crate::{
         db::Database,
+        events::{EventBus, Filter},
         libraries::{self, Kind, Libraries},
         plugins::Registry,
     };
 
-    /// A database, a Library of `kind` backed by one scratch folder, and a scanner.
+    /// How many events a [`Fixture`]'s subscribers may fall behind.
+    const BUFFERED: usize = 8;
+
+    /// A database, a Library of `kind` backed by one scratch folder, and a scanner publishing on
+    /// a bus whose subscribers lag once [`BUFFERED`] events behind.
     struct Fixture {
         scanner: Scanner,
+        events: EventBus,
         library: i64,
         root: PathBuf,
         _media: TempDir,
@@ -607,8 +682,10 @@ mod tests {
                 .create("Media", kind, vec![root.to_str().unwrap().to_owned()])
                 .await
                 .unwrap();
+            let events = EventBus::with_capacity(Registry::new(), BUFFERED);
             Self {
-                scanner: Scanner::new(db, Registry::new()),
+                scanner: Scanner::new(db, Registry::new(), events.clone()),
+                events,
                 library: library.id,
                 root,
                 _media: media,
@@ -849,6 +926,31 @@ mod tests {
             media.files().await.len(),
             before,
             "a scan ran after shutdown"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_subscriber_that_falls_behind_lags_while_the_scan_finishes_on_time() {
+        let media = Fixture::new(Kind::Movies).await;
+        for n in 0..20 {
+            media.write(&format!("Movie {n} (2000)/Movie {n} (2000).mkv"), 10);
+        }
+        // Never read while the scan runs.
+        let mut slow = Box::pin(media.events.subscribe(Filter::default()));
+
+        let scanned =
+            tokio::time::timeout(Duration::from_secs(5), media.scanner.scan(media.library)).await;
+        assert!(matches!(scanned, Ok(Ok(_))), "{scanned:?}");
+
+        // The scan published 23 events: its start, one batch's progress, 20 Items and its finish.
+        // Only the last 8 were kept.
+        let lagged = Lagged {
+            dropped: 15,
+            ..Default::default()
+        };
+        assert_eq!(
+            slow.next().await.and_then(|response| response.message),
+            Some(subscribe_response::Message::from(lagged))
         );
     }
 }
