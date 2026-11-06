@@ -118,6 +118,10 @@ fn server_logs_its_config_creates_its_database_serves_the_api_and_exits_cleanly_
     // Port 0 asks the OS for a free port; the Server logs the one it got.
     let addr = bound_addr(&wait_for_line(&lines, "listening"));
 
+    // The log-events Built-in Plugin is enabled by default and observes the start.
+    let observed_line = wait_for_line(&lines, "observed server started");
+    assert!(observed_line.contains("From File"), "{observed_line}");
+
     // HTTP/1.0 so the response isn't chunked and ends when the connection closes.
     let mut stream = TcpStream::connect(addr).unwrap();
     stream.set_read_timeout(Some(TIMEOUT)).unwrap();
