@@ -591,8 +591,14 @@ impl MatchService for MatchServiceHandler {
             .unmatched(request.library_id)
             .await
             .map_err(|err| database_failed(&err))?;
+        let unparsed_paths = self
+            .contents
+            .unparsed(request.library_id)
+            .await
+            .map_err(|err| database_failed(&err))?;
         Response::ok(ListUnmatchedItemsResponse {
             items: unmatched.into_iter().map(unmatched_to_proto).collect(),
+            unparsed_paths,
             ..Default::default()
         })
     }

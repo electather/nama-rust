@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT path FROM library_files\n             WHERE library_id = ?\n               AND NOT EXISTS (SELECT 1 FROM library_items\n                               WHERE library_items.file_id = library_files.id)\n             ORDER BY path",
+  "describe": {
+    "columns": [
+      {
+        "name": "path",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "library_files",
+            "name": "path"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "4b3420fe5d0a686c050a2d21dc8a2631233a3b09ec71ce87fea21a50ba974681"
+}

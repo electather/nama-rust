@@ -346,6 +346,21 @@ impl Contents {
             .collect())
     }
 
+    /// The paths of the Library `library`'s files that hold no Items, because their names don't
+    /// follow the naming conventions, in order.
+    pub(crate) async fn unparsed(&self, library: i64) -> Result<Vec<String>, sqlx::Error> {
+        sqlx::query_scalar!(
+            "SELECT path FROM library_files
+             WHERE library_id = ?
+               AND NOT EXISTS (SELECT 1 FROM library_items
+                               WHERE library_items.file_id = library_files.id)
+             ORDER BY path",
+            library
+        )
+        .fetch_all(self.db.reader())
+        .await
+    }
+
     /// Pins `pin` for the Items of the Library `library` called `name`, replacing any pin they
     /// had, and stores what was `decided` about them, as of now, in one write. Returns `false`,
     /// having stored nothing, if the Library is gone.

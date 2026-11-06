@@ -21,8 +21,9 @@ use nama_plugin_tmdb::{
 };
 use nama_proto::nama::v1::{
     ClearMatchRequest, CreateLibraryRequest, ExternalId, LibraryKind, LibraryServiceClient,
-    ListUnmatchedItemsRequest, MatchServiceClient, ScanLibraryRequest, SearchMetadataRequest,
-    SetMatchRequest, SetMatchResponse, TitleKind, UnmatchedItem, external_id,
+    ListUnmatchedItemsRequest, ListUnmatchedItemsResponse, MatchServiceClient, ScanLibraryRequest,
+    SearchMetadataRequest, SetMatchRequest, SetMatchResponse, TitleKind, UnmatchedItem,
+    external_id,
 };
 use nama_server::{config::Config, contents::Contents, plugins::Registry};
 use server::TestServer;
@@ -212,6 +213,16 @@ impl Fixture {
 
     /// The Library's items that need a Match, as `ListUnmatchedItems` lists them.
     async fn listed(&self) -> Vec<UnmatchedItem> {
+        self.needs_a_match().await.items
+    }
+
+    /// The paths of the Library's files that hold no items, as `ListUnmatchedItems` lists them.
+    async fn unparsed(&self) -> Vec<String> {
+        self.needs_a_match().await.unparsed_paths
+    }
+
+    /// The Needs a Match list, as `ListUnmatchedItems` gives it.
+    async fn needs_a_match(&self) -> ListUnmatchedItemsResponse {
         self.matches
             .list_unmatched_items(ListUnmatchedItemsRequest {
                 library_id: self.library,
@@ -220,7 +231,19 @@ impl Fixture {
             .await
             .unwrap()
             .into_owned()
-            .items
+    }
+
+    /// Scans the Library, and waits until the file at `relative` is listed as holding no items.
+    async fn scan_until_unparsed(&self, relative: &str) {
+        self.scan().await;
+        let path = self.path(relative);
+        tokio::time::timeout(Duration::from_secs(5), async {
+            while !self.unparsed().await.contains(&path) {
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .unwrap();
     }
 
     /// The absolute path of the file at `relative` in the Library's folder.
@@ -506,4 +529,34 @@ async fn listing_the_unmatched_items_of_a_library_that_does_not_exist_is_not_fou
         .unwrap_err();
 
     assert_eq!(err.code, ErrorCode::NotFound, "{err:?}");
+}
+
+/// Too little to go on: no year and no ID hint.
+const HOME_VIDEO: &str = "home video.mkv";
+
+#[tokio::test]
+async fn a_file_whose_name_does_not_parse_is_listed_by_path_and_one_holding_items_is_not() {
+    let fx = Fixture::start_without_metadata(LibraryKind::LIBRARY_KIND_MOVIES).await;
+    fx.write(HOME_VIDEO, VIDEO);
+    fx.write(HOME_MOVIES, VIDEO);
+    // One scan stores both files in one batch.
+    fx.scan_until_stored(HOME_MOVIES).await;
+
+    let unparsed = fx.unparsed().await;
+
+    assert_eq!(unparsed, [fx.path(HOME_VIDEO)]);
+}
+
+#[tokio::test]
+async fn a_file_renamed_so_its_name_parses_drops_off_the_list_once_rescanned() {
+    let fx = Fixture::start_without_metadata(LibraryKind::LIBRARY_KIND_MOVIES).await;
+    fx.write(HOME_VIDEO, VIDEO);
+    fx.scan_until_unparsed(HOME_VIDEO).await;
+
+    fs::create_dir_all(fx.folder.join("Home Movies (2019)")).unwrap();
+    fs::rename(fx.folder.join(HOME_VIDEO), fx.folder.join(HOME_MOVIES)).unwrap();
+    // One scan removes the old name and stores the new one in one batch.
+    fx.scan_until_stored(HOME_MOVIES).await;
+
+    assert_eq!(fx.unparsed().await, Vec::<String>::new());
 }
