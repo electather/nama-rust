@@ -153,24 +153,25 @@ impl Fixture {
     /// The item stored for the file at `path` with size `size`, and what Matching decided about
     /// it, once it has.
     async fn decision(&self, path: &Path, size: i64) -> Option<(i64, Decision)> {
-        let row: Option<(i64, Option<String>, Option<i64>)> = sqlx::query_as(
-            "SELECT library_items.id, item_matches.state, item_matches.tmdb_id
-             FROM library_items
-             JOIN library_files ON library_files.id = library_items.file_id
-             LEFT JOIN item_matches ON item_matches.item_id = library_items.id
-             WHERE library_files.path = ? AND library_files.size = ?",
+        let path = path.to_str().unwrap();
+        let row = sqlx::query!(
+            r#"SELECT library_items.id AS "id!", item_matches.state AS "state?",
+                      item_matches.tmdb_id
+               FROM library_items
+               JOIN library_files ON library_files.id = library_items.file_id
+               LEFT JOIN item_matches ON item_matches.item_id = library_items.id
+               WHERE library_files.path = ? AND library_files.size = ?"#,
+            path,
+            size
         )
-        .bind(path.to_str().unwrap())
-        .bind(size)
         .fetch_optional(self.db.reader())
         .await
-        .unwrap();
-        let (item, state, tmdb_id) = row?;
+        .unwrap()?;
         Some((
-            item,
+            row.id,
             Decision {
-                state: state?,
-                tmdb_id,
+                state: row.state?,
+                tmdb_id: row.tmdb_id,
             },
         ))
     }

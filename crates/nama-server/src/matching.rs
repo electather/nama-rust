@@ -306,20 +306,20 @@ impl Matcher {
         id: &ExternalId,
     ) -> Result<Summary, ManualError> {
         let named = self.named_like(item).await?;
-        let no_such_title = |miss| match miss {
+        let refusal = |miss| match miss {
             Miss::Unmatched => ManualError::NoSuchTitle(id.clone()),
             Miss::Undecided => ManualError::Unavailable,
         };
         let outcomes = match named.kind {
             ItemKind::Movie => {
-                let movie = self.fetch_movie(id).await.map_err(no_such_title)?;
+                let movie = self.fetch_movie(id).await.map_err(refusal)?;
                 named
                     .items()
                     .map(|alike| (alike, Ok(movie.clone())))
                     .collect()
             }
             ItemKind::Episode => {
-                let show = self.fetch_show(id).await.map_err(no_such_title)?;
+                let show = self.fetch_show(id).await.map_err(refusal)?;
                 self.match_in_show(&show, &named.episodes).await
             }
         };
