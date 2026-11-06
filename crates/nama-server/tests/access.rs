@@ -13,8 +13,7 @@ use connectrpc::{
 use hyper::{HeaderMap, Method};
 use nama_proto::nama::v1::{
     __buffa::view::SubscribeResponseView, CreateLibraryRequest, EventServiceClient, LibraryKind,
-    LibraryServiceClient, ScanLibraryRequest, SessionDelivery, SignInRequest, SignInServiceClient,
-    SubscribeRequest, SubscribeResponse,
+    LibraryServiceClient, ScanLibraryRequest, SubscribeRequest, SubscribeResponse,
 };
 use nama_server::{config::Config, plugins::Registry, users::Users};
 use serde_json::Value;
@@ -120,23 +119,10 @@ async fn post_json(server: &TestServer, path: &str, bearer: Option<&str>) -> Rep
 async fn start_with_member() -> (TestServer, String) {
     let plugins = Registry::new();
     let (server, db) = TestServer::start_with_db(Config::default(), plugins.clone()).await;
-    Users::new(db, plugins)
-        .create_member("Grace", PASSWORD)
-        .await
-        .unwrap();
-    let token = SignInServiceClient::new(HttpClient::plaintext(), server.anonymous_client_config())
-        .sign_in(SignInRequest {
-            name: "Grace".to_owned(),
-            password: PASSWORD.to_owned(),
-            device_name: "Phone".to_owned(),
-            delivery: SessionDelivery::SESSION_DELIVERY_TOKEN.into(),
-            ..Default::default()
-        })
-        .await
-        .unwrap()
-        .into_owned()
-        .token;
-    (server, token)
+    let users = Users::new(db, plugins);
+    users.create_member("Grace", PASSWORD).await.unwrap();
+    let signed_in = users.sign_in("Grace", PASSWORD, "Phone").await.unwrap();
+    (server, signed_in.token().to_owned())
 }
 
 /// The next message on `subscription`, `None` if it ended, or why it failed.
@@ -181,10 +167,10 @@ async fn an_unauthenticated_call_to_anything_but_the_public_rpcs_is_unauthentica
 
 #[tokio::test]
 async fn a_member_managing_libraries_or_matches_is_permission_denied() {
-    let (server, member) = start_with_member().await;
+    let (server, member_token) = start_with_member().await;
 
     for path in ADMIN_ONLY {
-        let reply = post_json(&server, path, Some(&member)).await;
+        let reply = post_json(&server, path, Some(&member_token)).await;
 
         assert_eq!(reply.code(), "permission_denied", "{path}");
     }
@@ -208,11 +194,10 @@ async fn an_admin_may_manage_libraries_and_matches() {
 
 #[tokio::test]
 async fn a_member_receives_events() {
-    let (server, member) = start_with_member().await;
-    let member_config = server
-        .anonymous_client_config()
-        .with_default_header("authorization", format!("Bearer {member}"));
-    let mut events = subscribe(member_config).await.unwrap();
+    let (server, member_token) = start_with_member().await;
+    let mut events = subscribe(server.client_config_as(&member_token))
+        .await
+        .unwrap();
 
     let folder = tempfile::tempdir().unwrap();
     let libraries = LibraryServiceClient::new(HttpClient::plaintext(), server.client_config());

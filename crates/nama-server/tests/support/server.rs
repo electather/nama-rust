@@ -64,8 +64,13 @@ impl TestServer {
 
     /// Client settings that point at this Server and call it as the Admin.
     pub(crate) fn client_config(&self) -> ClientConfig {
+        self.client_config_as(&self.admin_token)
+    }
+
+    /// Client settings that point at this Server and present `token` as a bearer token.
+    pub(crate) fn client_config_as(&self, token: &str) -> ClientConfig {
         self.anonymous_client_config()
-            .with_default_header("authorization", format!("Bearer {}", self.admin_token))
+            .with_default_header("authorization", format!("Bearer {token}"))
     }
 
     /// Client settings that point at this Server and carry no session.

@@ -105,9 +105,21 @@ pub(crate) struct Session {
 
 /// A Device just signed in, and the session token it was given. Not `Debug`, so the token can't
 /// end up in a log.
-pub(crate) struct SignedIn {
+#[expect(
+    missing_debug_implementations,
+    reason = "it holds a session token, which must never be logged"
+)]
+pub struct SignedIn {
     pub(crate) caller: Caller,
     pub(crate) token: String,
+}
+
+impl SignedIn {
+    /// The session token the Device presents from now on, as a cookie or a bearer token.
+    #[must_use]
+    pub fn token(&self) -> &str {
+        &self.token
+    }
 }
 
 /// A credential string the Kernel keeps for a User, and the Plugin whose Authenticator made it,
@@ -218,7 +230,12 @@ impl Users {
 
     /// Signs the Device `device_name` in as the User named `name`, ignoring case, if `password` is
     /// theirs.
-    pub(crate) async fn sign_in(
+    ///
+    /// # Errors
+    ///
+    /// If the Device name is invalid, the name or password is wrong, the Authenticator fails, or
+    /// the database fails.
+    pub async fn sign_in(
         &self,
         name: &str,
         password: &str,
