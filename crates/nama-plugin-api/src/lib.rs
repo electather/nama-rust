@@ -64,6 +64,10 @@ impl fmt::Display for PluginId {
 }
 
 /// A unit of trusted functionality that plugs into a Server through Extension Points.
+///
+/// The Kernel contains a panic in any of these methods or in a handler: it logs it and disables
+/// the Plugin. A Plugin and its handlers must not panic when dropped, because the last reference
+/// to a handler may be dropped wherever the Kernel was using it.
 pub trait Plugin: Send + Sync + 'static {
     /// The Plugin's unique id. It must not change while the Plugin is enabled.
     fn id(&self) -> PluginId;

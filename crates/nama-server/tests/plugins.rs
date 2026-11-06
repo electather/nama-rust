@@ -451,6 +451,65 @@ async fn a_plugin_that_panics_while_registering_is_not_enabled() {
     );
 }
 
+/// A Plugin whose `id` or `version` panics, as chosen.
+struct PanicsIn(&'static str);
+
+impl Plugin for PanicsIn {
+    fn id(&self) -> PluginId {
+        assert!(self.0 != "id", "id bug");
+        PluginId::from_static("buggy")
+    }
+
+    fn version(&self) -> &'static str {
+        panic!("version bug")
+    }
+
+    fn register(&self, _registrar: &mut Registrar) {}
+}
+
+#[tokio::test]
+async fn a_plugin_that_panics_giving_its_id_or_version_is_not_enabled() {
+    let registry = Registry::new();
+
+    let id = registry.enable(Arc::new(PanicsIn("id")));
+    let version = registry.enable(Arc::new(PanicsIn("version")));
+
+    assert!(matches!(id, Err(EnableError::IdPanicked { .. })), "{id:?}");
+    assert!(
+        matches!(version, Err(EnableError::Panicked { .. })),
+        "{version:?}"
+    );
+    assert_eq!(registry.enabled(), Vec::<PluginId>::new());
+}
+
+/// An Interceptor at [`Words`] that panics when dropped.
+struct PanicOnDrop;
+
+impl Interceptor<Words> for PanicOnDrop {
+    fn intercept<'a>(&'a self, _action: &'a Vec<&'static str>) -> BoxFuture<'a, Decision<Words>> {
+        Box::pin(async { Ok(Verdict::Continue) })
+    }
+}
+
+impl Drop for PanicOnDrop {
+    fn drop(&mut self) {
+        panic!("drop bug");
+    }
+}
+
+#[test]
+fn a_plugin_that_panics_while_being_dropped_on_disable_is_still_disabled() {
+    let registry = Registry::new();
+    registry
+        .enable(plugin("buggy", |r| {
+            r.intercept::<Words>(Priority::DEFAULT, PanicOnDrop);
+        }))
+        .unwrap();
+
+    assert!(registry.disable(&PluginId::from_static("buggy")));
+    assert_eq!(registry.enabled(), Vec::<PluginId>::new());
+}
+
 #[tokio::test]
 async fn a_plugin_id_can_only_be_enabled_once() {
     let registry = Registry::new();

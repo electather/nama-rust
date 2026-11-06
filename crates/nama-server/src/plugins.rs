@@ -92,8 +92,14 @@ pub enum EnableError {
     /// A Plugin with the same id is already enabled.
     #[error("plugin {0} is already enabled")]
     AlreadyEnabled(PluginId),
-    /// The Plugin panicked in [`Plugin::register`].
-    #[error("plugin {plugin} panicked while registering: {message}")]
+    /// The Plugin panicked in [`Plugin::id`], so it has no id to report.
+    #[error("a plugin panicked while giving its id: {message}")]
+    IdPanicked {
+        /// The panic's message.
+        message: String,
+    },
+    /// The Plugin panicked while being enabled, such as in [`Plugin::register`].
+    #[error("plugin {plugin} panicked while being enabled: {message}")]
     Panicked {
         /// The Plugin.
         plugin: PluginId,
@@ -114,28 +120,41 @@ impl Registry {
     ///
     /// # Errors
     ///
-    /// If a Plugin with the same id is already enabled.
+    /// If a Plugin with the same id is already enabled, or the Plugin panics.
     pub fn enable(&self, plugin: Arc<dyn Plugin>) -> Result<(), EnableError> {
-        let id = plugin.id();
-        if self.read(|state| state.plugins.contains_key(&id)) {
-            return Err(EnableError::AlreadyEnabled(id));
-        }
-        let registrations = panic::catch_unwind(AssertUnwindSafe(|| {
-            let mut registrar = Registrar::new();
-            plugin.register(&mut registrar);
-            registrar.into_registrations()
-        }))
-        .map_err(|payload| EnableError::Panicked {
-            plugin: id.clone(),
-            message: panic_message(&*payload),
-        })?;
+        // Everything a Plugin does here (its `id`, `version`, `register` and `Drop`) is Plugin
+        // code, so a panic in any of it is contained.
+        let id = match contain_sync(|| plugin.id()) {
+            Ok(id) => id,
+            Err(message) => {
+                // A panic dropping it is moot: the Plugin is already refused.
+                let _dropped = contain_sync(|| drop(plugin));
+                return Err(EnableError::IdPanicked { message });
+            }
+        };
+        contain_sync(|| self.enable_as(&id, plugin)).unwrap_or_else(|message| {
+            Err(EnableError::Panicked {
+                plugin: id,
+                message,
+            })
+        })
+    }
 
+    /// Enables `plugin`, whose id is `id`. Plugin code runs here, so only call it from within
+    /// [`contain_sync`].
+    fn enable_as(&self, id: &PluginId, plugin: Arc<dyn Plugin>) -> Result<(), EnableError> {
+        if self.read(|state| state.plugins.contains_key(id)) {
+            return Err(EnableError::AlreadyEnabled(id.clone()));
+        }
+        let mut registrar = Registrar::new();
+        plugin.register(&mut registrar);
+        let registrations = registrar.into_registrations();
         let count = registrations.len();
         let version = plugin.version().to_owned();
         // Plugin values the lock refuses are dropped after it is released, since a Plugin's `Drop`
         // is Plugin code.
         let refused = self.write(|state| {
-            if state.plugins.contains_key(&id) {
+            if state.plugins.contains_key(id) {
                 return Some((plugin, registrations));
             }
             let generation = state.next_generation;
@@ -148,19 +167,26 @@ impl Registry {
                 },
             );
             for (index, registration) in registrations.into_iter().enumerate() {
-                let entries = state.points.entry(registration.point()).or_default();
-                entries.push(Entry {
-                    plugin: id.clone(),
-                    generation,
-                    index,
-                    registration,
-                });
+                state
+                    .points
+                    .entry(registration.point())
+                    .or_default()
+                    .push(Entry {
+                        plugin: id.clone(),
+                        generation,
+                        index,
+                        registration,
+                    });
+            }
+            // Once, after every push. A list nothing was pushed to is already sorted, which the
+            // stable sort sees in one pass.
+            for entries in state.points.values_mut() {
                 entries.sort_by(|a, b| a.order().cmp(&b.order()));
             }
             None
         });
         if refused.is_some() {
-            return Err(EnableError::AlreadyEnabled(id));
+            return Err(EnableError::AlreadyEnabled(id.clone()));
         }
         info!(plugin = %id, %version, registrations = count, "enabled plugin");
         Ok(())
@@ -194,7 +220,9 @@ impl Registry {
             Some((plugin, handlers))
         });
         let was_enabled = removed.is_some();
-        drop(removed);
+        if let Err(message) = contain_sync(|| drop(removed)) {
+            error!(plugin = %id, message, "plugin panicked while being dropped");
+        }
         if was_enabled {
             info!(plugin = %id, "disabled plugin");
         }
@@ -372,10 +400,14 @@ impl Registry {
     }
 }
 
+/// Calls Plugin code that isn't async, catching a panic.
+pub(crate) fn contain_sync<T>(call: impl FnOnce() -> T) -> Result<T, String> {
+    panic::catch_unwind(AssertUnwindSafe(call)).map_err(|payload| panic_message(&*payload))
+}
+
 /// Calls a Plugin's handler and awaits it, catching a panic either in the call or while awaiting.
 async fn contain<F: Future>(call: impl FnOnce() -> F) -> Result<F::Output, String> {
-    let future =
-        panic::catch_unwind(AssertUnwindSafe(call)).map_err(|payload| panic_message(&*payload))?;
+    let future = contain_sync(call)?;
     AssertUnwindSafe(future)
         .catch_unwind()
         .await

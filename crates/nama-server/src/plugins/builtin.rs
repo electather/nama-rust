@@ -6,7 +6,7 @@ use nama_plugin_api::Plugin;
 use nama_plugin_log_events::LogEvents;
 use tracing::{error, info, warn};
 
-use super::Registry;
+use super::{Registry, contain_sync};
 use crate::config::PluginConfig;
 
 /// Every Built-in Plugin.
@@ -21,9 +21,17 @@ impl Registry {
     #[must_use]
     pub fn with_builtins(config: &BTreeMap<String, PluginConfig>) -> Self {
         let registry = Self::new();
-        let builtins = all();
-        for plugin in builtins.iter().cloned() {
-            let id = plugin.id();
+        let mut known = Vec::new();
+        for plugin in all() {
+            // A Plugin's `id` is Plugin code, so a panic in it is contained.
+            let id = match contain_sync(|| plugin.id()) {
+                Ok(id) => id,
+                Err(message) => {
+                    error!(message, "a built-in plugin panicked while giving its id");
+                    continue;
+                }
+            };
+            known.push(id.clone());
             if config
                 .get(id.as_str())
                 .is_some_and(|settings| !settings.enabled)
@@ -36,7 +44,7 @@ impl Registry {
             }
         }
         for id in config.keys() {
-            if !builtins.iter().any(|plugin| plugin.id().as_str() == id) {
+            if !known.iter().any(|known| known.as_str() == id) {
                 warn!(plugin = %id, "config names a plugin this Server doesn't have");
             }
         }
