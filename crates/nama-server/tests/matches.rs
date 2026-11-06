@@ -210,8 +210,8 @@ impl Fixture {
             .into_owned())
     }
 
-    /// The Library's items that need a Match.
-    async fn unmatched(&self) -> Vec<UnmatchedItem> {
+    /// The Library's items that need a Match, as `ListUnmatchedItems` lists them.
+    async fn listed(&self) -> Vec<UnmatchedItem> {
         self.matches
             .list_unmatched_items(ListUnmatchedItemsRequest {
                 library_id: self.library,
@@ -419,7 +419,7 @@ async fn an_unmatched_item_is_listed_with_what_its_name_was_parsed_as_and_a_matc
     let (_, alien_decided) = fx.scan_until_decided(alien, VIDEO).await;
     let (home_movies, home_movies_decided) = fx.scan_until_decided(HOME_MOVIES, VIDEO).await;
 
-    let listed = fx.unmatched().await;
+    let listed = fx.listed().await;
 
     assert_eq!(
         (alien_decided, home_movies_decided),
@@ -441,12 +441,12 @@ async fn an_unmatched_item_matched_by_hand_drops_off_the_list() {
     let fx = Fixture::start(LibraryKind::LIBRARY_KIND_MOVIES).await;
     fx.write(HOME_MOVIES, VIDEO);
     let (item, _) = fx.scan_until_decided(HOME_MOVIES, VIDEO).await;
-    let before = fx.unmatched().await;
+    let before = fx.listed().await;
 
     fx.set_match(item, 949).await.unwrap();
 
     assert_eq!(before.len(), 1);
-    assert_eq!(fx.unmatched().await, []);
+    assert_eq!(fx.listed().await, []);
 }
 
 #[tokio::test]
@@ -456,7 +456,7 @@ async fn an_episode_not_matched_yet_is_listed_with_its_season_and_number() {
     fx.write(episode, VIDEO);
     let item = fx.scan_until_stored(episode).await;
 
-    let listed = fx.unmatched().await;
+    let listed = fx.listed().await;
 
     assert_eq!(
         listed,
@@ -478,7 +478,7 @@ async fn an_item_pinned_unmatched_is_not_listed() {
     let fx = Fixture::start(LibraryKind::LIBRARY_KIND_MOVIES).await;
     fx.write(HOME_MOVIES, VIDEO);
     let (item, _) = fx.scan_until_decided(HOME_MOVIES, VIDEO).await;
-    let before = fx.unmatched().await;
+    let before = fx.listed().await;
 
     fx.matches
         .clear_match(ClearMatchRequest {
@@ -489,7 +489,7 @@ async fn an_item_pinned_unmatched_is_not_listed() {
         .unwrap();
 
     assert_eq!(before.len(), 1);
-    assert_eq!(fx.unmatched().await, []);
+    assert_eq!(fx.listed().await, []);
 }
 
 #[tokio::test]
