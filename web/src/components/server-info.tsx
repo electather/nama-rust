@@ -11,7 +11,7 @@ export function ServerInfo() {
       {isError && <p>Couldn’t reach this Server. Check that it’s running, then reload.</p>}
       {data && (
         <>
-          <h1 className="text-3xl font-semibold">{data.name}</h1>
+          <h1 className="text-3xl font-semibold tracking-tight">{data.name}</h1>
           <p className="mt-2 text-muted-foreground">Nama {data.version}</p>
         </>
       )}
