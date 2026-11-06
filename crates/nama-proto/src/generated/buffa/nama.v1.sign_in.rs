@@ -308,7 +308,7 @@ pub enum SignInCodeStatus {
     SIGN_IN_CODE_STATUS_UNSPECIFIED = 0i32,
     /// Not approved yet. Poll again in a few seconds.
     SIGN_IN_CODE_STATUS_WAITING = 1i32,
-    /// Not approved and polled within 10 minutes. Start again for a new code.
+    /// Not approved, or not polled once approved, within 10 minutes. Start again for a new code.
     SIGN_IN_CODE_STATUS_EXPIRED = 2i32,
     /// Approved: the response carries the session.
     SIGN_IN_CODE_STATUS_SIGNED_IN = 3i32,

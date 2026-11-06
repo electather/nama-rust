@@ -565,7 +565,7 @@ export const SignInCodeStatus = {
   WAITING: 1,
 
   /**
-   * Not approved and polled within 10 minutes. Start again for a new code.
+   * Not approved, or not polled once approved, within 10 minutes. Start again for a new code.
    *
    * @generated from enum value: SIGN_IN_CODE_STATUS_EXPIRED = 2;
    */

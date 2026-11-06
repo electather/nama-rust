@@ -547,6 +547,8 @@ async fn neither_the_password_nor_the_token_is_logged_even_at_trace() {
         !logged.contains(&code_token),
         "a Sign-in Code's token was logged"
     );
+    assert!(!logged.contains(&code), "a Sign-in Code was logged");
+    assert!(!logged.contains(&handle), "a poll handle was logged");
 }
 
 /// Creates the first Admin, Ada, signed in on the Device "Laptop" with a token.

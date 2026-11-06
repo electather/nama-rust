@@ -18,10 +18,11 @@ const LIFETIME: Duration = Duration::from_mins(10);
 /// How many characters a Sign-in Code has: 40 random bits.
 const CODE_LENGTH: usize = 8;
 
-/// The most sign-ins kept at once, so anonymous starts can't fill the Server's memory.
-// ponytail: one global cap, so a flood of starts blocks everyone's; limit starts per client if
-// that happens.
-const MAX_PENDING: usize = 1000;
+/// The most sign-ins kept at once, expired ones included, so anonymous starts can't fill the
+/// Server's memory: a few tens of megabytes.
+// ponytail: one global cap, so a sustained flood of starts blocks everyone's; limit starts per
+// client if that happens.
+const MAX_PENDING: usize = 100_000;
 
 /// The sign-ins waiting on a Sign-in Code.
 #[derive(Default)]
@@ -53,7 +54,7 @@ pub(crate) struct Started {
 pub(crate) enum Poll {
     /// Not approved yet.
     Waiting,
-    /// Not approved and polled in time.
+    /// Not approved, or not polled once approved, within [`LIFETIME`].
     Expired,
     /// Approved by `user`, so the Device `device_name` signs in as them, given its session as a
     /// token if it `wants_token`. Answered once: the sign-in is forgotten.
