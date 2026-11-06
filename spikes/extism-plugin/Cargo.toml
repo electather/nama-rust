@@ -1,0 +1,19 @@
+# Throwaway spike for issue #11: not a member of the Nama workspace, never merged into the real crates.
+# Its own `[workspace]` keeps cargo from attaching it to the root workspace.
+[workspace]
+resolver = "3"
+members = ["shared", "guest", "host"]
+
+[workspace.package]
+edition = "2024"
+publish = false
+
+[workspace.dependencies]
+buffa = "0.9.2"
+extism-convert = { version = "1.41.0", default-features = false }
+shared = { path = "shared" }
+
+[profile.release]
+# A small guest is closer to what an Installed Plugin would ship.
+opt-level = "s"
+lto = true
