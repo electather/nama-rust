@@ -1,0 +1,12 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [
+      ".sandcastle/**",
+      "spikes/**",
+      "target/**",
+      "**/target/**"
+    ],
+    "ignoreValues": []
+  }
+}

@@ -20,6 +20,8 @@ Its `references/` chapters live in `~/.claude/skills/rust-best-practices/referen
 !`awk 'f>=2{print} /^---$/{f++}' ~/.claude/skills/clean-code/SKILL.md`
 </skill>
 
+If the ticket touches the web UI (React, TypeScript or CSS for the browser, ADR 0004), also follow the `impeccable` skill: read `~/.claude/skills/impeccable/SKILL.md` and the references it points to, run its `context` step from the repo root, and build to `PRODUCT.md` and `DESIGN.md`. Where it says to ask the user, decide yourself, guided by those two files. There is no browser in the sandbox, so where it says to look at the rendered result, run `~/.claude/skills/impeccable/scripts/impeccable detect --json <changed UI files>` instead and fix what it finds. Skip all of this for Rust-only tickets.
+
 Ponytail decides how much to build: no abstraction, file or layer the ticket doesn't need. Rust best practices and clean code decide how it reads: idioms, names, function size, comments that say why. Where they pull apart, ponytail wins, and `AGENTS.md` beats all three.
 
 You are running AFK inside the sandcastle factory, on branch `{{BRANCH}}` forked from `origin/main`. Nobody can answer questions. Where the skill says "ask", decide yourself and record the decision in the commit body, or give up with `<blocked>`.

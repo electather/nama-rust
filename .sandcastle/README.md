@@ -13,6 +13,9 @@ Agents are Claude Code (`claude-opus-5-5`, effort `high`) in Docker. Your host s
     npx skills add apollographql/skills --skill rust-best-practices -g
     npx skills add https://github.com/sickn33/agentic-awesome-skills --skill clean-code -g
     npx skills add existential-birds/beagle --skill tokio-async-code-review --skill review-verification-protocol -g
+    npx skills add pbakaus/impeccable -g   # UI tickets only: implement and review follow it against PRODUCT.md / DESIGN.md
+
+The `impeccable` launcher downloads its Linux engine into the container's `~/.impeccable` on first use, so a UI ticket needs network access the first time each sandbox runs it. Its post-edit hook isn't installed in the container. The review step runs `impeccable detect` instead.
 
 One-time setup (from the repo root):
 

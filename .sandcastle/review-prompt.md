@@ -12,6 +12,8 @@ Use the `code-review` skill with fixed point `origin/main`. The spec is issue #{
 
 If the diff touches async code (`async fn`, `tokio::`, `.await`, spawned tasks, channels, locks), also run the `tokio-async-code-review` skill over those files, and check its findings with `review-verification-protocol` as that skill says. Treat its Critical and Major findings as hard findings.
 
+If the diff touches web UI files (`.tsx`, `.ts`, `.css`, `.html` for the browser), also review them against `PRODUCT.md` and `DESIGN.md` with the `impeccable` skill's audit (`~/.claude/skills/impeccable/SKILL.md`, then its `reference/audit.md`). Run `~/.claude/skills/impeccable/scripts/impeccable detect --json <changed UI files>` from the repo root. Treat its findings, and any breach of a DESIGN.md "Don't", as hard findings.
+
 # FIX
 
 Fix every hard finding and every Spec gap yourself, on this branch. Fix judgement-call smells only when the fix is clearly better. Don't add scope the issue didn't ask for.
