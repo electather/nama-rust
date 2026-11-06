@@ -4,6 +4,7 @@ use std::{
     future,
     net::{IpAddr, SocketAddr},
     sync::Arc,
+    time::Instant,
 };
 
 use axum::{
@@ -22,17 +23,21 @@ use connectrpc::{
 use futures_util::StreamExt;
 use nama_plugin_api::metadata::{Candidate, ExternalId, SearchQuery, TitleKind};
 use nama_proto::nama::v1::{
-    self as proto, ClearMatchRequest, ClearMatchResponse, CreateLibraryRequest,
-    CreateLibraryResponse, DeleteLibraryRequest, DeleteLibraryResponse, EventService, EventType,
-    GetLibraryRequest, GetLibraryResponse, GetServerInfoRequest, GetServerInfoResponse,
-    LIBRARY_SERVICE_SERVICE_NAME, LibraryKind, LibraryService, ListLibrariesRequest,
-    ListLibrariesResponse, MATCH_SERVICE_SERVICE_NAME, MatchService,
-    SERVER_SERVICE_GET_SERVER_INFO_SPEC, SIGN_IN_SERVICE_SETUP_SPEC, SIGN_IN_SERVICE_SIGN_IN_SPEC,
-    ScanLibraryRequest, ScanLibraryResponse, SearchMetadataRequest, SearchMetadataResponse,
-    ServerService, SessionDelivery, SetMatchRequest, SetMatchResponse, SetupRequest, SetupResponse,
-    SignInRequest, SignInResponse, SignInService, SignOutRequest, SignOutResponse,
-    SubscribeRequest, SubscribeResponse, UpdateLibraryRequest, UpdateLibraryResponse,
-    WhoAmIRequest, WhoAmIResponse, external_id,
+    self as proto, ApproveSignInCodeRequest, ApproveSignInCodeResponse, ClearMatchRequest,
+    ClearMatchResponse, CreateLibraryRequest, CreateLibraryResponse, DeleteLibraryRequest,
+    DeleteLibraryResponse, EventService, EventType, GetLibraryRequest, GetLibraryResponse,
+    GetServerInfoRequest, GetServerInfoResponse, LIBRARY_SERVICE_SERVICE_NAME, LibraryKind,
+    LibraryService, ListLibrariesRequest, ListLibrariesResponse, LookUpSignInCodeRequest,
+    LookUpSignInCodeResponse, MATCH_SERVICE_SERVICE_NAME, MatchService, PollSignInCodeRequest,
+    PollSignInCodeResponse, SERVER_SERVICE_GET_SERVER_INFO_SPEC,
+    SIGN_IN_SERVICE_POLL_SIGN_IN_CODE_SPEC, SIGN_IN_SERVICE_SETUP_SPEC,
+    SIGN_IN_SERVICE_SIGN_IN_SPEC, SIGN_IN_SERVICE_START_SIGN_IN_CODE_SPEC, ScanLibraryRequest,
+    ScanLibraryResponse, SearchMetadataRequest, SearchMetadataResponse, ServerService,
+    SessionDelivery, SetMatchRequest, SetMatchResponse, SetupRequest, SetupResponse,
+    SignInCodeStatus, SignInRequest, SignInResponse, SignInService, SignOutRequest,
+    SignOutResponse, StartSignInCodeRequest, StartSignInCodeResponse, SubscribeRequest,
+    SubscribeResponse, UpdateLibraryRequest, UpdateLibraryResponse, WhoAmIRequest, WhoAmIResponse,
+    external_id,
 };
 use tokio::sync::OwnedMutexGuard;
 
@@ -47,6 +52,7 @@ use crate::{
     rate_limits::{Blocked, SignInLimits},
     scanner::Scanner,
     sessions::{cleared_session_cookie, identify_caller, in_session_cookie, session_cookie},
+    sign_in_codes::{self, Poll, SignInCodes},
     users::{self, Caller, Role, SetupCode, SignedIn, Users},
 };
 
@@ -75,6 +81,7 @@ pub(crate) fn router(
             users: users.clone(),
             setup_code,
             limits: SignInLimits::default(),
+            sign_in_codes: SignInCodes::default(),
         }))
         .add_service(Arc::new(MatchServiceHandler {
             matcher: Matcher::new(Arc::clone(&db), plugins, events.clone()),
@@ -103,10 +110,12 @@ enum Access {
 
 impl Access {
     /// The RPCs anyone may call without a session, by path.
-    const PUBLIC: [&str; 3] = [
+    const PUBLIC: [&str; 5] = [
         SERVER_SERVICE_GET_SERVER_INFO_SPEC.procedure,
         SIGN_IN_SERVICE_SIGN_IN_SPEC.procedure,
         SIGN_IN_SERVICE_SETUP_SPEC.procedure,
+        SIGN_IN_SERVICE_START_SIGN_IN_CODE_SPEC.procedure,
+        SIGN_IN_SERVICE_POLL_SIGN_IN_CODE_SPEC.procedure,
     ];
 
     /// Who may call the RPC at `path`, `/<service>/<method>`. Only the RPCs in
@@ -187,6 +196,7 @@ struct SignInServiceHandler {
     setup_code: Option<SetupCode>,
     /// The recent failures of `Setup` and `SignIn`, which slow guessing down.
     limits: SignInLimits,
+    sign_in_codes: SignInCodes,
 }
 
 #[expect(
@@ -293,6 +303,105 @@ impl SignInService for SignInServiceHandler {
             })
         }))
     }
+
+    fn start_sign_in_code<'a>(
+        &'a self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, StartSignInCodeRequest>,
+    ) -> impl Future<
+        Output = ServiceResult<impl Encodable<StartSignInCodeResponse> + Send + use<'a>>,
+    > + Send {
+        let request = request.to_owned_message();
+        let started = wants_token(request.delivery).and_then(|wants_token| {
+            let device_name = users::checked_name("a Device's name", &request.device_name)?;
+            Ok(self
+                .sign_in_codes
+                .start(device_name, wants_token, Instant::now())?)
+        });
+        future::ready(started.and_then(|started| {
+            Response::ok(StartSignInCodeResponse {
+                code: started.code,
+                handle: started.handle,
+                ..Default::default()
+            })
+        }))
+    }
+
+    fn look_up_sign_in_code<'a>(
+        &'a self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, LookUpSignInCodeRequest>,
+    ) -> impl Future<
+        Output = ServiceResult<impl Encodable<LookUpSignInCodeResponse> + Send + use<'a>>,
+    > + Send {
+        let looked_up = self.sign_in_codes.look_up(request.code, Instant::now());
+        future::ready(
+            looked_up
+                .map_err(ConnectError::from)
+                .and_then(|device_name| {
+                    Response::ok(LookUpSignInCodeResponse {
+                        device_name,
+                        ..Default::default()
+                    })
+                }),
+        )
+    }
+
+    fn approve_sign_in_code<'a>(
+        &'a self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, ApproveSignInCodeRequest>,
+    ) -> impl Future<
+        Output = ServiceResult<impl Encodable<ApproveSignInCodeResponse> + Send + use<'a>>,
+    > + Send {
+        let approved = caller(&ctx).and_then(|caller| {
+            Ok(self
+                .sign_in_codes
+                .approve(request.code, &caller.user, Instant::now())?)
+        });
+        future::ready(approved.and_then(|()| Response::ok(ApproveSignInCodeResponse::default())))
+    }
+
+    async fn poll_sign_in_code(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, PollSignInCodeRequest>,
+    ) -> ServiceResult<PollSignInCodeResponse> {
+        let poll = self
+            .sign_in_codes
+            .poll(request.handle, Instant::now())
+            .ok_or_else(|| ConnectError::not_found("no sign-in is waiting on that handle"))?;
+        let (user, device_name, wants_token) = match poll {
+            Poll::Waiting => return poll_status(SignInCodeStatus::SIGN_IN_CODE_STATUS_WAITING),
+            Poll::Expired => return poll_status(SignInCodeStatus::SIGN_IN_CODE_STATUS_EXPIRED),
+            Poll::Approved {
+                user,
+                device_name,
+                wants_token,
+            } => (user, device_name, wants_token),
+        };
+        let signed_in = self.users.sign_in_as(user, device_name).await?;
+        Ok(hand_out_session(
+            signed_in,
+            wants_token,
+            ctx.headers(),
+            |caller, token| PollSignInCodeResponse {
+                status: SignInCodeStatus::SIGN_IN_CODE_STATUS_SIGNED_IN.into(),
+                user: user_to_proto(caller.user).into(),
+                device: device_to_proto(caller.device).into(),
+                token,
+                ..Default::default()
+            },
+        ))
+    }
+}
+
+/// A `PollSignInCode` answer that carries only `status`.
+fn poll_status(status: SignInCodeStatus) -> ServiceResult<PollSignInCodeResponse> {
+    Response::ok(PollSignInCodeResponse {
+        status: status.into(),
+        ..Default::default()
+    })
 }
 
 /// `nama.v1.LibraryService`: managing the Server's Libraries. Admins only, which
@@ -691,6 +800,22 @@ impl From<Blocked> for ConnectError {
         let retry_after = HeaderValue::from(blocked.retry_after_secs());
         let headers = HeaderMap::from_iter([(RETRY_AFTER, retry_after)]);
         Self::resource_exhausted(blocked.to_string()).with_headers(headers)
+    }
+}
+
+/// The Connect error a client gets for a Sign-in Code that couldn't be started, looked up or
+/// approved. A random number generator that failed is logged, not sent.
+impl From<sign_in_codes::Error> for ConnectError {
+    fn from(err: sign_in_codes::Error) -> Self {
+        match err {
+            sign_in_codes::Error::NotFound => Self::not_found(err.to_string()),
+            sign_in_codes::Error::AlreadyApproved => Self::failed_precondition(err.to_string()),
+            sign_in_codes::Error::TooManyPending => Self::resource_exhausted(err.to_string()),
+            sign_in_codes::Error::Random(_) => {
+                tracing::error!("starting a Sign-in Code failed: {err}");
+                Self::internal("the Server failed")
+            }
+        }
     }
 }
 

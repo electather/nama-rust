@@ -12,6 +12,7 @@ pub mod plugins;
 mod rate_limits;
 mod scanner;
 mod sessions;
+mod sign_in_codes;
 pub mod users;
 #[cfg(feature = "web")]
 mod web;

@@ -85,6 +85,14 @@ pub mod __buffa {
         reg.register_json_any(super::__SIGN_OUT_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__WHO_AM_I_REQUEST_JSON_ANY);
         reg.register_json_any(super::__WHO_AM_I_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__START_SIGN_IN_CODE_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__START_SIGN_IN_CODE_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__LOOK_UP_SIGN_IN_CODE_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LOOK_UP_SIGN_IN_CODE_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__APPROVE_SIGN_IN_CODE_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__APPROVE_SIGN_IN_CODE_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__POLL_SIGN_IN_CODE_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__POLL_SIGN_IN_CODE_RESPONSE_JSON_ANY);
     }
 }
 #[doc(inline)]
@@ -259,5 +267,37 @@ pub use self::__buffa::view::WhoAmIRequestOwnedView;
 pub use self::__buffa::view::WhoAmIResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::WhoAmIResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::StartSignInCodeRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::StartSignInCodeRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::StartSignInCodeResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::StartSignInCodeResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::LookUpSignInCodeRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::LookUpSignInCodeRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::LookUpSignInCodeResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::LookUpSignInCodeResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ApproveSignInCodeRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ApproveSignInCodeRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ApproveSignInCodeResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ApproveSignInCodeResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PollSignInCodeRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::PollSignInCodeRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PollSignInCodeResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::PollSignInCodeResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::register_types;
