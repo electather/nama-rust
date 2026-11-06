@@ -12,10 +12,13 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
 
+# Jobs run on autoscaled self-hosted runners on the home lab (electather/home-services,
+# runner-scaler-nama in services/lab/docker-compose.yml).
+
 jobs:
   fmt:
     name: rustfmt
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, nama-rust]
     steps:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
@@ -27,7 +30,7 @@ jobs:
   # the generated Rust code in crates/nama-proto is what the schema produces.
   proto:
     name: buf lint, breaking and generate
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, nama-rust]
     steps:
       - uses: actions/checkout@v6
         with:
@@ -74,7 +77,7 @@ jobs:
   # database. Here a scratch SQLite file with every migration applied checks that data is current.
   sqlx:
     name: sqlx query data
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, nama-rust]
     steps:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
@@ -94,7 +97,7 @@ jobs:
   # Lints that don't depend on the platform: docs, unused deps, supply chain.
   hygiene:
     name: docs, unused deps and cargo-deny
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, nama-rust]
     steps:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
@@ -112,14 +115,23 @@ jobs:
       - run: cargo deny check
 
   # Release builds target Linux, macOS and Windows, and the Server has
-  # platform-specific code (shutdown signals), so check on all three.
+  # platform-specific code (shutdown signals), so this should check all three.
+  # macOS and Windows are switched off for now: they need GitHub-hosted
+  # minutes, which this account has none of. Re-add them to the matrix to
+  # turn them back on.
   test:
     name: clippy, build and test (${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
+        include:
+          - os: linux
+            runner: [self-hosted, nama-rust]
+          # - os: macos-latest
+          #   runner: macos-latest
+          # - os: windows-latest
+          #   runner: windows-latest
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
