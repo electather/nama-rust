@@ -113,9 +113,9 @@ impl Access {
             (Self::Anyone, _) | (Self::SignedIn, Some(_)) => Ok(()),
             (_, None) => Err(ConnectError::unauthenticated("sign in first")),
             (Self::Admin, Some(caller)) if caller.user.role == Role::Admin => Ok(()),
-            (Self::Admin, Some(_)) => Err(ConnectError::permission_denied(
-                "only an Admin may manage Libraries and Matches",
-            )),
+            (Self::Admin, Some(_)) => {
+                Err(ConnectError::permission_denied("this needs the Admin Role"))
+            }
         }
     }
 }

@@ -264,29 +264,29 @@ async fn a_text_plain_post_with_a_valid_session_cookie_is_refused() {
     );
 }
 
+/// Browsers send a preflight without the cookie; one that carried it anyway gets past the session
+/// check, so both are tried.
 #[tokio::test]
 async fn a_cors_preflight_for_a_credentialed_request_is_not_approved() {
     let server = TestServer::start(Config::default(), Registry::new()).await;
+    let preflight = [
+        ("origin", "https://elsewhere.example"),
+        ("access-control-request-method", "POST"),
+        ("access-control-request-headers", "content-type"),
+    ];
     let cookie = format!("nama_session={}", server.admin_token);
+    let with_cookie = [preflight.as_slice(), &[("cookie", &cookie)]].concat();
 
-    let reply = send(
-        &server,
-        Method::OPTIONS,
-        "/nama.v1.LibraryService/CreateLibrary",
-        &[
-            ("origin", "https://elsewhere.example"),
-            ("access-control-request-method", "POST"),
-            ("access-control-request-headers", "content-type"),
-            ("cookie", &cookie),
-        ],
-    )
-    .await;
+    for headers in [preflight.as_slice(), &with_cookie] {
+        let path = "/nama.v1.LibraryService/CreateLibrary";
+        let reply = send(&server, Method::OPTIONS, path, headers).await;
 
-    assert!(!(200..300).contains(&reply.status), "{}", reply.status);
-    let approvals: Vec<_> = reply
-        .headers
-        .keys()
-        .filter(|name| name.as_str().starts_with("access-control-allow-"))
-        .collect();
-    assert!(approvals.is_empty(), "{approvals:?}");
+        assert!(!(200..300).contains(&reply.status), "{}", reply.status);
+        let approvals: Vec<_> = reply
+            .headers
+            .keys()
+            .filter(|name| name.as_str().starts_with("access-control-allow-"))
+            .collect();
+        assert!(approvals.is_empty(), "{approvals:?}");
+    }
 }
