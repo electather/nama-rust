@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
   pull_request:
+    # ready_for_review starts the tests when a draft is marked ready.
+    types: [opened, synchronize, reopened, ready_for_review]
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -13,29 +15,28 @@ env:
   CARGO_TERM_COLOR: always
 
 # Jobs run on autoscaled self-hosted runners on the home lab (electather/home-services,
-# runner-scaler-nama in services/lab/docker-compose.yml).
+# runner-scaler in services/lab/docker-compose.yml). There are only a few of them, so a run
+# uses one runner at a time: `lint` first, then `test`, which only runs once `lint` passes and
+# the PR isn't a draft.
 
 jobs:
-  fmt:
-    name: rustfmt
-    runs-on: [self-hosted, nama-rust]
-    steps:
-      - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt
-      - run: cargo fmt --all --check
-
-  # The schema in proto/ (ADR 0007): lint it, refuse breaking changes against main, and check
-  # the generated Rust code in crates/nama-proto is what the schema produces.
-  proto:
-    name: buf lint, breaking and generate
+  # Everything that doesn't depend on the platform, in one job so it needs one runner:
+  # formatting, the schema in proto/ (ADR 0007: lint, no breaking changes against main,
+  # generated code in crates/nama-proto is current), .sqlx query data, docs, unused deps and
+  # cargo-deny. Runs on drafts too.
+  lint:
+    name: lint
     runs-on: [self-hosted, nama-rust]
     steps:
       - uses: actions/checkout@v6
         with:
           # `buf breaking` reads main from the local clone.
           fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all --check
       - uses: bufbuild/buf-action@v1
         with:
           version: 1.75.0
@@ -54,7 +55,6 @@ jobs:
           else
             echo "main has no Buf module yet; skipping"
           fi
-      - uses: dtolnay/rust-toolchain@stable
       - name: Install codegen plugins
         # The generated code must compile against the connectrpc and buffa versions in
         # crates/nama-proto/Cargo.toml, so keep each plugin on the same minor version as its
@@ -72,16 +72,8 @@ jobs:
             echo "::error::crates/nama-proto/src/generated is stale; run 'buf generate' in proto/ and commit the result"
             exit 1
           }
-
-  # Queries are checked at compile time against the query data in .sqlx/, so builds need no
-  # database. Here a scratch SQLite file with every migration applied checks that data is current.
-  sqlx:
-    name: sqlx query data
-    runs-on: [self-hosted, nama-rust]
-    steps:
-      - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      # Queries are checked at compile time against the query data in .sqlx/, so builds need
+      # no database. A scratch SQLite file with every migration applied checks it is current.
       # Keep on the same minor version as the sqlx crate in crates/nama-server/Cargo.toml.
       - run: cargo install --locked sqlx-cli@0.9.0 --no-default-features --features sqlite,rustls
       - name: .sqlx is up to date
@@ -93,15 +85,6 @@ jobs:
             echo "::error::.sqlx is stale; see crates/nama-server/README.md for how to regenerate it"
             exit 1
           }
-
-  # Lints that don't depend on the platform: docs, unused deps, supply chain.
-  hygiene:
-    name: docs, unused deps and cargo-deny
-    runs-on: [self-hosted, nama-rust]
-    steps:
-      - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
       # Broken intra-doc links and malformed docs fail the build.
       - run: cargo doc --workspace --no-deps --locked
         env:
@@ -121,6 +104,9 @@ jobs:
   # turn them back on.
   test:
     name: clippy, build and test (${{ matrix.os }})
+    needs: lint
+    # Draft PRs get lint only; marking one ready for review runs this.
+    if: github.event_name == 'push' || !github.event.pull_request.draft
     strategy:
       fail-fast: false
       matrix:
