@@ -186,7 +186,9 @@ pub struct Library {
     )]
     pub kind: ::buffa::EnumValue<LibraryKind>,
     /// Absolute paths, on the Server, of the directories the Library's media lives in, in the
-    /// order they were given. Each folder belongs to at most one Library.
+    /// order they were given. The Server stores each in canonical form, with symlinks resolved and
+    /// no trailing separator, so a folder may come back spelled differently from how it was sent.
+    /// Each folder belongs to at most one Library.
     ///
     /// Field 4: `folders`
     #[serde(
@@ -936,6 +938,8 @@ pub const __LIST_LIBRARIES_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAnyEnt
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct GetLibraryRequest {
+    /// The Library to return.
+    ///
     /// Field 1: `id`
     #[serde(
         rename = "id",
@@ -1515,6 +1519,8 @@ pub const __UPDATE_LIBRARY_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAnyEnt
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct DeleteLibraryRequest {
+    /// The Library to delete.
+    ///
     /// Field 1: `id`
     #[serde(
         rename = "id",

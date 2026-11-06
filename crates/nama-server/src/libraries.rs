@@ -14,7 +14,9 @@ use crate::db::Database;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, sqlx::Type)]
 #[sqlx(rename_all = "lowercase")]
 pub(crate) enum Kind {
+    /// Movies, one per title.
     Movies,
+    /// Shows, made of Seasons and Episodes.
     Shows,
 }
 
@@ -52,6 +54,7 @@ pub(crate) struct Libraries {
 }
 
 impl Libraries {
+    /// The Libraries kept in `db`.
     pub(crate) const fn new(db: Arc<Database>) -> Self {
         Self { db }
     }
@@ -66,7 +69,7 @@ impl Libraries {
         let name = check_name(name)?;
         let folders = check_folders(folders).await?;
         self.db
-            .write(move |tx| Box::pin(insert(tx, name, kind, folders)))
+            .write(move |tx| Box::pin(create(tx, name, kind, folders)))
             .await
     }
 
@@ -137,7 +140,7 @@ impl Libraries {
         let name = check_name(name)?;
         let folders = check_folders(folders).await?;
         self.db
-            .write(move |tx| Box::pin(replace(tx, id, name, folders)))
+            .write(move |tx| Box::pin(update(tx, id, name, folders)))
             .await
     }
 
@@ -148,7 +151,7 @@ impl Libraries {
 }
 
 /// Stores a new Library, whose name and folders have been checked, and returns it.
-async fn insert(
+async fn create(
     conn: &mut SqliteConnection,
     name: String,
     kind: Kind,
@@ -172,7 +175,7 @@ async fn insert(
 }
 
 /// Gives the Library `id` a new name and folders, which have been checked, and returns it.
-async fn replace(
+async fn update(
     conn: &mut SqliteConnection,
     id: i64,
     name: String,
@@ -237,13 +240,7 @@ async fn check_folders(folders: Vec<String>) -> Result<Vec<String>, Error> {
         let path = tokio::fs::canonicalize(&folder)
             .await
             .map_err(|err| invalid(format!("can't be found: {err}")))?;
-        // Listing fails for anything that isn't a directory, and for a directory the Server
-        // isn't allowed to read.
-        let mut entries = tokio::fs::read_dir(&path)
-            .await
-            .map_err(|err| invalid(format!("is not a directory the Server can read: {err}")))?;
-        entries
-            .next_entry()
+        ensure_readable_dir(&path)
             .await
             .map_err(|err| invalid(format!("is not a directory the Server can read: {err}")))?;
         let path = path.into_os_string().into_string().map_err(|path| {
@@ -258,6 +255,19 @@ async fn check_folders(folders: Vec<String>) -> Result<Vec<String>, Error> {
         canonical.push(path);
     }
     Ok(canonical)
+}
+
+/// Fails unless `path` is a directory the Server can list and open the files in.
+async fn ensure_readable_dir(path: &Path) -> std::io::Result<()> {
+    // Listing fails for anything that isn't a directory, and for a directory without read
+    // permission.
+    tokio::fs::read_dir(path).await?.next_entry().await?;
+    // Opening what's inside also needs search (execute) permission, which reaching `.` through
+    // the directory checks. Windows has no separate permission for this, and its verbatim
+    // `\\?\` paths don't resolve `.`, so the check is Unix-only.
+    #[cfg(unix)]
+    tokio::fs::metadata(path.join(".")).await?;
+    Ok(())
 }
 
 /// Fails with [`Error::FolderTaken`] if any of `folders` belongs to a Library other than

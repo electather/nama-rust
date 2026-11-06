@@ -17,7 +17,9 @@ pub struct LibraryView<'a> {
     /// Field 3: `kind`
     pub kind: ::buffa::EnumValue<super::super::LibraryKind>,
     /// Absolute paths, on the Server, of the directories the Library's media lives in, in the
-    /// order they were given. Each folder belongs to at most one Library.
+    /// order they were given. The Server stores each in canonical form, with symlinks resolved and
+    /// no trailing separator, so a folder may come back spelled differently from how it was sent.
+    /// Each folder belongs to at most one Library.
     ///
     /// Field 4: `folders`
     pub folders: ::buffa::RepeatedView<'a, &'a str>,
@@ -309,7 +311,9 @@ impl LibraryOwnedView {
         self.0.reborrow().kind
     }
     /// Absolute paths, on the Server, of the directories the Library's media lives in, in the
-    /// order they were given. Each folder belongs to at most one Library.
+    /// order they were given. The Server stores each in canonical form, with symlinks resolved and
+    /// no trailing separator, so a folder may come back spelled differently from how it was sent.
+    /// Each folder belongs to at most one Library.
     ///
     /// Field 4: `folders`
     #[must_use]
@@ -1483,6 +1487,8 @@ impl ::serde::Serialize for ListLibrariesResponseOwnedView {
 }
 #[derive(Clone, Debug, Default)]
 pub struct GetLibraryRequestView<'a> {
+    /// The Library to return.
+    ///
     /// Field 1: `id`
     pub id: i64,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
@@ -1694,6 +1700,8 @@ impl GetLibraryRequestOwnedView {
     pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
         self.0.into_bytes()
     }
+    /// The Library to return.
+    ///
     /// Field 1: `id`
     #[must_use]
     pub fn id(&self) -> i64 {
@@ -2629,6 +2637,8 @@ impl ::serde::Serialize for UpdateLibraryResponseOwnedView {
 }
 #[derive(Clone, Debug, Default)]
 pub struct DeleteLibraryRequestView<'a> {
+    /// The Library to delete.
+    ///
     /// Field 1: `id`
     pub id: i64,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
@@ -2846,6 +2856,8 @@ impl DeleteLibraryRequestOwnedView {
     pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
         self.0.into_bytes()
     }
+    /// The Library to delete.
+    ///
     /// Field 1: `id`
     #[must_use]
     pub fn id(&self) -> i64 {

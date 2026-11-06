@@ -169,6 +169,44 @@ async fn updating_a_library_renames_it_and_replaces_its_folders_but_keeps_its_ki
 }
 
 #[tokio::test]
+async fn an_update_with_bad_input_is_refused_and_leaves_the_library_as_it_was() {
+    let fx = Fixture::start().await;
+    let tv = fx.folder("tv");
+    let films = fx.folder("films");
+    let shows = fx
+        .create("TV", LibraryKind::LIBRARY_KIND_SHOWS, &[&tv])
+        .await
+        .unwrap();
+    fx.create("Movies", LibraryKind::LIBRARY_KIND_MOVIES, &[&films])
+        .await
+        .unwrap();
+
+    let cases: [(&str, &str, &[&str], ErrorCode); 3] = [
+        ("a blank name", " ", &[&tv], ErrorCode::InvalidArgument),
+        (
+            "the same folder twice",
+            "TV",
+            &[&tv, &tv],
+            ErrorCode::InvalidArgument,
+        ),
+        (
+            "another Library's folder",
+            "TV",
+            &[&tv, &films],
+            ErrorCode::AlreadyExists,
+        ),
+    ];
+    for (case, name, folders, expected) in cases {
+        assert_eq!(
+            code(fx.update(shows.id, name, folders).await),
+            expected,
+            "{case}"
+        );
+    }
+    assert_eq!(fx.get(shows.id).await.unwrap(), shows);
+}
+
+#[tokio::test]
 async fn a_deleted_library_is_gone_and_its_folders_can_back_another() {
     let fx = Fixture::start().await;
     let films = fx.folder("films");
@@ -292,25 +330,57 @@ async fn a_folder_that_already_backs_another_library_is_refused_as_already_exist
     );
 }
 
-/// A directory the Server isn't allowed to list. Unix only: Windows has no simple equivalent of
-/// taking away read permission.
+/// Directories the Server can't fully read: one it can't list, and one it can list but not
+/// open anything in. Unix only: Windows has no simple equivalent of taking away these permissions.
 #[cfg(unix)]
 #[tokio::test]
 async fn a_folder_the_server_cannot_read_is_refused_as_an_invalid_argument() {
     use std::os::unix::fs::PermissionsExt;
 
     let fx = Fixture::start().await;
-    let locked = fx.folder("locked");
-    std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o300)).unwrap();
-    if std::fs::read_dir(&locked).is_ok() {
-        // Running as root, which reads anything; there's nothing to test.
-        return;
+    for (case, mode) in [("can't list", 0o300), ("can't open files in", 0o600)] {
+        let locked = fx.folder(case);
+        std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(mode)).unwrap();
+        if std::fs::metadata(Path::new(&locked).join(".")).is_ok()
+            && std::fs::read_dir(&locked).is_ok()
+        {
+            std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o700)).unwrap();
+            // Running as root, which reads anything; there's nothing to test.
+            return;
+        }
+
+        let err = fx
+            .create("Movies", LibraryKind::LIBRARY_KIND_MOVIES, &[&locked])
+            .await
+            .unwrap_err();
+
+        assert_eq!(err.code, ErrorCode::InvalidArgument, "{case}: {err:?}");
+        // So the scratch directory can be cleaned up.
+        std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o700)).unwrap();
     }
+}
+
+/// A symlink is another name for the folder it points to. Unix only: creating one on Windows
+/// needs a privilege CI doesn't have.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_symlink_to_a_folder_that_backs_a_library_is_refused_as_already_existing() {
+    let fx = Fixture::start().await;
+    let films = fx.folder("films");
+    fx.create("Movies", LibraryKind::LIBRARY_KIND_MOVIES, &[&films])
+        .await
+        .unwrap();
+    let link = fx.media.path().join("films-link");
+    std::os::unix::fs::symlink(&films, &link).unwrap();
 
     let err = fx
-        .create("Movies", LibraryKind::LIBRARY_KIND_MOVIES, &[&locked])
+        .create(
+            "Also Movies",
+            LibraryKind::LIBRARY_KIND_MOVIES,
+            &[link.to_str().unwrap()],
+        )
         .await
         .unwrap_err();
 
-    assert_eq!(err.code, ErrorCode::InvalidArgument, "{err:?}");
+    assert_eq!(err.code, ErrorCode::AlreadyExists, "{err:?}");
 }

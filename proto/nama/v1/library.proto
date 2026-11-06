@@ -23,7 +23,7 @@ service LibraryService {
     option idempotency_level = IDEMPOTENT;
   }
   // Deletes a Library. The files in its folders are left alone. Fails with `not_found` if there
-  // is no such Library.
+  // is no such Library, so a retry after a delete that went through gets `not_found`.
   rpc DeleteLibrary(DeleteLibraryRequest) returns (DeleteLibraryResponse) {
     option idempotency_level = IDEMPOTENT;
   }
@@ -45,7 +45,9 @@ message Library {
   // The kind of media the Library holds, fixed when it is created.
   LibraryKind kind = 3;
   // Absolute paths, on the Server, of the directories the Library's media lives in, in the
-  // order they were given. Each folder belongs to at most one Library.
+  // order they were given. The Server stores each in canonical form, with symlinks resolved and
+  // no trailing separator, so a folder may come back spelled differently from how it was sent.
+  // Each folder belongs to at most one Library.
   repeated string folders = 4;
 }
 
@@ -69,6 +71,7 @@ message ListLibrariesResponse {
 }
 
 message GetLibraryRequest {
+  // The Library to return.
   int64 id = 1;
 }
 
@@ -91,6 +94,7 @@ message UpdateLibraryResponse {
 }
 
 message DeleteLibraryRequest {
+  // The Library to delete.
   int64 id = 1;
 }
 

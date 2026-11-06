@@ -75,8 +75,7 @@ impl LibraryService for LibraryServiceHandler {
         let library = self
             .libraries
             .create(&request.name, kind, request.folders)
-            .await
-            .map_err(|err| to_connect_error(&err))?;
+            .await?;
         Response::ok(CreateLibraryResponse {
             library: library_to_proto(library).into(),
             ..Default::default()
@@ -88,11 +87,7 @@ impl LibraryService for LibraryServiceHandler {
         _ctx: RequestContext,
         _request: ServiceRequest<'_, ListLibrariesRequest>,
     ) -> ServiceResult<ListLibrariesResponse> {
-        let libraries = self
-            .libraries
-            .list()
-            .await
-            .map_err(|err| to_connect_error(&err))?;
+        let libraries = self.libraries.list().await?;
         Response::ok(ListLibrariesResponse {
             libraries: libraries.into_iter().map(library_to_proto).collect(),
             ..Default::default()
@@ -104,11 +99,7 @@ impl LibraryService for LibraryServiceHandler {
         _ctx: RequestContext,
         request: ServiceRequest<'_, GetLibraryRequest>,
     ) -> ServiceResult<GetLibraryResponse> {
-        let library = self
-            .libraries
-            .get(request.id)
-            .await
-            .map_err(|err| to_connect_error(&err))?;
+        let library = self.libraries.get(request.id).await?;
         Response::ok(GetLibraryResponse {
             library: library_to_proto(library).into(),
             ..Default::default()
@@ -124,8 +115,7 @@ impl LibraryService for LibraryServiceHandler {
         let library = self
             .libraries
             .update(request.id, &request.name, request.folders)
-            .await
-            .map_err(|err| to_connect_error(&err))?;
+            .await?;
         Response::ok(UpdateLibraryResponse {
             library: library_to_proto(library).into(),
             ..Default::default()
@@ -137,10 +127,7 @@ impl LibraryService for LibraryServiceHandler {
         _ctx: RequestContext,
         request: ServiceRequest<'_, DeleteLibraryRequest>,
     ) -> ServiceResult<DeleteLibraryResponse> {
-        self.libraries
-            .delete(request.id)
-            .await
-            .map_err(|err| to_connect_error(&err))?;
+        self.libraries.delete(request.id).await?;
         Response::ok(DeleteLibraryResponse::default())
     }
 }
@@ -156,6 +143,7 @@ fn kind_from_proto(kind: EnumValue<LibraryKind>) -> Result<Kind, ConnectError> {
     }
 }
 
+/// A Library as clients see it.
 fn library_to_proto(library: Library) -> proto::Library {
     proto::Library {
         id: library.id,
@@ -170,16 +158,18 @@ fn library_to_proto(library: Library) -> proto::Library {
     }
 }
 
-/// The Connect error a client gets for `err`. Database failures are logged, not sent: they say
-/// nothing the client can act on.
-fn to_connect_error(err: &libraries::Error) -> ConnectError {
-    match err {
-        libraries::Error::Invalid(_) => ConnectError::invalid_argument(err.to_string()),
-        libraries::Error::NotFound(_) => ConnectError::not_found(err.to_string()),
-        libraries::Error::FolderTaken { .. } => ConnectError::already_exists(err.to_string()),
-        libraries::Error::Database(_) => {
-            tracing::error!("a Library request failed: {err}");
-            ConnectError::internal("the Server's database failed")
+/// The Connect error a client gets for a Library request that failed. Database failures are
+/// logged, not sent: they say nothing the client can act on.
+impl From<libraries::Error> for ConnectError {
+    fn from(err: libraries::Error) -> Self {
+        match err {
+            libraries::Error::Invalid(_) => Self::invalid_argument(err.to_string()),
+            libraries::Error::NotFound(_) => Self::not_found(err.to_string()),
+            libraries::Error::FolderTaken { .. } => Self::already_exists(err.to_string()),
+            libraries::Error::Database(_) => {
+                tracing::error!("a Library request failed: {err}");
+                Self::internal("the Server's database failed")
+            }
         }
     }
 }

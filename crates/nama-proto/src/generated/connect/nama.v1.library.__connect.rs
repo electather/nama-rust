@@ -388,7 +388,7 @@ pub trait LibraryService: Send + Sync + 'static {
         >,
     > + Send;
     /// Deletes a Library. The files in its folders are left alone. Fails with `not_found` if there
-    /// is no such Library.
+    /// is no such Library, so a retry after a delete that went through gets `not_found`.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
