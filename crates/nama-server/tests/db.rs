@@ -2,7 +2,7 @@
 
 use std::{sync::Arc, time::Duration};
 
-use nama_server::db::Database;
+use nama_server::db::{self, Database};
 use tokio::sync::oneshot;
 
 #[tokio::test]
@@ -11,13 +11,34 @@ async fn a_fresh_start_creates_the_database_and_restarting_applies_no_migrations
     let data_dir = data_dir.path().join("not-yet-created");
 
     let first_start = Database::open(&data_dir).await.unwrap();
-    assert!(data_dir.join("nama.db").is_file());
+    assert!(data_dir.join(db::FILE_NAME).is_file());
     assert_eq!(first_start.migrations_applied(), [1]);
+    insert_rows(&first_start, 0, 1).await.unwrap();
     first_start.close().await;
 
     let restart = Database::open(&data_dir).await.unwrap();
     assert_eq!(restart.migrations_applied(), Vec::<i64>::new());
+    assert_eq!(count_rows(&restart).await, 1, "the restart lost a write");
     restart.close().await;
+}
+
+#[tokio::test]
+async fn the_database_is_in_wal_mode_and_closing_checkpoints_the_wal() {
+    let data_dir = tempfile::tempdir().unwrap();
+    let db = Database::open(data_dir.path()).await.unwrap();
+    insert_rows(&db, 0, 1).await.unwrap();
+    // A read holds a reader connection open alongside the writer.
+    assert_eq!(count_rows(&db).await, 1);
+    // WAL mode belongs to the database file, so every connection to it uses it.
+    let wal = data_dir.path().join(format!("{}-wal", db::FILE_NAME));
+    assert!(wal.is_file(), "the database is not in WAL mode");
+
+    db.close().await;
+    assert!(
+        !wal.exists(),
+        "the WAL outlived the database: {}",
+        wal.display()
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -168,20 +189,20 @@ async fn a_write_that_panics_fails_alone_and_later_writes_still_work() {
 }
 
 #[tokio::test]
-async fn reader_connections_have_wal_and_foreign_keys_on_and_cannot_write() {
+async fn reader_connections_have_a_busy_timeout_and_foreign_keys_on_and_cannot_write() {
     let data_dir = tempfile::tempdir().unwrap();
     let db = Database::open(data_dir.path()).await.unwrap();
 
-    let journal_mode: String = sqlx::query_scalar("PRAGMA journal_mode")
+    let busy_timeout_ms: Option<i64> = sqlx::query_scalar!("PRAGMA busy_timeout")
         .fetch_one(db.reader())
         .await
         .unwrap();
-    assert_eq!(journal_mode, "wal");
-    let foreign_keys: i64 = sqlx::query_scalar("PRAGMA foreign_keys")
+    assert!(busy_timeout_ms.is_some_and(|ms| ms > 0), "no busy timeout");
+    let foreign_keys: Option<i64> = sqlx::query_scalar!("PRAGMA foreign_keys")
         .fetch_one(db.reader())
         .await
         .unwrap();
-    assert_eq!(foreign_keys, 1);
+    assert_eq!(foreign_keys, Some(1));
 
     let write = sqlx::query!("INSERT INTO schema_meta (key, value) VALUES ('sneaky', 'no')")
         .execute(db.reader())

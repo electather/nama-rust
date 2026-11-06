@@ -19,10 +19,7 @@
 //! cargo sqlx prepare --workspace -- --all-targets
 //! ```
 
-use std::{
-    collections::HashSet, future::Future, panic::AssertUnwindSafe, path::Path, pin::Pin,
-    time::Duration,
-};
+use std::{collections::HashSet, panic::AssertUnwindSafe, path::Path, time::Duration};
 
 use futures_util::FutureExt;
 use sqlx::{
@@ -65,7 +62,7 @@ pub enum OpenError {
 }
 
 /// The future a write returns, which may borrow the transaction it was given.
-pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
+pub use futures_util::future::BoxFuture;
 
 /// A write waiting for the writer task, which hands it the writable connection.
 type Job = Box<dyn for<'c> FnOnce(&'c mut SqliteConnection) -> BoxFuture<'c, ()> + Send>;
@@ -87,7 +84,9 @@ impl Database {
     ///
     /// If the directory or file can't be created or opened, or a migration fails.
     pub async fn open(data_dir: &Path) -> Result<Self, OpenError> {
-        std::fs::create_dir_all(data_dir).map_err(OpenError::DataDir)?;
+        tokio::fs::create_dir_all(data_dir)
+            .await
+            .map_err(OpenError::DataDir)?;
         let options = SqliteConnectOptions::new()
             .filename(data_dir.join(FILE_NAME))
             .journal_mode(SqliteJournalMode::Wal)
@@ -174,12 +173,15 @@ impl Database {
     }
 
     /// Closes every connection, after finishing the writes already queued.
+    ///
+    /// The writer closes last: only a writable connection can checkpoint the WAL into the
+    /// database file and remove it, which SQLite does when the last connection closes.
     pub async fn close(self) {
+        self.readers.close().await;
         drop(self.jobs);
         if let Err(err) = self.writer.await {
             tracing::warn!("the database writer stopped abnormally: {err}");
         }
-        self.readers.close().await;
     }
 }
 
