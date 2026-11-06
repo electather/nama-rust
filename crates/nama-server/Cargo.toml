@@ -11,6 +11,7 @@ axum = { version = "0.8", default-features = false, features = ["http1", "http2"
 clap = { version = "4", features = ["derive", "env"] }
 connectrpc = { version = "0.9.1", features = ["axum"] }
 figment = { version = "0.10", features = ["env", "toml"] }
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
 nama-proto = { version = "0.1.0", path = "../nama-proto" }
 serde = { version = "1", features = ["derive"] }
 sqlx = { version = "0.9", default-features = false, features = ["macros", "migrate", "runtime-tokio", "sqlite-bundled"] }

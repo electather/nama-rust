@@ -73,6 +73,7 @@ async fn main() -> ExitCode {
         Ok(listener) => listener,
         Err(err) => {
             error!("could not listen on {}: {err}", config.listen);
+            db.close().await;
             return ExitCode::FAILURE;
         }
     };
@@ -81,6 +82,7 @@ async fn main() -> ExitCode {
         Ok(addr) => info!(%addr, "listening"),
         Err(err) => {
             error!("could not read the address listened on: {err}");
+            db.close().await;
             return ExitCode::FAILURE;
         }
     }

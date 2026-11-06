@@ -11,14 +11,20 @@
 //! migration, regenerate it with sqlx-cli against a scratch database, from the workspace root:
 //!
 //! ```sh
+//! # Same minor version as the sqlx crate; CI's `sqlx` job installs the same.
+//! cargo install --locked sqlx-cli@0.9.0 --no-default-features --features sqlite,rustls
 //! export DATABASE_URL=sqlite:///tmp/nama-dev.db
 //! sqlx database create
 //! sqlx migrate run --source crates/nama-server/migrations
 //! cargo sqlx prepare --workspace -- --all-targets
 //! ```
 
-use std::{collections::HashSet, future::Future, path::Path, pin::Pin, time::Duration};
+use std::{
+    collections::HashSet, future::Future, panic::AssertUnwindSafe, path::Path, pin::Pin,
+    time::Duration,
+};
 
+use futures_util::FutureExt;
 use sqlx::{
     Connection, Sqlite, SqliteConnection, SqlitePool, Transaction,
     migrate::{Migrate, MigrateError, Migrator},
@@ -39,7 +45,7 @@ const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
 const MAX_READERS: u32 = 8;
 
 /// How many writes can wait for the writer before [`Database::write`] waits for room.
-const WRITE_QUEUE: usize = 64;
+const WRITE_QUEUE_CAPACITY: usize = 64;
 
 /// The schema migrations in `migrations/`, compiled into the binary.
 static MIGRATOR: Migrator = sqlx::migrate!();
@@ -58,8 +64,8 @@ pub enum OpenError {
     Migrate(#[from] MigrateError),
 }
 
-/// A future that may borrow from the connection or transaction it was given.
-type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
+/// The future a write returns, which may borrow the transaction it was given.
+pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
 /// A write waiting for the writer task, which hands it the writable connection.
 type Job = Box<dyn for<'c> FnOnce(&'c mut SqliteConnection) -> BoxFuture<'c, ()> + Send>;
@@ -97,7 +103,7 @@ impl Database {
             .max_connections(MAX_READERS)
             .connect_with(options.read_only(true))
             .await?;
-        let (jobs, queue) = mpsc::channel(WRITE_QUEUE);
+        let (jobs, queue) = mpsc::channel(WRITE_QUEUE_CAPACITY);
         Ok(Self {
             readers,
             jobs,
@@ -121,9 +127,12 @@ impl Database {
     ///
     /// ```no_run
     /// # async fn example(db: &nama_server::db::Database) -> Result<(), sqlx::Error> {
+    /// let key = "example".to_owned();
     /// db.write(|tx| {
     ///     Box::pin(async move {
-    ///         sqlx::query("DELETE FROM schema_meta").execute(&mut **tx).await?;
+    ///         sqlx::query!("INSERT INTO schema_meta (key, value) VALUES (?, 'x')", key)
+    ///             .execute(&mut **tx)
+    ///             .await?;
     ///         Ok(())
     ///     })
     /// })
@@ -133,8 +142,8 @@ impl Database {
     ///
     /// # Errors
     ///
-    /// Whatever `write` returns, or [`sqlx::Error::PoolClosed`] if the writer has stopped
-    /// because an earlier write panicked.
+    /// Whatever `write` returns, or [`sqlx::Error::WorkerCrashed`] if `write` panicked. Either
+    /// way nothing it did is committed, and later writes carry on.
     pub async fn write<T, F>(&self, write: F) -> Result<T, sqlx::Error>
     where
         T: Send + 'static,
@@ -149,10 +158,12 @@ impl Database {
                 let _: Result<(), _> = done.send(in_transaction(conn, write).await);
             })
         });
+        // The writer runs until the last handle is dropped, so it's there to take the job.
         if self.jobs.send(job).await.is_err() {
             return Err(sqlx::Error::PoolClosed);
         }
-        result.await.unwrap_or(Err(sqlx::Error::PoolClosed))
+        // The job only drops its reply unsent if `write` panicked.
+        result.await.unwrap_or(Err(sqlx::Error::WorkerCrashed))
     }
 
     /// Versions of the migrations this open applied, oldest first. Empty when the database was
@@ -175,7 +186,15 @@ impl Database {
 /// Runs queued writes one at a time until every [`Database`] handle is gone.
 async fn run_writer(mut conn: SqliteConnection, mut queue: mpsc::Receiver<Job>) {
     while let Some(job) = queue.recv().await {
-        job(&mut conn).await;
+        // A write that panics fails alone: its caller gets an error, and the transaction it
+        // left open is rolled back before the next write begins.
+        if AssertUnwindSafe(job(&mut conn))
+            .catch_unwind()
+            .await
+            .is_err()
+        {
+            tracing::error!("a database write panicked; it was rolled back");
+        }
     }
     if let Err(err) = conn.close().await {
         tracing::warn!("could not close the database writer cleanly: {err}");

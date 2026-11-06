@@ -1162,6 +1162,7 @@ dependencies = [
  "clap",
  "connectrpc",
  "figment",
+ "futures-util",
  "http-body-util",
  "hyper",
  "hyper-util",
