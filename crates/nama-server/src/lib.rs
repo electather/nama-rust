@@ -36,8 +36,8 @@ pub fn serve(
     plugins: Registry,
     shutdown: impl Future<Output = ()> + Send + 'static,
 ) -> impl Future<Output = io::Result<()>> + Send + 'static {
-    let scanner = Scanner::new(Arc::clone(&db), plugins);
-    let app = api::router(config, db, scanner.clone());
+    let scanner = Scanner::new(Arc::clone(&db), plugins.clone());
+    let app = api::router(config, db, plugins, scanner.clone());
     async move {
         scanner.start_all().await;
         let served = axum::serve(listener, app)

@@ -6,26 +6,40 @@ use buffa::EnumValue;
 use connectrpc::{
     ConnectError, Encodable, RequestContext, Response, ServiceRequest, ServiceResult,
 };
+use nama_plugin_api::metadata::{Candidate, ExternalId, SearchQuery, TitleKind};
 use nama_proto::nama::v1::{
-    self as proto, CreateLibraryRequest, CreateLibraryResponse, DeleteLibraryRequest,
-    DeleteLibraryResponse, GetLibraryRequest, GetLibraryResponse, GetServerInfoRequest,
-    GetServerInfoResponse, LibraryKind, LibraryService, ListLibrariesRequest,
-    ListLibrariesResponse, ScanLibraryRequest, ScanLibraryResponse, ServerService,
-    UpdateLibraryRequest, UpdateLibraryResponse,
+    self as proto, ClearMatchRequest, ClearMatchResponse, CreateLibraryRequest,
+    CreateLibraryResponse, DeleteLibraryRequest, DeleteLibraryResponse, GetLibraryRequest,
+    GetLibraryResponse, GetServerInfoRequest, GetServerInfoResponse, LibraryKind, LibraryService,
+    ListLibrariesRequest, ListLibrariesResponse, MatchService, ScanLibraryRequest,
+    ScanLibraryResponse, SearchMetadataRequest, SearchMetadataResponse, ServerService,
+    SetMatchRequest, SetMatchResponse, UpdateLibraryRequest, UpdateLibraryResponse, external_id,
 };
+use tokio::sync::OwnedMutexGuard;
 
 use crate::{
     config::Config,
     db::Database,
     libraries::{self, Kind, Libraries, Library},
+    matching::{ManualError, Matcher},
+    plugins::Registry,
     scanner::Scanner,
 };
 
 /// Routes every RPC the Server answers.
-pub(crate) fn router(config: &Config, db: Arc<Database>, scanner: Scanner) -> axum::Router {
+pub(crate) fn router(
+    config: &Config,
+    db: Arc<Database>,
+    plugins: Registry,
+    scanner: Scanner,
+) -> axum::Router {
     connectrpc::Router::new()
         .add_service(Arc::new(ServerServiceHandler {
             name: config.name.clone(),
+        }))
+        .add_service(Arc::new(MatchServiceHandler {
+            matcher: Matcher::new(Arc::clone(&db), plugins),
+            scanner: scanner.clone(),
         }))
         .add_service(Arc::new(LibraryServiceHandler {
             libraries: Libraries::new(db),
@@ -145,6 +159,133 @@ impl LibraryService for LibraryServiceHandler {
     }
 }
 
+/// `nama.v1.MatchService`: fixing Matches by hand.
+//
+// TODO(M2): fixing Matches is for admins only. There are no Users yet, so every caller is let
+// through; once there are, check here that the caller's Role is Admin.
+struct MatchServiceHandler {
+    matcher: Matcher,
+    /// Whose scan lock a Match is fixed under, so the scan doesn't change the items meanwhile.
+    scanner: Scanner,
+}
+
+impl MatchServiceHandler {
+    /// Waits for any scan of the Library the item `item` is in, and keeps another from starting
+    /// until the returned guard is dropped.
+    async fn lock_library_of(&self, item: i64) -> Result<OwnedMutexGuard<()>, ManualError> {
+        let library = self.matcher.library_of(item).await?;
+        Ok(self.scanner.lock(library).await)
+    }
+}
+
+#[expect(
+    refining_impl_trait,
+    reason = "plain `async fn` returning the owned response is the form the generated trait \
+              documents; the refined signature isn't visible outside this crate"
+)]
+impl MatchService for MatchServiceHandler {
+    async fn search_metadata(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, SearchMetadataRequest>,
+    ) -> ServiceResult<SearchMetadataResponse> {
+        let request = request.to_owned_message();
+        if request.title.trim().is_empty() {
+            return Err(ConnectError::invalid_argument(
+                "the title to search for must not be blank",
+            ));
+        }
+        let query = SearchQuery {
+            kind: title_kind_from_proto(request.kind)?,
+            title: request.title,
+            year: request.year,
+        };
+        let candidates = self.matcher.search_metadata(&query).await?;
+        Response::ok(SearchMetadataResponse {
+            candidates: candidates.into_iter().map(candidate_to_proto).collect(),
+            ..Default::default()
+        })
+    }
+
+    async fn set_match(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, SetMatchRequest>,
+    ) -> ServiceResult<SetMatchResponse> {
+        let request = request.to_owned_message();
+        let title = request
+            .title_id
+            .into_option()
+            .and_then(|id| id.id)
+            .map(external_id_from_proto)
+            .ok_or_else(|| ConnectError::invalid_argument("the title to Match to is missing"))?;
+        let _scan = self.lock_library_of(request.item_id).await?;
+        let summary = self.matcher.set_match(request.item_id, &title).await?;
+        Response::ok(SetMatchResponse {
+            matched: summary.matched,
+            unmatched: summary.unmatched,
+            ..Default::default()
+        })
+    }
+
+    async fn clear_match(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, ClearMatchRequest>,
+    ) -> ServiceResult<ClearMatchResponse> {
+        let _scan = self.lock_library_of(request.item_id).await?;
+        let summary = self.matcher.clear_match(request.item_id).await?;
+        Response::ok(ClearMatchResponse {
+            unmatched: summary.unmatched,
+            ..Default::default()
+        })
+    }
+}
+
+/// The kind of title a request asks for, which must be one the Server knows.
+fn title_kind_from_proto(kind: EnumValue<proto::TitleKind>) -> Result<TitleKind, ConnectError> {
+    match kind {
+        EnumValue::Known(proto::TitleKind::TITLE_KIND_MOVIE) => Ok(TitleKind::Movie),
+        EnumValue::Known(proto::TitleKind::TITLE_KIND_SHOW) => Ok(TitleKind::Show),
+        EnumValue::Known(proto::TitleKind::TITLE_KIND_UNSPECIFIED) | EnumValue::Unknown(_) => Err(
+            ConnectError::invalid_argument("the kind of title must be movie or show"),
+        ),
+    }
+}
+
+/// A search result as clients see it.
+fn candidate_to_proto(candidate: Candidate) -> proto::TitleCandidate {
+    proto::TitleCandidate {
+        id: external_id_to_proto(candidate.id).into(),
+        title: candidate.title,
+        original_title: candidate.original_title,
+        year: candidate.year,
+        ..Default::default()
+    }
+}
+
+/// An id of a title as clients send it.
+fn external_id_from_proto(id: external_id::Id) -> ExternalId {
+    match id {
+        external_id::Id::Tmdb(id) => ExternalId::Tmdb(id),
+        external_id::Id::Imdb(id) => ExternalId::Imdb(id),
+        external_id::Id::Tvdb(id) => ExternalId::Tvdb(id),
+    }
+}
+
+/// An id of a title as clients see it.
+fn external_id_to_proto(id: ExternalId) -> proto::ExternalId {
+    let id = match id {
+        ExternalId::Tmdb(id) => external_id::Id::Tmdb(id),
+        ExternalId::Imdb(id) => external_id::Id::Imdb(id),
+        ExternalId::Tvdb(id) => external_id::Id::Tvdb(id),
+    };
+    proto::ExternalId {
+        id: Some(id),
+        ..Default::default()
+    }
+}
+
 /// The kind a request asks for, which must be one the Server knows.
 fn kind_from_proto(kind: EnumValue<LibraryKind>) -> Result<Kind, ConnectError> {
     match kind {
@@ -181,6 +322,22 @@ impl From<libraries::Error> for ConnectError {
             libraries::Error::FolderTaken { .. } => Self::already_exists(err.to_string()),
             libraries::Error::Database(_) => {
                 tracing::error!("a Library request failed: {err}");
+                Self::internal("the Server's database failed")
+            }
+        }
+    }
+}
+
+/// The Connect error a client gets for fixing a Match that failed. Database failures are logged,
+/// not sent: they say nothing the client can act on.
+impl From<ManualError> for ConnectError {
+    fn from(err: ManualError) -> Self {
+        match err {
+            ManualError::NoSuchItem(_) => Self::not_found(err.to_string()),
+            ManualError::NoSuchTitle(_) => Self::invalid_argument(err.to_string()),
+            ManualError::Unavailable => Self::unavailable(err.to_string()),
+            ManualError::Database(_) => {
+                tracing::error!("fixing a Match failed: {err}");
                 Self::internal("the Server's database failed")
             }
         }

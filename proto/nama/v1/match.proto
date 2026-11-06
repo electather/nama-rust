@@ -1,0 +1,102 @@
+syntax = "proto3";
+
+package nama.v1;
+
+// Fixing Matches by hand: finding titles in the metadata source, and Matching items to them.
+//
+// A Match set or cleared here is pinned to what the item's file names: the title and year (and
+// ID hint) of a Movie, or of the Show an Episode is in. Automatic Matching follows the pin instead
+// of searching, so it holds when the file changes, or is renamed to a name that still says the same
+// title, year and ID hint, and new Episodes of a pinned Show Match the pinned Show.
+service MatchService {
+  // Searches the enabled metadata Provider for titles, best fit first. Fails with
+  // `invalid_argument` if the kind is unspecified or the title blank, and with `unavailable` if
+  // no metadata Provider is enabled or it failed.
+  rpc SearchMetadata(SearchMetadataRequest) returns (SearchMetadataResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Matches an item to a title and pins the Match. For a Movie, the title is a Movie, and every
+  // item in the Library named the same way is Matched to it. For an Episode, the title is its
+  // Show, and every Episode in the Library named as being in the same Show is Matched again
+  // through that Show's Seasons; an Episode the Show doesn't have is Unmatched. Fails with
+  // `not_found` if there is no such item, with `invalid_argument` if the id is missing or names
+  // no title, and with `unavailable` if the metadata Provider can't answer, in which case nothing
+  // changes.
+  rpc SetMatch(SetMatchRequest) returns (SetMatchResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
+  // Removes an item's Match and pins it Unmatched, so automatic Matching leaves it so. Like
+  // `SetMatch`, this applies to every item in the Library named the same way, and for an Episode
+  // to every Episode of its Show. Fails with `not_found` if there is no such item.
+  rpc ClearMatch(ClearMatchRequest) returns (ClearMatchResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
+}
+
+// Whether a title is a Movie or a Show.
+enum TitleKind {
+  TITLE_KIND_UNSPECIFIED = 0;
+  TITLE_KIND_MOVIE = 1;
+  TITLE_KIND_SHOW = 2;
+}
+
+// An id of a title in a metadata source. Movies and Shows have separate id spaces.
+message ExternalId {
+  oneof id {
+    // A TMDB id.
+    int64 tmdb = 1;
+    // An IMDb id, such as `tt0078748`.
+    string imdb = 2;
+    // A TVDB id.
+    int64 tvdb = 3;
+  }
+}
+
+// A title a search found.
+message TitleCandidate {
+  // The id to pass to `SetMatch`.
+  ExternalId id = 1;
+  // The title, in the metadata Provider's language.
+  string title = 2;
+  // The title in its original language, if the metadata source has it.
+  optional string original_title = 3;
+  // The year a Movie was released or a Show first aired, if known.
+  optional int32 year = 4;
+}
+
+message SearchMetadataRequest {
+  // Must not be `TITLE_KIND_UNSPECIFIED`.
+  TitleKind kind = 1;
+  // Must not be blank.
+  string title = 2;
+  // The year a Movie was released or a Show first aired, to narrow the search.
+  optional int32 year = 3;
+}
+
+message SearchMetadataResponse {
+  repeated TitleCandidate candidates = 1;
+}
+
+message SetMatchRequest {
+  // The item to Match.
+  int64 item_id = 1;
+  // The Movie, or for an Episode the Show, to Match it to, as `SearchMetadata` gave it.
+  ExternalId title_id = 2;
+}
+
+message SetMatchResponse {
+  // How many items are now Matched.
+  uint64 matched = 1;
+  // How many items are now Unmatched: Episodes the Show doesn't have.
+  uint64 unmatched = 2;
+}
+
+message ClearMatchRequest {
+  // The item whose Match to clear.
+  int64 item_id = 1;
+}
+
+message ClearMatchResponse {
+  // How many items are now Unmatched.
+  uint64 unmatched = 1;
+}
