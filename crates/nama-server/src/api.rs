@@ -123,11 +123,9 @@ impl SignInService for SignInServiceHandler {
     ) -> ServiceResult<SetupResponse> {
         let request = request.to_owned_message();
         let wants_token = wants_token(request.delivery)?;
-        if !self
-            .setup_code
-            .as_ref()
-            .is_some_and(|code| code.matches(&request.setup_code))
-        {
+        // The Server only made no code because it started with Users.
+        let setup_code = self.setup_code.as_ref().ok_or(users::Error::AlreadySetUp)?;
+        if !setup_code.matches(&request.setup_code) {
             return Err(ConnectError::permission_denied("the Setup Code is wrong"));
         }
         let signed_in = self

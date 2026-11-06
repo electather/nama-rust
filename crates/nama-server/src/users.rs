@@ -7,7 +7,10 @@
 use std::{fmt, ops::RangeInclusive, sync::Arc};
 
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
-use nama_plugin_api::auth::{Authenticator, PasswordError};
+use nama_plugin_api::{
+    PluginId,
+    auth::{Authenticator, PasswordError},
+};
 use sha2::{Digest, Sha256};
 use sqlx::SqliteConnection;
 
@@ -86,8 +89,8 @@ pub(crate) struct SignedIn {
 /// A credential string the Kernel keeps for a User, and the Plugin whose Authenticator made it,
 /// which is the only one that can check it.
 struct Credential {
-    plugin: String,
-    string: String,
+    plugin: PluginId,
+    value: String,
 }
 
 /// Why a change to the Users was refused or failed. No variant holds a password or a token.
@@ -201,10 +204,7 @@ impl Users {
             .await
             .ok_or(Error::NoAuthenticator)?;
         match hashed {
-            Ok(Ok(string)) => Ok(Credential {
-                plugin: plugin.to_string(),
-                string,
-            }),
+            Ok(Ok(value)) => Ok(Credential { plugin, value }),
             Ok(Err(PasswordError::Rejected(reason))) => Err(Error::Invalid(reason)),
             Ok(Err(PasswordError::Failed(err))) => Err(Error::Authenticator(err.to_string())),
             Err(panicked) => Err(Error::Authenticator(panicked.to_string())),
@@ -305,8 +305,8 @@ async fn insert_first_admin(
     sqlx::query!(
         "INSERT INTO user_credentials (user_id, plugin, credential) VALUES (?, ?, ?)",
         user.id,
-        credential.plugin,
-        credential.string,
+        credential.plugin.as_str(),
+        credential.value,
     )
     .execute(&mut *conn)
     .await?;

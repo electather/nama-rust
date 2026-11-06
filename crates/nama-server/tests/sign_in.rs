@@ -21,31 +21,40 @@ const PASSWORD: &str = "correct horse battery staple";
 /// A fresh Server whose Authenticator is `local-auth`, serving on a free port until dropped.
 struct TestServer {
     addr: SocketAddr,
-    setup_code: SetupCode,
+    /// `None` for a Server that started with Users.
+    setup_code: Option<SetupCode>,
     data_dir: TempDir,
     _stop: oneshot::Sender<()>,
 }
 
-/// Starts a [`TestServer`].
+/// Starts a fresh [`TestServer`], which takes a Setup Code.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
 async fn start() -> TestServer {
+    start_with(Some(SetupCode::generate().unwrap())).await
+}
+
+/// Starts a [`TestServer`] that takes `setup_code`, or none, as one that started with Users.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn start_with(setup_code: Option<SetupCode>) -> TestServer {
     let plugins = Registry::new();
     plugins.enable(Arc::new(LocalAuth)).unwrap();
     let data_dir = tempfile::tempdir().unwrap();
     let db = Arc::new(Database::open(data_dir.path()).await.unwrap());
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
-    let setup_code = SetupCode::generate().unwrap();
     let (stop, stopped) = oneshot::channel::<()>();
     tokio::spawn(nama_server::serve(
         listener,
         &Config::default(),
         db,
         plugins,
-        Some(setup_code.clone()),
+        setup_code.clone(),
         async {
             let _: Result<(), oneshot::error::RecvError> = stopped.await;
         },
@@ -61,7 +70,7 @@ async fn start() -> TestServer {
 /// A `Setup` request with the Server's Setup Code, asking for `delivery`.
 fn setup_request(server: &TestServer, delivery: &str) -> Value {
     json!({
-        "setupCode": server.setup_code.to_string(),
+        "setupCode": server.setup_code.as_ref().map(ToString::to_string).unwrap_or_default(),
         "name": "Ada",
         "password": PASSWORD,
         "deviceName": "Laptop",
@@ -197,6 +206,21 @@ async fn setup_once_a_user_exists_is_refused() {
 }
 
 #[tokio::test]
+async fn setup_on_a_server_that_started_with_users_is_refused_as_already_set_up() {
+    let server = start_with(None).await;
+
+    let setup = call(
+        &server,
+        "Setup",
+        &setup_request(&server, "SESSION_DELIVERY_TOKEN"),
+        &[],
+    )
+    .await;
+
+    assert_eq!(setup.body["code"], "failed_precondition", "{}", setup.body);
+}
+
+#[tokio::test]
 async fn setup_is_required_until_the_first_admin_is_created() {
     let server = start().await;
     let before = server_info(&server).await;
@@ -281,7 +305,8 @@ async fn the_same_session_works_as_a_cookie_and_as_a_bearer_token() {
 
     let cookie = format!("theme=dark; nama_session={token}");
     let by_cookie = call(&server, "WhoAmI", &json!({}), &[("cookie", &cookie)]).await;
-    let bearer = format!("Bearer {token}");
+    // The scheme's name is case-insensitive (RFC 7235).
+    let bearer = format!("bearer {token}");
     let by_bearer = call(&server, "WhoAmI", &json!({}), &[("authorization", &bearer)]).await;
 
     assert_eq!(by_cookie.status, 200, "{}", by_cookie.body);
