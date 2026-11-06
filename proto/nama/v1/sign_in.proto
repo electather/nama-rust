@@ -27,6 +27,25 @@ service SignInService {
   rpc WhoAmI(WhoAmIRequest) returns (WhoAmIResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
+
+  // Starts signing the calling Device in without a password typed on it. It shows the returned
+  // Sign-in Code, a User signed in on another Device approves it with `ApproveSignInCode`, and this
+  // Device then picks up its session with `PollSignInCode`. The code and the poll handle expire
+  // after 10 minutes, and a Server restart cancels them. Fails with `invalid_argument` if the
+  // Device name breaks the rules, and `resource_exhausted` while too many sign-ins are waiting.
+  rpc StartSignInCode(StartSignInCodeRequest) returns (StartSignInCodeResponse);
+  // Returns the name of the Device a Sign-in Code would sign in, so the User can check it before
+  // approving. Approves nothing. Fails with `not_found` if no unexpired code matches,
+  // `failed_precondition` if it was already approved, and `unauthenticated` without a valid
+  // session.
+  rpc LookUpSignInCode(LookUpSignInCodeRequest) returns (LookUpSignInCodeResponse);
+  // Approves a Sign-in Code, so the Device that shows it signs in as the calling User. Fails like
+  // `LookUpSignInCode`.
+  rpc ApproveSignInCode(ApproveSignInCodeRequest) returns (ApproveSignInCodeResponse);
+  // Says whether the sign-in a poll handle stands for is still waiting for approval, expired, or
+  // signed in. Signed in hands out the new Device's session, once, the way `SignIn` does: after
+  // that, and for a handle the Server never gave out or has forgotten, it fails with `not_found`.
+  rpc PollSignInCode(PollSignInCodeRequest) returns (PollSignInCodeResponse);
 }
 
 // How a signed-in Device is given its session.
@@ -116,4 +135,62 @@ message WhoAmIRequest {}
 message WhoAmIResponse {
   User user = 1;
   Device device = 2;
+}
+
+message StartSignInCodeRequest {
+  // The signing-in Device's name: 1 to 64 characters.
+  string device_name = 1;
+  // How to hand out the session once the code is approved. Must be specified.
+  SessionDelivery delivery = 2;
+}
+
+message StartSignInCodeResponse {
+  // The Sign-in Code to show, as `XXXX-XXXX`: 8 characters of Crockford's base32 alphabet, which
+  // has no I, L, O or U. It is matched ignoring case and dashes.
+  string code = 1;
+  // What this Device polls `PollSignInCode` with. Keep it secret: whoever holds it gets the session.
+  string handle = 2;
+}
+
+message LookUpSignInCodeRequest {
+  // The Sign-in Code the other Device shows.
+  string code = 1;
+}
+
+message LookUpSignInCodeResponse {
+  // The name the Device asking to sign in gave itself.
+  string device_name = 1;
+}
+
+message ApproveSignInCodeRequest {
+  // The Sign-in Code the other Device shows.
+  string code = 1;
+}
+
+message ApproveSignInCodeResponse {}
+
+message PollSignInCodeRequest {
+  // The handle `StartSignInCode` returned.
+  string handle = 1;
+}
+
+// Where a sign-in with a Sign-in Code has got to.
+enum SignInCodeStatus {
+  SIGN_IN_CODE_STATUS_UNSPECIFIED = 0;
+  // Not approved yet. Poll again in a few seconds.
+  SIGN_IN_CODE_STATUS_WAITING = 1;
+  // Not approved, or not polled once approved, within 10 minutes. Start again for a new code.
+  SIGN_IN_CODE_STATUS_EXPIRED = 2;
+  // Approved: the response carries the session.
+  SIGN_IN_CODE_STATUS_SIGNED_IN = 3;
+}
+
+message PollSignInCodeResponse {
+  SignInCodeStatus status = 1;
+  // The User signed in as, the one who approved the code. Only when signed in.
+  User user = 2;
+  // The Device just signed in. Only when signed in.
+  Device device = 3;
+  // The session token, when signed in with `SESSION_DELIVERY_TOKEN`. Empty for a cookie.
+  string token = 4;
 }
