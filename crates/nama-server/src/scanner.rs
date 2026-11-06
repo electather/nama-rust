@@ -606,7 +606,8 @@ mod tests {
             self.scanner.scan(self.library).await.unwrap()
         }
 
-        /// The stored files, as paths relative to the Library folder.
+        /// The stored files, as `/`-separated paths relative to the Library folder, whatever
+        /// separator the platform uses.
         async fn files(&self) -> Vec<(String, Vec<Item>)> {
             self.scanner
                 .files(self.library)
@@ -614,7 +615,11 @@ mod tests {
                 .into_iter()
                 .map(|File { path, items }| {
                     let relative = path.strip_prefix(&self.root).unwrap();
-                    (relative.to_str().unwrap().to_owned(), items)
+                    let parts: Vec<&str> = relative
+                        .components()
+                        .map(|part| part.as_os_str().to_str().unwrap())
+                        .collect();
+                    (parts.join("/"), items)
                 })
                 .collect()
         }
