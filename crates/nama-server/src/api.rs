@@ -2,7 +2,12 @@
 
 use std::{future, sync::Arc};
 
-use axum::http::{HeaderMap, header::SET_COOKIE};
+use axum::{
+    extract::Request,
+    http::{HeaderMap, header::SET_COOKIE},
+    middleware::{self, Next},
+    response::IntoResponse,
+};
 use buffa::EnumValue;
 use connectrpc::{
     ConnectError, Encodable, RequestContext, Response, ServiceRequest, ServiceResult, ServiceStream,
@@ -13,12 +18,13 @@ use nama_proto::nama::v1::{
     self as proto, ClearMatchRequest, ClearMatchResponse, CreateLibraryRequest,
     CreateLibraryResponse, DeleteLibraryRequest, DeleteLibraryResponse, EventService, EventType,
     GetLibraryRequest, GetLibraryResponse, GetServerInfoRequest, GetServerInfoResponse,
-    LibraryKind, LibraryService, ListLibrariesRequest, ListLibrariesResponse, MatchService,
-    ScanLibraryRequest, ScanLibraryResponse, SearchMetadataRequest, SearchMetadataResponse,
-    ServerService, SessionDelivery, SetMatchRequest, SetMatchResponse, SetupRequest, SetupResponse,
-    SignInRequest, SignInResponse, SignInService, SignOutRequest, SignOutResponse,
-    SubscribeRequest, SubscribeResponse, UpdateLibraryRequest, UpdateLibraryResponse,
-    WhoAmIRequest, WhoAmIResponse, external_id,
+    LIBRARY_SERVICE_SERVICE_NAME, LibraryKind, LibraryService, ListLibrariesRequest,
+    ListLibrariesResponse, MATCH_SERVICE_SERVICE_NAME, MatchService, SERVER_SERVICE_SERVICE_NAME,
+    SIGN_IN_SERVICE_SERVICE_NAME, ScanLibraryRequest, ScanLibraryResponse, SearchMetadataRequest,
+    SearchMetadataResponse, ServerService, SessionDelivery, SetMatchRequest, SetMatchResponse,
+    SetupRequest, SetupResponse, SignInRequest, SignInResponse, SignInService, SignOutRequest,
+    SignOutResponse, SubscribeRequest, SubscribeResponse, UpdateLibraryRequest,
+    UpdateLibraryResponse, WhoAmIRequest, WhoAmIResponse, external_id,
 };
 use tokio::sync::OwnedMutexGuard;
 
@@ -35,7 +41,8 @@ use crate::{
     users::{self, Caller, Role, SetupCode, SignedIn, Users},
 };
 
-/// Routes every RPC the Server answers, each behind the layer that identifies the caller.
+/// Routes every RPC the Server answers, each behind the layers that identify the caller and refuse
+/// calls they may not make.
 #[expect(
     clippy::too_many_arguments,
     reason = "each is a separate handle the services are built from; a struct bundling them would \
@@ -73,7 +80,55 @@ pub(crate) fn router(
             users: users.clone(),
         }))
         .into_axum_router()
-        .layer(axum::middleware::from_fn_with_state(users, identify_caller))
+        .layer(middleware::from_fn(require_access))
+        .layer(middleware::from_fn_with_state(users, identify_caller))
+}
+
+/// Who may call an RPC.
+enum Access {
+    Anyone,
+    SignedIn,
+    Admin,
+}
+
+impl Access {
+    /// Who may call the RPC at `path`, `/<service>/<method>`. Only the RPCs named here are public,
+    /// so a new one needs a session until it is opened up.
+    fn of(path: &str) -> Self {
+        let (service, method) = path
+            .trim_start_matches('/')
+            .split_once('/')
+            .unwrap_or_default();
+        match (service, method) {
+            (SERVER_SERVICE_SERVICE_NAME, "GetServerInfo")
+            | (SIGN_IN_SERVICE_SERVICE_NAME, "SignIn" | "Setup") => Self::Anyone,
+            (LIBRARY_SERVICE_SERVICE_NAME | MATCH_SERVICE_SERVICE_NAME, _) => Self::Admin,
+            _ => Self::SignedIn,
+        }
+    }
+
+    /// Why `caller`, or nobody, may not make a call that needs this access, if they may not.
+    fn check(&self, caller: Option<&Caller>) -> Result<(), ConnectError> {
+        match (self, caller) {
+            (Self::Anyone, _) | (Self::SignedIn, Some(_)) => Ok(()),
+            (_, None) => Err(ConnectError::unauthenticated("sign in first")),
+            (Self::Admin, Some(caller)) if caller.user.role == Role::Admin => Ok(()),
+            (Self::Admin, Some(_)) => Err(ConnectError::permission_denied(
+                "only an Admin may manage Libraries and Matches",
+            )),
+        }
+    }
+}
+
+/// Refuses `request` unless its caller, which [`identify_caller`] found, may make it.
+async fn require_access(request: Request, next: Next) -> axum::response::Response {
+    let caller = request.extensions().get::<Caller>();
+    match Access::of(request.uri().path()).check(caller) {
+        Ok(()) => next.run(request).await,
+        Err(refused) => refused
+            .into_http_response(request.headers())
+            .into_response(),
+    }
 }
 
 /// `nama.v1.ServerService`: facts about this Server that any client can read.
@@ -216,10 +271,8 @@ impl SignInService for SignInServiceHandler {
     }
 }
 
-/// `nama.v1.LibraryService`: managing the Server's Libraries.
-//
-// TODO(M2): managing Libraries is for admins only. There are no Users yet, so every caller is
-// let through; once there are, check here that the caller's Role is Admin.
+/// `nama.v1.LibraryService`: managing the Server's Libraries. Admins only, which
+/// [`require_access`] enforces.
 struct LibraryServiceHandler {
     libraries: Libraries,
     scanner: Scanner,
@@ -307,10 +360,7 @@ impl LibraryService for LibraryServiceHandler {
     }
 }
 
-/// `nama.v1.MatchService`: fixing Matches by hand.
-//
-// TODO(M2): fixing Matches is for admins only. There are no Users yet, so every caller is let
-// through; once there are, check here that the caller's Role is Admin.
+/// `nama.v1.MatchService`: fixing Matches by hand. Admins only, which [`require_access`] enforces.
 struct MatchServiceHandler {
     matcher: Matcher,
     contents: Contents,
@@ -397,7 +447,7 @@ impl MatchService for MatchServiceHandler {
 
 /// `nama.v1.EventService`: live updates.
 //
-// TODO(M2): once there are Users, only send a caller events about Libraries it may see.
+// TODO(M3): once there is per-Library access, only send a caller events about Libraries it may see.
 struct EventServiceHandler {
     events: EventBus,
     /// Whose sign-outs end the streams their Devices opened.
@@ -413,10 +463,7 @@ impl EventService for EventServiceHandler {
         Output = ServiceResult<ServiceStream<impl Encodable<SubscribeResponse> + Send + use<>>>,
     > + Send {
         let request = request.to_owned_message();
-        let signed_out = ctx
-            .extensions()
-            .get::<Caller>()
-            .map(|caller| self.users.signed_out(caller.device.id));
+        let signed_out = caller(&ctx).map(|caller| self.users.signed_out(caller.device.id));
         let filter = request
             .types
             .into_iter()
@@ -426,13 +473,8 @@ impl EventService for EventServiceHandler {
                 types,
                 libraries: request.library_ids,
             });
-        let subscribed = filter.and_then(|filter| {
-            let events = self.events.subscribe(filter).take_until(async move {
-                match signed_out {
-                    Some(signed_out) => signed_out.await,
-                    None => future::pending().await,
-                }
-            });
+        let subscribed = signed_out.and_then(|signed_out| {
+            let events = self.events.subscribe(filter?).take_until(signed_out);
             let stream: ServiceStream<SubscribeResponse> = Box::pin(events.map(Ok));
             Response::ok(stream)
         });

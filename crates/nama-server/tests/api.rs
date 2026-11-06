@@ -83,7 +83,6 @@ async fn a_plain_http1_json_post_gets_a_json_answer() {
         serde_json::json!({
             "name": "Attic",
             "version": env!("CARGO_PKG_VERSION"),
-            "setupRequired": true,
         })
     );
 }

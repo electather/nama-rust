@@ -1,7 +1,8 @@
 //! Sessions over HTTP (ADR 0014, ADR 0015): one layer in front of every route turns a session
 //! cookie or a bearer token into the [`Caller`], and how a cookie session is handed out.
 //!
-//! The layer only says who is calling. Whether a route needs a session is that route's business.
+//! The layer only says who is calling. Whether a call needs a session is decided after it, by the
+//! API's access layer.
 
 use axum::{
     extract::{Request, State},

@@ -1,6 +1,10 @@
 //! Fixing Matches by hand through the generated `MatchService` client, over a real socket, with
 //! the TMDB Plugin enabled against a fake TMDB.
 
+#[expect(dead_code, reason = "the harness's plain `start` has no use here")]
+#[path = "support/server.rs"]
+mod server;
+
 use std::{
     collections::BTreeMap,
     fs,
@@ -9,10 +13,7 @@ use std::{
     time::Duration,
 };
 
-use connectrpc::{
-    ConnectError, ErrorCode,
-    client::{ClientConfig, HttpClient},
-};
+use connectrpc::{ConnectError, ErrorCode, client::HttpClient};
 use nama_plugin_api::settings::{SettingValue, Settings};
 use nama_plugin_tmdb::{
     Tmdb,
@@ -23,9 +24,9 @@ use nama_proto::nama::v1::{
     MatchServiceClient, ScanLibraryRequest, SearchMetadataRequest, SetMatchRequest,
     SetMatchResponse, TitleKind, external_id,
 };
-use nama_server::{config::Config, contents::Contents, db::Database, plugins::Registry};
+use nama_server::{config::Config, contents::Contents, plugins::Registry};
+use server::TestServer;
 use tempfile::TempDir;
-use tokio::{net::TcpListener, sync::oneshot};
 
 /// TMDB finds nothing for this file, so it is Unmatched until Matched by hand.
 const HOME_MOVIES: &str = "Home Movies (2019)/Home Movies (2019).mkv";
@@ -49,8 +50,7 @@ struct Fixture {
     matches: MatchServiceClient<HttpClient>,
     contents: Contents,
     _tmdb: FakeTmdb,
-    _stop: oneshot::Sender<()>,
-    _data: TempDir,
+    _server: TestServer,
     _media: TempDir,
 }
 
@@ -70,25 +70,8 @@ impl Fixture {
         plugins
             .enable_with_settings(Arc::new(Tmdb::with_endpoints(tmdb.endpoints())), settings)
             .unwrap();
-        let data = tempfile::tempdir().unwrap();
-        let db = Arc::new(Database::open(data.path()).await.unwrap());
-        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let config = ClientConfig::new(
-            format!("http://{}", listener.local_addr().unwrap())
-                .parse()
-                .unwrap(),
-        );
-        let (stop, stopped) = oneshot::channel::<()>();
-        tokio::spawn(nama_server::serve(
-            listener,
-            &Config::default(),
-            Arc::clone(&db),
-            plugins,
-            None,
-            async {
-                let _: Result<(), oneshot::error::RecvError> = stopped.await;
-            },
-        ));
+        let (server, db) = TestServer::start_with_db(Config::default(), plugins).await;
+        let config = server.client_config();
         let libraries = LibraryServiceClient::new(HttpClient::plaintext(), config.clone());
         let media = tempfile::tempdir().unwrap();
         let folder = media.path().canonicalize().unwrap();
@@ -112,8 +95,7 @@ impl Fixture {
             matches: MatchServiceClient::new(HttpClient::plaintext(), config),
             contents: Contents::new(db),
             _tmdb: tmdb,
-            _stop: stop,
-            _data: data,
+            _server: server,
             _media: media,
         }
     }
