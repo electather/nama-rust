@@ -243,8 +243,13 @@ impl Fixture {
     }
 
     /// Waits until [`Self::unparsed`] lists `path`.
-    async fn wait_for_unparsed(&self, path: &String) {
-        while !self.unparsed().await.contains(path) {
+    async fn wait_for_unparsed(&self, path: &str) {
+        while !self
+            .unparsed()
+            .await
+            .iter()
+            .any(|unparsed| unparsed == path)
+        {
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
     }
