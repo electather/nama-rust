@@ -60,29 +60,40 @@ async fn get_server_info(client: &ServerServiceClient<HttpClient>) -> GetServerI
         .into_owned()
 }
 
+/// Every transport the Server promises: HTTP/1.1 and cleartext HTTP/2, each with JSON and binary
+/// protobuf bodies.
 #[tokio::test]
-async fn get_server_info_returns_the_server_name_and_version_over_http1_json() {
+async fn get_server_info_returns_the_server_name_and_version_over_every_transport() {
     let server = TestServer::start(config_named("Living Room")).await;
-    let client = ServerServiceClient::new(HttpClient::plaintext(), server.client_config().json());
+    let transports = [
+        (
+            "HTTP/1.1 JSON",
+            HttpClient::plaintext(),
+            server.client_config().json(),
+        ),
+        (
+            "HTTP/1.1 binary",
+            HttpClient::plaintext(),
+            server.client_config().proto(),
+        ),
+        (
+            "HTTP/2 JSON",
+            HttpClient::plaintext_http2_only(),
+            server.client_config().json(),
+        ),
+        (
+            "HTTP/2 binary",
+            HttpClient::plaintext_http2_only(),
+            server.client_config().proto(),
+        ),
+    ];
 
-    let info = get_server_info(&client).await;
+    for (transport, http, config) in transports {
+        let info = get_server_info(&ServerServiceClient::new(http, config)).await;
 
-    assert_eq!(info.name, "Living Room");
-    assert_eq!(info.version, env!("CARGO_PKG_VERSION"));
-}
-
-#[tokio::test]
-async fn get_server_info_works_over_http2_with_binary_protobuf() {
-    let server = TestServer::start(config_named("Basement")).await;
-    let client = ServerServiceClient::new(
-        HttpClient::plaintext_http2_only(),
-        server.client_config().proto(),
-    );
-
-    let info = get_server_info(&client).await;
-
-    assert_eq!(info.name, "Basement");
-    assert_eq!(info.version, env!("CARGO_PKG_VERSION"));
+        assert_eq!(info.name, "Living Room", "{transport}");
+        assert_eq!(info.version, env!("CARGO_PKG_VERSION"), "{transport}");
+    }
 }
 
 /// What `curl -H 'Content-Type: application/json' -d '{}' .../GetServerInfo` sends.

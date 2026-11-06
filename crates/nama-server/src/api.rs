@@ -2,7 +2,7 @@
 
 use std::{future, sync::Arc};
 
-use connectrpc::{RequestContext, Response, ServiceRequest, ServiceResult};
+use connectrpc::{Encodable, RequestContext, Response, ServiceRequest, ServiceResult};
 use nama_proto::nama::v1::{GetServerInfoRequest, GetServerInfoResponse, ServerService};
 
 use crate::config::Config;
@@ -21,17 +21,13 @@ struct ServerServiceHandler {
     name: String,
 }
 
-#[expect(
-    refining_impl_trait_internal,
-    reason = "the trait returns `impl Encodable<_>` so handlers can answer with borrowed views; \
-              ours return the owned message, which is narrower and fine for a private type"
-)]
 impl ServerService for ServerServiceHandler {
-    fn get_server_info(
-        &self,
+    fn get_server_info<'a>(
+        &'a self,
         _ctx: RequestContext,
         _request: ServiceRequest<'_, GetServerInfoRequest>,
-    ) -> impl Future<Output = ServiceResult<GetServerInfoResponse>> + Send {
+    ) -> impl Future<Output = ServiceResult<impl Encodable<GetServerInfoResponse> + Send + use<'a>>> + Send
+    {
         future::ready(Response::ok(GetServerInfoResponse {
             name: self.name.clone(),
             version: env!("CARGO_PKG_VERSION").to_owned(),

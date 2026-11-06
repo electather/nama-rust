@@ -37,4 +37,4 @@ buf format -w
 buf generate
 ```
 
-`buf generate` empties `src/generated/` before writing to it, so deleted protos leave nothing behind. When you upgrade `connectrpc` or `buffa` in `Cargo.toml`, upgrade the plugins to match and regenerate.
+`buf generate` empties `src/generated/` before writing to it, so deleted protos leave nothing behind. When you upgrade `connectrpc` or `buffa` in `Cargo.toml`, upgrade the plugins to the same minor version and regenerate.

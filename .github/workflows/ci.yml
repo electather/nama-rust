@@ -54,7 +54,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Install codegen plugins
         # The generated code must compile against the connectrpc and buffa versions in
-        # crates/nama-proto/Cargo.toml; bump these with them (and the README's install line).
+        # crates/nama-proto/Cargo.toml, so keep each plugin on the same minor version as its
+        # runtime crate when bumping either (and update the README's install line).
         run: >-
           cargo install --locked
           protoc-gen-buffa@0.9.2
