@@ -69,6 +69,26 @@ jobs:
             exit 1
           }
 
+  # Lints that don't depend on the platform: docs, unused deps, supply chain.
+  hygiene:
+    name: docs, unused deps and cargo-deny
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      # Broken intra-doc links and malformed docs fail the build.
+      - run: cargo doc --workspace --no-deps --locked
+        env:
+          RUSTDOCFLAGS: -D warnings
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-machete,cargo-deny
+      # Dependencies declared in Cargo.toml that no code uses.
+      - run: cargo machete
+      # Advisories, licenses, banned and unknown sources (deny.toml).
+      - run: cargo deny check
+
   # Release builds target Linux, macOS and Windows, and the Server has
   # platform-specific code (shutdown signals), so check on all three.
   test:

@@ -5,3 +5,6 @@ description = "Plugin development kit for writing Installed Plugins for a Nama S
 license = "MIT OR Apache-2.0"
 edition.workspace = true
 repository.workspace = true
+
+[lints]
+workspace = true

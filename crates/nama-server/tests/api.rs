@@ -1,4 +1,8 @@
 //! Calls the Server's API over a real socket, the way clients will.
+#![expect(
+    clippy::unwrap_used,
+    reason = "the helpers below fail the test by panicking, like the tests that call them"
+)]
 
 use std::net::SocketAddr;
 
@@ -15,14 +19,14 @@ struct TestServer {
 
 impl TestServer {
     /// Starts serving `config` on a free port.
-    async fn start(config: Config) -> TestServer {
+    async fn start(config: Config) -> Self {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         let (stop, stopped) = oneshot::channel::<()>();
         tokio::spawn(nama_server::serve(listener, &config, async {
-            let _ = stopped.await;
+            let _: Result<(), oneshot::error::RecvError> = stopped.await;
         }));
-        TestServer { addr, _stop: stop }
+        Self { addr, _stop: stop }
     }
 
     /// Client settings that point at this Server.
@@ -113,6 +117,6 @@ async fn http1_post_json(addr: SocketAddr, path: &str, body: &str) -> (u16, Stri
         .to_str()
         .unwrap()
         .to_owned();
-    let body = response.into_body().collect().await.unwrap().to_bytes();
-    (status, content_type, body.to_vec())
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    (status, content_type, bytes.to_vec())
 }

@@ -1,0 +1,18 @@
+# Tests may unwrap, panic and index: a failing test is the point.
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+allow-panic-in-tests = true
+allow-indexing-slicing-in-tests = true
+allow-dbg-in-tests = false
+allow-print-in-tests = true
+
+# Keep functions small and readable.
+too-many-lines-threshold = 80
+too-many-arguments-threshold = 5
+cognitive-complexity-threshold = 15
+excessive-nesting-threshold = 4
+max-fn-params-bools = 1
+max-struct-bools = 2
+
+# Product names that doc_markdown would otherwise want in backticks. ".." keeps clippy's defaults.
+doc-valid-idents = ["ConnectRPC", ".."]

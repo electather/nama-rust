@@ -712,7 +712,6 @@ dependencies = [
  "buffa",
  "connectrpc",
  "serde",
- "serde_json",
 ]
 
 [[package]]

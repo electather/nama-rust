@@ -14,6 +14,10 @@ use crate::config::Config;
 ///
 /// Clients speak the Connect protocol over HTTP/1.1 or cleartext HTTP/2, with JSON or binary
 /// protobuf bodies.
+///
+/// # Errors
+///
+/// The returned future fails if accepting connections on `listener` fails.
 pub fn serve(
     listener: TcpListener,
     config: &Config,

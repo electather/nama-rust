@@ -2,10 +2,10 @@
 #![cfg(unix)]
 
 use std::{
-    io::{BufRead, BufReader, Read, Write},
+    io::{self, BufRead, BufReader, Read, Write},
     net::TcpStream,
     path::PathBuf,
-    process::{Child, Command, Stdio},
+    process::{Child, Command, ExitStatus, Stdio},
     sync::mpsc,
     thread,
     time::Duration,
@@ -19,8 +19,8 @@ struct KillOnDrop(Option<Child>);
 impl Drop for KillOnDrop {
     fn drop(&mut self) {
         if let Some(child) = self.0.as_mut() {
-            let _ = child.kill();
-            let _ = child.wait();
+            let _: io::Result<()> = child.kill();
+            let _: io::Result<ExitStatus> = child.wait();
         }
     }
 }
@@ -30,11 +30,15 @@ struct RemoveOnDrop(PathBuf);
 
 impl Drop for RemoveOnDrop {
     fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.0);
+        let _: io::Result<()> = std::fs::remove_dir_all(&self.0);
     }
 }
 
 /// Returns the first log line containing `needle`, skipping earlier lines.
+#[expect(
+    clippy::panic,
+    reason = "a missing log line fails the test that waits for it"
+)]
 fn wait_for_line(lines: &mpsc::Receiver<String>, needle: &str) -> String {
     loop {
         let line = lines
@@ -76,7 +80,7 @@ fn server_logs_its_config_serves_the_api_and_exits_cleanly_on_ctrl_c() {
     let stdout = BufReader::new(child.stdout.take().unwrap());
     thread::spawn(move || {
         for line in stdout.lines().map_while(Result::ok) {
-            let _ = lines_tx.send(line);
+            let _: Result<(), mpsc::SendError<String>> = lines_tx.send(line);
         }
     });
 
@@ -116,8 +120,8 @@ fn server_logs_its_config_serves_the_api_and_exits_cleanly_on_ctrl_c() {
     assert!(kill.success());
 
     let (exited_tx, exited) = mpsc::channel();
-    let child = server.0.take().unwrap();
-    thread::spawn(move || exited_tx.send(child.wait_with_output().unwrap()));
+    let exiting = server.0.take().unwrap();
+    thread::spawn(move || exited_tx.send(exiting.wait_with_output().unwrap()));
     let output = exited
         .recv_timeout(TIMEOUT)
         .expect("server did not exit after Ctrl-C");

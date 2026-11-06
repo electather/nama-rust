@@ -34,7 +34,7 @@ pub struct Config {
 
 impl Default for Config {
     fn default() -> Self {
-        Config {
+        Self {
             name: "Nama".to_owned(),
             listen: SocketAddr::from(([0, 0, 0, 0], 7980)),
             data_dir: PathBuf::from("data"),
@@ -48,9 +48,13 @@ impl Config {
     ///
     /// If `file` is given it must exist. If it isn't, [`DEFAULT_FILE`] in the working directory is
     /// read when present and skipped otherwise.
-    pub fn load(file: Option<&Path>) -> Result<Config, Box<figment::Error>> {
+    ///
+    /// # Errors
+    ///
+    /// If the named file is missing, or a layer has a value of the wrong type or syntax.
+    pub fn load(file: Option<&Path>) -> Result<Self, Box<figment::Error>> {
         let file = file.or_else(|| Some(Path::new(DEFAULT_FILE)).filter(|f| f.is_file()));
-        let mut figment = Figment::from(Serialized::defaults(Config::default()));
+        let mut figment = Figment::from(Serialized::defaults(Self::default()));
         if let Some(file) = file {
             figment = figment.merge(Toml::file_exact(file));
         }

@@ -1,6 +1,6 @@
 //! The Server's ConnectRPC API (ADR 0007), served on axum.
 
-use std::sync::Arc;
+use std::{future, sync::Arc};
 
 use connectrpc::{RequestContext, Response, ServiceRequest, ServiceResult};
 use nama_proto::nama::v1::{GetServerInfoRequest, GetServerInfoResponse, ServerService};
@@ -21,19 +21,21 @@ struct ServerServiceHandler {
     name: String,
 }
 
-// The trait returns `impl Encodable<_>` so handlers can answer with borrowed views. Ours return
-// the owned message, which is narrower; that's fine for a private type.
-#[expect(refining_impl_trait_internal)]
+#[expect(
+    refining_impl_trait_internal,
+    reason = "the trait returns `impl Encodable<_>` so handlers can answer with borrowed views; \
+              ours return the owned message, which is narrower and fine for a private type"
+)]
 impl ServerService for ServerServiceHandler {
-    async fn get_server_info(
+    fn get_server_info(
         &self,
         _ctx: RequestContext,
         _request: ServiceRequest<'_, GetServerInfoRequest>,
-    ) -> ServiceResult<GetServerInfoResponse> {
-        Response::ok(GetServerInfoResponse {
+    ) -> impl Future<Output = ServiceResult<GetServerInfoResponse>> + Send {
+        future::ready(Response::ok(GetServerInfoResponse {
             name: self.name.clone(),
             version: env!("CARGO_PKG_VERSION").to_owned(),
             ..Default::default()
-        })
+        }))
     }
 }
