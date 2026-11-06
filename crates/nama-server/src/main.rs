@@ -17,6 +17,7 @@ use nama_server::{
     config::{self, Config},
     db::{self, Database},
     plugins::Registry,
+    users::{SetupCode, Users},
 };
 use tokio::net::TcpListener;
 use tracing::{error, info};
@@ -63,27 +64,23 @@ async fn main() -> ExitCode {
         return ExitCode::FAILURE;
     };
 
-    let db = match Database::open(&config.data_dir).await {
-        Ok(db) => db,
+    let Some(db) = open_database(&config).await else {
+        return ExitCode::FAILURE;
+    };
+    let setup_code = match setup_code(Users::new(Arc::clone(&db), plugins.clone())).await {
+        Ok(setup_code) => setup_code,
         Err(err) => {
-            error!(
-                "could not open the database in {}: {err}",
-                config.data_dir.display()
-            );
+            error!("could not prepare the Setup Code: {err}");
+            close(db).await;
             return ExitCode::FAILURE;
         }
     };
-    info!(
-        path = %config.data_dir.join(db::FILE_NAME).display(),
-        migrations_applied = ?db.migrations_applied(),
-        "opened database"
-    );
 
     let listener = match TcpListener::bind(config.listen).await {
         Ok(listener) => listener,
         Err(err) => {
             error!("could not listen on {}: {err}", config.listen);
-            db.close().await;
+            close(db).await;
             return ExitCode::FAILURE;
         }
     };
@@ -92,7 +89,7 @@ async fn main() -> ExitCode {
         Ok(addr) => info!(%addr, "listening"),
         Err(err) => {
             error!("could not read the address listened on: {err}");
-            db.close().await;
+            close(db).await;
             return ExitCode::FAILURE;
         }
     }
@@ -106,19 +103,62 @@ async fn main() -> ExitCode {
         shutdown.await;
         info!("shutting down");
     };
-    let db = Arc::new(db);
-    let served = nama_server::serve(listener, &config, Arc::clone(&db), plugins, shutdown).await;
+    let served = nama_server::serve(
+        listener,
+        &config,
+        Arc::clone(&db),
+        plugins,
+        setup_code,
+        shutdown,
+    )
+    .await;
     // Serving has finished, so this is the last handle and the database can close cleanly.
-    if let Some(db) = Arc::into_inner(db) {
-        db.close().await;
-    } else {
-        error!("the database was still in use at shutdown; it was not closed cleanly");
-    }
+    close(db).await;
     if let Err(err) = served {
         error!("server failed: {err}");
         return ExitCode::FAILURE;
     }
     ExitCode::SUCCESS
+}
+
+/// Opens the database in the data directory. Returns `None`, having logged why, if it can't.
+async fn open_database(config: &Config) -> Option<Arc<Database>> {
+    let db = match Database::open(&config.data_dir).await {
+        Ok(db) => db,
+        Err(err) => {
+            error!(
+                "could not open the database in {}: {err}",
+                config.data_dir.display()
+            );
+            return None;
+        }
+    };
+    info!(
+        path = %config.data_dir.join(db::FILE_NAME).display(),
+        migrations_applied = ?db.migrations_applied(),
+        "opened database"
+    );
+    Some(Arc::new(db))
+}
+
+/// A new Setup Code, logged, while the Server has no Users, so whoever can read the log can create
+/// the first Admin.
+async fn setup_code(users: Users) -> Result<Option<SetupCode>, Box<dyn std::error::Error>> {
+    if users.any().await? {
+        return Ok(None);
+    }
+    let code = SetupCode::generate()?;
+    info!(setup_code = %code, "this Server has no Users yet: create the first Admin with this Setup Code");
+    Ok(Some(code))
+}
+
+/// Closes the database, which must hold the last handle to it.
+async fn close(db: Arc<Database>) {
+    if let Some(db) = Arc::into_inner(db) {
+        db.close().await;
+    } else {
+        error!("the database was still in use at shutdown; it was not closed cleanly");
+    }
 }
 
 /// Enables the Built-in Plugins `config` asks for. Returns `None`, having logged why, if none of

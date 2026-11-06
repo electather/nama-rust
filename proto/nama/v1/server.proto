@@ -17,4 +17,7 @@ message GetServerInfoResponse {
   string name = 1;
   // The version of the Server program, e.g. "0.1.0".
   string version = 2;
+  // Whether the Server has no Users yet, so the first Admin still has to be created with
+  // `SignInService.Setup`.
+  bool setup_required = 3;
 }

@@ -4,6 +4,7 @@ include!("nama.v1.event.rs");
 include!("nama.v1.library.rs");
 include!("nama.v1.match.rs");
 include!("nama.v1.server.rs");
+include!("nama.v1.sign_in.rs");
 #[allow(
     non_camel_case_types,
     dead_code,
@@ -25,6 +26,7 @@ pub mod __buffa {
         include!("nama.v1.library.__view.rs");
         include!("nama.v1.match.__view.rs");
         include!("nama.v1.server.__view.rs");
+        include!("nama.v1.sign_in.__view.rs");
         pub mod oneof {
             #[allow(unused_imports)]
             use super::*;
@@ -73,6 +75,12 @@ pub mod __buffa {
         reg.register_json_any(super::__CLEAR_MATCH_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__GET_SERVER_INFO_REQUEST_JSON_ANY);
         reg.register_json_any(super::__GET_SERVER_INFO_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__USER_JSON_ANY);
+        reg.register_json_any(super::__DEVICE_JSON_ANY);
+        reg.register_json_any(super::__SETUP_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__SETUP_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__WHO_AM_I_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__WHO_AM_I_RESPONSE_JSON_ANY);
     }
 }
 #[doc(inline)]
@@ -207,5 +215,29 @@ pub use self::__buffa::view::GetServerInfoRequestOwnedView;
 pub use self::__buffa::view::GetServerInfoResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::GetServerInfoResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::UserView;
+#[doc(inline)]
+pub use self::__buffa::view::UserOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::DeviceView;
+#[doc(inline)]
+pub use self::__buffa::view::DeviceOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetupRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::SetupRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetupResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::SetupResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::WhoAmIRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::WhoAmIRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::WhoAmIResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::WhoAmIResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::register_types;

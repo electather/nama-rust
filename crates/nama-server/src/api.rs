@@ -2,6 +2,7 @@
 
 use std::{future, sync::Arc};
 
+use axum::http::header::SET_COOKIE;
 use buffa::EnumValue;
 use connectrpc::{
     ConnectError, Encodable, RequestContext, Response, ServiceRequest, ServiceResult, ServiceStream,
@@ -14,8 +15,9 @@ use nama_proto::nama::v1::{
     GetLibraryRequest, GetLibraryResponse, GetServerInfoRequest, GetServerInfoResponse,
     LibraryKind, LibraryService, ListLibrariesRequest, ListLibrariesResponse, MatchService,
     ScanLibraryRequest, ScanLibraryResponse, SearchMetadataRequest, SearchMetadataResponse,
-    ServerService, SetMatchRequest, SetMatchResponse, SubscribeRequest, SubscribeResponse,
-    UpdateLibraryRequest, UpdateLibraryResponse, external_id,
+    ServerService, SessionDelivery, SetMatchRequest, SetMatchResponse, SetupRequest, SetupResponse,
+    SignInService, SubscribeRequest, SubscribeResponse, UpdateLibraryRequest,
+    UpdateLibraryResponse, WhoAmIRequest, WhoAmIResponse, external_id,
 };
 use tokio::sync::OwnedMutexGuard;
 
@@ -28,19 +30,33 @@ use crate::{
     matching::{ManualError, Matcher},
     plugins::Registry,
     scanner::Scanner,
+    sessions::{identify_caller, session_cookie},
+    users::{self, Caller, Role, SetupCode, Users},
 };
 
-/// Routes every RPC the Server answers.
+/// Routes every RPC the Server answers, each behind the layer that identifies the caller.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "each is a separate handle the services are built from; a struct bundling them would \
+              exist only for this call"
+)]
 pub(crate) fn router(
     config: &Config,
     db: Arc<Database>,
     plugins: Registry,
     scanner: Scanner,
     events: EventBus,
+    setup_code: Option<SetupCode>,
 ) -> axum::Router {
+    let users = Users::new(Arc::clone(&db), plugins.clone());
     connectrpc::Router::new()
         .add_service(Arc::new(ServerServiceHandler {
             name: config.name.clone(),
+            users: users.clone(),
+        }))
+        .add_service(Arc::new(SignInServiceHandler {
+            users: users.clone(),
+            setup_code,
         }))
         .add_service(Arc::new(MatchServiceHandler {
             matcher: Matcher::new(Arc::clone(&db), plugins, events.clone()),
@@ -53,25 +69,104 @@ pub(crate) fn router(
         }))
         .add_service(Arc::new(EventServiceHandler { events }))
         .into_axum_router()
+        .layer(axum::middleware::from_fn_with_state(users, identify_caller))
 }
 
 /// `nama.v1.ServerService`: facts about this Server that any client can read.
 struct ServerServiceHandler {
     name: String,
+    users: Users,
 }
 
+#[expect(
+    refining_impl_trait,
+    reason = "plain `async fn` returning the owned response is the form the generated trait \
+              documents; the refined signature isn't visible outside this crate"
+)]
 impl ServerService for ServerServiceHandler {
-    fn get_server_info<'a>(
-        &'a self,
+    async fn get_server_info(
+        &self,
         _ctx: RequestContext,
         _request: ServiceRequest<'_, GetServerInfoRequest>,
-    ) -> impl Future<Output = ServiceResult<impl Encodable<GetServerInfoResponse> + Send + use<'a>>> + Send
-    {
-        future::ready(Response::ok(GetServerInfoResponse {
+    ) -> ServiceResult<GetServerInfoResponse> {
+        let setup_required = !self
+            .users
+            .any()
+            .await
+            .map_err(|err| database_failed(&err))?;
+        Response::ok(GetServerInfoResponse {
             name: self.name.clone(),
             version: env!("CARGO_PKG_VERSION").to_owned(),
+            setup_required,
             ..Default::default()
-        }))
+        })
+    }
+}
+
+/// `nama.v1.SignInService`: signing Devices in, and saying who is signed in.
+struct SignInServiceHandler {
+    users: Users,
+    /// What `Setup` must be given. `None` once the Server started with Users.
+    setup_code: Option<SetupCode>,
+}
+
+#[expect(
+    refining_impl_trait,
+    reason = "plain `async fn` returning the owned response is the form the generated trait \
+              documents; the refined signature isn't visible outside this crate"
+)]
+impl SignInService for SignInServiceHandler {
+    async fn setup(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, SetupRequest>,
+    ) -> ServiceResult<SetupResponse> {
+        let request = request.to_owned_message();
+        let wants_token = wants_token(request.delivery)?;
+        if !self
+            .setup_code
+            .as_ref()
+            .is_some_and(|code| code.matches(&request.setup_code))
+        {
+            return Err(ConnectError::permission_denied("the Setup Code is wrong"));
+        }
+        let signed_in = self
+            .users
+            .create_first_admin(&request.name, &request.password, &request.device_name)
+            .await?;
+        let body = SetupResponse {
+            user: user_to_proto(signed_in.caller.user).into(),
+            device: device_to_proto(signed_in.caller.device).into(),
+            ..Default::default()
+        };
+        Ok(if wants_token {
+            Response::new(SetupResponse {
+                token: signed_in.token,
+                ..body
+            })
+        } else {
+            Response::new(body)
+                .with_header(SET_COOKIE, session_cookie(&signed_in.token, ctx.headers()))
+        })
+    }
+
+    fn who_am_i<'a>(
+        &'a self,
+        ctx: RequestContext,
+        _request: ServiceRequest<'_, WhoAmIRequest>,
+    ) -> impl Future<Output = ServiceResult<impl Encodable<WhoAmIResponse> + Send + use<'a>>> + Send
+    {
+        let caller = ctx.extensions().get::<Caller>().cloned();
+        future::ready(caller.map_or_else(
+            || Err(ConnectError::unauthenticated("sign in first")),
+            |caller| {
+                Response::ok(WhoAmIResponse {
+                    user: user_to_proto(caller.user).into(),
+                    device: device_to_proto(caller.device).into(),
+                    ..Default::default()
+                })
+            },
+        ))
     }
 }
 
@@ -288,6 +383,20 @@ impl EventService for EventServiceHandler {
     }
 }
 
+/// Whether a client asking for `delivery` wants its session token in the response body, rather
+/// than as a cookie.
+fn wants_token(delivery: EnumValue<SessionDelivery>) -> Result<bool, ConnectError> {
+    match delivery {
+        EnumValue::Known(SessionDelivery::SESSION_DELIVERY_TOKEN) => Ok(true),
+        EnumValue::Known(SessionDelivery::SESSION_DELIVERY_COOKIE) => Ok(false),
+        EnumValue::Known(SessionDelivery::SESSION_DELIVERY_UNSPECIFIED) | EnumValue::Unknown(_) => {
+            Err(ConnectError::invalid_argument(
+                "the session delivery must be cookie or token",
+            ))
+        }
+    }
+}
+
 /// An event type a filter names, which must be one the Server knows.
 fn event_type_from_proto(kind: EnumValue<EventType>) -> Result<EventType, ConnectError> {
     match kind {
@@ -365,6 +474,55 @@ fn library_to_proto(library: Library) -> proto::Library {
         .into(),
         folders: library.folders,
         ..Default::default()
+    }
+}
+
+/// A User as clients see them.
+fn user_to_proto(user: users::User) -> proto::User {
+    proto::User {
+        id: user.id,
+        name: user.name,
+        role: match user.role {
+            Role::Admin => proto::Role::ROLE_ADMIN,
+            Role::Member => proto::Role::ROLE_MEMBER,
+        }
+        .into(),
+        ..Default::default()
+    }
+}
+
+/// A Device as clients see it.
+fn device_to_proto(device: users::Device) -> proto::Device {
+    proto::Device {
+        id: device.id,
+        name: device.name,
+        ..Default::default()
+    }
+}
+
+/// The Connect error a client gets when the database failed. The failure is logged, not sent: it
+/// says nothing the client can act on.
+fn database_failed(err: &sqlx::Error) -> ConnectError {
+    tracing::error!("a request failed: {err}");
+    ConnectError::internal("the Server's database failed")
+}
+
+/// The Connect error a client gets for a change to the Users that failed. Server-side failures
+/// are logged, not sent.
+impl From<users::Error> for ConnectError {
+    fn from(err: users::Error) -> Self {
+        match err {
+            users::Error::Invalid(_) => Self::invalid_argument(err.to_string()),
+            users::Error::NameTaken => Self::already_exists(err.to_string()),
+            users::Error::AlreadySetUp => Self::failed_precondition(err.to_string()),
+            users::Error::Database(err) => database_failed(&err),
+            users::Error::NoAuthenticator
+            | users::Error::Authenticator(_)
+            | users::Error::Random(_) => {
+                tracing::error!("a change to the Users failed: {err}");
+                Self::internal("the Server failed")
+            }
+        }
     }
 }
 

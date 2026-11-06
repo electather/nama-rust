@@ -10,7 +10,12 @@
 //! data checked in under `.sqlx/` at the workspace root. The crate's README says how to
 //! regenerate it.
 
-use std::{collections::HashSet, panic::AssertUnwindSafe, path::Path, time::Duration};
+use std::{
+    collections::HashSet,
+    panic::AssertUnwindSafe,
+    path::Path,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
 
 use futures_util::FutureExt;
 use sqlx::{
@@ -240,4 +245,13 @@ async fn migrate(conn: &mut SqliteConnection) -> Result<Vec<i64>, MigrateError> 
         .map(|m| m.version)
         .filter(|v| !before.contains(v))
         .collect())
+}
+
+/// Now, in seconds since the Unix epoch, as the database stores times.
+pub(crate) fn now() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |since| {
+            i64::try_from(since.as_secs()).unwrap_or(i64::MAX)
+        })
 }

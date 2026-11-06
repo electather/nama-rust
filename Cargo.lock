@@ -1272,11 +1272,13 @@ name = "nama-server"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "base64",
  "buffa",
  "clap",
  "connectrpc",
  "figment",
  "futures-util",
+ "getrandom 0.4.3",
  "http-body-util",
  "hyper",
  "hyper-util",
@@ -1289,6 +1291,7 @@ dependencies = [
  "regex",
  "serde",
  "serde_json",
+ "sha2 0.10.9",
  "sqlx",
  "tempfile",
  "thiserror",

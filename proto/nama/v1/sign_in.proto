@@ -1,0 +1,85 @@
+syntax = "proto3";
+
+package nama.v1;
+
+// Signing Devices in to a Server as Users, and finding out who is signed in (ADR 0014).
+//
+// A signed-in Device holds a session: a cookie for browsers, or a bearer token (`Authorization:
+// Bearer <token>`) for other clients. Either one identifies the same User and Device on every
+// request.
+service SignInService {
+  // Creates the first Admin on a fresh Server and signs the calling Device in as them. Needs the
+  // Setup Code the Server printed to its log. Fails with `permission_denied` if the code is wrong,
+  // `failed_precondition` once the Server has any User, and `invalid_argument` if a name or the
+  // password breaks the rules.
+  rpc Setup(SetupRequest) returns (SetupResponse);
+  // Returns the calling User and Device, or fails with `unauthenticated` without a valid session.
+  rpc WhoAmI(WhoAmIRequest) returns (WhoAmIResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+}
+
+// How a signed-in Device is given its session.
+enum SessionDelivery {
+  SESSION_DELIVERY_UNSPECIFIED = 0;
+  // As an HttpOnly cookie, for browsers. The token never appears in the response body, so page
+  // scripts can't read it.
+  SESSION_DELIVERY_COOKIE = 1;
+  // As a token in the response body, which the client sends as `Authorization: Bearer <token>`.
+  SESSION_DELIVERY_TOKEN = 2;
+}
+
+// What a User is allowed to do on a Server.
+enum Role {
+  ROLE_UNSPECIFIED = 0;
+  // Manages the Server, its Libraries and its Users.
+  ROLE_ADMIN = 1;
+  // Watches and Requests.
+  ROLE_MEMBER = 2;
+}
+
+// A person's identity on one Server.
+message User {
+  // Assigned by the Server, and never reused.
+  int64 id = 1;
+  // Unique on the Server, ignoring case.
+  string name = 2;
+  Role role = 3;
+}
+
+// A client installation signed in to a Server as a User.
+message Device {
+  // Assigned by the Server, and never reused.
+  int64 id = 1;
+  // What the client called itself when it signed in, such as "Living room TV".
+  string name = 2;
+}
+
+message SetupRequest {
+  // The Setup Code from the Server's log.
+  string setup_code = 1;
+  // The first Admin's name: 1 to 64 characters once leading and trailing spaces are trimmed.
+  string name = 2;
+  // The first Admin's password, which the Server's Authenticator checks against its own rules.
+  string password = 3;
+  // The signing-in Device's name: 1 to 64 characters.
+  string device_name = 4;
+  // How to hand out the session. Must be specified.
+  SessionDelivery delivery = 5;
+}
+
+message SetupResponse {
+  // The Admin just created.
+  User user = 1;
+  // The Device just signed in.
+  Device device = 2;
+  // The session token, for `SESSION_DELIVERY_TOKEN` only. Empty for a cookie.
+  string token = 3;
+}
+
+message WhoAmIRequest {}
+
+message WhoAmIResponse {
+  User user = 1;
+  Device device = 2;
+}

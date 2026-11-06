@@ -5,12 +5,7 @@
 //! `item_matches` and `match_pins`. Each of its methods is one read, or one write through the
 //! database's single writer.
 
-use std::{
-    borrow::Cow,
-    collections::HashMap,
-    sync::Arc,
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::{borrow::Cow, collections::HashMap, sync::Arc};
 
 use nama_plugin_api::{
     PluginId,
@@ -19,7 +14,10 @@ use nama_plugin_api::{
 use nama_proto::nama::v1::{Event, LibraryItemAdded, LibraryItemRemoved};
 use sqlx::SqliteConnection;
 
-use crate::{db::Database, events::event};
+use crate::{
+    db::{Database, now},
+    events::event,
+};
 
 /// Reads and writes the contents of Libraries.
 #[derive(Debug, Clone)]
@@ -555,15 +553,6 @@ async fn insert_decisions(
         .await?;
     }
     Ok(())
-}
-
-/// Now, in seconds since the Unix epoch.
-fn now() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_or(0, |since| {
-            i64::try_from(since.as_secs()).unwrap_or(i64::MAX)
-        })
 }
 
 /// The kind of an Item, as stored.
