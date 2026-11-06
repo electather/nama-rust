@@ -4,6 +4,24 @@ Implement ticket #{{ISSUE_NUMBER}} ({{ISSUE_TITLE}}) by following these skill in
 !`awk 'f>=2{print} /^---$/{f++}' ~/.claude/skills/implement/SKILL.md`
 </skill>
 
+Write the code under these three skills as well:
+
+<skill name="rust-best-practices">
+!`awk 'f>=2{print} /^---$/{f++}' ~/.claude/skills/rust-best-practices/SKILL.md`
+</skill>
+
+Its `references/` chapters live in `~/.claude/skills/rust-best-practices/references/`. Read a chapter only when the ticket touches that topic.
+
+<skill name="ponytail">
+!`awk 'f>=2{print} /^---$/{f++}' "$(ls ~/.claude/plugins/cache/ponytail/ponytail/*/skills/ponytail/SKILL.md | tail -1)"`
+</skill>
+
+<skill name="clean-code">
+!`awk 'f>=2{print} /^---$/{f++}' ~/.claude/skills/clean-code/SKILL.md`
+</skill>
+
+Ponytail decides how much to build: no abstraction, file or layer the ticket doesn't need. Rust best practices and clean code decide how it reads: idioms, names, function size, comments that say why. Where they pull apart, ponytail wins, and `AGENTS.md` beats all three.
+
 You are running AFK inside the sandcastle factory, on branch `{{BRANCH}}` forked from `origin/main`. Nobody can answer questions. Where the skill says "ask", decide yourself and record the decision in the commit body, or give up with `<blocked>`.
 
 Factory rules on top of the skill:

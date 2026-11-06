@@ -15,9 +15,6 @@
 //!
 //! When the Kernel enables a Plugin it calls [`Plugin::register`] with a fresh [`Registrar`].
 //! Everything registered there belongs to that Plugin, so disabling the Plugin removes all of it.
-//!
-//! Built-in Plugins depend on this crate (and `nama-proto`), never on the Server itself, so the
-//! compiler keeps them out of Kernel internals.
 
 pub mod metadata;
 pub mod points;

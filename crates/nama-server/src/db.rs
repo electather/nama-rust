@@ -7,17 +7,8 @@
 //! never fight each other for SQLite's write lock.
 //!
 //! Queries use `sqlx::query!` and friends, which check them at compile time against the query
-//! data checked in under `.sqlx/` at the workspace root. After adding or changing a query or a
-//! migration, regenerate it with sqlx-cli against a scratch database, from the workspace root:
-//!
-//! ```sh
-//! # Same minor version as the sqlx crate; CI's `sqlx` job installs the same.
-//! cargo install --locked sqlx-cli@0.9.0 --no-default-features --features sqlite,rustls
-//! export DATABASE_URL=sqlite:///tmp/nama-dev.db
-//! sqlx database create
-//! sqlx migrate run --source crates/nama-server/migrations
-//! cargo sqlx prepare --workspace -- --all-targets
-//! ```
+//! data checked in under `.sqlx/` at the workspace root. The crate's README says how to
+//! regenerate it.
 
 use std::{collections::HashSet, panic::AssertUnwindSafe, path::Path, time::Duration};
 
