@@ -10,12 +10,17 @@ mod libraries;
 mod matching;
 pub mod plugins;
 mod scanner;
+mod sessions;
+pub mod users;
 
 use std::{future::Future, io, sync::Arc};
 
 use tokio::net::TcpListener;
 
-use crate::{config::Config, db::Database, events::EventBus, plugins::Registry, scanner::Scanner};
+use crate::{
+    config::Config, db::Database, events::EventBus, plugins::Registry, scanner::Scanner,
+    users::SetupCode,
+};
 
 /// Serves the Server's API on `listener`, backed by `db` and the Plugins enabled in `plugins`,
 /// until `shutdown` resolves, then lets requests in flight finish. Once the returned future
@@ -28,22 +33,37 @@ use crate::{config::Config, db::Database, events::EventBus, plugins::Registry, s
 /// still running when `shutdown` resolves are cancelled, and the returned future waits for them
 /// to stop.
 ///
+/// While the Server has no Users, `Setup` creates the first Admin for whoever gives `setup_code`.
+///
 /// Clients speak the Connect protocol over HTTP/1.1 or cleartext HTTP/2, with JSON or binary
 /// protobuf bodies.
 ///
 /// # Errors
 ///
 /// The returned future fails if accepting connections on `listener` fails.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "each is a separate handle the Server is built from; a struct bundling them would \
+              exist only for this call"
+)]
 pub fn serve(
     listener: TcpListener,
     config: &Config,
     db: Arc<Database>,
     plugins: Registry,
+    setup_code: Option<SetupCode>,
     shutdown: impl Future<Output = ()> + Send + 'static,
 ) -> impl Future<Output = io::Result<()>> + Send + 'static {
     let events = EventBus::new(plugins.clone());
     let scanner = Scanner::new(Arc::clone(&db), plugins.clone(), events.clone());
-    let app = api::router(config, db, plugins, scanner.clone(), events.clone());
+    let app = api::router(
+        config,
+        db,
+        plugins,
+        scanner.clone(),
+        events.clone(),
+        setup_code,
+    );
     async move {
         scanner.start_all().await;
         let served = axum::serve(listener, app)

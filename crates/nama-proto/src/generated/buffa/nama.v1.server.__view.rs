@@ -242,6 +242,11 @@ pub struct GetServerInfoResponseView<'a> {
     ///
     /// Field 2: `version`
     pub version: &'a str,
+    /// Whether the Server has no Users yet, so the first Admin still has to be created with
+    /// `SignInService.Setup`.
+    ///
+    /// Field 3: `setup_required`
+    pub setup_required: bool,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for GetServerInfoResponseView<'a> {
@@ -288,6 +293,13 @@ impl<'a> ::buffa::MessageView<'a> for GetServerInfoResponseView<'a> {
                 )?;
                 view.version = ::buffa::types::borrow_str(&mut cur)?;
             }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.setup_required = ::buffa::types::decode_bool(&mut cur)?;
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -318,6 +330,7 @@ impl<'a> ::buffa::MessageView<'a> for GetServerInfoResponseView<'a> {
         ::core::result::Result::Ok(super::super::GetServerInfoResponse {
             name: self.name.to_string(),
             version: self.version.to_string(),
+            setup_required: self.setup_required,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -335,6 +348,9 @@ impl<'a> ::buffa::ViewEncode<'a> for GetServerInfoResponseView<'a> {
         if !self.version.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.version) as u64;
         }
+        if self.setup_required {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -351,6 +367,9 @@ impl<'a> ::buffa::ViewEncode<'a> for GetServerInfoResponseView<'a> {
         }
         if !self.version.is_empty() {
             ::buffa::types::put_string_field(2u32, &self.version, buf);
+        }
+        if self.setup_required {
+            ::buffa::types::put_bool_field(3u32, self.setup_required, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -378,6 +397,9 @@ impl<'__a> ::serde::Serialize for GetServerInfoResponseView<'__a> {
         }
         if !::buffa::json_helpers::skip_if::is_empty_str(self.version) {
             __map.serialize_entry("version", self.version)?;
+        }
+        if self.setup_required {
+            __map.serialize_entry("setupRequired", &self.setup_required)?;
         }
         __map.end()
     }
@@ -487,6 +509,14 @@ impl GetServerInfoResponseOwnedView {
     #[must_use]
     pub fn version(&self) -> &'_ str {
         self.0.reborrow().version
+    }
+    /// Whether the Server has no Users yet, so the first Admin still has to be created with
+    /// `SignInService.Setup`.
+    ///
+    /// Field 3: `setup_required`
+    #[must_use]
+    pub fn setup_required(&self) -> bool {
+        self.0.reborrow().setup_required
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<GetServerInfoResponseView<'static>>>

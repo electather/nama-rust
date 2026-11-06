@@ -126,6 +126,17 @@ pub struct GetServerInfoResponse {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub version: ::buffa::alloc::string::String,
+    /// Whether the Server has no Users yet, so the first Admin still has to be created with
+    /// `SignInService.Setup`.
+    ///
+    /// Field 3: `setup_required`
+    #[serde(
+        rename = "setupRequired",
+        alias = "setup_required",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub setup_required: bool,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -135,6 +146,7 @@ impl ::core::fmt::Debug for GetServerInfoResponse {
         f.debug_struct("GetServerInfoResponse")
             .field("name", &self.name)
             .field("version", &self.version)
+            .field("setup_required", &self.setup_required)
             .finish()
     }
 }
@@ -171,6 +183,9 @@ impl ::buffa::Message for GetServerInfoResponse {
         if !self.version.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.version) as u64;
         }
+        if self.setup_required {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -186,6 +201,9 @@ impl ::buffa::Message for GetServerInfoResponse {
         }
         if !self.version.is_empty() {
             ::buffa::types::put_string_field(2u32, &self.version, buf);
+        }
+        if self.setup_required {
+            ::buffa::types::put_bool_field(3u32, self.setup_required, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -214,6 +232,13 @@ impl ::buffa::Message for GetServerInfoResponse {
                 )?;
                 ::buffa::types::merge_string(&mut self.version, buf)?;
             }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.setup_required = ::buffa::types::decode_bool(buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -224,6 +249,7 @@ impl ::buffa::Message for GetServerInfoResponse {
     fn clear(&mut self) {
         self.name.clear();
         self.version.clear();
+        self.setup_required = false;
         self.__buffa_unknown_fields.clear();
     }
 }

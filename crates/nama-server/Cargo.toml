@@ -12,11 +12,13 @@ testing = []
 
 [dependencies]
 axum = { version = "0.8", default-features = false, features = ["http1", "http2", "tokio"] }
+base64 = "0.22"
 buffa = "0.9.2"
 clap = { version = "4", features = ["derive", "env"] }
 connectrpc = { version = "0.9.1", features = ["axum"] }
 figment = { version = "0.10", features = ["env", "toml"] }
 futures-util = { version = "0.3", default-features = false, features = ["std"] }
+getrandom = "0.4"
 nama-plugin-api = { version = "0.1.0", path = "../nama-plugin-api" }
 nama-plugin-local-auth = { version = "0.1.0", path = "../../plugins/local-auth" }
 nama-plugin-log-events = { version = "0.1.0", path = "../../plugins/log-events" }
@@ -24,6 +26,7 @@ nama-plugin-tmdb = { version = "0.1.0", path = "../../plugins/tmdb" }
 nama-proto = { version = "0.1.0", path = "../nama-proto" }
 regex = "1"
 serde = { version = "1", features = ["derive"] }
+sha2 = "0.10"
 sqlx = { version = "0.9", default-features = false, features = ["macros", "migrate", "runtime-tokio", "sqlite-bundled"] }
 thiserror = "2"
 tokio = { version = "1", features = ["fs", "macros", "net", "rt-multi-thread", "signal", "sync", "time"] }

@@ -119,10 +119,14 @@ fn server_logs_its_config_creates_its_database_serves_the_api_and_exits_cleanly_
     // A fresh data directory gets a new database with every migration applied.
     let database_line = wait_for_line(&lines, "opened database");
     assert!(
-        database_line.contains("migrations_applied=[1, 2, 3, 4, 5]"),
+        database_line.contains("migrations_applied=[1, 2, 3, 4, 5, 6]"),
         "{database_line}"
     );
     assert!(data_dir.join("nama.db").is_file());
+
+    // A Server with no Users yet logs the Setup Code that creates the first Admin.
+    let setup_line = wait_for_line(&lines, "Setup Code");
+    assert!(setup_line.contains("setup_code="), "{setup_line}");
 
     // Port 0 asks the OS for a free port; the Server logs the one it got.
     let addr = bound_addr(&wait_for_line(&lines, "listening"));
@@ -144,6 +148,7 @@ fn server_logs_its_config_creates_its_database_serves_the_api_and_exits_cleanly_
     stream.read_to_string(&mut response).unwrap();
     assert!(response.contains(" 200 "), "{response}");
     assert!(response.contains(r#""name":"From File""#), "{response}");
+    assert!(response.contains(r#""setupRequired":true"#), "{response}");
 
     let kill = Command::new("kill")
         .args(["-INT", &child.id().to_string()])

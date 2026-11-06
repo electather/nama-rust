@@ -84,6 +84,7 @@ impl Fixture {
             &Config::default(),
             Arc::clone(&db),
             plugins,
+            None,
             async {
                 let _: Result<(), oneshot::error::RecvError> = stopped.await;
             },

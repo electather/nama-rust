@@ -80,7 +80,11 @@ async fn a_plain_http1_json_post_gets_a_json_answer() {
     let body: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(
         body,
-        serde_json::json!({ "name": "Attic", "version": env!("CARGO_PKG_VERSION") })
+        serde_json::json!({
+            "name": "Attic",
+            "version": env!("CARGO_PKG_VERSION"),
+            "setupRequired": true,
+        })
     );
 }
 
