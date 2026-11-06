@@ -9,7 +9,10 @@ use std::{
 };
 
 use clap::Parser;
-use nama_plugin_api::points::{ServerStarted, ServerStartedEvent};
+use nama_plugin_api::{
+    auth::Authenticator,
+    points::{ServerStarted, ServerStartedEvent},
+};
 use nama_server::{
     config::{self, Config},
     db::{self, Database},
@@ -56,9 +59,9 @@ async fn main() -> ExitCode {
         "loaded config"
     );
 
-    let plugins = Registry::with_builtins(&config.plugins);
-    let enabled: Vec<String> = plugins.enabled().iter().map(ToString::to_string).collect();
-    info!(?enabled, "enabled plugins");
+    let Some(plugins) = enable_plugins(&config).await else {
+        return ExitCode::FAILURE;
+    };
 
     let db = match Database::open(&config.data_dir).await {
         Ok(db) => db,
@@ -116,6 +119,27 @@ async fn main() -> ExitCode {
         return ExitCode::FAILURE;
     }
     ExitCode::SUCCESS
+}
+
+/// Enables the Built-in Plugins `config` asks for. Returns `None`, having logged why, if none of
+/// them provides an [`Authenticator`], since then nobody could sign in.
+async fn enable_plugins(config: &Config) -> Option<Registry> {
+    let plugins = Registry::with_builtins(&config.plugins);
+    let enabled: Vec<String> = plugins.enabled().iter().map(ToString::to_string).collect();
+    info!(?enabled, "enabled plugins");
+    let has_authenticator = plugins
+        .call_provider(|_: Arc<dyn Authenticator>| async {})
+        .await
+        .is_some();
+    if !has_authenticator {
+        error!(
+            "no Authenticator is enabled, so nobody could sign in: enable the local-auth plugin \
+             (remove `enabled = false` from [plugins.local-auth] in the config), or another \
+             plugin that provides one"
+        );
+        return None;
+    }
+    Some(plugins)
 }
 
 /// Logs to stdout at `info`, or at whatever `RUST_LOG` asks for.

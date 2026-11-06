@@ -24,11 +24,15 @@ fn every_builtin_plugin_is_enabled_by_default_once_it_has_the_settings_it_requir
     // TMDB can't run without an API key.
     assert_eq!(
         without_settings.enabled(),
-        [PluginId::from_static("log-events")]
+        [
+            PluginId::from_static("local-auth"),
+            PluginId::from_static("log-events")
+        ]
     );
     assert_eq!(
         with_settings.enabled(),
         [
+            PluginId::from_static("local-auth"),
             PluginId::from_static("log-events"),
             PluginId::from_static("tmdb")
         ]
@@ -47,7 +51,7 @@ fn config_can_disable_a_builtin_plugin() {
 
     let registry = Registry::with_builtins(&plugins);
 
-    assert_eq!(registry.enabled(), Vec::<PluginId>::new());
+    assert_eq!(registry.enabled(), [PluginId::from_static("local-auth")]);
 }
 
 #[test]
@@ -56,7 +60,13 @@ fn config_for_a_plugin_the_server_does_not_have_is_ignored() {
 
     let registry = Registry::with_builtins(&plugins);
 
-    assert_eq!(registry.enabled(), [PluginId::from_static("log-events")]);
+    assert_eq!(
+        registry.enabled(),
+        [
+            PluginId::from_static("local-auth"),
+            PluginId::from_static("log-events")
+        ]
+    );
 }
 
 /// ADR 0006: Built-in Plugins are separate crates so the compiler keeps them out of Kernel

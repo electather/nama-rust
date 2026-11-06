@@ -3,6 +3,7 @@
 use std::{collections::BTreeMap, sync::Arc};
 
 use nama_plugin_api::{Plugin, settings::Settings};
+use nama_plugin_local_auth::LocalAuth;
 use nama_plugin_log_events::LogEvents;
 use nama_plugin_tmdb::Tmdb;
 use tracing::{error, info, warn};
@@ -12,7 +13,11 @@ use crate::config::PluginConfig;
 
 /// Every Built-in Plugin.
 fn all() -> Vec<Arc<dyn Plugin>> {
-    vec![Arc::new(LogEvents), Arc::new(Tmdb::new())]
+    vec![
+        Arc::new(LocalAuth),
+        Arc::new(LogEvents),
+        Arc::new(Tmdb::new()),
+    ]
 }
 
 impl Registry {

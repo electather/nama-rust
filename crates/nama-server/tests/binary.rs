@@ -4,11 +4,11 @@
 use std::{
     io::{self, BufRead, BufReader, Read, Write},
     net::{SocketAddr, TcpStream},
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::{Child, Command, ExitStatus, Stdio},
     sync::mpsc,
     thread,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 const TIMEOUT: Duration = Duration::from_secs(30);
@@ -62,6 +62,25 @@ fn bound_addr(listening_line: &str) -> SocketAddr {
         .unwrap_or_else(|| panic!("no address in {listening_line:?}"))
 }
 
+/// Starts the server with `config_file`, listening on a free port and logging at `info`.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a server that can't be started fails the test that starts it"
+)]
+fn spawn_server(config_file: &Path) -> KillOnDrop {
+    KillOnDrop(Some(
+        Command::new(env!("CARGO_BIN_EXE_nama-server"))
+            .arg("--config")
+            .arg(config_file)
+            .env("NAMA_LISTEN", "127.0.0.1:0")
+            .env("RUST_LOG", "info")
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap(),
+    ))
+}
+
 #[test]
 fn server_logs_its_config_creates_its_database_serves_the_api_and_exits_cleanly_on_ctrl_c() {
     let dir = std::env::temp_dir().join(format!("nama-server-binary-{}", std::process::id()));
@@ -78,17 +97,7 @@ fn server_logs_its_config_creates_its_database_serves_the_api_and_exits_cleanly_
     )
     .unwrap();
 
-    let mut server = KillOnDrop(Some(
-        Command::new(env!("CARGO_BIN_EXE_nama-server"))
-            .arg("--config")
-            .arg(&config_file)
-            .env("NAMA_LISTEN", "127.0.0.1:0")
-            .env("RUST_LOG", "info")
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .unwrap(),
-    ));
+    let mut server = spawn_server(&config_file);
     let child = server.0.as_mut().unwrap();
 
     // Read log lines on a thread so a hung server fails the test instead of blocking it.
@@ -156,4 +165,44 @@ fn server_logs_its_config_creates_its_database_serves_the_api_and_exits_cleanly_
     );
     // The database closed cleanly, checkpointing its WAL, once serving had stopped.
     assert!(!data_dir.join("nama.db-wal").exists());
+}
+
+#[test]
+fn server_refuses_to_start_without_an_authenticator_and_says_why() {
+    let dir = std::env::temp_dir().join(format!("nama-server-no-auth-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let dir = RemoveOnDrop(dir);
+    let config_file = dir.0.join("server.toml");
+    std::fs::write(
+        &config_file,
+        format!(
+            "data_dir = \"{}\"\n\n[plugins.local-auth]\nenabled = false\n",
+            dir.0.join("data").display()
+        ),
+    )
+    .unwrap();
+
+    let mut server = spawn_server(&config_file);
+    let child = server.0.as_mut().unwrap();
+    let started = Instant::now();
+    let status = loop {
+        if let Some(status) = child.try_wait().unwrap() {
+            break status;
+        }
+        assert!(
+            started.elapsed() < TIMEOUT,
+            "server started without an Authenticator"
+        );
+        thread::sleep(Duration::from_millis(50));
+    };
+    let mut log = String::new();
+    child
+        .stdout
+        .take()
+        .unwrap()
+        .read_to_string(&mut log)
+        .unwrap();
+
+    assert!(!status.success());
+    assert!(log.contains("no Authenticator is enabled"), "{log}");
 }

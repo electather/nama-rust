@@ -1,0 +1,15 @@
+[package]
+name = "nama-plugin-local-auth"
+version = "0.1.0"
+description = "Built-in Plugin that checks Users' passwords with argon2id"
+license = "AGPL-3.0-only"
+edition.workspace = true
+repository.workspace = true
+
+# Built-in Plugins depend on no workspace crate but nama-plugin-api and nama-proto (ADR 0006).
+[dependencies]
+argon2 = "0.6"
+nama-plugin-api = { version = "0.1.0", path = "../../crates/nama-plugin-api" }
+
+[lints]
+workspace = true

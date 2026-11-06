@@ -11,11 +11,13 @@
 //!   an Interceptor that fails lets the action through or blocks it.
 //! - **Provide**: a capability the Server needs, looked up by its trait (for example
 //!   [`dyn MetadataProvider`](metadata::MetadataProvider)). A Plugin registers a Provider as an
-//!   `Arc` of that trait object.
+//!   `Arc` of that trait object. A Server won't start without at least one
+//!   [`dyn Authenticator`](auth::Authenticator).
 //!
 //! When the Kernel enables a Plugin it calls [`Plugin::register`] with a fresh [`Registrar`].
 //! Everything registered there belongs to that Plugin, so disabling the Plugin removes all of it.
 
+pub mod auth;
 pub mod metadata;
 pub mod points;
 pub mod settings;
