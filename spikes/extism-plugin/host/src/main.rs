@@ -33,11 +33,7 @@ fn main() -> Result<()> {
 /// Q1: a buffa request in, a buffa response out.
 fn round_trip(wasm: &Path) -> Result<()> {
     let mut plugin = load(Manifest::new([Wasm::file(wasm)]))?;
-    let reply = greet(&mut plugin, "Nama")?;
-    ensure!(
-        reply.message == "Hello, Nama!",
-        "unexpected reply {reply:?}"
-    );
+    let reply = greet_checked(&mut plugin, "Nama")?;
     println!("Q1 round trip: {reply:?}");
     Ok(())
 }
@@ -150,25 +146,50 @@ fn timeout_and_crash(wasm: &Path) -> Result<()> {
     let mut plugin = load(Manifest::new([Wasm::file(wasm)]).with_timeout(timeout))?;
 
     let started = Instant::now();
-    let error = plugin
-        .call::<(), ()>("spin", ())
-        .err()
-        .context("spin returned")?;
-    println!(
-        "Q4 endless loop with a {timeout:?} timeout: stopped after {:?}: {error:#}",
-        started.elapsed()
+    let error = failure(&mut plugin, "spin")?;
+    let stopped_after = started.elapsed();
+    ensure!(
+        error == "timeout",
+        "spin failed for another reason: {error}"
     );
-    let reply = greet(&mut plugin, "after timeout")?;
+    ensure!(
+        stopped_after >= timeout && stopped_after < timeout * 2,
+        "spin was stopped after {stopped_after:?}, not about {timeout:?}"
+    );
+    println!(
+        "Q4 endless loop with a {timeout:?} timeout: stopped after {stopped_after:?}: {error}"
+    );
+    let reply = greet_checked(&mut plugin, "after timeout")?;
     println!("Q4 same instance after the timeout: {reply:?}");
 
-    let error = plugin
-        .call::<(), ()>("crash", ())
-        .err()
-        .context("crash returned")?;
-    println!("Q4 panicking guest: {error:#}");
-    let reply = greet(&mut plugin, "after panic")?;
+    let error = failure(&mut plugin, "crash")?;
+    ensure!(
+        error.contains("unreachable"),
+        "crash failed for another reason: {error}"
+    );
+    println!("Q4 panicking guest: {error}");
+    let reply = greet_checked(&mut plugin, "after panic")?;
     println!("Q4 same instance after the panic: {reply:?}");
     Ok(())
+}
+
+/// The error a guest export that takes and returns nothing fails with, or an error if it returned.
+fn failure(plugin: &mut Plugin, export: &str) -> Result<String> {
+    let error = plugin
+        .call::<(), ()>(export, ())
+        .err()
+        .with_context(|| format!("{export} returned"))?;
+    Ok(format!("{error:#}"))
+}
+
+/// Greets `name` and checks the reply is the right one, not just that the call succeeded.
+fn greet_checked(plugin: &mut Plugin, name: &str) -> Result<GreetResponse> {
+    let reply = greet(plugin, name)?;
+    ensure!(
+        reply.message == format!("Hello, {name}!"),
+        "unexpected reply {reply:?}"
+    );
+    Ok(reply)
 }
 
 /// Q5: the cost of one call with a small message, once the plugin is loaded.
