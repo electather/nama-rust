@@ -70,6 +70,27 @@ jobs:
             exit 1
           }
 
+  # Queries are checked at compile time against the query data in .sqlx/, so builds need no
+  # database. Here a scratch SQLite file with every migration applied checks that data is current.
+  sqlx:
+    name: sqlx query data
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      # Keep on the same minor version as the sqlx crate in crates/nama-server/Cargo.toml.
+      - run: cargo install --locked sqlx-cli@0.9.0 --no-default-features --features sqlite,rustls
+      - name: .sqlx is up to date
+        run: |
+          export DATABASE_URL="sqlite://$RUNNER_TEMP/sqlx-check.db"
+          sqlx database create
+          sqlx migrate run --source crates/nama-server/migrations
+          cargo sqlx prepare --check --workspace -- --all-targets || {
+            echo "::error::.sqlx is stale; see crates/nama-server/src/db.rs for how to regenerate it"
+            exit 1
+          }
+
   # Lints that don't depend on the platform: docs, unused deps, supply chain.
   hygiene:
     name: docs, unused deps and cargo-deny
