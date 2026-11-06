@@ -64,7 +64,7 @@ impl SignInLimits {
 
     /// [`SignInLimits::admit`], as of `now`.
     fn admit_at(&self, ip: IpAddr, name: Option<&str>, now: Instant) -> Result<Attempt, Blocked> {
-        let name_key = name.map(counted_name);
+        let name_key = name.map(counted_name_key);
         let mut failures = self.lock();
         let ip_wait = failures.by_ip.wait(&ip, FAILURES_PER_IP, now);
         let name_wait = name_key
@@ -108,20 +108,28 @@ impl Blocked {
     }
 }
 
-/// What failures for the User name `name` are counted under: the key sign-in looks it up by, cut
-/// short past the longest name a User can have, so a request can't have a huge name kept for the
-/// whole window. Names that long are no User's, so cutting them short loses nothing.
-fn counted_name(name: &str) -> String {
-    name_key(name).chars().take(NAME_LENGTH.end() + 1).collect()
+/// What failures for the User name `name` are counted under: the key sign-in looks it up by, of
+/// the name cut short past the longest a User can have, so a request can't have a huge name kept
+/// for the whole window. Names that long are no User's, so cutting them short loses nothing.
+fn counted_name_key(name: &str) -> String {
+    let capped: String = name.trim().chars().take(NAME_LENGTH.end() + 1).collect();
+    name_key(&capped)
 }
 
 /// When each key's failures still in the window happened, oldest first.
 #[derive(Debug)]
-struct Window<K>(HashMap<K, VecDeque<Instant>>);
+struct Window<K> {
+    times: HashMap<K, VecDeque<Instant>>,
+    /// When keys whose failures had all left the window were last dropped.
+    swept_at: Option<Instant>,
+}
 
 impl<K> Default for Window<K> {
     fn default() -> Self {
-        Self(HashMap::new())
+        Self {
+            times: HashMap::new(),
+            swept_at: None,
+        }
     }
 }
 
@@ -129,7 +137,7 @@ impl<K: Hash + Eq> Window<K> {
     /// How long `key` must wait, as of `now`, before it has fewer than `limit` failures in the
     /// window, if it has that many now.
     fn wait(&mut self, key: &K, limit: usize, now: Instant) -> Option<Duration> {
-        let times = self.0.get_mut(key)?;
+        let times = self.times.get_mut(key)?;
         while times
             .front()
             .is_some_and(|&at| now.saturating_duration_since(at) >= WINDOW)
@@ -142,21 +150,27 @@ impl<K: Hash + Eq> Window<K> {
         (times.len() >= limit).then(|| WINDOW.saturating_sub(now.saturating_duration_since(oldest)))
     }
 
-    /// Counts a failure for `key` at `at`, and drops keys whose failures have all left the window.
-    // ponytail: scans every key per failure; keys are capped by the per-IP limit, so this only
-    // matters under traffic from very many IPs, when a periodic sweep would replace it.
+    /// Counts a failure for `key` at `at`. Once a window, it also drops the keys whose failures
+    /// have all left it: sweeping on every failure would make each one slower the more peers have
+    /// failed recently.
     fn record(&mut self, key: K, at: Instant) {
-        self.0.retain(|_, times| {
-            times
-                .back()
-                .is_some_and(|&last| at.saturating_duration_since(last) < WINDOW)
-        });
-        self.0.entry(key).or_default().push_back(at);
+        if self
+            .swept_at
+            .is_none_or(|swept| at.saturating_duration_since(swept) >= WINDOW)
+        {
+            self.times.retain(|_, times| {
+                times
+                    .back()
+                    .is_some_and(|&last| at.saturating_duration_since(last) < WINDOW)
+            });
+            self.swept_at = Some(at);
+        }
+        self.times.entry(key).or_default().push_back(at);
     }
 
     /// Un-counts the failure for `key` at `at`.
     fn forget(&mut self, key: &K, at: Instant) {
-        if let Some(times) = self.0.get_mut(key)
+        if let Some(times) = self.times.get_mut(key)
             && let Some(index) = times.iter().position(|&time| time == at)
         {
             times.remove(index);
@@ -165,7 +179,7 @@ impl<K: Hash + Eq> Window<K> {
 
     /// Un-counts every failure for `key`.
     fn clear(&mut self, key: &K) {
-        self.0.remove(key);
+        self.times.remove(key);
     }
 }
 
@@ -193,5 +207,24 @@ mod tests {
 
         assert_eq!(blocked.retry_after_secs(), 60);
         assert!(admitted.is_ok(), "the first failure is still counted");
+    }
+
+    #[test]
+    fn a_name_users_may_have_is_counted_whole_even_if_lowercasing_lengthens_it() {
+        // "İ" lowercases to two characters.
+        let longest = "İ".repeat(*NAME_LENGTH.end());
+
+        assert_eq!(counted_name_key(&longest), name_key(&longest));
+    }
+
+    #[test]
+    fn keys_whose_failures_left_the_window_are_dropped() {
+        let mut window = Window::default();
+        let start = Instant::now();
+        window.record("gone", start);
+
+        window.record("new", start + WINDOW);
+
+        assert_eq!(window.times.keys().collect::<Vec<_>>(), [&"new"]);
     }
 }
