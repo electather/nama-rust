@@ -1,0 +1,41 @@
+{
+  "air_date": "2001-07-09",
+  "episodes": [
+    {
+      "air_date": "2001-07-09",
+      "episode_number": 1,
+      "episode_type": "standard",
+      "id": 2996001,
+      "name": "Downsize",
+      "overview": "",
+      "runtime": null,
+      "season_number": 1,
+      "show_id": 2996,
+      "still_path": null
+    },
+    {
+      "air_date": "2001-07-09",
+      "episode_number": 2,
+      "episode_type": "standard",
+      "id": 2996002,
+      "name": "Work Experience",
+      "overview": "",
+      "runtime": null,
+      "season_number": 1,
+      "show_id": 2996,
+      "still_path": null
+    }
+  ],
+  "name": "Season 1",
+  "overview": "",
+  "id": 29961,
+  "poster_path": null,
+  "season_number": 1,
+  "external_ids": {
+    "tvdb_id": null,
+    "freebase_mid": null,
+    "freebase_id": null,
+    "tvrage_id": null,
+    "wikidata_id": null
+  }
+}

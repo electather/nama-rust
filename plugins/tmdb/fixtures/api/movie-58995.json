@@ -1,0 +1,32 @@
+{
+  "adult": false,
+  "backdrop_path": null,
+  "genres": [
+    {
+      "id": 18,
+      "name": "Drama"
+    },
+    {
+      "id": 10770,
+      "name": "TV Movie"
+    }
+  ],
+  "id": 58995,
+  "imdb_id": "tt0250542",
+  "original_language": "en",
+  "original_title": "Hamlet",
+  "overview": "A television adaptation of Shakespeare's play about the Prince of Denmark.",
+  "poster_path": "/jJdKSRj8mm5MOcJcQ3a2TszlNPf.jpg",
+  "release_date": "2000-12-10",
+  "runtime": 178,
+  "status": "Released",
+  "title": "Hamlet",
+  "video": false,
+  "external_ids": {
+    "imdb_id": "tt0250542",
+    "wikidata_id": null,
+    "facebook_id": null,
+    "instagram_id": null,
+    "twitter_id": null
+  }
+}

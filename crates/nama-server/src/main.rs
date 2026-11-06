@@ -104,7 +104,7 @@ async fn main() -> ExitCode {
         info!("shutting down");
     };
     let db = Arc::new(db);
-    let served = nama_server::serve(listener, &config, Arc::clone(&db), shutdown).await;
+    let served = nama_server::serve(listener, &config, Arc::clone(&db), plugins, shutdown).await;
     // Serving has finished, so this is the last handle and the database can close cleanly.
     if let Some(db) = Arc::into_inner(db) {
         db.close().await;

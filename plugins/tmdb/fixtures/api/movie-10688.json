@@ -1,0 +1,28 @@
+{
+  "adult": false,
+  "backdrop_path": null,
+  "genres": [
+    {
+      "id": 18,
+      "name": "Drama"
+    }
+  ],
+  "id": 10688,
+  "imdb_id": "tt0171359",
+  "original_language": "en",
+  "original_title": "Hamlet",
+  "overview": "Shakespeare's tragedy is set in modern-day New York, where Hamlet's uncle has taken over the Denmark Corporation.",
+  "poster_path": "/kBQnJx2FaIPbPPhoSqLXa6qp8gw.jpg",
+  "release_date": "2000-05-12",
+  "runtime": 112,
+  "status": "Released",
+  "title": "Hamlet",
+  "video": false,
+  "external_ids": {
+    "imdb_id": "tt0171359",
+    "wikidata_id": null,
+    "facebook_id": null,
+    "instagram_id": null,
+    "twitter_id": null
+  }
+}

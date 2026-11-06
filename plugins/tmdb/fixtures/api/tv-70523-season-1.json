@@ -1,0 +1,16 @@
+{
+  "_id": "5a2b0e3e925141032e0d8d2a",
+  "air_date": "2017-12-01",
+  "episodes": [
+    {"air_date": "2017-12-01", "episode_number": 1, "episode_type": "standard", "id": 1388538, "name": "Secrets", "overview": "In 2019, a local boy's disappearance stokes fear in the residents of Winden, a small German town with a strange and tragic history.", "production_code": "", "runtime": 52, "season_number": 1, "show_id": 70523, "still_path": "/gNnJBvHy3VBkGrsl9ffpkf6ucP3.jpg", "vote_average": 7.8, "vote_count": 120},
+    {"air_date": "2017-12-01", "episode_number": 2, "episode_type": "standard", "id": 1388539, "name": "Lies", "overview": "Mikkel's disappearance sends the police after the wrong man, while Jonas makes a discovery in the caves.", "production_code": "", "runtime": 44, "season_number": 1, "show_id": 70523, "still_path": "/qnF7sOyOTeOXBp5aSl8bEtyxjYt.jpg", "vote_average": 7.9, "vote_count": 98},
+    {"air_date": "2017-12-01", "episode_number": 3, "episode_type": "standard", "id": 1388540, "name": "Past and Present", "overview": "It's 1986, and Ulrich's brother Mads has been missing for a month.", "production_code": "", "runtime": 46, "season_number": 1, "show_id": 70523, "still_path": "/5D1T9tUoDzkWCZKZCO4njMLnpu8.jpg", "vote_average": 8.0, "vote_count": 95}
+  ],
+  "name": "Season 1",
+  "overview": "",
+  "id": 90954,
+  "poster_path": "/5LoHuHWA4H8jElFlZDvsmU2n63b.jpg",
+  "season_number": 1,
+  "vote_average": 8.3,
+  "external_ids": {"freebase_mid": null, "freebase_id": null, "tvdb_id": 727934, "tvrage_id": null, "wikidata_id": null}
+}

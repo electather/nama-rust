@@ -10,12 +10,15 @@
 //!   modify it, or veto it. Each Intercept Extension Point declares, as its [`OnFailure`], whether
 //!   an Interceptor that fails lets the action through or blocks it.
 //! - **Provide**: a capability the Server needs, looked up by its trait (for example
-//!   `dyn MetadataSource`). A Plugin registers a Provider as an `Arc` of that trait object.
+//!   [`dyn MetadataProvider`](metadata::MetadataProvider)). A Plugin registers a Provider as an
+//!   `Arc` of that trait object.
 //!
 //! When the Kernel enables a Plugin it calls [`Plugin::register`] with a fresh [`Registrar`].
 //! Everything registered there belongs to that Plugin, so disabling the Plugin removes all of it.
 
+pub mod metadata;
 pub mod points;
+pub mod settings;
 
 use std::{
     any::{Any, TypeId},
@@ -27,6 +30,8 @@ use std::{
     sync::Arc,
     time::Duration,
 };
+
+use crate::settings::{Settings, SettingsSchema};
 
 /// A boxed future that can move between threads, as Extension Point handlers return.
 ///
@@ -72,10 +77,17 @@ pub trait Plugin: Send + Sync + 'static {
     /// The Plugin's version, for the log and the admin.
     fn version(&self) -> &str;
 
+    /// The settings the Plugin takes, so an admin UI can render a form for them. The Kernel
+    /// enables the Plugin only with settings that fit it.
+    fn settings_schema(&self) -> SettingsSchema {
+        SettingsSchema::default()
+    }
+
     /// Registers the Plugin's Observers, Interceptors and Providers.
     ///
-    /// Called each time the Plugin is enabled. Everything registered here is removed again when
-    /// the Plugin is disabled.
+    /// Called each time the Plugin is enabled, with the Plugin's settings in
+    /// [`Registrar::settings`]. Everything registered here is removed again when the Plugin is
+    /// disabled.
     fn register(&self, registrar: &mut Registrar);
 }
 
@@ -295,14 +307,31 @@ impl fmt::Debug for Registration {
 /// Collects what one Plugin registers while it is being enabled.
 #[derive(Debug, Default)]
 pub struct Registrar {
+    settings: Settings,
     registrations: Vec<Registration>,
 }
 
 impl Registrar {
-    /// An empty Registrar. The Kernel makes one for each Plugin it enables.
+    /// An empty Registrar with no settings. The Kernel makes one for each Plugin it enables.
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// An empty Registrar handing the Plugin `settings`, which fit its schema.
+    #[must_use]
+    pub fn with_settings(settings: Settings) -> Self {
+        Self {
+            settings,
+            registrations: Vec::new(),
+        }
+    }
+
+    /// The settings the Plugin is being enabled with, checked against its
+    /// [`Plugin::settings_schema`] and with its defaults filled in.
+    #[must_use]
+    pub const fn settings(&self) -> &Settings {
+        &self.settings
     }
 
     /// Registers an Observer at the Observe Extension Point `P`.

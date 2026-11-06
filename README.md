@@ -14,6 +14,18 @@ A self-hosted media server and request manager, with an optional central Hub for
 | [`plugins/`](plugins) | Built-in Plugins |
 | [`proto/`](proto) | The Protobuf API schema |
 
+## Metadata from TMDB
+
+A Server Matches the files in its Libraries to Movies and Shows using the built-in TMDB Plugin ([`plugins/tmdb`](plugins/tmdb)). It needs a TMDB API key, which you can get for free from [themoviedb.org](https://www.themoviedb.org/settings/api). Put it in the Server's `nama.toml`:
+
+```toml
+[plugins.tmdb]
+api_key = "your TMDB API key"
+# language = "en-US"   # the language titles and overviews are fetched in
+```
+
+Without a key the Plugin isn't enabled and every file stays Unmatched.
+
 ## Checks
 
 CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs the following, and every warning fails it:
@@ -33,3 +45,7 @@ It also checks that the generated code and the sqlx query data are current. If y
 ## License
 
 The Server, Hub, `nama-plugin-api` and Built-in Plugins are AGPL-3.0-only ([`LICENSE`](LICENSE)). The contracts that others build against, `nama-proto`, `nama-pdk` and `proto/`, are MIT OR Apache-2.0 (ADR 0009). Each crate's `Cargo.toml` states its license.
+
+## Attribution
+
+This product uses the TMDB API but is not endorsed or certified by TMDB. Metadata and images are provided by [The Movie Database (TMDB)](https://www.themoviedb.org).

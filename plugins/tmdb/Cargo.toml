@@ -1,0 +1,36 @@
+[package]
+name = "nama-plugin-tmdb"
+version = "0.1.0"
+description = "Built-in Plugin providing metadata from TMDB"
+license = "AGPL-3.0-only"
+edition.workspace = true
+repository.workspace = true
+
+[features]
+# `testing::FakeTmdb`: a local stand-in for TMDB serving the recorded responses in fixtures/.
+testing = ["dep:axum", "tokio/net"]
+
+# Built-in Plugins depend on no workspace crate but nama-plugin-api and nama-proto (ADR 0006).
+[dependencies]
+axum = { version = "0.8", default-features = false, features = ["http1", "tokio", "query"], optional = true }
+bytes = "1"
+http = "1"
+http-body-util = "0.1"
+# ring, not rustls's default aws-lc-rs (OpenSSL license), and the OS's root certificates, not
+# rustls-platform-verifier's bundled webpki-root-certs (CDLA license): deny.toml allows neither.
+hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "tls12", "ring", "native-tokio"] }
+hyper-util = { version = "0.1", features = ["client-legacy", "http1", "tokio"] }
+nama-plugin-api = { version = "0.1.0", path = "../../crates/nama-plugin-api" }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["time"] }
+tracing = "0.1"
+url = "2"
+
+[dev-dependencies]
+nama-plugin-tmdb = { path = ".", features = ["testing"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+
+[lints]
+workspace = true

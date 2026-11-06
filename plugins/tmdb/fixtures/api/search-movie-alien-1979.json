@@ -1,0 +1,10 @@
+{
+  "page": 1,
+  "results": [
+    {"adult": false, "backdrop_path": "/AmR3JG1VQVxU8TfAvljUhfSFUOx.jpg", "genre_ids": [27, 878], "id": 348, "original_language": "en", "original_title": "Alien", "overview": "During its return to the earth, commercial spaceship Nostromo intercepts a distress signal from a distant planet.", "popularity": 54.1, "poster_path": "/vfrQk5IPloGg1v9Rzbh2Eg3VGyM.jpg", "release_date": "1979-05-25", "title": "Alien", "video": false, "vote_average": 8.2, "vote_count": 15210},
+    {"adult": false, "backdrop_path": "/9SSEUrSqhljBMzRe4aBTh17rUaC.jpg", "genre_ids": [878, 27], "id": 945961, "original_language": "en", "original_title": "Alien: Romulus", "overview": "While scavenging the deep ends of a derelict space station, a group of young space colonizers come face to face with the most terrifying life form in the universe.", "popularity": 210.4, "poster_path": "/b33nnKl1GSFbao4l3fZDDqsMx0F.jpg", "release_date": "2024-08-13", "title": "Alien: Romulus", "video": false, "vote_average": 7.2, "vote_count": 3104},
+    {"adult": false, "backdrop_path": "/jMBpJFRtrtIXymer93XLavPwI3P.jpg", "genre_ids": [28, 53, 878], "id": 679, "original_language": "en", "original_title": "Aliens", "overview": "Ripley, the sole survivor of the Nostromo's deadly encounter with the monstrous Alien, returns to Earth after drifting through space in hypersleep for 57 years.", "popularity": 41.9, "poster_path": "/r1x5JGpyqZU8PYhbs4UcrO1Xb6x.jpg", "release_date": "1986-07-18", "title": "Aliens", "video": false, "vote_average": 7.9, "vote_count": 9802}
+  ],
+  "total_pages": 1,
+  "total_results": 3
+}

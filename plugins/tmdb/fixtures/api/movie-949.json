@@ -1,0 +1,21 @@
+{
+  "adult": false,
+  "backdrop_path": "/rfEXNlql4CafRmtgp2VLrdyBMCo.jpg",
+  "genres": [{"id": 28, "name": "Action"}, {"id": 80, "name": "Crime"}, {"id": 18, "name": "Drama"}],
+  "id": 949,
+  "imdb_id": "tt0113277",
+  "original_language": "en",
+  "original_title": "Heat",
+  "overview": "Obsessive master thief Neil McCauley leads a top-notch crew on various daring heists throughout Los Angeles.",
+  "popularity": 40.2,
+  "poster_path": "/umSVjVdbVwtx5ryCA2QXL44Durm.jpg",
+  "release_date": "1995-12-15",
+  "runtime": 170,
+  "status": "Released",
+  "tagline": "A Los Angeles crime saga.",
+  "title": "Heat",
+  "video": false,
+  "vote_average": 7.9,
+  "vote_count": 7400,
+  "external_ids": {"imdb_id": "tt0113277", "wikidata_id": "Q190908", "facebook_id": null, "instagram_id": null, "twitter_id": null}
+}
