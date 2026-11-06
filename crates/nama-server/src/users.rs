@@ -105,9 +105,21 @@ pub(crate) struct Session {
 
 /// A Device just signed in, and the session token it was given. Not `Debug`, so the token can't
 /// end up in a log.
-pub(crate) struct SignedIn {
+#[expect(
+    missing_debug_implementations,
+    reason = "it holds a session token, which must never be logged"
+)]
+pub struct SignedIn {
     pub(crate) caller: Caller,
     pub(crate) token: String,
+}
+
+impl SignedIn {
+    /// The session token the Device presents from now on, as a cookie or a bearer token.
+    #[must_use]
+    pub fn token(&self) -> &str {
+        &self.token
+    }
 }
 
 /// A credential string the Kernel keeps for a User, and the Plugin whose Authenticator made it,
@@ -119,7 +131,7 @@ struct Credential {
 
 /// Why a change to the Users was refused or failed. No variant holds a password or a token.
 #[derive(Debug, thiserror::Error)]
-pub(crate) enum Error {
+pub enum Error {
     /// The request itself is wrong, such as a name that is too long or a password the
     /// Authenticator rejects, for this reason.
     #[error("{0}")]
@@ -197,9 +209,33 @@ impl Users {
         Ok(SignedIn { caller, token })
     }
 
+    /// Creates a Member named `name` with `password`, who can then sign in.
+    ///
+    /// # Errors
+    ///
+    /// If the name is invalid or taken, the Authenticator refuses the password or fails, or the
+    /// database fails.
+    pub async fn create_member(&self, name: &str, password: &str) -> Result<(), Error> {
+        let name = checked_name("a User's name", name)?;
+        let credential = self.hash_password(password).await?;
+        self.db
+            .write(move |tx| {
+                Box::pin(async move {
+                    let user = insert_user(tx, &name, Role::Member).await?;
+                    insert_credential(tx, user.id, &credential).await
+                })
+            })
+            .await
+    }
+
     /// Signs the Device `device_name` in as the User named `name`, ignoring case, if `password` is
     /// theirs.
-    pub(crate) async fn sign_in(
+    ///
+    /// # Errors
+    ///
+    /// If the Device name is invalid, the name or password is wrong, the Authenticator fails, or
+    /// the database fails.
+    pub async fn sign_in(
         &self,
         name: &str,
         password: &str,
@@ -556,16 +592,26 @@ async fn insert_first_admin(
         return Err(Error::AlreadySetUp);
     }
     let user = insert_user(conn, name, Role::Admin).await?;
+    insert_credential(conn, user.id, credential).await?;
+    let device = insert_device(conn, user.id, device_name, token_hash).await?;
+    Ok(Caller { user, device })
+}
+
+/// Stores `credential` for the User `user`.
+async fn insert_credential(
+    conn: &mut SqliteConnection,
+    user: i64,
+    credential: &Credential,
+) -> Result<(), Error> {
     sqlx::query!(
         "INSERT INTO user_credentials (user_id, plugin, credential) VALUES (?, ?, ?)",
-        user.id,
+        user,
         credential.plugin.as_str(),
         credential.value,
     )
-    .execute(&mut *conn)
+    .execute(conn)
     .await?;
-    let device = insert_device(conn, user.id, device_name, token_hash).await?;
-    Ok(Caller { user, device })
+    Ok(())
 }
 
 /// What a User's trimmed `name` is stored and looked up under, so names are unique and found
