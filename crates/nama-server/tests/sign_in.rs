@@ -1,15 +1,21 @@
-//! Creating the first Admin with the Setup Code, and finding out who is signed in, over a real
-//! socket and against a real SQLite database.
+//! Creating the first Admin with the Setup Code, signing Devices in and out, and finding out who
+//! is signed in, over a real socket and against a real SQLite database.
 
 use std::{
     io,
     net::SocketAddr,
     path::Path,
     sync::{Arc, Mutex, PoisonError},
+    time::Duration,
 };
 
+use connectrpc::client::{CallOptions, ClientConfig, HttpClient, ServerStream};
 use hyper::HeaderMap;
 use nama_plugin_local_auth::LocalAuth;
+use nama_proto::nama::v1::{
+    __buffa::view::SubscribeResponseView, CreateLibraryRequest, EventServiceClient, LibraryKind,
+    LibraryServiceClient, ScanLibraryRequest, SubscribeRequest, SubscribeResponse,
+};
 use nama_server::{config::Config, db::Database, plugins::Registry, users::SetupCode};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -147,7 +153,7 @@ async fn post_json(
     }
 }
 
-/// The token a `TOKEN` setup handed out.
+/// The token a `TOKEN` setup or sign-in handed out.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
@@ -288,7 +294,11 @@ async fn a_cookie_setup_sets_an_http_only_strict_cookie_and_leaves_the_token_out
 
     let (token, attributes) = session_cookie(&setup);
     assert!(token.starts_with("nama_"), "{token}");
-    assert_eq!(attributes, ["HttpOnly", "SameSite=Strict", "Path=/"]);
+    // 90 days, as long as an unused Device lasts.
+    assert_eq!(
+        attributes,
+        ["HttpOnly", "SameSite=Strict", "Path=/", "Max-Age=7776000"]
+    );
     assert_eq!(setup.body.get("token"), None, "{}", setup.body);
 }
 
@@ -307,7 +317,13 @@ async fn a_cookie_setup_behind_an_https_proxy_sets_a_secure_cookie() {
     let (_, attributes) = session_cookie(&setup);
     assert_eq!(
         attributes,
-        ["HttpOnly", "SameSite=Strict", "Path=/", "Secure"]
+        [
+            "HttpOnly",
+            "SameSite=Strict",
+            "Path=/",
+            "Max-Age=7776000",
+            "Secure"
+        ]
     );
 }
 
@@ -497,6 +513,20 @@ async fn neither_the_password_nor_the_token_is_logged_even_at_trace() {
     let token = token(&setup);
     let bearer = format!("Bearer {token}");
     call(&server, "WhoAmI", &json!({}), &[("authorization", &bearer)]).await;
+    let wrong = "a wrong password";
+    let refused = sign_in_request("Ada", wrong, "SESSION_DELIVERY_TOKEN");
+    call(&server, "SignIn", &refused, &[]).await;
+    let signed_in = sign_in(&server, "SESSION_DELIVERY_COOKIE").await;
+    let (cookie_token, _) = session_cookie(&signed_in);
+    let cookie = format!("nama_session={cookie_token}");
+    call(&server, "SignOut", &json!({}), &[("cookie", &cookie)]).await;
+    call(
+        &server,
+        "SignOut",
+        &json!({}),
+        &[("authorization", &bearer)],
+    )
+    .await;
 
     let logged = log.contents();
     assert!(
@@ -504,5 +534,279 @@ async fn neither_the_password_nor_the_token_is_logged_even_at_trace() {
         "nothing was captured: {logged}"
     );
     assert!(!logged.contains(PASSWORD), "the password was logged");
+    assert!(!logged.contains(wrong), "a wrong password was logged");
     assert!(!logged.contains(&token), "the token was logged");
+    assert!(
+        !logged.contains(&cookie_token),
+        "the cookie's token was logged"
+    );
+}
+
+/// Creates the first Admin, Ada, signed in on the Device "Laptop" with a token.
+async fn set_up(server: &TestServer) -> Reply {
+    call(
+        server,
+        "Setup",
+        &setup_request(server, "SESSION_DELIVERY_TOKEN"),
+        &[],
+    )
+    .await
+}
+
+/// Signs Ada in on the Device "Phone" with her password, asking for `delivery`.
+async fn sign_in(server: &TestServer, delivery: &str) -> Reply {
+    call(
+        server,
+        "SignIn",
+        &sign_in_request("Ada", PASSWORD, delivery),
+        &[],
+    )
+    .await
+}
+
+/// A `SignIn` request as `name` with `password`, asking for `delivery`.
+fn sign_in_request(name: &str, password: &str, delivery: &str) -> Value {
+    json!({
+        "name": name,
+        "password": password,
+        "deviceName": "Phone",
+        "delivery": delivery,
+    })
+}
+
+#[tokio::test]
+async fn sign_in_with_the_right_password_works_with_the_name_in_any_case() {
+    let server = start().await;
+    set_up(&server).await;
+
+    let signed_in = call(
+        &server,
+        "SignIn",
+        &sign_in_request("aDA", PASSWORD, "SESSION_DELIVERY_TOKEN"),
+        &[],
+    )
+    .await;
+    let bearer = format!("Bearer {}", token(&signed_in));
+    let me = call(&server, "WhoAmI", &json!({}), &[("authorization", &bearer)]).await;
+
+    assert_eq!(me.body["user"]["name"], "Ada", "{}", me.body);
+    assert_eq!(me.body["device"]["name"], "Phone");
+}
+
+#[tokio::test]
+async fn sign_in_with_a_wrong_password_is_refused() {
+    let server = start().await;
+    set_up(&server).await;
+
+    let refused = call(
+        &server,
+        "SignIn",
+        &sign_in_request("Ada", "not the password", "SESSION_DELIVERY_TOKEN"),
+        &[],
+    )
+    .await;
+
+    assert_eq!(refused.body["code"], "unauthenticated", "{}", refused.body);
+}
+
+#[tokio::test]
+async fn sign_in_with_an_unknown_name_is_refused_the_same_way_as_a_wrong_password() {
+    let server = start().await;
+    set_up(&server).await;
+
+    let wrong_password = call(
+        &server,
+        "SignIn",
+        &sign_in_request("Ada", "not the password", "SESSION_DELIVERY_TOKEN"),
+        &[],
+    )
+    .await;
+    let unknown_name = call(
+        &server,
+        "SignIn",
+        &sign_in_request("Grace", PASSWORD, "SESSION_DELIVERY_TOKEN"),
+        &[],
+    )
+    .await;
+
+    assert_eq!(
+        (unknown_name.status, unknown_name.body),
+        (wrong_password.status, wrong_password.body)
+    );
+}
+
+#[tokio::test]
+async fn a_cookie_sign_in_sets_the_cookie_and_leaves_the_token_out_of_the_body() {
+    let server = start().await;
+    set_up(&server).await;
+
+    let signed_in = sign_in(&server, "SESSION_DELIVERY_COOKIE").await;
+
+    let (token, _) = session_cookie(&signed_in);
+    assert!(token.starts_with("nama_"), "{token}");
+    assert_eq!(signed_in.body.get("token"), None, "{}", signed_in.body);
+}
+
+#[tokio::test]
+async fn signing_out_makes_the_token_stop_working_at_once() {
+    let server = start().await;
+    let bearer = format!("Bearer {}", token(&set_up(&server).await));
+    let auth = [("authorization", bearer.as_str())];
+
+    let signed_out = call(&server, "SignOut", &json!({}), &auth).await;
+    let me = call(&server, "WhoAmI", &json!({}), &auth).await;
+
+    assert_eq!(signed_out.status, 200, "{}", signed_out.body);
+    assert_eq!(me.body["code"], "unauthenticated", "{}", me.body);
+}
+
+#[tokio::test]
+async fn signing_out_a_cookie_session_clears_the_cookie() {
+    let server = start().await;
+    set_up(&server).await;
+    let signed_in = sign_in(&server, "SESSION_DELIVERY_COOKIE").await;
+    let (token, _) = session_cookie(&signed_in);
+    let cookie = format!("nama_session={token}");
+
+    let signed_out = call(&server, "SignOut", &json!({}), &[("cookie", &cookie)]).await;
+
+    let (cleared, attributes) = session_cookie(&signed_out);
+    assert_eq!(cleared, "");
+    assert!(
+        attributes.contains(&"Max-Age=0".to_owned()),
+        "{attributes:?}"
+    );
+}
+
+#[tokio::test]
+async fn signing_out_a_bearer_session_sets_no_cookie() {
+    let server = start().await;
+    let bearer = format!("Bearer {}", token(&set_up(&server).await));
+
+    let signed_out = call(
+        &server,
+        "SignOut",
+        &json!({}),
+        &[("authorization", &bearer)],
+    )
+    .await;
+
+    assert_eq!(signed_out.headers.get("set-cookie"), None);
+}
+
+#[tokio::test]
+async fn signing_out_without_a_session_is_unauthenticated() {
+    let server = start().await;
+
+    let signed_out = call(&server, "SignOut", &json!({}), &[]).await;
+
+    assert_eq!(
+        signed_out.body["code"], "unauthenticated",
+        "{}",
+        signed_out.body
+    );
+}
+
+/// How long a test waits for a stream before failing.
+const WAIT: Duration = Duration::from_secs(10);
+
+/// A subscription to the Server's events.
+type Subscription = ServerStream<hyper::body::Incoming, SubscribeResponseView<'static>>;
+
+/// Client settings that point at `server`.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+fn client_config(server: &TestServer) -> ClientConfig {
+    ClientConfig::new(format!("http://{}", server.addr).parse().unwrap())
+}
+
+/// Call options that send `token` as a bearer token.
+fn bearer(token: &str) -> CallOptions {
+    CallOptions::default().with_header("authorization", format!("Bearer {token}"))
+}
+
+/// Subscribes to every event with the session `token`.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn subscribe(server: &TestServer, token: &str) -> Subscription {
+    EventServiceClient::new(HttpClient::plaintext(), client_config(server))
+        .subscribe_with_options(SubscribeRequest::default(), bearer(token))
+        .await
+        .unwrap()
+}
+
+/// The next message on `subscription`, or `None` if it ended.
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn next_message(subscription: &mut Subscription) -> Option<SubscribeResponse> {
+    let message = tokio::time::timeout(WAIT, subscription.message::<SubscribeResponse>())
+        .await
+        .expect("timed out waiting for the stream")
+        .unwrap()?;
+    Some(message.to_owned_message())
+}
+
+/// Creates a Library over an empty folder and scans it, so every subscriber gets a
+/// `ScanStarted`. Returns the folder.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn scan_a_library(server: &TestServer, token: &str) -> TempDir {
+    let folder = tempfile::tempdir().unwrap();
+    let libraries = LibraryServiceClient::new(HttpClient::plaintext(), client_config(server));
+    let create = CreateLibraryRequest {
+        name: "Movies".to_owned(),
+        kind: LibraryKind::LIBRARY_KIND_MOVIES.into(),
+        folders: vec![folder.path().to_str().unwrap().to_owned()],
+        ..Default::default()
+    };
+    let library = libraries
+        .create_library_with_options(create, bearer(token))
+        .await
+        .unwrap()
+        .into_owned()
+        .library
+        .into_option()
+        .unwrap();
+    let scan = ScanLibraryRequest {
+        id: library.id,
+        ..Default::default()
+    };
+    libraries
+        .scan_library_with_options(scan, bearer(token))
+        .await
+        .unwrap();
+    folder
+}
+
+#[tokio::test]
+async fn signing_out_ends_that_devices_event_streams_and_leaves_other_devices_open() {
+    let server = start().await;
+    let laptop = token(&set_up(&server).await);
+    let phone = token(&sign_in(&server, "SESSION_DELIVERY_TOKEN").await);
+    let mut laptop_events = subscribe(&server, &laptop).await;
+    let mut phone_events = subscribe(&server, &phone).await;
+
+    let bearer = format!("Bearer {laptop}");
+    call(
+        &server,
+        "SignOut",
+        &json!({}),
+        &[("authorization", &bearer)],
+    )
+    .await;
+    let laptop_next = next_message(&mut laptop_events).await;
+    let _folder = scan_a_library(&server, &phone).await;
+    let phone_next = next_message(&mut phone_events).await;
+
+    assert_eq!(laptop_next, None, "the signed-out Device's stream is open");
+    assert!(phone_next.is_some(), "the other Device's stream ended");
 }

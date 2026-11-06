@@ -79,6 +79,10 @@ pub mod __buffa {
         reg.register_json_any(super::__DEVICE_JSON_ANY);
         reg.register_json_any(super::__SETUP_REQUEST_JSON_ANY);
         reg.register_json_any(super::__SETUP_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__SIGN_IN_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__SIGN_IN_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__SIGN_OUT_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__SIGN_OUT_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__WHO_AM_I_REQUEST_JSON_ANY);
         reg.register_json_any(super::__WHO_AM_I_RESPONSE_JSON_ANY);
     }
@@ -231,6 +235,22 @@ pub use self::__buffa::view::SetupRequestOwnedView;
 pub use self::__buffa::view::SetupResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::SetupResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SignInRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::SignInRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SignInResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::SignInResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SignOutRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::SignOutRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SignOutResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::SignOutResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::WhoAmIRequestView;
 #[doc(inline)]

@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT d.id AS \"device_id!\", d.name AS device_name,\n                      u.id AS \"user_id!\", u.name AS user_name, u.role AS \"role: Role\"\n               FROM devices d JOIN users u ON u.id = d.user_id\n               WHERE d.token_hash = ?",
+  "query": "SELECT d.id AS \"device_id!\", d.name AS device_name, d.last_seen_at,\n                      u.id AS \"user_id!\", u.name AS user_name, u.role AS \"role: Role\"\n               FROM devices d JOIN users u ON u.id = d.user_id\n               WHERE d.token_hash = ? AND d.last_seen_at > ?",
   "describe": {
     "columns": [
       {
@@ -26,8 +26,19 @@
         }
       },
       {
-        "name": "user_id!",
+        "name": "last_seen_at",
         "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "devices",
+            "name": "last_seen_at"
+          }
+        }
+      },
+      {
+        "name": "user_id!",
+        "ordinal": 3,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -38,7 +49,7 @@
       },
       {
         "name": "user_name",
-        "ordinal": 3,
+        "ordinal": 4,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -49,7 +60,7 @@
       },
       {
         "name": "role: Role",
-        "ordinal": 4,
+        "ordinal": 5,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -60,9 +71,10 @@
       }
     ],
     "parameters": {
-      "Right": 1
+      "Right": 2
     },
     "nullable": [
+      false,
       false,
       false,
       false,
@@ -70,5 +82,5 @@
       false
     ]
   },
-  "hash": "c147bc28e25801779ab30944a4f37598cb1e7758ce2095bb4338101cb0f3227c"
+  "hash": "96f703ab30d5a5317bfbf21430166e093d79ade6fdcb7a4ba7267bd2f3230ca8"
 }

@@ -6,6 +6,22 @@ pub type OwnedSetupRequestView = ::buffa::view::OwnedView<
 pub type OwnedSetupResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::SetupResponseView<'static>,
 >;
+///Shorthand for `OwnedView<SignInRequestView<'static>>`.
+pub type OwnedSignInRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SignInRequestView<'static>,
+>;
+///Shorthand for `OwnedView<SignInResponseView<'static>>`.
+pub type OwnedSignInResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SignInResponseView<'static>,
+>;
+///Shorthand for `OwnedView<SignOutRequestView<'static>>`.
+pub type OwnedSignOutRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SignOutRequestView<'static>,
+>;
+///Shorthand for `OwnedView<SignOutResponseView<'static>>`.
+pub type OwnedSignOutResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SignOutResponseView<'static>,
+>;
 ///Shorthand for `OwnedView<WhoAmIRequestView<'static>>`.
 pub type OwnedWhoAmIRequestView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::WhoAmIRequestView<'static>,
@@ -26,6 +42,74 @@ for crate::messages::nama::v1::__buffa::view::SetupResponseView<'_> {
 impl ::connectrpc::Encodable<crate::messages::nama::v1::SetupResponse>
 for ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::SetupResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::SignInResponse>
+for crate::messages::nama::v1::__buffa::view::SignInResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::SignInResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SignInResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::SignOutResponse>
+for crate::messages::nama::v1::__buffa::view::SignOutResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::SignOutResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SignOutResponseView<'static>,
 > {
     fn encode(
         &self,
@@ -90,6 +174,18 @@ pub const SIGN_IN_SERVICE_SETUP_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::s
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
+/// Static [`Spec`](::connectrpc::Spec) for the `SignIn` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const SIGN_IN_SERVICE_SIGN_IN_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.SignInService/SignIn",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
+/// Static [`Spec`](::connectrpc::Spec) for the `SignOut` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const SIGN_IN_SERVICE_SIGN_OUT_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.SignInService/SignOut",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
 /// Static [`Spec`](::connectrpc::Spec) for the `WhoAmI` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
 pub const SIGN_IN_SERVICE_WHO_AM_I_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
         "/nama.v1.SignInService/WhoAmI",
@@ -101,6 +197,8 @@ pub const SIGN_IN_SERVICE_WHO_AM_I_SPEC: ::connectrpc::Spec = ::connectrpc::Spec
 /// A signed-in Device holds a session: a cookie for browsers, or a bearer token (`Authorization:
 /// Bearer \<token\>`) for other clients. Either one identifies the same User and Device on every
 /// request.
+///
+/// A Device that goes unused for 90 days expires, and its session stops working.
 ///
 /// # Implementing handlers
 ///
@@ -174,6 +272,56 @@ pub trait SignInService: Send + Sync + 'static {
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
                 crate::messages::nama::v1::SetupResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Signs the calling Device in as an existing User, found by name ignoring case. Fails with
+    /// `unauthenticated` if the name or the password is wrong, without saying which, and with
+    /// `invalid_argument` if the Device name breaks the rules.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn sign_in<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::SignInRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::SignInResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Signs the calling Device out by deleting it: its session stops working at once, its open
+    /// `EventService.Subscribe` streams end, and a cookie session's cookie is cleared. Fails with
+    /// `unauthenticated` without a valid session.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn sign_out<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::SignOutRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::SignOutResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -259,6 +407,62 @@ impl<S: SignInService> SignInServiceExt for S {
                 },
             )
             .with_spec(SIGN_IN_SERVICE_SETUP_SPEC)
+            .route_view(
+                SIGN_IN_SERVICE_SERVICE_NAME,
+                "SignIn",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::SignInRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::SignInRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.sign_in(ctx, sreq)
+                                .await?
+                                .encode::<crate::messages::nama::v1::SignInResponse>(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(SIGN_IN_SERVICE_SIGN_IN_SPEC)
+            .route_view(
+                SIGN_IN_SERVICE_SERVICE_NAME,
+                "SignOut",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::SignOutRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::SignOutRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.sign_out(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::SignOutResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(SIGN_IN_SERVICE_SIGN_OUT_SPEC)
             .route_view_idempotent(
                 SIGN_IN_SERVICE_SERVICE_NAME,
                 "WhoAmI",
@@ -346,6 +550,18 @@ impl<T: SignInService> ::connectrpc::Dispatcher for SignInServiceServer<T> {
                         .with_spec(SIGN_IN_SERVICE_SETUP_SPEC),
                 )
             }
+            "SignIn" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(SIGN_IN_SERVICE_SIGN_IN_SPEC),
+                )
+            }
+            "SignOut" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(SIGN_IN_SERVICE_SIGN_OUT_SPEC),
+                )
+            }
             "WhoAmI" => {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
@@ -385,6 +601,46 @@ impl<T: SignInService> ::connectrpc::Dispatcher for SignInServiceServer<T> {
                     svc.setup(ctx, req)
                         .await?
                         .encode::<crate::messages::nama::v1::SetupResponse>(format)
+                })
+            }
+            "SignIn" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::SignInRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::SignInRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::SignInRequest,
+                    >::from_parts(&req, &body);
+                    svc.sign_in(ctx, req)
+                        .await?
+                        .encode::<crate::messages::nama::v1::SignInResponse>(format)
+                })
+            }
+            "SignOut" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::SignOutRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::SignOutRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::SignOutRequest,
+                    >::from_parts(&req, &body);
+                    svc.sign_out(ctx, req)
+                        .await?
+                        .encode::<crate::messages::nama::v1::SignOutResponse>(format)
                 })
             }
             "WhoAmI" => {
@@ -567,6 +823,82 @@ where
                 &self.transport,
                 &self.config,
                 SIGN_IN_SERVICE_SETUP_SPEC.with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the SignIn RPC. Sends a request to /nama.v1.SignInService/SignIn.
+    pub async fn sign_in(
+        &self,
+        request: crate::messages::nama::v1::SignInRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::SignInResponseView<'static>,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.sign_in_with_options(request, ::connectrpc::client::CallOptions::default())
+            .await
+    }
+    /// Call the SignIn RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn sign_in_with_options(
+        &self,
+        request: crate::messages::nama::v1::SignInRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::SignInResponseView<'static>,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                SIGN_IN_SERVICE_SIGN_IN_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the SignOut RPC. Sends a request to /nama.v1.SignInService/SignOut.
+    pub async fn sign_out(
+        &self,
+        request: crate::messages::nama::v1::SignOutRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::SignOutResponseView<'static>,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.sign_out_with_options(request, ::connectrpc::client::CallOptions::default())
+            .await
+    }
+    /// Call the SignOut RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn sign_out_with_options(
+        &self,
+        request: crate::messages::nama::v1::SignOutRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::SignOutResponseView<'static>,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                SIGN_IN_SERVICE_SIGN_OUT_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,
             )
