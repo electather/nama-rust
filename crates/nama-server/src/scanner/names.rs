@@ -141,11 +141,15 @@ pub(crate) fn is_extra(relative: &Path) -> bool {
     let Some(Split { folders, stem }) = Split::new(relative) else {
         return false;
     };
-    // The first folder can't be inside a title's folder: it may be a title called `Shorts`.
-    let in_extras_folder = folders
-        .iter()
-        .skip(1)
-        .any(|folder| EXTRAS_FOLDERS.contains(&folder.to_lowercase().as_str()));
+    // An extras folder only holds extras straight inside a title's or a Season's folder: a
+    // grouping folder may be called `Shorts`, and so may a title.
+    let in_extras_folder = folders.windows(2).any(|pair| {
+        let [holder, folder] = pair else {
+            return false;
+        };
+        EXTRAS_FOLDERS.contains(&folder.to_lowercase().as_str())
+            && (SEASON_FOLDER.is_match(holder) || title_and_year(holder).is_some())
+    });
     in_extras_folder
         || stem
             .rsplit_once('-')
@@ -586,6 +590,9 @@ mod tests {
             // Folders named like extras folders only hold extras inside a title's folder.
             ("Shorts/Paperman (2012).mkv", false),
             ("Other/Heat (1995)/Heat (1995).mkv", false),
+            ("Collections/Shorts/Paperman (2012).mkv", false),
+            ("Movies/Other/Heat (1995).mkv", false),
+            ("Blade Runner {tmdb-78}/Trailers/Teaser.mkv", true),
             ("Extras/Season 01/Extras - S01E01.mkv", false),
             (
                 "Dark (2017)/Season 01/Dark - S01E01 - Behind the Scenes.mkv",

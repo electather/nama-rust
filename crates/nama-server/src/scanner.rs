@@ -143,7 +143,8 @@ impl Scanner {
             let _running = library.lock().await;
             lock(&scanner.inner.queued).remove(&id);
             match scanner.scan_locked(id).await {
-                Ok(_) | Err(Error::Cancelled) => {}
+                // The Library was deleted after the scan was asked for.
+                Ok(_) | Err(Error::Cancelled | Error::Library(libraries::Error::NotFound(_))) => {}
                 Err(err) => tracing::error!(library = id, "scanning a Library failed: {err}"),
             }
         });
