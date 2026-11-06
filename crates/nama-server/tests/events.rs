@@ -1,15 +1,9 @@
 //! Live updates through the generated `EventService` client, over a real socket.
-#![expect(
-    clippy::unwrap_used,
-    clippy::expect_used,
-    clippy::panic,
-    reason = "test helpers fail their test by panicking"
-)]
 
 #[path = "support/server.rs"]
 mod server;
 
-use std::{sync::Arc, time::Duration};
+use std::{path::PathBuf, sync::Arc, time::Duration};
 
 use connectrpc::{
     ErrorCode,
@@ -42,6 +36,10 @@ struct Fixture {
     _server: TestServer,
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
 impl Fixture {
     async fn start(plugins: Registry) -> Self {
         let server = TestServer::start(Config::default(), plugins).await;
@@ -55,7 +53,7 @@ impl Fixture {
 
     /// Creates a Movies Library named `name` whose folder holds `files`, and returns its id.
     async fn library(&self, name: &str, files: &[&str]) -> i64 {
-        let folder = self.media.path().canonicalize().unwrap().join(name);
+        let folder = self.folder(name);
         for file in files {
             let path = folder.join(file);
             std::fs::create_dir_all(path.parent().unwrap()).unwrap();
@@ -78,10 +76,14 @@ impl Fixture {
             .id
     }
 
+    /// The folder of the Library named `name`.
+    fn folder(&self, name: &str) -> PathBuf {
+        self.media.path().canonicalize().unwrap().join(name)
+    }
+
     /// The absolute path of `file` in the folder of the Library named `name`.
     fn path(&self, name: &str, file: &str) -> String {
-        let folder = self.media.path().canonicalize().unwrap().join(name);
-        folder.join(file).to_str().unwrap().to_owned()
+        self.folder(name).join(file).to_str().unwrap().to_owned()
     }
 
     async fn scan(&self, id: i64) {
@@ -100,6 +102,11 @@ impl Fixture {
 }
 
 /// The next message on `subscription`.
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
 async fn next(subscription: &mut Subscription) -> subscribe_response::Message {
     tokio::time::timeout(WAIT, subscription.message::<SubscribeResponse>())
         .await
@@ -112,6 +119,7 @@ async fn next(subscription: &mut Subscription) -> subscribe_response::Message {
 }
 
 /// The events on `subscription` up to and including the next `ScanFinished`.
+#[expect(clippy::panic, reason = "a test helper fails its test by panicking")]
 async fn until_scan_finished(subscription: &mut Subscription) -> Vec<Event> {
     let mut events = Vec::new();
     loop {
@@ -201,14 +209,14 @@ impl Observer<points::Events> for ForwardObserver {
     }
 }
 
-/// `events` in an order that doesn't depend on the order they came in.
-fn sorted(mut events: Vec<Event>) -> Vec<Event> {
-    events.sort_by_key(|event| format!("{event:?}"));
-    events
+/// `batches` in an order that doesn't depend on the order they came in.
+fn sorted(mut batches: Vec<Vec<Event>>) -> Vec<Vec<Event>> {
+    batches.sort_by_key(|batch| format!("{batch:?}"));
+    batches
 }
 
 #[tokio::test]
-async fn an_observer_is_told_the_same_events_a_subscriber_receives() {
+async fn an_observer_is_told_the_same_events_a_subscriber_receives_in_one_batch_per_write() {
     let (tx, mut observed) = mpsc::unbounded_channel();
     let plugins = Registry::new();
     plugins.enable(Arc::new(Forward(tx))).unwrap();
@@ -227,17 +235,19 @@ async fn an_observer_is_told_the_same_events_a_subscriber_receives() {
     fx.scan(library).await;
     let streamed = until_scan_finished(&mut subscription).await;
 
-    // Batches may reach an Observer in any order, so wait for as many events and compare them as
-    // sets.
+    // The start, then the one write's progress and both Items, then the finish.
+    let [started, progress, first, second, finished] = <[Event; 5]>::try_from(streamed).unwrap();
+    let written = vec![vec![started], vec![progress, first, second], vec![finished]];
+    // Batches may reach an Observer in any order, so compare them as sets.
     let mut told = Vec::new();
-    while told.len() < streamed.len() {
+    while told.len() < written.len() {
         let batch = tokio::time::timeout(WAIT, observed.recv())
             .await
             .expect("timed out waiting for the Observer")
             .expect("the Observer is gone");
-        told.extend(batch);
+        told.push(batch);
     }
-    assert_eq!(sorted(told), sorted(streamed));
+    assert_eq!(sorted(told), sorted(written));
 }
 
 #[tokio::test]
