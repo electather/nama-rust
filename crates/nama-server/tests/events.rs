@@ -126,6 +126,7 @@ async fn until_scan_finished(subscription: &mut Subscription) -> Vec<Event> {
     }
 }
 
+/// The event `event`, as the Server sends it.
 fn event(event: impl Into<event::Event>) -> Event {
     Event {
         event: Some(event.into()),
@@ -189,6 +190,7 @@ impl Plugin for Forward {
     }
 }
 
+/// The Observer [`Forward`] registers.
 struct ForwardObserver(mpsc::UnboundedSender<Vec<Event>>);
 
 impl Observer<points::Events> for ForwardObserver {
