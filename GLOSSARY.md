@@ -38,14 +38,6 @@ _Avoid_: pairing code, PIN, device code
 A one-time code a fresh Server prints to its log, which whoever creates the first Admin must enter.
 _Avoid_: claim token, bootstrap code
 
-**Sign-in Code**:
-A short code a new Device shows so a User already signed in elsewhere can sign it in without typing a password on it.
-_Avoid_: pairing code, PIN, device code
-
-**Setup Code**:
-A one-time code a fresh Server prints to its log, which whoever creates the first Admin must enter.
-_Avoid_: claim token, bootstrap code
-
 **Role**:
 What a User is allowed to do on a Server, either Admin or Member.
 _Avoid_: group, permission level
