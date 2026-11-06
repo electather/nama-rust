@@ -33,7 +33,8 @@ const LANGUAGE: &str = "language";
 /// The language metadata is fetched in unless the admin picks another.
 const DEFAULT_LANGUAGE: &str = "en-US";
 
-/// The Plugin.
+/// The TMDB Built-in Plugin: the Server registers it so that, once an admin gives it an API key,
+/// it provides the [`MetadataProvider`] that Matching searches and fetches titles from.
 #[derive(Debug, Clone, Default)]
 pub struct Tmdb {
     endpoints: Endpoints,

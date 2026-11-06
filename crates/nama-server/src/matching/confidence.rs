@@ -27,13 +27,15 @@ pub(crate) enum Decision {
 
 /// Which of `candidates` the title `title` from `year` Matches.
 pub(crate) fn decide(title: &str, year: Option<i32>, candidates: &[Candidate]) -> Decision {
+    // Every candidate is scored, not just those above the threshold: a runner-up just below it
+    // still fits about as well as the best and so makes the best ambiguous.
     let mut scored: Vec<(f64, &Candidate)> = candidates
         .iter()
         .map(|candidate| (confidence(title, year, candidate), candidate))
-        .filter(|&(score, _)| score >= THRESHOLD)
         .collect();
     scored.sort_by(|a, b| b.0.total_cmp(&a.0));
     match scored.as_slice() {
+        [(best, _), ..] if *best < THRESHOLD => Decision::NoMatch,
         [] => Decision::NoMatch,
         [(best, _), (second, _), ..] if best - second < MARGIN => Decision::Ambiguous,
         [(_, best), ..] => Decision::Match(best.id.clone()),
@@ -255,6 +257,33 @@ mod tests {
             Decision::Ambiguous
         );
         assert_eq!(decide("The Office", None, &no_year), Decision::Ambiguous);
+    }
+
+    #[test]
+    fn a_runner_up_just_below_the_threshold_still_makes_it_ambiguous() {
+        // The file's typo fits the first title at about 0.92 and the second at about 0.84:
+        // within the margin of each other, though only the first clears the threshold.
+        let found = [
+            candidate(
+                120,
+                "The Lord of the Rings: The Fellowship of the Ring",
+                Some(2001),
+            ),
+            candidate(
+                9,
+                "Lord of the Rings: The Fellowship of the Ring",
+                Some(2001),
+            ),
+        ];
+
+        assert_eq!(
+            decide(
+                "The Lord of the Rings - The Fellowshp of the Ring",
+                Some(2001),
+                &found
+            ),
+            Decision::Ambiguous
+        );
     }
 
     #[test]

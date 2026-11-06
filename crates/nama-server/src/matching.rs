@@ -14,8 +14,9 @@
 //!
 //! A Matched or Unmatched item stays so on later scans until its file changes. An item Matching
 //! couldn't decide, because no metadata Provider is enabled or the Provider failed (such as when
-//! TMDB is unreachable or rejects the API key), stays undecided and is tried again on the next
-//! scan. Once the Provider fails, the rest of that pass is left for the next scan too.
+//! TMDB is unreachable or rejects the API key), has no Match and so is Unmatched too, but nothing
+//! is stored for it: it is undecided, and the next scan tries it again. Once the Provider fails,
+//! the rest of that pass is left for the next scan too.
 
 mod confidence;
 
@@ -91,7 +92,8 @@ struct PendingEpisode {
 enum Miss {
     /// Nothing fits: the item is Unmatched.
     Unmatched,
-    /// The metadata Provider couldn't answer; try again on the next scan.
+    /// The metadata Provider couldn't answer: the item is Unmatched for now, but undecided, so
+    /// the next scan tries again.
     Undecided,
 }
 
