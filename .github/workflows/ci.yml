@@ -16,14 +16,14 @@ env:
 
 # Jobs run on autoscaled self-hosted runners on the home lab (electather/home-services,
 # runner-scaler in services/lab/docker-compose.yml). There are only a few of them, so a run
-# uses one runner at a time: `lint` first, then `test`, which only runs once `lint` passes and
-# the PR isn't a draft.
+# uses one runner at a time: `lint` first, then `web`, then `test`, which only runs once both
+# pass and the PR isn't a draft.
 
 jobs:
   # Everything that doesn't depend on the platform, in one job so it needs one runner:
   # formatting, the schema in proto/ (ADR 0007: lint, no breaking changes against main,
-  # generated code in crates/nama-proto is current), .sqlx query data, docs, unused deps and
-  # cargo-deny. Runs on drafts too.
+  # generated code in crates/nama-proto and web/src/gen is current), .sqlx query data, docs,
+  # unused deps and cargo-deny. Runs on drafts too.
   lint:
     name: lint
     runs-on: [self-hosted, nama-rust]
@@ -64,12 +64,17 @@ jobs:
           protoc-gen-buffa@0.9.2
           protoc-gen-buffa-packaging@0.9.2
           connectrpc-codegen@0.9.0
+      # Installs web/'s dependencies, protoc-gen-es among them.
+      - uses: voidzero-dev/setup-vp@cab1ab9eaff52d4857875f4f2c016e36af8f2c76 # v1.22.0
+        with:
+          working-directory: web
+          cache: true
       - name: Generated code is up to date
         run: |
           (cd proto && buf generate)
           git add --all --intent-to-add
           git diff --exit-code || {
-            echo "::error::crates/nama-proto/src/generated is stale; run 'buf generate' in proto/ and commit the result"
+            echo "::error::crates/nama-proto/src/generated or web/src/gen is stale; run 'buf generate' in proto/ and commit the result"
             exit 1
           }
       # Queries are checked at compile time against the query data in .sqlx/, so builds need
@@ -97,6 +102,33 @@ jobs:
       # Advisories, licenses, banned and unknown sources (deny.toml).
       - run: cargo deny check
 
+  # The web app (web/README.md, "Checks"), then the Server serving it with the `web` feature,
+  # which embeds the `vp build` output. Runs on drafts too.
+  web:
+    name: web
+    needs: lint
+    runs-on: [self-hosted, nama-rust]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: voidzero-dev/setup-vp@cab1ab9eaff52d4857875f4f2c016e36af8f2c76 # v1.22.0
+        with:
+          working-directory: web
+          cache: true
+      - name: Web app checks
+        working-directory: web
+        run: |
+          vp check
+          vp test
+          vp build
+          vp run fallow
+      # From the repo root, where impeccable finds .impeccable/config.json (which ignores
+      # web/src/gen) and DESIGN.md. From web/ it would read neither.
+      - name: Design check
+        run: vp dlx impeccable@4.8.0 detect --json web/src
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test -p nama-server --features web --test web --locked
+
   # Release builds target Linux, macOS and Windows, and the Server has
   # platform-specific code (shutdown signals), so this should check all three.
   # macOS and Windows are switched off for now: they need GitHub-hosted
@@ -104,8 +136,8 @@ jobs:
   # turn them back on.
   test:
     name: clippy, build and test (${{ matrix.os }})
-    needs: lint
-    # Draft PRs get lint only; marking one ready for review runs this.
+    needs: web
+    # Draft PRs get lint and web only; marking one ready for review runs this.
     if: github.event_name == 'push' || !github.event.pull_request.draft
     strategy:
       fail-fast: false

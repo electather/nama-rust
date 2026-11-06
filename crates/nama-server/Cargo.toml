@@ -9,6 +9,9 @@ repository.workspace = true
 [features]
 # `contents::Contents::files`: what a Library holds, as integration tests read it back.
 testing = []
+# Embeds the built web app (`web/dist`, from `vp build`) and serves it. Off by default so builds
+# and tests need no Node; release builds turn it on (`dist-workspace.toml`).
+web = []
 
 [dependencies]
 axum = { version = "0.8", default-features = false, features = ["http1", "http2", "tokio"] }

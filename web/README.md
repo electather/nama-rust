@@ -11,14 +11,14 @@ vp env install   # the pinned Node and pnpm
 vp install       # dependencies
 ```
 
-| Job | Command | Tool underneath |
-|---|---|---|
-| Dev server | `vp dev` | Vite |
-| Build | `vp build` | Vite (Rolldown), output in `dist/` |
-| Format, lint, type-check | `vp check` (`vp check --fix` to apply fixes) | oxfmt, oxlint, tsgo |
-| Tests | `vp test` | Vitest on happy-dom |
-| Unused code, duplication, complexity, boundaries | `vp run fallow` | Fallow |
-| Design check | `impeccable detect --json <files>` | impeccable |
+| Job                                              | Command                                        | Tool underneath                    |
+| ------------------------------------------------ | ---------------------------------------------- | ---------------------------------- |
+| Dev server                                       | `vp dev`                                       | Vite                               |
+| Build                                            | `vp build`                                     | Vite (Rolldown), output in `dist/` |
+| Format, lint, type-check                         | `vp check` (`vp check --fix` to apply fixes)   | oxfmt, oxlint, tsgo                |
+| Tests                                            | `vp test`                                      | Vitest on happy-dom                |
+| Unused code, duplication, complexity, boundaries | `vp run fallow`                                | Fallow                             |
+| Design check                                     | `impeccable detect --json <files>` (repo root) | impeccable                         |
 
 All lint, type-check and Fallow config lives in `vite.config.ts`, `tsconfig.json` and the Fallow config. There is no `.oxlintrc`. pnpm's own settings (`minimumReleaseAge`, the allowlist for dependency build scripts, and `runtimeOnFail`/`pmOnFail` set to `ignore` so pnpm leaves Node and pnpm versions to `vp`) are in `pnpm-workspace.yaml`.
 
@@ -31,8 +31,10 @@ vp check
 vp test
 vp build
 vp run fallow   # fallow --ci
-impeccable detect --json src
+(cd .. && impeccable detect --json web/src)
 ```
+
+impeccable runs from the repo root because that's where it finds `.impeccable/config.json`, which ignores `src/gen/`, and `DESIGN.md`. From `web/` it reads neither.
 
 How strict they are:
 
@@ -42,7 +44,7 @@ How strict they are:
 
 ## Generated client
 
-`src/gen/` holds the TypeScript messages and service descriptors that `protoc-gen-es` generates from `proto/` (ADR 0007). Like the Rust code in `crates/nama-proto`, it's checked in, and the CI `proto` job fails if it's stale. After changing the schema, run `vp install` here (that installs the plugin), then `buf generate` in `proto/`. Calls go through `@connectrpc/connect-query` with the generated descriptors, so there's no `protoc-gen-connect-query`.
+`src/gen/` holds the TypeScript messages and service descriptors that `protoc-gen-es` generates from `proto/` (ADR 0007). Like the Rust code in `crates/nama-proto`, it's checked in, and CI's `lint` job fails if it's stale. After changing the schema, run `vp install` here (that installs the plugin), then `buf generate` in `proto/`. Calls go through `@connectrpc/connect-query` with the generated descriptors, so there's no `protoc-gen-connect-query`.
 
 ## Running against a Server
 
@@ -54,26 +56,26 @@ Tests never need a Server. They fake RPCs with Connect's `createRouterTransport`
 
 - **Data**: all server state goes through connect-query and TanStack Query. Route loaders prefetch with `queryClient.ensureQueryData`. One app-wide `Subscribe` stream turns Events into query invalidations. There's no client-state library and no form library: forms are native `<form>`s with mutations, the Server validates, and Connect error details are shown next to the field.
 - **Errors**: a global query and mutation error handler sends `unauthenticated` to `/sign-in?redirect=…`. `permission_denied` shows an "Admins only" page. Anything else shows the route's `errorComponent` in plain words, never an error code.
-- **Styling**: Tailwind v4 and shadcn on Base UI, with tokens in `src/styles.css` (ADR 0016). Lucide icons. Fonts are Google Fonts families bundled through Fontsource, never loaded from Google's CDN. Dark only for now. English only, with no i18n library, but layout uses logical properties so right-to-left languages can be added later.
+- **Styling**: Tailwind v4 and shadcn on Base UI, with tokens in `src/styles.css` (ADR 0016). Lucide icons. `components.json` holds the `shadcn init -t start -b base` choices, but the packages `init` installs (`@base-ui/react`, `class-variance-authority`, `cn`, `lucide-react`) aren't installed until a screen uses a component, since Fallow fails on unused dependencies. `shadcn add` installs only `cn`, so `vp add` the others a new component imports. Fonts are Google Fonts families bundled through Fontsource, never loaded from Google's CDN. Dark only for now. English only, with no i18n library, but layout uses logical properties so right-to-left languages can be added later.
 - **Player**: a native `<video>` playing direct-play URLs, with controls built from Base UI primitives. hls.js arrives with HLS in M4.
 
 ## Pages
 
-| Path | Who | Page |
-|---|---|---|
-| `/setup` | anyone, only while the Server needs setup | Setup Code and first Admin |
-| `/sign-in` | anyone | sign in with a password, or show a Sign-in Code |
-| `/` | signed in | Continue Watching, then your Libraries |
-| `/libraries/$libraryId` | signed in | a Library's Movies or Shows |
-| `/libraries/$libraryId/movies/$movieId` | signed in | a Movie |
-| `/libraries/$libraryId/shows/$showId?season=N` | signed in | a Show, one Season at a time |
-| `…/movies/$movieId/play?version=…` | signed in | the player for a Movie, full screen without app chrome |
-| `…/shows/$showId/seasons/$season/episodes/$episode/play?version=…` | signed in | the player for an Episode |
-| `/code` | signed in | enter a Sign-in Code to sign in a new Device |
-| `/settings` | signed in | your password and Devices |
-| `/admin/libraries`, `/admin/libraries/$libraryId` | Admin | Libraries, their folders and scans |
-| `/admin/needs-a-match` | Admin | Unmatched Items, filterable by Library |
-| `/admin/users` | Admin | Users and Roles |
+| Path                                                               | Who                                       | Page                                                   |
+| ------------------------------------------------------------------ | ----------------------------------------- | ------------------------------------------------------ |
+| `/setup`                                                           | anyone, only while the Server needs setup | Setup Code and first Admin                             |
+| `/sign-in`                                                         | anyone                                    | sign in with a password, or show a Sign-in Code        |
+| `/`                                                                | signed in                                 | Continue Watching, then your Libraries                 |
+| `/libraries/$libraryId`                                            | signed in                                 | a Library's Movies or Shows                            |
+| `/libraries/$libraryId/movies/$movieId`                            | signed in                                 | a Movie                                                |
+| `/libraries/$libraryId/shows/$showId?season=N`                     | signed in                                 | a Show, one Season at a time                           |
+| `…/movies/$movieId/play?version=…`                                 | signed in                                 | the player for a Movie, full screen without app chrome |
+| `…/shows/$showId/seasons/$season/episodes/$episode/play?version=…` | signed in                                 | the player for an Episode                              |
+| `/code`                                                            | signed in                                 | enter a Sign-in Code to sign in a new Device           |
+| `/settings`                                                        | signed in                                 | your password and Devices                              |
+| `/admin/libraries`, `/admin/libraries/$libraryId`                  | Admin                                     | Libraries, their folders and scans                     |
+| `/admin/needs-a-match`                                             | Admin                                     | Unmatched Items, filterable by Library                 |
+| `/admin/users`                                                     | Admin                                     | Users and Roles                                        |
 
 The root route's `beforeLoad` reads `GetServerInfo` and who is signed in, and redirects to `/setup` while setup is needed. A pathless `_member` layout requires a session, and an `_admin` layout inside it requires the Admin Role. Movie and Show IDs in URLs are the external IDs the API returns. When no `version` is given, the player plays the largest Version.
 
