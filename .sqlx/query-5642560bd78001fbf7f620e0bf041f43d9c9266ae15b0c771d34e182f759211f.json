@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE libraries SET name = ? WHERE id = ? RETURNING kind AS \"kind: Kind\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "kind: Kind",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "libraries",
+            "name": "kind"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "5642560bd78001fbf7f620e0bf041f43d9c9266ae15b0c771d34e182f759211f"
+}

@@ -110,7 +110,7 @@ fn server_logs_its_config_creates_its_database_serves_the_api_and_exits_cleanly_
     // A fresh data directory gets a new database with every migration applied.
     let database_line = wait_for_line(&lines, "opened database");
     assert!(
-        database_line.contains("migrations_applied=[1]"),
+        database_line.contains("migrations_applied=[1, 2]"),
         "{database_line}"
     );
     assert!(data_dir.join("nama.db").is_file());
@@ -154,4 +154,6 @@ fn server_logs_its_config_creates_its_database_serves_the_api_and_exits_cleanly_
         output.status,
         String::from_utf8_lossy(&output.stderr)
     );
+    // The database closed cleanly, checkpointing its WAL, once serving had stopped.
+    assert!(!data_dir.join("nama.db-wal").exists());
 }

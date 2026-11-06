@@ -12,7 +12,7 @@ async fn a_fresh_start_creates_the_database_and_restarting_applies_no_migrations
 
     let first_start = Database::open(&data_dir).await.unwrap();
     assert!(data_dir.join(db::FILE_NAME).is_file());
-    assert_eq!(first_start.migrations_applied(), [1]);
+    assert_eq!(first_start.migrations_applied(), [1, 2]);
     insert_rows(&first_start, 0, 1).await.unwrap();
     first_start.close().await;
 
@@ -103,7 +103,7 @@ async fn a_failed_write_commits_nothing() {
     let data_dir = tempfile::tempdir().unwrap();
     let db = Database::open(data_dir.path()).await.unwrap();
 
-    let result = db
+    let result: Result<(), sqlx::Error> = db
         .write(|tx| {
             Box::pin(async move {
                 sqlx::query!("INSERT INTO schema_meta (key, value) VALUES ('kept?', 'no')")
@@ -172,7 +172,7 @@ async fn a_write_that_panics_fails_alone_and_later_writes_still_work() {
     let data_dir = tempfile::tempdir().unwrap();
     let db = Database::open(data_dir.path()).await.unwrap();
 
-    let panicked: Result<(), _> = db
+    let panicked: Result<(), sqlx::Error> = db
         .write(|tx| {
             Box::pin(async move {
                 sqlx::query!("INSERT INTO schema_meta (key, value) VALUES ('kept?', 'no')")

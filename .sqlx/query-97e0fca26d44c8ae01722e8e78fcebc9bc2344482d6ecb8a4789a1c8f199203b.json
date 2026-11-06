@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT libraries.name FROM library_folders\n             JOIN libraries ON libraries.id = library_folders.library_id\n             WHERE library_folders.path = ? AND library_folders.library_id IS NOT ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "name",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "libraries",
+            "name": "name"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "97e0fca26d44c8ae01722e8e78fcebc9bc2344482d6ecb8a4789a1c8f199203b"
+}

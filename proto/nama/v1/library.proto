@@ -1,0 +1,101 @@
+syntax = "proto3";
+
+package nama.v1;
+
+// The Server's Libraries: named collections of one kind of media, each backed by one or more
+// folders on the Server's disk.
+service LibraryService {
+  // Creates a Library. Fails with `invalid_argument` if the name is blank, the kind is
+  // unspecified, or a folder isn't an absolute path to a readable directory, and with
+  // `already_exists` if a folder already belongs to another Library.
+  rpc CreateLibrary(CreateLibraryRequest) returns (CreateLibraryResponse);
+  // Lists every Library on the Server, oldest first.
+  rpc ListLibraries(ListLibrariesRequest) returns (ListLibrariesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Returns one Library, or fails with `not_found`.
+  rpc GetLibrary(GetLibraryRequest) returns (GetLibraryResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Replaces a Library's name and folders. Its kind can't change. Fails like `CreateLibrary`,
+  // or with `not_found` if there is no such Library.
+  rpc UpdateLibrary(UpdateLibraryRequest) returns (UpdateLibraryResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
+  // Deletes a Library. The files in its folders are left alone. Fails with `not_found` if there
+  // is no such Library, so a retry after a delete that went through gets `not_found`.
+  rpc DeleteLibrary(DeleteLibraryRequest) returns (DeleteLibraryResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
+}
+
+// The kind of media a Library holds. A Library holds exactly one kind.
+enum LibraryKind {
+  LIBRARY_KIND_UNSPECIFIED = 0;
+  LIBRARY_KIND_MOVIES = 1;
+  LIBRARY_KIND_SHOWS = 2;
+}
+
+// A named collection of one kind of media on a Server, backed by one or more folders.
+message Library {
+  // Assigned by the Server when the Library is created, and never reused.
+  int64 id = 1;
+  // The display name, set by an admin.
+  string name = 2;
+  // The kind of media the Library holds, fixed when it is created.
+  LibraryKind kind = 3;
+  // Absolute paths, on the Server, of the directories the Library's media lives in, in the
+  // order they were given. The Server stores each in canonical form, with symlinks resolved and
+  // no trailing separator, so a folder may come back spelled differently from how it was sent.
+  // Each folder belongs to at most one Library.
+  repeated string folders = 4;
+}
+
+message CreateLibraryRequest {
+  // Must not be blank.
+  string name = 1;
+  // Must not be `LIBRARY_KIND_UNSPECIFIED`.
+  LibraryKind kind = 2;
+  // At least one absolute path to a directory the Server can read, each named once.
+  repeated string folders = 3;
+}
+
+message CreateLibraryResponse {
+  Library library = 1;
+}
+
+message ListLibrariesRequest {}
+
+message ListLibrariesResponse {
+  repeated Library libraries = 1;
+}
+
+message GetLibraryRequest {
+  // The Library to return.
+  int64 id = 1;
+}
+
+message GetLibraryResponse {
+  Library library = 1;
+}
+
+message UpdateLibraryRequest {
+  // The Library to update.
+  int64 id = 1;
+  // The new name, under the same rules as `CreateLibraryRequest.name`.
+  string name = 2;
+  // The new folders, replacing the old ones, under the same rules as
+  // `CreateLibraryRequest.folders`.
+  repeated string folders = 3;
+}
+
+message UpdateLibraryResponse {
+  Library library = 1;
+}
+
+message DeleteLibraryRequest {
+  // The Library to delete.
+  int64 id = 1;
+}
+
+message DeleteLibraryResponse {}

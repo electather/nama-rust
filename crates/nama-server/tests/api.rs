@@ -1,43 +1,14 @@
 //! Calls the Server's API over a real socket, the way clients will.
 
+#[path = "support/server.rs"]
+mod server;
+
 use std::net::SocketAddr;
 
-use connectrpc::client::{ClientConfig, HttpClient};
+use connectrpc::client::HttpClient;
 use nama_proto::nama::v1::{GetServerInfoRequest, GetServerInfoResponse, ServerServiceClient};
 use nama_server::config::Config;
-use tokio::{net::TcpListener, sync::oneshot};
-
-/// A Server serving on a random local port until dropped.
-struct TestServer {
-    addr: SocketAddr,
-    _stop: oneshot::Sender<()>,
-}
-
-impl TestServer {
-    /// Starts serving `config` on a free port.
-    #[expect(
-        clippy::unwrap_used,
-        reason = "a test helper fails its test by panicking"
-    )]
-    async fn start(config: Config) -> Self {
-        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let addr = listener.local_addr().unwrap();
-        let (stop, stopped) = oneshot::channel::<()>();
-        tokio::spawn(nama_server::serve(listener, &config, async {
-            let _: Result<(), oneshot::error::RecvError> = stopped.await;
-        }));
-        Self { addr, _stop: stop }
-    }
-
-    /// Client settings that point at this Server.
-    #[expect(
-        clippy::unwrap_used,
-        reason = "a test helper fails its test by panicking"
-    )]
-    fn client_config(&self) -> ClientConfig {
-        ClientConfig::new(format!("http://{}", self.addr).parse().unwrap())
-    }
-}
+use server::TestServer;
 
 /// The default config with the Server named `name`.
 fn config_named(name: &str) -> Config {
