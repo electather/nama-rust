@@ -82,7 +82,7 @@ pub(crate) fn router(
             setup_code,
             sign_in_limits: SignInLimits::default(),
             sign_in_codes: SignInCodes::default(),
-            code_limits: SignInCodeLimits::default(),
+            sign_in_code_limits: SignInCodeLimits::default(),
         }))
         .add_service(Arc::new(MatchServiceHandler {
             matcher: Matcher::new(Arc::clone(&db), plugins, events.clone()),
@@ -200,7 +200,7 @@ struct SignInServiceHandler {
     sign_in_limits: SignInLimits,
     sign_in_codes: SignInCodes,
     /// The recent failed Sign-in Code lookups and approvals, which slow guessing codes down.
-    code_limits: SignInCodeLimits,
+    sign_in_code_limits: SignInCodeLimits,
 }
 
 impl SignInServiceHandler {
@@ -214,10 +214,10 @@ impl SignInServiceHandler {
     ) -> Result<T, ConnectError> {
         let caller = caller(ctx)?;
         let now = Instant::now();
-        let attempt = self.code_limits.admit(caller.device.id, now)?;
+        let attempt = self.sign_in_code_limits.admit(caller.device.id, now)?;
         let used = use_code(caller, now);
         if !matches!(used, Err(sign_in_codes::Error::NotFound)) {
-            self.code_limits.succeeded(&attempt);
+            self.sign_in_code_limits.succeeded(&attempt);
         }
         Ok(used?)
     }

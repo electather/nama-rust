@@ -562,9 +562,13 @@ async fn no_password_token_or_setup_code_is_logged_even_at_trace() {
         !logged.contains(&code_token),
         "a Sign-in Code's token was logged"
     );
-    assert!(!logged.contains(&code), "a Sign-in Code was logged");
     assert!(
-        !logged.contains(wrong_sign_in_code),
+        !logged.contains(&code) && !logged.contains(&code.replace('-', "")),
+        "a Sign-in Code was logged"
+    );
+    assert!(
+        !logged.contains(wrong_sign_in_code)
+            && !logged.contains(&wrong_sign_in_code.replace('-', "")),
         "a wrong Sign-in Code was logged"
     );
     assert!(!logged.contains(&handle), "a poll handle was logged");
