@@ -10,23 +10,26 @@ use nama_proto::nama::v1::{
     self as proto, CreateLibraryRequest, CreateLibraryResponse, DeleteLibraryRequest,
     DeleteLibraryResponse, GetLibraryRequest, GetLibraryResponse, GetServerInfoRequest,
     GetServerInfoResponse, LibraryKind, LibraryService, ListLibrariesRequest,
-    ListLibrariesResponse, ServerService, UpdateLibraryRequest, UpdateLibraryResponse,
+    ListLibrariesResponse, ScanLibraryRequest, ScanLibraryResponse, ServerService,
+    UpdateLibraryRequest, UpdateLibraryResponse,
 };
 
 use crate::{
     config::Config,
     db::Database,
     libraries::{self, Kind, Libraries, Library},
+    scanner::Scanner,
 };
 
 /// Routes every RPC the Server answers.
-pub(crate) fn router(config: &Config, db: Arc<Database>) -> axum::Router {
+pub(crate) fn router(config: &Config, db: Arc<Database>, scanner: Scanner) -> axum::Router {
     connectrpc::Router::new()
         .add_service(Arc::new(ServerServiceHandler {
             name: config.name.clone(),
         }))
         .add_service(Arc::new(LibraryServiceHandler {
             libraries: Libraries::new(db),
+            scanner,
         }))
         .into_axum_router()
 }
@@ -57,6 +60,7 @@ impl ServerService for ServerServiceHandler {
 // let through; once there are, check here that the caller's Role is Admin.
 struct LibraryServiceHandler {
     libraries: Libraries,
+    scanner: Scanner,
 }
 
 #[expect(
@@ -129,6 +133,15 @@ impl LibraryService for LibraryServiceHandler {
     ) -> ServiceResult<DeleteLibraryResponse> {
         self.libraries.delete(request.id).await?;
         Response::ok(DeleteLibraryResponse::default())
+    }
+
+    async fn scan_library(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, ScanLibraryRequest>,
+    ) -> ServiceResult<ScanLibraryResponse> {
+        self.scanner.start(request.id).await?;
+        Response::ok(ScanLibraryResponse::default())
     }
 }
 

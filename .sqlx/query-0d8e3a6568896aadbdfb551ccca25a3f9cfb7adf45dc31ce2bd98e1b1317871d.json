@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id AS \"id!\", path, size, modified_ns FROM library_files\n               WHERE library_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_files",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "path",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "library_files",
+            "name": "path"
+          }
+        }
+      },
+      {
+        "name": "size",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_files",
+            "name": "size"
+          }
+        }
+      },
+      {
+        "name": "modified_ns",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_files",
+            "name": "modified_ns"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "0d8e3a6568896aadbdfb551ccca25a3f9cfb7adf45dc31ce2bd98e1b1317871d"
+}

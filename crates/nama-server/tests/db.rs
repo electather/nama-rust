@@ -12,7 +12,7 @@ async fn a_fresh_start_creates_the_database_and_restarting_applies_no_migrations
 
     let first_start = Database::open(&data_dir).await.unwrap();
     assert!(data_dir.join(db::FILE_NAME).is_file());
-    assert_eq!(first_start.migrations_applied(), [1, 2]);
+    assert_eq!(first_start.migrations_applied(), [1, 2, 3]);
     insert_rows(&first_start, 0, 1).await.unwrap();
     first_start.close().await;
 
