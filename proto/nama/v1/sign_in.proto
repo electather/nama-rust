@@ -7,12 +7,22 @@ package nama.v1;
 // A signed-in Device holds a session: a cookie for browsers, or a bearer token (`Authorization:
 // Bearer <token>`) for other clients. Either one identifies the same User and Device on every
 // request.
+//
+// A Device that goes unused for 90 days expires, and its session stops working.
 service SignInService {
   // Creates the first Admin on a fresh Server and signs the calling Device in as them. Needs the
   // Setup Code the Server printed to its log. Fails with `permission_denied` if the code is wrong,
   // `failed_precondition` once the Server has any User, and `invalid_argument` if a name or the
   // password breaks the rules.
   rpc Setup(SetupRequest) returns (SetupResponse);
+  // Signs the calling Device in as an existing User, found by name ignoring case. Fails with
+  // `unauthenticated` if the name or the password is wrong, without saying which, and with
+  // `invalid_argument` if the Device name breaks the rules.
+  rpc SignIn(SignInRequest) returns (SignInResponse);
+  // Signs the calling Device out by deleting it: its session stops working at once, its open
+  // `EventService.Subscribe` streams end, and a cookie session's cookie is cleared. Fails with
+  // `unauthenticated` without a valid session.
+  rpc SignOut(SignOutRequest) returns (SignOutResponse);
   // Returns the calling User and Device, or fails with `unauthenticated` without a valid session.
   rpc WhoAmI(WhoAmIRequest) returns (WhoAmIResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
@@ -76,6 +86,30 @@ message SetupResponse {
   // The session token, for `SESSION_DELIVERY_TOKEN` only. Empty for a cookie.
   string token = 3;
 }
+
+message SignInRequest {
+  // The User's name, in any case.
+  string name = 1;
+  // The User's password.
+  string password = 2;
+  // The signing-in Device's name: 1 to 64 characters.
+  string device_name = 3;
+  // How to hand out the session. Must be specified.
+  SessionDelivery delivery = 4;
+}
+
+message SignInResponse {
+  // The User signed in as.
+  User user = 1;
+  // The Device just signed in.
+  Device device = 2;
+  // The session token, for `SESSION_DELIVERY_TOKEN` only. Empty for a cookie.
+  string token = 3;
+}
+
+message SignOutRequest {}
+
+message SignOutResponse {}
 
 message WhoAmIRequest {}
 

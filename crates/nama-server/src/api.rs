@@ -2,7 +2,7 @@
 
 use std::{future, sync::Arc};
 
-use axum::http::header::SET_COOKIE;
+use axum::http::{HeaderMap, header::SET_COOKIE};
 use buffa::EnumValue;
 use connectrpc::{
     ConnectError, Encodable, RequestContext, Response, ServiceRequest, ServiceResult, ServiceStream,
@@ -16,8 +16,9 @@ use nama_proto::nama::v1::{
     LibraryKind, LibraryService, ListLibrariesRequest, ListLibrariesResponse, MatchService,
     ScanLibraryRequest, ScanLibraryResponse, SearchMetadataRequest, SearchMetadataResponse,
     ServerService, SessionDelivery, SetMatchRequest, SetMatchResponse, SetupRequest, SetupResponse,
-    SignInService, SubscribeRequest, SubscribeResponse, UpdateLibraryRequest,
-    UpdateLibraryResponse, WhoAmIRequest, WhoAmIResponse, external_id,
+    SignInRequest, SignInResponse, SignInService, SignOutRequest, SignOutResponse,
+    SubscribeRequest, SubscribeResponse, UpdateLibraryRequest, UpdateLibraryResponse,
+    WhoAmIRequest, WhoAmIResponse, external_id,
 };
 use tokio::sync::OwnedMutexGuard;
 
@@ -30,8 +31,8 @@ use crate::{
     matching::{ManualError, Matcher},
     plugins::Registry,
     scanner::Scanner,
-    sessions::{identify_caller, session_cookie},
-    users::{self, Caller, Role, SetupCode, Users},
+    sessions::{cleared_session_cookie, identify_caller, session_cookie},
+    users::{self, Caller, Role, SetupCode, SignedIn, Users},
 };
 
 /// Routes every RPC the Server answers, each behind the layer that identifies the caller.
@@ -67,7 +68,10 @@ pub(crate) fn router(
             libraries: Libraries::new(db),
             scanner,
         }))
-        .add_service(Arc::new(EventServiceHandler { events }))
+        .add_service(Arc::new(EventServiceHandler {
+            events,
+            users: users.clone(),
+        }))
         .into_axum_router()
         .layer(axum::middleware::from_fn_with_state(users, identify_caller))
 }
@@ -141,20 +145,56 @@ impl SignInService for SignInServiceHandler {
             .users
             .create_first_admin(&request.name, &request.password, &request.device_name)
             .await?;
-        let body = SetupResponse {
-            user: user_to_proto(signed_in.caller.user).into(),
-            device: device_to_proto(signed_in.caller.device).into(),
-            ..Default::default()
-        };
-        Ok(if wants_token {
-            Response::new(SetupResponse {
-                token: signed_in.token,
-                ..body
-            })
-        } else {
-            Response::new(body)
-                .with_header(SET_COOKIE, session_cookie(&signed_in.token, ctx.headers()))
-        })
+        Ok(hand_out_session(
+            signed_in,
+            wants_token,
+            ctx.headers(),
+            |caller, token| SetupResponse {
+                user: user_to_proto(caller.user).into(),
+                device: device_to_proto(caller.device).into(),
+                token,
+                ..Default::default()
+            },
+        ))
+    }
+
+    async fn sign_in(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, SignInRequest>,
+    ) -> ServiceResult<SignInResponse> {
+        let request = request.to_owned_message();
+        let wants_token = wants_token(request.delivery)?;
+        let signed_in = self
+            .users
+            .sign_in(&request.name, &request.password, &request.device_name)
+            .await?;
+        Ok(hand_out_session(
+            signed_in,
+            wants_token,
+            ctx.headers(),
+            |caller, token| SignInResponse {
+                user: user_to_proto(caller.user).into(),
+                device: device_to_proto(caller.device).into(),
+                token,
+                ..Default::default()
+            },
+        ))
+    }
+
+    async fn sign_out(
+        &self,
+        ctx: RequestContext,
+        _request: ServiceRequest<'_, SignOutRequest>,
+    ) -> ServiceResult<SignOutResponse> {
+        let device = caller(&ctx)?.device.id;
+        self.users
+            .sign_out(device)
+            .await
+            .map_err(|err| database_failed(&err))?;
+        // ponytail: cleared even for a bearer session, where a client has no cookie to clear.
+        Ok(Response::new(SignOutResponse::default())
+            .with_header(SET_COOKIE, cleared_session_cookie(ctx.headers())))
     }
 
     fn who_am_i<'a>(
@@ -163,17 +203,13 @@ impl SignInService for SignInServiceHandler {
         _request: ServiceRequest<'_, WhoAmIRequest>,
     ) -> impl Future<Output = ServiceResult<impl Encodable<WhoAmIResponse> + Send + use<'a>>> + Send
     {
-        let caller = ctx.extensions().get::<Caller>().cloned();
-        future::ready(caller.map_or_else(
-            || Err(ConnectError::unauthenticated("sign in first")),
-            |caller| {
-                Response::ok(WhoAmIResponse {
-                    user: user_to_proto(caller.user).into(),
-                    device: device_to_proto(caller.device).into(),
-                    ..Default::default()
-                })
-            },
-        ))
+        future::ready(caller(&ctx).and_then(|caller| {
+            Response::ok(WhoAmIResponse {
+                user: user_to_proto(caller.user.clone()).into(),
+                device: device_to_proto(caller.device.clone()).into(),
+                ..Default::default()
+            })
+        }))
     }
 }
 
@@ -361,17 +397,23 @@ impl MatchService for MatchServiceHandler {
 // TODO(M2): once there are Users, only send a caller events about Libraries it may see.
 struct EventServiceHandler {
     events: EventBus,
+    /// Whose sign-outs end the streams their Devices opened.
+    users: Users,
 }
 
 impl EventService for EventServiceHandler {
     fn subscribe(
         &self,
-        _ctx: RequestContext,
+        ctx: RequestContext,
         request: ServiceRequest<'_, SubscribeRequest>,
     ) -> impl Future<
         Output = ServiceResult<ServiceStream<impl Encodable<SubscribeResponse> + Send + use<>>>,
     > + Send {
         let request = request.to_owned_message();
+        let signed_out = ctx
+            .extensions()
+            .get::<Caller>()
+            .map(|caller| self.users.signed_out(caller.device.id));
         let filter = request
             .types
             .into_iter()
@@ -382,8 +424,13 @@ impl EventService for EventServiceHandler {
                 libraries: request.library_ids,
             });
         let subscribed = filter.and_then(|filter| {
-            let stream: ServiceStream<SubscribeResponse> =
-                Box::pin(self.events.subscribe(filter).map(Ok));
+            let events = self.events.subscribe(filter).take_until(async move {
+                match signed_out {
+                    Some(signed_out) => signed_out.await,
+                    None => future::pending().await,
+                }
+            });
+            let stream: ServiceStream<SubscribeResponse> = Box::pin(events.map(Ok));
             Response::ok(stream)
         });
         future::ready(subscribed)
@@ -401,6 +448,30 @@ fn wants_token(delivery: EnumValue<SessionDelivery>) -> Result<bool, ConnectErro
                 "the session delivery must be cookie or token",
             ))
         }
+    }
+}
+
+/// Who sent the request `ctx` is for, or `unauthenticated` if it carries no valid session.
+fn caller(ctx: &RequestContext) -> Result<&Caller, ConnectError> {
+    ctx.extensions()
+        .get::<Caller>()
+        .ok_or_else(|| ConnectError::unauthenticated("sign in first"))
+}
+
+/// The response `body` makes for a Device just `signed_in`, with its session token in the body for
+/// a client that `wants_token`, or else in a cookie and not in the body.
+fn hand_out_session<M>(
+    signed_in: SignedIn,
+    wants_token: bool,
+    request_headers: &HeaderMap,
+    body: impl FnOnce(Caller, String) -> M,
+) -> Response<M> {
+    let SignedIn { caller, token } = signed_in;
+    if wants_token {
+        Response::new(body(caller, token))
+    } else {
+        let cookie = session_cookie(&token, request_headers);
+        Response::new(body(caller, String::new())).with_header(SET_COOKIE, cookie)
     }
 }
 
@@ -522,6 +593,7 @@ impl From<users::Error> for ConnectError {
             users::Error::Invalid(_) => Self::invalid_argument(err.to_string()),
             users::Error::NameTaken => Self::already_exists(err.to_string()),
             users::Error::AlreadySetUp => Self::failed_precondition(err.to_string()),
+            users::Error::WrongNameOrPassword => Self::unauthenticated(err.to_string()),
             users::Error::Database(err) => database_failed(&err),
             users::Error::NoAuthenticator
             | users::Error::Authenticator(_)
