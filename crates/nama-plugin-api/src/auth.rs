@@ -57,11 +57,4 @@ impl fmt::Display for PasswordError {
     }
 }
 
-impl std::error::Error for PasswordError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::Rejected(_) => None,
-            Self::Failed(error) => Some(&**error),
-        }
-    }
-}
+impl std::error::Error for PasswordError {}

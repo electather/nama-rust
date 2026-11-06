@@ -134,7 +134,8 @@ async fn enable_plugins(config: &Config) -> Option<Registry> {
     if !has_authenticator {
         error!(
             "no Authenticator is enabled, so nobody could sign in: enable the local-auth plugin \
-             (it is disabled by `enabled = false` under [plugins.local-auth] in the config)"
+             (remove `enabled = false` from [plugins.local-auth] in the config), or another \
+             plugin that provides one"
         );
         return None;
     }

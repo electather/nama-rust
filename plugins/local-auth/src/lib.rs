@@ -70,16 +70,10 @@ impl Argon2id {
 
 impl Authenticator for Argon2id {
     fn hash_password(&self, password: &str) -> Result<String, PasswordError> {
-        let length = password.chars().count();
-        if length < *PASSWORD_LENGTH.start() {
+        if !PASSWORD_LENGTH.contains(&password.chars().count()) {
             return Err(PasswordError::Rejected(format!(
-                "a password needs at least {} characters",
-                PASSWORD_LENGTH.start()
-            )));
-        }
-        if length > *PASSWORD_LENGTH.end() {
-            return Err(PasswordError::Rejected(format!(
-                "a password may have at most {} characters",
+                "a password needs {} to {} characters",
+                PASSWORD_LENGTH.start(),
                 PASSWORD_LENGTH.end()
             )));
         }
