@@ -21,7 +21,7 @@ use crate::{
 };
 
 /// How many characters a User's or Device's name may have, once trimmed.
-const NAME_LENGTH: RangeInclusive<usize> = 1..=64;
+pub(crate) const NAME_LENGTH: RangeInclusive<usize> = 1..=64;
 
 /// What every session token starts with, so a leaked one is easy to recognise.
 const TOKEN_PREFIX: &str = "nama_";
@@ -418,7 +418,7 @@ impl Users {
     /// The User whose name is `name` ignoring case, with those of their credentials an enabled
     /// Plugin made.
     async fn user_named(&self, name: &str) -> Result<Option<(User, Vec<Credential>)>, Error> {
-        let name_key = name_key(name.trim());
+        let name_key = name_key(name);
         let rows = sqlx::query!(
             r#"SELECT u.id AS "id!", u.name, u.role AS "role: Role", c.plugin, c.credential
                FROM users u JOIN user_credentials c ON c.user_id = u.id
@@ -614,10 +614,10 @@ async fn insert_credential(
     Ok(())
 }
 
-/// What a User's trimmed `name` is stored and looked up under, so names are unique and found
+/// What a User's `name` is stored and looked up under, trimmed, so names are unique and found
 /// ignoring case.
-fn name_key(name: &str) -> String {
-    name.to_lowercase()
+pub(crate) fn name_key(name: &str) -> String {
+    name.trim().to_lowercase()
 }
 
 /// Stores a User named `name`, which has been checked, unless another has it ignoring case.

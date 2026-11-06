@@ -200,6 +200,11 @@ pub const SIGN_IN_SERVICE_WHO_AM_I_SPEC: ::connectrpc::Spec = ::connectrpc::Spec
 ///
 /// A Device that goes unused for 90 days expires, and its session stops working.
 ///
+/// Guessing is slowed down: after 10 failed `SignIn`s for one name, or 50 failed `Setup`s and
+/// `SignIn`s together from one IP address, within 15 minutes, further attempts fail with
+/// `resource_exhausted`, without being checked, and a `Retry-After` header gives the seconds to
+/// wait. A successful `SignIn` clears its name's failures.
+///
 /// # Implementing handlers
 ///
 /// Implement methods with plain `async fn`; the returned future satisfies

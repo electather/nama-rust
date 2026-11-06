@@ -1,0 +1,197 @@
+//! Slowing down guesses at passwords and the Setup Code, by refusing sign-in and setup attempts
+//! after too many recent failures from one peer IP or for one User name.
+//!
+//! Counts live in memory only. They expire as the window slides past them and a restart forgets
+//! them, so nobody is ever locked out for good.
+
+use std::{
+    collections::{HashMap, VecDeque},
+    hash::Hash,
+    net::IpAddr,
+    sync::{Mutex, MutexGuard, PoisonError},
+    time::{Duration, Instant},
+};
+
+use crate::users::{NAME_LENGTH, name_key};
+
+/// How far back failures count.
+const WINDOW: Duration = Duration::from_mins(15);
+
+/// How many failures for one User name the window may hold before attempts for it are refused.
+const FAILURES_PER_NAME: usize = 10;
+
+/// How many failures from one peer IP, sign-in and setup together, the window may hold before
+/// its attempts are refused.
+const FAILURES_PER_IP: usize = 50;
+
+/// The recent failed sign-in and setup attempts, by peer IP and by User name.
+#[derive(Debug, Default)]
+pub(crate) struct SignInLimits {
+    failures: Mutex<Failures>,
+}
+
+/// The recent failures, counted both ways.
+#[derive(Debug, Default)]
+struct Failures {
+    by_ip: Window<IpAddr>,
+    by_name: Window<String>,
+}
+
+/// An attempt let through. It counts as a failure unless it is reported as
+/// [`succeeded`](SignInLimits::succeeded), so one that fails in any way, or a burst of them
+/// still running, can't slip past the limits.
+#[derive(Debug)]
+pub(crate) struct Attempt {
+    ip: IpAddr,
+    name_key: Option<String>,
+    at: Instant,
+}
+
+/// An attempt refused for too many recent failures.
+#[derive(Debug, thiserror::Error)]
+#[error("too many failed attempts; try again in {} seconds", self.retry_after_secs())]
+pub(crate) struct Blocked {
+    /// How long until the oldest failure in the way leaves the window.
+    retry_after: Duration,
+}
+
+impl SignInLimits {
+    /// Lets an attempt from `ip`, signing in as `name` if it names a User, through unless too
+    /// many have failed recently, and counts it as failed until it succeeds.
+    pub(crate) fn admit(&self, ip: IpAddr, name: Option<&str>) -> Result<Attempt, Blocked> {
+        self.admit_at(ip, name, Instant::now())
+    }
+
+    /// [`SignInLimits::admit`], as of `now`.
+    fn admit_at(&self, ip: IpAddr, name: Option<&str>, now: Instant) -> Result<Attempt, Blocked> {
+        let name_key = name.map(counted_name);
+        let mut failures = self.lock();
+        let ip_wait = failures.by_ip.wait(&ip, FAILURES_PER_IP, now);
+        let name_wait = name_key
+            .as_ref()
+            .and_then(|key| failures.by_name.wait(key, FAILURES_PER_NAME, now));
+        if let Some(retry_after) = ip_wait.max(name_wait) {
+            return Err(Blocked { retry_after });
+        }
+        failures.by_ip.record(ip, now);
+        if let Some(key) = &name_key {
+            failures.by_name.record(key.clone(), now);
+        }
+        Ok(Attempt {
+            ip,
+            name_key,
+            at: now,
+        })
+    }
+
+    /// Un-counts `attempt`, which succeeded. A successful sign-in also forgets every failure for
+    /// its name.
+    pub(crate) fn succeeded(&self, attempt: &Attempt) {
+        let mut failures = self.lock();
+        failures.by_ip.forget(&attempt.ip, attempt.at);
+        if let Some(key) = &attempt.name_key {
+            failures.by_name.clear(key);
+        }
+    }
+
+    /// The failures, to read or change.
+    fn lock(&self) -> MutexGuard<'_, Failures> {
+        // Every change leaves the counts consistent, so a panic elsewhere doesn't spoil them.
+        self.failures.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+}
+
+impl Blocked {
+    /// The retry delay in whole seconds, rounded up so a client that waits it is let through.
+    pub(crate) fn retry_after_secs(&self) -> u64 {
+        self.retry_after.as_secs() + u64::from(self.retry_after.subsec_nanos() > 0)
+    }
+}
+
+/// What failures for the User name `name` are counted under: the key sign-in looks it up by, cut
+/// short past the longest name a User can have, so a request can't have a huge name kept for the
+/// whole window. Names that long are no User's, so cutting them short loses nothing.
+fn counted_name(name: &str) -> String {
+    name_key(name).chars().take(NAME_LENGTH.end() + 1).collect()
+}
+
+/// When each key's failures still in the window happened, oldest first.
+#[derive(Debug)]
+struct Window<K>(HashMap<K, VecDeque<Instant>>);
+
+impl<K> Default for Window<K> {
+    fn default() -> Self {
+        Self(HashMap::new())
+    }
+}
+
+impl<K: Hash + Eq> Window<K> {
+    /// How long `key` must wait, as of `now`, before it has fewer than `limit` failures in the
+    /// window, if it has that many now.
+    fn wait(&mut self, key: &K, limit: usize, now: Instant) -> Option<Duration> {
+        let times = self.0.get_mut(key)?;
+        while times
+            .front()
+            .is_some_and(|&at| now.saturating_duration_since(at) >= WINDOW)
+        {
+            times.pop_front();
+        }
+        // Attempts are only recorded below the limit, so at the limit the oldest is the one that
+        // has to leave.
+        let oldest = *times.front()?;
+        (times.len() >= limit).then(|| WINDOW.saturating_sub(now.saturating_duration_since(oldest)))
+    }
+
+    /// Counts a failure for `key` at `at`, and drops keys whose failures have all left the window.
+    // ponytail: scans every key per failure; keys are capped by the per-IP limit, so this only
+    // matters under traffic from very many IPs, when a periodic sweep would replace it.
+    fn record(&mut self, key: K, at: Instant) {
+        self.0.retain(|_, times| {
+            times
+                .back()
+                .is_some_and(|&last| at.saturating_duration_since(last) < WINDOW)
+        });
+        self.0.entry(key).or_default().push_back(at);
+    }
+
+    /// Un-counts the failure for `key` at `at`.
+    fn forget(&mut self, key: &K, at: Instant) {
+        if let Some(times) = self.0.get_mut(key)
+            && let Some(index) = times.iter().position(|&time| time == at)
+        {
+            times.remove(index);
+        }
+    }
+
+    /// Un-counts every failure for `key`.
+    fn clear(&mut self, key: &K) {
+        self.0.remove(key);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::net::Ipv4Addr;
+
+    use super::*;
+
+    const IP: IpAddr = IpAddr::V4(Ipv4Addr::LOCALHOST);
+
+    #[test]
+    fn attempts_are_admitted_again_once_old_failures_leave_the_window() {
+        let limits = SignInLimits::default();
+        let start = Instant::now();
+        for minute in 0..10 {
+            let at = start + Duration::from_mins(minute);
+            limits.admit_at(IP, Some("Ada"), at).expect("admitted");
+        }
+
+        let blocked = limits
+            .admit_at(IP, Some("Ada"), start + Duration::from_mins(14))
+            .expect_err("admitted at the limit");
+        let admitted = limits.admit_at(IP, Some("Ada"), start + WINDOW);
+
+        assert_eq!(blocked.retry_after_secs(), 60);
+        assert!(admitted.is_ok(), "the first failure is still counted");
+    }
+}
