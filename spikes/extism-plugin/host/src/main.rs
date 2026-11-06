@@ -59,19 +59,30 @@ fn http_allowlist(wasm: &Path) -> Result<()> {
     );
 
     // Same server, other name: the allowlist matches host names, so this must be refused.
-    let refused = fetch(&mut plugin, &format!("http://localhost:{}/", sonarr.port()));
-    let error = refused
-        .err()
-        .context("a host outside the allowlist was reached")?;
-    println!("Q2 host localhost refused: {error:#}");
+    let error = refusal(fetch(
+        &mut plugin,
+        &format!("http://localhost:{}/", sonarr.port()),
+    ))?;
+    println!("Q2 host localhost refused: {error}");
 
     // A manifest without allowed hosts denies every request rather than allowing all.
     let mut no_allowlist = load(Manifest::new([Wasm::file(wasm)]))?;
-    let error = fetch(&mut no_allowlist, &format!("http://{sonarr}/"))
-        .err()
-        .context("a plugin with no allowed hosts made an HTTP call")?;
-    println!("Q2 no allowed hosts at all: {error:#}");
+    let error = refusal(fetch(&mut no_allowlist, &format!("http://{sonarr}/")))?;
+    println!("Q2 no allowed hosts at all: {error}");
     Ok(())
+}
+
+/// The allowlist's error message, or an error if the call wasn't refused by the allowlist.
+fn refusal(fetched: Result<FetchResponse>) -> Result<String> {
+    let error = format!(
+        "{:#}",
+        fetched.err().context("the request was not refused")?
+    );
+    ensure!(
+        error.contains("is not allowed"),
+        "refused for another reason: {error}"
+    );
+    Ok(error)
 }
 
 /// Q3: load, call and drop many builds from disk in one process, watching resident memory.
@@ -147,20 +158,16 @@ fn timeout_and_crash(wasm: &Path) -> Result<()> {
         "Q4 endless loop with a {timeout:?} timeout: stopped after {:?}: {error:#}",
         started.elapsed()
     );
-    println!(
-        "Q4 same instance after the timeout: {:?}",
-        greet(&mut plugin, "after timeout")
-    );
+    let reply = greet(&mut plugin, "after timeout")?;
+    println!("Q4 same instance after the timeout: {reply:?}");
 
     let error = plugin
         .call::<(), ()>("crash", ())
         .err()
         .context("crash returned")?;
     println!("Q4 panicking guest: {error:#}");
-    println!(
-        "Q4 same instance after the panic: {:?}",
-        greet(&mut plugin, "after panic")
-    );
+    let reply = greet(&mut plugin, "after panic")?;
+    println!("Q4 same instance after the panic: {reply:?}");
     Ok(())
 }
 
