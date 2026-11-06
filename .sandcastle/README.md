@@ -4,9 +4,11 @@ Takes open `ready-for-agent` issues with no open blockers, one at a time, throug
 `implement` skill → `code-review` skill + fixes → PR (`Closes #N`) → CI (one auto-fix attempt) → squash-merge.
 Anything stuck is relabelled `ready-for-human` with a comment.
 
+It builds web tickets as well as Rust ones. The image (`Dockerfile`, on `node:26-bookworm`) holds the Rust toolchain with the `wasm32` target, `buf`, `gh`, Claude Code, Vite+ (`vp`) with the Node 26 and pnpm 12 that `web/` pins, and Playwright's headless Chromium. On a ticket that touches `web/`, agents run the web job's checks and screenshot the screens they changed at phone and desktop widths to check them against `DESIGN.md`. The cargo registry and the pnpm store are cached on the host in `~/.cache/nama-sandcastle/`, so each sandbox doesn't download them again.
+
 An issue with sub-issues is never built directly. The factory builds its sub-issues (each gets the parent as context) and closes the parent once the last one merges.
 
-Agents are Claude Code (`claude-opus-5-5`, effort `high`) in Docker. Your host skills come from `~/.agents/skills`, mounted read-only. The implement step also inlines `rust-best-practices`, `clean-code` and the `ponytail` plugin skill; the review step adds `tokio-async-code-review` for async diffs and writes the PR body with `pr`. Install the non-plugin ones with:
+Agents are Claude Code (`claude-opus-5-5`, effort `high`) in Docker. Your host skills come from `~/.agents/skills`, mounted read-only. The implement step also inlines `clean-code` and the `ponytail` plugin skill, and the review step writes the PR body with `pr`. What to write, check and review for each part of the repo lives in the repo's area skills, `.claude/skills/rust-crates` and `.claude/skills/web-app`, which every step loads for the parts a ticket touches. They pull in `rust-best-practices`, `tokio-async-code-review` and `impeccable`. Install the non-plugin ones with:
 
     npx skills@latest add mattpocock/skills --skill=pr -g
 
@@ -15,7 +17,7 @@ Agents are Claude Code (`claude-opus-5-5`, effort `high`) in Docker. Your host s
     npx skills add existential-birds/beagle --skill tokio-async-code-review --skill review-verification-protocol -g
     npx skills add pbakaus/impeccable -g   # UI tickets only: implement and review follow it against PRODUCT.md / DESIGN.md
 
-The `impeccable` launcher downloads its Linux engine into the container's `~/.impeccable` on first use, so a UI ticket needs network access the first time each sandbox runs it. Its post-edit hook isn't installed in the container. The review step runs `impeccable detect` instead.
+The `impeccable` launcher downloads its Linux engine into the container's `~/.impeccable` on first use, so a UI ticket needs network access the first time each sandbox runs it. Its post-edit hook isn't installed in the container. The `web-app` skill's checks run `impeccable detect` instead.
 
 One-time setup (from the repo root):
 
