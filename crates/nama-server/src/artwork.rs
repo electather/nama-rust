@@ -34,7 +34,8 @@ pub struct Artwork {
 pub struct CachedImage {
     /// The file holding it.
     pub path: PathBuf,
-    /// Its media type, such as `image/jpeg`, by its extension.
+    /// Its media type, such as `image/jpeg`, by its extension. Only raster image types are
+    /// named; anything else is `application/octet-stream`.
     pub content_type: &'static str,
 }
 
@@ -160,7 +161,7 @@ fn content_type(path: &str) -> &'static str {
         Some("png") => "image/png",
         Some("webp") => "image/webp",
         Some("gif") => "image/gif",
-        Some("svg") => "image/svg+xml",
+        // Anything else, SVG included, isn't served as an image: an SVG can carry script.
         _ => "application/octet-stream",
     }
 }

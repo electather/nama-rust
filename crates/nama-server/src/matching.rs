@@ -21,7 +21,7 @@
 mod confidence;
 
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::BTreeMap,
     future::Future,
     sync::Arc,
     time::{SystemTime, UNIX_EPOCH},
@@ -77,6 +77,18 @@ struct TitleKey {
     year: Option<i64>,
     /// From an ID hint.
     tmdb_id: Option<i64>,
+}
+
+/// The items of a Library that Matching hasn't decided yet.
+#[derive(Debug, Default)]
+struct Pending {
+    /// Movies, grouped by the title they name.
+    movies: BTreeMap<TitleKey, Vec<i64>>,
+    /// Episodes, grouped by the Show they're in.
+    shows: BTreeMap<TitleKey, Vec<PendingEpisode>>,
+    /// Episodes stored without a Season or Episode number, which no title can fit. The schema
+    /// forbids them, so there should be none.
+    unnumbered: Vec<i64>,
 }
 
 /// An Episode waiting to be Matched.
@@ -170,8 +182,23 @@ impl Matcher {
         library: i64,
         cancel: &CancellationToken,
     ) -> Result<Summary, Error> {
-        let (movies, shows) = self.undecided(library).await?;
+        let Pending {
+            movies,
+            shows,
+            unnumbered,
+        } = self.undecided(library).await?;
         let mut summary = Summary::default();
+        if !unnumbered.is_empty() {
+            tracing::error!(
+                library,
+                items = ?unnumbered,
+                "Episodes without a Season or Episode number; left Unmatched"
+            );
+            let decided = unnumbered
+                .into_iter()
+                .map(|item| (item, Err(Miss::Unmatched)));
+            self.store(decided.collect(), &mut summary).await?;
+        }
         // Once the Provider fails (or there is none), asking about the other titles would only
         // fail too, so the rest is left for the next scan.
         let mut available = true;
@@ -215,16 +242,7 @@ impl Matcher {
     }
 
     /// The Library's undecided Movies and Episodes, grouped by the title they name.
-    async fn undecided(
-        &self,
-        library: i64,
-    ) -> Result<
-        (
-            BTreeMap<TitleKey, Vec<i64>>,
-            BTreeMap<TitleKey, Vec<PendingEpisode>>,
-        ),
-        sqlx::Error,
-    > {
+    async fn undecided(&self, library: i64) -> Result<Pending, sqlx::Error> {
         let rows = sqlx::query!(
             r#"SELECT library_items.id AS "id!", library_items.kind AS "kind: ItemKind",
                       library_items.title, library_items.year, library_items.tmdb_id,
@@ -239,8 +257,7 @@ impl Matcher {
         )
         .fetch_all(self.db.reader())
         .await?;
-        let mut movies: BTreeMap<TitleKey, Vec<i64>> = BTreeMap::new();
-        let mut shows: BTreeMap<TitleKey, Vec<PendingEpisode>> = BTreeMap::new();
+        let mut pending = Pending::default();
         for row in rows {
             let key = TitleKey {
                 title: row.title,
@@ -248,19 +265,18 @@ impl Matcher {
                 tmdb_id: row.tmdb_id,
             };
             match (row.kind, row.season, row.episode) {
+                (ItemKind::Movie, _, _) => pending.movies.entry(key).or_default().push(row.id),
                 (ItemKind::Episode, Some(season), Some(episode)) => {
-                    shows.entry(key).or_default().push(PendingEpisode {
+                    pending.shows.entry(key).or_default().push(PendingEpisode {
                         item: row.id,
                         season,
                         episode,
                     });
                 }
-                (ItemKind::Movie | ItemKind::Episode, _, _) => {
-                    movies.entry(key).or_default().push(row.id);
-                }
+                (ItemKind::Episode, _, _) => pending.unnumbered.push(row.id),
             }
         }
-        Ok((movies, shows))
+        Ok(pending)
     }
 
     /// Finds and fetches the Movie `key` names.
@@ -295,27 +311,27 @@ impl Matcher {
             Ok(found) => found,
             Err(miss) => return episodes.iter().map(|e| (e.item, Err(miss))).collect(),
         };
-        let numbers: BTreeSet<i64> = episodes.iter().map(|e| e.season).collect();
-        let mut seasons = BTreeMap::new();
-        for number in numbers {
-            seasons.insert(number, self.season(&show_id, number).await);
+        let mut by_season: BTreeMap<i64, Vec<&PendingEpisode>> = BTreeMap::new();
+        for pending in episodes {
+            by_season.entry(pending.season).or_default().push(pending);
         }
-        episodes
-            .iter()
-            .map(|pending| {
-                let found = match seasons.get(&pending.season) {
-                    Some(Ok(season)) => season
+        let mut decided = Vec::with_capacity(episodes.len());
+        for (number, in_season) in by_season {
+            let season = self.season(&show_id, number).await;
+            decided.extend(in_season.into_iter().map(|pending| {
+                let found = match &season {
+                    Ok(season) => season
                         .episodes
                         .iter()
                         .find(|e| i64::from(e.number) == pending.episode)
                         .map(|episode| Metadata::episode(&plugin, &show, season, episode))
                         .ok_or(Miss::Unmatched),
-                    Some(Err(miss)) => Err(*miss),
-                    None => Err(Miss::Undecided),
+                    Err(miss) => Err(*miss),
                 };
                 (pending.item, found)
-            })
-            .collect()
+            }));
+        }
+        decided
     }
 
     /// The Season `number` of the Show `show`.

@@ -29,7 +29,7 @@ const IGNORED_PARAMS: &[&str] = &["api_key", "language", "include_adult"];
 pub struct FakeTmdb {
     endpoints: Endpoints,
     state: Arc<Fake>,
-    _server: tokio::task::JoinHandle<()>,
+    server: tokio::task::JoinHandle<()>,
 }
 
 #[derive(Debug)]
@@ -69,7 +69,7 @@ impl FakeTmdb {
                 images: format!("http://{addr}/t/p"),
             },
             state,
-            _server: server,
+            server,
         }
     }
 
@@ -83,6 +83,13 @@ impl FakeTmdb {
     #[must_use]
     pub fn requests(&self) -> Vec<String> {
         lock(&self.state.requests).clone()
+    }
+}
+
+impl Drop for FakeTmdb {
+    /// Stops serving: dropping a task's handle alone would leave it running.
+    fn drop(&mut self) {
+        self.server.abort();
     }
 }
 
