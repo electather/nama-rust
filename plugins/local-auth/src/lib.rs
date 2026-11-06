@@ -15,13 +15,14 @@ use nama_plugin_api::{
     Plugin, PluginError, PluginId, Priority, Registrar,
     auth::{Authenticator, PasswordError},
 };
-use tracing::error;
 
 /// How many characters a password may have.
 const PASSWORD_LENGTH: RangeInclusive<usize> = 8..=1024;
 
-/// What [`Authenticator::verify_unknown_user`] checks, against a credential made from it.
-const DUMMY_PASSWORD: &str = "a password no User has";
+/// What [`Authenticator::verify_unknown_user`] checks against: a password no User has, hashed with
+/// the same parameters as every new credential, so checking against it costs the same as checking a
+/// real User's. It is a constant so that setting up `local-auth` can't fail.
+const DUMMY_CREDENTIAL: &str = "$argon2id$v=19$m=19456,t=2,p=1$gVFAYI9SXil+7t4cbyaaww$cT+AzDWaNGwSRE/BPXjRgIy41T5KNjs7p69V5uq36BU";
 
 /// The `local-auth` Built-in Plugin: the Server registers it so that Users can sign in with a
 /// password.
@@ -43,30 +44,13 @@ impl Plugin for LocalAuth {
     }
 
     fn register(&self, registrar: &mut Registrar) {
-        match Argon2id::new() {
-            Ok(argon2id) => {
-                let provider: Arc<dyn Authenticator> = Arc::new(argon2id);
-                registrar.provide::<dyn Authenticator>(Priority::DEFAULT, provider);
-            }
-            Err(err) => error!("could not set up password hashing: {err}"),
-        }
+        let provider: Arc<dyn Authenticator> = Arc::new(Argon2id);
+        registrar.provide::<dyn Authenticator>(Priority::DEFAULT, provider);
     }
 }
 
 /// The [`Authenticator`] `local-auth` provides.
-struct Argon2id {
-    /// Made from [`DUMMY_PASSWORD`] with the same parameters as every new credential, so checking
-    /// against it costs the same as checking a real User's.
-    dummy_credential: String,
-}
-
-impl Argon2id {
-    fn new() -> Result<Self, password_hash::Error> {
-        Ok(Self {
-            dummy_credential: hash(DUMMY_PASSWORD)?,
-        })
-    }
-}
+struct Argon2id;
 
 impl Authenticator for Argon2id {
     fn hash_password(&self, password: &str) -> Result<String, PasswordError> {
@@ -91,8 +75,7 @@ impl Authenticator for Argon2id {
 
     fn verify_unknown_user(&self, password: &str) {
         // Only the time spent matters; the answer is always "no such User".
-        let _checked: Result<bool, PluginError> =
-            self.verify_password(password, &self.dummy_credential);
+        let _checked: Result<bool, PluginError> = self.verify_password(password, DUMMY_CREDENTIAL);
     }
 }
 
@@ -107,21 +90,22 @@ fn hash(password: &str) -> Result<String, password_hash::Error> {
 mod tests {
     use super::*;
 
-    /// Timing can't be observed reliably in a test, so check what decides it: the unknown-User
-    /// check verifies against a real argon2id credential made with the default parameters.
-    #[test]
-    fn the_unknown_user_check_verifies_against_a_real_argon2id_credential() {
-        let argon2id = Argon2id::new().unwrap();
+    /// The password [`DUMMY_CREDENTIAL`] was made from.
+    const DUMMY_PASSWORD: &str = "a password no User has";
 
+    /// The unknown-User check costs what a real one does only while [`DUMMY_CREDENTIAL`] is a real
+    /// argon2id credential with the parameters new credentials get, so a change to the `argon2`
+    /// crate's defaults fails here.
+    #[test]
+    fn the_dummy_credential_is_a_real_credential_with_the_parameters_of_a_new_one() {
+        let new = hash(DUMMY_PASSWORD).unwrap();
+        let parameters = |credential: &str| credential.rsplitn(3, '$').nth(2).map(str::to_owned);
+
+        assert_eq!(parameters(DUMMY_CREDENTIAL), parameters(&new));
         assert!(
-            argon2id
-                .verify_password(DUMMY_PASSWORD, &argon2id.dummy_credential)
+            Argon2id
+                .verify_password(DUMMY_PASSWORD, DUMMY_CREDENTIAL)
                 .unwrap()
-        );
-        assert!(
-            argon2id
-                .dummy_credential
-                .starts_with("$argon2id$v=19$m=19456,t=2,p=1$")
         );
     }
 }

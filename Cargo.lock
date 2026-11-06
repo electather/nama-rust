@@ -1228,7 +1228,6 @@ version = "0.1.0"
 dependencies = [
  "argon2",
  "nama-plugin-api",
- "tracing",
 ]
 
 [[package]]

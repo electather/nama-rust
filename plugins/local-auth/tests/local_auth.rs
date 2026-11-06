@@ -1,6 +1,9 @@
 //! `local-auth` as the Kernel sees it: the Authenticator it registers.
 
-use std::sync::Arc;
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use nama_plugin_api::{
     Plugin, Registrar, Registration,
@@ -49,7 +52,8 @@ fn the_credential_is_an_argon2id_hash_and_never_the_password() {
 
 #[test]
 fn a_password_shorter_than_8_characters_is_rejected() {
-    let refused = authenticator().hash_password("7 chars");
+    // Counted in characters, not bytes: these 7 characters are 14 bytes.
+    let refused = authenticator().hash_password("üüüüüüü");
 
     assert!(
         matches!(refused, Err(PasswordError::Rejected(_))),
@@ -59,7 +63,6 @@ fn a_password_shorter_than_8_characters_is_rejected() {
 
 #[test]
 fn a_password_of_8_characters_is_accepted() {
-    // Counted in characters, not bytes: "ü" is 2 bytes.
     let credential = authenticator().hash_password("üüüüüüüü");
 
     assert!(credential.is_ok(), "{credential:?}");
@@ -95,4 +98,31 @@ fn a_credential_local_auth_did_not_make_is_an_error() {
     let checked = authenticator().verify_password("correct horse", "correct horse");
 
     assert!(checked.is_err(), "{checked:?}");
+}
+
+/// How long `check` takes at the least, out of a few runs, since a busy machine only slows a run.
+fn fastest(check: impl Fn()) -> Duration {
+    (0..3)
+        .map(|_| {
+            let started = Instant::now();
+            check();
+            started.elapsed()
+        })
+        .min()
+        .unwrap_or_default()
+}
+
+/// Timing varies too much to show the two checks cost the same, but a busy machine only slows
+/// them down, so a check that skipped the argon2 verification would be far faster than a real one.
+#[test]
+fn the_unknown_user_check_takes_as_long_as_a_real_verification() {
+    let auth = authenticator();
+    let credential = auth.hash_password("correct horse").unwrap();
+
+    let real = fastest(|| {
+        auth.verify_password("battery staple", &credential).unwrap();
+    });
+    let unknown = fastest(|| auth.verify_unknown_user("battery staple"));
+
+    assert!(unknown >= real / 2, "unknown {unknown:?}, real {real:?}");
 }

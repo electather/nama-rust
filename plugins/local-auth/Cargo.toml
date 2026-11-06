@@ -10,7 +10,6 @@ repository.workspace = true
 [dependencies]
 argon2 = "0.6"
 nama-plugin-api = { version = "0.1.0", path = "../../crates/nama-plugin-api" }
-tracing = "0.1"
 
 [lints]
 workspace = true
