@@ -3,7 +3,7 @@
 
 use std::{
     io::{self, BufRead, BufReader, Read, Write},
-    net::TcpStream,
+    net::{SocketAddr, TcpStream},
     path::PathBuf,
     process::{Child, Command, ExitStatus, Stdio},
     sync::mpsc,
@@ -50,15 +50,31 @@ fn wait_for_line(lines: &mpsc::Receiver<String>, needle: &str) -> String {
     }
 }
 
+/// The address in a "listening" log line.
+#[expect(
+    clippy::panic,
+    reason = "a line without an address fails the test that reads it"
+)]
+fn bound_addr(listening_line: &str) -> SocketAddr {
+    listening_line
+        .split_whitespace()
+        .find_map(|word| word.strip_prefix("addr=")?.parse().ok())
+        .unwrap_or_else(|| panic!("no address in {listening_line:?}"))
+}
+
 #[test]
-fn server_logs_its_config_serves_the_api_and_exits_cleanly_on_ctrl_c() {
+fn server_logs_its_config_creates_its_database_serves_the_api_and_exits_cleanly_on_ctrl_c() {
     let dir = std::env::temp_dir().join(format!("nama-server-binary-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let dir = RemoveOnDrop(dir);
     let config_file = dir.0.join("server.toml");
+    let data_dir = dir.0.join("data");
     std::fs::write(
         &config_file,
-        "name = \"From File\"\ndata_dir = \"/srv/from-file\"\n",
+        format!(
+            "name = \"From File\"\ndata_dir = \"{}\"\n",
+            data_dir.display()
+        ),
     )
     .unwrap();
 
@@ -86,18 +102,21 @@ fn server_logs_its_config_serves_the_api_and_exits_cleanly_on_ctrl_c() {
 
     let config_line = wait_for_line(&lines, "loaded config");
     assert!(config_line.contains("127.0.0.1:0"), "{config_line}");
-    assert!(config_line.contains("/srv/from-file"), "{config_line}");
+    assert!(
+        config_line.contains(&data_dir.display().to_string()),
+        "{config_line}"
+    );
+
+    // A fresh data directory gets a new database with every migration applied.
+    let database_line = wait_for_line(&lines, "opened database");
+    assert!(
+        database_line.contains("migrations_applied=[1]"),
+        "{database_line}"
+    );
+    assert!(data_dir.join("nama.db").is_file());
 
     // Port 0 asks the OS for a free port; the Server logs the one it got.
-    let listening_line = wait_for_line(&lines, "listening");
-    let addr = listening_line
-        .split_whitespace()
-        .find_map(|word| {
-            word.strip_prefix("addr=")?
-                .parse::<std::net::SocketAddr>()
-                .ok()
-        })
-        .unwrap_or_else(|| panic!("no address in {listening_line:?}"));
+    let addr = bound_addr(&wait_for_line(&lines, "listening"));
 
     // HTTP/1.0 so the response isn't chunked and ends when the connection closes.
     let mut stream = TcpStream::connect(addr).unwrap();

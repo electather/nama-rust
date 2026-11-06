@@ -2,6 +2,7 @@
 
 mod api;
 pub mod config;
+pub mod db;
 
 use std::{future::Future, io};
 

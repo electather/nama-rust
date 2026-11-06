@@ -8,7 +8,10 @@ use std::{
 };
 
 use clap::Parser;
-use nama_server::config::{self, Config};
+use nama_server::{
+    config::{self, Config},
+    db::{self, Database},
+};
 use tokio::net::TcpListener;
 use tracing::{error, info};
 use tracing_subscriber::EnvFilter;
@@ -50,6 +53,22 @@ async fn main() -> ExitCode {
         "loaded config"
     );
 
+    let db = match Database::open(&config.data_dir).await {
+        Ok(db) => db,
+        Err(err) => {
+            error!(
+                "could not open the database in {}: {err}",
+                config.data_dir.display()
+            );
+            return ExitCode::FAILURE;
+        }
+    };
+    info!(
+        path = %config.data_dir.join(db::FILE_NAME).display(),
+        migrations_applied = ?db.migrations_applied(),
+        "opened database"
+    );
+
     let listener = match TcpListener::bind(config.listen).await {
         Ok(listener) => listener,
         Err(err) => {
@@ -70,7 +89,9 @@ async fn main() -> ExitCode {
         shutdown.await;
         info!("shutting down");
     };
-    if let Err(err) = nama_server::serve(listener, &config, shutdown).await {
+    let served = nama_server::serve(listener, &config, shutdown).await;
+    db.close().await;
+    if let Err(err) = served {
         error!("server failed: {err}");
         return ExitCode::FAILURE;
     }

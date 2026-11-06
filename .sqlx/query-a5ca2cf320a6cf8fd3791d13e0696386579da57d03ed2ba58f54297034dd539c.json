@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO schema_meta (key, value) VALUES ('sneaky', 'no')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": []
+  },
+  "hash": "a5ca2cf320a6cf8fd3791d13e0696386579da57d03ed2ba58f54297034dd539c"
+}
