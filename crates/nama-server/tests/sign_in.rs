@@ -192,6 +192,8 @@ async fn setup_with_a_wrong_code_is_refused() {
     let setup = call(&server, "Setup", &request, &[]).await;
 
     assert_eq!(setup.body["code"], "permission_denied", "{}", setup.body);
+    let info = server_info(&server).await;
+    assert_eq!(info.body["setupRequired"], true, "a User was created");
 }
 
 #[tokio::test]
@@ -199,6 +201,24 @@ async fn setup_once_a_user_exists_is_refused() {
     let server = start().await;
     let request = setup_request(&server, "SESSION_DELIVERY_TOKEN");
     call(&server, "Setup", &request, &[]).await;
+
+    let again = call(&server, "Setup", &request, &[]).await;
+
+    assert_eq!(again.body["code"], "failed_precondition", "{}", again.body);
+}
+
+#[tokio::test]
+async fn setup_once_a_user_exists_is_refused_as_already_set_up_whatever_the_code() {
+    let server = start().await;
+    call(
+        &server,
+        "Setup",
+        &setup_request(&server, "SESSION_DELIVERY_TOKEN"),
+        &[],
+    )
+    .await;
+    let mut request = setup_request(&server, "SESSION_DELIVERY_TOKEN");
+    request["setupCode"] = json!("AAAA-AAAA-AAAA");
 
     let again = call(&server, "Setup", &request, &[]).await;
 

@@ -123,8 +123,17 @@ impl SignInService for SignInServiceHandler {
     ) -> ServiceResult<SetupResponse> {
         let request = request.to_owned_message();
         let wants_token = wants_token(request.delivery)?;
-        // The Server only made no code because it started with Users.
+        // The Server only made no code because it started with Users. Users are checked before the
+        // code, so once there are any every attempt is refused as already set up, as documented.
         let setup_code = self.setup_code.as_ref().ok_or(users::Error::AlreadySetUp)?;
+        if self
+            .users
+            .any()
+            .await
+            .map_err(|err| database_failed(&err))?
+        {
+            return Err(users::Error::AlreadySetUp.into());
+        }
         if !setup_code.matches(&request.setup_code) {
             return Err(ConnectError::permission_denied("the Setup Code is wrong"));
         }
