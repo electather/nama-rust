@@ -544,7 +544,7 @@ pub trait SignInService: Send + Sync + 'static {
     /// Sign-in Code, a User signed in on another Device approves it with `ApproveSignInCode`, and this
     /// Device then picks up its session with `PollSignInCode`. The code and the poll handle expire
     /// after 10 minutes, and a Server restart cancels them. Fails with `invalid_argument` if the
-    /// Device name breaks the rules.
+    /// Device name breaks the rules, and `resource_exhausted` while too many sign-ins are waiting.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
