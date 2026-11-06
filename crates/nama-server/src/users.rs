@@ -21,7 +21,7 @@ use crate::{
 };
 
 /// How many characters a User's or Device's name may have, once trimmed.
-const NAME_LENGTH: RangeInclusive<usize> = 1..=64;
+pub(crate) const NAME_LENGTH: RangeInclusive<usize> = 1..=64;
 
 /// What every session token starts with, so a leaked one is easy to recognise.
 const TOKEN_PREFIX: &str = "nama_";
@@ -29,9 +29,9 @@ const TOKEN_PREFIX: &str = "nama_";
 /// How many random bytes a session token carries.
 const TOKEN_BYTES: usize = 32;
 
-/// Crockford's base32 alphabet, which leaves out I, L, O and U so a code read off a log can't be
-/// mistyped as another.
-const SETUP_CODE_ALPHABET: &[u8; 32] = b"0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+/// Crockford's base32 alphabet, which leaves out I, L, O and U so a code read off a log or a screen
+/// can't be mistyped as another.
+const CODE_ALPHABET: &[u8; 32] = b"0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 
 /// How many characters a Setup Code has: 60 random bits.
 const SETUP_CODE_LENGTH: usize = 12;
@@ -254,6 +254,16 @@ impl Users {
             .filter(|_| verified)
             .map(|(user, _)| user)
             .ok_or(Error::WrongNameOrPassword)?;
+        self.sign_in_as(user, device_name).await
+    }
+
+    /// Signs the Device `device_name`, which has been checked, in as `user`, whose credentials have
+    /// been, or who approved a Sign-in Code.
+    pub(crate) async fn sign_in_as(
+        &self,
+        user: User,
+        device_name: String,
+    ) -> Result<SignedIn, Error> {
         let token = new_token()?;
         let token_hash = hash_token(&token);
         let device = self
@@ -418,7 +428,7 @@ impl Users {
     /// The User whose name is `name` ignoring case, with those of their credentials an enabled
     /// Plugin made.
     async fn user_named(&self, name: &str) -> Result<Option<(User, Vec<Credential>)>, Error> {
-        let name_key = name_key(name.trim());
+        let name_key = name_key(name);
         let rows = sqlx::query!(
             r#"SELECT u.id AS "id!", u.name, u.role AS "role: Role", c.plugin, c.credential
                FROM users u JOIN user_credentials c ON c.user_id = u.id
@@ -497,40 +507,54 @@ impl SetupCode {
     ///
     /// If the operating system's random number generator fails.
     pub fn generate() -> Result<Self, getrandom::Error> {
-        let mut bytes = [0; SETUP_CODE_LENGTH];
-        getrandom::fill(&mut bytes)?;
-        // 256 is a multiple of 32, so every character is equally likely.
-        Ok(Self(
-            bytes
-                .iter()
-                .filter_map(|byte| SETUP_CODE_ALPHABET.get(usize::from(byte % 32)))
-                .map(|&c| char::from(c))
-                .collect(),
-        ))
+        random_code(SETUP_CODE_LENGTH).map(Self)
     }
 
     /// Whether `entered` is this code, ignoring case, dashes and spaces.
     pub(crate) fn matches(&self, entered: &str) -> bool {
-        let entered: String = entered
-            .chars()
-            .filter(|c| *c != '-' && !c.is_whitespace())
-            .map(|c| c.to_ascii_uppercase())
-            .collect();
         // Comparing hashes, so how long a wrong guess takes says nothing about the code.
-        Sha256::digest(entered) == Sha256::digest(&self.0)
+        Sha256::digest(normalized_code(entered)) == Sha256::digest(&self.0)
     }
 }
 
 impl fmt::Display for SetupCode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for (i, c) in self.0.chars().enumerate() {
-            if i > 0 && i % 4 == 0 {
-                f.write_str("-")?;
-            }
-            write!(f, "{c}")?;
-        }
-        Ok(())
+        f.write_str(&code_in_groups(&self.0))
     }
+}
+
+/// `length` random characters of [`CODE_ALPHABET`], for a code a person reads and types.
+pub(crate) fn random_code(length: usize) -> Result<String, getrandom::Error> {
+    let mut bytes = vec![0; length];
+    getrandom::fill(&mut bytes)?;
+    // 256 is a multiple of 32, so every character is equally likely.
+    Ok(bytes
+        .iter()
+        .filter_map(|byte| CODE_ALPHABET.get(usize::from(byte % 32)))
+        .map(|&c| char::from(c))
+        .collect())
+}
+
+/// A code as a person typed it, in the form [`random_code`] makes: without dashes or spaces, and
+/// in upper case.
+pub(crate) fn normalized_code(entered: &str) -> String {
+    entered
+        .chars()
+        .filter(|c| *c != '-' && !c.is_whitespace())
+        .map(|c| c.to_ascii_uppercase())
+        .collect()
+}
+
+/// A code [`random_code`] made, as it is shown: in groups of four joined by dashes.
+pub(crate) fn code_in_groups(code: &str) -> String {
+    let mut shown = String::with_capacity(code.len() + code.len() / 4);
+    for (i, c) in code.chars().enumerate() {
+        if i > 0 && i % 4 == 0 {
+            shown.push('-');
+        }
+        shown.push(c);
+    }
+    shown
 }
 
 /// Has `authenticator` check `password` against `credential`, which is meant to be slow, where
@@ -546,7 +570,7 @@ fn verify_where_blocking_is_fine(
 }
 
 /// `name` trimmed, if it then has an allowed length. `what` names it in the error.
-fn checked_name(what: &str, name: &str) -> Result<String, Error> {
+pub(crate) fn checked_name(what: &str, name: &str) -> Result<String, Error> {
     let name = name.trim();
     if NAME_LENGTH.contains(&name.chars().count()) {
         Ok(name.to_owned())
@@ -559,11 +583,16 @@ fn checked_name(what: &str, name: &str) -> Result<String, Error> {
     }
 }
 
-/// A new session token: [`TOKEN_BYTES`] random bytes, base64url-encoded after [`TOKEN_PREFIX`].
+/// A new session token: a [`random_secret`] after [`TOKEN_PREFIX`].
 fn new_token() -> Result<String, getrandom::Error> {
+    Ok(format!("{TOKEN_PREFIX}{}", random_secret()?))
+}
+
+/// [`TOKEN_BYTES`] random bytes, base64url-encoded: too many to guess.
+pub(crate) fn random_secret() -> Result<String, getrandom::Error> {
     let mut bytes = [0; TOKEN_BYTES];
     getrandom::fill(&mut bytes)?;
-    Ok(format!("{TOKEN_PREFIX}{}", URL_SAFE_NO_PAD.encode(bytes)))
+    Ok(URL_SAFE_NO_PAD.encode(bytes))
 }
 
 /// What the database keeps of a session token.
@@ -614,10 +643,10 @@ async fn insert_credential(
     Ok(())
 }
 
-/// What a User's trimmed `name` is stored and looked up under, so names are unique and found
+/// What a User's `name` is stored and looked up under, trimmed, so names are unique and found
 /// ignoring case.
-fn name_key(name: &str) -> String {
-    name.to_lowercase()
+pub(crate) fn name_key(name: &str) -> String {
+    name.trim().to_lowercase()
 }
 
 /// Stores a User named `name`, which has been checked, unless another has it ignoring case.

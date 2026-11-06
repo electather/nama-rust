@@ -30,6 +30,38 @@ pub type OwnedWhoAmIRequestView = ::buffa::view::OwnedView<
 pub type OwnedWhoAmIResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::WhoAmIResponseView<'static>,
 >;
+///Shorthand for `OwnedView<StartSignInCodeRequestView<'static>>`.
+pub type OwnedStartSignInCodeRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::StartSignInCodeRequestView<'static>,
+>;
+///Shorthand for `OwnedView<StartSignInCodeResponseView<'static>>`.
+pub type OwnedStartSignInCodeResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::StartSignInCodeResponseView<'static>,
+>;
+///Shorthand for `OwnedView<LookUpSignInCodeRequestView<'static>>`.
+pub type OwnedLookUpSignInCodeRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::LookUpSignInCodeRequestView<'static>,
+>;
+///Shorthand for `OwnedView<LookUpSignInCodeResponseView<'static>>`.
+pub type OwnedLookUpSignInCodeResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::LookUpSignInCodeResponseView<'static>,
+>;
+///Shorthand for `OwnedView<ApproveSignInCodeRequestView<'static>>`.
+pub type OwnedApproveSignInCodeRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ApproveSignInCodeRequestView<'static>,
+>;
+///Shorthand for `OwnedView<ApproveSignInCodeResponseView<'static>>`.
+pub type OwnedApproveSignInCodeResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ApproveSignInCodeResponseView<'static>,
+>;
+///Shorthand for `OwnedView<PollSignInCodeRequestView<'static>>`.
+pub type OwnedPollSignInCodeRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::PollSignInCodeRequestView<'static>,
+>;
+///Shorthand for `OwnedView<PollSignInCodeResponseView<'static>>`.
+pub type OwnedPollSignInCodeResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::PollSignInCodeResponseView<'static>,
+>;
 impl ::connectrpc::Encodable<crate::messages::nama::v1::SetupResponse>
 for crate::messages::nama::v1::__buffa::view::SetupResponseView<'_> {
     fn encode(
@@ -166,6 +198,142 @@ for ::buffa::view::OwnedView<
         )
     }
 }
+impl ::connectrpc::Encodable<crate::messages::nama::v1::StartSignInCodeResponse>
+for crate::messages::nama::v1::__buffa::view::StartSignInCodeResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::StartSignInCodeResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::StartSignInCodeResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::LookUpSignInCodeResponse>
+for crate::messages::nama::v1::__buffa::view::LookUpSignInCodeResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::LookUpSignInCodeResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::LookUpSignInCodeResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::ApproveSignInCodeResponse>
+for crate::messages::nama::v1::__buffa::view::ApproveSignInCodeResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::ApproveSignInCodeResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ApproveSignInCodeResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::PollSignInCodeResponse>
+for crate::messages::nama::v1::__buffa::view::PollSignInCodeResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::PollSignInCodeResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::PollSignInCodeResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
 /// Full service name for this service.
 pub const SIGN_IN_SERVICE_SERVICE_NAME: &str = "nama.v1.SignInService";
 /// Static [`Spec`](::connectrpc::Spec) for the `Setup` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
@@ -192,6 +360,30 @@ pub const SIGN_IN_SERVICE_WHO_AM_I_SPEC: ::connectrpc::Spec = ::connectrpc::Spec
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
+/// Static [`Spec`](::connectrpc::Spec) for the `StartSignInCode` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const SIGN_IN_SERVICE_START_SIGN_IN_CODE_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.SignInService/StartSignInCode",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
+/// Static [`Spec`](::connectrpc::Spec) for the `LookUpSignInCode` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const SIGN_IN_SERVICE_LOOK_UP_SIGN_IN_CODE_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.SignInService/LookUpSignInCode",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
+/// Static [`Spec`](::connectrpc::Spec) for the `ApproveSignInCode` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const SIGN_IN_SERVICE_APPROVE_SIGN_IN_CODE_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.SignInService/ApproveSignInCode",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
+/// Static [`Spec`](::connectrpc::Spec) for the `PollSignInCode` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const SIGN_IN_SERVICE_POLL_SIGN_IN_CODE_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.SignInService/PollSignInCode",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
 /// Signing Devices in to a Server as Users, and finding out who is signed in (ADR 0014).
 ///
 /// A signed-in Device holds a session: a cookie for browsers, or a bearer token (`Authorization:
@@ -199,6 +391,11 @@ pub const SIGN_IN_SERVICE_WHO_AM_I_SPEC: ::connectrpc::Spec = ::connectrpc::Spec
 /// request.
 ///
 /// A Device that goes unused for 90 days expires, and its session stops working.
+///
+/// Guessing is slowed down: after 10 failed `SignIn`s for one name, or 50 failed `Setup`s and
+/// `SignIn`s together from one IP address, within 15 minutes, further attempts fail with
+/// `resource_exhausted`, without being checked, and a `Retry-After` header gives the seconds to
+/// wait. A successful `SignIn` clears its name's failures.
 ///
 /// # Implementing handlers
 ///
@@ -348,6 +545,108 @@ pub trait SignInService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
+    /// Starts signing the calling Device in without a password typed on it. It shows the returned
+    /// Sign-in Code, a User signed in on another Device approves it with `ApproveSignInCode`, and this
+    /// Device then picks up its session with `PollSignInCode`. The code and the poll handle expire
+    /// after 10 minutes, and a Server restart cancels them. Fails with `invalid_argument` if the
+    /// Device name breaks the rules, and `resource_exhausted` while too many sign-ins are waiting.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn start_sign_in_code<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::StartSignInCodeRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::StartSignInCodeResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Returns the name of the Device a Sign-in Code would sign in, so the User can check it before
+    /// approving. Approves nothing. Fails with `not_found` if no unexpired code matches,
+    /// `failed_precondition` if it was already approved, and `unauthenticated` without a valid
+    /// session.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn look_up_sign_in_code<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::LookUpSignInCodeRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::LookUpSignInCodeResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Approves a Sign-in Code, so the Device that shows it signs in as the calling User. Fails like
+    /// `LookUpSignInCode`.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn approve_sign_in_code<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::ApproveSignInCodeRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::ApproveSignInCodeResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Says whether the sign-in a poll handle stands for is still waiting for approval, expired, or
+    /// signed in. Signed in hands out the new Device's session, once, the way `SignIn` does: after
+    /// that, and for a handle the Server never gave out or has forgotten, it fails with `not_found`.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn poll_sign_in_code<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::PollSignInCodeRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::PollSignInCodeResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
 }
 /// Extension trait for registering a service implementation with a Router.
 ///
@@ -490,6 +789,122 @@ impl<S: SignInService> SignInServiceExt for S {
                 },
             )
             .with_spec(SIGN_IN_SERVICE_WHO_AM_I_SPEC)
+            .route_view(
+                SIGN_IN_SERVICE_SERVICE_NAME,
+                "StartSignInCode",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::StartSignInCodeRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::StartSignInCodeRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.start_sign_in_code(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::StartSignInCodeResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(SIGN_IN_SERVICE_START_SIGN_IN_CODE_SPEC)
+            .route_view(
+                SIGN_IN_SERVICE_SERVICE_NAME,
+                "LookUpSignInCode",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::LookUpSignInCodeRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::LookUpSignInCodeRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.look_up_sign_in_code(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::LookUpSignInCodeResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(SIGN_IN_SERVICE_LOOK_UP_SIGN_IN_CODE_SPEC)
+            .route_view(
+                SIGN_IN_SERVICE_SERVICE_NAME,
+                "ApproveSignInCode",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::ApproveSignInCodeRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::ApproveSignInCodeRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.approve_sign_in_code(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::ApproveSignInCodeResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(SIGN_IN_SERVICE_APPROVE_SIGN_IN_CODE_SPEC)
+            .route_view(
+                SIGN_IN_SERVICE_SERVICE_NAME,
+                "PollSignInCode",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::PollSignInCodeRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::PollSignInCodeRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.poll_sign_in_code(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::PollSignInCodeResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(SIGN_IN_SERVICE_POLL_SIGN_IN_CODE_SPEC)
     }
 }
 /// Type-inference marker used by [`Router::add_service`](::connectrpc::Router::add_service).
@@ -566,6 +981,30 @@ impl<T: SignInService> ::connectrpc::Dispatcher for SignInServiceServer<T> {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
                         .with_spec(SIGN_IN_SERVICE_WHO_AM_I_SPEC),
+                )
+            }
+            "StartSignInCode" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(SIGN_IN_SERVICE_START_SIGN_IN_CODE_SPEC),
+                )
+            }
+            "LookUpSignInCode" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(SIGN_IN_SERVICE_LOOK_UP_SIGN_IN_CODE_SPEC),
+                )
+            }
+            "ApproveSignInCode" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(SIGN_IN_SERVICE_APPROVE_SIGN_IN_CODE_SPEC),
+                )
+            }
+            "PollSignInCode" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(SIGN_IN_SERVICE_POLL_SIGN_IN_CODE_SPEC),
                 )
             }
             _ => None,
@@ -661,6 +1100,94 @@ impl<T: SignInService> ::connectrpc::Dispatcher for SignInServiceServer<T> {
                     svc.who_am_i(ctx, req)
                         .await?
                         .encode::<crate::messages::nama::v1::WhoAmIResponse>(format)
+                })
+            }
+            "StartSignInCode" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::StartSignInCodeRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::StartSignInCodeRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::StartSignInCodeRequest,
+                    >::from_parts(&req, &body);
+                    svc.start_sign_in_code(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::StartSignInCodeResponse,
+                        >(format)
+                })
+            }
+            "LookUpSignInCode" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::LookUpSignInCodeRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::LookUpSignInCodeRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::LookUpSignInCodeRequest,
+                    >::from_parts(&req, &body);
+                    svc.look_up_sign_in_code(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::LookUpSignInCodeResponse,
+                        >(format)
+                })
+            }
+            "ApproveSignInCode" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::ApproveSignInCodeRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::ApproveSignInCodeRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::ApproveSignInCodeRequest,
+                    >::from_parts(&req, &body);
+                    svc.approve_sign_in_code(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::ApproveSignInCodeResponse,
+                        >(format)
+                })
+            }
+            "PollSignInCode" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::PollSignInCodeRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::PollSignInCodeRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::PollSignInCodeRequest,
+                    >::from_parts(&req, &body);
+                    svc.poll_sign_in_code(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::PollSignInCodeResponse,
+                        >(format)
                 })
             }
             _ => ::connectrpc::dispatcher::codegen::unimplemented_unary(path),
@@ -936,6 +1463,186 @@ where
                 &self.transport,
                 &self.config,
                 SIGN_IN_SERVICE_WHO_AM_I_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the StartSignInCode RPC. Sends a request to /nama.v1.SignInService/StartSignInCode.
+    pub async fn start_sign_in_code(
+        &self,
+        request: crate::messages::nama::v1::StartSignInCodeRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::StartSignInCodeResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.start_sign_in_code_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the StartSignInCode RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn start_sign_in_code_with_options(
+        &self,
+        request: crate::messages::nama::v1::StartSignInCodeRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::StartSignInCodeResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                SIGN_IN_SERVICE_START_SIGN_IN_CODE_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the LookUpSignInCode RPC. Sends a request to /nama.v1.SignInService/LookUpSignInCode.
+    pub async fn look_up_sign_in_code(
+        &self,
+        request: crate::messages::nama::v1::LookUpSignInCodeRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::LookUpSignInCodeResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.look_up_sign_in_code_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the LookUpSignInCode RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn look_up_sign_in_code_with_options(
+        &self,
+        request: crate::messages::nama::v1::LookUpSignInCodeRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::LookUpSignInCodeResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                SIGN_IN_SERVICE_LOOK_UP_SIGN_IN_CODE_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the ApproveSignInCode RPC. Sends a request to /nama.v1.SignInService/ApproveSignInCode.
+    pub async fn approve_sign_in_code(
+        &self,
+        request: crate::messages::nama::v1::ApproveSignInCodeRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::ApproveSignInCodeResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.approve_sign_in_code_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the ApproveSignInCode RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn approve_sign_in_code_with_options(
+        &self,
+        request: crate::messages::nama::v1::ApproveSignInCodeRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::ApproveSignInCodeResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                SIGN_IN_SERVICE_APPROVE_SIGN_IN_CODE_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the PollSignInCode RPC. Sends a request to /nama.v1.SignInService/PollSignInCode.
+    pub async fn poll_sign_in_code(
+        &self,
+        request: crate::messages::nama::v1::PollSignInCodeRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::PollSignInCodeResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.poll_sign_in_code_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the PollSignInCode RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn poll_sign_in_code_with_options(
+        &self,
+        request: crate::messages::nama::v1::PollSignInCodeRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::PollSignInCodeResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                SIGN_IN_SERVICE_POLL_SIGN_IN_CODE_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,

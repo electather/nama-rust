@@ -493,7 +493,7 @@ impl io::Write for Log {
 /// The subscriber is global, because a thread-local one races with other tests over which
 /// callsites are enabled. So it also sees what the other tests here log, which use the same password.
 #[tokio::test]
-async fn neither_the_password_nor_the_token_is_logged_even_at_trace() {
+async fn no_password_token_or_setup_code_is_logged_even_at_trace() {
     let log = Log::default();
     let writer = log.clone();
     let subscriber = tracing_subscriber::fmt()
@@ -502,6 +502,10 @@ async fn neither_the_password_nor_the_token_is_logged_even_at_trace() {
         .finish();
     tracing::subscriber::set_global_default(subscriber).unwrap();
     let server = start().await;
+    let wrong_code = "WRONG-CODE-0000";
+    let mut wrong_setup = setup_request(&server, "SESSION_DELIVERY_TOKEN");
+    wrong_setup["setupCode"] = json!(wrong_code);
+    call(&server, "Setup", &wrong_setup, &[]).await;
 
     let setup = call(
         &server,
@@ -520,6 +524,9 @@ async fn neither_the_password_nor_the_token_is_logged_even_at_trace() {
     let (cookie_token, _) = session_cookie(&signed_in);
     let cookie = format!("nama_session={cookie_token}");
     call(&server, "SignOut", &json!({}), &[("cookie", &cookie)]).await;
+    let (code, handle) = start_sign_in_code(&server, "SESSION_DELIVERY_TOKEN").await;
+    with_code(&server, "ApproveSignInCode", &code, &token).await;
+    let code_token = self::token(&poll(&server, &handle).await);
     call(
         &server,
         "SignOut",
@@ -535,11 +542,26 @@ async fn neither_the_password_nor_the_token_is_logged_even_at_trace() {
     );
     assert!(!logged.contains(PASSWORD), "the password was logged");
     assert!(!logged.contains(wrong), "a wrong password was logged");
+    assert!(
+        !logged.contains(wrong_code),
+        "a wrong Setup Code was logged"
+    );
+    let setup_code = server.setup_code.as_ref().map(ToString::to_string);
+    assert!(
+        !logged.contains(&setup_code.unwrap_or_default()),
+        "the Setup Code was logged"
+    );
     assert!(!logged.contains(&token), "the token was logged");
     assert!(
         !logged.contains(&cookie_token),
         "the cookie's token was logged"
     );
+    assert!(
+        !logged.contains(&code_token),
+        "a Sign-in Code's token was logged"
+    );
+    assert!(!logged.contains(&code), "a Sign-in Code was logged");
+    assert!(!logged.contains(&handle), "a poll handle was logged");
 }
 
 /// Creates the first Admin, Ada, signed in on the Device "Laptop" with a token.
@@ -809,4 +831,290 @@ async fn signing_out_ends_that_devices_event_streams_and_leaves_other_devices_op
 
     assert_eq!(laptop_next, None, "the signed-out Device's stream is open");
     assert!(phone_next.is_some(), "the other Device's stream ended");
+}
+
+/// Fails to sign in as `name` with a wrong password `times` times.
+#[expect(
+    clippy::indexing_slicing,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn fail_sign_in(server: &TestServer, name: &str, times: usize) {
+    let request = sign_in_request(name, "not the password", "SESSION_DELIVERY_TOKEN");
+    for _ in 0..times {
+        let refused = call(server, "SignIn", &request, &[]).await;
+        assert_eq!(refused.body["code"], "unauthenticated", "{}", refused.body);
+    }
+}
+
+/// Asserts `reply` was refused as rate limited, with a retry delay of at most 15 minutes.
+#[expect(
+    clippy::unwrap_used,
+    clippy::indexing_slicing,
+    reason = "a test helper fails its test by panicking"
+)]
+fn assert_blocked(reply: &Reply) {
+    assert_eq!(reply.body["code"], "resource_exhausted", "{}", reply.body);
+    let retry_after: u64 = reply
+        .headers
+        .get("retry-after")
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .parse()
+        .unwrap();
+    assert!((1..=15 * 60).contains(&retry_after), "{retry_after}");
+}
+
+#[tokio::test]
+async fn the_11th_failed_sign_in_for_a_name_is_blocked_even_with_the_right_password() {
+    let server = start().await;
+    set_up(&server).await;
+    fail_sign_in(&server, "Ada", 10).await;
+
+    let blocked = call(
+        &server,
+        "SignIn",
+        &sign_in_request("aDA", PASSWORD, "SESSION_DELIVERY_TOKEN"),
+        &[],
+    )
+    .await;
+
+    assert_blocked(&blocked);
+}
+
+#[tokio::test]
+async fn failures_for_one_name_dont_block_another_name() {
+    let server = start().await;
+    set_up(&server).await;
+    fail_sign_in(&server, "Grace", 10).await;
+
+    let signed_in = sign_in(&server, "SESSION_DELIVERY_TOKEN").await;
+
+    assert_eq!(signed_in.status, 200, "{}", signed_in.body);
+}
+
+#[tokio::test]
+async fn a_successful_sign_in_resets_that_names_failures() {
+    let server = start().await;
+    set_up(&server).await;
+    fail_sign_in(&server, "Ada", 9).await;
+    sign_in(&server, "SESSION_DELIVERY_TOKEN").await;
+    fail_sign_in(&server, "Ada", 9).await;
+
+    let signed_in = sign_in(&server, "SESSION_DELIVERY_TOKEN").await;
+
+    assert_eq!(signed_in.status, 200, "{}", signed_in.body);
+}
+
+/// Fails to set up with a wrong Setup Code `times` times, each claiming in `X-Forwarded-For` to
+/// come from another client.
+#[expect(
+    clippy::indexing_slicing,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn fail_setup(server: &TestServer, times: usize) {
+    let mut request = setup_request(server, "SESSION_DELIVERY_TOKEN");
+    request["setupCode"] = json!("AAAA-AAAA-AAAA");
+    for i in 0..times {
+        let forwarded_for = format!("203.0.113.{i}");
+        let headers = [("x-forwarded-for", forwarded_for.as_str())];
+        let refused = call(server, "Setup", &request, &headers).await;
+        assert_eq!(
+            refused.body["code"], "permission_denied",
+            "{}",
+            refused.body
+        );
+    }
+}
+
+#[tokio::test]
+async fn the_51st_failure_from_one_ip_mixing_sign_in_and_setup_is_blocked() {
+    let server = start().await;
+    fail_setup(&server, 40).await;
+    fail_sign_in(&server, "Grace", 10).await;
+
+    let blocked = set_up(&server).await;
+
+    assert_blocked(&blocked);
+}
+
+#[tokio::test]
+async fn x_forwarded_for_doesnt_change_which_ip_is_counted() {
+    let server = start().await;
+    fail_setup(&server, 50).await;
+
+    let blocked = call(
+        &server,
+        "Setup",
+        &setup_request(&server, "SESSION_DELIVERY_TOKEN"),
+        &[("x-forwarded-for", "198.51.100.1")],
+    )
+    .await;
+
+    assert_blocked(&blocked);
+}
+
+/// Starts a Sign-in Code sign-in for the Device "Living room TV", asking for `delivery`, and
+/// returns the code and the poll handle.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn start_sign_in_code(server: &TestServer, delivery: &str) -> (String, String) {
+    let request = json!({ "deviceName": "Living room TV", "delivery": delivery });
+    let started = call(server, "StartSignInCode", &request, &[]).await;
+    assert_eq!(started.status, 200, "{}", started.body);
+    let field = |name: &str| started.body.get(name).unwrap().as_str().unwrap().to_owned();
+    (field("code"), field("handle"))
+}
+
+/// Calls `method`, `LookUpSignInCode` or `ApproveSignInCode`, with `code` as the Device whose
+/// session is `token`.
+async fn with_code(server: &TestServer, method: &str, code: &str, token: &str) -> Reply {
+    let bearer = format!("Bearer {token}");
+    call(
+        server,
+        method,
+        &json!({ "code": code }),
+        &[("authorization", &bearer)],
+    )
+    .await
+}
+
+/// Polls with `handle`.
+async fn poll(server: &TestServer, handle: &str) -> Reply {
+    call(server, "PollSignInCode", &json!({ "handle": handle }), &[]).await
+}
+
+#[tokio::test]
+async fn polling_an_approved_code_signs_the_device_in_as_the_approving_user() {
+    let server = start().await;
+    let ada = token(&set_up(&server).await);
+    let (code, handle) = start_sign_in_code(&server, "SESSION_DELIVERY_TOKEN").await;
+
+    let approved = with_code(&server, "ApproveSignInCode", &code, &ada).await;
+    let polled = poll(&server, &handle).await;
+    let bearer = format!("Bearer {}", token(&polled));
+    let me = call(&server, "WhoAmI", &json!({}), &[("authorization", &bearer)]).await;
+
+    assert_eq!(approved.status, 200, "{}", approved.body);
+    assert_eq!(polled.body["status"], "SIGN_IN_CODE_STATUS_SIGNED_IN");
+    assert_eq!(me.body["user"]["name"], "Ada", "{}", me.body);
+    assert_eq!(me.body["device"]["name"], "Living room TV");
+    assert_eq!(me.body["device"], polled.body["device"]);
+}
+
+#[tokio::test]
+async fn polling_again_after_signing_in_finds_nothing() {
+    let server = start().await;
+    let ada = token(&set_up(&server).await);
+    let (code, handle) = start_sign_in_code(&server, "SESSION_DELIVERY_TOKEN").await;
+    with_code(&server, "ApproveSignInCode", &code, &ada).await;
+    poll(&server, &handle).await;
+
+    let again = poll(&server, &handle).await;
+
+    assert_eq!(again.body["code"], "not_found", "{}", again.body);
+}
+
+#[tokio::test]
+async fn looking_up_a_code_shows_the_device_name_without_approving_it() {
+    let server = start().await;
+    let ada = token(&set_up(&server).await);
+    let (code, handle) = start_sign_in_code(&server, "SESSION_DELIVERY_TOKEN").await;
+
+    let looked_up = with_code(&server, "LookUpSignInCode", &code, &ada).await;
+    let polled = poll(&server, &handle).await;
+
+    assert_eq!(
+        looked_up.body["deviceName"], "Living room TV",
+        "{}",
+        looked_up.body
+    );
+    assert_eq!(
+        polled.body["status"], "SIGN_IN_CODE_STATUS_WAITING",
+        "{}",
+        polled.body
+    );
+}
+
+#[tokio::test]
+async fn a_code_matches_typed_in_lower_case_and_without_its_dash() {
+    let server = start().await;
+    let ada = token(&set_up(&server).await);
+    let (code, handle) = start_sign_in_code(&server, "SESSION_DELIVERY_TOKEN").await;
+    let typed = code.replace('-', "").to_lowercase();
+
+    let approved = with_code(&server, "ApproveSignInCode", &typed, &ada).await;
+    let polled = poll(&server, &handle).await;
+
+    assert_eq!(approved.status, 200, "{}", approved.body);
+    assert_eq!(polled.body["status"], "SIGN_IN_CODE_STATUS_SIGNED_IN");
+}
+
+#[tokio::test]
+async fn an_unknown_code_cant_be_looked_up_or_approved() {
+    let server = start().await;
+    let ada = token(&set_up(&server).await);
+
+    let looked_up = with_code(&server, "LookUpSignInCode", "AAAA-AAAA", &ada).await;
+    let approved = with_code(&server, "ApproveSignInCode", "AAAA-AAAA", &ada).await;
+
+    assert_eq!(looked_up.body["code"], "not_found", "{}", looked_up.body);
+    assert_eq!(approved.body["code"], "not_found", "{}", approved.body);
+}
+
+#[tokio::test]
+async fn a_cookie_poll_sets_the_cookie_and_leaves_the_token_out_of_the_body() {
+    let server = start().await;
+    let ada = token(&set_up(&server).await);
+    let (code, handle) = start_sign_in_code(&server, "SESSION_DELIVERY_COOKIE").await;
+    with_code(&server, "ApproveSignInCode", &code, &ada).await;
+
+    let polled = poll(&server, &handle).await;
+
+    let (token, _) = session_cookie(&polled);
+    assert!(token.starts_with("nama_"), "{token}");
+    assert_eq!(polled.body.get("token"), None, "{}", polled.body);
+}
+
+#[tokio::test]
+async fn looking_up_or_approving_a_code_without_a_session_is_unauthenticated() {
+    let server = start().await;
+    set_up(&server).await;
+    let (code, handle) = start_sign_in_code(&server, "SESSION_DELIVERY_TOKEN").await;
+    let request = json!({ "code": code });
+
+    let looked_up = call(&server, "LookUpSignInCode", &request, &[]).await;
+    let approved = call(&server, "ApproveSignInCode", &request, &[]).await;
+    let polled = poll(&server, &handle).await;
+
+    assert_eq!(
+        looked_up.body["code"], "unauthenticated",
+        "{}",
+        looked_up.body
+    );
+    assert_eq!(
+        approved.body["code"], "unauthenticated",
+        "{}",
+        approved.body
+    );
+    assert_eq!(polled.body["status"], "SIGN_IN_CODE_STATUS_WAITING");
+}
+
+#[tokio::test]
+async fn the_database_keeps_only_the_hash_of_a_token_a_sign_in_code_handed_out() {
+    let server = start().await;
+    let ada = token(&set_up(&server).await);
+    let (code, handle) = start_sign_in_code(&server, "SESSION_DELIVERY_TOKEN").await;
+    with_code(&server, "ApproveSignInCode", &code, &ada).await;
+    let token = token(&poll(&server, &handle).await);
+
+    let stored = database_bytes(server.data_dir.path());
+
+    assert!(!contains(&stored, token.as_bytes()), "the token is stored");
+    assert!(
+        contains(&stored, &Sha256::digest(&token)),
+        "the token's hash is missing"
+    );
 }
