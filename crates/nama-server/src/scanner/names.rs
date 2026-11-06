@@ -1,9 +1,12 @@
 //! Reading Movies and Episodes out of file paths, following the naming conventions Plex and
 //! Jellyfin share:
 //!
-//! - Movies: `Movie Name (Year)/Movie Name (Year).mkv`, or a bare `Movie Name (Year).mkv`.
-//! - Shows: `Show Name (Year)/Season 01/Show Name (Year) - S01E01.mkv`, with multi-episode files
-//!   (`S01E01-E02`, `S01E01E02`) and specials in Season 0 (`S00E01`).
+//! - Movies: `Movie Name (Year)/Movie Name (Year).mkv`, or a bare `Movie Name (Year).mkv`,
+//!   optionally inside grouping folders.
+//! - Shows: `Show Name (Year)/Season 01/Show Name (Year) - S01E01.mkv`, optionally inside
+//!   grouping folders, with multi-episode files (`S01E01-E02`, `S01E01E02`, `S01E01-02`) and
+//!   specials in Season 0 (`S00E01`).
+//! - Extras (`Featurettes/`, `-trailer` and the like) are recognised so they can be left out.
 //! - ID hints anywhere in a Movie's or Show's name: `{tmdb-123}` or `[tmdbid-123]`.
 //!
 //! Only paths are read here. The scanner never opens `.nfo` files or any other sidecar.
@@ -56,23 +59,27 @@ static TAG: LazyLock<Regex> = LazyLock::new(|| regex(r"\{[^}]*\}|\[[^\]]*\]"));
 static TITLE_YEAR: LazyLock<Regex> =
     LazyLock::new(|| regex(r"^(?P<title>.*?)\s*\((?P<year>\d{4})\)"));
 
-/// `S01E01`, `s1e1`, `S01E01-E02`, `S01E01E02` or `S01E01-S01E02`, not glued to a word before
-/// it.
+/// `S01E01`, `s1e1`, or a multi-episode `S01E01-E02`, `S01E01E02`, `S01E01-S01E02` or
+/// `S01E01-02`, not glued to a word before it.
 static EPISODE: LazyLock<Regex> = LazyLock::new(|| {
     regex(
-        r"(?i)(?:^|[^a-z0-9])s(?P<season>\d{1,3})[ ._]?e(?P<first>\d{1,4})(?P<more>(?:[ ._-]*(?:s\d{1,3})?e\d{1,4})*)",
+        r"(?i)(?:^|[^a-z0-9])s(?P<season>\d{1,3})[ ._]?e(?P<first>\d{1,4})(?P<more>(?:-?(?:s\d{1,3})?e\d{1,4}|-\d{1,3}(?:[^0-9a-z]|$))*)",
     )
 });
 
 /// The episode numbers after the first in [`EPISODE`]'s `more` group.
-static MORE_EPISODES: LazyLock<Regex> = LazyLock::new(|| regex(r"(?i)e(\d+)"));
+static MORE_EPISODES: LazyLock<Regex> = LazyLock::new(|| regex(r"(?i)[e-](\d+)"));
+
+/// A Season's folder inside a Show's folder: `Season 01`, `Season 1`, `S01` or `Specials`.
+static SEASON_FOLDER: LazyLock<Regex> =
+    LazyLock::new(|| regex(r"(?i)^(?:season[ ._-]*\d{1,4}|s\d{1,4}|specials)$"));
 
 /// `1x01`, with no digits or letters glued on either side.
 static EPISODE_X: LazyLock<Regex> = LazyLock::new(|| {
     regex(r"(?i)(?:^|[^a-z0-9])(?P<season>\d{1,2})x(?P<first>\d{2,3})(?:[^a-z0-9]|$)")
 });
 
-/// Folders that hold a title's extras rather than the title itself.
+/// Folders inside a title's folder that hold its extras rather than the title itself.
 const EXTRAS_FOLDERS: &[&str] = &[
     "behind the scenes",
     "deleted scenes",
@@ -87,7 +94,8 @@ const EXTRAS_FOLDERS: &[&str] = &[
     "trailers",
 ];
 
-/// File name suffixes, after a `-`, that mark an extra.
+/// File name suffixes, straight after a `-` with no spaces, that mark an extra, as in
+/// `Alien (1979)-trailer.mkv`.
 const EXTRAS_SUFFIXES: &[&str] = &[
     "behindthescenes",
     "deleted",
@@ -109,63 +117,98 @@ fn regex(pattern: &str) -> Regex {
     Regex::new(pattern).expect("a constant pattern compiles")
 }
 
+/// A path relative to a Library folder, split into the folders it's in and its file's stem.
+struct Split {
+    folders: Vec<String>,
+    stem: String,
+}
+
+impl Split {
+    fn new(relative: &Path) -> Option<Self> {
+        let mut folders: Vec<String> = relative
+            .iter()
+            .map(|c| c.to_string_lossy().into_owned())
+            .collect();
+        let file = folders.pop()?;
+        let stem = Path::new(&file).file_stem()?.to_string_lossy().into_owned();
+        Some(Self { folders, stem })
+    }
+}
+
 /// Whether the file at `relative` is an extra, such as a trailer or a featurette, which the
 /// scanner leaves out.
 pub(crate) fn is_extra(relative: &Path) -> bool {
-    let mut components: Vec<String> = relative
-        .iter()
-        .map(|c| c.to_string_lossy().to_lowercase())
-        .collect();
-    let Some(file) = components.pop() else {
+    let Some(Split { folders, stem }) = Split::new(relative) else {
         return false;
     };
-    if components
+    // The first folder can't be inside a title's folder: it may be a title called `Shorts`.
+    let in_extras_folder = folders
         .iter()
-        .any(|folder| EXTRAS_FOLDERS.contains(&folder.as_str()))
-    {
-        return true;
-    }
-    let stem = Path::new(&file)
-        .file_stem()
-        .map(|s| s.to_string_lossy().into_owned())
-        .unwrap_or_default();
-    stem.rsplit_once('-')
-        .is_some_and(|(_, suffix)| EXTRAS_SUFFIXES.contains(&suffix.trim()))
+        .skip(1)
+        .any(|folder| EXTRAS_FOLDERS.contains(&folder.to_lowercase().as_str()));
+    in_extras_folder
+        || stem
+            .rsplit_once('-')
+            .is_some_and(|(_, suffix)| EXTRAS_SUFFIXES.contains(&suffix.to_lowercase().as_str()))
 }
 
 /// Parses the path of a video file, relative to the Library folder it's in, in a Library of
 /// `kind`. Returns `None` if the path doesn't follow the naming conventions, which leaves the
 /// file Unmatched.
 pub(crate) fn parse(kind: Kind, relative: &Path) -> Option<Vec<Item>> {
-    let components: Vec<String> = relative
-        .iter()
-        .map(|c| c.to_string_lossy().into_owned())
-        .collect();
-    let (file, folders) = components.split_last()?;
-    let stem = Path::new(file).file_stem()?.to_string_lossy().into_owned();
+    let Split { folders, stem } = Split::new(relative)?;
     match kind {
-        Kind::Movies => parse_movie(folders, &stem).map(|movie| vec![movie]),
-        Kind::Shows => parse_episodes(folders, &stem),
+        Kind::Movies => parse_movie(&folders, &stem).map(|movie| vec![movie]),
+        Kind::Shows => parse_episodes(&folders, &stem),
     }
 }
 
-/// A Movie, named by the nearest folder that names one, or else by the file itself.
+/// A Movie, named by the file if its name gives a year or an ID hint, or else by the nearest
+/// folder that does.
+///
+/// A file that names its Movie takes the ID hint of the folder it's in only if the folder names
+/// the same Movie, so a hint on a grouping folder isn't pinned on everything in it.
 fn parse_movie(folders: &[String], stem: &str) -> Option<Item> {
-    let named = folders
-        .iter()
-        .rev()
-        .find_map(|folder| title_and_year(folder))
-        .or_else(|| title_and_year(stem))?;
+    let named = match title_and_year(stem) {
+        Some(file) => {
+            let folder_hint = folders
+                .last()
+                .and_then(|folder| title_and_year(folder))
+                .filter(|folder| {
+                    folder.year == file.year
+                        && folder.title.to_lowercase() == file.title.to_lowercase()
+                })
+                .and_then(|folder| folder.tmdb_id);
+            Named {
+                tmdb_id: file.tmdb_id.or(folder_hint),
+                ..file
+            }
+        }
+        None => folders
+            .iter()
+            .rev()
+            .find_map(|folder| title_and_year(folder))?,
+    };
     Some(Item::Movie {
         title: named.title,
         year: named.year,
-        tmdb_id: named.tmdb_id.or_else(|| tmdb_hint(stem)),
+        tmdb_id: named.tmdb_id,
     })
 }
 
-/// The Episodes in a file, in a Show named by the first folder under the Library folder.
+/// The Episodes in a file, in the Show named by the folder holding the file's Season folder, or
+/// by the folder holding the file if it isn't in a Season folder. An ID hint on an Episode's file
+/// names the Episode, not the Show, so it isn't used.
 fn parse_episodes(folders: &[String], stem: &str) -> Option<Vec<Item>> {
-    let show_folder = folders.first()?;
+    let (parent, above) = folders.split_last()?;
+    let show_folder = if SEASON_FOLDER.is_match(parent) {
+        above.last()?
+    } else {
+        parent
+    };
+    if SEASON_FOLDER.is_match(show_folder) {
+        return None;
+    }
     let show = title_and_year(show_folder).or_else(|| {
         let title = clean_title(&TAG.replace_all(show_folder, ""));
         (!title.is_empty()).then_some(Named {
@@ -350,6 +393,15 @@ mod tests {
                 "Alien (Director's Cut) (1979)/Alien.mkv",
                 movie("Alien (Director's Cut)", Some(1979), None),
             ),
+        ];
+        for (path, expected) in cases {
+            assert_eq!(parse(Kind::Movies, Path::new(path)), expected, "{path}");
+        }
+    }
+
+    #[test]
+    fn movies_with_id_hints_or_too_little_to_go_on() {
+        let cases = [
             // ID hints, in Plex's and Jellyfin's spellings, on the folder or the file.
             (
                 "Blade Runner (1982) {tmdb-78}/Blade Runner (1982).mkv",
@@ -371,6 +423,20 @@ mod tests {
             (
                 "Blade Runner (1982) {imdb-tt0083658}/Blade Runner (1982).mkv",
                 movie("Blade Runner", Some(1982), None),
+            ),
+            // A file that names a Movie wins over a grouping folder that looks like one, and
+            // takes a folder's ID hint only if the folder names the same Movie.
+            (
+                "Releases (2020)/Heat (1995).mkv",
+                movie("Heat", Some(1995), None),
+            ),
+            (
+                "Collection {tmdb-10}/Alien (1979).mkv",
+                movie("Alien", Some(1979), None),
+            ),
+            (
+                "Alien (1979) {tmdb-348}/alien (1979) - 1080p.mkv",
+                movie("alien", Some(1979), Some(348)),
             ),
             // Too little to go on: no year and no ID hint, or only a year.
             ("Blade Runner/Blade Runner.mkv", None),
@@ -404,6 +470,16 @@ mod tests {
             ("Dark (2017)/Dark - S02E05.mkv", dark(2, &[5])),
             // The file's Season wins over the folder's.
             ("Dark (2017)/Season 01/Dark - S02E05.mkv", dark(2, &[5])),
+        ];
+        for (path, expected) in cases {
+            assert_eq!(parse(Kind::Shows, Path::new(path)), expected, "{path}");
+        }
+    }
+
+    #[test]
+    fn multi_episode_files_and_specials() {
+        let dark = |season, numbers: &[i64]| episodes("Dark", Some(2017), None, season, numbers);
+        let cases = [
             // Multi-episode files.
             (
                 "Dark (2017)/Season 01/Dark (2017) - S01E01-E02.mkv",
@@ -421,6 +497,23 @@ mod tests {
                 "Dark (2017)/Season 01/Dark - S01E01-S01E02.mkv",
                 dark(1, &[1, 2]),
             ),
+            (
+                "Dark (2017)/Season 01/Dark - S01E01-02.mkv",
+                dark(1, &[1, 2]),
+            ),
+            (
+                "Dark (2017)/Season 01/Dark - S01E01-02 - Pilot.mkv",
+                dark(1, &[1, 2]),
+            ),
+            // A later `E` number that isn't glued on is part of the title, and so is a quality.
+            (
+                "Dark (2017)/Season 01/Dark - S01E01 - E3 Special.mkv",
+                dark(1, &[1]),
+            ),
+            (
+                "Dark (2017)/Season 01/Dark - S01E01-720p.mkv",
+                dark(1, &[1]),
+            ),
             // An ending before the start, or absurdly far after it, is only the first Episode.
             ("Dark (2017)/Season 01/Dark - S01E05-E02.mkv", dark(1, &[5])),
             (
@@ -433,9 +526,28 @@ mod tests {
                 dark(0, &[1]),
             ),
             ("Dark (2017)/Specials/Dark - S00E02.mkv", dark(0, &[2])),
+        ];
+        for (path, expected) in cases {
+            assert_eq!(parse(Kind::Shows, Path::new(path)), expected, "{path}");
+        }
+    }
+
+    #[test]
+    fn other_show_layouts_and_names() {
+        let dark = |season, numbers: &[i64]| episodes("Dark", Some(2017), None, season, numbers);
+        let cases = [
             // The `1x01` spelling, which a resolution doesn't look like.
             ("Dark (2017)/Season 01/Dark - 1x04.mkv", dark(1, &[4])),
             ("Dark (2017)/Season 01/Dark 1920x1080.mkv", None),
+            // Show folders grouped in a folder.
+            (
+                "Anime/Dark (2017)/Season 01/Dark - S01E01.mkv",
+                dark(1, &[1]),
+            ),
+            ("Anime/Dark (2017)/Dark - S01E01.mkv", dark(1, &[1])),
+            // A Library folder that is a Show's folder: there's no Show folder to name it.
+            ("Season 01/Dark - S01E01.mkv", None),
+            ("Specials/Dark - S00E01.mkv", None),
             // A Show folder without a year.
             (
                 "Dark/Season 01/Dark - S01E01.mkv",
@@ -468,7 +580,13 @@ mod tests {
             ("Blade Runner (1982)/Behind The Scenes/Making Of.mkv", true),
             ("Blade Runner (1982)/extras/Making Of.mkv", true),
             ("Blade Runner (1982)/Blade Runner (1982)-trailer.mkv", true),
-            ("Blade Runner (1982)/Blade Runner (1982) - Sample.mkv", true),
+            ("Blade Runner (1982)/Blade Runner (1982)-sample.mkv", true),
+            // Episode titles that end like a suffix aren't extras.
+            ("Lost (2004)/Season 01/Lost - S01E05 - Other.mkv", false),
+            // Folders named like extras folders only hold extras inside a title's folder.
+            ("Shorts/Paperman (2012).mkv", false),
+            ("Other/Heat (1995)/Heat (1995).mkv", false),
+            ("Extras/Season 01/Extras - S01E01.mkv", false),
             (
                 "Dark (2017)/Season 01/Dark - S01E01 - Behind the Scenes.mkv",
                 false,

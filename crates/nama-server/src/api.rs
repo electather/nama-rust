@@ -18,7 +18,7 @@ use crate::{
     config::Config,
     db::Database,
     libraries::{self, Kind, Libraries, Library},
-    scanner::{self, Scanner},
+    scanner::Scanner,
 };
 
 /// Routes every RPC the Server answers.
@@ -182,20 +182,6 @@ impl From<libraries::Error> for ConnectError {
             libraries::Error::Database(_) => {
                 tracing::error!("a Library request failed: {err}");
                 Self::internal("the Server's database failed")
-            }
-        }
-    }
-}
-
-/// The Connect error a client gets for a scan that couldn't start.
-impl From<scanner::Error> for ConnectError {
-    fn from(err: scanner::Error) -> Self {
-        match err {
-            scanner::Error::Library(err) => err.into(),
-            scanner::Error::Database(err) => libraries::Error::Database(err).into(),
-            scanner::Error::Walk(_) | scanner::Error::Cancelled => {
-                tracing::error!("a scan request failed: {err}");
-                Self::unavailable("the scan could not run")
             }
         }
     }

@@ -30,7 +30,7 @@ use crate::{
     libraries::{self, Kind, Libraries},
 };
 
-pub(crate) use names::Item;
+use names::Item;
 
 /// Extensions, in lowercase, of the files the scanner treats as video.
 const VIDEO_EXTENSIONS: &[&str] = &[
@@ -82,6 +82,7 @@ pub(crate) struct Scanner {
 #[derive(Debug)]
 struct Inner {
     db: Arc<Database>,
+    libraries: Libraries,
     /// Background scans, so shutting down can wait for them.
     tasks: TaskTracker,
     /// Cancelled when the Server shuts down.
@@ -97,6 +98,7 @@ impl Scanner {
     pub(crate) fn new(db: Arc<Database>) -> Self {
         Self {
             inner: Arc::new(Inner {
+                libraries: Libraries::new(Arc::clone(&db)),
                 db,
                 tasks: TaskTracker::new(),
                 cancel: CancellationToken::new(),
@@ -109,15 +111,15 @@ impl Scanner {
     /// Starts scanning the Library `id` in the background. If a scan of it is running, one more
     /// follows, so what changed since the running scan began is picked up; if one is already
     /// waiting to follow, that one does.
-    pub(crate) async fn start(&self, id: i64) -> Result<(), Error> {
-        Libraries::new(Arc::clone(&self.inner.db)).get(id).await?;
+    pub(crate) async fn start(&self, id: i64) -> Result<(), libraries::Error> {
+        self.inner.libraries.get(id).await?;
         self.queue(id);
         Ok(())
     }
 
     /// Starts scanning every Library in the background.
     pub(crate) async fn start_all(&self) {
-        match Libraries::new(Arc::clone(&self.inner.db)).list().await {
+        match self.inner.libraries.list().await {
             Ok(libraries) => libraries.iter().for_each(|library| self.queue(library.id)),
             Err(err) => tracing::error!("could not list the Libraries to scan: {err}"),
         }
@@ -135,20 +137,20 @@ impl Scanner {
         if self.inner.cancel.is_cancelled() || !lock(&self.inner.queued).insert(id) {
             return;
         }
-        let this = self.clone();
+        let scanner = self.clone();
         self.inner.tasks.spawn(async move {
-            let library = this.lock(id);
+            let library = scanner.library_mutex(id);
             let _running = library.lock().await;
-            lock(&this.inner.queued).remove(&id);
-            match this.scan_locked(id).await {
+            lock(&scanner.inner.queued).remove(&id);
+            match scanner.scan_locked(id).await {
                 Ok(_) | Err(Error::Cancelled) => {}
                 Err(err) => tracing::error!(library = id, "scanning a Library failed: {err}"),
             }
         });
     }
 
-    /// The lock a scan of the Library `id` holds while it runs.
-    fn lock(&self, id: i64) -> Arc<tokio::sync::Mutex<()>> {
+    /// The mutex a scan of the Library `id` holds while it runs.
+    fn library_mutex(&self, id: i64) -> Arc<tokio::sync::Mutex<()>> {
         Arc::clone(lock(&self.inner.running).entry(id).or_default())
     }
 
@@ -158,7 +160,7 @@ impl Scanner {
         if cancel.is_cancelled() {
             return Err(Error::Cancelled);
         }
-        let library = Libraries::new(Arc::clone(&self.inner.db)).get(id).await?;
+        let library = self.inner.libraries.get(id).await?;
         let stored = self.stored(id).await?;
         let walking = cancel.clone();
         let found = tokio::task::spawn_blocking(move || walk(&library.folders, &walking)).await??;
@@ -490,7 +492,7 @@ impl Scanner {
     /// Scans the Library `id` now, after any scan of it that's running, and returns what
     /// changed.
     async fn scan(&self, id: i64) -> Result<Summary, Error> {
-        let library = self.lock(id);
+        let library = self.library_mutex(id);
         let _running = library.lock().await;
         self.scan_locked(id).await
     }
@@ -553,7 +555,7 @@ mod tests {
 
     use tempfile::TempDir;
 
-    use super::{Error, File, Item, Scanner, Summary};
+    use super::{File, Item, Scanner, Summary};
     use crate::{
         db::Database,
         libraries::{self, Kind, Libraries},
@@ -797,7 +799,7 @@ mod tests {
         let media = Fixture::new(Kind::Movies).await;
         let result = media.scanner.start(media.library + 1).await;
         assert!(
-            matches!(result, Err(Error::Library(libraries::Error::NotFound(_)))),
+            matches!(result, Err(libraries::Error::NotFound(_))),
             "{result:?}"
         );
     }
