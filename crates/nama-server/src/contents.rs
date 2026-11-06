@@ -81,6 +81,14 @@ pub(crate) struct Named {
     pub(crate) items: Vec<(i64, Item)>,
 }
 
+/// An Item that needs a Match, and the path of the file holding it.
+#[derive(Debug)]
+pub(crate) struct Unmatched {
+    pub(crate) id: i64,
+    pub(crate) path: String,
+    pub(crate) item: Item,
+}
+
 /// A file as the last scan stored it.
 #[derive(Debug)]
 pub(crate) struct Stored {
@@ -288,6 +296,54 @@ impl Contents {
             name,
             items,
         }))
+    }
+
+    /// The Items of the Library `library` that need a Match, by path: those Matching left
+    /// Unmatched or hasn't decided about, except those pinned Unmatched.
+    pub(crate) async fn unmatched(&self, library: i64) -> Result<Vec<Unmatched>, sqlx::Error> {
+        let rows = sqlx::query!(
+            r#"SELECT library_items.id AS "id!", library_files.path,
+                      library_items.kind AS "kind: ItemKind", library_items.title,
+                      library_items.year, library_items.tmdb_id, library_items.season,
+                      library_items.episode
+               FROM library_items
+               JOIN library_files ON library_files.id = library_items.file_id
+               LEFT JOIN item_matches ON item_matches.item_id = library_items.id
+               WHERE library_files.library_id = ?
+                 AND item_matches.state IS NOT 'matched'
+                 AND NOT EXISTS (SELECT 1 FROM match_pins
+                                 WHERE match_pins.library_id = library_files.library_id
+                                   AND match_pins.kind = library_items.kind
+                                   AND match_pins.title = library_items.title
+                                   AND match_pins.year IS library_items.year
+                                   AND match_pins.tmdb_id IS library_items.tmdb_id
+                                   AND match_pins.pinned_tmdb_id IS NULL
+                                   AND match_pins.pinned_imdb_id IS NULL
+                                   AND match_pins.pinned_tvdb_id IS NULL)
+               ORDER BY library_files.path, library_items.id"#,
+            library
+        )
+        .fetch_all(self.db.reader())
+        .await?;
+        Ok(rows
+            .into_iter()
+            .filter_map(|row| {
+                let item = ItemRow {
+                    kind: row.kind,
+                    title: Cow::Owned(row.title),
+                    year: row.year,
+                    tmdb_id: row.tmdb_id,
+                    season: row.season,
+                    episode: row.episode,
+                }
+                .into_item()?;
+                Some(Unmatched {
+                    id: row.id,
+                    path: row.path,
+                    item,
+                })
+            })
+            .collect())
     }
 
     /// Pins `pin` for the Items of the Library `library` called `name`, replacing any pin they

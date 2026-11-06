@@ -31,6 +31,13 @@ service MatchService {
   rpc ClearMatch(ClearMatchRequest) returns (ClearMatchResponse) {
     option idempotency_level = IDEMPOTENT;
   }
+  // Lists the items of a Library that need a Match, by path: those Matching left Unmatched, and
+  // those it hasn't Matched yet, such as when no metadata Provider was enabled. Items pinned
+  // Unmatched with `ClearMatch` aren't listed, since an Admin has already decided about them.
+  // Fails with `not_found` if there is no such Library.
+  rpc ListUnmatchedItems(ListUnmatchedItemsRequest) returns (ListUnmatchedItemsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
 }
 
 // Whether a title is a Movie or a Show.
@@ -99,4 +106,32 @@ message ClearMatchRequest {
 message ClearMatchResponse {
   // How many items are now Unmatched.
   uint64 unmatched = 1;
+}
+
+message ListUnmatchedItemsRequest {
+  // The Library whose items to list.
+  int64 library_id = 1;
+}
+
+message ListUnmatchedItemsResponse {
+  repeated UnmatchedItem items = 1;
+}
+
+// An item that needs a Match, and what its file's name was parsed as. `kind`, `title` and `year`
+// are what to pass to `SearchMetadata` to find its title.
+message UnmatchedItem {
+  // The item to pass to `SetMatch`.
+  int64 item_id = 1;
+  // The absolute path of the file that holds it.
+  string path = 2;
+  // `TITLE_KIND_MOVIE` for a Movie, or `TITLE_KIND_SHOW` for an Episode of a Show.
+  TitleKind kind = 3;
+  // The Movie's title, or the title of the Show the Episode is in.
+  string title = 4;
+  // The year the Movie was released or the Show first aired, if the name says.
+  optional int32 year = 5;
+  // For an Episode, its Season number; 0 holds specials.
+  optional int32 season = 6;
+  // For an Episode, its number within the Season.
+  optional int32 episode = 7;
 }

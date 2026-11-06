@@ -2430,3 +2430,984 @@ impl ::serde::Serialize for ClearMatchResponseOwnedView {
         ::serde::Serialize::serialize(&self.0, __s)
     }
 }
+#[derive(Clone, Debug, Default)]
+pub struct ListUnmatchedItemsRequestView<'a> {
+    /// The Library whose items to list.
+    ///
+    /// Field 1: `library_id`
+    pub library_id: i64,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for ListUnmatchedItemsRequestView<'a> {
+    type Owned = super::super::ListUnmatchedItemsRequest;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.library_id = ::buffa::types::decode_int64(&mut cur)?;
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<
+        super::super::ListUnmatchedItemsRequest,
+        ::buffa::DecodeError,
+    > {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<
+        super::super::ListUnmatchedItemsRequest,
+        ::buffa::DecodeError,
+    > {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::ListUnmatchedItemsRequest {
+            library_id: self.library_id,
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for ListUnmatchedItemsRequestView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.library_id != 0i64 {
+            size += 1u64 + ::buffa::types::int64_encoded_len(self.library_id) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.library_id != 0i64 {
+            ::buffa::types::put_int64_field(1u32, self.library_id, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for ListUnmatchedItemsRequestView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_zero_i64(&self.library_id) {
+            __map
+                .serialize_entry(
+                    "libraryId",
+                    &::buffa::json_helpers::ProtoJson(&self.library_id),
+                )?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for ListUnmatchedItemsRequestView<'a> {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "ListUnmatchedItemsRequest";
+    const FULL_NAME: &'static str = "nama.v1.ListUnmatchedItemsRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.ListUnmatchedItemsRequest";
+}
+::buffa::impl_default_view_instance!(ListUnmatchedItemsRequestView);
+::buffa::impl_view_reborrow!(ListUnmatchedItemsRequestView);
+/** Self-contained, `'static` owned view of a `ListUnmatchedItemsRequest` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`ListUnmatchedItemsRequestView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`ListUnmatchedItemsRequestView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct ListUnmatchedItemsRequestOwnedView(
+    ::buffa::OwnedView<ListUnmatchedItemsRequestView<'static>>,
+);
+impl ListUnmatchedItemsRequestOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            ListUnmatchedItemsRequestOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            ListUnmatchedItemsRequestOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::ListUnmatchedItemsRequest,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            ListUnmatchedItemsRequestOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`ListUnmatchedItemsRequestView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &ListUnmatchedItemsRequestView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::ListUnmatchedItemsRequest {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// The Library whose items to list.
+    ///
+    /// Field 1: `library_id`
+    #[must_use]
+    pub fn library_id(&self) -> i64 {
+        self.0.reborrow().library_id
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<ListUnmatchedItemsRequestView<'static>>>
+for ListUnmatchedItemsRequestOwnedView {
+    fn from(inner: ::buffa::OwnedView<ListUnmatchedItemsRequestView<'static>>) -> Self {
+        ListUnmatchedItemsRequestOwnedView(inner)
+    }
+}
+impl ::core::convert::From<ListUnmatchedItemsRequestOwnedView>
+for ::buffa::OwnedView<ListUnmatchedItemsRequestView<'static>> {
+    fn from(wrapper: ListUnmatchedItemsRequestOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<ListUnmatchedItemsRequestView<'static>>>
+for ListUnmatchedItemsRequestOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<ListUnmatchedItemsRequestView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::ListUnmatchedItemsRequest {
+    type View<'a> = ListUnmatchedItemsRequestView<'a>;
+    type ViewHandle = ListUnmatchedItemsRequestOwnedView;
+}
+impl ::serde::Serialize for ListUnmatchedItemsRequestOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+#[derive(Clone, Debug, Default)]
+pub struct ListUnmatchedItemsResponseView<'a> {
+    /// Field 1: `items`
+    pub items: ::buffa::RepeatedView<
+        'a,
+        super::super::__buffa::view::UnmatchedItemView<'a>,
+    >,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for ListUnmatchedItemsResponseView<'a> {
+    type Owned = super::super::ListUnmatchedItemsResponse;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                ctx.register_element_memory(
+                    ::core::mem::size_of::<
+                        super::super::__buffa::view::UnmatchedItemView,
+                    >(),
+                )?;
+                view.items
+                    .push(
+                        <super::super::__buffa::view::UnmatchedItemView as ::buffa::MessageView>::decode_view_ctx(
+                            sub,
+                            __sub_ctx,
+                        )?,
+                    );
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<
+        super::super::ListUnmatchedItemsResponse,
+        ::buffa::DecodeError,
+    > {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<
+        super::super::ListUnmatchedItemsResponse,
+        ::buffa::DecodeError,
+    > {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::ListUnmatchedItemsResponse {
+            items: self
+                .items
+                .iter()
+                .map(|v| v.to_owned_from_source(__buffa_src))
+                .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for ListUnmatchedItemsResponseView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        for v in &self.items {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        for v in &self.items {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for ListUnmatchedItemsResponseView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !self.items.is_empty() {
+            __map.serialize_entry("items", &*self.items)?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for ListUnmatchedItemsResponseView<'a> {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "ListUnmatchedItemsResponse";
+    const FULL_NAME: &'static str = "nama.v1.ListUnmatchedItemsResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.ListUnmatchedItemsResponse";
+}
+::buffa::impl_default_view_instance!(ListUnmatchedItemsResponseView);
+::buffa::impl_view_reborrow!(ListUnmatchedItemsResponseView);
+/** Self-contained, `'static` owned view of a `ListUnmatchedItemsResponse` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`ListUnmatchedItemsResponseView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`ListUnmatchedItemsResponseView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct ListUnmatchedItemsResponseOwnedView(
+    ::buffa::OwnedView<ListUnmatchedItemsResponseView<'static>>,
+);
+impl ListUnmatchedItemsResponseOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            ListUnmatchedItemsResponseOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            ListUnmatchedItemsResponseOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::ListUnmatchedItemsResponse,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            ListUnmatchedItemsResponseOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`ListUnmatchedItemsResponseView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &ListUnmatchedItemsResponseView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::ListUnmatchedItemsResponse {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// Field 1: `items`
+    #[must_use]
+    pub fn items(
+        &self,
+    ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::UnmatchedItemView<'_>> {
+        &self.0.reborrow().items
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<ListUnmatchedItemsResponseView<'static>>>
+for ListUnmatchedItemsResponseOwnedView {
+    fn from(inner: ::buffa::OwnedView<ListUnmatchedItemsResponseView<'static>>) -> Self {
+        ListUnmatchedItemsResponseOwnedView(inner)
+    }
+}
+impl ::core::convert::From<ListUnmatchedItemsResponseOwnedView>
+for ::buffa::OwnedView<ListUnmatchedItemsResponseView<'static>> {
+    fn from(wrapper: ListUnmatchedItemsResponseOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<ListUnmatchedItemsResponseView<'static>>>
+for ListUnmatchedItemsResponseOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<ListUnmatchedItemsResponseView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::ListUnmatchedItemsResponse {
+    type View<'a> = ListUnmatchedItemsResponseView<'a>;
+    type ViewHandle = ListUnmatchedItemsResponseOwnedView;
+}
+impl ::serde::Serialize for ListUnmatchedItemsResponseOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+/// An item that needs a Match, and what its file's name was parsed as. `kind`, `title` and `year`
+/// are what to pass to `SearchMetadata` to find its title.
+#[derive(Clone, Debug, Default)]
+pub struct UnmatchedItemView<'a> {
+    /// The item to pass to `SetMatch`.
+    ///
+    /// Field 1: `item_id`
+    pub item_id: i64,
+    /// The absolute path of the file that holds it.
+    ///
+    /// Field 2: `path`
+    pub path: &'a str,
+    /// `TITLE_KIND_MOVIE` for a Movie, or `TITLE_KIND_SHOW` for an Episode of a Show.
+    ///
+    /// Field 3: `kind`
+    pub kind: ::buffa::EnumValue<super::super::TitleKind>,
+    /// The Movie's title, or the title of the Show the Episode is in.
+    ///
+    /// Field 4: `title`
+    pub title: &'a str,
+    /// The year the Movie was released or the Show first aired, if the name says.
+    ///
+    /// Field 5: `year`
+    pub year: ::core::option::Option<i32>,
+    /// For an Episode, its Season number; 0 holds specials.
+    ///
+    /// Field 6: `season`
+    pub season: ::core::option::Option<i32>,
+    /// For an Episode, its number within the Season.
+    ///
+    /// Field 7: `episode`
+    pub episode: ::core::option::Option<i32>,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for UnmatchedItemView<'a> {
+    type Owned = super::super::UnmatchedItem;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.item_id = ::buffa::types::decode_int64(&mut cur)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.path = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.kind = ::buffa::EnumValue::from(
+                    ::buffa::types::decode_int32(&mut cur)?,
+                );
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.title = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.year = Some(::buffa::types::decode_int32(&mut cur)?);
+            }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.season = Some(::buffa::types::decode_int32(&mut cur)?);
+            }
+            7u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.episode = Some(::buffa::types::decode_int32(&mut cur)?);
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<super::super::UnmatchedItem, ::buffa::DecodeError> {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<super::super::UnmatchedItem, ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::UnmatchedItem {
+            item_id: self.item_id,
+            path: self.path.to_string(),
+            kind: self.kind,
+            title: self.title.to_string(),
+            year: self.year,
+            season: self.season,
+            episode: self.episode,
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for UnmatchedItemView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.item_id != 0i64 {
+            size += 1u64 + ::buffa::types::int64_encoded_len(self.item_id) as u64;
+        }
+        if !self.path.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.path) as u64;
+        }
+        {
+            let val = self.kind.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
+        }
+        if !self.title.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.title) as u64;
+        }
+        if let Some(v) = self.year {
+            size += 1u64 + ::buffa::types::int32_encoded_len(v) as u64;
+        }
+        if let Some(v) = self.season {
+            size += 1u64 + ::buffa::types::int32_encoded_len(v) as u64;
+        }
+        if let Some(v) = self.episode {
+            size += 1u64 + ::buffa::types::int32_encoded_len(v) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.item_id != 0i64 {
+            ::buffa::types::put_int64_field(1u32, self.item_id, buf);
+        }
+        if !self.path.is_empty() {
+            ::buffa::types::put_string_field(2u32, &self.path, buf);
+        }
+        {
+            let val = self.kind.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(3u32, val, buf);
+            }
+        }
+        if !self.title.is_empty() {
+            ::buffa::types::put_string_field(4u32, &self.title, buf);
+        }
+        if let Some(v) = self.year {
+            ::buffa::types::put_int32_field(5u32, v, buf);
+        }
+        if let Some(v) = self.season {
+            ::buffa::types::put_int32_field(6u32, v, buf);
+        }
+        if let Some(v) = self.episode {
+            ::buffa::types::put_int32_field(7u32, v, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for UnmatchedItemView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_zero_i64(&self.item_id) {
+            __map
+                .serialize_entry(
+                    "itemId",
+                    &::buffa::json_helpers::ProtoJson(&self.item_id),
+                )?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.path) {
+            __map.serialize_entry("path", self.path)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_default_enum_value(&self.kind) {
+            __map.serialize_entry("kind", &self.kind)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.title) {
+            __map.serialize_entry("title", self.title)?;
+        }
+        if let ::core::option::Option::Some(__v) = self.year {
+            __map.serialize_entry("year", &::buffa::json_helpers::ProtoJson(&__v))?;
+        }
+        if let ::core::option::Option::Some(__v) = self.season {
+            __map.serialize_entry("season", &::buffa::json_helpers::ProtoJson(&__v))?;
+        }
+        if let ::core::option::Option::Some(__v) = self.episode {
+            __map.serialize_entry("episode", &::buffa::json_helpers::ProtoJson(&__v))?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for UnmatchedItemView<'a> {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "UnmatchedItem";
+    const FULL_NAME: &'static str = "nama.v1.UnmatchedItem";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.UnmatchedItem";
+}
+::buffa::impl_default_view_instance!(UnmatchedItemView);
+::buffa::impl_view_reborrow!(UnmatchedItemView);
+/** Self-contained, `'static` owned view of a `UnmatchedItem` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`UnmatchedItemView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`UnmatchedItemView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct UnmatchedItemOwnedView(::buffa::OwnedView<UnmatchedItemView<'static>>);
+impl UnmatchedItemOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            UnmatchedItemOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            UnmatchedItemOwnedView(::buffa::OwnedView::decode_with_options(bytes, opts)?),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::UnmatchedItem,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            UnmatchedItemOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`UnmatchedItemView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &UnmatchedItemView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::UnmatchedItem {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// The item to pass to `SetMatch`.
+    ///
+    /// Field 1: `item_id`
+    #[must_use]
+    pub fn item_id(&self) -> i64 {
+        self.0.reborrow().item_id
+    }
+    /// The absolute path of the file that holds it.
+    ///
+    /// Field 2: `path`
+    #[must_use]
+    pub fn path(&self) -> &'_ str {
+        self.0.reborrow().path
+    }
+    /// `TITLE_KIND_MOVIE` for a Movie, or `TITLE_KIND_SHOW` for an Episode of a Show.
+    ///
+    /// Field 3: `kind`
+    #[must_use]
+    pub fn kind(&self) -> ::buffa::EnumValue<super::super::TitleKind> {
+        self.0.reborrow().kind
+    }
+    /// The Movie's title, or the title of the Show the Episode is in.
+    ///
+    /// Field 4: `title`
+    #[must_use]
+    pub fn title(&self) -> &'_ str {
+        self.0.reborrow().title
+    }
+    /// The year the Movie was released or the Show first aired, if the name says.
+    ///
+    /// Field 5: `year`
+    #[must_use]
+    pub fn year(&self) -> ::core::option::Option<i32> {
+        self.0.reborrow().year
+    }
+    /// For an Episode, its Season number; 0 holds specials.
+    ///
+    /// Field 6: `season`
+    #[must_use]
+    pub fn season(&self) -> ::core::option::Option<i32> {
+        self.0.reborrow().season
+    }
+    /// For an Episode, its number within the Season.
+    ///
+    /// Field 7: `episode`
+    #[must_use]
+    pub fn episode(&self) -> ::core::option::Option<i32> {
+        self.0.reborrow().episode
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<UnmatchedItemView<'static>>>
+for UnmatchedItemOwnedView {
+    fn from(inner: ::buffa::OwnedView<UnmatchedItemView<'static>>) -> Self {
+        UnmatchedItemOwnedView(inner)
+    }
+}
+impl ::core::convert::From<UnmatchedItemOwnedView>
+for ::buffa::OwnedView<UnmatchedItemView<'static>> {
+    fn from(wrapper: UnmatchedItemOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<UnmatchedItemView<'static>>>
+for UnmatchedItemOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<UnmatchedItemView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::UnmatchedItem {
+    type View<'a> = UnmatchedItemView<'a>;
+    type ViewHandle = UnmatchedItemOwnedView;
+}
+impl ::serde::Serialize for UnmatchedItemOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
