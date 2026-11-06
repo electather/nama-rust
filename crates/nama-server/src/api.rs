@@ -7,7 +7,7 @@ use nama_proto::nama::v1::{GetServerInfoRequest, GetServerInfoResponse, ServerSe
 
 use crate::config::Config;
 
-/// Routes every Connect RPC the Server answers.
+/// Routes every RPC the Server answers.
 pub(crate) fn router(config: &Config) -> axum::Router {
     connectrpc::Router::new()
         .add_service(Arc::new(ServerServiceHandler {
