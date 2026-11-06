@@ -53,7 +53,7 @@ impl Client {
         language: &str,
     ) -> std::io::Result<Self> {
         let connector = HttpsConnectorBuilder::new()
-            .with_provider_and_platform_verifier(rustls::crypto::ring::default_provider())?
+            .with_provider_and_native_roots(rustls::crypto::ring::default_provider())?
             .https_or_http()
             .enable_http1()
             .build();
@@ -134,6 +134,7 @@ fn tmdb_id(id: &ExternalId) -> Result<i64, MetadataError> {
     }
 }
 
+/// A failure worth trying again later, such as TMDB being unreachable.
 fn failed(error: impl Into<nama_plugin_api::PluginError>) -> MetadataError {
     MetadataError::Failed(error.into())
 }

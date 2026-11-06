@@ -19,8 +19,9 @@ use crate::{config::Config, db::Database, plugins::Registry, scanner::Scanner};
 /// until `shutdown` resolves, then lets requests in flight finish. Once the returned future
 /// resolves the API holds no handle to `db`.
 ///
-/// Every Library is scanned, and its items Matched, in the background when serving starts. Scans still running when
-/// `shutdown` resolves are cancelled, and the returned future waits for them to stop.
+/// Every Library is scanned, and its items Matched, in the background when serving starts. Scans
+/// still running when `shutdown` resolves are cancelled, and the returned future waits for them
+/// to stop.
 ///
 /// Clients speak the Connect protocol over HTTP/1.1 or cleartext HTTP/2, with JSON or binary
 /// protobuf bodies.

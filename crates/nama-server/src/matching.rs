@@ -1,18 +1,21 @@
 //! Matching: linking the items a scan found to titles from the metadata Provider, and storing
 //! those titles' metadata and external ids on the items.
 //!
-//! After each scan, every item of the Library that Matching hasn't decided yet is looked up:
+//! After each scan, Matching decides about every item of the Library it hasn't decided yet:
 //!
 //! - An item whose name has an ID hint is fetched by that id directly. If the metadata source
 //!   has no such title, the item is Unmatched.
 //! - Otherwise its title and year are searched for, and it Matches only a result that fits
 //!   confidently and unambiguously (see [`confidence`]). Anything else is Unmatched.
 //! - An Episode Matches once its Show does and the Show's Season lists it. Each Show is looked up
-//!   once per pass, and each of its Seasons fetched once.
+//!   once per pass, and each of its Seasons fetched once. An Episode keeps its own TMDB id and its
+//!   Show's external ids; Watch State keys Episodes by the Show's ids plus Season and Episode
+//!   numbers (ADR 0008), so its own IMDb and TVDB ids aren't fetched.
 //!
-//! A Matched or Unmatched item stays so on later scans until its file changes. An item whose
-//! lookup couldn't finish (no metadata Provider is enabled, or the Provider failed, such as when
-//! TMDB is unreachable) stays undecided and is tried again on the next scan.
+//! A Matched or Unmatched item stays so on later scans until its file changes. An item Matching
+//! couldn't decide, because no metadata Provider is enabled or the Provider failed (such as when
+//! TMDB is unreachable or rejects the API key), stays undecided and is tried again on the next
+//! scan. Once the Provider fails, the rest of that pass is left for the next scan too.
 
 mod confidence;
 
@@ -83,12 +86,12 @@ struct PendingEpisode {
     episode: i64,
 }
 
-/// Why a lookup gave no title.
+/// Why Matching found no title for an item.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Miss {
     /// Nothing fits: the item is Unmatched.
     Unmatched,
-    /// The lookup couldn't finish; try again on the next scan.
+    /// The metadata Provider couldn't answer; try again on the next scan.
     Undecided,
 }
 
@@ -102,7 +105,8 @@ enum Decided {
 /// The metadata stored with a Match, as a row of `item_matches`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct Metadata {
-    provider: PluginId,
+    /// The Plugin whose metadata Provider made the Match.
+    plugin: PluginId,
     ids: ExternalIds,
     /// For an Episode, its Show's.
     show_ids: ExternalIds,
@@ -117,9 +121,9 @@ struct Metadata {
 }
 
 impl Metadata {
-    fn movie(provider: PluginId, movie: Movie) -> Self {
+    fn movie(plugin: PluginId, movie: Movie) -> Self {
         Self {
-            provider,
+            plugin,
             ids: movie.ids,
             show_ids: ExternalIds::default(),
             title: movie.title,
@@ -133,9 +137,9 @@ impl Metadata {
         }
     }
 
-    fn episode(provider: &PluginId, show: &Show, season: &Season, episode: &Episode) -> Self {
+    fn episode(plugin: &PluginId, show: &Show, season: &Season, episode: &Episode) -> Self {
         Self {
-            provider: provider.clone(),
+            plugin: plugin.clone(),
             ids: episode.ids.clone(),
             show_ids: show.ids.clone(),
             title: episode.title.clone(),
@@ -166,11 +170,19 @@ impl Matcher {
     ) -> Result<Summary, Error> {
         let (movies, shows) = self.undecided(library).await?;
         let mut summary = Summary::default();
+        // Once the Provider fails (or there is none), asking about the other titles would only
+        // fail too, so the rest is left for the next scan.
+        let mut available = true;
         for (key, items) in movies {
             if cancel.is_cancelled() {
                 return Err(Error::Cancelled);
             }
+            if !available {
+                summary.undecided += count(items.len());
+                continue;
+            }
             let outcome = self.match_movie(&key).await;
+            available = !matches!(outcome, Err(Miss::Undecided));
             let decided = items.into_iter().map(|item| (item, outcome.clone()));
             self.store(decided.collect(), &mut summary).await?;
         }
@@ -178,11 +190,24 @@ impl Matcher {
             if cancel.is_cancelled() {
                 return Err(Error::Cancelled);
             }
+            if !available {
+                summary.undecided += count(episodes.len());
+                continue;
+            }
             let decided = self.match_episodes(&key, &episodes).await;
+            available = !decided
+                .iter()
+                .any(|(_, outcome)| matches!(outcome, Err(Miss::Undecided)));
             self.store(decided, &mut summary).await?;
         }
         if summary != Summary::default() {
             tracing::info!(library, ?summary, "matched a Library");
+        }
+        if !available {
+            tracing::warn!(
+                library,
+                "no metadata provider could answer; will try again next scan"
+            );
         }
         Ok(summary)
     }
@@ -236,19 +261,19 @@ impl Matcher {
         Ok((movies, shows))
     }
 
-    /// Looks up the Movie `key` names.
+    /// Finds and fetches the Movie `key` names.
     async fn match_movie(&self, key: &TitleKey) -> Result<Metadata, Miss> {
         let id = self.find(TitleKind::Movie, key).await?;
-        let (provider, movie) = self
+        let (plugin, movie) = self
             .ask(|metadata| {
                 let id = id.clone();
                 async move { metadata.movie(&id).await }
             })
             .await?;
-        Ok(Metadata::movie(provider, movie))
+        Ok(Metadata::movie(plugin, movie))
     }
 
-    /// Looks up the Show `key` names, then each of `episodes` in it.
+    /// Finds and fetches the Show `key` names, then each of `episodes` in it.
     async fn match_episodes(
         &self,
         key: &TitleKey,
@@ -261,10 +286,10 @@ impl Matcher {
                     async move { metadata.show(&id).await.map(|show| (id, show)) }
                 })
                 .await
-                .map(|(provider, (id, show))| (provider, id, show)),
+                .map(|(plugin, (id, show))| (plugin, id, show)),
             Err(miss) => Err(miss),
         };
-        let (provider, show_id, show) = match show {
+        let (plugin, show_id, show) = match show {
             Ok(found) => found,
             Err(miss) => return episodes.iter().map(|e| (e.item, Err(miss))).collect(),
         };
@@ -281,7 +306,7 @@ impl Matcher {
                         .episodes
                         .iter()
                         .find(|e| i64::from(e.number) == pending.episode)
-                        .map(|episode| Metadata::episode(&provider, &show, season, episode))
+                        .map(|episode| Metadata::episode(&plugin, &show, season, episode))
                         .ok_or(Miss::Unmatched),
                     Some(Err(miss)) => Err(*miss),
                     None => Err(Miss::Undecided),
@@ -307,10 +332,41 @@ impl Matcher {
         if let Some(id) = key.tmdb_id {
             return Ok(ExternalId::Tmdb(id));
         }
+        let year = key.year.and_then(|year| i32::try_from(year).ok());
+        let mut decision = self.search(kind, &key.title, year, year).await?;
+        // A metadata source may only return titles from exactly the year searched for, so a year
+        // off by one (release dates differ by country) finds nothing. Search again without it,
+        // and let the confidence score weigh the year.
+        if decision == Decision::NoMatch && year.is_some() {
+            decision = self.search(kind, &key.title, None, year).await?;
+        }
+        match decision {
+            Decision::Match(id) => Ok(id),
+            Decision::Ambiguous => {
+                tracing::info!(
+                    title = %key.title,
+                    year = ?key.year,
+                    "more than one title fits; left Unmatched"
+                );
+                Err(Miss::Unmatched)
+            }
+            Decision::NoMatch => Err(Miss::Unmatched),
+        }
+    }
+
+    /// Searches for `title` from `search_year`, and decides which result fits `title` from
+    /// `year`.
+    async fn search(
+        &self,
+        kind: TitleKind,
+        title: &str,
+        search_year: Option<i32>,
+        year: Option<i32>,
+    ) -> Result<Decision, Miss> {
         let query = SearchQuery {
             kind,
-            title: key.title.clone(),
-            year: key.year.and_then(|year| i32::try_from(year).ok()),
+            title: title.to_owned(),
+            year: search_year,
         };
         let (_, candidates) = self
             .ask(|metadata| {
@@ -318,14 +374,7 @@ impl Matcher {
                 async move { metadata.search(&query).await }
             })
             .await?;
-        match confidence::decide(&query.title, query.year, &candidates) {
-            Decision::Match(id) => Ok(id),
-            Decision::Ambiguous => {
-                tracing::info!(title = %key.title, year = ?key.year, "more than one title fits; left Unmatched");
-                Err(Miss::Unmatched)
-            }
-            Decision::NoMatch => Err(Miss::Unmatched),
-        }
+        Ok(confidence::decide(title, year, &candidates))
     }
 
     /// Asks the metadata Provider, and says which Plugin answered.
@@ -385,13 +434,18 @@ impl Matcher {
                 i64::try_from(since.as_secs()).unwrap_or(i64::MAX)
             });
         self.db
-            .write(move |tx| Box::pin(store(tx, decided, now)))
+            .write(move |tx| Box::pin(insert_decisions(tx, decided, now)))
             .await
     }
 }
 
+/// `n` items, as a [`Summary`] counts them.
+fn count(n: usize) -> u64 {
+    u64::try_from(n).unwrap_or(u64::MAX)
+}
+
 /// Stores `decided` as of `now`, for the items that still exist.
-async fn store(
+async fn insert_decisions(
     conn: &mut SqliteConnection,
     decided: Vec<(i64, Decided)>,
     now: i64,
@@ -400,14 +454,14 @@ async fn store(
         let row = MatchRow::from(&decision);
         sqlx::query!(
             "INSERT OR REPLACE INTO item_matches (
-                 item_id, state, provider, tmdb_id, imdb_id, tvdb_id,
+                 item_id, state, plugin, tmdb_id, imdb_id, tvdb_id,
                  show_tmdb_id, show_imdb_id, show_tvdb_id, title, original_title, show_title,
                  overview, release_date, runtime_minutes, poster, backdrop, decided_at)
              SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
              WHERE EXISTS (SELECT 1 FROM library_items WHERE id = ?)",
             item,
             row.state,
-            row.provider,
+            row.plugin,
             row.ids.tmdb,
             row.ids.imdb,
             row.ids.tvdb,
@@ -445,12 +499,13 @@ pub(crate) enum MatchState {
 #[derive(Debug)]
 struct MatchRow<'a> {
     state: MatchState,
-    provider: Option<&'a str>,
+    plugin: Option<&'a str>,
     ids: ExternalIds,
     show_ids: ExternalIds,
     metadata: MetadataColumns<'a>,
 }
 
+/// A Match's metadata as columns of `item_matches`; all empty for an Unmatched item.
 #[derive(Debug, Default)]
 struct MetadataColumns<'a> {
     title: Option<&'a str>,
@@ -468,14 +523,14 @@ impl<'a> From<&'a Decided> for MatchRow<'a> {
         match decided {
             Decided::Unmatched => Self {
                 state: MatchState::Unmatched,
-                provider: None,
+                plugin: None,
                 ids: ExternalIds::default(),
                 show_ids: ExternalIds::default(),
                 metadata: MetadataColumns::default(),
             },
             Decided::Matched(metadata) => Self {
                 state: MatchState::Matched,
-                provider: Some(metadata.provider.as_str()),
+                plugin: Some(metadata.plugin.as_str()),
                 ids: metadata.ids.clone(),
                 show_ids: metadata.show_ids.clone(),
                 metadata: MetadataColumns {
@@ -503,7 +558,7 @@ pub(crate) struct Stored {
     pub(crate) episode: Option<(i64, i64)>,
     /// `None` while undecided.
     pub(crate) state: Option<MatchState>,
-    pub(crate) provider: Option<String>,
+    pub(crate) plugin: Option<String>,
     pub(crate) ids: ExternalIds,
     pub(crate) show_ids: ExternalIds,
     pub(crate) title: Option<String>,
@@ -517,7 +572,7 @@ impl Matcher {
     pub(crate) async fn stored(&self, library: i64) -> Vec<Stored> {
         sqlx::query!(
             r#"SELECT library_files.path, library_items.season, library_items.episode,
-                      item_matches.state AS "state?: MatchState", item_matches.provider,
+                      item_matches.state AS "state?: MatchState", item_matches.plugin,
                       item_matches.tmdb_id, item_matches.imdb_id, item_matches.tvdb_id,
                       item_matches.show_tmdb_id, item_matches.show_imdb_id,
                       item_matches.show_tvdb_id, item_matches.title, item_matches.show_title,
@@ -537,7 +592,7 @@ impl Matcher {
             path: row.path,
             episode: row.season.zip(row.episode),
             state: row.state,
-            provider: row.provider,
+            plugin: row.plugin,
             ids: ExternalIds {
                 tmdb: row.tmdb_id,
                 imdb: row.imdb_id,
@@ -763,7 +818,7 @@ mod tests {
             ]
         );
         let alien = media.matcher.stored(movies.id).await.remove(0);
-        assert_eq!(alien.provider.as_deref(), Some("tmdb"));
+        assert_eq!(alien.plugin.as_deref(), Some("tmdb"));
         assert_eq!(
             alien.ids,
             ExternalIds {
@@ -837,6 +892,53 @@ mod tests {
         let count = |prefix: &str| requests.iter().filter(|r| r.starts_with(prefix)).count();
         assert_eq!(count("/3/tv/70523?"), 1, "{requests:?}");
         assert_eq!(count("/3/tv/70523/season/1?"), 1, "{requests:?}");
+    }
+
+    #[tokio::test]
+    async fn a_year_off_by_one_still_matches_though_tmdb_filters_by_exact_year() {
+        let media = Fixture::new().await;
+        // Released in 1979 in the US, but 1980 where this copy came from. TMDB finds no Alien
+        // from 1980, so the search is tried again without the year.
+        media.movies.write("Alien (1980)/Alien (1980).mkv");
+
+        media.scan(&media.movies).await;
+
+        assert_eq!(
+            media.stored(&media.movies).await[0].2,
+            matched(348, "Alien")
+        );
+    }
+
+    #[tokio::test]
+    async fn a_failing_metadata_provider_stops_the_pass_and_leaves_items_undecided() {
+        let media = Fixture::without_tmdb().await;
+        let settings = Settings::new(BTreeMap::from([(
+            "api_key".to_owned(),
+            SettingValue::Text("rejected".to_owned()),
+        )]));
+        media
+            .plugins
+            .enable_with_settings(
+                Arc::new(Tmdb::with_endpoints(media.tmdb.endpoints())),
+                settings,
+            )
+            .unwrap();
+        media.movies.write("Alien (1979)/Alien (1979).mkv");
+        media.movies.write("Dune (2021)/Dune (2021).mkv");
+
+        media.scan(&media.movies).await;
+
+        // TMDB rejected the key once; nothing more was asked.
+        assert_eq!(media.tmdb.requests().len(), 1);
+        assert_eq!(
+            media
+                .stored(&media.movies)
+                .await
+                .into_iter()
+                .map(|(_, _, outcome)| outcome)
+                .collect::<Vec<_>>(),
+            [Outcome::Undecided, Outcome::Undecided]
+        );
     }
 
     #[tokio::test]

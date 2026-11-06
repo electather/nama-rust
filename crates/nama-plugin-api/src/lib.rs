@@ -10,7 +10,8 @@
 //!   modify it, or veto it. Each Intercept Extension Point declares, as its [`OnFailure`], whether
 //!   an Interceptor that fails lets the action through or blocks it.
 //! - **Provide**: a capability the Server needs, looked up by its trait (for example
-//!   [`dyn MetadataProvider`](metadata::MetadataProvider)). A Plugin registers a Provider as an `Arc` of that trait object.
+//!   [`dyn MetadataProvider`](metadata::MetadataProvider)). A Plugin registers a Provider as an
+//!   `Arc` of that trait object.
 //!
 //! When the Kernel enables a Plugin it calls [`Plugin::register`] with a fresh [`Registrar`].
 //! Everything registered there belongs to that Plugin, so disabling the Plugin removes all of it.

@@ -1,9 +1,10 @@
 //! Posters and backdrops, cached on disk.
 //!
-//! A Match stores its title's images as paths the metadata Provider handed out, along with which
-//! Plugin's Provider that was. An image is downloaded through that Provider only when something
-//! first asks for it, then kept under `artwork/` in the data directory and served from there,
-//! across restarts too.
+//! A Match stores its title's images as paths the metadata Provider handed out, along with the
+//! Plugin whose Provider that was. An image is downloaded through that Provider only when
+//! something first asks for it, then kept under `artwork/` in the data directory and served from
+//! there, across restarts too. Callers should only ask for images some Match stores, so clients
+//! can't use the cache to fetch arbitrary images.
 
 use std::{
     io,
@@ -62,17 +63,17 @@ impl Artwork {
         }
     }
 
-    /// The image at `path` from the Plugin `provider`'s metadata Provider, downloading it first
-    /// if it isn't cached yet.
+    /// The image at `path` from the Plugin `plugin`'s metadata Provider, downloading it first if
+    /// it isn't cached yet.
     ///
     /// # Errors
     ///
     /// If the Provider has no such image, can't be reached, or the cache can't be written.
-    pub async fn get(&self, provider: &PluginId, path: &str) -> Result<CachedImage, Error> {
+    pub async fn get(&self, plugin: &PluginId, path: &str) -> Result<CachedImage, Error> {
         let cached = CachedImage {
             path: self
                 .dir
-                .join(file_name(provider.as_str()))
+                .join(file_name(plugin.as_str()))
                 .join(file_name(path)),
             content_type: content_type(path),
         };
@@ -81,7 +82,7 @@ impl Artwork {
         }
         let fetched = self
             .plugins
-            .call_provider_of::<dyn MetadataProvider, _, _>(provider, |metadata| {
+            .call_provider_of::<dyn MetadataProvider, _, _>(plugin, |metadata| {
                 let path = path.to_owned();
                 async move { metadata.image(&path).await }
             })
@@ -96,7 +97,7 @@ impl Artwork {
             }
             None => {
                 return Err(Error::Unavailable(format!(
-                    "{provider} isn't enabled or doesn't provide metadata"
+                    "{plugin} isn't enabled or doesn't provide metadata"
                 )));
             }
         };

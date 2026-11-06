@@ -6,8 +6,8 @@ CREATE TABLE item_matches (
     item_id INTEGER PRIMARY KEY NOT NULL REFERENCES library_items (id) ON DELETE CASCADE,
     -- 'matched', or 'unmatched' when no title fit confidently (or an ID hint named none).
     state TEXT NOT NULL CHECK (state IN ('matched', 'unmatched')),
-    -- The Plugin whose metadata Provider made the Match; image paths are its own.
-    provider TEXT,
+    -- The id of the Plugin whose metadata Provider made the Match; image paths are its own.
+    plugin TEXT,
     -- The Movie's or Episode's external ids, which Watch State sync keys on (ADR 0008).
     tmdb_id INTEGER,
     imdb_id TEXT,
@@ -30,5 +30,5 @@ CREATE TABLE item_matches (
     backdrop TEXT,
     -- When Matching decided, in seconds since the Unix epoch.
     decided_at INTEGER NOT NULL,
-    CHECK ((state = 'matched') = (provider IS NOT NULL AND title IS NOT NULL))
+    CHECK ((state = 'matched') = (plugin IS NOT NULL AND title IS NOT NULL))
 ) STRICT;

@@ -16,8 +16,9 @@ axum = { version = "0.8", default-features = false, features = ["http1", "tokio"
 bytes = "1"
 http = "1"
 http-body-util = "0.1"
-# ring, not rustls's default aws-lc-rs, whose OpenSSL license deny.toml doesn't allow.
-hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "tls12", "ring", "rustls-platform-verifier"] }
+# ring, not rustls's default aws-lc-rs (OpenSSL license), and the OS's root certificates, not
+# rustls-platform-verifier's bundled webpki-root-certs (CDLA license): deny.toml allows neither.
+hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "tls12", "ring", "native-tokio"] }
 hyper-util = { version = "0.1", features = ["client-legacy", "http1", "tokio"] }
 nama-plugin-api = { version = "0.1.0", path = "../../crates/nama-plugin-api" }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
