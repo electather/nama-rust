@@ -19,12 +19,13 @@ use nama_proto::nama::v1::{
     CreateLibraryResponse, DeleteLibraryRequest, DeleteLibraryResponse, EventService, EventType,
     GetLibraryRequest, GetLibraryResponse, GetServerInfoRequest, GetServerInfoResponse,
     LIBRARY_SERVICE_SERVICE_NAME, LibraryKind, LibraryService, ListLibrariesRequest,
-    ListLibrariesResponse, MATCH_SERVICE_SERVICE_NAME, MatchService, SERVER_SERVICE_SERVICE_NAME,
-    SIGN_IN_SERVICE_SERVICE_NAME, ScanLibraryRequest, ScanLibraryResponse, SearchMetadataRequest,
-    SearchMetadataResponse, ServerService, SessionDelivery, SetMatchRequest, SetMatchResponse,
-    SetupRequest, SetupResponse, SignInRequest, SignInResponse, SignInService, SignOutRequest,
-    SignOutResponse, SubscribeRequest, SubscribeResponse, UpdateLibraryRequest,
-    UpdateLibraryResponse, WhoAmIRequest, WhoAmIResponse, external_id,
+    ListLibrariesResponse, MATCH_SERVICE_SERVICE_NAME, MatchService,
+    SERVER_SERVICE_GET_SERVER_INFO_SPEC, SIGN_IN_SERVICE_SETUP_SPEC, SIGN_IN_SERVICE_SIGN_IN_SPEC,
+    ScanLibraryRequest, ScanLibraryResponse, SearchMetadataRequest, SearchMetadataResponse,
+    ServerService, SessionDelivery, SetMatchRequest, SetMatchResponse, SetupRequest, SetupResponse,
+    SignInRequest, SignInResponse, SignInService, SignOutRequest, SignOutResponse,
+    SubscribeRequest, SubscribeResponse, UpdateLibraryRequest, UpdateLibraryResponse,
+    WhoAmIRequest, WhoAmIResponse, external_id,
 };
 use tokio::sync::OwnedMutexGuard;
 
@@ -92,17 +93,25 @@ enum Access {
 }
 
 impl Access {
-    /// Who may call the RPC at `path`, `/<service>/<method>`. Only the RPCs named here are public,
-    /// so a new one needs a session until it is opened up.
+    /// The RPCs anyone may call without a session, by path.
+    const PUBLIC: [&str; 3] = [
+        SERVER_SERVICE_GET_SERVER_INFO_SPEC.procedure,
+        SIGN_IN_SERVICE_SIGN_IN_SPEC.procedure,
+        SIGN_IN_SERVICE_SETUP_SPEC.procedure,
+    ];
+
+    /// Who may call the RPC at `path`, `/<service>/<method>`. Only the RPCs in
+    /// [`Access::PUBLIC`] are public, so a new one needs a session until it is opened up.
     fn of(path: &str) -> Self {
-        let (service, method) = path
+        if Self::PUBLIC.contains(&path) {
+            return Self::Anyone;
+        }
+        let service = path
             .trim_start_matches('/')
             .split_once('/')
-            .unwrap_or_default();
-        match (service, method) {
-            (SERVER_SERVICE_SERVICE_NAME, "GetServerInfo")
-            | (SIGN_IN_SERVICE_SERVICE_NAME, "SignIn" | "Setup") => Self::Anyone,
-            (LIBRARY_SERVICE_SERVICE_NAME | MATCH_SERVICE_SERVICE_NAME, _) => Self::Admin,
+            .map(|(service, _)| service);
+        match service {
+            Some(LIBRARY_SERVICE_SERVICE_NAME | MATCH_SERVICE_SERVICE_NAME) => Self::Admin,
             _ => Self::SignedIn,
         }
     }
