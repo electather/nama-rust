@@ -1,6 +1,6 @@
 # AI factory (sandcastle)
 
-Takes open `ready-for-agent` issues with no open blockers, up to 3 at a time, through:
+Takes open `ready-for-agent` issues with no open blockers, one at a time, through:
 `implement` skill → `code-review` skill + fixes → PR (`Closes #N`) → CI (one auto-fix attempt) → squash-merge.
 Anything stuck is relabelled `ready-for-human` with a comment.
 
