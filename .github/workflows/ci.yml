@@ -121,7 +121,10 @@ jobs:
           vp test
           vp build
           vp run fallow
-          vp dlx impeccable@4.8.0 detect --json src
+      # From the repo root, where impeccable finds .impeccable/config.json (which ignores
+      # web/src/gen) and DESIGN.md. From web/ it would read neither.
+      - name: Design check
+        run: vp dlx impeccable@4.8.0 detect --json web/src
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo test -p nama-server --features web --test web --locked
