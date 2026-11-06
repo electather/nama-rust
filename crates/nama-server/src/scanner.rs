@@ -167,6 +167,12 @@ impl Scanner {
         });
     }
 
+    /// Waits for any scan of the Library `id` to finish, and keeps another from starting until
+    /// the returned guard is dropped, so the Library's items don't change meanwhile.
+    pub(crate) async fn lock(&self, id: i64) -> tokio::sync::OwnedMutexGuard<()> {
+        self.library_mutex(id).lock_owned().await
+    }
+
     /// The mutex a scan of the Library `id` holds while it runs.
     fn library_mutex(&self, id: i64) -> Arc<tokio::sync::Mutex<()>> {
         Arc::clone(lock(&self.inner.running).entry(id).or_default())

@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT library_files.library_id\n             FROM library_items\n             JOIN library_files ON library_files.id = library_items.file_id\n             WHERE library_items.id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "library_id",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_files",
+            "name": "library_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "6a416d5c8b03cf158d1f7d27ed13d0377a38b5e7fc7112d464e4a279e45f1a29"
+}

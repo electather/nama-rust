@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT OR REPLACE INTO match_pins (\n             library_id, kind, title, year, tmdb_id,\n             pinned_tmdb_id, pinned_imdb_id, pinned_tvdb_id, pinned_at)\n         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 9
+    },
+    "nullable": []
+  },
+  "hash": "613893ed509c82a81a8b030bf2092580da48108558d43368dad1fd248ccbd20f"
+}

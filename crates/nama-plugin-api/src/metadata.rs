@@ -65,7 +65,7 @@ pub struct SearchQuery {
 }
 
 /// An id of a title in a metadata source.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ExternalId {
     /// A TMDB id. Movies and Shows have separate id spaces.
     Tmdb(i64),

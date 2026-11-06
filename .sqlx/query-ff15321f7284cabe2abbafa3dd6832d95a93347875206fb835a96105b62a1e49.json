@@ -1,11 +1,22 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT library_items.id AS \"id!\", library_items.kind AS \"kind: ItemKind\",\n                      library_items.title, library_items.year, library_items.tmdb_id,\n                      library_items.season, library_items.episode\n               FROM library_items\n               JOIN library_files ON library_files.id = library_items.file_id\n               WHERE library_files.library_id = ?\n                 AND NOT EXISTS (SELECT 1 FROM item_matches\n                                 WHERE item_matches.item_id = library_items.id)\n               ORDER BY library_items.id",
+  "query": "SELECT files.library_id, named.id AS \"id!\", named.kind AS \"kind: ItemKind\",\n                      named.title, named.year, named.tmdb_id, named.season, named.episode\n               FROM library_items AS this\n               JOIN library_files AS this_file ON this_file.id = this.file_id\n               JOIN library_files AS files ON files.library_id = this_file.library_id\n               JOIN library_items AS named ON named.file_id = files.id\n               WHERE this.id = ?\n                 AND named.kind = this.kind\n                 AND named.title = this.title\n                 AND named.year IS this.year\n                 AND named.tmdb_id IS this.tmdb_id\n               ORDER BY named.id",
   "describe": {
     "columns": [
       {
-        "name": "id!",
+        "name": "library_id",
         "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_files",
+            "name": "library_id"
+          }
+        }
+      },
+      {
+        "name": "id!",
+        "ordinal": 1,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -16,7 +27,7 @@
       },
       {
         "name": "kind: ItemKind",
-        "ordinal": 1,
+        "ordinal": 2,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -27,7 +38,7 @@
       },
       {
         "name": "title",
-        "ordinal": 2,
+        "ordinal": 3,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -38,7 +49,7 @@
       },
       {
         "name": "year",
-        "ordinal": 3,
+        "ordinal": 4,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -49,7 +60,7 @@
       },
       {
         "name": "tmdb_id",
-        "ordinal": 4,
+        "ordinal": 5,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -60,7 +71,7 @@
       },
       {
         "name": "season",
-        "ordinal": 5,
+        "ordinal": 6,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -71,7 +82,7 @@
       },
       {
         "name": "episode",
-        "ordinal": 6,
+        "ordinal": 7,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -88,11 +99,12 @@
       false,
       false,
       false,
+      false,
       true,
       true,
       true,
       true
     ]
   },
-  "hash": "6ab611a7986c26dd6c74e3c58c07a0cfd1c323f9d3aaba56d578c61d3f1bd485"
+  "hash": "ff15321f7284cabe2abbafa3dd6832d95a93347875206fb835a96105b62a1e49"
 }
