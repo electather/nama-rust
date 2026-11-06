@@ -25,7 +25,8 @@ pub struct ServerStartedEvent {
 ///
 /// Events arrive in batches. Those about a Library's files come once the database has stored the
 /// changes they describe, one batch per write, so a scan doesn't call Observers once per file.
-/// Within a batch, events are in the order they happened.
+/// Within a batch, events are in the order they happened, but, as at any Observe point, two batches
+/// may reach an Observer in either order.
 ///
 /// [`Event`]: nama_proto::nama::v1::Event
 #[derive(Debug)]

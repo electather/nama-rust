@@ -451,14 +451,11 @@ async fn apply(
                 let removed = remove_items(conn, file).await?;
                 let added = insert_items(conn, file, &items).await?;
                 events.extend(removed.into_iter().map(|item| item_removed(library, item)));
-                events.extend(added.into_iter().map(|item| {
-                    event(LibraryItemAdded {
-                        library_id: library,
-                        item_id: item,
-                        path: path.clone(),
-                        ..Default::default()
-                    })
-                }));
+                events.extend(
+                    added
+                        .into_iter()
+                        .map(|item| item_added(library, item, path.clone())),
+                );
             }
             Change::Remove(file) => {
                 let removed = remove_items(conn, file).await?;
@@ -470,6 +467,17 @@ async fn apply(
         }
     }
     Ok(events)
+}
+
+/// The event for the Item `item`, held by the file at `path`, being added to the Library
+/// `library`.
+fn item_added(library: i64, item: i64, path: String) -> Event {
+    event(LibraryItemAdded {
+        library_id: library,
+        item_id: item,
+        path,
+        ..Default::default()
+    })
 }
 
 /// The event for the Item `item` of the Library `library` being removed.

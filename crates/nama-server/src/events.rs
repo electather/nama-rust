@@ -136,10 +136,10 @@ fn classify(event: &Event) -> Option<(EventType, i64)> {
     })
 }
 
-/// The event `kind`.
-pub(crate) fn event(kind: impl Into<event::Event>) -> Event {
+/// An [`Event`] holding `happened`, one of the things that can happen, such as a `ScanStarted`.
+pub(crate) fn event(happened: impl Into<event::Event>) -> Event {
     Event {
-        event: Some(kind.into()),
+        event: Some(happened.into()),
         ..Default::default()
     }
 }
