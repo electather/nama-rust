@@ -8,9 +8,11 @@ use std::{
 };
 
 use clap::Parser;
+use nama_plugin_api::points::{ServerStarted, ServerStartedEvent};
 use nama_server::{
     config::{self, Config},
     db::{self, Database},
+    plugins::Registry,
 };
 use tokio::net::TcpListener;
 use tracing::{error, info};
@@ -53,6 +55,10 @@ async fn main() -> ExitCode {
         "loaded config"
     );
 
+    let plugins = Registry::with_builtins(&config.plugins);
+    let enabled: Vec<String> = plugins.enabled().iter().map(ToString::to_string).collect();
+    info!(?enabled, "enabled plugins");
+
     let db = match Database::open(&config.data_dir).await {
         Ok(db) => db,
         Err(err) => {
@@ -86,6 +92,11 @@ async fn main() -> ExitCode {
             return ExitCode::FAILURE;
         }
     }
+
+    plugins.notify::<ServerStarted>(ServerStartedEvent {
+        name: config.name.clone(),
+        version: env!("CARGO_PKG_VERSION").to_owned(),
+    });
 
     let shutdown = async {
         shutdown.await;

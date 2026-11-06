@@ -1,6 +1,7 @@
 //! Server configuration, layered from defaults, a TOML file and `NAMA_*` environment variables.
 
 use std::{
+    collections::BTreeMap,
     net::SocketAddr,
     path::{Path, PathBuf},
 };
@@ -30,6 +31,30 @@ pub struct Config {
     pub listen: SocketAddr,
     /// Directory where the Server keeps its database and other state.
     pub data_dir: PathBuf,
+    /// Settings for each Plugin, by Plugin id, as `[plugins.<id>]` tables in the file. A Built-in
+    /// Plugin with no table here is enabled.
+    #[serde(default)]
+    pub plugins: BTreeMap<String, PluginConfig>,
+}
+
+/// One Plugin's settings.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PluginConfig {
+    /// Whether the Server enables the Plugin at startup.
+    #[serde(default = "enabled_by_default")]
+    pub enabled: bool,
+}
+
+impl Default for PluginConfig {
+    fn default() -> Self {
+        Self {
+            enabled: enabled_by_default(),
+        }
+    }
+}
+
+const fn enabled_by_default() -> bool {
+    true
 }
 
 impl Default for Config {
@@ -38,6 +63,7 @@ impl Default for Config {
             name: "Nama".to_owned(),
             listen: SocketAddr::from(([0, 0, 0, 0], 7980)),
             data_dir: PathBuf::from("data"),
+            plugins: BTreeMap::new(),
         }
     }
 }

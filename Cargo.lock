@@ -1146,6 +1146,14 @@ name = "nama-plugin-api"
 version = "0.1.0"
 
 [[package]]
+name = "nama-plugin-log-events"
+version = "0.1.0"
+dependencies = [
+ "nama-plugin-api",
+ "tracing",
+]
+
+[[package]]
 name = "nama-proto"
 version = "0.1.0"
 dependencies = [
@@ -1166,6 +1174,8 @@ dependencies = [
  "http-body-util",
  "hyper",
  "hyper-util",
+ "nama-plugin-api",
+ "nama-plugin-log-events",
  "nama-proto",
  "serde",
  "serde_json",

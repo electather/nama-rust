@@ -4,10 +4,10 @@
     reason = "`figment::Jail` closures must return `figment::Result`, whose error is large; fine in tests"
 )]
 
-use std::path::PathBuf;
+use std::{collections::BTreeMap, path::PathBuf};
 
 use figment::Jail;
-use nama_server::config::Config;
+use nama_server::config::{Config, PluginConfig};
 
 #[test]
 fn defaults_apply_when_there_is_no_config_file_or_environment() {
@@ -92,6 +92,33 @@ fn the_server_name_comes_from_the_config_file_or_environment() {
 
         jail.set_env("NAMA_NAME", "Basement");
         assert_eq!(Config::load(None).unwrap().name, "Basement");
+        Ok(())
+    });
+}
+
+#[test]
+fn the_config_file_can_turn_a_plugin_off() {
+    Jail::expect_with(|jail| {
+        jail.create_file(
+            "nama.toml",
+            "
+                [plugins.log-events]
+                enabled = false
+
+                [plugins.other]
+            ",
+        )?;
+
+        let config = Config::load(None).unwrap();
+
+        assert_eq!(
+            config.plugins,
+            BTreeMap::from([
+                ("log-events".to_owned(), PluginConfig { enabled: false }),
+                ("other".to_owned(), PluginConfig { enabled: true }),
+            ])
+        );
+        assert!(Config::default().plugins.is_empty());
         Ok(())
     });
 }

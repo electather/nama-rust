@@ -12,11 +12,13 @@ clap = { version = "4", features = ["derive", "env"] }
 connectrpc = { version = "0.9.1", features = ["axum"] }
 figment = { version = "0.10", features = ["env", "toml"] }
 futures-util = { version = "0.3", default-features = false, features = ["std"] }
+nama-plugin-api = { version = "0.1.0", path = "../nama-plugin-api" }
+nama-plugin-log-events = { version = "0.1.0", path = "../../plugins/log-events" }
 nama-proto = { version = "0.1.0", path = "../nama-proto" }
 serde = { version = "1", features = ["derive"] }
 sqlx = { version = "0.9", default-features = false, features = ["macros", "migrate", "runtime-tokio", "sqlite-bundled"] }
 thiserror = "2"
-tokio = { version = "1", features = ["fs", "macros", "net", "rt-multi-thread", "signal", "sync"] }
+tokio = { version = "1", features = ["fs", "macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
@@ -28,6 +30,7 @@ hyper = { version = "1", features = ["client", "http1"] }
 hyper-util = { version = "0.1", features = ["tokio"] }
 serde_json = "1"
 tempfile = "3"
+tokio = { version = "1", features = ["test-util"] }
 
 [lints]
 workspace = true

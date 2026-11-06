@@ -1,0 +1,15 @@
+[package]
+name = "nama-plugin-log-events"
+version = "0.1.0"
+description = "Built-in Plugin that logs the Kernel's events"
+license = "AGPL-3.0-only"
+edition.workspace = true
+repository.workspace = true
+
+# Built-in Plugins depend on no workspace crate but nama-plugin-api and nama-proto (ADR 0006).
+[dependencies]
+nama-plugin-api = { version = "0.1.0", path = "../../crates/nama-plugin-api" }
+tracing = "0.1"
+
+[lints]
+workspace = true
