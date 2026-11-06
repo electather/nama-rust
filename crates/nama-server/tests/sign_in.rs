@@ -524,6 +524,8 @@ async fn no_password_token_or_setup_code_is_logged_even_at_trace() {
     let (cookie_token, _) = session_cookie(&signed_in);
     let cookie = format!("nama_session={cookie_token}");
     call(&server, "SignOut", &json!({}), &[("cookie", &cookie)]).await;
+    let wrong_sign_in_code = "WRNG-C0DE";
+    with_code(&server, "LookUpSignInCode", wrong_sign_in_code, &token).await;
     let (code, handle) = start_sign_in_code(&server, "SESSION_DELIVERY_TOKEN").await;
     with_code(&server, "ApproveSignInCode", &code, &token).await;
     let code_token = self::token(&poll(&server, &handle).await);
@@ -561,6 +563,10 @@ async fn no_password_token_or_setup_code_is_logged_even_at_trace() {
         "a Sign-in Code's token was logged"
     );
     assert!(!logged.contains(&code), "a Sign-in Code was logged");
+    assert!(
+        !logged.contains(wrong_sign_in_code),
+        "a wrong Sign-in Code was logged"
+    );
     assert!(!logged.contains(&handle), "a poll handle was logged");
 }
 
@@ -1117,4 +1123,55 @@ async fn the_database_keeps_only_the_hash_of_a_token_a_sign_in_code_handed_out()
         contains(&stored, &Sha256::digest(&token)),
         "the token's hash is missing"
     );
+}
+
+/// Fails `times` times to call `method`, `LookUpSignInCode` or `ApproveSignInCode`, with an
+/// unknown code, as the Device whose session is `token`.
+#[expect(
+    clippy::indexing_slicing,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn fail_with_code(server: &TestServer, method: &str, token: &str, times: usize) {
+    for _ in 0..times {
+        let refused = with_code(server, method, "AAAA-AAAA", token).await;
+        assert_eq!(refused.body["code"], "not_found", "{}", refused.body);
+    }
+}
+
+#[tokio::test]
+async fn the_11th_failed_code_lookup_from_a_device_is_blocked_even_for_a_valid_code() {
+    let server = start().await;
+    let ada = token(&set_up(&server).await);
+    let (code, _) = start_sign_in_code(&server, "SESSION_DELIVERY_TOKEN").await;
+    fail_with_code(&server, "LookUpSignInCode", &ada, 10).await;
+
+    let blocked = with_code(&server, "LookUpSignInCode", &code, &ada).await;
+
+    assert_blocked(&blocked);
+}
+
+#[tokio::test]
+async fn failed_code_lookups_and_approvals_count_towards_the_same_limit() {
+    let server = start().await;
+    let ada = token(&set_up(&server).await);
+    let (code, _) = start_sign_in_code(&server, "SESSION_DELIVERY_TOKEN").await;
+    fail_with_code(&server, "LookUpSignInCode", &ada, 5).await;
+    fail_with_code(&server, "ApproveSignInCode", &ada, 5).await;
+
+    let blocked = with_code(&server, "ApproveSignInCode", &code, &ada).await;
+
+    assert_blocked(&blocked);
+}
+
+#[tokio::test]
+async fn failed_code_lookups_from_one_device_dont_block_another_device() {
+    let server = start().await;
+    let laptop = token(&set_up(&server).await);
+    let phone = token(&sign_in(&server, "SESSION_DELIVERY_TOKEN").await);
+    let (code, _) = start_sign_in_code(&server, "SESSION_DELIVERY_TOKEN").await;
+    fail_with_code(&server, "LookUpSignInCode", &laptop, 10).await;
+
+    let approved = with_code(&server, "ApproveSignInCode", &code, &phone).await;
+
+    assert_eq!(approved.status, 200, "{}", approved.body);
 }

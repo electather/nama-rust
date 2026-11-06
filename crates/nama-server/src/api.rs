@@ -49,7 +49,7 @@ use crate::{
     libraries::{self, Kind, Libraries, Library},
     matching::{ManualError, Matcher},
     plugins::Registry,
-    rate_limits::{Blocked, SignInLimits},
+    rate_limits::{Blocked, SignInCodeLimits, SignInLimits},
     scanner::Scanner,
     sessions::{cleared_session_cookie, identify_caller, in_session_cookie, session_cookie},
     sign_in_codes::{self, Poll, SignInCodes},
@@ -82,6 +82,7 @@ pub(crate) fn router(
             setup_code,
             limits: SignInLimits::default(),
             sign_in_codes: SignInCodes::default(),
+            code_limits: SignInCodeLimits::default(),
         }))
         .add_service(Arc::new(MatchServiceHandler {
             matcher: Matcher::new(Arc::clone(&db), plugins, events.clone()),
@@ -198,6 +199,26 @@ struct SignInServiceHandler {
     /// The recent failures of `Setup` and `SignIn`, which slow guessing down.
     limits: SignInLimits,
     sign_in_codes: SignInCodes,
+    /// The recent failed Sign-in Code lookups and approvals, which slow guessing codes down.
+    code_limits: SignInCodeLimits,
+}
+
+impl SignInServiceHandler {
+    /// Looks up or approves a Sign-in Code with `use_code`, as the caller of `ctx` at the time it
+    /// is given, unless their Device has failed too often lately. A failure counts towards
+    /// that.
+    fn with_code_limit<T>(
+        &self,
+        ctx: &RequestContext,
+        use_code: impl FnOnce(&Caller, Instant) -> Result<T, sign_in_codes::Error>,
+    ) -> Result<T, ConnectError> {
+        let caller = caller(ctx)?;
+        let now = Instant::now();
+        let attempt = self.code_limits.admit(caller.device.id, now)?;
+        let used = use_code(caller, now)?;
+        self.code_limits.succeeded(&attempt);
+        Ok(used)
+    }
 }
 
 #[expect(
@@ -330,22 +351,19 @@ impl SignInService for SignInServiceHandler {
 
     fn look_up_sign_in_code<'a>(
         &'a self,
-        _ctx: RequestContext,
+        ctx: RequestContext,
         request: ServiceRequest<'_, LookUpSignInCodeRequest>,
     ) -> impl Future<
         Output = ServiceResult<impl Encodable<LookUpSignInCodeResponse> + Send + use<'a>>,
     > + Send {
-        let looked_up = self.sign_in_codes.look_up(request.code, Instant::now());
-        future::ready(
-            looked_up
-                .map_err(ConnectError::from)
-                .and_then(|device_name| {
-                    Response::ok(LookUpSignInCodeResponse {
-                        device_name,
-                        ..Default::default()
-                    })
-                }),
-        )
+        let looked_up =
+            self.with_code_limit(&ctx, |_, now| self.sign_in_codes.look_up(request.code, now));
+        future::ready(looked_up.and_then(|device_name| {
+            Response::ok(LookUpSignInCodeResponse {
+                device_name,
+                ..Default::default()
+            })
+        }))
     }
 
     fn approve_sign_in_code<'a>(
@@ -355,10 +373,8 @@ impl SignInService for SignInServiceHandler {
     ) -> impl Future<
         Output = ServiceResult<impl Encodable<ApproveSignInCodeResponse> + Send + use<'a>>,
     > + Send {
-        let approved = caller(&ctx).and_then(|caller| {
-            Ok(self
-                .sign_in_codes
-                .approve(request.code, &caller.user, Instant::now())?)
+        let approved = self.with_code_limit(&ctx, |caller, now| {
+            self.sign_in_codes.approve(request.code, &caller.user, now)
         });
         future::ready(approved.and_then(|()| Response::ok(ApproveSignInCodeResponse::default())))
     }

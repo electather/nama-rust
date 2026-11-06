@@ -1,5 +1,6 @@
-//! Slowing down guesses at passwords and the Setup Code, by refusing sign-in and setup attempts
-//! after too many recent failures from one peer IP or for one User name.
+//! Slowing down guesses at passwords, the Setup Code and Sign-in Codes, by refusing attempts after
+//! too many recent failures: sign-in and setup from one peer IP or for one User name, and Sign-in
+//! Code lookups and approvals from one Device.
 //!
 //! Counts live in memory only. They expire as the window slides past them and a restart forgets
 //! them, so nobody is ever locked out for good.
@@ -23,6 +24,10 @@ const FAILURES_PER_NAME: usize = 10;
 /// How many failures from one peer IP, sign-in and setup together, the window may hold before
 /// its attempts are refused.
 const FAILURES_PER_IP: usize = 50;
+
+/// How many failed Sign-in Code lookups and approvals from one Device the window may hold before
+/// its lookups and approvals are refused.
+const FAILURES_PER_DEVICE: usize = 10;
 
 /// The recent failed sign-in and setup attempts, by peer IP and by User name.
 #[derive(Debug, Default)]
@@ -97,6 +102,45 @@ impl SignInLimits {
     /// The failures, to read or change.
     fn lock(&self) -> MutexGuard<'_, Failures> {
         // Every change leaves the counts consistent, so a panic elsewhere doesn't spoil them.
+        self.failures.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+}
+
+/// The recent failed Sign-in Code lookups and approvals, lookups and approvals together, by the id
+/// of the Device that made them.
+#[derive(Debug, Default)]
+pub(crate) struct SignInCodeLimits {
+    failures: Mutex<Window<i64>>,
+}
+
+/// A Sign-in Code lookup or approval let through. Like an [`Attempt`], it counts as a failure
+/// unless it is reported as [`succeeded`](SignInCodeLimits::succeeded).
+#[derive(Debug)]
+pub(crate) struct CodeAttempt {
+    device: i64,
+    at: Instant,
+}
+
+impl SignInCodeLimits {
+    /// Lets a lookup or approval by the Device `device` at `now` through unless too many of its
+    /// own have failed recently, and counts it as failed until it succeeds.
+    pub(crate) fn admit(&self, device: i64, now: Instant) -> Result<CodeAttempt, Blocked> {
+        let mut failures = self.lock();
+        if let Some(retry_after) = failures.wait(&device, FAILURES_PER_DEVICE, now) {
+            return Err(Blocked { retry_after });
+        }
+        failures.record(device, now);
+        Ok(CodeAttempt { device, at: now })
+    }
+
+    /// Un-counts `attempt`, which succeeded.
+    pub(crate) fn succeeded(&self, attempt: &CodeAttempt) {
+        self.lock().forget(&attempt.device, attempt.at);
+    }
+
+    /// The failures, to read or change.
+    fn lock(&self) -> MutexGuard<'_, Window<i64>> {
+        // As for `SignInLimits`: every change leaves the counts consistent.
         self.failures.lock().unwrap_or_else(PoisonError::into_inner)
     }
 }
@@ -226,5 +270,38 @@ mod tests {
         window.record("new", start + WINDOW);
 
         assert_eq!(window.times.keys().collect::<Vec<_>>(), [&"new"]);
+    }
+
+    #[test]
+    fn code_attempts_are_admitted_again_once_old_failures_leave_the_window() {
+        let limits = SignInCodeLimits::default();
+        let start = Instant::now();
+        for minute in 0..10 {
+            limits
+                .admit(1, start + Duration::from_mins(minute))
+                .expect("admitted");
+        }
+
+        let blocked = limits
+            .admit(1, start + Duration::from_mins(14))
+            .expect_err("admitted at the limit");
+        let admitted = limits.admit(1, start + Duration::from_mins(15));
+
+        assert_eq!(blocked.retry_after_secs(), 60);
+        assert!(admitted.is_ok(), "the first failure is still counted");
+    }
+
+    #[test]
+    fn a_code_attempt_that_succeeded_isnt_counted() {
+        let limits = SignInCodeLimits::default();
+        let now = Instant::now();
+        for _ in 0..10 {
+            let attempt = limits.admit(1, now).expect("admitted");
+            limits.succeeded(&attempt);
+        }
+
+        limits
+            .admit(1, now)
+            .expect("admitted after 10 that succeeded");
     }
 }
