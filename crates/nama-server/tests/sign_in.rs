@@ -10,7 +10,6 @@ use std::{
 };
 
 use connectrpc::client::{CallOptions, ClientConfig, HttpClient, ServerStream};
-
 use hyper::HeaderMap;
 use nama_plugin_local_auth::LocalAuth;
 use nama_proto::nama::v1::{
@@ -154,7 +153,7 @@ async fn post_json(
     }
 }
 
-/// The token a `TOKEN` setup handed out.
+/// The token a `TOKEN` setup or sign-in handed out.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
@@ -517,13 +516,7 @@ async fn neither_the_password_nor_the_token_is_logged_even_at_trace() {
     let wrong = "a wrong password";
     let refused = sign_in_request("Ada", wrong, "SESSION_DELIVERY_TOKEN");
     call(&server, "SignIn", &refused, &[]).await;
-    let signed_in = call(
-        &server,
-        "SignIn",
-        &sign_in_request("Ada", PASSWORD, "SESSION_DELIVERY_COOKIE"),
-        &[],
-    )
-    .await;
+    let signed_in = sign_in(&server, "SESSION_DELIVERY_COOKIE").await;
     let (cookie_token, _) = session_cookie(&signed_in);
     let cookie = format!("nama_session={cookie_token}");
     call(&server, "SignOut", &json!({}), &[("cookie", &cookie)]).await;
@@ -555,6 +548,17 @@ async fn set_up(server: &TestServer) -> Reply {
         server,
         "Setup",
         &setup_request(server, "SESSION_DELIVERY_TOKEN"),
+        &[],
+    )
+    .await
+}
+
+/// Signs Ada in on the Device "Phone" with her password, asking for `delivery`.
+async fn sign_in(server: &TestServer, delivery: &str) -> Reply {
+    call(
+        server,
+        "SignIn",
+        &sign_in_request("Ada", PASSWORD, delivery),
         &[],
     )
     .await
@@ -636,13 +640,7 @@ async fn a_cookie_sign_in_sets_the_cookie_and_leaves_the_token_out_of_the_body()
     let server = start().await;
     set_up(&server).await;
 
-    let signed_in = call(
-        &server,
-        "SignIn",
-        &sign_in_request("Ada", PASSWORD, "SESSION_DELIVERY_COOKIE"),
-        &[],
-    )
-    .await;
+    let signed_in = sign_in(&server, "SESSION_DELIVERY_COOKIE").await;
 
     let (token, _) = session_cookie(&signed_in);
     assert!(token.starts_with("nama_"), "{token}");
@@ -666,13 +664,7 @@ async fn signing_out_makes_the_token_stop_working_at_once() {
 async fn signing_out_a_cookie_session_clears_the_cookie() {
     let server = start().await;
     set_up(&server).await;
-    let signed_in = call(
-        &server,
-        "SignIn",
-        &sign_in_request("Ada", PASSWORD, "SESSION_DELIVERY_COOKIE"),
-        &[],
-    )
-    .await;
+    let signed_in = sign_in(&server, "SESSION_DELIVERY_COOKIE").await;
     let (token, _) = session_cookie(&signed_in);
     let cookie = format!("nama_session={token}");
 
@@ -684,6 +676,22 @@ async fn signing_out_a_cookie_session_clears_the_cookie() {
         attributes.contains(&"Max-Age=0".to_owned()),
         "{attributes:?}"
     );
+}
+
+#[tokio::test]
+async fn signing_out_a_bearer_session_sets_no_cookie() {
+    let server = start().await;
+    let bearer = format!("Bearer {}", token(&set_up(&server).await));
+
+    let signed_out = call(
+        &server,
+        "SignOut",
+        &json!({}),
+        &[("authorization", &bearer)],
+    )
+    .await;
+
+    assert_eq!(signed_out.headers.get("set-cookie"), None);
 }
 
 #[tokio::test]
@@ -783,15 +791,7 @@ async fn scan_a_library(server: &TestServer, token: &str) -> TempDir {
 async fn signing_out_ends_that_devices_event_streams_and_leaves_other_devices_open() {
     let server = start().await;
     let laptop = token(&set_up(&server).await);
-    let phone = token(
-        &call(
-            &server,
-            "SignIn",
-            &sign_in_request("Ada", PASSWORD, "SESSION_DELIVERY_TOKEN"),
-            &[],
-        )
-        .await,
-    );
+    let phone = token(&sign_in(&server, "SESSION_DELIVERY_TOKEN").await);
     let mut laptop_events = subscribe(&server, &laptop).await;
     let mut phone_events = subscribe(&server, &phone).await;
 

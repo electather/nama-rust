@@ -265,14 +265,14 @@ impl Users {
     }
 
     /// The session `token` is, if it is one whose Device hasn't expired, as of now.
-    pub(crate) async fn caller(&self, token: &str) -> Result<Option<Session>, sqlx::Error> {
-        self.caller_at(token, now()).await
+    pub(crate) async fn session(&self, token: &str) -> Result<Option<Session>, sqlx::Error> {
+        self.session_at(token, now()).await
     }
 
     /// The session `token` is, if it is one whose Device hasn't expired by `now`, in seconds since
     /// the Unix epoch. Counts as a use of the Device, which pushes its expiry back, though at most
     /// once every [`LAST_SEEN_PRECISION`] seconds.
-    async fn caller_at(&self, token: &str, now: i64) -> Result<Option<Session>, sqlx::Error> {
+    async fn session_at(&self, token: &str, now: i64) -> Result<Option<Session>, sqlx::Error> {
         let token_hash = hash_token(token);
         let token_hash = token_hash.as_slice();
         let expired_before = now - DEVICE_LIFETIME;
@@ -307,15 +307,18 @@ impl Users {
         Ok(Some(Session { caller, refreshed }))
     }
 
-    /// Records that the Device `device` was last seen at `now`.
+    /// Records that the Device `device` was last seen at `now`, unless another request already
+    /// did within [`LAST_SEEN_PRECISION`] seconds of it.
     async fn saw_device(&self, device: i64, now: i64) -> Result<(), sqlx::Error> {
+        let stale_since = now - LAST_SEEN_PRECISION;
         self.db
             .write(move |tx| {
                 Box::pin(async move {
                     sqlx::query!(
-                        "UPDATE devices SET last_seen_at = ? WHERE id = ?",
+                        "UPDATE devices SET last_seen_at = ? WHERE id = ? AND last_seen_at <= ?",
                         now,
-                        device
+                        device,
+                        stale_since,
                     )
                     .execute(&mut **tx)
                     .await
@@ -622,7 +625,9 @@ mod tests {
         let data_dir = tempfile::tempdir().unwrap();
         let (users, signed_in_at) = signed_in_device(data_dir.path()).await;
 
-        let session = users.caller_at(TOKEN, signed_in_at + 1 + NINETY_DAYS).await;
+        let session = users
+            .session_at(TOKEN, signed_in_at + 1 + NINETY_DAYS)
+            .await;
 
         assert!(session.unwrap().is_none());
     }
@@ -632,7 +637,9 @@ mod tests {
         let data_dir = tempfile::tempdir().unwrap();
         let (users, signed_in_at) = signed_in_device(data_dir.path()).await;
 
-        let session = users.caller_at(TOKEN, signed_in_at + NINETY_DAYS - 1).await;
+        let session = users
+            .session_at(TOKEN, signed_in_at + NINETY_DAYS - 1)
+            .await;
 
         assert!(session.unwrap().is_some());
     }
@@ -642,9 +649,11 @@ mod tests {
         let data_dir = tempfile::tempdir().unwrap();
         let (users, signed_in_at) = signed_in_device(data_dir.path()).await;
 
-        let used = users.caller_at(TOKEN, signed_in_at + 1800).await.unwrap();
+        let used = users.session_at(TOKEN, signed_in_at + 1800).await.unwrap();
         // Still counted from the sign-in, so not written by the use above.
-        let later = users.caller_at(TOKEN, signed_in_at + 1 + NINETY_DAYS).await;
+        let later = users
+            .session_at(TOKEN, signed_in_at + 1 + NINETY_DAYS)
+            .await;
 
         assert!(!used.unwrap().refreshed);
         assert!(later.unwrap().is_none(), "last seen was written");
@@ -656,9 +665,9 @@ mod tests {
         let (users, signed_in_at) = signed_in_device(data_dir.path()).await;
         let used_at = signed_in_at + 1 + 3600;
 
-        let used = users.caller_at(TOKEN, used_at).await.unwrap();
+        let used = users.session_at(TOKEN, used_at).await.unwrap();
         // Counted from the use above, so it was written.
-        let later = users.caller_at(TOKEN, used_at + NINETY_DAYS - 1).await;
+        let later = users.session_at(TOKEN, used_at + NINETY_DAYS - 1).await;
 
         assert!(used.unwrap().refreshed);
         assert!(later.unwrap().is_some(), "last seen wasn't written");

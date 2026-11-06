@@ -31,7 +31,7 @@ use crate::{
     matching::{ManualError, Matcher},
     plugins::Registry,
     scanner::Scanner,
-    sessions::{cleared_session_cookie, identify_caller, session_cookie},
+    sessions::{cleared_session_cookie, identify_caller, in_session_cookie, session_cookie},
     users::{self, Caller, Role, SetupCode, SignedIn, Users},
 };
 
@@ -192,9 +192,12 @@ impl SignInService for SignInServiceHandler {
             .sign_out(device)
             .await
             .map_err(|err| database_failed(&err))?;
-        // ponytail: cleared even for a bearer session, where a client has no cookie to clear.
-        Ok(Response::new(SignOutResponse::default())
-            .with_header(SET_COOKIE, cleared_session_cookie(ctx.headers())))
+        let response = Response::new(SignOutResponse::default());
+        Ok(if in_session_cookie(ctx.headers()) {
+            response.with_header(SET_COOKIE, cleared_session_cookie(ctx.headers()))
+        } else {
+            response
+        })
     }
 
     fn who_am_i<'a>(

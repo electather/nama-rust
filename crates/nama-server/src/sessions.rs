@@ -26,7 +26,7 @@ pub(crate) async fn identify_caller(
     let Some(presented) = presented_token(request.headers()) else {
         return next.run(request).await;
     };
-    let session = match users.caller(presented.token).await {
+    let session = match users.session(presented.token).await {
         Ok(Some(session)) => session,
         Ok(None) => return next.run(request).await,
         Err(err) => {
@@ -66,6 +66,11 @@ fn cookie(value: &str, max_age: i64, request_headers: &HeaderMap) -> String {
         .is_some_and(|proto| proto.as_bytes().eq_ignore_ascii_case(b"https"));
     let secure = if secure { "; Secure" } else { "" };
     format!("{COOKIE_NAME}={value}; HttpOnly; SameSite=Strict; Path=/; Max-Age={max_age}{secure}")
+}
+
+/// Whether `headers` carry their session in the session cookie, rather than as a bearer token.
+pub(crate) fn in_session_cookie(headers: &HeaderMap) -> bool {
+    presented_token(headers).is_some_and(|presented| presented.in_cookie)
 }
 
 /// A session token a request carried.
