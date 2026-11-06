@@ -12,7 +12,8 @@ include!(concat!(env!("OUT_DIR"), "/web_assets.rs"));
 
 /// Answers a `GET` for any path but an RPC's or `/media/…` with the web app's file at that path,
 /// or else with `_shell.html`, so a reloaded deep link still loads the app, which then routes to
-/// the page. Every other request goes on to `next`, so an unknown RPC still gets a 404.
+/// the page. Every other request goes on to `next`, so an unknown RPC still gets a 404. `vp dev`
+/// proxies the same paths to a Server (`web/vite.config.ts`).
 pub(crate) async fn serve(request: Request, next: Next) -> Response {
     let path = request.uri().path();
     if request.method() != Method::GET || path.starts_with("/nama.") || path.starts_with("/media/")

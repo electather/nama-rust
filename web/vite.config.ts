@@ -4,7 +4,10 @@ import viteReact from "@vitejs/plugin-react";
 import { defineConfig } from "vite-plus";
 
 // The Server `vp dev` forwards RPCs and media to, so the browser sees one origin (ADR 0015).
-const server = process.env["NAMA_SERVER_URL"] ?? "http://localhost:7980";
+const serverUrl = process.env["NAMA_SERVER_URL"] ?? "http://localhost:7980";
+
+// Written by `buf generate` and the router plugin, never by hand.
+const generated = ["src/gen/**", "src/routeTree.gen.ts"];
 
 export default defineConfig({
   resolve: { tsconfigPaths: true },
@@ -13,9 +16,10 @@ export default defineConfig({
   plugins: [tailwindcss(), tanstackStart({ spa: { enabled: true } }), viteReact()],
   server: {
     proxy: {
-      // Connect paths: `/nama.v1.ServerService/GetServerInfo` and the like.
-      "^/nama\\.": server,
-      "/media/": server,
+      // Connect paths (`/nama.v1.ServerService/GetServerInfo` and the like) and media: the same
+      // paths the Server keeps out of the web app (`crates/nama-server/src/web.rs`).
+      "^/nama\\.": serverUrl,
+      "/media/": serverUrl,
     },
   },
   // The build prerenders `_shell.html` through a preview server. Where `localhost` resolves to
@@ -25,10 +29,10 @@ export default defineConfig({
     environment: "happy-dom",
   },
   fmt: {
-    ignorePatterns: ["src/gen/**", "src/routeTree.gen.ts"],
+    ignorePatterns: generated,
   },
   lint: {
-    ignorePatterns: ["src/gen/**", "src/routeTree.gen.ts"],
+    ignorePatterns: generated,
     plugins: ["typescript", "react", "jsx-a11y", "import", "unicorn", "promise", "oxc", "vitest"],
     jsPlugins: [{ name: "vite-plus", specifier: "vite-plus/oxlint-plugin" }],
     categories: {

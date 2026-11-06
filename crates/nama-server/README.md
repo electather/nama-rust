@@ -23,7 +23,7 @@ Commit the changes under `.sqlx/`. CI's `sqlx` job runs `cargo sqlx prepare --ch
 
 ## Serving the web app
 
-The `web` feature embeds the web app's build output (`web/dist/client`) in the binary and serves it: RPCs and `/media/…` are untouched, and any other `GET` gets the matching file or else `_shell.html`, so deep links work (ADR 0004). It's off by default, so building and testing the Server needs no Node. Release builds turn it on in `dist-workspace.toml`. Build the web app first (see `web/README.md`), then:
+The `web` feature embeds the web app's build output (`web/dist/client`) and serves it (`src/web.rs`). It's off by default, so building and testing the Server needs no Node. Release builds turn it on in `dist-workspace.toml`. To work with it, build the web app first (see `web/README.md`):
 
 ```sh
 vp -C web build
