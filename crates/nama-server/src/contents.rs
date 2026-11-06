@@ -993,17 +993,17 @@ mod tests {
         let read = fx.undecided().await;
         // The file changes, which replaces its Item.
         fx.store(ALIEN, 20, movie("Alien", 1979)).await;
+        let replacement = fx.item(ALIEN).await;
 
         let recorded = fx
             .contents
-            .record(
-                read.into_iter()
-                    .map(|id| (id, Decided::Unmatched))
-                    .collect(),
-            )
+            .record(read.iter().map(|&id| (id, Decided::Unmatched)).collect())
             .await;
 
         assert!(matches!(recorded, Ok(())), "{recorded:?}");
+        assert_ne!(read, [replacement]);
+        // The decision about the deleted Item didn't land on its replacement.
+        assert_eq!(fx.undecided().await, [replacement]);
     }
 
     #[tokio::test]
@@ -1040,6 +1040,28 @@ mod tests {
         fx.store(ALIEN, 10, movie("Alien", 1979)).await;
         let item = fx.item(ALIEN).await;
         let named = fx.contents.named_like(item).await.unwrap().unwrap();
+        // An Item of another Library, which outlives the deleted one, so a decision stored
+        // despite the refusal would show.
+        let elsewhere = tempfile::tempdir().unwrap();
+        let root = elsewhere.path().canonicalize().unwrap();
+        let other = fx
+            .libraries
+            .create(
+                "Other Movies",
+                Kind::Movies,
+                vec![root.to_str().unwrap().to_owned()],
+            )
+            .await
+            .unwrap()
+            .id;
+        let store_heat = Change::Store {
+            path: root.join("Heat (1995).mkv").to_str().unwrap().to_owned(),
+            size: 10,
+            modified_ns: 0,
+            items: vec![movie("Heat", 1995)],
+        };
+        fx.contents.apply(other, vec![store_heat]).await.unwrap();
+        let heat = fx.contents.undecided(other).await.unwrap()[0].0;
         fx.libraries.delete(fx.library).await.unwrap();
 
         let pinned = fx
@@ -1048,10 +1070,19 @@ mod tests {
                 named.library,
                 named.name,
                 Pin::Unmatched,
-                vec![(item, Decided::Unmatched)],
+                vec![(item, Decided::Unmatched), (heat, Decided::Unmatched)],
             )
             .await;
 
         assert!(matches!(pinned, Ok(false)), "{pinned:?}");
+        let undecided: Vec<i64> = fx
+            .contents
+            .undecided(other)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|(id, _, _)| id)
+            .collect();
+        assert_eq!(undecided, [heat]);
     }
 }
