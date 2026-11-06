@@ -20,7 +20,7 @@ use serde_json::Value;
 use server::{PASSWORD, TestServer};
 
 /// Every RPC that manages Libraries or Matches, which only an Admin may call.
-const ADMIN_ONLY: [&str; 9] = [
+const ADMIN_ONLY: [&str; 10] = [
     "/nama.v1.LibraryService/CreateLibrary",
     "/nama.v1.LibraryService/ListLibraries",
     "/nama.v1.LibraryService/GetLibrary",
@@ -30,6 +30,7 @@ const ADMIN_ONLY: [&str; 9] = [
     "/nama.v1.MatchService/SearchMetadata",
     "/nama.v1.MatchService/SetMatch",
     "/nama.v1.MatchService/ClearMatch",
+    "/nama.v1.MatchService/ListUnmatchedItems",
 ];
 
 /// Every other unary RPC that needs a session.
