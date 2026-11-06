@@ -24,6 +24,8 @@ pub const FILE_ENV: &str = "NAMA_CONFIG";
 /// Everything a Server needs to know before it starts.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Config {
+    /// The Server's display name, which clients show to tell Servers apart.
+    pub name: String,
     /// Address the Server listens on.
     pub listen: SocketAddr,
     /// Directory where the Server keeps its database and other state.
@@ -33,6 +35,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
+            name: "Nama".to_owned(),
             listen: SocketAddr::from(([0, 0, 0, 0], 7980)),
             data_dir: PathBuf::from("data"),
         }

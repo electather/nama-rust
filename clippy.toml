@@ -13,3 +13,6 @@ cognitive-complexity-threshold = 15
 excessive-nesting-threshold = 4
 max-fn-params-bools = 1
 max-struct-bools = 2
+
+# Product names that doc_markdown would otherwise want in backticks. ".." keeps clippy's defaults.
+doc-valid-idents = ["ConnectRPC", ".."]

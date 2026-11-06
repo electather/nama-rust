@@ -1,0 +1,21 @@
+# Regenerates the checked-in Rust code in crates/nama-proto/src/generated/.
+# Run from this directory: `buf generate`. Installing the plugins is described in
+# crates/nama-proto/README.md.
+version: v2
+clean: true
+plugins:
+  # Message types.
+  - local: protoc-gen-buffa
+    out: ../crates/nama-proto/src/generated/buffa
+    opt: [views=true, json=true]
+  - local: protoc-gen-buffa-packaging
+    out: ../crates/nama-proto/src/generated/buffa
+    strategy: all
+  # ConnectRPC service traits and clients.
+  - local: protoc-gen-connect-rust
+    out: ../crates/nama-proto/src/generated/connect
+    opt: [buffa_module=crate::messages]
+  - local: protoc-gen-buffa-packaging
+    out: ../crates/nama-proto/src/generated/connect
+    strategy: all
+    opt: [filter=services]

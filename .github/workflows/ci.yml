@@ -23,6 +23,53 @@ jobs:
           components: rustfmt
       - run: cargo fmt --all --check
 
+  # The schema in proto/ (ADR 0007): lint it, refuse breaking changes against main, and check
+  # the generated Rust code in crates/nama-proto is what the schema produces.
+  proto:
+    name: buf lint, breaking and generate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          # `buf breaking` reads main from the local clone.
+          fetch-depth: 0
+      - uses: bufbuild/buf-action@v1
+        with:
+          version: 1.75.0
+          setup_only: true
+      - name: buf lint
+        working-directory: proto
+        run: |
+          buf lint
+          buf format --diff --exit-code
+      - name: buf breaking against main
+        working-directory: proto
+        run: |
+          # Until the Buf module first lands on main there is nothing to compare against.
+          if git cat-file -e origin/main:proto/buf.yaml 2>/dev/null; then
+            buf breaking --against "../.git#ref=origin/main,subdir=proto"
+          else
+            echo "main has no Buf module yet; skipping"
+          fi
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install codegen plugins
+        # The generated code must compile against the connectrpc and buffa versions in
+        # crates/nama-proto/Cargo.toml, so keep each plugin on the same minor version as its
+        # runtime crate when bumping either (and update the README's install line).
+        run: >-
+          cargo install --locked
+          protoc-gen-buffa@0.9.2
+          protoc-gen-buffa-packaging@0.9.2
+          connectrpc-codegen@0.9.0
+      - name: Generated code is up to date
+        run: |
+          (cd proto && buf generate)
+          git add --all --intent-to-add
+          git diff --exit-code || {
+            echo "::error::crates/nama-proto/src/generated is stale; run 'buf generate' in proto/ and commit the result"
+            exit 1
+          }
+
   # Lints that don't depend on the platform: docs, unused deps, supply chain.
   hygiene:
     name: docs, unused deps and cargo-deny

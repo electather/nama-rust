@@ -14,6 +14,7 @@ fn defaults_apply_when_there_is_no_config_file_or_environment() {
     Jail::expect_with(|_jail| {
         let config = Config::load(None).unwrap();
 
+        assert_eq!(config.name, "Nama");
         assert_eq!(config.listen, "0.0.0.0:7980".parse().unwrap());
         assert_eq!(config.data_dir, PathBuf::from("data"));
         Ok(())
@@ -79,6 +80,18 @@ fn without_a_named_file_nama_toml_in_the_working_directory_is_read() {
 
         assert_eq!(config.data_dir, PathBuf::from("/opt/nama"));
         assert_eq!(config.listen, "0.0.0.0:7980".parse().unwrap());
+        Ok(())
+    });
+}
+
+#[test]
+fn the_server_name_comes_from_the_config_file_or_environment() {
+    Jail::expect_with(|jail| {
+        jail.create_file("nama.toml", r#"name = "Living Room""#)?;
+        assert_eq!(Config::load(None).unwrap().name, "Living Room");
+
+        jail.set_env("NAMA_NAME", "Basement");
+        assert_eq!(Config::load(None).unwrap().name, "Basement");
         Ok(())
     });
 }

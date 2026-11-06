@@ -9,6 +9,7 @@ use std::{
 
 use clap::Parser;
 use nama_server::config::{self, Config};
+use tokio::net::TcpListener;
 use tracing::{error, info};
 use tracing_subscriber::EnvFilter;
 
@@ -43,13 +44,36 @@ async fn main() -> ExitCode {
     };
 
     info!(
+        name = %config.name,
         listen = %config.listen,
         data_dir = %config.data_dir.display(),
         "loaded config"
     );
 
-    shutdown.await;
-    info!("shutting down");
+    let listener = match TcpListener::bind(config.listen).await {
+        Ok(listener) => listener,
+        Err(err) => {
+            error!("could not listen on {}: {err}", config.listen);
+            return ExitCode::FAILURE;
+        }
+    };
+    // Log the bound address, which differs from `listen` when that asks for port 0.
+    match listener.local_addr() {
+        Ok(addr) => info!(%addr, "listening"),
+        Err(err) => {
+            error!("could not read the address listened on: {err}");
+            return ExitCode::FAILURE;
+        }
+    }
+
+    let shutdown = async {
+        shutdown.await;
+        info!("shutting down");
+    };
+    if let Err(err) = nama_server::serve(listener, &config, shutdown).await {
+        error!("server failed: {err}");
+        return ExitCode::FAILURE;
+    }
     ExitCode::SUCCESS
 }
 
