@@ -1175,3 +1175,18 @@ async fn failed_code_lookups_from_one_device_dont_block_another_device() {
 
     assert_eq!(approved.status, 200, "{}", approved.body);
 }
+
+#[tokio::test]
+async fn looking_up_an_approved_code_again_isnt_counted_as_a_failure() {
+    let server = start().await;
+    let ada = token(&set_up(&server).await);
+    let (code, _) = start_sign_in_code(&server, "SESSION_DELIVERY_TOKEN").await;
+    with_code(&server, "ApproveSignInCode", &code, &ada).await;
+    for _ in 0..10 {
+        with_code(&server, "LookUpSignInCode", &code, &ada).await;
+    }
+
+    let again = with_code(&server, "LookUpSignInCode", &code, &ada).await;
+
+    assert_eq!(again.body["code"], "failed_precondition", "{}", again.body);
+}

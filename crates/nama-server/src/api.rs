@@ -80,7 +80,7 @@ pub(crate) fn router(
         .add_service(Arc::new(SignInServiceHandler {
             users: users.clone(),
             setup_code,
-            limits: SignInLimits::default(),
+            sign_in_limits: SignInLimits::default(),
             sign_in_codes: SignInCodes::default(),
             code_limits: SignInCodeLimits::default(),
         }))
@@ -197,7 +197,7 @@ struct SignInServiceHandler {
     /// What `Setup` must be given. `None` once the Server started with Users.
     setup_code: Option<SetupCode>,
     /// The recent failures of `Setup` and `SignIn`, which slow guessing down.
-    limits: SignInLimits,
+    sign_in_limits: SignInLimits,
     sign_in_codes: SignInCodes,
     /// The recent failed Sign-in Code lookups and approvals, which slow guessing codes down.
     code_limits: SignInCodeLimits,
@@ -205,8 +205,8 @@ struct SignInServiceHandler {
 
 impl SignInServiceHandler {
     /// Looks up or approves a Sign-in Code with `use_code`, as the caller of `ctx` at the time it
-    /// is given, unless their Device has failed too often lately. A failure counts towards
-    /// that.
+    /// is given, unless their Device has failed too often lately. Only a code that is unknown or
+    /// expired counts as a failure: that is what a guess gets.
     fn with_code_limit<T>(
         &self,
         ctx: &RequestContext,
@@ -215,9 +215,11 @@ impl SignInServiceHandler {
         let caller = caller(ctx)?;
         let now = Instant::now();
         let attempt = self.code_limits.admit(caller.device.id, now)?;
-        let used = use_code(caller, now)?;
-        self.code_limits.succeeded(&attempt);
-        Ok(used)
+        let used = use_code(caller, now);
+        if !matches!(used, Err(sign_in_codes::Error::NotFound)) {
+            self.code_limits.succeeded(&attempt);
+        }
+        Ok(used?)
     }
 }
 
@@ -233,7 +235,7 @@ impl SignInService for SignInServiceHandler {
         request: ServiceRequest<'_, SetupRequest>,
     ) -> ServiceResult<SetupResponse> {
         let request = request.to_owned_message();
-        let attempt = self.limits.admit(peer_ip(&ctx)?, None)?;
+        let attempt = self.sign_in_limits.admit(peer_ip(&ctx)?, None)?;
         let wants_token = wants_token(request.delivery)?;
         // The Server only made no code because it started with Users. Users are checked before the
         // code, so once there are any every attempt is refused as already set up, as documented.
@@ -253,7 +255,7 @@ impl SignInService for SignInServiceHandler {
             .users
             .create_first_admin(&request.name, &request.password, &request.device_name)
             .await?;
-        self.limits.succeeded(&attempt);
+        self.sign_in_limits.succeeded(&attempt);
         Ok(hand_out_session(
             signed_in,
             wants_token,
@@ -273,13 +275,15 @@ impl SignInService for SignInServiceHandler {
         request: ServiceRequest<'_, SignInRequest>,
     ) -> ServiceResult<SignInResponse> {
         let request = request.to_owned_message();
-        let attempt = self.limits.admit(peer_ip(&ctx)?, Some(&request.name))?;
+        let attempt = self
+            .sign_in_limits
+            .admit(peer_ip(&ctx)?, Some(&request.name))?;
         let wants_token = wants_token(request.delivery)?;
         let signed_in = self
             .users
             .sign_in(&request.name, &request.password, &request.device_name)
             .await?;
-        self.limits.succeeded(&attempt);
+        self.sign_in_limits.succeeded(&attempt);
         Ok(hand_out_session(
             signed_in,
             wants_token,
