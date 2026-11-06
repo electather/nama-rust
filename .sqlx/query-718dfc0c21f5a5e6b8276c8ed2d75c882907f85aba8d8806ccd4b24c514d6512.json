@@ -1,22 +1,11 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT library_items.id AS \"item!\", library_files.path, library_items.season,\n                      library_items.episode,\n                      item_matches.state AS \"state?: MatchState\", item_matches.plugin,\n                      item_matches.tmdb_id, item_matches.imdb_id, item_matches.tvdb_id,\n                      item_matches.show_tmdb_id, item_matches.show_imdb_id,\n                      item_matches.show_tvdb_id, item_matches.title, item_matches.show_title,\n                      item_matches.poster\n               FROM library_items\n               JOIN library_files ON library_files.id = library_items.file_id\n               LEFT JOIN item_matches ON item_matches.item_id = library_items.id\n               WHERE library_files.library_id = ?\n               ORDER BY library_files.path, library_items.id",
+  "query": "SELECT library_files.path, library_files.size,\n                      library_items.id AS \"item?\", library_items.kind AS \"kind?: ItemKind\",\n                      library_items.title AS \"item_title?\", library_items.year,\n                      library_items.tmdb_id AS \"hint\", library_items.season,\n                      library_items.episode,\n                      item_matches.state AS \"state?: MatchState\", item_matches.plugin,\n                      item_matches.tmdb_id, item_matches.imdb_id, item_matches.tvdb_id,\n                      item_matches.show_tmdb_id, item_matches.show_imdb_id,\n                      item_matches.show_tvdb_id, item_matches.title, item_matches.show_title,\n                      item_matches.poster\n               FROM library_files\n               LEFT JOIN library_items ON library_items.file_id = library_files.id\n               LEFT JOIN item_matches ON item_matches.item_id = library_items.id\n               WHERE library_files.library_id = ?\n               ORDER BY library_files.path, library_items.id",
   "describe": {
     "columns": [
       {
-        "name": "item!",
-        "ordinal": 0,
-        "type_info": "Integer",
-        "origin": {
-          "Table": {
-            "table": "library_items",
-            "name": "id"
-          }
-        }
-      },
-      {
         "name": "path",
-        "ordinal": 1,
+        "ordinal": 0,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -26,8 +15,74 @@
         }
       },
       {
-        "name": "season",
+        "name": "size",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_files",
+            "name": "size"
+          }
+        }
+      },
+      {
+        "name": "item?",
         "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_items",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "kind?: ItemKind",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "library_items",
+            "name": "kind"
+          }
+        }
+      },
+      {
+        "name": "item_title?",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "library_items",
+            "name": "title"
+          }
+        }
+      },
+      {
+        "name": "year",
+        "ordinal": 5,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_items",
+            "name": "year"
+          }
+        }
+      },
+      {
+        "name": "hint",
+        "ordinal": 6,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_items",
+            "name": "tmdb_id"
+          }
+        }
+      },
+      {
+        "name": "season",
+        "ordinal": 7,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -38,7 +93,7 @@
       },
       {
         "name": "episode",
-        "ordinal": 3,
+        "ordinal": 8,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -49,7 +104,7 @@
       },
       {
         "name": "state?: MatchState",
-        "ordinal": 4,
+        "ordinal": 9,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -60,7 +115,7 @@
       },
       {
         "name": "plugin",
-        "ordinal": 5,
+        "ordinal": 10,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -71,7 +126,7 @@
       },
       {
         "name": "tmdb_id",
-        "ordinal": 6,
+        "ordinal": 11,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -82,7 +137,7 @@
       },
       {
         "name": "imdb_id",
-        "ordinal": 7,
+        "ordinal": 12,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -93,7 +148,7 @@
       },
       {
         "name": "tvdb_id",
-        "ordinal": 8,
+        "ordinal": 13,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -104,7 +159,7 @@
       },
       {
         "name": "show_tmdb_id",
-        "ordinal": 9,
+        "ordinal": 14,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -115,7 +170,7 @@
       },
       {
         "name": "show_imdb_id",
-        "ordinal": 10,
+        "ordinal": 15,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -126,7 +181,7 @@
       },
       {
         "name": "show_tvdb_id",
-        "ordinal": 11,
+        "ordinal": 16,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -137,7 +192,7 @@
       },
       {
         "name": "title",
-        "ordinal": 12,
+        "ordinal": 17,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -148,7 +203,7 @@
       },
       {
         "name": "show_title",
-        "ordinal": 13,
+        "ordinal": 18,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -159,7 +214,7 @@
       },
       {
         "name": "poster",
-        "ordinal": 14,
+        "ordinal": 19,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -175,6 +230,11 @@
     "nullable": [
       false,
       false,
+      false,
+      true,
+      true,
+      true,
+      true,
       true,
       true,
       true,
@@ -190,5 +250,5 @@
       true
     ]
   },
-  "hash": "e22b637a6ff9cbf7c2beec4cc865045a537b335c73a5d68e3992563b9ff56844"
+  "hash": "718dfc0c21f5a5e6b8276c8ed2d75c882907f85aba8d8806ccd4b24c514d6512"
 }

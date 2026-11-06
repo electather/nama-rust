@@ -15,34 +15,7 @@ use std::{path::Path, sync::LazyLock};
 
 use regex::Regex;
 
-use crate::libraries::Kind;
-
-/// Something a file holds, as far as its path says.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum Item {
-    /// A Movie.
-    Movie {
-        /// The title, as the folder or file names it.
-        title: String,
-        /// The release year.
-        year: Option<i64>,
-        /// The Movie's TMDB id, from an ID hint.
-        tmdb_id: Option<i64>,
-    },
-    /// One Episode of a Show.
-    Episode {
-        /// The Show's title, as its folder names it.
-        show: String,
-        /// The year the Show first aired.
-        year: Option<i64>,
-        /// The Show's TMDB id, from an ID hint on its folder.
-        tmdb_id: Option<i64>,
-        /// The Season number; 0 holds specials.
-        season: i64,
-        /// The Episode number within the Season.
-        episode: i64,
-    },
-}
+use crate::{contents::Item, libraries::Kind};
 
 /// The most Episodes one file can hold, so a typo like `S01E01-E900` isn't 900 Episodes.
 const MAX_EPISODES_PER_FILE: i64 = 20;
@@ -306,8 +279,8 @@ fn clean_title(title: &str) -> String {
 mod tests {
     use std::path::Path;
 
-    use super::{Item, is_extra, parse};
-    use crate::libraries::Kind;
+    use super::{is_extra, parse};
+    use crate::{contents::Item, libraries::Kind};
 
     #[expect(
         clippy::unnecessary_wraps,

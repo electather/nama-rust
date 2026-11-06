@@ -23,7 +23,7 @@ use nama_proto::nama::v1::{
     MatchServiceClient, ScanLibraryRequest, SearchMetadataRequest, SetMatchRequest,
     SetMatchResponse, TitleKind, external_id,
 };
-use nama_server::{config::Config, db::Database, plugins::Registry};
+use nama_server::{config::Config, contents::Contents, db::Database, plugins::Registry};
 use tempfile::TempDir;
 use tokio::{net::TcpListener, sync::oneshot};
 
@@ -33,10 +33,10 @@ const HOME_MOVIES: &str = "Home Movies (2019)/Home Movies (2019).mkv";
 /// What a file holds when the test first writes it.
 const VIDEO: &[u8] = b"video";
 
-/// What Matching stored for a file's item, as the test reads it from the database.
+/// What Matching stored for a file's item, as the test reads it back.
 #[derive(Debug, PartialEq, Eq)]
 struct Decision {
-    state: String,
+    matched: bool,
     tmdb_id: Option<i64>,
 }
 
@@ -47,7 +47,7 @@ struct Fixture {
     folder: PathBuf,
     libraries: LibraryServiceClient<HttpClient>,
     matches: MatchServiceClient<HttpClient>,
-    db: Arc<Database>,
+    contents: Contents,
     _tmdb: FakeTmdb,
     _stop: oneshot::Sender<()>,
     _data: TempDir,
@@ -109,7 +109,7 @@ impl Fixture {
             folder,
             libraries,
             matches: MatchServiceClient::new(HttpClient::plaintext(), config),
-            db,
+            contents: Contents::new(db),
             _tmdb: tmdb,
             _stop: stop,
             _data: data,
@@ -155,24 +155,20 @@ impl Fixture {
     /// it, once it has.
     async fn decision(&self, path: &Path, size: i64) -> Option<(i64, Decision)> {
         let path = path.to_str().unwrap();
-        let row = sqlx::query!(
-            r#"SELECT library_items.id AS "id!", item_matches.state AS "state?",
-                      item_matches.tmdb_id
-               FROM library_items
-               JOIN library_files ON library_files.id = library_items.file_id
-               LEFT JOIN item_matches ON item_matches.item_id = library_items.id
-               WHERE library_files.path = ? AND library_files.size = ?"#,
-            path,
-            size
-        )
-        .fetch_optional(self.db.reader())
-        .await
-        .unwrap()?;
+        let file = self
+            .contents
+            .files(self.library)
+            .await
+            .unwrap()
+            .into_iter()
+            .find(|file| file.path == path && file.size == size)?;
+        let item = file.items.into_iter().next()?;
+        let recorded = item.recorded?;
         Some((
-            row.id,
+            item.id,
             Decision {
-                state: row.state?,
-                tmdb_id: row.tmdb_id,
+                matched: recorded.matched,
+                tmdb_id: recorded.ids.tmdb,
             },
         ))
     }
@@ -199,14 +195,14 @@ fn tmdb_id(id: i64) -> ExternalId {
 
 fn unmatched() -> Decision {
     Decision {
-        state: "unmatched".to_owned(),
+        matched: false,
         tmdb_id: None,
     }
 }
 
 fn matched(tmdb_id: i64) -> Decision {
     Decision {
-        state: "matched".to_owned(),
+        matched: true,
         tmdb_id: Some(tmdb_id),
     }
 }
