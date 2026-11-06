@@ -48,25 +48,31 @@ async fn the_app_s_stylesheet_is_served() {
     assert_eq!(content_type, "text/css; charset=utf-8");
 }
 
-/// The app never answers for the API or media, so a client that gets a path wrong sees a 404.
+/// The app never answers for the API or media, so a signed-in client that gets a path wrong sees
+/// a 404. Without a session it would see a 401 first: only the public RPCs skip signing in.
 #[tokio::test]
 async fn unknown_rpc_and_media_paths_are_not_found() {
     let server = TestServer::start(Config::default(), Registry::new()).await;
 
     for path in ["/nama.v1.NoSuchService/Nothing", "/media/42"] {
-        let (status, _, _) = http1_get(server.addr, path).await;
+        let (status, _, _) = http1_get_as(server.addr, path, Some(&server.admin_token)).await;
 
         assert_eq!(status, 404, "{path}");
     }
 }
 
-/// Sends a plain HTTP/1.1 `GET` for `path` and returns the status, `Content-Type` (empty if
-/// none) and body.
+/// Sends a plain HTTP/1.1 `GET` for `path` with no session and returns the status,
+/// `Content-Type` (empty if none) and body.
+async fn http1_get(addr: SocketAddr, path: &str) -> (u16, String, Vec<u8>) {
+    http1_get_as(addr, path, None).await
+}
+
+/// Like [`http1_get`], presenting `token`, if any, as a bearer token.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
-async fn http1_get(addr: SocketAddr, path: &str) -> (u16, String, Vec<u8>) {
+async fn http1_get_as(addr: SocketAddr, path: &str, token: Option<&str>) -> (u16, String, Vec<u8>) {
     use http_body_util::{BodyExt, Empty};
     use hyper::{Request, body::Bytes, client::conn::http1};
     use hyper_util::rt::TokioIo;
@@ -75,10 +81,11 @@ async fn http1_get(addr: SocketAddr, path: &str) -> (u16, String, Vec<u8>) {
     let (mut sender, connection) = http1::handshake(TokioIo::new(stream)).await.unwrap();
     tokio::spawn(connection);
 
-    let request = Request::get(path)
-        .header("host", addr.to_string())
-        .body(Empty::<Bytes>::new())
-        .unwrap();
+    let mut request = Request::get(path).header("host", addr.to_string());
+    if let Some(token) = token {
+        request = request.header("authorization", format!("Bearer {token}"));
+    }
+    let request = request.body(Empty::<Bytes>::new()).unwrap();
     let response = sender.send_request(request).await.unwrap();
 
     let status = response.status().as_u16();
