@@ -128,7 +128,8 @@ export type SetupRequest = Message<"nama.v1.SetupRequest"> & {
   password: string;
 
   /**
-   * The signing-in Device's name: 1 to 64 characters.
+   * The signing-in Device's name: up to 64 characters. When it is blank, the Server names the
+   * Device after the browser and OS in its `User-Agent`, such as "Chrome on macOS".
    *
    * @generated from field: string device_name = 4;
    */
@@ -201,7 +202,8 @@ export type SignInRequest = Message<"nama.v1.SignInRequest"> & {
   password: string;
 
   /**
-   * The signing-in Device's name: 1 to 64 characters.
+   * The signing-in Device's name: up to 64 characters. When it is blank, the Server names the
+   * Device after the browser and OS in its `User-Agent`, such as "Chrome on macOS".
    *
    * @generated from field: string device_name = 3;
    */

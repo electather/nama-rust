@@ -41,20 +41,6 @@ export function FormField({
   );
 }
 
-/** The name of the Device signing in, which both setting up and signing in ask for. */
-export function DeviceNameField({ error }: { error: string | undefined }) {
-  return (
-    <FormField
-      label="Device name"
-      name="deviceName"
-      hint="So you can tell your Devices apart in Settings."
-      placeholder="Living room laptop"
-      maxLength={64}
-      error={error}
-    />
-  );
-}
-
 /** The end of a form on a page: what submitting it did, why the Server refused, and its button. */
 export function FormEnd({
   action,

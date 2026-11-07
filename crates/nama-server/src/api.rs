@@ -14,7 +14,7 @@ use axum::{
     extract::{ConnectInfo, Request},
     http::{
         HeaderMap, HeaderValue,
-        header::{RETRY_AFTER, SET_COOKIE},
+        header::{RETRY_AFTER, SET_COOKIE, USER_AGENT},
     },
     middleware::{self, Next},
     response::IntoResponse,
@@ -310,9 +310,10 @@ impl SignInService for SignInServiceHandler {
         if !setup_code.matches(&request.setup_code) {
             return Err(ConnectError::permission_denied("the Setup Code is wrong"));
         }
+        let device_name = device_name(request.device_name, ctx.headers());
         let signed_in = self
             .users
-            .create_first_admin(&request.name, &request.password, &request.device_name)
+            .create_first_admin(&request.name, &request.password, &device_name)
             .await?;
         self.sign_in_limits.succeeded(&attempt);
         Ok(hand_out_session(
@@ -338,9 +339,10 @@ impl SignInService for SignInServiceHandler {
             .sign_in_limits
             .admit(peer_ip(&ctx)?, Some(&request.name))?;
         let wants_token = wants_token(request.delivery)?;
+        let device_name = device_name(request.device_name, ctx.headers());
         let signed_in = self
             .users
-            .sign_in(&request.name, &request.password, &request.device_name)
+            .sign_in(&request.name, &request.password, &device_name)
             .await?;
         self.sign_in_limits.succeeded(&attempt);
         Ok(hand_out_session(
@@ -1309,6 +1311,17 @@ fn wants_token(delivery: EnumValue<SessionDelivery>) -> Result<bool, ConnectErro
             ))
         }
     }
+}
+
+/// The name a signing-in Device gave, or, when it gave none, one made from its `User-Agent`.
+fn device_name(given: String, headers: &HeaderMap) -> String {
+    if !given.trim().is_empty() {
+        return given;
+    }
+    let user_agent = headers
+        .get(USER_AGENT)
+        .and_then(|value| value.to_str().ok());
+    crate::device_names::from_user_agent(user_agent)
 }
 
 /// Who sent the request `ctx` is for, or `unauthenticated` if it carries no valid session.
