@@ -1,28 +1,15 @@
 import { useSuspenseQuery } from "@connectrpc/connect-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { Link, createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 
 import { NotFound } from "@/components/route-error";
 import { TitlePage } from "@/components/title-page";
 import { buttonVariants } from "@/components/ui/button";
 import { BrowseService, type Version } from "@/gen/nama/v1/browse_pb";
-import {
-  externalIdFromParam,
-  largestVersion,
-  libraryFromParam,
-  metadataLine,
-  queryOrNotFound,
-  runtimeOf,
-  yearOf,
-} from "@/lib/browse";
+import { largestVersion, metadataLine, loadMovie, runtimeOf, yearOf } from "@/lib/browse";
 
 export const Route = createFileRoute("/_member/libraries/$libraryId/movies/$movieId/")({
-  loader: async ({ context, params }) => {
-    const library = await libraryFromParam(context, params.libraryId);
-    const input = { libraryId: library.id, movieId: externalIdFromParam(params.movieId) };
-    await queryOrNotFound(context, BrowseService.method.getMovie, input);
-    return input;
-  },
+  loader: ({ context, params }) => loadMovie(context, params),
   notFoundComponent: NotFound,
   component: Movie,
 });
@@ -59,10 +46,14 @@ function Play({ versions }: { versions: Version[] }) {
   );
   return (
     <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-3">
-      {/* ponytail: a plain link until the player's route (#72) exists to type a <Link> against. */}
-      <a href={`${location.pathname}/play?version=${versionId}`} className={buttonVariants()}>
+      <Link
+        from={Route.fullPath}
+        to="./play"
+        search={{ version: Number(versionId) }}
+        className={buttonVariants()}
+      >
         Play
-      </a>
+      </Link>
       {versions.length > 1 && (
         <label className="flex items-center gap-2 text-sm text-muted-foreground">
           Version
