@@ -20,7 +20,7 @@ message Refusal {
 // The rules a request can break. Reasons are API contract: one is never renamed or reused. A
 // client that gets one it doesn't know sees `REFUSAL_REASON_UNSPECIFIED`, and shows the message.
 enum RefusalReason {
-  // No reason is given yet; read the message. Comes with `invalid_argument`.
+  // A reason this client doesn't know; read the message. The Server never sends it.
   REFUSAL_REASON_UNSPECIFIED = 0;
 
   // `unauthenticated`: the call needs a signed-in Device.
@@ -93,4 +93,21 @@ enum RefusalReason {
   REFUSAL_REASON_UNKNOWN_TITLE = 28;
   // `unavailable`: no metadata Provider is enabled, or it failed.
   REFUSAL_REASON_NO_METADATA_PROVIDER = 29;
+
+  // `invalid_argument`: a User's or Device's name, trimmed, is too short or too long. Params:
+  // `minLength`, `maxLength`, in characters.
+  REFUSAL_REASON_NAME_LENGTH = 30;
+  // `invalid_argument`: the Authenticator Plugin rejects the password. Its own text is the message.
+  REFUSAL_REASON_PASSWORD_REJECTED = 31;
+  // `invalid_argument`: a Library's folder isn't an absolute path. Params: `folder`.
+  REFUSAL_REASON_FOLDER_NOT_ABSOLUTE = 32;
+  // `invalid_argument`: a Library's folder can't be found. Params: `folder`.
+  REFUSAL_REASON_FOLDER_NOT_FOUND = 33;
+  // `invalid_argument`: a Library's folder isn't a directory the Server can read. Params: `folder`.
+  REFUSAL_REASON_FOLDER_NOT_READABLE = 34;
+  // `invalid_argument`: a Library's folder resolves to a path that isn't valid UTF-8. Params:
+  // `folder`, `resolvedPath` (with what isn't UTF-8 replaced).
+  REFUSAL_REASON_FOLDER_NOT_UTF8 = 35;
+  // `invalid_argument`: a folder is named more than once in the request. Params: `folder`.
+  REFUSAL_REASON_FOLDER_REPEATED = 36;
 }

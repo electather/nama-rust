@@ -358,28 +358,23 @@ async fn a_name_password_or_role_outside_the_rules_is_refused_and_nobody_is_crea
     let too_long_name = "x".repeat(65);
     let too_long_password = "x".repeat(1025);
 
-    let unspecified = RefusalReason::REFUSAL_REASON_UNSPECIFIED;
+    let name_length = RefusalReason::REFUSAL_REASON_NAME_LENGTH;
+    let rejected = RefusalReason::REFUSAL_REASON_PASSWORD_REJECTED;
     let refusals = [
-        ("   ", PASSWORD, Role::ROLE_MEMBER, unspecified, "name"),
+        ("   ", PASSWORD, Role::ROLE_MEMBER, name_length, "name"),
         (
             too_long_name.as_str(),
             PASSWORD,
             Role::ROLE_MEMBER,
-            unspecified,
+            name_length,
             "name",
         ),
-        (
-            "Grace",
-            "1234567",
-            Role::ROLE_MEMBER,
-            unspecified,
-            "password",
-        ),
+        ("Grace", "1234567", Role::ROLE_MEMBER, rejected, "password"),
         (
             "Grace",
             too_long_password.as_str(),
             Role::ROLE_MEMBER,
-            unspecified,
+            rejected,
             "password",
         ),
         (
@@ -395,6 +390,10 @@ async fn a_name_password_or_role_outside_the_rules_is_refused_and_nobody_is_crea
 
         let refusal = assert_refused(refused, ErrorCode::InvalidArgument, reason);
         assert_eq!(refusal.field, field, "{name:.8} / {password:.8} / {role:?}");
+        if reason == name_length {
+            assert_eq!(refusal.params["minLength"], "1");
+            assert_eq!(refusal.params["maxLength"], "64");
+        }
     }
     assert_eq!(fixture.list().await.unwrap().len(), 1);
 }
@@ -860,7 +859,7 @@ async fn a_new_password_outside_the_rules_is_refused_and_the_old_one_still_works
     let refusal = assert_refused(
         changed,
         ErrorCode::InvalidArgument,
-        RefusalReason::REFUSAL_REASON_UNSPECIFIED,
+        RefusalReason::REFUSAL_REASON_PASSWORD_REJECTED,
     );
     assert_eq!(refusal.field, "new_password");
     assert!(fixture.signed_in(&laptop.token).await.unwrap());
@@ -877,7 +876,7 @@ async fn new_passwords_outside_the_rules_dont_count_toward_the_limit() {
         assert_refused(
             refused,
             ErrorCode::InvalidArgument,
-            RefusalReason::REFUSAL_REASON_UNSPECIFIED,
+            RefusalReason::REFUSAL_REASON_PASSWORD_REJECTED,
         );
     }
 
@@ -996,7 +995,7 @@ async fn a_reset_password_outside_the_rules_is_refused_and_the_old_one_still_wor
     let refusal = assert_refused(
         reset,
         ErrorCode::InvalidArgument,
-        RefusalReason::REFUSAL_REASON_UNSPECIFIED,
+        RefusalReason::REFUSAL_REASON_PASSWORD_REJECTED,
     );
     assert_eq!(refusal.field, "new_password");
     assert!(fixture.signed_in(&laptop.token).await.unwrap());

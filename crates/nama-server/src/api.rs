@@ -56,7 +56,7 @@ use crate::{
     db::Database,
     events::{EventBus, Filter},
     forwarded::{RequestSource, identify_source},
-    libraries::{self, Kind, Libraries, Library},
+    libraries::{self, FolderProblem, Kind, Libraries, Library},
     matching::{ManualError, Matcher},
     plugins::Registry,
     rate_limits::{Blocked, SignInCodeLimits, SignInLimits},
@@ -1064,7 +1064,10 @@ impl UserService for UserServiceHandler {
         // lock the User out of their own sign-in.
         if matches!(
             changed,
-            Ok(()) | Err(users::Error::Invalid { .. } | users::Error::SignedOut)
+            Ok(())
+                | Err(users::Error::NameLength { .. }
+                    | users::Error::PasswordRejected { .. }
+                    | users::Error::SignedOut)
         ) {
             self.sign_in_limits.succeeded(&attempt);
         }
@@ -1538,15 +1541,20 @@ fn refuse(reason: RefusalReason, message: impl Into<String>) -> Refused {
 const fn refusal_code(reason: RefusalReason) -> ErrorCode {
     use RefusalReason as R;
     match reason {
-        // ponytail: `UNSPECIFIED` comes only from `users::Error::Invalid` and
-        // `libraries::Error::Invalid`, without the params their messages mention, until #130 gives
-        // each of their rules its own reason and params.
+        // Never sent; a client sees it only for a reason it doesn't know.
         R::REFUSAL_REASON_UNSPECIFIED
         | R::REFUSAL_REASON_FIELD_REQUIRED
         | R::REFUSAL_REASON_UNKNOWN_ENUM_VALUE
         | R::REFUSAL_REASON_WRONG_LIBRARY_KIND
         | R::REFUSAL_REASON_DURATION_OUT_OF_RANGE
-        | R::REFUSAL_REASON_UNKNOWN_TITLE => ErrorCode::InvalidArgument,
+        | R::REFUSAL_REASON_UNKNOWN_TITLE
+        | R::REFUSAL_REASON_NAME_LENGTH
+        | R::REFUSAL_REASON_PASSWORD_REJECTED
+        | R::REFUSAL_REASON_FOLDER_NOT_ABSOLUTE
+        | R::REFUSAL_REASON_FOLDER_NOT_FOUND
+        | R::REFUSAL_REASON_FOLDER_NOT_READABLE
+        | R::REFUSAL_REASON_FOLDER_NOT_UTF8
+        | R::REFUSAL_REASON_FOLDER_REPEATED => ErrorCode::InvalidArgument,
         R::REFUSAL_REASON_SIGN_IN_REQUIRED
         | R::REFUSAL_REASON_WRONG_NAME_OR_PASSWORD
         | R::REFUSAL_REASON_WRONG_PASSWORD
@@ -1636,8 +1644,14 @@ impl From<users::Error> for ConnectError {
         use RefusalReason as R;
         let message = err.to_string();
         let refused = match err {
-            users::Error::Invalid { field, .. } => {
-                refuse(R::REFUSAL_REASON_UNSPECIFIED, message).field(field)
+            users::Error::NameLength { field, .. } => {
+                refuse(R::REFUSAL_REASON_NAME_LENGTH, message)
+                    .field(field)
+                    .param("minLength", users::NAME_LENGTH.start())
+                    .param("maxLength", users::NAME_LENGTH.end())
+            }
+            users::Error::PasswordRejected { field, .. } => {
+                refuse(R::REFUSAL_REASON_PASSWORD_REJECTED, message).field(field)
             }
             // Only creating a User or setting up the first one takes a name to check.
             users::Error::NameTaken => {
@@ -1726,8 +1740,32 @@ impl From<libraries::Error> for ConnectError {
         use RefusalReason as R;
         let message = err.to_string();
         let refused = match err {
-            libraries::Error::Invalid { field, .. } => {
-                refuse(R::REFUSAL_REASON_UNSPECIFIED, message).field(field)
+            libraries::Error::NameBlank => {
+                refuse(R::REFUSAL_REASON_FIELD_REQUIRED, message).field("name")
+            }
+            libraries::Error::FoldersEmpty => {
+                refuse(R::REFUSAL_REASON_FIELD_REQUIRED, message).field("folders")
+            }
+            libraries::Error::Folder {
+                index,
+                folder,
+                problem,
+            } => {
+                let reason = match problem {
+                    FolderProblem::NotAbsolute => R::REFUSAL_REASON_FOLDER_NOT_ABSOLUTE,
+                    FolderProblem::NotFound(_) => R::REFUSAL_REASON_FOLDER_NOT_FOUND,
+                    FolderProblem::NotReadable(_) => R::REFUSAL_REASON_FOLDER_NOT_READABLE,
+                    FolderProblem::NotUtf8(_) => R::REFUSAL_REASON_FOLDER_NOT_UTF8,
+                    FolderProblem::Repeated => R::REFUSAL_REASON_FOLDER_REPEATED,
+                };
+                let refused = refuse(reason, message)
+                    .field(&format!("folders[{index}]"))
+                    .param("folder", &folder);
+                if let FolderProblem::NotUtf8(resolved) = problem {
+                    refused.param("resolvedPath", &resolved)
+                } else {
+                    refused
+                }
             }
             libraries::Error::NotFound(id) => {
                 refuse(R::REFUSAL_REASON_LIBRARY_NOT_FOUND, message).param("libraryId", &id)
