@@ -10,8 +10,8 @@ use nama_plugin_api::{
     metadata::{Candidate, ExternalId, SearchQuery, TitleKind},
 };
 use nama_proto::nama::v1::{
-    Event, Permission, Request, RequestCreated, RequestState, RequestedMovie, Requester,
-    RequesterAdded,
+    Event, Permission, Request, RequestCancelled, RequestCreated, RequestState,
+    RequestStateChanged, RequestedMovie, Requester, RequesterAdded,
 };
 use sqlx::SqliteConnection;
 
@@ -40,6 +40,8 @@ pub(crate) enum Error {
     /// There is no such Request, or none the caller may see.
     #[error("there is no Request {0}")]
     NoSuchRequest(i64),
+    #[error("the Request {0} isn't Pending")]
+    NotPending(i64),
     #[error("a Library already has the Movie tmdb-{0}")]
     InLibrary(i64),
     #[error("the metadata source has no Movie tmdb-{0}")]
@@ -114,6 +116,45 @@ impl Requests {
             .await?;
         self.events.publish(happened.into_iter().collect());
         Ok(request)
+    }
+
+    /// Approves the Pending Request `id`, and publishes that its state changed.
+    pub(crate) async fn approve(&self, id: i64) -> Result<Request, Error> {
+        self.decide(id, RequestState::Approved, None).await
+    }
+
+    /// Declines the Pending Request `id`, giving its Requesters `reason` unless it is blank, and
+    /// publishes that its state changed.
+    pub(crate) async fn decline(&self, id: i64, reason: String) -> Result<Request, Error> {
+        let reason = (!reason.trim().is_empty()).then_some(reason);
+        self.decide(id, RequestState::Declined, reason).await
+    }
+
+    async fn decide(
+        &self,
+        id: i64,
+        state: RequestState,
+        reason: Option<String>,
+    ) -> Result<Request, Error> {
+        let request = self
+            .db
+            .write(move |tx| Box::pin(decide(tx, id, state, reason)))
+            .await?;
+        self.events.publish(vec![event(RequestStateChanged {
+            request: request.clone().into(),
+            ..Default::default()
+        })]);
+        Ok(request)
+    }
+
+    /// Removes the Request `id`, whatever its state, and publishes that it was cancelled.
+    pub(crate) async fn cancel(&self, id: i64) -> Result<(), Error> {
+        let request = self.db.write(move |tx| Box::pin(cancel(tx, id))).await?;
+        self.events.publish(vec![event(RequestCancelled {
+            request: request.into(),
+            ..Default::default()
+        })]);
+        Ok(())
     }
 
     /// The Requests `viewer` may see, newest first.
@@ -215,7 +256,7 @@ async fn look_around<M>(
     .fetch_optional(&mut *conn)
     .await?;
     let request = match open {
-        Some(id) => load(conn, Some(id), None).await?.into_iter().next(),
+        Some(id) => load_one(conn, id).await?,
         None => None,
     };
     Ok(Found {
@@ -279,11 +320,7 @@ async fn ask(
     .await?
     .rows_affected()
         > 0;
-    let request = load(conn, Some(id), None)
-        .await?
-        .into_iter()
-        .next()
-        .ok_or(sqlx::Error::RowNotFound)?;
+    let request = load_one(conn, id).await?.ok_or(sqlx::Error::RowNotFound)?;
     let happened = if opened {
         Some(event(RequestCreated {
             request: request.clone().into(),
@@ -301,6 +338,45 @@ async fn ask(
     Ok((request, happened))
 }
 
+/// Moves the Pending Request `id` to `state` with `reason`, and returns it as it is now.
+async fn decide(
+    conn: &mut SqliteConnection,
+    id: i64,
+    state: RequestState,
+    reason: Option<String>,
+) -> Result<Request, Error> {
+    let state = stored(state);
+    let decided = sqlx::query!(
+        "UPDATE requests SET state = ?, decline_reason = ? WHERE id = ? AND state = 'pending'",
+        state,
+        reason,
+        id
+    )
+    .execute(&mut *conn)
+    .await?
+    .rows_affected()
+        > 0;
+    let request = load_one(conn, id).await?.ok_or(Error::NoSuchRequest(id))?;
+    if !decided {
+        return Err(Error::NotPending(id));
+    }
+    Ok(request)
+}
+
+/// Removes the Request `id`, and its Requesters with it, and returns it as it was.
+async fn cancel(conn: &mut SqliteConnection, id: i64) -> Result<Request, Error> {
+    let request = load_one(conn, id).await?.ok_or(Error::NoSuchRequest(id))?;
+    sqlx::query!("DELETE FROM requests WHERE id = ?", id)
+        .execute(&mut *conn)
+        .await?;
+    Ok(request)
+}
+
+/// The Request with the ID `id`, if there is one.
+async fn load_one(conn: &mut SqliteConnection, id: i64) -> Result<Option<Request>, sqlx::Error> {
+    Ok(load(conn, Some(id), None).await?.into_iter().next())
+}
+
 /// The Requests, newest first: only the one with the ID `id` if given, and only those the User
 /// `requester` is a Requester of if given.
 async fn load(
@@ -309,7 +385,7 @@ async fn load(
     requester: Option<i64>,
 ) -> Result<Vec<Request>, sqlx::Error> {
     let rows = sqlx::query!(
-        r#"SELECT id AS "id!", tmdb_id, title, release_date, state, created_at
+        r#"SELECT id AS "id!", tmdb_id, title, release_date, state, created_at, decline_reason
            FROM requests
            WHERE (?1 IS NULL OR id = ?1)
              AND (?2 IS NULL OR EXISTS (SELECT 1 FROM requesters
@@ -359,6 +435,7 @@ async fn load(
             state: read_state(&row.state).into(),
             requesters: requesters.remove(&row.id).unwrap_or_default(),
             created_at: row.created_at,
+            decline_reason: row.decline_reason,
             ..Default::default()
         })
         .collect())

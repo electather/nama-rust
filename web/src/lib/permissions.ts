@@ -32,7 +32,7 @@ export const permissionChoices: PermissionChoice[] = [
   {
     permission: Permission.MANAGE_REQUESTS,
     label: "Manage Requests",
-    about: "Approve and decline Requests.",
+    about: "Approve, decline and cancel Requests.",
   },
   { permission: Permission.REQUEST, label: "Request", about: "Request Movies and Shows." },
   { permission: Permission.REQUEST_MOVIE, label: "Request Movies", parent: Permission.REQUEST },

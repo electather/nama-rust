@@ -35,6 +35,16 @@ service RequestService {
   rpc LookUpMovie(LookUpMovieRequest) returns (LookUpMovieResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
+  // Approves a Pending Request, which then waits for the Movie to be Matched in a Library. Needs
+  // `PERMISSION_MANAGE_REQUESTS`, which manages every User's Requests. Fails with `not_found` if
+  // there is no Request with the ID, and `failed_precondition` if it isn't Pending.
+  rpc ApproveRequest(ApproveRequestRequest) returns (ApproveRequestResponse);
+  // Declines a Pending Request, which closes it: asking for the Movie again opens a new one. Needs
+  // `PERMISSION_MANAGE_REQUESTS`. Fails as `ApproveRequest` does.
+  rpc DeclineRequest(DeclineRequestRequest) returns (DeclineRequestResponse);
+  // Removes a Request, whatever its state. Needs `PERMISSION_MANAGE_REQUESTS`. Fails with
+  // `not_found` if there is no Request with the ID.
+  rpc CancelRequest(CancelRequestRequest) returns (CancelRequestResponse);
 }
 
 // Where a Request is on its way to the Library (ADR 0012).
@@ -67,6 +77,9 @@ message Request {
   repeated Requester requesters = 4;
   // When it was opened, in seconds since the Unix epoch.
   int64 created_at = 5;
+  // Why it was declined, for its Requesters to read. Only a Declined Request has one, and only if
+  // the decliner gave one.
+  optional string decline_reason = 6;
 }
 
 // A Movie a Request asks for, with its metadata as the metadata source gave it when the Request
@@ -113,6 +126,35 @@ message GetRequestRequest {
 message GetRequestResponse {
   Request request = 1;
 }
+
+message ApproveRequestRequest {
+  // The ID of the Request.
+  int64 id = 1;
+}
+
+message ApproveRequestResponse {
+  // The Request, Approved.
+  Request request = 1;
+}
+
+message DeclineRequestRequest {
+  // The ID of the Request.
+  int64 id = 1;
+  // Why it is declined, for its Requesters to read. Blank gives none.
+  string reason = 2;
+}
+
+message DeclineRequestResponse {
+  // The Request, Declined.
+  Request request = 1;
+}
+
+message CancelRequestRequest {
+  // The ID of the Request.
+  int64 id = 1;
+}
+
+message CancelRequestResponse {}
 
 // A Movie in the metadata source, and how close it is to being on the Server: in a Library, asked
 // for in a Request, or neither, in which case `CreateRequest` asks for it.

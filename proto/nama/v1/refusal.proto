@@ -121,4 +121,7 @@ enum RefusalReason {
   // `failed_precondition`: the Movie is already Matched in a Library, so it can't be Requested.
   // Params: `tmdbId`.
   REFUSAL_REASON_ALREADY_IN_LIBRARY = 39;
+  // `failed_precondition`: the Request isn't Pending, so it can't be approved or declined.
+  // Params: `requestId`.
+  REFUSAL_REASON_REQUEST_NOT_PENDING = 40;
 }
