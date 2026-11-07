@@ -32,7 +32,15 @@ Run from the repo root:
     npm --prefix .sandcastle run factory                  # drain the queue (at most 60 issues), then exit
     MAX_ISSUES=1 npm --prefix .sandcastle run factory     # one issue, then stop
 
-Logs: `.sandcastle/logs/`.
+Logs, all in `.sandcastle/logs/`:
+
+- `status.md`: what is in flight (stage, PR, CI run), what is waiting and why (blocked, a parent, claimed by another factory), and the last 20 finished issues. It's rewritten on every change and covers this machine's factory only.
+- `events.jsonl`: one JSON event per line, the record `status.md` is rendered from (`status.ts`). It keeps the history across runs.
+- `launchd.log`: one timestamped line per event, stage changes with timings, and a summary of why the run ended and what is still queued.
+- `crash-issue-N.log`: the full error behind a one-line crash in `launchd.log`.
+- `agent-issue-N-<step>--N.log`: what each agent did.
+
+`npm --prefix .sandcastle run check` checks the `status.md` renderer.
 
 Stopping gracefully: `touch .sandcastle/STOP`. Issues already running finish (merged or handed back), nothing new starts, and the run exits. Later runs, such as a scheduled one, exit at once while the file exists. `rm .sandcastle/STOP` to resume.
 

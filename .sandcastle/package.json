@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "factory": "cd .. && tsx .sandcastle/main.ts"
+    "factory": "cd .. && tsx .sandcastle/main.ts",
+    "check": "tsx status.check.ts"
   },
   "devDependencies": {
     "@ai-hero/sandcastle": "^0.14.0",
