@@ -297,8 +297,9 @@ pub const BROWSE_SERVICE_LIST_EPISODES_SPEC: ::connectrpc::Spec = ::connectrpc::
 /// example` doc.
 #[allow(clippy::type_complexity)]
 pub trait BrowseService: Send + Sync + 'static {
-    /// Lists a Movies Library's Movies, by title, each with its Versions. Fails with `not_found` if
-    /// there is no such Library, and with `invalid_argument` if it is a Shows Library.
+    /// Lists a Movies Library's Movies, by title, each with its Versions and the caller's Watch
+    /// State. Fails with `not_found` if there is no such Library, and with `invalid_argument` if it
+    /// is a Shows Library.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
@@ -321,8 +322,8 @@ pub trait BrowseService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
-    /// Returns one Movie of a Movies Library, with its Versions. Fails like `ListMovies`, or with
-    /// `not_found` if nothing in the Library is Matched to that id.
+    /// Returns one Movie of a Movies Library, with its Versions and the caller's Watch State. Fails
+    /// like `ListMovies`, or with `not_found` if nothing in the Library is Matched to that id.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///

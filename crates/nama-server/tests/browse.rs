@@ -1,5 +1,6 @@
-//! Browsing Movies and Shows through the generated `BrowseService` client, over a real socket,
-//! with the TMDB Plugin enabled against a fake TMDB.
+//! Browsing Movies and Shows through the generated `BrowseService` client, and the Watch State
+//! that `WatchStateService` reports and browsing shows, over a real socket, with the TMDB Plugin
+//! enabled against a fake TMDB.
 
 #[expect(dead_code, reason = "the harness's plain `start` has no use here")]
 #[path = "support/server.rs"]
@@ -14,20 +15,25 @@ use std::{
     time::Duration,
 };
 
-use connectrpc::{ConnectError, ErrorCode, client::HttpClient};
+use connectrpc::{
+    ConnectError, ErrorCode,
+    client::{ClientConfig, HttpClient},
+};
 use nama_plugin_api::settings::{SettingValue, Settings};
 use nama_plugin_tmdb::{
     Tmdb,
     testing::{API_KEY, FakeTmdb},
 };
 use nama_proto::nama::v1::{
-    BrowseServiceClient, ClearMatchRequest, CreateLibraryRequest, Episode, ExternalId,
-    GetMovieRequest, GetShowRequest, GetShowResponse, LibraryKind, LibraryServiceClient,
-    ListEpisodesRequest, ListMoviesRequest, ListShowsRequest, MatchServiceClient, Movie,
-    ScanLibraryRequest, Season, Show, Version, external_id,
+    BrowseServiceClient, ClearMatchRequest, CreateLibraryRequest, CreateUserRequest, Episode,
+    ExternalId, GetMovieRequest, GetShowRequest, GetShowResponse, LibraryKind,
+    LibraryServiceClient, ListEpisodesRequest, ListMoviesRequest, ListShowsRequest,
+    MatchServiceClient, Movie, ReportProgressRequest, Role, ScanLibraryRequest, Season,
+    SessionDelivery, SetMatchRequest, Show, SignInRequest, SignInServiceClient, UserServiceClient,
+    Version, WatchState, WatchStateServiceClient, external_id,
 };
 use nama_server::{config::Config, contents::Contents, plugins::Registry};
-use server::TestServer;
+use server::{PASSWORD, TestServer};
 use tempfile::TempDir;
 
 /// TMDB Matches both to Alien, TMDB id 348.
@@ -52,6 +58,9 @@ const BEGINNINGS_AND_ENDINGS: i64 = 1_803_405;
 /// Both the US and the UK Office fit, so this is Unmatched.
 const THE_OFFICE: &str = "The Office/Season 01/The Office - S01E01.mkv";
 const THE_OFFICE_US: i64 = 2316;
+
+/// Two hours, in milliseconds: the length a test's player reports.
+const TWO_HOURS: u64 = 7_200_000;
 
 /// A Server with one Library, the TMDB Plugin enabled against a fake TMDB, and the clients a test
 /// browses and fixes Matches with.
@@ -169,6 +178,75 @@ impl Fixture {
                 .all(|item| item.recorded.is_some())
     }
 
+    /// Rescans the Library after the file at `relative`, which held the item `before`, changed,
+    /// and waits until a new item has replaced it and Matching has decided about that.
+    async fn rescan_until_replaced(&self, relative: &str, before: i64) {
+        self.libraries
+            .scan_library(ScanLibraryRequest {
+                id: self.library,
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        tokio::time::timeout(Duration::from_secs(5), async {
+            while !self.replaced(relative, before).await {
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .unwrap();
+    }
+
+    /// Whether the file at `relative` holds an item other than `before`, which Matching has
+    /// decided about.
+    async fn replaced(&self, relative: &str, before: i64) -> bool {
+        let path = self.folder.join(relative);
+        let files = self.contents.files(self.library).await.unwrap();
+        let file = files.iter().find(|file| path == *file.path).unwrap();
+        let item = file.items.first().unwrap();
+        item.id != before && item.recorded.is_some()
+    }
+
+    /// The Admin, browsing and playing.
+    fn admin(&self) -> Viewer {
+        Viewer::new(self.server.client_config())
+    }
+
+    /// A Member named Grace, created and signed in, browsing and playing.
+    async fn member(&self) -> Viewer {
+        UserServiceClient::new(HttpClient::plaintext(), self.server.client_config())
+            .create_user(CreateUserRequest {
+                name: "Grace".to_owned(),
+                password: PASSWORD.to_owned(),
+                role: Role::ROLE_MEMBER.into(),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        let token = SignInServiceClient::new(
+            HttpClient::plaintext(),
+            self.server.anonymous_client_config(),
+        )
+        .sign_in(SignInRequest {
+            name: "Grace".to_owned(),
+            password: PASSWORD.to_owned(),
+            device_name: "Phone".to_owned(),
+            delivery: SessionDelivery::SESSION_DELIVERY_TOKEN.into(),
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_owned()
+        .token;
+        Viewer::new(self.server.client_config_as(&token))
+    }
+
+    /// The ids of the Versions of the Movie with the TMDB id `tmdb`, by path.
+    async fn version_ids(&self, tmdb: i64) -> Vec<i64> {
+        let movie = self.get_movie(self.library, tmdb).await.unwrap();
+        movie.versions.iter().map(|version| version.id).collect()
+    }
+
     /// The id of the first item stored for the file at `relative`.
     async fn item(&self, relative: &str) -> i64 {
         let path = self.folder.join(relative);
@@ -250,6 +328,81 @@ impl Fixture {
             .await?
             .into_owned()
             .episodes)
+    }
+}
+
+/// One signed-in User's clients for browsing and for reporting what they play.
+struct Viewer {
+    browse: BrowseServiceClient<HttpClient>,
+    watch_states: WatchStateServiceClient<HttpClient>,
+}
+
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+impl Viewer {
+    /// Clients that call the Server with `config`'s session.
+    fn new(config: ClientConfig) -> Self {
+        Self {
+            browse: BrowseServiceClient::new(HttpClient::plaintext(), config.clone()),
+            watch_states: WatchStateServiceClient::new(HttpClient::plaintext(), config),
+        }
+    }
+
+    /// Reports `position_ms` into the Version `version`, `duration_ms` long.
+    async fn report(
+        &self,
+        version: i64,
+        position_ms: u64,
+        duration_ms: u64,
+    ) -> Result<(), ConnectError> {
+        self.watch_states
+            .report_progress(ReportProgressRequest {
+                version_id: version,
+                position_ms,
+                duration_ms,
+                ..Default::default()
+            })
+            .await?;
+        Ok(())
+    }
+
+    /// The Viewer's Watch State of the Movie with the TMDB id `tmdb` in the Library `library`, as
+    /// `GetMovie` gives it, after checking `ListMovies` gives the same.
+    async fn watch_state(&self, library: i64, tmdb: i64) -> Option<WatchState> {
+        let got = self
+            .browse
+            .get_movie(GetMovieRequest {
+                library_id: library,
+                movie_id: tmdb_id(tmdb).into(),
+                ..Default::default()
+            })
+            .await
+            .unwrap()
+            .into_owned()
+            .movie
+            .into_option()
+            .unwrap()
+            .watch_state
+            .into_option();
+        let listed = self
+            .browse
+            .list_movies(ListMoviesRequest {
+                library_id: library,
+                ..Default::default()
+            })
+            .await
+            .unwrap()
+            .into_owned()
+            .movies
+            .into_iter()
+            .find(|movie| movie.id.as_option() == Some(&tmdb_id(tmdb)))
+            .unwrap()
+            .watch_state
+            .into_option();
+        assert_eq!(got, listed);
+        got
     }
 }
 
@@ -643,4 +796,137 @@ fn ids_and_numbers(episodes: &[Episode]) -> Vec<(Option<ExternalId>, u32, u32)> 
             (id, episode.season_number, episode.episode_number)
         })
         .collect()
+}
+
+/// The position and played flag of `state`, if it is set.
+fn progress(state: Option<WatchState>) -> Option<(u64, bool)> {
+    state.map(|state| (state.position_ms, state.played))
+}
+
+#[tokio::test]
+async fn progress_survives_a_rescan_that_replaces_the_item() {
+    let fx = Fixture::alien().await;
+    let viewer = fx.admin();
+    let [version] = fx.version_ids(ALIEN).await[..] else {
+        panic!("Alien has one Version");
+    };
+    let before = fx.item(ALIEN_1080P).await;
+
+    viewer.report(version, 60_000, TWO_HOURS).await.unwrap();
+    fx.write(ALIEN_1080P, b"a re-encoded copy of the video");
+    fx.rescan_until_replaced(ALIEN_1080P, before).await;
+
+    let state = viewer.watch_state(fx.library, ALIEN).await.unwrap();
+    assert_eq!((state.position_ms, state.duration_ms), (60_000, TWO_HOURS));
+    assert!(!state.played);
+    assert!(state.updated_at > 0);
+}
+
+#[tokio::test]
+async fn progress_reported_on_one_version_shows_on_the_movie_for_every_version() {
+    let fx = Fixture::start(LibraryKind::LIBRARY_KIND_MOVIES).await;
+    fx.write(ALIEN_1080P, b"1080p");
+    fx.write(ALIEN_2160P, b"a bigger 2160p copy");
+    fx.scan_until_decided(2).await;
+    let viewer = fx.admin();
+    let [hd, uhd] = fx.version_ids(ALIEN).await[..] else {
+        panic!("Alien has two Versions");
+    };
+
+    viewer.report(uhd, 60_000, TWO_HOURS).await.unwrap();
+    let first_report = progress(viewer.watch_state(fx.library, ALIEN).await);
+    viewer.report(hd, 90_000, TWO_HOURS).await.unwrap();
+    let second_report = progress(viewer.watch_state(fx.library, ALIEN).await);
+
+    assert_eq!(first_report, Some((60_000, false)));
+    assert_eq!(second_report, Some((90_000, false)));
+}
+
+#[tokio::test]
+async fn passing_90_percent_of_the_duration_marks_the_movie_played_and_it_stays_played() {
+    let fx = Fixture::alien().await;
+    let viewer = fx.admin();
+    let [version] = fx.version_ids(ALIEN).await[..] else {
+        panic!("Alien has one Version");
+    };
+
+    viewer.report(version, 900, 1_000).await.unwrap();
+    let at_90 = progress(viewer.watch_state(fx.library, ALIEN).await);
+    viewer.report(version, 901, 1_000).await.unwrap();
+    let past_90 = progress(viewer.watch_state(fx.library, ALIEN).await);
+    viewer.report(version, 0, 1_000).await.unwrap();
+    let played_again = progress(viewer.watch_state(fx.library, ALIEN).await);
+
+    assert_eq!(at_90, Some((900, false)));
+    assert_eq!(past_90, Some((901, true)));
+    assert_eq!(played_again, Some((0, true)));
+}
+
+#[tokio::test]
+async fn a_version_of_an_unmatched_item_is_accepted_and_stores_nothing() {
+    let fx = Fixture::alien().await;
+    let viewer = fx.admin();
+    let [version] = fx.version_ids(ALIEN).await[..] else {
+        panic!("Alien has one Version");
+    };
+    let item = fx.item(ALIEN_1080P).await;
+    fx.matches
+        .clear_match(ClearMatchRequest {
+            item_id: item,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    let reported = viewer.report(version, 60_000, TWO_HOURS).await;
+    fx.matches
+        .set_match(SetMatchRequest {
+            item_id: item,
+            title_id: tmdb_id(ALIEN).into(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    assert!(reported.is_ok(), "{reported:?}");
+    assert_eq!(viewer.watch_state(fx.library, ALIEN).await, None);
+}
+
+#[tokio::test]
+async fn two_users_watch_state_for_the_same_movie_are_kept_apart() {
+    let fx = Fixture::alien().await;
+    let admin = fx.admin();
+    let grace = fx.member().await;
+    let [version] = fx.version_ids(ALIEN).await[..] else {
+        panic!("Alien has one Version");
+    };
+
+    admin.report(version, 60_000, TWO_HOURS).await.unwrap();
+    let grace_before = grace.watch_state(fx.library, ALIEN).await;
+    grace.report(version, 7_000_000, TWO_HOURS).await.unwrap();
+
+    assert_eq!(grace_before, None);
+    assert_eq!(
+        progress(admin.watch_state(fx.library, ALIEN).await),
+        Some((60_000, false))
+    );
+    assert_eq!(
+        progress(grace.watch_state(fx.library, ALIEN).await),
+        Some((7_000_000, true))
+    );
+}
+
+#[tokio::test]
+async fn reporting_on_an_unknown_version_is_not_found_and_a_zero_duration_is_invalid() {
+    let fx = Fixture::alien().await;
+    let viewer = fx.admin();
+    let [version] = fx.version_ids(ALIEN).await[..] else {
+        panic!("Alien has one Version");
+    };
+
+    let unknown = viewer.report(version + 1, 0, TWO_HOURS).await;
+    let zero = viewer.report(version, 0, 0).await;
+
+    assert_eq!(unknown.unwrap_err().code, ErrorCode::NotFound);
+    assert_eq!(zero.unwrap_err().code, ErrorCode::InvalidArgument);
 }

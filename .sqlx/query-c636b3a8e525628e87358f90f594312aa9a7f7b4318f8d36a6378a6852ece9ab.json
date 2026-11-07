@@ -1,0 +1,74 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT title_id, position_ms, duration_ms, played AS \"played: bool\", updated_at\n               FROM watch_states\n               WHERE user_id = ? AND kind = 'movie'",
+  "describe": {
+    "columns": [
+      {
+        "name": "title_id",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "watch_states",
+            "name": "title_id"
+          }
+        }
+      },
+      {
+        "name": "position_ms",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "watch_states",
+            "name": "position_ms"
+          }
+        }
+      },
+      {
+        "name": "duration_ms",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "watch_states",
+            "name": "duration_ms"
+          }
+        }
+      },
+      {
+        "name": "played: bool",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "watch_states",
+            "name": "played"
+          }
+        }
+      },
+      {
+        "name": "updated_at",
+        "ordinal": 4,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "watch_states",
+            "name": "updated_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "c636b3a8e525628e87358f90f594312aa9a7f7b4318f8d36a6378a6852ece9ab"
+}
