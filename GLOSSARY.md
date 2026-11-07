@@ -164,6 +164,10 @@ _Avoid_: ticket, order, wish
 A User who asked for what a Request covers. A Request can have several.
 _Avoid_: owner, submitter
 
+**Followed Show**:
+Users asking for a whole Show, approved once, so its Seasons, including ones that come out later, are Requested without asking again. A Season Request appears for a new Season when its Fulfiller fetches it and a Library scan Matches its Episodes.
+_Avoid_: monitored show, subscription, series request
+
 **Partially Available**:
 The state of a Request when some, but not all, of what it asked for has been Matched in a Library.
 _Avoid_: in progress, partial
