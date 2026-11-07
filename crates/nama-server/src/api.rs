@@ -5,7 +5,7 @@ use std::{ffi::OsStr, future, net::IpAddr, path::Path, sync::Arc, time::Instant}
 use axum::{
     extract::Request,
     http::{
-        HeaderMap, HeaderValue,
+        HeaderMap, HeaderValue, StatusCode,
         header::{RETRY_AFTER, SET_COOKIE, USER_AGENT},
     },
     middleware::{self, Next},
@@ -143,11 +143,11 @@ enum Access {
     Admin,
 }
 
-/// Who may call each RPC, by path. An RPC missing here is refused to everyone (see AGENTS.md, "New
-/// RPCs start closed"). The self-service RPCs are `SignedIn`, and their handlers check ownership.
+/// Who may call each RPC, by path; one missing here is refused to everyone (see AGENTS.md, "New
+/// RPCs start closed").
 // One row per RPC reads as a table; rustfmt would split most rows over four lines.
 #[rustfmt::skip]
-const ACCESS: [(&str, Access); 37] = [
+const ACCESS: &[(&str, Access)] = &[
     (proto::SERVER_SERVICE_GET_SERVER_INFO_SPEC.procedure,        Access::Anyone),
     (proto::SIGN_IN_SERVICE_SETUP_SPEC.procedure,                 Access::Anyone),
     (proto::SIGN_IN_SERVICE_SIGN_IN_SPEC.procedure,               Access::Anyone),
@@ -245,7 +245,8 @@ async fn require_access(request: Request, next: Next) -> axum::response::Respons
     let caller = request.extensions().get::<Caller>();
     let path = request.uri().path();
     let allowed = Access::of(path)
-        .map_or_else(|| Err(unlisted(path)), |access| access.check(caller))
+        .ok_or_else(|| unlisted(path))
+        .and_then(|access| access.check(caller))
         .and_then(|()| check_recent_authentication(path, caller));
     match allowed {
         Ok(()) => next.run(request).await,
@@ -255,11 +256,12 @@ async fn require_access(request: Request, next: Next) -> axum::response::Respons
     }
 }
 
-/// The refusal of a path [`ACCESS`] doesn't list, whether or not the caller has a session. To the
-/// client it looks like a path the Server doesn't answer, as the router says of one: no Refusal,
-/// since an RPC that exists but isn't listed is the Server's bug, not the client's.
+/// The refusal of a path [`ACCESS`] doesn't list, whether or not the caller has a session: the
+/// router's own 404 for a path it doesn't serve, so it carries no Refusal. An RPC that exists but
+/// isn't listed is the Server's bug, which a test catches, not the client's.
 fn unlisted(path: &str) -> ConnectError {
     ConnectError::unimplemented(format!("method not found: {path}"))
+        .with_http_status(StatusCode::NOT_FOUND)
 }
 
 /// `nama.v1.ServerService`: facts about this Server that any client can read.
@@ -1888,7 +1890,7 @@ impl From<ManualError> for ConnectError {
 mod tests {
     use std::fs;
 
-    use super::Access;
+    use super::{ACCESS, Access};
 
     /// Every RPC `buf generate` wrote a stub for, by path, read from the generated code so a new
     /// RPC shows up here without anyone listing it.
@@ -1913,11 +1915,7 @@ mod tests {
     #[test]
     fn every_generated_rpc_has_an_access_entry() {
         let rpcs = generated_rpcs();
-        assert!(
-            rpcs.iter()
-                .any(|rpc| rpc == "/nama.v1.ServerService/GetServerInfo"),
-            "the scan missed RPCs: {rpcs:?}"
-        );
+        assert_eq!(rpcs.len(), ACCESS.len(), "the scan found {rpcs:?}");
 
         let unlisted: Vec<_> = rpcs
             .iter()
