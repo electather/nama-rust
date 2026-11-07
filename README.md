@@ -44,7 +44,7 @@ cargo deny check
 
 It also checks that the generated code and the sqlx query data are current. If you change `proto/`, see [`crates/nama-proto/README.md`](crates/nama-proto/README.md). If you change a query or a migration, see [`crates/nama-server/README.md`](crates/nama-server/README.md).
 
-A `web` job runs the web app's checks ([`web/README.md`](web/README.md), "Checks"), then `cargo test -p nama-server --features web --test web` against its build.
+A `web` job runs the web app's checks ([`web/README.md`](web/README.md), "Checks"). The test job then builds the web app and runs `cargo test -p nama-server --features web --test web` against it.
 
 ## License
 

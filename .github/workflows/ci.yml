@@ -16,6 +16,8 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
+  # No debug info: CI only needs pass/fail, and builds and links are faster without it.
+  CARGO_PROFILE_DEV_DEBUG: 0
 
 # Jobs run on autoscaled self-hosted runners on the home lab (electather/home-services,
 # runner-scaler in services/lab/docker-compose.yml). There are only a few of them, so a run
@@ -60,15 +62,27 @@ jobs:
           else
             echo "main has no Buf module yet; skipping"
           fi
-      - name: Install codegen plugins
-        # The generated code must compile against the connectrpc and buffa versions in
-        # crates/nama-proto/Cargo.toml, so keep each plugin on the same minor version as its
-        # runtime crate when bumping either (and update the README's install line).
-        run: >-
-          cargo install --locked
-          protoc-gen-buffa@0.9.2
-          protoc-gen-buffa-packaging@0.9.2
-          connectrpc-codegen@0.9.0
+      # The generated code must compile against the connectrpc and buffa versions in
+      # crates/nama-proto/Cargo.toml, so keep each plugin on the same minor version as its
+      # runtime crate when bumping either (and update the README's install line). sqlx-cli
+      # stays on the same minor version as the sqlx crate in crates/nama-server/Cargo.toml.
+      # Cached by version, since building them from source took 2-4 minutes of every run (sqlx-cli
+      # has no prebuilt binaries). Bump the cache key with any version here.
+      - id: tools-cache
+        uses: actions/cache@v5
+        with:
+          path: |
+            ${{ env.CARGO_HOME }}/bin/protoc-gen-buffa
+            ${{ env.CARGO_HOME }}/bin/protoc-gen-buffa-packaging
+            ${{ env.CARGO_HOME }}/bin/protoc-gen-connect-rust
+            ${{ env.CARGO_HOME }}/bin/sqlx
+            ${{ env.CARGO_HOME }}/bin/cargo-sqlx
+          key: tools-${{ runner.os }}-buffa-0.9.2-connectrpc-0.9.0-sqlx-cli-0.9.0
+      - name: Install codegen plugins and sqlx-cli
+        if: steps.tools-cache.outputs.cache-hit != 'true'
+        run: |
+          cargo install --locked protoc-gen-buffa@0.9.2 protoc-gen-buffa-packaging@0.9.2 connectrpc-codegen@0.9.0
+          cargo install --locked sqlx-cli@0.9.0 --no-default-features --features sqlite,rustls
       # Installs web/'s dependencies, protoc-gen-es among them.
       - uses: voidzero-dev/setup-vp@cab1ab9eaff52d4857875f4f2c016e36af8f2c76 # v1.22.0
         with:
@@ -84,8 +98,6 @@ jobs:
           }
       # Queries are checked at compile time against the query data in .sqlx/, so builds need
       # no database. A scratch SQLite file with every migration applied checks it is current.
-      # Keep on the same minor version as the sqlx crate in crates/nama-server/Cargo.toml.
-      - run: cargo install --locked sqlx-cli@0.9.0 --no-default-features --features sqlite,rustls
       - name: .sqlx is up to date
         run: |
           export DATABASE_URL="sqlite://$RUNNER_TEMP/sqlx-check.db"
@@ -107,8 +119,8 @@ jobs:
       # Advisories, licenses, banned and unknown sources (deny.toml).
       - run: cargo deny check
 
-  # The web app (web/README.md, "Checks"), then the Server serving it with the `web` feature,
-  # which embeds the `vp build` output. Runs on drafts too.
+  # The web app (web/README.md, "Checks"). Runs on drafts too. The Server's `web` feature test
+  # runs in `test`, where it shares the workspace's build cache.
   web:
     name: web
     needs: lint
@@ -130,9 +142,6 @@ jobs:
       # web/src/gen) and DESIGN.md. From web/ it would read neither.
       - name: Design check
         run: vp dlx impeccable@4.8.0 detect --json web/src
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - run: cargo test -p nama-server --features web --test web --locked
 
   # Release builds target Linux, macOS and Windows, and the Server has
   # platform-specific code (shutdown signals), so this should check all three.
@@ -163,7 +172,14 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - uses: taiki-e/install-action@nextest
-      - run: cargo build --workspace --locked
+      # nextest builds every target it runs, so there's no separate `cargo build`.
       - run: cargo nextest run --workspace --locked
       # nextest doesn't run doctests.
       - run: cargo test --workspace --doc --locked
+      # The Server with the `web` feature, which embeds the `vp build` output.
+      - uses: voidzero-dev/setup-vp@cab1ab9eaff52d4857875f4f2c016e36af8f2c76 # v1.22.0
+        with:
+          working-directory: web
+          cache: true
+      - run: vp -C web build
+      - run: cargo test -p nama-server --features web --test web --locked
