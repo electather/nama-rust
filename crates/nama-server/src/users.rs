@@ -278,13 +278,7 @@ impl Users {
     /// such User.
     pub(crate) async fn devices(&self, user: i64) -> Result<Option<Vec<Device>>, sqlx::Error> {
         let mut conn = self.db.reader().acquire().await?;
-        let exists = sqlx::query_scalar!(
-            r#"SELECT EXISTS (SELECT 1 FROM users WHERE id = ?) AS "exists!: bool""#,
-            user
-        )
-        .fetch_one(&mut *conn)
-        .await?;
-        if !exists {
+        if !user_exists(&mut conn, user).await? {
             return Ok(None);
         }
         let expired_before = now() - DEVICE_LIFETIME;
@@ -344,6 +338,16 @@ impl Users {
             Box::pin(async move {
                 replace_credential_signing_others_out(tx, user, &credential, kept).await
             })
+        })
+        .await
+    }
+
+    /// Sets the password of the User `user` to `new`, without their current one, and signs every
+    /// Device of theirs out.
+    pub(crate) async fn reset_password(&self, user: i64, new: &str) -> Result<(), Error> {
+        let credential = self.hash_password(new).await?;
+        self.write_signing_out(move |tx| {
+            Box::pin(async move { replace_credential_signing_all_out(tx, user, &credential).await })
         })
         .await
     }
@@ -755,6 +759,16 @@ async fn any_user(conn: &mut SqliteConnection) -> Result<bool, sqlx::Error> {
         .await
 }
 
+/// Whether there is a User with the ID `user`.
+async fn user_exists(conn: &mut SqliteConnection, user: i64) -> Result<bool, sqlx::Error> {
+    sqlx::query_scalar!(
+        r#"SELECT EXISTS (SELECT 1 FROM users WHERE id = ?) AS "exists!: bool""#,
+        user
+    )
+    .fetch_one(conn)
+    .await
+}
+
 /// Gives the User `user` the Role `role`, failing if that leaves no Admin. Checked after the write,
 /// in the same transaction, so a refusal rolls the write back. Writes run one at a time, so two
 /// demotions at once can't both pass the check.
@@ -819,9 +833,8 @@ async fn insert_first_admin(
     Ok(Caller { user, device })
 }
 
-/// Makes `credential` the only one the User `user` has, and signs out every Device of theirs but
-/// `kept`, returning the ids of those signed out. Credentials other Plugins made go too, so the old
-/// password can't come back with a Plugin that is enabled again.
+/// Makes `credential` the only one the User `user` has, as [`replace_credential`] does, and signs
+/// out every Device of theirs but `kept`, returning the ids of those signed out.
 ///
 /// Fails if `kept` was signed out meanwhile, such as by another password change, so a change never
 /// succeeds for a Device that is no longer signed in, nor overwrites the one that signed it out.
@@ -840,10 +853,7 @@ async fn replace_credential_signing_others_out(
     if !still_signed_in {
         return Err(Error::SignedOut);
     }
-    sqlx::query!("DELETE FROM user_credentials WHERE user_id = ?", user)
-        .execute(&mut *conn)
-        .await?;
-    insert_credential(conn, user, credential).await?;
+    replace_credential(conn, user, credential).await?;
     let signed_out = sqlx::query_scalar!(
         r#"DELETE FROM devices WHERE user_id = ? AND id != ? RETURNING id AS "id!""#,
         user,
@@ -852,6 +862,39 @@ async fn replace_credential_signing_others_out(
     .fetch_all(conn)
     .await?;
     Ok(signed_out)
+}
+
+/// Makes `credential` the only one the User `user` has, as [`replace_credential`] does, and signs
+/// out every Device of theirs, returning their ids. Fails if there is no such User.
+async fn replace_credential_signing_all_out(
+    conn: &mut SqliteConnection,
+    user: i64,
+    credential: &Credential,
+) -> Result<Vec<i64>, Error> {
+    if !user_exists(conn, user).await? {
+        return Err(Error::NoSuchUser);
+    }
+    replace_credential(conn, user, credential).await?;
+    let signed_out = sqlx::query_scalar!(
+        r#"DELETE FROM devices WHERE user_id = ? RETURNING id AS "id!""#,
+        user
+    )
+    .fetch_all(conn)
+    .await?;
+    Ok(signed_out)
+}
+
+/// Makes `credential` the only one the User `user` has. Credentials other Plugins made go too, so
+/// the old password can't come back with a Plugin that is enabled again.
+async fn replace_credential(
+    conn: &mut SqliteConnection,
+    user: i64,
+    credential: &Credential,
+) -> Result<(), Error> {
+    sqlx::query!("DELETE FROM user_credentials WHERE user_id = ?", user)
+        .execute(&mut *conn)
+        .await?;
+    insert_credential(conn, user, credential).await
 }
 
 /// Stores `credential` for the User `user`.

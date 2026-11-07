@@ -134,6 +134,8 @@ pub mod __buffa {
         reg.register_json_any(super::__REVOKE_DEVICE_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__CHANGE_PASSWORD_REQUEST_JSON_ANY);
         reg.register_json_any(super::__CHANGE_PASSWORD_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__RESET_PASSWORD_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__RESET_PASSWORD_RESPONSE_JSON_ANY);
     }
 }
 #[doc(inline)]
@@ -480,5 +482,13 @@ pub use self::__buffa::view::ChangePasswordRequestOwnedView;
 pub use self::__buffa::view::ChangePasswordResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::ChangePasswordResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ResetPasswordRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ResetPasswordRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ResetPasswordResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ResetPasswordResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::register_types;

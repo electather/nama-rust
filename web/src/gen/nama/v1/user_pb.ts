@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file nama/v1/user.proto.
  */
 export const file_nama_v1_user: GenFile = /*@__PURE__*/
-  fileDesc("ChJuYW1hL3YxL3VzZXIucHJvdG8SB25hbWEudjEiUAoRQ3JlYXRlVXNlclJlcXVlc3QSDAoEbmFtZRgBIAEoCRIQCghwYXNzd29yZBgCIAEoCRIbCgRyb2xlGAMgASgOMg0ubmFtYS52MS5Sb2xlIiAKEkNyZWF0ZVVzZXJSZXNwb25zZRIKCgJpZBgBIAEoAyISChBMaXN0VXNlcnNSZXF1ZXN0IjEKEUxpc3RVc2Vyc1Jlc3BvbnNlEhwKBXVzZXJzGAEgAygLMg0ubmFtYS52MS5Vc2VyIj4KDlNldFJvbGVSZXF1ZXN0Eg8KB3VzZXJfaWQYASABKAMSGwoEcm9sZRgCIAEoDjINLm5hbWEudjEuUm9sZSIRCg9TZXRSb2xlUmVzcG9uc2UiJAoRRGVsZXRlVXNlclJlcXVlc3QSDwoHdXNlcl9pZBgBIAEoAyIUChJEZWxldGVVc2VyUmVzcG9uc2UiNgoSTGlzdERldmljZXNSZXF1ZXN0EhQKB3VzZXJfaWQYASABKANIAIgBAUIKCghfdXNlcl9pZCI3ChNMaXN0RGV2aWNlc1Jlc3BvbnNlEiAKB2RldmljZXMYASADKAsyDy5uYW1hLnYxLkRldmljZSJKChNSZXZva2VEZXZpY2VSZXF1ZXN0EhQKB3VzZXJfaWQYASABKANIAIgBARIRCglkZXZpY2VfaWQYAiABKANCCgoIX3VzZXJfaWQiFgoUUmV2b2tlRGV2aWNlUmVzcG9uc2UiRwoVQ2hhbmdlUGFzc3dvcmRSZXF1ZXN0EhgKEGN1cnJlbnRfcGFzc3dvcmQYASABKAkSFAoMbmV3X3Bhc3N3b3JkGAIgASgJIhgKFkNoYW5nZVBhc3N3b3JkUmVzcG9uc2UymwQKC1VzZXJTZXJ2aWNlEkUKCkNyZWF0ZVVzZXISGi5uYW1hLnYxLkNyZWF0ZVVzZXJSZXF1ZXN0GhsubmFtYS52MS5DcmVhdGVVc2VyUmVzcG9uc2USRwoJTGlzdFVzZXJzEhkubmFtYS52MS5MaXN0VXNlcnNSZXF1ZXN0GhoubmFtYS52MS5MaXN0VXNlcnNSZXNwb25zZSIDkAIBEkEKB1NldFJvbGUSFy5uYW1hLnYxLlNldFJvbGVSZXF1ZXN0GhgubmFtYS52MS5TZXRSb2xlUmVzcG9uc2UiA5ACAhJKCgpEZWxldGVVc2VyEhoubmFtYS52MS5EZWxldGVVc2VyUmVxdWVzdBobLm5hbWEudjEuRGVsZXRlVXNlclJlc3BvbnNlIgOQAgISTQoLTGlzdERldmljZXMSGy5uYW1hLnYxLkxpc3REZXZpY2VzUmVxdWVzdBocLm5hbWEudjEuTGlzdERldmljZXNSZXNwb25zZSIDkAIBEksKDFJldm9rZURldmljZRIcLm5hbWEudjEuUmV2b2tlRGV2aWNlUmVxdWVzdBodLm5hbWEudjEuUmV2b2tlRGV2aWNlUmVzcG9uc2USUQoOQ2hhbmdlUGFzc3dvcmQSHi5uYW1hLnYxLkNoYW5nZVBhc3N3b3JkUmVxdWVzdBofLm5hbWEudjEuQ2hhbmdlUGFzc3dvcmRSZXNwb25zZWIGcHJvdG8z", [file_nama_v1_sign_in]);
+  fileDesc("ChJuYW1hL3YxL3VzZXIucHJvdG8SB25hbWEudjEiUAoRQ3JlYXRlVXNlclJlcXVlc3QSDAoEbmFtZRgBIAEoCRIQCghwYXNzd29yZBgCIAEoCRIbCgRyb2xlGAMgASgOMg0ubmFtYS52MS5Sb2xlIiAKEkNyZWF0ZVVzZXJSZXNwb25zZRIKCgJpZBgBIAEoAyISChBMaXN0VXNlcnNSZXF1ZXN0IjEKEUxpc3RVc2Vyc1Jlc3BvbnNlEhwKBXVzZXJzGAEgAygLMg0ubmFtYS52MS5Vc2VyIj4KDlNldFJvbGVSZXF1ZXN0Eg8KB3VzZXJfaWQYASABKAMSGwoEcm9sZRgCIAEoDjINLm5hbWEudjEuUm9sZSIRCg9TZXRSb2xlUmVzcG9uc2UiJAoRRGVsZXRlVXNlclJlcXVlc3QSDwoHdXNlcl9pZBgBIAEoAyIUChJEZWxldGVVc2VyUmVzcG9uc2UiNgoSTGlzdERldmljZXNSZXF1ZXN0EhQKB3VzZXJfaWQYASABKANIAIgBAUIKCghfdXNlcl9pZCI3ChNMaXN0RGV2aWNlc1Jlc3BvbnNlEiAKB2RldmljZXMYASADKAsyDy5uYW1hLnYxLkRldmljZSJKChNSZXZva2VEZXZpY2VSZXF1ZXN0EhQKB3VzZXJfaWQYASABKANIAIgBARIRCglkZXZpY2VfaWQYAiABKANCCgoIX3VzZXJfaWQiFgoUUmV2b2tlRGV2aWNlUmVzcG9uc2UiRwoVQ2hhbmdlUGFzc3dvcmRSZXF1ZXN0EhgKEGN1cnJlbnRfcGFzc3dvcmQYASABKAkSFAoMbmV3X3Bhc3N3b3JkGAIgASgJIhgKFkNoYW5nZVBhc3N3b3JkUmVzcG9uc2UiPQoUUmVzZXRQYXNzd29yZFJlcXVlc3QSDwoHdXNlcl9pZBgBIAEoAxIUCgxuZXdfcGFzc3dvcmQYAiABKAkiFwoVUmVzZXRQYXNzd29yZFJlc3BvbnNlMusECgtVc2VyU2VydmljZRJFCgpDcmVhdGVVc2VyEhoubmFtYS52MS5DcmVhdGVVc2VyUmVxdWVzdBobLm5hbWEudjEuQ3JlYXRlVXNlclJlc3BvbnNlEkcKCUxpc3RVc2VycxIZLm5hbWEudjEuTGlzdFVzZXJzUmVxdWVzdBoaLm5hbWEudjEuTGlzdFVzZXJzUmVzcG9uc2UiA5ACARJBCgdTZXRSb2xlEhcubmFtYS52MS5TZXRSb2xlUmVxdWVzdBoYLm5hbWEudjEuU2V0Um9sZVJlc3BvbnNlIgOQAgISSgoKRGVsZXRlVXNlchIaLm5hbWEudjEuRGVsZXRlVXNlclJlcXVlc3QaGy5uYW1hLnYxLkRlbGV0ZVVzZXJSZXNwb25zZSIDkAICEk0KC0xpc3REZXZpY2VzEhsubmFtYS52MS5MaXN0RGV2aWNlc1JlcXVlc3QaHC5uYW1hLnYxLkxpc3REZXZpY2VzUmVzcG9uc2UiA5ACARJLCgxSZXZva2VEZXZpY2USHC5uYW1hLnYxLlJldm9rZURldmljZVJlcXVlc3QaHS5uYW1hLnYxLlJldm9rZURldmljZVJlc3BvbnNlElEKDkNoYW5nZVBhc3N3b3JkEh4ubmFtYS52MS5DaGFuZ2VQYXNzd29yZFJlcXVlc3QaHy5uYW1hLnYxLkNoYW5nZVBhc3N3b3JkUmVzcG9uc2USTgoNUmVzZXRQYXNzd29yZBIdLm5hbWEudjEuUmVzZXRQYXNzd29yZFJlcXVlc3QaHi5uYW1hLnYxLlJlc2V0UGFzc3dvcmRSZXNwb25zZWIGcHJvdG8z", [file_nama_v1_sign_in]);
 
 /**
  * @generated from message nama.v1.CreateUserRequest
@@ -282,6 +282,45 @@ export const ChangePasswordResponseSchema: GenMessage<ChangePasswordResponse> = 
   messageDesc(file_nama_v1_user, 13);
 
 /**
+ * @generated from message nama.v1.ResetPasswordRequest
+ */
+export type ResetPasswordRequest = Message<"nama.v1.ResetPasswordRequest"> & {
+  /**
+   * The ID of the User whose password is reset.
+   *
+   * @generated from field: int64 user_id = 1;
+   */
+  userId: bigint;
+
+  /**
+   * The password to set, which the Server's Authenticator checks against its own rules.
+   *
+   * @generated from field: string new_password = 2;
+   */
+  newPassword: string;
+};
+
+/**
+ * Describes the message nama.v1.ResetPasswordRequest.
+ * Use `create(ResetPasswordRequestSchema)` to create a new message.
+ */
+export const ResetPasswordRequestSchema: GenMessage<ResetPasswordRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_user, 14);
+
+/**
+ * @generated from message nama.v1.ResetPasswordResponse
+ */
+export type ResetPasswordResponse = Message<"nama.v1.ResetPasswordResponse"> & {
+};
+
+/**
+ * Describes the message nama.v1.ResetPasswordResponse.
+ * Use `create(ResetPasswordResponseSchema)` to create a new message.
+ */
+export const ResetPasswordResponseSchema: GenMessage<ResetPasswordResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_user, 15);
+
+/**
  * Managing the Server's Users and their Devices. Every RPC but `ListDevices`, `RevokeDevice` and
  * `ChangePassword` needs the Admin Role, and fails with `permission_denied` without it. RPCs name
  * Users by ID, not by name.
@@ -376,6 +415,19 @@ export const UserService: GenService<{
     methodKind: "unary";
     input: typeof ChangePasswordRequestSchema;
     output: typeof ChangePasswordResponseSchema;
+  },
+  /**
+   * Sets a User's password, without their current one, for the Admin to pass on to them. Every
+   * Device of theirs is revoked, as by `RevokeDevice`. Fails with `invalid_argument` if the new
+   * password breaks the rules, `not_found` if no User has the ID, and `failed_precondition` for the
+   * caller's own User, who uses `ChangePassword` instead to keep the calling Device signed in.
+   *
+   * @generated from rpc nama.v1.UserService.ResetPassword
+   */
+  resetPassword: {
+    methodKind: "unary";
+    input: typeof ResetPasswordRequestSchema;
+    output: typeof ResetPasswordResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_nama_v1_user, 0);
