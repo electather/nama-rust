@@ -10,13 +10,21 @@ package nama.v1;
 //
 // A Device that goes unused for 90 days expires, and its session stops working.
 //
-// Guessing is slowed down: after 10 failed `SignIn`s and `UserService.ChangePassword`s for one
-// name, or 50 failed `Setup`s, `SignIn`s and `ChangePassword`s together from one IP address,
-// within 15 minutes, further attempts fail with `resource_exhausted`, without being checked, and a
-// `Retry-After` header gives the seconds to wait. A successful `SignIn`, or a `ChangePassword`
-// given the right current password, clears its name's failures. In the same way, after 10 failed
-// `LookUpSignInCode`s and `ApproveSignInCode`s together from one Device within 15 minutes, its
-// further lookups and approvals fail with `resource_exhausted`.
+// Guessing is slowed down: after 10 failed `SignIn`s and `Reauthenticate`s for one name, or 50
+// failed `Setup`s, `SignIn`s and `Reauthenticate`s together from one IP address, within 15
+// minutes, further attempts fail with `resource_exhausted`, without being checked, and a
+// `Retry-After` header gives the seconds to wait. A successful `SignIn` or `Reauthenticate` clears
+// its name's failures. In the same way, after 10 failed `LookUpSignInCode`s and
+// `ApproveSignInCode`s together from one Device within 15 minutes, its further lookups and
+// approvals fail with `resource_exhausted`.
+//
+// Changes that could hand someone else the User's account need Recent Authentication: the calling
+// Device proved who it is with one of its User's Sign-in Methods in the last 10 minutes. They are
+// `ApproveSignInCode` and `UserService`'s `ChangePassword`, `ResetPassword`, `SetRole` and
+// `DeleteUser`. Signing in with `Setup` or `SignIn` gives a Device Recent Authentication; signing
+// in with a Sign-in Code doesn't, since that Device proved nothing itself. Without it, those calls
+// fail with `failed_precondition` and the `REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED` Refusal
+// before anything in the request is checked. `Reauthenticate` gives it back.
 service SignInService {
   // Creates the first Admin on a fresh Server and signs the calling Device in as them. Needs the
   // Setup Code the Server printed to its log. Fails with `permission_denied` if the code is wrong,
@@ -35,6 +43,11 @@ service SignInService {
   rpc WhoAmI(WhoAmIRequest) returns (WhoAmIResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
+  // Gives the calling Device Recent Authentication, once its User proves who they are again. The
+  // Device keeps its session: no new token or cookie is handed out. Fails with `unauthenticated`
+  // if the proof is wrong, the Device was signed out meanwhile, or without a valid session, and
+  // with `invalid_argument` without a proof. A wrong proof counts toward the limits above.
+  rpc Reauthenticate(ReauthenticateRequest) returns (ReauthenticateResponse);
 
   // Starts signing the calling Device in without a password typed on it. It shows the returned
   // Sign-in Code, a User signed in on another Device approves it with `ApproveSignInCode`, and this
@@ -155,6 +168,16 @@ message WhoAmIResponse {
   User user = 1;
   Device device = 2;
 }
+
+message ReauthenticateRequest {
+  // How the User proves who they are, with one of their Sign-in Methods. Must be set.
+  oneof proof {
+    // The User's password.
+    string password = 1;
+  }
+}
+
+message ReauthenticateResponse {}
 
 message StartSignInCodeRequest {
   // The signing-in Device's name: 1 to 64 characters.

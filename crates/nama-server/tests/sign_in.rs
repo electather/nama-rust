@@ -1354,3 +1354,81 @@ async fn looking_up_an_approved_code_again_isnt_counted_as_a_failure() {
     );
     assert_eq!(refusal.field, "code");
 }
+
+/// Calls `Reauthenticate` with `body` as the Device whose session is `token`.
+async fn reauthenticate(server: &TestServer, token: &str, body: &Value) -> Reply {
+    let bearer = format!("Bearer {token}");
+    call(
+        server,
+        "Reauthenticate",
+        body,
+        &[("authorization", &bearer)],
+    )
+    .await
+}
+
+/// Fails to reauthenticate the Device whose session is `token` with a wrong password `times`
+/// times.
+async fn fail_reauthentication(server: &TestServer, token: &str, times: usize) {
+    for _ in 0..times {
+        let wrong = json!({ "password": "not the password" });
+        let refused = reauthenticate(server, token, &wrong).await;
+        let refusal = assert_refused(
+            refused.refused(),
+            ErrorCode::Unauthenticated,
+            RefusalReason::REFUSAL_REASON_WRONG_PASSWORD,
+        );
+        assert_eq!(refusal.field, "password");
+    }
+}
+
+#[tokio::test]
+async fn reauthenticating_with_the_right_password_works() {
+    let server = start().await;
+    let ada = token(&set_up(&server).await);
+
+    let reauthenticated = reauthenticate(&server, &ada, &json!({ "password": PASSWORD })).await;
+
+    assert_eq!(reauthenticated.status, 200, "{}", reauthenticated.body);
+}
+
+#[tokio::test]
+async fn reauthenticating_without_a_proof_is_refused() {
+    let server = start().await;
+    let ada = token(&set_up(&server).await);
+
+    let refused = reauthenticate(&server, &ada, &json!({})).await;
+
+    let refusal = assert_refused(
+        refused.refused(),
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
+    );
+    assert_eq!(refusal.field, "proof");
+}
+
+#[tokio::test]
+async fn the_11th_failed_reauthentication_blocks_reauthenticating_and_signing_in_with_that_name() {
+    let server = start().await;
+    let ada = token(&set_up(&server).await);
+    fail_reauthentication(&server, &ada, 10).await;
+
+    let reauthenticating = reauthenticate(&server, &ada, &json!({ "password": PASSWORD })).await;
+    let signing_in = sign_in(&server, "SESSION_DELIVERY_TOKEN").await;
+
+    assert_blocked(&reauthenticating);
+    assert_blocked(&signing_in);
+}
+
+#[tokio::test]
+async fn a_successful_reauthentication_resets_that_names_failures() {
+    let server = start().await;
+    let ada = token(&set_up(&server).await);
+    fail_reauthentication(&server, &ada, 9).await;
+    reauthenticate(&server, &ada, &json!({ "password": PASSWORD })).await;
+    fail_reauthentication(&server, &ada, 9).await;
+
+    let signed_in = sign_in(&server, "SESSION_DELIVERY_TOKEN").await;
+
+    assert_eq!(signed_in.status, 200, "{}", signed_in.body);
+}

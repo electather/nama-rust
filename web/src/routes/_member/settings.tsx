@@ -1,7 +1,8 @@
-import { createQueryOptions, useMutation } from "@connectrpc/connect-query";
+import { createQueryOptions } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 
+import { useSensitiveMutation } from "@/components/confirm-its-you";
 import { DeviceList } from "@/components/device-list";
 import { FormEnd, FormField } from "@/components/form-field";
 import { Page } from "@/components/page";
@@ -44,7 +45,7 @@ function Settings() {
 
 function ChangePassword() {
   const queryClient = useQueryClient();
-  const change = useMutation(UserService.method.changePassword, {
+  const change = useSensitiveMutation(UserService.method.changePassword, {
     // The Server signed out every other Device.
     onSuccess: () => queryClient.invalidateQueries({ queryKey: devicesKey }),
   });
@@ -55,10 +56,7 @@ function ChangePassword() {
       className="mt-4 flex flex-col gap-5"
       onSubmit={onSubmitted((typed, form) => {
         change.mutate(
-          {
-            currentPassword: formText(typed, "currentPassword"),
-            newPassword: formText(typed, "newPassword"),
-          },
+          { newPassword: formText(typed, "newPassword") },
           {
             onSuccess: () => {
               form.reset();
@@ -67,13 +65,6 @@ function ChangePassword() {
         );
       })}
     >
-      <FormField
-        label="Current password"
-        name="currentPassword"
-        type="password"
-        autoComplete="current-password"
-        error={errors.currentPassword}
-      />
       <FormField
         label="New password"
         name="newPassword"

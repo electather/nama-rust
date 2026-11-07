@@ -225,12 +225,10 @@ async fn revoke_device(
 
 async fn change_password(
     client: &UserServiceClient<HttpClient>,
-    current: &str,
     new: &str,
 ) -> Result<(), ConnectError> {
     client
         .change_password(ChangePasswordRequest {
-            current_password: current.to_owned(),
             new_password: new.to_owned(),
             ..Default::default()
         })
@@ -782,7 +780,7 @@ async fn a_changed_password_signs_in_and_signs_the_users_other_devices_out() {
     let mut laptop_events = subscribe(fixture.server.client_config_as(&laptop.token)).await;
     let new_password = "a brand new password";
 
-    change_password(&fixture.client_as(&phone.token), PASSWORD, new_password)
+    change_password(&fixture.client_as(&phone.token), new_password)
         .await
         .unwrap();
 
@@ -799,62 +797,11 @@ async fn a_changed_password_signs_in_and_signs_the_users_other_devices_out() {
 }
 
 #[tokio::test]
-async fn a_wrong_current_password_is_unauthenticated_and_changes_nothing() {
-    let fixture = Fixture::start().await;
-    let (phone, laptop) = fixture.grace_on_phone_and_laptop().await;
-
-    let changed = change_password(
-        &fixture.client_as(&phone.token),
-        "not the password",
-        "a brand new password",
-    )
-    .await;
-
-    let refusal = assert_refused(
-        changed,
-        ErrorCode::Unauthenticated,
-        RefusalReason::REFUSAL_REASON_WRONG_PASSWORD,
-    );
-    assert_eq!(refusal.field, "current_password");
-    assert!(fixture.signed_in(&laptop.token).await.unwrap());
-    assert_eq!(code(fixture.sign_in("Grace", PASSWORD).await), None);
-}
-
-#[tokio::test]
-async fn the_11th_failed_change_for_a_user_is_blocked_even_with_the_right_password() {
-    let fixture = Fixture::start().await;
-    let (phone, _laptop) = fixture.grace_on_phone_and_laptop().await;
-    let grace = fixture.client_as(&phone.token);
-    for _ in 0..10 {
-        let wrong = change_password(&grace, "not the password", "a brand new password").await;
-        assert_refused(
-            wrong,
-            ErrorCode::Unauthenticated,
-            RefusalReason::REFUSAL_REASON_WRONG_PASSWORD,
-        );
-    }
-
-    let blocked = change_password(&grace, PASSWORD, "a brand new password").await;
-    let signing_in = fixture.sign_in("grace", PASSWORD).await;
-
-    assert_refused(
-        blocked,
-        ErrorCode::ResourceExhausted,
-        RefusalReason::REFUSAL_REASON_TOO_MANY_ATTEMPTS,
-    );
-    assert_refused(
-        signing_in,
-        ErrorCode::ResourceExhausted,
-        RefusalReason::REFUSAL_REASON_TOO_MANY_ATTEMPTS,
-    );
-}
-
-#[tokio::test]
 async fn a_new_password_outside_the_rules_is_refused_and_the_old_one_still_works() {
     let fixture = Fixture::start().await;
     let (phone, laptop) = fixture.grace_on_phone_and_laptop().await;
 
-    let changed = change_password(&fixture.client_as(&phone.token), PASSWORD, "1234567").await;
+    let changed = change_password(&fixture.client_as(&phone.token), "1234567").await;
 
     let refusal = assert_refused(
         changed,
@@ -864,25 +811,6 @@ async fn a_new_password_outside_the_rules_is_refused_and_the_old_one_still_works
     assert_eq!(refusal.field, "new_password");
     assert!(fixture.signed_in(&laptop.token).await.unwrap());
     assert_eq!(code(fixture.sign_in("Grace", PASSWORD).await), None);
-}
-
-#[tokio::test]
-async fn new_passwords_outside_the_rules_dont_count_toward_the_limit() {
-    let fixture = Fixture::start().await;
-    let (phone, _laptop) = fixture.grace_on_phone_and_laptop().await;
-    let grace = fixture.client_as(&phone.token);
-    for _ in 0..10 {
-        let refused = change_password(&grace, PASSWORD, "1234567").await;
-        assert_refused(
-            refused,
-            ErrorCode::InvalidArgument,
-            RefusalReason::REFUSAL_REASON_PASSWORD_REJECTED,
-        );
-    }
-
-    let changed = change_password(&grace, PASSWORD, "a brand new password").await;
-
-    assert_eq!(code(changed), None);
 }
 
 #[tokio::test]
@@ -896,8 +824,8 @@ async fn two_devices_changing_the_password_at_once_leave_one_signed_in_with_its_
     );
 
     let (from_phone, from_laptop) = tokio::join!(
-        change_password(&as_phone, PASSWORD, phone_password),
-        change_password(&as_laptop, PASSWORD, laptop_password),
+        change_password(&as_phone, phone_password),
+        change_password(&as_laptop, laptop_password),
     );
 
     let (winner, password, lost) = match (from_phone, from_laptop) {

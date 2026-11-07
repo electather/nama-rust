@@ -44,6 +44,10 @@ pub(crate) const DEVICE_LIFETIME: i64 = 90 * 24 * 60 * 60;
 /// writer.
 const LAST_SEEN_PRECISION: i64 = 60 * 60;
 
+/// How long, in seconds, a Device has Recent Authentication after proving who it is: 10 minutes
+/// (ADR 0014).
+const RECENT_AUTHENTICATION: i64 = 10 * 60;
+
 /// What a User is shown for their password among their Sign-in Methods.
 const PASSWORD_METHOD_NAME: &str = "Password";
 
@@ -94,6 +98,16 @@ pub(crate) struct Device {
     /// When it was last used, in seconds since the Unix epoch, to within
     /// [`LAST_SEEN_PRECISION`].
     pub(crate) last_seen_at: i64,
+    /// When it last proved who it is with one of its User's Sign-in Methods, in seconds since the
+    /// Unix epoch, or 0 if it never has.
+    pub(crate) authenticated_at: i64,
+}
+
+impl Device {
+    /// Whether it has Recent Authentication at `now`, in seconds since the Unix epoch.
+    pub(crate) const fn authenticated_recently(&self, now: i64) -> bool {
+        now - self.authenticated_at < RECENT_AUTHENTICATION
+    }
 }
 
 /// Who sent a request: the User and Device its session belongs to.
@@ -185,8 +199,8 @@ pub enum Error {
     /// doesn't reveal which names exist.
     #[error("the name or password is wrong")]
     WrongNameOrPassword,
-    /// The password given as a User's current one isn't.
-    #[error("the current password is wrong")]
+    /// The password given isn't the User's.
+    #[error("the password is wrong")]
     WrongPassword,
     /// The Device asking for a change was signed out before it was made.
     #[error("this Device was signed out")]
@@ -320,7 +334,7 @@ impl Users {
         let now = now();
         let devices = sqlx::query_as!(
             Device,
-            r#"SELECT id AS "id!", name, created_at, last_seen_at FROM devices
+            r#"SELECT id AS "id!", name, created_at, last_seen_at, authenticated_at FROM devices
                WHERE user_id = ? AND expires_at > ? ORDER BY id"#,
             user,
             now,
@@ -348,24 +362,10 @@ impl Users {
         Ok(theirs)
     }
 
-    /// Changes the password of `caller`'s User from `current` to `new`, and signs every other
-    /// Device of theirs out. `caller`'s own Device stays signed in.
-    pub(crate) async fn change_password(
-        &self,
-        caller: &Caller,
-        current: &str,
-        new: &str,
-    ) -> Result<(), Error> {
-        // Users are never renamed, so the caller's name still finds them.
-        let found = self.user_named(&caller.user.name).await?;
-        let stored = found.as_ref().and_then(|(_, stored)| stored.as_ref());
-        if self
-            .verify_password(&Arc::from(current), stored)
-            .await?
-            .is_none()
-        {
-            return Err(Error::WrongPassword);
-        }
+    /// Changes the password of `caller`'s User to `new`, and signs every other Device of theirs
+    /// out. `caller`'s own Device stays signed in. Recent Authentication stands in for the current
+    /// password: the access layer checked it.
+    pub(crate) async fn change_password(&self, caller: &Caller, new: &str) -> Result<(), Error> {
         let credential = self.hash_password("new_password", new).await?;
         let (user, kept) = (caller.user.id, caller.device.id);
         self.write_signing_out(move |tx| {
@@ -374,6 +374,28 @@ impl Users {
             )
         })
         .await
+    }
+
+    /// Gives `caller`'s Device Recent Authentication if `password` is their User's.
+    pub(crate) async fn reauthenticate(
+        &self,
+        caller: &Caller,
+        password: &str,
+    ) -> Result<(), Error> {
+        // Users are never renamed, so the caller's name still finds them.
+        let found = self.user_named(&caller.user.name).await?;
+        let stored = found.as_ref().and_then(|(_, stored)| stored.as_ref());
+        if self
+            .verify_password(&Arc::from(password), stored)
+            .await?
+            .is_none()
+        {
+            return Err(Error::WrongPassword);
+        }
+        let device = caller.device.id;
+        self.db
+            .write(move |tx| Box::pin(async move { authenticated_now(tx, device).await }))
+            .await
     }
 
     /// Sets the password of the User `user` to `new`, without their current one, adding it if they
@@ -526,7 +548,7 @@ impl Users {
         let token_hash = token_hash.as_slice();
         let row = sqlx::query!(
             r#"SELECT d.id AS "device_id!", d.name AS device_name, d.created_at AS device_created_at,
-                      d.last_seen_at,
+                      d.last_seen_at, d.authenticated_at,
                       u.id AS "user_id!", u.display_username AS user_name, u.role AS "role: Role",
                       u.created_at
                FROM devices d JOIN users u ON u.id = d.user_id
@@ -559,6 +581,7 @@ impl Users {
                 name: row.device_name,
                 created_at: row.device_created_at,
                 last_seen_at: row.last_seen_at,
+                authenticated_at: row.authenticated_at,
             },
         };
         Ok(Some(Session { caller, refreshed }))
@@ -890,6 +913,24 @@ async fn insert_first_admin(
     Ok(Caller { user, device })
 }
 
+/// Records that the Device `device` proved who it is just now, failing if it was signed out
+/// meanwhile.
+async fn authenticated_now(conn: &mut SqliteConnection, device: i64) -> Result<(), Error> {
+    let now = now();
+    let updated = sqlx::query!(
+        "UPDATE devices SET authenticated_at = ?, updated_at = ? WHERE id = ?",
+        now,
+        now,
+        device
+    )
+    .execute(conn)
+    .await?;
+    if updated.rows_affected() == 0 {
+        return Err(Error::SignedOut);
+    }
+    Ok(())
+}
+
 /// Makes `credential` the User `user`'s password, as [`set_password`] does, and signs out every
 /// Device of theirs but `kept`, returning the ids of those signed out.
 ///
@@ -1044,6 +1085,7 @@ async fn insert_device(
         name: device.name,
         created_at: now,
         last_seen_at: now,
+        authenticated_at,
     })
 }
 

@@ -42,6 +42,7 @@ pub mod __buffa {
             include!("nama.v1.watch_state.__view_oneof.rs");
             include!("nama.v1.browse.__view_oneof.rs");
             include!("nama.v1.event.__view_oneof.rs");
+            include!("nama.v1.sign_in.__view_oneof.rs");
         }
     }
     pub mod oneof {
@@ -51,6 +52,7 @@ pub mod __buffa {
         include!("nama.v1.watch_state.__oneof.rs");
         include!("nama.v1.browse.__oneof.rs");
         include!("nama.v1.event.__oneof.rs");
+        include!("nama.v1.sign_in.__oneof.rs");
     }
     /// Register this package's `Any` type entries and extension entries.
     pub fn register_types(reg: &mut ::buffa::type_registry::TypeRegistry) {
@@ -125,6 +127,8 @@ pub mod __buffa {
         reg.register_json_any(super::__SIGN_OUT_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__WHO_AM_I_REQUEST_JSON_ANY);
         reg.register_json_any(super::__WHO_AM_I_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__REAUTHENTICATE_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__REAUTHENTICATE_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__START_SIGN_IN_CODE_REQUEST_JSON_ANY);
         reg.register_json_any(super::__START_SIGN_IN_CODE_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__LOOK_UP_SIGN_IN_CODE_REQUEST_JSON_ANY);
@@ -435,6 +439,14 @@ pub use self::__buffa::view::WhoAmIRequestOwnedView;
 pub use self::__buffa::view::WhoAmIResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::WhoAmIResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ReauthenticateRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ReauthenticateRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ReauthenticateResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ReauthenticateResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::StartSignInCodeRequestView;
 #[doc(inline)]

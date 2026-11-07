@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file nama/v1/user.proto.
  */
 export const file_nama_v1_user: GenFile = /*@__PURE__*/
-  fileDesc("ChJuYW1hL3YxL3VzZXIucHJvdG8SB25hbWEudjEiUAoRQ3JlYXRlVXNlclJlcXVlc3QSDAoEbmFtZRgBIAEoCRIQCghwYXNzd29yZBgCIAEoCRIbCgRyb2xlGAMgASgOMg0ubmFtYS52MS5Sb2xlIiAKEkNyZWF0ZVVzZXJSZXNwb25zZRIKCgJpZBgBIAEoAyISChBMaXN0VXNlcnNSZXF1ZXN0IjEKEUxpc3RVc2Vyc1Jlc3BvbnNlEhwKBXVzZXJzGAEgAygLMg0ubmFtYS52MS5Vc2VyIj4KDlNldFJvbGVSZXF1ZXN0Eg8KB3VzZXJfaWQYASABKAMSGwoEcm9sZRgCIAEoDjINLm5hbWEudjEuUm9sZSIRCg9TZXRSb2xlUmVzcG9uc2UiJAoRRGVsZXRlVXNlclJlcXVlc3QSDwoHdXNlcl9pZBgBIAEoAyIUChJEZWxldGVVc2VyUmVzcG9uc2UiNgoSTGlzdERldmljZXNSZXF1ZXN0EhQKB3VzZXJfaWQYASABKANIAIgBAUIKCghfdXNlcl9pZCI3ChNMaXN0RGV2aWNlc1Jlc3BvbnNlEiAKB2RldmljZXMYASADKAsyDy5uYW1hLnYxLkRldmljZSJKChNSZXZva2VEZXZpY2VSZXF1ZXN0EhQKB3VzZXJfaWQYASABKANIAIgBARIRCglkZXZpY2VfaWQYAiABKANCCgoIX3VzZXJfaWQiFgoUUmV2b2tlRGV2aWNlUmVzcG9uc2UiRwoVQ2hhbmdlUGFzc3dvcmRSZXF1ZXN0EhgKEGN1cnJlbnRfcGFzc3dvcmQYASABKAkSFAoMbmV3X3Bhc3N3b3JkGAIgASgJIhgKFkNoYW5nZVBhc3N3b3JkUmVzcG9uc2UiPQoUUmVzZXRQYXNzd29yZFJlcXVlc3QSDwoHdXNlcl9pZBgBIAEoAxIUCgxuZXdfcGFzc3dvcmQYAiABKAkiFwoVUmVzZXRQYXNzd29yZFJlc3BvbnNlMusECgtVc2VyU2VydmljZRJFCgpDcmVhdGVVc2VyEhoubmFtYS52MS5DcmVhdGVVc2VyUmVxdWVzdBobLm5hbWEudjEuQ3JlYXRlVXNlclJlc3BvbnNlEkcKCUxpc3RVc2VycxIZLm5hbWEudjEuTGlzdFVzZXJzUmVxdWVzdBoaLm5hbWEudjEuTGlzdFVzZXJzUmVzcG9uc2UiA5ACARJBCgdTZXRSb2xlEhcubmFtYS52MS5TZXRSb2xlUmVxdWVzdBoYLm5hbWEudjEuU2V0Um9sZVJlc3BvbnNlIgOQAgISSgoKRGVsZXRlVXNlchIaLm5hbWEudjEuRGVsZXRlVXNlclJlcXVlc3QaGy5uYW1hLnYxLkRlbGV0ZVVzZXJSZXNwb25zZSIDkAICEk0KC0xpc3REZXZpY2VzEhsubmFtYS52MS5MaXN0RGV2aWNlc1JlcXVlc3QaHC5uYW1hLnYxLkxpc3REZXZpY2VzUmVzcG9uc2UiA5ACARJLCgxSZXZva2VEZXZpY2USHC5uYW1hLnYxLlJldm9rZURldmljZVJlcXVlc3QaHS5uYW1hLnYxLlJldm9rZURldmljZVJlc3BvbnNlElEKDkNoYW5nZVBhc3N3b3JkEh4ubmFtYS52MS5DaGFuZ2VQYXNzd29yZFJlcXVlc3QaHy5uYW1hLnYxLkNoYW5nZVBhc3N3b3JkUmVzcG9uc2USTgoNUmVzZXRQYXNzd29yZBIdLm5hbWEudjEuUmVzZXRQYXNzd29yZFJlcXVlc3QaHi5uYW1hLnYxLlJlc2V0UGFzc3dvcmRSZXNwb25zZWIGcHJvdG8z", [file_nama_v1_sign_in]);
+  fileDesc("ChJuYW1hL3YxL3VzZXIucHJvdG8SB25hbWEudjEiUAoRQ3JlYXRlVXNlclJlcXVlc3QSDAoEbmFtZRgBIAEoCRIQCghwYXNzd29yZBgCIAEoCRIbCgRyb2xlGAMgASgOMg0ubmFtYS52MS5Sb2xlIiAKEkNyZWF0ZVVzZXJSZXNwb25zZRIKCgJpZBgBIAEoAyISChBMaXN0VXNlcnNSZXF1ZXN0IjEKEUxpc3RVc2Vyc1Jlc3BvbnNlEhwKBXVzZXJzGAEgAygLMg0ubmFtYS52MS5Vc2VyIj4KDlNldFJvbGVSZXF1ZXN0Eg8KB3VzZXJfaWQYASABKAMSGwoEcm9sZRgCIAEoDjINLm5hbWEudjEuUm9sZSIRCg9TZXRSb2xlUmVzcG9uc2UiJAoRRGVsZXRlVXNlclJlcXVlc3QSDwoHdXNlcl9pZBgBIAEoAyIUChJEZWxldGVVc2VyUmVzcG9uc2UiNgoSTGlzdERldmljZXNSZXF1ZXN0EhQKB3VzZXJfaWQYASABKANIAIgBAUIKCghfdXNlcl9pZCI3ChNMaXN0RGV2aWNlc1Jlc3BvbnNlEiAKB2RldmljZXMYASADKAsyDy5uYW1hLnYxLkRldmljZSJKChNSZXZva2VEZXZpY2VSZXF1ZXN0EhQKB3VzZXJfaWQYASABKANIAIgBARIRCglkZXZpY2VfaWQYAiABKANCCgoIX3VzZXJfaWQiFgoUUmV2b2tlRGV2aWNlUmVzcG9uc2UiRQoVQ2hhbmdlUGFzc3dvcmRSZXF1ZXN0EhQKDG5ld19wYXNzd29yZBgCIAEoCUoECAEQAlIQY3VycmVudF9wYXNzd29yZCIYChZDaGFuZ2VQYXNzd29yZFJlc3BvbnNlIj0KFFJlc2V0UGFzc3dvcmRSZXF1ZXN0Eg8KB3VzZXJfaWQYASABKAMSFAoMbmV3X3Bhc3N3b3JkGAIgASgJIhcKFVJlc2V0UGFzc3dvcmRSZXNwb25zZTLrBAoLVXNlclNlcnZpY2USRQoKQ3JlYXRlVXNlchIaLm5hbWEudjEuQ3JlYXRlVXNlclJlcXVlc3QaGy5uYW1hLnYxLkNyZWF0ZVVzZXJSZXNwb25zZRJHCglMaXN0VXNlcnMSGS5uYW1hLnYxLkxpc3RVc2Vyc1JlcXVlc3QaGi5uYW1hLnYxLkxpc3RVc2Vyc1Jlc3BvbnNlIgOQAgESQQoHU2V0Um9sZRIXLm5hbWEudjEuU2V0Um9sZVJlcXVlc3QaGC5uYW1hLnYxLlNldFJvbGVSZXNwb25zZSIDkAICEkoKCkRlbGV0ZVVzZXISGi5uYW1hLnYxLkRlbGV0ZVVzZXJSZXF1ZXN0GhsubmFtYS52MS5EZWxldGVVc2VyUmVzcG9uc2UiA5ACAhJNCgtMaXN0RGV2aWNlcxIbLm5hbWEudjEuTGlzdERldmljZXNSZXF1ZXN0GhwubmFtYS52MS5MaXN0RGV2aWNlc1Jlc3BvbnNlIgOQAgESSwoMUmV2b2tlRGV2aWNlEhwubmFtYS52MS5SZXZva2VEZXZpY2VSZXF1ZXN0Gh0ubmFtYS52MS5SZXZva2VEZXZpY2VSZXNwb25zZRJRCg5DaGFuZ2VQYXNzd29yZBIeLm5hbWEudjEuQ2hhbmdlUGFzc3dvcmRSZXF1ZXN0Gh8ubmFtYS52MS5DaGFuZ2VQYXNzd29yZFJlc3BvbnNlEk4KDVJlc2V0UGFzc3dvcmQSHS5uYW1hLnYxLlJlc2V0UGFzc3dvcmRSZXF1ZXN0Gh4ubmFtYS52MS5SZXNldFBhc3N3b3JkUmVzcG9uc2ViBnByb3RvMw", [file_nama_v1_sign_in]);
 
 /**
  * @generated from message nama.v1.CreateUserRequest
@@ -247,13 +247,6 @@ export const RevokeDeviceResponseSchema: GenMessage<RevokeDeviceResponse> = /*@_
  */
 export type ChangePasswordRequest = Message<"nama.v1.ChangePasswordRequest"> & {
   /**
-   * The caller's password now.
-   *
-   * @generated from field: string current_password = 1;
-   */
-  currentPassword: string;
-
-  /**
    * The password to change to, which the Server's Authenticator checks against its own rules.
    *
    * @generated from field: string new_password = 2;
@@ -322,8 +315,9 @@ export const ResetPasswordResponseSchema: GenMessage<ResetPasswordResponse> = /*
 
 /**
  * Managing the Server's Users and their Devices. Every RPC but `ListDevices`, `RevokeDevice` and
- * `ChangePassword` needs the Admin Role, and fails with `permission_denied` without it. RPCs name
- * Users by ID, not by name.
+ * `ChangePassword` needs the Admin Role, and fails with `permission_denied` without it.
+ * `ChangePassword`, `ResetPassword`, `SetRole` and `DeleteUser` also need Recent Authentication,
+ * as `SignInService` describes. RPCs name Users by ID, not by name.
  *
  * @generated from service nama.v1.UserService
  */
@@ -402,12 +396,9 @@ export const UserService: GenService<{
     output: typeof RevokeDeviceResponseSchema;
   },
   /**
-   * Changes the caller's own password, given their current one. Their other Devices are revoked,
-   * as by `RevokeDevice`, and the calling Device stays signed in. Fails with `unauthenticated` if
-   * the current password is wrong or the calling Device was signed out meanwhile, and
-   * `invalid_argument` if the new one breaks the rules. A wrong current password counts toward the
-   * limit on failed `SignInService.SignIn`s for the caller's name, and once it is reached, this
-   * fails with `resource_exhausted` as `SignIn` does.
+   * Changes the caller's own password. Their other Devices are revoked, as by `RevokeDevice`, and
+   * the calling Device stays signed in. Fails with `unauthenticated` if the calling Device was
+   * signed out meanwhile, and `invalid_argument` if the new password breaks the rules.
    *
    * @generated from rpc nama.v1.UserService.ChangePassword
    */

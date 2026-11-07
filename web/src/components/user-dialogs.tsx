@@ -1,7 +1,7 @@
-import { useMutation } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { useSensitiveMutation } from "@/components/confirm-its-you";
 import { FormField } from "@/components/form-field";
 import type { User } from "@/gen/nama/v1/sign_in_pb";
 import { UserService } from "@/gen/nama/v1/user_pb";
@@ -11,7 +11,7 @@ import { devicesKey, onlyAdminRefusal, resetPasswordRefusal, usersKey } from "@/
 /** Sets `user`'s password for an Admin to pass on, once confirmed. */
 export function ResetPassword({ user }: { user: User }) {
   const queryClient = useQueryClient();
-  const reset = useMutation(UserService.method.resetPassword, {
+  const reset = useSensitiveMutation(UserService.method.resetPassword, {
     // Their Devices were signed out, or they were deleted meanwhile.
     onSettled: () =>
       Promise.all([
@@ -43,7 +43,7 @@ export function ResetPassword({ user }: { user: User }) {
 /** Deletes `user`, once confirmed. */
 export function DeleteUser({ user }: { user: User }) {
   const queryClient = useQueryClient();
-  const remove = useMutation(UserService.method.deleteUser, {
+  const remove = useSensitiveMutation(UserService.method.deleteUser, {
     onSettled: () => queryClient.invalidateQueries({ queryKey: usersKey }),
   });
   return (

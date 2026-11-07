@@ -90,7 +90,6 @@ test("changing your password says your other Devices were signed out", async () 
   );
 
   await screen.findByText("Living room TV");
-  fill("Current password", "correct horse");
   fill("New password", "battery staple");
   fireEvent.click(screen.getByRole("button", { name: "Change password" }));
 
@@ -240,8 +239,8 @@ test.each([
   await expectUnderField(label, shown);
 });
 
-/** Settings, on a Server whose `ChangePassword` refuses with `reason` and `message`, about `field`. */
-function openSettingsRefusingPasswordChange(reason: RefusalReason, message: string, field = "") {
+/** Settings, on a Server whose `ChangePassword` refuses with `reason` and `message`. */
+function openSettingsRefusingPasswordChange(reason: RefusalReason, message: string) {
   openApp(
     "/settings",
     fakeServer(
@@ -249,7 +248,7 @@ function openSettingsRefusingPasswordChange(reason: RefusalReason, message: stri
       {},
       {
         changePassword: () => {
-          throw refused(Code.Unauthenticated, message, { reason, field });
+          throw refused(Code.Unauthenticated, message, { reason });
         },
       },
     ),
@@ -258,26 +257,14 @@ function openSettingsRefusingPasswordChange(reason: RefusalReason, message: stri
 
 async function submitPasswordChange() {
   await screen.findByRole("button", { name: "Change password" });
-  fill("Current password", "correct horse");
   fill("New password", "battery staple");
   fireEvent.click(screen.getByRole("button", { name: "Change password" }));
 }
 
-test("a wrong current password is shown under its field", async () => {
-  openSettingsRefusingPasswordChange(
-    RefusalReason.WRONG_PASSWORD,
-    "the current password is wrong",
-    "current_password",
-  );
-
-  await submitPasswordChange();
-  await expectUnderField("Current password", "That isn’t your current password.");
-});
-
-test("a Device signed out meanwhile isn't blamed on the current password", async () => {
+test("a Device signed out meanwhile is told so", async () => {
   openSettingsRefusingPasswordChange(RefusalReason.SIGNED_OUT, "this Device was signed out");
 
   await submitPasswordChange();
   await screen.findByText("This Device was signed out.");
-  expect(screen.getByLabelText("Current password").getAttribute("aria-invalid")).toBe("false");
+  expect(screen.getByLabelText("New password").getAttribute("aria-invalid")).toBe("false");
 });

@@ -1,12 +1,13 @@
-//! Who may call what: a session for everything but the public RPCs, and the Admin Role for
-//! managing Libraries, Matches and Users, over a real socket and against a real SQLite database.
+//! Who may call what: a session for everything but the public RPCs, the Admin Role for managing
+//! Libraries, Matches and Users, and Recent Authentication for changing who can sign in as whom,
+//! over a real socket and against a real SQLite database.
 
 #[path = "support/refused.rs"]
 mod refused;
 #[path = "support/server.rs"]
 mod server;
 
-use std::{net::Ipv4Addr, time::Duration};
+use std::{collections::BTreeSet, net::Ipv4Addr, time::Duration};
 
 use connectrpc::{
     ConnectError, ErrorCode,
@@ -14,17 +15,20 @@ use connectrpc::{
 };
 use hyper::{HeaderMap, Method};
 use nama_proto::nama::v1::{
-    __buffa::view::SubscribeResponseView, CreateLibraryRequest, CreateUserRequest,
-    EventServiceClient, LibraryKind, LibraryServiceClient, ListLibrariesRequest, RefusalReason,
-    Role, ScanLibraryRequest, SubscribeRequest, SubscribeResponse, UserServiceClient,
+    __buffa::view::SubscribeResponseView, ApproveSignInCodeRequest, CreateLibraryRequest,
+    CreateUserRequest, EventServiceClient, LibraryKind, LibraryServiceClient, ListLibrariesRequest,
+    PollSignInCodeRequest, RefusalReason, Role, ScanLibraryRequest, SessionDelivery,
+    SignInServiceClient, StartSignInCodeRequest, SubscribeRequest, SubscribeResponse,
+    UserServiceClient,
 };
 use nama_server::{
     config::Config,
+    db::Database,
     plugins::Registry,
     users::{NewDevice, Users},
 };
-use refused::assert_refused;
-use serde_json::Value;
+use refused::{assert_refused, refusal_of};
+use serde_json::{Value, json};
 use server::{PASSWORD, TestServer};
 
 /// Every RPC that manages Libraries, Matches or Users, which only an Admin may call.
@@ -58,9 +62,10 @@ const BROWSE: [&str; 7] = [
 ];
 
 /// Every other unary RPC that needs a session.
-const SIGNED_IN: [&str; 9] = [
-    "/nama.v1.SignInService/SignOut",
+const SIGNED_IN: [&str; 10] = [
+    SIGN_OUT,
     "/nama.v1.SignInService/WhoAmI",
+    "/nama.v1.SignInService/Reauthenticate",
     "/nama.v1.SignInService/LookUpSignInCode",
     "/nama.v1.SignInService/ApproveSignInCode",
     "/nama.v1.UserService/ListDevices",
@@ -68,6 +73,17 @@ const SIGNED_IN: [&str; 9] = [
     "/nama.v1.WatchStateService/ReportProgress",
     "/nama.v1.WatchStateService/SetPlayed",
     "/nama.v1.UserService/ChangePassword",
+];
+
+const SIGN_OUT: &str = "/nama.v1.SignInService/SignOut";
+
+/// The RPCs that change who can sign in as whom, which need Recent Authentication (ADR 0014).
+const SENSITIVE: [&str; 5] = [
+    "/nama.v1.UserService/ChangePassword",
+    "/nama.v1.UserService/ResetPassword",
+    "/nama.v1.UserService/SetRole",
+    "/nama.v1.UserService/DeleteUser",
+    "/nama.v1.SignInService/ApproveSignInCode",
 ];
 
 const WAIT: Duration = Duration::from_secs(10);
@@ -108,7 +124,13 @@ impl Reply {
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
-async fn send(server: &TestServer, method: Method, path: &str, headers: &[(&str, &str)]) -> Reply {
+async fn send(
+    server: &TestServer,
+    method: Method,
+    path: &str,
+    headers: &[(&str, &str)],
+    body: String,
+) -> Reply {
     use http_body_util::{BodyExt, Full};
     use hyper::{Request, body::Bytes, client::conn::http1};
     use hyper_util::rt::TokioIo;
@@ -123,7 +145,7 @@ async fn send(server: &TestServer, method: Method, path: &str, headers: &[(&str,
     for (name, value) in headers {
         request = request.header(*name, *value);
     }
-    let request = request.body(Full::new(Bytes::from_static(b"{}"))).unwrap();
+    let request = request.body(Full::new(Bytes::from(body))).unwrap();
     let response = sender.send_request(request).await.unwrap();
     Reply {
         status: response.status().as_u16(),
@@ -144,7 +166,7 @@ async fn post_json(server: &TestServer, path: &str, bearer: Option<&str>) -> Rep
     if let Some(authorization) = &authorization {
         headers.push(("authorization", authorization));
     }
-    send(server, Method::POST, path, &headers).await
+    send(server, Method::POST, path, &headers, "{}".to_owned()).await
 }
 
 /// Starts a Server with an Admin, and a Member named Grace signed in. Returns her session token.
@@ -172,6 +194,91 @@ async fn start_with_member() -> (TestServer, String) {
     };
     let signed_in = users.sign_in("Grace", PASSWORD, phone).await.unwrap();
     (server, signed_in.token().to_owned())
+}
+
+/// Signs a Device in as the Admin by a Sign-in Code the Admin approves, and returns its session
+/// token.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn signed_in_by_code(server: &TestServer) -> String {
+    let anonymous =
+        SignInServiceClient::new(HttpClient::plaintext(), server.anonymous_client_config());
+    let started = anonymous
+        .start_sign_in_code(StartSignInCodeRequest {
+            device_name: "Living room TV".to_owned(),
+            delivery: SessionDelivery::SESSION_DELIVERY_TOKEN.into(),
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_owned();
+    SignInServiceClient::new(HttpClient::plaintext(), server.client_config())
+        .approve_sign_in_code(ApproveSignInCodeRequest {
+            code: started.code,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let polled = anonymous
+        .poll_sign_in_code(PollSignInCodeRequest {
+            handle: started.handle,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    polled.into_owned().token
+}
+
+/// Moves every Device's last authentication back past the 10 minutes Recent Authentication lasts,
+/// as if they had all signed in 11 minutes ago.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn authenticated_long_ago(db: &Database) {
+    db.write(|tx| {
+        Box::pin(async move {
+            sqlx::query("UPDATE devices SET authenticated_at = authenticated_at - 11 * 60")
+                .execute(&mut **tx)
+                .await
+        })
+    })
+    .await
+    .unwrap();
+}
+
+/// The RPCs refused for want of Recent Authentication when called as `token`, out of all but
+/// `SignOut`, which would end the session. None may be refused for want of a session or the Admin
+/// Role, so `token` must be an Admin's.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn refused_for_recent_authentication(
+    server: &TestServer,
+    token: &str,
+) -> BTreeSet<&'static str> {
+    let mut refused = BTreeSet::new();
+    for path in ADMIN_ONLY.iter().chain(&BROWSE).chain(&SIGNED_IN) {
+        if *path == SIGN_OUT {
+            continue;
+        }
+        let reply = post_json(server, path, Some(token)).await;
+        let code = reply.code();
+        assert!(
+            !["unauthenticated", "permission_denied"].contains(&code.as_str()),
+            "{path}: {code}"
+        );
+        if code == "failed_precondition"
+            && refusal_of(&reply.refused().unwrap_err()).reason
+                == RefusalReason::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED
+        {
+            refused.insert(*path);
+        }
+    }
+    refused
 }
 
 #[expect(
@@ -340,6 +447,7 @@ async fn a_text_plain_post_with_a_valid_session_cookie_is_refused() {
         Method::POST,
         "/nama.v1.LibraryService/CreateLibrary",
         &[("content-type", "text/plain"), ("cookie", &cookie)],
+        "{}".to_owned(),
     )
     .await;
 
@@ -366,7 +474,7 @@ async fn a_cors_preflight_for_a_credentialed_request_is_not_approved() {
 
     for headers in [preflight.as_slice(), &with_cookie] {
         let path = "/nama.v1.LibraryService/CreateLibrary";
-        let reply = send(&server, Method::OPTIONS, path, headers).await;
+        let reply = send(&server, Method::OPTIONS, path, headers, String::new()).await;
 
         assert!(!(200..300).contains(&reply.status), "{}", reply.status);
         let approvals: Vec<_> = reply
@@ -376,4 +484,68 @@ async fn a_cors_preflight_for_a_credentialed_request_is_not_approved() {
             .collect();
         assert!(approvals.is_empty(), "{approvals:?}");
     }
+}
+
+#[tokio::test]
+async fn a_device_that_just_set_up_the_server_needs_no_reauthentication() {
+    let server = TestServer::start(Config::default(), Registry::new()).await;
+
+    let refused = refused_for_recent_authentication(&server, &server.admin_token).await;
+
+    assert!(refused.is_empty(), "{refused:?}");
+}
+
+#[tokio::test]
+async fn ten_minutes_after_signing_in_only_the_sensitive_rpcs_need_recent_authentication() {
+    let (server, db) = TestServer::start_with_db(Config::default(), Registry::new()).await;
+    authenticated_long_ago(&db).await;
+
+    for path in SENSITIVE {
+        let reply = post_json(&server, path, Some(&server.admin_token)).await;
+        let refusal = assert_refused(
+            reply.refused(),
+            ErrorCode::FailedPrecondition,
+            RefusalReason::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED,
+        );
+        assert_eq!(refusal.field, "", "{path}");
+    }
+    let refused = refused_for_recent_authentication(&server, &server.admin_token).await;
+    assert_eq!(refused, BTreeSet::from(SENSITIVE));
+}
+
+#[tokio::test]
+async fn a_device_signed_in_by_a_sign_in_code_needs_recent_authentication_for_only_the_sensitive_rpcs()
+ {
+    let server = TestServer::start(Config::default(), Registry::new()).await;
+    let tv = signed_in_by_code(&server).await;
+
+    let refused = refused_for_recent_authentication(&server, &tv).await;
+
+    assert_eq!(refused, BTreeSet::from(SENSITIVE));
+}
+
+#[tokio::test]
+async fn reauthenticating_lets_the_same_session_make_sensitive_changes_without_a_new_cookie() {
+    let server = TestServer::start(Config::default(), Registry::new()).await;
+    let tv = signed_in_by_code(&server).await;
+    let cookie = format!("nama_session={tv}");
+
+    let reauthenticated = send(
+        &server,
+        Method::POST,
+        "/nama.v1.SignInService/Reauthenticate",
+        &[("content-type", "application/json"), ("cookie", &cookie)],
+        json!({ "password": PASSWORD }).to_string(),
+    )
+    .await;
+
+    assert_eq!(
+        reauthenticated.status,
+        200,
+        "{}",
+        String::from_utf8_lossy(&reauthenticated.body)
+    );
+    assert_eq!(reauthenticated.headers.get("set-cookie"), None);
+    let refused = refused_for_recent_authentication(&server, &tv).await;
+    assert!(refused.is_empty(), "{refused:?}");
 }

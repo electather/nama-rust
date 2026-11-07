@@ -3125,10 +3125,6 @@ impl ::serde::Serialize for RevokeDeviceResponseOwnedView {
 }
 #[derive(Clone, Debug, Default)]
 pub struct ChangePasswordRequestView<'a> {
-    /// The caller's password now.
-    ///
-    /// Field 1: `current_password`
-    pub current_password: &'a str,
     /// The password to change to, which the Server's Authenticator checks against its own rules.
     ///
     /// Field 2: `new_password`
@@ -3165,13 +3161,6 @@ impl<'a> ::buffa::MessageView<'a> for ChangePasswordRequestView<'a> {
         let view = self;
         let mut cur = cur;
         match tag.field_number() {
-            1u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::LengthDelimited,
-                )?;
-                view.current_password = ::buffa::types::borrow_str(&mut cur)?;
-            }
             2u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -3207,7 +3196,6 @@ impl<'a> ::buffa::MessageView<'a> for ChangePasswordRequestView<'a> {
         use ::buffa::alloc::string::ToString as _;
         let _ = __buffa_src;
         ::core::result::Result::Ok(super::super::ChangePasswordRequest {
-            current_password: self.current_password.to_string(),
             new_password: self.new_password.to_string(),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
@@ -3220,11 +3208,6 @@ impl<'a> ::buffa::ViewEncode<'a> for ChangePasswordRequestView<'a> {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
-        if !self.current_password.is_empty() {
-            size
-                += 1u64
-                    + ::buffa::types::string_encoded_len(&self.current_password) as u64;
-        }
         if !self.new_password.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.new_password) as u64;
         }
@@ -3239,9 +3222,6 @@ impl<'a> ::buffa::ViewEncode<'a> for ChangePasswordRequestView<'a> {
     ) {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
-        if !self.current_password.is_empty() {
-            ::buffa::types::put_string_field(1u32, &self.current_password, buf);
-        }
         if !self.new_password.is_empty() {
             ::buffa::types::put_string_field(2u32, &self.new_password, buf);
         }
@@ -3266,9 +3246,6 @@ impl<'__a> ::serde::Serialize for ChangePasswordRequestView<'__a> {
     ) -> ::core::result::Result<__S::Ok, __S::Error> {
         use ::serde::ser::SerializeMap as _;
         let mut __map = __s.serialize_map(::core::option::Option::None)?;
-        if !::buffa::json_helpers::skip_if::is_empty_str(self.current_password) {
-            __map.serialize_entry("currentPassword", self.current_password)?;
-        }
         if !::buffa::json_helpers::skip_if::is_empty_str(self.new_password) {
             __map.serialize_entry("newPassword", self.new_password)?;
         }
@@ -3366,13 +3343,6 @@ impl ChangePasswordRequestOwnedView {
     #[must_use]
     pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
         self.0.into_bytes()
-    }
-    /// The caller's password now.
-    ///
-    /// Field 1: `current_password`
-    #[must_use]
-    pub fn current_password(&self) -> &'_ str {
-        self.0.reborrow().current_password
     }
     /// The password to change to, which the Server's Authenticator checks against its own rules.
     ///

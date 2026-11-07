@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id AS \"id!\", name, created_at, last_seen_at FROM devices\n               WHERE user_id = ? AND expires_at > ? ORDER BY id",
+  "query": "SELECT id AS \"id!\", name, created_at, last_seen_at, authenticated_at FROM devices\n               WHERE user_id = ? AND expires_at > ? ORDER BY id",
   "describe": {
     "columns": [
       {
@@ -46,6 +46,17 @@
             "name": "last_seen_at"
           }
         }
+      },
+      {
+        "name": "authenticated_at",
+        "ordinal": 4,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "devices",
+            "name": "authenticated_at"
+          }
+        }
       }
     ],
     "parameters": {
@@ -55,8 +66,9 @@
       false,
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "71ebeb607f3e4b10fc9e48d09fc70e1afe8ae7dd73c936f2b48d74ea8723f68e"
+  "hash": "b762baec830213f0cf69612b2e8929ee1276e6c99bc049070dc8d45e1d5f6d91"
 }

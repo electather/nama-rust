@@ -2,6 +2,7 @@ import { Code, type ConnectError } from "@connectrpc/connect";
 import { useMutation } from "@connectrpc/connect-query";
 import { createFileRoute } from "@tanstack/react-router";
 
+import { useSensitiveMutation } from "@/components/confirm-its-you";
 import { FormEnd, FormField } from "@/components/form-field";
 import { Page } from "@/components/page";
 import { Button } from "@/components/ui/button";
@@ -88,7 +89,7 @@ function Approve({
   /** Goes back to entering a code. */
   onDone: () => void;
 }) {
-  const approve = useMutation(SignInService.method.approveSignInCode);
+  const approve = useSensitiveMutation(SignInService.method.approveSignInCode);
   const errors = approve.error ? codeErrors(approve.error) : {};
   if (approve.isSuccess) return <Approved deviceName={deviceName} onDone={onDone} />;
 

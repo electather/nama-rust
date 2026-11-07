@@ -2,7 +2,7 @@ import { create } from "@bufbuild/protobuf";
 import { Code, ConnectError } from "@connectrpc/connect";
 import type { SubmitEvent } from "react";
 
-import { type RefusalReason, RefusalSchema } from "@/gen/nama/v1/refusal_pb";
+import { RefusalReason, RefusalSchema } from "@/gen/nama/v1/refusal_pb";
 
 /** Why a form was refused: next to one of its fields, or for the `form` as a whole. */
 export interface FormErrors {
@@ -12,7 +12,6 @@ export interface FormErrors {
   password?: string;
   deviceName?: string;
   signInCode?: string;
-  currentPassword?: string;
   newPassword?: string;
   folders?: string;
 }
@@ -37,7 +36,8 @@ export function formText(form: FormData, name: string) {
 /**
  * The messages for a form refused with `error`: the ones `byReason` gives for its Refusal's
  * reason, which is for a Connect code that means more than one thing, or else the ones `byCode`
- * gives for its code, or else a message for the whole form.
+ * gives for its code, or else a message for the whole form. A call the User cancelled wasn't
+ * refused, so it has none.
  */
 export function refusal(
   error: unknown,
@@ -46,7 +46,14 @@ export function refusal(
   byReason: Partial<Record<RefusalReason, FormErrors>> = {},
 ): FormErrors {
   const { code } = ConnectError.from(error);
-  return byReason[refusalOf(error).reason] ?? byCode[code] ?? { form: unexplained(code, attempt) };
+  if (code === Code.Canceled) return {};
+  // Still missing after "Confirm it’s you", it shares `failed_precondition` with refusals forms
+  // explain by code, such as "the only Admin".
+  const reasons: Partial<Record<RefusalReason, FormErrors>> = {
+    [RefusalReason.RECENT_AUTHENTICATION_REQUIRED]: { form: serverMessage(error) },
+    ...byReason,
+  };
+  return reasons[refusalOf(error).reason] ?? byCode[code] ?? { form: unexplained(code, attempt) };
 }
 
 /**
@@ -85,6 +92,6 @@ function refusedField(error: unknown) {
 
 // web/AGENTS.md, "Read refusals by reason".
 /** The Refusal `error` carries, or an empty one, with no reason or field, if it carries none. */
-function refusalOf(error: unknown) {
+export function refusalOf(error: unknown) {
   return ConnectError.from(error).findDetails(RefusalSchema)[0] ?? create(RefusalSchema);
 }

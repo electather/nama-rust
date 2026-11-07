@@ -1,9 +1,9 @@
 import { type MessageInitShape, create } from "@bufbuild/protobuf";
-import { type Code, ConnectError } from "@connectrpc/connect";
-import { screen } from "@testing-library/react";
+import { Code, ConnectError } from "@connectrpc/connect";
+import { fireEvent, screen, within } from "@testing-library/react";
 import { expect } from "vite-plus/test";
 
-import { RefusalSchema } from "@/gen/nama/v1/refusal_pb";
+import { RefusalReason, RefusalSchema } from "@/gen/nama/v1/refusal_pb";
 
 /** A Connect error as the Server refuses with one: `message`, plus the `refusal` detail. */
 export function refused(
@@ -23,4 +23,19 @@ export async function expectUnderField(label: string, message: string) {
   const field = screen.getByLabelText(label, { selector: "input, textarea" });
   expect(field.getAttribute("aria-invalid")).toBe("true");
   expect(field.getAttribute("aria-describedby")).toContain(error.id);
+}
+
+/** The Server's refusal of a sensitive change from a Device without Recent Authentication. */
+export function recentAuthenticationRequired() {
+  return refused(Code.FailedPrecondition, "sign in again to do this", {
+    reason: RefusalReason.RECENT_AUTHENTICATION_REQUIRED,
+  });
+}
+
+/** Waits for the "Confirm it’s you" dialog, and confirms with `password`. */
+export async function confirmItsYou(password = "correct horse") {
+  const dialog = await screen.findByRole("alertdialog", { name: "Confirm it’s you" });
+  fireEvent.change(within(dialog).getByLabelText("Password"), { target: { value: password } });
+  fireEvent.click(within(dialog).getByRole("button", { name: "Confirm" }));
+  return dialog;
 }
