@@ -28,24 +28,25 @@ use nama_proto::nama::v1::{
     self as proto, ApproveSignInCodeRequest, ApproveSignInCodeResponse, BrowseService,
     ClearMatchRequest, ClearMatchResponse, CreateLibraryRequest, CreateLibraryResponse,
     CreateUserRequest, CreateUserResponse, DeleteLibraryRequest, DeleteLibraryResponse,
-    EventService, EventType, GetLibraryRequest, GetLibraryResponse, GetMovieRequest,
-    GetMovieResponse, GetServerInfoRequest, GetServerInfoResponse, GetShowRequest, GetShowResponse,
-    LIBRARY_SERVICE_SERVICE_NAME, LibraryKind, LibraryService, ListDevicesRequest,
-    ListDevicesResponse, ListEpisodesRequest, ListEpisodesResponse, ListLibrariesRequest,
-    ListLibrariesResponse, ListMoviesRequest, ListMoviesResponse, ListShowsRequest,
-    ListShowsResponse, ListUnmatchedItemsRequest, ListUnmatchedItemsResponse, ListUsersRequest,
-    ListUsersResponse, LookUpSignInCodeRequest, LookUpSignInCodeResponse,
-    MATCH_SERVICE_SERVICE_NAME, MatchService, PollSignInCodeRequest, PollSignInCodeResponse,
-    RevokeDeviceRequest, RevokeDeviceResponse, SERVER_SERVICE_GET_SERVER_INFO_SPEC,
-    SIGN_IN_SERVICE_POLL_SIGN_IN_CODE_SPEC, SIGN_IN_SERVICE_SETUP_SPEC,
-    SIGN_IN_SERVICE_SIGN_IN_SPEC, SIGN_IN_SERVICE_START_SIGN_IN_CODE_SPEC, ScanLibraryRequest,
-    ScanLibraryResponse, SearchMetadataRequest, SearchMetadataResponse, ServerService,
-    SessionDelivery, SetMatchRequest, SetMatchResponse, SetRoleRequest, SetRoleResponse,
-    SetupRequest, SetupResponse, SignInCodeStatus, SignInRequest, SignInResponse, SignInService,
-    SignOutRequest, SignOutResponse, StartSignInCodeRequest, StartSignInCodeResponse,
-    SubscribeRequest, SubscribeResponse, USER_SERVICE_LIST_DEVICES_SPEC,
-    USER_SERVICE_REVOKE_DEVICE_SPEC, USER_SERVICE_SERVICE_NAME, UpdateLibraryRequest,
-    UpdateLibraryResponse, UserService, WhoAmIRequest, WhoAmIResponse, external_id,
+    DeleteUserRequest, DeleteUserResponse, EventService, EventType, GetLibraryRequest,
+    GetLibraryResponse, GetMovieRequest, GetMovieResponse, GetServerInfoRequest,
+    GetServerInfoResponse, GetShowRequest, GetShowResponse, LIBRARY_SERVICE_SERVICE_NAME,
+    LibraryKind, LibraryService, ListDevicesRequest, ListDevicesResponse, ListEpisodesRequest,
+    ListEpisodesResponse, ListLibrariesRequest, ListLibrariesResponse, ListMoviesRequest,
+    ListMoviesResponse, ListShowsRequest, ListShowsResponse, ListUnmatchedItemsRequest,
+    ListUnmatchedItemsResponse, ListUsersRequest, ListUsersResponse, LookUpSignInCodeRequest,
+    LookUpSignInCodeResponse, MATCH_SERVICE_SERVICE_NAME, MatchService, PollSignInCodeRequest,
+    PollSignInCodeResponse, RevokeDeviceRequest, RevokeDeviceResponse,
+    SERVER_SERVICE_GET_SERVER_INFO_SPEC, SIGN_IN_SERVICE_POLL_SIGN_IN_CODE_SPEC,
+    SIGN_IN_SERVICE_SETUP_SPEC, SIGN_IN_SERVICE_SIGN_IN_SPEC,
+    SIGN_IN_SERVICE_START_SIGN_IN_CODE_SPEC, ScanLibraryRequest, ScanLibraryResponse,
+    SearchMetadataRequest, SearchMetadataResponse, ServerService, SessionDelivery, SetMatchRequest,
+    SetMatchResponse, SetRoleRequest, SetRoleResponse, SetupRequest, SetupResponse,
+    SignInCodeStatus, SignInRequest, SignInResponse, SignInService, SignOutRequest,
+    SignOutResponse, StartSignInCodeRequest, StartSignInCodeResponse, SubscribeRequest,
+    SubscribeResponse, USER_SERVICE_LIST_DEVICES_SPEC, USER_SERVICE_REVOKE_DEVICE_SPEC,
+    USER_SERVICE_SERVICE_NAME, UpdateLibraryRequest, UpdateLibraryResponse, UserService,
+    WhoAmIRequest, WhoAmIResponse, external_id,
 };
 use tokio::sync::OwnedMutexGuard;
 
@@ -870,6 +871,21 @@ impl UserService for UserServiceHandler {
         let role = role_from_proto(request.role)?;
         self.users.set_role(request.user_id, role).await?;
         Response::ok(SetRoleResponse::default())
+    }
+
+    async fn delete_user(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, DeleteUserRequest>,
+    ) -> ServiceResult<DeleteUserResponse> {
+        let caller = caller(&ctx)?;
+        self.users.delete(request.user_id).await?;
+        let response = DeleteUserResponse::default();
+        Ok(if request.user_id == caller.user.id {
+            signed_out(response, ctx.headers())
+        } else {
+            Response::new(response)
+        })
     }
 
     async fn list_devices(

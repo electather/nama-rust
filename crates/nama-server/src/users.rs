@@ -261,6 +261,19 @@ impl Users {
             .await
     }
 
+    /// Deletes the User `user` with their credentials and Devices, unless that leaves the Server
+    /// with no Admin. Their Devices are signed out as [`Users::sign_out`] does.
+    pub(crate) async fn delete(&self, user: i64) -> Result<(), Error> {
+        let devices = self
+            .db
+            .write(move |tx| Box::pin(async move { delete_user(tx, user).await }))
+            .await?;
+        for device in devices {
+            self.announce_sign_out(device);
+        }
+        Ok(())
+    }
+
     /// The Devices of the User `user` that haven't expired, oldest first, or `None` if there is no
     /// such User.
     pub(crate) async fn devices(&self, user: i64) -> Result<Option<Vec<Device>>, sqlx::Error> {
@@ -367,9 +380,14 @@ impl Users {
                 })
             })
             .await?;
+        self.announce_sign_out(device);
+        Ok(())
+    }
+
+    /// Tells whoever waits in [`Users::signed_out`] that the Device `device` was just deleted.
+    fn announce_sign_out(&self, device: i64) {
         // Fails only when nobody is waiting, which is fine.
         let _: Result<usize, _> = self.sign_outs.send(device);
-        Ok(())
     }
 
     /// Resolves once the Device `device` is signed out, so whatever it opened can end with it. It
@@ -701,6 +719,29 @@ async fn update_role(conn: &mut SqliteConnection, user: i64, role: Role) -> Resu
     if updated.rows_affected() == 0 {
         return Err(Error::NoSuchUser);
     }
+    ensure_an_admin_left(conn).await
+}
+
+/// Deletes the User `user`, whose credentials and Devices go with them, failing if that leaves no
+/// Admin, as [`update_role`] does. Returns the IDs of the Devices it signed out.
+async fn delete_user(conn: &mut SqliteConnection, user: i64) -> Result<Vec<i64>, Error> {
+    let devices = sqlx::query_scalar!(r#"SELECT id AS "id!" FROM devices WHERE user_id = ?"#, user)
+        .fetch_all(&mut *conn)
+        .await?;
+    // Their `user_credentials` and `devices` rows are deleted by `ON DELETE CASCADE`.
+    let deleted = sqlx::query!("DELETE FROM users WHERE id = ?", user)
+        .execute(&mut *conn)
+        .await?;
+    if deleted.rows_affected() == 0 {
+        return Err(Error::NoSuchUser);
+    }
+    ensure_an_admin_left(conn).await?;
+    Ok(devices)
+}
+
+/// Fails with [`Error::LastAdmin`] if the Server has no Admin, so the write before it, in the same
+/// transaction, is rolled back.
+async fn ensure_an_admin_left(conn: &mut SqliteConnection) -> Result<(), Error> {
     let any_admin = sqlx::query_scalar!(
         r#"SELECT EXISTS (SELECT 1 FROM users WHERE role = 'admin') AS "any!: bool""#
     )
