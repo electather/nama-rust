@@ -65,10 +65,11 @@ use crate::{
     sessions::{cleared_session_cookie, identify_caller, in_session_cookie, session_cookie},
     sign_in_codes::{self, Poll, SignInCodes},
     users::{self, Caller, Role, SetupCode, SignedIn, Users},
+    versions,
 };
 
-/// Routes every RPC the Server answers, and its artwork, each behind the layers that identify the
-/// caller and refuse calls they may not make.
+/// Routes every RPC the Server answers, its artwork and its Versions, each behind the layers
+/// that identify the caller and refuse calls they may not make.
 #[expect(
     clippy::too_many_arguments,
     reason = "each is a separate handle the services are built from; a struct bundling them would \
@@ -83,11 +84,13 @@ pub(crate) fn router(
     setup_code: Option<SetupCode>,
 ) -> axum::Router {
     let users = Users::new(Arc::clone(&db), plugins.clone());
+    let contents = Contents::new(Arc::clone(&db));
     let sign_in_limits = Arc::new(SignInLimits::default());
     let artwork = artwork::router(
         Artwork::new(&config.data_dir, plugins.clone()),
-        Contents::new(Arc::clone(&db)),
+        contents.clone(),
     );
+    let versions = versions::router(contents);
     connectrpc::Router::new()
         .add_service(Arc::new(ServerServiceHandler {
             name: config.name.clone(),
@@ -124,6 +127,7 @@ pub(crate) fn router(
         }))
         .into_axum_router()
         .merge(artwork)
+        .merge(versions)
         .layer(middleware::from_fn(require_access))
         .layer(middleware::from_fn_with_state(users, identify_caller))
 }
