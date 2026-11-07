@@ -158,13 +158,24 @@ struct StoredPassword {
 /// Why a change to the Users was refused or failed. No variant holds a password or a token.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    /// The request field `field` is wrong, such as a name that is too long or a password the
-    /// Authenticator rejects, for the reason `message` gives.
-    #[error("{message}")]
-    Invalid {
+    /// A name, trimmed, is too short or too long.
+    #[error(
+        "{what} needs {min} to {max} characters",
+        min = NAME_LENGTH.start(),
+        max = NAME_LENGTH.end()
+    )]
+    NameLength {
         /// The request field it is about, as clients name it.
         field: &'static str,
-        /// Why, for the client.
+        /// What the name belongs to, as the message says it: "a User's name".
+        what: &'static str,
+    },
+    /// The Authenticator rejects the password, for the reason `message` gives.
+    #[error("{message}")]
+    PasswordRejected {
+        /// The request field it is about, as clients name it.
+        field: &'static str,
+        /// Why, in the Authenticator's words.
         message: String,
     },
     /// Another User already has this name, ignoring case.
@@ -597,7 +608,9 @@ impl Users {
             .ok_or(Error::NoAuthenticator)?;
         match hashed {
             Ok(Ok(value)) => Ok(Credential { plugin, value }),
-            Ok(Err(PasswordError::Rejected(message))) => Err(Error::Invalid { field, message }),
+            Ok(Err(PasswordError::Rejected(message))) => {
+                Err(Error::PasswordRejected { field, message })
+            }
             Ok(Err(PasswordError::Failed(err))) => Err(Error::Authenticator(err.to_string())),
             Err(panicked) => Err(Error::Authenticator(panicked.to_string())),
         }
@@ -763,19 +776,16 @@ fn verify_where_blocking_is_fine(
 
 /// `name`, given as the request field `field`, trimmed, if it then has an allowed length. `what`
 /// names it in the error.
-pub(crate) fn checked_name(field: &'static str, what: &str, name: &str) -> Result<String, Error> {
+pub(crate) fn checked_name(
+    field: &'static str,
+    what: &'static str,
+    name: &str,
+) -> Result<String, Error> {
     let name = name.trim();
     if NAME_LENGTH.contains(&name.chars().count()) {
         Ok(name.to_owned())
     } else {
-        Err(Error::Invalid {
-            field,
-            message: format!(
-                "{what} needs {} to {} characters",
-                NAME_LENGTH.start(),
-                NAME_LENGTH.end()
-            ),
-        })
+        Err(Error::NameLength { field, what })
     }
 }
 

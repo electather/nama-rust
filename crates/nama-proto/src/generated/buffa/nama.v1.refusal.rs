@@ -7,7 +7,7 @@
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 #[repr(i32)]
 pub enum RefusalReason {
-    /// No reason is given yet; read the message. Comes with `invalid_argument`.
+    /// A reason this client doesn't know; read the message. The Server never sends it.
     REFUSAL_REASON_UNSPECIFIED = 0i32,
     /// `unauthenticated`: the call needs a signed-in Device.
     REFUSAL_REASON_SIGN_IN_REQUIRED = 1i32,
@@ -73,6 +73,22 @@ pub enum RefusalReason {
     REFUSAL_REASON_UNKNOWN_TITLE = 28i32,
     /// `unavailable`: no metadata Provider is enabled, or it failed.
     REFUSAL_REASON_NO_METADATA_PROVIDER = 29i32,
+    /// `invalid_argument`: a User's or Device's name, trimmed, is too short or too long. Params:
+    /// `minLength`, `maxLength`, in characters.
+    REFUSAL_REASON_NAME_LENGTH = 30i32,
+    /// `invalid_argument`: the Authenticator Plugin rejects the password. Its own text is the message.
+    REFUSAL_REASON_PASSWORD_REJECTED = 31i32,
+    /// `invalid_argument`: a Library's folder isn't an absolute path. Params: `folder`.
+    REFUSAL_REASON_FOLDER_NOT_ABSOLUTE = 32i32,
+    /// `invalid_argument`: a Library's folder can't be found. Params: `folder`.
+    REFUSAL_REASON_FOLDER_NOT_FOUND = 33i32,
+    /// `invalid_argument`: a Library's folder isn't a directory the Server can read. Params: `folder`.
+    REFUSAL_REASON_FOLDER_NOT_READABLE = 34i32,
+    /// `invalid_argument`: a Library's folder resolves to a path that isn't valid UTF-8. Params:
+    /// `folder`, `resolvedPath` (with what isn't UTF-8 replaced).
+    REFUSAL_REASON_FOLDER_NOT_UTF8 = 35i32,
+    /// `invalid_argument`: a folder is named more than once in the request. Params: `folder`.
+    REFUSAL_REASON_FOLDER_REPEATED = 36i32,
 }
 impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -165,6 +181,27 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_NO_METADATA_PROVIDER`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const NoMetadataProvider: Self = Self::REFUSAL_REASON_NO_METADATA_PROVIDER;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_NAME_LENGTH`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const NameLength: Self = Self::REFUSAL_REASON_NAME_LENGTH;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_PASSWORD_REJECTED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const PasswordRejected: Self = Self::REFUSAL_REASON_PASSWORD_REJECTED;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_FOLDER_NOT_ABSOLUTE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const FolderNotAbsolute: Self = Self::REFUSAL_REASON_FOLDER_NOT_ABSOLUTE;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_FOLDER_NOT_FOUND`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const FolderNotFound: Self = Self::REFUSAL_REASON_FOLDER_NOT_FOUND;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_FOLDER_NOT_READABLE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const FolderNotReadable: Self = Self::REFUSAL_REASON_FOLDER_NOT_READABLE;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_FOLDER_NOT_UTF8`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const FolderNotUtf8: Self = Self::REFUSAL_REASON_FOLDER_NOT_UTF8;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_FOLDER_REPEATED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const FolderRepeated: Self = Self::REFUSAL_REASON_FOLDER_REPEATED;
 }
 impl ::core::default::Default for RefusalReason {
     fn default() -> Self {
@@ -312,6 +349,17 @@ impl ::buffa::Enumeration for RefusalReason {
             29i32 => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_NO_METADATA_PROVIDER)
             }
+            30i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_NAME_LENGTH),
+            31i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_PASSWORD_REJECTED),
+            32i32 => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_FOLDER_NOT_ABSOLUTE)
+            }
+            33i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_FOLDER_NOT_FOUND),
+            34i32 => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_FOLDER_NOT_READABLE)
+            }
+            35i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_FOLDER_NOT_UTF8),
+            36i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_FOLDER_REPEATED),
             _ => ::core::option::Option::None,
         }
     }
@@ -368,6 +416,17 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_NO_METADATA_PROVIDER => {
                 "REFUSAL_REASON_NO_METADATA_PROVIDER"
             }
+            Self::REFUSAL_REASON_NAME_LENGTH => "REFUSAL_REASON_NAME_LENGTH",
+            Self::REFUSAL_REASON_PASSWORD_REJECTED => "REFUSAL_REASON_PASSWORD_REJECTED",
+            Self::REFUSAL_REASON_FOLDER_NOT_ABSOLUTE => {
+                "REFUSAL_REASON_FOLDER_NOT_ABSOLUTE"
+            }
+            Self::REFUSAL_REASON_FOLDER_NOT_FOUND => "REFUSAL_REASON_FOLDER_NOT_FOUND",
+            Self::REFUSAL_REASON_FOLDER_NOT_READABLE => {
+                "REFUSAL_REASON_FOLDER_NOT_READABLE"
+            }
+            Self::REFUSAL_REASON_FOLDER_NOT_UTF8 => "REFUSAL_REASON_FOLDER_NOT_UTF8",
+            Self::REFUSAL_REASON_FOLDER_REPEATED => "REFUSAL_REASON_FOLDER_REPEATED",
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -466,6 +525,27 @@ impl ::buffa::Enumeration for RefusalReason {
             "REFUSAL_REASON_NO_METADATA_PROVIDER" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_NO_METADATA_PROVIDER)
             }
+            "REFUSAL_REASON_NAME_LENGTH" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_NAME_LENGTH)
+            }
+            "REFUSAL_REASON_PASSWORD_REJECTED" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_PASSWORD_REJECTED)
+            }
+            "REFUSAL_REASON_FOLDER_NOT_ABSOLUTE" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_FOLDER_NOT_ABSOLUTE)
+            }
+            "REFUSAL_REASON_FOLDER_NOT_FOUND" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_FOLDER_NOT_FOUND)
+            }
+            "REFUSAL_REASON_FOLDER_NOT_READABLE" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_FOLDER_NOT_READABLE)
+            }
+            "REFUSAL_REASON_FOLDER_NOT_UTF8" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_FOLDER_NOT_UTF8)
+            }
+            "REFUSAL_REASON_FOLDER_REPEATED" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_FOLDER_REPEATED)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -501,6 +581,13 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_ITEM_NOT_FOUND,
             Self::REFUSAL_REASON_UNKNOWN_TITLE,
             Self::REFUSAL_REASON_NO_METADATA_PROVIDER,
+            Self::REFUSAL_REASON_NAME_LENGTH,
+            Self::REFUSAL_REASON_PASSWORD_REJECTED,
+            Self::REFUSAL_REASON_FOLDER_NOT_ABSOLUTE,
+            Self::REFUSAL_REASON_FOLDER_NOT_FOUND,
+            Self::REFUSAL_REASON_FOLDER_NOT_READABLE,
+            Self::REFUSAL_REASON_FOLDER_NOT_UTF8,
+            Self::REFUSAL_REASON_FOLDER_REPEATED,
         ]
     }
 }

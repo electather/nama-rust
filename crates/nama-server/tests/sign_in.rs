@@ -447,9 +447,11 @@ async fn setup_refuses_blank_names_and_names_that_are_too_long() {
         let refusal = assert_refused(
             setup.refused(),
             ErrorCode::InvalidArgument,
-            RefusalReason::REFUSAL_REASON_UNSPECIFIED,
+            RefusalReason::REFUSAL_REASON_NAME_LENGTH,
         );
         assert_eq!(refusal.field, field, "{value:?}");
+        assert_eq!(refusal.params["minLength"], "1", "{value:?}");
+        assert_eq!(refusal.params["maxLength"], "64", "{value:?}");
     }
 }
 
