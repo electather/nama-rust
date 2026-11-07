@@ -83,11 +83,12 @@ pub(crate) fn router(
     setup_code: Option<SetupCode>,
 ) -> axum::Router {
     let users = Users::new(Arc::clone(&db), plugins.clone());
+    let contents = Contents::new(Arc::clone(&db));
     let artwork = artwork::router(
         Artwork::new(&config.data_dir, plugins.clone()),
-        Contents::new(Arc::clone(&db)),
+        contents.clone(),
     );
-    let versions = versions::router(Contents::new(Arc::clone(&db)));
+    let versions = versions::router(contents);
     connectrpc::Router::new()
         .add_service(Arc::new(ServerServiceHandler {
             name: config.name.clone(),
