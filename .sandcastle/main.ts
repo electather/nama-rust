@@ -22,6 +22,8 @@ const BASE = "main";
 type Issue = { number: number; title: string; parent?: number };
 type Box = Awaited<ReturnType<typeof sandcastle.createSandbox>>;
 class Blocked extends Error {}
+// The issue was closed while being built: drop it, don't count it as a crash.
+class Cancelled extends Error {}
 
 const sh = (cmd: string, ...args: string[]) =>
   execFileSync(cmd, args, { encoding: "utf8" }).trim();
@@ -71,11 +73,23 @@ function oneLine(e: unknown): string {
 const stageOf = new Map<number, { stage: Stage; at: number }>();
 const took = (since: number) => `${Math.round((Date.now() - since) / 60_000)}m`;
 function stage(issue: Issue, next: Stage) {
+  if (next !== "claimed") stopIfClosed(issue); // a cheap check at every boundary, besides the watcher
   const prev = stageOf.get(issue.number);
   stageOf.set(issue.number, { stage: next, at: Date.now() });
   if (prev) log(`#${issue.number} ${prev.stage} → ${next} (${prev.stage} took ${took(prev.at)})`);
   record({ kind: "stage", issue: issue.number, title: issue.title, stage: next });
 }
+// One per in-flight issue. Aborted with a Cancelled once the issue is closed.
+const aborts = new Map<number, AbortController>();
+const isClosed = (issue: Issue) =>
+  spawnSync("gh", ["issue", "view", String(issue.number), "--json", "state", "--jq", ".state"], { encoding: "utf8" })
+    .stdout?.trim() === "CLOSED"; // gh failing reads as open: only a definite "closed" stops work
+function stopIfClosed(issue: Issue) {
+  const abort = aborts.get(issue.number);
+  if (abort && !abort.signal.aborted && isClosed(issue)) abort.abort(new Cancelled("the issue was closed"));
+  abort?.signal.throwIfAborted();
+}
+
 const note = (issue: Issue, text: string) => {
   log(`#${issue.number} ${text}`);
   record({ kind: "note", issue: issue.number, text });
@@ -107,6 +121,7 @@ async function agent(box: Box, issue: Issue, step: string, extra: Record<string,
       ...extra,
     },
     maxIterations: 3,
+    signal: aborts.get(issue.number)?.signal, // aborting kills the agent and rejects with the reason (a Cancelled)
     idleTimeoutSeconds: 1800, // cold cargo builds are silent for a long time
   });
   const reason = [...result.stdout.matchAll(/<blocked>(.*?)<\/blocked>/g)]
@@ -235,8 +250,10 @@ async function waitForChecks(issue: Issue): Promise<"pass" | "fail" | "stale"> {
     return !ok("git", "merge-base", "--is-ancestor", `origin/${BASE}`, branch);
   };
   let run = "";
+  const signal = aborts.get(issue.number)?.signal;
   for (let i = 0; i < 30 && !run; i++) {
     await sleep(10_000);
+    signal?.throwIfAborted();
     if (stale()) return "stale"; // a conflicting PR gets no run at all
     run = gh("run", "list", "--workflow", "CI", "--commit", sha, "--event", "pull_request",
       "--json", "databaseId", "--jq", ".[0].databaseId // empty");
@@ -249,10 +266,12 @@ async function waitForChecks(issue: Issue): Promise<"pass" | "fail" | "stale"> {
   const watch = spawn("gh", ["run", "watch", run, "--exit-status", "--interval", "30"], { stdio: "ignore" });
   let wasStale = false;
   const poll = setInterval(() => {
-    if (stale()) { wasStale = true; watch.kill(); }
+    if (signal?.aborted) watch.kill();
+    else if (stale()) { wasStale = true; watch.kill(); }
   }, 60_000);
   const code = await new Promise<number | null>((resolve) => watch.on("close", resolve));
   clearInterval(poll);
+  signal?.throwIfAborted();
   if (wasStale) {
     ok("gh", "run", "cancel", run); // frees a runner for the rebased push
     return "stale";
@@ -436,12 +455,26 @@ async function worker() {
     log(`=== #${issue.number} ${issue.title} (${inFlight.size}/${MAX_PARALLEL} running) ===`);
     stage(issue, "claimed");
     const started = Date.now();
+    aborts.set(issue.number, new AbortController());
+    // Until the merge starts (the merge itself closes the issue), a closed issue stops its build.
+    const abort = aborts.get(issue.number)!;
+    const watcher = setInterval(() => {
+      if (abort.signal.aborted || stageOf.get(issue.number)?.stage === "merging" || !isClosed(issue)) return;
+      log(`#${issue.number} was closed: stopping it`);
+      abort.abort(new Cancelled("the issue was closed"));
+    }, 60_000);
     try {
       gh("issue", "edit", String(issue.number), "--add-label", WORKING);
       await pipeline(issue);
       finish(issue, "merged");
     } catch (e) {
-      if (e instanceof Blocked) {
+      // The signal, not `instanceof`: sandcastle may hand the reason back wrapped in an Effect FiberFailure.
+      if (abort.signal.aborted) {
+        const why = `${(abort.signal.reason as Error).message} during ${stageOf.get(issue.number)?.stage ?? "start"}`;
+        ok("gh", "pr", "close", branchOf(issue), "--comment", "🏭 The issue was closed, so the factory stopped building it.");
+        log(`⊘ #${issue.number} cancelled: ${why}`);
+        finish(issue, "cancelled", why);
+      } else if (e instanceof Blocked) {
         handBack(issue, e.message);
         finish(issue, "handed back", e.message);
       } else {
@@ -456,6 +489,8 @@ async function worker() {
     } finally {
       log(`#${issue.number} done after ${took(started)}`);
       release(issue);
+      clearInterval(watcher);
+      aborts.delete(issue.number);
       inFlight.delete(issue);
       stageOf.delete(issue.number);
     }
@@ -464,7 +499,7 @@ async function worker() {
 
 function summary(reason: string) {
   log(`=== Run ended: ${reason} ===`);
-  for (const o of ["merged", "handed back", "crashed", "interrupted"] as const) {
+  for (const o of ["merged", "handed back", "cancelled", "crashed", "interrupted"] as const) {
     const list = outcomes.filter((x) => x.outcome === o).map((x) => `#${x.issue}`);
     if (list.length) log(`  ${o}: ${list.join(", ")}`);
   }
