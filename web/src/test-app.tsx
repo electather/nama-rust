@@ -1,5 +1,11 @@
 import { create } from "@bufbuild/protobuf";
-import { Code, ConnectError, type ServiceImpl, createRouterTransport } from "@connectrpc/connect";
+import {
+  Code,
+  type ConnectRouter,
+  ConnectError,
+  type ServiceImpl,
+  createRouterTransport,
+} from "@connectrpc/connect";
 import { RouterProvider } from "@tanstack/react-router";
 import { fireEvent, render, screen } from "@testing-library/react";
 
@@ -15,13 +21,18 @@ export interface ServerState {
   signedIn?: Role;
 }
 
-/** A fake Server in `state`, with handlers for the rest of `SignInService` and `UserService`. */
+/**
+ * A fake Server in `state`, with handlers for the rest of `SignInService` and `UserService`.
+ * `more` adds other services, such as `BrowseService`.
+ */
 export function fakeServer(
   state: ServerState,
   signIn: Partial<ServiceImpl<typeof SignInService>> = {},
   users: Partial<ServiceImpl<typeof UserService>> = {},
+  more: (router: ConnectRouter) => void = () => {},
 ) {
-  return createRouterTransport(({ service }) => {
+  return createRouterTransport((router) => {
+    const { service } = router;
     service(ServerService, {
       getServerInfo: () =>
         create(GetServerInfoResponseSchema, {
@@ -42,6 +53,7 @@ export function fakeServer(
     });
     // Settings lists your Devices, so every fake Server has an answer for it.
     service(UserService, { listDevices: () => ({}), ...users });
+    more(router);
   });
 }
 
