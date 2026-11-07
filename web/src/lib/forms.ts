@@ -7,7 +7,6 @@ export interface FormErrors {
   setupCode?: string;
   name?: string;
   password?: string;
-  deviceName?: string;
   currentPassword?: string;
   newPassword?: string;
 }
@@ -55,12 +54,11 @@ export function serverMessage(error: unknown) {
   return `${rawMessage.charAt(0).toUpperCase()}${rawMessage.slice(1)}.`;
 }
 
-// ponytail: the Server names the field only in its message ("a Device's name needs…"). Read it
+// ponytail: the Server names the field only in its message ("a User's name needs…"). Read it
 // from Connect error details instead if the Server starts sending them.
-/** Which of a name, password or Device name field an `invalid_argument` refusal is about. */
-export function invalidField(error: unknown): "name" | "password" | "deviceName" {
+/** Which of a username or password field an `invalid_argument` refusal is about. */
+export function invalidField(error: unknown): "name" | "password" {
   const message = String(error);
-  if (message.includes("Device")) return "deviceName";
   if (message.includes("User's name")) return "name";
   return "password";
 }

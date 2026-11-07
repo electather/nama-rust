@@ -934,7 +934,8 @@ pub struct SetupRequest {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub password: ::buffa::alloc::string::String,
-    /// The signing-in Device's name: 1 to 64 characters.
+    /// The signing-in Device's name: up to 64 characters. When it is blank, the Server names the
+    /// Device after the browser and OS in its `User-Agent`, such as "Chrome on macOS".
     ///
     /// Field 4: `device_name`
     #[serde(
@@ -1360,7 +1361,8 @@ pub struct SignInRequest {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub password: ::buffa::alloc::string::String,
-    /// The signing-in Device's name: 1 to 64 characters.
+    /// The signing-in Device's name: up to 64 characters. When it is blank, the Server names the
+    /// Device after the browser and OS in its `User-Agent`, such as "Chrome on macOS".
     ///
     /// Field 3: `device_name`
     #[serde(

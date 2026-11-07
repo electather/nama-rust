@@ -3,12 +3,12 @@ import { useMutation, useQuery } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
-import { DeviceNameField, FormField } from "@/components/form-field";
+import { FormField } from "@/components/form-field";
 import { SignInLayout } from "@/components/sign-in-layout";
 import { ServerService } from "@/gen/nama/v1/server_pb";
 import { SessionDelivery, SignInService } from "@/gen/nama/v1/sign_in_pb";
 import { isSetupRequired } from "@/lib/access";
-import { type FormErrors, formText, refusal, serverMessage } from "@/lib/forms";
+import { type FormErrors, formText, refusal } from "@/lib/forms";
 
 export const Route = createFileRoute("/sign-in")({
   // The router merges this over the raw search, so a refused `redirect` has to be overwritten.
@@ -38,7 +38,7 @@ function SignIn() {
   return (
     <SignInLayout
       heading={server.data ? `Sign in to ${server.data.name}` : "Sign in"}
-      intro="Sign in with the name and password you were given for this Server."
+      intro="Sign in with the username and password you were given for this Server."
       action={signIn.isPending ? "Signing in…" : "Sign in"}
       pending={signIn.isPending}
       error={errors.form}
@@ -46,12 +46,11 @@ function SignIn() {
         signIn.mutate({
           name: formText(form, "name"),
           password: formText(form, "password"),
-          deviceName: formText(form, "deviceName"),
           delivery: SessionDelivery.COOKIE,
         });
       }}
     >
-      <FormField label="Name" name="name" autoComplete="username" maxLength={64} />
+      <FormField label="Username" name="name" autoComplete="username" maxLength={64} />
       <FormField
         label="Password"
         name="password"
@@ -59,16 +58,14 @@ function SignIn() {
         autoComplete="current-password"
         error={errors.password}
       />
-      <DeviceNameField error={errors.deviceName} />
     </SignInLayout>
   );
 }
 
 function signInErrors(error: unknown): FormErrors {
   return refusal(error, "sign in", {
-    // The Server doesn't say whether it was the name or the password, so neither do we.
-    [Code.Unauthenticated]: { password: "That name and password don’t match." },
-    [Code.InvalidArgument]: { deviceName: serverMessage(error) },
+    // The Server doesn’t say whether it was the username or the password, so neither do we.
+    [Code.Unauthenticated]: { password: "That username and password don’t match." },
   });
 }
 
