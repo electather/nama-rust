@@ -1025,16 +1025,24 @@ async fn x_forwarded_for_from_an_untrusted_peer_doesnt_change_which_ip_is_counte
 #[tokio::test]
 async fn through_a_trusted_proxy_failures_count_against_the_forwarded_ip() {
     let server = start_behind_proxy().await;
-    fail_setup(&server, 50, |i| format!("203.0.113.{i}")).await;
+    fail_setup(&server, 50, |_| "203.0.113.7".to_owned()).await;
 
+    let blocked = call(
+        &server,
+        "Setup",
+        &setup_request(&server, "SESSION_DELIVERY_TOKEN"),
+        &[("x-forwarded-for", "203.0.113.7")],
+    )
+    .await;
     let set_up = call(
         &server,
         "Setup",
         &setup_request(&server, "SESSION_DELIVERY_TOKEN"),
-        &[("x-forwarded-for", "203.0.113.0")],
+        &[("x-forwarded-for", "203.0.113.8")],
     )
     .await;
 
+    assert_blocked(&blocked);
     assert_eq!(set_up.status, 200, "{}", set_up.body);
 }
 
