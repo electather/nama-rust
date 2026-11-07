@@ -1,0 +1,43 @@
+syntax = "proto3";
+
+package nama.v1;
+
+// Remembering how far the signed-in caller has got through what they play.
+//
+// Watch State is kept per User against the Movie a Version is Matched to, by the Movie's external
+// id, never against the file. So it survives rescans, renames and new Versions, and every Version
+// of a Movie shares it. An item that isn't Matched has none. `BrowseService` returns it with each
+// Movie.
+service WatchStateService {
+  // Reports how far the caller has got through a Version they are playing, and stores it against
+  // the Movie the Version is Matched to. The Movie is marked played once the position passes 90% of
+  // the duration, and stays played if it is played again from the start. A Version whose item
+  // isn't Matched to a Movie is accepted, and nothing is stored. Fails with `not_found` if there is
+  // no such Version, and with `invalid_argument` if the duration is zero.
+  rpc ReportProgress(ReportProgressRequest) returns (ReportProgressResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
+}
+
+// A User's progress through a Movie.
+message WatchState {
+  // How far in, in milliseconds.
+  uint64 position_ms = 1;
+  // How long it is, in milliseconds, as the player last reported it.
+  uint64 duration_ms = 2;
+  // Whether it has been played: its position has passed 90% of its duration.
+  bool played = 3;
+  // When it last changed, in seconds since the Unix epoch.
+  int64 updated_at = 4;
+}
+
+message ReportProgressRequest {
+  // The Version being played, as browsing gave it.
+  int64 version_id = 1;
+  // How far in, in milliseconds. A position past the duration is taken as the end.
+  uint64 position_ms = 2;
+  // How long the Version is, in milliseconds. Must not be zero.
+  uint64 duration_ms = 3;
+}
+
+message ReportProgressResponse {}

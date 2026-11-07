@@ -37,16 +37,17 @@ use nama_proto::nama::v1::{
     ListShowsResponse, ListUnmatchedItemsRequest, ListUnmatchedItemsResponse, ListUsersRequest,
     ListUsersResponse, LookUpSignInCodeRequest, LookUpSignInCodeResponse,
     MATCH_SERVICE_SERVICE_NAME, MatchService, PollSignInCodeRequest, PollSignInCodeResponse,
-    RevokeDeviceRequest, RevokeDeviceResponse, SERVER_SERVICE_GET_SERVER_INFO_SPEC,
-    SIGN_IN_SERVICE_POLL_SIGN_IN_CODE_SPEC, SIGN_IN_SERVICE_SETUP_SPEC,
-    SIGN_IN_SERVICE_SIGN_IN_SPEC, SIGN_IN_SERVICE_START_SIGN_IN_CODE_SPEC, ScanLibraryRequest,
-    ScanLibraryResponse, SearchMetadataRequest, SearchMetadataResponse, ServerService,
-    SessionDelivery, SetMatchRequest, SetMatchResponse, SetRoleRequest, SetRoleResponse,
-    SetupRequest, SetupResponse, SignInCodeStatus, SignInRequest, SignInResponse, SignInService,
-    SignOutRequest, SignOutResponse, StartSignInCodeRequest, StartSignInCodeResponse,
-    SubscribeRequest, SubscribeResponse, USER_SERVICE_CHANGE_PASSWORD_SPEC,
-    USER_SERVICE_LIST_DEVICES_SPEC, USER_SERVICE_REVOKE_DEVICE_SPEC, USER_SERVICE_SERVICE_NAME,
-    UpdateLibraryRequest, UpdateLibraryResponse, UserService, WhoAmIRequest, WhoAmIResponse,
+    ReportProgressRequest, ReportProgressResponse, RevokeDeviceRequest, RevokeDeviceResponse,
+    SERVER_SERVICE_GET_SERVER_INFO_SPEC, SIGN_IN_SERVICE_POLL_SIGN_IN_CODE_SPEC,
+    SIGN_IN_SERVICE_SETUP_SPEC, SIGN_IN_SERVICE_SIGN_IN_SPEC,
+    SIGN_IN_SERVICE_START_SIGN_IN_CODE_SPEC, ScanLibraryRequest, ScanLibraryResponse,
+    SearchMetadataRequest, SearchMetadataResponse, ServerService, SessionDelivery, SetMatchRequest,
+    SetMatchResponse, SetRoleRequest, SetRoleResponse, SetupRequest, SetupResponse,
+    SignInCodeStatus, SignInRequest, SignInResponse, SignInService, SignOutRequest,
+    SignOutResponse, StartSignInCodeRequest, StartSignInCodeResponse, SubscribeRequest,
+    SubscribeResponse, USER_SERVICE_CHANGE_PASSWORD_SPEC, USER_SERVICE_LIST_DEVICES_SPEC,
+    USER_SERVICE_REVOKE_DEVICE_SPEC, USER_SERVICE_SERVICE_NAME, UpdateLibraryRequest,
+    UpdateLibraryResponse, UserService, WatchStateService, WhoAmIRequest, WhoAmIResponse,
     external_id,
 };
 use tokio::sync::OwnedMutexGuard;
@@ -54,7 +55,7 @@ use tokio::sync::OwnedMutexGuard;
 use crate::{
     artwork::{self, Artwork},
     config::Config,
-    contents::{Contents, Episode, Item, Movie, Show, Unmatched, Version},
+    contents::{Contents, Episode, Item, Movie, MovieOf, Show, Unmatched, Version},
     db::Database,
     events::{EventBus, Filter},
     libraries::{self, Kind, Libraries, Library},
@@ -66,6 +67,7 @@ use crate::{
     sign_in_codes::{self, Poll, SignInCodes},
     users::{self, Caller, Role, SetupCode, SignedIn, Users},
     versions,
+    watch_states::{Progress, WatchState, WatchStates},
 };
 
 /// Routes every RPC the Server answers, its artwork and its Versions, each behind the layers
@@ -112,6 +114,11 @@ pub(crate) fn router(
         .add_service(Arc::new(BrowseServiceHandler {
             libraries: Libraries::new(Arc::clone(&db)),
             contents: Contents::new(Arc::clone(&db)),
+            watch_states: WatchStates::new(Arc::clone(&db)),
+        }))
+        .add_service(Arc::new(WatchStateServiceHandler {
+            contents: Contents::new(Arc::clone(&db)),
+            watch_states: WatchStates::new(Arc::clone(&db)),
         }))
         .add_service(Arc::new(LibraryServiceHandler {
             libraries: Libraries::new(db),
@@ -670,6 +677,7 @@ impl MatchService for MatchServiceHandler {
 struct BrowseServiceHandler {
     libraries: Libraries,
     contents: Contents,
+    watch_states: WatchStates,
 }
 
 impl BrowseServiceHandler {
@@ -680,6 +688,25 @@ impl BrowseServiceHandler {
             .movies(library)
             .await
             .map_err(|err| database_failed(&err))
+    }
+
+    /// `movies` as the caller of `ctx` sees them, each with their Watch State.
+    async fn movies_to_proto(
+        &self,
+        ctx: &RequestContext,
+        movies: Vec<Movie>,
+    ) -> Result<Vec<proto::Movie>, ConnectError> {
+        let ids: Vec<&ExternalId> = movies.iter().map(|movie| &movie.id).collect();
+        let states = self
+            .watch_states
+            .of_movies(caller(ctx)?.user.id, &ids)
+            .await
+            .map_err(|err| database_failed(&err))?;
+        Ok(movies
+            .into_iter()
+            .zip(states)
+            .map(|(movie, state)| movie_to_proto(movie, state))
+            .collect())
     }
 
     /// The Shows of the Library `library`, which must be a Shows Library.
@@ -728,19 +755,19 @@ impl BrowseServiceHandler {
 impl BrowseService for BrowseServiceHandler {
     async fn list_movies(
         &self,
-        _ctx: RequestContext,
+        ctx: RequestContext,
         request: ServiceRequest<'_, ListMoviesRequest>,
     ) -> ServiceResult<ListMoviesResponse> {
         let movies = self.movies(request.library_id).await?;
         Response::ok(ListMoviesResponse {
-            movies: movies.into_iter().map(movie_to_proto).collect(),
+            movies: self.movies_to_proto(&ctx, movies).await?,
             ..Default::default()
         })
     }
 
     async fn get_movie(
         &self,
-        _ctx: RequestContext,
+        ctx: RequestContext,
         request: ServiceRequest<'_, GetMovieRequest>,
     ) -> ServiceResult<GetMovieResponse> {
         let request = request.to_owned_message();
@@ -754,8 +781,9 @@ impl BrowseService for BrowseServiceHandler {
             .ok_or_else(|| {
                 ConnectError::not_found("nothing in the Library is Matched to that id")
             })?;
+        let movie = self.movies_to_proto(&ctx, vec![movie]).await?.pop();
         Response::ok(GetMovieResponse {
-            movie: movie_to_proto(movie).into(),
+            movie: movie.into(),
             ..Default::default()
         })
     }
@@ -822,6 +850,46 @@ impl BrowseService for BrowseServiceHandler {
                 .collect(),
             ..Default::default()
         })
+    }
+}
+
+/// `nama.v1.WatchStateService`: each signed-in User's progress through what they play.
+struct WatchStateServiceHandler {
+    contents: Contents,
+    watch_states: WatchStates,
+}
+
+#[expect(
+    refining_impl_trait,
+    reason = "plain `async fn` returning the owned response is the form the generated trait \
+              documents; the refined signature isn't visible outside this crate"
+)]
+impl WatchStateService for WatchStateServiceHandler {
+    async fn report_progress(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, ReportProgressRequest>,
+    ) -> ServiceResult<ReportProgressResponse> {
+        let user = caller(&ctx)?.user.id;
+        let progress =
+            Progress::new(request.position_ms, request.duration_ms).ok_or_else(|| {
+                ConnectError::invalid_argument(
+                    "the duration must be more than zero and less than 2^63 milliseconds",
+                )
+            })?;
+        let movie_of = self.contents.movie_of(request.version_id).await;
+        match movie_of.map_err(|err| database_failed(&err))? {
+            MovieOf::NoSuchVersion => {
+                return Err(ConnectError::not_found("there is no such Version"));
+            }
+            MovieOf::NoMatchedMovie => {}
+            MovieOf::Movie(movie) => self
+                .watch_states
+                .report_movie(user, &movie, progress)
+                .await
+                .map_err(|err| database_failed(&err))?,
+        }
+        Response::ok(ReportProgressResponse::default())
     }
 }
 
@@ -1139,8 +1207,9 @@ fn unmatched_to_proto(unmatched: Unmatched) -> proto::UnmatchedItem {
     }
 }
 
-/// A Movie as clients see it, with its images as URLs on this Server.
-fn movie_to_proto(movie: Movie) -> proto::Movie {
+/// A Movie as clients see it, with its images as URLs on this Server, and the caller's Watch
+/// State of it, if they've started it.
+fn movie_to_proto(movie: Movie, watch_state: Option<WatchState>) -> proto::Movie {
     let plugin = movie.plugin;
     let artwork_url = |path: String| artwork::url(&plugin, &path);
     proto::Movie {
@@ -1155,6 +1224,20 @@ fn movie_to_proto(movie: Movie) -> proto::Movie {
         poster_url: movie.poster.map(artwork_url),
         backdrop_url: movie.backdrop.map(artwork_url),
         versions: movie.versions.iter().map(version_to_proto).collect(),
+        watch_state: watch_state.map(watch_state_to_proto).into(),
+        ..Default::default()
+    }
+}
+
+/// A Watch State as clients see it.
+fn watch_state_to_proto(state: WatchState) -> proto::WatchState {
+    // Stored positions and durations are never negative.
+    let unsigned = |ms: i64| u64::try_from(ms).unwrap_or_default();
+    proto::WatchState {
+        position_ms: unsigned(state.position_ms),
+        duration_ms: unsigned(state.duration_ms),
+        played: state.played,
+        updated_at: state.updated_at,
         ..Default::default()
     }
 }

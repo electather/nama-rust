@@ -3,6 +3,7 @@ syntax = "proto3";
 package nama.v1;
 
 import "nama/v1/match.proto";
+import "nama/v1/watch_state.proto";
 
 // Browsing what a Library holds, for any signed-in User.
 //
@@ -12,13 +13,14 @@ import "nama/v1/match.proto";
 // share a season number. Items that aren't Matched are in `MatchService.ListUnmatchedItems`
 // instead.
 service BrowseService {
-  // Lists a Movies Library's Movies, by title, each with its Versions. Fails with `not_found` if
-  // there is no such Library, and with `invalid_argument` if it is a Shows Library.
+  // Lists a Movies Library's Movies, by title, each with its Versions and the caller's Watch
+  // State. Fails with `not_found` if there is no such Library, and with `invalid_argument` if it
+  // is a Shows Library.
   rpc ListMovies(ListMoviesRequest) returns (ListMoviesResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
-  // Returns one Movie of a Movies Library, with its Versions. Fails like `ListMovies`, or with
-  // `not_found` if nothing in the Library is Matched to that id.
+  // Returns one Movie of a Movies Library, with its Versions and the caller's Watch State. Fails
+  // like `ListMovies`, or with `not_found` if nothing in the Library is Matched to that id.
   rpc GetMovie(GetMovieRequest) returns (GetMovieResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
@@ -58,6 +60,9 @@ message Movie {
   optional string backdrop_url = 8;
   // The files the Movie is available in, by path. There is at least one.
   repeated Version versions = 9;
+  // The caller's progress through it, kept across all its Versions. Unset if they haven't
+  // started it.
+  WatchState watch_state = 10;
 }
 
 // One file a Movie or Episode is available in.

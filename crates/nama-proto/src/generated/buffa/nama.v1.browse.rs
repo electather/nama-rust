@@ -83,6 +83,16 @@ pub struct Movie {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub versions: ::buffa::alloc::vec::Vec<Version>,
+    /// The caller's progress through it, kept across all its Versions. Unset if they haven't
+    /// started it.
+    ///
+    /// Field 10: `watch_state`
+    #[serde(
+        rename = "watchState",
+        alias = "watch_state",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
+    )]
+    pub watch_state: ::buffa::MessageField<WatchState, ::buffa::Inline<WatchState>>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -99,6 +109,7 @@ impl ::core::fmt::Debug for Movie {
             .field("poster_url", &self.poster_url)
             .field("backdrop_url", &self.backdrop_url)
             .field("versions", &self.versions)
+            .field("watch_state", &self.watch_state)
             .finish()
     }
 }
@@ -225,6 +236,14 @@ impl ::buffa::Message for Movie {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if self.watch_state.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.watch_state.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -271,6 +290,14 @@ impl ::buffa::Message for Movie {
                 buf,
             );
             v.write_to(__cache, buf);
+        }
+        if self.watch_state.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                10u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.watch_state.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -384,6 +411,17 @@ impl ::buffa::Message for Movie {
                 ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
                 self.versions.push(elem);
             }
+            10u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.watch_state.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -401,6 +439,7 @@ impl ::buffa::Message for Movie {
         self.poster_url = ::core::option::Option::None;
         self.backdrop_url = ::core::option::Option::None;
         self.versions.clear();
+        self.watch_state = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
     }
 }

@@ -168,6 +168,18 @@ pub(crate) struct Version {
     pub(crate) size: i64,
 }
 
+/// What [`Contents::movie_of`] found a Version Matched to.
+#[derive(Debug)]
+pub(crate) enum MovieOf {
+    /// No stored file has that id.
+    NoSuchVersion,
+    /// The file holds no Item Matched to a Movie: its Item is Unmatched, not Matched yet, or an
+    /// Episode.
+    NoMatchedMovie,
+    /// The Movie's id, as browsing identifies it: see [`primary_id`].
+    Movie(ExternalId),
+}
+
 /// A Show some Items of a Library are Matched to Episodes of, with the metadata the Match of its
 /// first Episode, by season, episode and path, stores.
 #[derive(Debug)]
@@ -328,6 +340,33 @@ impl Contents {
         )
         .fetch_optional(self.db.reader())
         .await
+    }
+
+    /// The Movie the stored file `version` holds an Item Matched to.
+    pub(crate) async fn movie_of(&self, version: i64) -> Result<MovieOf, sqlx::Error> {
+        let rows = sqlx::query!(
+            r#"SELECT item_matches.tmdb_id, item_matches.imdb_id, item_matches.tvdb_id
+               FROM library_files
+               LEFT JOIN library_items ON library_items.file_id = library_files.id
+                                      AND library_items.kind = 'movie'
+               LEFT JOIN item_matches ON item_matches.item_id = library_items.id
+                                     AND item_matches.state = 'matched'
+               WHERE library_files.id = ?"#,
+            version
+        )
+        .fetch_all(self.db.reader())
+        .await?;
+        if rows.is_empty() {
+            return Ok(MovieOf::NoSuchVersion);
+        }
+        let movie = rows.into_iter().find_map(|row| {
+            primary_id(ExternalIds {
+                tmdb: row.tmdb_id,
+                imdb: row.imdb_id,
+                tvdb: row.tvdb_id,
+            })
+        });
+        Ok(movie.map_or(MovieOf::NoMatchedMovie, MovieOf::Movie))
     }
 
     /// The absolute path of the Version `version`, a stored file some Item of which is Matched, or

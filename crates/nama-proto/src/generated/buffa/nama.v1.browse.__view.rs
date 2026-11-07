@@ -40,6 +40,13 @@ pub struct MovieView<'a> {
         'a,
         super::super::__buffa::view::VersionView<'a>,
     >,
+    /// The caller's progress through it, kept across all its Versions. Unset if they haven't
+    /// started it.
+    ///
+    /// Field 10: `watch_state`
+    pub watch_state: ::buffa::MessageFieldView<
+        super::super::__buffa::view::WatchStateView<'a>,
+    >,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for MovieView<'a> {
@@ -142,6 +149,27 @@ impl<'a> ::buffa::MessageView<'a> for MovieView<'a> {
                 )?;
                 view.backdrop_url = Some(::buffa::types::borrow_str(&mut cur)?);
             }
+            10u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                match view.watch_state.as_mut() {
+                    Some(existing) => {
+                        ::buffa::MessageView::merge_into_view(existing, sub, __sub_ctx)?
+                    }
+                    None => {
+                        view.watch_state = ::buffa::MessageFieldView::set(
+                            <super::super::__buffa::view::WatchStateView as ::buffa::MessageView>::decode_view_ctx(
+                                sub,
+                                __sub_ctx,
+                            )?,
+                        );
+                    }
+                }
+            }
             9u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -203,6 +231,15 @@ impl<'a> ::buffa::MessageView<'a> for MovieView<'a> {
                 .iter()
                 .map(|v| v.to_owned_from_source(__buffa_src))
                 .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
+            watch_state: match self.watch_state.as_option() {
+                Some(v) => {
+                    ::buffa::MessageField::<
+                        super::super::WatchState,
+                        ::buffa::Inline<super::super::WatchState>,
+                    >::some(v.to_owned_from_source(__buffa_src)?)
+                }
+                None => ::buffa::MessageField::none(),
+            },
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -246,6 +283,14 @@ impl<'a> ::buffa::ViewEncode<'a> for MovieView<'a> {
         for v in &self.versions {
             let __slot = __cache.reserve();
             let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        if self.watch_state.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.watch_state.compute_size(__cache);
             __cache.set(__slot, inner_size);
             size
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
@@ -298,6 +343,14 @@ impl<'a> ::buffa::ViewEncode<'a> for MovieView<'a> {
                 buf,
             );
             v.write_to(__cache, buf);
+        }
+        if self.watch_state.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                10u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.watch_state.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -352,6 +405,11 @@ impl<'__a> ::serde::Serialize for MovieView<'__a> {
         }
         if !self.versions.is_empty() {
             __map.serialize_entry("versions", &*self.versions)?;
+        }
+        {
+            if let ::core::option::Option::Some(__v) = self.watch_state.as_option() {
+                __map.serialize_entry("watchState", __v)?;
+            }
         }
         __map.end()
     }
@@ -503,6 +561,16 @@ impl MovieOwnedView {
         &self,
     ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::VersionView<'_>> {
         &self.0.reborrow().versions
+    }
+    /// The caller's progress through it, kept across all its Versions. Unset if they haven't
+    /// started it.
+    ///
+    /// Field 10: `watch_state`
+    #[must_use]
+    pub fn watch_state(
+        &self,
+    ) -> &::buffa::MessageFieldView<super::super::__buffa::view::WatchStateView<'_>> {
+        &self.0.reborrow().watch_state
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<MovieView<'static>>> for MovieOwnedView {
