@@ -143,7 +143,7 @@ pub const USER_SERVICE_SET_ROLE_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::s
         "/nama.v1.UserService/SetRole",
         ::connectrpc::StreamType::Unary,
     )
-    .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
 /// Managing the Server's Users. Every RPC needs the Admin Role, and fails with `permission_denied`
 /// without it. RPCs name Users by ID, not by name.
 ///

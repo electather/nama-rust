@@ -213,8 +213,8 @@ where
     F: for<'t> FnOnce(&'t mut Transaction<'_, Sqlite>) -> BoxFuture<'t, Result<T, E>>,
 {
     // The one writer already runs the Server's writes one at a time. IMMEDIATE also takes SQLite's
-    // write lock up front, so what a write reads, such as whether an Admin is left, can't change
-    // under it even if something outside the Server writes to the file.
+    // write lock up front, before the write's first read, so nothing it reads can change under it
+    // even if something outside the Server writes to the file.
     let mut tx = conn.begin_with("BEGIN IMMEDIATE").await?;
     match write(&mut tx).await {
         Ok(value) => {

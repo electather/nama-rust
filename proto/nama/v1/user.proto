@@ -18,7 +18,9 @@ service UserService {
   // Gives a User a Role, which applies from their next request. Their Devices stay signed in.
   // Fails with `invalid_argument` for `ROLE_UNSPECIFIED`, `not_found` if no User has the ID, and
   // `failed_precondition` if it would leave the Server with no Admin.
-  rpc SetRole(SetRoleRequest) returns (SetRoleResponse);
+  rpc SetRole(SetRoleRequest) returns (SetRoleResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
 }
 
 message CreateUserRequest {
