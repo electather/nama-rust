@@ -144,11 +144,7 @@ impl FromStr for IpRange {
         let (network, prefix_len) = range
             .split_once('/')
             .map_or((range, None), |(network, len)| (network, Some(len)));
-        let network = network
-            .parse::<IpAddr>()
-            .ok()
-            .ok_or_else(invalid)?
-            .to_canonical();
+        let network = network.parse::<IpAddr>().ok().ok_or_else(invalid)?;
         let width = bits(network).1;
         let prefix_len = match prefix_len {
             None => width,
@@ -158,9 +154,19 @@ impl FromStr for IpRange {
                 .filter(|&len| len <= width)
                 .ok_or_else(invalid)?,
         };
-        Ok(Self {
-            network,
-            prefix_len,
+        // `contains` compares an IPv4 address mapped into IPv6 as that IPv4 address, so a range
+        // within the mapped block becomes the IPv4 range it maps, its prefix less the 96 bits
+        // of the mapping.
+        let canonical = network.to_canonical();
+        Ok(match prefix_len.checked_sub(96) {
+            Some(prefix_len) if canonical != network => Self {
+                network: canonical,
+                prefix_len,
+            },
+            _ => Self {
+                network,
+                prefix_len,
+            },
         })
     }
 }

@@ -167,7 +167,10 @@ fn a_plugins_other_keys_are_its_settings() {
 #[test]
 fn trusted_proxies_are_ip_addresses_or_cidr_ranges() {
     Jail::expect_with(|jail| {
-        jail.create_file("nama.toml", r#"trusted_proxies = ["10.0.0.0/8", "::1"]"#)?;
+        jail.create_file(
+            "nama.toml",
+            r#"trusted_proxies = ["10.0.0.0/8", "::1", "::ffff:192.168.0.0/112"]"#,
+        )?;
 
         let config = Config::load(None).unwrap();
 
@@ -184,6 +187,11 @@ fn trusted_proxies_are_ip_addresses_or_cidr_ranges() {
             "an IPv4 peer of a dual-stack socket"
         );
         assert!(trusted("::1"));
+        assert!(
+            trusted("192.168.4.5"),
+            "a range written as IPv4 mapped into IPv6"
+        );
+        assert!(!trusted("192.169.0.1"));
         assert!(!trusted("11.0.0.1"));
         assert!(!trusted("::2"));
         Ok(())
