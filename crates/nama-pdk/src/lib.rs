@@ -63,7 +63,10 @@ pub fn manifest(id: &str, version: &str) -> Manifest {
 )]
 #[unsafe(no_mangle)]
 pub extern "C" fn _initialize() {
-    std::panic::set_hook(Box::new(|info| set_error(&info.to_string())));
+    // A panic's message puts its location on a line of its own; the Server logs it on one.
+    std::panic::set_hook(Box::new(|info| {
+        set_error(&info.to_string().replace('\n', " "));
+    }));
 }
 
 /// Makes `message` the error of the call in progress, as `plugin_fn` does for an `Err`. The trap

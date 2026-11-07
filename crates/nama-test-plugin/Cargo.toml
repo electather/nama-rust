@@ -13,6 +13,8 @@ crate-type = ["cdylib"]
 [features]
 # Builds the Plugin with a `nama-api` requirement no Server meets, so the Server refuses it.
 out-of-range = []
+# Builds the Plugin so its `manifest()` panics, to show the Server gets the panic's message.
+panic = []
 
 [dependencies]
 nama-pdk = { version = "0.1.0", path = "../nama-pdk" }

@@ -30,7 +30,9 @@ enum Refused {
     NotWasm,
     #[error("the Server could not load it: {0:#}")]
     Load(extism::Error),
-    #[error("its manifest() export failed: {0:#}")]
+    // The root cause is the Plugin's own error or panic message, or the trap; extism logs the
+    // wasm backtrace wrapped around it.
+    #[error("its manifest() export failed: {}", .0.root_cause())]
     Manifest(extism::Error),
     #[error("the Server panicked while loading it: {0}")]
     Panicked(String),
