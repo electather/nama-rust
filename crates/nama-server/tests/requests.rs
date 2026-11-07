@@ -11,7 +11,7 @@ use std::{collections::BTreeMap, fs, sync::Arc, time::Duration};
 
 use connectrpc::{
     ErrorCode,
-    client::{ClientConfig, HttpClient},
+    client::{ClientConfig, HttpClient, ServerStream},
 };
 use nama_plugin_api::settings::{SettingValue, Settings};
 use nama_plugin_tmdb::{
@@ -19,12 +19,12 @@ use nama_plugin_tmdb::{
     testing::{API_KEY, FakeTmdb},
 };
 use nama_proto::nama::v1::{
-    BrowseServiceClient, CreateLibraryRequest, CreateRequestRequest, CreateUserRequest,
-    EventServiceClient, EventType, GetRequestRequest, LibraryKind, LibraryServiceClient,
-    ListMoviesRequest, ListRequestsRequest, Permission, RefusalReason, Request,
-    RequestServiceClient, RequestState, ScanLibraryRequest, SessionDelivery, SetPermissionsRequest,
-    SignInRequest, SignInServiceClient, SubscribeRequest, SubscribeResponse, UserServiceClient,
-    event, subscribe_response,
+    __buffa::view::SubscribeResponseView, BrowseServiceClient, CreateLibraryRequest,
+    CreateRequestRequest, CreateUserRequest, EventServiceClient, EventType, GetRequestRequest,
+    LibraryKind, LibraryServiceClient, ListMoviesRequest, ListRequestsRequest, Permission,
+    RefusalReason, Request, RequestServiceClient, RequestState, ScanLibraryRequest,
+    SessionDelivery, SetPermissionsRequest, SignInRequest, SignInServiceClient, SubscribeRequest,
+    SubscribeResponse, UserServiceClient, event, subscribe_response,
 };
 use nama_server::{config::Config, plugins::Registry};
 use refused::assert_refused;
@@ -362,33 +362,14 @@ async fn without_view_requests_the_events_stream_shows_only_the_users_own_reques
     let fixture = Fixture::start().await;
     let (ada, as_ada) = fixture.user("Ada", &MEMBER).await;
     let (_, as_grace) = fixture.user("Grace", &[Permission::RequestMovie]).await;
-    let only_requests = SubscribeRequest {
-        types: vec![
-            EventType::EVENT_TYPE_REQUEST_CREATED.into(),
-            EventType::EVENT_TYPE_REQUESTER_ADDED.into(),
-        ],
-        ..Default::default()
-    };
-    let mut graces_events = EventServiceClient::new(HttpClient::plaintext(), as_grace.clone())
-        .subscribe(only_requests)
-        .await
-        .unwrap();
+    let mut graces_events = subscribe_to_requests(as_grace.clone()).await;
 
     ask(&requests(as_ada.clone()), HEAT).await;
     let shared = ask(&requests(as_ada), DUNE).await;
     ask(&requests(as_grace), DUNE).await;
-    let next = tokio::time::timeout(WAIT, graces_events.message::<SubscribeResponse>())
-        .await
-        .expect("timed out waiting for an event")
-        .unwrap()
-        .expect("the stream ended")
-        .to_owned_message()
-        .message;
+    let event = next_event(&mut graces_events).await;
 
-    let Some(subscribe_response::Message::Event(event)) = next else {
-        panic!("not an event: {next:?}");
-    };
-    let Some(event::Event::RequesterAdded(added)) = event.event else {
+    let event::Event::RequesterAdded(added) = event else {
         panic!("Ada's Requests reached Grace first: {event:?}");
     };
     assert_eq!(added.request.as_option().map(|r| r.id), Some(shared.id));
@@ -396,4 +377,62 @@ async fn without_view_requests_the_events_stream_shows_only_the_users_own_reques
         added.request.as_option().map(requester_ids),
         Some(vec![ada, added.user_id])
     );
+}
+
+#[tokio::test]
+async fn with_view_requests_the_events_stream_shows_everyones_requests() {
+    let fixture = Fixture::start().await;
+    let (_, as_ada) = fixture.user("Ada", &MEMBER).await;
+    let (grace, as_grace) = fixture.user("Grace", &[Permission::RequestMovie]).await;
+    let mut adas_events = subscribe_to_requests(as_ada).await;
+
+    let graces = ask(&requests(as_grace), HEAT).await;
+    let event = next_event(&mut adas_events).await;
+
+    let event::Event::RequestCreated(created) = event else {
+        panic!("not Grace's new Request: {event:?}");
+    };
+    assert_eq!(created.request.as_option(), Some(&graces));
+    assert_eq!(requester_ids(&graces), [grace]);
+}
+
+type Subscription = ServerStream<hyper::body::Incoming, SubscribeResponseView<'static>>;
+
+/// Subscribes to Request events, as the User `config` calls as.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn subscribe_to_requests(config: ClientConfig) -> Subscription {
+    let only_requests = SubscribeRequest {
+        types: vec![
+            EventType::EVENT_TYPE_REQUEST_CREATED.into(),
+            EventType::EVENT_TYPE_REQUESTER_ADDED.into(),
+        ],
+        ..Default::default()
+    };
+    EventServiceClient::new(HttpClient::plaintext(), config)
+        .subscribe(only_requests)
+        .await
+        .unwrap()
+}
+
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn next_event(subscription: &mut Subscription) -> event::Event {
+    let next = tokio::time::timeout(WAIT, subscription.message::<SubscribeResponse>())
+        .await
+        .expect("timed out waiting for an event")
+        .unwrap()
+        .expect("the stream ended")
+        .to_owned_message()
+        .message;
+    let Some(subscribe_response::Message::Event(event)) = next else {
+        panic!("not an event: {next:?}");
+    };
+    event.event.expect("an event with nothing in it")
 }

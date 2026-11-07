@@ -157,6 +157,9 @@ const MANAGE_LIBRARIES: Access = Access::Needs(Permission::ManageLibraries);
 /// Managing Users and their Devices.
 const MANAGE_USERS: Access = Access::Needs(Permission::ManageUsers);
 
+/// Asking for Movies.
+const REQUEST_MOVIE: Access = Access::Needs(Permission::RequestMovie);
+
 /// Who may call each RPC, by path; one missing here is refused to everyone (see AGENTS.md, "New
 /// RPCs start closed"). Media has its own entry, [`MEDIA`].
 // One row per RPC reads as a table; rustfmt would split most rows over four lines.
@@ -199,7 +202,7 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::USER_SERVICE_REVOKE_DEVICE_SPEC.procedure,            Access::SignedIn),
     (proto::USER_SERVICE_CHANGE_PASSWORD_SPEC.procedure,          Access::SignedIn),
     (proto::USER_SERVICE_RESET_PASSWORD_SPEC.procedure,           MANAGE_USERS),
-    (proto::REQUEST_SERVICE_CREATE_REQUEST_SPEC.procedure,        Access::Needs(Permission::RequestMovie)),
+    (proto::REQUEST_SERVICE_CREATE_REQUEST_SPEC.procedure,        REQUEST_MOVIE),
     (proto::REQUEST_SERVICE_LIST_REQUESTS_SPEC.procedure,         Access::SignedIn),
     (proto::REQUEST_SERVICE_GET_REQUEST_SPEC.procedure,           Access::SignedIn),
 ];

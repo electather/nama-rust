@@ -48,6 +48,7 @@ pub(crate) enum Error {
     Database(#[from] sqlx::Error),
 }
 
+/// The Server's Requests, which publishes what changes about them.
 #[derive(Debug, Clone)]
 pub(crate) struct Requests {
     db: Arc<Database>,
@@ -63,6 +64,7 @@ pub(crate) fn visible_to(viewer: &User) -> Option<i64> {
 }
 
 impl Requests {
+    /// The Requests in `db`, looking Movies up through `matcher` and publishing on `events`.
     pub(crate) fn new(db: Arc<Database>, matcher: Matcher, events: EventBus) -> Self {
         Self {
             contents: Contents::new(Arc::clone(&db)),

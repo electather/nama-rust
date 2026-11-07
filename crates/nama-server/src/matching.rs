@@ -224,10 +224,12 @@ impl Matcher {
         id: &ExternalId,
     ) -> Result<Summary, ManualError> {
         let named = self.named_like(scan, item).await?;
-        let refusal = |miss: Miss| miss.looking_up(id);
         let outcomes = match named.name.kind() {
             TitleKind::Movie => {
-                let movie = self.fetch_movie(id).await.map_err(refusal)?;
+                let movie = self
+                    .fetch_movie(id)
+                    .await
+                    .map_err(|miss| miss.looking_up(id))?;
                 named
                     .items
                     .iter()
@@ -235,7 +237,10 @@ impl Matcher {
                     .collect()
             }
             TitleKind::Show => {
-                let show = self.fetch_show(id).await.map_err(refusal)?;
+                let show = self
+                    .fetch_show(id)
+                    .await
+                    .map_err(|miss| miss.looking_up(id))?;
                 let episodes: Vec<PendingEpisode> = named
                     .items
                     .iter()
