@@ -55,7 +55,7 @@ use tokio::sync::OwnedMutexGuard;
 use crate::{
     artwork::{self, Artwork},
     config::Config,
-    contents::{Contents, Episode, Item, Movie, MovieOf, Show, Unmatched, Version},
+    contents::{Contents, Episode, Item, MatchedTo, Movie, Show, Unmatched, Version},
     db::Database,
     events::{EventBus, Filter},
     libraries::{self, Kind, Libraries, Library},
@@ -830,7 +830,7 @@ impl BrowseService for BrowseServiceHandler {
 
     async fn list_episodes(
         &self,
-        _ctx: RequestContext,
+        ctx: RequestContext,
         request: ServiceRequest<'_, ListEpisodesRequest>,
     ) -> ServiceResult<ListEpisodesResponse> {
         let request = request.to_owned_message();
@@ -842,11 +842,18 @@ impl BrowseService for BrowseServiceHandler {
             .seasons
             .remove(&i64::from(number))
             .ok_or_else(|| ConnectError::not_found("the Show has no such Season in the Library"))?;
+        let ids: Vec<&ExternalId> = season.episodes.iter().map(|episode| &episode.id).collect();
+        let states = self
+            .watch_states
+            .of_episodes(caller(&ctx)?.user.id, &ids)
+            .await
+            .map_err(|err| database_failed(&err))?;
         Response::ok(ListEpisodesResponse {
             episodes: season
                 .episodes
                 .into_iter()
-                .map(|episode| episode_to_proto(number, episode))
+                .zip(states)
+                .map(|(episode, state)| episode_to_proto(number, episode, state))
                 .collect(),
             ..Default::default()
         })
@@ -877,18 +884,20 @@ impl WatchStateService for WatchStateServiceHandler {
                     "the duration must be more than zero and less than 2^63 milliseconds",
                 )
             })?;
-        let movie_of = self.contents.movie_of(request.version_id).await;
-        match movie_of.map_err(|err| database_failed(&err))? {
-            MovieOf::NoSuchVersion => {
+        let matched_to = self.contents.matched_to(request.version_id).await;
+        let reported = match matched_to.map_err(|err| database_failed(&err))? {
+            MatchedTo::NoSuchVersion => {
                 return Err(ConnectError::not_found("there is no such Version"));
             }
-            MovieOf::NoMatchedMovie => {}
-            MovieOf::Movie(movie) => self
-                .watch_states
-                .report_movie(user, &movie, progress)
-                .await
-                .map_err(|err| database_failed(&err))?,
-        }
+            MatchedTo::Nothing => Ok(()),
+            MatchedTo::Movie(movie) => self.watch_states.report_movie(user, &movie, progress).await,
+            MatchedTo::Episodes(episodes) => {
+                self.watch_states
+                    .report_episodes(user, &episodes, progress)
+                    .await
+            }
+        };
+        reported.map_err(|err| database_failed(&err))?;
         Response::ok(ReportProgressResponse::default())
     }
 }
@@ -1272,8 +1281,13 @@ fn show_to_proto(show: &Show) -> proto::Show {
     }
 }
 
-/// An Episode of Season `season` as clients see it.
-fn episode_to_proto(season: u32, episode: Episode) -> proto::Episode {
+/// An Episode of Season `season` as clients see it, with the caller's Watch State of it, if
+/// they've started it.
+fn episode_to_proto(
+    season: u32,
+    episode: Episode,
+    watch_state: Option<WatchState>,
+) -> proto::Episode {
     proto::Episode {
         id: external_id_to_proto(episode.id).into(),
         season_number: season,
@@ -1285,6 +1299,7 @@ fn episode_to_proto(season: u32, episode: Episode) -> proto::Episode {
             .runtime_minutes
             .and_then(|minutes| u32::try_from(minutes).ok()),
         versions: episode.versions.iter().map(version_to_proto).collect(),
+        watch_state: watch_state.map(watch_state_to_proto).into(),
         ..Default::default()
     }
 }

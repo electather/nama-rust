@@ -50,10 +50,10 @@ pub const WATCH_STATE_SERVICE_REPORT_PROGRESS_SPEC: ::connectrpc::Spec = ::conne
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
 /// Remembering how far the signed-in caller has got through what they play.
 ///
-/// Watch State is kept per User against the Movie a Version is Matched to, by the Movie's external
-/// id, never against the file. So it survives rescans, renames and new Versions, and every Version
-/// of a Movie shares it. An item that isn't Matched has none. `BrowseService` returns it with each
-/// Movie.
+/// Watch State is kept per User against the Movie or Episode a Version is Matched to, by its
+/// external id, never against the file. So it survives rescans, renames and new Versions, and every
+/// Version of a Movie or Episode shares it. An Item that isn't Matched has none. `BrowseService`
+/// returns it with each Movie and Episode.
 ///
 /// # Implementing handlers
 ///
@@ -105,10 +105,13 @@ pub const WATCH_STATE_SERVICE_REPORT_PROGRESS_SPEC: ::connectrpc::Spec = ::conne
 #[allow(clippy::type_complexity)]
 pub trait WatchStateService: Send + Sync + 'static {
     /// Reports how far the caller has got through a Version they are playing, and stores it against
-    /// the Movie the Version is Matched to. The Movie is marked played once the position passes 90% of
-    /// the duration, and stays played if it is played again from the start. A Version whose item
-    /// isn't Matched to a Movie is accepted, and nothing is stored. Fails with `not_found` if there is
-    /// no such Version, and with `invalid_argument` if the duration is zero.
+    /// the Movie or Episodes the Version is Matched to. A file holding several Episodes plays as one:
+    /// each Episode, in episode order, gets an even share of the duration, and the position fills
+    /// the shares in turn. An Episode whose share the position hasn't reached is left alone. A Movie
+    /// or Episode is marked played once its position passes 90% of its duration, and stays played if
+    /// it is played again from the start. A Version whose Items aren't Matched is accepted, and
+    /// nothing is stored. Fails with `not_found` if there is no such Version, and with
+    /// `invalid_argument` if the duration is zero.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
