@@ -1,8 +1,8 @@
 // AI factory: ready-for-agent issues → implement → review → PR → CI → squash-merge.
 // Run from the repo root: `npm --prefix .sandcastle run factory`  (the script cd's back to the root)
 import { execFileSync, spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync } from "node:fs";
-import { homedir } from "node:os";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { homedir, hostname } from "node:os";
 import { setTimeout as sleep } from "node:timers/promises";
 import * as sandcastle from "@ai-hero/sandcastle";
 import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
@@ -14,6 +14,7 @@ const STOP_FILE = ".sandcastle/STOP";
 const MODEL = "claude-opus-5-5";
 const READY = "ready-for-agent";
 const HUMAN = "ready-for-human";
+const WORKING = "agent-working"; // on while the factory has the issue; off when it merges, is handed back or crashes
 const BASE = "main";
 
 type Issue = { number: number; title: string; parent?: number };
@@ -31,6 +32,21 @@ const cacheRoot = `${homedir()}/.cache/nama-sandcastle`;
 const cargoCache = `${cacheRoot}/cargo-registry`;
 const pnpmStore = `${cacheRoot}/pnpm-store`;
 for (const dir of [cargoCache, pnpmStore]) mkdirSync(dir, { recursive: true });
+
+// One factory per machine: they'd share the caches above and race on the same local branches.
+const PID_FILE = `${cacheRoot}/factory.pid`;
+const alive = (pid: number) => { try { process.kill(pid, 0); return true; } catch { return false; } };
+try {
+  writeFileSync(PID_FILE, String(process.pid), { flag: "wx" });
+} catch {
+  const pid = Number(readFileSync(PID_FILE, "utf8"));
+  if (alive(pid)) {
+    console.error(`Another factory is already running on this machine (pid ${pid}).`);
+    process.exit(1);
+  }
+  writeFileSync(PID_FILE, String(process.pid)); // stale: its run was killed
+}
+process.on("exit", () => rmSync(PID_FILE, { force: true }));
 const sandbox = () =>
   docker({
     mounts: [
@@ -274,9 +290,22 @@ async function pipeline(issue: Issue) {
   }
 }
 
+// Factories on other machines: creating a ref on origin is atomic, so only one of them gets an issue.
+// The claim is a fresh commit each time: pushing a commit the ref already points at would "succeed" as up to date.
+const claimRef = (i: Issue) => `refs/claims/issue-${i.number}`;
+function claim(issue: Issue): boolean {
+  const commit = git("commit-tree", `origin/${BASE}^{tree}`, "-p", `origin/${BASE}`,
+    "-m", `claim #${issue.number} by ${process.pid}@${hostname()} ${Date.now()}`);
+  return ok("git", "push", `--force-with-lease=${claimRef(issue)}:`, "origin", `${commit}:${claimRef(issue)}`);
+}
+function release(issue: Issue) {
+  ok("gh", "issue", "edit", String(issue.number), "--remove-label", WORKING);
+  ok("git", "push", "origin", "--delete", claimRef(issue));
+}
+
 // Never shrinks: a merged issue stays open for a few seconds (`Closes #N` lags), so it mustn't be picked again.
 const taken = new Set<number>();
-let running = 0;
+const inFlight = new Set<Issue>();
 let crashed = false;
 
 // One of MAX_PARALLEL slots: as soon as its issue is merged or handed back, it picks the next one.
@@ -287,14 +316,19 @@ async function worker() {
     closeFinishedParents();
     const issue = readyIssues().find((i) => !taken.has(i.number));
     if (!issue) {
-      if (running === 0) return; // nothing in flight can unblock anything: done
+      if (inFlight.size === 0) return; // nothing in flight can unblock anything: done
       await sleep(60_000); // an in-flight merge may unblock an issue
       continue;
     }
     taken.add(issue.number);
-    running++;
-    console.log(`\n=== #${issue.number} ${issue.title} (${running}/${MAX_PARALLEL} running) ===`);
+    if (!claim(issue)) {
+      console.log(`  #${issue.number} is being built by another factory; skipping`);
+      continue;
+    }
+    inFlight.add(issue);
+    console.log(`\n=== #${issue.number} ${issue.title} (${inFlight.size}/${MAX_PARALLEL} running) ===`);
     try {
+      gh("issue", "edit", String(issue.number), "--add-label", WORKING);
       await pipeline(issue);
     } catch (e) {
       if (e instanceof Blocked) handBack(issue, e.message);
@@ -304,10 +338,17 @@ async function worker() {
         crashed = true;
       }
     } finally {
-      running--;
+      release(issue);
+      inFlight.delete(issue);
     }
   }
 }
+
+// Ctrl-C: let go of claimed issues so the next run (here or elsewhere) can resume them.
+process.on("SIGINT", () => {
+  for (const issue of inFlight) release(issue);
+  process.exit(130);
+});
 
 await Promise.all(Array.from({ length: MAX_PARALLEL }, worker));
 console.log(crashed ? "Stopped after a crash." : existsSync(STOP_FILE) ? `${STOP_FILE} found: stopped.` : "Queue empty. Done.");
