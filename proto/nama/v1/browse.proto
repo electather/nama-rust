@@ -34,8 +34,9 @@ service BrowseService {
   rpc GetShow(GetShowRequest) returns (GetShowResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
-  // Lists one Season's Episodes, by episode number, each with its Versions. Fails like `GetShow`,
-  // or with `not_found` if the Show has no such Season in the Library.
+  // Lists one Season's Episodes, by episode number, each with its Versions and the caller's Watch
+  // State. Fails like `GetShow`, or with `not_found` if the Show has no such Season in the
+  // Library.
   rpc ListEpisodes(ListEpisodesRequest) returns (ListEpisodesResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
@@ -131,6 +132,9 @@ message Episode {
   // The files the Episode is available in, by path. There is at least one. A file holding two
   // Episodes is a Version of each.
   repeated Version versions = 8;
+  // The caller's progress through it, kept across all its Versions. Unset if they haven't
+  // started it.
+  WatchState watch_state = 9;
 }
 
 message ListShowsRequest {

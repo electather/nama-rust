@@ -394,8 +394,9 @@ pub trait BrowseService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
-    /// Lists one Season's Episodes, by episode number, each with its Versions. Fails like `GetShow`,
-    /// or with `not_found` if the Show has no such Season in the Library.
+    /// Lists one Season's Episodes, by episode number, each with its Versions and the caller's Watch
+    /// State. Fails like `GetShow`, or with `not_found` if the Show has no such Season in the
+    /// Library.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///

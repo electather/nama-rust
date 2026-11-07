@@ -168,16 +168,18 @@ pub(crate) struct Version {
     pub(crate) size: i64,
 }
 
-/// What [`Contents::movie_of`] found a Version Matched to.
+/// What [`Contents::matched_to`] found a Version Matched to.
 #[derive(Debug)]
-pub(crate) enum MovieOf {
+pub(crate) enum MatchedTo {
     /// No stored file has that id.
     NoSuchVersion,
-    /// The file holds no Item Matched to a Movie: its Item is Unmatched, not Matched yet, or an
-    /// Episode.
-    NoMatchedMovie,
+    /// The file holds a Movie or nothing, and no Match: its Item is Unmatched or not Matched yet.
+    Nothing,
     /// The Movie's id, as browsing identifies it: see [`primary_id`].
     Movie(ExternalId),
+    /// Each Episode the file holds, by season and episode number: its id, as browsing identifies
+    /// it, or `None` if its Item isn't Matched.
+    Episodes(Vec<Option<ExternalId>>),
 }
 
 /// A Show some Items of a Library are Matched to Episodes of, with the metadata the Match of its
@@ -342,31 +344,38 @@ impl Contents {
         .await
     }
 
-    /// The Movie the stored file `version` holds an Item Matched to.
-    pub(crate) async fn movie_of(&self, version: i64) -> Result<MovieOf, sqlx::Error> {
+    /// The Movie or Episodes the Items of the stored file `version` are Matched to.
+    pub(crate) async fn matched_to(&self, version: i64) -> Result<MatchedTo, sqlx::Error> {
         let rows = sqlx::query!(
-            r#"SELECT item_matches.tmdb_id, item_matches.imdb_id, item_matches.tvdb_id
+            r#"SELECT library_items.kind AS "kind?: ItemKind", item_matches.tmdb_id, item_matches.imdb_id,
+                      item_matches.tvdb_id
                FROM library_files
                LEFT JOIN library_items ON library_items.file_id = library_files.id
-                                      AND library_items.kind = 'movie'
                LEFT JOIN item_matches ON item_matches.item_id = library_items.id
                                      AND item_matches.state = 'matched'
-               WHERE library_files.id = ?"#,
+               WHERE library_files.id = ?
+               ORDER BY library_items.season, library_items.episode"#,
             version
         )
         .fetch_all(self.db.reader())
         .await?;
-        if rows.is_empty() {
-            return Ok(MovieOf::NoSuchVersion);
-        }
-        let movie = rows.into_iter().find_map(|row| {
+        let Some(first) = rows.first() else {
+            return Ok(MatchedTo::NoSuchVersion);
+        };
+        let holds_episodes = first.kind == Some(ItemKind::Episode);
+        let mut ids = rows.into_iter().map(|row| {
             primary_id(ExternalIds {
                 tmdb: row.tmdb_id,
                 imdb: row.imdb_id,
                 tvdb: row.tvdb_id,
             })
         });
-        Ok(movie.map_or(MovieOf::NoMatchedMovie, MovieOf::Movie))
+        if holds_episodes {
+            return Ok(MatchedTo::Episodes(ids.collect()));
+        }
+        Ok(ids
+            .find_map(|id| id)
+            .map_or(MatchedTo::Nothing, MatchedTo::Movie))
     }
 
     /// The absolute path of the Version `version`, a stored file some Item of which is Matched, or
