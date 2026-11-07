@@ -203,14 +203,14 @@ function CantPlay({ back }: { back: LinkOptions }) {
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center px-6">
       <h1 className="text-2xl font-semibold tracking-tight text-balance">
-        This file can’t play here
+        This Version can’t play here
       </h1>
       <p className="mt-2 text-muted-foreground">
-        This browser can’t play this file. Another browser, or another Version of it, may play.
+        This browser can’t play it. Another browser, or another Version, may play.
       </p>
       <div className="mt-6 -ms-4">
         <BackLink back={back} variant="ghost">
-          Back to the title
+          Back
         </BackLink>
       </div>
     </main>

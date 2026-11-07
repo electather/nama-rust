@@ -112,10 +112,10 @@ const shortcuts: Record<string, Shortcut> = {
   },
 };
 
-/** The focused elements that already use a key themselves: Space presses a link or button, and
+/** The focused elements that already use a key themselves: Space presses a button, and
  * the arrows move a slider. */
 const keysFocusUses: Record<string, string> = {
-  " ": "a, button",
+  " ": "button",
   ArrowLeft: "input",
   ArrowRight: "input",
   ArrowUp: "input",
@@ -165,21 +165,26 @@ export function useShortcuts(
   }, [videoRef, playerRef, back, wake, navigate]);
 }
 
+/** Plays a paused video, or pauses a playing one. */
 export function togglePlay(video: HTMLVideoElement) {
   // A refused play, such as autoplay the browser blocked, leaves it paused with Play showing.
   if (video.paused) video.play().catch(() => {});
   else video.pause();
 }
 
+/** Mutes the video, or unmutes it. */
 export function toggleMute(video: HTMLVideoElement) {
   video.muted = !video.muted;
 }
 
+/** Sets the volume, kept between 0 and 1; at 0 the video is muted, so the controls show it. */
 export function setVolume(video: HTMLVideoElement, level: number) {
-  video.volume = Math.min(1, Math.max(0, level));
+  // Rounded, so that stepping down by 0.1 lands on 0 and not a float's remainder above it.
+  video.volume = Math.min(1, Math.max(0, Math.round(level * 100) / 100));
   video.muted = video.volume === 0;
 }
 
+/** Makes the player full screen, or leaves full screen. */
 export function toggleFullscreen(player: HTMLElement | null) {
   if (document.fullscreenElement) void document.exitFullscreen();
   else void player?.requestFullscreen();

@@ -42,6 +42,6 @@ test("a file the browser can't play shows a message instead of the player", asyn
 
   fireEvent.error(await findVideo());
 
-  expect(await screen.findByText(/This browser can’t play this file/u)).toBeDefined();
+  expect(await screen.findByText("This Version can’t play here")).toBeDefined();
   expect(screen.queryByLabelText("The Matrix")).toBeNull();
 });
