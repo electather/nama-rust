@@ -24,6 +24,8 @@ export function foldersTyped(typed: string) {
     .filter((folder) => folder !== "");
 }
 
+// ponytail: the Server names the field only in its message, as for `invalidField`. Read it from
+// Connect error details instead if the Server starts sending them.
 /** Why the Server refused to `attempt` (such as "create the Library"), next to its field. */
 export function libraryErrors(error: unknown, attempt: string): FormErrors {
   const message = serverMessage(error);

@@ -2,8 +2,7 @@ import { useMutation } from "@connectrpc/connect-query";
 import { useQuery } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
-import type { Library } from "@/gen/nama/v1/library_pb";
-import { LibraryService } from "@/gen/nama/v1/library_pb";
+import { type Library, LibraryService } from "@/gen/nama/v1/library_pb";
 import { type ScanState, scanQuery } from "@/lib/events";
 
 /** How the Library `libraryId`'s scan is going, as its Events say. Nothing before the first. */

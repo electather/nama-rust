@@ -98,7 +98,7 @@ function FindAMatch({ item, libraryId }: { item: UnmatchedItem; libraryId: bigin
         </div>
         <Button type="submit">Search</Button>
       </form>
-      <Found search={search} item={item} libraryId={libraryId} />
+      <SearchResults search={search} item={item} libraryId={libraryId} />
     </div>
   );
 }
@@ -109,7 +109,7 @@ function searchTyped(typed: FormData, kind: TitleKind) {
 }
 
 /** The titles the metadata source found for `search`, to Match `item` to. */
-function Found({
+function SearchResults({
   search,
   item,
   libraryId,

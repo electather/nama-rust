@@ -2,7 +2,7 @@ import type { Transport } from "@connectrpc/connect";
 import { createQueryOptions, useSuspenseQuery, useTransport } from "@connectrpc/connect-query";
 import { useSuspenseQueries } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { useId, useState } from "react";
+import { type ReactNode, useId, useState } from "react";
 
 import { Page } from "@/components/page";
 import { UnmatchedRow } from "@/components/unmatched-item";
@@ -104,7 +104,7 @@ function LibraryFilter({
           const library = event.target.value;
           void navigate({ search: library === "" ? {} : { library } });
         }}
-        className="h-9 rounded-lg border border-input bg-background px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/25"
+        className="h-9 rounded-lg border border-input bg-transparent px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/25"
       >
         <option value="">All Libraries</option>
         {libraries.map((library) => (
@@ -124,7 +124,7 @@ function LibrarySection({
 }: {
   library: Library;
   list: ListUnmatchedItemsResponse | undefined;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   const heading = useId();
   return (

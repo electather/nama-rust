@@ -16,9 +16,11 @@ import { type ListUnmatchedItemsResponse, MatchService } from "@/gen/nama/v1/mat
 /** The latest scan Event about a Library, if one arrived since the page was opened. */
 export type ScanState = ScanStarted | ScanProgress | ScanFinished;
 
+const SCANS = "scan";
+
 /** Where the latest scan Event about the Library `libraryId` is kept. Only Events fill it. */
 export function scanQuery(libraryId: bigint) {
-  return queryOptions<ScanState>({ queryKey: ["scan", String(libraryId)], queryFn: skipToken });
+  return queryOptions<ScanState>({ queryKey: [SCANS, String(libraryId)], queryFn: skipToken });
 }
 
 /** The query key of the Library `libraryId`'s Unmatched Items, or every Library's without one. */
@@ -52,27 +54,33 @@ export function useEvents() {
 async function follow(transport: Transport, queryClient: QueryClient, signal: AbortSignal) {
   try {
     const responses = createClient(EventService, transport).subscribe({}, { signal });
-    for await (const response of responses) take(response, queryClient);
+    for await (const response of responses) apply(response, queryClient);
   } catch {
     // The Server went away or hung up. Subscribing again below is all there is to do.
   }
   setTimeout(() => {
     if (signal.aborted) return;
-    // Events may have been missed while not listening.
-    void queryClient.resetQueries({ queryKey: ["scan"] });
-    void queryClient.invalidateQueries();
+    forgetMissed(queryClient);
     void follow(transport, queryClient, signal);
   }, RESUBSCRIBE_MS);
 }
 
-function take({ message }: SubscribeResponse, queryClient: QueryClient) {
+function apply({ message }: SubscribeResponse, queryClient: QueryClient) {
   if (message.case === "event") {
     recordScan(message.value, queryClient);
     refreshUnmatched(message.value, queryClient);
   } else if (message.case === "lagged") {
-    // Events were dropped, so anything shown may be out of date.
-    void queryClient.invalidateQueries();
+    forgetMissed(queryClient);
   }
+}
+
+/**
+ * Refetches everything after Events were missed. Scans can't be refetched, so what's known of them
+ * is forgotten rather than left stuck mid-scan.
+ */
+function forgetMissed(queryClient: QueryClient) {
+  void queryClient.resetQueries({ queryKey: [SCANS] });
+  void queryClient.invalidateQueries();
 }
 
 function recordScan({ event }: Event, queryClient: QueryClient) {
@@ -94,10 +102,17 @@ function refreshUnmatched({ event }: Event, queryClient: QueryClient) {
   }
 }
 
-/** Takes the Item `itemId` off its Library's cached Unmatched Items, without a refetch. */
+/**
+ * Takes the Item `itemId` off its Library's Unmatched Items at once, then refetches them. That
+ * also restarts a refetch begun before this Event, whose answer would bring the Item back.
+ */
+// ponytail: one refetch per Event while the list is on screen; debounce if a big scan's burst of
+// Matches turns out to load the Server.
 function dropUnmatched(queryClient: QueryClient, libraryId: bigint, itemId: bigint) {
+  const queryKey = unmatchedKey(libraryId);
   queryClient.setQueriesData<ListUnmatchedItemsResponse>(
-    { queryKey: unmatchedKey(libraryId) },
+    { queryKey },
     (list) => list && { ...list, items: list.items.filter((item) => item.itemId !== itemId) },
   );
+  void queryClient.invalidateQueries({ queryKey });
 }

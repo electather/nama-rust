@@ -101,6 +101,26 @@ test("setting a Match takes the Item off Needs a Match", async () => {
   });
 });
 
+test("an Item Matched elsewhere leaves Needs a Match when its Event arrives", async () => {
+  const events = eventFeed();
+  let items: MessageInitShape<typeof UnmatchedItemSchema>[] = [
+    { itemId: 7n, path: "/srv/films/Alien.1979.mkv", kind: TitleKind.MOVIE, title: "Alien" },
+  ];
+  openApp(
+    "/admin/needs-a-match",
+    adminServer(events.stream, (router) => {
+      router.service(MatchService, { listUnmatchedItems: () => ({ items }) });
+    }),
+  );
+  await screen.findByText("/srv/films/Alien.1979.mkv");
+
+  // Matched automatically, or by another Admin.
+  items = [];
+  events.send({ event: { case: "itemMatched", value: { libraryId: 1n, itemId: 7n } } });
+
+  expect(await screen.findByText("Everything is Matched.")).toBeDefined();
+});
+
 test("Needs a Match says when everything is Matched", async () => {
   openApp(
     "/admin/needs-a-match",
