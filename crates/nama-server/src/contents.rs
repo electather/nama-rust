@@ -347,7 +347,7 @@ impl Contents {
     /// The Movie or Episodes the Items of the stored file `version` are Matched to.
     pub(crate) async fn matched_to(&self, version: i64) -> Result<MatchedTo, sqlx::Error> {
         let rows = sqlx::query!(
-            r#"SELECT library_items.kind AS "kind?", item_matches.tmdb_id, item_matches.imdb_id,
+            r#"SELECT library_items.kind AS "kind?: ItemKind", item_matches.tmdb_id, item_matches.imdb_id,
                       item_matches.tvdb_id
                FROM library_files
                LEFT JOIN library_items ON library_items.file_id = library_files.id
@@ -362,7 +362,7 @@ impl Contents {
         let Some(first) = rows.first() else {
             return Ok(MatchedTo::NoSuchVersion);
         };
-        let holds_episodes = first.kind.as_deref() == Some("episode");
+        let holds_episodes = first.kind == Some(ItemKind::Episode);
         let mut ids = rows.into_iter().map(|row| {
             primary_id(ExternalIds {
                 tmdb: row.tmdb_id,

@@ -63,6 +63,7 @@ const THE_OFFICE_US: i64 = 2316;
 const TWO_HOURS: u64 = 7_200_000;
 /// An hour, in milliseconds: the length a test's player reports for the two-Episode file.
 const AN_HOUR: u64 = 3_600_000;
+/// A minute, in milliseconds.
 const MINUTE: u64 = 60_000;
 
 /// A Server with one Library, the TMDB Plugin enabled against a fake TMDB, and the clients a test

@@ -13,9 +13,11 @@ use sqlx::SqliteConnection;
 
 use crate::db::{Database, now};
 
-/// The `kind` of a Movie's Watch State, and of an Episode's. Their TMDB ids are separate id
-/// spaces, so the kind is part of the key.
+// The `kind` of a Watch State, part of its key since Movie and Episode TMDB ids are separate id
+// spaces.
+/// The `kind` of a Movie's Watch State.
 const MOVIE: &str = "movie";
+/// The `kind` of an Episode's Watch State.
 const EPISODE: &str = "episode";
 
 /// Reads and writes each User's Watch State.
@@ -164,7 +166,7 @@ impl WatchStates {
     async fn of(
         &self,
         user: i64,
-        kind: &str,
+        kind: &'static str,
         titles: &[&ExternalId],
     ) -> Result<Vec<Option<WatchState>>, sqlx::Error> {
         let rows = sqlx::query!(
@@ -200,7 +202,7 @@ impl WatchStates {
 async fn upsert(
     conn: &mut SqliteConnection,
     user: i64,
-    kind: &str,
+    kind: &'static str,
     titles: Vec<(String, Progress)>,
 ) -> Result<(), sqlx::Error> {
     let now = now();

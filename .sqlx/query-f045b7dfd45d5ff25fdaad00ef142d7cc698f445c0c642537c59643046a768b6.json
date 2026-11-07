@@ -1,10 +1,10 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT library_items.kind AS \"kind?\", item_matches.tmdb_id, item_matches.imdb_id,\n                      item_matches.tvdb_id\n               FROM library_files\n               LEFT JOIN library_items ON library_items.file_id = library_files.id\n               LEFT JOIN item_matches ON item_matches.item_id = library_items.id\n                                     AND item_matches.state = 'matched'\n               WHERE library_files.id = ?\n               ORDER BY library_items.season, library_items.episode",
+  "query": "SELECT library_items.kind AS \"kind?: ItemKind\", item_matches.tmdb_id, item_matches.imdb_id,\n                      item_matches.tvdb_id\n               FROM library_files\n               LEFT JOIN library_items ON library_items.file_id = library_files.id\n               LEFT JOIN item_matches ON item_matches.item_id = library_items.id\n                                     AND item_matches.state = 'matched'\n               WHERE library_files.id = ?\n               ORDER BY library_items.season, library_items.episode",
   "describe": {
     "columns": [
       {
-        "name": "kind?",
+        "name": "kind?: ItemKind",
         "ordinal": 0,
         "type_info": "Text",
         "origin": {
@@ -58,5 +58,5 @@
       true
     ]
   },
-  "hash": "18469dd87d6b8b125f4c05cd4fd0b32f616879f4258d826d9bf2ac622856ba7c"
+  "hash": "f045b7dfd45d5ff25fdaad00ef142d7cc698f445c0c642537c59643046a768b6"
 }
