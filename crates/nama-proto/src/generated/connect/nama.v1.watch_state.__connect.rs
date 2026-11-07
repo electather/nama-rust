@@ -6,6 +6,14 @@ pub type OwnedReportProgressRequestView = ::buffa::view::OwnedView<
 pub type OwnedReportProgressResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::ReportProgressResponseView<'static>,
 >;
+///Shorthand for `OwnedView<SetPlayedRequestView<'static>>`.
+pub type OwnedSetPlayedRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SetPlayedRequestView<'static>,
+>;
+///Shorthand for `OwnedView<SetPlayedResponseView<'static>>`.
+pub type OwnedSetPlayedResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SetPlayedResponseView<'static>,
+>;
 impl ::connectrpc::Encodable<crate::messages::nama::v1::ReportProgressResponse>
 for crate::messages::nama::v1::__buffa::view::ReportProgressResponseView<'_> {
     fn encode(
@@ -40,11 +48,51 @@ for ::buffa::view::OwnedView<
         )
     }
 }
+impl ::connectrpc::Encodable<crate::messages::nama::v1::SetPlayedResponse>
+for crate::messages::nama::v1::__buffa::view::SetPlayedResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::SetPlayedResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SetPlayedResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
 /// Full service name for this service.
 pub const WATCH_STATE_SERVICE_SERVICE_NAME: &str = "nama.v1.WatchStateService";
 /// Static [`Spec`](::connectrpc::Spec) for the `ReportProgress` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
 pub const WATCH_STATE_SERVICE_REPORT_PROGRESS_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
         "/nama.v1.WatchStateService/ReportProgress",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
+/// Static [`Spec`](::connectrpc::Spec) for the `SetPlayed` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const WATCH_STATE_SERVICE_SET_PLAYED_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.WatchStateService/SetPlayed",
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
@@ -134,6 +182,35 @@ pub trait WatchStateService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
+    /// Marks a Movie, an Episode, or every Episode of a Season or a Show that is Matched in a
+    /// Library, played or unplayed for the caller, without playing it. Marking played leaves the
+    /// position alone. Marking unplayed clears the Watch State, position and all, so it starts from
+    /// the beginning. Fails with `not_found` if there is no such Library, or nothing in it is
+    /// Matched to that Movie, Episode, Show or Season, and with `invalid_argument` if no target is
+    /// given, or a Movie is asked of a Shows Library or an Episode, Season or Show of a Movies
+    /// Library.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn set_played<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::SetPlayedRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::SetPlayedResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
 }
 /// Extension trait for registering a service implementation with a Router.
 ///
@@ -195,6 +272,35 @@ impl<S: WatchStateService> WatchStateServiceExt for S {
                 },
             )
             .with_spec(WATCH_STATE_SERVICE_REPORT_PROGRESS_SPEC)
+            .route_view(
+                WATCH_STATE_SERVICE_SERVICE_NAME,
+                "SetPlayed",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::SetPlayedRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::SetPlayedRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.set_played(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::SetPlayedResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(WATCH_STATE_SERVICE_SET_PLAYED_SPEC)
     }
 }
 /// Type-inference marker used by [`Router::add_service`](::connectrpc::Router::add_service).
@@ -255,6 +361,12 @@ impl<T: WatchStateService> ::connectrpc::Dispatcher for WatchStateServiceServer<
                         .with_spec(WATCH_STATE_SERVICE_REPORT_PROGRESS_SPEC),
                 )
             }
+            "SetPlayed" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(WATCH_STATE_SERVICE_SET_PLAYED_SPEC),
+                )
+            }
             _ => None,
         }
     }
@@ -290,6 +402,26 @@ impl<T: WatchStateService> ::connectrpc::Dispatcher for WatchStateServiceServer<
                         .encode::<
                             crate::messages::nama::v1::ReportProgressResponse,
                         >(format)
+                })
+            }
+            "SetPlayed" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::SetPlayedRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::SetPlayedRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::SetPlayedRequest,
+                    >::from_parts(&req, &body);
+                    svc.set_played(ctx, req)
+                        .await?
+                        .encode::<crate::messages::nama::v1::SetPlayedResponse>(format)
                 })
             }
             _ => ::connectrpc::dispatcher::codegen::unimplemented_unary(path),
@@ -459,6 +591,47 @@ where
                 &self.transport,
                 &self.config,
                 WATCH_STATE_SERVICE_REPORT_PROGRESS_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the SetPlayed RPC. Sends a request to /nama.v1.WatchStateService/SetPlayed.
+    pub async fn set_played(
+        &self,
+        request: crate::messages::nama::v1::SetPlayedRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::SetPlayedResponseView<'static>,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.set_played_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the SetPlayed RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn set_played_with_options(
+        &self,
+        request: crate::messages::nama::v1::SetPlayedRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::SetPlayedResponseView<'static>,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                WATCH_STATE_SERVICE_SET_PLAYED_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,

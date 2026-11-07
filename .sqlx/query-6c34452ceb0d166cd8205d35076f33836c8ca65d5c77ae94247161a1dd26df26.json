@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO watch_states\n             (user_id, kind, title_id, position_ms, duration_ms, played, updated_at)\n         VALUES (?, ?, ?, 0, 0, 1, ?)\n         ON CONFLICT (user_id, kind, title_id) DO UPDATE\n         SET played = 1, updated_at = excluded.updated_at",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "6c34452ceb0d166cd8205d35076f33836c8ca65d5c77ae94247161a1dd26df26"
+}

@@ -38,9 +38,10 @@ pub(crate) struct Progress {
 pub(crate) struct WatchState {
     /// How far in, in milliseconds.
     pub(crate) position_ms: i64,
-    /// How long the Movie or Episode is, in milliseconds, as the player last reported it.
+    /// How long the Movie or Episode is, in milliseconds, as the player last reported it. Zero if
+    /// no player has, as when it was marked played without being played.
     pub(crate) duration_ms: i64,
-    /// Whether the position has ever passed 90% of the duration.
+    /// Whether the position has ever passed 90% of the duration, or it was marked played.
     pub(crate) played: bool,
     /// When it last changed, in seconds since the Unix epoch.
     pub(crate) updated_at: i64,
@@ -139,6 +140,43 @@ impl WatchStates {
             .await
     }
 
+    /// Marks, as of now, the Movie with the id `movie` played or unplayed for the User `user`.
+    pub(crate) async fn mark_movie(
+        &self,
+        user: i64,
+        movie: &ExternalId,
+        played: bool,
+    ) -> Result<(), sqlx::Error> {
+        self.mark(user, MOVIE, &[movie], played).await
+    }
+
+    /// Marks, as of now, each of the Episodes with the ids `episodes` played or unplayed for the
+    /// User `user`, in one write.
+    pub(crate) async fn mark_episodes(
+        &self,
+        user: i64,
+        episodes: &[&ExternalId],
+        played: bool,
+    ) -> Result<(), sqlx::Error> {
+        self.mark(user, EPISODE, episodes, played).await
+    }
+
+    /// Marks, as of now, each of the Movies or Episodes of `kind` with the external ids `titles`
+    /// played or unplayed for the User `user`, in one write. Played keeps the position; unplayed
+    /// forgets the Watch State, so it starts from the beginning.
+    async fn mark(
+        &self,
+        user: i64,
+        kind: &'static str,
+        titles: &[&ExternalId],
+        played: bool,
+    ) -> Result<(), sqlx::Error> {
+        let titles: Vec<String> = titles.iter().map(ToString::to_string).collect();
+        self.db
+            .write(move |tx| Box::pin(mark_each(tx, user, kind, titles, played)))
+            .await
+    }
+
     /// The User `user`'s Watch State of each of the Movies with the ids `movies`, in the same
     /// order: `None` for a Movie they haven't started.
     pub(crate) async fn of_movies(
@@ -228,6 +266,70 @@ async fn upsert(
         .execute(&mut *conn)
         .await?;
     }
+    Ok(())
+}
+
+/// Marks, as of now, each Movie or Episode of `kind` with the external ids `titles` played or
+/// unplayed for the User `user`.
+async fn mark_each(
+    conn: &mut SqliteConnection,
+    user: i64,
+    kind: &'static str,
+    titles: Vec<String>,
+    played: bool,
+) -> Result<(), sqlx::Error> {
+    let now = now();
+    for title in titles {
+        if played {
+            mark_played(&mut *conn, user, kind, &title, now).await?;
+        } else {
+            forget(&mut *conn, user, kind, &title).await?;
+        }
+    }
+    Ok(())
+}
+
+/// Marks, as of `now`, the Movie or Episode of `kind` with the external id `title` played for the
+/// User `user`, keeping any position. One they haven't started is at 0 of an unknown duration, 0.
+async fn mark_played(
+    conn: &mut SqliteConnection,
+    user: i64,
+    kind: &'static str,
+    title: &str,
+    now: i64,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        "INSERT INTO watch_states
+             (user_id, kind, title_id, position_ms, duration_ms, played, updated_at)
+         VALUES (?, ?, ?, 0, 0, 1, ?)
+         ON CONFLICT (user_id, kind, title_id) DO UPDATE
+         SET played = 1, updated_at = excluded.updated_at",
+        user,
+        kind,
+        title,
+        now,
+    )
+    .execute(conn)
+    .await?;
+    Ok(())
+}
+
+/// Forgets the User `user`'s Watch State of the Movie or Episode of `kind` with the external id
+/// `title`, which marks it unplayed and clears its position.
+async fn forget(
+    conn: &mut SqliteConnection,
+    user: i64,
+    kind: &'static str,
+    title: &str,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        "DELETE FROM watch_states WHERE user_id = ? AND kind = ? AND title_id = ?",
+        user,
+        kind,
+        title,
+    )
+    .execute(conn)
+    .await?;
     Ok(())
 }
 
