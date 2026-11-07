@@ -719,7 +719,7 @@ async fn update_role(conn: &mut SqliteConnection, user: i64, role: Role) -> Resu
     if updated.rows_affected() == 0 {
         return Err(Error::NoSuchUser);
     }
-    any_admin_left(conn).await
+    ensure_an_admin_left(conn).await
 }
 
 /// Deletes the User `user`, whose credentials and Devices go with them, failing if that leaves no
@@ -735,13 +735,13 @@ async fn delete_user(conn: &mut SqliteConnection, user: i64) -> Result<Vec<i64>,
     if deleted.rows_affected() == 0 {
         return Err(Error::NoSuchUser);
     }
-    any_admin_left(conn).await?;
+    ensure_an_admin_left(conn).await?;
     Ok(devices)
 }
 
 /// Fails with [`Error::LastAdmin`] if the Server has no Admin, so the write before it, in the same
 /// transaction, is rolled back.
-async fn any_admin_left(conn: &mut SqliteConnection) -> Result<(), Error> {
+async fn ensure_an_admin_left(conn: &mut SqliteConnection) -> Result<(), Error> {
     let any_admin = sqlx::query_scalar!(
         r#"SELECT EXISTS (SELECT 1 FROM users WHERE role = 'admin') AS "any!: bool""#
     )
