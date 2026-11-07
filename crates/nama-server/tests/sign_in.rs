@@ -1421,6 +1421,19 @@ async fn the_11th_failed_reauthentication_blocks_reauthenticating_and_signing_in
 }
 
 #[tokio::test]
+async fn a_reauthentication_without_proof_counts_as_a_failure() {
+    let server = start().await;
+    let ada = token(&set_up(&server).await);
+    for _ in 0..10 {
+        reauthenticate(&server, &ada, &json!({})).await;
+    }
+
+    let reauthenticating = reauthenticate(&server, &ada, &json!({ "password": PASSWORD })).await;
+
+    assert_blocked(&reauthenticating);
+}
+
+#[tokio::test]
 async fn a_successful_reauthentication_resets_that_names_failures() {
     let server = start().await;
     let ada = token(&set_up(&server).await);
