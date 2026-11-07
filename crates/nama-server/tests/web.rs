@@ -49,7 +49,8 @@ async fn the_app_s_stylesheet_is_served() {
 }
 
 /// The app never answers for the API or media, so a signed-in client that gets a path wrong sees
-/// a 404. Without a session it would see a 401 first: only the public RPCs skip signing in.
+/// a 404. Without a session, media would see a 401 first; an RPC path no `ACCESS` entry lists is
+/// a 404 either way.
 #[tokio::test]
 async fn unknown_rpc_and_media_paths_are_not_found() {
     let server = TestServer::start(Config::default(), Registry::new()).await;

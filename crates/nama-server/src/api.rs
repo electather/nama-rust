@@ -5,7 +5,7 @@ use std::{ffi::OsStr, future, net::IpAddr, path::Path, sync::Arc, time::Instant}
 use axum::{
     extract::Request,
     http::{
-        HeaderMap, HeaderValue,
+        HeaderMap, HeaderValue, StatusCode,
         header::{RETRY_AFTER, SET_COOKIE, USER_AGENT},
     },
     middleware::{self, Next},
@@ -26,28 +26,21 @@ use nama_proto::nama::v1::{
     DeleteLibraryRequest, DeleteLibraryResponse, DeleteUserRequest, DeleteUserResponse,
     EventService, EventType, GetLibraryRequest, GetLibraryResponse, GetMovieRequest,
     GetMovieResponse, GetServerInfoRequest, GetServerInfoResponse, GetShowRequest, GetShowResponse,
-    LIBRARY_SERVICE_LIST_LIBRARIES_SPEC, LIBRARY_SERVICE_SERVICE_NAME, LibraryKind, LibraryService,
-    ListContinueWatchingRequest, ListContinueWatchingResponse, ListDevicesRequest,
-    ListDevicesResponse, ListEpisodesRequest, ListEpisodesResponse, ListLibrariesRequest,
-    ListLibrariesResponse, ListMoviesRequest, ListMoviesResponse, ListShowsRequest,
-    ListShowsResponse, ListUnmatchedItemsRequest, ListUnmatchedItemsResponse, ListUsersRequest,
-    ListUsersResponse, LookUpSignInCodeRequest, LookUpSignInCodeResponse,
-    MATCH_SERVICE_SERVICE_NAME, MatchService, PollSignInCodeRequest, PollSignInCodeResponse,
-    ReauthenticateRequest, ReauthenticateResponse, Refusal, RefusalReason, ReportProgressRequest,
-    ReportProgressResponse, ResetPasswordRequest, ResetPasswordResponse, RevokeDeviceRequest,
-    RevokeDeviceResponse, SERVER_SERVICE_GET_SERVER_INFO_SPEC,
-    SIGN_IN_SERVICE_APPROVE_SIGN_IN_CODE_SPEC, SIGN_IN_SERVICE_POLL_SIGN_IN_CODE_SPEC,
-    SIGN_IN_SERVICE_SETUP_SPEC, SIGN_IN_SERVICE_SIGN_IN_SPEC,
-    SIGN_IN_SERVICE_START_SIGN_IN_CODE_SPEC, ScanLibraryRequest, ScanLibraryResponse,
-    SearchMetadataRequest, SearchMetadataResponse, ServerService, SessionDelivery, SetMatchRequest,
-    SetMatchResponse, SetPlayedRequest, SetPlayedResponse, SetRoleRequest, SetRoleResponse,
-    SetupRequest, SetupResponse, SignInCodeStatus, SignInRequest, SignInResponse, SignInService,
-    SignOutRequest, SignOutResponse, StartSignInCodeRequest, StartSignInCodeResponse,
-    SubscribeRequest, SubscribeResponse, USER_SERVICE_CHANGE_PASSWORD_SPEC,
-    USER_SERVICE_DELETE_USER_SPEC, USER_SERVICE_LIST_DEVICES_SPEC,
-    USER_SERVICE_RESET_PASSWORD_SPEC, USER_SERVICE_REVOKE_DEVICE_SPEC, USER_SERVICE_SERVICE_NAME,
-    USER_SERVICE_SET_ROLE_SPEC, UpdateLibraryRequest, UpdateLibraryResponse, UserService,
-    WatchStateService, WhoAmIRequest, WhoAmIResponse, external_id, reauthenticate_request::Proof,
+    LibraryKind, LibraryService, ListContinueWatchingRequest, ListContinueWatchingResponse,
+    ListDevicesRequest, ListDevicesResponse, ListEpisodesRequest, ListEpisodesResponse,
+    ListLibrariesRequest, ListLibrariesResponse, ListMoviesRequest, ListMoviesResponse,
+    ListShowsRequest, ListShowsResponse, ListUnmatchedItemsRequest, ListUnmatchedItemsResponse,
+    ListUsersRequest, ListUsersResponse, LookUpSignInCodeRequest, LookUpSignInCodeResponse,
+    MatchService, PollSignInCodeRequest, PollSignInCodeResponse, ReauthenticateRequest,
+    ReauthenticateResponse, Refusal, RefusalReason, ReportProgressRequest, ReportProgressResponse,
+    ResetPasswordRequest, ResetPasswordResponse, RevokeDeviceRequest, RevokeDeviceResponse,
+    ScanLibraryRequest, ScanLibraryResponse, SearchMetadataRequest, SearchMetadataResponse,
+    ServerService, SessionDelivery, SetMatchRequest, SetMatchResponse, SetPlayedRequest,
+    SetPlayedResponse, SetRoleRequest, SetRoleResponse, SetupRequest, SetupResponse,
+    SignInCodeStatus, SignInRequest, SignInResponse, SignInService, SignOutRequest,
+    SignOutResponse, StartSignInCodeRequest, StartSignInCodeResponse, SubscribeRequest,
+    SubscribeResponse, UpdateLibraryRequest, UpdateLibraryResponse, UserService, WatchStateService,
+    WhoAmIRequest, WhoAmIResponse, external_id, reauthenticate_request::Proof,
     set_played_request::Target,
 };
 
@@ -143,57 +136,76 @@ pub(crate) fn router(
 }
 
 /// Who may call an RPC or fetch media.
+#[derive(Clone, Copy)]
 enum Access {
     Anyone,
     SignedIn,
     Admin,
 }
 
+/// Who may call each RPC, by path; one missing here is refused to everyone (see AGENTS.md, "New
+/// RPCs start closed"). Media has its own entry, [`MEDIA`].
+// One row per RPC reads as a table; rustfmt would split most rows over four lines.
+#[rustfmt::skip]
+const ACCESS: &[(&str, Access)] = &[
+    (proto::SERVER_SERVICE_GET_SERVER_INFO_SPEC.procedure,        Access::Anyone),
+    (proto::SIGN_IN_SERVICE_SETUP_SPEC.procedure,                 Access::Anyone),
+    (proto::SIGN_IN_SERVICE_SIGN_IN_SPEC.procedure,               Access::Anyone),
+    (proto::SIGN_IN_SERVICE_SIGN_OUT_SPEC.procedure,              Access::SignedIn),
+    (proto::SIGN_IN_SERVICE_WHO_AM_I_SPEC.procedure,              Access::SignedIn),
+    (proto::SIGN_IN_SERVICE_REAUTHENTICATE_SPEC.procedure,        Access::SignedIn),
+    (proto::SIGN_IN_SERVICE_START_SIGN_IN_CODE_SPEC.procedure,    Access::Anyone),
+    (proto::SIGN_IN_SERVICE_LOOK_UP_SIGN_IN_CODE_SPEC.procedure,  Access::SignedIn),
+    (proto::SIGN_IN_SERVICE_APPROVE_SIGN_IN_CODE_SPEC.procedure,  Access::SignedIn),
+    (proto::SIGN_IN_SERVICE_POLL_SIGN_IN_CODE_SPEC.procedure,     Access::Anyone),
+    (proto::LIBRARY_SERVICE_CREATE_LIBRARY_SPEC.procedure,        Access::Admin),
+    (proto::LIBRARY_SERVICE_LIST_LIBRARIES_SPEC.procedure,        Access::SignedIn),
+    (proto::LIBRARY_SERVICE_GET_LIBRARY_SPEC.procedure,           Access::Admin),
+    (proto::LIBRARY_SERVICE_UPDATE_LIBRARY_SPEC.procedure,        Access::Admin),
+    (proto::LIBRARY_SERVICE_DELETE_LIBRARY_SPEC.procedure,        Access::Admin),
+    (proto::LIBRARY_SERVICE_SCAN_LIBRARY_SPEC.procedure,          Access::Admin),
+    (proto::MATCH_SERVICE_SEARCH_METADATA_SPEC.procedure,         Access::Admin),
+    (proto::MATCH_SERVICE_SET_MATCH_SPEC.procedure,               Access::Admin),
+    (proto::MATCH_SERVICE_CLEAR_MATCH_SPEC.procedure,             Access::Admin),
+    (proto::MATCH_SERVICE_LIST_UNMATCHED_ITEMS_SPEC.procedure,    Access::Admin),
+    (proto::BROWSE_SERVICE_LIST_MOVIES_SPEC.procedure,            Access::SignedIn),
+    (proto::BROWSE_SERVICE_GET_MOVIE_SPEC.procedure,              Access::SignedIn),
+    (proto::BROWSE_SERVICE_LIST_SHOWS_SPEC.procedure,             Access::SignedIn),
+    (proto::BROWSE_SERVICE_GET_SHOW_SPEC.procedure,               Access::SignedIn),
+    (proto::BROWSE_SERVICE_LIST_EPISODES_SPEC.procedure,          Access::SignedIn),
+    (proto::BROWSE_SERVICE_LIST_CONTINUE_WATCHING_SPEC.procedure, Access::SignedIn),
+    (proto::WATCH_STATE_SERVICE_REPORT_PROGRESS_SPEC.procedure,   Access::SignedIn),
+    (proto::WATCH_STATE_SERVICE_SET_PLAYED_SPEC.procedure,        Access::SignedIn),
+    (proto::EVENT_SERVICE_SUBSCRIBE_SPEC.procedure,               Access::SignedIn),
+    (proto::USER_SERVICE_CREATE_USER_SPEC.procedure,              Access::Admin),
+    (proto::USER_SERVICE_LIST_USERS_SPEC.procedure,               Access::Admin),
+    (proto::USER_SERVICE_SET_ROLE_SPEC.procedure,                 Access::Admin),
+    (proto::USER_SERVICE_DELETE_USER_SPEC.procedure,              Access::Admin),
+    (proto::USER_SERVICE_LIST_DEVICES_SPEC.procedure,             Access::SignedIn),
+    (proto::USER_SERVICE_REVOKE_DEVICE_SPEC.procedure,            Access::SignedIn),
+    (proto::USER_SERVICE_CHANGE_PASSWORD_SPEC.procedure,          Access::SignedIn),
+    (proto::USER_SERVICE_RESET_PASSWORD_SPEC.procedure,           Access::Admin),
+];
+
+/// Who may fetch media: every path under this prefix, which the media routes share.
+const MEDIA: (&str, Access) = ("/media/", Access::SignedIn);
+
 impl Access {
-    /// The RPCs anyone may call without a session, by path.
-    const PUBLIC: [&str; 5] = [
-        SERVER_SERVICE_GET_SERVER_INFO_SPEC.procedure,
-        SIGN_IN_SERVICE_SIGN_IN_SPEC.procedure,
-        SIGN_IN_SERVICE_SETUP_SPEC.procedure,
-        SIGN_IN_SERVICE_START_SIGN_IN_CODE_SPEC.procedure,
-        SIGN_IN_SERVICE_POLL_SIGN_IN_CODE_SPEC.procedure,
-    ];
-
-    /// The RPCs of an Admin-only service that any signed-in User may call, by path. Each decides
-    /// for itself what a Member may do.
-    const SELF_SERVICE: [&str; 4] = [
-        LIBRARY_SERVICE_LIST_LIBRARIES_SPEC.procedure,
-        USER_SERVICE_LIST_DEVICES_SPEC.procedure,
-        USER_SERVICE_REVOKE_DEVICE_SPEC.procedure,
-        USER_SERVICE_CHANGE_PASSWORD_SPEC.procedure,
-    ];
-
-    /// Who may request `path`: an RPC's `/<service>/<method>`, or media under `/media/`. Only the
-    /// RPCs in [`Access::PUBLIC`] are public, so media, and a new RPC until it is opened up, need a
-    /// session.
-    fn of(path: &str) -> Self {
-        if Self::PUBLIC.contains(&path) {
-            return Self::Anyone;
+    /// Who may request `path`: an RPC's `/<service>/<method>` as [`ACCESS`] lists it, or media
+    /// as [`MEDIA`] does. `None` if nobody may.
+    fn of(path: &str) -> Option<Self> {
+        let (media, media_access) = MEDIA;
+        if path.starts_with(media) {
+            return Some(media_access);
         }
-        if Self::SELF_SERVICE.contains(&path) {
-            return Self::SignedIn;
-        }
-        let service = path
-            .trim_start_matches('/')
-            .split_once('/')
-            .map(|(service, _)| service);
-        match service {
-            Some(
-                LIBRARY_SERVICE_SERVICE_NAME
-                | MATCH_SERVICE_SERVICE_NAME
-                | USER_SERVICE_SERVICE_NAME,
-            ) => Self::Admin,
-            _ => Self::SignedIn,
-        }
+        ACCESS
+            .iter()
+            .find(|(procedure, _)| *procedure == path)
+            .map(|&(_, access)| access)
     }
 
     /// Why `caller`, or nobody, may not make a call that needs this access, if they may not.
-    fn check(&self, caller: Option<&Caller>) -> Result<(), ConnectError> {
+    fn check(self, caller: Option<&Caller>) -> Result<(), ConnectError> {
         match (self, caller) {
             (Self::Anyone, _) | (Self::SignedIn, Some(_)) => Ok(()),
             (_, None) => Err(sign_in_required()),
@@ -211,11 +223,11 @@ impl Access {
 /// of their [`Access`] (ADR 0014, and see AGENTS.md). A list of its own, not an `Access` variant:
 /// `SetRole` needs the Admin Role as well, `ChangePassword` only a session.
 const NEEDS_RECENT_AUTHENTICATION: [&str; 5] = [
-    USER_SERVICE_CHANGE_PASSWORD_SPEC.procedure,
-    USER_SERVICE_RESET_PASSWORD_SPEC.procedure,
-    USER_SERVICE_SET_ROLE_SPEC.procedure,
-    USER_SERVICE_DELETE_USER_SPEC.procedure,
-    SIGN_IN_SERVICE_APPROVE_SIGN_IN_CODE_SPEC.procedure,
+    proto::USER_SERVICE_CHANGE_PASSWORD_SPEC.procedure,
+    proto::USER_SERVICE_RESET_PASSWORD_SPEC.procedure,
+    proto::USER_SERVICE_SET_ROLE_SPEC.procedure,
+    proto::USER_SERVICE_DELETE_USER_SPEC.procedure,
+    proto::SIGN_IN_SERVICE_APPROVE_SIGN_IN_CODE_SPEC.procedure,
 ];
 
 /// Why `caller` may not request `path` yet, if it needs Recent Authentication their Device lacks.
@@ -237,7 +249,8 @@ async fn require_access(request: Request, next: Next) -> axum::response::Respons
     let caller = request.extensions().get::<Caller>();
     let path = request.uri().path();
     let allowed = Access::of(path)
-        .check(caller)
+        .ok_or_else(|| unlisted(path))
+        .and_then(|access| access.check(caller))
         .and_then(|()| check_recent_authentication(path, caller));
     match allowed {
         Ok(()) => next.run(request).await,
@@ -245,6 +258,16 @@ async fn require_access(request: Request, next: Next) -> axum::response::Respons
             .into_http_response(request.headers())
             .into_response(),
     }
+}
+
+/// The refusal of a path [`ACCESS`] doesn't list, session or not. An RPC that exists but isn't
+/// listed is the Server's bug, not the client's, so this is the router's own 404 for a path it
+/// doesn't serve, without a Refusal.
+fn unlisted(path: &str) -> ConnectError {
+    // connectrpc's router words its 404 this way, naming the path without its leading slash.
+    let path = path.strip_prefix('/').unwrap_or(path);
+    ConnectError::unimplemented(format!("method not found: {path}"))
+        .with_http_status(StatusCode::NOT_FOUND)
 }
 
 /// `nama.v1.ServerService`: facts about this Server that any client can read.
@@ -977,8 +1000,8 @@ impl WatchStateService for WatchStateServiceHandler {
 }
 
 /// `nama.v1.UserService`: managing the Server's Users and their Devices. Admins only, which
-/// [`require_access`] enforces, but for the RPCs in [`Access::SELF_SERVICE`], which check for
-/// themselves with [`devices_owner`] or act only on the caller.
+/// [`require_access`] enforces, but for the self-service RPCs [`ACCESS`] opens to any session,
+/// which check for themselves with [`devices_owner`] or act only on the caller.
 struct UserServiceHandler {
     users: Users,
 }
@@ -1866,5 +1889,64 @@ impl From<ManualError> for ConnectError {
             ManualError::Database(err) => return database_failed(err),
         };
         refused.into()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+
+    use super::{ACCESS, Access};
+
+    /// Every RPC `buf generate` wrote a stub for, by path, read from the generated code so a new
+    /// RPC shows up here without anyone listing it.
+    fn generated_rpcs() -> Vec<String> {
+        let generated = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../nama-proto/src/generated/connect"
+        );
+        let mut rpcs = Vec::new();
+        for file in fs::read_dir(generated).expect("the generated code is checked in") {
+            let code = fs::read_to_string(file.expect("readable").path()).expect("readable");
+            rpcs.extend(
+                code.lines()
+                    .filter_map(|line| line.trim().strip_prefix("\"/nama."))
+                    .filter_map(|rest| rest.strip_suffix("\","))
+                    .map(|rest| format!("/nama.{rest}")),
+            );
+        }
+        rpcs
+    }
+
+    #[test]
+    fn every_generated_rpc_has_an_access_entry() {
+        let rpcs = generated_rpcs();
+        assert_eq!(rpcs.len(), ACCESS.len(), "the scan found {rpcs:?}");
+
+        let unlisted: Vec<_> = rpcs
+            .iter()
+            .filter(|rpc| Access::of(rpc).is_none())
+            .collect();
+
+        assert!(unlisted.is_empty(), "list these in `ACCESS`: {unlisted:?}");
+    }
+
+    #[test]
+    fn a_path_in_no_entry_has_no_access() {
+        for path in [
+            "/nama.v1.LibraryService/Unlisted",
+            "/nama.v1.BrowseService/Unlisted",
+            "/elsewhere",
+        ] {
+            assert!(Access::of(path).is_none(), "{path}");
+        }
+    }
+
+    #[test]
+    fn media_needs_a_session() {
+        assert!(matches!(
+            Access::of("/media/versions/1"),
+            Some(Access::SignedIn)
+        ));
     }
 }
