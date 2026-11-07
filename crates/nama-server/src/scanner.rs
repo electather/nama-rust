@@ -35,7 +35,7 @@ use crate::{
     db::Database,
     events::{EventBus, event},
     libraries::{self, Kind, Libraries},
-    matching::{self, Matcher, count},
+    matching::{self, ManualError, Matcher, count},
     plugins::Registry,
 };
 
@@ -106,8 +106,23 @@ struct Inner {
     cancel: CancellationToken,
     /// Libraries with a background scan waiting to start.
     queued: Mutex<HashSet<i64>>,
-    /// Held by the scan of each Library while it runs.
+    /// Each Library's scan lock, handed out as a [`ScanLock`].
     running: Mutex<HashMap<i64, Arc<tokio::sync::Mutex<()>>>>,
+}
+
+/// A Library's scan lock: while it's held, no scan of the Library runs or starts, so the
+/// Library's items don't change. Only the [`Scanner`] makes one.
+#[derive(Debug)]
+pub(crate) struct ScanLock {
+    library: i64,
+    _guard: tokio::sync::OwnedMutexGuard<()>,
+}
+
+impl ScanLock {
+    /// The Library this lock covers.
+    pub(crate) const fn library(&self) -> i64 {
+        self.library
+    }
 }
 
 impl Scanner {
@@ -157,10 +172,9 @@ impl Scanner {
         }
         let scanner = self.clone();
         self.inner.tasks.spawn(async move {
-            let library = scanner.library_mutex(id);
-            let _running = library.lock().await;
+            let scan = scanner.lock(id).await;
             lock(&scanner.inner.queued).remove(&id);
-            match scanner.scan_locked(id).await {
+            match scanner.scan_locked(&scan).await {
                 // The Library was deleted after the scan was asked for.
                 Ok(_) | Err(Error::Cancelled | Error::Library(libraries::Error::NotFound(_))) => {}
                 Err(err) => tracing::error!(library = id, "scanning a Library failed: {err}"),
@@ -168,18 +182,29 @@ impl Scanner {
         });
     }
 
-    /// Waits for any scan of the Library `id` to finish, and keeps another from starting until
-    /// the returned guard is dropped, so the Library's items don't change meanwhile.
-    pub(crate) async fn lock(&self, id: i64) -> tokio::sync::OwnedMutexGuard<()> {
-        self.library_mutex(id).lock_owned().await
+    /// Waits for any scan of the Library `id` to finish, then takes its scan lock.
+    pub(crate) async fn lock(&self, id: i64) -> ScanLock {
+        let mutex = Arc::clone(lock(&self.inner.running).entry(id).or_default());
+        ScanLock {
+            library: id,
+            _guard: mutex.lock_owned().await,
+        }
     }
 
-    fn library_mutex(&self, id: i64) -> Arc<tokio::sync::Mutex<()>> {
-        Arc::clone(lock(&self.inner.running).entry(id).or_default())
+    /// Takes the scan lock of the Library the item `item` is in, refusing an unknown item as
+    /// [`ManualError::NoSuchItem`].
+    pub(crate) async fn lock_library_of(&self, item: i64) -> Result<ScanLock, ManualError> {
+        let library = self
+            .inner
+            .contents
+            .library_of(item)
+            .await?
+            .ok_or(ManualError::NoSuchItem(item))?;
+        Ok(self.lock(library).await)
     }
 
-    /// The caller holds the Library's lock.
-    async fn scan_locked(&self, id: i64) -> Result<Summary, Error> {
+    async fn scan_locked(&self, scan: &ScanLock) -> Result<Summary, Error> {
+        let id = scan.library();
         let cancel = self.inner.cancel.clone();
         if cancel.is_cancelled() {
             return Err(Error::Cancelled);
@@ -225,7 +250,7 @@ impl Scanner {
             unchanged: summary.unchanged,
             ..Default::default()
         })]);
-        self.inner.matcher.match_library(id, &cancel).await?;
+        self.inner.matcher.match_library(scan, &cancel).await?;
         Ok(summary)
     }
 }
@@ -360,9 +385,8 @@ impl Scanner {
     /// Scans the Library `id` now, after any scan of it that's running, and returns what
     /// changed.
     pub(crate) async fn scan(&self, id: i64) -> Result<Summary, Error> {
-        let library = self.library_mutex(id);
-        let _running = library.lock().await;
-        self.scan_locked(id).await
+        let scan = self.lock(id).await;
+        self.scan_locked(&scan).await
     }
 
     /// Waits until no background scan is running or waiting.

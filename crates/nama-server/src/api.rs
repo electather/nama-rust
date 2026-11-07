@@ -47,7 +47,6 @@ use nama_proto::nama::v1::{
     UpdateLibraryResponse, UserService, WatchStateService, WhoAmIRequest, WhoAmIResponse,
     external_id, set_played_request::Target,
 };
-use tokio::sync::OwnedMutexGuard;
 
 use crate::{
     artwork::{self, Artwork},
@@ -594,21 +593,8 @@ struct MatchServiceHandler {
     matcher: Matcher,
     contents: Contents,
     libraries: Libraries,
-    /// Whose scan lock a Match is fixed under, so the scan doesn't change the items meanwhile.
+    /// Where the scan lock a Match is fixed under comes from.
     scanner: Scanner,
-}
-
-impl MatchServiceHandler {
-    /// Waits for any scan of the Library the item `item` is in, and keeps another from starting
-    /// until the returned guard is dropped.
-    async fn lock_library_of(&self, item: i64) -> Result<OwnedMutexGuard<()>, ManualError> {
-        let library = self
-            .contents
-            .library_of(item)
-            .await?
-            .ok_or(ManualError::NoSuchItem(item))?;
-        Ok(self.scanner.lock(library).await)
-    }
 }
 
 #[expect(
@@ -652,8 +638,11 @@ impl MatchService for MatchServiceHandler {
             .and_then(|id| id.id)
             .map(external_id_from_proto)
             .ok_or_else(|| ConnectError::invalid_argument("the title to Match to is missing"))?;
-        let _scan = self.lock_library_of(request.item_id).await?;
-        let summary = self.matcher.set_match(request.item_id, &title).await?;
+        let scan = self.scanner.lock_library_of(request.item_id).await?;
+        let summary = self
+            .matcher
+            .set_match(&scan, request.item_id, &title)
+            .await?;
         Response::ok(SetMatchResponse {
             matched: summary.matched,
             unmatched: summary.unmatched,
@@ -666,8 +655,8 @@ impl MatchService for MatchServiceHandler {
         _ctx: RequestContext,
         request: ServiceRequest<'_, ClearMatchRequest>,
     ) -> ServiceResult<ClearMatchResponse> {
-        let _scan = self.lock_library_of(request.item_id).await?;
-        let summary = self.matcher.clear_match(request.item_id).await?;
+        let scan = self.scanner.lock_library_of(request.item_id).await?;
+        let summary = self.matcher.clear_match(&scan, request.item_id).await?;
         Response::ok(ClearMatchResponse {
             unmatched: summary.unmatched,
             ..Default::default()
