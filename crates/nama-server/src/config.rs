@@ -34,8 +34,8 @@ pub struct Config {
     pub listen: SocketAddr,
     /// Directory where the Server keeps its database and other state.
     pub data_dir: PathBuf,
-    /// Settings for each Plugin, by Plugin id, as `[plugins.<id>]` tables in the file. A Built-in
-    /// Plugin with no table here is enabled.
+    /// Settings for each Plugin, by Plugin id, as `[plugins.<id>]` tables in the file. Imported
+    /// into the database on the first start after upgrading and ignored after (`plugin_settings`).
     #[serde(default)]
     pub plugins: BTreeMap<String, PluginConfig>,
     /// Reverse proxies whose `X-Forwarded-For` and `X-Forwarded-Proto` headers the Server believes
@@ -44,10 +44,10 @@ pub struct Config {
     pub trusted_proxies: Vec<IpRange>,
 }
 
-/// One Plugin's config: whether it is enabled, and its settings.
+/// One Plugin's config: whether it is enabled, and its settings. Also how they are stored.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PluginConfig {
-    /// Whether the Server enables the Plugin at startup.
+    /// Whether the Server enables the Plugin.
     #[serde(default = "enabled_by_default")]
     pub enabled: bool,
     /// The Plugin's settings: every other key in its table, such as `api_key = "..."`. They are

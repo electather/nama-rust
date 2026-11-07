@@ -16,11 +16,12 @@ use nama_plugin_api::{
 use nama_server::{
     config::{self, Config},
     db::{self, Database},
+    plugin_settings,
     plugins::Registry,
     users::{SetupCode, Users},
 };
 use tokio::net::TcpListener;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 use tracing_subscriber::EnvFilter;
 
 #[derive(Debug, Parser)]
@@ -60,11 +61,11 @@ async fn main() -> ExitCode {
         "loaded config"
     );
 
-    let Some(plugins) = enable_plugins(&config).await else {
+    let Some(db) = open_database(&config).await else {
         return ExitCode::FAILURE;
     };
-
-    let Some(db) = open_database(&config).await else {
+    let Some(plugins) = enable_plugins(&config, &db).await else {
+        close(db).await;
         return ExitCode::FAILURE;
     };
     let setup_code = match setup_code(Users::new(Arc::clone(&db), plugins.clone())).await {
@@ -161,10 +162,24 @@ async fn close(db: Arc<Database>) {
     }
 }
 
-/// Enables the Built-in Plugins `config` asks for. Returns `None`, having logged why, if none of
-/// them provides an [`Authenticator`], since then nobody could sign in.
-async fn enable_plugins(config: &Config) -> Option<Registry> {
-    let plugins = Registry::with_builtins(&config.plugins);
+/// Enables the Built-in Plugins with the settings stored in `db`. On the first start after
+/// upgrading there are none yet, so it uses the config's `[plugins.*]` tables and imports them.
+/// Returns `None`, having logged why, if the settings can't be read or imported, or no Plugin
+/// provides an [`Authenticator`], since then nobody could sign in.
+async fn enable_plugins(config: &Config, db: &Database) -> Option<Registry> {
+    let stored = plugin_settings::stored(db)
+        .await
+        .inspect_err(|err| error!("could not read the plugin settings: {err}"))
+        .ok()?;
+    if stored.is_some() && !config.plugins.is_empty() {
+        let ignored: Vec<&String> = config.plugins.keys().collect();
+        warn!(
+            ?ignored,
+            "ignoring the [plugins.*] tables in the config: plugin settings live in the database \
+             since they were imported"
+        );
+    }
+    let plugins = Registry::with_builtins(stored.as_ref().unwrap_or(&config.plugins));
     let enabled: Vec<String> = plugins.enabled().iter().map(ToString::to_string).collect();
     info!(?enabled, "enabled plugins");
     let has_authenticator = plugins
@@ -178,6 +193,15 @@ async fn enable_plugins(config: &Config) -> Option<Registry> {
              plugin that provides one"
         );
         return None;
+    }
+    // Only once the Server can start, so a config it refuses can still be fixed in the file.
+    if stored.is_none() {
+        plugin_settings::import(db, &config.plugins)
+            .await
+            .inspect_err(|err| error!("could not import the plugin settings: {err}"))
+            .ok()?;
+        let imported: Vec<&String> = config.plugins.keys().collect();
+        info!(?imported, "imported plugin settings from the config");
     }
     Some(plugins)
 }
