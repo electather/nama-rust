@@ -309,7 +309,7 @@ impl SignInService for SignInServiceHandler {
         if !setup_code.matches(&request.setup_code) {
             return Err(ConnectError::permission_denied("the Setup Code is wrong"));
         }
-        let device = new_device(device_name(request.device_name, ctx.headers()), &ctx)?;
+        let device = new_device(request.device_name, &ctx)?;
         let signed_in = self
             .users
             .create_first_admin(&request.name, &request.password, device)
@@ -338,7 +338,7 @@ impl SignInService for SignInServiceHandler {
             .sign_in_limits
             .admit(client_ip(&ctx)?, Some(&request.name))?;
         let wants_token = wants_token(request.delivery)?;
-        let device = new_device(device_name(request.device_name, ctx.headers()), &ctx)?;
+        let device = new_device(request.device_name, &ctx)?;
         let signed_in = self
             .users
             .sign_in(&request.name, &request.password, device)
@@ -443,6 +443,8 @@ impl SignInService for SignInServiceHandler {
         ctx: RequestContext,
         request: ServiceRequest<'_, PollSignInCodeRequest>,
     ) -> ServiceResult<PollSignInCodeResponse> {
+        // Before `poll`, which uses up an approved code: failing after it would lose the sign-in.
+        let ip_address = client_ip(&ctx)?;
         let poll = self
             .sign_in_codes
             .poll(request.handle, Instant::now())
@@ -456,7 +458,11 @@ impl SignInService for SignInServiceHandler {
                 wants_token,
             } => (user, device_name, wants_token),
         };
-        let device = new_device(device_name, &ctx)?;
+        let device = NewDevice {
+            name: device_name,
+            ip_address,
+            user_agent: user_agent(ctx.headers()),
+        };
         let signed_in = self.users.sign_in_as(user, None, device).await?;
         Ok(hand_out_session(
             signed_in,
@@ -1319,10 +1325,10 @@ fn device_name(given: String, headers: &HeaderMap) -> String {
     crate::device_names::from_user_agent(user_agent(headers).as_deref())
 }
 
-/// The Device named `name` that signs in with the request `ctx`.
-fn new_device(name: String, ctx: &RequestContext) -> Result<NewDevice, ConnectError> {
+/// The Device that signs in with the request `ctx`, under the name [`device_name`] makes of `given`.
+fn new_device(given: String, ctx: &RequestContext) -> Result<NewDevice, ConnectError> {
     Ok(NewDevice {
-        name,
+        name: device_name(given, ctx.headers()),
         ip_address: client_ip(ctx)?,
         user_agent: user_agent(ctx.headers()),
     })
