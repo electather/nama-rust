@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+package nama.v1;
+
+import "nama/v1/sign_in.proto";
+
+// Managing the Server's Users. Every RPC needs the Admin Role, and fails with `permission_denied`
+// without it. RPCs name Users by ID, not by name.
+service UserService {
+  // Creates a User, who can sign in at once. Fails with `invalid_argument` if the name, the
+  // password or the Role breaks the rules, and `already_exists` if another User has the name,
+  // ignoring case.
+  rpc CreateUser(CreateUserRequest) returns (CreateUserResponse);
+  // Lists every User on the Server, oldest first.
+  rpc ListUsers(ListUsersRequest) returns (ListUsersResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+}
+
+message CreateUserRequest {
+  // 1 to 64 characters once leading and trailing spaces are trimmed, and unique ignoring case.
+  string name = 1;
+  // The User's starting password, which the Server's Authenticator checks against its own rules.
+  string password = 2;
+  // Must not be `ROLE_UNSPECIFIED`.
+  Role role = 3;
+}
+
+message CreateUserResponse {
+  // The new User's ID.
+  int64 id = 1;
+}
+
+message ListUsersRequest {}
+
+message ListUsersResponse {
+  repeated User users = 1;
+}

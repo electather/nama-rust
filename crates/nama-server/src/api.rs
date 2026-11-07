@@ -24,11 +24,12 @@ use futures_util::StreamExt;
 use nama_plugin_api::metadata::{Candidate, ExternalId, SearchQuery, TitleKind};
 use nama_proto::nama::v1::{
     self as proto, ApproveSignInCodeRequest, ApproveSignInCodeResponse, ClearMatchRequest,
-    ClearMatchResponse, CreateLibraryRequest, CreateLibraryResponse, DeleteLibraryRequest,
-    DeleteLibraryResponse, EventService, EventType, GetLibraryRequest, GetLibraryResponse,
-    GetServerInfoRequest, GetServerInfoResponse, LIBRARY_SERVICE_SERVICE_NAME, LibraryKind,
-    LibraryService, ListLibrariesRequest, ListLibrariesResponse, ListUnmatchedItemsRequest,
-    ListUnmatchedItemsResponse, LookUpSignInCodeRequest, LookUpSignInCodeResponse,
+    ClearMatchResponse, CreateLibraryRequest, CreateLibraryResponse, CreateUserRequest,
+    CreateUserResponse, DeleteLibraryRequest, DeleteLibraryResponse, EventService, EventType,
+    GetLibraryRequest, GetLibraryResponse, GetServerInfoRequest, GetServerInfoResponse,
+    LIBRARY_SERVICE_SERVICE_NAME, LibraryKind, LibraryService, ListLibrariesRequest,
+    ListLibrariesResponse, ListUnmatchedItemsRequest, ListUnmatchedItemsResponse, ListUsersRequest,
+    ListUsersResponse, LookUpSignInCodeRequest, LookUpSignInCodeResponse,
     MATCH_SERVICE_SERVICE_NAME, MatchService, PollSignInCodeRequest, PollSignInCodeResponse,
     SERVER_SERVICE_GET_SERVER_INFO_SPEC, SIGN_IN_SERVICE_POLL_SIGN_IN_CODE_SPEC,
     SIGN_IN_SERVICE_SETUP_SPEC, SIGN_IN_SERVICE_SIGN_IN_SPEC,
@@ -36,8 +37,9 @@ use nama_proto::nama::v1::{
     SearchMetadataRequest, SearchMetadataResponse, ServerService, SessionDelivery, SetMatchRequest,
     SetMatchResponse, SetupRequest, SetupResponse, SignInCodeStatus, SignInRequest, SignInResponse,
     SignInService, SignOutRequest, SignOutResponse, StartSignInCodeRequest,
-    StartSignInCodeResponse, SubscribeRequest, SubscribeResponse, UpdateLibraryRequest,
-    UpdateLibraryResponse, WhoAmIRequest, WhoAmIResponse, external_id,
+    StartSignInCodeResponse, SubscribeRequest, SubscribeResponse, USER_SERVICE_SERVICE_NAME,
+    UpdateLibraryRequest, UpdateLibraryResponse, UserService, WhoAmIRequest, WhoAmIResponse,
+    external_id,
 };
 use tokio::sync::OwnedMutexGuard;
 
@@ -97,6 +99,9 @@ pub(crate) fn router(
             events,
             users: users.clone(),
         }))
+        .add_service(Arc::new(UserServiceHandler {
+            users: users.clone(),
+        }))
         .into_axum_router()
         .layer(middleware::from_fn(require_access))
         .layer(middleware::from_fn_with_state(users, identify_caller))
@@ -130,7 +135,11 @@ impl Access {
             .split_once('/')
             .map(|(service, _)| service);
         match service {
-            Some(LIBRARY_SERVICE_SERVICE_NAME | MATCH_SERVICE_SERVICE_NAME) => Self::Admin,
+            Some(
+                LIBRARY_SERVICE_SERVICE_NAME
+                | MATCH_SERVICE_SERVICE_NAME
+                | USER_SERVICE_SERVICE_NAME,
+            ) => Self::Admin,
             _ => Self::SignedIn,
         }
     }
@@ -598,6 +607,52 @@ impl MatchService for MatchServiceHandler {
     }
 }
 
+/// `nama.v1.UserService`: managing the Server's Users. Admins only, which [`require_access`]
+/// enforces.
+struct UserServiceHandler {
+    users: Users,
+}
+
+#[expect(
+    refining_impl_trait,
+    reason = "plain `async fn` returning the owned response is the form the generated trait \
+              documents; the refined signature isn't visible outside this crate"
+)]
+impl UserService for UserServiceHandler {
+    async fn create_user(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, CreateUserRequest>,
+    ) -> ServiceResult<CreateUserResponse> {
+        let request = request.to_owned_message();
+        let role = role_from_proto(request.role)?;
+        let id = self
+            .users
+            .create(&request.name, &request.password, role)
+            .await?;
+        Response::ok(CreateUserResponse {
+            id,
+            ..Default::default()
+        })
+    }
+
+    async fn list_users(
+        &self,
+        _ctx: RequestContext,
+        _request: ServiceRequest<'_, ListUsersRequest>,
+    ) -> ServiceResult<ListUsersResponse> {
+        let users = self
+            .users
+            .list()
+            .await
+            .map_err(|err| database_failed(&err))?;
+        Response::ok(ListUsersResponse {
+            users: users.into_iter().map(user_to_proto).collect(),
+            ..Default::default()
+        })
+    }
+}
+
 /// `nama.v1.EventService`: live updates.
 //
 // TODO(M3): once there is per-Library access, only send a caller events about Libraries it may see.
@@ -787,6 +842,17 @@ fn library_to_proto(library: Library) -> proto::Library {
     }
 }
 
+/// The Role a request asks for, which must be one the Server knows.
+fn role_from_proto(role: EnumValue<proto::Role>) -> Result<Role, ConnectError> {
+    match role {
+        EnumValue::Known(proto::Role::ROLE_ADMIN) => Ok(Role::Admin),
+        EnumValue::Known(proto::Role::ROLE_MEMBER) => Ok(Role::Member),
+        EnumValue::Known(proto::Role::ROLE_UNSPECIFIED) | EnumValue::Unknown(_) => Err(
+            ConnectError::invalid_argument("a User's Role must be admin or member"),
+        ),
+    }
+}
+
 /// A User as clients see them.
 fn user_to_proto(user: users::User) -> proto::User {
     proto::User {
@@ -797,6 +863,7 @@ fn user_to_proto(user: users::User) -> proto::User {
             Role::Member => proto::Role::ROLE_MEMBER,
         }
         .into(),
+        created_at: user.created_at,
         ..Default::default()
     }
 }

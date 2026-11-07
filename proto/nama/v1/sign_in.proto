@@ -79,6 +79,8 @@ message User {
   // Unique on the Server, ignoring case.
   string name = 2;
   Role role = 3;
+  // When the User was created, in seconds since the Unix epoch.
+  int64 created_at = 4;
 }
 
 // A client installation signed in to a Server as a User.

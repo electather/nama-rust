@@ -78,6 +78,8 @@ pub(crate) struct User {
     pub(crate) id: i64,
     pub(crate) name: String,
     pub(crate) role: Role,
+    /// When they were created, in seconds since the Unix epoch.
+    pub(crate) created_at: i64,
 }
 
 /// A Device as clients see it.
@@ -209,23 +211,35 @@ impl Users {
         Ok(SignedIn { caller, token })
     }
 
-    /// Creates a Member named `name` with `password`, who can then sign in.
-    ///
-    /// # Errors
-    ///
-    /// If the name is invalid or taken, the Authenticator refuses the password or fails, or the
-    /// database fails.
-    pub async fn create_member(&self, name: &str, password: &str) -> Result<(), Error> {
+    /// Creates a User named `name` with `password` and `role`, who can then sign in, and returns
+    /// their id.
+    pub(crate) async fn create(
+        &self,
+        name: &str,
+        password: &str,
+        role: Role,
+    ) -> Result<i64, Error> {
         let name = checked_name("a User's name", name)?;
         let credential = self.hash_password(password).await?;
         self.db
             .write(move |tx| {
                 Box::pin(async move {
-                    let user = insert_user(tx, &name, Role::Member).await?;
-                    insert_credential(tx, user.id, &credential).await
+                    let user = insert_user(tx, &name, role).await?;
+                    insert_credential(tx, user.id, &credential).await?;
+                    Ok(user.id)
                 })
             })
             .await
+    }
+
+    /// Every User, oldest first.
+    pub(crate) async fn list(&self) -> Result<Vec<User>, sqlx::Error> {
+        sqlx::query_as!(
+            User,
+            r#"SELECT id AS "id!", name, role AS "role: Role", created_at FROM users ORDER BY id"#
+        )
+        .fetch_all(self.db.reader())
+        .await
     }
 
     /// Signs the Device `device_name` in as the User named `name`, ignoring case, if `password` is
@@ -351,7 +365,8 @@ impl Users {
         let expired_before = now - DEVICE_LIFETIME;
         let row = sqlx::query!(
             r#"SELECT d.id AS "device_id!", d.name AS device_name, d.last_seen_at,
-                      u.id AS "user_id!", u.name AS user_name, u.role AS "role: Role"
+                      u.id AS "user_id!", u.name AS user_name, u.role AS "role: Role",
+                      u.created_at
                FROM devices d JOIN users u ON u.id = d.user_id
                WHERE d.token_hash = ? AND d.last_seen_at > ?"#,
             token_hash,
@@ -375,6 +390,7 @@ impl Users {
                 id: row.user_id,
                 name: row.user_name,
                 role: row.role,
+                created_at: row.created_at,
             },
             device: Device {
                 id: row.device_id,
@@ -430,7 +446,8 @@ impl Users {
     async fn user_named(&self, name: &str) -> Result<Option<(User, Vec<Credential>)>, Error> {
         let name_key = name_key(name);
         let rows = sqlx::query!(
-            r#"SELECT u.id AS "id!", u.name, u.role AS "role: Role", c.plugin, c.credential
+            r#"SELECT u.id AS "id!", u.name, u.role AS "role: Role", u.created_at, c.plugin,
+                      c.credential
                FROM users u JOIN user_credentials c ON c.user_id = u.id
                WHERE u.name_key = ?"#,
             name_key
@@ -444,6 +461,7 @@ impl Users {
             id: first.id,
             name: first.name.clone(),
             role: first.role,
+            created_at: first.created_at,
         };
         let enabled = self.plugins.enabled();
         let credentials = rows
@@ -671,6 +689,7 @@ async fn insert_user(conn: &mut SqliteConnection, name: &str, role: Role) -> Res
         id,
         name: name.to_owned(),
         role,
+        created_at,
     })
 }
 
