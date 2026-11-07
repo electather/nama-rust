@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE devices SET last_seen_at = ?, updated_at = ?, expires_at = ?\n                         WHERE id = ? AND last_seen_at <= ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "19d2f3f1435be330a275b1a9b50d316658209e6eb1a717dd168348f1217fa534"
+}

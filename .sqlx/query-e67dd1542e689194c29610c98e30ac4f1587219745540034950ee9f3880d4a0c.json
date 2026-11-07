@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO devices\n               (user_id, sign_in_method_id, name, token_hash, ip_address, user_agent, created_at,\n                updated_at, last_seen_at, expires_at, authenticated_at)\n           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)\n           RETURNING id AS \"id!\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "devices",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 11
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "e67dd1542e689194c29610c98e30ac4f1587219745540034950ee9f3880d4a0c"
+}

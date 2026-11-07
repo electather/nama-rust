@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE devices SET expires_at = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "15078c1554ebfcb41a56a7209b1f4896aa2dcb857b8c33057bdec5167dd92289"
+}
