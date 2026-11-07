@@ -958,9 +958,13 @@ impl UserService for UserServiceHandler {
             .users
             .change_password(caller, &request.current_password, &request.new_password)
             .await;
-        // A new password the rules refuse is only found after the current one checked out, so
-        // that is no guess either, and counting it could lock the User out of their own sign-in.
-        if matches!(changed, Ok(()) | Err(users::Error::Invalid(_))) {
+        // A new password the rules refuse, or the Device being signed out meanwhile, is only found
+        // after the current one checked out, so that is no guess either, and counting it could
+        // lock the User out of their own sign-in.
+        if matches!(
+            changed,
+            Ok(()) | Err(users::Error::Invalid(_) | users::Error::SignedOut)
+        ) {
             self.sign_in_limits.succeeded(&attempt);
         }
         changed?;
