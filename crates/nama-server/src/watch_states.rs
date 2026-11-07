@@ -278,9 +278,10 @@ async fn mark_each(
     titles: Vec<String>,
     played: bool,
 ) -> Result<(), sqlx::Error> {
+    let now = now();
     for title in titles {
         if played {
-            mark_played(&mut *conn, user, kind, &title).await?;
+            mark_played(&mut *conn, user, kind, &title, now).await?;
         } else {
             forget(&mut *conn, user, kind, &title).await?;
         }
@@ -288,15 +289,15 @@ async fn mark_each(
     Ok(())
 }
 
-/// Marks, as of now, the Movie or Episode of `kind` with the external id `title` played for the
+/// Marks, as of `now`, the Movie or Episode of `kind` with the external id `title` played for the
 /// User `user`, keeping any position. One they haven't started is at 0 of an unknown duration, 0.
 async fn mark_played(
     conn: &mut SqliteConnection,
     user: i64,
     kind: &'static str,
     title: &str,
+    now: i64,
 ) -> Result<(), sqlx::Error> {
-    let now = now();
     sqlx::query!(
         "INSERT INTO watch_states
              (user_id, kind, title_id, position_ms, duration_ms, played, updated_at)

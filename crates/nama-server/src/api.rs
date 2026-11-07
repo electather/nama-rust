@@ -769,6 +769,7 @@ impl BrowseServiceHandler {
 
     /// The id of the Episode of any Show of the Shows Library `library` with the id `id`, which
     /// something in the Library must be Matched to.
+    // ponytail: reads the whole Library to find one Episode; query by id if Libraries get big.
     async fn episode_id(
         &self,
         library: i64,
