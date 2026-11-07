@@ -19,7 +19,9 @@ A self-hosted media server and request manager, with an optional central Hub for
 
 ## Metadata from TMDB
 
-A Server Matches the files in its Libraries to Movies and Shows using the built-in TMDB Plugin ([`plugins/tmdb`](plugins/tmdb)). It needs a TMDB API key, which you can get for free from [themoviedb.org](https://www.themoviedb.org/settings/api). Put it in the Server's `nama.toml`:
+A Server Matches the files in its Libraries to Movies and Shows using the built-in TMDB Plugin ([`plugins/tmdb`](plugins/tmdb)). It needs a TMDB API key, which you can get for free from [themoviedb.org](https://www.themoviedb.org/settings/api). Without a key the Plugin isn't enabled and every file stays Unmatched.
+
+Plugin settings live in the Server's database. On its first start, fresh or after upgrading, a Server imports any `[plugins.*]` tables from an existing `nama.toml` once, such as:
 
 ```toml
 [plugins.tmdb]
@@ -27,7 +29,7 @@ api_key = "your TMDB API key"
 # language = "en-US"   # the language titles and overviews are fetched in
 ```
 
-Without a key the Plugin isn't enabled and every file stays Unmatched.
+After that it ignores those tables, and logs that it does, so editing them changes nothing.
 
 ## Checks
 

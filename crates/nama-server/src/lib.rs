@@ -11,6 +11,7 @@ mod events;
 mod forwarded;
 mod libraries;
 mod matching;
+pub mod plugin_settings;
 pub mod plugins;
 mod rate_limits;
 mod scanner;
