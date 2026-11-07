@@ -1432,3 +1432,23 @@ async fn a_successful_reauthentication_resets_that_names_failures() {
 
     assert_eq!(signed_in.status, 200, "{}", signed_in.body);
 }
+
+#[tokio::test]
+async fn the_51st_failure_from_one_ip_mixing_sign_in_and_reauthentication_is_blocked() {
+    let server = start().await;
+    let ada = token(&set_up(&server).await);
+    for name in ["Grace", "Linus", "Alan", "Edsger"] {
+        fail_sign_in(&server, name, 10).await;
+    }
+    fail_reauthentication(&server, &ada, 10).await;
+
+    let blocked = call(
+        &server,
+        "SignIn",
+        &sign_in_request("Barbara", "not the password", "SESSION_DELIVERY_TOKEN"),
+        &[],
+    )
+    .await;
+
+    assert_blocked(&blocked);
+}
