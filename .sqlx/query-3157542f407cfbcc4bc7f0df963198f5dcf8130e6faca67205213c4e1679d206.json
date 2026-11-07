@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO sign_in_methods\n               (user_id, provider_id, credential, name, created_at, updated_at)\n           VALUES (?, ?, ?, ?, ?, ?)\n           ON CONFLICT (user_id) WHERE subject IS NULL DO UPDATE\n               SET provider_id = excluded.provider_id, credential = excluded.credential,\n                   updated_at = excluded.updated_at\n           RETURNING id AS \"id!\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "sign_in_methods",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "3157542f407cfbcc4bc7f0df963198f5dcf8130e6faca67205213c4e1679d206"
+}

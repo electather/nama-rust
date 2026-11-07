@@ -63,7 +63,7 @@ use crate::{
     scanner::Scanner,
     sessions::{cleared_session_cookie, identify_caller, in_session_cookie, session_cookie},
     sign_in_codes::{self, Poll, SignInCodes},
-    users::{self, Caller, Role, SetupCode, SignedIn, Users},
+    users::{self, Caller, NewDevice, Role, SetupCode, SignedIn, Users},
     versions,
     watch_states::{MovieOrEpisode, Progress, WatchState, WatchStates},
 };
@@ -309,10 +309,10 @@ impl SignInService for SignInServiceHandler {
         if !setup_code.matches(&request.setup_code) {
             return Err(ConnectError::permission_denied("the Setup Code is wrong"));
         }
-        let device_name = device_name(request.device_name, ctx.headers());
+        let device = new_device(request.device_name, &ctx)?;
         let signed_in = self
             .users
-            .create_first_admin(&request.name, &request.password, &device_name)
+            .create_first_admin(&request.name, &request.password, device)
             .await?;
         self.sign_in_limits.succeeded(&attempt);
         Ok(hand_out_session(
@@ -338,10 +338,10 @@ impl SignInService for SignInServiceHandler {
             .sign_in_limits
             .admit(client_ip(&ctx)?, Some(&request.name))?;
         let wants_token = wants_token(request.delivery)?;
-        let device_name = device_name(request.device_name, ctx.headers());
+        let device = new_device(request.device_name, &ctx)?;
         let signed_in = self
             .users
-            .sign_in(&request.name, &request.password, &device_name)
+            .sign_in(&request.name, &request.password, device)
             .await?;
         self.sign_in_limits.succeeded(&attempt);
         Ok(hand_out_session(
@@ -443,6 +443,8 @@ impl SignInService for SignInServiceHandler {
         ctx: RequestContext,
         request: ServiceRequest<'_, PollSignInCodeRequest>,
     ) -> ServiceResult<PollSignInCodeResponse> {
+        // Before `poll`, which uses up an approved code: failing after it would lose the sign-in.
+        let ip_address = client_ip(&ctx)?;
         let poll = self
             .sign_in_codes
             .poll(request.handle, Instant::now())
@@ -456,7 +458,12 @@ impl SignInService for SignInServiceHandler {
                 wants_token,
             } => (user, device_name, wants_token),
         };
-        let signed_in = self.users.sign_in_as(user, device_name).await?;
+        let device = NewDevice {
+            name: device_name,
+            ip_address,
+            user_agent: user_agent(ctx.headers()),
+        };
+        let signed_in = self.users.sign_in_as(user, None, device).await?;
         Ok(hand_out_session(
             signed_in,
             wants_token,
@@ -1315,10 +1322,24 @@ fn device_name(given: String, headers: &HeaderMap) -> String {
     if !given.trim().is_empty() {
         return given;
     }
-    let user_agent = headers
-        .get(USER_AGENT)
-        .and_then(|value| value.to_str().ok());
-    crate::device_names::from_user_agent(user_agent)
+    crate::device_names::from_user_agent(user_agent(headers).as_deref())
+}
+
+/// The Device that signs in with the request `ctx`, under the name [`device_name`] makes of `given`.
+fn new_device(given: String, ctx: &RequestContext) -> Result<NewDevice, ConnectError> {
+    Ok(NewDevice {
+        name: device_name(given, ctx.headers()),
+        ip_address: client_ip(ctx)?,
+        user_agent: user_agent(ctx.headers()),
+    })
+}
+
+/// The `User-Agent` `headers` carry, cut short, since any client can send a long one and it is
+/// stored with the Device.
+fn user_agent(headers: &HeaderMap) -> Option<String> {
+    const LONGEST: usize = 512;
+    let value = headers.get(USER_AGENT)?.to_str().ok()?;
+    Some(value.chars().take(LONGEST).collect())
 }
 
 /// Who sent the request `ctx` is for, or `unauthenticated` if it carries no valid session.

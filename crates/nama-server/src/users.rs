@@ -3,7 +3,7 @@
 //! [`Users`] is the only way in. It checks names before anything is written and has the enabled
 //! Authenticator turn passwords into credentials. Nothing secret is stored: see `AGENTS.md`.
 
-use std::{fmt, ops::RangeInclusive, sync::Arc};
+use std::{fmt, net::IpAddr, ops::RangeInclusive, sync::Arc};
 
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use nama_plugin_api::{
@@ -39,9 +39,13 @@ const SETUP_CODE_LENGTH: usize = 12;
 /// 90 days.
 pub(crate) const DEVICE_LIFETIME: i64 = 90 * 24 * 60 * 60;
 
-/// How often, in seconds, a Device in use has its last-seen time written: an hour. Writing on every
-/// request would make every request wait for the one database writer.
+/// How often, in seconds, a Device in use has its last-seen time written and its expiry pushed
+/// back: an hour. Writing on every request would make every request wait for the one database
+/// writer.
 const LAST_SEEN_PRECISION: i64 = 60 * 60;
+
+/// What a User is shown for their password among their Sign-in Methods.
+const PASSWORD_METHOD_NAME: &str = "Password";
 
 /// How many sign-outs may happen before a waiter in [`Users::signed_out`] has seen them. One that
 /// falls further behind checks its Device in the database instead.
@@ -127,11 +131,28 @@ impl SignedIn {
     }
 }
 
+/// A Device about to sign in, and where from.
+#[derive(Debug)]
+pub struct NewDevice {
+    /// What it is called. Signing in checks it, except where the Device was named earlier.
+    pub name: String,
+    /// The client IP address it signs in from.
+    pub ip_address: IpAddr,
+    /// The `User-Agent` it sent, if any.
+    pub user_agent: Option<String>,
+}
+
 /// A credential string the Kernel keeps for a User, and the Plugin whose Authenticator made it,
 /// which is the only one that can check it.
 struct Credential {
     plugin: PluginId,
     value: String,
+}
+
+/// A User's password Sign-in Method, made by a Plugin that is enabled.
+struct StoredPassword {
+    id: i64,
+    credential: Credential,
 }
 
 /// Why a change to the Users was refused or failed. No variant holds a password or a token.
@@ -198,16 +219,16 @@ impl Users {
         any_user(&mut *self.db.reader().acquire().await?).await
     }
 
-    /// Creates the first Admin, named `name` with `password`, and signs the Device `device_name`
-    /// in as them. Checking the Setup Code is the caller's job.
+    /// Creates the first Admin, named `name` with `password`, and signs `device` in as them.
+    /// Checking the Setup Code is the caller's job.
     pub(crate) async fn create_first_admin(
         &self,
         name: &str,
         password: &str,
-        device_name: &str,
+        device: NewDevice,
     ) -> Result<SignedIn, Error> {
         let name = checked_name("a User's name", name)?;
-        let device_name = checked_name("a Device's name", device_name)?;
+        let device = device.checked()?;
         // Before hashing, which is slow, though only the check in the write below is race-free.
         if self.any().await? {
             return Err(Error::AlreadySetUp);
@@ -219,7 +240,7 @@ impl Users {
             .db
             .write(move |tx| {
                 Box::pin(async move {
-                    insert_first_admin(tx, &name, &credential, device_name, &token_hash).await
+                    insert_first_admin(tx, &name, &credential, device, &token_hash).await
                 })
             })
             .await?;
@@ -240,7 +261,7 @@ impl Users {
             .write(move |tx| {
                 Box::pin(async move {
                     let user = insert_user(tx, &name, role).await?;
-                    insert_credential(tx, user.id, &credential).await?;
+                    set_password(tx, user.id, &credential).await?;
                     Ok(user.id)
                 })
             })
@@ -251,7 +272,8 @@ impl Users {
     pub(crate) async fn list(&self) -> Result<Vec<User>, sqlx::Error> {
         sqlx::query_as!(
             User,
-            r#"SELECT id AS "id!", name, role AS "role: Role", created_at FROM users ORDER BY id"#
+            r#"SELECT id AS "id!", display_username AS name, role AS "role: Role", created_at
+               FROM users ORDER BY id"#
         )
         .fetch_all(self.db.reader())
         .await
@@ -265,7 +287,7 @@ impl Users {
             .await
     }
 
-    /// Deletes the User `user` with their credentials and Devices, unless that leaves the Server
+    /// Deletes the User `user` with their Sign-in Methods and Devices, unless that leaves the Server
     /// with no Admin. Their Devices are signed out as [`Users::sign_out`] does.
     pub(crate) async fn delete(&self, user: i64) -> Result<(), Error> {
         self.write_signing_out(move |tx| Box::pin(async move { delete_user(tx, user).await }))
@@ -279,13 +301,13 @@ impl Users {
         if !user_exists(&mut conn, user).await? {
             return Ok(None);
         }
-        let expired_before = now() - DEVICE_LIFETIME;
+        let now = now();
         let devices = sqlx::query_as!(
             Device,
             r#"SELECT id AS "id!", name, created_at, last_seen_at FROM devices
-               WHERE user_id = ? AND last_seen_at > ? ORDER BY id"#,
+               WHERE user_id = ? AND expires_at > ? ORDER BY id"#,
             user,
-            expired_before,
+            now,
         )
         .fetch_all(&mut *conn)
         .await?;
@@ -320,38 +342,35 @@ impl Users {
     ) -> Result<(), Error> {
         // Users are never renamed, so the caller's name still finds them.
         let found = self.user_named(&caller.user.name).await?;
-        let verified = match &found {
-            Some((_, credentials)) => {
-                self.verify_password(&Arc::from(current), credentials)
-                    .await?
-            }
-            None => false,
-        };
-        if !verified {
+        let stored = found.as_ref().and_then(|(_, stored)| stored.as_ref());
+        if self
+            .verify_password(&Arc::from(current), stored)
+            .await?
+            .is_none()
+        {
             return Err(Error::WrongPassword);
         }
         let credential = self.hash_password(new).await?;
         let (user, kept) = (caller.user.id, caller.device.id);
         self.write_signing_out(move |tx| {
-            Box::pin(async move {
-                replace_credential_signing_others_out(tx, user, &credential, kept).await
-            })
+            Box::pin(
+                async move { set_password_signing_others_out(tx, user, &credential, kept).await },
+            )
         })
         .await
     }
 
-    /// Sets the password of the User `user` to `new`, without their current one, and signs every
-    /// Device of theirs out.
+    /// Sets the password of the User `user` to `new`, without their current one, adding it if they
+    /// have none, and signs every Device of theirs out.
     pub(crate) async fn reset_password(&self, user: i64, new: &str) -> Result<(), Error> {
         let credential = self.hash_password(new).await?;
         self.write_signing_out(move |tx| {
-            Box::pin(async move { replace_credential_signing_all_out(tx, user, &credential).await })
+            Box::pin(async move { set_password_signing_all_out(tx, user, &credential).await })
         })
         .await
     }
 
-    /// Signs the Device `device_name` in as the User named `name`, ignoring case, if `password` is
-    /// theirs.
+    /// Signs `device` in as the User named `name`, ignoring case, if `password` is theirs.
     ///
     /// # Errors
     ///
@@ -361,37 +380,35 @@ impl Users {
         &self,
         name: &str,
         password: &str,
-        device_name: &str,
+        device: NewDevice,
     ) -> Result<SignedIn, Error> {
-        let device_name = checked_name("a Device's name", device_name)?;
-        let password: Arc<str> = Arc::from(password);
+        let device = device.checked()?;
         let found = self.user_named(name).await?;
-        let verified = if let Some((_, credentials)) = &found {
-            self.verify_password(&password, credentials).await?
-        } else {
-            self.verify_unknown_user(&password).await?;
-            false
-        };
-        let user = found
-            .filter(|_| verified)
-            .map(|(user, _)| user)
-            .ok_or(Error::WrongNameOrPassword)?;
-        self.sign_in_as(user, device_name).await
+        let stored = found.as_ref().and_then(|(_, stored)| stored.as_ref());
+        let method = self.verify_password(&Arc::from(password), stored).await?;
+        match (found, method) {
+            (Some((user, _)), Some(method)) => self.sign_in_as(user, Some(method), device).await,
+            _ => Err(Error::WrongNameOrPassword),
+        }
     }
 
-    /// Signs the Device `device_name`, which has been checked, in as `user`, whose credentials have
-    /// been, or who approved a Sign-in Code.
+    /// Signs `device`, whose name has been checked, in as `user`, who proved who they are with the
+    /// Sign-in Method `method`, or with none, by approving a Sign-in Code. The only place sessions
+    /// are issued.
     pub(crate) async fn sign_in_as(
         &self,
         user: User,
-        device_name: String,
+        method: Option<i64>,
+        device: NewDevice,
     ) -> Result<SignedIn, Error> {
         let token = new_token()?;
         let token_hash = hash_token(&token);
         let device = self
             .db
             .write(move |tx| {
-                Box::pin(async move { insert_device(tx, user.id, device_name, &token_hash).await })
+                Box::pin(
+                    async move { insert_device(tx, user.id, method, device, &token_hash).await },
+                )
             })
             .await?;
         Ok(SignedIn {
@@ -491,16 +508,15 @@ impl Users {
     async fn session_at(&self, token: &str, now: i64) -> Result<Option<Session>, sqlx::Error> {
         let token_hash = hash_token(token);
         let token_hash = token_hash.as_slice();
-        let expired_before = now - DEVICE_LIFETIME;
         let row = sqlx::query!(
             r#"SELECT d.id AS "device_id!", d.name AS device_name, d.created_at AS device_created_at,
                       d.last_seen_at,
-                      u.id AS "user_id!", u.name AS user_name, u.role AS "role: Role",
+                      u.id AS "user_id!", u.display_username AS user_name, u.role AS "role: Role",
                       u.created_at
                FROM devices d JOIN users u ON u.id = d.user_id
-               WHERE d.token_hash = ? AND d.last_seen_at > ?"#,
+               WHERE d.token_hash = ? AND d.expires_at > ?"#,
             token_hash,
-            expired_before,
+            now,
         )
         .fetch_optional(self.db.reader())
         .await?;
@@ -532,16 +548,20 @@ impl Users {
         Ok(Some(Session { caller, refreshed }))
     }
 
-    /// Records that the Device `device` was last seen at `now`, unless another request already
-    /// did within [`LAST_SEEN_PRECISION`] seconds of it.
+    /// Records that the Device `device` was last seen at `now`, which pushes its expiry back,
+    /// unless another request already did within [`LAST_SEEN_PRECISION`] seconds of it.
     async fn saw_device(&self, device: i64, now: i64) -> Result<(), sqlx::Error> {
         let stale_since = now - LAST_SEEN_PRECISION;
+        let expires_at = now + DEVICE_LIFETIME;
         self.db
             .write(move |tx| {
                 Box::pin(async move {
                     sqlx::query!(
-                        "UPDATE devices SET last_seen_at = ? WHERE id = ? AND last_seen_at <= ?",
+                        "UPDATE devices SET last_seen_at = ?, updated_at = ?, expires_at = ?
+                         WHERE id = ? AND last_seen_at <= ?",
                         now,
+                        now,
+                        expires_at,
                         device,
                         stale_since,
                     )
@@ -573,67 +593,71 @@ impl Users {
         }
     }
 
-    /// The User whose name is `name` ignoring case, with those of their credentials an enabled
-    /// Plugin made.
-    async fn user_named(&self, name: &str) -> Result<Option<(User, Vec<Credential>)>, Error> {
-        let name_key = name_key(name);
-        let rows = sqlx::query!(
-            r#"SELECT u.id AS "id!", u.name, u.role AS "role: Role", u.created_at, c.plugin,
-                      c.credential
-               FROM users u JOIN user_credentials c ON c.user_id = u.id
-               WHERE u.name_key = ?"#,
-            name_key
+    /// The User whose name is `name` ignoring case, whether or not they have a password, with their
+    /// password if an enabled Plugin made it.
+    async fn user_named(
+        &self,
+        name: &str,
+    ) -> Result<Option<(User, Option<StoredPassword>)>, Error> {
+        let username = name_key(name);
+        let row = sqlx::query!(
+            r#"SELECT u.id AS "id!", u.display_username AS name, u.role AS "role: Role",
+                      u.created_at, m.id AS "method_id?", m.provider_id AS "provider_id?",
+                      m.credential AS "credential?"
+               FROM users u LEFT JOIN sign_in_methods m ON m.user_id = u.id AND m.subject IS NULL
+               WHERE u.username = ?"#,
+            username
         )
-        .fetch_all(self.db.reader())
+        .fetch_optional(self.db.reader())
         .await?;
-        let Some(first) = rows.first() else {
+        let Some(row) = row else {
             return Ok(None);
         };
         let user = User {
-            id: first.id,
-            name: first.name.clone(),
-            role: first.role,
-            created_at: first.created_at,
+            id: row.id,
+            name: row.name,
+            role: row.role,
+            created_at: row.created_at,
         };
         let enabled = self.plugins.enabled();
-        let credentials = rows
+        let plugin = enabled
             .into_iter()
-            .filter_map(|row| {
-                let plugin = enabled.iter().find(|id| id.as_str() == row.plugin)?;
-                Some(Credential {
-                    plugin: plugin.clone(),
-                    value: row.credential,
-                })
-            })
-            .collect();
-        Ok(Some((user, credentials)))
+            .find(|id| row.provider_id.as_deref() == Some(id.as_str()));
+        let stored = match (row.method_id, plugin, row.credential) {
+            (Some(id), Some(plugin), Some(value)) => Some(StoredPassword {
+                id,
+                credential: Credential { plugin, value },
+            }),
+            _ => None,
+        };
+        Ok(Some((user, stored)))
     }
 
-    /// Whether `password` is the one one of `credentials` was made from, as checked by the
-    /// Authenticator that made it. If none of their Plugins provides one any more, the answer is
-    /// no, after as long as checking would have taken.
+    /// The id of `stored`'s Sign-in Method if `password` is the one it was made from, as checked by
+    /// the Authenticator that made it. With no `stored` password, or none whose Plugin still
+    /// provides one, the answer is no, after as long as checking would have taken.
     async fn verify_password(
         &self,
         password: &Arc<str>,
-        credentials: &[Credential],
-    ) -> Result<bool, Error> {
-        for credential in credentials {
-            let value: Arc<str> = Arc::from(credential.value.as_str());
+        stored: Option<&StoredPassword>,
+    ) -> Result<Option<i64>, Error> {
+        if let Some(stored) = stored {
+            let value: Arc<str> = Arc::from(stored.credential.value.as_str());
             let verified = self
                 .plugins
-                .call_provider_of(&credential.plugin, |authenticator| {
+                .call_provider_of(&stored.credential.plugin, |authenticator| {
                     verify_where_blocking_is_fine(authenticator, password, &value)
                 })
                 .await;
             match verified {
                 None => {}
-                Some(Ok(Ok(verified))) => return Ok(verified),
+                Some(Ok(Ok(verified))) => return Ok(verified.then_some(stored.id)),
                 Some(Ok(Err(err))) => return Err(Error::Authenticator(err.to_string())),
                 Some(Err(panicked)) => return Err(Error::Authenticator(panicked.to_string())),
             }
         }
         self.verify_unknown_user(password).await?;
-        Ok(false)
+        Ok(None)
     }
 
     /// Has the first enabled Authenticator spend as long on `password` as checking a real User's
@@ -647,6 +671,14 @@ impl Users {
             .await
             .ok_or(Error::NoAuthenticator)?
             .map_err(|panicked| Error::Authenticator(panicked.to_string()))
+    }
+}
+
+impl NewDevice {
+    /// This Device with its name checked.
+    fn checked(self) -> Result<Self, Error> {
+        let name = checked_name("a Device's name", &self.name)?;
+        Ok(Self { name, ..self })
     }
 }
 
@@ -768,22 +800,28 @@ async fn user_exists(conn: &mut SqliteConnection, user: i64) -> Result<bool, sql
 /// in the same transaction, so a refusal rolls the write back. Writes run one at a time, so two
 /// demotions at once can't both pass the check.
 async fn update_role(conn: &mut SqliteConnection, user: i64, role: Role) -> Result<(), Error> {
-    let updated = sqlx::query!("UPDATE users SET role = ? WHERE id = ?", role, user)
-        .execute(&mut *conn)
-        .await?;
+    let now = now();
+    let updated = sqlx::query!(
+        "UPDATE users SET role = ?, updated_at = ? WHERE id = ?",
+        role,
+        now,
+        user
+    )
+    .execute(&mut *conn)
+    .await?;
     if updated.rows_affected() == 0 {
         return Err(Error::NoSuchUser);
     }
     ensure_an_admin_left(conn).await
 }
 
-/// Deletes the User `user`, whose credentials and Devices go with them, failing if that leaves no
+/// Deletes the User `user`, whose Sign-in Methods and Devices go with them, failing if that leaves no
 /// Admin, as [`update_role`] does. Returns the IDs of the Devices it signed out.
 async fn delete_user(conn: &mut SqliteConnection, user: i64) -> Result<Vec<i64>, Error> {
     let devices = sqlx::query_scalar!(r#"SELECT id AS "id!" FROM devices WHERE user_id = ?"#, user)
         .fetch_all(&mut *conn)
         .await?;
-    // Their `user_credentials` and `devices` rows are deleted by `ON DELETE CASCADE`.
+    // Their `sign_in_methods` and `devices` rows are deleted by `ON DELETE CASCADE`.
     let deleted = sqlx::query!("DELETE FROM users WHERE id = ?", user)
         .execute(&mut *conn)
         .await?;
@@ -809,31 +847,31 @@ async fn ensure_an_admin_left(conn: &mut SqliteConnection) -> Result<(), Error> 
     }
 }
 
-/// Stores the first Admin, named `name`, with `credential`, and their Device named `device_name`
-/// with the hash of its session token, unless the Server already has a User. The names have been
-/// checked.
+/// Stores the first Admin, named `name`, with `credential` as their password, and `device`
+/// signed in with it, with the hash of its session token, unless the Server already has a User.
+/// The names have been checked.
 async fn insert_first_admin(
     conn: &mut SqliteConnection,
     name: &str,
     credential: &Credential,
-    device_name: String,
+    device: NewDevice,
     token_hash: &[u8; 32],
 ) -> Result<Caller, Error> {
     if any_user(conn).await? {
         return Err(Error::AlreadySetUp);
     }
     let user = insert_user(conn, name, Role::Admin).await?;
-    insert_credential(conn, user.id, credential).await?;
-    let device = insert_device(conn, user.id, device_name, token_hash).await?;
+    let method = set_password(conn, user.id, credential).await?;
+    let device = insert_device(conn, user.id, Some(method), device, token_hash).await?;
     Ok(Caller { user, device })
 }
 
-/// Makes `credential` the only one the User `user` has, as [`replace_credential`] does, and signs
-/// out every Device of theirs but `kept`, returning the ids of those signed out.
+/// Makes `credential` the User `user`'s password, as [`set_password`] does, and signs out every
+/// Device of theirs but `kept`, returning the ids of those signed out.
 ///
 /// Fails if `kept` was signed out meanwhile, such as by another password change, so a change never
 /// succeeds for a Device that is no longer signed in, nor overwrites the one that signed it out.
-async fn replace_credential_signing_others_out(
+async fn set_password_signing_others_out(
     conn: &mut SqliteConnection,
     user: i64,
     credential: &Credential,
@@ -848,7 +886,7 @@ async fn replace_credential_signing_others_out(
     if !still_signed_in {
         return Err(Error::SignedOut);
     }
-    replace_credential(conn, user, credential).await?;
+    set_password(conn, user, credential).await?;
     let signed_out = sqlx::query_scalar!(
         r#"DELETE FROM devices WHERE user_id = ? AND id != ? RETURNING id AS "id!""#,
         user,
@@ -859,9 +897,9 @@ async fn replace_credential_signing_others_out(
     Ok(signed_out)
 }
 
-/// Makes `credential` the only one the User `user` has, as [`replace_credential`] does, and signs
-/// out every Device of theirs, returning their ids. Fails if there is no such User.
-async fn replace_credential_signing_all_out(
+/// Makes `credential` the User `user`'s password, as [`set_password`] does, and signs out every
+/// Device of theirs, returning their ids. Fails if there is no such User.
+async fn set_password_signing_all_out(
     conn: &mut SqliteConnection,
     user: i64,
     credential: &Credential,
@@ -869,7 +907,7 @@ async fn replace_credential_signing_all_out(
     if !user_exists(conn, user).await? {
         return Err(Error::NoSuchUser);
     }
-    replace_credential(conn, user, credential).await?;
+    set_password(conn, user, credential).await?;
     let signed_out = sqlx::query_scalar!(
         r#"DELETE FROM devices WHERE user_id = ? RETURNING id AS "id!""#,
         user
@@ -879,36 +917,36 @@ async fn replace_credential_signing_all_out(
     Ok(signed_out)
 }
 
-/// Makes `credential` the only one the User `user` has. Credentials other Plugins made go too, so
-/// the old password can't come back with a Plugin that is enabled again.
-async fn replace_credential(
+/// Makes `credential` the User `user`'s password and returns its Sign-in Method's id. A password
+/// they had is overwritten, whichever Plugin made it, so it can't come back with a Plugin that is
+/// enabled again. It keeps its id, so Devices signed in with it aren't signed out by
+/// `ON DELETE CASCADE`; the callers sign out the ones they mean to.
+async fn set_password(
     conn: &mut SqliteConnection,
     user: i64,
     credential: &Credential,
-) -> Result<(), Error> {
-    sqlx::query!("DELETE FROM user_credentials WHERE user_id = ?", user)
-        .execute(&mut *conn)
-        .await?;
-    insert_credential(conn, user, credential).await
-}
-
-async fn insert_credential(
-    conn: &mut SqliteConnection,
-    user: i64,
-    credential: &Credential,
-) -> Result<(), Error> {
-    sqlx::query!(
-        "INSERT INTO user_credentials (user_id, plugin, credential) VALUES (?, ?, ?)",
+) -> Result<i64, sqlx::Error> {
+    let now = now();
+    sqlx::query_scalar!(
+        r#"INSERT INTO sign_in_methods
+               (user_id, provider_id, credential, name, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?)
+           ON CONFLICT (user_id) WHERE subject IS NULL DO UPDATE
+               SET provider_id = excluded.provider_id, credential = excluded.credential,
+                   updated_at = excluded.updated_at
+           RETURNING id AS "id!""#,
         user,
         credential.plugin.as_str(),
         credential.value,
+        PASSWORD_METHOD_NAME,
+        now,
+        now,
     )
-    .execute(conn)
-    .await?;
-    Ok(())
+    .fetch_one(conn)
+    .await
 }
 
-/// What a User's `name` is stored and looked up under, trimmed, so names are unique and found
+/// The `username` a User's `name` is stored and looked up under, so names are unique and found
 /// ignoring case.
 pub(crate) fn name_key(name: &str) -> String {
     name.trim().to_lowercase()
@@ -916,14 +954,16 @@ pub(crate) fn name_key(name: &str) -> String {
 
 /// Stores a User named `name`, which has been checked, unless another has it ignoring case.
 async fn insert_user(conn: &mut SqliteConnection, name: &str, role: Role) -> Result<User, Error> {
-    let name_key = name_key(name);
+    let username = name_key(name);
     let created_at = now();
     let id = sqlx::query_scalar!(
-        r#"INSERT INTO users (name, name_key, role, created_at) VALUES (?, ?, ?, ?)
+        r#"INSERT INTO users (username, display_username, role, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?)
            RETURNING id AS "id!""#,
+        username,
         name,
-        name_key,
         role,
+        created_at,
         created_at,
     )
     .fetch_one(conn)
@@ -940,31 +980,44 @@ async fn insert_user(conn: &mut SqliteConnection, name: &str, role: Role) -> Res
     })
 }
 
-/// Stores a Device named `name`, which has been checked, for the User `user`, with the hash of its
-/// session token.
+/// Stores `device`, whose name has been checked, signed in as the User `user` with the Sign-in
+/// Method `method`, or by a Sign-in Code, and the hash of its session token.
 async fn insert_device(
     conn: &mut SqliteConnection,
     user: i64,
-    name: String,
+    method: Option<i64>,
+    device: NewDevice,
     token_hash: &[u8; 32],
 ) -> Result<Device, sqlx::Error> {
     let now = now();
+    let expires_at = now + DEVICE_LIFETIME;
+    // A Device signed in by a Sign-in Code never proved who it is itself (ADR 0014).
+    let authenticated_at = if method.is_some() { now } else { 0 };
     let token_hash = token_hash.as_slice();
+    let ip_address = device.ip_address.to_string();
     let id = sqlx::query_scalar!(
-        r#"INSERT INTO devices (user_id, name, token_hash, created_at, last_seen_at)
-           VALUES (?, ?, ?, ?, ?)
+        r#"INSERT INTO devices
+               (user_id, sign_in_method_id, name, token_hash, ip_address, user_agent, created_at,
+                updated_at, last_seen_at, expires_at, authenticated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            RETURNING id AS "id!""#,
         user,
-        name,
+        method,
+        device.name,
         token_hash,
+        ip_address,
+        device.user_agent,
         now,
         now,
+        now,
+        expires_at,
+        authenticated_at,
     )
     .fetch_one(conn)
     .await?;
     Ok(Device {
         id,
-        name,
+        name: device.name,
         created_at: now,
         last_seen_at: now,
     })
@@ -992,9 +1045,9 @@ mod tests {
         let user = create_user(&db, "Ada").await.unwrap();
         let signed_in_at = now();
         db.write(move |tx| {
-            Box::pin(async move {
-                insert_device(tx, user.id, "Laptop".to_owned(), &hash_token(TOKEN)).await
-            })
+            Box::pin(
+                async move { insert_device(tx, user.id, None, laptop(), &hash_token(TOKEN)).await },
+            )
         })
         .await
         .unwrap();
@@ -1157,6 +1210,206 @@ mod tests {
         let admins = users.list().await.unwrap();
         let admins = admins.iter().filter(|user| user.role == Role::Admin);
         assert_eq!(admins.count(), 1);
+    }
+
+    /// [`Users`] on a fresh database in `data_dir`, whose Authenticator is `local-auth`.
+    async fn users_with_local_auth(data_dir: &std::path::Path) -> Users {
+        let db = Arc::new(Database::open(data_dir).await.unwrap());
+        let plugins = Registry::new();
+        plugins
+            .enable(Arc::new(nama_plugin_local_auth::LocalAuth))
+            .unwrap();
+        Users::new(db, plugins)
+    }
+
+    const PASSWORD: &str = "correct horse battery staple";
+
+    fn laptop() -> NewDevice {
+        NewDevice {
+            name: "Laptop".to_owned(),
+            ip_address: "192.0.2.7".parse().unwrap(),
+            user_agent: Some("TestAgent/1.0".to_owned()),
+        }
+    }
+
+    /// How the Device `device` signed in: the name of its Sign-in Method, its IP address and user
+    /// agent, and when it last proved who it is.
+    async fn sign_in_details(
+        users: &Users,
+        device: i64,
+    ) -> (Option<String>, String, Option<String>, i64) {
+        let row = sqlx::query!(
+            r#"SELECT m.name AS "method?", d.ip_address, d.user_agent, d.authenticated_at
+               FROM devices d LEFT JOIN sign_in_methods m ON m.id = d.sign_in_method_id
+               WHERE d.id = ?"#,
+            device
+        )
+        .fetch_one(users.db.reader())
+        .await
+        .unwrap();
+        (
+            row.method,
+            row.ip_address,
+            row.user_agent,
+            row.authenticated_at,
+        )
+    }
+
+    /// Gives the User `user` a Sign-in Method that isn't a password, and returns its id.
+    async fn add_other_sign_in_method(users: &Users, user: i64) -> i64 {
+        users
+            .db
+            .write(move |tx| {
+                Box::pin(async move {
+                    sqlx::query_scalar!(
+                        r#"INSERT INTO sign_in_methods
+                               (user_id, provider_id, subject, credential, name, created_at,
+                                updated_at)
+                           VALUES (?, 'test', 'their-id', '', 'Test', 0, 0)
+                           RETURNING id AS "id!""#,
+                        user
+                    )
+                    .fetch_one(&mut **tx)
+                    .await
+                })
+            })
+            .await
+            .unwrap()
+    }
+
+    async fn delete_sign_in_method(users: &Users, method: i64) -> Result<(), sqlx::Error> {
+        users
+            .db
+            .write(move |tx| {
+                Box::pin(async move {
+                    sqlx::query!("DELETE FROM sign_in_methods WHERE id = ?", method)
+                        .execute(&mut **tx)
+                        .await
+                })
+            })
+            .await?;
+        Ok(())
+    }
+
+    async fn expire_devices(users: &Users, at: i64) {
+        users
+            .db
+            .write(move |tx| {
+                Box::pin(async move {
+                    sqlx::query!("UPDATE devices SET expires_at = ?", at)
+                        .execute(&mut **tx)
+                        .await
+                })
+            })
+            .await
+            .unwrap();
+    }
+
+    async fn password_method(users: &Users, user: i64) -> i64 {
+        sqlx::query_scalar!(
+            r#"SELECT id AS "id!" FROM sign_in_methods WHERE user_id = ? AND subject IS NULL"#,
+            user
+        )
+        .fetch_one(users.db.reader())
+        .await
+        .unwrap()
+    }
+
+    #[tokio::test]
+    async fn a_device_signed_in_with_a_password_records_its_method_ip_user_agent_and_when() {
+        let data_dir = tempfile::tempdir().unwrap();
+        let users = users_with_local_auth(data_dir.path()).await;
+        users.create("Ada", PASSWORD, Role::Member).await.unwrap();
+        let before = now();
+
+        let signed_in = users.sign_in("ada", PASSWORD, laptop()).await.unwrap();
+
+        let (method, ip, user_agent, authenticated_at) =
+            sign_in_details(&users, signed_in.caller.device.id).await;
+        assert_eq!(method.as_deref(), Some("Password"));
+        assert_eq!(ip, "192.0.2.7");
+        assert_eq!(user_agent.as_deref(), Some("TestAgent/1.0"));
+        assert!(
+            (before..=now()).contains(&authenticated_at),
+            "{authenticated_at}"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_device_signed_in_by_a_sign_in_code_records_no_method_and_never_authenticated() {
+        let data_dir = tempfile::tempdir().unwrap();
+        let users = users_with_local_auth(data_dir.path()).await;
+        let ada = create_user(&users.db, "Ada").await.unwrap();
+
+        let signed_in = users.sign_in_as(ada, None, laptop()).await.unwrap();
+
+        let (method, ip, _, authenticated_at) =
+            sign_in_details(&users, signed_in.caller.device.id).await;
+        assert_eq!(
+            (method, ip.as_str(), authenticated_at),
+            (None, "192.0.2.7", 0)
+        );
+    }
+
+    #[tokio::test]
+    async fn a_device_past_its_expiry_is_no_session_however_recently_it_was_seen() {
+        let data_dir = tempfile::tempdir().unwrap();
+        let (users, _) = signed_in_device(data_dir.path()).await;
+        expire_devices(&users, now() - 1).await;
+
+        let session = users.session(TOKEN).await;
+
+        assert!(session.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn deleting_a_sign_in_method_signs_out_only_the_devices_that_used_it() {
+        let data_dir = tempfile::tempdir().unwrap();
+        let users = users_with_local_auth(data_dir.path()).await;
+        let ada = users.create("Ada", PASSWORD, Role::Member).await.unwrap();
+        add_other_sign_in_method(&users, ada).await;
+        let by_password = users.sign_in("Ada", PASSWORD, laptop()).await.unwrap();
+        let by_code = users
+            .sign_in_as(by_password.caller.user.clone(), None, laptop())
+            .await
+            .unwrap();
+
+        let password = password_method(&users, ada).await;
+        delete_sign_in_method(&users, password).await.unwrap();
+
+        assert!(!users.still_signed_in(by_password.caller.device.id).await);
+        assert!(users.still_signed_in(by_code.caller.device.id).await);
+    }
+
+    #[tokio::test]
+    async fn a_users_last_sign_in_method_cant_be_deleted() {
+        let data_dir = tempfile::tempdir().unwrap();
+        let users = users_with_local_auth(data_dir.path()).await;
+        let ada = users.create("Ada", PASSWORD, Role::Member).await.unwrap();
+
+        let password = password_method(&users, ada).await;
+        let deleted = delete_sign_in_method(&users, password).await;
+
+        assert!(deleted.is_err(), "the last Sign-in Method was deleted");
+    }
+
+    #[tokio::test]
+    async fn resetting_the_password_of_a_user_without_one_adds_it_and_keeps_their_other_method() {
+        let data_dir = tempfile::tempdir().unwrap();
+        let users = users_with_local_auth(data_dir.path()).await;
+        let ada = create_user(&users.db, "Ada").await.unwrap().id;
+        add_other_sign_in_method(&users, ada).await;
+        assert!(
+            users.user_named("Ada").await.unwrap().is_some(),
+            "not found by name"
+        );
+
+        users.reset_password(ada, PASSWORD).await.unwrap();
+
+        users.sign_in("Ada", PASSWORD, laptop()).await.unwrap();
+        let password = password_method(&users, ada).await;
+        // Refused if it were Ada's last Sign-in Method.
+        delete_sign_in_method(&users, password).await.unwrap();
     }
 
     #[test]

@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "INSERT INTO devices (user_id, name, token_hash, created_at, last_seen_at)\n           VALUES (?, ?, ?, ?, ?)\n           RETURNING id AS \"id!\"",
+  "query": "SELECT id AS \"id!\" FROM sign_in_methods WHERE user_id = ? AND subject IS NULL",
   "describe": {
     "columns": [
       {
@@ -9,18 +9,18 @@
         "type_info": "Integer",
         "origin": {
           "Table": {
-            "table": "devices",
+            "table": "sign_in_methods",
             "name": "id"
           }
         }
       }
     ],
     "parameters": {
-      "Right": 5
+      "Right": 1
     },
     "nullable": [
-      null
+      false
     ]
   },
-  "hash": "29e5602cf78f17c8671e92af2bd0f29d12385d457c28489be527af5ae46f9025"
+  "hash": "7f64ee1f3bdc2e2f00aa8925c7608cbfb196cdd2513cb1a6a0b319a3f9eab968"
 }

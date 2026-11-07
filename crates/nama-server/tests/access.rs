@@ -4,7 +4,7 @@
 #[path = "support/server.rs"]
 mod server;
 
-use std::time::Duration;
+use std::{net::Ipv4Addr, time::Duration};
 
 use connectrpc::{
     ConnectError, ErrorCode,
@@ -16,7 +16,11 @@ use nama_proto::nama::v1::{
     EventServiceClient, LibraryKind, LibraryServiceClient, ListLibrariesRequest, Role,
     ScanLibraryRequest, SubscribeRequest, SubscribeResponse, UserServiceClient,
 };
-use nama_server::{config::Config, plugins::Registry, users::Users};
+use nama_server::{
+    config::Config,
+    plugins::Registry,
+    users::{NewDevice, Users},
+};
 use serde_json::Value;
 use server::{PASSWORD, TestServer};
 
@@ -149,7 +153,12 @@ async fn start_with_member() -> (TestServer, String) {
         .await
         .unwrap();
     let users = Users::new(db, plugins);
-    let signed_in = users.sign_in("Grace", PASSWORD, "Phone").await.unwrap();
+    let phone = NewDevice {
+        name: "Phone".to_owned(),
+        ip_address: Ipv4Addr::LOCALHOST.into(),
+        user_agent: None,
+    };
+    let signed_in = users.sign_in("Grace", PASSWORD, phone).await.unwrap();
     (server, signed_in.token().to_owned())
 }
 
