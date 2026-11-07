@@ -665,7 +665,7 @@ async fn a_new_user_gets_the_default_permissions_and_earlier_users_keep_theirs()
 }
 
 #[tokio::test]
-async fn an_admin_may_make_new_users_admins_by_default_but_the_first_admin_was_one_anyway() {
+async fn an_admin_may_make_admin_a_default_permission_that_new_users_get() {
     let fixture = Fixture::start().await;
 
     set_default_permissions(&fixture.client, &[Permission::Admin])
