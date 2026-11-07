@@ -5,7 +5,11 @@
 //! `item_matches` and `match_pins`. Each of its methods is one read, or one write through the
 //! database's single writer.
 
-use std::{borrow::Cow, collections::HashMap, sync::Arc};
+use std::{
+    borrow::Cow,
+    collections::{BTreeMap, HashMap},
+    sync::Arc,
+};
 
 use nama_plugin_api::{
     PluginId,
@@ -162,6 +166,58 @@ pub(crate) struct Version {
     pub(crate) id: i64,
     pub(crate) path: String,
     pub(crate) size: i64,
+}
+
+/// A Show some Items of a Library are Matched to Episodes of, with the metadata the Match of its
+/// first Episode, by season, episode and path, stores.
+#[derive(Debug)]
+pub(crate) struct Show {
+    /// Which of its Episodes' Show ids identifies it: see [`primary_id`].
+    pub(crate) id: ExternalId,
+    /// The Plugin whose metadata Provider made the Match, which the image paths are for.
+    pub(crate) plugin: String,
+    pub(crate) title: String,
+    pub(crate) backdrop: Option<String>,
+    /// The Seasons the Library has Episodes of, by number.
+    pub(crate) seasons: BTreeMap<i64, Season>,
+}
+
+impl Show {
+    /// The Show's poster: its first Season's, since a Match stores each Episode's Season poster
+    /// and none of the Show's own. Specials (Season 0) count only if they are all there is.
+    pub(crate) fn poster(&self) -> Option<&str> {
+        let (_, first) = self
+            .seasons
+            .range(1..)
+            .next()
+            .or_else(|| self.seasons.first_key_value())?;
+        first.poster.as_deref()
+    }
+}
+
+/// The Episodes of a Show's Season that some Items of a Library are Matched to.
+#[derive(Debug)]
+pub(crate) struct Season {
+    /// The poster the Match of its first Episode stores.
+    pub(crate) poster: Option<String>,
+    /// By episode number.
+    pub(crate) episodes: Vec<Episode>,
+}
+
+/// An Episode some Items of a Library are Matched to, with the metadata the Match of its first
+/// Version stores.
+#[derive(Debug)]
+pub(crate) struct Episode {
+    /// Which of the Match's ids identifies the Episode: see [`primary_id`].
+    pub(crate) id: ExternalId,
+    /// The episode number within its Season.
+    pub(crate) number: i64,
+    pub(crate) title: String,
+    pub(crate) overview: Option<String>,
+    pub(crate) air_date: Option<String>,
+    pub(crate) runtime_minutes: Option<i64>,
+    /// The files Matched to it, by path. A file holding two Episodes is a Version of each.
+    pub(crate) versions: Vec<Version>,
 }
 
 impl Contents {
@@ -448,6 +504,80 @@ impl Contents {
         }
         movies.sort_by(|a, b| a.title.cmp(&b.title));
         Ok(movies)
+    }
+
+    /// The Shows the Items of the Library `library` are Matched to Episodes of, by title, grouped
+    /// by their Episodes' Show ids' [`primary_id`], each Season's Episodes by their own.
+    pub(crate) async fn shows(&self, library: i64) -> Result<Vec<Show>, sqlx::Error> {
+        let rows = sqlx::query!(
+            r#"SELECT library_files.id AS "file!", library_files.path, library_files.size,
+                      library_items.season AS "season!", library_items.episode AS "episode!",
+                      item_matches.plugin AS "plugin!", item_matches.tmdb_id,
+                      item_matches.imdb_id, item_matches.tvdb_id, item_matches.show_tmdb_id,
+                      item_matches.show_imdb_id, item_matches.show_tvdb_id,
+                      item_matches.title AS "title!", item_matches.show_title AS "show_title!",
+                      item_matches.overview, item_matches.release_date,
+                      item_matches.runtime_minutes, item_matches.poster, item_matches.backdrop
+               FROM item_matches
+               JOIN library_items ON library_items.id = item_matches.item_id
+               JOIN library_files ON library_files.id = library_items.file_id
+               WHERE library_files.library_id = ?
+                 AND library_items.kind = 'episode'
+                 AND item_matches.state = 'matched'
+               ORDER BY library_items.season, library_items.episode, library_files.path"#,
+            library
+        )
+        .fetch_all(self.db.reader())
+        .await?;
+        // Ordered by season, episode, then path, so within a Season the rows of one Episode are
+        // adjacent, by path.
+        let mut shows: BTreeMap<ExternalId, Show> = BTreeMap::new();
+        for row in rows {
+            let show_ids = ExternalIds {
+                tmdb: row.show_tmdb_id,
+                imdb: row.show_imdb_id,
+                tvdb: row.show_tvdb_id,
+            };
+            let ids = ExternalIds {
+                tmdb: row.tmdb_id,
+                imdb: row.imdb_id,
+                tvdb: row.tvdb_id,
+            };
+            let (Some(show_id), Some(id)) = (primary_id(show_ids), primary_id(ids)) else {
+                continue;
+            };
+            let show = shows.entry(show_id.clone()).or_insert_with(|| Show {
+                id: show_id,
+                plugin: row.plugin,
+                title: row.show_title,
+                backdrop: row.backdrop,
+                seasons: BTreeMap::new(),
+            });
+            let season = show.seasons.entry(row.season).or_insert_with(|| Season {
+                poster: row.poster,
+                episodes: Vec::new(),
+            });
+            let version = Version {
+                id: row.file,
+                path: row.path,
+                size: row.size,
+            };
+            match season.episodes.last_mut() {
+                Some(episode) if episode.id == id => episode.versions.push(version),
+                _ => season.episodes.push(Episode {
+                    id,
+                    number: row.episode,
+                    title: row.title,
+                    overview: row.overview,
+                    air_date: row.release_date,
+                    runtime_minutes: row.runtime_minutes,
+                    versions: vec![version],
+                }),
+            }
+        }
+        let mut shows: Vec<Show> = shows.into_values().collect();
+        shows.sort_by(|a, b| a.title.cmp(&b.title));
+        Ok(shows)
     }
 
     /// Pins `pin` for the Items of the Library `library` called `name`, replacing any pin they

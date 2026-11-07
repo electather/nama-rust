@@ -29,27 +29,28 @@ use nama_proto::nama::v1::{
     ClearMatchRequest, ClearMatchResponse, CreateLibraryRequest, CreateLibraryResponse,
     CreateUserRequest, CreateUserResponse, DeleteLibraryRequest, DeleteLibraryResponse,
     EventService, EventType, GetLibraryRequest, GetLibraryResponse, GetMovieRequest,
-    GetMovieResponse, GetServerInfoRequest, GetServerInfoResponse, LIBRARY_SERVICE_SERVICE_NAME,
-    LibraryKind, LibraryService, ListLibrariesRequest, ListLibrariesResponse, ListMoviesRequest,
-    ListMoviesResponse, ListUnmatchedItemsRequest, ListUnmatchedItemsResponse, ListUsersRequest,
-    ListUsersResponse, LookUpSignInCodeRequest, LookUpSignInCodeResponse,
-    MATCH_SERVICE_SERVICE_NAME, MatchService, PollSignInCodeRequest, PollSignInCodeResponse,
-    SERVER_SERVICE_GET_SERVER_INFO_SPEC, SIGN_IN_SERVICE_POLL_SIGN_IN_CODE_SPEC,
-    SIGN_IN_SERVICE_SETUP_SPEC, SIGN_IN_SERVICE_SIGN_IN_SPEC,
-    SIGN_IN_SERVICE_START_SIGN_IN_CODE_SPEC, ScanLibraryRequest, ScanLibraryResponse,
-    SearchMetadataRequest, SearchMetadataResponse, ServerService, SessionDelivery, SetMatchRequest,
-    SetMatchResponse, SetupRequest, SetupResponse, SignInCodeStatus, SignInRequest, SignInResponse,
-    SignInService, SignOutRequest, SignOutResponse, StartSignInCodeRequest,
-    StartSignInCodeResponse, SubscribeRequest, SubscribeResponse, USER_SERVICE_SERVICE_NAME,
-    UpdateLibraryRequest, UpdateLibraryResponse, UserService, WhoAmIRequest, WhoAmIResponse,
-    external_id,
+    GetMovieResponse, GetServerInfoRequest, GetServerInfoResponse, GetShowRequest, GetShowResponse,
+    LIBRARY_SERVICE_SERVICE_NAME, LibraryKind, LibraryService, ListEpisodesRequest,
+    ListEpisodesResponse, ListLibrariesRequest, ListLibrariesResponse, ListMoviesRequest,
+    ListMoviesResponse, ListShowsRequest, ListShowsResponse, ListUnmatchedItemsRequest,
+    ListUnmatchedItemsResponse, ListUsersRequest, ListUsersResponse, LookUpSignInCodeRequest,
+    LookUpSignInCodeResponse, MATCH_SERVICE_SERVICE_NAME, MatchService, PollSignInCodeRequest,
+    PollSignInCodeResponse, SERVER_SERVICE_GET_SERVER_INFO_SPEC,
+    SIGN_IN_SERVICE_POLL_SIGN_IN_CODE_SPEC, SIGN_IN_SERVICE_SETUP_SPEC,
+    SIGN_IN_SERVICE_SIGN_IN_SPEC, SIGN_IN_SERVICE_START_SIGN_IN_CODE_SPEC, ScanLibraryRequest,
+    ScanLibraryResponse, SearchMetadataRequest, SearchMetadataResponse, ServerService,
+    SessionDelivery, SetMatchRequest, SetMatchResponse, SetupRequest, SetupResponse,
+    SignInCodeStatus, SignInRequest, SignInResponse, SignInService, SignOutRequest,
+    SignOutResponse, StartSignInCodeRequest, StartSignInCodeResponse, SubscribeRequest,
+    SubscribeResponse, USER_SERVICE_SERVICE_NAME, UpdateLibraryRequest, UpdateLibraryResponse,
+    UserService, WhoAmIRequest, WhoAmIResponse, external_id,
 };
 use tokio::sync::OwnedMutexGuard;
 
 use crate::{
     artwork,
     config::Config,
-    contents::{Contents, Item, Movie, Unmatched, Version},
+    contents::{Contents, Episode, Item, Movie, Show, Unmatched, Version},
     db::Database,
     events::{EventBus, Filter},
     libraries::{self, Kind, Libraries, Library},
@@ -651,15 +652,47 @@ struct BrowseServiceHandler {
 impl BrowseServiceHandler {
     /// The Movies of the Library `library`, which must be a Movies Library.
     async fn movies(&self, library: i64) -> Result<Vec<Movie>, ConnectError> {
-        if self.libraries.get(library).await?.kind != Kind::Movies {
-            return Err(ConnectError::invalid_argument(
-                "the Library isn't a Movies Library",
-            ));
-        }
+        self.require_kind(library, Kind::Movies).await?;
         self.contents
             .movies(library)
             .await
             .map_err(|err| database_failed(&err))
+    }
+
+    /// The Shows of the Library `library`, which must be a Shows Library.
+    // ponytail: reads every Episode and Version to list the Shows; query less if Libraries get big.
+    async fn shows(&self, library: i64) -> Result<Vec<Show>, ConnectError> {
+        self.require_kind(library, Kind::Shows).await?;
+        self.contents
+            .shows(library)
+            .await
+            .map_err(|err| database_failed(&err))
+    }
+
+    /// The Show of the Shows Library `library` with the id `id`.
+    async fn show(
+        &self,
+        library: i64,
+        id: Option<proto::ExternalId>,
+    ) -> Result<Show, ConnectError> {
+        let id = required_id(id, "Show")?;
+        self.shows(library)
+            .await?
+            .into_iter()
+            .find(|show| show.id == id)
+            .ok_or_else(|| ConnectError::not_found("nothing in the Library is Matched to that id"))
+    }
+
+    /// Fails with `not_found` if there is no Library `library`, and with `invalid_argument` if it
+    /// doesn't hold `kind`.
+    async fn require_kind(&self, library: i64, kind: Kind) -> Result<(), ConnectError> {
+        if self.libraries.get(library).await?.kind == kind {
+            return Ok(());
+        }
+        Err(ConnectError::invalid_argument(match kind {
+            Kind::Movies => "the Library isn't a Movies Library",
+            Kind::Shows => "the Library isn't a Shows Library",
+        }))
     }
 }
 
@@ -687,12 +720,7 @@ impl BrowseService for BrowseServiceHandler {
         request: ServiceRequest<'_, GetMovieRequest>,
     ) -> ServiceResult<GetMovieResponse> {
         let request = request.to_owned_message();
-        let id = request
-            .movie_id
-            .into_option()
-            .and_then(|id| id.id)
-            .map(external_id_from_proto)
-            .ok_or_else(|| ConnectError::invalid_argument("the Movie's id is missing"))?;
+        let id = required_id(request.movie_id.into_option(), "Movie")?;
         // ponytail: reads the whole Library to find one Movie; query by id if Libraries get big.
         let movie = self
             .movies(request.library_id)
@@ -704,6 +732,70 @@ impl BrowseService for BrowseServiceHandler {
             })?;
         Response::ok(GetMovieResponse {
             movie: movie_to_proto(movie).into(),
+            ..Default::default()
+        })
+    }
+
+    async fn list_shows(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, ListShowsRequest>,
+    ) -> ServiceResult<ListShowsResponse> {
+        let shows = self.shows(request.library_id).await?;
+        Response::ok(ListShowsResponse {
+            shows: shows.iter().map(show_to_proto).collect(),
+            ..Default::default()
+        })
+    }
+
+    async fn get_show(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, GetShowRequest>,
+    ) -> ServiceResult<GetShowResponse> {
+        let request = request.to_owned_message();
+        let show = self
+            .show(request.library_id, request.show_id.into_option())
+            .await?;
+        let seasons = show
+            .seasons
+            .iter()
+            .map(|(&number, season)| proto::Season {
+                number: proto_number(number),
+                poster_url: season
+                    .poster
+                    .as_deref()
+                    .map(|path| artwork::url(&show.plugin, path)),
+                ..Default::default()
+            })
+            .collect();
+        Response::ok(GetShowResponse {
+            show: show_to_proto(&show).into(),
+            seasons,
+            ..Default::default()
+        })
+    }
+
+    async fn list_episodes(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, ListEpisodesRequest>,
+    ) -> ServiceResult<ListEpisodesResponse> {
+        let request = request.to_owned_message();
+        let number = request.season_number;
+        let mut show = self
+            .show(request.library_id, request.show_id.into_option())
+            .await?;
+        let season = show
+            .seasons
+            .remove(&i64::from(number))
+            .ok_or_else(|| ConnectError::not_found("the Show has no such Season in the Library"))?;
+        Response::ok(ListEpisodesResponse {
+            episodes: season
+                .episodes
+                .into_iter()
+                .map(|episode| episode_to_proto(number, episode))
+                .collect(),
             ..Default::default()
         })
     }
@@ -911,6 +1003,41 @@ fn movie_to_proto(movie: Movie) -> proto::Movie {
     }
 }
 
+/// A Show as clients see it, without its Seasons, with its images as URLs on this Server.
+fn show_to_proto(show: &Show) -> proto::Show {
+    let artwork_url = |path: &str| artwork::url(&show.plugin, path);
+    proto::Show {
+        id: external_id_to_proto(show.id.clone()).into(),
+        title: show.title.clone(),
+        poster_url: show.poster().map(artwork_url),
+        backdrop_url: show.backdrop.as_deref().map(artwork_url),
+        ..Default::default()
+    }
+}
+
+/// An Episode of Season `season` as clients see it.
+fn episode_to_proto(season: u32, episode: Episode) -> proto::Episode {
+    proto::Episode {
+        id: external_id_to_proto(episode.id).into(),
+        season_number: season,
+        episode_number: proto_number(episode.number),
+        title: episode.title,
+        overview: episode.overview,
+        air_date: episode.air_date,
+        runtime_minutes: episode
+            .runtime_minutes
+            .and_then(|minutes| u32::try_from(minutes).ok()),
+        versions: episode.versions.iter().map(version_to_proto).collect(),
+        ..Default::default()
+    }
+}
+
+/// A season or episode number as a proto `uint32`. A scan parses them from digits, so they are
+/// never negative.
+fn proto_number(n: i64) -> u32 {
+    u32::try_from(n).unwrap_or_default()
+}
+
 /// A Version as clients see it: its file's name, not the folders it is in.
 fn version_to_proto(version: &Version) -> proto::Version {
     // A stored path came from a `String`, so its name is UTF-8.
@@ -940,6 +1067,13 @@ fn external_id_from_proto(id: external_id::Id) -> ExternalId {
         external_id::Id::Imdb(id) => ExternalId::Imdb(id),
         external_id::Id::Tvdb(id) => ExternalId::Tvdb(id),
     }
+}
+
+/// The id of the title of kind `what` that a request names, which it must name.
+fn required_id(id: Option<proto::ExternalId>, what: &str) -> Result<ExternalId, ConnectError> {
+    id.and_then(|id| id.id)
+        .map(external_id_from_proto)
+        .ok_or_else(|| ConnectError::invalid_argument(format!("the {what}'s id is missing")))
 }
 
 /// An id of a title as clients see it.

@@ -37,9 +37,12 @@ const ADMIN_ONLY: [&str; 12] = [
 ];
 
 /// The RPCs for browsing what a Library holds, which any signed-in User may call.
-const BROWSE: [&str; 2] = [
+const BROWSE: [&str; 5] = [
     "/nama.v1.BrowseService/ListMovies",
     "/nama.v1.BrowseService/GetMovie",
+    "/nama.v1.BrowseService/ListShows",
+    "/nama.v1.BrowseService/GetShow",
+    "/nama.v1.BrowseService/ListEpisodes",
 ];
 
 /// Every other unary RPC that needs a session.

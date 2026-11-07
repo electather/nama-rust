@@ -63,6 +63,15 @@ pub mod __buffa {
         reg.register_json_any(super::__LIST_MOVIES_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__GET_MOVIE_REQUEST_JSON_ANY);
         reg.register_json_any(super::__GET_MOVIE_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__SHOW_JSON_ANY);
+        reg.register_json_any(super::__SEASON_JSON_ANY);
+        reg.register_json_any(super::__EPISODE_JSON_ANY);
+        reg.register_json_any(super::__LIST_SHOWS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_SHOWS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__GET_SHOW_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__GET_SHOW_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__LIST_EPISODES_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_EPISODES_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__SUBSCRIBE_REQUEST_JSON_ANY);
         reg.register_json_any(super::__SUBSCRIBE_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__LAGGED_JSON_ANY);
@@ -180,6 +189,42 @@ pub use self::__buffa::view::GetMovieRequestOwnedView;
 pub use self::__buffa::view::GetMovieResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::GetMovieResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ShowView;
+#[doc(inline)]
+pub use self::__buffa::view::ShowOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SeasonView;
+#[doc(inline)]
+pub use self::__buffa::view::SeasonOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::EpisodeView;
+#[doc(inline)]
+pub use self::__buffa::view::EpisodeOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListShowsRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListShowsRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListShowsResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListShowsResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetShowRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::GetShowRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetShowResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::GetShowResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListEpisodesRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListEpisodesRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListEpisodesResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListEpisodesResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::SubscribeRequestView;
 #[doc(inline)]

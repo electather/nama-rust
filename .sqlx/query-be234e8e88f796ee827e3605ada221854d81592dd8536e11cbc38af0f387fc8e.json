@@ -1,0 +1,242 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT library_files.id AS \"file!\", library_files.path, library_files.size,\n                      library_items.season AS \"season!\", library_items.episode AS \"episode!\",\n                      item_matches.plugin AS \"plugin!\", item_matches.tmdb_id,\n                      item_matches.imdb_id, item_matches.tvdb_id, item_matches.show_tmdb_id,\n                      item_matches.show_imdb_id, item_matches.show_tvdb_id,\n                      item_matches.title AS \"title!\", item_matches.show_title AS \"show_title!\",\n                      item_matches.overview, item_matches.release_date,\n                      item_matches.runtime_minutes, item_matches.poster, item_matches.backdrop\n               FROM item_matches\n               JOIN library_items ON library_items.id = item_matches.item_id\n               JOIN library_files ON library_files.id = library_items.file_id\n               WHERE library_files.library_id = ?\n                 AND library_items.kind = 'episode'\n                 AND item_matches.state = 'matched'\n               ORDER BY library_items.season, library_items.episode, library_files.path",
+  "describe": {
+    "columns": [
+      {
+        "name": "file!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_files",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "path",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "library_files",
+            "name": "path"
+          }
+        }
+      },
+      {
+        "name": "size",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_files",
+            "name": "size"
+          }
+        }
+      },
+      {
+        "name": "season!",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_items",
+            "name": "season"
+          }
+        }
+      },
+      {
+        "name": "episode!",
+        "ordinal": 4,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_items",
+            "name": "episode"
+          }
+        }
+      },
+      {
+        "name": "plugin!",
+        "ordinal": 5,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "plugin"
+          }
+        }
+      },
+      {
+        "name": "tmdb_id",
+        "ordinal": 6,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "tmdb_id"
+          }
+        }
+      },
+      {
+        "name": "imdb_id",
+        "ordinal": 7,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "imdb_id"
+          }
+        }
+      },
+      {
+        "name": "tvdb_id",
+        "ordinal": 8,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "tvdb_id"
+          }
+        }
+      },
+      {
+        "name": "show_tmdb_id",
+        "ordinal": 9,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "show_tmdb_id"
+          }
+        }
+      },
+      {
+        "name": "show_imdb_id",
+        "ordinal": 10,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "show_imdb_id"
+          }
+        }
+      },
+      {
+        "name": "show_tvdb_id",
+        "ordinal": 11,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "show_tvdb_id"
+          }
+        }
+      },
+      {
+        "name": "title!",
+        "ordinal": 12,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "title"
+          }
+        }
+      },
+      {
+        "name": "show_title!",
+        "ordinal": 13,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "show_title"
+          }
+        }
+      },
+      {
+        "name": "overview",
+        "ordinal": 14,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "overview"
+          }
+        }
+      },
+      {
+        "name": "release_date",
+        "ordinal": 15,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "release_date"
+          }
+        }
+      },
+      {
+        "name": "runtime_minutes",
+        "ordinal": 16,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "runtime_minutes"
+          }
+        }
+      },
+      {
+        "name": "poster",
+        "ordinal": 17,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "poster"
+          }
+        }
+      },
+      {
+        "name": "backdrop",
+        "ordinal": 18,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "backdrop"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "be234e8e88f796ee827e3605ada221854d81592dd8536e11cbc38af0f387fc8e"
+}

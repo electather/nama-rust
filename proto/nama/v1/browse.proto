@@ -6,9 +6,11 @@ import "nama/v1/match.proto";
 
 // Browsing what a Library holds, for any signed-in User.
 //
-// Only Matched items appear. Movies are not stored as such: they are grouped from the items
-// Matched to the same title, and identified by its external id within the Library. Items that
-// aren't Matched are in `MatchService.ListUnmatchedItems` instead.
+// Only Matched items appear. Movies, Shows, Seasons and Episodes are not stored as such: they are
+// grouped from the items Matched to the same title, and identified by its external id within the
+// Library. A Show is grouped from its Episodes' Show ids, and a Season is the Show's Episodes that
+// share a season number. Items that aren't Matched are in `MatchService.ListUnmatchedItems`
+// instead.
 service BrowseService {
   // Lists a Movies Library's Movies, by title, each with its Versions. Fails with `not_found` if
   // there is no such Library, and with `invalid_argument` if it is a Shows Library.
@@ -18,6 +20,21 @@ service BrowseService {
   // Returns one Movie of a Movies Library, with its Versions. Fails like `ListMovies`, or with
   // `not_found` if nothing in the Library is Matched to that id.
   rpc GetMovie(GetMovieRequest) returns (GetMovieResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Lists a Shows Library's Shows, by title. Fails with `not_found` if there is no such Library,
+  // and with `invalid_argument` if it is a Movies Library.
+  rpc ListShows(ListShowsRequest) returns (ListShowsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Returns one Show of a Shows Library, with its Seasons. Fails like `ListShows`, or with
+  // `not_found` if nothing in the Library is Matched to an Episode of that Show.
+  rpc GetShow(GetShowRequest) returns (GetShowResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Lists one Season's Episodes, by episode number, each with its Versions. Fails like `GetShow`,
+  // or with `not_found` if the Show has no such Season in the Library.
+  rpc ListEpisodes(ListEpisodesRequest) returns (ListEpisodesResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
 }
@@ -71,4 +88,77 @@ message GetMovieRequest {
 
 message GetMovieResponse {
   Movie movie = 1;
+}
+
+// A Show some items of a Library are Matched to Episodes of.
+message Show {
+  // The Show's external id, which identifies it within the Library: its TMDB id if the Matches
+  // have one, or else its IMDb or TVDB id.
+  ExternalId id = 1;
+  // The title, in the metadata Provider's language.
+  string title = 2;
+  // Its first Season's poster's URL, under `/media/artwork/` on this Server.
+  optional string poster_url = 3;
+  // The backdrop's URL, under `/media/artwork/` on this Server.
+  optional string backdrop_url = 4;
+}
+
+// A Season of a Show that some items of a Library are Matched to Episodes of.
+message Season {
+  // The season number. Season 0 holds specials.
+  uint32 number = 1;
+  // The poster's URL, under `/media/artwork/` on this Server.
+  optional string poster_url = 2;
+}
+
+// An Episode some items of a Library are Matched to, with the metadata its Match stores.
+message Episode {
+  // The Episode's own external id: its TMDB id if the Match has one, or else its IMDb or TVDB id.
+  ExternalId id = 1;
+  uint32 season_number = 2;
+  uint32 episode_number = 3;
+  // The title, in the metadata Provider's language.
+  string title = 4;
+  optional string overview = 5;
+  // When it first aired, as `YYYY-MM-DD`.
+  optional string air_date = 6;
+  optional uint32 runtime_minutes = 7;
+  // The files the Episode is available in, by path. There is at least one. A file holding two
+  // Episodes is a Version of each.
+  repeated Version versions = 8;
+}
+
+message ListShowsRequest {
+  // The Shows Library whose Shows to list.
+  int64 library_id = 1;
+}
+
+message ListShowsResponse {
+  repeated Show shows = 1;
+}
+
+message GetShowRequest {
+  // The Shows Library the Show is in.
+  int64 library_id = 1;
+  // The Show's id, as `ListShows` gave it.
+  ExternalId show_id = 2;
+}
+
+message GetShowResponse {
+  Show show = 1;
+  // The Seasons the Library has Episodes of, by number.
+  repeated Season seasons = 2;
+}
+
+message ListEpisodesRequest {
+  // The Shows Library the Show is in.
+  int64 library_id = 1;
+  // The Show's id, as `ListShows` gave it.
+  ExternalId show_id = 2;
+  // The Season's number, as `GetShow` gave it.
+  uint32 season_number = 3;
+}
+
+message ListEpisodesResponse {
+  repeated Episode episodes = 1;
 }

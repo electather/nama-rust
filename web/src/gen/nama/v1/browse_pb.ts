@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file nama/v1/browse.proto.
  */
 export const file_nama_v1_browse: GenFile = /*@__PURE__*/
-  fileDesc("ChRuYW1hL3YxL2Jyb3dzZS5wcm90bxIHbmFtYS52MSLhAgoFTW92aWUSHwoCaWQYASABKAsyEy5uYW1hLnYxLkV4dGVybmFsSWQSDQoFdGl0bGUYAiABKAkSGwoOb3JpZ2luYWxfdGl0bGUYAyABKAlIAIgBARIVCghvdmVydmlldxgEIAEoCUgBiAEBEhkKDHJlbGVhc2VfZGF0ZRgFIAEoCUgCiAEBEhwKD3J1bnRpbWVfbWludXRlcxgGIAEoDUgDiAEBEhcKCnBvc3Rlcl91cmwYByABKAlIBIgBARIZCgxiYWNrZHJvcF91cmwYCCABKAlIBYgBARIiCgh2ZXJzaW9ucxgJIAMoCzIQLm5hbWEudjEuVmVyc2lvbkIRCg9fb3JpZ2luYWxfdGl0bGVCCwoJX292ZXJ2aWV3Qg8KDV9yZWxlYXNlX2RhdGVCEgoQX3J1bnRpbWVfbWludXRlc0INCgtfcG9zdGVyX3VybEIPCg1fYmFja2Ryb3BfdXJsIjYKB1ZlcnNpb24SCgoCaWQYASABKAMSEQoJZmlsZV9uYW1lGAIgASgJEgwKBHNpemUYAyABKAQiJwoRTGlzdE1vdmllc1JlcXVlc3QSEgoKbGlicmFyeV9pZBgBIAEoAyI0ChJMaXN0TW92aWVzUmVzcG9uc2USHgoGbW92aWVzGAEgAygLMg4ubmFtYS52MS5Nb3ZpZSJMCg9HZXRNb3ZpZVJlcXVlc3QSEgoKbGlicmFyeV9pZBgBIAEoAxIlCghtb3ZpZV9pZBgCIAEoCzITLm5hbWEudjEuRXh0ZXJuYWxJZCIxChBHZXRNb3ZpZVJlc3BvbnNlEh0KBW1vdmllGAEgASgLMg4ubmFtYS52MS5Nb3ZpZTKhAQoNQnJvd3NlU2VydmljZRJKCgpMaXN0TW92aWVzEhoubmFtYS52MS5MaXN0TW92aWVzUmVxdWVzdBobLm5hbWEudjEuTGlzdE1vdmllc1Jlc3BvbnNlIgOQAgESRAoIR2V0TW92aWUSGC5uYW1hLnYxLkdldE1vdmllUmVxdWVzdBoZLm5hbWEudjEuR2V0TW92aWVSZXNwb25zZSIDkAIBYgZwcm90bzM", [file_nama_v1_match]);
+  fileDesc("ChRuYW1hL3YxL2Jyb3dzZS5wcm90bxIHbmFtYS52MSLhAgoFTW92aWUSHwoCaWQYASABKAsyEy5uYW1hLnYxLkV4dGVybmFsSWQSDQoFdGl0bGUYAiABKAkSGwoOb3JpZ2luYWxfdGl0bGUYAyABKAlIAIgBARIVCghvdmVydmlldxgEIAEoCUgBiAEBEhkKDHJlbGVhc2VfZGF0ZRgFIAEoCUgCiAEBEhwKD3J1bnRpbWVfbWludXRlcxgGIAEoDUgDiAEBEhcKCnBvc3Rlcl91cmwYByABKAlIBIgBARIZCgxiYWNrZHJvcF91cmwYCCABKAlIBYgBARIiCgh2ZXJzaW9ucxgJIAMoCzIQLm5hbWEudjEuVmVyc2lvbkIRCg9fb3JpZ2luYWxfdGl0bGVCCwoJX292ZXJ2aWV3Qg8KDV9yZWxlYXNlX2RhdGVCEgoQX3J1bnRpbWVfbWludXRlc0INCgtfcG9zdGVyX3VybEIPCg1fYmFja2Ryb3BfdXJsIjYKB1ZlcnNpb24SCgoCaWQYASABKAMSEQoJZmlsZV9uYW1lGAIgASgJEgwKBHNpemUYAyABKAQiJwoRTGlzdE1vdmllc1JlcXVlc3QSEgoKbGlicmFyeV9pZBgBIAEoAyI0ChJMaXN0TW92aWVzUmVzcG9uc2USHgoGbW92aWVzGAEgAygLMg4ubmFtYS52MS5Nb3ZpZSJMCg9HZXRNb3ZpZVJlcXVlc3QSEgoKbGlicmFyeV9pZBgBIAEoAxIlCghtb3ZpZV9pZBgCIAEoCzITLm5hbWEudjEuRXh0ZXJuYWxJZCIxChBHZXRNb3ZpZVJlc3BvbnNlEh0KBW1vdmllGAEgASgLMg4ubmFtYS52MS5Nb3ZpZSKKAQoEU2hvdxIfCgJpZBgBIAEoCzITLm5hbWEudjEuRXh0ZXJuYWxJZBINCgV0aXRsZRgCIAEoCRIXCgpwb3N0ZXJfdXJsGAMgASgJSACIAQESGQoMYmFja2Ryb3BfdXJsGAQgASgJSAGIAQFCDQoLX3Bvc3Rlcl91cmxCDwoNX2JhY2tkcm9wX3VybCJACgZTZWFzb24SDgoGbnVtYmVyGAEgASgNEhcKCnBvc3Rlcl91cmwYAiABKAlIAIgBAUINCgtfcG9zdGVyX3VybCKGAgoHRXBpc29kZRIfCgJpZBgBIAEoCzITLm5hbWEudjEuRXh0ZXJuYWxJZBIVCg1zZWFzb25fbnVtYmVyGAIgASgNEhYKDmVwaXNvZGVfbnVtYmVyGAMgASgNEg0KBXRpdGxlGAQgASgJEhUKCG92ZXJ2aWV3GAUgASgJSACIAQESFQoIYWlyX2RhdGUYBiABKAlIAYgBARIcCg9ydW50aW1lX21pbnV0ZXMYByABKA1IAogBARIiCgh2ZXJzaW9ucxgIIAMoCzIQLm5hbWEudjEuVmVyc2lvbkILCglfb3ZlcnZpZXdCCwoJX2Fpcl9kYXRlQhIKEF9ydW50aW1lX21pbnV0ZXMiJgoQTGlzdFNob3dzUmVxdWVzdBISCgpsaWJyYXJ5X2lkGAEgASgDIjEKEUxpc3RTaG93c1Jlc3BvbnNlEhwKBXNob3dzGAEgAygLMg0ubmFtYS52MS5TaG93IkoKDkdldFNob3dSZXF1ZXN0EhIKCmxpYnJhcnlfaWQYASABKAMSJAoHc2hvd19pZBgCIAEoCzITLm5hbWEudjEuRXh0ZXJuYWxJZCJQCg9HZXRTaG93UmVzcG9uc2USGwoEc2hvdxgBIAEoCzINLm5hbWEudjEuU2hvdxIgCgdzZWFzb25zGAIgAygLMg8ubmFtYS52MS5TZWFzb24iZgoTTGlzdEVwaXNvZGVzUmVxdWVzdBISCgpsaWJyYXJ5X2lkGAEgASgDEiQKB3Nob3dfaWQYAiABKAsyEy5uYW1hLnYxLkV4dGVybmFsSWQSFQoNc2Vhc29uX251bWJlchgDIAEoDSI6ChRMaXN0RXBpc29kZXNSZXNwb25zZRIiCghlcGlzb2RlcxgBIAMoCzIQLm5hbWEudjEuRXBpc29kZTL/AgoNQnJvd3NlU2VydmljZRJKCgpMaXN0TW92aWVzEhoubmFtYS52MS5MaXN0TW92aWVzUmVxdWVzdBobLm5hbWEudjEuTGlzdE1vdmllc1Jlc3BvbnNlIgOQAgESRAoIR2V0TW92aWUSGC5uYW1hLnYxLkdldE1vdmllUmVxdWVzdBoZLm5hbWEudjEuR2V0TW92aWVSZXNwb25zZSIDkAIBEkcKCUxpc3RTaG93cxIZLm5hbWEudjEuTGlzdFNob3dzUmVxdWVzdBoaLm5hbWEudjEuTGlzdFNob3dzUmVzcG9uc2UiA5ACARJBCgdHZXRTaG93EhcubmFtYS52MS5HZXRTaG93UmVxdWVzdBoYLm5hbWEudjEuR2V0U2hvd1Jlc3BvbnNlIgOQAgESUAoMTGlzdEVwaXNvZGVzEhwubmFtYS52MS5MaXN0RXBpc29kZXNSZXF1ZXN0Gh0ubmFtYS52MS5MaXN0RXBpc29kZXNSZXNwb25zZSIDkAIBYgZwcm90bzM", [file_nama_v1_match]);
 
 /**
  * A Movie some items of a Library are Matched to, with the metadata its Match stores.
@@ -203,11 +203,283 @@ export const GetMovieResponseSchema: GenMessage<GetMovieResponse> = /*@__PURE__*
   messageDesc(file_nama_v1_browse, 5);
 
 /**
+ * A Show some items of a Library are Matched to Episodes of.
+ *
+ * @generated from message nama.v1.Show
+ */
+export type Show = Message<"nama.v1.Show"> & {
+  /**
+   * The Show's external id, which identifies it within the Library: its TMDB id if the Matches
+   * have one, or else its IMDb or TVDB id.
+   *
+   * @generated from field: nama.v1.ExternalId id = 1;
+   */
+  id?: ExternalId | undefined;
+
+  /**
+   * The title, in the metadata Provider's language.
+   *
+   * @generated from field: string title = 2;
+   */
+  title: string;
+
+  /**
+   * Its first Season's poster's URL, under `/media/artwork/` on this Server.
+   *
+   * @generated from field: optional string poster_url = 3;
+   */
+  posterUrl?: string | undefined;
+
+  /**
+   * The backdrop's URL, under `/media/artwork/` on this Server.
+   *
+   * @generated from field: optional string backdrop_url = 4;
+   */
+  backdropUrl?: string | undefined;
+};
+
+/**
+ * Describes the message nama.v1.Show.
+ * Use `create(ShowSchema)` to create a new message.
+ */
+export const ShowSchema: GenMessage<Show> = /*@__PURE__*/
+  messageDesc(file_nama_v1_browse, 6);
+
+/**
+ * A Season of a Show that some items of a Library are Matched to Episodes of.
+ *
+ * @generated from message nama.v1.Season
+ */
+export type Season = Message<"nama.v1.Season"> & {
+  /**
+   * The season number. Season 0 holds specials.
+   *
+   * @generated from field: uint32 number = 1;
+   */
+  number: number;
+
+  /**
+   * The poster's URL, under `/media/artwork/` on this Server.
+   *
+   * @generated from field: optional string poster_url = 2;
+   */
+  posterUrl?: string | undefined;
+};
+
+/**
+ * Describes the message nama.v1.Season.
+ * Use `create(SeasonSchema)` to create a new message.
+ */
+export const SeasonSchema: GenMessage<Season> = /*@__PURE__*/
+  messageDesc(file_nama_v1_browse, 7);
+
+/**
+ * An Episode some items of a Library are Matched to, with the metadata its Match stores.
+ *
+ * @generated from message nama.v1.Episode
+ */
+export type Episode = Message<"nama.v1.Episode"> & {
+  /**
+   * The Episode's own external id: its TMDB id if the Match has one, or else its IMDb or TVDB id.
+   *
+   * @generated from field: nama.v1.ExternalId id = 1;
+   */
+  id?: ExternalId | undefined;
+
+  /**
+   * @generated from field: uint32 season_number = 2;
+   */
+  seasonNumber: number;
+
+  /**
+   * @generated from field: uint32 episode_number = 3;
+   */
+  episodeNumber: number;
+
+  /**
+   * The title, in the metadata Provider's language.
+   *
+   * @generated from field: string title = 4;
+   */
+  title: string;
+
+  /**
+   * @generated from field: optional string overview = 5;
+   */
+  overview?: string | undefined;
+
+  /**
+   * When it first aired, as `YYYY-MM-DD`.
+   *
+   * @generated from field: optional string air_date = 6;
+   */
+  airDate?: string | undefined;
+
+  /**
+   * @generated from field: optional uint32 runtime_minutes = 7;
+   */
+  runtimeMinutes?: number | undefined;
+
+  /**
+   * The files the Episode is available in, by path. There is at least one. A file holding two
+   * Episodes is a Version of each.
+   *
+   * @generated from field: repeated nama.v1.Version versions = 8;
+   */
+  versions: Version[];
+};
+
+/**
+ * Describes the message nama.v1.Episode.
+ * Use `create(EpisodeSchema)` to create a new message.
+ */
+export const EpisodeSchema: GenMessage<Episode> = /*@__PURE__*/
+  messageDesc(file_nama_v1_browse, 8);
+
+/**
+ * @generated from message nama.v1.ListShowsRequest
+ */
+export type ListShowsRequest = Message<"nama.v1.ListShowsRequest"> & {
+  /**
+   * The Shows Library whose Shows to list.
+   *
+   * @generated from field: int64 library_id = 1;
+   */
+  libraryId: bigint;
+};
+
+/**
+ * Describes the message nama.v1.ListShowsRequest.
+ * Use `create(ListShowsRequestSchema)` to create a new message.
+ */
+export const ListShowsRequestSchema: GenMessage<ListShowsRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_browse, 9);
+
+/**
+ * @generated from message nama.v1.ListShowsResponse
+ */
+export type ListShowsResponse = Message<"nama.v1.ListShowsResponse"> & {
+  /**
+   * @generated from field: repeated nama.v1.Show shows = 1;
+   */
+  shows: Show[];
+};
+
+/**
+ * Describes the message nama.v1.ListShowsResponse.
+ * Use `create(ListShowsResponseSchema)` to create a new message.
+ */
+export const ListShowsResponseSchema: GenMessage<ListShowsResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_browse, 10);
+
+/**
+ * @generated from message nama.v1.GetShowRequest
+ */
+export type GetShowRequest = Message<"nama.v1.GetShowRequest"> & {
+  /**
+   * The Shows Library the Show is in.
+   *
+   * @generated from field: int64 library_id = 1;
+   */
+  libraryId: bigint;
+
+  /**
+   * The Show's id, as `ListShows` gave it.
+   *
+   * @generated from field: nama.v1.ExternalId show_id = 2;
+   */
+  showId?: ExternalId | undefined;
+};
+
+/**
+ * Describes the message nama.v1.GetShowRequest.
+ * Use `create(GetShowRequestSchema)` to create a new message.
+ */
+export const GetShowRequestSchema: GenMessage<GetShowRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_browse, 11);
+
+/**
+ * @generated from message nama.v1.GetShowResponse
+ */
+export type GetShowResponse = Message<"nama.v1.GetShowResponse"> & {
+  /**
+   * @generated from field: nama.v1.Show show = 1;
+   */
+  show?: Show | undefined;
+
+  /**
+   * The Seasons the Library has Episodes of, by number.
+   *
+   * @generated from field: repeated nama.v1.Season seasons = 2;
+   */
+  seasons: Season[];
+};
+
+/**
+ * Describes the message nama.v1.GetShowResponse.
+ * Use `create(GetShowResponseSchema)` to create a new message.
+ */
+export const GetShowResponseSchema: GenMessage<GetShowResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_browse, 12);
+
+/**
+ * @generated from message nama.v1.ListEpisodesRequest
+ */
+export type ListEpisodesRequest = Message<"nama.v1.ListEpisodesRequest"> & {
+  /**
+   * The Shows Library the Show is in.
+   *
+   * @generated from field: int64 library_id = 1;
+   */
+  libraryId: bigint;
+
+  /**
+   * The Show's id, as `ListShows` gave it.
+   *
+   * @generated from field: nama.v1.ExternalId show_id = 2;
+   */
+  showId?: ExternalId | undefined;
+
+  /**
+   * The Season's number, as `GetShow` gave it.
+   *
+   * @generated from field: uint32 season_number = 3;
+   */
+  seasonNumber: number;
+};
+
+/**
+ * Describes the message nama.v1.ListEpisodesRequest.
+ * Use `create(ListEpisodesRequestSchema)` to create a new message.
+ */
+export const ListEpisodesRequestSchema: GenMessage<ListEpisodesRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_browse, 13);
+
+/**
+ * @generated from message nama.v1.ListEpisodesResponse
+ */
+export type ListEpisodesResponse = Message<"nama.v1.ListEpisodesResponse"> & {
+  /**
+   * @generated from field: repeated nama.v1.Episode episodes = 1;
+   */
+  episodes: Episode[];
+};
+
+/**
+ * Describes the message nama.v1.ListEpisodesResponse.
+ * Use `create(ListEpisodesResponseSchema)` to create a new message.
+ */
+export const ListEpisodesResponseSchema: GenMessage<ListEpisodesResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_browse, 14);
+
+/**
  * Browsing what a Library holds, for any signed-in User.
  *
- * Only Matched items appear. Movies are not stored as such: they are grouped from the items
- * Matched to the same title, and identified by its external id within the Library. Items that
- * aren't Matched are in `MatchService.ListUnmatchedItems` instead.
+ * Only Matched items appear. Movies, Shows, Seasons and Episodes are not stored as such: they are
+ * grouped from the items Matched to the same title, and identified by its external id within the
+ * Library. A Show is grouped from its Episodes' Show ids, and a Season is the Show's Episodes that
+ * share a season number. Items that aren't Matched are in `MatchService.ListUnmatchedItems`
+ * instead.
  *
  * @generated from service nama.v1.BrowseService
  */
@@ -233,6 +505,39 @@ export const BrowseService: GenService<{
     methodKind: "unary";
     input: typeof GetMovieRequestSchema;
     output: typeof GetMovieResponseSchema;
+  },
+  /**
+   * Lists a Shows Library's Shows, by title. Fails with `not_found` if there is no such Library,
+   * and with `invalid_argument` if it is a Movies Library.
+   *
+   * @generated from rpc nama.v1.BrowseService.ListShows
+   */
+  listShows: {
+    methodKind: "unary";
+    input: typeof ListShowsRequestSchema;
+    output: typeof ListShowsResponseSchema;
+  },
+  /**
+   * Returns one Show of a Shows Library, with its Seasons. Fails like `ListShows`, or with
+   * `not_found` if nothing in the Library is Matched to an Episode of that Show.
+   *
+   * @generated from rpc nama.v1.BrowseService.GetShow
+   */
+  getShow: {
+    methodKind: "unary";
+    input: typeof GetShowRequestSchema;
+    output: typeof GetShowResponseSchema;
+  },
+  /**
+   * Lists one Season's Episodes, by episode number, each with its Versions. Fails like `GetShow`,
+   * or with `not_found` if the Show has no such Season in the Library.
+   *
+   * @generated from rpc nama.v1.BrowseService.ListEpisodes
+   */
+  listEpisodes: {
+    methodKind: "unary";
+    input: typeof ListEpisodesRequestSchema;
+    output: typeof ListEpisodesResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_nama_v1_browse, 0);
