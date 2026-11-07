@@ -25,33 +25,35 @@ use nama_plugin_api::{
     settings::{self, SettingField},
 };
 use nama_proto::nama::v1::{
-    self as proto, ApproveSignInCodeRequest, ApproveSignInCodeResponse, BrowseService,
+    self as proto, ApproveRequestRequest, ApproveRequestResponse, ApproveSignInCodeRequest,
+    ApproveSignInCodeResponse, BrowseService, CancelRequestRequest, CancelRequestResponse,
     ChangePasswordRequest, ChangePasswordResponse, ClearMatchRequest, ClearMatchResponse,
     CreateLibraryRequest, CreateLibraryResponse, CreateRequestRequest, CreateRequestResponse,
-    CreateUserRequest, CreateUserResponse, DeleteLibraryRequest, DeleteLibraryResponse,
-    DeleteUserRequest, DeleteUserResponse, EventService, EventType, GetDefaultPermissionsRequest,
-    GetDefaultPermissionsResponse, GetLibraryRequest, GetLibraryResponse, GetMovieRequest,
-    GetMovieResponse, GetRequestRequest, GetRequestResponse, GetServerInfoRequest,
-    GetServerInfoResponse, GetShowRequest, GetShowResponse, LibraryKind, LibraryService,
-    ListContinueWatchingRequest, ListContinueWatchingResponse, ListDevicesRequest,
-    ListDevicesResponse, ListEpisodesRequest, ListEpisodesResponse, ListLibrariesRequest,
-    ListLibrariesResponse, ListMoviesRequest, ListMoviesResponse, ListPluginsRequest,
-    ListPluginsResponse, ListRequestsRequest, ListRequestsResponse, ListShowsRequest,
-    ListShowsResponse, ListUnmatchedItemsRequest, ListUnmatchedItemsResponse, ListUsersRequest,
-    ListUsersResponse, LookUpMovieRequest, LookUpMovieResponse, LookUpSignInCodeRequest,
-    LookUpSignInCodeResponse, MatchService, Permission, PluginKind, PluginService,
-    PollSignInCodeRequest, PollSignInCodeResponse, ReauthenticateRequest, ReauthenticateResponse,
-    Refusal, RefusalReason, ReportProgressRequest, ReportProgressResponse, RequestService,
-    ResetPasswordRequest, ResetPasswordResponse, RevokeDeviceRequest, RevokeDeviceResponse,
-    ScanLibraryRequest, ScanLibraryResponse, SearchMetadataRequest, SearchMetadataResponse,
-    SearchMoviesRequest, SearchMoviesResponse, ServerService, SessionDelivery,
-    SetDefaultPermissionsRequest, SetDefaultPermissionsResponse, SetMatchRequest, SetMatchResponse,
-    SetPermissionsRequest, SetPermissionsResponse, SetPlayedRequest, SetPlayedResponse,
-    SetupRequest, SetupResponse, SignInCodeStatus, SignInRequest, SignInResponse, SignInService,
-    SignOutRequest, SignOutResponse, StartSignInCodeRequest, StartSignInCodeResponse,
-    SubscribeRequest, SubscribeResponse, UpdateLibraryRequest, UpdateLibraryResponse, UserService,
-    WatchStateService, WhoAmIRequest, WhoAmIResponse, external_id, reauthenticate_request::Proof,
-    set_played_request::Target, setting_value,
+    CreateUserRequest, CreateUserResponse, DeclineRequestRequest, DeclineRequestResponse,
+    DeleteLibraryRequest, DeleteLibraryResponse, DeleteUserRequest, DeleteUserResponse,
+    EventService, EventType, GetDefaultPermissionsRequest, GetDefaultPermissionsResponse,
+    GetLibraryRequest, GetLibraryResponse, GetMovieRequest, GetMovieResponse, GetRequestRequest,
+    GetRequestResponse, GetServerInfoRequest, GetServerInfoResponse, GetShowRequest,
+    GetShowResponse, LibraryKind, LibraryService, ListContinueWatchingRequest,
+    ListContinueWatchingResponse, ListDevicesRequest, ListDevicesResponse, ListEpisodesRequest,
+    ListEpisodesResponse, ListLibrariesRequest, ListLibrariesResponse, ListMoviesRequest,
+    ListMoviesResponse, ListPluginsRequest, ListPluginsResponse, ListRequestsRequest,
+    ListRequestsResponse, ListShowsRequest, ListShowsResponse, ListUnmatchedItemsRequest,
+    ListUnmatchedItemsResponse, ListUsersRequest, ListUsersResponse, LookUpMovieRequest,
+    LookUpMovieResponse, LookUpSignInCodeRequest, LookUpSignInCodeResponse, MatchService,
+    Permission, PluginKind, PluginService, PollSignInCodeRequest, PollSignInCodeResponse,
+    ReauthenticateRequest, ReauthenticateResponse, Refusal, RefusalReason, ReportProgressRequest,
+    ReportProgressResponse, RequestService, ResetPasswordRequest, ResetPasswordResponse,
+    RevokeDeviceRequest, RevokeDeviceResponse, ScanLibraryRequest, ScanLibraryResponse,
+    SearchMetadataRequest, SearchMetadataResponse, SearchMoviesRequest, SearchMoviesResponse,
+    ServerService, SessionDelivery, SetDefaultPermissionsRequest, SetDefaultPermissionsResponse,
+    SetMatchRequest, SetMatchResponse, SetPermissionsRequest, SetPermissionsResponse,
+    SetPlayedRequest, SetPlayedResponse, SetupRequest, SetupResponse, SignInCodeStatus,
+    SignInRequest, SignInResponse, SignInService, SignOutRequest, SignOutResponse,
+    StartSignInCodeRequest, StartSignInCodeResponse, SubscribeRequest, SubscribeResponse,
+    UpdateLibraryRequest, UpdateLibraryResponse, UserService, WatchStateService, WhoAmIRequest,
+    WhoAmIResponse, external_id, reauthenticate_request::Proof, set_played_request::Target,
+    setting_value,
 };
 
 use crate::{
@@ -172,6 +174,9 @@ const MANAGE_USERS: Access = Access::Needs(Permission::ManageUsers);
 /// Managing the Server's settings, such as its Plugins.
 const MANAGE_SETTINGS: Access = Access::Needs(Permission::ManageSettings);
 
+/// Approving, declining and cancelling every User's Requests.
+const MANAGE_REQUESTS: Access = Access::Needs(Permission::ManageRequests);
+
 /// Asking for Movies.
 const REQUEST_MOVIE: Access = Access::Needs(Permission::RequestMovie);
 
@@ -224,6 +229,9 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::REQUEST_SERVICE_GET_REQUEST_SPEC.procedure,           Access::SignedIn),
     (proto::REQUEST_SERVICE_SEARCH_MOVIES_SPEC.procedure,         REQUEST_MOVIE),
     (proto::REQUEST_SERVICE_LOOK_UP_MOVIE_SPEC.procedure,         REQUEST_MOVIE),
+    (proto::REQUEST_SERVICE_APPROVE_REQUEST_SPEC.procedure,       MANAGE_REQUESTS),
+    (proto::REQUEST_SERVICE_DECLINE_REQUEST_SPEC.procedure,       MANAGE_REQUESTS),
+    (proto::REQUEST_SERVICE_CANCEL_REQUEST_SPEC.procedure,        MANAGE_REQUESTS),
     (proto::PLUGIN_SERVICE_LIST_PLUGINS_SPEC.procedure,           MANAGE_SETTINGS),
 ];
 
@@ -1354,6 +1362,39 @@ impl RequestService for RequestServiceHandler {
             ..Default::default()
         })
     }
+
+    async fn approve_request(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, ApproveRequestRequest>,
+    ) -> ServiceResult<ApproveRequestResponse> {
+        let approved = self.requests.approve(request.id).await?;
+        Response::ok(ApproveRequestResponse {
+            request: approved.into(),
+            ..Default::default()
+        })
+    }
+
+    async fn decline_request(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, DeclineRequestRequest>,
+    ) -> ServiceResult<DeclineRequestResponse> {
+        let declined = self.requests.decline(request.id, request.reason).await?;
+        Response::ok(DeclineRequestResponse {
+            request: declined.into(),
+            ..Default::default()
+        })
+    }
+
+    async fn cancel_request(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, CancelRequestRequest>,
+    ) -> ServiceResult<CancelRequestResponse> {
+        self.requests.cancel(request.id).await?;
+        Response::ok(CancelRequestResponse::default())
+    }
 }
 
 impl RequestServiceHandler {
@@ -1975,7 +2016,8 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_LAST_ADMIN
         | R::REFUSAL_REASON_OWN_PASSWORD_RESET
         | R::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED
-        | R::REFUSAL_REASON_ALREADY_IN_LIBRARY => ErrorCode::FailedPrecondition,
+        | R::REFUSAL_REASON_ALREADY_IN_LIBRARY
+        | R::REFUSAL_REASON_REQUEST_NOT_PENDING => ErrorCode::FailedPrecondition,
         R::REFUSAL_REASON_SIGN_IN_CODE_NOT_FOUND
         | R::REFUSAL_REASON_HANDLE_NOT_FOUND
         | R::REFUSAL_REASON_USER_NOT_FOUND
@@ -2098,10 +2140,15 @@ impl From<requests::Error> for ConnectError {
         use RefusalReason as R;
         let message = err.to_string();
         let refused = match err {
-            // Only `GetRequest` names a Request, and only `CreateRequest` and `LookUpMovie` a
-            // Movie, both in `movie_tmdb_id`.
+            // Every RPC naming a Request names it in `id`, and only `CreateRequest` and
+            // `LookUpMovie` name a Movie, both in `movie_tmdb_id`.
             requests::Error::NoSuchRequest(id) => {
                 refuse(R::REFUSAL_REASON_REQUEST_NOT_FOUND, message)
+                    .field("id")
+                    .param("requestId", &id)
+            }
+            requests::Error::NotPending(id) => {
+                refuse(R::REFUSAL_REASON_REQUEST_NOT_PENDING, message)
                     .field("id")
                     .param("requestId", &id)
             }

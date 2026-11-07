@@ -38,6 +38,30 @@ pub type OwnedLookUpMovieRequestView = ::buffa::view::OwnedView<
 pub type OwnedLookUpMovieResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::LookUpMovieResponseView<'static>,
 >;
+///Shorthand for `OwnedView<ApproveRequestRequestView<'static>>`.
+pub type OwnedApproveRequestRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ApproveRequestRequestView<'static>,
+>;
+///Shorthand for `OwnedView<ApproveRequestResponseView<'static>>`.
+pub type OwnedApproveRequestResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ApproveRequestResponseView<'static>,
+>;
+///Shorthand for `OwnedView<DeclineRequestRequestView<'static>>`.
+pub type OwnedDeclineRequestRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::DeclineRequestRequestView<'static>,
+>;
+///Shorthand for `OwnedView<DeclineRequestResponseView<'static>>`.
+pub type OwnedDeclineRequestResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::DeclineRequestResponseView<'static>,
+>;
+///Shorthand for `OwnedView<CancelRequestRequestView<'static>>`.
+pub type OwnedCancelRequestRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::CancelRequestRequestView<'static>,
+>;
+///Shorthand for `OwnedView<CancelRequestResponseView<'static>>`.
+pub type OwnedCancelRequestResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::CancelRequestResponseView<'static>,
+>;
 impl ::connectrpc::Encodable<crate::messages::nama::v1::CreateRequestResponse>
 for crate::messages::nama::v1::__buffa::view::CreateRequestResponseView<'_> {
     fn encode(
@@ -208,6 +232,108 @@ for ::buffa::view::OwnedView<
         )
     }
 }
+impl ::connectrpc::Encodable<crate::messages::nama::v1::ApproveRequestResponse>
+for crate::messages::nama::v1::__buffa::view::ApproveRequestResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::ApproveRequestResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ApproveRequestResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::DeclineRequestResponse>
+for crate::messages::nama::v1::__buffa::view::DeclineRequestResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::DeclineRequestResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::DeclineRequestResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::CancelRequestResponse>
+for crate::messages::nama::v1::__buffa::view::CancelRequestResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::CancelRequestResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::CancelRequestResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
 /// Full service name for this service.
 pub const REQUEST_SERVICE_SERVICE_NAME: &str = "nama.v1.RequestService";
 /// Static [`Spec`](::connectrpc::Spec) for the `CreateRequest` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
@@ -240,6 +366,24 @@ pub const REQUEST_SERVICE_LOOK_UP_MOVIE_SPEC: ::connectrpc::Spec = ::connectrpc:
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
+/// Static [`Spec`](::connectrpc::Spec) for the `ApproveRequest` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const REQUEST_SERVICE_APPROVE_REQUEST_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.RequestService/ApproveRequest",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
+/// Static [`Spec`](::connectrpc::Spec) for the `DeclineRequest` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const REQUEST_SERVICE_DECLINE_REQUEST_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.RequestService/DeclineRequest",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
+/// Static [`Spec`](::connectrpc::Spec) for the `CancelRequest` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const REQUEST_SERVICE_CANCEL_REQUEST_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.RequestService/CancelRequest",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
 /// Users asking for Movies that aren't on the Server to be added to it (ADR 0012). Without
 /// `PERMISSION_VIEW_REQUESTS`, a User sees only the Requests they are a Requester of, here and in
 /// `EventService`.
@@ -416,6 +560,79 @@ pub trait RequestService: Send + Sync + 'static {
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
                 crate::messages::nama::v1::LookUpMovieResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Approves a Pending Request, which then waits for the Movie to be Matched in a Library. Needs
+    /// `PERMISSION_MANAGE_REQUESTS`, which manages every User's Requests. Fails with `not_found` if
+    /// there is no Request with the ID, and `failed_precondition` if it isn't Pending.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn approve_request<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::ApproveRequestRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::ApproveRequestResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Declines a Pending Request, which closes it: asking for the Movie again opens a new one. Needs
+    /// `PERMISSION_MANAGE_REQUESTS`. Fails as `ApproveRequest` does.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn decline_request<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::DeclineRequestRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::DeclineRequestResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Removes a Request, whatever its state. Needs `PERMISSION_MANAGE_REQUESTS`. Fails with
+    /// `not_found` if there is no Request with the ID.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn cancel_request<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::CancelRequestRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::CancelRequestResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -596,6 +813,93 @@ impl<S: RequestService> RequestServiceExt for S {
                 },
             )
             .with_spec(REQUEST_SERVICE_LOOK_UP_MOVIE_SPEC)
+            .route_view(
+                REQUEST_SERVICE_SERVICE_NAME,
+                "ApproveRequest",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::ApproveRequestRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::ApproveRequestRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.approve_request(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::ApproveRequestResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(REQUEST_SERVICE_APPROVE_REQUEST_SPEC)
+            .route_view(
+                REQUEST_SERVICE_SERVICE_NAME,
+                "DeclineRequest",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::DeclineRequestRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::DeclineRequestRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.decline_request(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::DeclineRequestResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(REQUEST_SERVICE_DECLINE_REQUEST_SPEC)
+            .route_view(
+                REQUEST_SERVICE_SERVICE_NAME,
+                "CancelRequest",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::CancelRequestRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::CancelRequestRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.cancel_request(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::CancelRequestResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(REQUEST_SERVICE_CANCEL_REQUEST_SPEC)
     }
 }
 /// Type-inference marker used by [`Router::add_service`](::connectrpc::Router::add_service).
@@ -678,6 +982,24 @@ impl<T: RequestService> ::connectrpc::Dispatcher for RequestServiceServer<T> {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
                         .with_spec(REQUEST_SERVICE_LOOK_UP_MOVIE_SPEC),
+                )
+            }
+            "ApproveRequest" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(REQUEST_SERVICE_APPROVE_REQUEST_SPEC),
+                )
+            }
+            "DeclineRequest" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(REQUEST_SERVICE_DECLINE_REQUEST_SPEC),
+                )
+            }
+            "CancelRequest" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(REQUEST_SERVICE_CANCEL_REQUEST_SPEC),
                 )
             }
             _ => None,
@@ -799,6 +1121,72 @@ impl<T: RequestService> ::connectrpc::Dispatcher for RequestServiceServer<T> {
                     svc.look_up_movie(ctx, req)
                         .await?
                         .encode::<crate::messages::nama::v1::LookUpMovieResponse>(format)
+                })
+            }
+            "ApproveRequest" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::ApproveRequestRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::ApproveRequestRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::ApproveRequestRequest,
+                    >::from_parts(&req, &body);
+                    svc.approve_request(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::ApproveRequestResponse,
+                        >(format)
+                })
+            }
+            "DeclineRequest" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::DeclineRequestRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::DeclineRequestRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::DeclineRequestRequest,
+                    >::from_parts(&req, &body);
+                    svc.decline_request(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::DeclineRequestResponse,
+                        >(format)
+                })
+            }
+            "CancelRequest" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::CancelRequestRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::CancelRequestRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::CancelRequestRequest,
+                    >::from_parts(&req, &body);
+                    svc.cancel_request(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::CancelRequestResponse,
+                        >(format)
                 })
             }
             _ => ::connectrpc::dispatcher::codegen::unimplemented_unary(path),
@@ -1144,6 +1532,141 @@ where
                 &self.transport,
                 &self.config,
                 REQUEST_SERVICE_LOOK_UP_MOVIE_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the ApproveRequest RPC. Sends a request to /nama.v1.RequestService/ApproveRequest.
+    pub async fn approve_request(
+        &self,
+        request: crate::messages::nama::v1::ApproveRequestRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::ApproveRequestResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.approve_request_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the ApproveRequest RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn approve_request_with_options(
+        &self,
+        request: crate::messages::nama::v1::ApproveRequestRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::ApproveRequestResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                REQUEST_SERVICE_APPROVE_REQUEST_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the DeclineRequest RPC. Sends a request to /nama.v1.RequestService/DeclineRequest.
+    pub async fn decline_request(
+        &self,
+        request: crate::messages::nama::v1::DeclineRequestRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::DeclineRequestResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.decline_request_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the DeclineRequest RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn decline_request_with_options(
+        &self,
+        request: crate::messages::nama::v1::DeclineRequestRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::DeclineRequestResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                REQUEST_SERVICE_DECLINE_REQUEST_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the CancelRequest RPC. Sends a request to /nama.v1.RequestService/CancelRequest.
+    pub async fn cancel_request(
+        &self,
+        request: crate::messages::nama::v1::CancelRequestRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::CancelRequestResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.cancel_request_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the CancelRequest RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn cancel_request_with_options(
+        &self,
+        request: crate::messages::nama::v1::CancelRequestRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::CancelRequestResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                REQUEST_SERVICE_CANCEL_REQUEST_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,

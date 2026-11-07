@@ -106,6 +106,12 @@ pub mod __buffa {
         reg.register_json_any(super::__LIST_REQUESTS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__GET_REQUEST_REQUEST_JSON_ANY);
         reg.register_json_any(super::__GET_REQUEST_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__APPROVE_REQUEST_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__APPROVE_REQUEST_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__DECLINE_REQUEST_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__DECLINE_REQUEST_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__CANCEL_REQUEST_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__CANCEL_REQUEST_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__FOUND_MOVIE_JSON_ANY);
         reg.register_json_any(super::__SEARCH_MOVIES_REQUEST_JSON_ANY);
         reg.register_json_any(super::__SEARCH_MOVIES_RESPONSE_JSON_ANY);
@@ -124,6 +130,7 @@ pub mod __buffa {
         reg.register_json_any(super::__REQUEST_CREATED_JSON_ANY);
         reg.register_json_any(super::__REQUESTER_ADDED_JSON_ANY);
         reg.register_json_any(super::__REQUEST_STATE_CHANGED_JSON_ANY);
+        reg.register_json_any(super::__REQUEST_CANCELLED_JSON_ANY);
         reg.register_json_any(super::__LIBRARY_JSON_ANY);
         reg.register_json_any(super::__CREATE_LIBRARY_REQUEST_JSON_ANY);
         reg.register_json_any(super::__CREATE_LIBRARY_RESPONSE_JSON_ANY);
@@ -364,6 +371,30 @@ pub use self::__buffa::view::GetRequestResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::GetRequestResponseOwnedView;
 #[doc(inline)]
+pub use self::__buffa::view::ApproveRequestRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ApproveRequestRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ApproveRequestResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ApproveRequestResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::DeclineRequestRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::DeclineRequestRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::DeclineRequestResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::DeclineRequestResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::CancelRequestRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::CancelRequestRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::CancelRequestResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::CancelRequestResponseOwnedView;
+#[doc(inline)]
 pub use self::__buffa::view::FoundMovieView;
 #[doc(inline)]
 pub use self::__buffa::view::FoundMovieOwnedView;
@@ -435,6 +466,10 @@ pub use self::__buffa::view::RequesterAddedOwnedView;
 pub use self::__buffa::view::RequestStateChangedView;
 #[doc(inline)]
 pub use self::__buffa::view::RequestStateChangedOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::RequestCancelledView;
+#[doc(inline)]
+pub use self::__buffa::view::RequestCancelledOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::LibraryView;
 #[doc(inline)]

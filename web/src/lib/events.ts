@@ -49,6 +49,7 @@ const types = [
   EventType.REQUEST_CREATED,
   EventType.REQUESTER_ADDED,
   EventType.REQUEST_STATE_CHANGED,
+  EventType.REQUEST_CANCELLED,
 ];
 
 // How long to wait before subscribing again after the stream ends or fails.
@@ -162,13 +163,16 @@ function refreshBrowsing({ event }: Event, queryClient: QueryClient) {
   }
 }
 
-/** Refetches the Requests when one opens, gains a Requester or changes state. */
+const requestEvents = new Set<Event["event"]["case"]>([
+  "requestCreated",
+  "requesterAdded",
+  "requestStateChanged",
+  "requestCancelled",
+]);
+
+/** Refetches the Requests when one opens, gains a Requester, changes state or is cancelled. */
 function refreshRequests({ event }: Event, queryClient: QueryClient) {
-  if (
-    event.case === "requestCreated" ||
-    event.case === "requesterAdded" ||
-    event.case === "requestStateChanged"
-  ) {
+  if (requestEvents.has(event.case)) {
     void queryClient.invalidateQueries({ queryKey: requestsKey });
   }
 }

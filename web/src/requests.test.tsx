@@ -81,6 +81,47 @@ test("a Request made elsewhere shows up without a reload", async () => {
   expect(await screen.findByText("Dune")).toBeDefined();
 });
 
+test("a Request approved elsewhere shows as Approved without a reload", async () => {
+  const events = eventFeed();
+  let requests: MessageInitShape<typeof RequestSchema>[] = [heat];
+  openApp(
+    "/requests",
+    server(() => requests, events.stream),
+  );
+  await screen.findByText("Pending");
+
+  const approved = { ...heat, state: RequestState.APPROVED };
+  requests = [approved];
+  events.send({ event: { case: "requestStateChanged", value: { request: approved } } });
+
+  expect(await screen.findByText("Approved")).toBeDefined();
+});
+
+test("a Request cancelled elsewhere goes without a reload", async () => {
+  const events = eventFeed();
+  let requests = [dune];
+  openApp(
+    "/requests",
+    server(() => requests, events.stream),
+  );
+  await screen.findByText("Dune");
+
+  requests = [];
+  events.send({ event: { case: "requestCancelled", value: { request: dune } } });
+
+  expect(await screen.findByText("No Requests yet.")).toBeDefined();
+});
+
+test("a Declined Request shows its Requesters why", async () => {
+  openApp(
+    "/requests",
+    server(() => [{ ...heat, state: RequestState.DECLINED, declineReason: "Not out on disc yet" }]),
+  );
+
+  expect(await screen.findByText("Declined")).toBeDefined();
+  expect(screen.getByText("Reason: Not out on disc yet")).toBeDefined();
+});
+
 type Found = MessageInitShape<typeof FoundMovieSchema>;
 
 /**
