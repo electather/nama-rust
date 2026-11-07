@@ -3,7 +3,7 @@ import { Outlet, createFileRoute, redirect, useMatches } from "@tanstack/react-r
 import { AppChrome } from "@/components/app-chrome";
 import { Role } from "@/gen/nama/v1/sign_in_pb";
 import { isSetupRequired, whoIsSignedIn } from "@/lib/access";
-import { useBrowseRefreshes } from "@/lib/events";
+import { useEvents } from "@/lib/events";
 
 /** Pages for signed-in Users, under the app chrome unless they fill the screen. */
 export const Route = createFileRoute("/_member")({
@@ -24,7 +24,7 @@ function MemberLayout() {
     select: (matches) =>
       matches.some((m) => m.staticData.fullScreen === true && m.status === "success"),
   });
-  useBrowseRefreshes();
+  useEvents();
   return (
     <>
       {!fullScreen && <AppChrome isAdmin={signedIn.user?.role === Role.ADMIN} />}

@@ -11,6 +11,7 @@ export interface FormErrors {
   signInCode?: string;
   currentPassword?: string;
   newPassword?: string;
+  folders?: string;
 }
 
 /**
