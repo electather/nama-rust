@@ -7,10 +7,11 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { inspect, promisify } from "node:util";
 import * as sandcastle from "@ai-hero/sandcastle";
 import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
+import { podman } from "@ai-hero/sandcastle/sandboxes/podman";
 import { recorder, type Outcome, type Stage, type Waiting } from "./status.ts";
 
 const MAX_ISSUES = Number(process.env.MAX_ISSUES ?? 60); // issues started per run; MAX_ISSUES=1 → one issue, then stop
-const MAX_PARALLEL = 2; // issues built at once
+const MAX_PARALLEL = Number(process.env.MAX_PARALLEL ?? 2); // issues built at once
 // `touch .sandcastle/STOP`: running issues finish, nothing new starts, later runs exit at once. `rm` it to resume.
 const STOP_FILE = ".sandcastle/STOP";
 const MODEL = "claude-opus-5-5";
@@ -123,16 +124,18 @@ const note = (issue: Issue, text: string) => {
   log(`#${issue.number} ${text}`);
   record({ kind: "note", issue: issue.number, text });
 };
+// Rootless Podman behind a `docker` shim maps the host user to container root, so the docker provider's agent
+// can't write its worktree; the podman provider maps it with --userns=keep-id instead.
+const onPodman = /podman/i.test(spawnSync("docker", ["--version"], { encoding: "utf8" }).stdout ?? "");
 const sandbox = () =>
-  docker({
+  (onPodman ? podman : docker)({
     mounts: [
       // ponytail: shared registry only; per-worktree target/ rebuilds from scratch. Add sccache if builds drag.
       { hostPath: cargoCache, sandboxPath: "~/.cargo/registry" },
       { hostPath: pnpmStore, sandboxPath: "~/.local/share/pnpm/store" },
-      // your mattpocock skills (tdd, code-review, …) available to agents in the container
-      { hostPath: "~/.agents/skills", sandboxPath: "~/.claude/skills", readonly: true },
-      // ponytail is a plugin, not in ~/.agents/skills; same path in and out so implement-prompt.md finds it either way
-      { hostPath: "~/.claude/plugins/cache/ponytail/ponytail", sandboxPath: "~/.claude/plugins/cache/ponytail/ponytail", readonly: true },
+      // The other skills are committed under .claude/skills, so the worktree (cut from origin/main) brings them.
+      // ponytail is still a host skill; drop this mount once it's installed at project level.
+      { hostPath: "~/.agents/skills/ponytail", sandboxPath: "~/.claude/skills/ponytail", readonly: true },
     ],
   });
 

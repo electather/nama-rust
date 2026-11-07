@@ -25,7 +25,7 @@ If the branch is fundamentally wrong and can't be fixed here, output `<blocked>o
 Once the branch meets the spec and every check passes, write the pull request body for the branch as it now stands (`git diff origin/main...HEAD`), following this skill:
 
 <skill name="pr">
-!`awk 'f>=2{print} /^---$/{f++}' ~/.claude/skills/pr/SKILL.md`
+!`awk 'f>=2{print} /^---$/{f++}' .claude/skills/pr/SKILL.md`
 </skill>
 
 Use the real output of the checks you just ran as the Evidence. Output the body wrapped in a `pr-body` XML tag (opening and closing). Leave out `Closes #{{ISSUE_NUMBER}}` and any `Part of` line: the factory adds them.

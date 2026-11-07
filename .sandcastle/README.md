@@ -1,6 +1,6 @@
 # AI factory (sandcastle)
 
-Takes open `ready-for-agent` issues with no open blockers, up to 2 at once (`MAX_PARALLEL`), each through:
+Takes open `ready-for-agent` issues with no open blockers, up to 2 at once (`MAX_PARALLEL=N` to change), each through:
 `implement` skill → `code-review` skill + fixes → PR (`Closes #N`) → CI (one auto-fix attempt) → squash-merge.
 While an issue is being built it carries `agent-working`; the label comes off when it merges, is handed back or the run crashes.
 Only one factory runs per machine (`~/.cache/nama-sandcastle/factory.pid`). Factories on different machines can run at once: each claims an issue by creating `refs/claims/issue-N` on origin, which only one of them can do, and deletes it when done or on Ctrl-C. A run that was killed outright leaves its claims behind. Free one with `git push origin --delete refs/claims/issue-N` and remove the issue's `agent-working` label.
@@ -10,14 +10,16 @@ It builds web tickets as well as Rust ones. The image (`Dockerfile`, on `node:26
 
 An issue with sub-issues is never built directly. The factory builds its sub-issues (each gets the parent as context) and closes the parent once the last one merges.
 
-Agents are Claude Code (`claude-opus-5-5`, effort `high`) in Docker. Your host skills come from `~/.agents/skills`, mounted read-only. The implement step also inlines `clean-code` and the `ponytail` plugin skill, and the review step writes the PR body with `pr`. What to write, check and review for each part of the repo lives in the repo's area skills, `.claude/skills/rust-crates` and `.claude/skills/web-app`, which every step loads for the parts a ticket touches. They pull in `rust-best-practices`, `tokio-async-code-review` and `impeccable`. Install the non-plugin ones with:
+Agents are Claude Code (`claude-opus-5-5`, effort `high`) in Docker. Their skills are the repo's own: third-party ones live in `.agents/skills`, linked from `.claude/skills` and pinned in `skills-lock.json`, so each worktree brings them from `origin/main`. A skill change reaches the factory only once it's merged. The implement step also inlines `clean-code` and `ponytail`, and the review step writes the PR body with `pr`. What to write, check and review for each part of the repo lives in the repo's area skills, `.claude/skills/rust-crates` and `.claude/skills/web-app`, which every step loads for the parts a ticket touches. They pull in `rust-best-practices`, `tokio-async-code-review` and `impeccable`.
 
-    npx skills@latest add mattpocock/skills --skill=pr -g
+`ponytail` is still a host skill, mounted read-only from `~/.agents/skills/ponytail`:
 
-    npx skills add apollographql/skills --skill rust-best-practices -g
-    npx skills add https://github.com/sickn33/agentic-awesome-skills --skill clean-code -g
-    npx skills add existential-birds/beagle --skill tokio-async-code-review --skill review-verification-protocol -g
-    npx skills add pbakaus/impeccable -g   # UI tickets only: implement and review follow it against PRODUCT.md / DESIGN.md
+    npx skills add DietrichGebert/ponytail --skill ponytail -g
+
+Restore the project skills after a clone, or update them, from the repo root:
+
+    npx skills experimental_install
+    npx skills update -p
 
 The `impeccable` launcher downloads its Linux engine into the container's `~/.impeccable` on first use, so a UI ticket needs network access the first time each sandbox runs it. Its post-edit hook isn't installed in the container. The `web-app` skill's checks run `impeccable detect` instead.
 
@@ -25,6 +27,8 @@ One-time setup (from the repo root):
 
     npm --prefix .sandcastle install
     npx --prefix .sandcastle sandcastle docker build-image   # rebuild after editing Dockerfile
+    # rootless Podman (detected from `docker --version`; the factory then uses sandcastle's podman sandbox):
+    # podman build -t sandcastle:nama-rust --build-arg AGENT_UID=$(id -u) --build-arg AGENT_GID=$(id -g) -f .sandcastle/Dockerfile .sandcastle
     cp .sandcastle/.env.example .sandcastle/.env              # CLAUDE_CODE_OAUTH_TOKEN (`claude setup-token`), GH_TOKEN (`gh auth token`)
 
 Run from the repo root:

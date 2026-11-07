@@ -1,17 +1,17 @@
 Implement ticket #{{ISSUE_NUMBER}} ({{ISSUE_TITLE}}) by following these skill instructions:
 
 <skill name="implement">
-!`awk 'f>=2{print} /^---$/{f++}' ~/.claude/skills/implement/SKILL.md`
+!`awk 'f>=2{print} /^---$/{f++}' .claude/skills/implement/SKILL.md`
 </skill>
 
 Write the code under these two skills as well:
 
 <skill name="ponytail">
-!`awk 'f>=2{print} /^---$/{f++}' "$(ls ~/.claude/plugins/cache/ponytail/ponytail/*/skills/ponytail/SKILL.md | tail -1)"`
+!`awk 'f>=2{print} /^---$/{f++}' ~/.claude/skills/ponytail/SKILL.md`
 </skill>
 
 <skill name="clean-code">
-!`awk 'f>=2{print} /^---$/{f++}' ~/.claude/skills/clean-code/SKILL.md`
+!`awk 'f>=2{print} /^---$/{f++}' .claude/skills/clean-code/SKILL.md`
 </skill>
 
 Before writing code, load the area skill for each part of the repo the ticket touches: `rust-crates` for Rust, `web-app` for `web/`. Build to it, and run its Check section (and `web-app`'s Look section) before each commit.
