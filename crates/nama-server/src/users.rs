@@ -640,8 +640,8 @@ async fn any_user(conn: &mut SqliteConnection) -> Result<bool, sqlx::Error> {
 }
 
 /// Gives the User `user` the Role `role`, failing if that leaves no Admin. Checked after the write,
-/// in the same transaction, so a failure rolls the write back and two changes at once can't both
-/// pass the check.
+/// in the same transaction, so a refusal rolls the write back. Writes run one at a time, so two
+/// demotions at once can't both pass the check.
 async fn update_role(conn: &mut SqliteConnection, user: i64, role: Role) -> Result<(), Error> {
     let updated = sqlx::query!("UPDATE users SET role = ? WHERE id = ?", role, user)
         .execute(&mut *conn)

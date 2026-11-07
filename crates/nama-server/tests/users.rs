@@ -1,5 +1,5 @@
-//! Admins creating, listing and changing the Role of Users through the generated `UserService` client, over a real
-//! socket and against a real SQLite database.
+//! Admins creating, listing and changing the Role of Users through the generated `UserService`
+//! client, over a real socket and against a real SQLite database.
 
 #[path = "support/server.rs"]
 mod server;
@@ -307,10 +307,21 @@ async fn two_admins_demoting_each_other_at_once_leave_exactly_one_admin() {
     );
 
     // Whichever lands second finds its caller already demoted, or itself the last Admin.
-    let (survivor, as_survivor) = match (grace_demoted, admin_demoted) {
-        (Ok(()), Err(_)) => (admin, &fixture.client),
-        (Err(_), Ok(())) => (grace, &as_grace),
+    let refused = |demoted: &Result<(), ConnectError>| {
+        matches!(
+            demoted.as_ref().map_err(|err| err.code),
+            Err(ErrorCode::PermissionDenied | ErrorCode::FailedPrecondition)
+        )
+    };
+    let survivor = match (&grace_demoted, &admin_demoted) {
+        (Ok(()), lost) if refused(lost) => admin,
+        (lost, Ok(())) if refused(lost) => grace,
         both => panic!("exactly one demotion should succeed: {both:?}"),
+    };
+    let as_survivor = if survivor == admin {
+        &fixture.client
+    } else {
+        &as_grace
     };
     assert_eq!(admin_ids(as_survivor).await, [survivor]);
 }
