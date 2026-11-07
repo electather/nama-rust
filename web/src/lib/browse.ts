@@ -5,10 +5,10 @@ import {
   fromJson,
 } from "@bufbuild/protobuf";
 import { Code } from "@connectrpc/connect";
-import { createQueryOptions } from "@connectrpc/connect-query";
+import { createConnectQueryKey, createQueryOptions } from "@connectrpc/connect-query";
 import { notFound } from "@tanstack/react-router";
 
-import type { Version } from "@/gen/nama/v1/browse_pb";
+import { BrowseService, type Version } from "@/gen/nama/v1/browse_pb";
 import { LibraryService } from "@/gen/nama/v1/library_pb";
 import { type ExternalId, ExternalIdSchema } from "@/gen/nama/v1/match_pb";
 
@@ -57,6 +57,14 @@ export function externalIdFromParam(param: string) {
   } catch {
     throw notFound();
   }
+}
+
+/** Every browse query, including Continue Watching: what to refresh when Watch State changes. */
+export const browseKey = createConnectQueryKey({ schema: BrowseService, cardinality: undefined });
+
+/** A Season's name: "Season 2", or "Specials" for Season 0. */
+export function seasonName(number: number) {
+  return number === 0 ? "Specials" : `Season ${number}`;
 }
 
 /** The year in a `YYYY-MM-DD` date. */

@@ -1,10 +1,11 @@
 import { useSuspenseQuery } from "@connectrpc/connect-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 
 import { NotFound } from "@/components/route-error";
 import { TitlePage } from "@/components/title-page";
 import { buttonVariants } from "@/components/ui/button";
+import { PlayedButton, WatchProgress } from "@/components/watch-state";
 import { BrowseService, type Version } from "@/gen/nama/v1/browse_pb";
 import {
   externalIdFromParam,
@@ -15,6 +16,7 @@ import {
   runtimeOf,
   yearOf,
 } from "@/lib/browse";
+import { useSetPlayed } from "@/lib/watch-state";
 
 export const Route = createFileRoute("/_member/libraries/$libraryId/movies/$movieId/")({
   loader: async ({ context, params }) => {
@@ -28,7 +30,9 @@ export const Route = createFileRoute("/_member/libraries/$libraryId/movies/$movi
 });
 
 function Movie() {
-  const { data } = useSuspenseQuery(BrowseService.method.getMovie, Route.useLoaderData());
+  const input = Route.useLoaderData();
+  const { data } = useSuspenseQuery(BrowseService.method.getMovie, input);
+  const setPlayed = useSetPlayed();
   const { movie } = data;
   if (!movie) return <NotFound />;
   return (
@@ -36,7 +40,21 @@ function Movie() {
       <p className="text-sm text-muted-foreground">
         {metadataLine(yearOf(movie.releaseDate), runtimeOf(movie.runtimeMinutes))}
       </p>
-      <Play versions={movie.versions} />
+      <div className="mt-4 max-w-xs empty:hidden">
+        <WatchProgress state={movie.watchState} />
+      </div>
+      <Play versions={movie.versions}>
+        <PlayedButton
+          played={movie.watchState?.played === true}
+          onToggle={(played) => {
+            setPlayed({
+              libraryId: input.libraryId,
+              target: { case: "movieId", value: input.movieId },
+              played,
+            });
+          }}
+        />
+      </Play>
       {movie.overview !== undefined && (
         <p className="mt-8 max-w-prose text-pretty">{movie.overview}</p>
       )}
@@ -50,8 +68,11 @@ const gigabytes = new Intl.NumberFormat("en", {
   maximumFractionDigits: 1,
 });
 
-/** Play, and a choice of Version when there's more than one, starting on the largest. */
-function Play({ versions }: { versions: Version[] }) {
+/**
+ * Play, and a choice of Version when there's more than one, starting on the largest, then
+ * `children`.
+ */
+function Play({ versions, children }: { versions: Version[]; children: ReactNode }) {
   const [chosenId, setChosenId] = useState<string>();
   // The largest until one is chosen, and again if an Event removed the chosen one.
   const versionId = String(
@@ -81,6 +102,7 @@ function Play({ versions }: { versions: Version[] }) {
           </select>
         </label>
       )}
+      {children}
     </div>
   );
 }

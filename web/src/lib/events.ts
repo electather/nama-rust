@@ -1,14 +1,11 @@
 import { type Transport, createClient } from "@connectrpc/connect";
-import { createConnectQueryKey, useTransport } from "@connectrpc/connect-query";
+import { useTransport } from "@connectrpc/connect-query";
 import { type QueryClient, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 
-import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { EventService, EventType } from "@/gen/nama/v1/event_pb";
 
-// ponytail: every browse query, not only those of the Event's Library. Only the ones on screen
-// refetch, and a household Server has a handful of Libraries.
-const browseKey = createConnectQueryKey({ schema: BrowseService, cardinality: undefined });
+import { browseKey } from "./browse";
 
 /** The Events that change what browsing shows. */
 const types = [EventType.ITEM_MATCHED, EventType.LIBRARY_ITEM_REMOVED];
@@ -25,6 +22,8 @@ export function useBrowseRefreshes() {
   const queryClient = useQueryClient();
   useEffect(() => {
     const unmounted = new AbortController();
+    // ponytail: every browse query, not only those of the Event's Library. Only the ones on screen
+    // refetch, and a household Server has a handful of Libraries.
     const refresh = () => queryClient.invalidateQueries({ queryKey: browseKey });
     void refreshOnEvents(transport, refresh, unmounted.signal);
     return () => {

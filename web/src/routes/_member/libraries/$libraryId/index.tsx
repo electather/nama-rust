@@ -47,7 +47,12 @@ function Movies({ libraryId }: { libraryId: bigint }) {
             params={{ libraryId: String(libraryId), movieId: titleParam(movie.id) }}
             className={posterLink}
           >
-            <Poster url={movie.posterUrl} title={movie.title} detail={yearOf(movie.releaseDate)} />
+            <Poster
+              url={movie.posterUrl}
+              title={movie.title}
+              detail={yearOf(movie.releaseDate)}
+              watchState={movie.watchState}
+            />
           </Link>
         </li>
       ))}

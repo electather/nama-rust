@@ -1,25 +1,42 @@
+import { create } from "@bufbuild/protobuf";
 import { createQueryOptions, useSuspenseQuery } from "@connectrpc/connect-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
 
 import { Page } from "@/components/page";
+import { Poster, PosterGrid } from "@/components/poster";
+import {
+  BrowseService,
+  type ContinueWatchingEntry,
+  type Episode,
+  type Movie,
+  type Show,
+  ShowSchema,
+} from "@/gen/nama/v1/browse_pb";
 import { LibraryKind, LibraryService } from "@/gen/nama/v1/library_pb";
 import { ServerService } from "@/gen/nama/v1/server_pb";
+import { metadataLine, seasonName, titleParam, yearOf } from "@/lib/browse";
 
 export const Route = createFileRoute("/_member/")({
   loader: ({ context: { queryClient, transport } }) =>
-    queryClient.query({
-      ...createQueryOptions(LibraryService.method.listLibraries, {}, { transport }),
-      staleTime: "static",
-    }),
+    Promise.all([
+      queryClient.query({
+        ...createQueryOptions(LibraryService.method.listLibraries, {}, { transport }),
+        staleTime: "static",
+      }),
+      queryClient.query({
+        ...createQueryOptions(BrowseService.method.listContinueWatching, {}, { transport }),
+        staleTime: "static",
+      }),
+    ]),
   component: Home,
 });
 
-// Continue Watching goes above the Libraries, once Watch State has a UI (#73).
 function Home() {
   // Fetched already, to know whether the Server needs setting up.
   const { data: server } = useSuspenseQuery(ServerService.method.getServerInfo, {});
   return (
     <Page heading={server.name}>
+      <ContinueWatching />
       <section aria-labelledby="libraries" className="mt-10 max-w-2xl">
         <h2 id="libraries" className="font-medium">
           Libraries
@@ -28,6 +45,68 @@ function Home() {
       </section>
     </Page>
   );
+}
+
+/** What you've started and not played, most recent first. Nothing at all when there's none. */
+function ContinueWatching() {
+  const { data } = useSuspenseQuery(BrowseService.method.listContinueWatching, {});
+  if (data.entries.length === 0) return null;
+  return (
+    <section aria-labelledby="continue-watching" className="mt-10">
+      <h2 id="continue-watching" className="font-medium">
+        Continue Watching
+      </h2>
+      <PosterGrid empty={null}>
+        {data.entries.flatMap(entryCard).map(({ href, poster }) => (
+          <li key={href}>
+            {/* ponytail: a plain link until the player's route (#72) exists to type a <Link> against. */}
+            <a
+              href={href}
+              className="block rounded-lg outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+            >
+              <Poster {...poster} />
+            </a>
+          </li>
+        ))}
+      </PosterGrid>
+    </section>
+  );
+}
+
+/** Where an entry plays, resuming where you stopped, and its poster. */
+function entryCard({ libraryId, movieOrEpisode, show }: ContinueWatchingEntry) {
+  const library = `/libraries/${libraryId}`;
+  if (movieOrEpisode.case === "movie") return [movieCard(library, movieOrEpisode.value)];
+  if (movieOrEpisode.case === "episode") {
+    return [episodeCard(library, show ?? create(ShowSchema), movieOrEpisode.value)];
+  }
+  return [];
+}
+
+function movieCard(library: string, movie: Movie) {
+  return {
+    href: `${library}/movies/${titleParam(movie.id)}/play`,
+    poster: {
+      url: movie.posterUrl,
+      title: movie.title,
+      detail: yearOf(movie.releaseDate),
+      watchState: movie.watchState,
+    },
+  };
+}
+
+/** An Episode shows its Show's poster, saying which Episode it is. */
+function episodeCard(library: string, show: Show, episode: Episode) {
+  const { seasonNumber, episodeNumber } = episode;
+  return {
+    href: `${library}/shows/${titleParam(show.id)}/seasons/${seasonNumber}/episodes/${episodeNumber}/play`,
+    poster: {
+      url: show.posterUrl,
+      title: show.title,
+      detail: metadataLine(seasonName(seasonNumber), `Episode ${episodeNumber}`),
+      watchState: episode.watchState,
+    },
+  };
 }
 
 function Libraries() {
