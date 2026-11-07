@@ -87,6 +87,11 @@ pub(crate) struct User {
 pub(crate) struct Device {
     pub(crate) id: i64,
     pub(crate) name: String,
+    /// When it signed in, in seconds since the Unix epoch.
+    pub(crate) created_at: i64,
+    /// When it was last used, in seconds since the Unix epoch, to within
+    /// [`LAST_SEEN_PRECISION`].
+    pub(crate) last_seen_at: i64,
 }
 
 /// Who sent a request: the User and Device its session belongs to.
@@ -145,6 +150,12 @@ pub enum Error {
     /// doesn't reveal which names exist.
     #[error("the name or password is wrong")]
     WrongNameOrPassword,
+    /// No User has this ID.
+    #[error("no User has that ID")]
+    NoSuchUser,
+    /// The change would leave the Server with no Admin.
+    #[error("the Server must keep at least one Admin")]
+    LastAdmin,
     /// The first Admin can only be created while the Server has no Users.
     #[error("the Server already has Users")]
     AlreadySetUp,
@@ -240,6 +251,58 @@ impl Users {
         )
         .fetch_all(self.db.reader())
         .await
+    }
+
+    /// Gives the User `user` the Role `role`, unless that leaves the Server with no Admin. Their
+    /// Devices stay signed in, and the Role applies from their next request, which reads it afresh.
+    pub(crate) async fn set_role(&self, user: i64, role: Role) -> Result<(), Error> {
+        self.db
+            .write(move |tx| Box::pin(async move { update_role(tx, user, role).await }))
+            .await
+    }
+
+    /// The Devices of the User `user` that haven't expired, oldest first, or `None` if there is no
+    /// such User.
+    pub(crate) async fn devices(&self, user: i64) -> Result<Option<Vec<Device>>, sqlx::Error> {
+        let mut conn = self.db.reader().acquire().await?;
+        let exists = sqlx::query_scalar!(
+            r#"SELECT EXISTS (SELECT 1 FROM users WHERE id = ?) AS "exists!: bool""#,
+            user
+        )
+        .fetch_one(&mut *conn)
+        .await?;
+        if !exists {
+            return Ok(None);
+        }
+        let expired_before = now() - DEVICE_LIFETIME;
+        let devices = sqlx::query_as!(
+            Device,
+            r#"SELECT id AS "id!", name, created_at, last_seen_at FROM devices
+               WHERE user_id = ? AND last_seen_at > ? ORDER BY id"#,
+            user,
+            expired_before,
+        )
+        .fetch_all(&mut *conn)
+        .await?;
+        Ok(Some(devices))
+    }
+
+    /// Signs the Device `device` out, as [`Users::sign_out`] does, if it is the User `user`'s.
+    /// Returns whether it was.
+    pub(crate) async fn revoke(&self, user: i64, device: i64) -> Result<bool, sqlx::Error> {
+        // Checked before the write, not in it, which is still race-free: a Device never changes
+        // User, its ID is never reused, and signing out one already gone does nothing.
+        let theirs = sqlx::query_scalar!(
+            r#"SELECT EXISTS (SELECT 1 FROM devices WHERE id = ? AND user_id = ?) AS "theirs!: bool""#,
+            device,
+            user
+        )
+        .fetch_one(self.db.reader())
+        .await?;
+        if theirs {
+            self.sign_out(device).await?;
+        }
+        Ok(theirs)
     }
 
     /// Signs the Device `device_name` in as the User named `name`, ignoring case, if `password` is
@@ -364,7 +427,8 @@ impl Users {
         let token_hash = token_hash.as_slice();
         let expired_before = now - DEVICE_LIFETIME;
         let row = sqlx::query!(
-            r#"SELECT d.id AS "device_id!", d.name AS device_name, d.last_seen_at,
+            r#"SELECT d.id AS "device_id!", d.name AS device_name, d.created_at AS device_created_at,
+                      d.last_seen_at,
                       u.id AS "user_id!", u.name AS user_name, u.role AS "role: Role",
                       u.created_at
                FROM devices d JOIN users u ON u.id = d.user_id
@@ -395,6 +459,8 @@ impl Users {
             device: Device {
                 id: row.device_id,
                 name: row.device_name,
+                created_at: row.device_created_at,
+                last_seen_at: row.last_seen_at,
             },
         };
         Ok(Some(Session { caller, refreshed }))
@@ -625,6 +691,28 @@ async fn any_user(conn: &mut SqliteConnection) -> Result<bool, sqlx::Error> {
         .await
 }
 
+/// Gives the User `user` the Role `role`, failing if that leaves no Admin. Checked after the write,
+/// in the same transaction, so a refusal rolls the write back. Writes run one at a time, so two
+/// demotions at once can't both pass the check.
+async fn update_role(conn: &mut SqliteConnection, user: i64, role: Role) -> Result<(), Error> {
+    let updated = sqlx::query!("UPDATE users SET role = ? WHERE id = ?", role, user)
+        .execute(&mut *conn)
+        .await?;
+    if updated.rows_affected() == 0 {
+        return Err(Error::NoSuchUser);
+    }
+    let any_admin = sqlx::query_scalar!(
+        r#"SELECT EXISTS (SELECT 1 FROM users WHERE role = 'admin') AS "any!: bool""#
+    )
+    .fetch_one(conn)
+    .await?;
+    if any_admin {
+        Ok(())
+    } else {
+        Err(Error::LastAdmin)
+    }
+}
+
 /// Stores the first Admin, named `name`, with `credential`, and their Device named `device_name`
 /// with the hash of its session token, unless the Server already has a User. The names have been
 /// checked.
@@ -715,7 +803,12 @@ async fn insert_device(
     )
     .fetch_one(conn)
     .await?;
-    Ok(Device { id, name })
+    Ok(Device {
+        id,
+        name,
+        created_at: now,
+        last_seen_at: now,
+    })
 }
 
 #[cfg(test)]
@@ -859,6 +952,32 @@ mod tests {
         let duplicate = create_user(&db, "éMILE").await;
 
         assert!(matches!(duplicate, Err(Error::NameTaken)), "{duplicate:?}");
+    }
+
+    #[tokio::test]
+    async fn demoting_two_admins_at_once_leaves_exactly_one() {
+        let data_dir = tempfile::tempdir().unwrap();
+        let db = Arc::new(Database::open(data_dir.path()).await.unwrap());
+        let users = Users::new(Arc::clone(&db), Registry::new());
+        let ada = create_user(&db, "Ada").await.unwrap().id;
+        let grace = create_user(&db, "Grace").await.unwrap().id;
+        users.set_role(ada, Role::Admin).await.unwrap();
+        users.set_role(grace, Role::Admin).await.unwrap();
+
+        // Unlike over the API, no access check stands between the two and the database.
+        let (ada_demoted, grace_demoted) = tokio::join!(
+            users.set_role(ada, Role::Member),
+            users.set_role(grace, Role::Member),
+        );
+
+        let refused = [&ada_demoted, &grace_demoted]
+            .into_iter()
+            .filter(|demoted| matches!(demoted, Err(Error::LastAdmin)))
+            .count();
+        assert_eq!(refused, 1, "{ada_demoted:?} / {grace_demoted:?}");
+        let admins = users.list().await.unwrap();
+        let admins = admins.iter().filter(|user| user.role == Role::Admin);
+        assert_eq!(admins.count(), 1);
     }
 
     #[test]

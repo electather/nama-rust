@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT EXISTS (SELECT 1 FROM users WHERE role = 'admin') AS \"any!: bool\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "any!: bool",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "1ae412423525786ab733af0d46aa74b715c58bc3c1eba48b9206a4316d176739"
+}

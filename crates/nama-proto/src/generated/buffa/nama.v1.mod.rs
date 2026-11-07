@@ -119,6 +119,12 @@ pub mod __buffa {
         reg.register_json_any(super::__CREATE_USER_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__LIST_USERS_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_USERS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__SET_ROLE_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__SET_ROLE_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__LIST_DEVICES_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_DEVICES_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__REVOKE_DEVICE_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__REVOKE_DEVICE_RESPONSE_JSON_ANY);
     }
 }
 #[doc(inline)]
@@ -413,5 +419,29 @@ pub use self::__buffa::view::ListUsersRequestOwnedView;
 pub use self::__buffa::view::ListUsersResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::ListUsersResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetRoleRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::SetRoleRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetRoleResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::SetRoleResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListDevicesRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListDevicesRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListDevicesResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListDevicesResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::RevokeDeviceRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::RevokeDeviceRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::RevokeDeviceResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::RevokeDeviceResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::register_types;
