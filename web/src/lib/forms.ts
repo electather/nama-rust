@@ -8,6 +8,7 @@ export interface FormErrors {
   name?: string;
   password?: string;
   deviceName?: string;
+  signInCode?: string;
   currentPassword?: string;
   newPassword?: string;
 }
