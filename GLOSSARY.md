@@ -130,6 +130,10 @@ _Avoid_: locked match, override, manual lock
 A User's progress through a Movie or Episode: whether it's been played, how far in, and when.
 _Avoid_: watched status, play state, progress
 
+**Continue Watching**:
+A User's Movies and Episodes whose Watch State says they've started and not played, most recent first.
+_Avoid_: on deck, in progress, resume list
+
 ## Requests
 
 **Request**:

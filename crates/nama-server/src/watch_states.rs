@@ -26,6 +26,27 @@ pub(crate) struct WatchStates {
     db: Arc<Database>,
 }
 
+/// A Movie or Episode, by the external id its Watch State is kept against.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub(crate) enum MovieOrEpisode {
+    /// A Movie.
+    Movie(String),
+    /// An Episode.
+    Episode(String),
+}
+
+impl MovieOrEpisode {
+    /// The Movie with the id `id`.
+    pub(crate) fn movie(id: &ExternalId) -> Self {
+        Self::Movie(id.to_string())
+    }
+
+    /// The Episode with the id `id`.
+    pub(crate) fn episode(id: &ExternalId) -> Self {
+        Self::Episode(id.to_string())
+    }
+}
+
 /// How far a player says it has got through a Version.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Progress {
@@ -195,6 +216,41 @@ impl WatchStates {
         episodes: &[&ExternalId],
     ) -> Result<Vec<Option<WatchState>>, sqlx::Error> {
         self.of(user, EPISODE, episodes).await
+    }
+
+    /// The User `user`'s Continue Watching: the Movies and Episodes they've started and not
+    /// played, with their Watch State, most recent first. Ones changed in the same second come in
+    /// a fixed order, by kind and id, so the list doesn't shuffle between calls.
+    pub(crate) async fn continue_watching(
+        &self,
+        user: i64,
+    ) -> Result<Vec<(MovieOrEpisode, WatchState)>, sqlx::Error> {
+        let rows = sqlx::query!(
+            "SELECT kind, title_id, position_ms, duration_ms, updated_at
+             FROM watch_states
+             WHERE user_id = ? AND position_ms > 0 AND NOT played
+             ORDER BY updated_at DESC, kind, title_id",
+            user
+        )
+        .fetch_all(self.db.reader())
+        .await?;
+        Ok(rows
+            .into_iter()
+            .map(|row| {
+                let watched = if row.kind == MOVIE {
+                    MovieOrEpisode::Movie(row.title_id)
+                } else {
+                    MovieOrEpisode::Episode(row.title_id)
+                };
+                let state = WatchState {
+                    position_ms: row.position_ms,
+                    duration_ms: row.duration_ms,
+                    played: false,
+                    updated_at: row.updated_at,
+                };
+                (watched, state)
+            })
+            .collect())
     }
 
     /// The User `user`'s Watch State of each of the Movies or Episodes of `kind` with the external
