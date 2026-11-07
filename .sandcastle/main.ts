@@ -84,6 +84,11 @@ const aborts = new Map<number, AbortController>();
 const isClosed = (issue: Issue) =>
   spawnSync("gh", ["issue", "view", String(issue.number), "--json", "state", "--jq", ".state"], { encoding: "utf8" })
     .stdout?.trim() === "CLOSED"; // gh failing reads as open: only a definite "closed" stops work
+// A PR merged by hand counts as done, whatever stage the factory was at. `gh pr view <branch>` finds it
+// after the merge too.
+const prMerged = (issue: Issue) =>
+  spawnSync("gh", ["pr", "view", branchOf(issue), "--json", "state", "--jq", ".state"], { encoding: "utf8" })
+    .stdout?.trim() === "MERGED";
 function stopIfClosed(issue: Issue) {
   const abort = aborts.get(issue.number);
   if (abort && !abort.signal.aborted && isClosed(issue)) abort.abort(new Cancelled("the issue was closed"));
@@ -359,16 +364,21 @@ async function mergePr(issue: Issue, box: Box, pr: string) {
     await greenCi(issue, box, pr);
   }
   gh("pr", "merge", pr, "--squash");
-  ok("git", "push", "origin", "--delete", branch);
   log(`✓ #${issue.number} merged via PR #${pr}`);
-  if (issue.parent) {
-    await waitUntilClosed(issue);
-    try {
-      closeFinishedParents();
-      closeIfFinished(issue.parent);
-    } catch (e) {
-      log(`#${issue.number} merged, but closing its parent #${issue.parent} failed: ${oneLine(e)}`); // not retried: close it by hand
-    }
+  await afterMerge(issue);
+}
+
+// After the PR merged, by the factory or by hand. The local branch is deleted by the caller once the
+// sandbox's worktree is gone.
+async function afterMerge(issue: Issue) {
+  ok("git", "push", "origin", "--delete", branchOf(issue));
+  if (!issue.parent) return;
+  await waitUntilClosed(issue);
+  try {
+    closeFinishedParents();
+    closeIfFinished(issue.parent);
+  } catch (e) {
+    log(`#${issue.number} merged, but closing its parent #${issue.parent} failed: ${oneLine(e)}`); // not retried: close it by hand
   }
 }
 
@@ -482,19 +492,32 @@ async function worker() {
     const started = Date.now();
     aborts.set(issue.number, new AbortController());
     // Until the merge starts (the merge itself closes the issue), a closed issue stops its build.
+    // A merged PR stops it at any stage; the catch below then records it as merged.
     const abort = aborts.get(issue.number)!;
     const watcher = setInterval(() => {
-      if (abort.signal.aborted || stageOf.get(issue.number)?.stage === "merging" || !isClosed(issue)) return;
-      log(`#${issue.number} was closed: stopping it`);
-      abort.abort(new Cancelled("the issue was closed"));
+      if (abort.signal.aborted) return;
+      if (prMerged(issue)) {
+        log(`#${issue.number} PR was merged: stopping it`);
+        abort.abort(new Cancelled("the PR was merged"));
+      } else if (stageOf.get(issue.number)?.stage !== "merging" && isClosed(issue)) {
+        log(`#${issue.number} was closed: stopping it`);
+        abort.abort(new Cancelled("the issue was closed"));
+      }
     }, 60_000);
     try {
       gh("issue", "edit", String(issue.number), "--add-label", WORKING);
       await pipeline(issue);
       finish(issue, "merged");
     } catch (e) {
+      // Checked first: merging by hand makes whatever the factory was doing fail (a rejected push, a
+      // cancelled CI run, `gh pr merge` on a merged PR), and none of that is a crash or a hand-back.
+      if (prMerged(issue)) {
+        log(`✓ #${issue.number} merged by hand`);
+        await serially(() => afterMerge(issue));
+        ok("git", "branch", "-D", branchOf(issue)); // the sandbox is closed by now
+        finish(issue, "merged", "merged by hand");
       // The signal, not `instanceof`: sandcastle may hand the reason back wrapped in an Effect FiberFailure.
-      if (abort.signal.aborted) {
+      } else if (abort.signal.aborted) {
         const why = `${(abort.signal.reason as Error).message} during ${stageOf.get(issue.number)?.stage ?? "start"}`;
         ok("gh", "pr", "close", branchOf(issue), "--comment", "🏭 The issue was closed, so the factory stopped building it.");
         log(`⊘ #${issue.number} cancelled: ${why}`);
