@@ -1,8 +1,10 @@
 import { type MessageInitShape, create } from "@bufbuild/protobuf";
+import { Code } from "@connectrpc/connect";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import type { SubscribeResponse } from "@/gen/nama/v1/event_pb";
+import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import {
   FoundMovieSchema,
   RequestSchema,
@@ -12,6 +14,7 @@ import {
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
 
 import { eventFeed, fakeServer, fill, newUser, openApp } from "./test-app";
+import { refused } from "./test-refusal";
 
 afterEach(cleanup);
 
@@ -187,4 +190,34 @@ test("a Movie's page for one in a Library opens it there", async () => {
   await waitFor(() => {
     expect(router.state.location.pathname).toBe("/libraries/4/movies/tmdb-348");
   });
+});
+
+test("a Movie's page is not found for a User who may not Request Movies", async () => {
+  openApp("/movies/tmdb-438631", searchableServer([notOnTheServer], [Permission.VIEW_REQUESTS]));
+
+  expect(await screen.findByRole("heading", { name: "Page not found" })).toBeDefined();
+});
+
+test("Requesting a Movie a scan Matched meanwhile shows it in its Library", async () => {
+  const movie = create(FoundMovieSchema, notOnTheServer);
+  const transport = fakeServer({ signedIn: newUser }, {}, {}, (router) => {
+    router.service(RequestService, {
+      listRequests: () => ({}),
+      searchMovies: () => ({ movies: [movie] }),
+      createRequest: () => {
+        movie.libraryId = 4n;
+        throw refused(Code.FailedPrecondition, "a Library has it", {
+          reason: RefusalReason.ALREADY_IN_LIBRARY,
+        });
+      },
+    });
+  });
+  openApp("/requests", transport);
+  await screen.findByLabelText("Find a Movie");
+
+  const results = await search("Dune");
+  fireEvent.click(await within(results).findByRole("button", { name: "Request Dune" }));
+
+  expect(await within(results).findByText("In a Library")).toBeDefined();
+  expect(within(results).queryByRole("button", { name: "Request Dune" })).toBeNull();
 });

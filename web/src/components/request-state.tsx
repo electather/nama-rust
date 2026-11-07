@@ -1,3 +1,4 @@
+import { Code } from "@connectrpc/connect";
 import { useMutation } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -21,8 +22,9 @@ import {
   RequestService,
   RequestState,
 } from "@/gen/nama/v1/request_pb";
+import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { requestsKey } from "@/lib/events";
-import { refusal } from "@/lib/forms";
+import { refusal, refusalOf } from "@/lib/forms";
 
 interface Shown {
   label: string;
@@ -82,6 +84,11 @@ function RequestButton({ movie, primary }: { movie: FoundMovie; primary: boolean
   const ask = useMutation(RequestService.method.createRequest, {
     // Waits for the Request to be read back, so the button stays busy until its state shows.
     onSuccess: () => queryClient.invalidateQueries({ queryKey: requestsKey }),
+    // A scan Matched the Movie since it was found: read it back to show it in its Library.
+    onError: (error) =>
+      refusalOf(error).reason === RefusalReason.ALREADY_IN_LIBRARY
+        ? queryClient.invalidateQueries({ queryKey: requestsKey })
+        : undefined,
   });
   return (
     <>
@@ -101,11 +108,20 @@ function RequestButton({ movie, primary }: { movie: FoundMovie; primary: boolean
       </span>
       {ask.isError && (
         <p role="alert" className="w-full text-sm text-destructive">
-          {refusal(ask.error, `Request ${movie.title}`, {}).form}
+          {requestRefusal(ask.error, movie.title)}
         </p>
       )}
     </>
   );
+}
+
+function requestRefusal(error: unknown, title: string) {
+  return refusal(
+    error,
+    `Request ${title}`,
+    { [Code.Unavailable]: { form: "The metadata source didn’t answer. Try again in a moment." } },
+    { [RefusalReason.ALREADY_IN_LIBRARY]: { form: `${title} is already in a Library.` } },
+  ).form;
 }
 
 function StateLabel({ label, Icon }: Shown) {

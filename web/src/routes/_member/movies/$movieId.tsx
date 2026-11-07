@@ -5,10 +5,16 @@ import { FoundMovieState } from "@/components/request-state";
 import { NotFound } from "@/components/route-error";
 import { TitlePage } from "@/components/title-page";
 import { RequestService } from "@/gen/nama/v1/request_pb";
+import { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { externalIdFromParam, metadataLine, queryOrNotFound, runtimeOf } from "@/lib/browse";
+import { may } from "@/lib/permissions";
 
 /** A Movie from the metadata source, for Requesting it. One a Library has opens there instead. */
 export const Route = createFileRoute("/_member/movies/$movieId")({
+  beforeLoad: ({ context }) => {
+    // Only search results link here, and only for those who may Request.
+    if (!may(context.signedIn.user, Permission.REQUEST_MOVIE)) throw notFound();
+  },
   loader: async ({ context, params }) => {
     const { id } = externalIdFromParam(params.movieId);
     // Requests name Movies by TMDB id.
