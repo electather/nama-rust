@@ -1,5 +1,5 @@
 //! Browsing Movies and Shows through the generated `BrowseService` client, and the Watch State
-//! that `WatchStateService` reports and browsing shows, over a real socket, with the TMDB Plugin
+//! that `WatchStateService` reports or marks and browsing shows, over a real socket, with the TMDB Plugin
 //! enabled against a fake TMDB.
 
 #[expect(dead_code, reason = "the harness's plain `start` has no use here")]
@@ -29,8 +29,9 @@ use nama_proto::nama::v1::{
     ExternalId, GetMovieRequest, GetShowRequest, GetShowResponse, LibraryKind,
     LibraryServiceClient, ListEpisodesRequest, ListMoviesRequest, ListShowsRequest,
     MatchServiceClient, Movie, ReportProgressRequest, Role, ScanLibraryRequest, Season,
-    SessionDelivery, SetMatchRequest, Show, SignInRequest, SignInServiceClient, UserServiceClient,
-    Version, WatchState, WatchStateServiceClient, external_id,
+    SessionDelivery, SetMatchRequest, SetPlayedRequest, Show, ShowSeason, SignInRequest,
+    SignInServiceClient, UserServiceClient, Version, WatchState, WatchStateServiceClient,
+    external_id, set_played_request::Target,
 };
 use nama_server::{config::Config, contents::Contents, plugins::Registry};
 use server::{PASSWORD, TestServer};
@@ -374,6 +375,24 @@ impl Viewer {
                 version_id: version,
                 position_ms,
                 duration_ms,
+                ..Default::default()
+            })
+            .await?;
+        Ok(())
+    }
+
+    /// Marks `target` in the Library `library` played, or unplayed.
+    async fn set_played(
+        &self,
+        library: i64,
+        target: Target,
+        played: bool,
+    ) -> Result<(), ConnectError> {
+        self.watch_states
+            .set_played(SetPlayedRequest {
+                library_id: library,
+                target: Some(target),
+                played,
                 ..Default::default()
             })
             .await?;
@@ -1180,4 +1199,214 @@ async fn progress_on_an_episode_survives_a_rescan_that_replaces_the_item() {
 
     let states = viewer.dark_watch_states(fx.library, 2).await;
     assert_eq!(episode_progress(states), [Some((MINUTE, TWO_HOURS, false))]);
+}
+
+/// The Movie with the TMDB id `tmdb`, to mark.
+fn movie(tmdb: i64) -> Target {
+    Target::MovieId(Box::new(tmdb_id(tmdb)))
+}
+
+/// The Episode with the TMDB id `tmdb`, to mark.
+fn episode(tmdb: i64) -> Target {
+    Target::EpisodeId(Box::new(tmdb_id(tmdb)))
+}
+
+/// Season `number` of the Show with the TMDB id `tmdb`, to mark.
+fn season_of(tmdb: i64, number: u32) -> Target {
+    Target::Season(Box::new(ShowSeason {
+        show_id: tmdb_id(tmdb).into(),
+        season_number: number,
+        ..Default::default()
+    }))
+}
+
+/// The Show with the TMDB id `tmdb`, to mark.
+fn show(tmdb: i64) -> Target {
+    Target::ShowId(Box::new(tmdb_id(tmdb)))
+}
+
+/// Whether each of `states` is played, `None` for one that isn't set.
+fn played(states: Vec<Option<WatchState>>) -> Vec<Option<bool>> {
+    states
+        .into_iter()
+        .map(|state| state.map(|state| state.played))
+        .collect()
+}
+
+#[tokio::test]
+async fn marking_a_movie_played_without_playing_it_shows_in_get_movie() {
+    let fx = Fixture::alien().await;
+    let viewer = fx.admin();
+
+    viewer
+        .set_played(fx.library, movie(ALIEN), true)
+        .await
+        .unwrap();
+
+    let state = viewer.watch_state(fx.library, ALIEN).await.unwrap();
+    assert_eq!((state.position_ms, state.duration_ms), (0, 0));
+    assert!(state.played);
+}
+
+#[tokio::test]
+async fn marking_an_episode_played_shows_in_list_episodes() {
+    let fx = Fixture::shows().await;
+    let viewer = fx.admin();
+
+    viewer
+        .set_played(fx.library, episode(LIES), true)
+        .await
+        .unwrap();
+
+    let states = viewer.dark_watch_states(fx.library, 1).await;
+    assert_eq!(played(states), [None, Some(true)]);
+}
+
+#[tokio::test]
+async fn marking_a_season_played_marks_each_of_its_episodes_and_no_other_seasons() {
+    let fx = Fixture::shows().await;
+    let viewer = fx.admin();
+
+    viewer
+        .set_played(fx.library, season_of(DARK, 1), true)
+        .await
+        .unwrap();
+
+    let first = viewer.dark_watch_states(fx.library, 1).await;
+    let second = viewer.dark_watch_states(fx.library, 2).await;
+    assert_eq!(played(first), [Some(true), Some(true)]);
+    assert_eq!(second, [None]);
+}
+
+#[tokio::test]
+async fn marking_a_show_played_marks_every_episode_of_every_season_and_unplayed_clears_them() {
+    let fx = Fixture::shows().await;
+    let viewer = fx.admin();
+
+    viewer
+        .set_played(fx.library, show(DARK), true)
+        .await
+        .unwrap();
+    let first = viewer.dark_watch_states(fx.library, 1).await;
+    let second = viewer.dark_watch_states(fx.library, 2).await;
+    viewer
+        .set_played(fx.library, show(DARK), false)
+        .await
+        .unwrap();
+    let first_unplayed = viewer.dark_watch_states(fx.library, 1).await;
+    let second_unplayed = viewer.dark_watch_states(fx.library, 2).await;
+
+    assert_eq!(played(first), [Some(true), Some(true)]);
+    assert_eq!(played(second), [Some(true)]);
+    assert_eq!(first_unplayed, [None, None]);
+    assert_eq!(second_unplayed, [None]);
+}
+
+#[tokio::test]
+async fn marking_a_partly_watched_movie_played_keeps_its_position_and_unplayed_clears_it() {
+    let fx = Fixture::alien().await;
+    let viewer = fx.admin();
+    let [version] = fx.version_ids(ALIEN).await[..] else {
+        panic!("Alien has one Version");
+    };
+    viewer.report(version, MINUTE, TWO_HOURS).await.unwrap();
+
+    viewer
+        .set_played(fx.library, movie(ALIEN), true)
+        .await
+        .unwrap();
+    let marked_played = progress(viewer.watch_state(fx.library, ALIEN).await);
+    viewer
+        .set_played(fx.library, movie(ALIEN), false)
+        .await
+        .unwrap();
+    let marked_unplayed = viewer.watch_state(fx.library, ALIEN).await;
+
+    assert_eq!(marked_played, Some((MINUTE, true)));
+    assert_eq!(marked_unplayed, None);
+}
+
+#[tokio::test]
+async fn marking_one_users_movie_played_leaves_anothers_alone() {
+    let fx = Fixture::alien().await;
+    let admin = fx.admin();
+    let grace = fx.member().await;
+
+    grace
+        .set_played(fx.library, movie(ALIEN), true)
+        .await
+        .unwrap();
+
+    assert_eq!(admin.watch_state(fx.library, ALIEN).await, None);
+}
+
+#[tokio::test]
+async fn marking_an_unknown_target_is_not_found() {
+    let shows = Fixture::shows().await;
+    let movies = Fixture::alien().await;
+    let (in_shows, in_movies) = (shows.admin(), movies.admin());
+    let unknown_id = 1;
+
+    for (what, marked) in [
+        (
+            "Library",
+            in_shows
+                .set_played(shows.library + 100, show(DARK), true)
+                .await,
+        ),
+        (
+            "Show",
+            in_shows
+                .set_played(shows.library, show(unknown_id), true)
+                .await,
+        ),
+        (
+            "Season",
+            in_shows
+                .set_played(shows.library, season_of(DARK, 9), true)
+                .await,
+        ),
+        (
+            "Episode",
+            in_shows
+                .set_played(shows.library, episode(unknown_id), true)
+                .await,
+        ),
+        (
+            "Movie",
+            in_movies
+                .set_played(movies.library, movie(unknown_id), true)
+                .await,
+        ),
+    ] {
+        assert_eq!(marked.unwrap_err().code, ErrorCode::NotFound, "{what}");
+    }
+}
+
+#[tokio::test]
+async fn marking_a_movie_of_a_shows_library_or_a_show_of_a_movies_library_is_invalid() {
+    let shows = Fixture::shows().await;
+    let movies = Fixture::alien().await;
+
+    let a_movie = shows
+        .admin()
+        .set_played(shows.library, movie(ALIEN), true)
+        .await;
+    let a_show = movies
+        .admin()
+        .set_played(movies.library, show(DARK), true)
+        .await;
+    let nothing = movies
+        .admin()
+        .watch_states
+        .set_played(SetPlayedRequest {
+            library_id: movies.library,
+            played: true,
+            ..Default::default()
+        })
+        .await;
+
+    assert_eq!(a_movie.unwrap_err().code, ErrorCode::InvalidArgument);
+    assert_eq!(a_show.unwrap_err().code, ErrorCode::InvalidArgument);
+    assert_eq!(nothing.unwrap_err().code, ErrorCode::InvalidArgument);
 }

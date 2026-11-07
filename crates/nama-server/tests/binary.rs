@@ -119,7 +119,7 @@ fn server_logs_its_config_creates_its_database_serves_the_api_and_exits_cleanly_
     // A fresh data directory gets a new database with every migration applied.
     let database_line = wait_for_line(&lines, "opened database");
     assert!(
-        database_line.contains("migrations_applied=[1, 2, 3, 4, 5, 6, 7]"),
+        database_line.contains("migrations_applied=[1, 2, 3, 4, 5, 6, 7, 8]"),
         "{database_line}"
     );
     assert!(data_dir.join("nama.db").is_file());

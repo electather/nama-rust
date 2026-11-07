@@ -48,7 +48,7 @@ pub(crate) enum Error {
 }
 
 /// The Server's Libraries, kept in its database.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct Libraries {
     db: Arc<Database>,
 }
