@@ -340,6 +340,26 @@ async fn a_member_managing_libraries_matches_or_users_is_permission_denied() {
 }
 
 #[tokio::test]
+async fn an_unlisted_rpc_is_the_routers_not_found_with_or_without_a_session() {
+    let server = TestServer::start(Config::default(), Registry::new()).await;
+
+    for bearer in [None, Some(server.admin_token.as_str())] {
+        let reply = post_json(&server, "/nama.v1.LibraryService/Unlisted", bearer).await;
+
+        assert_eq!(reply.status, 404, "{bearer:?}");
+        let body: Value = serde_json::from_slice(&reply.body).unwrap();
+        assert_eq!(
+            body,
+            json!({
+                "code": "unimplemented",
+                "message": "method not found: nama.v1.LibraryService/Unlisted",
+            }),
+            "{bearer:?}"
+        );
+    }
+}
+
+#[tokio::test]
 async fn an_admin_may_manage_libraries_matches_and_users() {
     let server = TestServer::start(Config::default(), Registry::new()).await;
 

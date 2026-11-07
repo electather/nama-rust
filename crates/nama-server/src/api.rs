@@ -144,7 +144,7 @@ enum Access {
 }
 
 /// Who may call each RPC, by path; one missing here is refused to everyone (see AGENTS.md, "New
-/// RPCs start closed").
+/// RPCs start closed"). Media has its own entry, [`MEDIA`].
 // One row per RPC reads as a table; rustfmt would split most rows over four lines.
 #[rustfmt::skip]
 const ACCESS: &[(&str, Access)] = &[
@@ -187,12 +187,16 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::USER_SERVICE_RESET_PASSWORD_SPEC.procedure,           Access::Admin),
 ];
 
+/// Who may fetch media: every path under this prefix, which the media routes share.
+const MEDIA: (&str, Access) = ("/media/", Access::SignedIn);
+
 impl Access {
     /// Who may request `path`: an RPC's `/<service>/<method>` as [`ACCESS`] lists it, or media
-    /// under `/media/`, which needs a session. `None` if nobody may.
+    /// as [`MEDIA`] does. `None` if nobody may.
     fn of(path: &str) -> Option<Self> {
-        if path.starts_with("/media/") {
-            return Some(Self::SignedIn);
+        let (media, media_access) = MEDIA;
+        if path.starts_with(media) {
+            return Some(media_access);
         }
         ACCESS
             .iter()
@@ -256,10 +260,12 @@ async fn require_access(request: Request, next: Next) -> axum::response::Respons
     }
 }
 
-/// The refusal of a path [`ACCESS`] doesn't list, whether or not the caller has a session: the
-/// router's own 404 for a path it doesn't serve, so it carries no Refusal. An RPC that exists but
-/// isn't listed is the Server's bug, which a test catches, not the client's.
+/// The refusal of a path [`ACCESS`] doesn't list, session or not. An RPC that exists but isn't
+/// listed is the Server's bug, not the client's, so this is the router's own 404 for a path it
+/// doesn't serve, without a Refusal.
 fn unlisted(path: &str) -> ConnectError {
+    // connectrpc's router words its 404 this way, naming the path without its leading slash.
+    let path = path.strip_prefix('/').unwrap_or(path);
     ConnectError::unimplemented(format!("method not found: {path}"))
         .with_http_status(StatusCode::NOT_FOUND)
 }
