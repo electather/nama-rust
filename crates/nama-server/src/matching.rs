@@ -44,6 +44,7 @@ use crate::{
     db::Database,
     events::{EventBus, event},
     plugins::Registry,
+    scanner::ScanLock,
 };
 
 use confidence::Decision;
@@ -205,13 +206,14 @@ impl Matcher {
     /// Matches the item `item` to the title `id` by hand, with every item named like it, and
     /// pins that Match. For an Episode, `id` names its Show, and each Episode of the Show is
     /// Matched through its Season, or Unmatched if the Show doesn't have it. Nothing changes
-    /// unless every item could be decided. The caller holds the Library's scan lock.
+    /// unless every item could be decided.
     pub(crate) async fn set_match(
         &self,
+        scan: &ScanLock,
         item: i64,
         id: &ExternalId,
     ) -> Result<Summary, ManualError> {
-        let named = self.named_like(item).await?;
+        let named = self.named_like(scan, item).await?;
         let refusal = |miss| match miss {
             Miss::Unmatched => ManualError::NoSuchTitle(id.clone()),
             Miss::Undecided => ManualError::Unavailable,
@@ -246,9 +248,13 @@ impl Matcher {
     }
 
     /// Removes the Match of the item `item` and of every item named like it, and pins them
-    /// Unmatched. The caller holds the Library's scan lock.
-    pub(crate) async fn clear_match(&self, item: i64) -> Result<Summary, ManualError> {
-        let named = self.named_like(item).await?;
+    /// Unmatched.
+    pub(crate) async fn clear_match(
+        &self,
+        scan: &ScanLock,
+        item: i64,
+    ) -> Result<Summary, ManualError> {
+        let named = self.named_like(scan, item).await?;
         let outcomes = named
             .items
             .iter()
@@ -257,14 +263,14 @@ impl Matcher {
         self.pin(item, named, Pin::Unmatched, outcomes).await
     }
 
-    /// Matches the items of the Library `library` that Matching hasn't decided yet, until
-    /// `cancel` is cancelled. The caller holds the Library's scan lock, so its items don't change
-    /// meanwhile.
+    /// Matches the items of the Library `scan` covers that Matching hasn't decided yet, until
+    /// `cancel` is cancelled.
     pub(crate) async fn match_library(
         &self,
-        library: i64,
+        scan: &ScanLock,
         cancel: &CancellationToken,
     ) -> Result<Summary, Error> {
+        let library = scan.library();
         let Pending { movies, shows } = self.undecided(library).await?;
         let mut summary = Summary::default();
         // Once the Provider fails (or there is none), asking about the other titles would only
@@ -324,11 +330,18 @@ impl Matcher {
         Ok(pending)
     }
 
-    async fn named_like(&self, item: i64) -> Result<Named, ManualError> {
-        self.contents
+    async fn named_like(&self, scan: &ScanLock, item: i64) -> Result<Named, ManualError> {
+        let named = self
+            .contents
             .named_like(item)
             .await?
-            .ok_or(ManualError::NoSuchItem(item))
+            .ok_or(ManualError::NoSuchItem(item))?;
+        debug_assert_eq!(
+            named.library,
+            scan.library(),
+            "item {item} is fixed under another Library's scan lock"
+        );
+        Ok(named)
     }
 
     async fn match_movie(&self, key: &TitleKey) -> Result<Metadata, Miss> {
@@ -601,7 +614,7 @@ mod tests {
     use nama_proto::nama::v1::{EventType, ItemMatched, subscribe_response};
     use tempfile::TempDir;
 
-    use super::{ManualError, Matcher};
+    use super::{ManualError, Matcher, Summary};
     use crate::{
         contents::{Contents, FileItem, Item, Recorded},
         db::Database,
@@ -700,6 +713,18 @@ mod tests {
 
         async fn scan(&self, library: &Library) {
             self.scanner.scan(library.id).await.unwrap();
+        }
+
+        /// Fixes the Match of `item` by hand under its Library's scan lock, as the server does.
+        async fn set_match(&self, item: i64, id: &ExternalId) -> Result<Summary, ManualError> {
+            let scan = self.scanner.lock_library_of(item).await?;
+            self.matcher.set_match(&scan, item, id).await
+        }
+
+        /// Clears the Match of `item` by hand under its Library's scan lock, as the server does.
+        async fn clear_match(&self, item: i64) -> Result<Summary, ManualError> {
+            let scan = self.scanner.lock_library_of(item).await?;
+            self.matcher.clear_match(&scan, item).await
         }
 
         async fn items(&self, library: &Library) -> Vec<(String, FileItem)> {
@@ -1069,11 +1094,7 @@ mod tests {
         let unmatched = media.outcomes(movies).await;
         let item = media.item(movies, home_movies).await;
 
-        media
-            .matcher
-            .set_match(item, &ExternalId::Tmdb(949))
-            .await
-            .unwrap();
+        media.set_match(item, &ExternalId::Tmdb(949)).await.unwrap();
         let searches = media.searches();
         movies.replace(home_movies);
         media.scan(movies).await;
@@ -1093,11 +1114,7 @@ mod tests {
         media.scan(movies).await;
         let item = media.item(movies, "Alien (1979)/Alien (1979).mkv").await;
 
-        let summary = media
-            .matcher
-            .set_match(item, &ExternalId::Tmdb(949))
-            .await
-            .unwrap();
+        let summary = media.set_match(item, &ExternalId::Tmdb(949)).await.unwrap();
 
         assert_eq!(summary.matched, 2);
         assert_eq!(
@@ -1119,13 +1136,11 @@ mod tests {
             .await;
 
         media
-            .matcher
             .set_match(pilot, &ExternalId::Tmdb(2316))
             .await
             .unwrap();
         let us = media.outcomes(shows).await;
         media
-            .matcher
             .set_match(pilot, &ExternalId::Tmdb(2996))
             .await
             .unwrap();
@@ -1156,7 +1171,6 @@ mod tests {
             .item(shows, "The Office/Season 01/The Office - S01E01.mkv")
             .await;
         media
-            .matcher
             .set_match(pilot, &ExternalId::Tmdb(2316))
             .await
             .unwrap();
@@ -1179,7 +1193,7 @@ mod tests {
         media.scan(movies).await;
         let item = media.item(movies, alien).await;
 
-        media.matcher.clear_match(item).await.unwrap();
+        media.clear_match(item).await.unwrap();
         let cleared = media.outcomes(movies).await;
         movies.replace(alien);
         media.scan(movies).await;
@@ -1196,7 +1210,7 @@ mod tests {
         media.scan(movies).await;
         let item = media.item(movies, "Alien (1979)/Alien (1979).mkv").await;
 
-        let result = media.matcher.set_match(item, &ExternalId::Tmdb(1)).await;
+        let result = media.set_match(item, &ExternalId::Tmdb(1)).await;
 
         assert!(
             matches!(result, Err(ManualError::NoSuchTitle(ExternalId::Tmdb(1)))),
@@ -1209,7 +1223,7 @@ mod tests {
     async fn a_match_for_an_item_that_does_not_exist_is_refused() {
         let media = Fixture::new().await;
 
-        let result = media.matcher.set_match(42, &ExternalId::Tmdb(949)).await;
+        let result = media.set_match(42, &ExternalId::Tmdb(949)).await;
 
         assert!(
             matches!(result, Err(ManualError::NoSuchItem(42))),
@@ -1226,7 +1240,7 @@ mod tests {
             .item(&media.movies, "Alien (1979)/Alien (1979).mkv")
             .await;
 
-        let result = media.matcher.set_match(item, &ExternalId::Tmdb(348)).await;
+        let result = media.set_match(item, &ExternalId::Tmdb(348)).await;
 
         assert!(
             matches!(result, Err(ManualError::Unavailable)),
