@@ -4,6 +4,8 @@
 
 use std::collections::BTreeMap;
 
+use nama_plugin_api::settings::SettingValue;
+
 use crate::{config::PluginConfig, db::Database};
 
 /// The `schema_meta` key whose presence records that the config was imported.
@@ -76,6 +78,36 @@ pub async fn import(
             sqlx::query!(
                 "INSERT INTO schema_meta (key, value) VALUES (?, 'yes')",
                 IMPORTED_KEY
+            )
+            .execute(&mut **tx)
+            .await?;
+            Ok(())
+        })
+    })
+    .await
+}
+
+/// Stores `settings` as the Plugin `id`'s, replacing any stored, and leaves whether it is enabled
+/// as it was: enabled for a Plugin with nothing stored yet.
+///
+/// # Errors
+///
+/// If the database can't be written.
+pub async fn save_settings(
+    db: &Database,
+    id: &str,
+    settings: &BTreeMap<String, SettingValue>,
+) -> Result<(), sqlx::Error> {
+    let plugin_id = id.to_owned();
+    let settings =
+        serde_json::to_string(settings).map_err(|err| sqlx::Error::Encode(err.into()))?;
+    db.write(move |tx| {
+        Box::pin(async move {
+            sqlx::query!(
+                "INSERT INTO plugin_settings (plugin_id, enabled, settings) VALUES (?, 1, ?)
+                 ON CONFLICT (plugin_id) DO UPDATE SET settings = excluded.settings",
+                plugin_id,
+                settings
             )
             .execute(&mut **tx)
             .await?;

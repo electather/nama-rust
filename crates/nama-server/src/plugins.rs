@@ -38,8 +38,16 @@ struct State {
     points: HashMap<PointKey, Vec<Entry>>,
     /// The admin's ranking of Providers, by capability. It outlasts Plugins being disabled.
     precedence: HashMap<PointKey, Vec<PluginId>>,
-    /// Each Built-in Plugin's version and settings schema, enabled or not.
-    builtins: BTreeMap<PluginId, (String, SettingsSchema)>,
+    /// Each Built-in Plugin, enabled or not.
+    builtins: BTreeMap<PluginId, Described>,
+}
+
+/// A Built-in Plugin as [`Registry::with_builtins`] found it.
+struct Described {
+    version: String,
+    settings_schema: SettingsSchema,
+    /// Makes a new instance, to enable it again with other settings.
+    new: fn() -> Arc<dyn Plugin>,
 }
 
 struct Enabled {
@@ -119,6 +127,9 @@ pub enum EnableError {
         /// What is wrong with them.
         error: SettingsError,
     },
+    /// No Built-in Plugin has the id.
+    #[error("there is no built-in plugin {0}")]
+    NotBuiltin(PluginId),
     /// The Plugin panicked while being enabled, such as in [`Plugin::register`].
     #[error("plugin {plugin} panicked while being enabled: {message}")]
     Panicked {
@@ -290,10 +301,10 @@ impl Registry {
             state
                 .builtins
                 .iter()
-                .map(|(id, (version, settings_schema))| Builtin {
+                .map(|(id, described)| Builtin {
                     id: id.clone(),
-                    version: version.clone(),
-                    settings_schema: settings_schema.clone(),
+                    version: described.version.clone(),
+                    settings_schema: described.settings_schema.clone(),
                     enabled: state.plugins.contains_key(id),
                 })
                 .collect()

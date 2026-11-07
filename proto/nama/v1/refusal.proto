@@ -121,4 +121,10 @@ enum RefusalReason {
   // `failed_precondition`: the Movie is already Matched in a Library, so it can't be Requested.
   // Params: `tmdbId`.
   REFUSAL_REASON_ALREADY_IN_LIBRARY = 39;
+
+  // `not_found`: there is no Plugin with the ID. Params: `pluginId`.
+  REFUSAL_REASON_PLUGIN_NOT_FOUND = 40;
+  // `invalid_argument`: a setting's value is not of the kind the Plugin's schema declares.
+  // Params: `kind`, such as `SETTING_KIND_INTEGER`.
+  REFUSAL_REASON_WRONG_SETTING_KIND = 41;
 }

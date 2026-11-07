@@ -1,27 +1,104 @@
-//! Listing the Server's Plugins and their settings, without ever sending a secret's value, over a
-//! real socket and against a real SQLite database.
+//! Listing the Server's Plugins and their settings, without ever sending a secret's value, and
+//! changing those settings without a restart, over a real socket and against a real SQLite
+//! database.
 
+#[path = "support/refused.rs"]
+mod refused;
 #[path = "support/server.rs"]
 #[expect(dead_code, reason = "the harness's plain `start` has no use here")]
 mod server;
 
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, sync::Arc};
 
 use buffa::Message;
-use connectrpc::client::HttpClient;
-use nama_plugin_api::settings::SettingValue;
+use connectrpc::{ConnectError, ErrorCode, client::HttpClient};
+use nama_plugin_api::{PluginId, metadata::MetadataProvider, settings::SettingValue};
 use nama_proto::nama::v1::{
-    ListPluginsRequest, ListPluginsResponse, Plugin, PluginKind, PluginServiceClient, Setting,
-    SettingKind, setting_value::Value,
+    ListPluginsRequest, ListPluginsResponse, Plugin, PluginKind, PluginServiceClient,
+    RefusalReason, Setting, SettingKind, UpdatePluginSettingsRequest, UpdatePluginSettingsResponse,
+    setting_value::Value,
 };
 use nama_server::{
     config::{Config, PluginConfig},
+    db::Database,
     plugin_settings,
     plugins::Registry,
 };
+use refused::assert_refused;
 use server::TestServer;
 
 const TMDB_KEY: &str = "tmdb-key-that-must-stay-on-the-server";
+
+/// A Server whose Built-in Plugins have `settings`, stored as an upgrade imports them.
+struct Started {
+    server: TestServer,
+    db: Arc<Database>,
+    plugins: Registry,
+}
+
+impl Started {
+    #[expect(
+        clippy::unwrap_used,
+        reason = "a test helper fails its test by panicking"
+    )]
+    async fn with(settings: &BTreeMap<String, PluginConfig>) -> Self {
+        let plugins = Registry::with_builtins(settings);
+        let (server, db) = TestServer::start_with_db(Config::default(), plugins.clone()).await;
+        plugin_settings::import(&db, settings).await.unwrap();
+        Self {
+            server,
+            db,
+            plugins,
+        }
+    }
+
+    fn client(&self) -> PluginServiceClient<HttpClient> {
+        PluginServiceClient::new(HttpClient::plaintext(), self.server.client_config())
+    }
+
+    /// Sets the Plugin `id`'s settings to `settings`, as the Admin.
+    async fn update(
+        &self,
+        id: &str,
+        settings: impl IntoIterator<Item = (&str, Value)>,
+    ) -> Result<UpdatePluginSettingsResponse, ConnectError> {
+        let settings = settings
+            .into_iter()
+            .map(|(key, value)| {
+                let value = nama_proto::nama::v1::SettingValue {
+                    value: Some(value),
+                    ..Default::default()
+                };
+                (key.to_owned(), value)
+            })
+            .collect();
+        let request = UpdatePluginSettingsRequest {
+            plugin_id: id.to_owned(),
+            settings,
+            ..Default::default()
+        };
+        self.client()
+            .update_plugin_settings(request)
+            .await
+            .map(connectrpc::UnaryResponse::into_owned)
+    }
+
+    #[expect(
+        clippy::unwrap_used,
+        reason = "a test helper fails its test by panicking"
+    )]
+    async fn stored(&self) -> BTreeMap<String, PluginConfig> {
+        plugin_settings::stored(&self.db).await.unwrap().unwrap()
+    }
+
+    /// Whether Matching has a metadata Provider to call.
+    async fn can_match(&self) -> bool {
+        self.plugins
+            .call_provider(|_: Arc<dyn MetadataProvider>| async {})
+            .await
+            .is_some()
+    }
+}
 
 /// Starts a Server whose Built-in Plugins have `settings`, stored as an upgrade imports them, and
 /// lists its Plugins as the Admin.
@@ -30,15 +107,17 @@ const TMDB_KEY: &str = "tmdb-key-that-must-stay-on-the-server";
     reason = "a test helper fails its test by panicking"
 )]
 async fn list_plugins_with(settings: BTreeMap<String, PluginConfig>) -> ListPluginsResponse {
-    let plugins = Registry::with_builtins(&settings);
-    let (server, db) = TestServer::start_with_db(Config::default(), plugins).await;
-    plugin_settings::import(&db, &settings).await.unwrap();
-
-    PluginServiceClient::new(HttpClient::plaintext(), server.client_config())
+    Started::with(&settings)
+        .await
+        .client()
         .list_plugins(ListPluginsRequest::default())
         .await
         .unwrap()
         .into_owned()
+}
+
+fn text(value: &str) -> Value {
+    Value::TextValue(value.to_owned())
 }
 
 fn tmdb_with_key() -> BTreeMap<String, PluginConfig> {
@@ -154,4 +233,158 @@ async fn a_secret_not_set_is_said_to_be_not_set() {
 
     let api_key = setting(plugin(&listed, "tmdb"), "api_key");
     assert!(!api_key.secret_set);
+}
+
+#[tokio::test]
+async fn setting_the_tmdb_api_key_on_a_fresh_server_enables_it_without_a_restart() {
+    let started = Started::with(&BTreeMap::new()).await;
+    assert!(!started.can_match().await);
+
+    let updated = started.update("tmdb", [("api_key", text(TMDB_KEY))]).await;
+
+    let plugin = updated.unwrap().plugin.into_option().unwrap();
+    assert!(plugin.enabled, "{plugin:?}");
+    assert!(setting(&plugin, "api_key").secret_set);
+    assert!(started.can_match().await);
+}
+
+#[tokio::test]
+async fn new_settings_replace_the_running_ones_and_survive_a_restart() {
+    let started = Started::with(&tmdb_with_key()).await;
+
+    started
+        .update(
+            "tmdb",
+            [("api_key", text("new-key")), ("language", text("fr-FR"))],
+        )
+        .await
+        .unwrap();
+
+    let tmdb = started.stored().await.remove("tmdb").unwrap();
+    assert_eq!(
+        tmdb.settings,
+        BTreeMap::from([
+            (
+                "api_key".to_owned(),
+                SettingValue::Text("new-key".to_owned())
+            ),
+            (
+                "language".to_owned(),
+                SettingValue::Text("fr-FR".to_owned())
+            ),
+        ])
+    );
+    assert!(started.can_match().await);
+    // A restart enables the Built-in Plugins with what is stored.
+    let restarted = Registry::with_builtins(&started.stored().await);
+    assert!(restarted.enabled().contains(&PluginId::from_static("tmdb")));
+}
+
+#[tokio::test]
+async fn a_secret_left_blank_or_out_keeps_its_stored_value() {
+    let started = Started::with(&tmdb_with_key()).await;
+
+    started
+        .update("tmdb", [("api_key", text("")), ("language", text("fr-FR"))])
+        .await
+        .unwrap();
+    started
+        .update("tmdb", [("language", text("de-DE"))])
+        .await
+        .unwrap();
+
+    let tmdb = started.stored().await.remove("tmdb").unwrap();
+    assert_eq!(
+        tmdb.settings.get("api_key"),
+        Some(&SettingValue::Text(TMDB_KEY.to_owned()))
+    );
+    assert!(started.can_match().await);
+}
+
+#[tokio::test]
+async fn a_missing_required_setting_is_refused_naming_it_and_nothing_changes() {
+    let mut settings = BTreeMap::new();
+    settings.insert(
+        "tmdb".to_owned(),
+        PluginConfig {
+            settings: BTreeMap::from([(
+                "language".to_owned(),
+                SettingValue::Text("de-DE".to_owned()),
+            )]),
+            ..PluginConfig::default()
+        },
+    );
+    let started = Started::with(&settings).await;
+
+    let updated = started.update("tmdb", [("language", text("fr-FR"))]).await;
+
+    let refusal = assert_refused(
+        updated,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
+    );
+    assert_eq!(refusal.field, "settings.api_key");
+    assert_eq!(started.stored().await, settings);
+}
+
+#[tokio::test]
+async fn a_value_of_the_wrong_kind_is_refused_naming_it_and_nothing_changes() {
+    let started = Started::with(&tmdb_with_key()).await;
+
+    let updated = started
+        .update(
+            "tmdb",
+            [
+                ("api_key", text("new-key")),
+                ("language", Value::BoolValue(true)),
+            ],
+        )
+        .await;
+
+    let refusal = assert_refused(
+        updated,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_WRONG_SETTING_KIND,
+    );
+    assert_eq!(refusal.field, "settings.language");
+    assert_eq!(
+        refusal.params.get("kind").map(String::as_str),
+        Some("SETTING_KIND_TEXT")
+    );
+    assert_eq!(started.stored().await, tmdb_with_key());
+}
+
+#[tokio::test]
+async fn a_disabled_plugins_new_settings_are_saved_but_it_stays_disabled() {
+    let mut settings = BTreeMap::new();
+    settings.insert(
+        "tmdb".to_owned(),
+        PluginConfig {
+            enabled: false,
+            settings: BTreeMap::new(),
+        },
+    );
+    let started = Started::with(&settings).await;
+
+    let updated = started.update("tmdb", [("api_key", text(TMDB_KEY))]).await;
+
+    assert!(!updated.unwrap().plugin.into_option().unwrap().enabled);
+    assert!(!started.can_match().await);
+    let tmdb = started.stored().await.remove("tmdb").unwrap();
+    assert!(!tmdb.enabled);
+    assert!(tmdb.settings.contains_key("api_key"));
+}
+
+#[tokio::test]
+async fn an_unknown_plugin_is_refused() {
+    let started = Started::with(&BTreeMap::new()).await;
+
+    let updated = started.update("nope", []).await;
+
+    let refusal = assert_refused(
+        updated,
+        ErrorCode::NotFound,
+        RefusalReason::REFUSAL_REASON_PLUGIN_NOT_FOUND,
+    );
+    assert_eq!(refusal.field, "plugin_id");
 }

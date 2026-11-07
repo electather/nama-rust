@@ -22,7 +22,7 @@ use connectrpc::{
 use futures_util::StreamExt;
 use nama_plugin_api::{
     metadata::{Candidate, ExternalId, SearchQuery, TitleKind},
-    settings::{self, SettingField},
+    settings::{self, SettingField, SettingsError, SettingsSchema},
 };
 use nama_proto::nama::v1::{
     self as proto, ApproveSignInCodeRequest, ApproveSignInCodeResponse, BrowseService,
@@ -49,8 +49,9 @@ use nama_proto::nama::v1::{
     SetPermissionsRequest, SetPermissionsResponse, SetPlayedRequest, SetPlayedResponse,
     SetupRequest, SetupResponse, SignInCodeStatus, SignInRequest, SignInResponse, SignInService,
     SignOutRequest, SignOutResponse, StartSignInCodeRequest, StartSignInCodeResponse,
-    SubscribeRequest, SubscribeResponse, UpdateLibraryRequest, UpdateLibraryResponse, UserService,
-    WatchStateService, WhoAmIRequest, WhoAmIResponse, external_id, reauthenticate_request::Proof,
+    SubscribeRequest, SubscribeResponse, UpdateLibraryRequest, UpdateLibraryResponse,
+    UpdatePluginSettingsRequest, UpdatePluginSettingsResponse, UserService, WatchStateService,
+    WhoAmIRequest, WhoAmIResponse, external_id, reauthenticate_request::Proof,
     set_played_request::Target, setting_value,
 };
 
@@ -131,6 +132,7 @@ pub(crate) fn router(
         .add_service(Arc::new(PluginServiceHandler {
             plugins,
             db: Arc::clone(&db),
+            changing: tokio::sync::Mutex::default(),
         }))
         .add_service(Arc::new(LibraryServiceHandler {
             libraries: Libraries::new(db),
@@ -225,6 +227,7 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::REQUEST_SERVICE_SEARCH_MOVIES_SPEC.procedure,         REQUEST_MOVIE),
     (proto::REQUEST_SERVICE_LOOK_UP_MOVIE_SPEC.procedure,         REQUEST_MOVIE),
     (proto::PLUGIN_SERVICE_LIST_PLUGINS_SPEC.procedure,           MANAGE_SETTINGS),
+    (proto::PLUGIN_SERVICE_UPDATE_PLUGIN_SETTINGS_SPEC.procedure, MANAGE_SETTINGS),
 ];
 
 /// Who may fetch media: every path under this prefix, which the media routes share.
@@ -1823,6 +1826,10 @@ fn device_to_proto(device: users::Device, is_current: bool) -> proto::Device {
 struct PluginServiceHandler {
     plugins: Registry,
     db: Arc<Database>,
+    /// Held while a Plugin's settings change, so two changes can't interleave saving and
+    /// enabling and leave it running with settings other than those stored.
+    // ponytail: one lock for every Plugin; one per Plugin if Admins ever wait on each other.
+    changing: tokio::sync::Mutex<()>,
 }
 
 #[expect(
@@ -1856,6 +1863,107 @@ impl PluginService for PluginServiceHandler {
             ..Default::default()
         })
     }
+
+    async fn update_plugin_settings(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, UpdatePluginSettingsRequest>,
+    ) -> ServiceResult<UpdatePluginSettingsResponse> {
+        let request = request.to_owned_message();
+        let plugin = self
+            .plugins
+            .builtins()
+            .into_iter()
+            .find(|plugin| plugin.id.as_str() == request.plugin_id)
+            .ok_or_else(|| plugin_not_found(&request.plugin_id))?;
+        let sent = request
+            .settings
+            .iter()
+            .filter_map(|(key, value)| Some((key.clone(), setting_value_from_proto(value)?)))
+            .collect();
+        let _changing = self.changing.lock().await;
+        let stored = plugin_settings::stored(&self.db)
+            .await
+            .map_err(database_failed)?
+            .unwrap_or_default()
+            .remove(plugin.id.as_str())
+            .unwrap_or_default();
+        let settings = updated_settings(&plugin.settings_schema, sent, &stored.settings)
+            .map_err(settings_refused)?;
+        plugin_settings::save_settings(&self.db, plugin.id.as_str(), &settings)
+            .await
+            .map_err(database_failed)?;
+        // Enabled again even if it isn't running, such as TMDB left disabled without its key.
+        if stored.enabled
+            && let Err(err) = self
+                .plugins
+                .enable_builtin(&plugin.id, settings::Settings::new(settings.clone()))
+        {
+            tracing::error!(plugin = %plugin.id, "could not enable the plugin with its new settings: {err}");
+        }
+        let enabled = self.plugins.enabled().contains(&plugin.id);
+        Response::ok(UpdatePluginSettingsResponse {
+            plugin: plugin_to_proto(Builtin { enabled, ..plugin }, &settings).into(),
+            ..Default::default()
+        })
+    }
+}
+
+fn plugin_not_found(id: &str) -> ConnectError {
+    refuse(
+        RefusalReason::REFUSAL_REASON_PLUGIN_NOT_FOUND,
+        format!("there is no Plugin {id}"),
+    )
+    .field("plugin_id")
+    .param("pluginId", &id)
+    .into()
+}
+
+/// The settings to store from those `sent` for a Plugin with `schema`: the ones it names, with a
+/// secret left out keeping its `stored` value, so a form can replace a secret without showing it.
+///
+/// # Errors
+///
+/// If they don't fit the schema.
+fn updated_settings(
+    schema: &SettingsSchema,
+    mut sent: BTreeMap<String, settings::SettingValue>,
+    stored: &BTreeMap<String, settings::SettingValue>,
+) -> Result<BTreeMap<String, settings::SettingValue>, SettingsError> {
+    let settings: BTreeMap<_, _> = schema
+        .fields
+        .iter()
+        .filter_map(|field| {
+            let kept = || {
+                let secret = field.kind == settings::SettingKind::Secret;
+                stored.get(field.key).filter(|_| secret).cloned()
+            };
+            Some((field.key.to_owned(), sent.remove(field.key).or_else(kept)?))
+        })
+        .collect();
+    settings::Settings::new(settings.clone()).resolve(schema)?;
+    Ok(settings)
+}
+
+/// The refusal of settings that don't fit their Plugin's schema, naming the one that doesn't.
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "by value, so callers can write `.map_err(settings_refused)`"
+)]
+fn settings_refused(err: SettingsError) -> ConnectError {
+    let message = err.to_string();
+    match err {
+        SettingsError::Missing(key) => {
+            refuse(RefusalReason::REFUSAL_REASON_FIELD_REQUIRED, message)
+                .field(&format!("settings.{key}"))
+        }
+        SettingsError::WrongKind { key, expected } => {
+            refuse(RefusalReason::REFUSAL_REASON_WRONG_SETTING_KIND, message)
+                .field(&format!("settings.{key}"))
+                .param("kind", &setting_kind_to_proto(expected).proto_name())
+        }
+    }
+    .into()
 }
 
 fn plugin_to_proto(
@@ -1909,6 +2017,17 @@ const fn setting_kind_to_proto(kind: settings::SettingKind) -> proto::SettingKin
     }
 }
 
+/// `value` as a setting's value, or `None` if it has none or is blank, which leaves the setting
+/// out.
+fn setting_value_from_proto(value: &proto::SettingValue) -> Option<settings::SettingValue> {
+    Some(match value.value.as_ref()? {
+        setting_value::Value::TextValue(text) if text.is_empty() => return None,
+        setting_value::Value::TextValue(text) => settings::SettingValue::Text(text.clone()),
+        setting_value::Value::BoolValue(on) => settings::SettingValue::Bool(*on),
+        setting_value::Value::IntegerValue(number) => settings::SettingValue::Integer(*number),
+    })
+}
+
 fn setting_value_to_proto(value: &settings::SettingValue) -> proto::SettingValue {
     let value = match value {
         settings::SettingValue::Text(text) => setting_value::Value::TextValue(text.clone()),
@@ -1959,7 +2078,8 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_FOLDER_NOT_FOUND
         | R::REFUSAL_REASON_FOLDER_NOT_READABLE
         | R::REFUSAL_REASON_FOLDER_NOT_UTF8
-        | R::REFUSAL_REASON_FOLDER_REPEATED => ErrorCode::InvalidArgument,
+        | R::REFUSAL_REASON_FOLDER_REPEATED
+        | R::REFUSAL_REASON_WRONG_SETTING_KIND => ErrorCode::InvalidArgument,
         R::REFUSAL_REASON_SIGN_IN_REQUIRED
         | R::REFUSAL_REASON_WRONG_NAME_OR_PASSWORD
         | R::REFUSAL_REASON_WRONG_PASSWORD
@@ -1985,7 +2105,8 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_SEASON_NOT_FOUND
         | R::REFUSAL_REASON_VERSION_NOT_FOUND
         | R::REFUSAL_REASON_ITEM_NOT_FOUND
-        | R::REFUSAL_REASON_REQUEST_NOT_FOUND => ErrorCode::NotFound,
+        | R::REFUSAL_REASON_REQUEST_NOT_FOUND
+        | R::REFUSAL_REASON_PLUGIN_NOT_FOUND => ErrorCode::NotFound,
         R::REFUSAL_REASON_USER_NAME_TAKEN | R::REFUSAL_REASON_FOLDER_TAKEN => {
             ErrorCode::AlreadyExists
         }

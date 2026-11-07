@@ -2,20 +2,21 @@
 
 use std::{collections::BTreeMap, sync::Arc};
 
-use nama_plugin_api::{Plugin, settings::Settings};
+use nama_plugin_api::{Plugin, PluginId, settings::Settings};
 use nama_plugin_local_auth::LocalAuth;
 use nama_plugin_log_events::LogEvents;
 use nama_plugin_tmdb::Tmdb;
 use tracing::{error, info, warn};
 
-use super::{EnableError, Registry, contain_sync};
+use super::{Described, EnableError, Registry, contain_sync};
 use crate::config::PluginConfig;
 
-fn all() -> Vec<Arc<dyn Plugin>> {
-    vec![
-        Arc::new(LocalAuth),
-        Arc::new(LogEvents),
-        Arc::new(Tmdb::new()),
+/// How to make each Built-in Plugin.
+fn all() -> [fn() -> Arc<dyn Plugin>; 3] {
+    [
+        || Arc::new(LocalAuth),
+        || Arc::new(LogEvents),
+        || Arc::new(Tmdb::new()),
     ]
 }
 
@@ -29,8 +30,12 @@ impl Registry {
     pub fn with_builtins(config: &BTreeMap<String, PluginConfig>) -> Self {
         let registry = Self::new();
         let mut known = Vec::new();
-        for plugin in all() {
-            // A Plugin's `id` is Plugin code, so a panic in it is contained.
+        for new in all() {
+            // Making a Plugin and its `id` are Plugin code, so a panic in either is contained.
+            let Ok(plugin) = contain_sync(new) else {
+                error!("a built-in plugin panicked while being made");
+                continue;
+            };
             let id = match contain_sync(|| plugin.id()) {
                 Ok(id) => id,
                 Err(message) => {
@@ -40,7 +45,12 @@ impl Registry {
             };
             known.push(id.clone());
             match contain_sync(|| (plugin.version().to_owned(), plugin.settings_schema())) {
-                Ok(described) => {
+                Ok((version, settings_schema)) => {
+                    let described = Described {
+                        version,
+                        settings_schema,
+                        new,
+                    };
                     registry.write(|state| state.builtins.insert(id.clone(), described));
                 }
                 Err(message) => {
@@ -68,5 +78,25 @@ impl Registry {
             }
         }
         registry
+    }
+
+    /// Enables the Built-in Plugin `id` with `settings`, as a new instance that registers afresh.
+    /// If it is enabled, it is disabled first, so nothing it registered with its old settings
+    /// stays.
+    ///
+    /// # Errors
+    ///
+    /// If no Built-in Plugin has the id, the settings don't fit its schema, or it panics. It is
+    /// left disabled.
+    pub fn enable_builtin(&self, id: &PluginId, settings: Settings) -> Result<(), EnableError> {
+        let new = self
+            .read(|state| state.builtins.get(id).map(|described| described.new))
+            .ok_or_else(|| EnableError::NotBuiltin(id.clone()))?;
+        let plugin = contain_sync(new).map_err(|message| EnableError::Panicked {
+            plugin: id.clone(),
+            message,
+        })?;
+        self.disable(id);
+        self.enable_with_settings(plugin, settings)
     }
 }

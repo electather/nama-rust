@@ -4,14 +4,9 @@ import { Power, PowerOff } from "lucide-react";
 import { useId } from "react";
 
 import { Page } from "@/components/page";
+import { PluginSettings } from "@/components/plugin-settings";
 import { StateLabel } from "@/components/state-label";
-import {
-  type Plugin,
-  PluginKind,
-  PluginService,
-  type Setting,
-  type SettingValue,
-} from "@/gen/nama/v1/plugin_pb";
+import { type Plugin, PluginKind, PluginService } from "@/gen/nama/v1/plugin_pb";
 
 export const Route = createFileRoute("/_member/_admin/admin/plugins")({
   loader: ({ context: { queryClient, transport } }) =>
@@ -59,45 +54,10 @@ function PluginSection({ plugin }: { plugin: Plugin }) {
         />
       </div>
       {plugin.settings.length > 0 ? (
-        <dl className="mt-4 flex flex-col gap-4">
-          {plugin.settings.map((setting) => (
-            <div
-              key={setting.key}
-              className="flex flex-col gap-1 sm:flex-row sm:justify-between sm:gap-6"
-            >
-              <dt>
-                <span className="text-sm font-medium">{setting.label}</span>
-                {setting.description && (
-                  <span className="block text-sm text-pretty text-muted-foreground">
-                    {setting.description}
-                  </span>
-                )}
-              </dt>
-              <dd className="shrink-0 text-sm wrap-anywhere sm:text-end">{shownValue(setting)}</dd>
-            </div>
-          ))}
-        </dl>
+        <PluginSettings plugin={plugin} />
       ) : (
         <p className="mt-4 text-sm text-muted-foreground">No settings.</p>
       )}
     </section>
   );
-}
-
-/**
- * A setting's value in words: a secret only as set or not (the Server sends no value for one), a
- * missing value as its default.
- */
-function shownValue({ required, secretSet, value, defaultValue }: Setting) {
-  if (secretSet) return "Set";
-  if (value) return valueText(value);
-  return defaultValue ? `${valueText(defaultValue)} (default)` : notSet(required);
-}
-
-/** A required setting that isn't set is why its Plugin can't be enabled, so it says so. */
-const notSet = (required: boolean) => (required ? "Not set (required)" : "Not set");
-
-function valueText({ value }: SettingValue) {
-  if (value.case === "boolValue") return value.value ? "On" : "Off";
-  return value.case === undefined ? "Not set" : String(value.value);
 }

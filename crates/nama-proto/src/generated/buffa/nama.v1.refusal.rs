@@ -98,6 +98,11 @@ pub enum RefusalReason {
     /// `failed_precondition`: the Movie is already Matched in a Library, so it can't be Requested.
     /// Params: `tmdbId`.
     REFUSAL_REASON_ALREADY_IN_LIBRARY = 39i32,
+    /// `not_found`: there is no Plugin with the ID. Params: `pluginId`.
+    REFUSAL_REASON_PLUGIN_NOT_FOUND = 40i32,
+    /// `invalid_argument`: a setting's value is not of the kind the Plugin's schema declares.
+    /// Params: `kind`, such as `SETTING_KIND_INTEGER`.
+    REFUSAL_REASON_WRONG_SETTING_KIND = 41i32,
 }
 impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -220,6 +225,12 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_ALREADY_IN_LIBRARY`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const AlreadyInLibrary: Self = Self::REFUSAL_REASON_ALREADY_IN_LIBRARY;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_PLUGIN_NOT_FOUND`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const PluginNotFound: Self = Self::REFUSAL_REASON_PLUGIN_NOT_FOUND;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_WRONG_SETTING_KIND`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const WrongSettingKind: Self = Self::REFUSAL_REASON_WRONG_SETTING_KIND;
 }
 impl ::core::default::Default for RefusalReason {
     fn default() -> Self {
@@ -389,6 +400,10 @@ impl ::buffa::Enumeration for RefusalReason {
             39i32 => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_ALREADY_IN_LIBRARY)
             }
+            40i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_PLUGIN_NOT_FOUND),
+            41i32 => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_WRONG_SETTING_KIND)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -464,6 +479,10 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_REQUEST_NOT_FOUND => "REFUSAL_REASON_REQUEST_NOT_FOUND",
             Self::REFUSAL_REASON_ALREADY_IN_LIBRARY => {
                 "REFUSAL_REASON_ALREADY_IN_LIBRARY"
+            }
+            Self::REFUSAL_REASON_PLUGIN_NOT_FOUND => "REFUSAL_REASON_PLUGIN_NOT_FOUND",
+            Self::REFUSAL_REASON_WRONG_SETTING_KIND => {
+                "REFUSAL_REASON_WRONG_SETTING_KIND"
             }
         }
     }
@@ -595,6 +614,12 @@ impl ::buffa::Enumeration for RefusalReason {
             "REFUSAL_REASON_ALREADY_IN_LIBRARY" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_ALREADY_IN_LIBRARY)
             }
+            "REFUSAL_REASON_PLUGIN_NOT_FOUND" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_PLUGIN_NOT_FOUND)
+            }
+            "REFUSAL_REASON_WRONG_SETTING_KIND" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_WRONG_SETTING_KIND)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -640,6 +665,8 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED,
             Self::REFUSAL_REASON_REQUEST_NOT_FOUND,
             Self::REFUSAL_REASON_ALREADY_IN_LIBRARY,
+            Self::REFUSAL_REASON_PLUGIN_NOT_FOUND,
+            Self::REFUSAL_REASON_WRONG_SETTING_KIND,
         ]
     }
 }
