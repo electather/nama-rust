@@ -170,18 +170,33 @@ async function build(issue: Issue): Promise<{ box: Box; body: string }> {
 
 // Waits for the whole CI workflow run on the branch's pushed commit. `gh pr checks --watch` isn't
 // enough: a job behind `needs` (test after lint) has no check until it starts, so it can pass early.
-async function waitForChecks(branch: string): Promise<"pass" | "fail"> {
+// "stale": main moved on (another issue merged), so this run no longer says whether the PR can merge.
+async function waitForChecks(branch: string): Promise<"pass" | "fail" | "stale"> {
   const sha = git("rev-parse", branch);
+  const stale = () => {
+    ok("git", "fetch", "origin"); // a failed fetch (another worker's fetch holds the lock) just checks the old ref
+    return !ok("git", "merge-base", "--is-ancestor", `origin/${BASE}`, branch);
+  };
   let run = "";
   for (let i = 0; i < 30 && !run; i++) {
     await sleep(10_000);
+    if (stale()) return "stale"; // a conflicting PR gets no run at all
     run = gh("run", "list", "--workflow", "CI", "--commit", sha, "--event", "pull_request",
       "--json", "databaseId", "--jq", ".[0].databaseId // empty");
   }
   if (!run) throw new Blocked(`no CI run started for ${sha.slice(0, 7)} within 5 minutes`);
   // Async, not spawnSync: the other issue's agents keep running while this one waits.
-  const code = await new Promise<number | null>((resolve) =>
-    spawn("gh", ["run", "watch", run, "--exit-status", "--interval", "30"], { stdio: "ignore" }).on("close", resolve));
+  const watch = spawn("gh", ["run", "watch", run, "--exit-status", "--interval", "30"], { stdio: "ignore" });
+  let wasStale = false;
+  const poll = setInterval(() => {
+    if (stale()) { wasStale = true; watch.kill(); }
+  }, 60_000);
+  const code = await new Promise<number | null>((resolve) => watch.on("close", resolve));
+  clearInterval(poll);
+  if (wasStale) {
+    ok("gh", "run", "cancel", run); // frees a runner for the rebased push
+    return "stale";
+  }
   return code === 0 ? "pass" : "fail";
 }
 
@@ -196,13 +211,22 @@ async function syncAndPush(issue: Issue, box: Box) {
   git("push", "--force-with-lease", "origin", `${branch}:${branch}`);
 }
 
-// One fix attempt if CI fails.
+// One fix attempt if CI fails. If main moves while CI runs, resync and wait for CI again.
 async function greenCi(issue: Issue, box: Box, pr: string) {
   const branch = branchOf(issue);
-  if ((await waitForChecks(branch)) === "pass") return;
-  await agent(box, issue, "fix", { PROBLEM: `CI is failing on PR #${pr}.` });
-  git("push", "--force-with-lease", "origin", `${branch}:${branch}`);
-  if ((await waitForChecks(branch)) === "fail") throw new Blocked(`CI still failing on PR #${pr} after one fix attempt`);
+  let fixed = false;
+  for (;;) {
+    const result = await waitForChecks(branch);
+    if (result === "pass") return;
+    if (result === "stale") {
+      await syncAndPush(issue, box);
+      continue;
+    }
+    if (fixed) throw new Blocked(`CI still failing on PR #${pr} after one fix attempt`);
+    await agent(box, issue, "fix", { PROBLEM: `CI is failing on PR #${pr}.` });
+    git("push", "--force-with-lease", "origin", `${branch}:${branch}`);
+    fixed = true;
+  }
 }
 
 // Runs as soon as review is done, in parallel with the other running issues.
