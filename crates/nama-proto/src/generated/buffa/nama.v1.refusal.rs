@@ -85,7 +85,7 @@ pub enum RefusalReason {
     /// `invalid_argument`: a Library's folder isn't a directory the Server can read. Params: `folder`.
     REFUSAL_REASON_FOLDER_NOT_READABLE = 34i32,
     /// `invalid_argument`: a Library's folder resolves to a path that isn't valid UTF-8. Params:
-    /// `folder`.
+    /// `folder`, `resolvedPath` (with what isn't UTF-8 replaced).
     REFUSAL_REASON_FOLDER_NOT_UTF8 = 35i32,
     /// `invalid_argument`: a folder is named more than once in the request. Params: `folder`.
     REFUSAL_REASON_FOLDER_REPEATED = 36i32,

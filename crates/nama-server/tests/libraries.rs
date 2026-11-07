@@ -473,6 +473,7 @@ async fn a_folder_that_resolves_to_a_path_that_isnt_utf8_is_refused_as_an_invali
     );
     assert_eq!(refusal.field, "folders[0]");
     assert_eq!(refusal.params["folder"], link);
+    assert_eq!(refusal.params["resolvedPath"], target.to_string_lossy());
 }
 
 /// A symlink is another name for the folder it points to. Unix only: creating one on Windows

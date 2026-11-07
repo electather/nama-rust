@@ -313,7 +313,7 @@ export const RefusalReason = {
 
   /**
    * `invalid_argument`: a Library's folder resolves to a path that isn't valid UTF-8. Params:
-   * `folder`.
+   * `folder`, `resolvedPath` (with what isn't UTF-8 replaced).
    *
    * @generated from enum value: REFUSAL_REASON_FOLDER_NOT_UTF8 = 35;
    */

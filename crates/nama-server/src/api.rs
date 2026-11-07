@@ -1758,9 +1758,14 @@ impl From<libraries::Error> for ConnectError {
                     FolderProblem::NotUtf8(_) => R::REFUSAL_REASON_FOLDER_NOT_UTF8,
                     FolderProblem::Repeated => R::REFUSAL_REASON_FOLDER_REPEATED,
                 };
-                refuse(reason, message)
+                let refused = refuse(reason, message)
                     .field(&format!("folders[{index}]"))
-                    .param("folder", &folder)
+                    .param("folder", &folder);
+                if let FolderProblem::NotUtf8(resolved) = problem {
+                    refused.param("resolvedPath", &resolved)
+                } else {
+                    refused
+                }
             }
             libraries::Error::NotFound(id) => {
                 refuse(R::REFUSAL_REASON_LIBRARY_NOT_FOUND, message).param("libraryId", &id)
