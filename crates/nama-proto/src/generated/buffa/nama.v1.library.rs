@@ -188,7 +188,8 @@ pub struct Library {
     /// Absolute paths, on the Server, of the directories the Library's media lives in, in the
     /// order they were given. The Server stores each in canonical form, with symlinks resolved and
     /// no trailing separator, so a folder may come back spelled differently from how it was sent.
-    /// Each folder belongs to at most one Library.
+    /// Each folder belongs to at most one Library. Empty in `ListLibraries` for a caller who isn't an
+    /// Admin.
     ///
     /// Field 4: `folders`
     #[serde(

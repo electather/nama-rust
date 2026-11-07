@@ -18,7 +18,10 @@ import { Route as MemberAdminRouteImport } from './routes/_member/_admin'
 import { Route as MemberCodeRouteImport } from './routes/_member/code'
 import { Route as MemberSettingsRouteImport } from './routes/_member/settings'
 import { Route as MemberAdminAdminUsersRouteImport } from './routes/_member/_admin/admin/users'
+import { Route as MemberLibrariesLibraryIdIndexRouteImport } from './routes/_member/libraries/$libraryId/index'
+import { Route as MemberLibrariesLibraryIdMoviesMovieIdIndexRouteImport } from './routes/_member/libraries/$libraryId/movies/$movieId/index'
 import { Route as MemberLibrariesLibraryIdMoviesMovieIdPlayRouteImport } from './routes/_member/libraries/$libraryId/movies/$movieId/play'
+import { Route as MemberLibrariesLibraryIdShowsShowIdIndexRouteImport } from './routes/_member/libraries/$libraryId/shows/$showId/index'
 import { Route as MemberLibrariesLibraryIdShowsShowIdSeasonsSeasonEpisodesEpisodePlayRouteImport } from './routes/_member/libraries/$libraryId/shows/$showId/seasons/$season/episodes/$episode/play'
 
 const MemberRoute = MemberRouteImport.update({
@@ -64,10 +67,28 @@ const MemberAdminAdminUsersRoute = MemberAdminAdminUsersRouteImport.update({
   path: '/admin/users',
   getParentRoute: () => MemberAdminRoute,
 } as any)
+const MemberLibrariesLibraryIdIndexRoute =
+  MemberLibrariesLibraryIdIndexRouteImport.update({
+    id: '/libraries/$libraryId/',
+    path: '/libraries/$libraryId/',
+    getParentRoute: () => MemberRoute,
+  } as any)
+const MemberLibrariesLibraryIdMoviesMovieIdIndexRoute =
+  MemberLibrariesLibraryIdMoviesMovieIdIndexRouteImport.update({
+    id: '/libraries/$libraryId/movies/$movieId/',
+    path: '/libraries/$libraryId/movies/$movieId/',
+    getParentRoute: () => MemberRoute,
+  } as any)
 const MemberLibrariesLibraryIdMoviesMovieIdPlayRoute =
   MemberLibrariesLibraryIdMoviesMovieIdPlayRouteImport.update({
     id: '/libraries/$libraryId/movies/$movieId/play',
     path: '/libraries/$libraryId/movies/$movieId/play',
+    getParentRoute: () => MemberRoute,
+  } as any)
+const MemberLibrariesLibraryIdShowsShowIdIndexRoute =
+  MemberLibrariesLibraryIdShowsShowIdIndexRouteImport.update({
+    id: '/libraries/$libraryId/shows/$showId/',
+    path: '/libraries/$libraryId/shows/$showId/',
     getParentRoute: () => MemberRoute,
   } as any)
 const MemberLibrariesLibraryIdShowsShowIdSeasonsSeasonEpisodesEpisodePlayRoute =
@@ -87,7 +108,10 @@ export interface FileRoutesByFullPath {
   '/code': typeof MemberCodeRoute
   '/settings': typeof MemberSettingsRoute
   '/admin/users': typeof MemberAdminAdminUsersRoute
+  '/libraries/$libraryId/': typeof MemberLibrariesLibraryIdIndexRoute
   '/libraries/$libraryId/movies/$movieId/play': typeof MemberLibrariesLibraryIdMoviesMovieIdPlayRoute
+  '/libraries/$libraryId/movies/$movieId/': typeof MemberLibrariesLibraryIdMoviesMovieIdIndexRoute
+  '/libraries/$libraryId/shows/$showId/': typeof MemberLibrariesLibraryIdShowsShowIdIndexRoute
   '/libraries/$libraryId/shows/$showId/seasons/$season/episodes/$episode/play': typeof MemberLibrariesLibraryIdShowsShowIdSeasonsSeasonEpisodesEpisodePlayRoute
 }
 export interface FileRoutesByTo {
@@ -98,7 +122,10 @@ export interface FileRoutesByTo {
   '/code': typeof MemberCodeRoute
   '/settings': typeof MemberSettingsRoute
   '/admin/users': typeof MemberAdminAdminUsersRoute
+  '/libraries/$libraryId': typeof MemberLibrariesLibraryIdIndexRoute
   '/libraries/$libraryId/movies/$movieId/play': typeof MemberLibrariesLibraryIdMoviesMovieIdPlayRoute
+  '/libraries/$libraryId/movies/$movieId': typeof MemberLibrariesLibraryIdMoviesMovieIdIndexRoute
+  '/libraries/$libraryId/shows/$showId': typeof MemberLibrariesLibraryIdShowsShowIdIndexRoute
   '/libraries/$libraryId/shows/$showId/seasons/$season/episodes/$episode/play': typeof MemberLibrariesLibraryIdShowsShowIdSeasonsSeasonEpisodesEpisodePlayRoute
 }
 export interface FileRoutesById {
@@ -112,7 +139,10 @@ export interface FileRoutesById {
   '/_member/settings': typeof MemberSettingsRoute
   '/_member/': typeof MemberIndexRoute
   '/_member/_admin/admin/users': typeof MemberAdminAdminUsersRoute
+  '/_member/libraries/$libraryId/': typeof MemberLibrariesLibraryIdIndexRoute
   '/_member/libraries/$libraryId/movies/$movieId/play': typeof MemberLibrariesLibraryIdMoviesMovieIdPlayRoute
+  '/_member/libraries/$libraryId/movies/$movieId/': typeof MemberLibrariesLibraryIdMoviesMovieIdIndexRoute
+  '/_member/libraries/$libraryId/shows/$showId/': typeof MemberLibrariesLibraryIdShowsShowIdIndexRoute
   '/_member/libraries/$libraryId/shows/$showId/seasons/$season/episodes/$episode/play': typeof MemberLibrariesLibraryIdShowsShowIdSeasonsSeasonEpisodesEpisodePlayRoute
 }
 export interface FileRouteTypes {
@@ -125,7 +155,10 @@ export interface FileRouteTypes {
     | '/code'
     | '/settings'
     | '/admin/users'
+    | '/libraries/$libraryId/'
     | '/libraries/$libraryId/movies/$movieId/play'
+    | '/libraries/$libraryId/movies/$movieId/'
+    | '/libraries/$libraryId/shows/$showId/'
     | '/libraries/$libraryId/shows/$showId/seasons/$season/episodes/$episode/play'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -136,7 +169,10 @@ export interface FileRouteTypes {
     | '/code'
     | '/settings'
     | '/admin/users'
+    | '/libraries/$libraryId'
     | '/libraries/$libraryId/movies/$movieId/play'
+    | '/libraries/$libraryId/movies/$movieId'
+    | '/libraries/$libraryId/shows/$showId'
     | '/libraries/$libraryId/shows/$showId/seasons/$season/episodes/$episode/play'
   id:
     | '__root__'
@@ -149,7 +185,10 @@ export interface FileRouteTypes {
     | '/_member/settings'
     | '/_member/'
     | '/_member/_admin/admin/users'
+    | '/_member/libraries/$libraryId/'
     | '/_member/libraries/$libraryId/movies/$movieId/play'
+    | '/_member/libraries/$libraryId/movies/$movieId/'
+    | '/_member/libraries/$libraryId/shows/$showId/'
     | '/_member/libraries/$libraryId/shows/$showId/seasons/$season/episodes/$episode/play'
   fileRoutesById: FileRoutesById
 }
@@ -224,11 +263,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MemberAdminAdminUsersRouteImport
       parentRoute: typeof MemberAdminRoute
     }
+    '/_member/libraries/$libraryId/': {
+      id: '/_member/libraries/$libraryId/'
+      path: '/libraries/$libraryId'
+      fullPath: '/libraries/$libraryId/'
+      preLoaderRoute: typeof MemberLibrariesLibraryIdIndexRouteImport
+      parentRoute: typeof MemberRoute
+    }
+    '/_member/libraries/$libraryId/movies/$movieId/': {
+      id: '/_member/libraries/$libraryId/movies/$movieId/'
+      path: '/libraries/$libraryId/movies/$movieId'
+      fullPath: '/libraries/$libraryId/movies/$movieId/'
+      preLoaderRoute: typeof MemberLibrariesLibraryIdMoviesMovieIdIndexRouteImport
+      parentRoute: typeof MemberRoute
+    }
     '/_member/libraries/$libraryId/movies/$movieId/play': {
       id: '/_member/libraries/$libraryId/movies/$movieId/play'
       path: '/libraries/$libraryId/movies/$movieId/play'
       fullPath: '/libraries/$libraryId/movies/$movieId/play'
       preLoaderRoute: typeof MemberLibrariesLibraryIdMoviesMovieIdPlayRouteImport
+      parentRoute: typeof MemberRoute
+    }
+    '/_member/libraries/$libraryId/shows/$showId/': {
+      id: '/_member/libraries/$libraryId/shows/$showId/'
+      path: '/libraries/$libraryId/shows/$showId'
+      fullPath: '/libraries/$libraryId/shows/$showId/'
+      preLoaderRoute: typeof MemberLibrariesLibraryIdShowsShowIdIndexRouteImport
       parentRoute: typeof MemberRoute
     }
     '/_member/libraries/$libraryId/shows/$showId/seasons/$season/episodes/$episode/play': {
@@ -259,7 +319,10 @@ interface MemberRouteChildren {
   MemberCodeRoute: typeof MemberCodeRoute
   MemberSettingsRoute: typeof MemberSettingsRoute
   MemberIndexRoute: typeof MemberIndexRoute
+  MemberLibrariesLibraryIdIndexRoute: typeof MemberLibrariesLibraryIdIndexRoute
   MemberLibrariesLibraryIdMoviesMovieIdPlayRoute: typeof MemberLibrariesLibraryIdMoviesMovieIdPlayRoute
+  MemberLibrariesLibraryIdMoviesMovieIdIndexRoute: typeof MemberLibrariesLibraryIdMoviesMovieIdIndexRoute
+  MemberLibrariesLibraryIdShowsShowIdIndexRoute: typeof MemberLibrariesLibraryIdShowsShowIdIndexRoute
   MemberLibrariesLibraryIdShowsShowIdSeasonsSeasonEpisodesEpisodePlayRoute: typeof MemberLibrariesLibraryIdShowsShowIdSeasonsSeasonEpisodesEpisodePlayRoute
 }
 
@@ -269,8 +332,13 @@ const MemberRouteChildren: MemberRouteChildren = {
   MemberCodeRoute: MemberCodeRoute,
   MemberSettingsRoute: MemberSettingsRoute,
   MemberIndexRoute: MemberIndexRoute,
+  MemberLibrariesLibraryIdIndexRoute: MemberLibrariesLibraryIdIndexRoute,
   MemberLibrariesLibraryIdMoviesMovieIdPlayRoute:
     MemberLibrariesLibraryIdMoviesMovieIdPlayRoute,
+  MemberLibrariesLibraryIdMoviesMovieIdIndexRoute:
+    MemberLibrariesLibraryIdMoviesMovieIdIndexRoute,
+  MemberLibrariesLibraryIdShowsShowIdIndexRoute:
+    MemberLibrariesLibraryIdShowsShowIdIndexRoute,
   MemberLibrariesLibraryIdShowsShowIdSeasonsSeasonEpisodesEpisodePlayRoute:
     MemberLibrariesLibraryIdShowsShowIdSeasonsSeasonEpisodesEpisodePlayRoute,
 }

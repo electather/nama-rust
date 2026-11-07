@@ -3,13 +3,15 @@ syntax = "proto3";
 package nama.v1;
 
 // The Server's Libraries: named collections of one kind of media, each backed by one or more
-// folders on the Server's disk.
+// folders on the Server's disk. Every RPC but `ListLibraries` needs the Admin Role, and fails with
+// `permission_denied` without it.
 service LibraryService {
   // Creates a Library. Fails with `invalid_argument` if the name is blank, the kind is
   // unspecified, or a folder isn't an absolute path to a readable directory, and with
   // `already_exists` if a folder already belongs to another Library.
   rpc CreateLibrary(CreateLibraryRequest) returns (CreateLibraryResponse);
-  // Lists every Library on the Server, oldest first.
+  // Lists every Library on the Server, oldest first. Any signed-in User may list them, to browse,
+  // but only an Admin gets their folders.
   rpc ListLibraries(ListLibrariesRequest) returns (ListLibrariesResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
@@ -54,7 +56,8 @@ message Library {
   // Absolute paths, on the Server, of the directories the Library's media lives in, in the
   // order they were given. The Server stores each in canonical form, with symlinks resolved and
   // no trailing separator, so a folder may come back spelled differently from how it was sent.
-  // Each folder belongs to at most one Library.
+  // Each folder belongs to at most one Library. Empty in `ListLibraries` for a caller who isn't an
+  // Admin.
   repeated string folders = 4;
 }
 
