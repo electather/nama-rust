@@ -146,6 +146,8 @@ pub mod __buffa {
         reg.register_json_any(super::__SCAN_LIBRARY_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__LIST_PLUGINS_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_PLUGINS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__UPDATE_PLUGIN_SETTINGS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__UPDATE_PLUGIN_SETTINGS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__ENABLE_PLUGIN_REQUEST_JSON_ANY);
         reg.register_json_any(super::__ENABLE_PLUGIN_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__DISABLE_PLUGIN_REQUEST_JSON_ANY);
@@ -534,6 +536,14 @@ pub use self::__buffa::view::ListPluginsRequestOwnedView;
 pub use self::__buffa::view::ListPluginsResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::ListPluginsResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::UpdatePluginSettingsRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::UpdatePluginSettingsRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::UpdatePluginSettingsResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::UpdatePluginSettingsResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::EnablePluginRequestView;
 #[doc(inline)]
