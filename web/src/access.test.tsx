@@ -161,12 +161,17 @@ test("a User who manages nothing opening an Admin page is told they can't, and h
 });
 
 test.each([
-  [Permission.MANAGE_LIBRARIES, "/admin/libraries", ["Libraries", "Needs a Match"]],
-  [Permission.MANAGE_USERS, "/admin/users", ["Users"]],
-  [Permission.ADMIN, "/admin/libraries", ["Libraries", "Needs a Match", "Users"]],
+  [
+    "Manage Libraries",
+    Permission.MANAGE_LIBRARIES,
+    "/admin/libraries",
+    ["Libraries", "Needs a Match"],
+  ],
+  ["Manage Users", Permission.MANAGE_USERS, "/admin/users", ["Users"]],
+  ["Admin", Permission.ADMIN, "/admin/libraries", ["Libraries", "Needs a Match", "Users"]],
 ])(
-  "with only Permission %i, Admin opens on %s and lists only the pages it allows",
-  async (permission, landing, pages) => {
+  "with only the %s Permission, Admin opens on %s and lists only the pages it allows",
+  async (_, permission, landing, pages) => {
     const router = openApp(
       "/admin",
       fakeServer({ signedIn: [permission] }, {}, { listUsers: () => ({}) }),
