@@ -1715,13 +1715,28 @@ pub struct ListUnmatchedItemsResponse {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub items: ::buffa::alloc::vec::Vec<UnmatchedItem>,
+    /// The absolute paths of the Library's files whose names don't follow the naming conventions,
+    /// by path. They hold no items, so nothing can Match them and there's no item to pass to
+    /// `SetMatch`: renaming the file and rescanning the Library is the fix.
+    ///
+    /// Field 2: `unparsed_paths`
+    #[serde(
+        rename = "unparsedPaths",
+        alias = "unparsed_paths",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub unparsed_paths: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
 impl ::core::fmt::Debug for ListUnmatchedItemsResponse {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("ListUnmatchedItemsResponse").field("items", &self.items).finish()
+        f.debug_struct("ListUnmatchedItemsResponse")
+            .field("items", &self.items)
+            .field("unparsed_paths", &self.unparsed_paths)
+            .finish()
     }
 }
 impl ListUnmatchedItemsResponse {
@@ -1759,6 +1774,9 @@ impl ::buffa::Message for ListUnmatchedItemsResponse {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        for v in &self.unparsed_paths {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -1776,6 +1794,9 @@ impl ::buffa::Message for ListUnmatchedItemsResponse {
                 buf,
             );
             v.write_to(__cache, buf);
+        }
+        for v in &self.unparsed_paths {
+            ::buffa::types::put_string_field(2u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -1802,6 +1823,17 @@ impl ::buffa::Message for ListUnmatchedItemsResponse {
                 ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
                 self.items.push(elem);
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __elem = ::buffa::types::decode_string(buf)?;
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&__elem),
+                )?;
+                self.unparsed_paths.push(__elem);
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -1811,6 +1843,7 @@ impl ::buffa::Message for ListUnmatchedItemsResponse {
     }
     fn clear(&mut self) {
         self.items.clear();
+        self.unparsed_paths.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
