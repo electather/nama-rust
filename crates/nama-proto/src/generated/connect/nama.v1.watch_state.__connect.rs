@@ -52,7 +52,7 @@ pub const WATCH_STATE_SERVICE_REPORT_PROGRESS_SPEC: ::connectrpc::Spec = ::conne
 ///
 /// Watch State is kept per User against the Movie or Episode a Version is Matched to, by its
 /// external id, never against the file. So it survives rescans, renames and new Versions, and every
-/// Version of a Movie or Episode shares it. An item that isn't Matched has none. `BrowseService`
+/// Version of a Movie or Episode shares it. An Item that isn't Matched has none. `BrowseService`
 /// returns it with each Movie and Episode.
 ///
 /// # Implementing handlers
@@ -109,7 +109,7 @@ pub trait WatchStateService: Send + Sync + 'static {
     /// each Episode, in episode order, gets an even share of the duration, and the position fills
     /// the shares in turn. An Episode whose share the position hasn't reached is left alone. A Movie
     /// or Episode is marked played once its position passes 90% of its duration, and stays played if
-    /// it is played again from the start. A Version whose items aren't Matched is accepted, and
+    /// it is played again from the start. A Version whose Items aren't Matched is accepted, and
     /// nothing is stored. Fails with `not_found` if there is no such Version, and with
     /// `invalid_argument` if the duration is zero.
     ///

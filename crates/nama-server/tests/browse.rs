@@ -1129,6 +1129,22 @@ async fn a_two_episode_file_splits_its_position_evenly_in_episode_order() {
 }
 
 #[tokio::test]
+async fn an_episode_of_a_two_episode_file_is_played_once_past_90_percent_of_its_share() {
+    let fx = Fixture::shows().await;
+    let viewer = fx.admin();
+    let version = fx.dark_version(1, "Dark - S01E01-E02.mkv").await;
+    let half = AN_HOUR / 2;
+
+    viewer.report(version, 27 * MINUTE, AN_HOUR).await.unwrap();
+    let at_27 = episode_progress(viewer.dark_watch_states(fx.library, 1).await);
+    viewer.report(version, 28 * MINUTE, AN_HOUR).await.unwrap();
+    let at_28 = episode_progress(viewer.dark_watch_states(fx.library, 1).await);
+
+    assert_eq!(at_27, [Some((27 * MINUTE, half, false)), None], "at 90%");
+    assert_eq!(at_28, [Some((28 * MINUTE, half, true)), None], "past 90%");
+}
+
+#[tokio::test]
 async fn a_position_in_the_first_episode_leaves_progress_on_the_second_alone() {
     let fx = Fixture::shows().await;
     let viewer = fx.admin();

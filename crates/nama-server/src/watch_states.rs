@@ -60,7 +60,7 @@ impl Progress {
         })
     }
 
-    /// Whether the position has passed 90% of the duration, which marks the title played.
+    /// Whether the position has passed 90% of the duration, which marks the Movie or Episode played.
     fn is_played(self) -> bool {
         i128::from(self.position_ms) * 10 > i128::from(self.duration_ms) * 9
     }
@@ -126,8 +126,8 @@ impl WatchStates {
         self.store(user, EPISODE, reached).await
     }
 
-    /// Stores, as of now, the User `user`'s progress through each title of `kind`, by id, in one
-    /// write.
+    /// Stores, as of now, the User `user`'s progress through each Movie or Episode of `kind`, by
+    /// its external id, in one write.
     async fn store(
         &self,
         user: i64,
@@ -159,10 +159,10 @@ impl WatchStates {
         self.of(user, EPISODE, episodes).await
     }
 
-    /// The User `user`'s Watch State of each of the titles of `kind` with the ids `titles`, in the
-    /// same order.
-    // ponytail: reads all of a User's titles of the kind even for one; query by id if that gets
-    // big.
+    /// The User `user`'s Watch State of each of the Movies or Episodes of `kind` with the external
+    /// ids `titles`, in the same order.
+    // ponytail: reads all of a User's Watch States of the kind even for one; query by id if that
+    // gets big.
     async fn of(
         &self,
         user: i64,
@@ -197,8 +197,8 @@ impl WatchStates {
     }
 }
 
-/// Stores, as of now, the User `user`'s progress through each title of `kind`, by id. A title
-/// once played stays played.
+/// Stores, as of now, the User `user`'s progress through each Movie or Episode of `kind`, by its
+/// external id. One once played stays played.
 async fn upsert(
     conn: &mut SqliteConnection,
     user: i64,
