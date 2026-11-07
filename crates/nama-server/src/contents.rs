@@ -152,7 +152,7 @@ pub(crate) struct Movie {
 }
 
 /// A stored file that a Movie or Episode is available in.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct Version {
     pub(crate) id: i64,
     pub(crate) path: String,
@@ -175,7 +175,7 @@ pub(crate) enum MatchedTo {
 
 /// A Show some Items of a Library are Matched to Episodes of, with the metadata the Match of its
 /// first Episode, by season, episode and path, stores.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct Show {
     /// Which of its Episodes' Show ids identifies it: see [`primary_id`].
     pub(crate) id: ExternalId,
@@ -202,7 +202,7 @@ impl Show {
 }
 
 /// The Episodes of a Show's Season that some Items of a Library are Matched to.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct Season {
     /// The poster the Match of its first Episode stores.
     pub(crate) poster: Option<String>,
@@ -212,7 +212,7 @@ pub(crate) struct Season {
 
 /// An Episode some Items of a Library are Matched to, with the metadata the Match of its first
 /// Version stores.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct Episode {
     /// Which of the Match's ids identifies the Episode: see [`primary_id`].
     pub(crate) id: ExternalId,

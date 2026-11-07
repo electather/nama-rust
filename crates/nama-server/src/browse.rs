@@ -3,15 +3,15 @@
 //! [`Browse`] only reads. It finds titles through [`Contents`], never in the content tables
 //! itself (see `AGENTS.md`), and attaches the User's [`WatchState`]s.
 
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use nama_plugin_api::metadata::ExternalId;
 
 use crate::{
     contents::{Contents, Episode, Movie, Season, Show},
     db::Database,
-    libraries::{self, Kind, Libraries},
-    watch_states::{WatchState, WatchStates},
+    libraries::{self, Kind, Libraries, Library},
+    watch_states::{MovieOrEpisode, WatchState, WatchStates},
 };
 
 /// Why Browse found nothing, or failed.
@@ -31,6 +31,25 @@ pub(crate) enum Error {
     NoSuchSeason,
     #[error("database error: {0}")]
     Database(#[from] sqlx::Error),
+}
+
+/// A Movie or Episode a User has started and not played, in the Library Continue Watching lists
+/// it under.
+#[derive(Debug)]
+pub(crate) enum Started {
+    Movie {
+        library: i64,
+        movie: Movie,
+        state: WatchState,
+    },
+    Episode {
+        library: i64,
+        show: Show,
+        /// The Episode's season number.
+        season: i64,
+        episode: Episode,
+        state: WatchState,
+    },
 }
 
 /// Reads the Libraries' titles and the Users' Watch States of them.
@@ -139,6 +158,43 @@ impl Browse {
             .ok_or(Error::NothingMatched)
     }
 
+    /// The User `user`'s Continue Watching: the Movies and Episodes they've started and not
+    /// played, most recent first. Each is in the oldest Library that has it, and one no Library
+    /// has is left out.
+    // ponytail: whole-Library read (see AGENTS.md).
+    pub(crate) async fn continue_watching(&self, user: i64) -> Result<Vec<Started>, Error> {
+        let started = self.watch_states.continue_watching(user).await?;
+        let mut unfound: HashMap<MovieOrEpisode, WatchState> = started.iter().cloned().collect();
+        let mut found = HashMap::new();
+        // Oldest first, so a title in two Libraries is found in the older.
+        for library in self.libraries.list().await.map_err(finding_failed)? {
+            found.extend(self.started_in(&library, &mut unfound).await?);
+        }
+        Ok(started
+            .into_iter()
+            .filter_map(|(watched, _)| found.remove(&watched))
+            .collect())
+    }
+
+    /// The Movies or Episodes of `library` that `unfound` has the Watch State of, each taken out
+    /// of `unfound`.
+    async fn started_in(
+        &self,
+        library: &Library,
+        unfound: &mut HashMap<MovieOrEpisode, WatchState>,
+    ) -> Result<Vec<(MovieOrEpisode, Started)>, Error> {
+        Ok(match library.kind {
+            Kind::Movies => {
+                let movies = self.contents.movies(library.id).await?;
+                started_movies(library.id, movies, unfound)
+            }
+            Kind::Shows => {
+                let shows = self.contents.shows(library.id).await?;
+                started_episodes(library.id, &shows, unfound)
+            }
+        })
+    }
+
     async fn movies_of(&self, library: i64) -> Result<Vec<Movie>, Error> {
         self.require_kind(library, Kind::Movies).await?;
         Ok(self.contents.movies(library).await?)
@@ -153,10 +209,67 @@ impl Browse {
     }
 }
 
-/// What [`Libraries::get`] failing means to Browse.
+/// The `movies` of the Library `library` that `unfound` has the Watch State of, each taken out
+/// of `unfound`.
+fn started_movies(
+    library: i64,
+    movies: Vec<Movie>,
+    unfound: &mut HashMap<MovieOrEpisode, WatchState>,
+) -> Vec<(MovieOrEpisode, Started)> {
+    movies
+        .into_iter()
+        .filter_map(|movie| {
+            let watched = MovieOrEpisode::movie(&movie.id);
+            let state = unfound.remove(&watched)?;
+            Some((
+                watched,
+                Started::Movie {
+                    library,
+                    movie,
+                    state,
+                },
+            ))
+        })
+        .collect()
+}
+
+/// The Episodes of `shows`, of the Library `library`, that `unfound` has the Watch State of, each
+/// taken out of `unfound`.
+fn started_episodes(
+    library: i64,
+    shows: &[Show],
+    unfound: &mut HashMap<MovieOrEpisode, WatchState>,
+) -> Vec<(MovieOrEpisode, Started)> {
+    let mut started = Vec::new();
+    for show in shows {
+        let episodes = show.seasons.iter().flat_map(|(&number, season)| {
+            season.episodes.iter().map(move |episode| (number, episode))
+        });
+        for (season, episode) in episodes {
+            let watched = MovieOrEpisode::episode(&episode.id);
+            let Some(state) = unfound.remove(&watched) else {
+                continue;
+            };
+            // ponytail: a Show cloned per started Episode; `Arc<Show>` if a profile ever
+            // points here.
+            let episode = Started::Episode {
+                library,
+                show: show.clone(),
+                season,
+                episode: episode.clone(),
+                state,
+            };
+            started.push((watched, episode));
+        }
+    }
+    started
+}
+
+/// What [`Libraries::get`] or [`Libraries::list`] failing means to Browse.
 #[expect(
     clippy::unreachable,
-    reason = "`Libraries::get` only finds a Library; it never refuses a change"
+    reason = "`Libraries::get` and `Libraries::list` only find Libraries; they never refuse a \
+              change"
 )]
 fn finding_failed(err: libraries::Error) -> Error {
     match err {
@@ -165,5 +278,103 @@ fn finding_failed(err: libraries::Error) -> Error {
         libraries::Error::Invalid(_) | libraries::Error::FolderTaken { .. } => {
             unreachable!("finding a Library refused a change: {err}")
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{collections::BTreeMap, sync::Arc};
+
+    use nama_plugin_api::{
+        PluginId,
+        metadata::{ExternalId, ExternalIds},
+    };
+    use tempfile::TempDir;
+
+    use super::{Browse, Started};
+    use crate::{
+        contents::{Change, Contents, Decided, Item, Metadata},
+        db::Database,
+        libraries::{Kind, Libraries},
+        plugins::Registry,
+        users::{Role, Users},
+        watch_states::{Progress, WatchStates},
+    };
+
+    const ALIEN_TMDB_ID: i64 = 348;
+
+    /// Creates a Movies Library on a folder of its own, with one file Matched to Alien.
+    async fn library_with_alien(db: &Arc<Database>, name: &str, folder: &TempDir) -> i64 {
+        let root = folder.path().canonicalize().unwrap();
+        let root = root.to_str().unwrap();
+        let library = Libraries::new(Arc::clone(db))
+            .create(name, Kind::Movies, vec![root.to_owned()])
+            .await
+            .unwrap()
+            .id;
+        let contents = Contents::new(Arc::clone(db));
+        let file = Change::Store {
+            path: format!("{root}/Alien (1979)/Alien (1979).mkv"),
+            size: 10,
+            modified_ns: 0,
+            items: vec![Item::Movie {
+                title: "Alien".to_owned(),
+                year: Some(1979),
+                tmdb_id: None,
+            }],
+        };
+        contents.apply(library, vec![file]).await.unwrap();
+        let (item, _, _) = contents.undecided(library).await.unwrap().remove(0);
+        let alien = Metadata {
+            plugin: PluginId::from_static("tmdb"),
+            ids: ExternalIds {
+                tmdb: Some(ALIEN_TMDB_ID),
+                ..ExternalIds::default()
+            },
+            show_ids: ExternalIds::default(),
+            title: "Alien".to_owned(),
+            original_title: None,
+            show_title: None,
+            overview: None,
+            release_date: None,
+            runtime_minutes: None,
+            poster: None,
+            backdrop: None,
+        };
+        contents
+            .record(vec![(item, Decided::Matched(Box::new(alien)))])
+            .await
+            .unwrap();
+        library
+    }
+
+    #[tokio::test]
+    async fn a_movie_matched_in_two_libraries_is_listed_in_continue_watching_under_the_older_one() {
+        let data = tempfile::tempdir().unwrap();
+        let (older_folder, newer_folder) =
+            (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+        let db = Arc::new(Database::open(data.path()).await.unwrap());
+        let older = library_with_alien(&db, "Older", &older_folder).await;
+        library_with_alien(&db, "Newer", &newer_folder).await;
+        let user = Users::new(Arc::clone(&db), Registry::with_builtins(&BTreeMap::new()))
+            .create("Ada", "correct horse battery staple", Role::Member)
+            .await
+            .unwrap();
+        let halfway = Progress::new(1_000, 2_000).unwrap();
+        WatchStates::new(Arc::clone(&db))
+            .report_movie(user, &ExternalId::Tmdb(ALIEN_TMDB_ID), halfway)
+            .await
+            .unwrap();
+
+        let started = Browse::new(db).continue_watching(user).await.unwrap();
+
+        let listed: Vec<_> = started
+            .iter()
+            .map(|started| match started {
+                Started::Movie { library, movie, .. } => (*library, movie.id.clone()),
+                Started::Episode { .. } => panic!("Alien is a Movie"),
+            })
+            .collect();
+        assert_eq!(listed, [(older, ExternalId::Tmdb(ALIEN_TMDB_ID))]);
     }
 }
