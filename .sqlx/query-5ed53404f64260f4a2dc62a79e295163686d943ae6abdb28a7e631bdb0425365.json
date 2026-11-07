@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT plugin_id, enabled AS \"enabled: bool\", settings FROM plugin_settings",
+  "describe": {
+    "columns": [
+      {
+        "name": "plugin_id",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "plugin_settings",
+            "name": "plugin_id"
+          }
+        }
+      },
+      {
+        "name": "enabled: bool",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "plugin_settings",
+            "name": "enabled"
+          }
+        }
+      },
+      {
+        "name": "settings",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "plugin_settings",
+            "name": "settings"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "5ed53404f64260f4a2dc62a79e295163686d943ae6abdb28a7e631bdb0425365"
+}

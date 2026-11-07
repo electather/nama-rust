@@ -21,7 +21,7 @@ fn all() -> Vec<Arc<dyn Plugin>> {
 
 impl Registry {
     /// A registry with every Built-in Plugin enabled with its settings from `config`, except
-    /// those `config` disables.
+    /// those `config` disables. A Plugin `config` doesn't name is enabled with no settings.
     ///
     /// A Plugin that fails to enable, such as one missing a required setting, is logged and left
     /// out.
@@ -41,7 +41,7 @@ impl Registry {
             known.push(id.clone());
             let config = config.get(id.as_str()).cloned().unwrap_or_default();
             if !config.enabled {
-                info!(plugin = %id, "plugin disabled in config");
+                info!(plugin = %id, "plugin disabled in its settings");
                 continue;
             }
             match registry.enable_with_settings(plugin, Settings::new(config.settings)) {
@@ -55,7 +55,7 @@ impl Registry {
         }
         for id in config.keys() {
             if !known.iter().any(|known| known.as_str() == id) {
-                warn!(plugin = %id, "config names a plugin this Server doesn't have");
+                warn!(plugin = %id, "settings name a plugin this Server doesn't have");
             }
         }
         registry

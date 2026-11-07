@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT EXISTS (SELECT 1 FROM schema_meta WHERE key = ?) AS \"imported!: bool\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "imported!: bool",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "26993743d80ac85e1a61f6d9f608eaeb4f9f56040fe6799b78dcc001dc461949"
+}

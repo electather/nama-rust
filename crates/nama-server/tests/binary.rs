@@ -62,6 +62,22 @@ fn bound_addr(listening_line: &str) -> SocketAddr {
         .unwrap_or_else(|| panic!("no address in {listening_line:?}"))
 }
 
+/// The server's log lines, read on a thread so a hung server fails the test instead of blocking it.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a server whose log can't be read fails the test that reads it"
+)]
+fn log_lines(server: &mut Child) -> mpsc::Receiver<String> {
+    let stdout = BufReader::new(server.stdout.take().unwrap());
+    let (lines_tx, lines) = mpsc::channel();
+    thread::spawn(move || {
+        for line in stdout.lines().map_while(Result::ok) {
+            let _: Result<(), mpsc::SendError<String>> = lines_tx.send(line);
+        }
+    });
+    lines
+}
+
 /// Starts the server with `config_file`, listening on a free port and logging at `info`.
 #[expect(
     clippy::unwrap_used,
@@ -100,14 +116,7 @@ fn server_logs_its_config_creates_its_database_serves_the_api_and_exits_cleanly_
     let mut server = spawn_server(&config_file);
     let child = server.0.as_mut().unwrap();
 
-    // Read log lines on a thread so a hung server fails the test instead of blocking it.
-    let (lines_tx, lines) = mpsc::channel();
-    let stdout = BufReader::new(child.stdout.take().unwrap());
-    thread::spawn(move || {
-        for line in stdout.lines().map_while(Result::ok) {
-            let _: Result<(), mpsc::SendError<String>> = lines_tx.send(line);
-        }
-    });
+    let lines = log_lines(child);
 
     let config_line = wait_for_line(&lines, "loaded config");
     assert!(config_line.contains("127.0.0.1:0"), "{config_line}");
@@ -119,7 +128,7 @@ fn server_logs_its_config_creates_its_database_serves_the_api_and_exits_cleanly_
     // A fresh data directory gets a new database with every migration applied.
     let database_line = wait_for_line(&lines, "opened database");
     assert!(
-        database_line.contains("migrations_applied=[1, 2, 3, 4, 5, 6, 7, 8]"),
+        database_line.contains("migrations_applied=[1, 2, 3, 4, 5, 6, 7, 8, 9]"),
         "{database_line}"
     );
     assert!(data_dir.join("nama.db").is_file());
@@ -173,16 +182,17 @@ fn server_logs_its_config_creates_its_database_serves_the_api_and_exits_cleanly_
 }
 
 #[test]
-fn server_refuses_to_start_without_an_authenticator_and_says_why() {
+fn server_refuses_to_start_without_an_authenticator_says_why_and_starts_once_the_file_is_fixed() {
     let dir = std::env::temp_dir().join(format!("nama-server-no-auth-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let dir = RemoveOnDrop(dir);
     let config_file = dir.0.join("server.toml");
+    let data_dir = dir.0.join("data");
     std::fs::write(
         &config_file,
         format!(
             "data_dir = \"{}\"\n\n[plugins.local-auth]\nenabled = false\n",
-            dir.0.join("data").display()
+            data_dir.display()
         ),
     )
     .unwrap();
@@ -210,4 +220,80 @@ fn server_refuses_to_start_without_an_authenticator_and_says_why() {
 
     assert!(!status.success());
     assert!(log.contains("no Authenticator is enabled"), "{log}");
+
+    // The refused start imported nothing, so fixing the file still counts.
+    std::fs::write(
+        &config_file,
+        format!("data_dir = \"{}\"\n", data_dir.display()),
+    )
+    .unwrap();
+    let fixed = log_until_listening(&config_file);
+    assert!(fixed.contains("imported plugin settings"), "{fixed}");
+}
+
+#[test]
+fn plugin_settings_are_imported_from_the_config_once_and_the_config_is_ignored_after() {
+    const API_KEY: &str = "tmdb-key-from-the-config";
+    let dir = std::env::temp_dir().join(format!("nama-server-import-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let dir = RemoveOnDrop(dir);
+    let config_file = dir.0.join("server.toml");
+    let data_dir = format!("data_dir = \"{}\"\n", dir.0.join("data").display());
+
+    std::fs::write(
+        &config_file,
+        format!(
+            "{data_dir}[plugins.tmdb]\napi_key = \"{API_KEY}\"\n\n\
+             [plugins.log-events]\nenabled = false\n"
+        ),
+    )
+    .unwrap();
+    let first_start = log_until_listening(&config_file);
+
+    std::fs::write(
+        &config_file,
+        // A value no Plugin setting takes, which an imported table would be refused for.
+        format!("{data_dir}[plugins.tmdb]\nenabled = false\nretries = 1.5\n"),
+    )
+    .unwrap();
+    let later_start = log_until_listening(&config_file);
+
+    for log in [&first_start, &later_start] {
+        let enabled = log
+            .lines()
+            .find(|line| line.contains("enabled plugins"))
+            .unwrap();
+        assert!(enabled.contains(r#"["local-auth", "tmdb"]"#), "{enabled}");
+        assert!(!log.contains(API_KEY), "a setting value was logged: {log}");
+    }
+    assert!(
+        first_start.contains("imported plugin settings"),
+        "{first_start}"
+    );
+    assert!(!first_start.contains("ignoring"), "{first_start}");
+    let ignoring = later_start
+        .lines()
+        .find(|line| line.contains("ignoring the [plugins.*] tables"))
+        .unwrap();
+    assert!(ignoring.contains(r#"["tmdb"]"#), "{ignoring}");
+}
+
+/// Starts the server with `config_file`, and returns what it logged up to "listening" once it has
+/// stopped it.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a server that can't be started fails the test that starts it"
+)]
+fn log_until_listening(config_file: &Path) -> String {
+    let mut server = spawn_server(config_file);
+    let lines = log_lines(server.0.as_mut().unwrap());
+    let mut log = String::new();
+    loop {
+        let line = lines.recv_timeout(TIMEOUT).unwrap();
+        log.push_str(&line);
+        log.push('\n');
+        if line.contains("listening") {
+            return log;
+        }
+    }
 }

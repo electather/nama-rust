@@ -114,7 +114,7 @@ fn the_config_file_can_turn_a_plugin_off() {
         let config = Config::load(None).unwrap();
 
         assert_eq!(
-            config.plugins,
+            config.plugins.parse().unwrap(),
             BTreeMap::from([
                 (
                     "log-events".to_owned(),
@@ -126,7 +126,7 @@ fn the_config_file_can_turn_a_plugin_off() {
                 ("other".to_owned(), PluginConfig::default()),
             ])
         );
-        assert!(Config::default().plugins.is_empty());
+        assert_eq!(Config::default().plugins.ids().count(), 0);
         Ok(())
     });
 }
@@ -147,7 +147,7 @@ fn a_plugins_other_keys_are_its_settings() {
         let config = Config::load(None).unwrap();
 
         assert_eq!(
-            config.plugins["tmdb"],
+            config.plugins.parse().unwrap()["tmdb"],
             PluginConfig {
                 enabled: true,
                 settings: BTreeMap::from([
@@ -160,6 +160,28 @@ fn a_plugins_other_keys_are_its_settings() {
                 ]),
             }
         );
+        Ok(())
+    });
+}
+
+#[test]
+fn a_plugin_table_with_a_wrong_value_loads_and_fails_only_when_parsed() {
+    Jail::expect_with(|jail| {
+        jail.create_file(
+            "nama.toml",
+            r#"
+                [plugins.tmdb]
+                api_key = "secret"
+                retries = 1.5
+            "#,
+        )?;
+
+        let config = Config::load(None).unwrap();
+
+        assert_eq!(config.plugins.ids().collect::<Vec<_>>(), ["tmdb"]);
+        let err = config.plugins.parse().unwrap_err().to_string();
+        assert!(err.contains("[plugins.tmdb]"), "{err}");
+        assert!(!format!("{config:?}").contains("secret"), "{config:?}");
         Ok(())
     });
 }
