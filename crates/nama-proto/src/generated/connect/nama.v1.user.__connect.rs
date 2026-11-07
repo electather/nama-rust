@@ -54,6 +54,14 @@ pub type OwnedChangePasswordRequestView = ::buffa::view::OwnedView<
 pub type OwnedChangePasswordResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::ChangePasswordResponseView<'static>,
 >;
+///Shorthand for `OwnedView<ResetPasswordRequestView<'static>>`.
+pub type OwnedResetPasswordRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ResetPasswordRequestView<'static>,
+>;
+///Shorthand for `OwnedView<ResetPasswordResponseView<'static>>`.
+pub type OwnedResetPasswordResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ResetPasswordResponseView<'static>,
+>;
 impl ::connectrpc::Encodable<crate::messages::nama::v1::CreateUserResponse>
 for crate::messages::nama::v1::__buffa::view::CreateUserResponseView<'_> {
     fn encode(
@@ -292,6 +300,40 @@ for ::buffa::view::OwnedView<
         )
     }
 }
+impl ::connectrpc::Encodable<crate::messages::nama::v1::ResetPasswordResponse>
+for crate::messages::nama::v1::__buffa::view::ResetPasswordResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::ResetPasswordResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ResetPasswordResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
 /// Full service name for this service.
 pub const USER_SERVICE_SERVICE_NAME: &str = "nama.v1.UserService";
 /// Static [`Spec`](::connectrpc::Spec) for the `CreateUser` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
@@ -333,6 +375,12 @@ pub const USER_SERVICE_REVOKE_DEVICE_SPEC: ::connectrpc::Spec = ::connectrpc::Sp
 /// Static [`Spec`](::connectrpc::Spec) for the `ChangePassword` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
 pub const USER_SERVICE_CHANGE_PASSWORD_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
         "/nama.v1.UserService/ChangePassword",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
+/// Static [`Spec`](::connectrpc::Spec) for the `ResetPassword` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const USER_SERVICE_RESET_PASSWORD_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.UserService/ResetPassword",
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
@@ -565,6 +613,32 @@ pub trait UserService: Send + Sync + 'static {
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
                 crate::messages::nama::v1::ChangePasswordResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Sets a User's password, without their current one, for the Admin to pass on to them. Every
+    /// Device of theirs is revoked, as by `RevokeDevice`. Fails with `invalid_argument` if the new
+    /// password breaks the rules, `not_found` if no User has the ID, and `failed_precondition` for the
+    /// caller's own User, who uses `ChangePassword` instead to keep the calling Device signed in.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn reset_password<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::ResetPasswordRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::ResetPasswordResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -803,6 +877,35 @@ impl<S: UserService> UserServiceExt for S {
                 },
             )
             .with_spec(USER_SERVICE_CHANGE_PASSWORD_SPEC)
+            .route_view(
+                USER_SERVICE_SERVICE_NAME,
+                "ResetPassword",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::ResetPasswordRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::ResetPasswordRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.reset_password(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::ResetPasswordResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(USER_SERVICE_RESET_PASSWORD_SPEC)
     }
 }
 /// Type-inference marker used by [`Router::add_service`](::connectrpc::Router::add_service).
@@ -897,6 +1000,12 @@ impl<T: UserService> ::connectrpc::Dispatcher for UserServiceServer<T> {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
                         .with_spec(USER_SERVICE_CHANGE_PASSWORD_SPEC),
+                )
+            }
+            "ResetPassword" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(USER_SERVICE_RESET_PASSWORD_SPEC),
                 )
             }
             _ => None,
@@ -1055,6 +1164,28 @@ impl<T: UserService> ::connectrpc::Dispatcher for UserServiceServer<T> {
                         .await?
                         .encode::<
                             crate::messages::nama::v1::ChangePasswordResponse,
+                        >(format)
+                })
+            }
+            "ResetPassword" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::ResetPasswordRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::ResetPasswordRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::ResetPasswordRequest,
+                    >::from_parts(&req, &body);
+                    svc.reset_password(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::ResetPasswordResponse,
                         >(format)
                 })
             }
@@ -1475,6 +1606,51 @@ where
                 &self.transport,
                 &self.config,
                 USER_SERVICE_CHANGE_PASSWORD_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the ResetPassword RPC. Sends a request to /nama.v1.UserService/ResetPassword.
+    pub async fn reset_password(
+        &self,
+        request: crate::messages::nama::v1::ResetPasswordRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::ResetPasswordResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.reset_password_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the ResetPassword RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn reset_password_with_options(
+        &self,
+        request: crate::messages::nama::v1::ResetPasswordRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::ResetPasswordResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                USER_SERVICE_RESET_PASSWORD_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,

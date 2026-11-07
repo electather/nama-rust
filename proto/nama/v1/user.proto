@@ -48,6 +48,11 @@ service UserService {
   // limit on failed `SignInService.SignIn`s for the caller's name, and once it is reached, this
   // fails with `resource_exhausted` as `SignIn` does.
   rpc ChangePassword(ChangePasswordRequest) returns (ChangePasswordResponse);
+  // Sets a User's password, without their current one, for the Admin to pass on to them. Every
+  // Device of theirs is revoked, as by `RevokeDevice`. Fails with `invalid_argument` if the new
+  // password breaks the rules, `not_found` if no User has the ID, and `failed_precondition` for the
+  // caller's own User, who uses `ChangePassword` instead to keep the calling Device signed in.
+  rpc ResetPassword(ResetPasswordRequest) returns (ResetPasswordResponse);
 }
 
 message CreateUserRequest {
@@ -112,3 +117,12 @@ message ChangePasswordRequest {
 }
 
 message ChangePasswordResponse {}
+
+message ResetPasswordRequest {
+  // The ID of the User whose password is reset.
+  int64 user_id = 1;
+  // The password to set, which the Server's Authenticator checks against its own rules.
+  string new_password = 2;
+}
+
+message ResetPasswordResponse {}
