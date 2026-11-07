@@ -174,10 +174,10 @@ test("Replace lets a set secret be typed again, and sends it", async () => {
   expect((await sent).settings["api_key"]?.value).toEqual({ case: "textValue", value: "new-key" });
 });
 
-test("a bool and a number are sent as their kind", async () => {
+test("a bool and a number, however it is written, are sent as their kind", async () => {
   const { sent, submit } = openToSave("log-events");
   fireEvent.click(await input("log-events", "Verbose"));
-  fireEvent.change(await input("log-events", "Keep for days"), { target: { value: "7" } });
+  fireEvent.change(await input("log-events", "Keep for days"), { target: { value: "7.0" } });
   fireEvent.change(await input("log-events", "Path"), { target: { value: "/var/log" } });
 
   await submit();
@@ -199,4 +199,17 @@ test("a refusal shows under the setting it names", async () => {
   fireEvent.click((await plugin("log-events")).getByRole("button", { name: "Save" }));
 
   await expectUnderField("Path", "This setting is required.");
+});
+
+test("a refusal naming a secret that is set opens its input to show under", async () => {
+  openPlugins(() => {
+    throw refused(Code.InvalidArgument, "the setting api_key must be Secret", {
+      reason: RefusalReason.WRONG_SETTING_KIND,
+      field: "settings.api_key",
+    });
+  });
+
+  fireEvent.click((await plugin("tmdb")).getByRole("button", { name: "Save" }));
+
+  await expectUnderField("API key", "This setting can’t take that value.");
 });

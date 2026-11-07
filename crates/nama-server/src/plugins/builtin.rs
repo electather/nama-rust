@@ -92,11 +92,11 @@ impl Registry {
         let new = self
             .read(|state| state.builtins.get(id).map(|described| described.new))
             .ok_or_else(|| EnableError::NotBuiltin(id.clone()))?;
+        self.disable(id);
         let plugin = contain_sync(new).map_err(|message| EnableError::Panicked {
             plugin: id.clone(),
             message,
         })?;
-        self.disable(id);
         self.enable_with_settings(plugin, settings)
     }
 }

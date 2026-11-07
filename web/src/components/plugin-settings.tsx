@@ -93,7 +93,10 @@ function blankIsMissing({ required, defaultValue, secretSet }: Setting) {
 /** A secret that is set: said to be set, with a button to type a new one in its place. */
 function SetSecret({ setting, error }: { setting: Setting; error: string | undefined }) {
   const [replacing, setReplacing] = useState(false);
-  if (replacing) return <TypedInput setting={setting} error={error} focused />;
+  // A refusal naming the secret needs its input to show under.
+  if (replacing || error !== undefined) {
+    return <TypedInput setting={setting} error={error} focused={replacing} />;
+  }
   return (
     <div className="flex items-start justify-between gap-4">
       <div>
@@ -170,9 +173,10 @@ function valueTyped(typed: FormData, key: string, kind: SettingKind): SettingVal
   if (kind === SettingKind.BOOL) return { case: "boolValue", value: typed.has(key) };
   const text = formText(typed, key);
   if (text === "") return { case: undefined };
-  // The input only takes whole numbers (`step` 1), so `BigInt` can't throw.
+  // The input only takes whole numbers (`step` 1), but may write one as `1e3` or `1.0`, which
+  // `BigInt` alone refuses. ponytail: past 2^53 a number loses precision on the way.
   return kind === SettingKind.INTEGER
-    ? { case: "integerValue", value: BigInt(text) }
+    ? { case: "integerValue", value: BigInt(Number(text)) }
     : { case: "textValue", value: text };
 }
 
