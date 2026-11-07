@@ -18,6 +18,9 @@ import { Route as MemberAdminRouteImport } from './routes/_member/_admin'
 import { Route as MemberCodeRouteImport } from './routes/_member/code'
 import { Route as MemberSettingsRouteImport } from './routes/_member/settings'
 import { Route as MemberAdminAdminUsersRouteImport } from './routes/_member/_admin/admin/users'
+import { Route as MemberLibrariesLibraryIdIndexRouteImport } from './routes/_member/libraries/$libraryId/index'
+import { Route as MemberLibrariesLibraryIdMoviesMovieIdIndexRouteImport } from './routes/_member/libraries/$libraryId/movies/$movieId/index'
+import { Route as MemberLibrariesLibraryIdShowsShowIdIndexRouteImport } from './routes/_member/libraries/$libraryId/shows/$showId/index'
 
 const MemberRoute = MemberRouteImport.update({
   id: '/_member',
@@ -62,6 +65,24 @@ const MemberAdminAdminUsersRoute = MemberAdminAdminUsersRouteImport.update({
   path: '/admin/users',
   getParentRoute: () => MemberAdminRoute,
 } as any)
+const MemberLibrariesLibraryIdIndexRoute =
+  MemberLibrariesLibraryIdIndexRouteImport.update({
+    id: '/libraries/$libraryId/',
+    path: '/libraries/$libraryId/',
+    getParentRoute: () => MemberRoute,
+  } as any)
+const MemberLibrariesLibraryIdMoviesMovieIdIndexRoute =
+  MemberLibrariesLibraryIdMoviesMovieIdIndexRouteImport.update({
+    id: '/libraries/$libraryId/movies/$movieId/',
+    path: '/libraries/$libraryId/movies/$movieId/',
+    getParentRoute: () => MemberRoute,
+  } as any)
+const MemberLibrariesLibraryIdShowsShowIdIndexRoute =
+  MemberLibrariesLibraryIdShowsShowIdIndexRouteImport.update({
+    id: '/libraries/$libraryId/shows/$showId/',
+    path: '/libraries/$libraryId/shows/$showId/',
+    getParentRoute: () => MemberRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof MemberIndexRoute
@@ -71,6 +92,9 @@ export interface FileRoutesByFullPath {
   '/code': typeof MemberCodeRoute
   '/settings': typeof MemberSettingsRoute
   '/admin/users': typeof MemberAdminAdminUsersRoute
+  '/libraries/$libraryId/': typeof MemberLibrariesLibraryIdIndexRoute
+  '/libraries/$libraryId/movies/$movieId/': typeof MemberLibrariesLibraryIdMoviesMovieIdIndexRoute
+  '/libraries/$libraryId/shows/$showId/': typeof MemberLibrariesLibraryIdShowsShowIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/setup': typeof SetupRoute
@@ -80,6 +104,9 @@ export interface FileRoutesByTo {
   '/code': typeof MemberCodeRoute
   '/settings': typeof MemberSettingsRoute
   '/admin/users': typeof MemberAdminAdminUsersRoute
+  '/libraries/$libraryId': typeof MemberLibrariesLibraryIdIndexRoute
+  '/libraries/$libraryId/movies/$movieId': typeof MemberLibrariesLibraryIdMoviesMovieIdIndexRoute
+  '/libraries/$libraryId/shows/$showId': typeof MemberLibrariesLibraryIdShowsShowIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -92,14 +119,35 @@ export interface FileRoutesById {
   '/_member/settings': typeof MemberSettingsRoute
   '/_member/': typeof MemberIndexRoute
   '/_member/_admin/admin/users': typeof MemberAdminAdminUsersRoute
+  '/_member/libraries/$libraryId/': typeof MemberLibrariesLibraryIdIndexRoute
+  '/_member/libraries/$libraryId/movies/$movieId/': typeof MemberLibrariesLibraryIdMoviesMovieIdIndexRoute
+  '/_member/libraries/$libraryId/shows/$showId/': typeof MemberLibrariesLibraryIdShowsShowIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/setup' | '/sign-in' | '/$' | '/code' | '/settings' | '/admin/users'
+    | '/'
+    | '/setup'
+    | '/sign-in'
+    | '/$'
+    | '/code'
+    | '/settings'
+    | '/admin/users'
+    | '/libraries/$libraryId/'
+    | '/libraries/$libraryId/movies/$movieId/'
+    | '/libraries/$libraryId/shows/$showId/'
   fileRoutesByTo: FileRoutesByTo
   to:
-    '/setup' | '/sign-in' | '/$' | '/' | '/code' | '/settings' | '/admin/users'
+    | '/setup'
+    | '/sign-in'
+    | '/$'
+    | '/'
+    | '/code'
+    | '/settings'
+    | '/admin/users'
+    | '/libraries/$libraryId'
+    | '/libraries/$libraryId/movies/$movieId'
+    | '/libraries/$libraryId/shows/$showId'
   id:
     | '__root__'
     | '/_member'
@@ -111,6 +159,9 @@ export interface FileRouteTypes {
     | '/_member/settings'
     | '/_member/'
     | '/_member/_admin/admin/users'
+    | '/_member/libraries/$libraryId/'
+    | '/_member/libraries/$libraryId/movies/$movieId/'
+    | '/_member/libraries/$libraryId/shows/$showId/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -184,6 +235,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MemberAdminAdminUsersRouteImport
       parentRoute: typeof MemberAdminRoute
     }
+    '/_member/libraries/$libraryId/': {
+      id: '/_member/libraries/$libraryId/'
+      path: '/libraries/$libraryId'
+      fullPath: '/libraries/$libraryId/'
+      preLoaderRoute: typeof MemberLibrariesLibraryIdIndexRouteImport
+      parentRoute: typeof MemberRoute
+    }
+    '/_member/libraries/$libraryId/movies/$movieId/': {
+      id: '/_member/libraries/$libraryId/movies/$movieId/'
+      path: '/libraries/$libraryId/movies/$movieId'
+      fullPath: '/libraries/$libraryId/movies/$movieId/'
+      preLoaderRoute: typeof MemberLibrariesLibraryIdMoviesMovieIdIndexRouteImport
+      parentRoute: typeof MemberRoute
+    }
+    '/_member/libraries/$libraryId/shows/$showId/': {
+      id: '/_member/libraries/$libraryId/shows/$showId/'
+      path: '/libraries/$libraryId/shows/$showId'
+      fullPath: '/libraries/$libraryId/shows/$showId/'
+      preLoaderRoute: typeof MemberLibrariesLibraryIdShowsShowIdIndexRouteImport
+      parentRoute: typeof MemberRoute
+    }
   }
 }
 
@@ -205,6 +277,9 @@ interface MemberRouteChildren {
   MemberCodeRoute: typeof MemberCodeRoute
   MemberSettingsRoute: typeof MemberSettingsRoute
   MemberIndexRoute: typeof MemberIndexRoute
+  MemberLibrariesLibraryIdIndexRoute: typeof MemberLibrariesLibraryIdIndexRoute
+  MemberLibrariesLibraryIdMoviesMovieIdIndexRoute: typeof MemberLibrariesLibraryIdMoviesMovieIdIndexRoute
+  MemberLibrariesLibraryIdShowsShowIdIndexRoute: typeof MemberLibrariesLibraryIdShowsShowIdIndexRoute
 }
 
 const MemberRouteChildren: MemberRouteChildren = {
@@ -213,6 +288,11 @@ const MemberRouteChildren: MemberRouteChildren = {
   MemberCodeRoute: MemberCodeRoute,
   MemberSettingsRoute: MemberSettingsRoute,
   MemberIndexRoute: MemberIndexRoute,
+  MemberLibrariesLibraryIdIndexRoute: MemberLibrariesLibraryIdIndexRoute,
+  MemberLibrariesLibraryIdMoviesMovieIdIndexRoute:
+    MemberLibrariesLibraryIdMoviesMovieIdIndexRoute,
+  MemberLibrariesLibraryIdShowsShowIdIndexRoute:
+    MemberLibrariesLibraryIdShowsShowIdIndexRoute,
 }
 
 const MemberRouteWithChildren =
