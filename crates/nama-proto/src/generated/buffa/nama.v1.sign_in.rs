@@ -696,13 +696,50 @@ pub struct Device {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub name: ::buffa::alloc::string::String,
+    /// When it signed in, in seconds since the Unix epoch.
+    ///
+    /// Field 3: `created_at`
+    #[serde(
+        rename = "createdAt",
+        alias = "created_at",
+        with = "::buffa::json_helpers::int64",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i64"
+    )]
+    pub created_at: i64,
+    /// When it was last used, in seconds since the Unix epoch. Kept to the hour, so it may lag by up
+    /// to an hour.
+    ///
+    /// Field 4: `last_seen_at`
+    #[serde(
+        rename = "lastSeenAt",
+        alias = "last_seen_at",
+        with = "::buffa::json_helpers::int64",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i64"
+    )]
+    pub last_seen_at: i64,
+    /// Whether it is the Device making this call.
+    ///
+    /// Field 5: `is_current`
+    #[serde(
+        rename = "isCurrent",
+        alias = "is_current",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub is_current: bool,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
 impl ::core::fmt::Debug for Device {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("Device").field("id", &self.id).field("name", &self.name).finish()
+        f.debug_struct("Device")
+            .field("id", &self.id)
+            .field("name", &self.name)
+            .field("created_at", &self.created_at)
+            .field("last_seen_at", &self.last_seen_at)
+            .field("is_current", &self.is_current)
+            .finish()
     }
 }
 impl Device {
@@ -738,6 +775,15 @@ impl ::buffa::Message for Device {
         if !self.name.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.name) as u64;
         }
+        if self.created_at != 0i64 {
+            size += 1u64 + ::buffa::types::int64_encoded_len(self.created_at) as u64;
+        }
+        if self.last_seen_at != 0i64 {
+            size += 1u64 + ::buffa::types::int64_encoded_len(self.last_seen_at) as u64;
+        }
+        if self.is_current {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -753,6 +799,15 @@ impl ::buffa::Message for Device {
         }
         if !self.name.is_empty() {
             ::buffa::types::put_string_field(2u32, &self.name, buf);
+        }
+        if self.created_at != 0i64 {
+            ::buffa::types::put_int64_field(3u32, self.created_at, buf);
+        }
+        if self.last_seen_at != 0i64 {
+            ::buffa::types::put_int64_field(4u32, self.last_seen_at, buf);
+        }
+        if self.is_current {
+            ::buffa::types::put_bool_field(5u32, self.is_current, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -781,6 +836,27 @@ impl ::buffa::Message for Device {
                 )?;
                 ::buffa::types::merge_string(&mut self.name, buf)?;
             }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.created_at = ::buffa::types::decode_int64(buf)?;
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.last_seen_at = ::buffa::types::decode_int64(buf)?;
+            }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.is_current = ::buffa::types::decode_bool(buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -791,6 +867,9 @@ impl ::buffa::Message for Device {
     fn clear(&mut self) {
         self.id = 0i64;
         self.name.clear();
+        self.created_at = 0i64;
+        self.last_seen_at = 0i64;
+        self.is_current = false;
         self.__buffa_unknown_fields.clear();
     }
 }

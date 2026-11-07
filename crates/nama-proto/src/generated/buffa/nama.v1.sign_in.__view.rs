@@ -347,6 +347,19 @@ pub struct DeviceView<'a> {
     ///
     /// Field 2: `name`
     pub name: &'a str,
+    /// When it signed in, in seconds since the Unix epoch.
+    ///
+    /// Field 3: `created_at`
+    pub created_at: i64,
+    /// When it was last used, in seconds since the Unix epoch. Kept to the hour, so it may lag by up
+    /// to an hour.
+    ///
+    /// Field 4: `last_seen_at`
+    pub last_seen_at: i64,
+    /// Whether it is the Device making this call.
+    ///
+    /// Field 5: `is_current`
+    pub is_current: bool,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for DeviceView<'a> {
@@ -393,6 +406,27 @@ impl<'a> ::buffa::MessageView<'a> for DeviceView<'a> {
                 )?;
                 view.name = ::buffa::types::borrow_str(&mut cur)?;
             }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.created_at = ::buffa::types::decode_int64(&mut cur)?;
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.last_seen_at = ::buffa::types::decode_int64(&mut cur)?;
+            }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.is_current = ::buffa::types::decode_bool(&mut cur)?;
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -417,6 +451,9 @@ impl<'a> ::buffa::MessageView<'a> for DeviceView<'a> {
         ::core::result::Result::Ok(super::super::Device {
             id: self.id,
             name: self.name.to_string(),
+            created_at: self.created_at,
+            last_seen_at: self.last_seen_at,
+            is_current: self.is_current,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -434,6 +471,15 @@ impl<'a> ::buffa::ViewEncode<'a> for DeviceView<'a> {
         if !self.name.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.name) as u64;
         }
+        if self.created_at != 0i64 {
+            size += 1u64 + ::buffa::types::int64_encoded_len(self.created_at) as u64;
+        }
+        if self.last_seen_at != 0i64 {
+            size += 1u64 + ::buffa::types::int64_encoded_len(self.last_seen_at) as u64;
+        }
+        if self.is_current {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -450,6 +496,15 @@ impl<'a> ::buffa::ViewEncode<'a> for DeviceView<'a> {
         }
         if !self.name.is_empty() {
             ::buffa::types::put_string_field(2u32, &self.name, buf);
+        }
+        if self.created_at != 0i64 {
+            ::buffa::types::put_int64_field(3u32, self.created_at, buf);
+        }
+        if self.last_seen_at != 0i64 {
+            ::buffa::types::put_int64_field(4u32, self.last_seen_at, buf);
+        }
+        if self.is_current {
+            ::buffa::types::put_bool_field(5u32, self.is_current, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -477,6 +532,23 @@ impl<'__a> ::serde::Serialize for DeviceView<'__a> {
         }
         if !::buffa::json_helpers::skip_if::is_empty_str(self.name) {
             __map.serialize_entry("name", self.name)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_zero_i64(&self.created_at) {
+            __map
+                .serialize_entry(
+                    "createdAt",
+                    &::buffa::json_helpers::ProtoJson(&self.created_at),
+                )?;
+        }
+        if !::buffa::json_helpers::skip_if::is_zero_i64(&self.last_seen_at) {
+            __map
+                .serialize_entry(
+                    "lastSeenAt",
+                    &::buffa::json_helpers::ProtoJson(&self.last_seen_at),
+                )?;
+        }
+        if self.is_current {
+            __map.serialize_entry("isCurrent", &self.is_current)?;
         }
         __map.end()
     }
@@ -578,6 +650,28 @@ impl DeviceOwnedView {
     #[must_use]
     pub fn name(&self) -> &'_ str {
         self.0.reborrow().name
+    }
+    /// When it signed in, in seconds since the Unix epoch.
+    ///
+    /// Field 3: `created_at`
+    #[must_use]
+    pub fn created_at(&self) -> i64 {
+        self.0.reborrow().created_at
+    }
+    /// When it was last used, in seconds since the Unix epoch. Kept to the hour, so it may lag by up
+    /// to an hour.
+    ///
+    /// Field 4: `last_seen_at`
+    #[must_use]
+    pub fn last_seen_at(&self) -> i64 {
+        self.0.reborrow().last_seen_at
+    }
+    /// Whether it is the Device making this call.
+    ///
+    /// Field 5: `is_current`
+    #[must_use]
+    pub fn is_current(&self) -> bool {
+        self.0.reborrow().is_current
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<DeviceView<'static>>> for DeviceOwnedView {

@@ -87,6 +87,11 @@ pub(crate) struct User {
 pub(crate) struct Device {
     pub(crate) id: i64,
     pub(crate) name: String,
+    /// When it signed in, in seconds since the Unix epoch.
+    pub(crate) created_at: i64,
+    /// When it was last used, in seconds since the Unix epoch, to within
+    /// [`LAST_SEEN_PRECISION`].
+    pub(crate) last_seen_at: i64,
 }
 
 /// Who sent a request: the User and Device its session belongs to.
@@ -242,6 +247,50 @@ impl Users {
         .await
     }
 
+    /// The Devices of the User `user` that haven't expired, oldest first, or `None` if there is no
+    /// such User.
+    pub(crate) async fn devices(&self, user: i64) -> Result<Option<Vec<Device>>, sqlx::Error> {
+        let mut conn = self.db.reader().acquire().await?;
+        let exists = sqlx::query_scalar!(
+            r#"SELECT EXISTS (SELECT 1 FROM users WHERE id = ?) AS "exists!: bool""#,
+            user
+        )
+        .fetch_one(&mut *conn)
+        .await?;
+        if !exists {
+            return Ok(None);
+        }
+        let expired_before = now() - DEVICE_LIFETIME;
+        let devices = sqlx::query_as!(
+            Device,
+            r#"SELECT id AS "id!", name, created_at, last_seen_at FROM devices
+               WHERE user_id = ? AND last_seen_at > ? ORDER BY id"#,
+            user,
+            expired_before,
+        )
+        .fetch_all(&mut *conn)
+        .await?;
+        Ok(Some(devices))
+    }
+
+    /// Signs the Device `device` out, as [`Users::sign_out`] does, if it is the User `user`'s.
+    /// Returns whether it was.
+    pub(crate) async fn revoke(&self, user: i64, device: i64) -> Result<bool, sqlx::Error> {
+        // Checked before the write, not in it, which is still race-free: a Device never changes
+        // User, its ID is never reused, and signing out one already gone does nothing.
+        let theirs = sqlx::query_scalar!(
+            r#"SELECT EXISTS (SELECT 1 FROM devices WHERE id = ? AND user_id = ?) AS "theirs!: bool""#,
+            device,
+            user
+        )
+        .fetch_one(self.db.reader())
+        .await?;
+        if theirs {
+            self.sign_out(device).await?;
+        }
+        Ok(theirs)
+    }
+
     /// Signs the Device `device_name` in as the User named `name`, ignoring case, if `password` is
     /// theirs.
     ///
@@ -364,7 +413,8 @@ impl Users {
         let token_hash = token_hash.as_slice();
         let expired_before = now - DEVICE_LIFETIME;
         let row = sqlx::query!(
-            r#"SELECT d.id AS "device_id!", d.name AS device_name, d.last_seen_at,
+            r#"SELECT d.id AS "device_id!", d.name AS device_name, d.created_at AS device_created_at,
+                      d.last_seen_at,
                       u.id AS "user_id!", u.name AS user_name, u.role AS "role: Role",
                       u.created_at
                FROM devices d JOIN users u ON u.id = d.user_id
@@ -395,6 +445,8 @@ impl Users {
             device: Device {
                 id: row.device_id,
                 name: row.device_name,
+                created_at: row.device_created_at,
+                last_seen_at: row.last_seen_at,
             },
         };
         Ok(Some(Session { caller, refreshed }))
@@ -715,7 +767,12 @@ async fn insert_device(
     )
     .fetch_one(conn)
     .await?;
-    Ok(Device { id, name })
+    Ok(Device {
+        id,
+        name,
+        created_at: now,
+        last_seen_at: now,
+    })
 }
 
 #[cfg(test)]

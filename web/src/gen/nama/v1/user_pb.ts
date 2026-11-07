@@ -4,7 +4,7 @@
 
 import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
-import type { Role, User } from "./sign_in_pb";
+import type { Device, Role, User } from "./sign_in_pb";
 import { file_nama_v1_sign_in } from "./sign_in_pb";
 import type { Message } from "@bufbuild/protobuf";
 
@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file nama/v1/user.proto.
  */
 export const file_nama_v1_user: GenFile = /*@__PURE__*/
-  fileDesc("ChJuYW1hL3YxL3VzZXIucHJvdG8SB25hbWEudjEiUAoRQ3JlYXRlVXNlclJlcXVlc3QSDAoEbmFtZRgBIAEoCRIQCghwYXNzd29yZBgCIAEoCRIbCgRyb2xlGAMgASgOMg0ubmFtYS52MS5Sb2xlIiAKEkNyZWF0ZVVzZXJSZXNwb25zZRIKCgJpZBgBIAEoAyISChBMaXN0VXNlcnNSZXF1ZXN0IjEKEUxpc3RVc2Vyc1Jlc3BvbnNlEhwKBXVzZXJzGAEgAygLMg0ubmFtYS52MS5Vc2VyMp0BCgtVc2VyU2VydmljZRJFCgpDcmVhdGVVc2VyEhoubmFtYS52MS5DcmVhdGVVc2VyUmVxdWVzdBobLm5hbWEudjEuQ3JlYXRlVXNlclJlc3BvbnNlEkcKCUxpc3RVc2VycxIZLm5hbWEudjEuTGlzdFVzZXJzUmVxdWVzdBoaLm5hbWEudjEuTGlzdFVzZXJzUmVzcG9uc2UiA5ACAWIGcHJvdG8z", [file_nama_v1_sign_in]);
+  fileDesc("ChJuYW1hL3YxL3VzZXIucHJvdG8SB25hbWEudjEiUAoRQ3JlYXRlVXNlclJlcXVlc3QSDAoEbmFtZRgBIAEoCRIQCghwYXNzd29yZBgCIAEoCRIbCgRyb2xlGAMgASgOMg0ubmFtYS52MS5Sb2xlIiAKEkNyZWF0ZVVzZXJSZXNwb25zZRIKCgJpZBgBIAEoAyISChBMaXN0VXNlcnNSZXF1ZXN0IjEKEUxpc3RVc2Vyc1Jlc3BvbnNlEhwKBXVzZXJzGAEgAygLMg0ubmFtYS52MS5Vc2VyIjYKEkxpc3REZXZpY2VzUmVxdWVzdBIUCgd1c2VyX2lkGAEgASgDSACIAQFCCgoIX3VzZXJfaWQiNwoTTGlzdERldmljZXNSZXNwb25zZRIgCgdkZXZpY2VzGAEgAygLMg8ubmFtYS52MS5EZXZpY2UiSgoTUmV2b2tlRGV2aWNlUmVxdWVzdBIUCgd1c2VyX2lkGAEgASgDSACIAQESEQoJZGV2aWNlX2lkGAIgASgDQgoKCF91c2VyX2lkIhYKFFJldm9rZURldmljZVJlc3BvbnNlMrkCCgtVc2VyU2VydmljZRJFCgpDcmVhdGVVc2VyEhoubmFtYS52MS5DcmVhdGVVc2VyUmVxdWVzdBobLm5hbWEudjEuQ3JlYXRlVXNlclJlc3BvbnNlEkcKCUxpc3RVc2VycxIZLm5hbWEudjEuTGlzdFVzZXJzUmVxdWVzdBoaLm5hbWEudjEuTGlzdFVzZXJzUmVzcG9uc2UiA5ACARJNCgtMaXN0RGV2aWNlcxIbLm5hbWEudjEuTGlzdERldmljZXNSZXF1ZXN0GhwubmFtYS52MS5MaXN0RGV2aWNlc1Jlc3BvbnNlIgOQAgESSwoMUmV2b2tlRGV2aWNlEhwubmFtYS52MS5SZXZva2VEZXZpY2VSZXF1ZXN0Gh0ubmFtYS52MS5SZXZva2VEZXZpY2VSZXNwb25zZWIGcHJvdG8z", [file_nama_v1_sign_in]);
 
 /**
  * @generated from message nama.v1.CreateUserRequest
@@ -97,8 +97,84 @@ export const ListUsersResponseSchema: GenMessage<ListUsersResponse> = /*@__PURE_
   messageDesc(file_nama_v1_user, 3);
 
 /**
- * Managing the Server's Users. Every RPC needs the Admin Role, and fails with `permission_denied`
- * without it. RPCs name Users by ID, not by name.
+ * @generated from message nama.v1.ListDevicesRequest
+ */
+export type ListDevicesRequest = Message<"nama.v1.ListDevicesRequest"> & {
+  /**
+   * Whose Devices to list. Unset means the caller's own.
+   *
+   * @generated from field: optional int64 user_id = 1;
+   */
+  userId?: bigint | undefined;
+};
+
+/**
+ * Describes the message nama.v1.ListDevicesRequest.
+ * Use `create(ListDevicesRequestSchema)` to create a new message.
+ */
+export const ListDevicesRequestSchema: GenMessage<ListDevicesRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_user, 4);
+
+/**
+ * @generated from message nama.v1.ListDevicesResponse
+ */
+export type ListDevicesResponse = Message<"nama.v1.ListDevicesResponse"> & {
+  /**
+   * @generated from field: repeated nama.v1.Device devices = 1;
+   */
+  devices: Device[];
+};
+
+/**
+ * Describes the message nama.v1.ListDevicesResponse.
+ * Use `create(ListDevicesResponseSchema)` to create a new message.
+ */
+export const ListDevicesResponseSchema: GenMessage<ListDevicesResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_user, 5);
+
+/**
+ * @generated from message nama.v1.RevokeDeviceRequest
+ */
+export type RevokeDeviceRequest = Message<"nama.v1.RevokeDeviceRequest"> & {
+  /**
+   * Whose Device to revoke. Unset means the caller's own.
+   *
+   * @generated from field: optional int64 user_id = 1;
+   */
+  userId?: bigint | undefined;
+
+  /**
+   * The Device to revoke.
+   *
+   * @generated from field: int64 device_id = 2;
+   */
+  deviceId: bigint;
+};
+
+/**
+ * Describes the message nama.v1.RevokeDeviceRequest.
+ * Use `create(RevokeDeviceRequestSchema)` to create a new message.
+ */
+export const RevokeDeviceRequestSchema: GenMessage<RevokeDeviceRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_user, 6);
+
+/**
+ * @generated from message nama.v1.RevokeDeviceResponse
+ */
+export type RevokeDeviceResponse = Message<"nama.v1.RevokeDeviceResponse"> & {
+};
+
+/**
+ * Describes the message nama.v1.RevokeDeviceResponse.
+ * Use `create(RevokeDeviceResponseSchema)` to create a new message.
+ */
+export const RevokeDeviceResponseSchema: GenMessage<RevokeDeviceResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_user, 7);
+
+/**
+ * Managing the Server's Users and their Devices. Every RPC but `ListDevices` and `RevokeDevice`
+ * needs the Admin Role, and fails with `permission_denied` without it. RPCs name Users by ID, not
+ * by name.
  *
  * @generated from service nama.v1.UserService
  */
@@ -124,6 +200,31 @@ export const UserService: GenService<{
     methodKind: "unary";
     input: typeof ListUsersRequestSchema;
     output: typeof ListUsersResponseSchema;
+  },
+  /**
+   * Lists a User's Devices that haven't expired, oldest first. Any signed-in User may list their
+   * own; another User's needs the Admin Role. Fails with `not_found` if the User doesn't exist, or
+   * isn't the caller and the caller isn't an Admin, so a Member can't learn which IDs exist.
+   *
+   * @generated from rpc nama.v1.UserService.ListDevices
+   */
+  listDevices: {
+    methodKind: "unary";
+    input: typeof ListDevicesRequestSchema;
+    output: typeof ListDevicesResponseSchema;
+  },
+  /**
+   * Revokes one of a User's Devices, so its session stops working at once and its open
+   * `EventService.Subscribe` streams end. Revoking the calling Device signs it out, as `SignOut`
+   * does. Who may revoke whose Devices is as for `ListDevices`, and fails the same way; it also
+   * fails with `not_found` if the Device isn't that User's.
+   *
+   * @generated from rpc nama.v1.UserService.RevokeDevice
+   */
+  revokeDevice: {
+    methodKind: "unary";
+    input: typeof RevokeDeviceRequestSchema;
+    output: typeof RevokeDeviceResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_nama_v1_user, 0);
