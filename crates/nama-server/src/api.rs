@@ -846,7 +846,7 @@ fn version_to_proto(version: &Version) -> proto::Version {
         .unwrap_or_default()
         .to_owned();
     proto::Version {
-        id: version.file,
+        id: version.id,
         file_name,
         // A size is never negative.
         size: u64::try_from(version.size).unwrap_or_default(),

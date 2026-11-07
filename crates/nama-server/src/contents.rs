@@ -159,7 +159,7 @@ pub(crate) struct Movie {
 #[derive(Debug)]
 pub(crate) struct Version {
     /// The stored file's id.
-    pub(crate) file: i64,
+    pub(crate) id: i64,
     pub(crate) path: String,
     pub(crate) size: i64,
 }
@@ -426,7 +426,7 @@ impl Contents {
                 continue;
             };
             let version = Version {
-                file: row.file,
+                id: row.file,
                 path: row.path,
                 size: row.size,
             };
