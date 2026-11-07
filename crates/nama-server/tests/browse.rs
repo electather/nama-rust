@@ -2,6 +2,8 @@
 //! that `WatchStateService` reports or marks and browsing shows, over a real socket, with the
 //! TMDB Plugin enabled against a fake TMDB.
 
+#[path = "support/refused.rs"]
+mod refused;
 #[expect(dead_code, reason = "the harness's plain `start` has no use here")]
 #[path = "support/server.rs"]
 mod server;
@@ -28,12 +30,14 @@ use nama_proto::nama::v1::{
     BrowseServiceClient, ClearMatchRequest, ContinueWatchingEntry, CreateLibraryRequest,
     CreateUserRequest, Episode, ExternalId, GetMovieRequest, GetShowRequest, GetShowResponse,
     LibraryKind, LibraryServiceClient, ListContinueWatchingRequest, ListEpisodesRequest,
-    ListMoviesRequest, ListShowsRequest, MatchServiceClient, Movie, ReportProgressRequest, Role,
-    ScanLibraryRequest, Season, SessionDelivery, SetMatchRequest, SetPlayedRequest, Show,
-    ShowSeason, SignInRequest, SignInServiceClient, UserServiceClient, Version, WatchState,
-    WatchStateServiceClient, continue_watching_entry, external_id, set_played_request::Target,
+    ListMoviesRequest, ListShowsRequest, MatchServiceClient, Movie, RefusalReason,
+    ReportProgressRequest, Role, ScanLibraryRequest, Season, SessionDelivery, SetMatchRequest,
+    SetPlayedRequest, Show, ShowSeason, SignInRequest, SignInServiceClient, UserServiceClient,
+    Version, WatchState, WatchStateServiceClient, continue_watching_entry, external_id,
+    set_played_request::Target,
 };
 use nama_server::{config::Config, contents::Contents, plugins::Registry};
+use refused::assert_refused;
 use server::{PASSWORD, TestServer};
 use tempfile::TempDir;
 
@@ -630,7 +634,11 @@ async fn an_unmatched_item_is_in_neither_list_movies_nor_get_movie() {
     let got = fx.get_movie(fx.library, ALIEN).await;
 
     assert_eq!(listed, []);
-    assert_eq!(got.unwrap_err().code, ErrorCode::NotFound);
+    assert_refused(
+        got,
+        ErrorCode::NotFound,
+        RefusalReason::REFUSAL_REASON_NOTHING_MATCHED,
+    );
 }
 
 #[tokio::test]
@@ -644,11 +652,34 @@ async fn an_unknown_library_is_not_found() {
     let show = fx.get_show(unknown, DARK).await;
     let episodes = fx.list_episodes(unknown, DARK, 1).await;
 
-    assert_eq!(movies.unwrap_err().code, ErrorCode::NotFound);
-    assert_eq!(movie.unwrap_err().code, ErrorCode::NotFound);
-    assert_eq!(shows.unwrap_err().code, ErrorCode::NotFound);
-    assert_eq!(show.unwrap_err().code, ErrorCode::NotFound);
-    assert_eq!(episodes.unwrap_err().code, ErrorCode::NotFound);
+    let refusal = assert_refused(
+        movies,
+        ErrorCode::NotFound,
+        RefusalReason::REFUSAL_REASON_LIBRARY_NOT_FOUND,
+    );
+    let library_id = unknown.to_string();
+    assert_eq!(refusal.field, "library_id");
+    assert_eq!(refusal.params.get("libraryId"), Some(&library_id));
+    assert_refused(
+        movie,
+        ErrorCode::NotFound,
+        RefusalReason::REFUSAL_REASON_LIBRARY_NOT_FOUND,
+    );
+    assert_refused(
+        shows,
+        ErrorCode::NotFound,
+        RefusalReason::REFUSAL_REASON_LIBRARY_NOT_FOUND,
+    );
+    assert_refused(
+        show,
+        ErrorCode::NotFound,
+        RefusalReason::REFUSAL_REASON_LIBRARY_NOT_FOUND,
+    );
+    assert_refused(
+        episodes,
+        ErrorCode::NotFound,
+        RefusalReason::REFUSAL_REASON_LIBRARY_NOT_FOUND,
+    );
 }
 
 #[tokio::test]
@@ -658,8 +689,17 @@ async fn a_shows_library_is_an_invalid_argument() {
     let listed = fx.list_movies(fx.library).await;
     let got = fx.get_movie(fx.library, ALIEN).await;
 
-    assert_eq!(listed.unwrap_err().code, ErrorCode::InvalidArgument);
-    assert_eq!(got.unwrap_err().code, ErrorCode::InvalidArgument);
+    let refusal = assert_refused(
+        listed,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_WRONG_LIBRARY_KIND,
+    );
+    assert_eq!(refusal.field, "library_id");
+    assert_refused(
+        got,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_WRONG_LIBRARY_KIND,
+    );
 }
 
 #[tokio::test]
@@ -670,7 +710,11 @@ async fn get_movie_for_an_id_nothing_matches_is_not_found() {
 
     let got = fx.get_movie(fx.library, 949).await;
 
-    assert_eq!(got.unwrap_err().code, ErrorCode::NotFound);
+    assert_refused(
+        got,
+        ErrorCode::NotFound,
+        RefusalReason::REFUSAL_REASON_NOTHING_MATCHED,
+    );
 }
 
 #[tokio::test]
@@ -792,7 +836,11 @@ async fn an_unmatched_item_is_in_no_show_season_or_episode_list() {
             [("Dark - S01E01-E02.mkv", 12)]
         ]
     );
-    assert_eq!(second.unwrap_err().code, ErrorCode::NotFound);
+    assert_refused(
+        second,
+        ErrorCode::NotFound,
+        RefusalReason::REFUSAL_REASON_SEASON_NOT_FOUND,
+    );
 }
 
 #[tokio::test]
@@ -803,9 +851,21 @@ async fn an_unknown_show_or_season_is_not_found() {
     let episodes = fx.list_episodes(fx.library, THE_OFFICE_US, 1).await;
     let season = fx.list_episodes(fx.library, DARK, 3).await;
 
-    assert_eq!(show.unwrap_err().code, ErrorCode::NotFound);
-    assert_eq!(episodes.unwrap_err().code, ErrorCode::NotFound);
-    assert_eq!(season.unwrap_err().code, ErrorCode::NotFound);
+    assert_refused(
+        show,
+        ErrorCode::NotFound,
+        RefusalReason::REFUSAL_REASON_NOTHING_MATCHED,
+    );
+    assert_refused(
+        episodes,
+        ErrorCode::NotFound,
+        RefusalReason::REFUSAL_REASON_NOTHING_MATCHED,
+    );
+    assert_refused(
+        season,
+        ErrorCode::NotFound,
+        RefusalReason::REFUSAL_REASON_SEASON_NOT_FOUND,
+    );
 }
 
 #[tokio::test]
@@ -816,9 +876,21 @@ async fn a_movies_library_is_an_invalid_argument_to_browse_shows() {
     let show = fx.get_show(fx.library, DARK).await;
     let episodes = fx.list_episodes(fx.library, DARK, 1).await;
 
-    assert_eq!(shows.unwrap_err().code, ErrorCode::InvalidArgument);
-    assert_eq!(show.unwrap_err().code, ErrorCode::InvalidArgument);
-    assert_eq!(episodes.unwrap_err().code, ErrorCode::InvalidArgument);
+    assert_refused(
+        shows,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_WRONG_LIBRARY_KIND,
+    );
+    assert_refused(
+        show,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_WRONG_LIBRARY_KIND,
+    );
+    assert_refused(
+        episodes,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_WRONG_LIBRARY_KIND,
+    );
 }
 
 #[tokio::test]
@@ -1142,8 +1214,17 @@ async fn reporting_on_an_unknown_version_is_not_found_and_a_zero_duration_is_inv
     let unknown = viewer.report(version + 1, 0, TWO_HOURS).await;
     let zero = viewer.report(version, 0, 0).await;
 
-    assert_eq!(unknown.unwrap_err().code, ErrorCode::NotFound);
-    assert_eq!(zero.unwrap_err().code, ErrorCode::InvalidArgument);
+    assert_refused(
+        unknown,
+        ErrorCode::NotFound,
+        RefusalReason::REFUSAL_REASON_VERSION_NOT_FOUND,
+    );
+    let refusal = assert_refused(
+        zero,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_DURATION_OUT_OF_RANGE,
+    );
+    assert_eq!(refusal.field, "duration_ms");
 }
 
 /// The position, duration and played flag of each of `states` that is set.
@@ -1540,39 +1621,39 @@ async fn marking_an_unknown_target_is_not_found() {
     let (in_shows, in_movies) = (shows.admin(), movies.admin());
     let unknown_id = 1;
 
-    for (what, marked) in [
+    for (reason, marked) in [
         (
-            "Library",
+            RefusalReason::REFUSAL_REASON_LIBRARY_NOT_FOUND,
             in_shows
                 .set_played(shows.library + 100, show(DARK), true)
                 .await,
         ),
         (
-            "Show",
+            RefusalReason::REFUSAL_REASON_NOTHING_MATCHED,
             in_shows
                 .set_played(shows.library, show(unknown_id), true)
                 .await,
         ),
         (
-            "Season",
+            RefusalReason::REFUSAL_REASON_SEASON_NOT_FOUND,
             in_shows
                 .set_played(shows.library, season_of(DARK, 9), true)
                 .await,
         ),
         (
-            "Episode",
+            RefusalReason::REFUSAL_REASON_NOTHING_MATCHED,
             in_shows
                 .set_played(shows.library, episode(unknown_id), true)
                 .await,
         ),
         (
-            "Movie",
+            RefusalReason::REFUSAL_REASON_NOTHING_MATCHED,
             in_movies
                 .set_played(movies.library, movie(unknown_id), true)
                 .await,
         ),
     ] {
-        assert_eq!(marked.unwrap_err().code, ErrorCode::NotFound, "{what}");
+        assert_refused(marked, ErrorCode::NotFound, reason);
     }
 }
 
@@ -1602,9 +1683,30 @@ async fn marking_a_movie_of_a_shows_library_or_a_show_of_a_movies_library_is_inv
         })
         .await;
 
-    assert_eq!(a_movie.unwrap_err().code, ErrorCode::InvalidArgument);
-    assert_eq!(a_show.unwrap_err().code, ErrorCode::InvalidArgument);
-    assert_eq!(a_season.unwrap_err().code, ErrorCode::InvalidArgument);
-    assert_eq!(an_episode.unwrap_err().code, ErrorCode::InvalidArgument);
-    assert_eq!(nothing.unwrap_err().code, ErrorCode::InvalidArgument);
+    assert_refused(
+        a_movie,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_WRONG_LIBRARY_KIND,
+    );
+    assert_refused(
+        a_show,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_WRONG_LIBRARY_KIND,
+    );
+    assert_refused(
+        a_season,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_WRONG_LIBRARY_KIND,
+    );
+    assert_refused(
+        an_episode,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_WRONG_LIBRARY_KIND,
+    );
+    let refusal = assert_refused(
+        nothing,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
+    );
+    assert_eq!(refusal.field, "target");
 }

@@ -12,8 +12,10 @@ use axum::{
     response::IntoResponse,
 };
 use buffa::EnumValue;
+use buffa::MessageName;
 use connectrpc::{
-    ConnectError, Encodable, RequestContext, Response, ServiceRequest, ServiceResult, ServiceStream,
+    ConnectError, Encodable, ErrorCode, ErrorDetail, RequestContext, Response, ServiceRequest,
+    ServiceResult, ServiceStream,
 };
 use futures_util::StreamExt;
 use nama_plugin_api::metadata::{Candidate, ExternalId, SearchQuery, TitleKind};
@@ -31,19 +33,19 @@ use nama_proto::nama::v1::{
     ListShowsResponse, ListUnmatchedItemsRequest, ListUnmatchedItemsResponse, ListUsersRequest,
     ListUsersResponse, LookUpSignInCodeRequest, LookUpSignInCodeResponse,
     MATCH_SERVICE_SERVICE_NAME, MatchService, PollSignInCodeRequest, PollSignInCodeResponse,
-    ReportProgressRequest, ReportProgressResponse, ResetPasswordRequest, ResetPasswordResponse,
-    RevokeDeviceRequest, RevokeDeviceResponse, SERVER_SERVICE_GET_SERVER_INFO_SPEC,
-    SIGN_IN_SERVICE_POLL_SIGN_IN_CODE_SPEC, SIGN_IN_SERVICE_SETUP_SPEC,
-    SIGN_IN_SERVICE_SIGN_IN_SPEC, SIGN_IN_SERVICE_START_SIGN_IN_CODE_SPEC, ScanLibraryRequest,
-    ScanLibraryResponse, SearchMetadataRequest, SearchMetadataResponse, ServerService,
-    SessionDelivery, SetMatchRequest, SetMatchResponse, SetPlayedRequest, SetPlayedResponse,
-    SetRoleRequest, SetRoleResponse, SetupRequest, SetupResponse, SignInCodeStatus, SignInRequest,
-    SignInResponse, SignInService, SignOutRequest, SignOutResponse, StartSignInCodeRequest,
-    StartSignInCodeResponse, SubscribeRequest, SubscribeResponse,
-    USER_SERVICE_CHANGE_PASSWORD_SPEC, USER_SERVICE_LIST_DEVICES_SPEC,
-    USER_SERVICE_REVOKE_DEVICE_SPEC, USER_SERVICE_SERVICE_NAME, UpdateLibraryRequest,
-    UpdateLibraryResponse, UserService, WatchStateService, WhoAmIRequest, WhoAmIResponse,
-    external_id, set_played_request::Target,
+    Refusal, RefusalReason, ReportProgressRequest, ReportProgressResponse, ResetPasswordRequest,
+    ResetPasswordResponse, RevokeDeviceRequest, RevokeDeviceResponse,
+    SERVER_SERVICE_GET_SERVER_INFO_SPEC, SIGN_IN_SERVICE_POLL_SIGN_IN_CODE_SPEC,
+    SIGN_IN_SERVICE_SETUP_SPEC, SIGN_IN_SERVICE_SIGN_IN_SPEC,
+    SIGN_IN_SERVICE_START_SIGN_IN_CODE_SPEC, ScanLibraryRequest, ScanLibraryResponse,
+    SearchMetadataRequest, SearchMetadataResponse, ServerService, SessionDelivery, SetMatchRequest,
+    SetMatchResponse, SetPlayedRequest, SetPlayedResponse, SetRoleRequest, SetRoleResponse,
+    SetupRequest, SetupResponse, SignInCodeStatus, SignInRequest, SignInResponse, SignInService,
+    SignOutRequest, SignOutResponse, StartSignInCodeRequest, StartSignInCodeResponse,
+    SubscribeRequest, SubscribeResponse, USER_SERVICE_CHANGE_PASSWORD_SPEC,
+    USER_SERVICE_LIST_DEVICES_SPEC, USER_SERVICE_REVOKE_DEVICE_SPEC, USER_SERVICE_SERVICE_NAME,
+    UpdateLibraryRequest, UpdateLibraryResponse, UserService, WatchStateService, WhoAmIRequest,
+    WhoAmIResponse, external_id, set_played_request::Target,
 };
 
 use crate::{
@@ -193,11 +195,13 @@ impl Access {
     fn check(&self, caller: Option<&Caller>) -> Result<(), ConnectError> {
         match (self, caller) {
             (Self::Anyone, _) | (Self::SignedIn, Some(_)) => Ok(()),
-            (_, None) => Err(ConnectError::unauthenticated("sign in first")),
+            (_, None) => Err(sign_in_required()),
             (Self::Admin, Some(caller)) if caller.user.role == Role::Admin => Ok(()),
-            (Self::Admin, Some(_)) => {
-                Err(ConnectError::permission_denied("this needs the Admin Role"))
-            }
+            (Self::Admin, Some(_)) => Err(refuse(
+                RefusalReason::REFUSAL_REASON_ADMIN_REQUIRED,
+                "this needs the Admin Role",
+            )
+            .into()),
         }
     }
 }
@@ -230,11 +234,7 @@ impl ServerService for ServerServiceHandler {
         _ctx: RequestContext,
         _request: ServiceRequest<'_, GetServerInfoRequest>,
     ) -> ServiceResult<GetServerInfoResponse> {
-        let setup_required = !self
-            .users
-            .any()
-            .await
-            .map_err(|err| database_failed(&err))?;
+        let setup_required = !self.users.any().await.map_err(database_failed)?;
         Response::ok(GetServerInfoResponse {
             name: self.name.clone(),
             version: env!("CARGO_PKG_VERSION").to_owned(),
@@ -294,16 +294,16 @@ impl SignInService for SignInServiceHandler {
         // The Server only made no code because it started with Users. Users are checked before the
         // code, so once there are any every attempt is refused as already set up, as documented.
         let setup_code = self.setup_code.as_ref().ok_or(users::Error::AlreadySetUp)?;
-        if self
-            .users
-            .any()
-            .await
-            .map_err(|err| database_failed(&err))?
-        {
+        if self.users.any().await.map_err(database_failed)? {
             return Err(users::Error::AlreadySetUp.into());
         }
         if !setup_code.matches(&request.setup_code) {
-            return Err(ConnectError::permission_denied("the Setup Code is wrong"));
+            return Err(refuse(
+                RefusalReason::REFUSAL_REASON_WRONG_SETUP_CODE,
+                "the Setup Code is wrong",
+            )
+            .field("setup_code")
+            .into());
         }
         let device = new_device(request.device_name, &ctx)?;
         let signed_in = self
@@ -359,10 +359,7 @@ impl SignInService for SignInServiceHandler {
         _request: ServiceRequest<'_, SignOutRequest>,
     ) -> ServiceResult<SignOutResponse> {
         let device = caller(&ctx)?.device.id;
-        self.users
-            .sign_out(device)
-            .await
-            .map_err(|err| database_failed(&err))?;
+        self.users.sign_out(device).await.map_err(database_failed)?;
         Ok(signed_out(SignOutResponse::default(), &ctx))
     }
 
@@ -390,7 +387,8 @@ impl SignInService for SignInServiceHandler {
     > + Send {
         let request = request.to_owned_message();
         let started = wants_token(request.delivery).and_then(|wants_token| {
-            let device_name = users::checked_name("a Device's name", &request.device_name)?;
+            let device_name =
+                users::checked_name("device_name", "a Device's name", &request.device_name)?;
             Ok(self
                 .sign_in_codes
                 .start(device_name, wants_token, Instant::now())?)
@@ -444,7 +442,13 @@ impl SignInService for SignInServiceHandler {
         let poll = self
             .sign_in_codes
             .poll(request.handle, Instant::now())
-            .ok_or_else(|| ConnectError::not_found("no sign-in is waiting on that handle"))?;
+            .ok_or_else(|| {
+                refuse(
+                    RefusalReason::REFUSAL_REASON_HANDLE_NOT_FOUND,
+                    "no sign-in is waiting on that handle",
+                )
+                .field("handle")
+            })?;
         let (user, device_name, wants_token) = match poll {
             Poll::Waiting => return poll_status(SignInCodeStatus::SIGN_IN_CODE_STATUS_WAITING),
             Poll::Expired => return poll_status(SignInCodeStatus::SIGN_IN_CODE_STATUS_EXPIRED),
@@ -607,9 +611,12 @@ impl MatchService for MatchServiceHandler {
     ) -> ServiceResult<SearchMetadataResponse> {
         let request = request.to_owned_message();
         if request.title.trim().is_empty() {
-            return Err(ConnectError::invalid_argument(
+            return Err(refuse(
+                RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
                 "the title to search for must not be blank",
-            ));
+            )
+            .field("title")
+            .into());
         }
         let query = SearchQuery {
             kind: title_kind_from_proto(request.kind)?,
@@ -634,7 +641,13 @@ impl MatchService for MatchServiceHandler {
             .into_option()
             .and_then(|id| id.id)
             .map(external_id_from_proto)
-            .ok_or_else(|| ConnectError::invalid_argument("the title to Match to is missing"))?;
+            .ok_or_else(|| {
+                refuse(
+                    RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
+                    "the title to Match to is missing",
+                )
+                .field("title_id")
+            })?;
         let scan = self.scanner.lock_library_of(request.item_id).await?;
         let summary = self
             .matcher
@@ -670,12 +683,12 @@ impl MatchService for MatchServiceHandler {
             .contents
             .unmatched(request.library_id)
             .await
-            .map_err(|err| database_failed(&err))?;
+            .map_err(database_failed)?;
         let unparsed_paths = self
             .contents
             .unparsed(request.library_id)
             .await
-            .map_err(|err| database_failed(&err))?;
+            .map_err(database_failed)?;
         Response::ok(ListUnmatchedItemsResponse {
             items: unmatched.into_iter().map(unmatched_to_proto).collect(),
             unparsed_paths,
@@ -719,7 +732,7 @@ impl BrowseService for BrowseServiceHandler {
     ) -> ServiceResult<GetMovieResponse> {
         let user = caller(&ctx)?.user.id;
         let request = request.to_owned_message();
-        let id = required_id(request.movie_id.into_option(), "Movie")?;
+        let id = required_id(request.movie_id.into_option(), "movie_id", "Movie")?;
         let (movie, state) = self.browse.movie(user, request.library_id, &id).await?;
         Response::ok(GetMovieResponse {
             movie: movie_to_proto(movie, state).into(),
@@ -745,7 +758,7 @@ impl BrowseService for BrowseServiceHandler {
         request: ServiceRequest<'_, GetShowRequest>,
     ) -> ServiceResult<GetShowResponse> {
         let request = request.to_owned_message();
-        let id = required_id(request.show_id.into_option(), "Show")?;
+        let id = required_id(request.show_id.into_option(), "show_id", "Show")?;
         let show = self.browse.show(request.library_id, &id).await?;
         let seasons = show
             .seasons
@@ -774,7 +787,7 @@ impl BrowseService for BrowseServiceHandler {
         let user = caller(&ctx)?.user.id;
         let request = request.to_owned_message();
         let number = request.season_number;
-        let show = required_id(request.show_id.into_option(), "Show")?;
+        let show = required_id(request.show_id.into_option(), "show_id", "Show")?;
         let episodes = self
             .browse
             .episodes(user, request.library_id, &show, i64::from(number))
@@ -823,14 +836,23 @@ impl WatchStateService for WatchStateServiceHandler {
         let user = caller(&ctx)?.user.id;
         let progress =
             Progress::new(request.position_ms, request.duration_ms).ok_or_else(|| {
-                ConnectError::invalid_argument(
+                refuse(
+                    RefusalReason::REFUSAL_REASON_DURATION_OUT_OF_RANGE,
                     "the duration must be more than zero and less than 2^63 milliseconds",
                 )
+                .field("duration_ms")
+                .param("minDurationMs", &1)
+                .param("maxDurationMs", &i64::MAX)
             })?;
         let matched_to = self.contents.matched_to(request.version_id).await;
-        let reported = match matched_to.map_err(|err| database_failed(&err))? {
+        let reported = match matched_to.map_err(database_failed)? {
             MatchedTo::NoSuchVersion => {
-                return Err(ConnectError::not_found("there is no such Version"));
+                return Err(refuse(
+                    RefusalReason::REFUSAL_REASON_VERSION_NOT_FOUND,
+                    "there is no such Version",
+                )
+                .field("version_id")
+                .into());
             }
             MatchedTo::Nothing => Ok(()),
             MatchedTo::Movie(movie) => self.watch_states.report_movie(user, &movie, progress).await,
@@ -840,7 +862,7 @@ impl WatchStateService for WatchStateServiceHandler {
                     .await
             }
         };
-        reported.map_err(|err| database_failed(&err))?;
+        reported.map_err(database_failed)?;
         Response::ok(ReportProgressResponse::default())
     }
 
@@ -857,25 +879,29 @@ impl WatchStateService for WatchStateServiceHandler {
             ..
         } = request.to_owned_message();
         let target = target.ok_or_else(|| {
-            ConnectError::invalid_argument("say which Movie, Episode, Season or Show to mark")
+            refuse(
+                RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
+                "say which Movie, Episode, Season or Show to mark",
+            )
+            .field("target")
         })?;
         let browse = &self.browse;
         let watch_states = &self.watch_states;
         let marked = match target {
             Target::MovieId(id) => {
-                let id = required_id(Some(*id), "Movie")?;
+                let id = required_id(Some(*id), "movie_id", "Movie")?;
                 let (movie, _watch_state) = browse.movie(user, library, &id).await?;
                 watch_states.mark_movie(user, &movie.id, played).await
             }
             Target::EpisodeId(id) => {
-                let id = required_id(Some(*id), "Episode")?;
+                let id = required_id(Some(*id), "episode_id", "Episode")?;
                 let episode = browse.episode(library, &id).await?;
                 watch_states
                     .mark_episodes(user, &[&episode.id], played)
                     .await
             }
             Target::Season(season) => {
-                let show = required_id(season.show_id.into_option(), "Show")?;
+                let show = required_id(season.show_id.into_option(), "season.show_id", "Show")?;
                 let season = browse
                     .season(library, &show, i64::from(season.season_number))
                     .await?;
@@ -884,13 +910,13 @@ impl WatchStateService for WatchStateServiceHandler {
                 watch_states.mark_episodes(user, &ids, played).await
             }
             Target::ShowId(id) => {
-                let id = required_id(Some(*id), "Show")?;
+                let id = required_id(Some(*id), "show_id", "Show")?;
                 let show = browse.show(library, &id).await?;
                 let ids: Vec<&ExternalId> = show.episodes().map(|episode| &episode.id).collect();
                 watch_states.mark_episodes(user, &ids, played).await
             }
         };
-        marked.map_err(|err| database_failed(&err))?;
+        marked.map_err(database_failed)?;
         Response::ok(SetPlayedResponse::default())
     }
 }
@@ -932,11 +958,7 @@ impl UserService for UserServiceHandler {
         _ctx: RequestContext,
         _request: ServiceRequest<'_, ListUsersRequest>,
     ) -> ServiceResult<ListUsersResponse> {
-        let users = self
-            .users
-            .list()
-            .await
-            .map_err(|err| database_failed(&err))?;
+        let users = self.users.list().await.map_err(database_failed)?;
         Response::ok(ListUsersResponse {
             users: users.into_iter().map(user_to_proto).collect(),
             ..Default::default()
@@ -980,7 +1002,7 @@ impl UserService for UserServiceHandler {
             .users
             .devices(owner)
             .await
-            .map_err(|err| database_failed(&err))?
+            .map_err(database_failed)?
             .ok_or_else(no_such_user)?;
         let current = caller.device.id;
         Response::ok(ListDevicesResponse {
@@ -1006,9 +1028,14 @@ impl UserService for UserServiceHandler {
             .users
             .revoke(owner, request.device_id)
             .await
-            .map_err(|err| database_failed(&err))?;
+            .map_err(database_failed)?;
         if !revoked {
-            return Err(ConnectError::not_found("that User has no such Device"));
+            return Err(refuse(
+                RefusalReason::REFUSAL_REASON_DEVICE_NOT_FOUND,
+                "that User has no such Device",
+            )
+            .field("device_id")
+            .into());
         }
         let response = RevokeDeviceResponse::default();
         Ok(if request.device_id == caller.device.id {
@@ -1037,7 +1064,7 @@ impl UserService for UserServiceHandler {
         // lock the User out of their own sign-in.
         if matches!(
             changed,
-            Ok(()) | Err(users::Error::Invalid(_) | users::Error::SignedOut)
+            Ok(()) | Err(users::Error::Invalid { .. } | users::Error::SignedOut)
         ) {
             self.sign_in_limits.succeeded(&attempt);
         }
@@ -1053,9 +1080,12 @@ impl UserService for UserServiceHandler {
         let request = request.to_owned_message();
         // Resetting would sign out the calling Device too; `ChangePassword` keeps it.
         if request.user_id == caller(&ctx)?.user.id {
-            return Err(ConnectError::failed_precondition(
+            return Err(refuse(
+                RefusalReason::REFUSAL_REASON_OWN_PASSWORD_RESET,
                 "change your own password with ChangePassword",
-            ));
+            )
+            .field("user_id")
+            .into());
         }
         self.users
             .reset_password(request.user_id, &request.new_password)
@@ -1075,9 +1105,9 @@ fn devices_owner(caller: &Caller, user_id: Option<i64>) -> Result<i64, ConnectEr
     }
 }
 
-/// The Connect error for a User ID that names nobody the caller may see.
+/// The Connect error for the request's `user_id` naming nobody the caller may see.
 fn no_such_user() -> ConnectError {
-    ConnectError::not_found("no User has that ID")
+    users::Error::NoSuchUser.into()
 }
 
 /// `nama.v1.EventService`: live updates.
@@ -1124,7 +1154,8 @@ fn wants_token(delivery: EnumValue<SessionDelivery>) -> Result<bool, ConnectErro
         EnumValue::Known(SessionDelivery::SESSION_DELIVERY_TOKEN) => Ok(true),
         EnumValue::Known(SessionDelivery::SESSION_DELIVERY_COOKIE) => Ok(false),
         EnumValue::Known(SessionDelivery::SESSION_DELIVERY_UNSPECIFIED) | EnumValue::Unknown(_) => {
-            Err(ConnectError::invalid_argument(
+            Err(unknown_enum_value(
+                "delivery",
                 "the session delivery must be cookie or token",
             ))
         }
@@ -1160,7 +1191,16 @@ fn user_agent(headers: &HeaderMap) -> Option<String> {
 fn caller(ctx: &RequestContext) -> Result<&Caller, ConnectError> {
     ctx.extensions()
         .get::<Caller>()
-        .ok_or_else(|| ConnectError::unauthenticated("sign in first"))
+        .ok_or_else(sign_in_required)
+}
+
+/// The Connect error for a call that needs a signed-in Device, made without one.
+fn sign_in_required() -> ConnectError {
+    refuse(
+        RefusalReason::REFUSAL_REASON_SIGN_IN_REQUIRED,
+        "sign in first",
+    )
+    .into()
 }
 
 /// The response to a request whose own Device was just signed out, carrying `body`. A cookie
@@ -1194,7 +1234,7 @@ fn hand_out_session<M>(
 fn event_type_from_proto(kind: EnumValue<EventType>) -> Result<EventType, ConnectError> {
     match kind {
         EnumValue::Known(EventType::EVENT_TYPE_UNSPECIFIED) | EnumValue::Unknown(_) => Err(
-            ConnectError::invalid_argument("an event type must be one this Server knows"),
+            unknown_enum_value("types", "an event type must be one this Server knows"),
         ),
         EnumValue::Known(kind) => Ok(kind),
     }
@@ -1205,7 +1245,7 @@ fn title_kind_from_proto(kind: EnumValue<proto::TitleKind>) -> Result<TitleKind,
         EnumValue::Known(proto::TitleKind::TITLE_KIND_MOVIE) => Ok(TitleKind::Movie),
         EnumValue::Known(proto::TitleKind::TITLE_KIND_SHOW) => Ok(TitleKind::Show),
         EnumValue::Known(proto::TitleKind::TITLE_KIND_UNSPECIFIED) | EnumValue::Unknown(_) => Err(
-            ConnectError::invalid_argument("the kind of title must be movie or show"),
+            unknown_enum_value("kind", "the kind of title must be movie or show"),
         ),
     }
 }
@@ -1380,11 +1420,22 @@ fn external_id_from_proto(id: external_id::Id) -> ExternalId {
     }
 }
 
-/// The id of the title of kind `what` that a request names, which it must name.
-fn required_id(id: Option<proto::ExternalId>, what: &str) -> Result<ExternalId, ConnectError> {
+/// The id of the title of kind `what` that a request names in `field`, which it must name.
+fn required_id(
+    id: Option<proto::ExternalId>,
+    field: &str,
+    what: &str,
+) -> Result<ExternalId, ConnectError> {
     id.and_then(|id| id.id)
         .map(external_id_from_proto)
-        .ok_or_else(|| ConnectError::invalid_argument(format!("the {what}'s id is missing")))
+        .ok_or_else(|| {
+            refuse(
+                RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
+                format!("the {what}'s id is missing"),
+            )
+            .field(field)
+            .into()
+        })
 }
 
 fn external_id_to_proto(id: ExternalId) -> proto::ExternalId {
@@ -1404,7 +1455,7 @@ fn kind_from_proto(kind: EnumValue<LibraryKind>) -> Result<Kind, ConnectError> {
         EnumValue::Known(LibraryKind::LIBRARY_KIND_MOVIES) => Ok(Kind::Movies),
         EnumValue::Known(LibraryKind::LIBRARY_KIND_SHOWS) => Ok(Kind::Shows),
         EnumValue::Known(LibraryKind::LIBRARY_KIND_UNSPECIFIED) | EnumValue::Unknown(_) => Err(
-            ConnectError::invalid_argument("a Library's kind must be movies or shows"),
+            unknown_enum_value("kind", "a Library's kind must be movies or shows"),
         ),
     }
 }
@@ -1428,7 +1479,7 @@ fn role_from_proto(role: EnumValue<proto::Role>) -> Result<Role, ConnectError> {
         EnumValue::Known(proto::Role::ROLE_ADMIN) => Ok(Role::Admin),
         EnumValue::Known(proto::Role::ROLE_MEMBER) => Ok(Role::Member),
         EnumValue::Known(proto::Role::ROLE_UNSPECIFIED) | EnumValue::Unknown(_) => Err(
-            ConnectError::invalid_argument("a User's Role must be admin or member"),
+            unknown_enum_value("role", "a User's Role must be admin or member"),
         ),
     }
 }
@@ -1462,9 +1513,118 @@ fn device_to_proto(device: users::Device, is_current: bool) -> proto::Device {
     }
 }
 
+/// A refusal of a client's request on its way to becoming a [`ConnectError`]: [`refuse`] starts
+/// one, [`Refused::field`] and [`Refused::param`] fill it in.
+struct Refused {
+    code: ErrorCode,
+    refusal: Refusal,
+    message: String,
+}
+
+/// Refuses a request for breaking the rule `reason` names, telling the client `message`. Every
+/// error a client can cause is built here (see AGENTS.md, "Refusals are typed").
+fn refuse(reason: RefusalReason, message: impl Into<String>) -> Refused {
+    Refused {
+        code: refusal_code(reason),
+        refusal: Refusal {
+            reason: reason.into(),
+            ..Default::default()
+        },
+        message: message.into(),
+    }
+}
+
+/// The Connect code `reason` always comes with: API contract, as the reasons are (ADR 0019).
+const fn refusal_code(reason: RefusalReason) -> ErrorCode {
+    use RefusalReason as R;
+    match reason {
+        // ponytail: `UNSPECIFIED` comes only from `users::Error::Invalid` and
+        // `libraries::Error::Invalid`, without the params their messages mention, until #130 gives
+        // each of their rules its own reason and params.
+        R::REFUSAL_REASON_UNSPECIFIED
+        | R::REFUSAL_REASON_FIELD_REQUIRED
+        | R::REFUSAL_REASON_UNKNOWN_ENUM_VALUE
+        | R::REFUSAL_REASON_WRONG_LIBRARY_KIND
+        | R::REFUSAL_REASON_DURATION_OUT_OF_RANGE
+        | R::REFUSAL_REASON_UNKNOWN_TITLE => ErrorCode::InvalidArgument,
+        R::REFUSAL_REASON_SIGN_IN_REQUIRED
+        | R::REFUSAL_REASON_WRONG_NAME_OR_PASSWORD
+        | R::REFUSAL_REASON_WRONG_PASSWORD
+        | R::REFUSAL_REASON_SIGNED_OUT => ErrorCode::Unauthenticated,
+        R::REFUSAL_REASON_ADMIN_REQUIRED | R::REFUSAL_REASON_WRONG_SETUP_CODE => {
+            ErrorCode::PermissionDenied
+        }
+        R::REFUSAL_REASON_TOO_MANY_ATTEMPTS | R::REFUSAL_REASON_TOO_MANY_PENDING_SIGN_INS => {
+            ErrorCode::ResourceExhausted
+        }
+        R::REFUSAL_REASON_ALREADY_SET_UP
+        | R::REFUSAL_REASON_SIGN_IN_CODE_ALREADY_APPROVED
+        | R::REFUSAL_REASON_LAST_ADMIN
+        | R::REFUSAL_REASON_OWN_PASSWORD_RESET => ErrorCode::FailedPrecondition,
+        R::REFUSAL_REASON_SIGN_IN_CODE_NOT_FOUND
+        | R::REFUSAL_REASON_HANDLE_NOT_FOUND
+        | R::REFUSAL_REASON_USER_NOT_FOUND
+        | R::REFUSAL_REASON_DEVICE_NOT_FOUND
+        | R::REFUSAL_REASON_LIBRARY_NOT_FOUND
+        | R::REFUSAL_REASON_NOTHING_MATCHED
+        | R::REFUSAL_REASON_SEASON_NOT_FOUND
+        | R::REFUSAL_REASON_VERSION_NOT_FOUND
+        | R::REFUSAL_REASON_ITEM_NOT_FOUND => ErrorCode::NotFound,
+        R::REFUSAL_REASON_USER_NAME_TAKEN | R::REFUSAL_REASON_FOLDER_TAKEN => {
+            ErrorCode::AlreadyExists
+        }
+        R::REFUSAL_REASON_NO_METADATA_PROVIDER => ErrorCode::Unavailable,
+    }
+}
+
+impl Refused {
+    /// Names the request field, as a path (`season.show_id`), that the refusal is about.
+    fn field(mut self, field: &str) -> Self {
+        field.clone_into(&mut self.refusal.field);
+        self
+    }
+
+    /// Adds `value`, which the message mentions, as the param `key`: lowerCamelCase, with the unit
+    /// in the key (AIP-193).
+    fn param(mut self, key: &str, value: &impl ToString) -> Self {
+        self.refusal
+            .params
+            .insert(key.to_owned(), value.to_string());
+        self
+    }
+}
+
+impl From<Refused> for ConnectError {
+    fn from(refused: Refused) -> Self {
+        let Refused {
+            code,
+            refusal,
+            message,
+        } = refused;
+        let detail = ErrorDetail {
+            // A Refusal is plain strings and an enum, so it always serializes.
+            debug: serde_json::to_value(&refusal).ok(),
+            ..ErrorDetail::from_message(Refusal::FULL_NAME, &refusal)
+        };
+        Self::new(code, message).with_detail(detail)
+    }
+}
+
+/// The Connect error for the enum field `field` left unset, or set to a value this Server doesn't
+/// know.
+fn unknown_enum_value(field: &str, message: &str) -> ConnectError {
+    refuse(RefusalReason::REFUSAL_REASON_UNKNOWN_ENUM_VALUE, message)
+        .field(field)
+        .into()
+}
+
 /// The Connect error a client gets when the database failed. The failure is logged, not sent: it
 /// says nothing the client can act on.
-fn database_failed(err: &sqlx::Error) -> ConnectError {
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "by value, so callers can write `.map_err(database_failed)`"
+)]
+fn database_failed(err: sqlx::Error) -> ConnectError {
     tracing::error!("a request failed: {err}");
     ConnectError::internal("the Server's database failed")
 }
@@ -1473,24 +1633,38 @@ fn database_failed(err: &sqlx::Error) -> ConnectError {
 /// are logged, not sent.
 impl From<users::Error> for ConnectError {
     fn from(err: users::Error) -> Self {
-        match err {
-            users::Error::Invalid(_) => Self::invalid_argument(err.to_string()),
-            users::Error::NameTaken => Self::already_exists(err.to_string()),
-            users::Error::NoSuchUser => Self::not_found(err.to_string()),
-            users::Error::AlreadySetUp | users::Error::LastAdmin => {
-                Self::failed_precondition(err.to_string())
+        use RefusalReason as R;
+        let message = err.to_string();
+        let refused = match err {
+            users::Error::Invalid { field, .. } => {
+                refuse(R::REFUSAL_REASON_UNSPECIFIED, message).field(field)
             }
-            users::Error::WrongNameOrPassword
-            | users::Error::WrongPassword
-            | users::Error::SignedOut => Self::unauthenticated(err.to_string()),
-            users::Error::Database(err) => database_failed(&err),
+            // Only creating a User or setting up the first one takes a name to check.
+            users::Error::NameTaken => {
+                refuse(R::REFUSAL_REASON_USER_NAME_TAKEN, message).field("name")
+            }
+            // Every call that names a User names them in `user_id`.
+            users::Error::NoSuchUser => {
+                refuse(R::REFUSAL_REASON_USER_NOT_FOUND, message).field("user_id")
+            }
+            users::Error::AlreadySetUp => refuse(R::REFUSAL_REASON_ALREADY_SET_UP, message),
+            users::Error::LastAdmin => refuse(R::REFUSAL_REASON_LAST_ADMIN, message),
+            users::Error::WrongNameOrPassword => {
+                refuse(R::REFUSAL_REASON_WRONG_NAME_OR_PASSWORD, message)
+            }
+            users::Error::WrongPassword => {
+                refuse(R::REFUSAL_REASON_WRONG_PASSWORD, message).field("current_password")
+            }
+            users::Error::SignedOut => refuse(R::REFUSAL_REASON_SIGNED_OUT, message),
+            users::Error::Database(err) => return database_failed(err),
             users::Error::NoAuthenticator
             | users::Error::Authenticator(_)
             | users::Error::Random(_) => {
                 tracing::error!("a change to the Users failed: {err}");
-                Self::internal("the Server failed")
+                return Self::internal("the Server failed");
             }
-        }
+        };
+        refused.into()
     }
 }
 
@@ -1507,9 +1681,16 @@ fn client_ip(ctx: &RequestContext) -> Result<IpAddr, ConnectError> {
 /// `Retry-After`.
 impl From<Blocked> for ConnectError {
     fn from(blocked: Blocked) -> Self {
-        let retry_after = HeaderValue::from(blocked.retry_after_secs());
-        let headers = HeaderMap::from_iter([(RETRY_AFTER, retry_after)]);
-        Self::resource_exhausted(blocked.to_string()).with_headers(headers)
+        let retry_after_secs = blocked.retry_after_secs();
+        let headers = HeaderMap::from_iter([(RETRY_AFTER, HeaderValue::from(retry_after_secs))]);
+        Self::from(
+            refuse(
+                RefusalReason::REFUSAL_REASON_TOO_MANY_ATTEMPTS,
+                blocked.to_string(),
+            )
+            .param("retryAfterSeconds", &retry_after_secs),
+        )
+        .with_headers(headers)
     }
 }
 
@@ -1517,15 +1698,24 @@ impl From<Blocked> for ConnectError {
 /// approved. A random number generator that failed is logged, not sent.
 impl From<sign_in_codes::Error> for ConnectError {
     fn from(err: sign_in_codes::Error) -> Self {
-        match err {
-            sign_in_codes::Error::NotFound => Self::not_found(err.to_string()),
-            sign_in_codes::Error::AlreadyApproved => Self::failed_precondition(err.to_string()),
-            sign_in_codes::Error::TooManyPending => Self::resource_exhausted(err.to_string()),
+        use RefusalReason as R;
+        let message = err.to_string();
+        let refused = match err {
+            sign_in_codes::Error::NotFound => {
+                refuse(R::REFUSAL_REASON_SIGN_IN_CODE_NOT_FOUND, message).field("code")
+            }
+            sign_in_codes::Error::AlreadyApproved => {
+                refuse(R::REFUSAL_REASON_SIGN_IN_CODE_ALREADY_APPROVED, message).field("code")
+            }
+            sign_in_codes::Error::TooManyPending => {
+                refuse(R::REFUSAL_REASON_TOO_MANY_PENDING_SIGN_INS, message)
+            }
             sign_in_codes::Error::Random(_) => {
                 tracing::error!("starting a Sign-in Code failed: {err}");
-                Self::internal("the Server failed")
+                return Self::internal("the Server failed");
             }
-        }
+        };
+        refused.into()
     }
 }
 
@@ -1533,15 +1723,24 @@ impl From<sign_in_codes::Error> for ConnectError {
 /// logged, not sent: they say nothing the client can act on.
 impl From<libraries::Error> for ConnectError {
     fn from(err: libraries::Error) -> Self {
-        match err {
-            libraries::Error::Invalid(_) => Self::invalid_argument(err.to_string()),
-            libraries::Error::NotFound(_) => Self::not_found(err.to_string()),
-            libraries::Error::FolderTaken { .. } => Self::already_exists(err.to_string()),
-            libraries::Error::Database(_) => {
-                tracing::error!("a Library request failed: {err}");
-                Self::internal("the Server's database failed")
+        use RefusalReason as R;
+        let message = err.to_string();
+        let refused = match err {
+            libraries::Error::Invalid { field, .. } => {
+                refuse(R::REFUSAL_REASON_UNSPECIFIED, message).field(field)
             }
-        }
+            libraries::Error::NotFound(id) => {
+                refuse(R::REFUSAL_REASON_LIBRARY_NOT_FOUND, message).param("libraryId", &id)
+            }
+            libraries::Error::FolderTaken { folder, library } => {
+                refuse(R::REFUSAL_REASON_FOLDER_TAKEN, message)
+                    .field("folders")
+                    .param("folder", &folder)
+                    .param("library", &library)
+            }
+            libraries::Error::Database(err) => return database_failed(err),
+        };
+        refused.into()
     }
 }
 
@@ -1549,13 +1748,29 @@ impl From<libraries::Error> for ConnectError {
 /// failures are logged, not sent.
 impl From<browse::Error> for ConnectError {
     fn from(err: browse::Error) -> Self {
-        match err {
-            browse::Error::NoSuchLibrary(_)
-            | browse::Error::NothingMatched
-            | browse::Error::NoSuchSeason => Self::not_found(err.to_string()),
-            browse::Error::WrongKind { .. } => Self::invalid_argument(err.to_string()),
-            browse::Error::Database(err) => database_failed(&err),
-        }
+        use RefusalReason as R;
+        let message = err.to_string();
+        let refused = match err {
+            // Every Browse and Watch State call names its Library in `library_id`.
+            browse::Error::NoSuchLibrary(id) => {
+                refuse(R::REFUSAL_REASON_LIBRARY_NOT_FOUND, message)
+                    .field("library_id")
+                    .param("libraryId", &id)
+            }
+            browse::Error::NothingMatched => refuse(R::REFUSAL_REASON_NOTHING_MATCHED, message),
+            browse::Error::NoSuchSeason => refuse(R::REFUSAL_REASON_SEASON_NOT_FOUND, message),
+            browse::Error::WrongKind { wanted } => {
+                let kind = match wanted {
+                    Kind::Movies => "movies",
+                    Kind::Shows => "shows",
+                };
+                refuse(R::REFUSAL_REASON_WRONG_LIBRARY_KIND, message)
+                    .field("library_id")
+                    .param("libraryKind", &kind)
+            }
+            browse::Error::Database(err) => return database_failed(err),
+        };
+        refused.into()
     }
 }
 
@@ -1563,14 +1778,19 @@ impl From<browse::Error> for ConnectError {
 /// not sent: they say nothing the client can act on.
 impl From<ManualError> for ConnectError {
     fn from(err: ManualError) -> Self {
-        match err {
-            ManualError::NoSuchItem(_) => Self::not_found(err.to_string()),
-            ManualError::NoSuchTitle(_) => Self::invalid_argument(err.to_string()),
-            ManualError::Unavailable => Self::unavailable(err.to_string()),
-            ManualError::Database(_) => {
-                tracing::error!("fixing a Match failed: {err}");
-                Self::internal("the Server's database failed")
-            }
-        }
+        use RefusalReason as R;
+        let message = err.to_string();
+        let refused = match err {
+            // Only `SetMatch` and `ClearMatch` name an item.
+            ManualError::NoSuchItem(id) => refuse(R::REFUSAL_REASON_ITEM_NOT_FOUND, message)
+                .field("item_id")
+                .param("itemId", &id),
+            ManualError::NoSuchTitle(id) => refuse(R::REFUSAL_REASON_UNKNOWN_TITLE, message)
+                .field("title_id")
+                .param("titleId", &id),
+            ManualError::Unavailable => refuse(R::REFUSAL_REASON_NO_METADATA_PROVIDER, message),
+            ManualError::Database(err) => return database_failed(err),
+        };
+        refused.into()
     }
 }

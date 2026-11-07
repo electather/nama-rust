@@ -275,7 +275,7 @@ fn finding_failed(err: libraries::Error) -> Error {
     match err {
         libraries::Error::NotFound(id) => Error::NoSuchLibrary(id),
         libraries::Error::Database(err) => Error::Database(err),
-        libraries::Error::Invalid(_) | libraries::Error::FolderTaken { .. } => {
+        libraries::Error::Invalid { .. } | libraries::Error::FolderTaken { .. } => {
             unreachable!("finding a Library refused a change: {err}")
         }
     }

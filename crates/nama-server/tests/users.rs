@@ -2,6 +2,8 @@
 //! Users changing their own password, and Users and Admins listing and revoking Devices, through
 //! the generated `UserService` client, over a real socket and against a real SQLite database.
 
+#[path = "support/refused.rs"]
+mod refused;
 #[path = "support/server.rs"]
 mod server;
 
@@ -14,11 +16,12 @@ use connectrpc::{
 use nama_proto::nama::v1::{
     __buffa::view::SubscribeResponseView, ChangePasswordRequest, CreateUserRequest,
     DeleteUserRequest, Device, EventServiceClient, ListDevicesRequest, ListUsersRequest,
-    ResetPasswordRequest, RevokeDeviceRequest, Role, SessionDelivery, SetRoleRequest,
-    SignInRequest, SignInResponse, SignInServiceClient, SubscribeRequest, SubscribeResponse, User,
-    UserServiceClient, WhoAmIRequest,
+    RefusalReason, ResetPasswordRequest, RevokeDeviceRequest, Role, SessionDelivery,
+    SetRoleRequest, SignInRequest, SignInResponse, SignInServiceClient, SubscribeRequest,
+    SubscribeResponse, User, UserServiceClient, WhoAmIRequest,
 };
 use nama_server::{config::Config, plugins::Registry};
+use refused::{assert_refused, refusal_of};
 use server::{PASSWORD, TestServer};
 
 /// A Server with an Admin signed in, and a client for its `UserService` calling as them.
@@ -185,11 +188,11 @@ async fn admin_ids(client: &UserServiceClient<HttpClient>) -> Vec<i64> {
 }
 
 /// Whether `client` may call an Admin RPC: `Ok` if so, or the code it was refused with.
-async fn admin_rpc(client: &UserServiceClient<HttpClient>) -> Result<(), ErrorCode> {
-    match client.list_users(ListUsersRequest::default()).await {
-        Ok(_) => Ok(()),
-        Err(err) => Err(err.code),
-    }
+async fn admin_rpc(client: &UserServiceClient<HttpClient>) -> Result<(), ConnectError> {
+    client
+        .list_users(ListUsersRequest::default())
+        .await
+        .map(|_| ())
 }
 
 async fn list_devices(
@@ -339,8 +342,14 @@ async fn a_name_another_user_has_in_any_case_already_exists() {
     let taken = fixture.create("gRACE", PASSWORD, Role::ROLE_ADMIN).await;
     let the_admins = fixture.create("ADMIN", PASSWORD, Role::ROLE_MEMBER).await;
 
-    assert_eq!(code(taken), Some(ErrorCode::AlreadyExists));
-    assert_eq!(code(the_admins), Some(ErrorCode::AlreadyExists));
+    for refused in [taken, the_admins] {
+        let refusal = assert_refused(
+            refused,
+            ErrorCode::AlreadyExists,
+            RefusalReason::REFUSAL_REASON_USER_NAME_TAKEN,
+        );
+        assert_eq!(refusal.field, "name");
+    }
 }
 
 #[tokio::test]
@@ -349,21 +358,43 @@ async fn a_name_password_or_role_outside_the_rules_is_refused_and_nobody_is_crea
     let too_long_name = "x".repeat(65);
     let too_long_password = "x".repeat(1025);
 
+    let unspecified = RefusalReason::REFUSAL_REASON_UNSPECIFIED;
     let refusals = [
-        ("   ", PASSWORD, Role::ROLE_MEMBER),
-        (too_long_name.as_str(), PASSWORD, Role::ROLE_MEMBER),
-        ("Grace", "1234567", Role::ROLE_MEMBER),
-        ("Grace", too_long_password.as_str(), Role::ROLE_MEMBER),
-        ("Grace", PASSWORD, Role::ROLE_UNSPECIFIED),
+        ("   ", PASSWORD, Role::ROLE_MEMBER, unspecified, "name"),
+        (
+            too_long_name.as_str(),
+            PASSWORD,
+            Role::ROLE_MEMBER,
+            unspecified,
+            "name",
+        ),
+        (
+            "Grace",
+            "1234567",
+            Role::ROLE_MEMBER,
+            unspecified,
+            "password",
+        ),
+        (
+            "Grace",
+            too_long_password.as_str(),
+            Role::ROLE_MEMBER,
+            unspecified,
+            "password",
+        ),
+        (
+            "Grace",
+            PASSWORD,
+            Role::ROLE_UNSPECIFIED,
+            RefusalReason::REFUSAL_REASON_UNKNOWN_ENUM_VALUE,
+            "role",
+        ),
     ];
-    for (name, password, role) in refusals {
+    for (name, password, role, reason, field) in refusals {
         let refused = fixture.create(name, password, role).await;
 
-        assert_eq!(
-            code(refused),
-            Some(ErrorCode::InvalidArgument),
-            "{name:.8} / {password:.8} / {role:?}"
-        );
+        let refusal = assert_refused(refused, ErrorCode::InvalidArgument, reason);
+        assert_eq!(refusal.field, field, "{name:.8} / {password:.8} / {role:?}");
     }
     assert_eq!(fixture.list().await.unwrap().len(), 1);
 }
@@ -386,13 +417,17 @@ async fn a_promoted_member_may_call_admin_rpcs_on_their_next_request() {
     let fixture = Fixture::start().await;
     let (grace, token) = fixture.signed_in_user("Grace", Role::ROLE_MEMBER).await;
     let as_grace = fixture.client_as(&token);
-    assert_eq!(admin_rpc(&as_grace).await, Err(ErrorCode::PermissionDenied));
+    assert_refused(
+        admin_rpc(&as_grace).await,
+        ErrorCode::PermissionDenied,
+        RefusalReason::REFUSAL_REASON_ADMIN_REQUIRED,
+    );
 
     set_role(&fixture.client, grace, Role::ROLE_ADMIN)
         .await
         .unwrap();
 
-    assert_eq!(admin_rpc(&as_grace).await, Ok(()));
+    admin_rpc(&as_grace).await.unwrap();
 }
 
 #[tokio::test]
@@ -400,13 +435,17 @@ async fn a_demoted_admin_loses_admin_rpcs_on_their_next_request_but_stays_signed
     let fixture = Fixture::start().await;
     let (grace, token) = fixture.signed_in_user("Grace", Role::ROLE_ADMIN).await;
     let as_grace = fixture.client_as(&token);
-    assert_eq!(admin_rpc(&as_grace).await, Ok(()));
+    admin_rpc(&as_grace).await.unwrap();
 
     set_role(&fixture.client, grace, Role::ROLE_MEMBER)
         .await
         .unwrap();
 
-    assert_eq!(admin_rpc(&as_grace).await, Err(ErrorCode::PermissionDenied));
+    assert_refused(
+        admin_rpc(&as_grace).await,
+        ErrorCode::PermissionDenied,
+        RefusalReason::REFUSAL_REASON_ADMIN_REQUIRED,
+    );
     let who = SignInServiceClient::new(
         HttpClient::plaintext(),
         fixture.server.client_config_as(&token),
@@ -425,7 +464,11 @@ async fn demoting_the_last_admin_is_refused() {
 
     let demoted = set_role(&fixture.client, admin, Role::ROLE_MEMBER).await;
 
-    assert_eq!(code(demoted), Some(ErrorCode::FailedPrecondition));
+    assert_refused(
+        demoted,
+        ErrorCode::FailedPrecondition,
+        RefusalReason::REFUSAL_REASON_LAST_ADMIN,
+    );
     assert_eq!(admin_ids(&fixture.client).await, [admin]);
 }
 
@@ -453,18 +496,20 @@ async fn two_admins_demoting_each_other_at_once_leave_exactly_one_admin() {
         set_role(&as_grace, admin, Role::ROLE_MEMBER),
     );
 
-    // Whichever lands second finds its caller already demoted, or itself the last Admin.
-    let refused = |demoted: &Result<(), ConnectError>| {
-        matches!(
-            demoted.as_ref().map_err(|err| err.code),
-            Err(ErrorCode::PermissionDenied | ErrorCode::FailedPrecondition)
-        )
-    };
-    let survivor = match (&grace_demoted, &admin_demoted) {
-        (Ok(()), lost) if refused(lost) => admin,
-        (lost, Ok(())) if refused(lost) => grace,
+    let (survivor, lost) = match (grace_demoted, admin_demoted) {
+        (Ok(()), Err(lost)) => (admin, lost),
+        (Err(lost), Ok(())) => (grace, lost),
         both => panic!("exactly one demotion should succeed: {both:?}"),
     };
+    // Whichever lands second finds its caller already demoted, or itself the last Admin.
+    let reason = refusal_of(&lost).reason;
+    assert!(
+        (lost.code == ErrorCode::PermissionDenied
+            && reason == RefusalReason::REFUSAL_REASON_ADMIN_REQUIRED)
+            || (lost.code == ErrorCode::FailedPrecondition
+                && reason == RefusalReason::REFUSAL_REASON_LAST_ADMIN),
+        "{lost:?}"
+    );
     let as_survivor = if survivor == admin {
         &fixture.client
     } else {
@@ -479,7 +524,12 @@ async fn changing_the_role_of_an_unknown_user_is_not_found() {
 
     let changed = set_role(&fixture.client, 999, Role::ROLE_ADMIN).await;
 
-    assert_eq!(code(changed), Some(ErrorCode::NotFound));
+    let refusal = assert_refused(
+        changed,
+        ErrorCode::NotFound,
+        RefusalReason::REFUSAL_REASON_USER_NOT_FOUND,
+    );
+    assert_eq!(refusal.field, "user_id");
 }
 
 #[tokio::test]
@@ -495,7 +545,11 @@ async fn a_deleted_user_cant_sign_in_and_their_sessions_and_streams_end_at_once(
     }
     assert!(ended(&mut laptop_events).await, "the stream is still open");
     let signed_in = fixture.sign_in("Grace", PASSWORD).await;
-    assert_eq!(code(signed_in), Some(ErrorCode::Unauthenticated));
+    assert_refused(
+        signed_in,
+        ErrorCode::Unauthenticated,
+        RefusalReason::REFUSAL_REASON_WRONG_NAME_OR_PASSWORD,
+    );
     let names: Vec<_> = fixture
         .list()
         .await
@@ -513,7 +567,11 @@ async fn deleting_the_last_admin_is_refused() {
 
     let deleted = delete_user(&fixture.client, admin).await;
 
-    assert_eq!(code(deleted), Some(ErrorCode::FailedPrecondition));
+    assert_refused(
+        deleted,
+        ErrorCode::FailedPrecondition,
+        RefusalReason::REFUSAL_REASON_LAST_ADMIN,
+    );
     assert_eq!(admin_ids(&fixture.client).await, [admin]);
     assert!(
         fixture
@@ -547,7 +605,12 @@ async fn deleting_an_unknown_user_is_not_found() {
 
     let deleted = delete_user(&fixture.client, 999).await;
 
-    assert_eq!(code(deleted), Some(ErrorCode::NotFound));
+    let refusal = assert_refused(
+        deleted,
+        ErrorCode::NotFound,
+        RefusalReason::REFUSAL_REASON_USER_NOT_FOUND,
+    );
+    assert_eq!(refusal.field, "user_id");
 }
 
 #[tokio::test]
@@ -664,11 +727,27 @@ async fn a_member_touching_another_users_devices_gets_not_found() {
     let revoked_as_own = revoke_device(&grace, None, admin_device).await;
     let revoked_as_own_by_id = revoke_device(&grace, Some(grace_id), admin_device).await;
 
-    for refused in [code(listed), code(listed_nobody)] {
-        assert_eq!(refused, Some(ErrorCode::NotFound));
+    for refused in [listed, listed_nobody] {
+        let refusal = assert_refused(
+            refused,
+            ErrorCode::NotFound,
+            RefusalReason::REFUSAL_REASON_USER_NOT_FOUND,
+        );
+        assert_eq!(refusal.field, "user_id");
     }
-    for refused in [revoked_theirs, revoked_as_own, revoked_as_own_by_id] {
-        assert_eq!(code(refused), Some(ErrorCode::NotFound));
+    let revoked_theirs = assert_refused(
+        revoked_theirs,
+        ErrorCode::NotFound,
+        RefusalReason::REFUSAL_REASON_USER_NOT_FOUND,
+    );
+    assert_eq!(revoked_theirs.field, "user_id");
+    for refused in [revoked_as_own, revoked_as_own_by_id] {
+        let refusal = assert_refused(
+            refused,
+            ErrorCode::NotFound,
+            RefusalReason::REFUSAL_REASON_DEVICE_NOT_FOUND,
+        );
+        assert_eq!(refusal.field, "device_id");
     }
     assert!(
         fixture
@@ -685,8 +764,16 @@ async fn an_admin_asking_about_a_user_who_doesnt_exist_gets_not_found() {
     let listed = list_devices(&fixture.client, Some(1000)).await;
     let revoked = revoke_device(&fixture.client, Some(1000), 1).await;
 
-    assert_eq!(code(listed), Some(ErrorCode::NotFound));
-    assert_eq!(code(revoked), Some(ErrorCode::NotFound));
+    assert_refused(
+        listed,
+        ErrorCode::NotFound,
+        RefusalReason::REFUSAL_REASON_USER_NOT_FOUND,
+    );
+    assert_refused(
+        revoked,
+        ErrorCode::NotFound,
+        RefusalReason::REFUSAL_REASON_DEVICE_NOT_FOUND,
+    );
 }
 
 #[tokio::test]
@@ -705,7 +792,11 @@ async fn a_changed_password_signs_in_and_signs_the_users_other_devices_out() {
     assert!(ended(&mut laptop_events).await, "the stream is still open");
     assert_eq!(code(fixture.sign_in("Grace", new_password).await), None);
     let old = fixture.sign_in("Grace", PASSWORD).await;
-    assert_eq!(code(old), Some(ErrorCode::Unauthenticated));
+    assert_refused(
+        old,
+        ErrorCode::Unauthenticated,
+        RefusalReason::REFUSAL_REASON_WRONG_NAME_OR_PASSWORD,
+    );
 }
 
 #[tokio::test]
@@ -720,7 +811,12 @@ async fn a_wrong_current_password_is_unauthenticated_and_changes_nothing() {
     )
     .await;
 
-    assert_eq!(code(changed), Some(ErrorCode::Unauthenticated));
+    let refusal = assert_refused(
+        changed,
+        ErrorCode::Unauthenticated,
+        RefusalReason::REFUSAL_REASON_WRONG_PASSWORD,
+    );
+    assert_eq!(refusal.field, "current_password");
     assert!(fixture.signed_in(&laptop.token).await.unwrap());
     assert_eq!(code(fixture.sign_in("Grace", PASSWORD).await), None);
 }
@@ -732,14 +828,26 @@ async fn the_11th_failed_change_for_a_user_is_blocked_even_with_the_right_passwo
     let grace = fixture.client_as(&phone.token);
     for _ in 0..10 {
         let wrong = change_password(&grace, "not the password", "a brand new password").await;
-        assert_eq!(code(wrong), Some(ErrorCode::Unauthenticated));
+        assert_refused(
+            wrong,
+            ErrorCode::Unauthenticated,
+            RefusalReason::REFUSAL_REASON_WRONG_PASSWORD,
+        );
     }
 
     let blocked = change_password(&grace, PASSWORD, "a brand new password").await;
     let signing_in = fixture.sign_in("grace", PASSWORD).await;
 
-    assert_eq!(code(blocked), Some(ErrorCode::ResourceExhausted));
-    assert_eq!(code(signing_in), Some(ErrorCode::ResourceExhausted));
+    assert_refused(
+        blocked,
+        ErrorCode::ResourceExhausted,
+        RefusalReason::REFUSAL_REASON_TOO_MANY_ATTEMPTS,
+    );
+    assert_refused(
+        signing_in,
+        ErrorCode::ResourceExhausted,
+        RefusalReason::REFUSAL_REASON_TOO_MANY_ATTEMPTS,
+    );
 }
 
 #[tokio::test]
@@ -749,7 +857,12 @@ async fn a_new_password_outside_the_rules_is_refused_and_the_old_one_still_works
 
     let changed = change_password(&fixture.client_as(&phone.token), PASSWORD, "1234567").await;
 
-    assert_eq!(code(changed), Some(ErrorCode::InvalidArgument));
+    let refusal = assert_refused(
+        changed,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_UNSPECIFIED,
+    );
+    assert_eq!(refusal.field, "new_password");
     assert!(fixture.signed_in(&laptop.token).await.unwrap());
     assert_eq!(code(fixture.sign_in("Grace", PASSWORD).await), None);
 }
@@ -761,7 +874,11 @@ async fn new_passwords_outside_the_rules_dont_count_toward_the_limit() {
     let grace = fixture.client_as(&phone.token);
     for _ in 0..10 {
         let refused = change_password(&grace, PASSWORD, "1234567").await;
-        assert_eq!(code(refused), Some(ErrorCode::InvalidArgument));
+        assert_refused(
+            refused,
+            ErrorCode::InvalidArgument,
+            RefusalReason::REFUSAL_REASON_UNSPECIFIED,
+        );
     }
 
     let changed = change_password(&grace, PASSWORD, "a brand new password").await;
@@ -784,12 +901,20 @@ async fn two_devices_changing_the_password_at_once_leave_one_signed_in_with_its_
         change_password(&as_laptop, PASSWORD, laptop_password),
     );
 
-    // Whichever lands second finds its Device already signed out by the first.
-    let (winner, password) = match (code(from_phone), code(from_laptop)) {
-        (None, Some(ErrorCode::Unauthenticated)) => (&phone, phone_password),
-        (Some(ErrorCode::Unauthenticated), None) => (&laptop, laptop_password),
+    let (winner, password, lost) = match (from_phone, from_laptop) {
+        (Ok(()), Err(lost)) => (&phone, phone_password, lost),
+        (Err(lost), Ok(())) => (&laptop, laptop_password, lost),
         both => panic!("exactly one change should succeed: {both:?}"),
     };
+    // Whichever lands second finds its Device already signed out by the first, before or during
+    // its change.
+    assert_eq!(lost.code, ErrorCode::Unauthenticated, "{lost:?}");
+    let reason = refusal_of(&lost).reason;
+    assert!(
+        reason == RefusalReason::REFUSAL_REASON_SIGN_IN_REQUIRED
+            || reason == RefusalReason::REFUSAL_REASON_SIGNED_OUT,
+        "{lost:?}"
+    );
     assert!(fixture.signed_in(&winner.token).await.unwrap());
     assert_eq!(code(fixture.sign_in("Grace", password).await), None);
 }
@@ -819,7 +944,11 @@ async fn after_a_reset_the_new_password_signs_in_and_all_the_users_devices_are_s
     }
     assert_eq!(code(fixture.sign_in("Grace", new_password).await), None);
     let old = fixture.sign_in("Grace", PASSWORD).await;
-    assert_eq!(code(old), Some(ErrorCode::Unauthenticated));
+    assert_refused(
+        old,
+        ErrorCode::Unauthenticated,
+        RefusalReason::REFUSAL_REASON_WRONG_NAME_OR_PASSWORD,
+    );
 }
 
 #[tokio::test]
@@ -829,7 +958,12 @@ async fn resetting_your_own_password_fails_and_keeps_you_signed_in() {
 
     let reset = reset_password(&fixture.client, admin, "a brand new password").await;
 
-    assert_eq!(code(reset), Some(ErrorCode::FailedPrecondition));
+    let refusal = assert_refused(
+        reset,
+        ErrorCode::FailedPrecondition,
+        RefusalReason::REFUSAL_REASON_OWN_PASSWORD_RESET,
+    );
+    assert_eq!(refusal.field, "user_id");
     assert!(
         fixture
             .signed_in(&fixture.server.admin_token)
@@ -844,7 +978,12 @@ async fn resetting_the_password_of_an_unknown_user_is_not_found() {
 
     let reset = reset_password(&fixture.client, 999, "a brand new password").await;
 
-    assert_eq!(code(reset), Some(ErrorCode::NotFound));
+    let refusal = assert_refused(
+        reset,
+        ErrorCode::NotFound,
+        RefusalReason::REFUSAL_REASON_USER_NOT_FOUND,
+    );
+    assert_eq!(refusal.field, "user_id");
 }
 
 #[tokio::test]
@@ -854,7 +993,12 @@ async fn a_reset_password_outside_the_rules_is_refused_and_the_old_one_still_wor
 
     let reset = reset_password(&fixture.client, ids(&phone).0, "1234567").await;
 
-    assert_eq!(code(reset), Some(ErrorCode::InvalidArgument));
+    let refusal = assert_refused(
+        reset,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_UNSPECIFIED,
+    );
+    assert_eq!(refusal.field, "new_password");
     assert!(fixture.signed_in(&laptop.token).await.unwrap());
     assert_eq!(code(fixture.sign_in("Grace", PASSWORD).await), None);
 }

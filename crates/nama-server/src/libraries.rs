@@ -32,9 +32,15 @@ pub(crate) struct Library {
 /// Why a change to the Libraries was refused or failed.
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum Error {
-    /// The request itself is wrong: a blank name, or a folder that isn't a readable directory.
-    #[error("{0}")]
-    Invalid(String),
+    /// The request field `field` is wrong, such as a blank name or a folder that isn't a readable
+    /// directory, for the reason `message` gives.
+    #[error("{message}")]
+    Invalid {
+        /// The request field it is about, as clients name it.
+        field: &'static str,
+        /// Why, for the client.
+        message: String,
+    },
     #[error("there is no Library {0}")]
     NotFound(i64),
     /// A folder in the request already belongs to another Library.
@@ -210,7 +216,10 @@ async fn delete(conn: &mut SqliteConnection, id: i64) -> Result<(), Error> {
 fn check_name(name: &str) -> Result<String, Error> {
     let name = name.trim();
     if name.is_empty() {
-        return Err(Error::Invalid("a Library's name can't be blank".to_owned()));
+        return Err(Error::Invalid {
+            field: "name",
+            message: "a Library's name can't be blank".to_owned(),
+        });
     }
     Ok(name.to_owned())
 }
@@ -218,13 +227,17 @@ fn check_name(name: &str) -> Result<String, Error> {
 // Canonical paths make two spellings of one folder (a trailing slash, a symlink) the same folder.
 async fn check_folders(folders: Vec<String>) -> Result<Vec<String>, Error> {
     if folders.is_empty() {
-        return Err(Error::Invalid(
-            "a Library needs at least one folder".to_owned(),
-        ));
+        return Err(Error::Invalid {
+            field: "folders",
+            message: "a Library needs at least one folder".to_owned(),
+        });
     }
     let mut canonical = Vec::with_capacity(folders.len());
     for folder in folders {
-        let invalid = |problem: String| Error::Invalid(format!("the folder {folder:?} {problem}"));
+        let invalid = |problem: String| Error::Invalid {
+            field: "folders",
+            message: format!("the folder {folder:?} {problem}"),
+        };
         if !Path::new(&folder).is_absolute() {
             return Err(invalid("is not an absolute path".to_owned()));
         }

@@ -1,6 +1,8 @@
 //! Fixing Matches by hand through the generated `MatchService` client, over a real socket, with
 //! the TMDB Plugin enabled against a fake TMDB.
 
+#[path = "support/refused.rs"]
+mod refused;
 #[expect(dead_code, reason = "the harness's plain `start` has no use here")]
 #[path = "support/server.rs"]
 mod server;
@@ -21,11 +23,12 @@ use nama_plugin_tmdb::{
 };
 use nama_proto::nama::v1::{
     ClearMatchRequest, CreateLibraryRequest, ExternalId, LibraryKind, LibraryServiceClient,
-    ListUnmatchedItemsRequest, ListUnmatchedItemsResponse, MatchServiceClient, ScanLibraryRequest,
-    SearchMetadataRequest, SetMatchRequest, SetMatchResponse, TitleKind, UnmatchedItem,
-    external_id,
+    ListUnmatchedItemsRequest, ListUnmatchedItemsResponse, MatchServiceClient, RefusalReason,
+    ScanLibraryRequest, SearchMetadataRequest, SetMatchRequest, SetMatchResponse, TitleKind,
+    UnmatchedItem, external_id,
 };
 use nama_server::{config::Config, contents::Contents, plugins::Registry};
+use refused::assert_refused;
 use server::TestServer;
 use tempfile::TempDir;
 
@@ -348,25 +351,54 @@ async fn search_metadata_passes_the_search_to_the_metadata_provider() {
 async fn search_metadata_without_a_kind_is_invalid() {
     let fx = Fixture::start(LibraryKind::LIBRARY_KIND_MOVIES).await;
 
-    let err = fx
+    let refused = fx
         .matches
         .search_metadata(SearchMetadataRequest {
             title: "Alien".to_owned(),
             ..Default::default()
         })
-        .await
-        .unwrap_err();
+        .await;
 
-    assert_eq!(err.code, ErrorCode::InvalidArgument, "{err:?}");
+    let refusal = assert_refused(
+        refused,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_UNKNOWN_ENUM_VALUE,
+    );
+    assert_eq!(refusal.field, "kind");
+}
+
+#[tokio::test]
+async fn search_metadata_without_a_metadata_provider_is_unavailable() {
+    let fx = Fixture::start_without_metadata(LibraryKind::LIBRARY_KIND_MOVIES).await;
+
+    let refused = fx
+        .matches
+        .search_metadata(SearchMetadataRequest {
+            kind: TitleKind::TITLE_KIND_MOVIE.into(),
+            title: "Alien".to_owned(),
+            ..Default::default()
+        })
+        .await;
+
+    assert_refused(
+        refused,
+        ErrorCode::Unavailable,
+        RefusalReason::REFUSAL_REASON_NO_METADATA_PROVIDER,
+    );
 }
 
 #[tokio::test]
 async fn set_match_for_an_item_that_does_not_exist_is_not_found() {
     let fx = Fixture::start(LibraryKind::LIBRARY_KIND_MOVIES).await;
 
-    let err = fx.set_match(42, 949).await.unwrap_err();
+    let refused = fx.set_match(42, 949).await;
 
-    assert_eq!(err.code, ErrorCode::NotFound, "{err:?}");
+    let refusal = assert_refused(
+        refused,
+        ErrorCode::NotFound,
+        RefusalReason::REFUSAL_REASON_ITEM_NOT_FOUND,
+    );
+    assert_eq!(refusal.field, "item_id");
 }
 
 #[tokio::test]
@@ -375,9 +407,16 @@ async fn set_match_to_a_title_tmdb_does_not_have_is_invalid() {
     fx.write(HOME_MOVIES, VIDEO);
     let (item, _) = fx.scan_until_decided(HOME_MOVIES, VIDEO).await;
 
-    let err = fx.set_match(item, 1).await.unwrap_err();
+    let refused = fx.set_match(item, 1).await;
 
-    assert_eq!(err.code, ErrorCode::InvalidArgument, "{err:?}");
+    let refusal = assert_refused(
+        refused,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_UNKNOWN_TITLE,
+    );
+    assert_eq!(refusal.field, "title_id");
+    let title_id = refusal.params.get("titleId").map(String::as_str);
+    assert_eq!(title_id, Some("tmdb-1"));
 }
 
 #[tokio::test]
@@ -386,16 +425,20 @@ async fn set_match_without_a_title_is_invalid() {
     fx.write(HOME_MOVIES, VIDEO);
     let (item, _) = fx.scan_until_decided(HOME_MOVIES, VIDEO).await;
 
-    let err = fx
+    let refused = fx
         .matches
         .set_match(SetMatchRequest {
             item_id: item,
             ..Default::default()
         })
-        .await
-        .unwrap_err();
+        .await;
 
-    assert_eq!(err.code, ErrorCode::InvalidArgument, "{err:?}");
+    let refusal = assert_refused(
+        refused,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
+    );
+    assert_eq!(refusal.field, "title_id");
 }
 
 #[tokio::test]
@@ -526,16 +569,19 @@ async fn an_item_pinned_unmatched_is_not_listed() {
 async fn listing_the_unmatched_items_of_a_library_that_does_not_exist_is_not_found() {
     let fx = Fixture::start(LibraryKind::LIBRARY_KIND_MOVIES).await;
 
-    let err = fx
+    let refused = fx
         .matches
         .list_unmatched_items(ListUnmatchedItemsRequest {
             library_id: fx.library + 1,
             ..Default::default()
         })
-        .await
-        .unwrap_err();
+        .await;
 
-    assert_eq!(err.code, ErrorCode::NotFound, "{err:?}");
+    assert_refused(
+        refused,
+        ErrorCode::NotFound,
+        RefusalReason::REFUSAL_REASON_LIBRARY_NOT_FOUND,
+    );
 }
 
 /// Too little to go on: no year and no ID hint.

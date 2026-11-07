@@ -1,6 +1,8 @@
 //! Who may call what: a session for everything but the public RPCs, and the Admin Role for
 //! managing Libraries, Matches and Users, over a real socket and against a real SQLite database.
 
+#[path = "support/refused.rs"]
+mod refused;
 #[path = "support/server.rs"]
 mod server;
 
@@ -13,14 +15,15 @@ use connectrpc::{
 use hyper::{HeaderMap, Method};
 use nama_proto::nama::v1::{
     __buffa::view::SubscribeResponseView, CreateLibraryRequest, CreateUserRequest,
-    EventServiceClient, LibraryKind, LibraryServiceClient, ListLibrariesRequest, Role,
-    ScanLibraryRequest, SubscribeRequest, SubscribeResponse, UserServiceClient,
+    EventServiceClient, LibraryKind, LibraryServiceClient, ListLibrariesRequest, RefusalReason,
+    Role, ScanLibraryRequest, SubscribeRequest, SubscribeResponse, UserServiceClient,
 };
 use nama_server::{
     config::Config,
     plugins::Registry,
     users::{NewDevice, Users},
 };
+use refused::assert_refused;
 use serde_json::Value;
 use server::{PASSWORD, TestServer};
 
@@ -88,6 +91,15 @@ impl Reply {
             .and_then(Value::as_str)
             .unwrap_or_default()
             .to_owned()
+    }
+
+    /// The error the body holds, as a client decodes it.
+    #[expect(
+        clippy::unwrap_used,
+        reason = "a test helper fails its test by panicking"
+    )]
+    fn refused(&self) -> Result<(), ConnectError> {
+        Err(serde_json::from_slice(&self.body).unwrap())
     }
 }
 
@@ -188,15 +200,20 @@ async fn an_unauthenticated_call_to_anything_but_the_public_rpcs_is_unauthentica
     for path in ADMIN_ONLY.iter().chain(&BROWSE).chain(&SIGNED_IN) {
         let reply = post_json(&server, path, None).await;
 
-        assert_eq!(reply.code(), "unauthenticated", "{path}");
+        assert_refused(
+            reply.refused(),
+            ErrorCode::Unauthenticated,
+            RefusalReason::REFUSAL_REASON_SIGN_IN_REQUIRED,
+        );
     }
     let subscribed = match subscribe(server.anonymous_client_config()).await {
         Ok(mut subscription) => next_event(&mut subscription).await.map(|_| ()),
         Err(err) => Err(err),
     };
-    assert_eq!(
-        subscribed.map_err(|err| err.code),
-        Err(ErrorCode::Unauthenticated)
+    assert_refused(
+        subscribed,
+        ErrorCode::Unauthenticated,
+        RefusalReason::REFUSAL_REASON_SIGN_IN_REQUIRED,
     );
 }
 
@@ -207,7 +224,11 @@ async fn a_member_managing_libraries_matches_or_users_is_permission_denied() {
     for path in ADMIN_ONLY {
         let reply = post_json(&server, path, Some(&member_token)).await;
 
-        assert_eq!(reply.code(), "permission_denied", "{path}");
+        assert_refused(
+            reply.refused(),
+            ErrorCode::PermissionDenied,
+            RefusalReason::REFUSAL_REASON_ADMIN_REQUIRED,
+        );
     }
 }
 

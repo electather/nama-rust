@@ -1,5 +1,7 @@
 //! Live updates through the generated `EventService` client, over a real socket.
 
+#[path = "support/refused.rs"]
+mod refused;
 #[path = "support/server.rs"]
 mod server;
 
@@ -12,11 +14,12 @@ use connectrpc::{
 use nama_plugin_api::{BoxFuture, Observer, Plugin, PluginId, Registrar, points};
 use nama_proto::nama::v1::{
     __buffa::view::SubscribeResponseView, CreateLibraryRequest, Event, EventServiceClient,
-    EventType, LibraryItemAdded, LibraryKind, LibraryServiceClient, ScanFinished,
+    EventType, LibraryItemAdded, LibraryKind, LibraryServiceClient, RefusalReason, ScanFinished,
     ScanLibraryRequest, ScanProgress, ScanStarted, SubscribeRequest, SubscribeResponse, event,
     subscribe_response,
 };
 use nama_server::{config::Config, plugins::Registry};
+use refused::assert_refused;
 use server::TestServer;
 use tempfile::TempDir;
 use tokio::sync::mpsc;
@@ -286,11 +289,15 @@ async fn subscribing_to_an_unspecified_event_type_is_an_invalid_argument() {
         })
         .await;
 
-    let error = tokio::time::timeout(WAIT, refused.message::<SubscribeResponse>())
+    let message = tokio::time::timeout(WAIT, refused.message::<SubscribeResponse>())
         .await
-        .expect("timed out waiting for the refusal")
-        .expect_err("subscribed with an unspecified event type");
-    assert_eq!(error.code, ErrorCode::InvalidArgument);
+        .expect("timed out waiting for the refusal");
+    let refusal = assert_refused(
+        message,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_UNKNOWN_ENUM_VALUE,
+    );
+    assert_eq!(refusal.field, "types");
 }
 
 #[tokio::test]
