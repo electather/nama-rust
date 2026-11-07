@@ -1,6 +1,6 @@
-//! Admins creating, listing and changing the Role of Users, Users changing their own password, and
-//! Users and Admins listing and revoking Devices, through the generated `UserService` client, over
-//! a real socket and against a real SQLite database.
+//! Admins creating, listing, changing the Role of and deleting Users, Users changing their own
+//! password, and Users and Admins listing and revoking Devices, through the generated `UserService`
+//! client, over a real socket and against a real SQLite database.
 
 #[path = "support/server.rs"]
 mod server;
@@ -12,10 +12,11 @@ use connectrpc::{
     client::{ClientConfig, HttpClient, ServerStream},
 };
 use nama_proto::nama::v1::{
-    __buffa::view::SubscribeResponseView, ChangePasswordRequest, CreateUserRequest, Device,
-    EventServiceClient, ListDevicesRequest, ListUsersRequest, RevokeDeviceRequest, Role,
-    SessionDelivery, SetRoleRequest, SignInRequest, SignInResponse, SignInServiceClient,
-    SubscribeRequest, SubscribeResponse, User, UserServiceClient, WhoAmIRequest,
+    __buffa::view::SubscribeResponseView, ChangePasswordRequest, CreateUserRequest,
+    DeleteUserRequest, Device, EventServiceClient, ListDevicesRequest, ListUsersRequest,
+    RevokeDeviceRequest, Role, SessionDelivery, SetRoleRequest, SignInRequest, SignInResponse,
+    SignInServiceClient, SubscribeRequest, SubscribeResponse, User, UserServiceClient,
+    WhoAmIRequest,
 };
 use nama_server::{config::Config, plugins::Registry};
 use server::{PASSWORD, TestServer};
@@ -148,6 +149,20 @@ async fn set_role(
         .set_role(SetRoleRequest {
             user_id,
             role: role.into(),
+            ..Default::default()
+        })
+        .await?;
+    Ok(())
+}
+
+/// Deletes the User `user_id`, calling with `client`.
+async fn delete_user(
+    client: &UserServiceClient<HttpClient>,
+    user_id: i64,
+) -> Result<(), ConnectError> {
+    client
+        .delete_user(DeleteUserRequest {
+            user_id,
             ..Default::default()
         })
         .await?;
@@ -460,6 +475,74 @@ async fn changing_the_role_of_an_unknown_user_is_not_found() {
     let changed = set_role(&fixture.client, 999, Role::ROLE_ADMIN).await;
 
     assert_eq!(code(changed), Some(ErrorCode::NotFound));
+}
+
+#[tokio::test]
+async fn a_deleted_user_cant_sign_in_and_their_sessions_and_streams_end_at_once() {
+    let fixture = Fixture::start().await;
+    let (phone, laptop) = fixture.grace_on_phone_and_laptop().await;
+    let mut laptop_events = subscribe(fixture.server.client_config_as(&laptop.token)).await;
+
+    delete_user(&fixture.client, ids(&phone).0).await.unwrap();
+
+    for token in [&phone.token, &laptop.token] {
+        assert!(!fixture.signed_in(token).await.unwrap());
+    }
+    assert!(ended(&mut laptop_events).await, "the stream is still open");
+    let signed_in = fixture.sign_in("Grace", PASSWORD).await;
+    assert_eq!(code(signed_in), Some(ErrorCode::Unauthenticated));
+    let names: Vec<_> = fixture
+        .list()
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|user| user.name)
+        .collect();
+    assert!(!names.contains(&"Grace".to_owned()), "{names:?}");
+}
+
+#[tokio::test]
+async fn deleting_the_last_admin_is_refused() {
+    let fixture = Fixture::start().await;
+    let admin = fixture.first_admin_id().await;
+
+    let deleted = delete_user(&fixture.client, admin).await;
+
+    assert_eq!(code(deleted), Some(ErrorCode::FailedPrecondition));
+    assert_eq!(admin_ids(&fixture.client).await, [admin]);
+    assert!(
+        fixture
+            .signed_in(&fixture.server.admin_token)
+            .await
+            .unwrap()
+    );
+}
+
+#[tokio::test]
+async fn an_admin_may_delete_themselves_while_another_admin_exists() {
+    let fixture = Fixture::start().await;
+    let admin = fixture.first_admin_id().await;
+    let (grace, token) = fixture.signed_in_user("Grace", Role::ROLE_ADMIN).await;
+
+    let deleted = delete_user(&fixture.client, admin).await;
+
+    assert_eq!(code(deleted), None);
+    assert!(
+        !fixture
+            .signed_in(&fixture.server.admin_token)
+            .await
+            .unwrap()
+    );
+    assert_eq!(admin_ids(&fixture.client_as(&token)).await, [grace]);
+}
+
+#[tokio::test]
+async fn deleting_an_unknown_user_is_not_found() {
+    let fixture = Fixture::start().await;
+
+    let deleted = delete_user(&fixture.client, 999).await;
+
+    assert_eq!(code(deleted), Some(ErrorCode::NotFound));
 }
 
 #[tokio::test]

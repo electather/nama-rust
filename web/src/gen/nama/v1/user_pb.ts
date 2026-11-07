@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file nama/v1/user.proto.
  */
 export const file_nama_v1_user: GenFile = /*@__PURE__*/
-  fileDesc("ChJuYW1hL3YxL3VzZXIucHJvdG8SB25hbWEudjEiUAoRQ3JlYXRlVXNlclJlcXVlc3QSDAoEbmFtZRgBIAEoCRIQCghwYXNzd29yZBgCIAEoCRIbCgRyb2xlGAMgASgOMg0ubmFtYS52MS5Sb2xlIiAKEkNyZWF0ZVVzZXJSZXNwb25zZRIKCgJpZBgBIAEoAyISChBMaXN0VXNlcnNSZXF1ZXN0IjEKEUxpc3RVc2Vyc1Jlc3BvbnNlEhwKBXVzZXJzGAEgAygLMg0ubmFtYS52MS5Vc2VyIj4KDlNldFJvbGVSZXF1ZXN0Eg8KB3VzZXJfaWQYASABKAMSGwoEcm9sZRgCIAEoDjINLm5hbWEudjEuUm9sZSIRCg9TZXRSb2xlUmVzcG9uc2UiNgoSTGlzdERldmljZXNSZXF1ZXN0EhQKB3VzZXJfaWQYASABKANIAIgBAUIKCghfdXNlcl9pZCI3ChNMaXN0RGV2aWNlc1Jlc3BvbnNlEiAKB2RldmljZXMYASADKAsyDy5uYW1hLnYxLkRldmljZSJKChNSZXZva2VEZXZpY2VSZXF1ZXN0EhQKB3VzZXJfaWQYASABKANIAIgBARIRCglkZXZpY2VfaWQYAiABKANCCgoIX3VzZXJfaWQiFgoUUmV2b2tlRGV2aWNlUmVzcG9uc2UiRwoVQ2hhbmdlUGFzc3dvcmRSZXF1ZXN0EhgKEGN1cnJlbnRfcGFzc3dvcmQYASABKAkSFAoMbmV3X3Bhc3N3b3JkGAIgASgJIhgKFkNoYW5nZVBhc3N3b3JkUmVzcG9uc2UyzwMKC1VzZXJTZXJ2aWNlEkUKCkNyZWF0ZVVzZXISGi5uYW1hLnYxLkNyZWF0ZVVzZXJSZXF1ZXN0GhsubmFtYS52MS5DcmVhdGVVc2VyUmVzcG9uc2USRwoJTGlzdFVzZXJzEhkubmFtYS52MS5MaXN0VXNlcnNSZXF1ZXN0GhoubmFtYS52MS5MaXN0VXNlcnNSZXNwb25zZSIDkAIBEkEKB1NldFJvbGUSFy5uYW1hLnYxLlNldFJvbGVSZXF1ZXN0GhgubmFtYS52MS5TZXRSb2xlUmVzcG9uc2UiA5ACAhJNCgtMaXN0RGV2aWNlcxIbLm5hbWEudjEuTGlzdERldmljZXNSZXF1ZXN0GhwubmFtYS52MS5MaXN0RGV2aWNlc1Jlc3BvbnNlIgOQAgESSwoMUmV2b2tlRGV2aWNlEhwubmFtYS52MS5SZXZva2VEZXZpY2VSZXF1ZXN0Gh0ubmFtYS52MS5SZXZva2VEZXZpY2VSZXNwb25zZRJRCg5DaGFuZ2VQYXNzd29yZBIeLm5hbWEudjEuQ2hhbmdlUGFzc3dvcmRSZXF1ZXN0Gh8ubmFtYS52MS5DaGFuZ2VQYXNzd29yZFJlc3BvbnNlYgZwcm90bzM", [file_nama_v1_sign_in]);
+  fileDesc("ChJuYW1hL3YxL3VzZXIucHJvdG8SB25hbWEudjEiUAoRQ3JlYXRlVXNlclJlcXVlc3QSDAoEbmFtZRgBIAEoCRIQCghwYXNzd29yZBgCIAEoCRIbCgRyb2xlGAMgASgOMg0ubmFtYS52MS5Sb2xlIiAKEkNyZWF0ZVVzZXJSZXNwb25zZRIKCgJpZBgBIAEoAyISChBMaXN0VXNlcnNSZXF1ZXN0IjEKEUxpc3RVc2Vyc1Jlc3BvbnNlEhwKBXVzZXJzGAEgAygLMg0ubmFtYS52MS5Vc2VyIj4KDlNldFJvbGVSZXF1ZXN0Eg8KB3VzZXJfaWQYASABKAMSGwoEcm9sZRgCIAEoDjINLm5hbWEudjEuUm9sZSIRCg9TZXRSb2xlUmVzcG9uc2UiJAoRRGVsZXRlVXNlclJlcXVlc3QSDwoHdXNlcl9pZBgBIAEoAyIUChJEZWxldGVVc2VyUmVzcG9uc2UiNgoSTGlzdERldmljZXNSZXF1ZXN0EhQKB3VzZXJfaWQYASABKANIAIgBAUIKCghfdXNlcl9pZCI3ChNMaXN0RGV2aWNlc1Jlc3BvbnNlEiAKB2RldmljZXMYASADKAsyDy5uYW1hLnYxLkRldmljZSJKChNSZXZva2VEZXZpY2VSZXF1ZXN0EhQKB3VzZXJfaWQYASABKANIAIgBARIRCglkZXZpY2VfaWQYAiABKANCCgoIX3VzZXJfaWQiFgoUUmV2b2tlRGV2aWNlUmVzcG9uc2UiRwoVQ2hhbmdlUGFzc3dvcmRSZXF1ZXN0EhgKEGN1cnJlbnRfcGFzc3dvcmQYASABKAkSFAoMbmV3X3Bhc3N3b3JkGAIgASgJIhgKFkNoYW5nZVBhc3N3b3JkUmVzcG9uc2UymwQKC1VzZXJTZXJ2aWNlEkUKCkNyZWF0ZVVzZXISGi5uYW1hLnYxLkNyZWF0ZVVzZXJSZXF1ZXN0GhsubmFtYS52MS5DcmVhdGVVc2VyUmVzcG9uc2USRwoJTGlzdFVzZXJzEhkubmFtYS52MS5MaXN0VXNlcnNSZXF1ZXN0GhoubmFtYS52MS5MaXN0VXNlcnNSZXNwb25zZSIDkAIBEkEKB1NldFJvbGUSFy5uYW1hLnYxLlNldFJvbGVSZXF1ZXN0GhgubmFtYS52MS5TZXRSb2xlUmVzcG9uc2UiA5ACAhJKCgpEZWxldGVVc2VyEhoubmFtYS52MS5EZWxldGVVc2VyUmVxdWVzdBobLm5hbWEudjEuRGVsZXRlVXNlclJlc3BvbnNlIgOQAgISTQoLTGlzdERldmljZXMSGy5uYW1hLnYxLkxpc3REZXZpY2VzUmVxdWVzdBocLm5hbWEudjEuTGlzdERldmljZXNSZXNwb25zZSIDkAIBEksKDFJldm9rZURldmljZRIcLm5hbWEudjEuUmV2b2tlRGV2aWNlUmVxdWVzdBodLm5hbWEudjEuUmV2b2tlRGV2aWNlUmVzcG9uc2USUQoOQ2hhbmdlUGFzc3dvcmQSHi5uYW1hLnYxLkNoYW5nZVBhc3N3b3JkUmVxdWVzdBofLm5hbWEudjEuQ2hhbmdlUGFzc3dvcmRSZXNwb25zZWIGcHJvdG8z", [file_nama_v1_sign_in]);
 
 /**
  * @generated from message nama.v1.CreateUserRequest
@@ -136,6 +136,38 @@ export const SetRoleResponseSchema: GenMessage<SetRoleResponse> = /*@__PURE__*/
   messageDesc(file_nama_v1_user, 5);
 
 /**
+ * @generated from message nama.v1.DeleteUserRequest
+ */
+export type DeleteUserRequest = Message<"nama.v1.DeleteUserRequest"> & {
+  /**
+   * The ID of the User to delete.
+   *
+   * @generated from field: int64 user_id = 1;
+   */
+  userId: bigint;
+};
+
+/**
+ * Describes the message nama.v1.DeleteUserRequest.
+ * Use `create(DeleteUserRequestSchema)` to create a new message.
+ */
+export const DeleteUserRequestSchema: GenMessage<DeleteUserRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_user, 6);
+
+/**
+ * @generated from message nama.v1.DeleteUserResponse
+ */
+export type DeleteUserResponse = Message<"nama.v1.DeleteUserResponse"> & {
+};
+
+/**
+ * Describes the message nama.v1.DeleteUserResponse.
+ * Use `create(DeleteUserResponseSchema)` to create a new message.
+ */
+export const DeleteUserResponseSchema: GenMessage<DeleteUserResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_user, 7);
+
+/**
  * @generated from message nama.v1.ListDevicesRequest
  */
 export type ListDevicesRequest = Message<"nama.v1.ListDevicesRequest"> & {
@@ -152,7 +184,7 @@ export type ListDevicesRequest = Message<"nama.v1.ListDevicesRequest"> & {
  * Use `create(ListDevicesRequestSchema)` to create a new message.
  */
 export const ListDevicesRequestSchema: GenMessage<ListDevicesRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 6);
+  messageDesc(file_nama_v1_user, 8);
 
 /**
  * @generated from message nama.v1.ListDevicesResponse
@@ -169,7 +201,7 @@ export type ListDevicesResponse = Message<"nama.v1.ListDevicesResponse"> & {
  * Use `create(ListDevicesResponseSchema)` to create a new message.
  */
 export const ListDevicesResponseSchema: GenMessage<ListDevicesResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 7);
+  messageDesc(file_nama_v1_user, 9);
 
 /**
  * @generated from message nama.v1.RevokeDeviceRequest
@@ -195,7 +227,7 @@ export type RevokeDeviceRequest = Message<"nama.v1.RevokeDeviceRequest"> & {
  * Use `create(RevokeDeviceRequestSchema)` to create a new message.
  */
 export const RevokeDeviceRequestSchema: GenMessage<RevokeDeviceRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 8);
+  messageDesc(file_nama_v1_user, 10);
 
 /**
  * @generated from message nama.v1.RevokeDeviceResponse
@@ -208,7 +240,7 @@ export type RevokeDeviceResponse = Message<"nama.v1.RevokeDeviceResponse"> & {
  * Use `create(RevokeDeviceResponseSchema)` to create a new message.
  */
 export const RevokeDeviceResponseSchema: GenMessage<RevokeDeviceResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 9);
+  messageDesc(file_nama_v1_user, 11);
 
 /**
  * @generated from message nama.v1.ChangePasswordRequest
@@ -234,7 +266,7 @@ export type ChangePasswordRequest = Message<"nama.v1.ChangePasswordRequest"> & {
  * Use `create(ChangePasswordRequestSchema)` to create a new message.
  */
 export const ChangePasswordRequestSchema: GenMessage<ChangePasswordRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 10);
+  messageDesc(file_nama_v1_user, 12);
 
 /**
  * @generated from message nama.v1.ChangePasswordResponse
@@ -247,7 +279,7 @@ export type ChangePasswordResponse = Message<"nama.v1.ChangePasswordResponse"> &
  * Use `create(ChangePasswordResponseSchema)` to create a new message.
  */
 export const ChangePasswordResponseSchema: GenMessage<ChangePasswordResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 11);
+  messageDesc(file_nama_v1_user, 13);
 
 /**
  * Managing the Server's Users and their Devices. Every RPC but `ListDevices`, `RevokeDevice` and
@@ -290,6 +322,20 @@ export const UserService: GenService<{
     methodKind: "unary";
     input: typeof SetRoleRequestSchema;
     output: typeof SetRoleResponseSchema;
+  },
+  /**
+   * Deletes a User with their Devices and credentials, so they can't sign in, their sessions stop
+   * working at once and their open `EventService.Subscribe` streams end. An Admin may delete
+   * themselves, which signs out the calling Device too. Fails with `not_found` if no User has the
+   * ID, so a retry after a delete that went through gets `not_found`, and `failed_precondition` if
+   * it would leave the Server with no Admin.
+   *
+   * @generated from rpc nama.v1.UserService.DeleteUser
+   */
+  deleteUser: {
+    methodKind: "unary";
+    input: typeof DeleteUserRequestSchema;
+    output: typeof DeleteUserResponseSchema;
   },
   /**
    * Lists a User's Devices that haven't expired, oldest first. Any signed-in User may list their

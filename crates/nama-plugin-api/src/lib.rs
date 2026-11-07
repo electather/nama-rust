@@ -61,6 +61,13 @@ impl PluginId {
     }
 }
 
+impl From<String> for PluginId {
+    /// A Plugin id read at run time, such as one stored with a Match.
+    fn from(id: String) -> Self {
+        Self(Cow::Owned(id))
+    }
+}
+
 impl fmt::Display for PluginId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.0)

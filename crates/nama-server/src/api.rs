@@ -28,30 +28,31 @@ use nama_proto::nama::v1::{
     self as proto, ApproveSignInCodeRequest, ApproveSignInCodeResponse, BrowseService,
     ChangePasswordRequest, ChangePasswordResponse, ClearMatchRequest, ClearMatchResponse,
     CreateLibraryRequest, CreateLibraryResponse, CreateUserRequest, CreateUserResponse,
-    DeleteLibraryRequest, DeleteLibraryResponse, EventService, EventType, GetLibraryRequest,
-    GetLibraryResponse, GetMovieRequest, GetMovieResponse, GetServerInfoRequest,
-    GetServerInfoResponse, GetShowRequest, GetShowResponse, LIBRARY_SERVICE_SERVICE_NAME,
-    LibraryKind, LibraryService, ListDevicesRequest, ListDevicesResponse, ListEpisodesRequest,
-    ListEpisodesResponse, ListLibrariesRequest, ListLibrariesResponse, ListMoviesRequest,
-    ListMoviesResponse, ListShowsRequest, ListShowsResponse, ListUnmatchedItemsRequest,
-    ListUnmatchedItemsResponse, ListUsersRequest, ListUsersResponse, LookUpSignInCodeRequest,
-    LookUpSignInCodeResponse, MATCH_SERVICE_SERVICE_NAME, MatchService, PollSignInCodeRequest,
-    PollSignInCodeResponse, RevokeDeviceRequest, RevokeDeviceResponse,
-    SERVER_SERVICE_GET_SERVER_INFO_SPEC, SIGN_IN_SERVICE_POLL_SIGN_IN_CODE_SPEC,
-    SIGN_IN_SERVICE_SETUP_SPEC, SIGN_IN_SERVICE_SIGN_IN_SPEC,
-    SIGN_IN_SERVICE_START_SIGN_IN_CODE_SPEC, ScanLibraryRequest, ScanLibraryResponse,
-    SearchMetadataRequest, SearchMetadataResponse, ServerService, SessionDelivery, SetMatchRequest,
-    SetMatchResponse, SetRoleRequest, SetRoleResponse, SetupRequest, SetupResponse,
-    SignInCodeStatus, SignInRequest, SignInResponse, SignInService, SignOutRequest,
-    SignOutResponse, StartSignInCodeRequest, StartSignInCodeResponse, SubscribeRequest,
-    SubscribeResponse, USER_SERVICE_CHANGE_PASSWORD_SPEC, USER_SERVICE_LIST_DEVICES_SPEC,
-    USER_SERVICE_REVOKE_DEVICE_SPEC, USER_SERVICE_SERVICE_NAME, UpdateLibraryRequest,
-    UpdateLibraryResponse, UserService, WhoAmIRequest, WhoAmIResponse, external_id,
+    DeleteLibraryRequest, DeleteLibraryResponse, DeleteUserRequest, DeleteUserResponse,
+    EventService, EventType, GetLibraryRequest, GetLibraryResponse, GetMovieRequest,
+    GetMovieResponse, GetServerInfoRequest, GetServerInfoResponse, GetShowRequest, GetShowResponse,
+    LIBRARY_SERVICE_SERVICE_NAME, LibraryKind, LibraryService, ListDevicesRequest,
+    ListDevicesResponse, ListEpisodesRequest, ListEpisodesResponse, ListLibrariesRequest,
+    ListLibrariesResponse, ListMoviesRequest, ListMoviesResponse, ListShowsRequest,
+    ListShowsResponse, ListUnmatchedItemsRequest, ListUnmatchedItemsResponse, ListUsersRequest,
+    ListUsersResponse, LookUpSignInCodeRequest, LookUpSignInCodeResponse,
+    MATCH_SERVICE_SERVICE_NAME, MatchService, PollSignInCodeRequest, PollSignInCodeResponse,
+    RevokeDeviceRequest, RevokeDeviceResponse, SERVER_SERVICE_GET_SERVER_INFO_SPEC,
+    SIGN_IN_SERVICE_POLL_SIGN_IN_CODE_SPEC, SIGN_IN_SERVICE_SETUP_SPEC,
+    SIGN_IN_SERVICE_SIGN_IN_SPEC, SIGN_IN_SERVICE_START_SIGN_IN_CODE_SPEC, ScanLibraryRequest,
+    ScanLibraryResponse, SearchMetadataRequest, SearchMetadataResponse, ServerService,
+    SessionDelivery, SetMatchRequest, SetMatchResponse, SetRoleRequest, SetRoleResponse,
+    SetupRequest, SetupResponse, SignInCodeStatus, SignInRequest, SignInResponse, SignInService,
+    SignOutRequest, SignOutResponse, StartSignInCodeRequest, StartSignInCodeResponse,
+    SubscribeRequest, SubscribeResponse, USER_SERVICE_CHANGE_PASSWORD_SPEC,
+    USER_SERVICE_LIST_DEVICES_SPEC, USER_SERVICE_REVOKE_DEVICE_SPEC, USER_SERVICE_SERVICE_NAME,
+    UpdateLibraryRequest, UpdateLibraryResponse, UserService, WhoAmIRequest, WhoAmIResponse,
+    external_id,
 };
 use tokio::sync::OwnedMutexGuard;
 
 use crate::{
-    artwork,
+    artwork::{self, Artwork},
     config::Config,
     contents::{Contents, Episode, Item, Movie, Show, Unmatched, Version},
     db::Database,
@@ -66,8 +67,8 @@ use crate::{
     users::{self, Caller, Role, SetupCode, SignedIn, Users},
 };
 
-/// Routes every RPC the Server answers, each behind the layers that identify the caller and refuse
-/// calls they may not make.
+/// Routes every RPC the Server answers, and its artwork, each behind the layers that identify the
+/// caller and refuse calls they may not make.
 #[expect(
     clippy::too_many_arguments,
     reason = "each is a separate handle the services are built from; a struct bundling them would \
@@ -83,6 +84,10 @@ pub(crate) fn router(
 ) -> axum::Router {
     let users = Users::new(Arc::clone(&db), plugins.clone());
     let sign_in_limits = Arc::new(SignInLimits::default());
+    let artwork = artwork::router(
+        Artwork::new(&config.data_dir, plugins.clone()),
+        Contents::new(Arc::clone(&db)),
+    );
     connectrpc::Router::new()
         .add_service(Arc::new(ServerServiceHandler {
             name: config.name.clone(),
@@ -118,11 +123,12 @@ pub(crate) fn router(
             sign_in_limits,
         }))
         .into_axum_router()
+        .merge(artwork)
         .layer(middleware::from_fn(require_access))
         .layer(middleware::from_fn_with_state(users, identify_caller))
 }
 
-/// Who may call an RPC.
+/// Who may call an RPC or fetch media.
 enum Access {
     Anyone,
     SignedIn,
@@ -147,8 +153,9 @@ impl Access {
         USER_SERVICE_CHANGE_PASSWORD_SPEC.procedure,
     ];
 
-    /// Who may call the RPC at `path`, `/<service>/<method>`. Only the RPCs in
-    /// [`Access::PUBLIC`] are public, so a new one needs a session until it is opened up.
+    /// Who may request `path`: an RPC's `/<service>/<method>`, or media under `/media/`. Only the
+    /// RPCs in [`Access::PUBLIC`] are public, so media, and a new RPC until it is opened up, need a
+    /// session.
     fn of(path: &str) -> Self {
         if Self::PUBLIC.contains(&path) {
             return Self::Anyone;
@@ -871,6 +878,21 @@ impl UserService for UserServiceHandler {
         let role = role_from_proto(request.role)?;
         self.users.set_role(request.user_id, role).await?;
         Response::ok(SetRoleResponse::default())
+    }
+
+    async fn delete_user(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, DeleteUserRequest>,
+    ) -> ServiceResult<DeleteUserResponse> {
+        let caller = caller(&ctx)?;
+        self.users.delete(request.user_id).await?;
+        let response = DeleteUserResponse::default();
+        Ok(if request.user_id == caller.user.id {
+            signed_out(response, ctx.headers())
+        } else {
+            Response::new(response)
+        })
     }
 
     async fn list_devices(

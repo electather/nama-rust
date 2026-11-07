@@ -22,6 +22,14 @@ service UserService {
   rpc SetRole(SetRoleRequest) returns (SetRoleResponse) {
     option idempotency_level = IDEMPOTENT;
   }
+  // Deletes a User with their Devices and credentials, so they can't sign in, their sessions stop
+  // working at once and their open `EventService.Subscribe` streams end. An Admin may delete
+  // themselves, which signs out the calling Device too. Fails with `not_found` if no User has the
+  // ID, so a retry after a delete that went through gets `not_found`, and `failed_precondition` if
+  // it would leave the Server with no Admin.
+  rpc DeleteUser(DeleteUserRequest) returns (DeleteUserResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
   // Lists a User's Devices that haven't expired, oldest first. Any signed-in User may list their
   // own; another User's needs the Admin Role. Fails with `not_found` if the User doesn't exist, or
   // isn't the caller and the caller isn't an Admin, so a Member can't learn which IDs exist.
@@ -70,6 +78,13 @@ message SetRoleRequest {
 }
 
 message SetRoleResponse {}
+
+message DeleteUserRequest {
+  // The ID of the User to delete.
+  int64 user_id = 1;
+}
+
+message DeleteUserResponse {}
 
 message ListDevicesRequest {
   // Whose Devices to list. Unset means the caller's own.
