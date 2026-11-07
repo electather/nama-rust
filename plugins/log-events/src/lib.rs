@@ -30,7 +30,6 @@ impl Plugin for LogEvents {
     }
 }
 
-/// Logs each event it observes.
 struct Log;
 
 impl Observer<ServerStarted> for Log {

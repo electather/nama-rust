@@ -24,17 +24,13 @@ use tracing::error;
 
 use crate::client::Client;
 
-/// The setting holding the TMDB API key.
 const API_KEY: &str = "api_key";
 
-/// The setting holding the language metadata is fetched in.
 const LANGUAGE: &str = "language";
 
-/// The language metadata is fetched in unless the admin picks another.
 const DEFAULT_LANGUAGE: &str = "en-US";
 
-/// The TMDB Built-in Plugin: the Server registers it so that, once an admin gives it an API key,
-/// it provides the [`MetadataProvider`] that Matching searches and fetches titles from.
+/// The TMDB Built-in Plugin, providing the [`MetadataProvider`] that Matching uses.
 #[derive(Debug, Clone, Default)]
 pub struct Tmdb {
     endpoints: Endpoints,

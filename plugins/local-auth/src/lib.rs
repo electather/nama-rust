@@ -16,7 +16,6 @@ use nama_plugin_api::{
     auth::{Authenticator, PasswordError},
 };
 
-/// How many characters a password may have.
 const PASSWORD_LENGTH: RangeInclusive<usize> = 8..=1024;
 
 /// What [`Authenticator::verify_unknown_user`] checks against: a password no User has, hashed with
@@ -49,7 +48,6 @@ impl Plugin for LocalAuth {
     }
 }
 
-/// The [`Authenticator`] `local-auth` provides.
 struct Argon2id;
 
 impl Authenticator for Argon2id {

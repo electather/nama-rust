@@ -111,7 +111,6 @@ impl Fixture {
         }
     }
 
-    /// Writes `contents` to the file at `relative` in the Library's folder.
     fn write(&self, relative: &str, contents: &[u8]) {
         let path = self.folder.join(relative);
         fs::create_dir_all(path.parent().unwrap()).unwrap();

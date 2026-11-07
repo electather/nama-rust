@@ -1,9 +1,7 @@
 //! What a Library holds: the video files a scan stored, the Items their names say they hold, what
 //! Matching decided about each Item, and the Matches an admin pinned.
 //!
-//! [`Contents`] is the only code that reads or writes `library_files`, `library_items`,
-//! `item_matches` and `match_pins`. Each of its methods is one read, or one write through the
-//! database's single writer.
+//! [`Contents`] owns the tables (see the crate's `AGENTS.md`); each method is one read or one write.
 
 use std::{
     borrow::Cow,
@@ -81,11 +79,9 @@ pub(crate) enum Pin {
 pub(crate) struct Named {
     pub(crate) library: i64,
     pub(crate) name: Name,
-    /// Each Item's id and what it is.
     pub(crate) items: Vec<(i64, Item)>,
 }
 
-/// An Item that needs a Match, and the path of the file holding it.
 #[derive(Debug)]
 pub(crate) struct Unmatched {
     pub(crate) id: i64,
@@ -93,7 +89,6 @@ pub(crate) struct Unmatched {
     pub(crate) item: Item,
 }
 
-/// A file as the last scan stored it.
 #[derive(Debug)]
 pub(crate) struct Stored {
     pub(crate) id: i64,
@@ -111,18 +106,15 @@ pub(crate) enum Change {
         modified_ns: i64,
         items: Vec<Item>,
     },
-    /// Remove the stored file with this id.
     Remove(i64),
 }
 
-/// What Matching decided about one Item.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Decided {
     Matched(Box<Metadata>),
     Unmatched,
 }
 
-/// The metadata stored with a Match.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Metadata {
     /// The Plugin whose metadata Provider made the Match.
@@ -162,7 +154,6 @@ pub(crate) struct Movie {
 /// A stored file that a Movie or Episode is available in.
 #[derive(Debug)]
 pub(crate) struct Version {
-    /// The stored file's id.
     pub(crate) id: i64,
     pub(crate) path: String,
     pub(crate) size: i64,
@@ -242,7 +233,6 @@ impl Contents {
         Self { db }
     }
 
-    /// The files stored for the Library `library`, by path.
     pub(crate) async fn stored(
         &self,
         library: i64,
@@ -266,8 +256,8 @@ impl Contents {
         .collect())
     }
 
-    /// Applies `changes` to the files of the Library `library`, and returns the events for the
-    /// Items that removes and adds. Replacing an Item removes what Matching decided about it.
+    /// Returns the events for the Items `changes` removes and adds. Replacing an Item removes what
+    /// Matching decided about it.
     pub(crate) async fn apply(
         &self,
         library: i64,
@@ -336,7 +326,6 @@ impl Contents {
             .await
     }
 
-    /// The Library the Item `item` is in, or `None` if there is no such Item.
     pub(crate) async fn library_of(&self, item: i64) -> Result<Option<i64>, sqlx::Error> {
         sqlx::query_scalar!(
             "SELECT library_files.library_id
@@ -349,7 +338,6 @@ impl Contents {
         .await
     }
 
-    /// The Movie or Episodes the Items of the stored file `version` are Matched to.
     pub(crate) async fn matched_to(&self, version: i64) -> Result<MatchedTo, sqlx::Error> {
         let rows = sqlx::query!(
             r#"SELECT library_items.kind AS "kind?: ItemKind", item_matches.tmdb_id, item_matches.imdb_id,
@@ -383,8 +371,7 @@ impl Contents {
             .map_or(MatchedTo::Nothing, MatchedTo::Movie))
     }
 
-    /// The absolute path of the Version `version`, a stored file some Item of which is Matched, or
-    /// `None` if there is no such Version.
+    /// `None` unless some Item of the Version's file is Matched, so unmatched files are never served.
     pub(crate) async fn version_path(&self, version: i64) -> Result<Option<String>, sqlx::Error> {
         sqlx::query_scalar!(
             "SELECT path FROM library_files
@@ -399,7 +386,6 @@ impl Contents {
         .await
     }
 
-    /// Whether some Match made by the Plugin `plugin` stores `image` as its poster or backdrop.
     pub(crate) async fn stores_image(
         &self,
         plugin: &str,
@@ -513,8 +499,7 @@ impl Contents {
             .collect())
     }
 
-    /// The paths of the Library `library`'s files that hold no Items, because their names don't
-    /// follow the naming conventions, by path.
+    /// Files whose names don't follow the naming conventions, so they hold no Items, by path.
     pub(crate) async fn unparsed(&self, library: i64) -> Result<Vec<String>, sqlx::Error> {
         sqlx::query_scalar!(
             "SELECT path FROM library_files
@@ -528,8 +513,7 @@ impl Contents {
         .await
     }
 
-    /// The Movies the Items of the Library `library` are Matched to, by title, grouped by their
-    /// [`primary_id`].
+    /// By title, grouped by [`primary_id`].
     pub(crate) async fn movies(&self, library: i64) -> Result<Vec<Movie>, sqlx::Error> {
         let rows = sqlx::query!(
             r#"SELECT library_files.id AS "file!", library_files.path, library_files.size,
@@ -589,8 +573,8 @@ impl Contents {
         Ok(movies)
     }
 
-    /// The Shows the Items of the Library `library` are Matched to Episodes of, by title, grouped
-    /// by their Episodes' Show ids' [`primary_id`], each Season's Episodes by their own.
+    /// By title, grouped by the Episodes' Show ids' [`primary_id`], each Season's Episodes by
+    /// their own.
     pub(crate) async fn shows(&self, library: i64) -> Result<Vec<Show>, sqlx::Error> {
         let rows = sqlx::query!(
             r#"SELECT library_files.id AS "file!", library_files.path, library_files.size,
@@ -663,8 +647,7 @@ impl Contents {
         Ok(shows)
     }
 
-    /// Pins `pin` for the Items of the Library `library` called `name`, replacing any pin they
-    /// had, and stores what was `decided` about them, as of now, in one write. Returns `false`,
+    /// Replaces any pin the Items called `name` had, in one write with `decided`. Returns `false`,
     /// having stored nothing, if the Library is gone.
     pub(crate) async fn pin(
         &self,
@@ -680,7 +663,6 @@ impl Contents {
 }
 
 impl Item {
-    /// The name the Item goes by.
     pub(crate) fn name(&self) -> Name {
         let row = ItemRow::from(self);
         Name {
@@ -693,7 +675,6 @@ impl Item {
 }
 
 impl Name {
-    /// Whether the Items called this are a Movie or the Episodes of a Show.
     pub(crate) const fn kind(&self) -> TitleKind {
         match self.kind {
             ItemKind::Movie => TitleKind::Movie,
@@ -711,7 +692,6 @@ impl Pin {
         Some(primary_id(ids).map_or(Self::Unmatched, Self::Title))
     }
 
-    /// The pinned id, as the `pinned_*` columns of `match_pins` hold it.
     fn columns(&self) -> ExternalIds {
         let mut ids = ExternalIds::default();
         match self {
@@ -733,8 +713,6 @@ fn primary_id(ids: ExternalIds) -> Option<ExternalId> {
         .or_else(|| ids.tvdb.map(ExternalId::Tvdb))
 }
 
-/// Applies `changes` to the files of the Library `library`, and returns the events for the Items
-/// that removes and adds.
 async fn apply(
     conn: &mut SqliteConnection,
     library: i64,
@@ -783,8 +761,6 @@ async fn apply(
     Ok(events)
 }
 
-/// The event for the Item `item`, held by the file at `path`, being added to the Library
-/// `library`.
 fn item_added(library: i64, item: i64, path: String) -> Event {
     event(LibraryItemAdded {
         library_id: library,
@@ -794,7 +770,6 @@ fn item_added(library: i64, item: i64, path: String) -> Event {
     })
 }
 
-/// The event for the Item `item` of the Library `library` being removed.
 fn item_removed(library: i64, item: i64) -> Event {
     event(LibraryItemRemoved {
         library_id: library,
@@ -803,8 +778,6 @@ fn item_removed(library: i64, item: i64) -> Event {
     })
 }
 
-/// Removes the Items stored for `file`, and with them what Matching decided about them, and
-/// returns their ids.
 async fn remove_items(conn: &mut SqliteConnection, file: i64) -> Result<Vec<i64>, sqlx::Error> {
     sqlx::query_scalar!(
         r#"DELETE FROM library_items WHERE file_id = ? RETURNING id AS "id!""#,
@@ -814,7 +787,6 @@ async fn remove_items(conn: &mut SqliteConnection, file: i64) -> Result<Vec<i64>
     .await
 }
 
-/// Stores `items` for `file`, and returns their ids.
 async fn insert_items(
     conn: &mut SqliteConnection,
     file: i64,
@@ -842,8 +814,6 @@ async fn insert_items(
     Ok(ids)
 }
 
-/// Stores `pin` for the Items of the Library `library` called `name`, and what was `decided`
-/// about them, as of now. Returns whether it stored them: it doesn't if the Library is gone.
 async fn store_pin(
     conn: &mut SqliteConnection,
     library: i64,
@@ -859,8 +829,7 @@ async fn store_pin(
     Ok(true)
 }
 
-/// Stores `pin` for the Items of the Library `library` called `name`, as of `now`, replacing any
-/// pin they had. Returns whether it was stored: it isn't if the Library is gone.
+/// Returns whether it was stored: it isn't if the Library is gone.
 async fn insert_pin(
     conn: &mut SqliteConnection,
     library: i64,
@@ -891,7 +860,6 @@ async fn insert_pin(
     Ok(inserted.rows_affected() > 0)
 }
 
-/// Stores `decided` as of `now`, for the Items that still exist.
 async fn insert_decisions(
     conn: &mut SqliteConnection,
     decided: Vec<(i64, Decided)>,
@@ -932,7 +900,6 @@ async fn insert_decisions(
     Ok(())
 }
 
-/// The kind of an Item, as stored.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, sqlx::Type)]
 #[sqlx(rename_all = "lowercase")]
 enum ItemKind {
@@ -940,7 +907,6 @@ enum ItemKind {
     Episode,
 }
 
-/// An Item as a row of `library_items`.
 #[derive(Debug)]
 struct ItemRow<'a> {
     kind: ItemKind,
@@ -1013,17 +979,13 @@ impl<'a> From<&'a Item> for ItemRow<'a> {
     }
 }
 
-/// Whether an Item is Matched, as stored.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, sqlx::Type)]
 #[sqlx(rename_all = "lowercase")]
 enum MatchState {
-    /// The Item has a Match.
     Matched,
-    /// No title fit the Item confidently.
     Unmatched,
 }
 
-/// A decision as the columns of `item_matches`.
 #[derive(Debug)]
 struct MatchRow<'a> {
     state: MatchState,
@@ -1244,7 +1206,6 @@ mod tests {
             }
         }
 
-        /// Stores the file at `path`, of `size` bytes, holding `item`.
         async fn store(&self, path: &str, size: i64, item: Item) {
             let change = Change::Store {
                 path: path.to_owned(),
@@ -1258,7 +1219,6 @@ mod tests {
                 .unwrap();
         }
 
-        /// The Items stored for the file at `path`.
         async fn items(&self, path: &str) -> Vec<FileItem> {
             self.contents
                 .files(self.library)
@@ -1270,7 +1230,6 @@ mod tests {
                 .items
         }
 
-        /// The id of the first Item stored for the file at `path`.
         async fn item(&self, path: &str) -> i64 {
             self.items(path).await[0].id
         }

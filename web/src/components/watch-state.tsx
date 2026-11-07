@@ -37,7 +37,6 @@ function PlayedIcon({ played }: { played: boolean }) {
   );
 }
 
-/** Whether a Movie is played, as a toggle button that marks it so. */
 export function PlayedButton({
   played,
   onToggle,
@@ -59,7 +58,6 @@ export function PlayedButton({
   );
 }
 
-/** Whether an Episode is played, as an icon toggle that marks it so. */
 export function PlayedIconButton({
   played,
   label,

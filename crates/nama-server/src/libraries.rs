@@ -20,7 +20,6 @@ pub(crate) enum Kind {
     Shows,
 }
 
-/// A Library as it is stored.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Library {
     pub(crate) id: i64,
@@ -36,13 +35,11 @@ pub(crate) enum Error {
     /// The request itself is wrong: a blank name, or a folder that isn't a readable directory.
     #[error("{0}")]
     Invalid(String),
-    /// No Library has this id.
     #[error("there is no Library {0}")]
     NotFound(i64),
     /// A folder in the request already belongs to another Library.
     #[error("the folder {folder} already belongs to the Library {library:?}")]
     FolderTaken { folder: String, library: String },
-    /// The database failed.
     #[error("database error: {0}")]
     Database(#[from] sqlx::Error),
 }
@@ -54,12 +51,10 @@ pub(crate) struct Libraries {
 }
 
 impl Libraries {
-    /// The Libraries kept in `db`.
     pub(crate) const fn new(db: Arc<Database>) -> Self {
         Self { db }
     }
 
-    /// Creates a Library holding `kind`, backed by `folders`.
     pub(crate) async fn create(
         &self,
         name: &str,
@@ -105,7 +100,6 @@ impl Libraries {
             .collect())
     }
 
-    /// The Library with this id.
     pub(crate) async fn get(&self, id: i64) -> Result<Library, Error> {
         let mut tx = self.db.reader().begin().await?;
         let row = sqlx::query!(
@@ -130,7 +124,7 @@ impl Libraries {
         })
     }
 
-    /// Renames the Library with this id and replaces its folders. Its kind stays as it is.
+    /// Renames the Library and replaces its folders; its kind can't change.
     pub(crate) async fn update(
         &self,
         id: i64,
@@ -144,13 +138,13 @@ impl Libraries {
             .await
     }
 
-    /// Deletes the Library with this id. The files in its folders are left alone.
+    /// Deletes the Library. The files in its folders are left alone.
     pub(crate) async fn delete(&self, id: i64) -> Result<(), Error> {
         self.db.write(move |tx| Box::pin(delete(tx, id))).await
     }
 }
 
-/// Stores a new Library, whose name and folders have been checked, and returns it.
+/// `name` and `folders` must already be checked.
 async fn create(
     conn: &mut SqliteConnection,
     name: String,
@@ -174,7 +168,7 @@ async fn create(
     })
 }
 
-/// Gives the Library `id` a new name and folders, which have been checked, and returns it.
+/// `name` and `folders` must already be checked.
 async fn update(
     conn: &mut SqliteConnection,
     id: i64,
@@ -213,7 +207,6 @@ async fn delete(conn: &mut SqliteConnection, id: i64) -> Result<(), Error> {
     Ok(())
 }
 
-/// The name with surrounding whitespace removed, unless nothing is left.
 fn check_name(name: &str) -> Result<String, Error> {
     let name = name.trim();
     if name.is_empty() {
@@ -222,9 +215,7 @@ fn check_name(name: &str) -> Result<String, Error> {
     Ok(name.to_owned())
 }
 
-/// Checks that there is at least one folder and that each is an absolute path to a directory the
-/// Server can read, named once, and returns their canonical paths. Canonical paths make two
-/// spellings of one folder (a trailing slash, a symlink) the same folder.
+// Canonical paths make two spellings of one folder (a trailing slash, a symlink) the same folder.
 async fn check_folders(folders: Vec<String>) -> Result<Vec<String>, Error> {
     if folders.is_empty() {
         return Err(Error::Invalid(
@@ -270,8 +261,6 @@ async fn ensure_readable_dir(path: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
-/// Fails with [`Error::FolderTaken`] if any of `folders` belongs to a Library other than
-/// `except`.
 async fn ensure_folders_free(
     conn: &mut SqliteConnection,
     folders: &[String],
@@ -297,7 +286,6 @@ async fn ensure_folders_free(
     Ok(())
 }
 
-/// Adds `folders` to the Library `id`, in order.
 async fn insert_folders(
     conn: &mut SqliteConnection,
     id: i64,

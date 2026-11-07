@@ -31,7 +31,6 @@ pub(crate) struct EventBus {
     closed: CancellationToken,
 }
 
-/// Which events a subscriber wants.
 #[derive(Debug, Clone, Default)]
 pub(crate) struct Filter {
     /// Only these types; empty means every type.

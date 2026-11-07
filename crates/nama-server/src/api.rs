@@ -516,7 +516,7 @@ impl LibraryService for LibraryServiceHandler {
         ctx: RequestContext,
         _request: ServiceRequest<'_, ListLibrariesRequest>,
     ) -> ServiceResult<ListLibrariesResponse> {
-        // Where a Library's files live on the Server's disk is for Admins only.
+        // Disk paths are for Admins only (see AGENTS.md).
         let is_admin = caller(&ctx)?.user.role == Role::Admin;
         let libraries = self.libraries.list().await?;
         Response::ok(ListLibrariesResponse {
@@ -587,7 +587,6 @@ impl LibraryService for LibraryServiceHandler {
 struct MatchServiceHandler {
     matcher: Matcher,
     contents: Contents,
-    /// Which Libraries there are.
     libraries: Libraries,
     /// Whose scan lock a Match is fixed under, so the scan doesn't change the items meanwhile.
     scanner: Scanner,
@@ -713,7 +712,7 @@ impl BrowseServiceHandler {
     }
 
     /// The Movie of the Movies Library `library` with the id `id`.
-    // ponytail: reads the whole Library to find one Movie; query by id if Libraries get big.
+    // ponytail: whole-Library read (see AGENTS.md).
     async fn movie(
         &self,
         library: i64,
@@ -747,8 +746,7 @@ impl BrowseServiceHandler {
     }
 
     /// The Shows of the Library `library`, which must be a Shows Library.
-    // ponytail: reads every Episode and Version, even to list Shows or find one; query less if
-    // Libraries get big.
+    // ponytail: whole-Library read (see AGENTS.md).
     async fn shows(&self, library: i64) -> Result<Vec<Show>, ConnectError> {
         self.require_kind(library, Kind::Shows).await?;
         self.contents
@@ -787,7 +785,7 @@ impl BrowseServiceHandler {
 
     /// The id of the Episode of any Show of the Shows Library `library` with the id `id`, which
     /// something in the Library must be Matched to.
-    // ponytail: reads the whole Library to find one Episode; query by id if Libraries get big.
+    // ponytail: whole-Library read (see AGENTS.md).
     async fn episode_id(
         &self,
         library: i64,
@@ -805,7 +803,7 @@ impl BrowseServiceHandler {
     /// The Continue Watching entries of `started`, the Movies and Episodes the caller has started
     /// and not played, in the same order. Each is in the oldest Library that has it, and
     /// one no Library has is left out.
-    // ponytail: reads every Library's contents; query by id if Libraries get big.
+    // ponytail: whole-Library read (see AGENTS.md).
     async fn continue_watching(
         &self,
         started: Vec<(MovieOrEpisode, WatchState)>,
@@ -1359,7 +1357,6 @@ fn hand_out_session<M>(
     }
 }
 
-/// An event type a filter names, which must be one the Server knows.
 fn event_type_from_proto(kind: EnumValue<EventType>) -> Result<EventType, ConnectError> {
     match kind {
         EnumValue::Known(EventType::EVENT_TYPE_UNSPECIFIED) | EnumValue::Unknown(_) => Err(
@@ -1369,7 +1366,6 @@ fn event_type_from_proto(kind: EnumValue<EventType>) -> Result<EventType, Connec
     }
 }
 
-/// The kind of title a request asks for, which must be one the Server knows.
 fn title_kind_from_proto(kind: EnumValue<proto::TitleKind>) -> Result<TitleKind, ConnectError> {
     match kind {
         EnumValue::Known(proto::TitleKind::TITLE_KIND_MOVIE) => Ok(TitleKind::Movie),
@@ -1380,7 +1376,6 @@ fn title_kind_from_proto(kind: EnumValue<proto::TitleKind>) -> Result<TitleKind,
     }
 }
 
-/// A search result as clients see it.
 fn candidate_to_proto(candidate: Candidate) -> proto::TitleCandidate {
     proto::TitleCandidate {
         id: external_id_to_proto(candidate.id).into(),
@@ -1391,7 +1386,6 @@ fn candidate_to_proto(candidate: Candidate) -> proto::TitleCandidate {
     }
 }
 
-/// An Item that needs a Match as clients see it.
 fn unmatched_to_proto(unmatched: Unmatched) -> proto::UnmatchedItem {
     let (kind, title, year, numbers) = match unmatched.item {
         Item::Movie { title, year, .. } => (proto::TitleKind::TITLE_KIND_MOVIE, title, year, None),
@@ -1471,7 +1465,6 @@ fn continue_watching_entry(
     }
 }
 
-/// A Watch State as clients see it.
 fn watch_state_to_proto(state: WatchState) -> proto::WatchState {
     // Stored positions and durations are never negative.
     let unsigned = |ms: i64| u64::try_from(ms).unwrap_or_default();
@@ -1552,7 +1545,6 @@ fn int32(n: i64) -> Option<i32> {
     i32::try_from(n).ok()
 }
 
-/// An id of a title as clients send it.
 fn external_id_from_proto(id: external_id::Id) -> ExternalId {
     match id {
         external_id::Id::Tmdb(id) => ExternalId::Tmdb(id),
@@ -1568,7 +1560,6 @@ fn required_id(id: Option<proto::ExternalId>, what: &str) -> Result<ExternalId, 
         .ok_or_else(|| ConnectError::invalid_argument(format!("the {what}'s id is missing")))
 }
 
-/// An id of a title as clients see it.
 fn external_id_to_proto(id: ExternalId) -> proto::ExternalId {
     let id = match id {
         ExternalId::Tmdb(id) => external_id::Id::Tmdb(id),
@@ -1581,7 +1572,6 @@ fn external_id_to_proto(id: ExternalId) -> proto::ExternalId {
     }
 }
 
-/// The kind a request asks for, which must be one the Server knows.
 fn kind_from_proto(kind: EnumValue<LibraryKind>) -> Result<Kind, ConnectError> {
     match kind {
         EnumValue::Known(LibraryKind::LIBRARY_KIND_MOVIES) => Ok(Kind::Movies),
@@ -1592,7 +1582,6 @@ fn kind_from_proto(kind: EnumValue<LibraryKind>) -> Result<Kind, ConnectError> {
     }
 }
 
-/// A Library as clients see it.
 fn library_to_proto(library: Library) -> proto::Library {
     proto::Library {
         id: library.id,
@@ -1607,7 +1596,6 @@ fn library_to_proto(library: Library) -> proto::Library {
     }
 }
 
-/// The Role a request asks for, which must be one the Server knows.
 fn role_from_proto(role: EnumValue<proto::Role>) -> Result<Role, ConnectError> {
     match role {
         EnumValue::Known(proto::Role::ROLE_ADMIN) => Ok(Role::Admin),
@@ -1618,7 +1606,6 @@ fn role_from_proto(role: EnumValue<proto::Role>) -> Result<Role, ConnectError> {
     }
 }
 
-/// A Role as clients see it.
 fn role_to_proto(role: Role) -> proto::Role {
     match role {
         Role::Admin => proto::Role::ROLE_ADMIN,
@@ -1626,7 +1613,6 @@ fn role_to_proto(role: Role) -> proto::Role {
     }
 }
 
-/// A User as clients see them.
 fn user_to_proto(user: users::User) -> proto::User {
     proto::User {
         id: user.id,

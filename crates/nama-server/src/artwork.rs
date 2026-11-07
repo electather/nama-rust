@@ -29,7 +29,6 @@ use nama_plugin_api::{
 
 use crate::{contents::Contents, plugins::Registry};
 
-/// The directory under the data directory that holds the cache.
 const DIR: &str = "artwork";
 
 /// Images on disk, fetched from metadata Providers on first use.
@@ -116,7 +115,6 @@ impl Artwork {
         Ok(cached)
     }
 
-    /// The media type and bytes of the image [`Artwork::get`] gives.
     async fn read(&self, plugin: &PluginId, path: &str) -> Result<(&'static str, Vec<u8>), Error> {
         let image = self.get(plugin, path).await?;
         let bytes = tokio::fs::read(&image.path).await?;
@@ -124,23 +122,20 @@ impl Artwork {
     }
 }
 
-/// Where clients fetch the image at `path` from the Plugin `plugin`'s metadata Provider:
-/// `/media/artwork/<plugin>/<path>`, each part escaped as [`file_name`] does. That escaping is
-/// percent-encoding, so each part is one URL path segment that decodes back to what it was.
+/// Where clients fetch the image: `/media/artwork/<plugin>/<path>`, each part one URL path segment
+/// (escaped as [`file_name`] does, which decodes back to what it was).
 pub(crate) fn url(plugin: &str, path: &str) -> String {
     format!("/media/artwork/{}/{}", file_name(plugin), file_name(path))
 }
 
-/// Serves `GET` [`url`]s with the image at that path from that Plugin's Provider, through
-/// `artwork`, if `contents` has a Match that stores it, and 404 otherwise. Whether the caller has
-/// a session is up to the layers the router is put behind.
+/// Serves `GET` [`url`]s, 404 unless `contents` has a Match that stores the image. Whether the
+/// caller has a session is up to the layers the router is put behind.
 pub(crate) fn router(artwork: Artwork, contents: Contents) -> Router {
     Router::new()
         .route("/media/artwork/{plugin}/{path}", get(serve))
         .with_state((artwork, contents))
 }
 
-/// Answers a request for the image at `path` from the Plugin `plugin`'s Provider.
 async fn serve(
     State((artwork, contents)): State<(Artwork, Contents)>,
     UrlPath((plugin, path)): UrlPath<(String, String)>,
@@ -218,7 +213,6 @@ fn file_name(text: &str) -> String {
     name
 }
 
-/// The media type of an image, by the extension of its path.
 fn content_type(path: &str) -> &'static str {
     let extension = Path::new(path)
         .extension()

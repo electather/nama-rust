@@ -23,7 +23,6 @@ export function FormField({ label, hint, error, ...input }: ComponentProps<"inpu
   );
 }
 
-/** A `FormField` for several lines of text. */
 export function FormTextarea({
   label,
   hint,

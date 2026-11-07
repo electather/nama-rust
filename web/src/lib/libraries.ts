@@ -11,7 +11,6 @@ export const librariesKey = createConnectQueryKey({
   cardinality: "finite",
 });
 
-/** What a Library of `kind` holds, as its label says. */
 export function kindName(kind: LibraryKind) {
   return kind === LibraryKind.SHOWS ? "Shows" : "Movies";
 }

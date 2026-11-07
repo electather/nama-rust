@@ -21,10 +21,8 @@ use server::TestServer;
 use tempfile::TempDir;
 use tokio::sync::mpsc;
 
-/// How long a test waits for an event before failing.
 const WAIT: Duration = Duration::from_secs(10);
 
-/// A subscription to the Server's events.
 type Subscription = ServerStream<hyper::body::Incoming, SubscribeResponseView<'static>>;
 
 /// A Server, clients for its `LibraryService` and `EventService`, and a scratch directory for
@@ -76,12 +74,10 @@ impl Fixture {
             .id
     }
 
-    /// The folder of the Library named `name`.
     fn folder(&self, name: &str) -> PathBuf {
         self.media.path().canonicalize().unwrap().join(name)
     }
 
-    /// The absolute path of `file` in the folder of the Library named `name`.
     fn path(&self, name: &str, file: &str) -> String {
         self.folder(name).join(file).to_str().unwrap().to_owned()
     }
@@ -101,7 +97,6 @@ impl Fixture {
     }
 }
 
-/// The next message on `subscription`.
 #[expect(
     clippy::expect_used,
     clippy::unwrap_used,

@@ -79,7 +79,6 @@ pub fn serve(
         scanner.start_all().await;
         let served = axum::serve(
             listener,
-            // Sign-in and setup are rate limited by the peer's address.
             app.into_make_service_with_connect_info::<SocketAddr>(),
         )
         .with_graceful_shutdown(async move {

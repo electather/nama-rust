@@ -81,7 +81,6 @@ const EXTRAS_SUFFIXES: &[&str] = &[
     "trailer",
 ];
 
-/// Compiles a pattern written in this file.
 #[expect(
     clippy::expect_used,
     reason = "the patterns are constants, and the tests compile every one"
@@ -90,7 +89,6 @@ fn regex(pattern: &str) -> Regex {
     Regex::new(pattern).expect("a constant pattern compiles")
 }
 
-/// A path relative to a Library folder, split into the folders it's in and its file's stem.
 struct Split {
     folders: Vec<String>,
     stem: String,
@@ -108,8 +106,7 @@ impl Split {
     }
 }
 
-/// Whether the file at `relative` is an extra, such as a trailer or a featurette, which the
-/// scanner leaves out.
+/// Whether the file is an extra (a trailer, a featurette), which the scanner leaves out.
 pub(crate) fn is_extra(relative: &Path) -> bool {
     let Some(Split { folders, stem }) = Split::new(relative) else {
         return false;
@@ -209,7 +206,6 @@ fn parse_episodes(folders: &[String], stem: &str) -> Option<Vec<Item>> {
     )
 }
 
-/// The Season and Episode numbers a file name gives.
 fn episode_numbers(stem: &str) -> Option<(i64, Vec<i64>)> {
     let captures = EPISODE
         .captures(stem)
@@ -225,7 +221,6 @@ fn episode_numbers(stem: &str) -> Option<(i64, Vec<i64>)> {
     Some((season, (first..=last).collect()))
 }
 
-/// A title and what else a folder or file name says about it.
 struct Named {
     title: String,
     year: Option<i64>,
@@ -260,12 +255,10 @@ fn title_and_year(name: &str) -> Option<Named> {
     })
 }
 
-/// The TMDB id in an ID hint in `name`.
 fn tmdb_hint(name: &str) -> Option<i64> {
     TMDB_HINT.captures(name)?.get(1)?.as_str().parse().ok()
 }
 
-/// `title` without surrounding whitespace or separators, with runs of spaces collapsed.
 fn clean_title(title: &str) -> String {
     title
         .split_whitespace()

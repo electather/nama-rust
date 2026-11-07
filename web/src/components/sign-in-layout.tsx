@@ -3,7 +3,6 @@ import type { ComponentProps, ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { onSubmitted } from "@/lib/forms";
 
-/** A page for getting in: setting up, or signing in. */
 export function SignInPage({
   heading,
   intro,
@@ -26,7 +25,6 @@ export function SignInPage({
   );
 }
 
-/** A `SignInPage` with one native form. */
 export function SignInLayout({
   onSubmit,
   action,

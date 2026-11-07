@@ -48,7 +48,6 @@ impl Fixture {
         Ok(response.into_owned().id)
     }
 
-    /// Every User on the Server.
     async fn list(&self) -> Result<Vec<User>, ConnectError> {
         let response = self.client.list_users(ListUsersRequest::default()).await?;
         Ok(response.into_owned().users)
@@ -122,7 +121,6 @@ impl Fixture {
         self.list().await.unwrap().first().unwrap().id
     }
 
-    /// A `UserService` client calling with the session `token`.
     fn client_as(&self, token: &str) -> UserServiceClient<HttpClient> {
         UserServiceClient::new(HttpClient::plaintext(), self.server.client_config_as(token))
     }
@@ -139,7 +137,6 @@ impl Fixture {
     }
 }
 
-/// Gives the User `user_id` the Role `role`, calling with `client`.
 async fn set_role(
     client: &UserServiceClient<HttpClient>,
     user_id: i64,
@@ -155,7 +152,6 @@ async fn set_role(
     Ok(())
 }
 
-/// Deletes the User `user_id`, calling with `client`.
 async fn delete_user(
     client: &UserServiceClient<HttpClient>,
     user_id: i64,
@@ -196,7 +192,6 @@ async fn admin_rpc(client: &UserServiceClient<HttpClient>) -> Result<(), ErrorCo
     }
 }
 
-/// Lists the Devices of the User `user_id`, or the caller's own, through `client`.
 async fn list_devices(
     client: &UserServiceClient<HttpClient>,
     user_id: Option<i64>,
@@ -210,7 +205,6 @@ async fn list_devices(
     Ok(response.into_owned().devices)
 }
 
-/// Revokes the Device `device_id` of the User `user_id`, or of the caller, through `client`.
 async fn revoke_device(
     client: &UserServiceClient<HttpClient>,
     user_id: Option<i64>,
@@ -226,7 +220,6 @@ async fn revoke_device(
     Ok(())
 }
 
-/// Changes the caller's password from `current` to `new`, through `client`.
 async fn change_password(
     client: &UserServiceClient<HttpClient>,
     current: &str,
@@ -242,7 +235,6 @@ async fn change_password(
     Ok(())
 }
 
-/// Sets the password of the User `user_id` to `new`, through `client`.
 async fn reset_password(
     client: &UserServiceClient<HttpClient>,
     user_id: i64,
@@ -269,13 +261,10 @@ fn ids(signed_in: &SignInResponse) -> (i64, i64) {
     (user, device)
 }
 
-/// How long a test waits for a stream before failing.
 const WAIT: Duration = Duration::from_secs(10);
 
-/// A subscription to the Server's events.
 type Subscription = ServerStream<hyper::body::Incoming, SubscribeResponseView<'static>>;
 
-/// Subscribes to every event with `config`.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"

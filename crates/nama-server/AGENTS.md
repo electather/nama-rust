@@ -1,5 +1,17 @@
 ## nama-server
 
-- **One database writer.** Every write goes through `Database::write` in `src/db.rs`. Never open a second writable SQLite connection. Long jobs such as a scan write in small batches.
+### Data
+
+- **One database writer.** Every write goes through `Database::write` in `src/db.rs`, on the one writable SQLite connection. Long jobs such as a scan write in small batches.
 - **One owner for a Library's contents.** Only `src/contents.rs` reads or writes `library_files`, `library_items`, `item_matches` and `match_pins`, tests included. Everything else goes through `Contents`.
-- **Query data.** After changing a `sqlx::query!` or anything in `migrations/`, regenerate `.sqlx/` at the workspace root and commit it. See `README.md` for the commands.
+- **Query data.** After changing a `sqlx::query!` or anything in `migrations/`, regenerate `.sqlx/` at the workspace root and commit it (commands in `README.md`).
+- **Whole-Library reads.** Browse reads a Library's whole contents even to find one title. Each such read is marked `// ponytail: whole-Library read`; query by id there once Libraries get big.
+
+### Security
+
+- **Secrets stay out of storage and logs.** The database holds the Authenticator's credential string and the SHA-256 hash of each session token; only `src/users.rs` derives them. Types holding a token or Sign-in Code skip `Debug`. The Setup Code is the one secret logged, on purpose.
+- **Clients name ids.** Media is served by Version id (`Contents::version_path`) and artwork only for paths some Match stores (`Contents::stores_image`). Where a Library lives on disk is shown to Admins only.
+- **New RPCs start closed.** `Access::of` in `src/api.rs` requires a session for any RPC outside `Access::PUBLIC` and `Access::SELF_SERVICE`; opening one is an explicit entry there.
+- **Peer IP only.** Rate limits count by the connection's peer IP, since any client can set forwarded-for headers.
+- **Causes stay server-side.** A database or server-side error is logged; the client gets a generic Connect error.
+- **Plugin code runs contained.** Every call into a Plugin, its `Drop` included, goes through `contain_sync` (or its async twin) in `src/plugins.rs`, outside the registry lock.

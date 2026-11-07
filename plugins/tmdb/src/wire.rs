@@ -3,13 +3,11 @@
 use nama_plugin_api::metadata::{Candidate, Episode, ExternalId, ExternalIds, Movie, Season, Show};
 use serde::Deserialize;
 
-/// One page of search results.
 #[derive(Debug, Deserialize)]
 pub(crate) struct Page<T> {
     pub(crate) results: Vec<T>,
 }
 
-/// A Movie in search results.
 #[derive(Debug, Deserialize)]
 pub(crate) struct MovieResult {
     id: i64,
@@ -29,7 +27,6 @@ impl From<MovieResult> for Candidate {
     }
 }
 
-/// A Show in search results.
 #[derive(Debug, Deserialize)]
 pub(crate) struct ShowResult {
     id: i64,

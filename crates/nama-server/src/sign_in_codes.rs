@@ -24,14 +24,12 @@ const CODE_LENGTH: usize = 8;
 // client if that happens.
 const MAX_PENDING: usize = 100_000;
 
-/// The sign-ins waiting on a Sign-in Code.
 #[derive(Default)]
 pub(crate) struct SignInCodes {
     /// By poll handle.
     pending: Mutex<HashMap<String, Pending>>,
 }
 
-/// One sign-in waiting on a Sign-in Code.
 struct Pending {
     /// As [`users::normalized_code`] makes it.
     code: String,
@@ -41,18 +39,14 @@ struct Pending {
     approved_by: Option<User>,
 }
 
-/// A sign-in just started.
 pub(crate) struct Started {
     /// The Sign-in Code to show, as `XXXX-XXXX`.
     pub(crate) code: String,
-    /// What the new Device polls with.
     pub(crate) handle: String,
 }
 
-/// Where a sign-in has got to.
 #[derive(Debug)]
 pub(crate) enum Poll {
-    /// Not approved yet.
     Waiting,
     /// Not approved, or not polled once approved, within [`LIFETIME`].
     Expired,

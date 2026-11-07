@@ -342,7 +342,6 @@ impl<P: InterceptPoint> Interceptor<P> for PanicAtOnce {
     }
 }
 
-/// Waits until the Plugin `id` is no longer enabled.
 async fn disabled(registry: &Registry, id: &'static str) {
     let id = PluginId::from_static(id);
     tokio::time::timeout(WAIT, async {

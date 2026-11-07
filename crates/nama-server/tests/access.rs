@@ -63,13 +63,10 @@ const SIGNED_IN: [&str; 9] = [
     "/nama.v1.UserService/ChangePassword",
 ];
 
-/// How long a test waits for a stream before failing.
 const WAIT: Duration = Duration::from_secs(10);
 
-/// A subscription to the Server's events.
 type Subscription = ServerStream<hyper::body::Incoming, SubscribeResponseView<'static>>;
 
-/// What the Server answered a bare HTTP/1.1 request.
 struct Reply {
     status: u16,
     headers: HeaderMap,
@@ -77,7 +74,6 @@ struct Reply {
 }
 
 impl Reply {
-    /// The Connect error code in a JSON error body.
     #[expect(
         clippy::unwrap_used,
         reason = "a test helper fails its test by panicking"
@@ -126,7 +122,6 @@ async fn send(server: &TestServer, method: Method, path: &str, headers: &[(&str,
     }
 }
 
-/// Posts an empty JSON request to the RPC at `path`, with `bearer` as the session if given.
 async fn post_json(server: &TestServer, path: &str, bearer: Option<&str>) -> Reply {
     let authorization = bearer.map(|token| format!("Bearer {token}"));
     let mut headers = vec![("content-type", "application/json")];
@@ -158,7 +153,6 @@ async fn start_with_member() -> (TestServer, String) {
     (server, signed_in.token().to_owned())
 }
 
-/// The next message on `subscription`, `None` if it ended, or why it failed.
 #[expect(
     clippy::expect_used,
     reason = "a test helper fails its test by panicking"
@@ -172,7 +166,6 @@ async fn next_event(
     Ok(message.map(|message| message.to_owned_message()))
 }
 
-/// Subscribes to every event with `config`.
 async fn subscribe(config: ClientConfig) -> Result<Subscription, ConnectError> {
     EventServiceClient::new(HttpClient::plaintext(), config)
         .subscribe(SubscribeRequest::default())

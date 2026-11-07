@@ -13,7 +13,6 @@ use axum::{
 
 use crate::users::{Caller, DEVICE_LIFETIME, Users};
 
-/// The cookie a browser's session travels in.
 const COOKIE_NAME: &str = "nama_session";
 
 /// Adds the [`Caller`] to `request`'s extensions if it carries a valid session, as
@@ -54,13 +53,10 @@ pub(crate) fn session_cookie(token: &str, request_headers: &HeaderMap) -> String
     cookie(token, DEVICE_LIFETIME, request_headers)
 }
 
-/// The `Set-Cookie` value that has a browser forget its session cookie.
 pub(crate) fn cleared_session_cookie(request_headers: &HeaderMap) -> String {
     cookie("", 0, request_headers)
 }
 
-/// A session cookie holding `value` for `max_age` seconds, with the attributes every session
-/// cookie has.
 fn cookie(value: &str, max_age: i64, request_headers: &HeaderMap) -> String {
     let secure = request_headers
         .get("x-forwarded-proto")
@@ -69,15 +65,12 @@ fn cookie(value: &str, max_age: i64, request_headers: &HeaderMap) -> String {
     format!("{COOKIE_NAME}={value}; HttpOnly; SameSite=Strict; Path=/; Max-Age={max_age}{secure}")
 }
 
-/// Whether `headers` carry their session in the session cookie, rather than as a bearer token.
 pub(crate) fn in_session_cookie(headers: &HeaderMap) -> bool {
     presented_token(headers).is_some_and(|presented| presented.in_cookie)
 }
 
-/// A session token a request carried.
 struct PresentedToken<'a> {
     token: &'a str,
-    /// Whether it came in the session cookie, rather than as a bearer token.
     in_cookie: bool,
 }
 

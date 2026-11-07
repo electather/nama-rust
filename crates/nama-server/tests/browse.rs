@@ -64,7 +64,6 @@ const THE_OFFICE_US: i64 = 2316;
 const TWO_HOURS: u64 = 7_200_000;
 /// An hour, in milliseconds: the length a test's player reports for the two-Episode file.
 const AN_HOUR: u64 = 3_600_000;
-/// A minute, in milliseconds.
 const MINUTE: u64 = 60_000;
 
 /// A Server with one Library, the TMDB Plugin enabled against a fake TMDB, and the clients a test
@@ -147,7 +146,6 @@ impl Fixture {
         (library, media)
     }
 
-    /// Writes `contents` to the file at `relative` in the Library's folder.
     fn write(&self, relative: &str, contents: &[u8]) {
         write(&self.folder.join(relative), contents);
     }
@@ -255,7 +253,6 @@ impl Fixture {
         file.items.first().unwrap().id
     }
 
-    /// The Movies of the Library `library`, as `ListMovies` lists them.
     async fn list_movies(&self, library: i64) -> Result<Vec<Movie>, ConnectError> {
         Ok(self
             .browse
@@ -282,7 +279,6 @@ impl Fixture {
         Ok(response.movie.into_option().unwrap())
     }
 
-    /// The Shows of the Library `library`, as `ListShows` lists them.
     async fn list_shows(&self, library: i64) -> Result<Vec<Show>, ConnectError> {
         Ok(self
             .browse
@@ -437,7 +433,6 @@ impl Viewer {
         got
     }
 
-    /// The Viewer's Continue Watching, as `ListContinueWatching` lists it.
     async fn continue_watching(&self) -> Vec<ContinueWatchingEntry> {
         self.browse
             .list_continue_watching(ListContinueWatchingRequest::default())
@@ -503,7 +498,6 @@ fn write(path: &Path, contents: &[u8]) {
     fs::write(path, contents).unwrap();
 }
 
-/// An HTTP response, as a test checks it.
 struct Reply {
     status: u16,
     headers: hyper::HeaderMap,
@@ -567,7 +561,6 @@ async fn fetch_range(
     }
 }
 
-/// The external id for the TMDB id `id`.
 fn tmdb_id(id: i64) -> ExternalId {
     ExternalId {
         id: Some(external_id::Id::Tmdb(id)),
@@ -1405,17 +1398,14 @@ async fn another_users_progress_never_appears() {
     assert_eq!(listed(&grace.continue_watching().await), alien(2 * MINUTE));
 }
 
-/// The Movie with the TMDB id `tmdb`, to mark.
 fn movie(tmdb: i64) -> Target {
     Target::MovieId(Box::new(tmdb_id(tmdb)))
 }
 
-/// The Episode with the TMDB id `tmdb`, to mark.
 fn episode(tmdb: i64) -> Target {
     Target::EpisodeId(Box::new(tmdb_id(tmdb)))
 }
 
-/// Season `number` of the Show with the TMDB id `tmdb`, to mark.
 fn season_of(tmdb: i64, number: u32) -> Target {
     Target::Season(Box::new(ShowSeason {
         show_id: tmdb_id(tmdb).into(),
@@ -1424,7 +1414,6 @@ fn season_of(tmdb: i64, number: u32) -> Target {
     }))
 }
 
-/// The Show with the TMDB id `tmdb`, to mark.
 fn show(tmdb: i64) -> Target {
     Target::ShowId(Box::new(tmdb_id(tmdb)))
 }

@@ -76,7 +76,6 @@ export function openApp(path: string, transport: ReturnType<typeof createRouterT
   return router;
 }
 
-/** Types `value` into the field labelled `label`. */
 export function fill(label: string, value: string) {
   fireEvent.change(screen.getByLabelText(label), { target: { value } });
 }
