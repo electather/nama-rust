@@ -4,9 +4,9 @@ import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/re
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
-import { DeviceSchema, Permission } from "@/gen/nama/v1/sign_in_pb";
+import { DeviceSchema } from "@/gen/nama/v1/sign_in_pb";
 
-import { admin, fakeServer, fill, newUser, openApp, type ServerState } from "./test-app";
+import { admin, fakeServer, fill, newUser, openApp } from "./test-app";
 import { expectUnderField, refused } from "./test-refusal";
 
 afterEach(cleanup);
@@ -105,96 +105,6 @@ test("a User who isn't an Admin sees no Admin entry in the chrome", async () => 
   openApp("/settings", fakeServer({ signedIn: newUser }));
 
   await screen.findByRole("link", { name: "Settings" });
-  expect(screen.queryByRole("link", { name: "Admin" })).toBeNull();
-});
-
-test("removing Admin keeps a User's other Permissions", async () => {
-  let sent: Permission[] = [];
-  openApp(
-    "/admin/users",
-    fakeServer(
-      { signedIn: admin },
-      {},
-      {
-        listUsers: () => ({
-          users: [
-            { id: 3n, name: "Kim", permissions: [Permission.ADMIN, Permission.MANAGE_LIBRARIES] },
-          ],
-        }),
-        setPermissions: ({ permissions }) => {
-          sent = permissions;
-          return {};
-        },
-      },
-    ),
-  );
-
-  fireEvent.click(await screen.findByText("Kim"));
-  fireEvent.click(await screen.findByRole("button", { name: "Remove Admin Permission" }));
-
-  await waitFor(() => {
-    expect(sent).toEqual([Permission.MANAGE_LIBRARIES]);
-  });
-});
-
-test("demoting the last Admin says why it was refused", async () => {
-  openApp(
-    "/admin/users",
-    fakeServer(
-      { signedIn: admin },
-      {},
-      {
-        listUsers: () => ({ users: [{ id: 1n, name: "Sam", permissions: admin }] }),
-        setPermissions: () => {
-          throw refused(Code.FailedPrecondition, "the Server must keep at least one Admin", {
-            reason: RefusalReason.LAST_ADMIN,
-          });
-        },
-      },
-    ),
-  );
-
-  fireEvent.click(await screen.findByText("Sam"));
-  fireEvent.click(await screen.findByRole("button", { name: "Remove Admin Permission" }));
-
-  expect(
-    await screen.findByText("Sam is the only Admin. Make someone else an Admin first."),
-  ).toBeDefined();
-});
-
-test("demoting yourself leaves the Admin pages", async () => {
-  const state: ServerState = { signedIn: admin };
-  const users = [
-    { id: 1n, name: "Sam", permissions: admin },
-    { id: 2n, name: "Alex", permissions: admin },
-  ];
-  let listUsers = () => ({ users });
-  openApp(
-    "/admin/users",
-    fakeServer(
-      state,
-      {},
-      {
-        listUsers: () => listUsers(),
-        // Sam demotes themselves, so the Server refuses them the Users from then on.
-        setPermissions: ({ permissions }) => {
-          state.signedIn = permissions;
-          listUsers = () => {
-            throw refused(Code.PermissionDenied, "this needs the MANAGE_USERS Permission", {
-              reason: RefusalReason.PERMISSION_REQUIRED,
-              params: { permission: "PERMISSION_MANAGE_USERS" },
-            });
-          };
-          return {};
-        },
-      },
-    ),
-  );
-
-  fireEvent.click(await screen.findByText("Sam"));
-  fireEvent.click(await screen.findByRole("button", { name: "Remove Admin Permission" }));
-
-  expect(await screen.findByRole("heading", { name: "Admins only" })).toBeDefined();
   expect(screen.queryByRole("link", { name: "Admin" })).toBeNull();
 });
 

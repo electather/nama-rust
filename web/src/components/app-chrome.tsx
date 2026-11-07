@@ -6,8 +6,11 @@ import type { ReactNode } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { SignInService } from "@/gen/nama/v1/sign_in_pb";
 
-/** The bar above every signed-in page: where to go, and signing out. Admin is for Admins only. */
-export function AppChrome({ isAdmin }: { isAdmin: boolean }) {
+/**
+ * The bar above every signed-in page: where to go, and signing out. Admin shows only when the User
+ * may open some Admin page.
+ */
+export function AppChrome({ hasAdminPages }: { hasAdminPages: boolean }) {
   return (
     // Lined up with the page's column: each link's own padding makes up the rest of the inset.
     <header className="mx-auto flex w-full max-w-5xl items-center gap-1 py-3 sm:px-2">
@@ -16,7 +19,7 @@ export function AppChrome({ isAdmin }: { isAdmin: boolean }) {
           Libraries
         </NavLink>
         <NavLink to="/settings">Settings</NavLink>
-        {isAdmin && <NavLink to="/admin">Admin</NavLink>}
+        {hasAdminPages && <NavLink to="/admin">Admin</NavLink>}
       </nav>
       <div className="ms-auto">
         <SignOutButton />

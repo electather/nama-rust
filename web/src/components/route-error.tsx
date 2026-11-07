@@ -8,7 +8,7 @@ import { isCode } from "@/lib/connect-errors";
 /** What a page shows instead when it fails, in plain words and never an error code. */
 export function RouteError({ error }: ErrorComponentProps) {
   const router = useRouter();
-  if (isCode(error, Code.PermissionDenied)) return <AdminsOnly />;
+  if (isCode(error, Code.PermissionDenied)) return <NotAllowed />;
   // The router is already rechecking the session, and sends a signed-out visitor to /sign-in.
   if (isCode(error, Code.Unauthenticated)) return null;
   return (
@@ -23,12 +23,12 @@ export function RouteError({ error }: ErrorComponentProps) {
   );
 }
 
-function AdminsOnly() {
+function NotAllowed() {
   return (
-    <Page heading="Admins only">
+    <Page heading="You can’t open this page">
       <p className="mt-2 max-w-prose text-muted-foreground">
-        Only an Admin of this Server can open this page. If you need something changed here, ask
-        whoever runs the Server.
+        It needs a Permission you don’t have. If you need something changed here, ask whoever runs
+        the Server.
       </p>
       {/* Pulled back by the button's own padding, so its words line up with the text above. */}
       <div className="mt-6 -ms-4">

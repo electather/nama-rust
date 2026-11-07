@@ -75,12 +75,15 @@ function Field({
 /** The end of a form on a page: what submitting it did, why the Server refused, and its button. */
 export function FormEnd({
   action,
+  variant = "default",
   pending,
   done,
   refusal,
 }: {
   /** Says what submitting does, such as "Change password". */
   action: string;
+  /** `ghost` for a form beside others on the page, which leaves the primary action to them. */
+  variant?: "default" | "ghost";
   pending: boolean;
   /** What the last submit did, once it's done. */
   done: string | undefined;
@@ -93,8 +96,9 @@ export function FormEnd({
       <p role="alert" className="text-sm text-destructive empty:hidden">
         {refusal}
       </p>
-      <div>
-        <Button type="submit" disabled={pending}>
+      {/* A ghost button is pulled back by its own padding, so its words line up with the fields. */}
+      <div className={variant === "ghost" ? "-ms-4" : undefined}>
+        <Button type="submit" variant={variant} disabled={pending}>
           {action}
         </Button>
       </div>

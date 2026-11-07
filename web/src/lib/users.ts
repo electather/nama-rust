@@ -1,7 +1,7 @@
 import { Code } from "@connectrpc/connect";
 import { createConnectQueryKey } from "@connectrpc/connect-query";
 
-import { Permission, type User } from "@/gen/nama/v1/sign_in_pb";
+import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { UserService } from "@/gen/nama/v1/user_pb";
 
 import { type FormErrors, refusedFieldErrors, refusal, serverMessage } from "./forms";
@@ -18,22 +18,21 @@ export const devicesKey = createConnectQueryKey({
   cardinality: "finite",
 });
 
-/** Whether `user` has the Admin Permission, which passes every check. */
-export function isAdmin(user: User | undefined) {
-  return user?.permissions.includes(Permission.ADMIN) ?? false;
-}
-
 /**
  * Why the Server refused to `attempt` (such as "delete this User") a change to the User called
  * `name`: one that would leave it with no Admin, or to a User deleted meanwhile.
  */
 export function onlyAdminRefusal(error: unknown, name: string, attempt: string) {
-  return refusal(error, attempt, {
-    [Code.FailedPrecondition]: {
-      form: `${name} is the only Admin. Make someone else an Admin first.`,
+  return refusal(
+    error,
+    attempt,
+    { [Code.NotFound]: noLongerHere(name) },
+    {
+      [RefusalReason.LAST_ADMIN]: {
+        form: `${name} is the only Admin. Make someone else an Admin first.`,
+      },
     },
-    [Code.NotFound]: noLongerHere(name),
-  }).form;
+  ).form;
 }
 
 /** Why creating a User was refused, next to the field it's about. */

@@ -2,9 +2,8 @@ import { Outlet, createFileRoute, redirect, useMatches } from "@tanstack/react-r
 
 import { AppChrome } from "@/components/app-chrome";
 import { ConfirmItsYou } from "@/components/confirm-its-you";
-import { isSetupRequired, whoIsSignedIn } from "@/lib/access";
+import { adminPagesFor, isSetupRequired, whoIsSignedIn } from "@/lib/access";
 import { useEvents } from "@/lib/events";
-import { isAdmin } from "@/lib/users";
 
 /** Pages for signed-in Users, under the app chrome unless they fill the screen. */
 export const Route = createFileRoute("/_member")({
@@ -28,7 +27,7 @@ function MemberLayout() {
   useEvents();
   return (
     <ConfirmItsYou>
-      {!fullScreen && <AppChrome isAdmin={isAdmin(signedIn.user)} />}
+      {!fullScreen && <AppChrome hasAdminPages={adminPagesFor(signedIn.user).length > 0} />}
       <Outlet />
     </ConfirmItsYou>
   );

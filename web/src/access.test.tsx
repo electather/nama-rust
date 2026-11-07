@@ -1,8 +1,9 @@
 import { Code } from "@connectrpc/connect";
-import { cleanup, fireEvent, screen } from "@testing-library/react";
+import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
+import { Permission } from "@/gen/nama/v1/sign_in_pb";
 
 import { admin, fakeServer, fill, newUser, openApp, type ServerState } from "./test-app";
 import { expectUnderField, refused } from "./test-refusal";
@@ -152,11 +153,40 @@ test("signing in never redirects to another site", async () => {
   expect(router.state.location.href).toBe("/");
 });
 
-test("a User who isn't an Admin opening an Admin page sees Admins only, and no Admin link", async () => {
+test("a User who manages nothing opening an Admin page is told they can't, and has no Admin link", async () => {
   openApp("/admin/users", fakeServer({ signedIn: newUser }));
 
-  expect(await screen.findByRole("heading", { name: "Admins only" })).toBeDefined();
+  expect(await screen.findByRole("heading", { name: "You can’t open this page" })).toBeDefined();
   expect(screen.queryByRole("link", { name: "Admin" })).toBeNull();
+});
+
+test.each([
+  [Permission.MANAGE_LIBRARIES, "/admin/libraries", ["Libraries", "Needs a Match"]],
+  [Permission.MANAGE_USERS, "/admin/users", ["Users"]],
+  [Permission.ADMIN, "/admin/libraries", ["Libraries", "Needs a Match", "Users"]],
+])(
+  "with only Permission %i, Admin opens on %s and lists only the pages it allows",
+  async (permission, landing, pages) => {
+    const router = openApp(
+      "/admin",
+      fakeServer({ signedIn: [permission] }, {}, { listUsers: () => ({}) }),
+    );
+
+    const nav = await screen.findByRole("navigation", { name: "Admin" });
+    expect(
+      within(nav)
+        .getAllByRole("link")
+        .map((link) => link.textContent),
+    ).toEqual(pages);
+    expect(router.state.location.pathname).toBe(landing);
+  },
+);
+
+test("a User with only Manage Libraries opening the Users page is told they can't", async () => {
+  openApp("/admin/users", fakeServer({ signedIn: [Permission.MANAGE_LIBRARIES] }));
+
+  expect(await screen.findByRole("heading", { name: "You can’t open this page" })).toBeDefined();
+  expect(screen.getByRole("link", { name: "Admin" })).toBeDefined();
 });
 
 test("a wrong password shows an error and keeps the username", async () => {

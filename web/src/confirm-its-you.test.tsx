@@ -171,14 +171,17 @@ test("changes refused together wait for one “Confirm it’s you”, then all g
 
   fireEvent.click(await screen.findByText("Alex"));
   fireEvent.click(await screen.findByText("Kim"));
-  const makeAdmin = await screen.findAllByRole("button", { name: "Make Admin" });
-  for (const button of makeAdmin) fireEvent.click(button);
+  for (const checkbox of await screen.findAllByRole("checkbox", { name: "Admin" })) {
+    fireEvent.click(checkbox);
+  }
+  for (const save of screen.getAllByRole("button", { name: "Save Permissions" })) {
+    fireEvent.click(save);
+  }
   await confirmItsYou();
 
   await waitFor(() => {
     expect(promoted).toHaveLength(2);
   });
-  // Making them Admin keeps the Permissions they had.
   const permissions = [...newUser, Permission.ADMIN];
   expect(promoted).toEqual(
     expect.arrayContaining([
