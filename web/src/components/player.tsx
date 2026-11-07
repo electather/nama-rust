@@ -6,6 +6,7 @@ import { type ReactNode, type RefObject, useRef, useState } from "react";
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
+import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
 import {
   type Video,
   clock,
@@ -18,6 +19,7 @@ import {
   useShortcuts,
   useVideo,
 } from "@/lib/playback";
+import { useWatchState } from "@/lib/watch-state";
 
 /** What the player plays, and where "back" goes. */
 export interface PlayerProps {
@@ -25,6 +27,8 @@ export interface PlayerProps {
   title: string;
   /** The Version to play, by id. */
   versionId: bigint;
+  /** Your Watch State of the Movie or Episode: where playing resumes. */
+  watchState: WatchState | undefined;
   /** The title page to go back to. */
   back: LinkOptions;
 }
@@ -49,11 +53,13 @@ export function Player(props: PlayerProps) {
 function VideoPlayer({
   title,
   versionId,
+  watchState,
   back,
   onCantPlay,
 }: PlayerProps & { onCantPlay: () => void }) {
   const playerRef = useRef<HTMLDivElement>(null);
   const { ref: videoRef, events, ...video } = useVideo();
+  useWatchState(videoRef, versionId, watchState);
   const [awake, wake] = useAwake();
   useShortcuts(videoRef, playerRef, back, wake);
   const controlsHidden = video.state.playing && !awake;

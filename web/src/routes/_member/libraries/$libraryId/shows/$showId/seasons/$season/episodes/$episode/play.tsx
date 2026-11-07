@@ -45,6 +45,7 @@ function PlayEpisode() {
     <Player
       title={episode.title}
       versionId={versionToPlay(episode.versions, version).id}
+      watchState={episode.watchState}
       back={{
         to: "/libraries/$libraryId/shows/$showId",
         params: { libraryId, showId },
