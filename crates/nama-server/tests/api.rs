@@ -10,7 +10,6 @@ use nama_proto::nama::v1::{GetServerInfoRequest, GetServerInfoResponse, ServerSe
 use nama_server::{config::Config, plugins::Registry};
 use server::TestServer;
 
-/// The default config with the Server named `name`.
 fn config_named(name: &str) -> Config {
     Config {
         name: name.to_owned(),
@@ -18,7 +17,6 @@ fn config_named(name: &str) -> Config {
     }
 }
 
-/// Calls `GetServerInfo` through the generated client and returns the owned response.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"

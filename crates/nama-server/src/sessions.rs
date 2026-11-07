@@ -16,7 +16,6 @@ use crate::{
     users::{Caller, DEVICE_LIFETIME, Users},
 };
 
-/// The cookie a browser's session travels in.
 const COOKIE_NAME: &str = "nama_session";
 
 /// Adds the [`Caller`] to `request`'s extensions if it carries a valid session, as
@@ -58,7 +57,6 @@ pub(crate) fn session_cookie(token: &str, request: &Extensions) -> String {
     cookie(token, DEVICE_LIFETIME, request)
 }
 
-/// The `Set-Cookie` value that has a browser forget its session cookie.
 pub(crate) fn cleared_session_cookie(request: &Extensions) -> String {
     cookie("", 0, request)
 }
@@ -74,15 +72,12 @@ fn cookie(value: &str, max_age: i64, request: &Extensions) -> String {
     format!("{COOKIE_NAME}={value}; HttpOnly; SameSite=Strict; Path=/; Max-Age={max_age}{secure}")
 }
 
-/// Whether `headers` carry their session in the session cookie, rather than as a bearer token.
 pub(crate) fn in_session_cookie(headers: &HeaderMap) -> bool {
     presented_token(headers).is_some_and(|presented| presented.in_cookie)
 }
 
-/// A session token a request carried.
 struct PresentedToken<'a> {
     token: &'a str,
-    /// Whether it came in the session cookie, rather than as a bearer token.
     in_cookie: bool,
 }
 

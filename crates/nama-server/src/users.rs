@@ -1,8 +1,7 @@
 //! Users, Devices and their sessions: Kernel state (ADR 0014).
 //!
-//! [`Users`] is the only way in. It checks names before anything is written, has the enabled
-//! Authenticator turn passwords into the credential string it stores, and keeps only the SHA-256
-//! hash of each Device's session token, so the database never holds a password or a token.
+//! [`Users`] is the only way in. It checks names before anything is written and has the enabled
+//! Authenticator turn passwords into credentials. Nothing secret is stored: see `AGENTS.md`.
 
 use std::{fmt, ops::RangeInclusive, sync::Arc};
 
@@ -55,7 +54,6 @@ const SIGN_OUTS_BUFFERED: usize = 64;
 pub struct Users {
     db: Arc<Database>,
     plugins: Registry,
-    /// The ids of Devices as they are signed out.
     sign_outs: broadcast::Sender<i64>,
 }
 
@@ -735,7 +733,6 @@ pub(crate) fn checked_name(what: &str, name: &str) -> Result<String, Error> {
     }
 }
 
-/// A new session token: a [`random_secret`] after [`TOKEN_PREFIX`].
 fn new_token() -> Result<String, getrandom::Error> {
     Ok(format!("{TOKEN_PREFIX}{}", random_secret()?))
 }
@@ -752,14 +749,12 @@ fn hash_token(token: &str) -> [u8; 32] {
     Sha256::digest(token).into()
 }
 
-/// Whether the database holds any User.
 async fn any_user(conn: &mut SqliteConnection) -> Result<bool, sqlx::Error> {
     sqlx::query_scalar!(r#"SELECT EXISTS (SELECT 1 FROM users) AS "any!: bool""#)
         .fetch_one(conn)
         .await
 }
 
-/// Whether there is a User with the ID `user`.
 async fn user_exists(conn: &mut SqliteConnection, user: i64) -> Result<bool, sqlx::Error> {
     sqlx::query_scalar!(
         r#"SELECT EXISTS (SELECT 1 FROM users WHERE id = ?) AS "exists!: bool""#,
@@ -897,7 +892,6 @@ async fn replace_credential(
     insert_credential(conn, user, credential).await
 }
 
-/// Stores `credential` for the User `user`.
 async fn insert_credential(
     conn: &mut SqliteConnection,
     user: i64,
@@ -980,14 +974,12 @@ async fn insert_device(
 mod tests {
     use super::*;
 
-    /// Stores a User named `name` in `db`, as creating any User does.
     async fn create_user(db: &Database, name: &str) -> Result<User, Error> {
         let name = name.to_owned();
         db.write(move |tx| Box::pin(async move { insert_user(tx, &name, Role::Member).await }))
             .await
     }
 
-    /// The session token of the Device [`signed_in_device`] makes.
     const TOKEN: &str = "nama_test-token";
 
     /// 90 days, in seconds, counted independently of the code under test.

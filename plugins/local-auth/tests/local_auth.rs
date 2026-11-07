@@ -11,7 +11,6 @@ use nama_plugin_api::{
 };
 use nama_plugin_local_auth::LocalAuth;
 
-/// The Authenticator `local-auth` registers when it is enabled.
 #[expect(
     clippy::expect_used,
     reason = "registering no Authenticator fails the test that asked for it"

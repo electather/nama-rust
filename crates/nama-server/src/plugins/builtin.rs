@@ -11,7 +11,6 @@ use tracing::{error, info, warn};
 use super::{EnableError, Registry, contain_sync};
 use crate::config::PluginConfig;
 
-/// Every Built-in Plugin.
 fn all() -> Vec<Arc<dyn Plugin>> {
     vec![
         Arc::new(LocalAuth),

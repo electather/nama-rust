@@ -4,9 +4,8 @@
 //! A rescan is incremental. A file whose size and modified time are what was stored is skipped;
 //! a new or changed file is parsed and stored; a stored file that's gone is removed, except
 //! under a folder that couldn't be read, so a drive that isn't mounted doesn't empty the
-//! Library. A renamed file is a file gone and a file found. Changes are written through the
-//! database's single writer in batches of [`BATCH_SIZE`], so other writes and every read carry
-//! on while a scan runs.
+//! Library. A renamed file is a file gone and a file found. Changes are written in batches of
+//! [`BATCH_SIZE`] (see the crate's `AGENTS.md`).
 //!
 //! Files are only listed and their metadata read, never opened: sidecars such as `.nfo` files
 //! are ignored.
@@ -70,7 +69,6 @@ pub(crate) enum Error {
     /// The Library couldn't be read, or there is no such Library.
     #[error(transparent)]
     Library(#[from] libraries::Error),
-    /// The database failed.
     #[error("database error: {0}")]
     Database(#[from] sqlx::Error),
     /// Walking the Library's folders panicked.
@@ -113,8 +111,6 @@ struct Inner {
 }
 
 impl Scanner {
-    /// A scanner storing what it finds in `db`, Matching it with the metadata Provider enabled
-    /// in `plugins`, and publishing what it does on `events`.
     pub(crate) fn new(db: Arc<Database>, plugins: Registry, events: EventBus) -> Self {
         Self {
             inner: Arc::new(Inner {
@@ -178,12 +174,11 @@ impl Scanner {
         self.library_mutex(id).lock_owned().await
     }
 
-    /// The mutex a scan of the Library `id` holds while it runs.
     fn library_mutex(&self, id: i64) -> Arc<tokio::sync::Mutex<()>> {
         Arc::clone(lock(&self.inner.running).entry(id).or_default())
     }
 
-    /// Scans the Library `id`, whose lock the caller holds.
+    /// The caller holds the Library's lock.
     async fn scan_locked(&self, id: i64) -> Result<Summary, Error> {
         let cancel = self.inner.cancel.clone();
         if cancel.is_cancelled() {
@@ -240,10 +235,8 @@ fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
-/// A video file on disk.
 #[derive(Debug)]
 struct Found {
-    /// The absolute path.
     path: String,
     /// The path relative to the Library folder it was found in, which is what's parsed.
     relative: PathBuf,
@@ -251,7 +244,6 @@ struct Found {
     modified_ns: i64,
 }
 
-/// What walking a Library's folders found.
 #[derive(Debug, Default)]
 struct Walked {
     files: Vec<Found>,
@@ -259,8 +251,7 @@ struct Walked {
     unreadable: Vec<PathBuf>,
 }
 
-/// Walks `folders` for video files, leaving out hidden files and folders and extras, until
-/// `cancel` is cancelled. Blocks.
+/// Blocks, so call it from `spawn_blocking`.
 fn walk(folders: &[String], cancel: &CancellationToken) -> Result<Walked, Error> {
     let mut walked = Walked::default();
     for folder in folders {
@@ -292,8 +283,6 @@ fn is_hidden(name: &OsStr) -> bool {
     name.as_encoded_bytes().starts_with(b".") || name == "@eaDir"
 }
 
-/// The video file at `entry`, under the Library folder `root`, unless it's something else or an
-/// extra.
 fn video_file(root: &Path, entry: &DirEntry) -> Result<Option<Found>, walkdir::Error> {
     let path = entry.path();
     let is_video = path
@@ -322,7 +311,7 @@ fn video_file(root: &Path, entry: &DirEntry) -> Result<Option<Found>, walkdir::E
     }))
 }
 
-/// `time` in nanoseconds since the Unix epoch, saturating.
+/// Nanoseconds since the Unix epoch, saturating.
 fn nanos_since_epoch(time: SystemTime) -> i64 {
     match time.duration_since(UNIX_EPOCH) {
         Ok(after) => i64::try_from(after.as_nanos()).unwrap_or(i64::MAX),
@@ -330,8 +319,6 @@ fn nanos_since_epoch(time: SystemTime) -> i64 {
     }
 }
 
-/// The changes that bring the `stored` files of a Library of `kind` in line with what was
-/// `found`.
 fn plan(kind: Kind, mut stored: HashMap<String, Stored>, found: Walked) -> (Vec<Change>, Summary) {
     let mut changes = Vec::new();
     let mut summary = Summary::default();
@@ -441,7 +428,6 @@ mod tests {
             }
         }
 
-        /// Writes a file of `size` bytes at `relative`, creating its folders.
         fn write(&self, relative: &str, size: usize) {
             let path = self.root.join(relative);
             fs::create_dir_all(path.parent().unwrap()).unwrap();
@@ -566,9 +552,7 @@ mod tests {
         assert_eq!(media.scan().await, summary(4, 0, 0, 0));
         assert_eq!(media.scan().await, summary(0, 0, 0, 4), "nothing changed");
 
-        // Added.
         media.write("Up (2009)/Up (2009).mkv", 10);
-        // Changed: a new size.
         media.write("Alien (1979)/Alien (1979).mkv", 20);
         // Renamed, with an ID hint.
         fs::rename(
@@ -576,7 +560,6 @@ mod tests {
             media.path("Blade Runner (1982) {tmdb-78}"),
         )
         .unwrap();
-        // Deleted.
         fs::remove_file(media.path("home video.mkv")).unwrap();
 
         assert_eq!(media.scan().await, summary(2, 1, 2, 1));

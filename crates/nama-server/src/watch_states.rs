@@ -15,12 +15,9 @@ use crate::db::{Database, now};
 
 // The `kind` of a Watch State, part of its key since Movie and Episode TMDB ids are separate id
 // spaces.
-/// The `kind` of a Movie's Watch State.
 const MOVIE: &str = "movie";
-/// The `kind` of an Episode's Watch State.
 const EPISODE: &str = "episode";
 
-/// Reads and writes each User's Watch State.
 #[derive(Debug, Clone)]
 pub(crate) struct WatchStates {
     db: Arc<Database>,
@@ -29,19 +26,15 @@ pub(crate) struct WatchStates {
 /// A Movie or Episode, by the external id its Watch State is kept against.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) enum MovieOrEpisode {
-    /// A Movie.
     Movie(String),
-    /// An Episode.
     Episode(String),
 }
 
 impl MovieOrEpisode {
-    /// The Movie with the id `id`.
     pub(crate) fn movie(id: &ExternalId) -> Self {
         Self::Movie(id.to_string())
     }
 
-    /// The Episode with the id `id`.
     pub(crate) fn episode(id: &ExternalId) -> Self {
         Self::Episode(id.to_string())
     }
@@ -112,7 +105,6 @@ impl Progress {
 }
 
 impl WatchStates {
-    /// The Watch State kept in `db`.
     pub(crate) const fn new(db: Arc<Database>) -> Self {
         Self { db }
     }
@@ -291,8 +283,7 @@ impl WatchStates {
     }
 }
 
-/// Stores, as of now, the User `user`'s progress through each Movie or Episode of `kind`, by its
-/// external id. One once played stays played.
+/// One once played stays played.
 async fn upsert(
     conn: &mut SqliteConnection,
     user: i64,
@@ -325,8 +316,6 @@ async fn upsert(
     Ok(())
 }
 
-/// Marks, as of now, each Movie or Episode of `kind` with the external ids `titles` played or
-/// unplayed for the User `user`.
 async fn mark_each(
     conn: &mut SqliteConnection,
     user: i64,
@@ -345,8 +334,7 @@ async fn mark_each(
     Ok(())
 }
 
-/// Marks, as of `now`, the Movie or Episode of `kind` with the external id `title` played for the
-/// User `user`, keeping any position. One they haven't started is at 0 of an unknown duration, 0.
+/// Keeps any position. One the User hasn't started is at 0 of an unknown duration, 0.
 async fn mark_played(
     conn: &mut SqliteConnection,
     user: i64,
@@ -370,8 +358,7 @@ async fn mark_played(
     Ok(())
 }
 
-/// Forgets the User `user`'s Watch State of the Movie or Episode of `kind` with the external id
-/// `title`, which marks it unplayed and clears its position.
+/// Deleting the row is how a title becomes unplayed with no position.
 async fn forget(
     conn: &mut SqliteConnection,
     user: i64,
@@ -393,7 +380,6 @@ async fn forget(
 mod tests {
     use super::Progress;
 
-    /// The position and duration of each share, or `None` for one the position hasn't reached.
     fn shares(position_ms: u64, duration_ms: u64, episodes: usize) -> Vec<Option<(i64, i64)>> {
         let progress = Progress::new(position_ms, duration_ms).unwrap();
         progress

@@ -25,7 +25,6 @@ pub(crate) enum Decision {
     NoMatch,
 }
 
-/// Which of `candidates` the title `title` from `year` Matches.
 pub(crate) fn decide(title: &str, year: Option<i32>, candidates: &[Candidate]) -> Decision {
     // Every candidate is scored, not just those above the threshold: a runner-up just below it
     // still fits about as well as the best and so makes the best ambiguous.
@@ -42,7 +41,6 @@ pub(crate) fn decide(title: &str, year: Option<i32>, candidates: &[Candidate]) -
     }
 }
 
-/// How confident a Match of `title` from `year` to `candidate` would be.
 fn confidence(title: &str, year: Option<i32>, candidate: &Candidate) -> f64 {
     let wanted = normalize(title);
     let title_score = std::iter::once(&candidate.title)

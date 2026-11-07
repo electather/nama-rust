@@ -32,7 +32,6 @@ pub struct Registry {
 #[derive(Default)]
 struct State {
     plugins: BTreeMap<PluginId, Enabled>,
-    /// The generation the next enabled Plugin gets.
     next_generation: u64,
     /// Each Extension Point's handlers, in the order they run.
     points: HashMap<PointKey, Vec<Entry>>,
@@ -40,7 +39,6 @@ struct State {
     precedence: HashMap<PointKey, Vec<PluginId>>,
 }
 
-/// One enabled Plugin.
 struct Enabled {
     // Held so the Plugin lives as long as it is enabled.
     _plugin: Arc<dyn Plugin>,
@@ -49,11 +47,9 @@ struct Enabled {
     generation: u64,
 }
 
-/// One handler and the Plugin that registered it.
 #[derive(Clone)]
 struct Entry {
     plugin: PluginId,
-    /// The generation of the Plugin's enablement that registered it.
     generation: u64,
     /// Position among the Plugin's own registrations, which breaks the last tie.
     index: usize,
@@ -289,7 +285,6 @@ impl Registry {
         }
     }
 
-    /// Tells one Observer about one event.
     async fn deliver<P: ObservePoint>(
         self,
         entry: Entry,
@@ -450,7 +445,6 @@ impl Registry {
         self.write(|state| state.precedence.insert(PointKey::provide::<T>(), plugins));
     }
 
-    /// Whether the enablement that registered `entry` is still the enabled one.
     fn is_current(&self, entry: &Entry) -> bool {
         self.read(|state| {
             state
@@ -483,7 +477,6 @@ impl Registry {
     }
 }
 
-/// Calls Plugin code that isn't async, catching a panic.
 pub(crate) fn contain_sync<T>(call: impl FnOnce() -> T) -> Result<T, String> {
     panic::catch_unwind(AssertUnwindSafe(call)).map_err(|payload| panic_message(&*payload))
 }
@@ -497,7 +490,6 @@ async fn contain<F: Future>(call: impl FnOnce() -> F) -> Result<F::Output, Strin
         .map_err(|payload| panic_message(&*payload))
 }
 
-/// The message a panic was raised with.
 fn panic_message(payload: &(dyn Any + Send)) -> String {
     if let Some(message) = payload.downcast_ref::<&str>() {
         (*message).to_owned()

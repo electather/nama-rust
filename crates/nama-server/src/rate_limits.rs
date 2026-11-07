@@ -15,7 +15,6 @@ use std::{
 
 use crate::users::{NAME_LENGTH, name_key};
 
-/// How far back failures count.
 const WINDOW: Duration = Duration::from_mins(15);
 
 /// How many failures for one User name the window may hold before attempts for it are refused.
@@ -35,7 +34,6 @@ pub(crate) struct SignInLimits {
     failures: Mutex<Failures>,
 }
 
-/// The recent failures, counted both ways.
 #[derive(Debug, Default)]
 struct Failures {
     by_ip: Window<IpAddr>,
@@ -52,7 +50,6 @@ pub(crate) struct Attempt {
     at: Instant,
 }
 
-/// An attempt refused for too many recent failures.
 #[derive(Debug, thiserror::Error)]
 #[error("too many failed attempts; try again in {} seconds", self.retry_after_secs())]
 pub(crate) struct Blocked {
@@ -99,7 +96,6 @@ impl SignInLimits {
         }
     }
 
-    /// The failures, to read or change.
     fn lock(&self) -> MutexGuard<'_, Failures> {
         // Every change leaves the counts consistent, so a panic elsewhere doesn't spoil them.
         self.failures.lock().unwrap_or_else(PoisonError::into_inner)
@@ -139,7 +135,6 @@ impl SignInCodeLimits {
         self.lock().forget(&attempt.device, attempt.at);
     }
 
-    /// The failures, to read or change.
     fn lock(&self) -> MutexGuard<'_, Window<i64>> {
         // As for `SignInLimits`: every change leaves the counts consistent.
         self.failures.lock().unwrap_or_else(PoisonError::into_inner)
@@ -213,7 +208,6 @@ impl<K: Hash + Eq> Window<K> {
         self.times.entry(key).or_default().push_back(at);
     }
 
-    /// Un-counts the failure for `key` at `at`.
     fn forget(&mut self, key: &K, at: Instant) {
         if let Some(times) = self.times.get_mut(key)
             && let Some(index) = times.iter().position(|&time| time == at)
@@ -222,7 +216,6 @@ impl<K: Hash + Eq> Window<K> {
         }
     }
 
-    /// Un-counts every failure for `key`.
     fn clear(&mut self, key: &K) {
         self.times.remove(key);
     }

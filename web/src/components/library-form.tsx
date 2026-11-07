@@ -9,13 +9,11 @@ import { type Library, LibraryKind, LibraryService } from "@/gen/nama/v1/library
 import { type FormErrors, formText, onSubmitted } from "@/lib/forms";
 import { foldersTyped, librariesKey, libraryErrors } from "@/lib/libraries";
 
-/** What a new Library can hold. */
 const kinds: [value: string, label: string][] = [
   ["movies", "Movies"],
   ["shows", "Shows"],
 ];
 
-/** The form an Admin creates a Library with: its name, kind and folders. */
 export function CreateLibrary() {
   const queryClient = useQueryClient();
   const create = useMutation(LibraryService.method.createLibrary, {

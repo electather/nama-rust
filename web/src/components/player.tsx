@@ -25,7 +25,6 @@ import { useWatchState } from "@/lib/watch-state";
 export interface PlayerProps {
   /** The Movie's or Episode's title, which also names the video. */
   title: string;
-  /** The Version to play, by id. */
   versionId: bigint;
   /** Your Watch State of the Movie or Episode: where playing resumes. */
   watchState: WatchState | undefined;
@@ -224,7 +223,6 @@ function CantPlay({ back }: { back: LinkOptions }) {
   );
 }
 
-/** Leaves the player for the title page. */
 function BackLink({
   back,
   label,

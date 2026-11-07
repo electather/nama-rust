@@ -165,14 +165,12 @@ export function useShortcuts(
   }, [videoRef, playerRef, back, wake, navigate]);
 }
 
-/** Plays a paused video, or pauses a playing one. */
 export function togglePlay(video: HTMLVideoElement) {
   // A refused play, such as autoplay the browser blocked, leaves it paused with Play showing.
   if (video.paused) video.play().catch(() => {});
   else video.pause();
 }
 
-/** Mutes the video, or unmutes it. */
 export function toggleMute(video: HTMLVideoElement) {
   video.muted = !video.muted;
 }
@@ -184,13 +182,11 @@ export function setVolume(video: HTMLVideoElement, level: number) {
   video.muted = video.volume === 0;
 }
 
-/** Makes the player full screen, or leaves full screen. */
 export function toggleFullscreen(player: HTMLElement | null) {
   if (document.fullscreenElement) void document.exitFullscreen();
   else void player?.requestFullscreen();
 }
 
-/** Whether the page is full screen, kept up to date. */
 export function useIsFullscreen() {
   return useSyncExternalStore(subscribeToFullscreen, () => document.fullscreenElement !== null);
 }

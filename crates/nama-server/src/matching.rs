@@ -62,7 +62,6 @@ pub(crate) struct Summary {
 /// Why Matching stopped.
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum Error {
-    /// The database failed.
     #[error("database error: {0}")]
     Database(#[from] sqlx::Error),
     /// The Server is shutting down.
@@ -73,7 +72,6 @@ pub(crate) enum Error {
 /// Why a Match couldn't be searched for, set or cleared by hand.
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum ManualError {
-    /// There is no item with this id.
     #[error("there is no item {0}")]
     NoSuchItem(i64),
     /// The metadata source has no title with this id, or can't look titles up by it.
@@ -82,12 +80,10 @@ pub(crate) enum ManualError {
     /// No metadata Provider is enabled, or it failed.
     #[error("no metadata Provider could answer")]
     Unavailable,
-    /// The database failed.
     #[error("database error: {0}")]
     Database(#[from] sqlx::Error),
 }
 
-/// Matches the items of Libraries using the enabled metadata Provider.
 #[derive(Debug, Clone)]
 pub(crate) struct Matcher {
     contents: Contents,
@@ -99,11 +95,9 @@ pub(crate) struct Matcher {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 struct TitleKey {
     name: Name,
-    /// What an admin pinned for items named so.
     pin: Option<Pin>,
 }
 
-/// A Show the metadata Provider has, and the Plugin whose Provider it came from.
 #[derive(Debug)]
 struct FoundShow {
     plugin: PluginId,
@@ -111,16 +105,12 @@ struct FoundShow {
     show: Show,
 }
 
-/// The items of a Library that Matching hasn't decided yet.
 #[derive(Debug, Default)]
 struct Pending {
-    /// Movies, grouped by the title they name.
     movies: BTreeMap<TitleKey, Vec<i64>>,
-    /// Episodes, grouped by the Show they're in.
     shows: BTreeMap<TitleKey, Vec<PendingEpisode>>,
 }
 
-/// An Episode waiting to be Matched.
 #[derive(Debug, Clone, Copy)]
 struct PendingEpisode {
     item: i64,
@@ -129,7 +119,6 @@ struct PendingEpisode {
 }
 
 impl PendingEpisode {
-    /// The Item `item`, `what` it is, if that's an Episode.
     const fn of(item: i64, what: &Item) -> Option<Self> {
         match *what {
             Item::Episode {
@@ -144,10 +133,8 @@ impl PendingEpisode {
     }
 }
 
-/// Why Matching found no title for an item.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Miss {
-    /// Nothing fits: the item is Unmatched.
     Unmatched,
     /// The metadata Provider couldn't answer: the item is Unmatched for now, but undecided, so
     /// the next scan tries again.
@@ -189,8 +176,6 @@ impl Metadata {
 }
 
 impl Matcher {
-    /// A matcher storing Matches in `db`, asking the metadata Provider enabled in `plugins`, and
-    /// publishing the Matches it stores on `events`.
     pub(crate) const fn new(db: Arc<Database>, plugins: Registry, events: EventBus) -> Self {
         Self {
             contents: Contents::new(db),
@@ -324,7 +309,6 @@ impl Matcher {
         Ok(summary)
     }
 
-    /// The Library's undecided Movies and Episodes, grouped by the title they name.
     async fn undecided(&self, library: i64) -> Result<Pending, sqlx::Error> {
         let mut pending = Pending::default();
         for (id, item, pin) in self.contents.undecided(library).await? {
@@ -340,7 +324,6 @@ impl Matcher {
         Ok(pending)
     }
 
-    /// The items of the item `item`'s Library named like it.
     async fn named_like(&self, item: i64) -> Result<Named, ManualError> {
         self.contents
             .named_like(item)
@@ -348,13 +331,11 @@ impl Matcher {
             .ok_or(ManualError::NoSuchItem(item))
     }
 
-    /// Finds and fetches the Movie `key` names.
     async fn match_movie(&self, key: &TitleKey) -> Result<Metadata, Miss> {
         let id = self.find(TitleKind::Movie, key).await?;
         self.fetch_movie(&id).await
     }
 
-    /// Fetches the Movie with the id `id`.
     async fn fetch_movie(&self, id: &ExternalId) -> Result<Metadata, Miss> {
         let (plugin, movie) = self
             .ask(|metadata| {
@@ -365,7 +346,6 @@ impl Matcher {
         Ok(Metadata::movie(plugin, movie))
     }
 
-    /// Finds and fetches the Show `key` names, then each of `episodes` in it.
     async fn match_episodes(
         &self,
         key: &TitleKey,
@@ -381,7 +361,6 @@ impl Matcher {
         }
     }
 
-    /// Fetches the Show with the id `id`.
     async fn fetch_show(&self, id: &ExternalId) -> Result<FoundShow, Miss> {
         let (plugin, show) = self
             .ask(|metadata| {
@@ -396,7 +375,6 @@ impl Matcher {
         })
     }
 
-    /// Fetches the Seasons `episodes` are in, from `show`, and finds each Episode in its Season.
     async fn match_in_show(
         &self,
         show: &FoundShow,
@@ -426,7 +404,6 @@ impl Matcher {
         decided
     }
 
-    /// The Season `number` of the Show `show`.
     async fn season(&self, show: &ExternalId, number: i64) -> Result<Season, Miss> {
         let number = u32::try_from(number).map_err(|_negative| Miss::Unmatched)?;
         self.ask(|metadata| {
@@ -471,8 +448,7 @@ impl Matcher {
         }
     }
 
-    /// Searches for `title` from `search_year`, and decides which result fits `title` from
-    /// `year`.
+    /// `search_year` is what the Provider is asked for; `year` is what the confidence score weighs.
     async fn search(
         &self,
         kind: TitleKind,
@@ -494,7 +470,6 @@ impl Matcher {
         Ok(confidence::decide(title, year, &candidates))
     }
 
-    /// Asks the metadata Provider, and says which Plugin answered.
     async fn ask<R, F>(
         &self,
         call: impl Fn(Arc<dyn MetadataProvider>) -> F,
@@ -522,8 +497,6 @@ impl Matcher {
         }
     }
 
-    /// Stores what was decided about each item of the Library `library`, counting it in
-    /// `summary`.
     async fn store(
         &self,
         library: i64,
@@ -540,8 +513,7 @@ impl Matcher {
         Ok(())
     }
 
-    /// Pins `pin` for the items `named` names, which were looked up through the item `item`, and
-    /// stores what was decided about them, in one write.
+    /// Stores the pin and the decisions in one write.
     async fn pin(
         &self,
         item: i64,
@@ -572,12 +544,10 @@ impl Matcher {
     }
 }
 
-/// `n` items, as a [`Summary`] counts them.
 pub(crate) fn count(n: usize) -> u64 {
     u64::try_from(n).unwrap_or(u64::MAX)
 }
 
-/// The decisions among `outcomes`, each counted in `summary`.
 fn tally(
     outcomes: Vec<(i64, Result<Metadata, Miss>)>,
     summary: &mut Summary,
@@ -599,7 +569,6 @@ fn tally(
     decided
 }
 
-/// The events for the items of the Library `library` that `decided` Matches.
 fn matched_events(library: i64, decided: &[(i64, Decided)]) -> Vec<Event> {
     decided
         .iter()
@@ -675,14 +644,12 @@ mod tests {
     }
 
     impl Fixture {
-        /// The fixture, with the TMDB Plugin enabled.
         async fn new() -> Self {
             let fixture = Self::without_tmdb().await;
             fixture.enable_tmdb();
             fixture
         }
 
-        /// The fixture, with no metadata Provider enabled.
         async fn without_tmdb() -> Self {
             let data = tempfile::tempdir().unwrap();
             let media = tempfile::tempdir().unwrap();
@@ -735,7 +702,6 @@ mod tests {
             self.scanner.scan(library.id).await.unwrap();
         }
 
-        /// Each item of `library`, by path relative to its folder, with what was stored for it.
         async fn items(&self, library: &Library) -> Vec<(String, FileItem)> {
             self.contents
                 .files(library.id)
@@ -769,7 +735,6 @@ mod tests {
                 .collect()
         }
 
-        /// The outcome for each item of `library`, in the order [`Self::stored`] gives them.
         async fn outcomes(&self, library: &Library) -> Vec<Outcome> {
             self.stored(library)
                 .await
@@ -778,12 +743,10 @@ mod tests {
                 .collect()
         }
 
-        /// What Matching stored for the first item of `library`.
         async fn first_recorded(&self, library: &Library) -> Recorded {
             self.items(library).await.remove(0).1.recorded.unwrap()
         }
 
-        /// The id of the first item stored for the file at `relative` in `library`.
         async fn item(&self, library: &Library, relative: &str) -> i64 {
             self.items(library)
                 .await
@@ -794,7 +757,6 @@ mod tests {
                 .id
         }
 
-        /// How many searches TMDB was asked for.
         fn searches(&self) -> usize {
             self.tmdb
                 .requests()
@@ -817,7 +779,6 @@ mod tests {
         }
     }
 
-    /// What Matching decided about an item, in short.
     #[derive(Debug, Clone, PartialEq, Eq)]
     enum Outcome {
         /// Matched to the title with this TMDB id and name.

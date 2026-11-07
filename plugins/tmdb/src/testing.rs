@@ -146,7 +146,6 @@ async fn answer(
     }
 }
 
-/// Reads a small fixture file.
 fn read_fixture(path: PathBuf) -> Option<Vec<u8>> {
     fs::read(path).ok()
 }

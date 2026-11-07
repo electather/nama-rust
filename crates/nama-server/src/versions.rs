@@ -24,7 +24,6 @@ pub(crate) fn router(contents: Contents) -> Router {
         .with_state(contents)
 }
 
-/// Answers `request` for the file of the Version `id`, or the bytes of it the request's `Range` asks for.
 async fn serve(
     State(contents): State<Contents>,
     Path(id): Path<i64>,

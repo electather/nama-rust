@@ -35,7 +35,6 @@ export async function queryOrNotFound<I extends DescMessage, O extends DescMessa
   }
 }
 
-/** The Library a `$libraryId` in the URL names, or the router's not-found if there's none. */
 export async function libraryFromParam(context: RouterContext, param: string) {
   const { libraries } = await queryOrNotFound(context, LibraryService.method.listLibraries, {});
   const library = libraries.find(({ id }) => String(id) === param);
@@ -43,7 +42,6 @@ export async function libraryFromParam(context: RouterContext, param: string) {
   return library;
 }
 
-/** Loads the Movie the URL names into the cache, and returns the `GetMovie` request that finds it. */
 export async function loadMovie(
   context: RouterContext,
   params: { libraryId: string; movieId: string },
@@ -78,7 +76,6 @@ export function seasonName(number: number) {
   return number === 0 ? "Specials" : `Season ${number}`;
 }
 
-/** The year in a `YYYY-MM-DD` date. */
 export function yearOf(date: string | undefined) {
   return date?.slice(0, 4);
 }

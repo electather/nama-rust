@@ -18,7 +18,6 @@ export const devicesKey = createConnectQueryKey({
   cardinality: "finite",
 });
 
-/** What `role` is called. */
 export function roleName(role: Role) {
   return role === Role.ADMIN ? "Admin" : "Member";
 }

@@ -13,7 +13,6 @@ const roles: [value: string, label: string][] = [
   ["admin", "Admin: also manages the Server and its Users"],
 ];
 
-/** The form an Admin creates a User with: their name, starting password and Role. */
 export function CreateUser() {
   const queryClient = useQueryClient();
   const create = useMutation(UserService.method.createUser, {

@@ -40,7 +40,6 @@ function AdminsOnly() {
   );
 }
 
-/** What an address with no page shows. */
 export function NotFound() {
   return (
     <Page heading="Page not found">

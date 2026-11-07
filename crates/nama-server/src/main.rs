@@ -206,7 +206,6 @@ fn shutdown_signal() -> io::Result<impl Future<Output = ()>> {
     })
 }
 
-/// Resolves on Ctrl-C.
 #[cfg(windows)]
 fn shutdown_signal() -> io::Result<impl Future<Output = ()>> {
     let mut ctrl_c = tokio::signal::windows::ctrl_c()?;

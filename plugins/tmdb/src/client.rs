@@ -27,17 +27,14 @@ use crate::{
     },
 };
 
-/// How long one request may take, start to finish.
 const TIMEOUT: Duration = Duration::from_secs(20);
 
 /// The largest response read, so a misbehaving server can't exhaust memory. Original-size
 /// backdrops are a few megabytes.
 const MAX_RESPONSE_BYTES: usize = 32 * 1024 * 1024;
 
-/// The size images are fetched in.
 const IMAGE_SIZE: &str = "original";
 
-/// TMDB, reached with one API key and language.
 pub(crate) struct Client {
     http: HyperClient<HttpsConnector<HttpConnector>, Empty<Bytes>>,
     endpoints: Endpoints,
@@ -46,7 +43,6 @@ pub(crate) struct Client {
 }
 
 impl Client {
-    /// A client for TMDB at `endpoints`.
     pub(crate) fn new(
         endpoints: Endpoints,
         api_key: &str,
@@ -65,7 +61,6 @@ impl Client {
         })
     }
 
-    /// GETs `path` from the API with `params`, and parses the JSON it answers with.
     async fn api<T: DeserializeOwned>(
         &self,
         path: &str,
@@ -80,7 +75,6 @@ impl Client {
         serde_json::from_slice(&body).map_err(|err| failed(format!("TMDB sent {path}: {err}")))
     }
 
-    /// GETs `path` from the API with `append_to_response=external_ids`.
     async fn details<T: DeserializeOwned>(&self, path: &str) -> Result<T, MetadataError> {
         self.api(path, &[("append_to_response", "external_ids")])
             .await

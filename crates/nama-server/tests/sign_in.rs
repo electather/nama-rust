@@ -107,7 +107,6 @@ struct Reply {
     body: Value,
 }
 
-/// Calls `method` of `SignInService` with a JSON `body` and the extra `headers`.
 async fn call(server: &TestServer, method: &str, body: &Value, headers: &[(&str, &str)]) -> Reply {
     post_json(
         server.addr,
@@ -118,7 +117,6 @@ async fn call(server: &TestServer, method: &str, body: &Value, headers: &[(&str,
     .await
 }
 
-/// What `GetServerInfo` answers.
 async fn server_info(server: &TestServer) -> Reply {
     post_json(
         server.addr,
@@ -445,7 +443,6 @@ fn database_bytes(data_dir: &Path) -> Vec<u8> {
     bytes
 }
 
-/// Whether `needle` occurs in `haystack`.
 fn contains(haystack: &[u8], needle: &[u8]) -> bool {
     haystack
         .windows(needle.len())
@@ -778,13 +775,10 @@ async fn signing_out_without_a_session_is_unauthenticated() {
     );
 }
 
-/// How long a test waits for a stream before failing.
 const WAIT: Duration = Duration::from_secs(10);
 
-/// A subscription to the Server's events.
 type Subscription = ServerStream<hyper::body::Incoming, SubscribeResponseView<'static>>;
 
-/// Client settings that point at `server`.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
@@ -793,12 +787,10 @@ fn client_config(server: &TestServer) -> ClientConfig {
     ClientConfig::new(format!("http://{}", server.addr).parse().unwrap())
 }
 
-/// Call options that send `token` as a bearer token.
 fn bearer(token: &str) -> CallOptions {
     CallOptions::default().with_header("authorization", format!("Bearer {token}"))
 }
 
-/// Subscribes to every event with the session `token`.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"

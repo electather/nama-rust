@@ -3,7 +3,6 @@ import { type ReactNode, useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { onSubmitted } from "@/lib/forms";
 
-/** What a confirm dialog asks, and what confirming does. */
 export interface Confirmation {
   /** What the button and the dialog's confirm button say, such as "Revoke". */
   action: string;

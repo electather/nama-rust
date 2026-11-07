@@ -1,14 +1,9 @@
 //! The Server's SQLite database (ADR 0005): one file in the data directory, in WAL mode, with
 //! migrations embedded in the binary and applied on open.
 //!
-//! Reads go through a pool of read-only connections. Every write goes through one writer task
-//! that owns the only writable connection and runs each write as its own transaction, so a long
-//! scan's writes queue behind each other instead of locking readers out, and the Server's writes
-//! never fight each other for SQLite's write lock.
-//!
-//! Queries use `sqlx::query!` and friends, which check them at compile time against the query
-//! data checked in under `.sqlx/` at the workspace root. The crate's README says how to
-//! regenerate it.
+//! Reads go through a pool of read-only connections; writes queue on one writer task (see the
+//! crate's `AGENTS.md`), so a long scan never locks readers out and writes never fight over
+//! SQLite's write lock.
 
 use std::{
     collections::HashSet,
@@ -31,16 +26,13 @@ use tokio::{
 /// The database file's name inside the data directory.
 pub const FILE_NAME: &str = "nama.db";
 
-/// How long a connection waits on a lock held by another before giving up.
 const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
 
-/// The most read connections open at once.
 const MAX_READERS: u32 = 8;
 
 /// How many writes can wait for the writer before [`Database::write`] waits for room.
 const WRITE_QUEUE_CAPACITY: usize = 64;
 
-/// The schema migrations in `migrations/`, compiled into the binary.
 static MIGRATOR: Migrator = sqlx::migrate!();
 
 /// Why the database couldn't be opened.
@@ -60,7 +52,6 @@ pub enum OpenError {
 /// The future a write returns, which may borrow the transaction it was given.
 pub use futures_util::future::BoxFuture;
 
-/// A write waiting for the writer task, which hands it the writable connection.
 type Job = Box<dyn for<'c> FnOnce(&'c mut SqliteConnection) -> BoxFuture<'c, ()> + Send>;
 
 /// The Server's open database.
@@ -206,7 +197,6 @@ async fn run_writer(mut conn: SqliteConnection, mut queue: mpsc::Receiver<Job>) 
     }
 }
 
-/// Runs `write` in a transaction on `conn`, committing on `Ok` and rolling back on `Err`.
 async fn in_transaction<T, E, F>(conn: &mut SqliteConnection, write: F) -> Result<T, E>
 where
     E: From<sqlx::Error>,
@@ -232,7 +222,6 @@ where
     }
 }
 
-/// Applies pending migrations and returns the versions it applied.
 async fn migrate(conn: &mut SqliteConnection) -> Result<Vec<i64>, MigrateError> {
     conn.ensure_migrations_table(&MIGRATOR.table_name).await?;
     let before: HashSet<i64> = conn

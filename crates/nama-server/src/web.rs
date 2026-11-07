@@ -28,7 +28,6 @@ pub(crate) async fn serve(request: Request, next: Next) -> Response {
 
 const HTML_CONTENT_TYPE: &str = "text/html; charset=utf-8";
 
-/// The media type of a file `vp build` writes, by its extension.
 fn content_type(path: &str) -> &'static str {
     match path.rsplit_once('.').map(|(_, extension)| extension) {
         Some("html") => HTML_CONTENT_TYPE,
