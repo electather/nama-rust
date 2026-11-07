@@ -6,32 +6,32 @@ pub mod continue_watching_entry {
     use super::*;
     /// It, with its Versions and the caller's Watch State, as browsing describes it.
     #[derive(Clone, PartialEq, Debug)]
-    pub enum Title {
+    pub enum MovieOrEpisode {
         Movie(::buffa::alloc::boxed::Box<super::super::super::Movie>),
         Episode(::buffa::alloc::boxed::Box<super::super::super::Episode>),
     }
-    impl ::buffa::Oneof for Title {}
-    impl From<super::super::super::Movie> for Title {
+    impl ::buffa::Oneof for MovieOrEpisode {}
+    impl From<super::super::super::Movie> for MovieOrEpisode {
         fn from(v: super::super::super::Movie) -> Self {
             Self::Movie(::buffa::alloc::boxed::Box::new(v))
         }
     }
-    impl From<super::super::super::Movie> for ::core::option::Option<Title> {
+    impl From<super::super::super::Movie> for ::core::option::Option<MovieOrEpisode> {
         fn from(v: super::super::super::Movie) -> Self {
-            Self::Some(Title::from(v))
+            Self::Some(MovieOrEpisode::from(v))
         }
     }
-    impl From<super::super::super::Episode> for Title {
+    impl From<super::super::super::Episode> for MovieOrEpisode {
         fn from(v: super::super::super::Episode) -> Self {
             Self::Episode(::buffa::alloc::boxed::Box::new(v))
         }
     }
-    impl From<super::super::super::Episode> for ::core::option::Option<Title> {
+    impl From<super::super::super::Episode> for ::core::option::Option<MovieOrEpisode> {
         fn from(v: super::super::super::Episode) -> Self {
-            Self::Some(Title::from(v))
+            Self::Some(MovieOrEpisode::from(v))
         }
     }
-    impl ::serde::Serialize for Title {
+    impl ::serde::Serialize for MovieOrEpisode {
         fn serialize<S: ::serde::Serializer>(
             &self,
             s: S,

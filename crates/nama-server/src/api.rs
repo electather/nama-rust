@@ -69,7 +69,7 @@ use crate::{
     sign_in_codes::{self, Poll, SignInCodes},
     users::{self, Caller, Role, SetupCode, SignedIn, Users},
     versions,
-    watch_states::{Progress, Title, WatchState, WatchStates},
+    watch_states::{MovieOrEpisode, Progress, WatchState, WatchStates},
 };
 
 /// Routes every RPC the Server answers, its artwork and its Versions, each behind the layers
@@ -742,16 +742,17 @@ impl BrowseServiceHandler {
     // ponytail: reads every Library's contents; query by id if Libraries get big.
     async fn continue_watching(
         &self,
-        in_progress: Vec<(Title, WatchState)>,
+        in_progress: Vec<(MovieOrEpisode, WatchState)>,
     ) -> Result<Vec<proto::ContinueWatchingEntry>, ConnectError> {
-        let mut unfound: HashMap<Title, WatchState> = in_progress.iter().cloned().collect();
+        let mut unfound: HashMap<MovieOrEpisode, WatchState> =
+            in_progress.iter().cloned().collect();
         let mut entries = HashMap::new();
         for library in self.libraries.list().await? {
             entries.extend(self.entries_in(&library, &mut unfound).await?);
         }
         Ok(in_progress
             .into_iter()
-            .filter_map(|(title, _)| entries.remove(&title))
+            .filter_map(|(watched, _)| entries.remove(&watched))
             .collect())
     }
 
@@ -760,9 +761,9 @@ impl BrowseServiceHandler {
     async fn entries_in(
         &self,
         library: &Library,
-        unfound: &mut HashMap<Title, WatchState>,
-    ) -> Result<Vec<(Title, proto::ContinueWatchingEntry)>, ConnectError> {
-        let entry = |title, show| continue_watching_entry(library.id, title, show);
+        unfound: &mut HashMap<MovieOrEpisode, WatchState>,
+    ) -> Result<Vec<(MovieOrEpisode, proto::ContinueWatchingEntry)>, ConnectError> {
+        let entry = |watched, show| continue_watching_entry(library.id, watched, show);
         Ok(match library.kind {
             Kind::Movies => {
                 let movies = self.contents.movies(library.id).await;
@@ -770,12 +771,10 @@ impl BrowseServiceHandler {
                 movies
                     .into_iter()
                     .filter_map(|movie| {
-                        let title = Title::movie(&movie.id);
-                        let state = unfound.remove(&title)?;
-                        Some((
-                            title,
-                            entry(movie_to_proto(movie, Some(state)).into(), None),
-                        ))
+                        let watched = MovieOrEpisode::movie(&movie.id);
+                        let state = unfound.remove(&watched)?;
+                        let movie = movie_to_proto(movie, Some(state));
+                        Some((watched, entry(movie.into(), None)))
                     })
                     .collect()
             }
@@ -784,10 +783,10 @@ impl BrowseServiceHandler {
                 let shows = shows.map_err(|err| database_failed(&err))?;
                 episodes(shows)
                     .filter_map(|(show, season, episode)| {
-                        let title = Title::episode(&episode.id);
-                        let state = unfound.remove(&title)?;
+                        let watched = MovieOrEpisode::episode(&episode.id);
+                        let state = unfound.remove(&watched)?;
                         let episode = episode_to_proto(season, episode, Some(state));
-                        Some((title, entry(episode.into(), Some(show))))
+                        Some((watched, entry(episode.into(), Some(show))))
                     })
                     .collect()
             }
@@ -1343,16 +1342,16 @@ fn episodes(shows: Vec<Show>) -> impl Iterator<Item = (proto::Show, u32, Episode
     })
 }
 
-/// A Continue Watching entry for `title`, a Movie or Episode of the Library `library`, and for an
+/// A Continue Watching entry for `watched`, a Movie or Episode of the Library `library`, and for an
 /// Episode, the Show it is of.
 fn continue_watching_entry(
     library: i64,
-    title: proto::continue_watching_entry::Title,
+    watched: proto::continue_watching_entry::MovieOrEpisode,
     show: Option<proto::Show>,
 ) -> proto::ContinueWatchingEntry {
     proto::ContinueWatchingEntry {
         library_id: library,
-        title: Some(title),
+        movie_or_episode: Some(watched),
         show: show.into(),
         ..Default::default()
     }

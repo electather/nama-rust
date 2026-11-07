@@ -5108,8 +5108,8 @@ pub struct ContinueWatchingEntryView<'a> {
     ///
     /// Field 4: `show`
     pub show: ::buffa::MessageFieldView<super::super::__buffa::view::ShowView<'a>>,
-    pub title: ::core::option::Option<
-        super::super::__buffa::view::oneof::continue_watching_entry::Title<'a>,
+    pub movie_or_episode: ::core::option::Option<
+        super::super::__buffa::view::oneof::continue_watching_entry::MovieOrEpisode<'a>,
     >,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
@@ -5179,10 +5179,10 @@ impl<'a> ::buffa::MessageView<'a> for ContinueWatchingEntryView<'a> {
                 let __sub_ctx = ctx.descend()?;
                 let sub = ::buffa::types::borrow_bytes(&mut cur)?;
                 if let Some(
-                    super::super::__buffa::view::oneof::continue_watching_entry::Title::Movie(
+                    super::super::__buffa::view::oneof::continue_watching_entry::MovieOrEpisode::Movie(
                         ref mut existing,
                     ),
-                ) = view.title
+                ) = view.movie_or_episode
                 {
                     ::buffa::MessageView::merge_into_view(
                         &mut **existing,
@@ -5190,8 +5190,8 @@ impl<'a> ::buffa::MessageView<'a> for ContinueWatchingEntryView<'a> {
                         __sub_ctx,
                     )?;
                 } else {
-                    view.title = Some(
-                        super::super::__buffa::view::oneof::continue_watching_entry::Title::Movie(
+                    view.movie_or_episode = Some(
+                        super::super::__buffa::view::oneof::continue_watching_entry::MovieOrEpisode::Movie(
                             ::buffa::alloc::boxed::Box::new(
                                 <super::super::__buffa::view::MovieView as ::buffa::MessageView>::decode_view_ctx(
                                     sub,
@@ -5210,10 +5210,10 @@ impl<'a> ::buffa::MessageView<'a> for ContinueWatchingEntryView<'a> {
                 let __sub_ctx = ctx.descend()?;
                 let sub = ::buffa::types::borrow_bytes(&mut cur)?;
                 if let Some(
-                    super::super::__buffa::view::oneof::continue_watching_entry::Title::Episode(
+                    super::super::__buffa::view::oneof::continue_watching_entry::MovieOrEpisode::Episode(
                         ref mut existing,
                     ),
-                ) = view.title
+                ) = view.movie_or_episode
                 {
                     ::buffa::MessageView::merge_into_view(
                         &mut **existing,
@@ -5221,8 +5221,8 @@ impl<'a> ::buffa::MessageView<'a> for ContinueWatchingEntryView<'a> {
                         __sub_ctx,
                     )?;
                 } else {
-                    view.title = Some(
-                        super::super::__buffa::view::oneof::continue_watching_entry::Title::Episode(
+                    view.movie_or_episode = Some(
+                        super::super::__buffa::view::oneof::continue_watching_entry::MovieOrEpisode::Episode(
                             ::buffa::alloc::boxed::Box::new(
                                 <super::super::__buffa::view::EpisodeView as ::buffa::MessageView>::decode_view_ctx(
                                     sub,
@@ -5271,23 +5271,23 @@ impl<'a> ::buffa::MessageView<'a> for ContinueWatchingEntryView<'a> {
                 }
                 None => ::buffa::MessageField::none(),
             },
-            title: match self.title.as_ref() {
+            movie_or_episode: match self.movie_or_episode.as_ref() {
                 ::core::option::Option::Some(v) => {
                     ::core::option::Option::Some(
                         match v {
-                            super::super::__buffa::view::oneof::continue_watching_entry::Title::Movie(
+                            super::super::__buffa::view::oneof::continue_watching_entry::MovieOrEpisode::Movie(
                                 v,
                             ) => {
-                                super::super::__buffa::oneof::continue_watching_entry::Title::Movie(
+                                super::super::__buffa::oneof::continue_watching_entry::MovieOrEpisode::Movie(
                                     ::buffa::alloc::boxed::Box::new(
                                         v.to_owned_from_source(__buffa_src)?,
                                     ),
                                 )
                             }
-                            super::super::__buffa::view::oneof::continue_watching_entry::Title::Episode(
+                            super::super::__buffa::view::oneof::continue_watching_entry::MovieOrEpisode::Episode(
                                 v,
                             ) => {
-                                super::super::__buffa::oneof::continue_watching_entry::Title::Episode(
+                                super::super::__buffa::oneof::continue_watching_entry::MovieOrEpisode::Episode(
                                     ::buffa::alloc::boxed::Box::new(
                                         v.to_owned_from_source(__buffa_src)?,
                                     ),
@@ -5312,9 +5312,9 @@ impl<'a> ::buffa::ViewEncode<'a> for ContinueWatchingEntryView<'a> {
         if self.library_id != 0i64 {
             size += 1u64 + ::buffa::types::int64_encoded_len(self.library_id) as u64;
         }
-        if let ::core::option::Option::Some(ref v) = self.title {
+        if let ::core::option::Option::Some(ref v) = self.movie_or_episode {
             match v {
-                super::super::__buffa::view::oneof::continue_watching_entry::Title::Movie(
+                super::super::__buffa::view::oneof::continue_watching_entry::MovieOrEpisode::Movie(
                     x,
                 ) => {
                     let __slot = __cache.reserve();
@@ -5324,7 +5324,7 @@ impl<'a> ::buffa::ViewEncode<'a> for ContinueWatchingEntryView<'a> {
                         += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
                             + inner as u64;
                 }
-                super::super::__buffa::view::oneof::continue_watching_entry::Title::Episode(
+                super::super::__buffa::view::oneof::continue_watching_entry::MovieOrEpisode::Episode(
                     x,
                 ) => {
                     let __slot = __cache.reserve();
@@ -5358,9 +5358,9 @@ impl<'a> ::buffa::ViewEncode<'a> for ContinueWatchingEntryView<'a> {
         if self.library_id != 0i64 {
             ::buffa::types::put_int64_field(1u32, self.library_id, buf);
         }
-        if let ::core::option::Option::Some(ref v) = self.title {
+        if let ::core::option::Option::Some(ref v) = self.movie_or_episode {
             match v {
-                super::super::__buffa::view::oneof::continue_watching_entry::Title::Movie(
+                super::super::__buffa::view::oneof::continue_watching_entry::MovieOrEpisode::Movie(
                     x,
                 ) => {
                     ::buffa::types::put_len_delimited_header(
@@ -5370,7 +5370,7 @@ impl<'a> ::buffa::ViewEncode<'a> for ContinueWatchingEntryView<'a> {
                     );
                     x.write_to(__cache, buf);
                 }
-                super::super::__buffa::view::oneof::continue_watching_entry::Title::Episode(
+                super::super::__buffa::view::oneof::continue_watching_entry::MovieOrEpisode::Episode(
                     x,
                 ) => {
                     ::buffa::types::put_len_delimited_header(
@@ -5423,14 +5423,14 @@ impl<'__a> ::serde::Serialize for ContinueWatchingEntryView<'__a> {
                 __map.serialize_entry("show", __v)?;
             }
         }
-        if let ::core::option::Option::Some(ref __ov) = self.title {
+        if let ::core::option::Option::Some(ref __ov) = self.movie_or_episode {
             match __ov {
-                super::super::__buffa::view::oneof::continue_watching_entry::Title::Movie(
+                super::super::__buffa::view::oneof::continue_watching_entry::MovieOrEpisode::Movie(
                     v,
                 ) => {
                     __map.serialize_entry("movie", v)?;
                 }
-                super::super::__buffa::view::oneof::continue_watching_entry::Title::Episode(
+                super::super::__buffa::view::oneof::continue_watching_entry::MovieOrEpisode::Episode(
                     v,
                 ) => {
                     __map.serialize_entry("episode", v)?;
@@ -5548,14 +5548,14 @@ impl ContinueWatchingEntryOwnedView {
     ) -> &::buffa::MessageFieldView<super::super::__buffa::view::ShowView<'_>> {
         &self.0.reborrow().show
     }
-    /// Oneof `title`.
+    /// Oneof `movie_or_episode`.
     #[must_use]
-    pub fn title(
+    pub fn movie_or_episode(
         &self,
     ) -> ::core::option::Option<
-        &super::super::__buffa::view::oneof::continue_watching_entry::Title<'_>,
+        &super::super::__buffa::view::oneof::continue_watching_entry::MovieOrEpisode<'_>,
     > {
-        self.0.reborrow().title.as_ref()
+        self.0.reborrow().movie_or_episode.as_ref()
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<ContinueWatchingEntryView<'static>>>

@@ -185,7 +185,7 @@ message ContinueWatchingEntry {
   // The Library it is in.
   int64 library_id = 1;
   // It, with its Versions and the caller's Watch State, as browsing describes it.
-  oneof title {
+  oneof movie_or_episode {
     Movie movie = 2;
     Episode episode = 3;
   }

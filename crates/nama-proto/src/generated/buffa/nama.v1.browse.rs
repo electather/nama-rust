@@ -3007,7 +3007,9 @@ pub struct ContinueWatchingEntry {
     )]
     pub show: ::buffa::MessageField<Show, ::buffa::Inline<Show>>,
     #[serde(flatten)]
-    pub title: ::core::option::Option<__buffa::oneof::continue_watching_entry::Title>,
+    pub movie_or_episode: ::core::option::Option<
+        __buffa::oneof::continue_watching_entry::MovieOrEpisode,
+    >,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -3017,7 +3019,7 @@ impl ::core::fmt::Debug for ContinueWatchingEntry {
         f.debug_struct("ContinueWatchingEntry")
             .field("library_id", &self.library_id)
             .field("show", &self.show)
-            .field("title", &self.title)
+            .field("movie_or_episode", &self.movie_or_episode)
             .finish()
     }
 }
@@ -3051,9 +3053,9 @@ impl ::buffa::Message for ContinueWatchingEntry {
         if self.library_id != 0i64 {
             size += 1u64 + ::buffa::types::int64_encoded_len(self.library_id) as u64;
         }
-        if let ::core::option::Option::Some(ref v) = self.title {
+        if let ::core::option::Option::Some(ref v) = self.movie_or_episode {
             match v {
-                __buffa::oneof::continue_watching_entry::Title::Movie(x) => {
+                __buffa::oneof::continue_watching_entry::MovieOrEpisode::Movie(x) => {
                     let __slot = __cache.reserve();
                     let inner = x.compute_size(__cache);
                     __cache.set(__slot, inner);
@@ -3061,7 +3063,7 @@ impl ::buffa::Message for ContinueWatchingEntry {
                         += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
                             + inner as u64;
                 }
-                __buffa::oneof::continue_watching_entry::Title::Episode(x) => {
+                __buffa::oneof::continue_watching_entry::MovieOrEpisode::Episode(x) => {
                     let __slot = __cache.reserve();
                     let inner = x.compute_size(__cache);
                     __cache.set(__slot, inner);
@@ -3092,9 +3094,9 @@ impl ::buffa::Message for ContinueWatchingEntry {
         if self.library_id != 0i64 {
             ::buffa::types::put_int64_field(1u32, self.library_id, buf);
         }
-        if let ::core::option::Option::Some(ref v) = self.title {
+        if let ::core::option::Option::Some(ref v) = self.movie_or_episode {
             match v {
-                __buffa::oneof::continue_watching_entry::Title::Movie(x) => {
+                __buffa::oneof::continue_watching_entry::MovieOrEpisode::Movie(x) => {
                     ::buffa::types::put_len_delimited_header(
                         2u32,
                         u64::from(__cache.consume_next()),
@@ -3102,7 +3104,7 @@ impl ::buffa::Message for ContinueWatchingEntry {
                     );
                     x.write_to(__cache, buf);
                 }
-                __buffa::oneof::continue_watching_entry::Title::Episode(x) => {
+                __buffa::oneof::continue_watching_entry::MovieOrEpisode::Episode(x) => {
                     ::buffa::types::put_len_delimited_header(
                         3u32,
                         u64::from(__cache.consume_next()),
@@ -3146,17 +3148,17 @@ impl ::buffa::Message for ContinueWatchingEntry {
                     ::buffa::encoding::WireType::LengthDelimited,
                 )?;
                 if let ::core::option::Option::Some(
-                    __buffa::oneof::continue_watching_entry::Title::Movie(
+                    __buffa::oneof::continue_watching_entry::MovieOrEpisode::Movie(
                         ref mut existing,
                     ),
-                ) = self.title
+                ) = self.movie_or_episode
                 {
                     ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
                 } else {
                     let mut val = ::core::default::Default::default();
                     ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
-                    self.title = ::core::option::Option::Some(
-                        __buffa::oneof::continue_watching_entry::Title::Movie(
+                    self.movie_or_episode = ::core::option::Option::Some(
+                        __buffa::oneof::continue_watching_entry::MovieOrEpisode::Movie(
                             ::buffa::alloc::boxed::Box::new(val),
                         ),
                     );
@@ -3168,17 +3170,17 @@ impl ::buffa::Message for ContinueWatchingEntry {
                     ::buffa::encoding::WireType::LengthDelimited,
                 )?;
                 if let ::core::option::Option::Some(
-                    __buffa::oneof::continue_watching_entry::Title::Episode(
+                    __buffa::oneof::continue_watching_entry::MovieOrEpisode::Episode(
                         ref mut existing,
                     ),
-                ) = self.title
+                ) = self.movie_or_episode
                 {
                     ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
                 } else {
                     let mut val = ::core::default::Default::default();
                     ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
-                    self.title = ::core::option::Option::Some(
-                        __buffa::oneof::continue_watching_entry::Title::Episode(
+                    self.movie_or_episode = ::core::option::Option::Some(
+                        __buffa::oneof::continue_watching_entry::MovieOrEpisode::Episode(
                             ::buffa::alloc::boxed::Box::new(val),
                         ),
                     );
@@ -3204,7 +3206,7 @@ impl ::buffa::Message for ContinueWatchingEntry {
     }
     fn clear(&mut self) {
         self.library_id = 0i64;
-        self.title = ::core::option::Option::None;
+        self.movie_or_episode = ::core::option::Option::None;
         self.show = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
     }
@@ -3240,8 +3242,8 @@ impl<'de> ::serde::Deserialize<'de> for ContinueWatchingEntry {
                 let mut __f_show: ::core::option::Option<
                     ::buffa::MessageField<Show, ::buffa::Inline<Show>>,
                 > = None;
-                let mut __oneof_title: ::core::option::Option<
-                    __buffa::oneof::continue_watching_entry::Title,
+                let mut __oneof_movie_or_episode: ::core::option::Option<
+                    __buffa::oneof::continue_watching_entry::MovieOrEpisode,
                 > = None;
                 while let Some(key) = map.next_key::<::buffa::alloc::string::String>()? {
                     match key.as_str() {
@@ -3278,15 +3280,15 @@ impl<'de> ::serde::Deserialize<'de> for ContinueWatchingEntry {
                                     ),
                                 )?;
                             if let Some(v) = v {
-                                if __oneof_title.is_some() {
+                                if __oneof_movie_or_episode.is_some() {
                                     return Err(
                                         ::serde::de::Error::custom(
-                                            "multiple oneof fields set for 'title'",
+                                            "multiple oneof fields set for 'movie_or_episode'",
                                         ),
                                     );
                                 }
-                                __oneof_title = Some(
-                                    __buffa::oneof::continue_watching_entry::Title::Movie(
+                                __oneof_movie_or_episode = Some(
+                                    __buffa::oneof::continue_watching_entry::MovieOrEpisode::Movie(
                                         ::buffa::alloc::boxed::Box::new(v),
                                     ),
                                 );
@@ -3302,15 +3304,15 @@ impl<'de> ::serde::Deserialize<'de> for ContinueWatchingEntry {
                                     ),
                                 )?;
                             if let Some(v) = v {
-                                if __oneof_title.is_some() {
+                                if __oneof_movie_or_episode.is_some() {
                                     return Err(
                                         ::serde::de::Error::custom(
-                                            "multiple oneof fields set for 'title'",
+                                            "multiple oneof fields set for 'movie_or_episode'",
                                         ),
                                     );
                                 }
-                                __oneof_title = Some(
-                                    __buffa::oneof::continue_watching_entry::Title::Episode(
+                                __oneof_movie_or_episode = Some(
+                                    __buffa::oneof::continue_watching_entry::MovieOrEpisode::Episode(
                                         ::buffa::alloc::boxed::Box::new(v),
                                     ),
                                 );
@@ -3328,7 +3330,7 @@ impl<'de> ::serde::Deserialize<'de> for ContinueWatchingEntry {
                 if let ::core::option::Option::Some(v) = __f_show {
                     __r.show = v;
                 }
-                __r.title = __oneof_title;
+                __r.movie_or_episode = __oneof_movie_or_episode;
                 Ok(__r)
             }
         }
@@ -3359,9 +3361,9 @@ pub mod continue_watching_entry {
     #[allow(unused_imports)]
     use super::*;
     #[doc(inline)]
-    pub use super::__buffa::oneof::continue_watching_entry::Title;
+    pub use super::__buffa::oneof::continue_watching_entry::MovieOrEpisode;
     #[doc(inline)]
-    pub use super::__buffa::view::oneof::continue_watching_entry::Title as TitleView;
+    pub use super::__buffa::view::oneof::continue_watching_entry::MovieOrEpisode as MovieOrEpisodeView;
 }
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]

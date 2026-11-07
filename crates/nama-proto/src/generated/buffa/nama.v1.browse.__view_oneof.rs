@@ -5,7 +5,7 @@ pub mod continue_watching_entry {
     #[allow(unused_imports)]
     use super::*;
     #[derive(Clone, Debug)]
-    pub enum Title<'a> {
+    pub enum MovieOrEpisode<'a> {
         Movie(
             ::buffa::alloc::boxed::Box<
                 super::super::super::super::__buffa::view::MovieView<'a>,

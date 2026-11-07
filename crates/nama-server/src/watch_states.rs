@@ -28,14 +28,14 @@ pub(crate) struct WatchStates {
 
 /// A Movie or Episode, by the external id its Watch State is kept against.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub(crate) enum Title {
+pub(crate) enum MovieOrEpisode {
     /// A Movie.
     Movie(String),
     /// An Episode.
     Episode(String),
 }
 
-impl Title {
+impl MovieOrEpisode {
     /// The Movie with the id `id`.
     pub(crate) fn movie(id: &ExternalId) -> Self {
         Self::Movie(id.to_string())
@@ -185,7 +185,7 @@ impl WatchStates {
     pub(crate) async fn in_progress(
         &self,
         user: i64,
-    ) -> Result<Vec<(Title, WatchState)>, sqlx::Error> {
+    ) -> Result<Vec<(MovieOrEpisode, WatchState)>, sqlx::Error> {
         let rows = sqlx::query!(
             "SELECT kind, title_id, position_ms, duration_ms, updated_at
              FROM watch_states
@@ -198,10 +198,10 @@ impl WatchStates {
         Ok(rows
             .into_iter()
             .map(|row| {
-                let title = if row.kind == MOVIE {
-                    Title::Movie(row.title_id)
+                let watched = if row.kind == MOVIE {
+                    MovieOrEpisode::Movie(row.title_id)
                 } else {
-                    Title::Episode(row.title_id)
+                    MovieOrEpisode::Episode(row.title_id)
                 };
                 let state = WatchState {
                     position_ms: row.position_ms,
@@ -209,7 +209,7 @@ impl WatchStates {
                     played: false,
                     updated_at: row.updated_at,
                 };
-                (title, state)
+                (watched, state)
             })
             .collect())
     }

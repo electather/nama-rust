@@ -1245,16 +1245,16 @@ enum Listed<'a> {
     reason = "a test helper fails its test by panicking"
 )]
 fn listed(entries: &[ContinueWatchingEntry]) -> Vec<(i64, Listed<'_>, u64)> {
-    use continue_watching_entry::Title;
+    use continue_watching_entry::MovieOrEpisode;
     entries
         .iter()
         .map(|entry| {
-            let (listed, state) = match entry.title.as_ref().unwrap() {
-                Title::Movie(movie) => {
+            let (listed, state) = match entry.movie_or_episode.as_ref().unwrap() {
+                MovieOrEpisode::Movie(movie) => {
                     let id = movie.id.as_option().unwrap().clone();
                     (Listed::Movie(id), &movie.watch_state)
                 }
-                Title::Episode(episode) => {
+                MovieOrEpisode::Episode(episode) => {
                     let show = entry.show.as_option().unwrap().title.as_str();
                     let numbers = (episode.season_number, episode.episode_number);
                     (
@@ -1298,7 +1298,8 @@ async fn started_movies_and_episodes_are_listed_most_recent_first() {
             (fx.library, Listed::Movie(tmdb_id(ALIEN)), MINUTE),
         ]
     );
-    let Some(continue_watching_entry::Title::Movie(movie)) = &entries[1].title else {
+    let Some(continue_watching_entry::MovieOrEpisode::Movie(movie)) = &entries[1].movie_or_episode
+    else {
         panic!("Alien is a Movie");
     };
     assert_eq!(versions(&movie.versions), [("Alien (1979) - 1080p.mkv", 5)]);
