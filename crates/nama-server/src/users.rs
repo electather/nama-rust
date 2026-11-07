@@ -125,6 +125,8 @@ impl FromIterator<Permission> for Permissions {
 }
 
 /// The bit `permission` is stored as in [`Permissions`].
+// ponytail: an `i64` holds Permissions numbered up to 62; past that, `users.permissions` needs
+// another encoding.
 const fn bit(permission: Permission) -> i64 {
     1 << permission as i32
 }
@@ -360,9 +362,9 @@ impl Users {
     }
 
     /// Gives the User `user` exactly `permissions`, as `by` asks, unless that leaves no User with
-    /// `PERMISSION_ADMIN`. Without it, `by` may neither grant it nor change their own Permissions,
-    /// as [`ensure_may_change`] says. Their Devices stay signed in, and the Permissions apply from
-    /// their next request, which reads them afresh.
+    /// `PERMISSION_ADMIN` or [`ensure_may_change`] refuses. Without `PERMISSION_ADMIN`, `by` may
+    /// neither grant it nor change their own Permissions. Their Devices stay signed in, and the
+    /// Permissions apply from their next request, which reads them afresh.
     pub(crate) async fn set_permissions(
         &self,
         by: &User,
@@ -1485,6 +1487,7 @@ mod tests {
         let options = sqlx::sqlite::SqliteConnectOptions::new()
             .filename(&file)
             .create_if_missing(true);
+        // A raw connection, not `Database::write`: `Database::open` would run every migration.
         let mut before = sqlx::ConnectOptions::connect(&options).await.unwrap();
         // The last migration with Roles.
         sqlx::migrate!().run_to(9, &mut before).await.unwrap();

@@ -4,7 +4,7 @@ import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/re
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
-import { DeviceSchema } from "@/gen/nama/v1/sign_in_pb";
+import { DeviceSchema, Permission } from "@/gen/nama/v1/sign_in_pb";
 
 import { admin, fakeServer, fill, newUser, openApp, type ServerState } from "./test-app";
 import { expectUnderField, refused } from "./test-refusal";
@@ -106,6 +106,35 @@ test("a User who isn't an Admin sees no Admin entry in the chrome", async () => 
 
   await screen.findByRole("link", { name: "Settings" });
   expect(screen.queryByRole("link", { name: "Admin" })).toBeNull();
+});
+
+test("removing Admin keeps a User's other Permissions", async () => {
+  let sent: Permission[] = [];
+  openApp(
+    "/admin/users",
+    fakeServer(
+      { signedIn: admin },
+      {},
+      {
+        listUsers: () => ({
+          users: [
+            { id: 3n, name: "Kim", permissions: [Permission.ADMIN, Permission.MANAGE_LIBRARIES] },
+          ],
+        }),
+        setPermissions: ({ permissions }) => {
+          sent = permissions;
+          return {};
+        },
+      },
+    ),
+  );
+
+  fireEvent.click(await screen.findByText("Kim"));
+  fireEvent.click(await screen.findByRole("button", { name: "Remove Admin Permission" }));
+
+  await waitFor(() => {
+    expect(sent).toEqual([Permission.MANAGE_LIBRARIES]);
+  });
 });
 
 test("demoting the last Admin says why it was refused", async () => {

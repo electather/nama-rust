@@ -108,12 +108,12 @@ test("refused again after you confirm it’s you, the change shows an error, not
 /**
  * The Users page, with the Admin Sam and Alex and Kim, who aren't Admins, on a Server that refuses
  * `ResetPassword` and `SetPermissions` for want of Recent Authentication until `Reauthenticate`. Returns
- * the resets it made and the Users it made Admin.
+ * the resets it made and the Permissions it gave the Users it made Admin.
  */
 function openUsersNeedingRecentAuthentication() {
   let reauthenticated = false;
   const resets: [bigint, string][] = [];
-  const promoted: bigint[] = [];
+  const promoted: [bigint, Permission[]][] = [];
   openApp(
     "/admin/users",
     fakeServer(
@@ -139,7 +139,7 @@ function openUsersNeedingRecentAuthentication() {
         },
         setPermissions: ({ userId, permissions }) => {
           if (!reauthenticated) throw recentAuthenticationRequired();
-          if (permissions.includes(Permission.ADMIN)) promoted.push(userId);
+          if (permissions.includes(Permission.ADMIN)) promoted.push([userId, permissions]);
           return {};
         },
       },
@@ -178,5 +178,12 @@ test("changes refused together wait for one “Confirm it’s you”, then all g
   await waitFor(() => {
     expect(promoted).toHaveLength(2);
   });
-  expect(promoted).toEqual(expect.arrayContaining([2n, 3n]));
+  // Making them Admin keeps the Permissions they had.
+  const permissions = [...newUser, Permission.ADMIN];
+  expect(promoted).toEqual(
+    expect.arrayContaining([
+      [2n, permissions],
+      [3n, permissions],
+    ]),
+  );
 });
