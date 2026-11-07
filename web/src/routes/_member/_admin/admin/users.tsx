@@ -23,7 +23,7 @@ function Users() {
       {/* Pulled out by the rows' own padding, so the names line up with the heading. */}
       <ul className="mt-8 -mx-3 flex max-w-2xl flex-col">
         {data.users.map((user) => (
-          <UserRow key={user.id} user={user} isYou={user.id === signedIn.user?.id} />
+          <UserRow key={user.id} user={user} you={signedIn.user} />
         ))}
       </ul>
       <section aria-labelledby="create-user" className="mt-12 max-w-sm">

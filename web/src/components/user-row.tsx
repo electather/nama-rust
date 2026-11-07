@@ -6,8 +6,11 @@ import { DeleteUser, ResetPassword } from "@/components/user-dialogs";
 import { Permission, type User } from "@/gen/nama/v1/sign_in_pb";
 import { may } from "@/lib/permissions";
 
-/** A User, marked if an Admin, opening to manage them, their Permissions and their Devices. */
-export function UserRow({ user, isYou }: { user: User; isYou: boolean }) {
+/**
+ * A User, marked if an Admin or `you`, opening to manage them, their Permissions and their Devices.
+ */
+export function UserRow({ user, you }: { user: User; you: User | undefined }) {
+  const isYou = user.id === you?.id;
   const [open, setOpen] = useState(false);
   const panel = useId();
   return (
@@ -28,7 +31,7 @@ export function UserRow({ user, isYou }: { user: User; isYou: boolean }) {
       {open && (
         <div id={panel} className="flex flex-col gap-6 px-3 pt-2 pb-6">
           <UserActions user={user} isYou={isYou} />
-          <PermissionsEditor user={user} />
+          <PermissionsEditor user={user} you={you} />
           <div>
             <h3 className="text-sm font-medium">Devices</h3>
             <div className="mt-2">

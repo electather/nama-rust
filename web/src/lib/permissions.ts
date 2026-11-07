@@ -10,7 +10,7 @@ export interface PermissionChoice {
   parent?: Permission;
 }
 
-/** Every Permission, in the order of their values, which puts each parent before its children. */
+/** Every Permission, in the order the Users page lists them. */
 export const permissionChoices: PermissionChoice[] = [
   { permission: Permission.ADMIN, label: "Admin", about: "May do everything." },
   {
@@ -32,7 +32,7 @@ export const permissionChoices: PermissionChoice[] = [
   {
     permission: Permission.MANAGE_REQUESTS,
     label: "Manage Requests",
-    about: "Manage everyone’s Requests.",
+    about: "Approve and decline Requests.",
   },
   { permission: Permission.REQUEST, label: "Request", about: "Request Movies and Shows." },
   { permission: Permission.REQUEST_MOVIE, label: "Request Movies", parent: Permission.REQUEST },
@@ -75,6 +75,21 @@ export function isCovered(held: Permission[], permission: Permission) {
 export function may(user: User | undefined, permission: Permission) {
   const held = user?.permissions ?? [];
   return held.includes(permission) || isCovered(held, permission);
+}
+
+/**
+ * Whether `you` may change `user`'s Permissions, as the Server checks it: only an Admin changes their
+ * own, or an Admin's.
+ */
+export function mayChangePermissions(you: User | undefined, user: User) {
+  return may(you, Permission.ADMIN) || (you?.id !== user.id && !may(user, Permission.ADMIN));
+}
+
+/** The Permissions `you` may give: the Server refuses the Admin Permission from anyone without it. */
+export function permissionsToOffer(you: User | undefined) {
+  return may(you, Permission.ADMIN)
+    ? permissionChoices
+    : permissionChoices.filter((choice) => choice.permission !== Permission.ADMIN);
 }
 
 /** The label of the Permission a Refusal names by its proto name (`PERMISSION_MANAGE_USERS`). */

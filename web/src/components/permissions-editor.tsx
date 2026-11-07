@@ -1,24 +1,27 @@
-import { useQueryClient } from "@tanstack/react-query";
 import { useId, useState } from "react";
 
-import { useSensitiveMutation } from "@/components/confirm-its-you";
 import { FormEnd } from "@/components/form-field";
+import { useSetPermissions } from "@/components/use-set-permissions";
 import type { Permission, User } from "@/gen/nama/v1/sign_in_pb";
-import { UserService } from "@/gen/nama/v1/user_pb";
 import { onSubmitted } from "@/lib/forms";
-import { type PermissionChoice, isCovered, permissionChoices } from "@/lib/permissions";
-import { onlyAdminRefusal, usersKey } from "@/lib/users";
+import {
+  type PermissionChoice,
+  isCovered,
+  mayChangePermissions,
+  permissionChoices,
+  permissionsToOffer,
+} from "@/lib/permissions";
+import { onlyAdminRefusal } from "@/lib/users";
+
+/** `user`'s Permissions as checkboxes, or nothing when `you` may not change them. */
+export function PermissionsEditor({ user, you }: { user: User; you: User | undefined }) {
+  return mayChangePermissions(you, user) ? <PermissionsForm user={user} you={you} /> : null;
+}
 
 /** `user`'s Permissions as checkboxes, with each one's children under it, saved together. */
-export function PermissionsEditor({ user }: { user: User }) {
-  const queryClient = useQueryClient();
+function PermissionsForm({ user, you }: { user: User; you: User | undefined }) {
   const [held, setHeld] = useState(user.permissions);
-  // Removing your own Admin makes the Server refuse the refetch, and the router then sees your new
-  // Permissions.
-  const save = useSensitiveMutation(UserService.method.setPermissions, {
-    // Refused or not, the list may be out of date.
-    onSettled: () => queryClient.invalidateQueries({ queryKey: usersKey }),
-  });
+  const save = useSetPermissions(user, you);
   const toggle = (permission: Permission, checked: boolean) => {
     setHeld(checked ? [...held, permission] : held.filter((each) => each !== permission));
   };
@@ -33,7 +36,7 @@ export function PermissionsEditor({ user }: { user: User }) {
       <fieldset>
         <legend className="text-sm font-medium">Permissions</legend>
         <ul className="mt-3 flex flex-col gap-3">
-          {permissionChoices
+          {permissionsToOffer(you)
             .filter((choice) => choice.parent === undefined)
             .map((choice) => (
               <li key={choice.permission}>
