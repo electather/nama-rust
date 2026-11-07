@@ -32,7 +32,7 @@ export function TitlePage({
           className="mx-auto flex min-h-40 max-w-5xl items-end px-4 pt-10 pb-6 data-backdrop:min-h-72 sm:px-6 sm:data-backdrop:min-h-96"
           data-backdrop={backdropUrl === undefined ? undefined : ""}
         >
-          <h1 className="text-4xl font-medium tracking-tight text-balance">{title}</h1>
+          <h1 className="text-display font-medium text-balance">{title}</h1>
         </div>
       </div>
       <div className="mx-auto max-w-5xl px-4 pb-16 sm:px-6">{children}</div>
