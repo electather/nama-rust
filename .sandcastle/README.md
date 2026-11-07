@@ -1,6 +1,6 @@
 # AI factory (sandcastle)
 
-Takes open `ready-for-agent` issues with no open blockers, one at a time, through:
+Takes open `ready-for-agent` issues with no open blockers, up to 3 at once (`MAX_PARALLEL`), each through:
 `implement` skill → `code-review` skill + fixes → PR (`Closes #N`) → CI (one auto-fix attempt) → squash-merge.
 Anything stuck is relabelled `ready-for-human` with a comment.
 
@@ -27,10 +27,12 @@ One-time setup (from the repo root):
 
 Run from the repo root:
 
-    npm --prefix .sandcastle run factory                  # drain the queue (max 20 batches), then exit
-    MAX_CYCLES=1 npm --prefix .sandcastle run factory     # one batch, then stop
+    npm --prefix .sandcastle run factory                  # drain the queue (at most 60 issues), then exit
+    MAX_ISSUES=1 npm --prefix .sandcastle run factory     # one issue, then stop
 
 Logs: `.sandcastle/logs/`.
+
+Stopping gracefully: `touch .sandcastle/STOP`. Issues already running finish (merged or handed back), nothing new starts, and the run exits. Later runs, such as a scheduled one, exit at once while the file exists. `rm .sandcastle/STOP` to resume.
 
 Stopping and resuming: Ctrl-C keeps branches, commits and worktrees. The next run continues on the same `agent/issue-N` branch and PR. Remove leftover containers with `docker ps --filter ancestor=sandcastle:nama-rust`.
 
