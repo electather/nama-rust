@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT kind, title_id, position_ms, duration_ms, updated_at\n             FROM watch_states\n             WHERE user_id = ? AND position_ms > 0 AND NOT played\n             ORDER BY updated_at DESC",
+  "query": "SELECT kind, title_id, position_ms, duration_ms, updated_at\n             FROM watch_states\n             WHERE user_id = ? AND position_ms > 0 AND NOT played\n             ORDER BY updated_at DESC, kind, title_id",
   "describe": {
     "columns": [
       {
@@ -70,5 +70,5 @@
       false
     ]
   },
-  "hash": "a0fbf89cdf04d7ab43918410a316992f871430df23664adafc7f4198ec3295cf"
+  "hash": "666f8b50ce51f9bb14447188907e7341942b57a1a7f7c3efed7231eb74d6d151"
 }

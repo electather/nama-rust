@@ -180,9 +180,10 @@ impl WatchStates {
         self.of(user, EPISODE, episodes).await
     }
 
-    /// The Movies and Episodes the User `user` has started and not played, with their Watch State,
-    /// most recent first.
-    pub(crate) async fn in_progress(
+    /// The User `user`'s Continue Watching: the Movies and Episodes they've started and not
+    /// played, with their Watch State, most recent first. Ones changed in the same second come in
+    /// a fixed order, by kind and id, so the list doesn't shuffle between calls.
+    pub(crate) async fn continue_watching(
         &self,
         user: i64,
     ) -> Result<Vec<(MovieOrEpisode, WatchState)>, sqlx::Error> {
@@ -190,7 +191,7 @@ impl WatchStates {
             "SELECT kind, title_id, position_ms, duration_ms, updated_at
              FROM watch_states
              WHERE user_id = ? AND position_ms > 0 AND NOT played
-             ORDER BY updated_at DESC",
+             ORDER BY updated_at DESC, kind, title_id",
             user
         )
         .fetch_all(self.db.reader())

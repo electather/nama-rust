@@ -736,21 +736,20 @@ impl BrowseServiceHandler {
             .ok_or_else(|| ConnectError::not_found("nothing in the Library is Matched to that id"))
     }
 
-    /// The Continue Watching entries of `in_progress`, the Movies and Episodes the caller has
-    /// started and not played, in the same order. Each is in the oldest Library that has it, and
+    /// The Continue Watching entries of `started`, the Movies and Episodes the caller has started
+    /// and not played, in the same order. Each is in the oldest Library that has it, and
     /// one no Library has is left out.
     // ponytail: reads every Library's contents; query by id if Libraries get big.
     async fn continue_watching(
         &self,
-        in_progress: Vec<(MovieOrEpisode, WatchState)>,
+        started: Vec<(MovieOrEpisode, WatchState)>,
     ) -> Result<Vec<proto::ContinueWatchingEntry>, ConnectError> {
-        let mut unfound: HashMap<MovieOrEpisode, WatchState> =
-            in_progress.iter().cloned().collect();
+        let mut unfound: HashMap<MovieOrEpisode, WatchState> = started.iter().cloned().collect();
         let mut entries = HashMap::new();
         for library in self.libraries.list().await? {
             entries.extend(self.entries_in(&library, &mut unfound).await?);
         }
-        Ok(in_progress
+        Ok(started
             .into_iter()
             .filter_map(|(watched, _)| entries.remove(&watched))
             .collect())
@@ -763,7 +762,8 @@ impl BrowseServiceHandler {
         library: &Library,
         unfound: &mut HashMap<MovieOrEpisode, WatchState>,
     ) -> Result<Vec<(MovieOrEpisode, proto::ContinueWatchingEntry)>, ConnectError> {
-        let entry = |watched, show| continue_watching_entry(library.id, watched, show);
+        let entry =
+            |movie_or_episode, show| continue_watching_entry(library.id, movie_or_episode, show);
         Ok(match library.kind {
             Kind::Movies => {
                 let movies = self.contents.movies(library.id).await;
@@ -923,10 +923,13 @@ impl BrowseService for BrowseServiceHandler {
         ctx: RequestContext,
         _request: ServiceRequest<'_, ListContinueWatchingRequest>,
     ) -> ServiceResult<ListContinueWatchingResponse> {
-        let in_progress = self.watch_states.in_progress(caller(&ctx)?.user.id).await;
-        let in_progress = in_progress.map_err(|err| database_failed(&err))?;
+        let started = self
+            .watch_states
+            .continue_watching(caller(&ctx)?.user.id)
+            .await;
+        let started = started.map_err(|err| database_failed(&err))?;
         Response::ok(ListContinueWatchingResponse {
-            entries: self.continue_watching(in_progress).await?,
+            entries: self.continue_watching(started).await?,
             ..Default::default()
         })
     }
@@ -1342,16 +1345,16 @@ fn episodes(shows: Vec<Show>) -> impl Iterator<Item = (proto::Show, u32, Episode
     })
 }
 
-/// A Continue Watching entry for `watched`, a Movie or Episode of the Library `library`, and for an
+/// A Continue Watching entry for `movie_or_episode`, of the Library `library`, and for an
 /// Episode, the Show it is of.
 fn continue_watching_entry(
     library: i64,
-    watched: proto::continue_watching_entry::MovieOrEpisode,
+    movie_or_episode: proto::continue_watching_entry::MovieOrEpisode,
     show: Option<proto::Show>,
 ) -> proto::ContinueWatchingEntry {
     proto::ContinueWatchingEntry {
         library_id: library,
-        movie_or_episode: Some(watched),
+        movie_or_episode: Some(movie_or_episode),
         show: show.into(),
         ..Default::default()
     }
