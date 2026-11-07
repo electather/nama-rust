@@ -27,20 +27,21 @@ use nama_plugin_api::metadata::{Candidate, ExternalId, SearchQuery, TitleKind};
 use nama_proto::nama::v1::{
     self as proto, ApproveSignInCodeRequest, ApproveSignInCodeResponse, BrowseService,
     ClearMatchRequest, ClearMatchResponse, CreateLibraryRequest, CreateLibraryResponse,
-    DeleteLibraryRequest, DeleteLibraryResponse, EventService, EventType, GetLibraryRequest,
-    GetLibraryResponse, GetMovieRequest, GetMovieResponse, GetServerInfoRequest,
-    GetServerInfoResponse, LIBRARY_SERVICE_SERVICE_NAME, LibraryKind, LibraryService,
-    ListLibrariesRequest, ListLibrariesResponse, ListMoviesRequest, ListMoviesResponse,
-    ListUnmatchedItemsRequest, ListUnmatchedItemsResponse, LookUpSignInCodeRequest,
-    LookUpSignInCodeResponse, MATCH_SERVICE_SERVICE_NAME, MatchService, PollSignInCodeRequest,
-    PollSignInCodeResponse, SERVER_SERVICE_GET_SERVER_INFO_SPEC,
-    SIGN_IN_SERVICE_POLL_SIGN_IN_CODE_SPEC, SIGN_IN_SERVICE_SETUP_SPEC,
-    SIGN_IN_SERVICE_SIGN_IN_SPEC, SIGN_IN_SERVICE_START_SIGN_IN_CODE_SPEC, ScanLibraryRequest,
-    ScanLibraryResponse, SearchMetadataRequest, SearchMetadataResponse, ServerService,
-    SessionDelivery, SetMatchRequest, SetMatchResponse, SetupRequest, SetupResponse,
-    SignInCodeStatus, SignInRequest, SignInResponse, SignInService, SignOutRequest,
-    SignOutResponse, StartSignInCodeRequest, StartSignInCodeResponse, SubscribeRequest,
-    SubscribeResponse, UpdateLibraryRequest, UpdateLibraryResponse, WhoAmIRequest, WhoAmIResponse,
+    CreateUserRequest, CreateUserResponse, DeleteLibraryRequest, DeleteLibraryResponse,
+    EventService, EventType, GetLibraryRequest, GetLibraryResponse, GetMovieRequest,
+    GetMovieResponse, GetServerInfoRequest, GetServerInfoResponse, LIBRARY_SERVICE_SERVICE_NAME,
+    LibraryKind, LibraryService, ListLibrariesRequest, ListLibrariesResponse, ListMoviesRequest,
+    ListMoviesResponse, ListUnmatchedItemsRequest, ListUnmatchedItemsResponse, ListUsersRequest,
+    ListUsersResponse, LookUpSignInCodeRequest, LookUpSignInCodeResponse,
+    MATCH_SERVICE_SERVICE_NAME, MatchService, PollSignInCodeRequest, PollSignInCodeResponse,
+    SERVER_SERVICE_GET_SERVER_INFO_SPEC, SIGN_IN_SERVICE_POLL_SIGN_IN_CODE_SPEC,
+    SIGN_IN_SERVICE_SETUP_SPEC, SIGN_IN_SERVICE_SIGN_IN_SPEC,
+    SIGN_IN_SERVICE_START_SIGN_IN_CODE_SPEC, ScanLibraryRequest, ScanLibraryResponse,
+    SearchMetadataRequest, SearchMetadataResponse, ServerService, SessionDelivery, SetMatchRequest,
+    SetMatchResponse, SetupRequest, SetupResponse, SignInCodeStatus, SignInRequest, SignInResponse,
+    SignInService, SignOutRequest, SignOutResponse, StartSignInCodeRequest,
+    StartSignInCodeResponse, SubscribeRequest, SubscribeResponse, USER_SERVICE_SERVICE_NAME,
+    UpdateLibraryRequest, UpdateLibraryResponse, UserService, WhoAmIRequest, WhoAmIResponse,
     external_id,
 };
 use tokio::sync::OwnedMutexGuard;
@@ -54,7 +55,7 @@ use crate::{
     libraries::{self, Kind, Libraries, Library},
     matching::{ManualError, Matcher},
     plugins::Registry,
-    rate_limits::{Blocked, SignInLimits},
+    rate_limits::{Blocked, SignInCodeLimits, SignInLimits},
     scanner::Scanner,
     sessions::{cleared_session_cookie, identify_caller, in_session_cookie, session_cookie},
     sign_in_codes::{self, Poll, SignInCodes},
@@ -85,8 +86,9 @@ pub(crate) fn router(
         .add_service(Arc::new(SignInServiceHandler {
             users: users.clone(),
             setup_code,
-            limits: SignInLimits::default(),
+            sign_in_limits: SignInLimits::default(),
             sign_in_codes: SignInCodes::default(),
+            sign_in_code_limits: SignInCodeLimits::default(),
         }))
         .add_service(Arc::new(MatchServiceHandler {
             matcher: Matcher::new(Arc::clone(&db), plugins, events.clone()),
@@ -104,6 +106,9 @@ pub(crate) fn router(
         }))
         .add_service(Arc::new(EventServiceHandler {
             events,
+            users: users.clone(),
+        }))
+        .add_service(Arc::new(UserServiceHandler {
             users: users.clone(),
         }))
         .into_axum_router()
@@ -139,7 +144,11 @@ impl Access {
             .split_once('/')
             .map(|(service, _)| service);
         match service {
-            Some(LIBRARY_SERVICE_SERVICE_NAME | MATCH_SERVICE_SERVICE_NAME) => Self::Admin,
+            Some(
+                LIBRARY_SERVICE_SERVICE_NAME
+                | MATCH_SERVICE_SERVICE_NAME
+                | USER_SERVICE_SERVICE_NAME,
+            ) => Self::Admin,
             _ => Self::SignedIn,
         }
     }
@@ -205,8 +214,30 @@ struct SignInServiceHandler {
     /// What `Setup` must be given. `None` once the Server started with Users.
     setup_code: Option<SetupCode>,
     /// The recent failures of `Setup` and `SignIn`, which slow guessing down.
-    limits: SignInLimits,
+    sign_in_limits: SignInLimits,
     sign_in_codes: SignInCodes,
+    /// The recent failed Sign-in Code lookups and approvals, which slow guessing codes down.
+    sign_in_code_limits: SignInCodeLimits,
+}
+
+impl SignInServiceHandler {
+    /// Looks up or approves a Sign-in Code with `use_code`, as the caller of `ctx` at the time it
+    /// is given, unless their Device has failed too often lately. Only a code that is unknown or
+    /// expired counts as a failure: that is what a guess gets.
+    fn with_sign_in_code_limit<T>(
+        &self,
+        ctx: &RequestContext,
+        use_code: impl FnOnce(&Caller, Instant) -> Result<T, sign_in_codes::Error>,
+    ) -> Result<T, ConnectError> {
+        let caller = caller(ctx)?;
+        let now = Instant::now();
+        let attempt = self.sign_in_code_limits.admit(caller.device.id, now)?;
+        let used = use_code(caller, now);
+        if !matches!(used, Err(sign_in_codes::Error::NotFound)) {
+            self.sign_in_code_limits.wasnt_a_guess(&attempt);
+        }
+        Ok(used?)
+    }
 }
 
 #[expect(
@@ -221,7 +252,7 @@ impl SignInService for SignInServiceHandler {
         request: ServiceRequest<'_, SetupRequest>,
     ) -> ServiceResult<SetupResponse> {
         let request = request.to_owned_message();
-        let attempt = self.limits.admit(peer_ip(&ctx)?, None)?;
+        let attempt = self.sign_in_limits.admit(peer_ip(&ctx)?, None)?;
         let wants_token = wants_token(request.delivery)?;
         // The Server only made no code because it started with Users. Users are checked before the
         // code, so once there are any every attempt is refused as already set up, as documented.
@@ -241,7 +272,7 @@ impl SignInService for SignInServiceHandler {
             .users
             .create_first_admin(&request.name, &request.password, &request.device_name)
             .await?;
-        self.limits.succeeded(&attempt);
+        self.sign_in_limits.succeeded(&attempt);
         Ok(hand_out_session(
             signed_in,
             wants_token,
@@ -261,13 +292,15 @@ impl SignInService for SignInServiceHandler {
         request: ServiceRequest<'_, SignInRequest>,
     ) -> ServiceResult<SignInResponse> {
         let request = request.to_owned_message();
-        let attempt = self.limits.admit(peer_ip(&ctx)?, Some(&request.name))?;
+        let attempt = self
+            .sign_in_limits
+            .admit(peer_ip(&ctx)?, Some(&request.name))?;
         let wants_token = wants_token(request.delivery)?;
         let signed_in = self
             .users
             .sign_in(&request.name, &request.password, &request.device_name)
             .await?;
-        self.limits.succeeded(&attempt);
+        self.sign_in_limits.succeeded(&attempt);
         Ok(hand_out_session(
             signed_in,
             wants_token,
@@ -339,22 +372,19 @@ impl SignInService for SignInServiceHandler {
 
     fn look_up_sign_in_code<'a>(
         &'a self,
-        _ctx: RequestContext,
+        ctx: RequestContext,
         request: ServiceRequest<'_, LookUpSignInCodeRequest>,
     ) -> impl Future<
         Output = ServiceResult<impl Encodable<LookUpSignInCodeResponse> + Send + use<'a>>,
     > + Send {
-        let looked_up = self.sign_in_codes.look_up(request.code, Instant::now());
-        future::ready(
-            looked_up
-                .map_err(ConnectError::from)
-                .and_then(|device_name| {
-                    Response::ok(LookUpSignInCodeResponse {
-                        device_name,
-                        ..Default::default()
-                    })
-                }),
-        )
+        let looked_up = self
+            .with_sign_in_code_limit(&ctx, |_, now| self.sign_in_codes.look_up(request.code, now));
+        future::ready(looked_up.and_then(|device_name| {
+            Response::ok(LookUpSignInCodeResponse {
+                device_name,
+                ..Default::default()
+            })
+        }))
     }
 
     fn approve_sign_in_code<'a>(
@@ -364,10 +394,8 @@ impl SignInService for SignInServiceHandler {
     ) -> impl Future<
         Output = ServiceResult<impl Encodable<ApproveSignInCodeResponse> + Send + use<'a>>,
     > + Send {
-        let approved = caller(&ctx).and_then(|caller| {
-            Ok(self
-                .sign_in_codes
-                .approve(request.code, &caller.user, Instant::now())?)
+        let approved = self.with_sign_in_code_limit(&ctx, |caller, now| {
+            self.sign_in_codes.approve(request.code, &caller.user, now)
         });
         future::ready(approved.and_then(|()| Response::ok(ApproveSignInCodeResponse::default())))
     }
@@ -681,6 +709,52 @@ impl BrowseService for BrowseServiceHandler {
     }
 }
 
+/// `nama.v1.UserService`: managing the Server's Users. Admins only, which [`require_access`]
+/// enforces.
+struct UserServiceHandler {
+    users: Users,
+}
+
+#[expect(
+    refining_impl_trait,
+    reason = "plain `async fn` returning the owned response is the form the generated trait \
+              documents; the refined signature isn't visible outside this crate"
+)]
+impl UserService for UserServiceHandler {
+    async fn create_user(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, CreateUserRequest>,
+    ) -> ServiceResult<CreateUserResponse> {
+        let request = request.to_owned_message();
+        let role = role_from_proto(request.role)?;
+        let id = self
+            .users
+            .create(&request.name, &request.password, role)
+            .await?;
+        Response::ok(CreateUserResponse {
+            id,
+            ..Default::default()
+        })
+    }
+
+    async fn list_users(
+        &self,
+        _ctx: RequestContext,
+        _request: ServiceRequest<'_, ListUsersRequest>,
+    ) -> ServiceResult<ListUsersResponse> {
+        let users = self
+            .users
+            .list()
+            .await
+            .map_err(|err| database_failed(&err))?;
+        Response::ok(ListUsersResponse {
+            users: users.into_iter().map(user_to_proto).collect(),
+            ..Default::default()
+        })
+    }
+}
+
 /// `nama.v1.EventService`: live updates.
 //
 // TODO(M3): once there is per-Library access, only send a caller events about Libraries it may see.
@@ -907,16 +981,32 @@ fn library_to_proto(library: Library) -> proto::Library {
     }
 }
 
+/// The Role a request asks for, which must be one the Server knows.
+fn role_from_proto(role: EnumValue<proto::Role>) -> Result<Role, ConnectError> {
+    match role {
+        EnumValue::Known(proto::Role::ROLE_ADMIN) => Ok(Role::Admin),
+        EnumValue::Known(proto::Role::ROLE_MEMBER) => Ok(Role::Member),
+        EnumValue::Known(proto::Role::ROLE_UNSPECIFIED) | EnumValue::Unknown(_) => Err(
+            ConnectError::invalid_argument("a User's Role must be admin or member"),
+        ),
+    }
+}
+
+/// A Role as clients see it.
+fn role_to_proto(role: Role) -> proto::Role {
+    match role {
+        Role::Admin => proto::Role::ROLE_ADMIN,
+        Role::Member => proto::Role::ROLE_MEMBER,
+    }
+}
+
 /// A User as clients see them.
 fn user_to_proto(user: users::User) -> proto::User {
     proto::User {
         id: user.id,
         name: user.name,
-        role: match user.role {
-            Role::Admin => proto::Role::ROLE_ADMIN,
-            Role::Member => proto::Role::ROLE_MEMBER,
-        }
-        .into(),
+        role: role_to_proto(user.role).into(),
+        created_at: user.created_at,
         ..Default::default()
     }
 }

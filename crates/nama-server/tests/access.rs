@@ -1,5 +1,5 @@
 //! Who may call what: a session for everything but the public RPCs, and the Admin Role for
-//! managing Libraries and Matches, over a real socket and against a real SQLite database.
+//! managing Libraries, Matches and Users, over a real socket and against a real SQLite database.
 
 #[path = "support/server.rs"]
 mod server;
@@ -12,15 +12,16 @@ use connectrpc::{
 };
 use hyper::{HeaderMap, Method};
 use nama_proto::nama::v1::{
-    __buffa::view::SubscribeResponseView, CreateLibraryRequest, EventServiceClient, LibraryKind,
-    LibraryServiceClient, ScanLibraryRequest, SubscribeRequest, SubscribeResponse,
+    __buffa::view::SubscribeResponseView, CreateLibraryRequest, CreateUserRequest,
+    EventServiceClient, LibraryKind, LibraryServiceClient, Role, ScanLibraryRequest,
+    SubscribeRequest, SubscribeResponse, UserServiceClient,
 };
 use nama_server::{config::Config, plugins::Registry, users::Users};
 use serde_json::Value;
 use server::{PASSWORD, TestServer};
 
-/// Every RPC that manages Libraries or Matches, which only an Admin may call.
-const ADMIN_ONLY: [&str; 10] = [
+/// Every RPC that manages Libraries, Matches or Users, which only an Admin may call.
+const ADMIN_ONLY: [&str; 12] = [
     "/nama.v1.LibraryService/CreateLibrary",
     "/nama.v1.LibraryService/ListLibraries",
     "/nama.v1.LibraryService/GetLibrary",
@@ -31,6 +32,8 @@ const ADMIN_ONLY: [&str; 10] = [
     "/nama.v1.MatchService/SetMatch",
     "/nama.v1.MatchService/ClearMatch",
     "/nama.v1.MatchService/ListUnmatchedItems",
+    "/nama.v1.UserService/CreateUser",
+    "/nama.v1.UserService/ListUsers",
 ];
 
 /// The RPCs for browsing what a Library holds, which any signed-in User may call.
@@ -128,8 +131,16 @@ async fn post_json(server: &TestServer, path: &str, bearer: Option<&str>) -> Rep
 async fn start_with_member() -> (TestServer, String) {
     let plugins = Registry::new();
     let (server, db) = TestServer::start_with_db(Config::default(), plugins.clone()).await;
+    UserServiceClient::new(HttpClient::plaintext(), server.client_config())
+        .create_user(CreateUserRequest {
+            name: "Grace".to_owned(),
+            password: PASSWORD.to_owned(),
+            role: Role::ROLE_MEMBER.into(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
     let users = Users::new(db, plugins);
-    users.create_member("Grace", PASSWORD).await.unwrap();
     let signed_in = users.sign_in("Grace", PASSWORD, "Phone").await.unwrap();
     (server, signed_in.token().to_owned())
 }
@@ -175,7 +186,7 @@ async fn an_unauthenticated_call_to_anything_but_the_public_rpcs_is_unauthentica
 }
 
 #[tokio::test]
-async fn a_member_managing_libraries_or_matches_is_permission_denied() {
+async fn a_member_managing_libraries_matches_or_users_is_permission_denied() {
     let (server, member_token) = start_with_member().await;
 
     for path in ADMIN_ONLY {
@@ -186,7 +197,7 @@ async fn a_member_managing_libraries_or_matches_is_permission_denied() {
 }
 
 #[tokio::test]
-async fn an_admin_may_manage_libraries_and_matches() {
+async fn an_admin_may_manage_libraries_matches_and_users() {
     let server = TestServer::start(Config::default(), Registry::new()).await;
 
     for path in ADMIN_ONLY {

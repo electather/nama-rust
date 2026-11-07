@@ -497,6 +497,16 @@ pub struct User {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_default_enum_value"
     )]
     pub role: ::buffa::EnumValue<Role>,
+    /// When the User was created, in seconds since the Unix epoch.
+    ///
+    /// Field 4: `created_at`
+    #[serde(
+        rename = "createdAt",
+        alias = "created_at",
+        with = "::buffa::json_helpers::int64",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i64"
+    )]
+    pub created_at: i64,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -507,6 +517,7 @@ impl ::core::fmt::Debug for User {
             .field("id", &self.id)
             .field("name", &self.name)
             .field("role", &self.role)
+            .field("created_at", &self.created_at)
             .finish()
     }
 }
@@ -549,6 +560,9 @@ impl ::buffa::Message for User {
                 size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
             }
         }
+        if self.created_at != 0i64 {
+            size += 1u64 + ::buffa::types::int64_encoded_len(self.created_at) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -570,6 +584,9 @@ impl ::buffa::Message for User {
             if val != 0 {
                 ::buffa::types::put_int32_field(3u32, val, buf);
             }
+        }
+        if self.created_at != 0i64 {
+            ::buffa::types::put_int64_field(4u32, self.created_at, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -605,6 +622,13 @@ impl ::buffa::Message for User {
                 )?;
                 self.role = ::buffa::EnumValue::from(::buffa::types::decode_int32(buf)?);
             }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.created_at = ::buffa::types::decode_int64(buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -616,6 +640,7 @@ impl ::buffa::Message for User {
         self.id = 0i64;
         self.name.clear();
         self.role = ::buffa::EnumValue::from(0);
+        self.created_at = 0i64;
         self.__buffa_unknown_fields.clear();
     }
 }

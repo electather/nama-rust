@@ -14,6 +14,10 @@ pub struct UserView<'a> {
     pub name: &'a str,
     /// Field 3: `role`
     pub role: ::buffa::EnumValue<super::super::Role>,
+    /// When the User was created, in seconds since the Unix epoch.
+    ///
+    /// Field 4: `created_at`
+    pub created_at: i64,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for UserView<'a> {
@@ -69,6 +73,13 @@ impl<'a> ::buffa::MessageView<'a> for UserView<'a> {
                     ::buffa::types::decode_int32(&mut cur)?,
                 );
             }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.created_at = ::buffa::types::decode_int64(&mut cur)?;
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -94,6 +105,7 @@ impl<'a> ::buffa::MessageView<'a> for UserView<'a> {
             id: self.id,
             name: self.name.to_string(),
             role: self.role,
+            created_at: self.created_at,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -117,6 +129,9 @@ impl<'a> ::buffa::ViewEncode<'a> for UserView<'a> {
                 size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
             }
         }
+        if self.created_at != 0i64 {
+            size += 1u64 + ::buffa::types::int64_encoded_len(self.created_at) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -139,6 +154,9 @@ impl<'a> ::buffa::ViewEncode<'a> for UserView<'a> {
             if val != 0 {
                 ::buffa::types::put_int32_field(3u32, val, buf);
             }
+        }
+        if self.created_at != 0i64 {
+            ::buffa::types::put_int64_field(4u32, self.created_at, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -169,6 +187,13 @@ impl<'__a> ::serde::Serialize for UserView<'__a> {
         }
         if !::buffa::json_helpers::skip_if::is_default_enum_value(&self.role) {
             __map.serialize_entry("role", &self.role)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_zero_i64(&self.created_at) {
+            __map
+                .serialize_entry(
+                    "createdAt",
+                    &::buffa::json_helpers::ProtoJson(&self.created_at),
+                )?;
         }
         __map.end()
     }
@@ -275,6 +300,13 @@ impl UserOwnedView {
     #[must_use]
     pub fn role(&self) -> ::buffa::EnumValue<super::super::Role> {
         self.0.reborrow().role
+    }
+    /// When the User was created, in seconds since the Unix epoch.
+    ///
+    /// Field 4: `created_at`
+    #[must_use]
+    pub fn created_at(&self) -> i64 {
+        self.0.reborrow().created_at
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<UserView<'static>>> for UserOwnedView {

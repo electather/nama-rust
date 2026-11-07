@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT d.id AS \"device_id!\", d.name AS device_name, d.last_seen_at,\n                      u.id AS \"user_id!\", u.name AS user_name, u.role AS \"role: Role\"\n               FROM devices d JOIN users u ON u.id = d.user_id\n               WHERE d.token_hash = ? AND d.last_seen_at > ?",
+  "query": "SELECT d.id AS \"device_id!\", d.name AS device_name, d.last_seen_at,\n                      u.id AS \"user_id!\", u.name AS user_name, u.role AS \"role: Role\",\n                      u.created_at\n               FROM devices d JOIN users u ON u.id = d.user_id\n               WHERE d.token_hash = ? AND d.last_seen_at > ?",
   "describe": {
     "columns": [
       {
@@ -68,6 +68,17 @@
             "name": "role"
           }
         }
+      },
+      {
+        "name": "created_at",
+        "ordinal": 6,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "created_at"
+          }
+        }
       }
     ],
     "parameters": {
@@ -79,8 +90,9 @@
       false,
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "96f703ab30d5a5317bfbf21430166e093d79ade6fdcb7a4ba7267bd2f3230ca8"
+  "hash": "fcd41de429a459fa54868720dd1e1bdd58f3172d321cf7b85af171ce4b119e31"
 }

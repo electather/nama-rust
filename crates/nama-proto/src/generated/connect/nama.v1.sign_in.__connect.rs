@@ -395,7 +395,9 @@ pub const SIGN_IN_SERVICE_POLL_SIGN_IN_CODE_SPEC: ::connectrpc::Spec = ::connect
 /// Guessing is slowed down: after 10 failed `SignIn`s for one name, or 50 failed `Setup`s and
 /// `SignIn`s together from one IP address, within 15 minutes, further attempts fail with
 /// `resource_exhausted`, without being checked, and a `Retry-After` header gives the seconds to
-/// wait. A successful `SignIn` clears its name's failures.
+/// wait. A successful `SignIn` clears its name's failures. In the same way, after 10 failed
+/// `LookUpSignInCode`s and `ApproveSignInCode`s together from one Device within 15 minutes, its
+/// further lookups and approvals fail with `resource_exhausted`.
 ///
 /// # Implementing handlers
 ///

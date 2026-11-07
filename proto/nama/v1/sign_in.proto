@@ -13,7 +13,9 @@ package nama.v1;
 // Guessing is slowed down: after 10 failed `SignIn`s for one name, or 50 failed `Setup`s and
 // `SignIn`s together from one IP address, within 15 minutes, further attempts fail with
 // `resource_exhausted`, without being checked, and a `Retry-After` header gives the seconds to
-// wait. A successful `SignIn` clears its name's failures.
+// wait. A successful `SignIn` clears its name's failures. In the same way, after 10 failed
+// `LookUpSignInCode`s and `ApproveSignInCode`s together from one Device within 15 minutes, its
+// further lookups and approvals fail with `resource_exhausted`.
 service SignInService {
   // Creates the first Admin on a fresh Server and signs the calling Device in as them. Needs the
   // Setup Code the Server printed to its log. Fails with `permission_denied` if the code is wrong,
@@ -79,6 +81,8 @@ message User {
   // Unique on the Server, ignoring case.
   string name = 2;
   Role role = 3;
+  // When the User was created, in seconds since the Unix epoch.
+  int64 created_at = 4;
 }
 
 // A client installation signed in to a Server as a User.
