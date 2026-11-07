@@ -262,7 +262,7 @@ export const RefusalReason = {
 
   /**
    * `invalid_argument`: the metadata source has no title with the id, or can't look titles up by
-   * it.
+   * it. Params: `titleId`, as the message shows it (`tmdb-949`).
    *
    * @generated from enum value: REFUSAL_REASON_UNKNOWN_TITLE = 28;
    */

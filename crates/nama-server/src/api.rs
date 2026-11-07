@@ -1518,15 +1518,6 @@ fn device_to_proto(device: users::Device, is_current: bool) -> proto::Device {
     }
 }
 
-/// The client IP address `ctx` came from, which rate limits count by.
-fn client_ip(ctx: &RequestContext) -> Result<IpAddr, ConnectError> {
-    let source = ctx.extensions().get::<RequestSource>();
-    source.map(|source| source.client_ip).ok_or_else(|| {
-        tracing::error!("a request came without its peer's address");
-        ConnectError::internal("the Server failed")
-    })
-}
-
 /// A refusal of a client's request on its way to becoming a [`ConnectError`]: [`refuse`] starts
 /// one, [`Refused::field`] and [`Refused::param`] fill it in.
 struct Refused {
@@ -1553,7 +1544,8 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
     use RefusalReason as R;
     match reason {
         // ponytail: `UNSPECIFIED` comes only from `users::Error::Invalid` and
-        // `libraries::Error::Invalid` until #130 gives each of their rules its own reason.
+        // `libraries::Error::Invalid`, without the params their messages mention, until #130 gives
+        // each of their rules its own reason and params.
         R::REFUSAL_REASON_UNSPECIFIED
         | R::REFUSAL_REASON_FIELD_REQUIRED
         | R::REFUSAL_REASON_UNKNOWN_ENUM_VALUE
@@ -1678,6 +1670,15 @@ impl From<users::Error> for ConnectError {
     }
 }
 
+/// The client IP address `ctx` came from, which rate limits count by.
+fn client_ip(ctx: &RequestContext) -> Result<IpAddr, ConnectError> {
+    let source = ctx.extensions().get::<RequestSource>();
+    source.map(|source| source.client_ip).ok_or_else(|| {
+        tracing::error!("a request came without its peer's address");
+        ConnectError::internal("the Server failed")
+    })
+}
+
 /// The Connect error a client gets for a rate-limited attempt, with the delay to wait in
 /// `Retry-After`.
 impl From<Blocked> for ConnectError {
@@ -1781,9 +1782,9 @@ impl From<ManualError> for ConnectError {
             ManualError::NoSuchItem(id) => refuse(R::REFUSAL_REASON_ITEM_NOT_FOUND, message)
                 .field("item_id")
                 .param("itemId", &id),
-            ManualError::NoSuchTitle(_) => {
-                refuse(R::REFUSAL_REASON_UNKNOWN_TITLE, message).field("title_id")
-            }
+            ManualError::NoSuchTitle(id) => refuse(R::REFUSAL_REASON_UNKNOWN_TITLE, message)
+                .field("title_id")
+                .param("titleId", &id),
             ManualError::Unavailable => refuse(R::REFUSAL_REASON_NO_METADATA_PROVIDER, message),
             ManualError::Database(err) => return database_failed(err),
         };

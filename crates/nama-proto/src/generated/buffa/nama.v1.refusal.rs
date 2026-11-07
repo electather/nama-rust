@@ -69,7 +69,7 @@ pub enum RefusalReason {
     /// `not_found`: there is no item with the ID. Params: `itemId`.
     REFUSAL_REASON_ITEM_NOT_FOUND = 27i32,
     /// `invalid_argument`: the metadata source has no title with the id, or can't look titles up by
-    /// it.
+    /// it. Params: `titleId`, as the message shows it (`tmdb-949`).
     REFUSAL_REASON_UNKNOWN_TITLE = 28i32,
     /// `unavailable`: no metadata Provider is enabled, or it failed.
     REFUSAL_REASON_NO_METADATA_PROVIDER = 29i32,

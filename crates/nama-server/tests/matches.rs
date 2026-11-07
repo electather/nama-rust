@@ -415,6 +415,8 @@ async fn set_match_to_a_title_tmdb_does_not_have_is_invalid() {
         RefusalReason::REFUSAL_REASON_UNKNOWN_TITLE,
     );
     assert_eq!(refusal.field, "title_id");
+    let title_id = refusal.params.get("titleId").map(String::as_str);
+    assert_eq!(title_id, Some("tmdb-1"));
 }
 
 #[tokio::test]
