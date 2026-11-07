@@ -46,12 +46,14 @@ const MANAGE_LIBRARIES: [&str; 9] = [
 ];
 
 /// Every RPC that manages Users, which needs `PERMISSION_MANAGE_USERS`.
-const MANAGE_USERS: [&str; 5] = [
+const MANAGE_USERS: [&str; 7] = [
     "/nama.v1.UserService/CreateUser",
     "/nama.v1.UserService/ListUsers",
     "/nama.v1.UserService/SetPermissions",
     "/nama.v1.UserService/DeleteUser",
     "/nama.v1.UserService/ResetPassword",
+    "/nama.v1.UserService/GetDefaultPermissions",
+    "/nama.v1.UserService/SetDefaultPermissions",
 ];
 
 /// The RPCs for browsing the Libraries, what they hold and the caller's Continue Watching, which
@@ -85,10 +87,11 @@ const SIGNED_IN: [&str; 12] = [
 const SIGN_OUT: &str = "/nama.v1.SignInService/SignOut";
 
 /// The RPCs that change who can sign in as whom, which need Recent Authentication (ADR 0014).
-const SENSITIVE: [&str; 5] = [
+const SENSITIVE: [&str; 6] = [
     "/nama.v1.UserService/ChangePassword",
     "/nama.v1.UserService/ResetPassword",
     "/nama.v1.UserService/SetPermissions",
+    "/nama.v1.UserService/SetDefaultPermissions",
     "/nama.v1.UserService/DeleteUser",
     "/nama.v1.SignInService/ApproveSignInCode",
 ];

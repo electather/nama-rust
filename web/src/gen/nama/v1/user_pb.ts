@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file nama/v1/user.proto.
  */
 export const file_nama_v1_user: GenFile = /*@__PURE__*/
-  fileDesc("ChJuYW1hL3YxL3VzZXIucHJvdG8SB25hbWEudjEiPwoRQ3JlYXRlVXNlclJlcXVlc3QSDAoEbmFtZRgBIAEoCRIQCghwYXNzd29yZBgCIAEoCUoECAMQBFIEcm9sZSIgChJDcmVhdGVVc2VyUmVzcG9uc2USCgoCaWQYASABKAMiEgoQTGlzdFVzZXJzUmVxdWVzdCIxChFMaXN0VXNlcnNSZXNwb25zZRIcCgV1c2VycxgBIAMoCzINLm5hbWEudjEuVXNlciJSChVTZXRQZXJtaXNzaW9uc1JlcXVlc3QSDwoHdXNlcl9pZBgBIAEoAxIoCgtwZXJtaXNzaW9ucxgCIAMoDjITLm5hbWEudjEuUGVybWlzc2lvbiIYChZTZXRQZXJtaXNzaW9uc1Jlc3BvbnNlIiQKEURlbGV0ZVVzZXJSZXF1ZXN0Eg8KB3VzZXJfaWQYASABKAMiFAoSRGVsZXRlVXNlclJlc3BvbnNlIjYKEkxpc3REZXZpY2VzUmVxdWVzdBIUCgd1c2VyX2lkGAEgASgDSACIAQFCCgoIX3VzZXJfaWQiNwoTTGlzdERldmljZXNSZXNwb25zZRIgCgdkZXZpY2VzGAEgAygLMg8ubmFtYS52MS5EZXZpY2UiSgoTUmV2b2tlRGV2aWNlUmVxdWVzdBIUCgd1c2VyX2lkGAEgASgDSACIAQESEQoJZGV2aWNlX2lkGAIgASgDQgoKCF91c2VyX2lkIhYKFFJldm9rZURldmljZVJlc3BvbnNlIkUKFUNoYW5nZVBhc3N3b3JkUmVxdWVzdBIUCgxuZXdfcGFzc3dvcmQYAiABKAlKBAgBEAJSEGN1cnJlbnRfcGFzc3dvcmQiGAoWQ2hhbmdlUGFzc3dvcmRSZXNwb25zZSI9ChRSZXNldFBhc3N3b3JkUmVxdWVzdBIPCgd1c2VyX2lkGAEgASgDEhQKDG5ld19wYXNzd29yZBgCIAEoCSIXChVSZXNldFBhc3N3b3JkUmVzcG9uc2UygAUKC1VzZXJTZXJ2aWNlEkUKCkNyZWF0ZVVzZXISGi5uYW1hLnYxLkNyZWF0ZVVzZXJSZXF1ZXN0GhsubmFtYS52MS5DcmVhdGVVc2VyUmVzcG9uc2USRwoJTGlzdFVzZXJzEhkubmFtYS52MS5MaXN0VXNlcnNSZXF1ZXN0GhoubmFtYS52MS5MaXN0VXNlcnNSZXNwb25zZSIDkAIBElYKDlNldFBlcm1pc3Npb25zEh4ubmFtYS52MS5TZXRQZXJtaXNzaW9uc1JlcXVlc3QaHy5uYW1hLnYxLlNldFBlcm1pc3Npb25zUmVzcG9uc2UiA5ACAhJKCgpEZWxldGVVc2VyEhoubmFtYS52MS5EZWxldGVVc2VyUmVxdWVzdBobLm5hbWEudjEuRGVsZXRlVXNlclJlc3BvbnNlIgOQAgISTQoLTGlzdERldmljZXMSGy5uYW1hLnYxLkxpc3REZXZpY2VzUmVxdWVzdBocLm5hbWEudjEuTGlzdERldmljZXNSZXNwb25zZSIDkAIBEksKDFJldm9rZURldmljZRIcLm5hbWEudjEuUmV2b2tlRGV2aWNlUmVxdWVzdBodLm5hbWEudjEuUmV2b2tlRGV2aWNlUmVzcG9uc2USUQoOQ2hhbmdlUGFzc3dvcmQSHi5uYW1hLnYxLkNoYW5nZVBhc3N3b3JkUmVxdWVzdBofLm5hbWEudjEuQ2hhbmdlUGFzc3dvcmRSZXNwb25zZRJOCg1SZXNldFBhc3N3b3JkEh0ubmFtYS52MS5SZXNldFBhc3N3b3JkUmVxdWVzdBoeLm5hbWEudjEuUmVzZXRQYXNzd29yZFJlc3BvbnNlYgZwcm90bzM", [file_nama_v1_sign_in]);
+  fileDesc("ChJuYW1hL3YxL3VzZXIucHJvdG8SB25hbWEudjEiPwoRQ3JlYXRlVXNlclJlcXVlc3QSDAoEbmFtZRgBIAEoCRIQCghwYXNzd29yZBgCIAEoCUoECAMQBFIEcm9sZSIgChJDcmVhdGVVc2VyUmVzcG9uc2USCgoCaWQYASABKAMiEgoQTGlzdFVzZXJzUmVxdWVzdCIxChFMaXN0VXNlcnNSZXNwb25zZRIcCgV1c2VycxgBIAMoCzINLm5hbWEudjEuVXNlciJSChVTZXRQZXJtaXNzaW9uc1JlcXVlc3QSDwoHdXNlcl9pZBgBIAEoAxIoCgtwZXJtaXNzaW9ucxgCIAMoDjITLm5hbWEudjEuUGVybWlzc2lvbiIYChZTZXRQZXJtaXNzaW9uc1Jlc3BvbnNlIiQKEURlbGV0ZVVzZXJSZXF1ZXN0Eg8KB3VzZXJfaWQYASABKAMiFAoSRGVsZXRlVXNlclJlc3BvbnNlIjYKEkxpc3REZXZpY2VzUmVxdWVzdBIUCgd1c2VyX2lkGAEgASgDSACIAQFCCgoIX3VzZXJfaWQiNwoTTGlzdERldmljZXNSZXNwb25zZRIgCgdkZXZpY2VzGAEgAygLMg8ubmFtYS52MS5EZXZpY2UiSgoTUmV2b2tlRGV2aWNlUmVxdWVzdBIUCgd1c2VyX2lkGAEgASgDSACIAQESEQoJZGV2aWNlX2lkGAIgASgDQgoKCF91c2VyX2lkIhYKFFJldm9rZURldmljZVJlc3BvbnNlIkUKFUNoYW5nZVBhc3N3b3JkUmVxdWVzdBIUCgxuZXdfcGFzc3dvcmQYAiABKAlKBAgBEAJSEGN1cnJlbnRfcGFzc3dvcmQiGAoWQ2hhbmdlUGFzc3dvcmRSZXNwb25zZSI9ChRSZXNldFBhc3N3b3JkUmVxdWVzdBIPCgd1c2VyX2lkGAEgASgDEhQKDG5ld19wYXNzd29yZBgCIAEoCSIXChVSZXNldFBhc3N3b3JkUmVzcG9uc2UiHgocR2V0RGVmYXVsdFBlcm1pc3Npb25zUmVxdWVzdCJJCh1HZXREZWZhdWx0UGVybWlzc2lvbnNSZXNwb25zZRIoCgtwZXJtaXNzaW9ucxgBIAMoDjITLm5hbWEudjEuUGVybWlzc2lvbiJIChxTZXREZWZhdWx0UGVybWlzc2lvbnNSZXF1ZXN0EigKC3Blcm1pc3Npb25zGAEgAygOMhMubmFtYS52MS5QZXJtaXNzaW9uIh8KHVNldERlZmF1bHRQZXJtaXNzaW9uc1Jlc3BvbnNlMtoGCgtVc2VyU2VydmljZRJFCgpDcmVhdGVVc2VyEhoubmFtYS52MS5DcmVhdGVVc2VyUmVxdWVzdBobLm5hbWEudjEuQ3JlYXRlVXNlclJlc3BvbnNlEkcKCUxpc3RVc2VycxIZLm5hbWEudjEuTGlzdFVzZXJzUmVxdWVzdBoaLm5hbWEudjEuTGlzdFVzZXJzUmVzcG9uc2UiA5ACARJWCg5TZXRQZXJtaXNzaW9ucxIeLm5hbWEudjEuU2V0UGVybWlzc2lvbnNSZXF1ZXN0Gh8ubmFtYS52MS5TZXRQZXJtaXNzaW9uc1Jlc3BvbnNlIgOQAgISSgoKRGVsZXRlVXNlchIaLm5hbWEudjEuRGVsZXRlVXNlclJlcXVlc3QaGy5uYW1hLnYxLkRlbGV0ZVVzZXJSZXNwb25zZSIDkAICEk0KC0xpc3REZXZpY2VzEhsubmFtYS52MS5MaXN0RGV2aWNlc1JlcXVlc3QaHC5uYW1hLnYxLkxpc3REZXZpY2VzUmVzcG9uc2UiA5ACARJLCgxSZXZva2VEZXZpY2USHC5uYW1hLnYxLlJldm9rZURldmljZVJlcXVlc3QaHS5uYW1hLnYxLlJldm9rZURldmljZVJlc3BvbnNlElEKDkNoYW5nZVBhc3N3b3JkEh4ubmFtYS52MS5DaGFuZ2VQYXNzd29yZFJlcXVlc3QaHy5uYW1hLnYxLkNoYW5nZVBhc3N3b3JkUmVzcG9uc2USTgoNUmVzZXRQYXNzd29yZBIdLm5hbWEudjEuUmVzZXRQYXNzd29yZFJlcXVlc3QaHi5uYW1hLnYxLlJlc2V0UGFzc3dvcmRSZXNwb25zZRJrChVHZXREZWZhdWx0UGVybWlzc2lvbnMSJS5uYW1hLnYxLkdldERlZmF1bHRQZXJtaXNzaW9uc1JlcXVlc3QaJi5uYW1hLnYxLkdldERlZmF1bHRQZXJtaXNzaW9uc1Jlc3BvbnNlIgOQAgESawoVU2V0RGVmYXVsdFBlcm1pc3Npb25zEiUubmFtYS52MS5TZXREZWZhdWx0UGVybWlzc2lvbnNSZXF1ZXN0GiYubmFtYS52MS5TZXREZWZhdWx0UGVybWlzc2lvbnNSZXNwb25zZSIDkAICYgZwcm90bzM", [file_nama_v1_sign_in]);
 
 /**
  * @generated from message nama.v1.CreateUserRequest
@@ -307,21 +307,86 @@ export const ResetPasswordResponseSchema: GenMessage<ResetPasswordResponse> = /*
   messageDesc(file_nama_v1_user, 15);
 
 /**
+ * @generated from message nama.v1.GetDefaultPermissionsRequest
+ */
+export type GetDefaultPermissionsRequest = Message<"nama.v1.GetDefaultPermissionsRequest"> & {
+};
+
+/**
+ * Describes the message nama.v1.GetDefaultPermissionsRequest.
+ * Use `create(GetDefaultPermissionsRequestSchema)` to create a new message.
+ */
+export const GetDefaultPermissionsRequestSchema: GenMessage<GetDefaultPermissionsRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_user, 16);
+
+/**
+ * @generated from message nama.v1.GetDefaultPermissionsResponse
+ */
+export type GetDefaultPermissionsResponse = Message<"nama.v1.GetDefaultPermissionsResponse"> & {
+  /**
+   * In the order of `Permission`'s values, each once.
+   *
+   * @generated from field: repeated nama.v1.Permission permissions = 1;
+   */
+  permissions: Permission[];
+};
+
+/**
+ * Describes the message nama.v1.GetDefaultPermissionsResponse.
+ * Use `create(GetDefaultPermissionsResponseSchema)` to create a new message.
+ */
+export const GetDefaultPermissionsResponseSchema: GenMessage<GetDefaultPermissionsResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_user, 17);
+
+/**
+ * @generated from message nama.v1.SetDefaultPermissionsRequest
+ */
+export type SetDefaultPermissionsRequest = Message<"nama.v1.SetDefaultPermissionsRequest"> & {
+  /**
+   * Every Permission new Users are to get. Empty gives them none.
+   *
+   * @generated from field: repeated nama.v1.Permission permissions = 1;
+   */
+  permissions: Permission[];
+};
+
+/**
+ * Describes the message nama.v1.SetDefaultPermissionsRequest.
+ * Use `create(SetDefaultPermissionsRequestSchema)` to create a new message.
+ */
+export const SetDefaultPermissionsRequestSchema: GenMessage<SetDefaultPermissionsRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_user, 18);
+
+/**
+ * @generated from message nama.v1.SetDefaultPermissionsResponse
+ */
+export type SetDefaultPermissionsResponse = Message<"nama.v1.SetDefaultPermissionsResponse"> & {
+};
+
+/**
+ * Describes the message nama.v1.SetDefaultPermissionsResponse.
+ * Use `create(SetDefaultPermissionsResponseSchema)` to create a new message.
+ */
+export const SetDefaultPermissionsResponseSchema: GenMessage<SetDefaultPermissionsResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_user, 19);
+
+/**
  * Managing the Server's Users and their Devices. Every RPC but `ListDevices`, `RevokeDevice` and
  * `ChangePassword` needs `PERMISSION_MANAGE_USERS`, and fails with `permission_denied` without it.
  * Only a caller with `PERMISSION_ADMIN` may `SetPermissions`, `ResetPassword` or `DeleteUser` for a
- * User with it, grant it, or set their own Permissions; others fail with `permission_denied` and a
- * Refusal naming `PERMISSION_ADMIN`. `ChangePassword`, `ResetPassword`, `SetPermissions` and
- * `DeleteUser` also need Recent Authentication, as `SignInService` describes. RPCs name Users by
- * ID, not by name.
+ * User with it, grant it, put it in the default Permissions or create a User while they hold it, or
+ * set their own Permissions; others fail with `permission_denied` and a Refusal naming
+ * `PERMISSION_ADMIN`. `ChangePassword`, `ResetPassword`, `SetPermissions`, `SetDefaultPermissions`
+ * and `DeleteUser` also need Recent Authentication, as `SignInService` describes. RPCs name Users
+ * by ID, not by name.
  *
  * @generated from service nama.v1.UserService
  */
 export const UserService: GenService<{
   /**
-   * Creates a User, who can sign in at once, with `PERMISSION_REQUEST` and
-   * `PERMISSION_VIEW_REQUESTS`. Fails with `invalid_argument` if the name or the password breaks
-   * the rules, and `already_exists` if another User has the name, ignoring case.
+   * Creates a User, who can sign in at once, with the default Permissions as they are now. Fails
+   * with `invalid_argument` if the name or the password breaks the rules, and `already_exists` if
+   * another User has the name, ignoring case.
    *
    * @generated from rpc nama.v1.UserService.CreateUser
    */
@@ -417,6 +482,28 @@ export const UserService: GenService<{
     methodKind: "unary";
     input: typeof ResetPasswordRequestSchema;
     output: typeof ResetPasswordResponseSchema;
+  },
+  /**
+   * Gets the default Permissions: those `CreateUser` gives a new User. A fresh Server's are
+   * `PERMISSION_REQUEST` and `PERMISSION_VIEW_REQUESTS`.
+   *
+   * @generated from rpc nama.v1.UserService.GetDefaultPermissions
+   */
+  getDefaultPermissions: {
+    methodKind: "unary";
+    input: typeof GetDefaultPermissionsRequestSchema;
+    output: typeof GetDefaultPermissionsResponseSchema;
+  },
+  /**
+   * Replaces the default Permissions. Users created before keep the Permissions they have. Fails
+   * with `invalid_argument` for `PERMISSION_UNSPECIFIED` or a value the Server doesn't know.
+   *
+   * @generated from rpc nama.v1.UserService.SetDefaultPermissions
+   */
+  setDefaultPermissions: {
+    methodKind: "unary";
+    input: typeof SetDefaultPermissionsRequestSchema;
+    output: typeof SetDefaultPermissionsResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_nama_v1_user, 0);

@@ -1,12 +1,15 @@
-import { useId, useState } from "react";
+import { useSuspenseQuery } from "@connectrpc/connect-query";
+import { type ComponentProps, useId, useState } from "react";
 
 import { FormEnd } from "@/components/form-field";
-import { useSetPermissions } from "@/components/use-set-permissions";
+import { useSetDefaultPermissions, useSetPermissions } from "@/components/use-set-permissions";
 import type { Permission, User } from "@/gen/nama/v1/sign_in_pb";
-import { onSubmitted } from "@/lib/forms";
+import { UserService } from "@/gen/nama/v1/user_pb";
+import { onSubmitted, refusal } from "@/lib/forms";
 import {
   type PermissionChoice,
   isCovered,
+  mayChangeDefaultPermissions,
   mayChangePermissions,
   permissionChoices,
   permissionsToOffer,
@@ -15,13 +18,110 @@ import { onlyAdminRefusal } from "@/lib/users";
 
 /** `user`'s Permissions as checkboxes, or nothing when `you` may not change them. */
 export function PermissionsEditor({ user, you }: { user: User; you: User | undefined }) {
-  return mayChangePermissions(you, user) ? <PermissionsForm user={user} you={you} /> : null;
+  return mayChangePermissions(you, user) ? <UserPermissionsForm user={user} you={you} /> : null;
 }
 
-/** `user`'s Permissions as checkboxes, with each one's children under it, saved together. */
-function PermissionsForm({ user, you }: { user: User; you: User | undefined }) {
-  const [held, setHeld] = useState(user.permissions);
+function UserPermissionsForm({ user, you }: { user: User; you: User | undefined }) {
   const save = useSetPermissions(user, you);
+  return (
+    <PermissionsForm
+      initial={user.permissions}
+      you={you}
+      onSave={(permissions) => {
+        save.mutate({ userId: user.id, permissions });
+      }}
+      end={{
+        action: save.isPending ? "Saving…" : "Save Permissions",
+        pending: save.isPending,
+        done: save.isSuccess ? "Permissions saved." : undefined,
+        refusal: save.error
+          ? onlyAdminRefusal(save.error, user.name, "save the Permissions")
+          : undefined,
+      }}
+    />
+  );
+}
+
+/** The Permissions new Users get, named, opening to change them when `you` may. */
+export function DefaultPermissionsEditor({ you }: { you: User | undefined }) {
+  const { data } = useSuspenseQuery(UserService.method.getDefaultPermissions, {});
+  const [open, setOpen] = useState(false);
+  const panel = useId();
+  return (
+    <>
+      <div className="mt-2 flex items-baseline gap-3">
+        <p className="text-sm">{labelsOf(data.permissions)}</p>
+        {mayChangeDefaultPermissions(you, data.permissions) && (
+          <button
+            type="button"
+            aria-expanded={open}
+            aria-controls={panel}
+            onClick={() => {
+              setOpen(!open);
+            }}
+            className="ms-auto rounded-sm text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
+            {open ? "Close" : "Change"}
+          </button>
+        )}
+      </div>
+      {open && (
+        <div id={panel} className="mt-4">
+          <DefaultPermissionsForm initial={data.permissions} you={you} />
+        </div>
+      )}
+    </>
+  );
+}
+
+function DefaultPermissionsForm({
+  initial,
+  you,
+}: {
+  initial: Permission[];
+  you: User | undefined;
+}) {
+  const save = useSetDefaultPermissions();
+  return (
+    <PermissionsForm
+      initial={initial}
+      you={you}
+      onSave={(permissions) => {
+        save.mutate({ permissions });
+      }}
+      end={{
+        action: save.isPending ? "Saving…" : "Save default Permissions",
+        pending: save.isPending,
+        done: save.isSuccess ? "Default Permissions saved." : undefined,
+        refusal: save.error
+          ? refusal(save.error, "save the default Permissions", {}).form
+          : undefined,
+      }}
+    />
+  );
+}
+
+/** `permissions` by their labels, in the order the Users page lists them, or "None". */
+function labelsOf(permissions: Permission[]) {
+  const labels = permissionChoices
+    .filter((choice) => permissions.includes(choice.permission))
+    .map((choice) => choice.label);
+  return labels.length === 0 ? "None" : labels.join(" · ");
+}
+
+/** Permissions as checkboxes, with each one's children under it, which `onSave` gets together. */
+function PermissionsForm({
+  initial,
+  you,
+  onSave,
+  end,
+}: {
+  initial: Permission[];
+  you: User | undefined;
+  onSave: (permissions: Permission[]) => void;
+  end: ComponentProps<typeof FormEnd>;
+}) {
+  const [held, setHeld] = useState(initial);
   const toggle = (permission: Permission, checked: boolean) => {
     setHeld(checked ? [...held, permission] : held.filter((each) => each !== permission));
   };
@@ -30,7 +130,7 @@ function PermissionsForm({ user, you }: { user: User; you: User | undefined }) {
       className="flex flex-col gap-4"
       onSubmit={onSubmitted(() => {
         // A covered Permission is sent as it's held, so unchecking its parent later brings it back.
-        save.mutate({ userId: user.id, permissions: held });
+        onSave(held);
       })}
     >
       <fieldset>
@@ -46,15 +146,7 @@ function PermissionsForm({ user, you }: { user: User; you: User | undefined }) {
             ))}
         </ul>
       </fieldset>
-      <FormEnd
-        action={save.isPending ? "Saving…" : "Save Permissions"}
-        variant="ghost"
-        pending={save.isPending}
-        done={save.isSuccess ? "Permissions saved." : undefined}
-        refusal={
-          save.error ? onlyAdminRefusal(save.error, user.name, "save the Permissions") : undefined
-        }
-      />
+      <FormEnd variant="ghost" {...end} />
     </form>
   );
 }

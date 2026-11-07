@@ -16,10 +16,11 @@ use connectrpc::{
 };
 use nama_proto::nama::v1::{
     __buffa::view::SubscribeResponseView, ChangePasswordRequest, CreateUserRequest,
-    DeleteUserRequest, Device, EventServiceClient, ListDevicesRequest, ListUsersRequest,
-    Permission, RefusalReason, ResetPasswordRequest, RevokeDeviceRequest, SessionDelivery,
-    SetPermissionsRequest, SignInRequest, SignInResponse, SignInServiceClient, SubscribeRequest,
-    SubscribeResponse, User, UserServiceClient, WhoAmIRequest,
+    DeleteUserRequest, Device, EventServiceClient, GetDefaultPermissionsRequest,
+    ListDevicesRequest, ListUsersRequest, Permission, RefusalReason, ResetPasswordRequest,
+    RevokeDeviceRequest, SessionDelivery, SetDefaultPermissionsRequest, SetPermissionsRequest,
+    SignInRequest, SignInResponse, SignInServiceClient, SubscribeRequest, SubscribeResponse, User,
+    UserServiceClient, WhoAmIRequest,
 };
 use nama_server::{config::Config, plugins::Registry};
 use refused::{assert_refused, refusal_of};
@@ -40,15 +41,7 @@ impl Fixture {
 
     /// Creates a User named `name` with `password`, and returns their ID.
     async fn create(&self, name: &str, password: &str) -> Result<i64, ConnectError> {
-        let response = self
-            .client
-            .create_user(CreateUserRequest {
-                name: name.to_owned(),
-                password: password.to_owned(),
-                ..Default::default()
-            })
-            .await?;
-        Ok(response.into_owned().id)
+        create_user(&self.client, name, password).await
     }
 
     async fn list(&self) -> Result<Vec<User>, ConnectError> {
@@ -141,6 +134,22 @@ impl Fixture {
     }
 }
 
+/// Creates a User named `name` with `password`, as `client` asks, and returns their ID.
+async fn create_user(
+    client: &UserServiceClient<HttpClient>,
+    name: &str,
+    password: &str,
+) -> Result<i64, ConnectError> {
+    let response = client
+        .create_user(CreateUserRequest {
+            name: name.to_owned(),
+            password: password.to_owned(),
+            ..Default::default()
+        })
+        .await?;
+    Ok(response.into_owned().id)
+}
+
 async fn set_permissions(
     client: &UserServiceClient<HttpClient>,
     user_id: i64,
@@ -149,6 +158,33 @@ async fn set_permissions(
     client
         .set_permissions(SetPermissionsRequest {
             user_id,
+            permissions: permissions.iter().map(|&p| p.into()).collect(),
+            ..Default::default()
+        })
+        .await?;
+    Ok(())
+}
+
+async fn default_permissions(
+    client: &UserServiceClient<HttpClient>,
+) -> Result<Vec<Permission>, ConnectError> {
+    let response = client
+        .get_default_permissions(GetDefaultPermissionsRequest::default())
+        .await?;
+    Ok(response
+        .into_owned()
+        .permissions
+        .into_iter()
+        .filter_map(|permission| permission.as_known())
+        .collect())
+}
+
+async fn set_default_permissions(
+    client: &UserServiceClient<HttpClient>,
+    permissions: &[Permission],
+) -> Result<(), ConnectError> {
+    client
+        .set_default_permissions(SetDefaultPermissionsRequest {
             permissions: permissions.iter().map(|&p| p.into()).collect(),
             ..Default::default()
         })
@@ -596,6 +632,90 @@ async fn setting_an_unspecified_permission_is_refused_and_changes_nothing() {
     );
     assert_eq!(refusal.field, "permissions");
     assert_eq!(admin_ids(&fixture.client).await, [admin]);
+}
+
+#[tokio::test]
+async fn a_fresh_servers_default_permissions_are_request_and_view_requests() {
+    let fixture = Fixture::start().await;
+
+    let defaults = default_permissions(&fixture.client).await.unwrap();
+
+    assert_eq!(defaults, [Permission::Request, Permission::ViewRequests]);
+}
+
+#[tokio::test]
+async fn a_new_user_gets_the_default_permissions_and_earlier_users_keep_theirs() {
+    let fixture = Fixture::start().await;
+    let grace = fixture.create("Grace", PASSWORD).await.unwrap();
+
+    let changed = [Permission::RequestMovie, Permission::AutoApproveMovie];
+    set_default_permissions(&fixture.client, &changed)
+        .await
+        .unwrap();
+    let kim = fixture.create("Kim", PASSWORD).await.unwrap();
+
+    let users = fixture.list().await.unwrap();
+    let permissions_of = |id| &users.iter().find(|user| user.id == id).unwrap().permissions;
+    assert_eq!(
+        *permissions_of(grace),
+        [Permission::Request, Permission::ViewRequests]
+    );
+    assert_eq!(*permissions_of(kim), changed);
+    assert_eq!(default_permissions(&fixture.client).await.unwrap(), changed);
+}
+
+#[tokio::test]
+async fn an_admin_may_make_admin_a_default_permission_that_new_users_get() {
+    let fixture = Fixture::start().await;
+
+    set_default_permissions(&fixture.client, &[Permission::Admin])
+        .await
+        .unwrap();
+    let grace = fixture.create("Grace", PASSWORD).await.unwrap();
+
+    assert_eq!(
+        admin_ids(&fixture.client).await,
+        [fixture.first_admin_id().await, grace]
+    );
+}
+
+#[tokio::test]
+async fn a_user_who_manages_users_cant_make_admin_a_default_or_create_users_while_it_is_one() {
+    let fixture = Fixture::start().await;
+    let (_, token) = fixture
+        .signed_in_user("Grace", &[Permission::ManageUsers])
+        .await;
+    let as_grace = fixture.client_as(&token);
+
+    assert_admin_required(set_default_permissions(&as_grace, &[Permission::Admin]).await);
+    set_default_permissions(&fixture.client, &[Permission::Admin])
+        .await
+        .unwrap();
+    let created = create_user(&as_grace, "Kim", PASSWORD).await;
+
+    assert_admin_required(created.map(|_| ()));
+    assert_eq!(
+        admin_ids(&fixture.client).await,
+        [fixture.first_admin_id().await]
+    );
+}
+
+#[tokio::test]
+async fn setting_an_unspecified_default_permission_is_refused_and_changes_nothing() {
+    let fixture = Fixture::start().await;
+
+    let changed = set_default_permissions(&fixture.client, &[Permission::Unspecified]).await;
+
+    let refusal = assert_refused(
+        changed,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_UNKNOWN_ENUM_VALUE,
+    );
+    assert_eq!(refusal.field, "permissions");
+    assert_eq!(
+        default_permissions(&fixture.client).await.unwrap(),
+        [Permission::Request, Permission::ViewRequests]
+    );
 }
 
 #[tokio::test]

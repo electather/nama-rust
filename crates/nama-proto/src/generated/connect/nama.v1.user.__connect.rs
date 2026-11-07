@@ -62,6 +62,22 @@ pub type OwnedResetPasswordRequestView = ::buffa::view::OwnedView<
 pub type OwnedResetPasswordResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::ResetPasswordResponseView<'static>,
 >;
+///Shorthand for `OwnedView<GetDefaultPermissionsRequestView<'static>>`.
+pub type OwnedGetDefaultPermissionsRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::GetDefaultPermissionsRequestView<'static>,
+>;
+///Shorthand for `OwnedView<GetDefaultPermissionsResponseView<'static>>`.
+pub type OwnedGetDefaultPermissionsResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::GetDefaultPermissionsResponseView<'static>,
+>;
+///Shorthand for `OwnedView<SetDefaultPermissionsRequestView<'static>>`.
+pub type OwnedSetDefaultPermissionsRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SetDefaultPermissionsRequestView<'static>,
+>;
+///Shorthand for `OwnedView<SetDefaultPermissionsResponseView<'static>>`.
+pub type OwnedSetDefaultPermissionsResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SetDefaultPermissionsResponseView<'static>,
+>;
 impl ::connectrpc::Encodable<crate::messages::nama::v1::CreateUserResponse>
 for crate::messages::nama::v1::__buffa::view::CreateUserResponseView<'_> {
     fn encode(
@@ -334,6 +350,74 @@ for ::buffa::view::OwnedView<
         )
     }
 }
+impl ::connectrpc::Encodable<crate::messages::nama::v1::GetDefaultPermissionsResponse>
+for crate::messages::nama::v1::__buffa::view::GetDefaultPermissionsResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::GetDefaultPermissionsResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::GetDefaultPermissionsResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::SetDefaultPermissionsResponse>
+for crate::messages::nama::v1::__buffa::view::SetDefaultPermissionsResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::SetDefaultPermissionsResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SetDefaultPermissionsResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
 /// Full service name for this service.
 pub const USER_SERVICE_SERVICE_NAME: &str = "nama.v1.UserService";
 /// Static [`Spec`](::connectrpc::Spec) for the `CreateUser` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
@@ -384,13 +468,26 @@ pub const USER_SERVICE_RESET_PASSWORD_SPEC: ::connectrpc::Spec = ::connectrpc::S
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
+/// Static [`Spec`](::connectrpc::Spec) for the `GetDefaultPermissions` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const USER_SERVICE_GET_DEFAULT_PERMISSIONS_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.UserService/GetDefaultPermissions",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
+/// Static [`Spec`](::connectrpc::Spec) for the `SetDefaultPermissions` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const USER_SERVICE_SET_DEFAULT_PERMISSIONS_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.UserService/SetDefaultPermissions",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
 /// Managing the Server's Users and their Devices. Every RPC but `ListDevices`, `RevokeDevice` and
 /// `ChangePassword` needs `PERMISSION_MANAGE_USERS`, and fails with `permission_denied` without it.
 /// Only a caller with `PERMISSION_ADMIN` may `SetPermissions`, `ResetPassword` or `DeleteUser` for a
-/// User with it, grant it, or set their own Permissions; others fail with `permission_denied` and a
-/// Refusal naming `PERMISSION_ADMIN`. `ChangePassword`, `ResetPassword`, `SetPermissions` and
-/// `DeleteUser` also need Recent Authentication, as `SignInService` describes. RPCs name Users by
-/// ID, not by name.
+/// User with it, grant it, put it in the default Permissions or create a User while they hold it, or
+/// set their own Permissions; others fail with `permission_denied` and a Refusal naming
+/// `PERMISSION_ADMIN`. `ChangePassword`, `ResetPassword`, `SetPermissions`, `SetDefaultPermissions`
+/// and `DeleteUser` also need Recent Authentication, as `SignInService` describes. RPCs name Users
+/// by ID, not by name.
 ///
 /// # Implementing handlers
 ///
@@ -441,9 +538,9 @@ pub const USER_SERVICE_RESET_PASSWORD_SPEC: ::connectrpc::Spec = ::connectrpc::S
 /// example` doc.
 #[allow(clippy::type_complexity)]
 pub trait UserService: Send + Sync + 'static {
-    /// Creates a User, who can sign in at once, with `PERMISSION_REQUEST` and
-    /// `PERMISSION_VIEW_REQUESTS`. Fails with `invalid_argument` if the name or the password breaks
-    /// the rules, and `already_exists` if another User has the name, ignoring case.
+    /// Creates a User, who can sign in at once, with the default Permissions as they are now. Fails
+    /// with `invalid_argument` if the name or the password breaks the rules, and `already_exists` if
+    /// another User has the name, ignoring case.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
@@ -642,6 +739,54 @@ pub trait UserService: Send + Sync + 'static {
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
                 crate::messages::nama::v1::ResetPasswordResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Gets the default Permissions: those `CreateUser` gives a new User. A fresh Server's are
+    /// `PERMISSION_REQUEST` and `PERMISSION_VIEW_REQUESTS`.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn get_default_permissions<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::GetDefaultPermissionsRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::GetDefaultPermissionsResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Replaces the default Permissions. Users created before keep the Permissions they have. Fails
+    /// with `invalid_argument` for `PERMISSION_UNSPECIFIED` or a value the Server doesn't know.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn set_default_permissions<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::SetDefaultPermissionsRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::SetDefaultPermissionsResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -909,6 +1054,64 @@ impl<S: UserService> UserServiceExt for S {
                 },
             )
             .with_spec(USER_SERVICE_RESET_PASSWORD_SPEC)
+            .route_view_idempotent(
+                USER_SERVICE_SERVICE_NAME,
+                "GetDefaultPermissions",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::GetDefaultPermissionsRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::GetDefaultPermissionsRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.get_default_permissions(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::GetDefaultPermissionsResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(USER_SERVICE_GET_DEFAULT_PERMISSIONS_SPEC)
+            .route_view(
+                USER_SERVICE_SERVICE_NAME,
+                "SetDefaultPermissions",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::SetDefaultPermissionsRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::SetDefaultPermissionsRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.set_default_permissions(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::SetDefaultPermissionsResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(USER_SERVICE_SET_DEFAULT_PERMISSIONS_SPEC)
     }
 }
 /// Type-inference marker used by [`Router::add_service`](::connectrpc::Router::add_service).
@@ -1009,6 +1212,18 @@ impl<T: UserService> ::connectrpc::Dispatcher for UserServiceServer<T> {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
                         .with_spec(USER_SERVICE_RESET_PASSWORD_SPEC),
+                )
+            }
+            "GetDefaultPermissions" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
+                        .with_spec(USER_SERVICE_GET_DEFAULT_PERMISSIONS_SPEC),
+                )
+            }
+            "SetDefaultPermissions" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(USER_SERVICE_SET_DEFAULT_PERMISSIONS_SPEC),
                 )
             }
             _ => None,
@@ -1191,6 +1406,50 @@ impl<T: UserService> ::connectrpc::Dispatcher for UserServiceServer<T> {
                         .await?
                         .encode::<
                             crate::messages::nama::v1::ResetPasswordResponse,
+                        >(format)
+                })
+            }
+            "GetDefaultPermissions" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::GetDefaultPermissionsRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::GetDefaultPermissionsRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::GetDefaultPermissionsRequest,
+                    >::from_parts(&req, &body);
+                    svc.get_default_permissions(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::GetDefaultPermissionsResponse,
+                        >(format)
+                })
+            }
+            "SetDefaultPermissions" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::SetDefaultPermissionsRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::SetDefaultPermissionsRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::SetDefaultPermissionsRequest,
+                    >::from_parts(&req, &body);
+                    svc.set_default_permissions(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::SetDefaultPermissionsResponse,
                         >(format)
                 })
             }
@@ -1664,6 +1923,96 @@ where
                 &self.transport,
                 &self.config,
                 USER_SERVICE_RESET_PASSWORD_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the GetDefaultPermissions RPC. Sends a request to /nama.v1.UserService/GetDefaultPermissions.
+    pub async fn get_default_permissions(
+        &self,
+        request: crate::messages::nama::v1::GetDefaultPermissionsRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::GetDefaultPermissionsResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.get_default_permissions_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the GetDefaultPermissions RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn get_default_permissions_with_options(
+        &self,
+        request: crate::messages::nama::v1::GetDefaultPermissionsRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::GetDefaultPermissionsResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                USER_SERVICE_GET_DEFAULT_PERMISSIONS_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the SetDefaultPermissions RPC. Sends a request to /nama.v1.UserService/SetDefaultPermissions.
+    pub async fn set_default_permissions(
+        &self,
+        request: crate::messages::nama::v1::SetDefaultPermissionsRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::SetDefaultPermissionsResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.set_default_permissions_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the SetDefaultPermissions RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn set_default_permissions_with_options(
+        &self,
+        request: crate::messages::nama::v1::SetDefaultPermissionsRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::SetDefaultPermissionsResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                USER_SERVICE_SET_DEFAULT_PERMISSIONS_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,

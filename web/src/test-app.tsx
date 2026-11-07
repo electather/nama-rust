@@ -68,7 +68,12 @@ export function fakeServer(
       ...signIn,
     });
     // Settings lists your Devices, so every fake Server has an answer for it.
-    router.service(UserService, { listDevices: () => ({}), ...users });
+    // The Users page shows the default Permissions, so every fake Server has them.
+    router.service(UserService, {
+      listDevices: () => ({}),
+      getDefaultPermissions: () => ({ permissions: newUser }),
+      ...users,
+    });
     router.service(LibraryService, { listLibraries: () => ({ libraries: state.libraries ?? [] }) });
     // Every signed-in page follows the Server's Events.
     router.service(EventService, { subscribe: () => state.events ?? new ReadableStream() });

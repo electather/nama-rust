@@ -7,14 +7,15 @@ import "nama/v1/sign_in.proto";
 // Managing the Server's Users and their Devices. Every RPC but `ListDevices`, `RevokeDevice` and
 // `ChangePassword` needs `PERMISSION_MANAGE_USERS`, and fails with `permission_denied` without it.
 // Only a caller with `PERMISSION_ADMIN` may `SetPermissions`, `ResetPassword` or `DeleteUser` for a
-// User with it, grant it, or set their own Permissions; others fail with `permission_denied` and a
-// Refusal naming `PERMISSION_ADMIN`. `ChangePassword`, `ResetPassword`, `SetPermissions` and
-// `DeleteUser` also need Recent Authentication, as `SignInService` describes. RPCs name Users by
-// ID, not by name.
+// User with it, grant it, put it in the default Permissions or create a User while they hold it, or
+// set their own Permissions; others fail with `permission_denied` and a Refusal naming
+// `PERMISSION_ADMIN`. `ChangePassword`, `ResetPassword`, `SetPermissions`, `SetDefaultPermissions`
+// and `DeleteUser` also need Recent Authentication, as `SignInService` describes. RPCs name Users
+// by ID, not by name.
 service UserService {
-  // Creates a User, who can sign in at once, with `PERMISSION_REQUEST` and
-  // `PERMISSION_VIEW_REQUESTS`. Fails with `invalid_argument` if the name or the password breaks
-  // the rules, and `already_exists` if another User has the name, ignoring case.
+  // Creates a User, who can sign in at once, with the default Permissions as they are now. Fails
+  // with `invalid_argument` if the name or the password breaks the rules, and `already_exists` if
+  // another User has the name, ignoring case.
   rpc CreateUser(CreateUserRequest) returns (CreateUserResponse);
   // Lists every User on the Server, oldest first.
   rpc ListUsers(ListUsersRequest) returns (ListUsersResponse) {
@@ -56,6 +57,16 @@ service UserService {
   // password breaks the rules, `not_found` if no User has the ID, and `failed_precondition` for the
   // caller's own User, who uses `ChangePassword` instead to keep the calling Device signed in.
   rpc ResetPassword(ResetPasswordRequest) returns (ResetPasswordResponse);
+  // Gets the default Permissions: those `CreateUser` gives a new User. A fresh Server's are
+  // `PERMISSION_REQUEST` and `PERMISSION_VIEW_REQUESTS`.
+  rpc GetDefaultPermissions(GetDefaultPermissionsRequest) returns (GetDefaultPermissionsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Replaces the default Permissions. Users created before keep the Permissions they have. Fails
+  // with `invalid_argument` for `PERMISSION_UNSPECIFIED` or a value the Server doesn't know.
+  rpc SetDefaultPermissions(SetDefaultPermissionsRequest) returns (SetDefaultPermissionsResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
 }
 
 message CreateUserRequest {
@@ -131,3 +142,17 @@ message ResetPasswordRequest {
 }
 
 message ResetPasswordResponse {}
+
+message GetDefaultPermissionsRequest {}
+
+message GetDefaultPermissionsResponse {
+  // In the order of `Permission`'s values, each once.
+  repeated Permission permissions = 1;
+}
+
+message SetDefaultPermissionsRequest {
+  // Every Permission new Users are to get. Empty gives them none.
+  repeated Permission permissions = 1;
+}
+
+message SetDefaultPermissionsResponse {}

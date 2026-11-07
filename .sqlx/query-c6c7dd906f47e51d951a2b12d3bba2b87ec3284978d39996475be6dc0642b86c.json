@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT permissions AS \"permissions: Permissions\" FROM default_permissions",
+  "describe": {
+    "columns": [
+      {
+        "name": "permissions: Permissions",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "default_permissions",
+            "name": "permissions"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "c6c7dd906f47e51d951a2b12d3bba2b87ec3284978d39996475be6dc0642b86c"
+}

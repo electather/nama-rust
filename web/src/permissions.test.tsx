@@ -190,3 +190,50 @@ test("without the Admin Permission, only a non-Admin's Permissions can be change
   expect(screen.getByRole("checkbox", { name: "Request" })).toBeDefined();
   expect(screen.queryByRole("checkbox", { name: "Admin" })).toBeNull();
 });
+
+test("saved default Permissions are named on the Users page after reloading", async () => {
+  let defaults = [...newUser] as Permission[];
+  const server = fakeServer(
+    { signedIn: admin },
+    {},
+    {
+      listUsers: () => ({ users: [] }),
+      getDefaultPermissions: () => ({ permissions: defaults }),
+      setDefaultPermissions: ({ permissions }) => {
+        defaults = permissions;
+        return {};
+      },
+    },
+  );
+  openApp("/admin/users", server);
+
+  expect(await screen.findByText("Request · View Requests")).toBeDefined();
+  fireEvent.click(screen.getByRole("button", { name: "Change" }));
+  fireEvent.click(screen.getByRole("checkbox", { name: "Request" }));
+  fireEvent.click(screen.getByRole("checkbox", { name: "Request Movies" }));
+  fireEvent.click(screen.getByRole("button", { name: "Save default Permissions" }));
+  await screen.findByText("Default Permissions saved.");
+  cleanup();
+  openApp("/admin/users", server);
+
+  expect(await screen.findByText("Request Movies · View Requests")).toBeDefined();
+  expect(defaults).toEqual([Permission.VIEW_REQUESTS, Permission.REQUEST_MOVIE]);
+});
+
+test("without the Admin Permission, default Permissions holding Admin can't be changed", async () => {
+  openApp(
+    "/admin/users",
+    fakeServer(
+      { signedIn: [Permission.MANAGE_USERS] },
+      {},
+      {
+        listUsers: () => ({ users: [] }),
+        getDefaultPermissions: () => ({ permissions: admin }),
+      },
+    ),
+  );
+
+  const defaults = await screen.findByRole("region", { name: "Default Permissions" });
+  expect(within(defaults).getByText("Admin")).toBeDefined();
+  expect(within(defaults).queryByRole("button", { name: "Change" })).toBeNull();
+});

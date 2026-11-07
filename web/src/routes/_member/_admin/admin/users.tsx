@@ -3,15 +3,22 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { CreateUser } from "@/components/create-user";
 import { Page } from "@/components/page";
+import { DefaultPermissionsEditor } from "@/components/permissions-editor";
 import { UserRow } from "@/components/user-row";
 import { UserService } from "@/gen/nama/v1/user_pb";
 
 export const Route = createFileRoute("/_member/_admin/admin/users")({
   loader: ({ context: { queryClient, transport } }) =>
-    queryClient.query({
-      ...createQueryOptions(UserService.method.listUsers, {}, { transport }),
-      staleTime: "static",
-    }),
+    Promise.all([
+      queryClient.query({
+        ...createQueryOptions(UserService.method.listUsers, {}, { transport }),
+        staleTime: "static",
+      }),
+      queryClient.query({
+        ...createQueryOptions(UserService.method.getDefaultPermissions, {}, { transport }),
+        staleTime: "static",
+      }),
+    ]),
   component: Users,
 });
 
@@ -31,6 +38,15 @@ function Users() {
           Create a User
         </h2>
         <CreateUser />
+      </section>
+      <section aria-labelledby="default-permissions" className="mt-12 max-w-sm">
+        <h2 id="default-permissions" className="font-medium">
+          Default Permissions
+        </h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          What new Users get. Changing them leaves the Users already here as they are.
+        </p>
+        <DefaultPermissionsEditor you={signedIn.user} />
       </section>
     </Page>
   );
