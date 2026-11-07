@@ -1,5 +1,8 @@
+import { create } from "@bufbuild/protobuf";
 import { Code, ConnectError } from "@connectrpc/connect";
 import type { SubmitEvent } from "react";
+
+import { type RefusalReason, RefusalSchema } from "@/gen/nama/v1/refusal_pb";
 
 /** Why a form was refused: next to one of its fields, or for the `form` as a whole. */
 export interface FormErrors {
@@ -32,21 +35,28 @@ export function formText(form: FormData, name: string) {
 }
 
 /**
- * The messages for a form refused with `error`: the ones `byCode` gives for its Connect code, or
- * else a message for the whole form: too many tries for `resource_exhausted`, or otherwise that
- * the `attempt` (such as "sign in") failed.
+ * The messages for a form refused with `error`: the ones `byReason` gives for its Refusal's
+ * reason, which is for a Connect code that means more than one thing, or else the ones `byCode`
+ * gives for its code, or else a message for the whole form.
  */
 export function refusal(
   error: unknown,
   attempt: string,
   byCode: Partial<Record<Code, FormErrors>>,
+  byReason: Partial<Record<RefusalReason, FormErrors>> = {},
 ): FormErrors {
   const { code } = ConnectError.from(error);
-  const byDefault =
-    code === Code.ResourceExhausted
-      ? "There have been too many tries. Try again in a moment."
-      : `Couldn’t ${attempt}. Check that the Server is running, then try again.`;
-  return byCode[code] ?? { form: byDefault };
+  return byReason[refusalOf(error).reason] ?? byCode[code] ?? { form: unexplained(code, attempt) };
+}
+
+/**
+ * The message for a refusal no map explains: too many tries for `resource_exhausted`, or otherwise
+ * that the `attempt` (such as "sign in") failed.
+ */
+function unexplained(code: Code, attempt: string) {
+  return code === Code.ResourceExhausted
+    ? "There have been too many tries. Try again in a moment."
+    : `Couldn’t ${attempt}. Check that the Server is running, then try again.`;
 }
 
 /** The Server's own message for `error`, as a sentence. */
@@ -55,11 +65,26 @@ export function serverMessage(error: unknown) {
   return `${rawMessage.charAt(0).toUpperCase()}${rawMessage.slice(1)}.`;
 }
 
-// ponytail: the Server names the field only in its message ("a User's name needs…"). Read it
-// from Connect error details instead if the Server starts sending them.
-/** Which of a username or password field an `invalid_argument` refusal is about. */
-export function invalidField(error: unknown): "name" | "password" {
-  const message = String(error);
-  if (message.includes("User's name")) return "name";
-  return "password";
+/**
+ * `error`'s message next to the field of `fields` its Refusal names, or for the whole form when
+ * it names none of them.
+ */
+export function refusedFieldErrors(error: unknown, fields: (keyof FormErrors)[]): FormErrors {
+  const field = fields.find((each) => each === refusedField(error)) ?? "form";
+  return { [field]: serverMessage(error) };
+}
+
+/** The form field the Refusal on `error` is about, or `""` if it names none. */
+function refusedField(error: unknown) {
+  // The Server names a proto field path (`new_password`, `folders[2]`); forms key on
+  // `newPassword` and `folders`.
+  return refusalOf(error)
+    .field.replace(/\[\d+\]$/u, "")
+    .replaceAll(/_(\w)/gu, (_, letter: string) => letter.toUpperCase());
+}
+
+// web/AGENTS.md, "Read refusals by reason".
+/** The Refusal `error` carries, or an empty one, with no reason or field, if it carries none. */
+function refusalOf(error: unknown) {
+  return ConnectError.from(error).findDetails(RefusalSchema)[0] ?? create(RefusalSchema);
 }

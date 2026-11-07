@@ -1,10 +1,12 @@
-import { Code, ConnectError } from "@connectrpc/connect";
+import { Code } from "@connectrpc/connect";
 import { act, cleanup, fireEvent, screen } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
+import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { Role, SignInCodeStatus } from "@/gen/nama/v1/sign_in_pb";
 
 import { type ServerState, fakeServer, fill, openApp } from "./test-app";
+import { refused } from "./test-refusal";
 
 beforeEach(() => {
   // Polling waits seconds between tries; the tests move the clock on instead.
@@ -95,7 +97,9 @@ test("a code the Server forgot, after a restart, counts as expired", async () =>
     {
       startSignInCode: () => ({ code: "ABCD-EFGH", handle: "secret" }),
       pollSignInCode: () => {
-        throw new ConnectError("no sign-in is waiting on that handle", Code.NotFound);
+        throw refused(Code.NotFound, "no sign-in is waiting on that handle", {
+          reason: RefusalReason.HANDLE_NOT_FOUND,
+        });
       },
     },
   );
@@ -111,7 +115,9 @@ test("too many waiting sign-ins says so, not that there were too many tries", as
     {},
     {
       startSignInCode: () => {
-        throw new ConnectError("too many sign-ins are waiting", Code.ResourceExhausted);
+        throw refused(Code.ResourceExhausted, "too many sign-ins are waiting", {
+          reason: RefusalReason.TOO_MANY_PENDING_SIGN_INS,
+        });
       },
     },
   );
@@ -123,7 +129,9 @@ test("too many waiting sign-ins says so, not that there were too many tries", as
 
 /** Refuses any code but the one "Living room TV" shows, as the Server would match it. */
 function refuseUnlessShown(code: string) {
-  if (code !== "abcdefgh") throw new ConnectError("no such code", Code.NotFound);
+  if (code !== "abcdefgh") {
+    throw refused(Code.NotFound, "no such code", { reason: RefusalReason.SIGN_IN_CODE_NOT_FOUND });
+  }
 }
 
 /** A signed-in Server where "Living room TV" shows `abcdefgh`, approving into `approved`. */

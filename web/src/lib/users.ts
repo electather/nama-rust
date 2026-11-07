@@ -1,10 +1,11 @@
 import { Code } from "@connectrpc/connect";
 import { createConnectQueryKey } from "@connectrpc/connect-query";
 
+import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { Role } from "@/gen/nama/v1/sign_in_pb";
 import { UserService } from "@/gen/nama/v1/user_pb";
 
-import { type FormErrors, invalidField, refusal, serverMessage } from "./forms";
+import { type FormErrors, refusedFieldErrors, refusal, serverMessage } from "./forms";
 
 /** The query key of the Users, to refetch after a change to them. */
 export const usersKey = createConnectQueryKey({
@@ -39,8 +40,22 @@ export function onlyAdminRefusal(error: unknown, name: string, attempt: string) 
 export function createUserErrors(error: unknown): FormErrors {
   return refusal(error, "create the User", {
     [Code.AlreadyExists]: { name: "Another User already has that name." },
-    [Code.InvalidArgument]: { [invalidField(error)]: serverMessage(error) },
+    [Code.InvalidArgument]: refusedFieldErrors(error, ["name", "password"]),
   });
+}
+
+/** Why the Server refused to change your own password, next to the field it's about. */
+export function changePasswordErrors(error: unknown): FormErrors {
+  return refusal(
+    error,
+    "change your password",
+    {
+      [Code.InvalidArgument]: refusedFieldErrors(error, ["newPassword"]),
+      [Code.Unauthenticated]: { form: serverMessage(error) },
+    },
+    // `unauthenticated` also means this Device was signed out.
+    { [RefusalReason.WRONG_PASSWORD]: { currentPassword: "That isn’t your current password." } },
+  );
 }
 
 /** Why the Server refused a new password an Admin set for the User called `name`. */

@@ -1,7 +1,7 @@
 import { type MessageInitShape, create } from "@bufbuild/protobuf";
 import { Code, ConnectError, type ConnectRouter } from "@connectrpc/connect";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
-import { afterEach, expect, test } from "vite-plus/test";
+import { afterEach, describe, expect, test } from "vite-plus/test";
 
 import {
   EventSchema,
@@ -12,7 +12,8 @@ import { LibraryKind, LibraryService } from "@/gen/nama/v1/library_pb";
 import { MatchService, TitleKind, type UnmatchedItemSchema } from "@/gen/nama/v1/match_pb";
 import { Role } from "@/gen/nama/v1/sign_in_pb";
 
-import { fakeServer, openApp } from "./test-app";
+import { fakeServer, fill, openApp } from "./test-app";
+import { expectUnderField, refused } from "./test-refusal";
 
 afterEach(cleanup);
 
@@ -162,4 +163,44 @@ test("a Library that isn't on the Server shows the not-found page, under the app
 
   expect(await screen.findByRole("heading", { name: "Page not found" })).toBeDefined();
   expect(screen.getByRole("navigation", { name: "Admin" })).toBeDefined();
+});
+
+/** A fake Server whose Library changes are refused for the request field `field` with `message`. */
+function serverRefusingLibraryField(field: string, message: string) {
+  const refuse = () => {
+    throw refused(Code.InvalidArgument, message, { field });
+  };
+  return adminServer(new ReadableStream(), (router) => {
+    router.service(LibraryService, {
+      listLibraries: () => ({ libraries: [films] }),
+      getLibrary: () => ({ library: films }),
+      createLibrary: refuse,
+      updateLibrary: refuse,
+    });
+  });
+}
+
+describe.each([
+  ["/admin/libraries", "Create Library"],
+  ["/admin/libraries/1", "Save changes"],
+])("on %s", (path, action) => {
+  test.each([
+    ["Name", "name", "a Library's name can't be blank", "A Library's name can't be blank."],
+    [
+      "Folders",
+      "folders[2]",
+      "the folder srv is not an absolute path",
+      "The folder srv is not an absolute path.",
+    ],
+  ])("a refused %s shows under its field", async (label, field, message, shown) => {
+    openApp(path, serverRefusingLibraryField(field, message));
+    await screen.findByRole("button", { name: action });
+    fill("Name", "Films");
+    fireEvent.change(screen.getByRole("textbox", { name: "Folders" }), {
+      target: { value: "/srv/films" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: action }));
+
+    await expectUnderField(label, shown);
+  });
 });
