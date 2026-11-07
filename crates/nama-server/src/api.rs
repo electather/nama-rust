@@ -49,7 +49,7 @@ use crate::{
     libraries::{self, Kind, Libraries, Library},
     matching::{ManualError, Matcher},
     plugins::Registry,
-    rate_limits::{Blocked, SignInLimits},
+    rate_limits::{Blocked, SignInCodeLimits, SignInLimits},
     scanner::Scanner,
     sessions::{cleared_session_cookie, identify_caller, in_session_cookie, session_cookie},
     sign_in_codes::{self, Poll, SignInCodes},
@@ -80,8 +80,9 @@ pub(crate) fn router(
         .add_service(Arc::new(SignInServiceHandler {
             users: users.clone(),
             setup_code,
-            limits: SignInLimits::default(),
+            sign_in_limits: SignInLimits::default(),
             sign_in_codes: SignInCodes::default(),
+            sign_in_code_limits: SignInCodeLimits::default(),
         }))
         .add_service(Arc::new(MatchServiceHandler {
             matcher: Matcher::new(Arc::clone(&db), plugins, events.clone()),
@@ -196,8 +197,30 @@ struct SignInServiceHandler {
     /// What `Setup` must be given. `None` once the Server started with Users.
     setup_code: Option<SetupCode>,
     /// The recent failures of `Setup` and `SignIn`, which slow guessing down.
-    limits: SignInLimits,
+    sign_in_limits: SignInLimits,
     sign_in_codes: SignInCodes,
+    /// The recent failed Sign-in Code lookups and approvals, which slow guessing codes down.
+    sign_in_code_limits: SignInCodeLimits,
+}
+
+impl SignInServiceHandler {
+    /// Looks up or approves a Sign-in Code with `use_code`, as the caller of `ctx` at the time it
+    /// is given, unless their Device has failed too often lately. Only a code that is unknown or
+    /// expired counts as a failure: that is what a guess gets.
+    fn with_sign_in_code_limit<T>(
+        &self,
+        ctx: &RequestContext,
+        use_code: impl FnOnce(&Caller, Instant) -> Result<T, sign_in_codes::Error>,
+    ) -> Result<T, ConnectError> {
+        let caller = caller(ctx)?;
+        let now = Instant::now();
+        let attempt = self.sign_in_code_limits.admit(caller.device.id, now)?;
+        let used = use_code(caller, now);
+        if !matches!(used, Err(sign_in_codes::Error::NotFound)) {
+            self.sign_in_code_limits.wasnt_a_guess(&attempt);
+        }
+        Ok(used?)
+    }
 }
 
 #[expect(
@@ -212,7 +235,7 @@ impl SignInService for SignInServiceHandler {
         request: ServiceRequest<'_, SetupRequest>,
     ) -> ServiceResult<SetupResponse> {
         let request = request.to_owned_message();
-        let attempt = self.limits.admit(peer_ip(&ctx)?, None)?;
+        let attempt = self.sign_in_limits.admit(peer_ip(&ctx)?, None)?;
         let wants_token = wants_token(request.delivery)?;
         // The Server only made no code because it started with Users. Users are checked before the
         // code, so once there are any every attempt is refused as already set up, as documented.
@@ -232,7 +255,7 @@ impl SignInService for SignInServiceHandler {
             .users
             .create_first_admin(&request.name, &request.password, &request.device_name)
             .await?;
-        self.limits.succeeded(&attempt);
+        self.sign_in_limits.succeeded(&attempt);
         Ok(hand_out_session(
             signed_in,
             wants_token,
@@ -252,13 +275,15 @@ impl SignInService for SignInServiceHandler {
         request: ServiceRequest<'_, SignInRequest>,
     ) -> ServiceResult<SignInResponse> {
         let request = request.to_owned_message();
-        let attempt = self.limits.admit(peer_ip(&ctx)?, Some(&request.name))?;
+        let attempt = self
+            .sign_in_limits
+            .admit(peer_ip(&ctx)?, Some(&request.name))?;
         let wants_token = wants_token(request.delivery)?;
         let signed_in = self
             .users
             .sign_in(&request.name, &request.password, &request.device_name)
             .await?;
-        self.limits.succeeded(&attempt);
+        self.sign_in_limits.succeeded(&attempt);
         Ok(hand_out_session(
             signed_in,
             wants_token,
@@ -330,22 +355,19 @@ impl SignInService for SignInServiceHandler {
 
     fn look_up_sign_in_code<'a>(
         &'a self,
-        _ctx: RequestContext,
+        ctx: RequestContext,
         request: ServiceRequest<'_, LookUpSignInCodeRequest>,
     ) -> impl Future<
         Output = ServiceResult<impl Encodable<LookUpSignInCodeResponse> + Send + use<'a>>,
     > + Send {
-        let looked_up = self.sign_in_codes.look_up(request.code, Instant::now());
-        future::ready(
-            looked_up
-                .map_err(ConnectError::from)
-                .and_then(|device_name| {
-                    Response::ok(LookUpSignInCodeResponse {
-                        device_name,
-                        ..Default::default()
-                    })
-                }),
-        )
+        let looked_up = self
+            .with_sign_in_code_limit(&ctx, |_, now| self.sign_in_codes.look_up(request.code, now));
+        future::ready(looked_up.and_then(|device_name| {
+            Response::ok(LookUpSignInCodeResponse {
+                device_name,
+                ..Default::default()
+            })
+        }))
     }
 
     fn approve_sign_in_code<'a>(
@@ -355,10 +377,8 @@ impl SignInService for SignInServiceHandler {
     ) -> impl Future<
         Output = ServiceResult<impl Encodable<ApproveSignInCodeResponse> + Send + use<'a>>,
     > + Send {
-        let approved = caller(&ctx).and_then(|caller| {
-            Ok(self
-                .sign_in_codes
-                .approve(request.code, &caller.user, Instant::now())?)
+        let approved = self.with_sign_in_code_limit(&ctx, |caller, now| {
+            self.sign_in_codes.approve(request.code, &caller.user, now)
         });
         future::ready(approved.and_then(|()| Response::ok(ApproveSignInCodeResponse::default())))
     }
