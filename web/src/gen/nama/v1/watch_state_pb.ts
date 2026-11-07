@@ -13,7 +13,7 @@ export const file_nama_v1_watch_state: GenFile = /*@__PURE__*/
   fileDesc("ChluYW1hL3YxL3dhdGNoX3N0YXRlLnByb3RvEgduYW1hLnYxIloKCldhdGNoU3RhdGUSEwoLcG9zaXRpb25fbXMYASABKAQSEwoLZHVyYXRpb25fbXMYAiABKAQSDgoGcGxheWVkGAMgASgIEhIKCnVwZGF0ZWRfYXQYBCABKAMiVQoVUmVwb3J0UHJvZ3Jlc3NSZXF1ZXN0EhIKCnZlcnNpb25faWQYASABKAMSEwoLcG9zaXRpb25fbXMYAiABKAQSEwoLZHVyYXRpb25fbXMYAyABKAQiGAoWUmVwb3J0UHJvZ3Jlc3NSZXNwb25zZTJrChFXYXRjaFN0YXRlU2VydmljZRJWCg5SZXBvcnRQcm9ncmVzcxIeLm5hbWEudjEuUmVwb3J0UHJvZ3Jlc3NSZXF1ZXN0Gh8ubmFtYS52MS5SZXBvcnRQcm9ncmVzc1Jlc3BvbnNlIgOQAgJiBnByb3RvMw");
 
 /**
- * A User's progress through a Movie.
+ * A User's progress through a Movie or Episode.
  *
  * @generated from message nama.v1.WatchState
  */
@@ -103,20 +103,23 @@ export const ReportProgressResponseSchema: GenMessage<ReportProgressResponse> = 
 /**
  * Remembering how far the signed-in caller has got through what they play.
  *
- * Watch State is kept per User against the Movie a Version is Matched to, by the Movie's external
- * id, never against the file. So it survives rescans, renames and new Versions, and every Version
- * of a Movie shares it. An item that isn't Matched has none. `BrowseService` returns it with each
- * Movie.
+ * Watch State is kept per User against the Movie or Episode a Version is Matched to, by its
+ * external id, never against the file. So it survives rescans, renames and new Versions, and every
+ * Version of a Movie or Episode shares it. An item that isn't Matched has none. `BrowseService`
+ * returns it with each Movie and Episode.
  *
  * @generated from service nama.v1.WatchStateService
  */
 export const WatchStateService: GenService<{
   /**
    * Reports how far the caller has got through a Version they are playing, and stores it against
-   * the Movie the Version is Matched to. The Movie is marked played once the position passes 90% of
-   * the duration, and stays played if it is played again from the start. A Version whose item
-   * isn't Matched to a Movie is accepted, and nothing is stored. Fails with `not_found` if there is
-   * no such Version, and with `invalid_argument` if the duration is zero.
+   * the Movie or Episodes the Version is Matched to. A file holding several Episodes plays as one:
+   * each Episode, in episode order, gets an even share of the duration, and the position fills
+   * the shares in turn. An Episode whose share the position hasn't reached is left alone. A Movie
+   * or Episode is marked played once its position passes 90% of its duration, and stays played if
+   * it is played again from the start. A Version whose items aren't Matched is accepted, and
+   * nothing is stored. Fails with `not_found` if there is no such Version, and with
+   * `invalid_argument` if the duration is zero.
    *
    * @generated from rpc nama.v1.WatchStateService.ReportProgress
    */

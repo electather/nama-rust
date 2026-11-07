@@ -61,6 +61,9 @@ const THE_OFFICE_US: i64 = 2316;
 
 /// Two hours, in milliseconds: the length a test's player reports.
 const TWO_HOURS: u64 = 7_200_000;
+/// An hour, in milliseconds: the length a test's player reports for the two-Episode file.
+const AN_HOUR: u64 = 3_600_000;
+const MINUTE: u64 = 60_000;
 
 /// A Server with one Library, the TMDB Plugin enabled against a fake TMDB, and the clients a test
 /// browses and fixes Matches with.
@@ -323,6 +326,20 @@ impl Fixture {
             .into_owned()
             .episodes)
     }
+
+    /// The id of the Version of an Episode of Dark's Season `season` with the file name
+    /// `file_name`.
+    async fn dark_version(&self, season: u32, file_name: &str) -> i64 {
+        let episodes = self
+            .list_episodes(self.library, DARK, season)
+            .await
+            .unwrap();
+        let mut versions = episodes.iter().flat_map(|episode| &episode.versions);
+        versions
+            .find(|version| version.file_name == file_name)
+            .unwrap()
+            .id
+    }
 }
 
 /// One signed-in User's clients for browsing and for reporting what they play.
@@ -397,6 +414,25 @@ impl Viewer {
             .into_option();
         assert_eq!(got, listed);
         got
+    }
+
+    /// The Viewer's Watch State of each Episode of Dark's Season `season` in the Library
+    /// `library`, in episode order, as `ListEpisodes` gives them.
+    async fn dark_watch_states(&self, library: i64, season: u32) -> Vec<Option<WatchState>> {
+        self.browse
+            .list_episodes(ListEpisodesRequest {
+                library_id: library,
+                show_id: tmdb_id(DARK).into(),
+                season_number: season,
+                ..Default::default()
+            })
+            .await
+            .unwrap()
+            .into_owned()
+            .episodes
+            .into_iter()
+            .map(|episode| episode.watch_state.into_option())
+            .collect()
     }
 }
 
@@ -1048,4 +1084,83 @@ async fn reporting_on_an_unknown_version_is_not_found_and_a_zero_duration_is_inv
 
     assert_eq!(unknown.unwrap_err().code, ErrorCode::NotFound);
     assert_eq!(zero.unwrap_err().code, ErrorCode::InvalidArgument);
+}
+
+/// The position, duration and played flag of each of `states` that is set.
+fn episode_progress(states: Vec<Option<WatchState>>) -> Vec<Option<(u64, u64, bool)>> {
+    states
+        .into_iter()
+        .map(|state| state.map(|state| (state.position_ms, state.duration_ms, state.played)))
+        .collect()
+}
+
+#[tokio::test]
+async fn progress_on_a_version_of_an_episode_shows_on_that_episode() {
+    let fx = Fixture::shows().await;
+    let viewer = fx.admin();
+    let version = fx.dark_version(2, "Dark - S02E01.mkv").await;
+
+    viewer.report(version, MINUTE, TWO_HOURS).await.unwrap();
+
+    let states = viewer.dark_watch_states(fx.library, 2).await;
+    assert_eq!(episode_progress(states), [Some((MINUTE, TWO_HOURS, false))]);
+    let first_season = viewer.dark_watch_states(fx.library, 1).await;
+    assert_eq!(first_season, [None, None]);
+}
+
+#[tokio::test]
+async fn a_two_episode_file_splits_its_position_evenly_in_episode_order() {
+    let fx = Fixture::shows().await;
+    let viewer = fx.admin();
+    let version = fx.dark_version(1, "Dark - S01E01-E02.mkv").await;
+    let half = AN_HOUR / 2;
+
+    viewer.report(version, 20 * MINUTE, AN_HOUR).await.unwrap();
+    let at_20 = episode_progress(viewer.dark_watch_states(fx.library, 1).await);
+    viewer.report(version, 40 * MINUTE, AN_HOUR).await.unwrap();
+    let at_40 = episode_progress(viewer.dark_watch_states(fx.library, 1).await);
+
+    assert_eq!(at_20, [Some((20 * MINUTE, half, false)), None]);
+    assert_eq!(
+        at_40,
+        [Some((half, half, true)), Some((10 * MINUTE, half, false))]
+    );
+}
+
+#[tokio::test]
+async fn a_position_in_the_first_episode_leaves_progress_on_the_second_alone() {
+    let fx = Fixture::shows().await;
+    let viewer = fx.admin();
+    let version = fx.dark_version(1, "Dark - S01E01-E02.mkv").await;
+    viewer.report(version, 40 * MINUTE, AN_HOUR).await.unwrap();
+    let [_, lies_before]: [_; 2] = viewer
+        .dark_watch_states(fx.library, 1)
+        .await
+        .try_into()
+        .unwrap();
+
+    viewer.report(version, 5 * MINUTE, AN_HOUR).await.unwrap();
+
+    let [secrets, lies]: [_; 2] = viewer
+        .dark_watch_states(fx.library, 1)
+        .await
+        .try_into()
+        .unwrap();
+    assert_eq!(progress(secrets), Some((5 * MINUTE, true)));
+    assert_eq!(lies, lies_before);
+}
+
+#[tokio::test]
+async fn progress_on_an_episode_survives_a_rescan_that_replaces_the_item() {
+    let fx = Fixture::shows().await;
+    let viewer = fx.admin();
+    let version = fx.dark_version(2, "Dark - S02E01.mkv").await;
+    let before = fx.item(DARK_S02E01).await;
+
+    viewer.report(version, MINUTE, TWO_HOURS).await.unwrap();
+    fx.write(DARK_S02E01, b"a re-encoded copy of the video");
+    fx.rescan_until_replaced(DARK_S02E01, before).await;
+
+    let states = viewer.dark_watch_states(fx.library, 2).await;
+    assert_eq!(episode_progress(states), [Some((MINUTE, TWO_HOURS, false))]);
 }

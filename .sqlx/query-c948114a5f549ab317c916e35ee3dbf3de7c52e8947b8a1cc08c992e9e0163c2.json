@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT title_id, position_ms, duration_ms, played AS \"played: bool\", updated_at\n               FROM watch_states\n               WHERE user_id = ? AND kind = 'movie'",
+  "query": "SELECT title_id, position_ms, duration_ms, played AS \"played: bool\", updated_at\n               FROM watch_states\n               WHERE user_id = ? AND kind = ?",
   "describe": {
     "columns": [
       {
@@ -60,7 +60,7 @@
       }
     ],
     "parameters": {
-      "Right": 1
+      "Right": 2
     },
     "nullable": [
       false,
@@ -70,5 +70,5 @@
       false
     ]
   },
-  "hash": "c636b3a8e525628e87358f90f594312aa9a7f7b4318f8d36a6378a6852ece9ab"
+  "hash": "c948114a5f549ab317c916e35ee3dbf3de7c52e8947b8a1cc08c992e9e0163c2"
 }

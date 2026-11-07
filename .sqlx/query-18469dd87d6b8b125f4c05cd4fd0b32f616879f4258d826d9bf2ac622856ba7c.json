@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT library_items.kind AS \"kind?\", item_matches.tmdb_id, item_matches.imdb_id,\n                      item_matches.tvdb_id\n               FROM library_files\n               LEFT JOIN library_items ON library_items.file_id = library_files.id\n               LEFT JOIN item_matches ON item_matches.item_id = library_items.id\n                                     AND item_matches.state = 'matched'\n               WHERE library_files.id = ?\n               ORDER BY library_items.season, library_items.episode",
+  "describe": {
+    "columns": [
+      {
+        "name": "kind?",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "library_items",
+            "name": "kind"
+          }
+        }
+      },
+      {
+        "name": "tmdb_id",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "tmdb_id"
+          }
+        }
+      },
+      {
+        "name": "imdb_id",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "imdb_id"
+          }
+        }
+      },
+      {
+        "name": "tvdb_id",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "tvdb_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "18469dd87d6b8b125f4c05cd4fd0b32f616879f4258d826d9bf2ac622856ba7c"
+}
