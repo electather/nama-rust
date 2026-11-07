@@ -106,12 +106,14 @@ test("refused again after you confirm it’s you, the change shows an error, not
 });
 
 /**
- * The Users page, with Sam and Alex, on a Server that refuses `ResetPassword` for want of Recent
- * Authentication until `Reauthenticate`. Returns the resets it made.
+ * The Users page, with the Admin Sam and the Members Alex and Kim, on a Server that refuses
+ * `ResetPassword` and `SetRole` for want of Recent Authentication until `Reauthenticate`. Returns
+ * the resets it made and the Users it made Admin.
  */
 function openUsersNeedingRecentAuthentication() {
   let reauthenticated = false;
   const resets: [bigint, string][] = [];
+  const promoted: bigint[] = [];
   openApp(
     "/admin/users",
     fakeServer(
@@ -127,6 +129,7 @@ function openUsersNeedingRecentAuthentication() {
           users: [
             { id: 1n, name: "Sam", role: Role.ADMIN },
             { id: 2n, name: "Alex", role: Role.MEMBER },
+            { id: 3n, name: "Kim", role: Role.MEMBER },
           ],
         }),
         resetPassword: ({ userId, newPassword }) => {
@@ -134,14 +137,19 @@ function openUsersNeedingRecentAuthentication() {
           resets.push([userId, newPassword]);
           return {};
         },
+        setRole: ({ userId }) => {
+          if (!reauthenticated) throw recentAuthenticationRequired();
+          promoted.push(userId);
+          return {};
+        },
       },
     ),
   );
-  return resets;
+  return { resets, promoted };
 }
 
 test("without Recent Authentication, an Admin resets a password once they confirm it’s them", async () => {
-  const resets = openUsersNeedingRecentAuthentication();
+  const { resets } = openUsersNeedingRecentAuthentication();
 
   fireEvent.click(await screen.findByText("Alex"));
   fireEvent.click(await screen.findByRole("button", { name: "Reset password for Alex" }));
@@ -156,4 +164,19 @@ test("without Recent Authentication, an Admin resets a password once they confir
     expect(screen.queryByRole("alertdialog")).toBeNull();
   });
   expect(resets).toEqual([[2n, "battery staple"]]);
+});
+
+test("changes refused together wait for one “Confirm it’s you”, then all go through", async () => {
+  const { promoted } = openUsersNeedingRecentAuthentication();
+
+  fireEvent.click(await screen.findByText("Alex"));
+  fireEvent.click(await screen.findByText("Kim"));
+  const makeAdmin = await screen.findAllByRole("button", { name: "Make Admin" });
+  for (const button of makeAdmin) fireEvent.click(button);
+  await confirmItsYou();
+
+  await waitFor(() => {
+    expect(promoted).toHaveLength(2);
+  });
+  expect(promoted).toEqual(expect.arrayContaining([2n, 3n]));
 });

@@ -30,7 +30,11 @@ import { formText, refusal, refusalOf, serverMessage } from "@/lib/forms";
 /** Asks the User to confirm it's them, resolving whether this Device then has Recent Authentication. */
 type Ask = () => Promise<boolean>;
 
-const AskContext = createContext<Ask>(() => Promise.resolve(false));
+// Fails loudly rather than as a cancel, which forms don't show: outside <ConfirmItsYou> a
+// sensitive change would otherwise do nothing, silently.
+const AskContext = createContext<Ask>(() =>
+  Promise.reject(new Error("useSensitiveMutation needs a <ConfirmItsYou> around it")),
+);
 
 /**
  * Holds the one "Confirm it’s you" dialog that {@link useSensitiveMutation} opens, for the pages
@@ -39,16 +43,20 @@ const AskContext = createContext<Ask>(() => Promise.resolve(false));
 export function ConfirmItsYou({ children }: { children: ReactNode }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [openings, setOpenings] = useState(0);
-  const answer = useRef<(confirmed: boolean) => void>(undefined);
+  const answer = useRef<Promise<boolean>>(undefined);
+  const give = useRef<(confirmed: boolean) => void>(undefined);
   const confirmed = useRef(false);
 
   const ask = useCallback(() => {
+    // Changes refused while the dialog is already open wait for the same answer.
+    if (answer.current) return answer.current;
+    answer.current = new Promise<boolean>((resolve) => {
+      give.current = resolve;
+    });
     confirmed.current = false;
     setOpenings((each) => each + 1);
     dialog.current?.showModal();
-    return new Promise<boolean>((resolve) => {
-      answer.current = resolve;
-    });
+    return answer.current;
   }, []);
 
   return (
@@ -60,7 +68,10 @@ export function ConfirmItsYou({ children }: { children: ReactNode }) {
         onReauthenticated={() => {
           confirmed.current = true;
         }}
-        onClose={() => answer.current?.(confirmed.current)}
+        onClose={() => {
+          give.current?.(confirmed.current);
+          answer.current = undefined;
+        }}
       />
     </AskContext>
   );
