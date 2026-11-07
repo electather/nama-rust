@@ -27,7 +27,7 @@ export function PluginSettings({ plugin }: { plugin: Plugin }) {
     <form
       className="mt-4 flex max-w-md flex-col gap-5"
       onSubmit={onSubmitted((typed) => {
-        update.mutate({ pluginId: plugin.id, settings: settingsTyped(typed, plugin.settings) });
+        update.mutate({ id: plugin.id, settings: settingsTyped(typed, plugin.settings) });
       })}
     >
       {plugin.settings.map((setting) => (

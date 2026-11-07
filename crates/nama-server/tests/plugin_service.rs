@@ -1,6 +1,6 @@
 //! Listing the Server's Plugins and their settings, without ever sending a secret's value, and
-//! changing those settings without a restart, over a real socket and against a real SQLite
-//! database.
+//! changing those settings and enabling and disabling them without a restart, over a real socket
+//! and against a real SQLite database.
 
 #[path = "support/refused.rs"]
 mod refused;
@@ -12,11 +12,13 @@ use std::{collections::BTreeMap, sync::Arc};
 
 use buffa::Message;
 use connectrpc::{ConnectError, ErrorCode, client::HttpClient};
-use nama_plugin_api::{PluginId, metadata::MetadataProvider, settings::SettingValue};
+use nama_plugin_api::{
+    PluginId, auth::Authenticator, metadata::MetadataProvider, settings::SettingValue,
+};
 use nama_proto::nama::v1::{
-    ListPluginsRequest, ListPluginsResponse, Plugin, PluginKind, PluginServiceClient,
-    RefusalReason, Setting, SettingKind, UpdatePluginSettingsRequest, UpdatePluginSettingsResponse,
-    setting_value::Value,
+    DisablePluginRequest, EnablePluginRequest, ListPluginsRequest, ListPluginsResponse, Plugin,
+    PluginKind, PluginServiceClient, RefusalReason, Setting, SettingKind,
+    UpdatePluginSettingsRequest, UpdatePluginSettingsResponse, setting_value::Value,
 };
 use nama_server::{
     config::{Config, PluginConfig},
@@ -73,7 +75,7 @@ impl Started {
             })
             .collect();
         let request = UpdatePluginSettingsRequest {
-            plugin_id: id.to_owned(),
+            id: id.to_owned(),
             settings,
             ..Default::default()
         };
@@ -91,12 +93,17 @@ impl Started {
         plugin_settings::stored(&self.db).await.unwrap().unwrap()
     }
 
-    /// Whether Matching has a metadata Provider to call.
-    async fn can_match(&self) -> bool {
+    /// Whether some enabled Plugin provides `T`, as Matching looks for a metadata Provider to call.
+    async fn provides<T: ?Sized + Send + Sync + 'static>(&self) -> bool {
         self.plugins
-            .call_provider(|_: Arc<dyn MetadataProvider>| async {})
+            .call_provider(|_: Arc<T>| async {})
             .await
             .is_some()
+    }
+
+    /// Whether Matching has a metadata Provider to call.
+    async fn can_match(&self) -> bool {
+        self.provides::<dyn MetadataProvider>().await
     }
 }
 
@@ -114,6 +121,20 @@ async fn list_plugins_with(settings: BTreeMap<String, PluginConfig>) -> ListPlug
         .await
         .unwrap()
         .into_owned()
+}
+
+fn enable(id: &str) -> EnablePluginRequest {
+    EnablePluginRequest {
+        id: id.to_owned(),
+        ..Default::default()
+    }
+}
+
+fn disable(id: &str) -> DisablePluginRequest {
+    DisablePluginRequest {
+        id: id.to_owned(),
+        ..Default::default()
+    }
 }
 
 fn text(value: &str) -> Value {
@@ -344,11 +365,11 @@ async fn a_value_of_the_wrong_kind_is_refused_naming_it_and_nothing_changes() {
     let refusal = assert_refused(
         updated,
         ErrorCode::InvalidArgument,
-        RefusalReason::REFUSAL_REASON_WRONG_SETTING_KIND,
+        RefusalReason::REFUSAL_REASON_SETTING_WRONG_KIND,
     );
     assert_eq!(refusal.field, "settings.language");
     assert_eq!(
-        refusal.params.get("kind").map(String::as_str),
+        refusal.params.get("settingKind").map(String::as_str),
         Some("SETTING_KIND_TEXT")
     );
     assert_eq!(started.stored().await, tmdb_with_key());
@@ -386,5 +407,140 @@ async fn an_unknown_plugin_is_refused() {
         ErrorCode::NotFound,
         RefusalReason::REFUSAL_REASON_PLUGIN_NOT_FOUND,
     );
-    assert_eq!(refusal.field, "plugin_id");
+    assert_eq!(refusal.field, "id");
+}
+
+#[tokio::test]
+async fn disabling_tmdb_stops_matching_from_calling_it_until_it_is_enabled_again() {
+    let started = Started::with(&tmdb_with_key()).await;
+    assert!(started.can_match().await);
+
+    started
+        .client()
+        .disable_plugin(disable("tmdb"))
+        .await
+        .unwrap();
+    assert!(!started.can_match().await);
+
+    started
+        .client()
+        .enable_plugin(enable("tmdb"))
+        .await
+        .unwrap();
+    assert!(started.can_match().await);
+}
+
+#[tokio::test]
+async fn a_plugins_enabled_state_survives_a_restart() {
+    let started = Started::with(&tmdb_with_key()).await;
+
+    started
+        .client()
+        .disable_plugin(disable("tmdb"))
+        .await
+        .unwrap();
+    started
+        .client()
+        .disable_plugin(disable("log-events"))
+        .await
+        .unwrap();
+    started
+        .client()
+        .enable_plugin(enable("log-events"))
+        .await
+        .unwrap();
+
+    // A restart enables what the database holds, as `main` does.
+    let stored = plugin_settings::stored(&started.db).await.unwrap().unwrap();
+    let restarted = Registry::with_builtins(&stored);
+    assert_eq!(
+        restarted.enabled(),
+        [
+            PluginId::from_static("local-auth"),
+            PluginId::from_static("log-events")
+        ]
+    );
+    // Disabling kept the settings it was enabled with.
+    assert_eq!(stored["tmdb"].settings, tmdb_with_key()["tmdb"].settings);
+}
+
+#[tokio::test]
+async fn disabling_the_only_authenticator_is_refused_and_it_stays_enabled() {
+    let started = Started::with(&BTreeMap::new()).await;
+
+    let refusal = assert_refused(
+        started.client().disable_plugin(disable("local-auth")).await,
+        ErrorCode::FailedPrecondition,
+        RefusalReason::REFUSAL_REASON_LAST_AUTHENTICATOR,
+    );
+
+    assert_eq!(refusal.field, "id");
+    assert_eq!(refusal.params["pluginId"], "local-auth");
+    assert!(started.provides::<dyn Authenticator>().await);
+    assert_eq!(
+        plugin_settings::stored(&started.db).await.unwrap(),
+        Some(BTreeMap::new())
+    );
+}
+
+#[tokio::test]
+async fn enabling_a_plugin_missing_a_required_setting_is_refused_naming_it() {
+    let started = Started::with(&BTreeMap::new()).await;
+
+    let refusal = assert_refused(
+        started.client().enable_plugin(enable("tmdb")).await,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
+    );
+
+    assert_eq!(refusal.field, "settings.api_key");
+    assert_eq!(refusal.params["settingKey"], "api_key");
+    assert!(!started.can_match().await);
+    assert_eq!(
+        plugin_settings::stored(&started.db).await.unwrap(),
+        Some(BTreeMap::new())
+    );
+}
+
+#[tokio::test]
+async fn enabling_a_plugin_with_a_setting_of_the_wrong_kind_is_refused_naming_it() {
+    let tmdb = PluginConfig {
+        enabled: false,
+        settings: BTreeMap::from([("api_key".to_owned(), SettingValue::Integer(7))]),
+    };
+    let started = Started::with(&BTreeMap::from([("tmdb".to_owned(), tmdb)])).await;
+
+    let refusal = assert_refused(
+        started.client().enable_plugin(enable("tmdb")).await,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_SETTING_WRONG_KIND,
+    );
+
+    assert_eq!(refusal.field, "settings.api_key");
+    assert_eq!(refusal.params["settingKind"], "SETTING_KIND_SECRET");
+    assert!(!started.can_match().await);
+}
+
+#[tokio::test]
+async fn enabling_or_disabling_an_unknown_plugin_is_refused() {
+    let started = Started::with(&BTreeMap::new()).await;
+
+    let refusal = assert_refused(
+        started
+            .client()
+            .enable_plugin(enable("no-such-plugin"))
+            .await,
+        ErrorCode::NotFound,
+        RefusalReason::REFUSAL_REASON_PLUGIN_NOT_FOUND,
+    );
+    assert_eq!(refusal.field, "id");
+    assert_eq!(refusal.params["pluginId"], "no-such-plugin");
+    assert_refused(
+        started
+            .client()
+            .disable_plugin(disable("no-such-plugin"))
+            .await,
+        ErrorCode::NotFound,
+        RefusalReason::REFUSAL_REASON_PLUGIN_NOT_FOUND,
+    );
 }

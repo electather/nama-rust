@@ -3,7 +3,7 @@
 
 use std::{collections::BTreeMap, path::Path, process::Command};
 
-use nama_plugin_api::{PluginId, settings::SettingValue};
+use nama_plugin_api::{PluginId, auth::Authenticator, settings::SettingValue};
 use nama_server::{config::PluginConfig, plugins::Registry};
 
 #[test]
@@ -64,6 +64,27 @@ fn config_for_a_plugin_the_server_does_not_have_is_ignored() {
             PluginId::from_static("log-events")
         ]
     );
+}
+
+#[test]
+fn a_plugin_that_isnt_running_may_be_disabled_only_while_another_provides_an_authenticator() {
+    let without_local_auth = Registry::with_builtins(&BTreeMap::from([(
+        "local-auth".to_owned(),
+        PluginConfig {
+            enabled: false,
+            ..PluginConfig::default()
+        },
+    )]));
+    let with_local_auth = Registry::with_builtins(&BTreeMap::new());
+
+    // As after `local-auth` panicked: it may be what would provide one after a restart.
+    let refused = without_local_auth
+        .disable_unless_last_provider::<dyn Authenticator>(&PluginId::from_static("local-auth"));
+    let allowed = with_local_auth
+        .disable_unless_last_provider::<dyn Authenticator>(&PluginId::from_static("tmdb"));
+
+    assert!(refused.is_err(), "{refused:?}");
+    assert!(matches!(allowed, Ok(false)), "{allowed:?}");
 }
 
 /// ADR 0006: Built-in Plugins are separate crates so the compiler keeps them out of Kernel

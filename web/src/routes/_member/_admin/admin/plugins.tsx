@@ -1,11 +1,10 @@
 import { createQueryOptions, useSuspenseQuery } from "@connectrpc/connect-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { Power, PowerOff } from "lucide-react";
 import { useId } from "react";
 
 import { Page } from "@/components/page";
 import { PluginSettings } from "@/components/plugin-settings";
-import { StateLabel } from "@/components/state-label";
+import { PluginToggle } from "@/components/plugin-toggle";
 import { type Plugin, PluginKind, PluginService } from "@/gen/nama/v1/plugin_pb";
 
 export const Route = createFileRoute("/_member/_admin/admin/plugins")({
@@ -37,7 +36,7 @@ function PluginSection({ plugin }: { plugin: Plugin }) {
   const heading = useId();
   return (
     <section aria-labelledby={heading} className="py-6">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
         <div>
           <h2 id={heading} className="font-medium">
             {plugin.id}
@@ -47,11 +46,7 @@ function PluginSection({ plugin }: { plugin: Plugin }) {
             {plugin.version}
           </p>
         </div>
-        <StateLabel
-          {...(plugin.enabled
-            ? { label: "Enabled", Icon: Power }
-            : { label: "Disabled", Icon: PowerOff })}
-        />
+        <PluginToggle plugin={plugin} />
       </div>
       {plugin.settings.length > 0 ? (
         <PluginSettings plugin={plugin} />

@@ -23,11 +23,12 @@ use nama_plugin_tmdb::{
     testing::{API_KEY, FakeTmdb},
 };
 use nama_proto::nama::v1::{
-    __buffa::view::SubscribeResponseView, BrowseServiceClient, CreateLibraryRequest,
-    CreateRequestRequest, CreateUserRequest, EventServiceClient, EventType, FoundMovie,
-    GetRequestRequest, LibraryKind, LibraryServiceClient, ListMoviesRequest, ListRequestsRequest,
-    LookUpMovieRequest, Permission, RefusalReason, Request, RequestServiceClient, RequestState,
-    ScanLibraryRequest, SearchMoviesRequest, SessionDelivery, SetPermissionsRequest, SignInRequest,
+    __buffa::view::SubscribeResponseView, ApproveRequestRequest, BrowseServiceClient,
+    CancelRequestRequest, CreateLibraryRequest, CreateRequestRequest, CreateUserRequest,
+    DeclineRequestRequest, EventServiceClient, EventType, FoundMovie, GetRequestRequest,
+    LibraryKind, LibraryServiceClient, ListMoviesRequest, ListRequestsRequest, LookUpMovieRequest,
+    Permission, RefusalReason, Request, RequestServiceClient, RequestState, ScanLibraryRequest,
+    SearchMoviesRequest, SessionDelivery, SetPermissionsRequest, SignInRequest,
     SignInServiceClient, SubscribeRequest, SubscribeResponse, UserServiceClient, event,
     subscribe_response,
 };
@@ -415,6 +416,198 @@ async fn with_view_requests_the_events_stream_shows_everyones_requests() {
     assert_eq!(requester_ids(&graces), [grace]);
 }
 
+#[tokio::test]
+async fn an_admin_approves_a_members_pending_request_and_the_member_sees_it_live() {
+    let fixture = Fixture::start().await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let pending = ask(&requests(as_ada.clone()), HEAT).await;
+    let mut adas_events = subscribe_to_requests(as_ada).await;
+
+    let approved = requests(fixture.server.client_config())
+        .approve_request(ApproveRequestRequest {
+            id: pending.id,
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_owned()
+        .request
+        .into_option()
+        .unwrap();
+    let event = next_event(&mut adas_events).await;
+
+    assert_eq!(approved.state, RequestState::Approved);
+    let event::Event::RequestStateChanged(changed) = event else {
+        panic!("not the approval: {event:?}");
+    };
+    assert_eq!(changed.request.as_option(), Some(&approved));
+}
+
+#[tokio::test]
+async fn a_declined_request_shows_its_reason_to_its_requesters_and_asking_again_opens_a_new_one() {
+    let fixture = Fixture::start().await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let ada = requests(as_ada);
+    let pending = ask(&ada, HEAT).await;
+
+    let declined = decline(&fixture, pending.id, "Not in 4K yet").await;
+    let again = ask(&ada, HEAT).await;
+
+    assert_eq!(declined.state, RequestState::Declined);
+    assert_eq!(declined.decline_reason.as_deref(), Some("Not in 4K yet"));
+    assert_ne!(again.id, pending.id);
+    assert_eq!(again.state, RequestState::Pending);
+    assert_eq!(again.decline_reason, None);
+    assert_eq!(list(&ada).await, [again, declined], "newest first");
+}
+
+#[tokio::test]
+async fn declining_with_a_blank_reason_gives_none() {
+    let fixture = Fixture::start().await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let pending = ask(&requests(as_ada), HEAT).await;
+
+    let declined = decline(&fixture, pending.id, "  ").await;
+
+    assert_eq!(declined.decline_reason, None);
+}
+
+#[tokio::test]
+async fn a_decline_reason_is_kept_without_its_surrounding_spaces() {
+    let fixture = Fixture::start().await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let pending = ask(&requests(as_ada), HEAT).await;
+
+    let declined = decline(&fixture, pending.id, "  Not in 4K yet\n").await;
+
+    assert_eq!(declined.decline_reason.as_deref(), Some("Not in 4K yet"));
+}
+
+#[tokio::test]
+async fn cancelling_removes_a_request_and_tells_its_requesters() {
+    let fixture = Fixture::start().await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let approved = ask(&requests(fixture.server.client_config()), HEAT).await;
+    let joined = ask(&requests(as_ada.clone()), HEAT).await;
+    let mut adas_events = subscribe_to_requests(as_ada.clone()).await;
+
+    requests(fixture.server.client_config())
+        .cancel_request(CancelRequestRequest {
+            id: approved.id,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let event = next_event(&mut adas_events).await;
+
+    let event::Event::RequestCancelled(cancelled) = event else {
+        panic!("not the cancelling: {event:?}");
+    };
+    assert_eq!(cancelled.request.as_option(), Some(&joined));
+    assert_eq!(list(&requests(as_ada)).await, []);
+}
+
+#[tokio::test]
+async fn approving_a_request_that_isnt_pending_is_refused() {
+    let fixture = Fixture::start().await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let pending = ask(&requests(as_ada), HEAT).await;
+    decline(&fixture, pending.id, "").await;
+
+    let refused = requests(fixture.server.client_config())
+        .approve_request(ApproveRequestRequest {
+            id: pending.id,
+            ..Default::default()
+        })
+        .await;
+
+    let refusal = assert_refused(
+        refused,
+        ErrorCode::FailedPrecondition,
+        RefusalReason::REFUSAL_REASON_REQUEST_NOT_PENDING,
+    );
+    assert_eq!(refusal.field, "id");
+}
+
+#[tokio::test]
+async fn approving_a_request_that_doesnt_exist_is_refused() {
+    let fixture = Fixture::start().await;
+
+    let refused = requests(fixture.server.client_config())
+        .approve_request(ApproveRequestRequest {
+            id: 7,
+            ..Default::default()
+        })
+        .await;
+
+    assert_refused(
+        refused,
+        ErrorCode::NotFound,
+        RefusalReason::REFUSAL_REASON_REQUEST_NOT_FOUND,
+    );
+}
+
+#[tokio::test]
+async fn a_user_without_manage_requests_is_refused_each_action_naming_the_permission() {
+    let fixture = Fixture::start().await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let ada = requests(as_ada);
+    let id = ask(&ada, HEAT).await.id;
+
+    let approve = ada
+        .approve_request(ApproveRequestRequest {
+            id,
+            ..Default::default()
+        })
+        .await
+        .map(drop);
+    let decline = ada
+        .decline_request(DeclineRequestRequest {
+            id,
+            ..Default::default()
+        })
+        .await
+        .map(drop);
+    let cancel = ada
+        .cancel_request(CancelRequestRequest {
+            id,
+            ..Default::default()
+        })
+        .await
+        .map(drop);
+
+    for refused in [approve, decline, cancel] {
+        let refusal = assert_refused(
+            refused,
+            ErrorCode::PermissionDenied,
+            RefusalReason::REFUSAL_REASON_PERMISSION_REQUIRED,
+        );
+        let permission = refusal.params.get("permission").map(String::as_str);
+        assert_eq!(permission, Some("PERMISSION_MANAGE_REQUESTS"));
+    }
+    assert_eq!(list(&ada).await[0].state, RequestState::Pending);
+}
+
+/// Declines the Request `id` as the Admin, giving `reason`.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn decline(fixture: &Fixture, id: i64, reason: &str) -> Request {
+    requests(fixture.server.client_config())
+        .decline_request(DeclineRequestRequest {
+            id,
+            reason: reason.to_owned(),
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_owned()
+        .request
+        .into_option()
+        .unwrap()
+}
+
 type Subscription = ServerStream<hyper::body::Incoming, SubscribeResponseView<'static>>;
 
 /// Subscribes to Request events, as the User `config` calls as.
@@ -427,6 +620,8 @@ async fn subscribe_to_requests(config: ClientConfig) -> Subscription {
         types: vec![
             EventType::EVENT_TYPE_REQUEST_CREATED.into(),
             EventType::EVENT_TYPE_REQUESTER_ADDED.into(),
+            EventType::EVENT_TYPE_REQUEST_STATE_CHANGED.into(),
+            EventType::EVENT_TYPE_REQUEST_CANCELLED.into(),
         ],
         ..Default::default()
     };

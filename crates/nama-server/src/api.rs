@@ -21,38 +21,42 @@ use connectrpc::{
 };
 use futures_util::StreamExt;
 use nama_plugin_api::{
+    PluginId,
+    auth::Authenticator,
     metadata::{Candidate, ExternalId, SearchQuery, TitleKind},
-    settings::{self, SettingField, SettingsError, SettingsSchema},
+    settings::{self, SettingField, Settings, SettingsError, SettingsSchema},
 };
 use nama_proto::nama::v1::{
-    self as proto, ApproveSignInCodeRequest, ApproveSignInCodeResponse, BrowseService,
+    self as proto, ApproveRequestRequest, ApproveRequestResponse, ApproveSignInCodeRequest,
+    ApproveSignInCodeResponse, BrowseService, CancelRequestRequest, CancelRequestResponse,
     ChangePasswordRequest, ChangePasswordResponse, ClearMatchRequest, ClearMatchResponse,
     CreateLibraryRequest, CreateLibraryResponse, CreateRequestRequest, CreateRequestResponse,
-    CreateUserRequest, CreateUserResponse, DeleteLibraryRequest, DeleteLibraryResponse,
-    DeleteUserRequest, DeleteUserResponse, EventService, EventType, GetDefaultPermissionsRequest,
-    GetDefaultPermissionsResponse, GetLibraryRequest, GetLibraryResponse, GetMovieRequest,
-    GetMovieResponse, GetRequestRequest, GetRequestResponse, GetServerInfoRequest,
-    GetServerInfoResponse, GetShowRequest, GetShowResponse, LibraryKind, LibraryService,
-    ListContinueWatchingRequest, ListContinueWatchingResponse, ListDevicesRequest,
-    ListDevicesResponse, ListEpisodesRequest, ListEpisodesResponse, ListLibrariesRequest,
-    ListLibrariesResponse, ListMoviesRequest, ListMoviesResponse, ListPluginsRequest,
-    ListPluginsResponse, ListRequestsRequest, ListRequestsResponse, ListShowsRequest,
-    ListShowsResponse, ListUnmatchedItemsRequest, ListUnmatchedItemsResponse, ListUsersRequest,
-    ListUsersResponse, LookUpMovieRequest, LookUpMovieResponse, LookUpSignInCodeRequest,
-    LookUpSignInCodeResponse, MatchService, Permission, PluginKind, PluginService,
-    PollSignInCodeRequest, PollSignInCodeResponse, ReauthenticateRequest, ReauthenticateResponse,
-    Refusal, RefusalReason, ReportProgressRequest, ReportProgressResponse, RequestService,
-    ResetPasswordRequest, ResetPasswordResponse, RevokeDeviceRequest, RevokeDeviceResponse,
-    ScanLibraryRequest, ScanLibraryResponse, SearchMetadataRequest, SearchMetadataResponse,
-    SearchMoviesRequest, SearchMoviesResponse, ServerService, SessionDelivery,
-    SetDefaultPermissionsRequest, SetDefaultPermissionsResponse, SetMatchRequest, SetMatchResponse,
-    SetPermissionsRequest, SetPermissionsResponse, SetPlayedRequest, SetPlayedResponse,
-    SetupRequest, SetupResponse, SignInCodeStatus, SignInRequest, SignInResponse, SignInService,
-    SignOutRequest, SignOutResponse, StartSignInCodeRequest, StartSignInCodeResponse,
-    SubscribeRequest, SubscribeResponse, UpdateLibraryRequest, UpdateLibraryResponse,
-    UpdatePluginSettingsRequest, UpdatePluginSettingsResponse, UserService, WatchStateService,
-    WhoAmIRequest, WhoAmIResponse, external_id, reauthenticate_request::Proof,
-    set_played_request::Target, setting_value,
+    CreateUserRequest, CreateUserResponse, DeclineRequestRequest, DeclineRequestResponse,
+    DeleteLibraryRequest, DeleteLibraryResponse, DeleteUserRequest, DeleteUserResponse,
+    DisablePluginRequest, DisablePluginResponse, EnablePluginRequest, EnablePluginResponse,
+    EventService, EventType, GetDefaultPermissionsRequest, GetDefaultPermissionsResponse,
+    GetLibraryRequest, GetLibraryResponse, GetMovieRequest, GetMovieResponse, GetRequestRequest,
+    GetRequestResponse, GetServerInfoRequest, GetServerInfoResponse, GetShowRequest,
+    GetShowResponse, LibraryKind, LibraryService, ListContinueWatchingRequest,
+    ListContinueWatchingResponse, ListDevicesRequest, ListDevicesResponse, ListEpisodesRequest,
+    ListEpisodesResponse, ListLibrariesRequest, ListLibrariesResponse, ListMoviesRequest,
+    ListMoviesResponse, ListPluginsRequest, ListPluginsResponse, ListRequestsRequest,
+    ListRequestsResponse, ListShowsRequest, ListShowsResponse, ListUnmatchedItemsRequest,
+    ListUnmatchedItemsResponse, ListUsersRequest, ListUsersResponse, LookUpMovieRequest,
+    LookUpMovieResponse, LookUpSignInCodeRequest, LookUpSignInCodeResponse, MatchService,
+    Permission, PluginKind, PluginService, PollSignInCodeRequest, PollSignInCodeResponse,
+    ReauthenticateRequest, ReauthenticateResponse, Refusal, RefusalReason, ReportProgressRequest,
+    ReportProgressResponse, RequestService, ResetPasswordRequest, ResetPasswordResponse,
+    RevokeDeviceRequest, RevokeDeviceResponse, ScanLibraryRequest, ScanLibraryResponse,
+    SearchMetadataRequest, SearchMetadataResponse, SearchMoviesRequest, SearchMoviesResponse,
+    ServerService, SessionDelivery, SetDefaultPermissionsRequest, SetDefaultPermissionsResponse,
+    SetMatchRequest, SetMatchResponse, SetPermissionsRequest, SetPermissionsResponse,
+    SetPlayedRequest, SetPlayedResponse, SetupRequest, SetupResponse, SignInCodeStatus,
+    SignInRequest, SignInResponse, SignInService, SignOutRequest, SignOutResponse,
+    StartSignInCodeRequest, StartSignInCodeResponse, SubscribeRequest, SubscribeResponse,
+    UpdateLibraryRequest, UpdateLibraryResponse, UpdatePluginSettingsRequest,
+    UpdatePluginSettingsResponse, UserService, WatchStateService, WhoAmIRequest, WhoAmIResponse,
+    external_id, reauthenticate_request::Proof, set_played_request::Target, setting_value,
 };
 
 use crate::{
@@ -66,7 +70,7 @@ use crate::{
     libraries::{self, FolderProblem, Kind, Libraries, Library},
     matching::{ManualError, Matcher},
     plugin_settings,
-    plugins::{Builtin, Registry},
+    plugins::{Builtin, EnableError, Registry},
     rate_limits::{Blocked, SignInCodeLimits, SignInLimits},
     requests::{self, Found, Requests},
     scanner::Scanner,
@@ -174,6 +178,9 @@ const MANAGE_USERS: Access = Access::Needs(Permission::ManageUsers);
 /// Managing the Server's settings, such as its Plugins.
 const MANAGE_SETTINGS: Access = Access::Needs(Permission::ManageSettings);
 
+/// Approving, declining and cancelling every User's Requests.
+const MANAGE_REQUESTS: Access = Access::Needs(Permission::ManageRequests);
+
 /// Asking for Movies.
 const REQUEST_MOVIE: Access = Access::Needs(Permission::RequestMovie);
 
@@ -226,8 +233,13 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::REQUEST_SERVICE_GET_REQUEST_SPEC.procedure,           Access::SignedIn),
     (proto::REQUEST_SERVICE_SEARCH_MOVIES_SPEC.procedure,         REQUEST_MOVIE),
     (proto::REQUEST_SERVICE_LOOK_UP_MOVIE_SPEC.procedure,         REQUEST_MOVIE),
+    (proto::REQUEST_SERVICE_APPROVE_REQUEST_SPEC.procedure,       MANAGE_REQUESTS),
+    (proto::REQUEST_SERVICE_DECLINE_REQUEST_SPEC.procedure,       MANAGE_REQUESTS),
+    (proto::REQUEST_SERVICE_CANCEL_REQUEST_SPEC.procedure,        MANAGE_REQUESTS),
     (proto::PLUGIN_SERVICE_LIST_PLUGINS_SPEC.procedure,           MANAGE_SETTINGS),
     (proto::PLUGIN_SERVICE_UPDATE_PLUGIN_SETTINGS_SPEC.procedure, MANAGE_SETTINGS),
+    (proto::PLUGIN_SERVICE_ENABLE_PLUGIN_SPEC.procedure,          MANAGE_SETTINGS),
+    (proto::PLUGIN_SERVICE_DISABLE_PLUGIN_SPEC.procedure,         MANAGE_SETTINGS),
 ];
 
 /// Who may fetch media: every path under this prefix, which the media routes share.
@@ -1357,6 +1369,39 @@ impl RequestService for RequestServiceHandler {
             ..Default::default()
         })
     }
+
+    async fn approve_request(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, ApproveRequestRequest>,
+    ) -> ServiceResult<ApproveRequestResponse> {
+        let approved = self.requests.approve(request.id).await?;
+        Response::ok(ApproveRequestResponse {
+            request: approved.into(),
+            ..Default::default()
+        })
+    }
+
+    async fn decline_request(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, DeclineRequestRequest>,
+    ) -> ServiceResult<DeclineRequestResponse> {
+        let declined = self.requests.decline(request.id, request.reason).await?;
+        Response::ok(DeclineRequestResponse {
+            request: declined.into(),
+            ..Default::default()
+        })
+    }
+
+    async fn cancel_request(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, CancelRequestRequest>,
+    ) -> ServiceResult<CancelRequestResponse> {
+        self.requests.cancel(request.id).await?;
+        Response::ok(CancelRequestResponse::default())
+    }
 }
 
 impl RequestServiceHandler {
@@ -1826,8 +1871,8 @@ fn device_to_proto(device: users::Device, is_current: bool) -> proto::Device {
 struct PluginServiceHandler {
     plugins: Registry,
     db: Arc<Database>,
-    /// Held while a Plugin's settings change, so two changes can't interleave saving and
-    /// enabling and leave it running with settings other than those stored.
+    /// Held while a Plugin's settings change or it is enabled or disabled, and that is saved, so two
+    /// changes at once can't leave it running otherwise than the database says.
     // ponytail: one lock for every Plugin; one per Plugin if Admins ever wait on each other.
     changing: tokio::sync::Mutex<()>,
 }
@@ -1870,12 +1915,13 @@ impl PluginService for PluginServiceHandler {
         request: ServiceRequest<'_, UpdatePluginSettingsRequest>,
     ) -> ServiceResult<UpdatePluginSettingsResponse> {
         let request = request.to_owned_message();
+        let id = PluginId::from(request.id);
         let plugin = self
             .plugins
             .builtins()
             .into_iter()
-            .find(|plugin| plugin.id.as_str() == request.plugin_id)
-            .ok_or_else(|| plugin_not_found(&request.plugin_id))?;
+            .find(|plugin| plugin.id == id)
+            .ok_or_else(|| plugin_not_found(&id))?;
         let sent = request
             .settings
             .iter()
@@ -1893,13 +1939,16 @@ impl PluginService for PluginServiceHandler {
         plugin_settings::save_settings(&self.db, plugin.id.as_str(), &settings)
             .await
             .map_err(database_failed)?;
-        // Enabled again even if it isn't running, such as TMDB left disabled without its key.
-        if stored.enabled
-            && let Err(err) = self
+        // Enabled again even if it isn't running, such as TMDB left disabled without its key, and
+        // disabled first so nothing it registered with its old settings stays.
+        if stored.enabled {
+            self.plugins.disable(&plugin.id);
+            if let Err(err) = self
                 .plugins
-                .enable_builtin(&plugin.id, settings::Settings::new(settings.clone()))
-        {
-            tracing::error!(plugin = %plugin.id, "could not enable the plugin with its new settings: {err}");
+                .enable_builtin(&plugin.id, Settings::new(settings.clone()))
+            {
+                tracing::error!(plugin = %plugin.id, "could not enable the plugin with its new settings: {err}");
+            }
         }
         let enabled = self.plugins.enabled().contains(&plugin.id);
         Response::ok(UpdatePluginSettingsResponse {
@@ -1907,16 +1956,95 @@ impl PluginService for PluginServiceHandler {
             ..Default::default()
         })
     }
+
+    async fn enable_plugin(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, EnablePluginRequest>,
+    ) -> ServiceResult<EnablePluginResponse> {
+        let id = PluginId::from(request.id.to_owned());
+        let _changing = self.changing.lock().await;
+        let settings = plugin_settings::stored(&self.db)
+            .await
+            .map_err(database_failed)?
+            .and_then(|mut stored| stored.remove(id.as_str()))
+            .map(|config| config.settings)
+            .unwrap_or_default();
+        match self.plugins.enable_builtin(&id, Settings::new(settings)) {
+            // Saving it again is how a retry fixes a save that failed below.
+            Ok(()) | Err(EnableError::AlreadyEnabled(_)) => {}
+            Err(err) => return Err(err.into()),
+        }
+        // Saved only once in effect, so a refused change saves nothing. Should the save fail, the
+        // Plugin stays enabled until a restart.
+        plugin_settings::set_enabled(&self.db, id.as_str(), true)
+            .await
+            .map_err(database_failed)?;
+        Response::ok(EnablePluginResponse::default())
+    }
+
+    async fn disable_plugin(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, DisablePluginRequest>,
+    ) -> ServiceResult<DisablePluginResponse> {
+        let id = PluginId::from(request.id.to_owned());
+        if !self.plugins.builtins().iter().any(|plugin| plugin.id == id) {
+            return Err(plugin_not_found(&id));
+        }
+        let _changing = self.changing.lock().await;
+        // Without an Authenticator nobody could sign in, which is also why `main` won't start.
+        self.plugins
+            .disable_unless_last_provider::<dyn Authenticator>(&id)
+            .map_err(|last| {
+                refuse(
+                    RefusalReason::REFUSAL_REASON_LAST_AUTHENTICATOR,
+                    // Also when it isn't running (see `disable_unless_last_provider`), so not "is the
+                    // only one".
+                    format!(
+                        "{} can't be disabled while no other enabled Plugin lets Users sign in",
+                        last.plugin
+                    ),
+                )
+                .field("id")
+                .param("pluginId", &last.plugin)
+            })?;
+        // As in `enable_plugin`: saved once in effect, and a retry saves again.
+        plugin_settings::set_enabled(&self.db, id.as_str(), false)
+            .await
+            .map_err(database_failed)?;
+        Response::ok(DisablePluginResponse::default())
+    }
 }
 
-fn plugin_not_found(id: &str) -> ConnectError {
+/// The refusal of a call naming the Plugin `id` in `id`, which no Plugin has.
+fn plugin_not_found(id: &PluginId) -> ConnectError {
     refuse(
         RefusalReason::REFUSAL_REASON_PLUGIN_NOT_FOUND,
         format!("there is no Plugin {id}"),
     )
-    .field("plugin_id")
-    .param("pluginId", &id)
+    .field("id")
+    .param("pluginId", id)
     .into()
+}
+
+/// The Connect error a client gets for a Plugin that couldn't be enabled. A Plugin that panicked
+/// is the Server's failure, logged and not sent.
+impl From<EnableError> for ConnectError {
+    fn from(err: EnableError) -> Self {
+        match err {
+            EnableError::Unknown(id) => plugin_not_found(&id),
+            // The settings are the stored ones, not the request's, but #162 asks for the refusal
+            // to name one.
+            EnableError::InvalidSettings { error, .. } => settings_refused(error),
+            EnableError::AlreadyEnabled(_)
+            | EnableError::IdPanicked { .. }
+            | EnableError::Panicked { .. } => {
+                tracing::error!("enabling a plugin failed: {err}");
+                Self::internal("the Server failed")
+            }
+        }
+    }
 }
 
 /// The settings to store from those `sent` for a Plugin with `schema`: the ones it names, with a
@@ -1941,29 +2069,36 @@ fn updated_settings(
             Some((field.key.to_owned(), sent.remove(field.key).or_else(kept)?))
         })
         .collect();
-    settings::Settings::new(settings.clone()).resolve(schema)?;
+    Settings::new(settings.clone()).resolve(schema)?;
     Ok(settings)
 }
 
-/// The refusal of settings that don't fit their Plugin's schema, naming the one that doesn't.
+/// The refusal of settings that don't fit their Plugin's schema, naming the one that doesn't as
+/// `settings.<key>`, the way `Plugin.settings` lists it.
 #[expect(
     clippy::needless_pass_by_value,
     reason = "by value, so callers can write `.map_err(settings_refused)`"
 )]
 fn settings_refused(err: SettingsError) -> ConnectError {
-    let message = err.to_string();
-    let (refused, key) = match err {
-        SettingsError::Missing(key) => (
-            refuse(RefusalReason::REFUSAL_REASON_FIELD_REQUIRED, message),
-            key,
-        ),
-        SettingsError::WrongKind { key, expected } => (
-            refuse(RefusalReason::REFUSAL_REASON_WRONG_SETTING_KIND, message)
-                .param("kind", &setting_kind_to_proto(expected).proto_name()),
-            key,
-        ),
+    let refused = match err {
+        SettingsError::Missing(key) => refuse(
+            RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
+            format!("the setting {key} is required"),
+        )
+        .field(&format!("settings.{key}"))
+        .param("settingKey", &key),
+        SettingsError::WrongKind { key, expected } => {
+            let kind = setting_kind_to_proto(expected).proto_name();
+            refuse(
+                RefusalReason::REFUSAL_REASON_SETTING_WRONG_KIND,
+                format!("the setting {key} must be {kind}"),
+            )
+            .field(&format!("settings.{key}"))
+            .param("settingKey", &key)
+            .param("settingKind", &kind)
+        }
     };
-    refused.field(&format!("settings.{key}")).into()
+    refused.into()
 }
 
 fn plugin_to_proto(
@@ -2079,7 +2214,7 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_FOLDER_NOT_READABLE
         | R::REFUSAL_REASON_FOLDER_NOT_UTF8
         | R::REFUSAL_REASON_FOLDER_REPEATED
-        | R::REFUSAL_REASON_WRONG_SETTING_KIND => ErrorCode::InvalidArgument,
+        | R::REFUSAL_REASON_SETTING_WRONG_KIND => ErrorCode::InvalidArgument,
         R::REFUSAL_REASON_SIGN_IN_REQUIRED
         | R::REFUSAL_REASON_WRONG_NAME_OR_PASSWORD
         | R::REFUSAL_REASON_WRONG_PASSWORD
@@ -2095,7 +2230,9 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_LAST_ADMIN
         | R::REFUSAL_REASON_OWN_PASSWORD_RESET
         | R::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED
-        | R::REFUSAL_REASON_ALREADY_IN_LIBRARY => ErrorCode::FailedPrecondition,
+        | R::REFUSAL_REASON_ALREADY_IN_LIBRARY
+        | R::REFUSAL_REASON_REQUEST_NOT_PENDING
+        | R::REFUSAL_REASON_LAST_AUTHENTICATOR => ErrorCode::FailedPrecondition,
         R::REFUSAL_REASON_SIGN_IN_CODE_NOT_FOUND
         | R::REFUSAL_REASON_HANDLE_NOT_FOUND
         | R::REFUSAL_REASON_USER_NOT_FOUND
@@ -2219,10 +2356,15 @@ impl From<requests::Error> for ConnectError {
         use RefusalReason as R;
         let message = err.to_string();
         let refused = match err {
-            // Only `GetRequest` names a Request, and only `CreateRequest` and `LookUpMovie` a
-            // Movie, both in `movie_tmdb_id`.
+            // Every RPC naming a Request names it in `id`, and only `CreateRequest` and
+            // `LookUpMovie` name a Movie, both in `movie_tmdb_id`.
             requests::Error::NoSuchRequest(id) => {
                 refuse(R::REFUSAL_REASON_REQUEST_NOT_FOUND, message)
+                    .field("id")
+                    .param("requestId", &id)
+            }
+            requests::Error::NotPending(id) => {
+                refuse(R::REFUSAL_REASON_REQUEST_NOT_PENDING, message)
                     .field("id")
                     .param("requestId", &id)
             }

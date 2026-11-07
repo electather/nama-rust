@@ -6,6 +6,8 @@ import { onSubmitted } from "@/lib/forms";
 export interface Confirmation {
   /** What the button and the dialog's confirm button say, such as "Revoke". */
   action: string;
+  /** What the button that closes the dialog says, when "Cancel" would read like `action`. */
+  dismiss?: string;
   title: string;
   description: string;
   /** Fields the dialog asks for, such as a new password. */
@@ -93,6 +95,7 @@ function ConfirmForm({
   close,
   destructive,
   action,
+  dismiss = "Cancel",
   title,
   description,
   children,
@@ -128,7 +131,7 @@ function ConfirmForm({
       </p>
       <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         <Button variant="ghost" onClick={close}>
-          Cancel
+          {dismiss}
         </Button>
         <Button type="submit" variant={destructive ? "destructive" : "default"} disabled={pending}>
           {action}

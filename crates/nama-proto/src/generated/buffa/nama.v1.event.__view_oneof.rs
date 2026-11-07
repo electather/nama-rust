@@ -68,5 +68,10 @@ pub mod event {
                 super::super::super::super::__buffa::view::RequestStateChangedView<'a>,
             >,
         ),
+        RequestCancelled(
+            ::buffa::alloc::boxed::Box<
+                super::super::super::super::__buffa::view::RequestCancelledView<'a>,
+            >,
+        ),
     }
 }

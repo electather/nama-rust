@@ -69,6 +69,9 @@ pub mod event {
         RequestStateChanged(
             ::buffa::alloc::boxed::Box<super::super::super::RequestStateChanged>,
         ),
+        RequestCancelled(
+            ::buffa::alloc::boxed::Box<super::super::super::RequestCancelled>,
+        ),
     }
     impl ::buffa::Oneof for Event {}
     impl From<super::super::super::ScanStarted> for Event {
@@ -163,6 +166,16 @@ pub mod event {
             Self::Some(Event::from(v))
         }
     }
+    impl From<super::super::super::RequestCancelled> for Event {
+        fn from(v: super::super::super::RequestCancelled) -> Self {
+            Self::RequestCancelled(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::RequestCancelled> for ::core::option::Option<Event> {
+        fn from(v: super::super::super::RequestCancelled) -> Self {
+            Self::Some(Event::from(v))
+        }
+    }
     impl ::serde::Serialize for Event {
         fn serialize<S: ::serde::Serializer>(
             &self,
@@ -197,6 +210,9 @@ pub mod event {
                 }
                 Self::RequestStateChanged(v) => {
                     map.serialize_entry("requestStateChanged", &**v)?;
+                }
+                Self::RequestCancelled(v) => {
+                    map.serialize_entry("requestCancelled", &**v)?;
                 }
             }
             map.end()

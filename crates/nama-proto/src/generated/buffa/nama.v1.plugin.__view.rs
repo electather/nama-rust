@@ -510,8 +510,10 @@ impl ::serde::Serialize for ListPluginsResponseOwnedView {
 }
 #[derive(Clone, Debug, Default)]
 pub struct UpdatePluginSettingsRequestView<'a> {
-    /// Field 1: `plugin_id`
-    pub plugin_id: &'a str,
+    /// The Plugin's id, such as `tmdb`.
+    ///
+    /// Field 1: `id`
+    pub id: &'a str,
     /// Each setting's new value, by key. A setting left out or blank takes its default, except a
     /// secret, which keeps its stored value. Keys the Plugin's schema doesn't name are ignored.
     ///
@@ -558,7 +560,7 @@ impl<'a> ::buffa::MessageView<'a> for UpdatePluginSettingsRequestView<'a> {
                     tag,
                     ::buffa::encoding::WireType::LengthDelimited,
                 )?;
-                view.plugin_id = ::buffa::types::borrow_str(&mut cur)?;
+                view.id = ::buffa::types::borrow_str(&mut cur)?;
             }
             2u32 => {
                 ::buffa::encoding::check_wire_type(
@@ -635,7 +637,7 @@ impl<'a> ::buffa::MessageView<'a> for UpdatePluginSettingsRequestView<'a> {
         use ::buffa::alloc::string::ToString as _;
         let _ = __buffa_src;
         ::core::result::Result::Ok(super::super::UpdatePluginSettingsRequest {
-            plugin_id: self.plugin_id.to_string(),
+            id: self.id.to_string(),
             settings: self
                 .settings
                 .iter()
@@ -657,8 +659,8 @@ impl<'a> ::buffa::ViewEncode<'a> for UpdatePluginSettingsRequestView<'a> {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
-        if !self.plugin_id.is_empty() {
-            size += 1u64 + ::buffa::types::string_encoded_len(&self.plugin_id) as u64;
+        if !self.id.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.id) as u64;
         }
         #[allow(clippy::for_kv_map)]
         for (k, v) in &self.settings {
@@ -683,8 +685,8 @@ impl<'a> ::buffa::ViewEncode<'a> for UpdatePluginSettingsRequestView<'a> {
     ) {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
-        if !self.plugin_id.is_empty() {
-            ::buffa::types::put_string_field(1u32, &self.plugin_id, buf);
+        if !self.id.is_empty() {
+            ::buffa::types::put_string_field(1u32, &self.id, buf);
         }
         for (k, v) in &self.settings {
             let __v_len = __cache.consume_next();
@@ -733,8 +735,8 @@ impl<'__a> ::serde::Serialize for UpdatePluginSettingsRequestView<'__a> {
     ) -> ::core::result::Result<__S::Ok, __S::Error> {
         use ::serde::ser::SerializeMap as _;
         let mut __map = __s.serialize_map(::core::option::Option::None)?;
-        if !::buffa::json_helpers::skip_if::is_empty_str(self.plugin_id) {
-            __map.serialize_entry("pluginId", self.plugin_id)?;
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.id) {
+            __map.serialize_entry("id", self.id)?;
         }
         if !self.settings.is_empty() {
             struct _WM<'__a, '__x>(
@@ -855,10 +857,12 @@ impl UpdatePluginSettingsRequestOwnedView {
     pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
         self.0.into_bytes()
     }
-    /// Field 1: `plugin_id`
+    /// The Plugin's id, such as `tmdb`.
+    ///
+    /// Field 1: `id`
     #[must_use]
-    pub fn plugin_id(&self) -> &'_ str {
-        self.0.reborrow().plugin_id
+    pub fn id(&self) -> &'_ str {
+        self.0.reborrow().id
     }
     /// Each setting's new value, by key. A setting left out or blank takes its default, except a
     /// secret, which keeps its stored value. Keys the Plugin's schema doesn't name are ignored.
@@ -1198,6 +1202,986 @@ impl ::buffa::HasMessageView for super::super::UpdatePluginSettingsResponse {
     type ViewHandle = UpdatePluginSettingsResponseOwnedView;
 }
 impl ::serde::Serialize for UpdatePluginSettingsResponseOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+#[derive(Clone, Debug, Default)]
+pub struct EnablePluginRequestView<'a> {
+    /// The Plugin's id, such as `tmdb`.
+    ///
+    /// Field 1: `id`
+    pub id: &'a str,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for EnablePluginRequestView<'a> {
+    type Owned = super::super::EnablePluginRequest;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.id = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<
+        super::super::EnablePluginRequest,
+        ::buffa::DecodeError,
+    > {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<
+        super::super::EnablePluginRequest,
+        ::buffa::DecodeError,
+    > {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::EnablePluginRequest {
+            id: self.id.to_string(),
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for EnablePluginRequestView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if !self.id.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.id) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.id.is_empty() {
+            ::buffa::types::put_string_field(1u32, &self.id, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for EnablePluginRequestView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.id) {
+            __map.serialize_entry("id", self.id)?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for EnablePluginRequestView<'a> {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "EnablePluginRequest";
+    const FULL_NAME: &'static str = "nama.v1.EnablePluginRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.EnablePluginRequest";
+}
+::buffa::impl_default_view_instance!(EnablePluginRequestView);
+::buffa::impl_view_reborrow!(EnablePluginRequestView);
+/** Self-contained, `'static` owned view of a `EnablePluginRequest` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`EnablePluginRequestView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`EnablePluginRequestView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct EnablePluginRequestOwnedView(
+    ::buffa::OwnedView<EnablePluginRequestView<'static>>,
+);
+impl EnablePluginRequestOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            EnablePluginRequestOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            EnablePluginRequestOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::EnablePluginRequest,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            EnablePluginRequestOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`EnablePluginRequestView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &EnablePluginRequestView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::EnablePluginRequest {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// The Plugin's id, such as `tmdb`.
+    ///
+    /// Field 1: `id`
+    #[must_use]
+    pub fn id(&self) -> &'_ str {
+        self.0.reborrow().id
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<EnablePluginRequestView<'static>>>
+for EnablePluginRequestOwnedView {
+    fn from(inner: ::buffa::OwnedView<EnablePluginRequestView<'static>>) -> Self {
+        EnablePluginRequestOwnedView(inner)
+    }
+}
+impl ::core::convert::From<EnablePluginRequestOwnedView>
+for ::buffa::OwnedView<EnablePluginRequestView<'static>> {
+    fn from(wrapper: EnablePluginRequestOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<EnablePluginRequestView<'static>>>
+for EnablePluginRequestOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<EnablePluginRequestView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::EnablePluginRequest {
+    type View<'a> = EnablePluginRequestView<'a>;
+    type ViewHandle = EnablePluginRequestOwnedView;
+}
+impl ::serde::Serialize for EnablePluginRequestOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+#[derive(Clone, Debug, Default)]
+pub struct EnablePluginResponseView<'a> {
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for EnablePluginResponseView<'a> {
+    type Owned = super::super::EnablePluginResponse;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<
+        super::super::EnablePluginResponse,
+        ::buffa::DecodeError,
+    > {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<
+        super::super::EnablePluginResponse,
+        ::buffa::DecodeError,
+    > {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::EnablePluginResponse {
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for EnablePluginResponseView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for EnablePluginResponseView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for EnablePluginResponseView<'a> {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "EnablePluginResponse";
+    const FULL_NAME: &'static str = "nama.v1.EnablePluginResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.EnablePluginResponse";
+}
+::buffa::impl_default_view_instance!(EnablePluginResponseView);
+::buffa::impl_view_reborrow!(EnablePluginResponseView);
+/** Self-contained, `'static` owned view of a `EnablePluginResponse` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`EnablePluginResponseView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`EnablePluginResponseView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct EnablePluginResponseOwnedView(
+    ::buffa::OwnedView<EnablePluginResponseView<'static>>,
+);
+impl EnablePluginResponseOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            EnablePluginResponseOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            EnablePluginResponseOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::EnablePluginResponse,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            EnablePluginResponseOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`EnablePluginResponseView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &EnablePluginResponseView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::EnablePluginResponse {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<EnablePluginResponseView<'static>>>
+for EnablePluginResponseOwnedView {
+    fn from(inner: ::buffa::OwnedView<EnablePluginResponseView<'static>>) -> Self {
+        EnablePluginResponseOwnedView(inner)
+    }
+}
+impl ::core::convert::From<EnablePluginResponseOwnedView>
+for ::buffa::OwnedView<EnablePluginResponseView<'static>> {
+    fn from(wrapper: EnablePluginResponseOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<EnablePluginResponseView<'static>>>
+for EnablePluginResponseOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<EnablePluginResponseView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::EnablePluginResponse {
+    type View<'a> = EnablePluginResponseView<'a>;
+    type ViewHandle = EnablePluginResponseOwnedView;
+}
+impl ::serde::Serialize for EnablePluginResponseOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+#[derive(Clone, Debug, Default)]
+pub struct DisablePluginRequestView<'a> {
+    /// The Plugin's id, such as `tmdb`.
+    ///
+    /// Field 1: `id`
+    pub id: &'a str,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for DisablePluginRequestView<'a> {
+    type Owned = super::super::DisablePluginRequest;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.id = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<
+        super::super::DisablePluginRequest,
+        ::buffa::DecodeError,
+    > {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<
+        super::super::DisablePluginRequest,
+        ::buffa::DecodeError,
+    > {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::DisablePluginRequest {
+            id: self.id.to_string(),
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for DisablePluginRequestView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if !self.id.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.id) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.id.is_empty() {
+            ::buffa::types::put_string_field(1u32, &self.id, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for DisablePluginRequestView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.id) {
+            __map.serialize_entry("id", self.id)?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for DisablePluginRequestView<'a> {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "DisablePluginRequest";
+    const FULL_NAME: &'static str = "nama.v1.DisablePluginRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.DisablePluginRequest";
+}
+::buffa::impl_default_view_instance!(DisablePluginRequestView);
+::buffa::impl_view_reborrow!(DisablePluginRequestView);
+/** Self-contained, `'static` owned view of a `DisablePluginRequest` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`DisablePluginRequestView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`DisablePluginRequestView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct DisablePluginRequestOwnedView(
+    ::buffa::OwnedView<DisablePluginRequestView<'static>>,
+);
+impl DisablePluginRequestOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            DisablePluginRequestOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            DisablePluginRequestOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::DisablePluginRequest,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            DisablePluginRequestOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`DisablePluginRequestView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &DisablePluginRequestView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::DisablePluginRequest {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// The Plugin's id, such as `tmdb`.
+    ///
+    /// Field 1: `id`
+    #[must_use]
+    pub fn id(&self) -> &'_ str {
+        self.0.reborrow().id
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<DisablePluginRequestView<'static>>>
+for DisablePluginRequestOwnedView {
+    fn from(inner: ::buffa::OwnedView<DisablePluginRequestView<'static>>) -> Self {
+        DisablePluginRequestOwnedView(inner)
+    }
+}
+impl ::core::convert::From<DisablePluginRequestOwnedView>
+for ::buffa::OwnedView<DisablePluginRequestView<'static>> {
+    fn from(wrapper: DisablePluginRequestOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<DisablePluginRequestView<'static>>>
+for DisablePluginRequestOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<DisablePluginRequestView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::DisablePluginRequest {
+    type View<'a> = DisablePluginRequestView<'a>;
+    type ViewHandle = DisablePluginRequestOwnedView;
+}
+impl ::serde::Serialize for DisablePluginRequestOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+#[derive(Clone, Debug, Default)]
+pub struct DisablePluginResponseView<'a> {
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for DisablePluginResponseView<'a> {
+    type Owned = super::super::DisablePluginResponse;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<
+        super::super::DisablePluginResponse,
+        ::buffa::DecodeError,
+    > {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<
+        super::super::DisablePluginResponse,
+        ::buffa::DecodeError,
+    > {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::DisablePluginResponse {
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for DisablePluginResponseView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for DisablePluginResponseView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for DisablePluginResponseView<'a> {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "DisablePluginResponse";
+    const FULL_NAME: &'static str = "nama.v1.DisablePluginResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.DisablePluginResponse";
+}
+::buffa::impl_default_view_instance!(DisablePluginResponseView);
+::buffa::impl_view_reborrow!(DisablePluginResponseView);
+/** Self-contained, `'static` owned view of a `DisablePluginResponse` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`DisablePluginResponseView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`DisablePluginResponseView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct DisablePluginResponseOwnedView(
+    ::buffa::OwnedView<DisablePluginResponseView<'static>>,
+);
+impl DisablePluginResponseOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            DisablePluginResponseOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            DisablePluginResponseOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::DisablePluginResponse,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            DisablePluginResponseOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`DisablePluginResponseView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &DisablePluginResponseView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::DisablePluginResponse {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<DisablePluginResponseView<'static>>>
+for DisablePluginResponseOwnedView {
+    fn from(inner: ::buffa::OwnedView<DisablePluginResponseView<'static>>) -> Self {
+        DisablePluginResponseOwnedView(inner)
+    }
+}
+impl ::core::convert::From<DisablePluginResponseOwnedView>
+for ::buffa::OwnedView<DisablePluginResponseView<'static>> {
+    fn from(wrapper: DisablePluginResponseOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<DisablePluginResponseView<'static>>>
+for DisablePluginResponseOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<DisablePluginResponseView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::DisablePluginResponse {
+    type View<'a> = DisablePluginResponseView<'a>;
+    type ViewHandle = DisablePluginResponseOwnedView;
+}
+impl ::serde::Serialize for DisablePluginResponseOwnedView {
     fn serialize<__S: ::serde::Serializer>(
         &self,
         __s: __S,
