@@ -38,20 +38,9 @@ export const Route = createFileRoute("/_member/_admin/admin/needs-a-match")({
 });
 
 function NeedsAMatch() {
-  const transport = useTransport();
   const { libraries } = useSuspenseQuery(LibraryService.method.listLibraries, {}).data;
   const { library: picked } = Route.useSearch();
-  const shown = libraries.filter(
-    (library) => picked === undefined || String(library.id) === picked,
-  );
-  const lists = useSuspenseQueries({
-    queries: shown.map((library) => unmatchedQuery(library, transport)),
-  });
-  const needing = shown
-    .map((library, index) => ({ library, list: lists[index]?.data }))
-    .filter(({ list }) => list !== undefined && list.items.length + list.unparsedPaths.length > 0);
-  // One Item at a time is being fixed, so one Search button is on screen.
-  const [fixing, setFixing] = useState<bigint>();
+  const shown = pickedLibraries(libraries, picked);
 
   return (
     <Page heading="Needs a Match">
@@ -59,28 +48,51 @@ function NeedsAMatch() {
         Files the Server couldn’t Match to a Movie or Show. Find the right title for each, and it
         stays Matched.
       </p>
-      {libraries.length > 1 && <LibraryFilter libraries={libraries} picked={picked} />}
-      {needing.length === 0 ? (
-        <p className="mt-10 font-medium">Everything is Matched.</p>
+      {(libraries.length > 1 || !shown) && <LibraryFilter libraries={libraries} picked={picked} />}
+      {shown ? (
+        <UnmatchedLists libraries={shown} />
       ) : (
-        needing.map(({ library, list }) => (
-          <LibrarySection key={library.id} library={library} list={list}>
-            {list?.items.map((item) => (
-              <UnmatchedRow
-                key={item.itemId}
-                item={item}
-                libraryId={library.id}
-                open={fixing === item.itemId}
-                onToggle={() => {
-                  setFixing(fixing === item.itemId ? undefined : item.itemId);
-                }}
-              />
-            ))}
-          </LibrarySection>
-        ))
+        <p className="mt-10 font-medium">That Library isn’t on the Server.</p>
       )}
     </Page>
   );
+}
+
+/** The Libraries the filter `picked` shows: every one without it, none if it names no Library. */
+function pickedLibraries(libraries: Library[], picked: string | undefined) {
+  if (picked === undefined) return libraries;
+  const library = libraries.find(({ id }) => String(id) === picked);
+  return library && [library];
+}
+
+/** The Unmatched Items of each of `libraries` that has any, or that everything is Matched. */
+function UnmatchedLists({ libraries }: { libraries: Library[] }) {
+  const transport = useTransport();
+  const lists = useSuspenseQueries({
+    queries: libraries.map((library) => unmatchedQuery(library, transport)),
+  });
+  const needing = libraries
+    .map((library, index) => ({ library, list: lists[index]?.data }))
+    .filter(({ list }) => list !== undefined && list.items.length + list.unparsedPaths.length > 0);
+  // One Item at a time is being fixed, so one Search button is on screen.
+  const [fixing, setFixing] = useState<bigint>();
+
+  if (needing.length === 0) return <p className="mt-10 font-medium">Everything is Matched.</p>;
+  return needing.map(({ library, list }) => (
+    <LibrarySection key={library.id} library={library} list={list}>
+      {list?.items.map((item) => (
+        <UnmatchedRow
+          key={item.itemId}
+          item={item}
+          libraryId={library.id}
+          open={fixing === item.itemId}
+          onToggle={() => {
+            setFixing(fixing === item.itemId ? undefined : item.itemId);
+          }}
+        />
+      ))}
+    </LibrarySection>
+  ));
 }
 
 function LibraryFilter({

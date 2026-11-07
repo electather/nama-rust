@@ -131,3 +131,15 @@ test("Needs a Match says when everything is Matched", async () => {
 
   expect(await screen.findByText("Everything is Matched.")).toBeDefined();
 });
+
+test("Needs a Match says when the picked Library isn't on the Server", async () => {
+  openApp(
+    "/admin/needs-a-match?library=9",
+    adminServer(new ReadableStream(), (router) => {
+      router.service(MatchService, { listUnmatchedItems: () => ({}) });
+    }),
+  );
+
+  expect(await screen.findByText("That Library isn’t on the Server.")).toBeDefined();
+  expect(screen.queryByText("Everything is Matched.")).toBeNull();
+});

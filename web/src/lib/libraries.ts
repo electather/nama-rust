@@ -24,13 +24,15 @@ export function foldersTyped(typed: string) {
     .filter((folder) => folder !== "");
 }
 
-// ponytail: the Server names the field only in its message, as for `invalidField`. Read it from
-// Connect error details instead if the Server starts sending them.
+// ponytail: the Server names the field only in its message ("a Library's name can't be blank"), as
+// for `invalidField`. Read it from Connect error details instead if the Server starts sending them.
 /** Why the Server refused to `attempt` (such as "create the Library"), next to its field. */
 export function libraryErrors(error: unknown, attempt: string): FormErrors {
   const message = serverMessage(error);
   return refusal(error, attempt, {
-    [Code.InvalidArgument]: message.includes("name") ? { name: message } : { folders: message },
+    [Code.InvalidArgument]: message.includes("Library's name")
+      ? { name: message }
+      : { folders: message },
     [Code.AlreadyExists]: { folders: message },
     [Code.NotFound]: { form: "This Library isn’t on the Server any more." },
   });

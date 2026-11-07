@@ -51,17 +51,31 @@ export function useEvents() {
   }, [transport, queryClient]);
 }
 
-async function follow(transport: Transport, queryClient: QueryClient, signal: AbortSignal) {
+/**
+ * Subscribes, and again whenever the stream ends, until `signal` aborts. Once a stream opens, what
+ * the Events before it would have changed is read again: on the first, the Unmatched Items loaded
+ * while subscribing; on a later one, everything, as after `Lagged`. A Server that stays down costs
+ * one failed call per retry and nothing more.
+ */
+async function follow(
+  transport: Transport,
+  queryClient: QueryClient,
+  signal: AbortSignal,
+  resubscribing = false,
+) {
+  const catchUp = () => {
+    if (resubscribing) forgetMissed(queryClient);
+    else void queryClient.invalidateQueries({ queryKey: unmatchedKey() });
+  };
   try {
-    const responses = createClient(EventService, transport).subscribe({}, { signal });
+    const client = createClient(EventService, transport);
+    const responses = client.subscribe({}, { signal, onHeader: catchUp });
     for await (const response of responses) apply(response, queryClient);
   } catch {
     // The Server went away or hung up. Subscribing again below is all there is to do.
   }
   setTimeout(() => {
-    if (signal.aborted) return;
-    forgetMissed(queryClient);
-    void follow(transport, queryClient, signal);
+    if (!signal.aborted) void follow(transport, queryClient, signal, true);
   }, RESUBSCRIBE_MS);
 }
 

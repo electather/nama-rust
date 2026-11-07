@@ -36,6 +36,11 @@ function LibraryPage() {
   return (
     <Page heading={library.name}>
       <p className="mt-1 text-sm text-muted-foreground">{kindName(library.kind)}</p>
+      <ul aria-label="Folders" className="mt-4 flex flex-col gap-1 text-sm wrap-anywhere">
+        {library.folders.map((folder) => (
+          <li key={folder}>{folder}</li>
+        ))}
+      </ul>
       {/* Pulled back by the buttons' own padding, so the first one's words line up with the name. */}
       <div className="mt-6 -ms-4 flex flex-wrap items-center gap-1">
         <ScanButton library={library} />

@@ -31,6 +31,7 @@ export function UnmatchedRow({
 }) {
   const panel = useId();
   const parsed = parsedAs(item);
+  const action = open ? "Close" : "Find a Match";
   return (
     <li className="border-b px-3 py-3 last:border-b-0">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -45,12 +46,12 @@ export function UnmatchedRow({
         </div>
         <Button
           variant="ghost"
-          aria-label={`Find a Match for ${parsed}`}
+          aria-label={`${action} for ${parsed}`}
           aria-expanded={open}
           aria-controls={panel}
           onClick={onToggle}
         >
-          {open ? "Close" : "Find a Match"}
+          {action}
         </Button>
       </div>
       {open && (
