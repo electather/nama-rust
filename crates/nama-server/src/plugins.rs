@@ -7,6 +7,7 @@ pub mod installed;
 use std::{
     any::Any,
     collections::{BTreeMap, HashMap},
+    convert::Infallible,
     fmt,
     future::Future,
     panic::{self, AssertUnwindSafe},
@@ -38,8 +39,18 @@ struct State {
     points: HashMap<PointKey, Vec<Entry>>,
     /// The admin's ranking of Providers, by capability. It outlasts Plugins being disabled.
     precedence: HashMap<PointKey, Vec<PluginId>>,
-    /// Each Built-in Plugin's version and settings schema, enabled or not.
-    builtins: BTreeMap<PluginId, (String, SettingsSchema)>,
+    /// Each Built-in Plugin, enabled or not.
+    builtins: BTreeMap<PluginId, Described>,
+}
+
+/// A Built-in Plugin, with what it said about itself once at start, so listing runs no Plugin
+/// code.
+struct Described {
+    /// Makes the Plugin anew for each enablement. Keeping one instance instead would hold it past
+    /// disabling, so its `Drop` would run uncontained when the registry goes.
+    make: fn() -> Arc<dyn Plugin>,
+    version: String,
+    settings_schema: SettingsSchema,
 }
 
 struct Enabled {
@@ -78,6 +89,16 @@ pub struct Builtin {
     pub enabled: bool,
 }
 
+/// Why a Plugin wasn't disabled: no other enabled Plugin provides a capability it may provide.
+#[derive(Debug, Error)]
+#[error("plugin {plugin} may be the last one providing {point}")]
+pub struct LastProvider {
+    /// The Plugin.
+    pub plugin: PluginId,
+    /// The capability's Extension Point.
+    pub point: &'static str,
+}
+
 /// What became of an intercepted action.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Outcome<A> {
@@ -102,6 +123,9 @@ pub enum Outcome<A> {
 /// Why a Plugin couldn't be enabled.
 #[derive(Debug, Error)]
 pub enum EnableError {
+    /// No Built-in Plugin has the id.
+    #[error("there is no plugin {0}")]
+    Unknown(PluginId),
     /// A Plugin with the same id is already enabled.
     #[error("plugin {0} is already enabled")]
     AlreadyEnabled(PluginId),
@@ -177,6 +201,23 @@ impl Registry {
         })
     }
 
+    /// Enables the Built-in Plugin `id` with `settings`, as [`Registry::enable_with_settings`]
+    /// does.
+    ///
+    /// # Errors
+    ///
+    /// If no Built-in Plugin has the id, or as [`Registry::enable_with_settings`] fails.
+    pub fn enable_builtin(&self, id: &PluginId, settings: Settings) -> Result<(), EnableError> {
+        let make = self
+            .read(|state| state.builtins.get(id).map(|builtin| builtin.make))
+            .ok_or_else(|| EnableError::Unknown(id.clone()))?;
+        let plugin = contain_sync(make).map_err(|message| EnableError::Panicked {
+            plugin: id.clone(),
+            message,
+        })?;
+        self.enable_with_settings(plugin, settings)
+    }
+
     /// Enables `plugin`, whose id is `id`. Plugin code runs here, so only call it from within
     /// [`contain_sync`].
     fn enable_as(
@@ -247,26 +288,58 @@ impl Registry {
         reason = "callers often disable without caring whether the Plugin was enabled"
     )]
     pub fn disable(&self, id: &PluginId) -> bool {
-        self.disable_generation(id, None)
+        let Ok(was_enabled) = self.disable_if(id, |_, _| Ok::<_, Infallible>(()));
+        was_enabled
     }
 
-    /// Disables the Plugin `id`, but only its enablement `generation` if one is given.
-    fn disable_generation(&self, id: &PluginId, generation: Option<u64>) -> bool {
+    /// Disables the Plugin `id` like [`Registry::disable`], unless no other enabled Plugin
+    /// provides `T`, such as the Authenticator a Server can't do without.
+    ///
+    /// # Errors
+    ///
+    /// If `id` is the last enabled Plugin providing `T`, which leaves it enabled. Also if `id`
+    /// isn't enabled and no Plugin provides `T`: what a Plugin that isn't running provides is
+    /// unknown, and it may be one that panicked and would provide `T` after a restart.
+    pub fn disable_unless_last_provider<T: ?Sized + 'static>(
+        &self,
+        id: &PluginId,
+    ) -> Result<bool, LastProvider> {
+        let point = PointKey::provide::<T>();
+        self.disable_if(id, |state, enabled| {
+            let entries = state.points.get(&point).map_or(&[][..], Vec::as_slice);
+            let provides = enabled.is_none() || entries.iter().any(|entry| entry.plugin == *id);
+            let others = entries.iter().any(|entry| entry.plugin != *id);
+            if provides && !others {
+                return Err(LastProvider {
+                    plugin: id.clone(),
+                    point: point.name(),
+                });
+            }
+            Ok(())
+        })
+    }
+
+    /// Disables the Plugin `id` if `check`, given the state and its enablement if it is enabled,
+    /// lets it, all under one lock. Returns whether it was enabled.
+    fn disable_if<E>(
+        &self,
+        id: &PluginId,
+        check: impl FnOnce(&State, Option<&Enabled>) -> Result<(), E>,
+    ) -> Result<bool, E> {
         // What is removed is dropped after the lock is released, since a Plugin's `Drop` is
         // Plugin code.
         let removed = self.write(|state| {
-            let current = state.plugins.get(id)?.generation;
-            if generation.is_some_and(|generation| generation != current) {
-                return None;
-            }
-            let plugin = state.plugins.remove(id)?;
+            check(state, state.plugins.get(id))?;
+            let Some(plugin) = state.plugins.remove(id) else {
+                return Ok(None);
+            };
             let mut handlers = Vec::new();
             for entries in state.points.values_mut() {
                 handlers.extend(entries.extract_if(.., |entry| entry.plugin == *id));
             }
             state.points.retain(|_, entries| !entries.is_empty());
-            Some((plugin, handlers))
-        });
+            Ok(Some((plugin, handlers)))
+        })?;
         let was_enabled = removed.is_some();
         if let Err(message) = contain_sync(|| drop(removed)) {
             error!(plugin = %id, message, "plugin panicked while being dropped");
@@ -274,7 +347,7 @@ impl Registry {
         if was_enabled {
             info!(plugin = %id, "disabled plugin");
         }
-        was_enabled
+        Ok(was_enabled)
     }
 
     /// The ids of the enabled Plugins, sorted.
@@ -290,10 +363,10 @@ impl Registry {
             state
                 .builtins
                 .iter()
-                .map(|(id, (version, settings_schema))| Builtin {
+                .map(|(id, described)| Builtin {
                     id: id.clone(),
-                    version: version.clone(),
-                    settings_schema: settings_schema.clone(),
+                    version: described.version.clone(),
+                    settings_schema: described.settings_schema.clone(),
                     enabled: state.plugins.contains_key(id),
                 })
                 .collect()
@@ -491,7 +564,14 @@ impl Registry {
     /// that registered it. A Plugin enabled again since is left alone.
     fn disable_after_panic(&self, entry: &Entry, point: &str, message: &str) {
         error!(plugin = %entry.plugin, point, message, "plugin panicked; disabling it");
-        self.disable_generation(&entry.plugin, Some(entry.generation));
+        // A stale generation is no error: that enablement is already gone.
+        let _stale = self.disable_if(&entry.plugin, |_, enabled| {
+            if enabled.is_some_and(|enabled| enabled.generation == entry.generation) {
+                Ok(())
+            } else {
+                Err(())
+            }
+        });
     }
 
     /// A snapshot of the handlers at `point`, in the order they run.

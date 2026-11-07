@@ -9,6 +9,20 @@ service PluginService {
   rpc ListPlugins(ListPluginsRequest) returns (ListPluginsResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
+  // Enables a Plugin with its stored settings, without a restart, and saves that it is enabled.
+  // Enabling one that is enabled already only saves that. If its stored settings don't fit its
+  // schema, fails with `REFUSAL_REASON_FIELD_REQUIRED` or `REFUSAL_REASON_SETTING_WRONG_KIND`,
+  // naming the setting in `field` as `settings.<key>` and in the `settingKey` param; the Plugin
+  // stays disabled and nothing is saved.
+  rpc EnablePlugin(EnablePluginRequest) returns (EnablePluginResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
+  // Disables a Plugin, removing everything it registered, without a restart, and saves that it is
+  // disabled. Fails with `REFUSAL_REASON_LAST_AUTHENTICATOR` if no other enabled Plugin provides an
+  // Authenticator; it stays enabled and nothing is saved.
+  rpc DisablePlugin(DisablePluginRequest) returns (DisablePluginResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
 }
 
 message ListPluginsRequest {}
@@ -16,6 +30,20 @@ message ListPluginsRequest {}
 message ListPluginsResponse {
   repeated Plugin plugins = 1;
 }
+
+message EnablePluginRequest {
+  // The Plugin's id, such as `tmdb`.
+  string id = 1;
+}
+
+message EnablePluginResponse {}
+
+message DisablePluginRequest {
+  // The Plugin's id, such as `tmdb`.
+  string id = 1;
+}
+
+message DisablePluginResponse {}
 
 // Where a Plugin comes from.
 enum PluginKind {

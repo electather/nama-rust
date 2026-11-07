@@ -1,10 +1,13 @@
-import { cleanup, screen, within } from "@testing-library/react";
+import { Code, type ServiceImpl } from "@connectrpc/connect";
+import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { PluginKind, PluginService, SettingKind } from "@/gen/nama/v1/plugin_pb";
+import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
 
 import { fakeServer, openApp } from "./test-app";
+import { refused } from "./test-refusal";
 
 afterEach(cleanup);
 
@@ -71,11 +74,11 @@ const plugins = [
   },
 ];
 
-function openPlugins() {
+function openPlugins(changes: Partial<ServiceImpl<typeof PluginService>> = {}) {
   openApp(
     "/admin/plugins",
     fakeServer({ signedIn: [Permission.MANAGE_SETTINGS] }, {}, {}, (router) => {
-      router.service(PluginService, { listPlugins: () => ({ plugins }) });
+      router.service(PluginService, { listPlugins: () => ({ plugins }), ...changes });
     }),
   );
 }
@@ -114,4 +117,72 @@ test("a bool shows as on or off, a number as itself, and a missing required sett
   expect(await setting("log-events", "Verbose")).toBe("On");
   expect(await setting("log-events", "Keep for days")).toBe("30 (default)");
   expect(await setting("log-events", "Path")).toBe("Not set (required)");
+});
+
+test("disabling an enabled Plugin asks the Server to", async () => {
+  const disabled: string[] = [];
+  openPlugins({
+    disablePlugin: ({ id }) => {
+      disabled.push(id);
+      return {};
+    },
+  });
+  fireEvent.click((await plugin("tmdb")).getByRole("button", { name: "Disable tmdb" }));
+
+  await waitFor(() => {
+    expect(disabled).toStrictEqual(["tmdb"]);
+  });
+});
+
+test("enabling a disabled Plugin asks the Server to", async () => {
+  const enabled: string[] = [];
+  openPlugins({
+    enablePlugin: ({ id }) => {
+      enabled.push(id);
+      return {};
+    },
+  });
+  fireEvent.click((await plugin("log-events")).getByRole("button", { name: "Enable log-events" }));
+
+  await waitFor(() => {
+    expect(enabled).toStrictEqual(["log-events"]);
+  });
+});
+
+test("disabling the only Plugin Users sign in with says why it can’t be", async () => {
+  openPlugins({
+    disablePlugin: () => {
+      throw refused(
+        Code.FailedPrecondition,
+        "local-auth can't be disabled while no other enabled Plugin lets Users sign in",
+        {
+          reason: RefusalReason.LAST_AUTHENTICATOR,
+          field: "id",
+        },
+      );
+    },
+  });
+  const localAuth = await plugin("local-auth");
+  fireEvent.click(localAuth.getByRole("button", { name: "Disable local-auth" }));
+
+  expect((await localAuth.findByRole("alert")).textContent).toBe(
+    "It can’t be disabled while no other enabled Plugin lets Users sign in.",
+  );
+});
+
+test("enabling a Plugin missing a required setting names the setting", async () => {
+  openPlugins({
+    enablePlugin: () => {
+      throw refused(Code.InvalidArgument, "the setting path is required", {
+        reason: RefusalReason.FIELD_REQUIRED,
+        field: "settings.path",
+      });
+    },
+  });
+  const logEvents = await plugin("log-events");
+  fireEvent.click(logEvents.getByRole("button", { name: "Enable log-events" }));
+
+  expect((await logEvents.findByRole("alert")).textContent).toBe(
+    "It needs Path set before it can be enabled.",
+  );
 });

@@ -84,3 +84,26 @@ pub async fn import(
     })
     .await
 }
+
+/// Saves whether the Plugin `plugin_id` is enabled, keeping its stored settings.
+///
+/// # Errors
+///
+/// If the database can't be written.
+pub async fn set_enabled(db: &Database, plugin_id: &str, enabled: bool) -> Result<(), sqlx::Error> {
+    let plugin_id = plugin_id.to_owned();
+    db.write(move |tx| {
+        Box::pin(async move {
+            sqlx::query!(
+                "INSERT INTO plugin_settings (plugin_id, enabled, settings) VALUES (?, ?, '{}')
+                 ON CONFLICT (plugin_id) DO UPDATE SET enabled = excluded.enabled",
+                plugin_id,
+                enabled
+            )
+            .execute(&mut **tx)
+            .await?;
+            Ok(())
+        })
+    })
+    .await
+}

@@ -57,7 +57,11 @@ const MANAGE_USERS: [&str; 7] = [
 ];
 
 /// Every RPC that manages the Server's settings, which needs `PERMISSION_MANAGE_SETTINGS`.
-const MANAGE_SETTINGS: [&str; 1] = ["/nama.v1.PluginService/ListPlugins"];
+const MANAGE_SETTINGS: [&str; 3] = [
+    "/nama.v1.PluginService/ListPlugins",
+    "/nama.v1.PluginService/EnablePlugin",
+    "/nama.v1.PluginService/DisablePlugin",
+];
 
 /// The RPCs for browsing the Libraries, what they hold and the caller's Continue Watching, which
 /// any signed-in User may call.
@@ -416,7 +420,7 @@ async fn a_new_user_managing_libraries_matches_users_or_settings_is_refused_nami
 }
 
 #[tokio::test]
-async fn a_user_who_manages_settings_may_list_plugins_but_not_manage_users() {
+async fn a_user_who_manages_settings_may_manage_plugins_but_not_users() {
     let (server, token) = start_with_user(&[Permission::ManageSettings]).await;
 
     assert_allowed(&server, &token, &MANAGE_SETTINGS).await;

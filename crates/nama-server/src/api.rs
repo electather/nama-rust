@@ -21,8 +21,10 @@ use connectrpc::{
 };
 use futures_util::StreamExt;
 use nama_plugin_api::{
+    PluginId,
+    auth::Authenticator,
     metadata::{Candidate, ExternalId, SearchQuery, TitleKind},
-    settings::{self, SettingField},
+    settings::{self, SettingField, Settings, SettingsError},
 };
 use nama_proto::nama::v1::{
     self as proto, ApproveRequestRequest, ApproveRequestResponse, ApproveSignInCodeRequest,
@@ -31,6 +33,7 @@ use nama_proto::nama::v1::{
     CreateLibraryRequest, CreateLibraryResponse, CreateRequestRequest, CreateRequestResponse,
     CreateUserRequest, CreateUserResponse, DeclineRequestRequest, DeclineRequestResponse,
     DeleteLibraryRequest, DeleteLibraryResponse, DeleteUserRequest, DeleteUserResponse,
+    DisablePluginRequest, DisablePluginResponse, EnablePluginRequest, EnablePluginResponse,
     EventService, EventType, GetDefaultPermissionsRequest, GetDefaultPermissionsResponse,
     GetLibraryRequest, GetLibraryResponse, GetMovieRequest, GetMovieResponse, GetRequestRequest,
     GetRequestResponse, GetServerInfoRequest, GetServerInfoResponse, GetShowRequest,
@@ -67,7 +70,7 @@ use crate::{
     libraries::{self, FolderProblem, Kind, Libraries, Library},
     matching::{ManualError, Matcher},
     plugin_settings,
-    plugins::{Builtin, Registry},
+    plugins::{Builtin, EnableError, Registry},
     rate_limits::{Blocked, SignInCodeLimits, SignInLimits},
     requests::{self, Found, Requests},
     scanner::Scanner,
@@ -133,6 +136,7 @@ pub(crate) fn router(
         .add_service(Arc::new(PluginServiceHandler {
             plugins,
             db: Arc::clone(&db),
+            changing: tokio::sync::Mutex::default(),
         }))
         .add_service(Arc::new(LibraryServiceHandler {
             libraries: Libraries::new(db),
@@ -233,6 +237,8 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::REQUEST_SERVICE_DECLINE_REQUEST_SPEC.procedure,       MANAGE_REQUESTS),
     (proto::REQUEST_SERVICE_CANCEL_REQUEST_SPEC.procedure,        MANAGE_REQUESTS),
     (proto::PLUGIN_SERVICE_LIST_PLUGINS_SPEC.procedure,           MANAGE_SETTINGS),
+    (proto::PLUGIN_SERVICE_ENABLE_PLUGIN_SPEC.procedure,          MANAGE_SETTINGS),
+    (proto::PLUGIN_SERVICE_DISABLE_PLUGIN_SPEC.procedure,         MANAGE_SETTINGS),
 ];
 
 /// Who may fetch media: every path under this prefix, which the media routes share.
@@ -1864,6 +1870,9 @@ fn device_to_proto(device: users::Device, is_current: bool) -> proto::Device {
 struct PluginServiceHandler {
     plugins: Registry,
     db: Arc<Database>,
+    /// Held while a Plugin is enabled or disabled and that is saved, so two changes at once can't
+    /// leave the database saying otherwise than the registry.
+    changing: tokio::sync::Mutex<()>,
 }
 
 #[expect(
@@ -1896,6 +1905,118 @@ impl PluginService for PluginServiceHandler {
             plugins,
             ..Default::default()
         })
+    }
+
+    async fn enable_plugin(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, EnablePluginRequest>,
+    ) -> ServiceResult<EnablePluginResponse> {
+        let id = PluginId::from(request.id.to_owned());
+        let _changing = self.changing.lock().await;
+        let settings = plugin_settings::stored(&self.db)
+            .await
+            .map_err(database_failed)?
+            .and_then(|mut stored| stored.remove(id.as_str()))
+            .map(|config| config.settings)
+            .unwrap_or_default();
+        match self.plugins.enable_builtin(&id, Settings::new(settings)) {
+            // Saving it again is how a retry fixes a save that failed below.
+            Ok(()) | Err(EnableError::AlreadyEnabled(_)) => {}
+            Err(err) => return Err(err.into()),
+        }
+        // Saved only once in effect, so a refused change saves nothing. Should the save fail, the
+        // Plugin stays enabled until a restart.
+        plugin_settings::set_enabled(&self.db, id.as_str(), true)
+            .await
+            .map_err(database_failed)?;
+        Response::ok(EnablePluginResponse::default())
+    }
+
+    async fn disable_plugin(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, DisablePluginRequest>,
+    ) -> ServiceResult<DisablePluginResponse> {
+        let id = PluginId::from(request.id.to_owned());
+        if !self.plugins.builtins().iter().any(|plugin| plugin.id == id) {
+            return Err(plugin_not_found(&id));
+        }
+        let _changing = self.changing.lock().await;
+        // Without an Authenticator nobody could sign in, which is also why `main` won't start.
+        self.plugins
+            .disable_unless_last_provider::<dyn Authenticator>(&id)
+            .map_err(|last| {
+                refuse(
+                    RefusalReason::REFUSAL_REASON_LAST_AUTHENTICATOR,
+                    // Also when it isn't running (see `disable_unless_last_provider`), so not "is the
+                    // only one".
+                    format!(
+                        "{} can't be disabled while no other enabled Plugin lets Users sign in",
+                        last.plugin
+                    ),
+                )
+                .field("id")
+                .param("pluginId", &last.plugin)
+            })?;
+        // As in `enable_plugin`: saved once in effect, and a retry saves again.
+        plugin_settings::set_enabled(&self.db, id.as_str(), false)
+            .await
+            .map_err(database_failed)?;
+        Response::ok(DisablePluginResponse::default())
+    }
+}
+
+/// The refusal of a call naming the Plugin `id` in `id`, which no Plugin has.
+fn plugin_not_found(id: &PluginId) -> ConnectError {
+    refuse(
+        RefusalReason::REFUSAL_REASON_PLUGIN_NOT_FOUND,
+        format!("there is no Plugin {id}"),
+    )
+    .field("id")
+    .param("pluginId", id)
+    .into()
+}
+
+/// The Connect error a client gets for a Plugin that couldn't be enabled. A Plugin that panicked
+/// is the Server's failure, logged and not sent.
+impl From<EnableError> for ConnectError {
+    fn from(err: EnableError) -> Self {
+        use RefusalReason as R;
+        // The settings are the stored ones, not the request's, but #162 asks for the refusal to
+        // name one: `settings.<key>`, the way `Plugin.settings` lists it.
+        let refused = match err {
+            EnableError::Unknown(id) => return plugin_not_found(&id),
+            EnableError::InvalidSettings {
+                error: SettingsError::Missing(key),
+                ..
+            } => refuse(
+                R::REFUSAL_REASON_FIELD_REQUIRED,
+                format!("the setting {key} is required"),
+            )
+            .field(&format!("settings.{key}"))
+            .param("settingKey", &key),
+            EnableError::InvalidSettings {
+                error: SettingsError::WrongKind { key, expected },
+                ..
+            } => {
+                let kind = setting_kind_to_proto(expected).proto_name();
+                refuse(
+                    R::REFUSAL_REASON_SETTING_WRONG_KIND,
+                    format!("the setting {key} must be {kind}"),
+                )
+                .field(&format!("settings.{key}"))
+                .param("settingKey", &key)
+                .param("settingKind", &kind)
+            }
+            EnableError::AlreadyEnabled(_)
+            | EnableError::IdPanicked { .. }
+            | EnableError::Panicked { .. } => {
+                tracing::error!("enabling a plugin failed: {err}");
+                return Self::internal("the Server failed");
+            }
+        };
+        refused.into()
     }
 }
 
@@ -2000,7 +2121,8 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_FOLDER_NOT_FOUND
         | R::REFUSAL_REASON_FOLDER_NOT_READABLE
         | R::REFUSAL_REASON_FOLDER_NOT_UTF8
-        | R::REFUSAL_REASON_FOLDER_REPEATED => ErrorCode::InvalidArgument,
+        | R::REFUSAL_REASON_FOLDER_REPEATED
+        | R::REFUSAL_REASON_SETTING_WRONG_KIND => ErrorCode::InvalidArgument,
         R::REFUSAL_REASON_SIGN_IN_REQUIRED
         | R::REFUSAL_REASON_WRONG_NAME_OR_PASSWORD
         | R::REFUSAL_REASON_WRONG_PASSWORD
@@ -2017,7 +2139,8 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_OWN_PASSWORD_RESET
         | R::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED
         | R::REFUSAL_REASON_ALREADY_IN_LIBRARY
-        | R::REFUSAL_REASON_REQUEST_NOT_PENDING => ErrorCode::FailedPrecondition,
+        | R::REFUSAL_REASON_REQUEST_NOT_PENDING
+        | R::REFUSAL_REASON_LAST_AUTHENTICATOR => ErrorCode::FailedPrecondition,
         R::REFUSAL_REASON_SIGN_IN_CODE_NOT_FOUND
         | R::REFUSAL_REASON_HANDLE_NOT_FOUND
         | R::REFUSAL_REASON_USER_NOT_FOUND
@@ -2027,7 +2150,8 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_SEASON_NOT_FOUND
         | R::REFUSAL_REASON_VERSION_NOT_FOUND
         | R::REFUSAL_REASON_ITEM_NOT_FOUND
-        | R::REFUSAL_REASON_REQUEST_NOT_FOUND => ErrorCode::NotFound,
+        | R::REFUSAL_REASON_REQUEST_NOT_FOUND
+        | R::REFUSAL_REASON_PLUGIN_NOT_FOUND => ErrorCode::NotFound,
         R::REFUSAL_REASON_USER_NAME_TAKEN | R::REFUSAL_REASON_FOLDER_TAKEN => {
             ErrorCode::AlreadyExists
         }

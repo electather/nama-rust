@@ -8,14 +8,14 @@ use nama_plugin_log_events::LogEvents;
 use nama_plugin_tmdb::Tmdb;
 use tracing::{error, info, warn};
 
-use super::{EnableError, Registry, contain_sync};
+use super::{Described, EnableError, Registry, contain_sync};
 use crate::config::PluginConfig;
 
-fn all() -> Vec<Arc<dyn Plugin>> {
-    vec![
-        Arc::new(LocalAuth),
-        Arc::new(LogEvents),
-        Arc::new(Tmdb::new()),
+fn all() -> [fn() -> Arc<dyn Plugin>; 3] {
+    [
+        || Arc::new(LocalAuth),
+        || Arc::new(LogEvents),
+        || Arc::new(Tmdb::new()),
     ]
 }
 
@@ -29,7 +29,14 @@ impl Registry {
     pub fn with_builtins(config: &BTreeMap<String, PluginConfig>) -> Self {
         let registry = Self::new();
         let mut known = Vec::new();
-        for plugin in all() {
+        for make in all() {
+            let plugin = match contain_sync(make) {
+                Ok(plugin) => plugin,
+                Err(message) => {
+                    error!(message, "a built-in plugin panicked while being made");
+                    continue;
+                }
+            };
             // A Plugin's `id` is Plugin code, so a panic in it is contained.
             let id = match contain_sync(|| plugin.id()) {
                 Ok(id) => id,
@@ -40,7 +47,12 @@ impl Registry {
             };
             known.push(id.clone());
             match contain_sync(|| (plugin.version().to_owned(), plugin.settings_schema())) {
-                Ok(described) => {
+                Ok((version, settings_schema)) => {
+                    let described = Described {
+                        make,
+                        version,
+                        settings_schema,
+                    };
                     registry.write(|state| state.builtins.insert(id.clone(), described));
                 }
                 Err(message) => {
