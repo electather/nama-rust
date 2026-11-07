@@ -10,9 +10,8 @@ import {
 } from "@/gen/nama/v1/event_pb";
 import { LibraryKind, LibraryService } from "@/gen/nama/v1/library_pb";
 import { MatchService, TitleKind, type UnmatchedItemSchema } from "@/gen/nama/v1/match_pb";
-import { Role } from "@/gen/nama/v1/sign_in_pb";
 
-import { fakeServer, fill, openApp } from "./test-app";
+import { admin, fakeServer, fill, openApp } from "./test-app";
 import { expectUnderField, refused } from "./test-refusal";
 
 afterEach(cleanup);
@@ -40,7 +39,7 @@ function adminServer(
   events: ReadableStream<SubscribeResponse>,
   more: (router: ConnectRouter) => void,
 ) {
-  return fakeServer({ signedIn: Role.ADMIN, events }, {}, {}, (router) => {
+  return fakeServer({ signedIn: admin, events }, {}, {}, (router) => {
     router.service(LibraryService, { listLibraries: () => ({ libraries: [films] }) });
     more(router);
   });

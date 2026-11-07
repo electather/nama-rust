@@ -4,9 +4,9 @@ import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/re
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
-import { DeviceSchema, Role } from "@/gen/nama/v1/sign_in_pb";
+import { DeviceSchema, Permission } from "@/gen/nama/v1/sign_in_pb";
 
-import { type ServerState, fakeServer, fill, openApp } from "./test-app";
+import { admin, fakeServer, fill, newUser, openApp, type ServerState } from "./test-app";
 import { expectUnderField, refused } from "./test-refusal";
 
 afterEach(cleanup);
@@ -20,7 +20,7 @@ test("revoking a Device, once confirmed, removes it from Settings", async () => 
   openApp(
     "/settings",
     fakeServer(
-      { signedIn: Role.MEMBER },
+      { signedIn: newUser },
       {},
       {
         listDevices: () => ({ devices }),
@@ -47,7 +47,7 @@ test("a Device revoked elsewhere meanwhile just leaves the list", async () => {
   openApp(
     "/settings",
     fakeServer(
-      { signedIn: Role.MEMBER },
+      { signedIn: newUser },
       {},
       {
         listDevices: () => ({ devices }),
@@ -77,7 +77,7 @@ test("changing your password says your other Devices were signed out", async () 
   openApp(
     "/settings",
     fakeServer(
-      { signedIn: Role.MEMBER },
+      { signedIn: newUser },
       {},
       {
         listDevices: () => ({ devices }),
@@ -101,22 +101,51 @@ test("changing your password says your other Devices were signed out", async () 
   });
 });
 
-test("a Member sees no Admin entry in the chrome", async () => {
-  openApp("/settings", fakeServer({ signedIn: Role.MEMBER }));
+test("a User who isn't an Admin sees no Admin entry in the chrome", async () => {
+  openApp("/settings", fakeServer({ signedIn: newUser }));
 
   await screen.findByRole("link", { name: "Settings" });
   expect(screen.queryByRole("link", { name: "Admin" })).toBeNull();
+});
+
+test("removing Admin keeps a User's other Permissions", async () => {
+  let sent: Permission[] = [];
+  openApp(
+    "/admin/users",
+    fakeServer(
+      { signedIn: admin },
+      {},
+      {
+        listUsers: () => ({
+          users: [
+            { id: 3n, name: "Kim", permissions: [Permission.ADMIN, Permission.MANAGE_LIBRARIES] },
+          ],
+        }),
+        setPermissions: ({ permissions }) => {
+          sent = permissions;
+          return {};
+        },
+      },
+    ),
+  );
+
+  fireEvent.click(await screen.findByText("Kim"));
+  fireEvent.click(await screen.findByRole("button", { name: "Remove Admin Permission" }));
+
+  await waitFor(() => {
+    expect(sent).toEqual([Permission.MANAGE_LIBRARIES]);
+  });
 });
 
 test("demoting the last Admin says why it was refused", async () => {
   openApp(
     "/admin/users",
     fakeServer(
-      { signedIn: Role.ADMIN },
+      { signedIn: admin },
       {},
       {
-        listUsers: () => ({ users: [{ id: 1n, name: "Sam", role: Role.ADMIN }] }),
-        setRole: () => {
+        listUsers: () => ({ users: [{ id: 1n, name: "Sam", permissions: admin }] }),
+        setPermissions: () => {
           throw refused(Code.FailedPrecondition, "the Server must keep at least one Admin", {
             reason: RefusalReason.LAST_ADMIN,
           });
@@ -126,7 +155,7 @@ test("demoting the last Admin says why it was refused", async () => {
   );
 
   fireEvent.click(await screen.findByText("Sam"));
-  fireEvent.click(await screen.findByRole("button", { name: "Make Member" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Remove Admin Permission" }));
 
   expect(
     await screen.findByText("Sam is the only Admin. Make someone else an Admin first."),
@@ -134,10 +163,10 @@ test("demoting the last Admin says why it was refused", async () => {
 });
 
 test("demoting yourself leaves the Admin pages", async () => {
-  const state: ServerState = { signedIn: Role.ADMIN };
+  const state: ServerState = { signedIn: admin };
   const users = [
-    { id: 1n, name: "Sam", role: Role.ADMIN },
-    { id: 2n, name: "Alex", role: Role.ADMIN },
+    { id: 1n, name: "Sam", permissions: admin },
+    { id: 2n, name: "Alex", permissions: admin },
   ];
   let listUsers = () => ({ users });
   openApp(
@@ -148,11 +177,12 @@ test("demoting yourself leaves the Admin pages", async () => {
       {
         listUsers: () => listUsers(),
         // Sam demotes themselves, so the Server refuses them the Users from then on.
-        setRole: ({ role }) => {
-          state.signedIn = role;
+        setPermissions: ({ permissions }) => {
+          state.signedIn = permissions;
           listUsers = () => {
-            throw refused(Code.PermissionDenied, "Admins only", {
-              reason: RefusalReason.ADMIN_REQUIRED,
+            throw refused(Code.PermissionDenied, "this needs the MANAGE_USERS Permission", {
+              reason: RefusalReason.PERMISSION_REQUIRED,
+              params: { permission: "PERMISSION_MANAGE_USERS" },
             });
           };
           return {};
@@ -162,21 +192,21 @@ test("demoting yourself leaves the Admin pages", async () => {
   );
 
   fireEvent.click(await screen.findByText("Sam"));
-  fireEvent.click(await screen.findByRole("button", { name: "Make Member" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Remove Admin Permission" }));
 
   expect(await screen.findByRole("heading", { name: "Admins only" })).toBeDefined();
   expect(screen.queryByRole("link", { name: "Admin" })).toBeNull();
 });
 
 test("a User deleted meanwhile is said to be gone, and the Users page stays", async () => {
-  const sam = { id: 1n, name: "Sam", role: Role.ADMIN };
-  let users = [sam, { id: 2n, name: "Alex", role: Role.MEMBER }];
+  const sam = { id: 1n, name: "Sam", permissions: admin };
+  let users = [sam, { id: 2n, name: "Alex", permissions: newUser }];
   const devices = [device(3n, "Phone")];
   let listDevices = () => ({ devices });
   openApp(
     "/admin/users",
     fakeServer(
-      { signedIn: Role.ADMIN },
+      { signedIn: admin },
       {},
       {
         listUsers: () => ({ users }),
@@ -220,7 +250,7 @@ test.each([
   openApp(
     "/admin/users",
     fakeServer(
-      { signedIn: Role.ADMIN },
+      { signedIn: admin },
       {},
       {
         listUsers: () => ({}),
@@ -244,7 +274,7 @@ function openSettingsRefusingPasswordChange(reason: RefusalReason, message: stri
   openApp(
     "/settings",
     fakeServer(
-      { signedIn: Role.MEMBER },
+      { signedIn: newUser },
       {},
       {
         changePassword: () => {

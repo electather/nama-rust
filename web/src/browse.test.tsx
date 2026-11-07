@@ -10,9 +10,8 @@ import {
   SubscribeResponseSchema,
 } from "@/gen/nama/v1/event_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
-import { Role } from "@/gen/nama/v1/sign_in_pb";
 
-import { fakeServer, openApp } from "./test-app";
+import { fakeServer, newUser, openApp } from "./test-app";
 
 afterEach(cleanup);
 
@@ -25,7 +24,7 @@ function serverToBrowse(
     { id: 1n, name: "Films", kind: LibraryKind.MOVIES },
     { id: 2n, name: "TV", kind: LibraryKind.SHOWS },
   ];
-  return fakeServer({ signedIn: Role.MEMBER, libraries }, {}, {}, (router) => {
+  return fakeServer({ signedIn: newUser, libraries }, {}, {}, (router) => {
     router.service(BrowseService, browse);
     if (events) router.service(EventService, { subscribe: () => events });
   });

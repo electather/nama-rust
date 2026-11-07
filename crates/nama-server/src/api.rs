@@ -11,8 +11,8 @@ use axum::{
     middleware::{self, Next},
     response::IntoResponse,
 };
-use buffa::EnumValue;
 use buffa::MessageName;
+use buffa::{EnumValue, Enumeration};
 use connectrpc::{
     ConnectError, Encodable, ErrorCode, ErrorDetail, RequestContext, Response, ServiceRequest,
     ServiceResult, ServiceStream,
@@ -31,12 +31,12 @@ use nama_proto::nama::v1::{
     ListLibrariesRequest, ListLibrariesResponse, ListMoviesRequest, ListMoviesResponse,
     ListShowsRequest, ListShowsResponse, ListUnmatchedItemsRequest, ListUnmatchedItemsResponse,
     ListUsersRequest, ListUsersResponse, LookUpSignInCodeRequest, LookUpSignInCodeResponse,
-    MatchService, PollSignInCodeRequest, PollSignInCodeResponse, ReauthenticateRequest,
+    MatchService, Permission, PollSignInCodeRequest, PollSignInCodeResponse, ReauthenticateRequest,
     ReauthenticateResponse, Refusal, RefusalReason, ReportProgressRequest, ReportProgressResponse,
     ResetPasswordRequest, ResetPasswordResponse, RevokeDeviceRequest, RevokeDeviceResponse,
     ScanLibraryRequest, ScanLibraryResponse, SearchMetadataRequest, SearchMetadataResponse,
-    ServerService, SessionDelivery, SetMatchRequest, SetMatchResponse, SetPlayedRequest,
-    SetPlayedResponse, SetRoleRequest, SetRoleResponse, SetupRequest, SetupResponse,
+    ServerService, SessionDelivery, SetMatchRequest, SetMatchResponse, SetPermissionsRequest,
+    SetPermissionsResponse, SetPlayedRequest, SetPlayedResponse, SetupRequest, SetupResponse,
     SignInCodeStatus, SignInRequest, SignInResponse, SignInService, SignOutRequest,
     SignOutResponse, StartSignInCodeRequest, StartSignInCodeResponse, SubscribeRequest,
     SubscribeResponse, UpdateLibraryRequest, UpdateLibraryResponse, UserService, WatchStateService,
@@ -59,7 +59,7 @@ use crate::{
     scanner::Scanner,
     sessions::{cleared_session_cookie, identify_caller, in_session_cookie, session_cookie},
     sign_in_codes::{self, Poll, SignInCodes},
-    users::{self, Caller, NewDevice, Role, SetupCode, SignedIn, Users},
+    users::{self, Caller, NewDevice, Permissions, SetupCode, SignedIn, Users},
     versions,
     watch_states::{Progress, WatchState, WatchStates},
 };
@@ -140,8 +140,15 @@ pub(crate) fn router(
 enum Access {
     Anyone,
     SignedIn,
-    Admin,
+    /// A signed-in User whose Permissions pass a check for this one.
+    Needs(Permission),
 }
+
+/// Managing Libraries and their Matches.
+const MANAGE_LIBRARIES: Access = Access::Needs(Permission::ManageLibraries);
+
+/// Managing Users and their Devices.
+const MANAGE_USERS: Access = Access::Needs(Permission::ManageUsers);
 
 /// Who may call each RPC, by path; one missing here is refused to everyone (see AGENTS.md, "New
 /// RPCs start closed"). Media has its own entry, [`MEDIA`].
@@ -158,16 +165,16 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::SIGN_IN_SERVICE_LOOK_UP_SIGN_IN_CODE_SPEC.procedure,  Access::SignedIn),
     (proto::SIGN_IN_SERVICE_APPROVE_SIGN_IN_CODE_SPEC.procedure,  Access::SignedIn),
     (proto::SIGN_IN_SERVICE_POLL_SIGN_IN_CODE_SPEC.procedure,     Access::Anyone),
-    (proto::LIBRARY_SERVICE_CREATE_LIBRARY_SPEC.procedure,        Access::Admin),
+    (proto::LIBRARY_SERVICE_CREATE_LIBRARY_SPEC.procedure,        MANAGE_LIBRARIES),
     (proto::LIBRARY_SERVICE_LIST_LIBRARIES_SPEC.procedure,        Access::SignedIn),
-    (proto::LIBRARY_SERVICE_GET_LIBRARY_SPEC.procedure,           Access::Admin),
-    (proto::LIBRARY_SERVICE_UPDATE_LIBRARY_SPEC.procedure,        Access::Admin),
-    (proto::LIBRARY_SERVICE_DELETE_LIBRARY_SPEC.procedure,        Access::Admin),
-    (proto::LIBRARY_SERVICE_SCAN_LIBRARY_SPEC.procedure,          Access::Admin),
-    (proto::MATCH_SERVICE_SEARCH_METADATA_SPEC.procedure,         Access::Admin),
-    (proto::MATCH_SERVICE_SET_MATCH_SPEC.procedure,               Access::Admin),
-    (proto::MATCH_SERVICE_CLEAR_MATCH_SPEC.procedure,             Access::Admin),
-    (proto::MATCH_SERVICE_LIST_UNMATCHED_ITEMS_SPEC.procedure,    Access::Admin),
+    (proto::LIBRARY_SERVICE_GET_LIBRARY_SPEC.procedure,           MANAGE_LIBRARIES),
+    (proto::LIBRARY_SERVICE_UPDATE_LIBRARY_SPEC.procedure,        MANAGE_LIBRARIES),
+    (proto::LIBRARY_SERVICE_DELETE_LIBRARY_SPEC.procedure,        MANAGE_LIBRARIES),
+    (proto::LIBRARY_SERVICE_SCAN_LIBRARY_SPEC.procedure,          MANAGE_LIBRARIES),
+    (proto::MATCH_SERVICE_SEARCH_METADATA_SPEC.procedure,         MANAGE_LIBRARIES),
+    (proto::MATCH_SERVICE_SET_MATCH_SPEC.procedure,               MANAGE_LIBRARIES),
+    (proto::MATCH_SERVICE_CLEAR_MATCH_SPEC.procedure,             MANAGE_LIBRARIES),
+    (proto::MATCH_SERVICE_LIST_UNMATCHED_ITEMS_SPEC.procedure,    MANAGE_LIBRARIES),
     (proto::BROWSE_SERVICE_LIST_MOVIES_SPEC.procedure,            Access::SignedIn),
     (proto::BROWSE_SERVICE_GET_MOVIE_SPEC.procedure,              Access::SignedIn),
     (proto::BROWSE_SERVICE_LIST_SHOWS_SPEC.procedure,             Access::SignedIn),
@@ -177,14 +184,14 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::WATCH_STATE_SERVICE_REPORT_PROGRESS_SPEC.procedure,   Access::SignedIn),
     (proto::WATCH_STATE_SERVICE_SET_PLAYED_SPEC.procedure,        Access::SignedIn),
     (proto::EVENT_SERVICE_SUBSCRIBE_SPEC.procedure,               Access::SignedIn),
-    (proto::USER_SERVICE_CREATE_USER_SPEC.procedure,              Access::Admin),
-    (proto::USER_SERVICE_LIST_USERS_SPEC.procedure,               Access::Admin),
-    (proto::USER_SERVICE_SET_ROLE_SPEC.procedure,                 Access::Admin),
-    (proto::USER_SERVICE_DELETE_USER_SPEC.procedure,              Access::Admin),
+    (proto::USER_SERVICE_CREATE_USER_SPEC.procedure,              MANAGE_USERS),
+    (proto::USER_SERVICE_LIST_USERS_SPEC.procedure,               MANAGE_USERS),
+    (proto::USER_SERVICE_SET_PERMISSIONS_SPEC.procedure,          MANAGE_USERS),
+    (proto::USER_SERVICE_DELETE_USER_SPEC.procedure,              MANAGE_USERS),
     (proto::USER_SERVICE_LIST_DEVICES_SPEC.procedure,             Access::SignedIn),
     (proto::USER_SERVICE_REVOKE_DEVICE_SPEC.procedure,            Access::SignedIn),
     (proto::USER_SERVICE_CHANGE_PASSWORD_SPEC.procedure,          Access::SignedIn),
-    (proto::USER_SERVICE_RESET_PASSWORD_SPEC.procedure,           Access::Admin),
+    (proto::USER_SERVICE_RESET_PASSWORD_SPEC.procedure,           MANAGE_USERS),
 ];
 
 /// Who may fetch media: every path under this prefix, which the media routes share.
@@ -209,23 +216,30 @@ impl Access {
         match (self, caller) {
             (Self::Anyone, _) | (Self::SignedIn, Some(_)) => Ok(()),
             (_, None) => Err(sign_in_required()),
-            (Self::Admin, Some(caller)) if caller.user.role == Role::Admin => Ok(()),
-            (Self::Admin, Some(_)) => Err(refuse(
-                RefusalReason::REFUSAL_REASON_ADMIN_REQUIRED,
-                "this needs the Admin Role",
-            )
-            .into()),
+            (Self::Needs(needed), Some(caller)) if caller.user.permissions.allow(needed) => Ok(()),
+            (Self::Needs(needed), Some(_)) => Err(permission_required(needed)),
         }
     }
 }
 
+/// The refusal of a call that needs the Permission `needed`, which the caller lacks.
+fn permission_required(needed: Permission) -> ConnectError {
+    let name = needed.proto_name();
+    refuse(
+        RefusalReason::REFUSAL_REASON_PERMISSION_REQUIRED,
+        format!("this needs {name}"),
+    )
+    .param("permission", &name)
+    .into()
+}
+
 /// The RPCs that change who can sign in as whom, by path, which need Recent Authentication on top
 /// of their [`Access`] (ADR 0014, and see AGENTS.md). A list of its own, not an `Access` variant:
-/// `SetRole` needs the Admin Role as well, `ChangePassword` only a session.
+/// `SetPermissions` needs a Permission as well, `ChangePassword` only a session.
 const NEEDS_RECENT_AUTHENTICATION: [&str; 5] = [
     proto::USER_SERVICE_CHANGE_PASSWORD_SPEC.procedure,
     proto::USER_SERVICE_RESET_PASSWORD_SPEC.procedure,
-    proto::USER_SERVICE_SET_ROLE_SPEC.procedure,
+    proto::USER_SERVICE_SET_PERMISSIONS_SPEC.procedure,
     proto::USER_SERVICE_DELETE_USER_SPEC.procedure,
     proto::SIGN_IN_SERVICE_APPROVE_SIGN_IN_CODE_SPEC.procedure,
 ];
@@ -565,8 +579,9 @@ fn poll_status(status: SignInCodeStatus) -> ServiceResult<PollSignInCodeResponse
     })
 }
 
-/// `nama.v1.LibraryService`: managing the Server's Libraries. Admins only, which
-/// [`require_access`] enforces, except listing them, which any signed-in User may do to browse.
+/// `nama.v1.LibraryService`: managing the Server's Libraries. Needs `PERMISSION_MANAGE_LIBRARIES`,
+/// which [`require_access`] enforces, except listing them, which any signed-in User may do to
+/// browse.
 struct LibraryServiceHandler {
     libraries: Libraries,
     scanner: Scanner,
@@ -600,14 +615,17 @@ impl LibraryService for LibraryServiceHandler {
         ctx: RequestContext,
         _request: ServiceRequest<'_, ListLibrariesRequest>,
     ) -> ServiceResult<ListLibrariesResponse> {
-        // Disk paths are for Admins only (see AGENTS.md).
-        let is_admin = caller(&ctx)?.user.role == Role::Admin;
+        // Disk paths are for those who manage Libraries (see AGENTS.md).
+        let sees_folders = caller(&ctx)?
+            .user
+            .permissions
+            .allow(Permission::ManageLibraries);
         let libraries = self.libraries.list().await?;
         Response::ok(ListLibrariesResponse {
             libraries: libraries
                 .into_iter()
                 .map(|library| Library {
-                    folders: if is_admin {
+                    folders: if sees_folders {
                         library.folders
                     } else {
                         Vec::new()
@@ -667,7 +685,8 @@ impl LibraryService for LibraryServiceHandler {
     }
 }
 
-/// `nama.v1.MatchService`: fixing Matches by hand. Admins only, which [`require_access`] enforces.
+/// `nama.v1.MatchService`: fixing Matches by hand. Needs `PERMISSION_MANAGE_LIBRARIES`, which
+/// [`require_access`] enforces.
 struct MatchServiceHandler {
     matcher: Matcher,
     contents: Contents,
@@ -999,9 +1018,10 @@ impl WatchStateService for WatchStateServiceHandler {
     }
 }
 
-/// `nama.v1.UserService`: managing the Server's Users and their Devices. Admins only, which
-/// [`require_access`] enforces, but for the self-service RPCs [`ACCESS`] opens to any session,
-/// which check for themselves with [`devices_owner`] or act only on the caller.
+/// `nama.v1.UserService`: managing the Server's Users and their Devices. Needs
+/// `PERMISSION_MANAGE_USERS`, which [`require_access`] enforces, but for the self-service RPCs
+/// [`ACCESS`] opens to any session, which check for themselves with [`devices_owner`] or act only
+/// on the caller.
 struct UserServiceHandler {
     users: Users,
 }
@@ -1018,11 +1038,7 @@ impl UserService for UserServiceHandler {
         request: ServiceRequest<'_, CreateUserRequest>,
     ) -> ServiceResult<CreateUserResponse> {
         let request = request.to_owned_message();
-        let role = role_from_proto(request.role)?;
-        let id = self
-            .users
-            .create(&request.name, &request.password, role)
-            .await?;
+        let id = self.users.create(&request.name, &request.password).await?;
         Response::ok(CreateUserResponse {
             id,
             ..Default::default()
@@ -1041,15 +1057,17 @@ impl UserService for UserServiceHandler {
         })
     }
 
-    async fn set_role(
+    async fn set_permissions(
         &self,
-        _ctx: RequestContext,
-        request: ServiceRequest<'_, SetRoleRequest>,
-    ) -> ServiceResult<SetRoleResponse> {
+        ctx: RequestContext,
+        request: ServiceRequest<'_, SetPermissionsRequest>,
+    ) -> ServiceResult<SetPermissionsResponse> {
         let request = request.to_owned_message();
-        let role = role_from_proto(request.role)?;
-        self.users.set_role(request.user_id, role).await?;
-        Response::ok(SetRoleResponse::default())
+        let permissions = permissions_from_proto(request.permissions)?;
+        self.users
+            .set_permissions(&caller(&ctx)?.user, request.user_id, permissions)
+            .await?;
+        Response::ok(SetPermissionsResponse::default())
     }
 
     async fn delete_user(
@@ -1058,7 +1076,7 @@ impl UserService for UserServiceHandler {
         request: ServiceRequest<'_, DeleteUserRequest>,
     ) -> ServiceResult<DeleteUserResponse> {
         let caller = caller(&ctx)?;
-        self.users.delete(request.user_id).await?;
+        self.users.delete(&caller.user, request.user_id).await?;
         let response = DeleteUserResponse::default();
         Ok(if request.user_id == caller.user.id {
             signed_out(response, &ctx)
@@ -1139,8 +1157,9 @@ impl UserService for UserServiceHandler {
         request: ServiceRequest<'_, ResetPasswordRequest>,
     ) -> ServiceResult<ResetPasswordResponse> {
         let request = request.to_owned_message();
+        let caller = caller(&ctx)?;
         // Resetting would sign out the calling Device too; `ChangePassword` keeps it.
-        if request.user_id == caller(&ctx)?.user.id {
+        if request.user_id == caller.user.id {
             return Err(refuse(
                 RefusalReason::REFUSAL_REASON_OWN_PASSWORD_RESET,
                 "change your own password with ChangePassword",
@@ -1149,19 +1168,23 @@ impl UserService for UserServiceHandler {
             .into());
         }
         self.users
-            .reset_password(request.user_id, &request.new_password)
+            .reset_password(&caller.user, request.user_id, &request.new_password)
             .await?;
         Response::ok(ResetPasswordResponse::default())
     }
 }
 
-/// The User whose Devices `caller` asks about with `user_id`: their own if it's unset. Only an
-/// Admin may ask about another User's. A Member who does gets `not_found`, as for a User who
-/// doesn't exist, so they can't learn which IDs do.
+/// The User whose Devices `caller` asks about with `user_id`: their own if it's unset. Only a User
+/// who manages Users may ask about another User's. Anyone else who does gets `not_found`, as for a
+/// User who doesn't exist, so they can't learn which IDs do.
 fn devices_owner(caller: &Caller, user_id: Option<i64>) -> Result<i64, ConnectError> {
     match user_id {
         None => Ok(caller.user.id),
-        Some(id) if id == caller.user.id || caller.user.role == Role::Admin => Ok(id),
+        Some(id)
+            if id == caller.user.id || caller.user.permissions.allow(Permission::ManageUsers) =>
+        {
+            Ok(id)
+        }
         Some(_) => Err(no_such_user()),
     }
 }
@@ -1535,28 +1558,28 @@ fn library_to_proto(library: Library) -> proto::Library {
     }
 }
 
-fn role_from_proto(role: EnumValue<proto::Role>) -> Result<Role, ConnectError> {
-    match role {
-        EnumValue::Known(proto::Role::ROLE_ADMIN) => Ok(Role::Admin),
-        EnumValue::Known(proto::Role::ROLE_MEMBER) => Ok(Role::Member),
-        EnumValue::Known(proto::Role::ROLE_UNSPECIFIED) | EnumValue::Unknown(_) => Err(
-            unknown_enum_value("role", "a User's Role must be admin or member"),
-        ),
-    }
-}
-
-fn role_to_proto(role: Role) -> proto::Role {
-    match role {
-        Role::Admin => proto::Role::ROLE_ADMIN,
-        Role::Member => proto::Role::ROLE_MEMBER,
-    }
+fn permissions_from_proto(
+    permissions: Vec<EnumValue<Permission>>,
+) -> Result<Permissions, ConnectError> {
+    permissions
+        .into_iter()
+        .map(|permission| match permission {
+            EnumValue::Known(Permission::Unspecified) | EnumValue::Unknown(_) => {
+                Err(unknown_enum_value(
+                    "permissions",
+                    "every Permission must be one the Server knows",
+                ))
+            }
+            EnumValue::Known(permission) => Ok(permission),
+        })
+        .collect()
 }
 
 fn user_to_proto(user: users::User) -> proto::User {
     proto::User {
         id: user.id,
         name: user.name,
-        role: role_to_proto(user.role).into(),
+        permissions: user.permissions.iter().map(EnumValue::from).collect(),
         created_at: user.created_at,
         ..Default::default()
     }
@@ -1617,7 +1640,7 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_WRONG_NAME_OR_PASSWORD
         | R::REFUSAL_REASON_WRONG_PASSWORD
         | R::REFUSAL_REASON_SIGNED_OUT => ErrorCode::Unauthenticated,
-        R::REFUSAL_REASON_ADMIN_REQUIRED | R::REFUSAL_REASON_WRONG_SETUP_CODE => {
+        R::REFUSAL_REASON_PERMISSION_REQUIRED | R::REFUSAL_REASON_WRONG_SETUP_CODE => {
             ErrorCode::PermissionDenied
         }
         R::REFUSAL_REASON_TOO_MANY_ATTEMPTS | R::REFUSAL_REASON_TOO_MANY_PENDING_SIGN_INS => {
@@ -1722,6 +1745,7 @@ impl From<users::Error> for ConnectError {
             }
             users::Error::AlreadySetUp => refuse(R::REFUSAL_REASON_ALREADY_SET_UP, message),
             users::Error::LastAdmin => refuse(R::REFUSAL_REASON_LAST_ADMIN, message),
+            users::Error::AdminRequired => return permission_required(Permission::Admin),
             users::Error::WrongNameOrPassword => {
                 refuse(R::REFUSAL_REASON_WRONG_NAME_OR_PASSWORD, message)
             }

@@ -12,12 +12,17 @@ pub struct UserView<'a> {
     ///
     /// Field 2: `name`
     pub name: &'a str,
-    /// Field 3: `role`
-    pub role: ::buffa::EnumValue<super::super::Role>,
     /// When the User was created, in seconds since the Unix epoch.
     ///
     /// Field 4: `created_at`
     pub created_at: i64,
+    /// What the User may do, in the order of `Permission`'s values, each once.
+    ///
+    /// Field 5: `permissions`
+    pub permissions: ::buffa::RepeatedView<
+        'a,
+        ::buffa::EnumValue<super::super::Permission>,
+    >,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for UserView<'a> {
@@ -64,21 +69,41 @@ impl<'a> ::buffa::MessageView<'a> for UserView<'a> {
                 )?;
                 view.name = ::buffa::types::borrow_str(&mut cur)?;
             }
-            3u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::Varint,
-                )?;
-                view.role = ::buffa::EnumValue::from(
-                    ::buffa::types::decode_int32(&mut cur)?,
-                );
-            }
             4u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
                     ::buffa::encoding::WireType::Varint,
                 )?;
                 view.created_at = ::buffa::types::decode_int64(&mut cur)?;
+            }
+            5u32 => {
+                if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
+                    let payload = ::buffa::types::borrow_bytes(&mut cur)?;
+                    view.permissions.reserve(::buffa::encoding::count_varints(payload));
+                    let mut pcur: &[u8] = payload;
+                    while !pcur.is_empty() {
+                        view.permissions
+                            .push(
+                                ::buffa::EnumValue::from(
+                                    ::buffa::types::decode_int32_packed(&mut pcur)?,
+                                ),
+                            );
+                    }
+                } else if tag.wire_type() == ::buffa::encoding::WireType::Varint {
+                    view.permissions
+                        .push(
+                            ::buffa::EnumValue::from(
+                                ::buffa::types::decode_int32(&mut cur)?,
+                            ),
+                        );
+                } else {
+                    return Err(
+                        ::buffa::encoding::wire_type_mismatch(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        ),
+                    );
+                }
             }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
@@ -104,8 +129,8 @@ impl<'a> ::buffa::MessageView<'a> for UserView<'a> {
         ::core::result::Result::Ok(super::super::User {
             id: self.id,
             name: self.name.to_string(),
-            role: self.role,
             created_at: self.created_at,
+            permissions: self.permissions.to_vec(),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -123,14 +148,16 @@ impl<'a> ::buffa::ViewEncode<'a> for UserView<'a> {
         if !self.name.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.name) as u64;
         }
-        {
-            let val = self.role.to_i32();
-            if val != 0 {
-                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
-            }
-        }
         if self.created_at != 0i64 {
             size += 1u64 + ::buffa::types::int64_encoded_len(self.created_at) as u64;
+        }
+        if !self.permissions.is_empty() {
+            let payload: u64 = self
+                .permissions
+                .iter()
+                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                .sum::<u64>();
+            size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
@@ -149,14 +176,19 @@ impl<'a> ::buffa::ViewEncode<'a> for UserView<'a> {
         if !self.name.is_empty() {
             ::buffa::types::put_string_field(2u32, &self.name, buf);
         }
-        {
-            let val = self.role.to_i32();
-            if val != 0 {
-                ::buffa::types::put_int32_field(3u32, val, buf);
-            }
-        }
         if self.created_at != 0i64 {
             ::buffa::types::put_int64_field(4u32, self.created_at, buf);
+        }
+        if !self.permissions.is_empty() {
+            let payload: u64 = self
+                .permissions
+                .iter()
+                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                .sum::<u64>();
+            ::buffa::types::put_len_delimited_header(5u32, payload, buf);
+            for v in &self.permissions {
+                ::buffa::types::encode_int32(v.to_i32(), buf);
+            }
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -185,14 +217,18 @@ impl<'__a> ::serde::Serialize for UserView<'__a> {
         if !::buffa::json_helpers::skip_if::is_empty_str(self.name) {
             __map.serialize_entry("name", self.name)?;
         }
-        if !::buffa::json_helpers::skip_if::is_default_enum_value(&self.role) {
-            __map.serialize_entry("role", &self.role)?;
-        }
         if !::buffa::json_helpers::skip_if::is_zero_i64(&self.created_at) {
             __map
                 .serialize_entry(
                     "createdAt",
                     &::buffa::json_helpers::ProtoJson(&self.created_at),
+                )?;
+        }
+        if !self.permissions.is_empty() {
+            __map
+                .serialize_entry(
+                    "permissions",
+                    &::buffa::json_helpers::EnumSeqJson(&self.permissions),
                 )?;
         }
         __map.end()
@@ -296,17 +332,21 @@ impl UserOwnedView {
     pub fn name(&self) -> &'_ str {
         self.0.reborrow().name
     }
-    /// Field 3: `role`
-    #[must_use]
-    pub fn role(&self) -> ::buffa::EnumValue<super::super::Role> {
-        self.0.reborrow().role
-    }
     /// When the User was created, in seconds since the Unix epoch.
     ///
     /// Field 4: `created_at`
     #[must_use]
     pub fn created_at(&self) -> i64 {
         self.0.reborrow().created_at
+    }
+    /// What the User may do, in the order of `Permission`'s values, each once.
+    ///
+    /// Field 5: `permissions`
+    #[must_use]
+    pub fn permissions(
+        &self,
+    ) -> &::buffa::RepeatedView<'_, ::buffa::EnumValue<super::super::Permission>> {
+        &self.0.reborrow().permissions
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<UserView<'static>>> for UserOwnedView {

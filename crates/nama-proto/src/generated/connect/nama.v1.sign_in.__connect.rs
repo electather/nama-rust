@@ -449,12 +449,12 @@ pub const SIGN_IN_SERVICE_POLL_SIGN_IN_CODE_SPEC: ::connectrpc::Spec = ::connect
 /// approvals fail with `resource_exhausted`.
 ///
 /// Changes to who can sign in as whom need Recent Authentication: the calling Device proved who it
-/// is with one of its User's Sign-in Methods in the last 10 minutes. They are
-/// `ApproveSignInCode` and `UserService`'s `ChangePassword`, `ResetPassword`, `SetRole` and
-/// `DeleteUser`. Signing in with `Setup` or `SignIn` gives a Device Recent Authentication; signing
-/// in with a Sign-in Code doesn't, since that Device proved nothing itself. Without it, those calls
-/// fail with `failed_precondition` and the `REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED` Refusal
-/// before anything in the request is checked. `Reauthenticate` gives it back.
+/// is with one of its User's Sign-in Methods in the last 10 minutes. They are `ApproveSignInCode`
+/// and `UserService`'s `ChangePassword`, `ResetPassword`, `SetPermissions` and `DeleteUser`.
+/// Signing in with `Setup` or `SignIn` gives a Device Recent Authentication; signing in with a
+/// Sign-in Code doesn't, since that Device proved nothing itself. Without it, those calls fail with
+/// `failed_precondition` and the `REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED` Refusal before
+/// anything in the request is checked. `Reauthenticate` gives it back.
 ///
 /// # Implementing handlers
 ///
@@ -505,10 +505,10 @@ pub const SIGN_IN_SERVICE_POLL_SIGN_IN_CODE_SPEC: ::connectrpc::Spec = ::connect
 /// example` doc.
 #[allow(clippy::type_complexity)]
 pub trait SignInService: Send + Sync + 'static {
-    /// Creates the first Admin on a fresh Server and signs the calling Device in as them. Needs the
-    /// Setup Code the Server printed to its log. Fails with `permission_denied` if the code is wrong,
-    /// `failed_precondition` once the Server has any User, and `invalid_argument` if a name or the
-    /// password breaks the rules.
+    /// Creates the first Admin, a User with `PERMISSION_ADMIN`, on a fresh Server and signs the
+    /// calling Device in as them. Needs the Setup Code the Server printed to its log. Fails with
+    /// `permission_denied` if the code is wrong, `failed_precondition` once the Server has any User,
+    /// and `invalid_argument` if a name or the password breaks the rules.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///

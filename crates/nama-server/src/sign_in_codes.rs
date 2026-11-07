@@ -177,7 +177,7 @@ fn awaiting_approval<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::users::Role;
+    use crate::users::Permissions;
 
     /// Ten minutes, counted independently of the code under test.
     const TEN_MINUTES: Duration = Duration::from_mins(10);
@@ -186,7 +186,7 @@ mod tests {
         User {
             id: 1,
             name: "Ada".to_owned(),
-            role: Role::Member,
+            permissions: Permissions::NEW_USER,
             created_at: 0,
         }
     }

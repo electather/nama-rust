@@ -6,10 +6,12 @@
 use std::{fmt, net::IpAddr, ops::RangeInclusive, sync::Arc};
 
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
+use buffa::Enumeration;
 use nama_plugin_api::{
     PluginError, PluginId,
     auth::{Authenticator, PasswordError},
 };
+use nama_proto::nama::v1::Permission;
 use sha2::{Digest, Sha256};
 use sqlx::{Sqlite, SqliteConnection, Transaction};
 use tokio::{sync::broadcast, task::JoinHandle};
@@ -70,12 +72,63 @@ pub struct Users {
 #[derive(Debug, Clone)]
 pub struct SetupCode(String);
 
-/// What a User is allowed to do on the Server.
+/// The set of Permissions a User holds (ADR 0020).
+// Stored in `users.permissions` as a bitset: bit n is the `Permission` numbered n. Those numbers
+// are API contract, so they never change under stored rows.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, sqlx::Type)]
-#[sqlx(rename_all = "lowercase")]
-pub(crate) enum Role {
-    Admin,
-    Member,
+#[sqlx(transparent)]
+pub(crate) struct Permissions(i64);
+
+impl Permissions {
+    /// What the first Admin gets.
+    pub(crate) const ADMIN: Self = Self(bit(Permission::Admin));
+
+    /// What every other new User gets.
+    // ponytail: hardcoded; the Server-wide default set an Admin edits replaces it (#158).
+    pub(crate) const NEW_USER: Self =
+        Self(bit(Permission::Request) | bit(Permission::ViewRequests));
+
+    /// Whether these pass a check for `needed`: they hold it, `PERMISSION_ADMIN`, or the
+    /// Permission that covers it, as `PERMISSION_REQUEST` covers `PERMISSION_REQUEST_MOVIE` and
+    /// `PERMISSION_REQUEST_TV`, and `PERMISSION_AUTO_APPROVE` its variants, as in Seerr.
+    pub(crate) const fn allow(self, needed: Permission) -> bool {
+        let covering = match needed {
+            Permission::RequestMovie | Permission::RequestTv => Permission::Request,
+            Permission::AutoApproveMovie | Permission::AutoApproveTv => Permission::AutoApprove,
+            // Listed, not a wildcard, so a new Permission gets a decision about what covers it.
+            Permission::Unspecified
+            | Permission::Admin
+            | Permission::ManageUsers
+            | Permission::ManageLibraries
+            | Permission::ManageSettings
+            | Permission::ManageRequests
+            | Permission::Request
+            | Permission::AutoApprove
+            | Permission::ViewRequests => needed,
+        };
+        self.0 & (bit(Permission::Admin) | bit(needed) | bit(covering)) != 0
+    }
+
+    /// Each Permission held, in the order of their values.
+    pub(crate) fn iter(self) -> impl Iterator<Item = Permission> {
+        Permission::values()
+            .iter()
+            .copied()
+            .filter(move |&permission| self.0 & bit(permission) != 0)
+    }
+}
+
+impl FromIterator<Permission> for Permissions {
+    fn from_iter<I: IntoIterator<Item = Permission>>(iter: I) -> Self {
+        Self(iter.into_iter().fold(0, |bits, p| bits | bit(p)))
+    }
+}
+
+/// The bit `permission` is stored as in [`Permissions`].
+// ponytail: an `i64` holds Permissions numbered up to 62; past that, `users.permissions` needs
+// another encoding.
+const fn bit(permission: Permission) -> i64 {
+    1 << permission as i32
 }
 
 /// A User as clients see it.
@@ -83,7 +136,7 @@ pub(crate) enum Role {
 pub(crate) struct User {
     pub(crate) id: i64,
     pub(crate) name: String,
-    pub(crate) role: Role,
+    pub(crate) permissions: Permissions,
     /// When they were created, in seconds since the Unix epoch.
     pub(crate) created_at: i64,
 }
@@ -211,6 +264,9 @@ pub enum Error {
     /// The change would leave the Server with no Admin.
     #[error("the Server must keep at least one Admin")]
     LastAdmin,
+    /// Only a User with `PERMISSION_ADMIN` may make the change.
+    #[error("only an Admin may change an Admin, make an Admin or change their own Permissions")]
+    AdminRequired,
     /// The first Admin can only be created while the Server has no Users.
     #[error("the Server already has Users")]
     AlreadySetUp,
@@ -277,20 +333,15 @@ impl Users {
         Ok(SignedIn { caller, token })
     }
 
-    /// Creates a User named `name` with `password` and `role`, who can then sign in, and returns
-    /// their ID.
-    pub(crate) async fn create(
-        &self,
-        name: &str,
-        password: &str,
-        role: Role,
-    ) -> Result<i64, Error> {
+    /// Creates a User named `name` with `password` and [`Permissions::NEW_USER`], who can then sign
+    /// in, and returns their ID.
+    pub(crate) async fn create(&self, name: &str, password: &str) -> Result<i64, Error> {
         let name = checked_name("name", "a User's name", name)?;
         let credential = self.hash_password("password", password).await?;
         self.db
             .write(move |tx| {
                 Box::pin(async move {
-                    let user = insert_user(tx, &name, role).await?;
+                    let user = insert_user(tx, &name, Permissions::NEW_USER).await?;
                     set_password(tx, user.id, &credential).await?;
                     Ok(user.id)
                 })
@@ -302,26 +353,51 @@ impl Users {
     pub(crate) async fn list(&self) -> Result<Vec<User>, sqlx::Error> {
         sqlx::query_as!(
             User,
-            r#"SELECT id AS "id!", display_username AS name, role AS "role: Role", created_at
+            r#"SELECT id AS "id!", display_username AS name,
+                      permissions AS "permissions: Permissions", created_at
                FROM users ORDER BY id"#
         )
         .fetch_all(self.db.reader())
         .await
     }
 
-    /// Gives the User `user` the Role `role`, unless that leaves the Server with no Admin. Their
-    /// Devices stay signed in, and the Role applies from their next request, which reads it afresh.
-    pub(crate) async fn set_role(&self, user: i64, role: Role) -> Result<(), Error> {
+    /// Gives the User `user` exactly `permissions`, as `by` asks, unless that leaves no User with
+    /// `PERMISSION_ADMIN` or [`ensure_may_change`] refuses. Without `PERMISSION_ADMIN`, `by` may
+    /// neither grant it nor change their own Permissions. Their Devices stay signed in, and the
+    /// Permissions apply from their next request, which reads them afresh.
+    pub(crate) async fn set_permissions(
+        &self,
+        by: &User,
+        user: i64,
+        permissions: Permissions,
+    ) -> Result<(), Error> {
+        let by_admin = by.permissions.allow(Permission::Admin);
+        if !by_admin && (permissions.allow(Permission::Admin) || by.id == user) {
+            return Err(Error::AdminRequired);
+        }
+        let by = by.clone();
         self.db
-            .write(move |tx| Box::pin(async move { update_role(tx, user, role).await }))
+            .write(move |tx| {
+                Box::pin(async move {
+                    ensure_may_change(tx, &by, user).await?;
+                    update_permissions(tx, user, permissions).await
+                })
+            })
             .await
     }
 
-    /// Deletes the User `user` with their Sign-in Methods and Devices, unless that leaves the Server
-    /// with no Admin. Their Devices are signed out as [`Users::sign_out`] does.
-    pub(crate) async fn delete(&self, user: i64) -> Result<(), Error> {
-        self.write_signing_out(move |tx| Box::pin(async move { delete_user(tx, user).await }))
-            .await
+    /// Deletes the User `user` with their Sign-in Methods and Devices, as `by` asks, unless that
+    /// leaves no User with `PERMISSION_ADMIN` or [`ensure_may_change`] refuses. Their Devices are
+    /// signed out as [`Users::sign_out`] does.
+    pub(crate) async fn delete(&self, by: &User, user: i64) -> Result<(), Error> {
+        let by = by.clone();
+        self.write_signing_out(move |tx| {
+            Box::pin(async move {
+                ensure_may_change(tx, &by, user).await?;
+                delete_user(tx, user).await
+            })
+        })
+        .await
     }
 
     /// The Devices of the User `user` that haven't expired, oldest first, or `None` if there is no
@@ -398,12 +474,22 @@ impl Users {
             .await
     }
 
-    /// Sets the password of the User `user` to `new`, without their current one, adding it if they
-    /// have none, and signs every Device of theirs out.
-    pub(crate) async fn reset_password(&self, user: i64, new: &str) -> Result<(), Error> {
+    /// Sets the password of the User `user` to `new`, as `by` asks, without their current one,
+    /// adding it if they have none, and signs every Device of theirs out, unless
+    /// [`ensure_may_change`] refuses.
+    pub(crate) async fn reset_password(
+        &self,
+        by: &User,
+        user: i64,
+        new: &str,
+    ) -> Result<(), Error> {
         let credential = self.hash_password("new_password", new).await?;
+        let by = by.clone();
         self.write_signing_out(move |tx| {
-            Box::pin(async move { set_password_signing_all_out(tx, user, &credential).await })
+            Box::pin(async move {
+                ensure_may_change(tx, &by, user).await?;
+                set_password_signing_all_out(tx, user, &credential).await
+            })
         })
         .await
     }
@@ -549,8 +635,8 @@ impl Users {
         let row = sqlx::query!(
             r#"SELECT d.id AS "device_id!", d.name AS device_name, d.created_at AS device_created_at,
                       d.last_seen_at, d.authenticated_at,
-                      u.id AS "user_id!", u.display_username AS user_name, u.role AS "role: Role",
-                      u.created_at
+                      u.id AS "user_id!", u.display_username AS user_name,
+                      u.permissions AS "permissions: Permissions", u.created_at
                FROM devices d JOIN users u ON u.id = d.user_id
                WHERE d.token_hash = ? AND d.expires_at > ?"#,
             token_hash,
@@ -573,7 +659,7 @@ impl Users {
             user: User {
                 id: row.user_id,
                 name: row.user_name,
-                role: row.role,
+                permissions: row.permissions,
                 created_at: row.created_at,
             },
             device: Device {
@@ -647,8 +733,9 @@ impl Users {
     ) -> Result<Option<(User, Option<StoredPassword>)>, Error> {
         let username = name_key(name);
         let row = sqlx::query!(
-            r#"SELECT u.id AS "id!", u.display_username AS name, u.role AS "role: Role",
-                      u.created_at, m.id AS "method_id?", m.provider_id AS "provider_id?",
+            r#"SELECT u.id AS "id!", u.display_username AS name,
+                      u.permissions AS "permissions: Permissions", u.created_at,
+                      m.id AS "method_id?", m.provider_id AS "provider_id?",
                       m.credential AS "credential?"
                FROM users u LEFT JOIN sign_in_methods m ON m.user_id = u.id AND m.subject IS NULL
                WHERE u.username = ?"#,
@@ -662,7 +749,7 @@ impl Users {
         let user = User {
             id: row.id,
             name: row.name,
-            role: row.role,
+            permissions: row.permissions,
             created_at: row.created_at,
         };
         let enabled = self.plugins.enabled();
@@ -843,14 +930,18 @@ async fn user_exists(conn: &mut SqliteConnection, user: i64) -> Result<bool, sql
     .await
 }
 
-/// Gives the User `user` the Role `role`, failing if that leaves no Admin. Checked after the write,
-/// in the same transaction, so a refusal rolls the write back. Writes run one at a time, so two
-/// demotions at once can't both pass the check.
-async fn update_role(conn: &mut SqliteConnection, user: i64, role: Role) -> Result<(), Error> {
+/// Gives the User `user` exactly `permissions`, failing if that leaves no User with
+/// `PERMISSION_ADMIN`. Checked after the write, in the same transaction, so a refusal rolls the
+/// write back. Writes run one at a time, so two demotions at once can't both pass the check.
+async fn update_permissions(
+    conn: &mut SqliteConnection,
+    user: i64,
+    permissions: Permissions,
+) -> Result<(), Error> {
     let now = now();
     let updated = sqlx::query!(
-        "UPDATE users SET role = ?, updated_at = ? WHERE id = ?",
-        role,
+        "UPDATE users SET permissions = ?, updated_at = ? WHERE id = ?",
+        permissions.0,
         now,
         user
     )
@@ -862,8 +953,9 @@ async fn update_role(conn: &mut SqliteConnection, user: i64, role: Role) -> Resu
     ensure_an_admin_left(conn).await
 }
 
-/// Deletes the User `user`, whose Sign-in Methods and Devices go with them, failing if that leaves no
-/// Admin, as [`update_role`] does. Returns the IDs of the Devices it signed out.
+/// Deletes the User `user`, whose Sign-in Methods and Devices go with them, failing if that leaves
+/// no User with `PERMISSION_ADMIN`, as [`update_permissions`] does. Returns the IDs of the Devices
+/// it signed out.
 async fn delete_user(conn: &mut SqliteConnection, user: i64) -> Result<Vec<i64>, Error> {
     let devices = sqlx::query_scalar!(r#"SELECT id AS "id!" FROM devices WHERE user_id = ?"#, user)
         .fetch_all(&mut *conn)
@@ -879,11 +971,37 @@ async fn delete_user(conn: &mut SqliteConnection, user: i64) -> Result<Vec<i64>,
     Ok(devices)
 }
 
-/// Fails with [`Error::LastAdmin`] if the Server has no Admin, so the write before it, in the same
-/// transaction, is rolled back.
+/// Fails with [`Error::AdminRequired`] if `by`, without `PERMISSION_ADMIN`, would change the User
+/// `user`, who has it. Only an Admin changes an Admin, as in Seerr, so `PERMISSION_MANAGE_USERS`
+/// can't become `PERMISSION_ADMIN` by taking over an Admin. Read in the write's transaction, so
+/// `user` can't be made an Admin between the check and the change.
+async fn ensure_may_change(conn: &mut SqliteConnection, by: &User, user: i64) -> Result<(), Error> {
+    if by.permissions.allow(Permission::Admin) {
+        return Ok(());
+    }
+    let admin = Permissions::ADMIN.0;
+    let changing_an_admin = sqlx::query_scalar!(
+        r#"SELECT EXISTS (SELECT 1 FROM users WHERE id = ? AND permissions & ? != 0)
+               AS "admin!: bool""#,
+        user,
+        admin
+    )
+    .fetch_one(conn)
+    .await?;
+    if changing_an_admin {
+        Err(Error::AdminRequired)
+    } else {
+        Ok(())
+    }
+}
+
+/// Fails with [`Error::LastAdmin`] if no User has `PERMISSION_ADMIN`, so the write before it, in
+/// the same transaction, is rolled back.
 async fn ensure_an_admin_left(conn: &mut SqliteConnection) -> Result<(), Error> {
+    let admin = Permissions::ADMIN.0;
     let any_admin = sqlx::query_scalar!(
-        r#"SELECT EXISTS (SELECT 1 FROM users WHERE role = 'admin') AS "any!: bool""#
+        r#"SELECT EXISTS (SELECT 1 FROM users WHERE permissions & ? != 0) AS "any!: bool""#,
+        admin
     )
     .fetch_one(conn)
     .await?;
@@ -907,7 +1025,7 @@ async fn insert_first_admin(
     if any_user(conn).await? {
         return Err(Error::AlreadySetUp);
     }
-    let user = insert_user(conn, name, Role::Admin).await?;
+    let user = insert_user(conn, name, Permissions::ADMIN).await?;
     let method = set_password(conn, user.id, credential).await?;
     let device = insert_device(conn, user.id, Some(method), device, token_hash).await?;
     Ok(Caller { user, device })
@@ -1017,17 +1135,22 @@ pub(crate) fn name_key(name: &str) -> String {
     name.trim().to_lowercase()
 }
 
-/// Stores a User named `name`, which has been checked, unless another has it ignoring case.
-async fn insert_user(conn: &mut SqliteConnection, name: &str, role: Role) -> Result<User, Error> {
+/// Stores a User named `name`, which has been checked, with `permissions`, unless another has the
+/// name ignoring case.
+async fn insert_user(
+    conn: &mut SqliteConnection,
+    name: &str,
+    permissions: Permissions,
+) -> Result<User, Error> {
     let username = name_key(name);
     let created_at = now();
     let id = sqlx::query_scalar!(
-        r#"INSERT INTO users (username, display_username, role, created_at, updated_at)
+        r#"INSERT INTO users (username, display_username, permissions, created_at, updated_at)
            VALUES (?, ?, ?, ?, ?)
            RETURNING id AS "id!""#,
         username,
         name,
-        role,
+        permissions.0,
         created_at,
         created_at,
     )
@@ -1040,7 +1163,7 @@ async fn insert_user(conn: &mut SqliteConnection, name: &str, role: Role) -> Res
     Ok(User {
         id,
         name: name.to_owned(),
-        role,
+        permissions,
         created_at,
     })
 }
@@ -1095,8 +1218,20 @@ mod tests {
 
     async fn create_user(db: &Database, name: &str) -> Result<User, Error> {
         let name = name.to_owned();
-        db.write(move |tx| Box::pin(async move { insert_user(tx, &name, Role::Member).await }))
-            .await
+        db.write(move |tx| {
+            Box::pin(async move { insert_user(tx, &name, Permissions::NEW_USER).await })
+        })
+        .await
+    }
+
+    /// An Admin who isn't stored, to make changes as.
+    fn admin() -> User {
+        User {
+            id: 0,
+            name: "Root".to_owned(),
+            permissions: Permissions::ADMIN,
+            created_at: 0,
+        }
     }
 
     const TOKEN: &str = "nama_test-token";
@@ -1259,13 +1394,20 @@ mod tests {
         let users = Users::new(Arc::clone(&db), Registry::new());
         let ada = create_user(&db, "Ada").await.unwrap().id;
         let grace = create_user(&db, "Grace").await.unwrap().id;
-        users.set_role(ada, Role::Admin).await.unwrap();
-        users.set_role(grace, Role::Admin).await.unwrap();
+        users
+            .set_permissions(&admin(), ada, Permissions::ADMIN)
+            .await
+            .unwrap();
+        users
+            .set_permissions(&admin(), grace, Permissions::ADMIN)
+            .await
+            .unwrap();
 
         // Unlike over the API, no access check stands between the two and the database.
+        let root = admin();
         let (ada_demoted, grace_demoted) = tokio::join!(
-            users.set_role(ada, Role::Member),
-            users.set_role(grace, Role::Member),
+            users.set_permissions(&root, ada, Permissions::NEW_USER),
+            users.set_permissions(&root, grace, Permissions::NEW_USER),
         );
 
         let refused = [&ada_demoted, &grace_demoted]
@@ -1274,8 +1416,104 @@ mod tests {
             .count();
         assert_eq!(refused, 1, "{ada_demoted:?} / {grace_demoted:?}");
         let admins = users.list().await.unwrap();
-        let admins = admins.iter().filter(|user| user.role == Role::Admin);
+        let admins = admins
+            .iter()
+            .filter(|user| user.permissions == Permissions::ADMIN);
         assert_eq!(admins.count(), 1);
+    }
+
+    #[test]
+    fn request_covers_requesting_movies_and_shows_but_not_auto_approval() {
+        let request = Permissions::from_iter([Permission::Request]);
+
+        assert!(request.allow(Permission::RequestMovie));
+        assert!(request.allow(Permission::RequestTv));
+        assert!(!request.allow(Permission::AutoApproveMovie));
+        assert!(!request.allow(Permission::ViewRequests));
+    }
+
+    #[test]
+    fn auto_approve_covers_its_movie_and_show_variants() {
+        let auto_approve = Permissions::from_iter([Permission::AutoApprove]);
+
+        assert!(auto_approve.allow(Permission::AutoApproveMovie));
+        assert!(auto_approve.allow(Permission::AutoApproveTv));
+        assert!(!auto_approve.allow(Permission::RequestMovie));
+    }
+
+    #[test]
+    fn a_variant_does_not_cover_its_parent_or_its_sibling() {
+        let movies = Permissions::from_iter([Permission::RequestMovie]);
+
+        assert!(movies.allow(Permission::RequestMovie));
+        assert!(!movies.allow(Permission::Request));
+        assert!(!movies.allow(Permission::RequestTv));
+    }
+
+    #[test]
+    fn admin_passes_every_check() {
+        for &needed in Permission::values() {
+            assert!(Permissions::ADMIN.allow(needed), "{needed:?}");
+        }
+    }
+
+    #[test]
+    fn manage_libraries_does_not_cover_managing_users() {
+        let libraries = Permissions::from_iter([Permission::ManageLibraries]);
+
+        assert!(libraries.allow(Permission::ManageLibraries));
+        assert!(!libraries.allow(Permission::ManageUsers));
+    }
+
+    #[test]
+    fn permissions_list_each_held_one_in_value_order() {
+        let held = Permissions::from_iter([
+            Permission::ViewRequests,
+            Permission::Request,
+            Permission::ViewRequests,
+        ]);
+
+        assert_eq!(
+            held.iter().collect::<Vec<_>>(),
+            [Permission::Request, Permission::ViewRequests]
+        );
+        assert_eq!(held, Permissions::NEW_USER);
+    }
+
+    #[tokio::test]
+    async fn upgrading_gives_admins_admin_and_members_request_and_view_requests() {
+        let data_dir = tempfile::tempdir().unwrap();
+        let file = data_dir.path().join(crate::db::FILE_NAME);
+        let options = sqlx::sqlite::SqliteConnectOptions::new()
+            .filename(&file)
+            .create_if_missing(true);
+        // A raw connection, not `Database::write`: `Database::open` would run every migration.
+        let mut before = sqlx::ConnectOptions::connect(&options).await.unwrap();
+        // The last migration with Roles.
+        sqlx::migrate!().run_to(9, &mut before).await.unwrap();
+        sqlx::query(
+            "INSERT INTO users (username, display_username, role, created_at, updated_at)
+             VALUES ('ada', 'Ada', 'admin', 0, 0), ('grace', 'Grace', 'member', 0, 0)",
+        )
+        .execute(&mut before)
+        .await
+        .unwrap();
+        sqlx::Connection::close(before).await.unwrap();
+
+        let db = Arc::new(Database::open(data_dir.path()).await.unwrap());
+        let users = Users::new(db, Registry::new()).list().await.unwrap();
+
+        let permissions: Vec<_> = users
+            .iter()
+            .map(|user| (user.name.as_str(), user.permissions))
+            .collect();
+        assert_eq!(
+            permissions,
+            [
+                ("Ada", Permissions::ADMIN),
+                ("Grace", Permissions::NEW_USER)
+            ]
+        );
     }
 
     /// [`Users`] on a fresh database in `data_dir`, whose Authenticator is `local-auth`.
@@ -1385,7 +1623,7 @@ mod tests {
     async fn a_device_signed_in_with_a_password_records_its_method_ip_user_agent_and_when() {
         let data_dir = tempfile::tempdir().unwrap();
         let users = users_with_local_auth(data_dir.path()).await;
-        users.create("Ada", PASSWORD, Role::Member).await.unwrap();
+        users.create("Ada", PASSWORD).await.unwrap();
         let before = now();
 
         let signed_in = users.sign_in("ada", PASSWORD, laptop()).await.unwrap();
@@ -1432,7 +1670,7 @@ mod tests {
     async fn deleting_a_sign_in_method_signs_out_only_the_devices_that_used_it() {
         let data_dir = tempfile::tempdir().unwrap();
         let users = users_with_local_auth(data_dir.path()).await;
-        let ada = users.create("Ada", PASSWORD, Role::Member).await.unwrap();
+        let ada = users.create("Ada", PASSWORD).await.unwrap();
         add_other_sign_in_method(&users, ada).await;
         let by_password = users.sign_in("Ada", PASSWORD, laptop()).await.unwrap();
         let by_code = users
@@ -1451,7 +1689,7 @@ mod tests {
     async fn a_users_last_sign_in_method_cant_be_deleted() {
         let data_dir = tempfile::tempdir().unwrap();
         let users = users_with_local_auth(data_dir.path()).await;
-        let ada = users.create("Ada", PASSWORD, Role::Member).await.unwrap();
+        let ada = users.create("Ada", PASSWORD).await.unwrap();
 
         let password = password_method(&users, ada).await;
         let deleted = delete_sign_in_method(&users, password).await;
@@ -1470,7 +1708,7 @@ mod tests {
             "not found by name"
         );
 
-        users.reset_password(ada, PASSWORD).await.unwrap();
+        users.reset_password(&admin(), ada, PASSWORD).await.unwrap();
 
         users.sign_in("Ada", PASSWORD, laptop()).await.unwrap();
         let password = password_method(&users, ada).await;

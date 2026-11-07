@@ -3,9 +3,9 @@ import { act, cleanup, fireEvent, screen } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
-import { Role, SignInCodeStatus } from "@/gen/nama/v1/sign_in_pb";
+import { SignInCodeStatus } from "@/gen/nama/v1/sign_in_pb";
 
-import { type ServerState, fakeServer, fill, openApp } from "./test-app";
+import { fakeServer, fill, newUser, openApp, type ServerState } from "./test-app";
 import { confirmItsYou, recentAuthenticationRequired, refused } from "./test-refusal";
 
 beforeEach(() => {
@@ -44,7 +44,7 @@ function serverWaitingForApproval() {
   return {
     transport,
     approve: () => {
-      state.signedIn = Role.MEMBER;
+      state.signedIn = newUser;
     },
   };
 }
@@ -137,7 +137,7 @@ function refuseUnlessShown(code: string) {
 /** A signed-in Server where "Living room TV" shows `abcdefgh`, approving into `approved`. */
 function serverWithCode(approved: string[] = []) {
   return fakeServer(
-    { signedIn: Role.MEMBER },
+    { signedIn: newUser },
     {
       lookUpSignInCode: ({ code }) => {
         refuseUnlessShown(code);
@@ -184,7 +184,7 @@ test("a wrong code shows a plain error", async () => {
 function serverNeedingRecentAuthentication() {
   let reauthenticated = false;
   return fakeServer(
-    { signedIn: Role.MEMBER },
+    { signedIn: newUser },
     {
       lookUpSignInCode: () => ({ deviceName: "Living room TV" }),
       approveSignInCode: () => {

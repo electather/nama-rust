@@ -1,6 +1,7 @@
-//! Admins creating, listing, changing the Role of, resetting the password of and deleting Users,
-//! Users changing their own password, and Users and Admins listing and revoking Devices, through
-//! the generated `UserService` client, over a real socket and against a real SQLite database.
+//! Admins creating, listing, setting the Permissions of, resetting the password of and deleting
+//! Users, Users changing their own password, and Users and Admins listing and revoking Devices,
+//! through the generated `UserService` client, over a real socket and against a real SQLite
+//! database.
 
 #[path = "support/refused.rs"]
 mod refused;
@@ -16,8 +17,8 @@ use connectrpc::{
 use nama_proto::nama::v1::{
     __buffa::view::SubscribeResponseView, ChangePasswordRequest, CreateUserRequest,
     DeleteUserRequest, Device, EventServiceClient, ListDevicesRequest, ListUsersRequest,
-    RefusalReason, ResetPasswordRequest, RevokeDeviceRequest, Role, SessionDelivery,
-    SetRoleRequest, SignInRequest, SignInResponse, SignInServiceClient, SubscribeRequest,
+    Permission, RefusalReason, ResetPasswordRequest, RevokeDeviceRequest, SessionDelivery,
+    SetPermissionsRequest, SignInRequest, SignInResponse, SignInServiceClient, SubscribeRequest,
     SubscribeResponse, User, UserServiceClient, WhoAmIRequest,
 };
 use nama_server::{config::Config, plugins::Registry};
@@ -37,14 +38,13 @@ impl Fixture {
         Self { client, server }
     }
 
-    /// Creates a User named `name` with `password` and `role`, and returns their ID.
-    async fn create(&self, name: &str, password: &str, role: Role) -> Result<i64, ConnectError> {
+    /// Creates a User named `name` with `password`, and returns their ID.
+    async fn create(&self, name: &str, password: &str) -> Result<i64, ConnectError> {
         let response = self
             .client
             .create_user(CreateUserRequest {
                 name: name.to_owned(),
                 password: password.to_owned(),
-                role: role.into(),
                 ..Default::default()
             })
             .await?;
@@ -89,28 +89,29 @@ impl Fixture {
         Ok(response.into_owned())
     }
 
-    /// Creates a Member named Grace and signs two of her Devices in, a Phone and then a Laptop.
+    /// Creates a User named Grace and signs two of her Devices in, a Phone and then a Laptop.
     #[expect(
         clippy::unwrap_used,
         reason = "a test helper fails its test by panicking"
     )]
     async fn grace_on_phone_and_laptop(&self) -> (SignInResponse, SignInResponse) {
-        self.create("Grace", PASSWORD, Role::ROLE_MEMBER)
-            .await
-            .unwrap();
+        self.create("Grace", PASSWORD).await.unwrap();
         let phone = self.sign_in_device("Grace", PASSWORD, "Phone").await;
         let laptop = self.sign_in_device("Grace", PASSWORD, "Laptop").await;
         (phone.unwrap(), laptop.unwrap())
     }
 
-    /// Creates a User named `name` with `role`, signs a Device in as them, and returns their ID
-    /// and that Device's session token.
+    /// Creates a User named `name` with `permissions`, signs a Device in as them, and returns their
+    /// ID and that Device's session token.
     #[expect(
         clippy::unwrap_used,
         reason = "a test helper fails its test by panicking"
     )]
-    async fn signed_in_user(&self, name: &str, role: Role) -> (i64, String) {
-        let id = self.create(name, PASSWORD, role).await.unwrap();
+    async fn signed_in_user(&self, name: &str, permissions: &[Permission]) -> (i64, String) {
+        let id = self.create(name, PASSWORD).await.unwrap();
+        set_permissions(&self.client, id, permissions)
+            .await
+            .unwrap();
         let signed_in = self.sign_in_device(name, PASSWORD, "Phone").await.unwrap();
         (id, signed_in.token)
     }
@@ -140,15 +141,15 @@ impl Fixture {
     }
 }
 
-async fn set_role(
+async fn set_permissions(
     client: &UserServiceClient<HttpClient>,
     user_id: i64,
-    role: Role,
+    permissions: &[Permission],
 ) -> Result<(), ConnectError> {
     client
-        .set_role(SetRoleRequest {
+        .set_permissions(SetPermissionsRequest {
             user_id,
-            role: role.into(),
+            permissions: permissions.iter().map(|&p| p.into()).collect(),
             ..Default::default()
         })
         .await?;
@@ -168,7 +169,7 @@ async fn delete_user(
     Ok(())
 }
 
-/// The IDs of the Users who are Admins, listed by `client`, which must be an Admin's.
+/// The IDs of the Users with `PERMISSION_ADMIN`, listed by `client`, which must be an Admin's.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
@@ -182,12 +183,13 @@ async fn admin_ids(client: &UserServiceClient<HttpClient>) -> Vec<i64> {
         .into_owned()
         .users
         .into_iter()
-        .filter(|user| user.role == Role::ROLE_ADMIN)
+        .filter(|user| user.permissions.contains(&Permission::Admin.into()))
         .map(|user| user.id)
         .collect()
 }
 
-/// Whether `client` may call an Admin RPC: `Ok` if so, or the code it was refused with.
+/// Whether `client` may call an RPC that needs `PERMISSION_MANAGE_USERS`: `Ok` if so, or the code
+/// it was refused with.
 async fn admin_rpc(client: &UserServiceClient<HttpClient>) -> Result<(), ConnectError> {
     client
         .list_users(ListUsersRequest::default())
@@ -309,10 +311,7 @@ async fn a_user_an_admin_creates_can_sign_in_and_is_listed() {
     let fixture = Fixture::start().await;
 
     let before = now();
-    let id = fixture
-        .create("  Grace  ", PASSWORD, Role::ROLE_MEMBER)
-        .await
-        .unwrap();
+    let id = fixture.create("  Grace  ", PASSWORD).await.unwrap();
     let after = now();
     let signed_in = fixture.sign_in("grace", PASSWORD).await.unwrap();
     let users = fixture.list().await.unwrap();
@@ -321,7 +320,10 @@ async fn a_user_an_admin_creates_can_sign_in_and_is_listed() {
     let names: Vec<_> = users.iter().map(|user| user.name.as_str()).collect();
     assert_eq!(names, ["Admin", "Grace"]);
     let grace = users.iter().find(|user| user.id == id).unwrap();
-    assert_eq!(grace.role, Role::ROLE_MEMBER);
+    assert_eq!(
+        grace.permissions,
+        [Permission::Request, Permission::ViewRequests]
+    );
     assert!(
         (before..=after).contains(&grace.created_at),
         "{before} <= {} <= {after}",
@@ -332,13 +334,10 @@ async fn a_user_an_admin_creates_can_sign_in_and_is_listed() {
 #[tokio::test]
 async fn a_name_another_user_has_in_any_case_already_exists() {
     let fixture = Fixture::start().await;
-    fixture
-        .create("Grace", PASSWORD, Role::ROLE_MEMBER)
-        .await
-        .unwrap();
+    fixture.create("Grace", PASSWORD).await.unwrap();
 
-    let taken = fixture.create("gRACE", PASSWORD, Role::ROLE_ADMIN).await;
-    let the_admins = fixture.create("ADMIN", PASSWORD, Role::ROLE_MEMBER).await;
+    let taken = fixture.create("gRACE", PASSWORD).await;
+    let the_admins = fixture.create("ADMIN", PASSWORD).await;
 
     for refused in [taken, the_admins] {
         let refusal = assert_refused(
@@ -351,7 +350,7 @@ async fn a_name_another_user_has_in_any_case_already_exists() {
 }
 
 #[tokio::test]
-async fn a_name_password_or_role_outside_the_rules_is_refused_and_nobody_is_created() {
+async fn a_name_or_password_outside_the_rules_is_refused_and_nobody_is_created() {
     let fixture = Fixture::start().await;
     let too_long_name = "x".repeat(65);
     let too_long_password = "x".repeat(1025);
@@ -359,35 +358,16 @@ async fn a_name_password_or_role_outside_the_rules_is_refused_and_nobody_is_crea
     let name_length = RefusalReason::REFUSAL_REASON_NAME_LENGTH;
     let rejected = RefusalReason::REFUSAL_REASON_PASSWORD_REJECTED;
     let refusals = [
-        ("   ", PASSWORD, Role::ROLE_MEMBER, name_length, "name"),
-        (
-            too_long_name.as_str(),
-            PASSWORD,
-            Role::ROLE_MEMBER,
-            name_length,
-            "name",
-        ),
-        ("Grace", "1234567", Role::ROLE_MEMBER, rejected, "password"),
-        (
-            "Grace",
-            too_long_password.as_str(),
-            Role::ROLE_MEMBER,
-            rejected,
-            "password",
-        ),
-        (
-            "Grace",
-            PASSWORD,
-            Role::ROLE_UNSPECIFIED,
-            RefusalReason::REFUSAL_REASON_UNKNOWN_ENUM_VALUE,
-            "role",
-        ),
+        ("   ", PASSWORD, name_length, "name"),
+        (too_long_name.as_str(), PASSWORD, name_length, "name"),
+        ("Grace", "1234567", rejected, "password"),
+        ("Grace", too_long_password.as_str(), rejected, "password"),
     ];
-    for (name, password, role, reason, field) in refusals {
-        let refused = fixture.create(name, password, role).await;
+    for (name, password, reason, field) in refusals {
+        let refused = fixture.create(name, password).await;
 
         let refusal = assert_refused(refused, ErrorCode::InvalidArgument, reason);
-        assert_eq!(refusal.field, field, "{name:.8} / {password:.8} / {role:?}");
+        assert_eq!(refusal.field, field, "{name:.8} / {password:.8}");
         if reason == name_length {
             assert_eq!(refusal.params["minLength"], "1");
             assert_eq!(refusal.params["maxLength"], "64");
@@ -402,25 +382,25 @@ async fn the_longest_name_and_password_the_rules_allow_are_accepted() {
     let name = "é".repeat(64);
     let password = "x".repeat(1024);
 
-    let created = fixture.create(&name, &password, Role::ROLE_ADMIN).await;
+    let created = fixture.create(&name, &password).await;
 
     assert!(created.is_ok(), "{created:?}");
     let signed_in = fixture.sign_in(&name, &password).await.unwrap();
-    assert_eq!(signed_in.role, Role::ROLE_ADMIN);
+    assert_eq!(signed_in.id, created.unwrap());
 }
 
 #[tokio::test]
-async fn a_promoted_member_may_call_admin_rpcs_on_their_next_request() {
+async fn a_user_given_a_permission_may_use_it_on_their_next_request() {
     let fixture = Fixture::start().await;
-    let (grace, token) = fixture.signed_in_user("Grace", Role::ROLE_MEMBER).await;
+    let (grace, token) = fixture.signed_in_user("Grace", &[]).await;
     let as_grace = fixture.client_as(&token);
     assert_refused(
         admin_rpc(&as_grace).await,
         ErrorCode::PermissionDenied,
-        RefusalReason::REFUSAL_REASON_ADMIN_REQUIRED,
+        RefusalReason::REFUSAL_REASON_PERMISSION_REQUIRED,
     );
 
-    set_role(&fixture.client, grace, Role::ROLE_ADMIN)
+    set_permissions(&fixture.client, grace, &[Permission::ManageUsers])
         .await
         .unwrap();
 
@@ -430,18 +410,19 @@ async fn a_promoted_member_may_call_admin_rpcs_on_their_next_request() {
 #[tokio::test]
 async fn a_demoted_admin_loses_admin_rpcs_on_their_next_request_but_stays_signed_in() {
     let fixture = Fixture::start().await;
-    let (grace, token) = fixture.signed_in_user("Grace", Role::ROLE_ADMIN).await;
+    let (grace, token) = fixture.signed_in_user("Grace", &[Permission::Admin]).await;
     let as_grace = fixture.client_as(&token);
     admin_rpc(&as_grace).await.unwrap();
 
-    set_role(&fixture.client, grace, Role::ROLE_MEMBER)
+    let requests_only = [Permission::Request, Permission::ViewRequests];
+    set_permissions(&fixture.client, grace, &requests_only)
         .await
         .unwrap();
 
     assert_refused(
         admin_rpc(&as_grace).await,
         ErrorCode::PermissionDenied,
-        RefusalReason::REFUSAL_REASON_ADMIN_REQUIRED,
+        RefusalReason::REFUSAL_REASON_PERMISSION_REQUIRED,
     );
     let who = SignInServiceClient::new(
         HttpClient::plaintext(),
@@ -451,15 +432,15 @@ async fn a_demoted_admin_loses_admin_rpcs_on_their_next_request_but_stays_signed
     .await
     .unwrap()
     .into_owned();
-    assert_eq!(who.user.role, Role::ROLE_MEMBER);
+    assert_eq!(who.user.permissions, requests_only);
 }
 
 #[tokio::test]
-async fn demoting_the_last_admin_is_refused() {
+async fn removing_admin_from_the_last_user_with_it_is_refused() {
     let fixture = Fixture::start().await;
     let admin = fixture.first_admin_id().await;
 
-    let demoted = set_role(&fixture.client, admin, Role::ROLE_MEMBER).await;
+    let demoted = set_permissions(&fixture.client, admin, &[Permission::ManageUsers]).await;
 
     assert_refused(
         demoted,
@@ -473,9 +454,9 @@ async fn demoting_the_last_admin_is_refused() {
 async fn an_admin_may_demote_themselves_while_another_admin_exists() {
     let fixture = Fixture::start().await;
     let admin = fixture.first_admin_id().await;
-    let (grace, token) = fixture.signed_in_user("Grace", Role::ROLE_ADMIN).await;
+    let (grace, token) = fixture.signed_in_user("Grace", &[Permission::Admin]).await;
 
-    let demoted = set_role(&fixture.client, admin, Role::ROLE_MEMBER).await;
+    let demoted = set_permissions(&fixture.client, admin, &[]).await;
 
     assert_eq!(code(demoted), None);
     assert_eq!(admin_ids(&fixture.client_as(&token)).await, [grace]);
@@ -485,12 +466,12 @@ async fn an_admin_may_demote_themselves_while_another_admin_exists() {
 async fn two_admins_demoting_each_other_at_once_leave_exactly_one_admin() {
     let fixture = Fixture::start().await;
     let admin = fixture.first_admin_id().await;
-    let (grace, token) = fixture.signed_in_user("Grace", Role::ROLE_ADMIN).await;
+    let (grace, token) = fixture.signed_in_user("Grace", &[Permission::Admin]).await;
     let as_grace = fixture.client_as(&token);
 
     let (grace_demoted, admin_demoted) = tokio::join!(
-        set_role(&fixture.client, grace, Role::ROLE_MEMBER),
-        set_role(&as_grace, admin, Role::ROLE_MEMBER),
+        set_permissions(&fixture.client, grace, &[]),
+        set_permissions(&as_grace, admin, &[]),
     );
 
     let (survivor, lost) = match (grace_demoted, admin_demoted) {
@@ -502,7 +483,7 @@ async fn two_admins_demoting_each_other_at_once_leave_exactly_one_admin() {
     let reason = refusal_of(&lost).reason;
     assert!(
         (lost.code == ErrorCode::PermissionDenied
-            && reason == RefusalReason::REFUSAL_REASON_ADMIN_REQUIRED)
+            && reason == RefusalReason::REFUSAL_REASON_PERMISSION_REQUIRED)
             || (lost.code == ErrorCode::FailedPrecondition
                 && reason == RefusalReason::REFUSAL_REASON_LAST_ADMIN),
         "{lost:?}"
@@ -516,10 +497,10 @@ async fn two_admins_demoting_each_other_at_once_leave_exactly_one_admin() {
 }
 
 #[tokio::test]
-async fn changing_the_role_of_an_unknown_user_is_not_found() {
+async fn setting_the_permissions_of_an_unknown_user_is_not_found() {
     let fixture = Fixture::start().await;
 
-    let changed = set_role(&fixture.client, 999, Role::ROLE_ADMIN).await;
+    let changed = set_permissions(&fixture.client, 999, &[Permission::Admin]).await;
 
     let refusal = assert_refused(
         changed,
@@ -527,6 +508,94 @@ async fn changing_the_role_of_an_unknown_user_is_not_found() {
         RefusalReason::REFUSAL_REASON_USER_NOT_FOUND,
     );
     assert_eq!(refusal.field, "user_id");
+}
+
+/// Asserts that `refused` is for want of `PERMISSION_ADMIN`.
+fn assert_admin_required(refused: Result<(), ConnectError>) {
+    let refusal = assert_refused(
+        refused,
+        ErrorCode::PermissionDenied,
+        RefusalReason::REFUSAL_REASON_PERMISSION_REQUIRED,
+    );
+    let permission = refusal.params.get("permission").map(String::as_str);
+    assert_eq!(permission, Some("PERMISSION_ADMIN"));
+}
+
+#[tokio::test]
+async fn a_user_who_manages_users_sets_the_permissions_of_others_who_arent_admins() {
+    let fixture = Fixture::start().await;
+    let (_, token) = fixture
+        .signed_in_user("Grace", &[Permission::ManageUsers])
+        .await;
+    let kim = fixture.create("Kim", PASSWORD).await.unwrap();
+
+    let set = set_permissions(
+        &fixture.client_as(&token),
+        kim,
+        &[Permission::ManageLibraries],
+    )
+    .await;
+
+    assert_eq!(code(set), None);
+}
+
+#[tokio::test]
+async fn a_user_who_manages_users_cant_make_anyone_an_admin_or_change_their_own_permissions() {
+    let fixture = Fixture::start().await;
+    let (grace, token) = fixture
+        .signed_in_user("Grace", &[Permission::ManageUsers])
+        .await;
+    let as_grace = fixture.client_as(&token);
+    let kim = fixture.create("Kim", PASSWORD).await.unwrap();
+
+    assert_admin_required(set_permissions(&as_grace, kim, &[Permission::Admin]).await);
+    let more = [Permission::ManageUsers, Permission::ManageLibraries];
+    assert_admin_required(set_permissions(&as_grace, grace, &more).await);
+    assert_eq!(
+        admin_ids(&fixture.client).await,
+        [fixture.first_admin_id().await]
+    );
+}
+
+#[tokio::test]
+async fn a_user_who_manages_users_cant_change_reset_or_delete_an_admin() {
+    let fixture = Fixture::start().await;
+    let admin = fixture.first_admin_id().await;
+    let (_, token) = fixture
+        .signed_in_user("Grace", &[Permission::ManageUsers])
+        .await;
+    let as_grace = fixture.client_as(&token);
+
+    assert_admin_required(set_permissions(&as_grace, admin, &[]).await);
+    assert_admin_required(reset_password(&as_grace, admin, "battery staple horse").await);
+    assert_admin_required(delete_user(&as_grace, admin).await);
+    assert!(
+        fixture
+            .signed_in(&fixture.server.admin_token)
+            .await
+            .unwrap()
+    );
+}
+
+#[tokio::test]
+async fn setting_an_unspecified_permission_is_refused_and_changes_nothing() {
+    let fixture = Fixture::start().await;
+    let admin = fixture.first_admin_id().await;
+
+    let changed = set_permissions(
+        &fixture.client,
+        admin,
+        &[Permission::Admin, Permission::Unspecified],
+    )
+    .await;
+
+    let refusal = assert_refused(
+        changed,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_UNKNOWN_ENUM_VALUE,
+    );
+    assert_eq!(refusal.field, "permissions");
+    assert_eq!(admin_ids(&fixture.client).await, [admin]);
 }
 
 #[tokio::test]
@@ -582,7 +651,7 @@ async fn deleting_the_last_admin_is_refused() {
 async fn an_admin_may_delete_themselves_while_another_admin_exists() {
     let fixture = Fixture::start().await;
     let admin = fixture.first_admin_id().await;
-    let (grace, token) = fixture.signed_in_user("Grace", Role::ROLE_ADMIN).await;
+    let (grace, token) = fixture.signed_in_user("Grace", &[Permission::Admin]).await;
 
     let deleted = delete_user(&fixture.client, admin).await;
 

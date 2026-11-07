@@ -1,7 +1,7 @@
 import { Code } from "@connectrpc/connect";
 import { createConnectQueryKey } from "@connectrpc/connect-query";
 
-import { Role } from "@/gen/nama/v1/sign_in_pb";
+import { Permission, type User } from "@/gen/nama/v1/sign_in_pb";
 import { UserService } from "@/gen/nama/v1/user_pb";
 
 import { type FormErrors, refusedFieldErrors, refusal, serverMessage } from "./forms";
@@ -18,8 +18,9 @@ export const devicesKey = createConnectQueryKey({
   cardinality: "finite",
 });
 
-export function roleName(role: Role) {
-  return role === Role.ADMIN ? "Admin" : "Member";
+/** Whether `user` has the Admin Permission, which passes every check. */
+export function isAdmin(user: User | undefined) {
+  return user?.permissions.includes(Permission.ADMIN) ?? false;
 }
 
 /**

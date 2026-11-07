@@ -217,7 +217,7 @@ async fn setup_with_the_right_code_creates_an_admin_signed_in_on_the_device() {
 
     assert_eq!(me.status, 200, "{}", me.body);
     assert_eq!(me.body["user"]["name"], "Ada");
-    assert_eq!(me.body["user"]["role"], "ROLE_ADMIN");
+    assert_eq!(me.body["user"]["permissions"], json!(["PERMISSION_ADMIN"]));
     assert_eq!(me.body["device"]["name"], "Laptop");
 }
 

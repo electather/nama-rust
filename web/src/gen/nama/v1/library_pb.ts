@@ -43,8 +43,8 @@ export type Library = Message<"nama.v1.Library"> & {
    * Absolute paths, on the Server, of the directories the Library's media lives in, in the
    * order they were given. The Server stores each in canonical form, with symlinks resolved and
    * no trailing separator, so a folder may come back spelled differently from how it was sent.
-   * Each folder belongs to at most one Library. Empty in `ListLibraries` for a caller who isn't an
-   * Admin.
+   * Each folder belongs to at most one Library. Empty in `ListLibraries` for a caller without
+   * `PERMISSION_MANAGE_LIBRARIES`.
    *
    * @generated from field: repeated string folders = 4;
    */
@@ -326,8 +326,8 @@ export const LibraryKindSchema: GenEnum<LibraryKind> = /*@__PURE__*/
 
 /**
  * The Server's Libraries: named collections of one kind of media, each backed by one or more
- * folders on the Server's disk. Every RPC but `ListLibraries` needs the Admin Role, and fails with
- * `permission_denied` without it.
+ * folders on the Server's disk. Every RPC but `ListLibraries` needs `PERMISSION_MANAGE_LIBRARIES`,
+ * and fails with `permission_denied` without it.
  *
  * @generated from service nama.v1.LibraryService
  */
@@ -346,7 +346,7 @@ export const LibraryService: GenService<{
   },
   /**
    * Lists every Library on the Server, oldest first. Any signed-in User may list them, to browse,
-   * but only an Admin gets their folders.
+   * but only one with `PERMISSION_MANAGE_LIBRARIES` gets their folders.
    *
    * @generated from rpc nama.v1.LibraryService.ListLibraries
    */

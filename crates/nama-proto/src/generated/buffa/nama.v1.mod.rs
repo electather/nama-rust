@@ -141,8 +141,8 @@ pub mod __buffa {
         reg.register_json_any(super::__CREATE_USER_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__LIST_USERS_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_USERS_RESPONSE_JSON_ANY);
-        reg.register_json_any(super::__SET_ROLE_REQUEST_JSON_ANY);
-        reg.register_json_any(super::__SET_ROLE_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__SET_PERMISSIONS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__SET_PERMISSIONS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__DELETE_USER_REQUEST_JSON_ANY);
         reg.register_json_any(super::__DELETE_USER_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__LIST_DEVICES_REQUEST_JSON_ANY);
@@ -496,13 +496,13 @@ pub use self::__buffa::view::ListUsersResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::ListUsersResponseOwnedView;
 #[doc(inline)]
-pub use self::__buffa::view::SetRoleRequestView;
+pub use self::__buffa::view::SetPermissionsRequestView;
 #[doc(inline)]
-pub use self::__buffa::view::SetRoleRequestOwnedView;
+pub use self::__buffa::view::SetPermissionsRequestOwnedView;
 #[doc(inline)]
-pub use self::__buffa::view::SetRoleResponseView;
+pub use self::__buffa::view::SetPermissionsResponseView;
 #[doc(inline)]
-pub use self::__buffa::view::SetRoleResponseOwnedView;
+pub use self::__buffa::view::SetPermissionsResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::DeleteUserRequestView;
 #[doc(inline)]

@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT EXISTS (SELECT 1 FROM users WHERE role = 'admin') AS \"any!: bool\"",
+  "query": "SELECT EXISTS (SELECT 1 FROM users WHERE permissions & ? != 0) AS \"any!: bool\"",
   "describe": {
     "columns": [
       {
@@ -11,11 +11,11 @@
       }
     ],
     "parameters": {
-      "Right": 0
+      "Right": 1
     },
     "nullable": [
       false
     ]
   },
-  "hash": "1ae412423525786ab733af0d46aa74b715c58bc3c1eba48b9206a4316d176739"
+  "hash": "c6ebdf1a56ca9b82216468dc25ebcf33e05d9e079852fc2042eb0e475d855df8"
 }

@@ -23,15 +23,6 @@ pub struct CreateUserRequest {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub password: ::buffa::alloc::string::String,
-    /// Must not be `ROLE_UNSPECIFIED`.
-    ///
-    /// Field 3: `role`
-    #[serde(
-        rename = "role",
-        with = "::buffa::json_helpers::proto_enum",
-        skip_serializing_if = "::buffa::json_helpers::skip_if::is_default_enum_value"
-    )]
-    pub role: ::buffa::EnumValue<Role>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -41,7 +32,6 @@ impl ::core::fmt::Debug for CreateUserRequest {
         f.debug_struct("CreateUserRequest")
             .field("name", &self.name)
             .field("password", &self.password)
-            .field("role", &self.role)
             .finish()
     }
 }
@@ -78,12 +68,6 @@ impl ::buffa::Message for CreateUserRequest {
         if !self.password.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.password) as u64;
         }
-        {
-            let val = self.role.to_i32();
-            if val != 0 {
-                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
-            }
-        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -99,12 +83,6 @@ impl ::buffa::Message for CreateUserRequest {
         }
         if !self.password.is_empty() {
             ::buffa::types::put_string_field(2u32, &self.password, buf);
-        }
-        {
-            let val = self.role.to_i32();
-            if val != 0 {
-                ::buffa::types::put_int32_field(3u32, val, buf);
-            }
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -133,13 +111,6 @@ impl ::buffa::Message for CreateUserRequest {
                 )?;
                 ::buffa::types::merge_string(&mut self.password, buf)?;
             }
-            3u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::Varint,
-                )?;
-                self.role = ::buffa::EnumValue::from(::buffa::types::decode_int32(buf)?);
-            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -150,7 +121,6 @@ impl ::buffa::Message for CreateUserRequest {
     fn clear(&mut self) {
         self.name.clear();
         self.password.clear();
-        self.role = ::buffa::EnumValue::from(0);
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -554,8 +524,8 @@ pub const __LIST_USERS_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry =
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
-pub struct SetRoleRequest {
-    /// The ID of the User whose Role changes.
+pub struct SetPermissionsRequest {
+    /// The ID of the User whose Permissions change.
     ///
     /// Field 1: `user_id`
     #[serde(
@@ -565,42 +535,42 @@ pub struct SetRoleRequest {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i64"
     )]
     pub user_id: i64,
-    /// Must not be `ROLE_UNSPECIFIED`.
+    /// Every Permission the User is to have, replacing those they had. Empty takes them all away.
     ///
-    /// Field 2: `role`
+    /// Field 2: `permissions`
     #[serde(
-        rename = "role",
-        with = "::buffa::json_helpers::proto_enum",
-        skip_serializing_if = "::buffa::json_helpers::skip_if::is_default_enum_value"
+        rename = "permissions",
+        with = "::buffa::json_helpers::repeated_enum",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec"
     )]
-    pub role: ::buffa::EnumValue<Role>,
+    pub permissions: ::buffa::alloc::vec::Vec<::buffa::EnumValue<Permission>>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
-impl ::core::fmt::Debug for SetRoleRequest {
+impl ::core::fmt::Debug for SetPermissionsRequest {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("SetRoleRequest")
+        f.debug_struct("SetPermissionsRequest")
             .field("user_id", &self.user_id)
-            .field("role", &self.role)
+            .field("permissions", &self.permissions)
             .finish()
     }
 }
-impl SetRoleRequest {
+impl SetPermissionsRequest {
     /// Protobuf type URL for this message, for use with `Any::pack` and
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.SetRoleRequest";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.SetPermissionsRequest";
 }
-::buffa::impl_default_instance!(SetRoleRequest);
-impl ::buffa::MessageName for SetRoleRequest {
+::buffa::impl_default_instance!(SetPermissionsRequest);
+impl ::buffa::MessageName for SetPermissionsRequest {
     const PACKAGE: &'static str = "nama.v1";
-    const NAME: &'static str = "SetRoleRequest";
-    const FULL_NAME: &'static str = "nama.v1.SetRoleRequest";
-    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.SetRoleRequest";
+    const NAME: &'static str = "SetPermissionsRequest";
+    const FULL_NAME: &'static str = "nama.v1.SetPermissionsRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.SetPermissionsRequest";
 }
-impl ::buffa::Message for SetRoleRequest {
+impl ::buffa::Message for SetPermissionsRequest {
     /// Returns the total encoded size in bytes.
     ///
     /// Accumulates in `u64` (which cannot overflow for in-memory
@@ -616,11 +586,13 @@ impl ::buffa::Message for SetRoleRequest {
         if self.user_id != 0i64 {
             size += 1u64 + ::buffa::types::int64_encoded_len(self.user_id) as u64;
         }
-        {
-            let val = self.role.to_i32();
-            if val != 0 {
-                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
-            }
+        if !self.permissions.is_empty() {
+            let payload: u64 = self
+                .permissions
+                .iter()
+                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                .sum::<u64>();
+            size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
@@ -635,10 +607,15 @@ impl ::buffa::Message for SetRoleRequest {
         if self.user_id != 0i64 {
             ::buffa::types::put_int64_field(1u32, self.user_id, buf);
         }
-        {
-            let val = self.role.to_i32();
-            if val != 0 {
-                ::buffa::types::put_int32_field(2u32, val, buf);
+        if !self.permissions.is_empty() {
+            let payload: u64 = self
+                .permissions
+                .iter()
+                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                .sum::<u64>();
+            ::buffa::types::put_len_delimited_header(2u32, payload, buf);
+            for v in &self.permissions {
+                ::buffa::types::encode_int32(v.to_i32(), buf);
             }
         }
         self.__buffa_unknown_fields.write_to(buf);
@@ -662,11 +639,42 @@ impl ::buffa::Message for SetRoleRequest {
                 self.user_id = ::buffa::types::decode_int64(buf)?;
             }
             2u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::Varint,
-                )?;
-                self.role = ::buffa::EnumValue::from(::buffa::types::decode_int32(buf)?);
+                if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
+                    let len = ::buffa::encoding::decode_varint(buf)?;
+                    let len = usize::try_from(len)
+                        .map_err(|_| ::buffa::DecodeError::MessageTooLarge)?;
+                    if buf.remaining() < len {
+                        return ::core::result::Result::Err(
+                            ::buffa::DecodeError::UnexpectedEof,
+                        );
+                    }
+                    self.permissions.reserve(len);
+                    let mut limited = buf.take(len);
+                    while limited.has_remaining() {
+                        self.permissions
+                            .push(
+                                ::buffa::EnumValue::from(
+                                    ::buffa::types::decode_int32_packed(&mut limited)?,
+                                ),
+                            );
+                    }
+                    let leftover = limited.remaining();
+                    if leftover > 0 {
+                        limited.advance(leftover);
+                    }
+                } else if tag.wire_type() == ::buffa::encoding::WireType::Varint {
+                    self.permissions
+                        .push(
+                            ::buffa::EnumValue::from(::buffa::types::decode_int32(buf)?),
+                        );
+                } else {
+                    return ::core::result::Result::Err(
+                        ::buffa::encoding::wire_type_mismatch(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        ),
+                    );
+                }
             }
             _ => {
                 self.__buffa_unknown_fields
@@ -677,12 +685,12 @@ impl ::buffa::Message for SetRoleRequest {
     }
     fn clear(&mut self) {
         self.user_id = 0i64;
-        self.role = ::buffa::EnumValue::from(0);
+        self.permissions.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
-impl ::buffa::ExtensionSet for SetRoleRequest {
-    const PROTO_FQN: &'static str = "nama.v1.SetRoleRequest";
+impl ::buffa::ExtensionSet for SetPermissionsRequest {
+    const PROTO_FQN: &'static str = "nama.v1.SetPermissionsRequest";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -690,7 +698,7 @@ impl ::buffa::ExtensionSet for SetRoleRequest {
         &mut self.__buffa_unknown_fields
     }
 }
-impl ::buffa::json_helpers::ProtoElemJson for SetRoleRequest {
+impl ::buffa::json_helpers::ProtoElemJson for SetPermissionsRequest {
     fn serialize_proto_json<S: ::serde::Serializer>(
         v: &Self,
         s: S,
@@ -704,40 +712,40 @@ impl ::buffa::json_helpers::ProtoElemJson for SetRoleRequest {
     }
 }
 #[doc(hidden)]
-pub const __SET_ROLE_REQUEST_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
-    type_url: "type.googleapis.com/nama.v1.SetRoleRequest",
-    to_json: ::buffa::type_registry::any_to_json::<SetRoleRequest>,
-    from_json: ::buffa::type_registry::any_from_json::<SetRoleRequest>,
+pub const __SET_PERMISSIONS_REQUEST_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.v1.SetPermissionsRequest",
+    to_json: ::buffa::type_registry::any_to_json::<SetPermissionsRequest>,
+    from_json: ::buffa::type_registry::any_from_json::<SetPermissionsRequest>,
     is_wkt: false,
 };
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
-pub struct SetRoleResponse {
+pub struct SetPermissionsResponse {
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
-impl ::core::fmt::Debug for SetRoleResponse {
+impl ::core::fmt::Debug for SetPermissionsResponse {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("SetRoleResponse").finish()
+        f.debug_struct("SetPermissionsResponse").finish()
     }
 }
-impl SetRoleResponse {
+impl SetPermissionsResponse {
     /// Protobuf type URL for this message, for use with `Any::pack` and
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.SetRoleResponse";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.SetPermissionsResponse";
 }
-::buffa::impl_default_instance!(SetRoleResponse);
-impl ::buffa::MessageName for SetRoleResponse {
+::buffa::impl_default_instance!(SetPermissionsResponse);
+impl ::buffa::MessageName for SetPermissionsResponse {
     const PACKAGE: &'static str = "nama.v1";
-    const NAME: &'static str = "SetRoleResponse";
-    const FULL_NAME: &'static str = "nama.v1.SetRoleResponse";
-    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.SetRoleResponse";
+    const NAME: &'static str = "SetPermissionsResponse";
+    const FULL_NAME: &'static str = "nama.v1.SetPermissionsResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.SetPermissionsResponse";
 }
-impl ::buffa::Message for SetRoleResponse {
+impl ::buffa::Message for SetPermissionsResponse {
     /// Returns the total encoded size in bytes.
     ///
     /// Accumulates in `u64` (which cannot overflow for in-memory
@@ -784,8 +792,8 @@ impl ::buffa::Message for SetRoleResponse {
         self.__buffa_unknown_fields.clear();
     }
 }
-impl ::buffa::ExtensionSet for SetRoleResponse {
-    const PROTO_FQN: &'static str = "nama.v1.SetRoleResponse";
+impl ::buffa::ExtensionSet for SetPermissionsResponse {
+    const PROTO_FQN: &'static str = "nama.v1.SetPermissionsResponse";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -793,7 +801,7 @@ impl ::buffa::ExtensionSet for SetRoleResponse {
         &mut self.__buffa_unknown_fields
     }
 }
-impl ::buffa::json_helpers::ProtoElemJson for SetRoleResponse {
+impl ::buffa::json_helpers::ProtoElemJson for SetPermissionsResponse {
     fn serialize_proto_json<S: ::serde::Serializer>(
         v: &Self,
         s: S,
@@ -807,10 +815,10 @@ impl ::buffa::json_helpers::ProtoElemJson for SetRoleResponse {
     }
 }
 #[doc(hidden)]
-pub const __SET_ROLE_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
-    type_url: "type.googleapis.com/nama.v1.SetRoleResponse",
-    to_json: ::buffa::type_registry::any_to_json::<SetRoleResponse>,
-    from_json: ::buffa::type_registry::any_from_json::<SetRoleResponse>,
+pub const __SET_PERMISSIONS_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.v1.SetPermissionsResponse",
+    to_json: ::buffa::type_registry::any_to_json::<SetPermissionsResponse>,
+    from_json: ::buffa::type_registry::any_from_json::<SetPermissionsResponse>,
     is_wkt: false,
 };
 #[derive(Clone, PartialEq, Default)]

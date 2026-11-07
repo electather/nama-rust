@@ -11,8 +11,9 @@ pub enum RefusalReason {
     REFUSAL_REASON_UNSPECIFIED = 0i32,
     /// `unauthenticated`: the call needs a signed-in Device.
     REFUSAL_REASON_SIGN_IN_REQUIRED = 1i32,
-    /// `permission_denied`: the call needs the Admin Role.
-    REFUSAL_REASON_ADMIN_REQUIRED = 2i32,
+    /// `permission_denied`: the call needs a Permission the caller lacks. Params: `permission`, the
+    /// `Permission` value's name (`PERMISSION_MANAGE_USERS`).
+    REFUSAL_REASON_PERMISSION_REQUIRED = 2i32,
     /// `unauthenticated`: no User has this name and password. Which of the two is wrong isn't said.
     REFUSAL_REASON_WRONG_NAME_OR_PASSWORD = 3i32,
     /// `unauthenticated`: the password given isn't the User's.
@@ -38,7 +39,7 @@ pub enum RefusalReason {
     REFUSAL_REASON_USER_NOT_FOUND = 13i32,
     /// `already_exists`: another User already has the name, ignoring case.
     REFUSAL_REASON_USER_NAME_TAKEN = 14i32,
-    /// `failed_precondition`: the change would leave the Server with no Admin.
+    /// `failed_precondition`: the change would leave no User with `PERMISSION_ADMIN`.
     REFUSAL_REASON_LAST_ADMIN = 15i32,
     /// `failed_precondition`: a User changes their own password with `ChangePassword`, not
     /// `ResetPassword`.
@@ -100,9 +101,9 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_SIGN_IN_REQUIRED`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const SignInRequired: Self = Self::REFUSAL_REASON_SIGN_IN_REQUIRED;
-    ///Idiomatic alias for [`Self::REFUSAL_REASON_ADMIN_REQUIRED`]; `Debug` prints the variant name.
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_PERMISSION_REQUIRED`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
-    pub const AdminRequired: Self = Self::REFUSAL_REASON_ADMIN_REQUIRED;
+    pub const PermissionRequired: Self = Self::REFUSAL_REASON_PERMISSION_REQUIRED;
     ///Idiomatic alias for [`Self::REFUSAL_REASON_WRONG_NAME_OR_PASSWORD`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const WrongNameOrPassword: Self = Self::REFUSAL_REASON_WRONG_NAME_OR_PASSWORD;
@@ -305,7 +306,9 @@ impl ::buffa::Enumeration for RefusalReason {
         match value {
             0i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_UNSPECIFIED),
             1i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_SIGN_IN_REQUIRED),
-            2i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_ADMIN_REQUIRED),
+            2i32 => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_PERMISSION_REQUIRED)
+            }
             3i32 => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_WRONG_NAME_OR_PASSWORD)
             }
@@ -381,7 +384,9 @@ impl ::buffa::Enumeration for RefusalReason {
         match self {
             Self::REFUSAL_REASON_UNSPECIFIED => "REFUSAL_REASON_UNSPECIFIED",
             Self::REFUSAL_REASON_SIGN_IN_REQUIRED => "REFUSAL_REASON_SIGN_IN_REQUIRED",
-            Self::REFUSAL_REASON_ADMIN_REQUIRED => "REFUSAL_REASON_ADMIN_REQUIRED",
+            Self::REFUSAL_REASON_PERMISSION_REQUIRED => {
+                "REFUSAL_REASON_PERMISSION_REQUIRED"
+            }
             Self::REFUSAL_REASON_WRONG_NAME_OR_PASSWORD => {
                 "REFUSAL_REASON_WRONG_NAME_OR_PASSWORD"
             }
@@ -451,8 +456,8 @@ impl ::buffa::Enumeration for RefusalReason {
             "REFUSAL_REASON_SIGN_IN_REQUIRED" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_SIGN_IN_REQUIRED)
             }
-            "REFUSAL_REASON_ADMIN_REQUIRED" => {
-                ::core::option::Option::Some(Self::REFUSAL_REASON_ADMIN_REQUIRED)
+            "REFUSAL_REASON_PERMISSION_REQUIRED" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_PERMISSION_REQUIRED)
             }
             "REFUSAL_REASON_WRONG_NAME_OR_PASSWORD" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_WRONG_NAME_OR_PASSWORD)
@@ -572,7 +577,7 @@ impl ::buffa::Enumeration for RefusalReason {
         &[
             Self::REFUSAL_REASON_UNSPECIFIED,
             Self::REFUSAL_REASON_SIGN_IN_REQUIRED,
-            Self::REFUSAL_REASON_ADMIN_REQUIRED,
+            Self::REFUSAL_REASON_PERMISSION_REQUIRED,
             Self::REFUSAL_REASON_WRONG_NAME_OR_PASSWORD,
             Self::REFUSAL_REASON_WRONG_PASSWORD,
             Self::REFUSAL_REASON_SIGNED_OUT,

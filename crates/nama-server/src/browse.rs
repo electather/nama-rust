@@ -300,7 +300,7 @@ mod tests {
         db::Database,
         libraries::{Kind, Libraries},
         plugins::Registry,
-        users::{Role, Users},
+        users::Users,
         watch_states::{Progress, WatchStates},
     };
 
@@ -360,7 +360,7 @@ mod tests {
         let older = library_with_alien(&db, "Older", &older_folder).await;
         library_with_alien(&db, "Newer", &newer_folder).await;
         let user = Users::new(Arc::clone(&db), Registry::with_builtins(&BTreeMap::new()))
-            .create("Ada", "correct horse battery staple", Role::Member)
+            .create("Ada", "correct horse battery staple")
             .await
             .unwrap();
         let halfway = Progress::new(1_000, 2_000).unwrap();

@@ -19,17 +19,17 @@ package nama.v1;
 // approvals fail with `resource_exhausted`.
 //
 // Changes to who can sign in as whom need Recent Authentication: the calling Device proved who it
-// is with one of its User's Sign-in Methods in the last 10 minutes. They are
-// `ApproveSignInCode` and `UserService`'s `ChangePassword`, `ResetPassword`, `SetRole` and
-// `DeleteUser`. Signing in with `Setup` or `SignIn` gives a Device Recent Authentication; signing
-// in with a Sign-in Code doesn't, since that Device proved nothing itself. Without it, those calls
-// fail with `failed_precondition` and the `REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED` Refusal
-// before anything in the request is checked. `Reauthenticate` gives it back.
+// is with one of its User's Sign-in Methods in the last 10 minutes. They are `ApproveSignInCode`
+// and `UserService`'s `ChangePassword`, `ResetPassword`, `SetPermissions` and `DeleteUser`.
+// Signing in with `Setup` or `SignIn` gives a Device Recent Authentication; signing in with a
+// Sign-in Code doesn't, since that Device proved nothing itself. Without it, those calls fail with
+// `failed_precondition` and the `REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED` Refusal before
+// anything in the request is checked. `Reauthenticate` gives it back.
 service SignInService {
-  // Creates the first Admin on a fresh Server and signs the calling Device in as them. Needs the
-  // Setup Code the Server printed to its log. Fails with `permission_denied` if the code is wrong,
-  // `failed_precondition` once the Server has any User, and `invalid_argument` if a name or the
-  // password breaks the rules.
+  // Creates the first Admin, a User with `PERMISSION_ADMIN`, on a fresh Server and signs the
+  // calling Device in as them. Needs the Setup Code the Server printed to its log. Fails with
+  // `permission_denied` if the code is wrong, `failed_precondition` once the Server has any User,
+  // and `invalid_argument` if a name or the password breaks the rules.
   rpc Setup(SetupRequest) returns (SetupResponse);
   // Signs the calling Device in as an existing User, found by name ignoring case. Fails with
   // `unauthenticated` if the name or the password is wrong, without saying which, and with
@@ -79,24 +79,51 @@ enum SessionDelivery {
   SESSION_DELIVERY_TOKEN = 2;
 }
 
-// What a User is allowed to do on a Server.
-enum Role {
-  ROLE_UNSPECIFIED = 0;
-  // Manages the Server, its Libraries and its Users.
-  ROLE_ADMIN = 1;
-  // Watches and Requests.
-  ROLE_MEMBER = 2;
+// One thing a User is allowed to do on a Server (ADR 0020). Each User holds a set of them. Values
+// are API contract: one is never renumbered or reused.
+enum Permission {
+  PERMISSION_UNSPECIFIED = 0;
+  // Passes every check, whatever Permission it needs.
+  PERMISSION_ADMIN = 1;
+  // Manages Users: creates, lists and deletes them, sets their Permissions, resets their passwords
+  // and manages their Devices.
+  PERMISSION_MANAGE_USERS = 2;
+  // Manages Libraries and their Matches, and sees where a Library lives on disk.
+  PERMISSION_MANAGE_LIBRARIES = 3;
+  // Manages the Server's settings, such as its Plugins.
+  PERMISSION_MANAGE_SETTINGS = 4;
+  // Manages every User's Requests.
+  PERMISSION_MANAGE_REQUESTS = 5;
+  // Requests Movies and Shows: covers `PERMISSION_REQUEST_MOVIE` and `PERMISSION_REQUEST_TV`.
+  PERMISSION_REQUEST = 6;
+  // Requests Movies.
+  PERMISSION_REQUEST_MOVIE = 7;
+  // Requests Shows.
+  PERMISSION_REQUEST_TV = 8;
+  // Has their Requests approved as they make them: covers `PERMISSION_AUTO_APPROVE_MOVIE` and
+  // `PERMISSION_AUTO_APPROVE_TV`.
+  PERMISSION_AUTO_APPROVE = 9;
+  // Has their Requests for Movies approved as they make them.
+  PERMISSION_AUTO_APPROVE_MOVIE = 10;
+  // Has their Requests for Shows approved as they make them.
+  PERMISSION_AUTO_APPROVE_TV = 11;
+  // Sees every User's Requests, not only their own.
+  PERMISSION_VIEW_REQUESTS = 12;
 }
 
 // A person's identity on one Server.
 message User {
+  // Held what `permissions` replaced (ADR 0020).
+  reserved 3;
+  reserved "role";
   // Assigned by the Server, and never reused.
   int64 id = 1;
   // Unique on the Server, ignoring case.
   string name = 2;
-  Role role = 3;
   // When the User was created, in seconds since the Unix epoch.
   int64 created_at = 4;
+  // What the User may do, in the order of `Permission`'s values, each once.
+  repeated Permission permissions = 5;
 }
 
 // A client installation signed in to a Server as a User.
