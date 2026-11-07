@@ -187,15 +187,10 @@ fn server_logs_its_config_creates_its_database_serves_the_api_and_exits_cleanly_
     reason = "a Plugin that can't be built fails the test that needs it"
 )]
 fn build_test_plugin(features: &str) -> Vec<u8> {
-    // The `.wasm` lands at the same path whatever the features, so each set gets its own target
-    // directory and tests building different ones can run at once.
-    let target_dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
-        .join("test-plugin")
-        .join(if features.is_empty() {
-            "default"
-        } else {
-            features
-        });
+    // One target directory for every feature set, so the dependencies compile once and only the
+    // Plugin itself rebuilds. Its `.wasm` lands at the same path whatever the features, so call
+    // this from one test at a time: another build could overwrite it before it's read.
+    let target_dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("test-plugin");
     let status = Command::new(env!("CARGO"))
         .args([
             "build",
