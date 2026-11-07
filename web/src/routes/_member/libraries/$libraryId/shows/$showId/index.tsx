@@ -90,12 +90,12 @@ function Episodes() {
 
 /** An Episode, which plays its largest Version. */
 function EpisodeRow({ episode }: { episode: Episode }) {
-  const play = `${location.pathname}/seasons/${episode.seasonNumber}/episodes/${episode.episodeNumber}/play`;
   return (
     <li className="border-b last:border-b-0">
-      {/* ponytail: a plain link until the player's route (#72) exists to type a <Link> against. */}
-      <a
-        href={play}
+      <Link
+        from={Route.fullPath}
+        to="./seasons/$season/episodes/$episode/play"
+        params={{ season: String(episode.seasonNumber), episode: String(episode.episodeNumber) }}
         className="block rounded-lg px-3 py-4 outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50"
       >
         <span className="font-medium">
@@ -109,7 +109,7 @@ function EpisodeRow({ episode }: { episode: Episode }) {
             {episode.overview}
           </span>
         )}
-      </a>
+      </Link>
     </li>
   );
 }

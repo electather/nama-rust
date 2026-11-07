@@ -1,5 +1,6 @@
 import type { VariantProps } from "class-variance-authority";
 import { cn } from "cn";
+import { Link, type LinkOptions } from "@tanstack/react-router";
 import { ArrowLeft, Maximize, Minimize, Pause, Play, Volume2, VolumeX } from "lucide-react";
 import { type ReactNode, type RefObject, useRef, useState } from "react";
 
@@ -25,7 +26,7 @@ export interface PlayerProps {
   /** The Version to play, by id. */
   versionId: bigint;
   /** The title page to go back to. */
-  titleHref: string;
+  back: LinkOptions;
 }
 
 /**
@@ -34,7 +35,7 @@ export interface PlayerProps {
  */
 export function Player(props: PlayerProps) {
   const [cantPlay, setCantPlay] = useState(false);
-  if (cantPlay) return <CantPlay titleHref={props.titleHref} />;
+  if (cantPlay) return <CantPlay back={props.back} />;
   return (
     <VideoPlayer
       {...props}
@@ -48,13 +49,13 @@ export function Player(props: PlayerProps) {
 function VideoPlayer({
   title,
   versionId,
-  titleHref,
+  back,
   onCantPlay,
 }: PlayerProps & { onCantPlay: () => void }) {
   const playerRef = useRef<HTMLDivElement>(null);
   const { ref: videoRef, events, ...video } = useVideo();
   const [awake, wake] = useAwake();
-  useShortcuts(videoRef, playerRef, titleHref, wake);
+  useShortcuts(videoRef, playerRef, back, wake);
   const controlsHidden = video.state.playing && !awake;
 
   return (
@@ -82,17 +83,17 @@ function VideoPlayer({
       />
       {/* Kept while a control has keyboard focus, so the focus ring never fades away. */}
       <div className="pointer-events-none absolute inset-0 flex flex-col justify-between transition-opacity duration-500 ease-out group-data-controls-hidden:not-has-focus-visible:opacity-0 motion-reduce:transition-none">
-        <TopBar title={title} titleHref={titleHref} />
+        <TopBar title={title} back={back} />
         <BottomBar video={video} playerRef={playerRef} />
       </div>
     </div>
   );
 }
 
-function TopBar({ title, titleHref }: { title: string; titleHref: string }) {
+function TopBar({ title, back }: { title: string; back: LinkOptions }) {
   return (
     <header className="pointer-events-auto flex items-center gap-2 bg-linear-to-b from-scrim px-2 pt-2 pb-10 sm:px-4 sm:pt-4">
-      <BackLink titleHref={titleHref} variant="overlay" size="icon" label="Back">
+      <BackLink back={back} variant="overlay" size="icon" label="Back">
         <ArrowLeft aria-hidden />
       </BackLink>
       <h1 className="truncate font-medium">{title}</h1>
@@ -198,7 +199,7 @@ function FullscreenButton({ playerRef }: { playerRef: RefObject<HTMLDivElement |
   );
 }
 
-function CantPlay({ titleHref }: { titleHref: string }) {
+function CantPlay({ back }: { back: LinkOptions }) {
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center px-6">
       <h1 className="text-2xl font-semibold tracking-tight text-balance">
@@ -208,7 +209,7 @@ function CantPlay({ titleHref }: { titleHref: string }) {
         This browser can’t play this file. Another browser, or another Version of it, may play.
       </p>
       <div className="mt-6 -ms-4">
-        <BackLink titleHref={titleHref} variant="ghost">
+        <BackLink back={back} variant="ghost">
           Back to the title
         </BackLink>
       </div>
@@ -218,19 +219,18 @@ function CantPlay({ titleHref }: { titleHref: string }) {
 
 /** Leaves the player for the title page. */
 function BackLink({
-  titleHref,
+  back,
   label,
   children,
   ...looks
 }: VariantProps<typeof buttonVariants> & {
-  titleHref: string;
+  back: LinkOptions;
   label?: string;
   children: ReactNode;
 }) {
-  // ponytail: a plain link until the title pages (#71) exist to type a <Link> against.
   return (
-    <a href={titleHref} aria-label={label} className={cn(buttonVariants(looks))}>
+    <Link {...back} aria-label={label} className={cn(buttonVariants(looks))}>
       {children}
-    </a>
+    </Link>
   );
 }

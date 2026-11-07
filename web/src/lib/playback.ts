@@ -1,4 +1,4 @@
-import { useNavigate } from "@tanstack/react-router";
+import { type LinkOptions, useNavigate } from "@tanstack/react-router";
 import {
   type RefObject,
   type SyntheticEvent,
@@ -141,7 +141,7 @@ function focusUses({ key, target }: KeyboardEvent) {
 export function useShortcuts(
   videoRef: RefObject<HTMLVideoElement | null>,
   playerRef: RefObject<HTMLDivElement | null>,
-  titleHref: string,
+  back: LinkOptions,
   wake: () => void,
 ) {
   const navigate = useNavigate();
@@ -155,14 +155,14 @@ export function useShortcuts(
       shortcut({
         video,
         player: playerRef.current,
-        back: () => void navigate({ href: titleHref }),
+        back: () => void navigate(back),
       });
     }
     document.addEventListener("keydown", onKeyDown);
     return () => {
       document.removeEventListener("keydown", onKeyDown);
     };
-  }, [videoRef, playerRef, titleHref, wake, navigate]);
+  }, [videoRef, playerRef, back, wake, navigate]);
 }
 
 export function togglePlay(video: HTMLVideoElement) {

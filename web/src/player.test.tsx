@@ -2,14 +2,16 @@ import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
+import { LibraryKind } from "@/gen/nama/v1/library_pb";
 import { Role } from "@/gen/nama/v1/sign_in_pb";
 
 import { fakeServer, openApp } from "./test-app";
 
 afterEach(cleanup);
 
-/** A Server whose Library 1 has The Matrix in two Versions, the larger being Version 8. */
-const server = fakeServer({ signedIn: Role.MEMBER }, {}, {}, (router) => {
+/** A Server whose Library 1 has The Matrix in three Versions, the largest being Version 8. */
+const libraries = [{ id: 1n, name: "Films", kind: LibraryKind.MOVIES }];
+const server = fakeServer({ signedIn: Role.MEMBER, libraries }, {}, {}, (router) => {
   router.service(BrowseService, {
     getMovie: () => ({
       movie: {

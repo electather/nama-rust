@@ -6,6 +6,7 @@ import { NotFound } from "@/components/route-error";
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import {
   externalIdFromParam,
+  libraryFromParam,
   queryOrNotFound,
   versionSearch,
   versionToPlay,
@@ -18,7 +19,7 @@ export const Route = createFileRoute(
   validateSearch: versionSearch,
   loader: async ({ context, params }) => {
     const input = {
-      libraryId: BigInt(wholeNumberFromParam(params.libraryId)),
+      libraryId: (await libraryFromParam(context, params.libraryId)).id,
       showId: externalIdFromParam(params.showId),
       seasonNumber: wholeNumberFromParam(params.season),
     };
@@ -37,14 +38,18 @@ function PlayEpisode() {
   const { episodes } = useSuspenseQuery(BrowseService.method.listEpisodes, input).data;
   const episode = episodes.find((each) => each.episodeNumber === episodeNumber);
   const { version } = Route.useSearch();
-  const { libraryId, showId, season } = Route.useParams();
+  const { libraryId, showId } = Route.useParams();
   // An Event may have removed it since the loader ran.
   if (!episode) return <NotFound />;
   return (
     <Player
       title={episode.title}
       versionId={versionToPlay(episode.versions, version).id}
-      titleHref={`/libraries/${libraryId}/shows/${showId}?season=${season}`}
+      back={{
+        to: "/libraries/$libraryId/shows/$showId",
+        params: { libraryId, showId },
+        search: { season: input.seasonNumber },
+      }}
     />
   );
 }
