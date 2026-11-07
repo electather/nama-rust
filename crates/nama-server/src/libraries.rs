@@ -57,7 +57,8 @@ pub(crate) enum Error {
 pub(crate) enum FolderProblem {
     #[error("is not an absolute path")]
     NotAbsolute,
-    // The operating system's text stays in the message only: it can't be translated.
+    // In `NotFound` and `NotReadable`, the operating system's text stays in the message and never
+    // goes in a Refusal's params: it can't be translated.
     #[error("can't be found: {0}")]
     NotFound(std::io::Error),
     #[error("is not a directory the Server can read: {0}")]
