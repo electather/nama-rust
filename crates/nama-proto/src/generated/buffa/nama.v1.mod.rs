@@ -5,6 +5,7 @@ include!("nama.v1.library.rs");
 include!("nama.v1.match.rs");
 include!("nama.v1.server.rs");
 include!("nama.v1.sign_in.rs");
+include!("nama.v1.user.rs");
 #[allow(
     non_camel_case_types,
     dead_code,
@@ -27,6 +28,7 @@ pub mod __buffa {
         include!("nama.v1.match.__view.rs");
         include!("nama.v1.server.__view.rs");
         include!("nama.v1.sign_in.__view.rs");
+        include!("nama.v1.user.__view.rs");
         pub mod oneof {
             #[allow(unused_imports)]
             use super::*;
@@ -96,6 +98,10 @@ pub mod __buffa {
         reg.register_json_any(super::__APPROVE_SIGN_IN_CODE_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__POLL_SIGN_IN_CODE_REQUEST_JSON_ANY);
         reg.register_json_any(super::__POLL_SIGN_IN_CODE_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__CREATE_USER_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__CREATE_USER_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__LIST_USERS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_USERS_RESPONSE_JSON_ANY);
     }
 }
 #[doc(inline)]
@@ -314,5 +320,21 @@ pub use self::__buffa::view::PollSignInCodeRequestOwnedView;
 pub use self::__buffa::view::PollSignInCodeResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::PollSignInCodeResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::CreateUserRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::CreateUserRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::CreateUserResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::CreateUserResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListUsersRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListUsersRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListUsersResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListUsersResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::register_types;

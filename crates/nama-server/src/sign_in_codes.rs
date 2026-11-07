@@ -193,6 +193,7 @@ mod tests {
             id: 1,
             name: "Ada".to_owned(),
             role: Role::Member,
+            created_at: 0,
         }
     }
 

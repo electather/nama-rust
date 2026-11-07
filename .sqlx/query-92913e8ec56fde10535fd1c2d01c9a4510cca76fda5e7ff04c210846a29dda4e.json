@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT u.id AS \"id!\", u.name, u.role AS \"role: Role\", c.plugin, c.credential\n               FROM users u JOIN user_credentials c ON c.user_id = u.id\n               WHERE u.name_key = ?",
+  "query": "SELECT id AS \"id!\", name, role AS \"role: Role\", created_at FROM users ORDER BY id",
   "describe": {
     "columns": [
       {
@@ -37,38 +37,26 @@
         }
       },
       {
-        "name": "plugin",
+        "name": "created_at",
         "ordinal": 3,
-        "type_info": "Text",
+        "type_info": "Integer",
         "origin": {
           "Table": {
-            "table": "user_credentials",
-            "name": "plugin"
-          }
-        }
-      },
-      {
-        "name": "credential",
-        "ordinal": 4,
-        "type_info": "Text",
-        "origin": {
-          "Table": {
-            "table": "user_credentials",
-            "name": "credential"
+            "table": "users",
+            "name": "created_at"
           }
         }
       }
     ],
     "parameters": {
-      "Right": 1
+      "Right": 0
     },
     "nullable": [
-      false,
       false,
       false,
       false,
       false
     ]
   },
-  "hash": "b475d671403e053d0b8fb8d94f1c3519fc5fe624adec1a51a63150e421f9a660"
+  "hash": "92913e8ec56fde10535fd1c2d01c9a4510cca76fda5e7ff04c210846a29dda4e"
 }
