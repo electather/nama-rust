@@ -39,6 +39,15 @@ impl Registry {
                 }
             };
             known.push(id.clone());
+            match contain_sync(|| (plugin.version().to_owned(), plugin.settings_schema())) {
+                Ok(described) => {
+                    registry.write(|state| state.builtins.insert(id.clone(), described));
+                }
+                Err(message) => {
+                    error!(plugin = %id, message, "a built-in plugin panicked while describing itself");
+                    continue;
+                }
+            }
             let config = config.get(id.as_str()).cloned().unwrap_or_default();
             if !config.enabled {
                 info!(plugin = %id, "plugin disabled in its settings");

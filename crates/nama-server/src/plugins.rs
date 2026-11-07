@@ -17,7 +17,7 @@ use futures_util::FutureExt;
 use nama_plugin_api::{
     InterceptPoint, ObservePoint, Observer, OnFailure, Plugin, PluginId, PointKey, Priority,
     Registrar, Registration, Verdict,
-    settings::{Settings, SettingsError},
+    settings::{Settings, SettingsError, SettingsSchema},
 };
 use thiserror::Error;
 use tracing::{error, info, warn};
@@ -38,6 +38,8 @@ struct State {
     points: HashMap<PointKey, Vec<Entry>>,
     /// The admin's ranking of Providers, by capability. It outlasts Plugins being disabled.
     precedence: HashMap<PointKey, Vec<PluginId>>,
+    /// Each Built-in Plugin's version and settings schema, enabled or not.
+    builtins: BTreeMap<PluginId, (String, SettingsSchema)>,
 }
 
 struct Enabled {
@@ -61,6 +63,19 @@ impl Entry {
     fn order(&self) -> (Priority, &PluginId, usize) {
         (self.registration.priority(), &self.plugin, self.index)
     }
+}
+
+/// A Built-in Plugin, as [`Registry::builtins`] lists it.
+#[derive(Debug, Clone)]
+pub struct Builtin {
+    /// Its unique id.
+    pub id: PluginId,
+    /// Its version.
+    pub version: String,
+    /// The settings it takes.
+    pub settings_schema: SettingsSchema,
+    /// Whether it is enabled now.
+    pub enabled: bool,
 }
 
 /// What became of an intercepted action.
@@ -266,6 +281,23 @@ impl Registry {
     #[must_use]
     pub fn enabled(&self) -> Vec<PluginId> {
         self.read(|state| state.plugins.keys().cloned().collect())
+    }
+
+    /// Every Built-in Plugin [`Registry::with_builtins`] knew, enabled or not, sorted by id.
+    #[must_use]
+    pub fn builtins(&self) -> Vec<Builtin> {
+        self.read(|state| {
+            state
+                .builtins
+                .iter()
+                .map(|(id, (version, settings_schema))| Builtin {
+                    id: id.clone(),
+                    version: version.clone(),
+                    settings_schema: settings_schema.clone(),
+                    enabled: state.plugins.contains_key(id),
+                })
+                .collect()
+        })
     }
 
     /// Tells every Observer at `P` about `event`, without waiting for them.

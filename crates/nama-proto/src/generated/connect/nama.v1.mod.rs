@@ -5,6 +5,7 @@ include!("nama.v1.browse.__connect.rs");
 include!("nama.v1.request.__connect.rs");
 include!("nama.v1.event.__connect.rs");
 include!("nama.v1.library.__connect.rs");
+include!("nama.v1.plugin.__connect.rs");
 include!("nama.v1.server.__connect.rs");
 include!("nama.v1.sign_in.__connect.rs");
 include!("nama.v1.user.__connect.rs");

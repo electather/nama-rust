@@ -1,6 +1,8 @@
 //! The Server's ConnectRPC API (ADR 0007), served on axum.
 
-use std::{ffi::OsStr, future, net::IpAddr, path::Path, sync::Arc, time::Instant};
+use std::{
+    collections::BTreeMap, ffi::OsStr, future, net::IpAddr, path::Path, sync::Arc, time::Instant,
+};
 
 use axum::{
     extract::Request,
@@ -18,7 +20,10 @@ use connectrpc::{
     ServiceResult, ServiceStream,
 };
 use futures_util::StreamExt;
-use nama_plugin_api::metadata::{Candidate, ExternalId, SearchQuery, TitleKind};
+use nama_plugin_api::{
+    metadata::{Candidate, ExternalId, SearchQuery, TitleKind},
+    settings::{self, SettingField},
+};
 use nama_proto::nama::v1::{
     self as proto, ApproveSignInCodeRequest, ApproveSignInCodeResponse, BrowseService,
     ChangePasswordRequest, ChangePasswordResponse, ClearMatchRequest, ClearMatchResponse,
@@ -30,22 +35,23 @@ use nama_proto::nama::v1::{
     GetServerInfoResponse, GetShowRequest, GetShowResponse, LibraryKind, LibraryService,
     ListContinueWatchingRequest, ListContinueWatchingResponse, ListDevicesRequest,
     ListDevicesResponse, ListEpisodesRequest, ListEpisodesResponse, ListLibrariesRequest,
-    ListLibrariesResponse, ListMoviesRequest, ListMoviesResponse, ListRequestsRequest,
-    ListRequestsResponse, ListShowsRequest, ListShowsResponse, ListUnmatchedItemsRequest,
-    ListUnmatchedItemsResponse, ListUsersRequest, ListUsersResponse, LookUpMovieRequest,
-    LookUpMovieResponse, LookUpSignInCodeRequest, LookUpSignInCodeResponse, MatchService,
-    Permission, PollSignInCodeRequest, PollSignInCodeResponse, ReauthenticateRequest,
-    ReauthenticateResponse, Refusal, RefusalReason, ReportProgressRequest, ReportProgressResponse,
-    RequestService, ResetPasswordRequest, ResetPasswordResponse, RevokeDeviceRequest,
-    RevokeDeviceResponse, ScanLibraryRequest, ScanLibraryResponse, SearchMetadataRequest,
-    SearchMetadataResponse, SearchMoviesRequest, SearchMoviesResponse, ServerService,
-    SessionDelivery, SetDefaultPermissionsRequest, SetDefaultPermissionsResponse, SetMatchRequest,
-    SetMatchResponse, SetPermissionsRequest, SetPermissionsResponse, SetPlayedRequest,
-    SetPlayedResponse, SetupRequest, SetupResponse, SignInCodeStatus, SignInRequest,
-    SignInResponse, SignInService, SignOutRequest, SignOutResponse, StartSignInCodeRequest,
-    StartSignInCodeResponse, SubscribeRequest, SubscribeResponse, UpdateLibraryRequest,
-    UpdateLibraryResponse, UserService, WatchStateService, WhoAmIRequest, WhoAmIResponse,
-    external_id, reauthenticate_request::Proof, set_played_request::Target,
+    ListLibrariesResponse, ListMoviesRequest, ListMoviesResponse, ListPluginsRequest,
+    ListPluginsResponse, ListRequestsRequest, ListRequestsResponse, ListShowsRequest,
+    ListShowsResponse, ListUnmatchedItemsRequest, ListUnmatchedItemsResponse, ListUsersRequest,
+    ListUsersResponse, LookUpMovieRequest, LookUpMovieResponse, LookUpSignInCodeRequest,
+    LookUpSignInCodeResponse, MatchService, Permission, PluginKind, PluginService,
+    PollSignInCodeRequest, PollSignInCodeResponse, ReauthenticateRequest, ReauthenticateResponse,
+    Refusal, RefusalReason, ReportProgressRequest, ReportProgressResponse, RequestService,
+    ResetPasswordRequest, ResetPasswordResponse, RevokeDeviceRequest, RevokeDeviceResponse,
+    ScanLibraryRequest, ScanLibraryResponse, SearchMetadataRequest, SearchMetadataResponse,
+    SearchMoviesRequest, SearchMoviesResponse, ServerService, SessionDelivery,
+    SetDefaultPermissionsRequest, SetDefaultPermissionsResponse, SetMatchRequest, SetMatchResponse,
+    SetPermissionsRequest, SetPermissionsResponse, SetPlayedRequest, SetPlayedResponse,
+    SetupRequest, SetupResponse, SignInCodeStatus, SignInRequest, SignInResponse, SignInService,
+    SignOutRequest, SignOutResponse, StartSignInCodeRequest, StartSignInCodeResponse,
+    SubscribeRequest, SubscribeResponse, UpdateLibraryRequest, UpdateLibraryResponse, UserService,
+    WatchStateService, WhoAmIRequest, WhoAmIResponse, external_id, reauthenticate_request::Proof,
+    set_played_request::Target, setting_value,
 };
 
 use crate::{
@@ -58,7 +64,8 @@ use crate::{
     forwarded::{RequestSource, identify_source},
     libraries::{self, FolderProblem, Kind, Libraries, Library},
     matching::{ManualError, Matcher},
-    plugins::Registry,
+    plugin_settings,
+    plugins::{Builtin, Registry},
     rate_limits::{Blocked, SignInCodeLimits, SignInLimits},
     requests::{self, Found, Requests},
     scanner::Scanner,
@@ -90,7 +97,7 @@ pub(crate) fn router(
     let artwork_router = artwork::router(artwork.clone(), contents.clone());
     let versions = versions::router(contents);
     let browse = Browse::new(Arc::clone(&db));
-    let matcher = Matcher::new(Arc::clone(&db), plugins, events.clone());
+    let matcher = Matcher::new(Arc::clone(&db), plugins.clone(), events.clone());
     connectrpc::Router::new()
         .add_service(Arc::new(ServerServiceHandler {
             name: config.name.clone(),
@@ -120,6 +127,10 @@ pub(crate) fn router(
         .add_service(Arc::new(RequestServiceHandler {
             requests: Requests::new(Arc::clone(&db), matcher, events.clone()),
             artwork,
+        }))
+        .add_service(Arc::new(PluginServiceHandler {
+            plugins,
+            db: Arc::clone(&db),
         }))
         .add_service(Arc::new(LibraryServiceHandler {
             libraries: Libraries::new(db),
@@ -157,6 +168,9 @@ const MANAGE_LIBRARIES: Access = Access::Needs(Permission::ManageLibraries);
 
 /// Managing Users and their Devices.
 const MANAGE_USERS: Access = Access::Needs(Permission::ManageUsers);
+
+/// Managing the Server's settings, such as its Plugins.
+const MANAGE_SETTINGS: Access = Access::Needs(Permission::ManageSettings);
 
 /// Asking for Movies.
 const REQUEST_MOVIE: Access = Access::Needs(Permission::RequestMovie);
@@ -210,6 +224,7 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::REQUEST_SERVICE_GET_REQUEST_SPEC.procedure,           Access::SignedIn),
     (proto::REQUEST_SERVICE_SEARCH_MOVIES_SPEC.procedure,         REQUEST_MOVIE),
     (proto::REQUEST_SERVICE_LOOK_UP_MOVIE_SPEC.procedure,         REQUEST_MOVIE),
+    (proto::PLUGIN_SERVICE_LIST_PLUGINS_SPEC.procedure,           MANAGE_SETTINGS),
 ];
 
 /// Who may fetch media: every path under this prefix, which the media routes share.
@@ -1803,6 +1818,109 @@ fn device_to_proto(device: users::Device, is_current: bool) -> proto::Device {
     }
 }
 
+/// `nama.v1.PluginService`: the Server's Plugins and their settings. Needs
+/// `PERMISSION_MANAGE_SETTINGS`, which [`require_access`] enforces.
+struct PluginServiceHandler {
+    plugins: Registry,
+    db: Arc<Database>,
+}
+
+#[expect(
+    refining_impl_trait,
+    reason = "plain `async fn` returning the owned response is the form the generated trait \
+              documents; the refined signature isn't visible outside this crate"
+)]
+impl PluginService for PluginServiceHandler {
+    async fn list_plugins(
+        &self,
+        _ctx: RequestContext,
+        _request: ServiceRequest<'_, ListPluginsRequest>,
+    ) -> ServiceResult<ListPluginsResponse> {
+        let stored = plugin_settings::stored(&self.db)
+            .await
+            .map_err(database_failed)?
+            .unwrap_or_default();
+        let plugins = self
+            .plugins
+            .builtins()
+            .into_iter()
+            .map(|plugin| {
+                let settings = stored
+                    .get(plugin.id.as_str())
+                    .map(|config| &config.settings);
+                plugin_to_proto(plugin, settings.unwrap_or(&BTreeMap::new()))
+            })
+            .collect();
+        Response::ok(ListPluginsResponse {
+            plugins,
+            ..Default::default()
+        })
+    }
+}
+
+fn plugin_to_proto(
+    plugin: Builtin,
+    stored: &BTreeMap<String, settings::SettingValue>,
+) -> proto::Plugin {
+    proto::Plugin {
+        id: plugin.id.to_string(),
+        version: plugin.version,
+        kind: PluginKind::PLUGIN_KIND_BUILT_IN.into(),
+        enabled: plugin.enabled,
+        settings: plugin
+            .settings_schema
+            .fields
+            .iter()
+            .map(|field| setting_to_proto(field, stored.get(field.key)))
+            .collect(),
+        ..Default::default()
+    }
+}
+
+/// A setting with its `stored` value, as a client may see it: a secret's value, stored or
+/// default, never leaves the Server (see AGENTS.md, "Secrets stay out of storage and logs").
+fn setting_to_proto(
+    field: &SettingField,
+    stored: Option<&settings::SettingValue>,
+) -> proto::Setting {
+    let secret = field.kind == settings::SettingKind::Secret;
+    let shown = |value: Option<&settings::SettingValue>| {
+        value.filter(|_| !secret).map(setting_value_to_proto).into()
+    };
+    proto::Setting {
+        key: field.key.to_owned(),
+        label: field.label.to_owned(),
+        description: field.description.to_owned(),
+        kind: setting_kind_to_proto(field.kind).into(),
+        required: field.required,
+        default_value: shown(field.default.as_ref()),
+        value: shown(stored),
+        secret_set: secret && stored.is_some(),
+        ..Default::default()
+    }
+}
+
+const fn setting_kind_to_proto(kind: settings::SettingKind) -> proto::SettingKind {
+    match kind {
+        settings::SettingKind::Text => proto::SettingKind::SETTING_KIND_TEXT,
+        settings::SettingKind::Secret => proto::SettingKind::SETTING_KIND_SECRET,
+        settings::SettingKind::Bool => proto::SettingKind::SETTING_KIND_BOOL,
+        settings::SettingKind::Integer => proto::SettingKind::SETTING_KIND_INTEGER,
+    }
+}
+
+fn setting_value_to_proto(value: &settings::SettingValue) -> proto::SettingValue {
+    let value = match value {
+        settings::SettingValue::Text(text) => setting_value::Value::TextValue(text.clone()),
+        settings::SettingValue::Bool(on) => setting_value::Value::BoolValue(*on),
+        settings::SettingValue::Integer(number) => setting_value::Value::IntegerValue(*number),
+    };
+    proto::SettingValue {
+        value: Some(value),
+        ..Default::default()
+    }
+}
+
 /// A refusal of a client's request on its way to becoming a [`ConnectError`]: [`refuse`] starts
 /// one, [`Refused::field`] and [`Refused::param`] fill it in.
 struct Refused {
@@ -2155,7 +2273,9 @@ impl From<ManualError> for ConnectError {
 mod tests {
     use std::fs;
 
-    use super::{ACCESS, Access};
+    use nama_plugin_api::settings::{SettingField, SettingKind, SettingValue};
+
+    use super::{ACCESS, Access, setting_to_proto};
 
     /// Every RPC `buf generate` wrote a stub for, by path, read from the generated code so a new
     /// RPC shows up here without anyone listing it.
@@ -2207,5 +2327,24 @@ mod tests {
             Access::of("/media/versions/1"),
             Some(Access::SignedIn)
         ));
+    }
+
+    #[test]
+    fn a_secrets_default_and_stored_value_are_never_sent() {
+        let token = SettingField {
+            key: "token",
+            label: "Token",
+            description: "",
+            kind: SettingKind::Secret,
+            required: false,
+            default: Some(SettingValue::Text("default-token".to_owned())),
+        };
+        let stored = SettingValue::Text("stored-token".to_owned());
+
+        let shown = setting_to_proto(&token, Some(&stored));
+
+        assert!(shown.default_value.is_unset(), "{shown:?}");
+        assert!(shown.value.is_unset(), "{shown:?}");
+        assert!(shown.secret_set);
     }
 }

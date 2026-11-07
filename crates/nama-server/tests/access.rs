@@ -1,6 +1,6 @@
 //! Who may call what: a session for everything but the public RPCs, a Permission for managing
-//! Libraries, Matches and Users, and Recent Authentication for changing who can sign in as whom,
-//! over a real socket and against a real SQLite database.
+//! Libraries, Matches, Users and settings, and Recent Authentication for changing who can sign in
+//! as whom, over a real socket and against a real SQLite database.
 
 #[path = "support/refused.rs"]
 mod refused;
@@ -55,6 +55,9 @@ const MANAGE_USERS: [&str; 7] = [
     "/nama.v1.UserService/GetDefaultPermissions",
     "/nama.v1.UserService/SetDefaultPermissions",
 ];
+
+/// Every RPC that manages the Server's settings, which needs `PERMISSION_MANAGE_SETTINGS`.
+const MANAGE_SETTINGS: [&str; 1] = ["/nama.v1.PluginService/ListPlugins"];
 
 /// The RPCs for browsing the Libraries, what they hold and the caller's Continue Watching, which
 /// any signed-in User may call.
@@ -305,9 +308,12 @@ async fn refused_for_recent_authentication(
     refused
 }
 
-/// Every RPC that manages Libraries, Matches or Users.
+/// Every RPC that manages Libraries, Matches, Users or settings.
 fn managing() -> impl Iterator<Item = &'static &'static str> {
-    MANAGE_LIBRARIES.iter().chain(&MANAGE_USERS)
+    MANAGE_LIBRARIES
+        .iter()
+        .chain(&MANAGE_USERS)
+        .chain(&MANAGE_SETTINGS)
 }
 
 /// Asserts that `token` may call each of `paths`: an empty request is wrong for most of them, but
@@ -388,7 +394,8 @@ async fn an_unauthenticated_call_to_anything_but_the_public_rpcs_is_unauthentica
 }
 
 #[tokio::test]
-async fn a_new_user_managing_libraries_matches_or_users_is_refused_naming_the_permission() {
+async fn a_new_user_managing_libraries_matches_users_or_settings_is_refused_naming_the_permission()
+{
     let (server, token) = start_with_user(&NEW_USER).await;
 
     assert_refused_for_want_of(
@@ -398,6 +405,21 @@ async fn a_new_user_managing_libraries_matches_or_users_is_refused_naming_the_pe
         Permission::ManageLibraries,
     )
     .await;
+    assert_refused_for_want_of(&server, &token, &MANAGE_USERS, Permission::ManageUsers).await;
+    assert_refused_for_want_of(
+        &server,
+        &token,
+        &MANAGE_SETTINGS,
+        Permission::ManageSettings,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn a_user_who_manages_settings_may_list_plugins_but_not_manage_users() {
+    let (server, token) = start_with_user(&[Permission::ManageSettings]).await;
+
+    assert_allowed(&server, &token, &MANAGE_SETTINGS).await;
     assert_refused_for_want_of(&server, &token, &MANAGE_USERS, Permission::ManageUsers).await;
 }
 
@@ -444,11 +466,12 @@ async fn an_unlisted_rpc_is_the_routers_not_found_with_or_without_a_session() {
 }
 
 #[tokio::test]
-async fn an_admin_may_manage_libraries_matches_and_users() {
+async fn an_admin_may_manage_libraries_matches_users_and_settings() {
     let server = TestServer::start(Config::default(), Registry::new()).await;
 
     assert_allowed(&server, &server.admin_token, &MANAGE_LIBRARIES).await;
     assert_allowed(&server, &server.admin_token, &MANAGE_USERS).await;
+    assert_allowed(&server, &server.admin_token, &MANAGE_SETTINGS).await;
 }
 
 #[tokio::test]
