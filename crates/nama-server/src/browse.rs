@@ -19,7 +19,10 @@ use crate::{
 pub(crate) enum Error {
     #[error("there is no Library {0}")]
     NoSuchLibrary(i64),
-    #[error("the Library isn't a {wanted:?} Library")]
+    #[error("the Library isn't a {} Library", match .wanted {
+        Kind::Movies => "Movies",
+        Kind::Shows => "Shows",
+    })]
     WrongKind { wanted: Kind },
     /// No Movie, Show or Episode in the Library has the id asked for.
     #[error("nothing in the Library is Matched to that id")]
