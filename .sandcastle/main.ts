@@ -1,10 +1,10 @@
 // AI factory: ready-for-agent issues → implement → review → PR → CI → squash-merge.
 // Run from the repo root: `npm --prefix .sandcastle run factory`  (the script cd's back to the root)
-import { execFileSync, spawn, spawnSync } from "node:child_process";
+import { execFile, execFileSync, spawn, spawnSync } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, hostname } from "node:os";
 import { setTimeout as sleep } from "node:timers/promises";
-import { inspect } from "node:util";
+import { inspect, promisify } from "node:util";
 import * as sandcastle from "@ai-hero/sandcastle";
 import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
 import { recorder, type Outcome, type Stage, type Waiting } from "./status.ts";
@@ -59,6 +59,30 @@ const RUN = `${process.pid}@${hostname()}`;
 const REPO_URL = gh("repo", "view", "--json", "url", "--jq", ".url");
 const record = recorder(LOGS, RUN, REPO_URL);
 const log = (msg: string) => console.log(`${new Date().toTimeString().slice(0, 8)} ${msg}`);
+
+// The sandboxes share OrbStack's one VM, which runs out of memory when they peak together. Every 30s a sandbox
+// over MEM_LOG_GIB (default 4) logs its biggest processes to mem.log, so the command behind a spike has a name.
+const MEM_LOG_GIB = Number(process.env.MEM_LOG_GIB ?? 4);
+const exec = promisify(execFile);
+const gib = (usage: string) => {
+  const [, n, unit] = usage.match(/([\d.]+)\s*(\w+)/) ?? [];
+  return Number(n) / ({ B: 2 ** 30, KiB: 2 ** 20, MiB: 2 ** 10, GiB: 1, TiB: 2 ** -10 }[unit] ?? 1);
+};
+setInterval(async () => {
+  try {
+    const { stdout } = await exec("docker", ["stats", "--no-stream", "--format", "{{.ID}}\t{{.Name}}\t{{.MemUsage}}"]);
+    for (const [id, name, usage] of stdout.trim().split("\n").map((l) => l.split("\t"))) {
+      if (!name?.startsWith("sandcastle-") || gib(usage) < MEM_LOG_GIB) continue;
+      const worktree = (await exec("docker", ["inspect", "-f",
+        '{{range .Mounts}}{{if eq .Destination "/home/agent/workspace"}}{{.Source}}{{end}}{{end}}', id])).stdout.trim();
+      // Cut inside the container: one linker's argv alone runs to megabytes.
+      const top = (await exec("docker", ["exec", id, "sh", "-c", "ps -eo rss=,etime=,args= --sort=-rss | head -8 | cut -c1-240"]))
+        .stdout.trimEnd().split("\n").map((l) => `  ${l.trim()}`).join("\n");
+      appendFileSync(`${LOGS}/mem.log`,
+        `${new Date().toISOString()} ${worktree.split("/").pop() || name} ${usage}  (RSS KiB, elapsed, command)\n${top}\n`);
+    }
+  } catch {} // docker busy, or the sandbox closed mid-sample: skip this one
+}, 30_000);
 
 // The gist of an error in one line: execFileSync puts git's reason in stderr, sandcastle on the line after a colon.
 function oneLine(e: unknown): string {

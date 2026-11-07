@@ -6,7 +6,7 @@ While an issue is being built it carries `agent-working`; the label comes off wh
 Only one factory runs per machine (`~/.cache/nama-sandcastle/factory.pid`). Factories on different machines can run at once: each claims an issue by creating `refs/claims/issue-N` on origin, which only one of them can do, and deletes it when done or on Ctrl-C. A run that was killed outright leaves its claims behind. Free one with `git push origin --delete refs/claims/issue-N` and remove the issue's `agent-working` label.
 Anything stuck is relabelled `ready-for-human` with a comment.
 
-It builds web tickets as well as Rust ones. The image (`Dockerfile`, on `node:26-bookworm`) holds the Rust toolchain with the `wasm32` target, `buf`, `gh`, Claude Code, Vite+ (`vp`) with the Node 26 and pnpm 12 that `web/` pins, and Playwright's headless Chromium. On a ticket that touches `web/`, agents run the web job's checks and screenshot the screens they changed at phone and desktop widths to check them against `DESIGN.md`. The cargo registry and the pnpm store are cached on the host in `~/.cache/nama-sandcastle/`, so each sandbox doesn't download them again.
+It builds web tickets as well as Rust ones. The image (`Dockerfile`, on `node:26-bookworm`) holds the Rust toolchain with the `wasm32` target (linking with `mold`, at most 4 cargo jobs, line-table debug info, so two sandboxes fit in OrbStack's memory), `buf`, `gh`, Claude Code, Vite+ (`vp`) with the Node 26 and pnpm 12 that `web/` pins, and Playwright's headless Chromium. On a ticket that touches `web/`, agents run the web job's checks and screenshot the screens they changed at phone and desktop widths to check them against `DESIGN.md`. The cargo registry and the pnpm store are cached on the host in `~/.cache/nama-sandcastle/`, so each sandbox doesn't download them again.
 
 An issue with sub-issues is never built directly. The factory builds its sub-issues (each gets the parent as context) and closes the parent once the last one merges.
 
@@ -39,6 +39,7 @@ Logs, all in `.sandcastle/logs/`:
 - `launchd.log`: one timestamped line per event, stage changes with timings, and a summary of why the run ended and what is still queued.
 - `crash-issue-N.log`: the full error behind a one-line crash in `launchd.log`.
 - `agent-issue-N-<step>--N.log`: what each agent did.
+- `mem.log`: every 30s, any sandbox over `MEM_LOG_GIB` (default 4) GiB, with its 8 biggest processes. Read it when OrbStack runs out of memory.
 
 `npm --prefix .sandcastle run check` checks the `status.md` renderer.
 
