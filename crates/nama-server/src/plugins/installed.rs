@@ -32,7 +32,7 @@ enum Refused {
     Load(extism::Error),
     #[error("its manifest() export failed: {0:#}")]
     Manifest(extism::Error),
-    #[error("loading it panicked: {0}")]
+    #[error("the Server panicked while loading it: {0}")]
     Panicked(String),
     #[error("its manifest() returned something that isn't a Manifest: {0}")]
     Decode(buffa::DecodeError),
@@ -48,18 +48,19 @@ enum Refused {
 /// Blocks while it compiles each Plugin. wasmtime caches what it compiles under
 /// `<data_dir>/wasmtime/`, not in the home directory.
 pub fn log_installed(data_dir: &Path) {
-    let files = match wasm_files(&data_dir.join("plugins")) {
+    let dir = data_dir.join("plugins");
+    let files = match wasm_files(&dir) {
         Ok(files) if files.is_empty() => return,
         Ok(files) => files,
         Err(err) => {
             error!(
                 "could not list the Installed Plugins in {}: {err}",
-                data_dir.display()
+                dir.display()
             );
             return;
         }
     };
-    let cache_config = match cache_config(data_dir) {
+    let cache_config = match write_cache_config(data_dir) {
         Ok(cache_config) => cache_config,
         Err(err) => {
             error!(
@@ -69,6 +70,8 @@ pub fn log_installed(data_dir: &Path) {
             return;
         }
     };
+    // ponytail: one Plugin at a time before the Server listens, each up to MANIFEST_TIMEOUT;
+    // compile them in parallel if many Plugins make the start slow.
     for file in files {
         match read_manifest(&file, &cache_config) {
             Ok(manifest) => info!(
@@ -105,7 +108,7 @@ fn wasm_files(dir: &Path) -> io::Result<Vec<PathBuf>> {
 /// Writes the wasmtime cache config that Extism reads, pointing the cache at
 /// `<data_dir>/wasmtime/cache/`, and returns its path. Extism takes the cache's location only
 /// from such a file.
-fn cache_config(data_dir: &Path) -> io::Result<PathBuf> {
+fn write_cache_config(data_dir: &Path) -> io::Result<PathBuf> {
     // wasmtime requires an absolute cache directory.
     let dir = std::path::absolute(data_dir)?.join("wasmtime");
     fs::create_dir_all(&dir)?;

@@ -62,6 +62,23 @@ fn bound_addr(listening_line: &str) -> SocketAddr {
         .unwrap_or_else(|| panic!("no address in {listening_line:?}"))
 }
 
+/// The server's log, line by line. A thread reads it, so a hung server fails the test that waits
+/// for a line instead of blocking it.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a server spawned without piped stdout fails the test"
+)]
+fn log_lines(server: &mut Child) -> mpsc::Receiver<String> {
+    let (lines_tx, lines) = mpsc::channel();
+    let stdout = BufReader::new(server.stdout.take().unwrap());
+    thread::spawn(move || {
+        for line in stdout.lines().map_while(Result::ok) {
+            let _: Result<(), mpsc::SendError<String>> = lines_tx.send(line);
+        }
+    });
+    lines
+}
+
 /// Starts the server with `config_file`, listening on a free port and logging at `info`.
 #[expect(
     clippy::unwrap_used,
@@ -100,14 +117,7 @@ fn server_logs_its_config_creates_its_database_serves_the_api_and_exits_cleanly_
     let mut server = spawn_server(&config_file);
     let child = server.0.as_mut().unwrap();
 
-    // Read log lines on a thread so a hung server fails the test instead of blocking it.
-    let (lines_tx, lines) = mpsc::channel();
-    let stdout = BufReader::new(child.stdout.take().unwrap());
-    thread::spawn(move || {
-        for line in stdout.lines().map_while(Result::ok) {
-            let _: Result<(), mpsc::SendError<String>> = lines_tx.send(line);
-        }
-    });
+    let lines = log_lines(child);
 
     let config_line = wait_for_line(&lines, "loaded config");
     assert!(config_line.contains("127.0.0.1:0"), "{config_line}");
@@ -188,7 +198,13 @@ fn build_test_plugin(features: &str) -> Vec<u8> {
             features
         });
     let status = Command::new(env!("CARGO"))
-        .args(["build", "--release", "--package", "nama-test-plugin"])
+        .args([
+            "build",
+            "--release",
+            "--locked",
+            "--package",
+            "nama-test-plugin",
+        ])
         .args(["--target", "wasm32-unknown-unknown", "--features", features])
         .arg("--target-dir")
         .arg(&target_dir)
@@ -222,14 +238,7 @@ fn server_logs_installed_plugins_and_skips_the_ones_it_refuses() {
     std::fs::write(plugins_dir.join("no-manifest.wasm"), b"\0asm\x01\0\0\0").unwrap();
 
     let mut server = spawn_server(&config_file);
-    let child = server.0.as_mut().unwrap();
-    let (lines_tx, lines) = mpsc::channel();
-    let stdout = BufReader::new(child.stdout.take().unwrap());
-    thread::spawn(move || {
-        for line in stdout.lines().map_while(Result::ok) {
-            let _: Result<(), mpsc::SendError<String>> = lines_tx.send(line);
-        }
-    });
+    let lines = log_lines(server.0.as_mut().unwrap());
 
     // The Server reads the files in name order.
     let no_manifest = wait_for_line(&lines, "no-manifest.wasm");
