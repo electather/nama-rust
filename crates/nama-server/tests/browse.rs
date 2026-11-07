@@ -152,6 +152,12 @@ impl Fixture {
     /// Scans the Library, and waits until `files` files are stored and Matching has decided
     /// about all their items.
     async fn scan_until_decided(&self, files: usize) {
+        self.scan_until(async || self.all_decided(files).await)
+            .await;
+    }
+
+    /// Scans the Library, and waits until `done` says so.
+    async fn scan_until(&self, mut done: impl AsyncFnMut() -> bool) {
         self.libraries
             .scan_library(ScanLibraryRequest {
                 id: self.library,
@@ -160,7 +166,7 @@ impl Fixture {
             .await
             .unwrap();
         tokio::time::timeout(Duration::from_secs(5), async {
-            while !self.all_decided(files).await {
+            while !done().await {
                 tokio::time::sleep(Duration::from_millis(10)).await;
             }
         })
@@ -181,20 +187,8 @@ impl Fixture {
     /// Rescans the Library after the file at `relative`, which held the item `before`, changed,
     /// and waits until a new item has replaced it and Matching has decided about that.
     async fn rescan_until_replaced(&self, relative: &str, before: i64) {
-        self.libraries
-            .scan_library(ScanLibraryRequest {
-                id: self.library,
-                ..Default::default()
-            })
-            .await
-            .unwrap();
-        tokio::time::timeout(Duration::from_secs(5), async {
-            while !self.replaced(relative, before).await {
-                tokio::time::sleep(Duration::from_millis(10)).await;
-            }
-        })
-        .await
-        .unwrap();
+        self.scan_until(async || self.replaced(relative, before).await)
+            .await;
     }
 
     /// Whether the file at `relative` holds an item other than `before`, which Matching has

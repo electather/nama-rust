@@ -687,17 +687,16 @@ impl BrowseServiceHandler {
         ctx: &RequestContext,
         movies: Vec<Movie>,
     ) -> Result<Vec<proto::Movie>, ConnectError> {
-        let mut states = self
+        let ids: Vec<&ExternalId> = movies.iter().map(|movie| &movie.id).collect();
+        let states = self
             .watch_states
-            .movies(caller(ctx)?.user.id)
+            .of_movies(caller(ctx)?.user.id, &ids)
             .await
             .map_err(|err| database_failed(&err))?;
         Ok(movies
             .into_iter()
-            .map(|movie| {
-                let state = states.remove(&movie.id.to_string());
-                movie_to_proto(movie, state)
-            })
+            .zip(states)
+            .map(|(movie, state)| movie_to_proto(movie, state))
             .collect())
     }
 
@@ -870,7 +869,7 @@ impl WatchStateService for WatchStateServiceHandler {
             MovieOf::NoSuchVersion => {
                 return Err(ConnectError::not_found("there is no such Version"));
             }
-            MovieOf::Nothing => {}
+            MovieOf::NoMatchedMovie => {}
             MovieOf::Movie(movie) => self
                 .watch_states
                 .report_movie(user, &movie, progress)

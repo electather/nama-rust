@@ -27,7 +27,9 @@ pub(crate) struct Progress {
 /// A User's progress through a Movie, as stored.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct WatchState {
+    /// How far in, in milliseconds.
     pub(crate) position_ms: i64,
+    /// How long the Movie is, in milliseconds, as the player last reported it.
     pub(crate) duration_ms: i64,
     /// Whether the position has ever passed 90% of the duration.
     pub(crate) played: bool,
@@ -49,7 +51,7 @@ impl Progress {
         })
     }
 
-    /// Whether the position has passed 90% of the duration, which marks the title played.
+    /// Whether the position has passed 90% of the duration, which marks the Movie played.
     fn is_played(self) -> bool {
         i128::from(self.position_ms) * 10 > i128::from(self.duration_ms) * 9
     }
@@ -100,13 +102,14 @@ impl WatchStates {
             .await
     }
 
-    /// The User `user`'s Watch State of each Movie they've started, keyed by the Movie's id as
-    /// [`ExternalId`]'s `Display` writes it.
+    /// The User `user`'s Watch State of each of the Movies with the ids `movies`, in the same
+    /// order: `None` for a Movie they haven't started.
     // ponytail: reads all of a User's Movies even for one; query by id if that gets big.
-    pub(crate) async fn movies(
+    pub(crate) async fn of_movies(
         &self,
         user: i64,
-    ) -> Result<HashMap<String, WatchState>, sqlx::Error> {
+        movies: &[&ExternalId],
+    ) -> Result<Vec<Option<WatchState>>, sqlx::Error> {
         let rows = sqlx::query!(
             r#"SELECT title_id, position_ms, duration_ms, played AS "played: bool", updated_at
                FROM watch_states
@@ -115,7 +118,7 @@ impl WatchStates {
         )
         .fetch_all(self.db.reader())
         .await?;
-        Ok(rows
+        let mut states: HashMap<String, WatchState> = rows
             .into_iter()
             .map(|row| {
                 let state = WatchState {
@@ -126,6 +129,10 @@ impl WatchStates {
                 };
                 (row.title_id, state)
             })
+            .collect();
+        Ok(movies
+            .iter()
+            .map(|movie| states.remove(&movie.to_string()))
             .collect())
     }
 }

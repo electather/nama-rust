@@ -175,7 +175,7 @@ pub(crate) enum MovieOf {
     NoSuchVersion,
     /// The file holds no Item Matched to a Movie: its Item is Unmatched, not Matched yet, or an
     /// Episode.
-    Nothing,
+    NoMatchedMovie,
     /// The Movie's id, as browsing identifies it: see [`primary_id`].
     Movie(ExternalId),
 }
@@ -366,7 +366,7 @@ impl Contents {
                 tvdb: row.tvdb_id,
             })
         });
-        Ok(movie.map_or(MovieOf::Nothing, MovieOf::Movie))
+        Ok(movie.map_or(MovieOf::NoMatchedMovie, MovieOf::Movie))
     }
 
     /// Whether some Match made by the Plugin `plugin` stores `image` as its poster or backdrop.
