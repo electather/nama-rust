@@ -124,7 +124,7 @@ pub(crate) fn router(
         .layer(middleware::from_fn_with_state(users, identify_caller))
 }
 
-/// Who may call an RPC.
+/// Who may call an RPC or fetch media.
 enum Access {
     Anyone,
     SignedIn,
@@ -148,9 +148,9 @@ impl Access {
         USER_SERVICE_REVOKE_DEVICE_SPEC.procedure,
     ];
 
-    /// Who may call the RPC at `path`, `/<service>/<method>`. Only the RPCs in
-    /// [`Access::PUBLIC`] are public, so a new one needs a session until it is opened up, as does
-    /// everything under `/media/`.
+    /// Who may request `path`: an RPC's `/<service>/<method>`, or media under `/media/`. Only the
+    /// RPCs in [`Access::PUBLIC`] are public, so media, and a new RPC until it is opened up, need a
+    /// session.
     fn of(path: &str) -> Self {
         if Self::PUBLIC.contains(&path) {
             return Self::Anyone;

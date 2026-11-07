@@ -115,6 +115,13 @@ impl Artwork {
         write_atomically(&cached.path, &image.bytes).await?;
         Ok(cached)
     }
+
+    /// The media type and bytes of the image [`Artwork::get`] gives.
+    async fn read(&self, plugin: &PluginId, path: &str) -> Result<(&'static str, Vec<u8>), Error> {
+        let image = self.get(plugin, path).await?;
+        let bytes = tokio::fs::read(&image.path).await?;
+        Ok((image.content_type, bytes))
+    }
 }
 
 /// Where clients fetch the image at `path` from the Plugin `plugin`'s metadata Provider:
@@ -146,7 +153,7 @@ async fn serve(
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     }
-    match read(&artwork, &PluginId::from(plugin), &path).await {
+    match artwork.read(&PluginId::from(plugin), &path).await {
         Ok((content_type, bytes)) => (
             [
                 (header::CONTENT_TYPE, content_type),
@@ -166,17 +173,6 @@ async fn serve(
             StatusCode::INTERNAL_SERVER_ERROR.into_response()
         }
     }
-}
-
-/// The media type and bytes of the image at `path` from the Plugin `plugin`'s Provider.
-async fn read(
-    artwork: &Artwork,
-    plugin: &PluginId,
-    path: &str,
-) -> Result<(&'static str, Vec<u8>), Error> {
-    let image = artwork.get(plugin, path).await?;
-    let bytes = tokio::fs::read(&image.path).await?;
-    Ok((image.content_type, bytes))
 }
 
 /// Writes `bytes` to `path` so no reader ever sees a partial file, even if two downloads of the

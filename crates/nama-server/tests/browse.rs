@@ -260,13 +260,13 @@ struct Reply {
     body: Vec<u8>,
 }
 
-/// Sends a plain HTTP/1.1 `GET` for `path` to `server`, presenting `token`, if any, as a bearer
-/// token.
+/// Sends a plain HTTP/1.1 `GET` for `path` to `server`, presenting `token`, if any, in the
+/// session cookie, as a browser's `<img src>` does.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
-async fn get(server: &TestServer, path: &str, token: Option<&str>) -> Reply {
+async fn fetch(server: &TestServer, path: &str, token: Option<&str>) -> Reply {
     use http_body_util::{BodyExt, Empty};
     use hyper::{Request, body::Bytes, client::conn::http1};
     use hyper_util::rt::TokioIo;
@@ -276,7 +276,7 @@ async fn get(server: &TestServer, path: &str, token: Option<&str>) -> Reply {
     tokio::spawn(connection);
     let mut request = Request::get(path).header("host", server.addr.to_string());
     if let Some(token) = token {
-        request = request.header("authorization", format!("Bearer {token}"));
+        request = request.header("cookie", format!("nama_session={token}"));
     }
     let response = sender
         .send_request(request.body(Empty::<Bytes>::new()).unwrap())
@@ -566,7 +566,7 @@ async fn a_poster_a_match_stores_is_served_with_its_content_type() {
     let movie = fx.get_movie(fx.library, ALIEN).await.unwrap();
     let poster = movie.poster_url.unwrap();
 
-    let reply = get(&fx.server, &poster, Some(&fx.server.admin_token)).await;
+    let reply = fetch(&fx.server, &poster, Some(&fx.server.admin_token)).await;
 
     assert_eq!(reply.status, 200);
     assert_eq!(reply.content_type, "image/jpeg");
@@ -586,7 +586,7 @@ async fn any_other_artwork_path_is_not_found() {
         "/media/artwork/%2E%2E/%2E%2E%2Fnama.db",
         "/media/artwork/tmdb",
     ] {
-        let reply = get(&fx.server, path, Some(&fx.server.admin_token)).await;
+        let reply = fetch(&fx.server, path, Some(&fx.server.admin_token)).await;
 
         assert_eq!(reply.status, 404, "{path}");
     }
@@ -597,13 +597,13 @@ async fn any_other_artwork_path_is_not_found() {
     );
 }
 
-/// The session cookie, or a bearer token, is what lets a client fetch artwork.
+/// The session cookie is what lets a browser's `<img src>` fetch artwork.
 #[tokio::test]
 async fn artwork_without_a_session_is_refused() {
     let fx = Fixture::alien().await;
     let movie = fx.get_movie(fx.library, ALIEN).await.unwrap();
 
-    let reply = get(&fx.server, &movie.poster_url.unwrap(), None).await;
+    let reply = fetch(&fx.server, &movie.poster_url.unwrap(), None).await;
 
     assert_eq!(reply.status, 401);
 }
@@ -615,7 +615,7 @@ async fn artwork_from_a_provider_that_fails_is_unavailable() {
     let movie = fx.get_movie(fx.library, ALIEN).await.unwrap();
     drop(fx.tmdb);
 
-    let reply = get(
+    let reply = fetch(
         &fx.server,
         &movie.poster_url.unwrap(),
         Some(&fx.server.admin_token),
