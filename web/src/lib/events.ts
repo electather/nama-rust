@@ -7,6 +7,7 @@ import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import {
   type Event,
   EventService,
+  EventType,
   type ScanFinished,
   type SubscribeResponse,
   type ScanProgress,
@@ -36,6 +37,18 @@ export function unmatchedKey(libraryId?: bigint) {
 // ponytail: every browse query, not only those of the Event's Library. Only the ones on screen
 // refetch, and a household Server has a handful of Libraries.
 const browseKey = createConnectQueryKey({ schema: BrowseService, cardinality: undefined });
+
+/**
+ * The Events the app acts on. Asking for these alone keeps the rest, such as each file a scan
+ * adds with its path on the Server, off every signed-in browser.
+ */
+const types = [
+  EventType.SCAN_STARTED,
+  EventType.SCAN_PROGRESS,
+  EventType.SCAN_FINISHED,
+  EventType.LIBRARY_ITEM_REMOVED,
+  EventType.ITEM_MATCHED,
+];
 
 // How long to wait before subscribing again after the stream ends or fails.
 const RESUBSCRIBE_MS = 5000;
@@ -74,7 +87,7 @@ async function follow(
   };
   try {
     const client = createClient(EventService, transport);
-    const responses = client.subscribe({}, { signal, onHeader: catchUp });
+    const responses = client.subscribe({ types }, { signal, onHeader: catchUp });
     for await (const response of responses) apply(response, queryClient);
   } catch {
     // The Server went away or hung up, or the session ended and the routes' access checks will

@@ -5,22 +5,32 @@ import { Button } from "@/components/ui/button";
 import { type Library, LibraryService } from "@/gen/nama/v1/library_pb";
 import { type ScanState, scanQuery } from "@/lib/events";
 
-/** How the Library `libraryId`'s scan is going, as its Events say. Nothing before the first. */
-export function ScanStatus({ libraryId }: { libraryId: bigint }) {
+/**
+ * How the Library `libraryId`'s scan is going, as its Events say. Before the first, nothing, or
+ * `idle` when it's given.
+ */
+export function ScanStatus({ libraryId, idle }: { libraryId: bigint; idle?: string }) {
   const { data: scan } = useQuery(scanQuery(libraryId));
+  const sentence = scan ? scanSentence(scan) : idle;
   return (
     // A live region, so a screen reader hears the scan move on.
     <output className="flex flex-col gap-1.5 text-sm text-muted-foreground empty:hidden">
-      {scan && <p>{scanSentence(scan)}</p>}
-      {scan?.$typeName === "nama.v1.ScanProgress" && (
-        <progress
-          value={Number(scan.filesDone)}
-          max={Number(scan.filesTotal)}
-          aria-label="Scan progress"
-          className="h-1 w-full max-w-48 accent-primary"
-        />
-      )}
+      {sentence !== undefined && <p>{sentence}</p>}
+      <ScanBar scan={scan} />
     </output>
+  );
+}
+
+/** The scan's progress as a bar, while it's counting files. */
+function ScanBar({ scan }: { scan: ScanState | undefined }) {
+  if (scan?.$typeName !== "nama.v1.ScanProgress") return null;
+  return (
+    <progress
+      value={Number(scan.filesDone)}
+      max={Number(scan.filesTotal)}
+      aria-label="Scan progress"
+      className="h-1 w-full max-w-48 accent-primary"
+    />
   );
 }
 

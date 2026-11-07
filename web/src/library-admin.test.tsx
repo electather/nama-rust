@@ -103,19 +103,23 @@ test("setting a Match takes the Item off Needs a Match", async () => {
 
 test("an Item Matched elsewhere leaves Needs a Match when its Event arrives", async () => {
   const events = eventFeed();
-  let items: MessageInitShape<typeof UnmatchedItemSchema>[] = [
+  const items = [
     { itemId: 7n, path: "/srv/films/Alien.1979.mkv", kind: TitleKind.MOVIE, title: "Alien" },
   ];
+  let unmatched = (): object => ({ items });
   openApp(
     "/admin/needs-a-match",
     adminServer(events.stream, (router) => {
-      router.service(MatchService, { listUnmatchedItems: () => ({ items }) });
+      router.service(MatchService, {
+        listUnmatchedItems: () => unmatched(),
+      });
     }),
   );
   await screen.findByText("/srv/films/Alien.1979.mkv");
 
   // Matched automatically, or by another Admin.
-  items = [];
+  // From now on a refetch never answers, so only the Event can take the Item off.
+  unmatched = () => new Promise<never>(() => {});
   events.send({ event: { case: "itemMatched", value: { libraryId: 1n, itemId: 7n } } });
 
   expect(await screen.findByText("Everything is Matched.")).toBeDefined();

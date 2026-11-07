@@ -43,7 +43,7 @@ function LibraryPage() {
         <DeleteLibrary library={library} />
       </div>
       <div className="mt-2 max-w-sm">
-        <ScanStatus libraryId={library.id} />
+        <ScanStatus libraryId={library.id} idle="No scan seen yet." />
       </div>
       <section aria-labelledby="edit" className="mt-10 max-w-sm">
         <h2 id="edit" className="font-medium">
