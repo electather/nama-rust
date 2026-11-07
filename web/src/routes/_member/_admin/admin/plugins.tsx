@@ -4,7 +4,7 @@ import { Power, PowerOff } from "lucide-react";
 import { useId } from "react";
 
 import { Page } from "@/components/page";
-import { StateLabel } from "@/components/request-state";
+import { StateLabel } from "@/components/state-label";
 import {
   type Plugin,
   PluginKind,
