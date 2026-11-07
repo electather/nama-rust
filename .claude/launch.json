@@ -1,0 +1,21 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "server",
+      "runtimeExecutable": "cargo",
+      "runtimeArgs": ["run", "-p", "nama-server"],
+      "env": { "NAMA_DATA_DIR": "target/dev-data" },
+      "port": 7980,
+      "autoPort": false
+    },
+    {
+      "name": "web",
+      "runtimeExecutable": "vp",
+      "cwd": "web",
+      "runtimeArgs": ["dev", "--port", "5173", "--strictPort"],
+      "port": 5173,
+      "autoPort": false
+    }
+  ]
+}
