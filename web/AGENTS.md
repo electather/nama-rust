@@ -11,4 +11,5 @@
 - **Access checks per route.** `whoIsSignedIn` and `isSetupRequired` (`src/lib/access.ts`) run in each route's own `beforeLoad`: the build prerenders the root's, so a check there runs once, at build time.
 - **One person's cache.** Every flow that changes who is signed in (signing in, signing out, setting up) clears the query cache, so the next person sees only their own data.
 - **Read refusals by reason.** Choose a field or a reaction from the `Refusal` detail's `reason` and `field`, never from the message, which is only for showing.
+- **Sensitive changes ask "Confirm it’s you".** Call an RPC that needs Recent Authentication (`crates/nama-server/AGENTS.md`) with `useSensitiveMutation`, never connect-query's `useMutation`. `web/README.md` says how it works.
 - **Glossary words in copy.** UI text uses `GLOSSARY.md` terms, in plain words. A User's own page is "Settings" (`/settings`), never "Account": an Account is the Hub identity. Don't use `/link` for anything but Linking an Account.

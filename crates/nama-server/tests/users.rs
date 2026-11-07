@@ -797,6 +797,19 @@ async fn a_changed_password_signs_in_and_signs_the_users_other_devices_out() {
 }
 
 #[tokio::test]
+async fn the_device_that_set_up_the_server_changes_its_password_without_giving_the_old_one() {
+    let fixture = Fixture::start().await;
+
+    let changed = change_password(&fixture.client, "a brand new password").await;
+
+    assert_eq!(code(changed), None);
+    assert_eq!(
+        code(fixture.sign_in("Admin", "a brand new password").await),
+        None
+    );
+}
+
+#[tokio::test]
 async fn a_new_password_outside_the_rules_is_refused_and_the_old_one_still_works() {
     let fixture = Fixture::start().await;
     let (phone, laptop) = fixture.grace_on_phone_and_laptop().await;

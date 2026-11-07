@@ -25,7 +25,7 @@ import { ConfirmModal } from "@/components/confirm-dialog";
 import { FormField } from "@/components/form-field";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { SignInService } from "@/gen/nama/v1/sign_in_pb";
-import { formText, refusal, refusalOf } from "@/lib/forms";
+import { formText, refusal, refusalOf, serverMessage } from "@/lib/forms";
 
 /** Asks the User to confirm it's them, resolving whether this Device then has Recent Authentication. */
 type Ask = () => Promise<boolean>;
@@ -98,7 +98,8 @@ function ReauthenticateDialog({
         refusal(
           error,
           "confirm it’s you",
-          {},
+          // This Device was signed out meanwhile.
+          { [Code.Unauthenticated]: { form: serverMessage(error) } },
           {
             [RefusalReason.WRONG_PASSWORD]: { form: "That isn’t your password." },
           },

@@ -680,8 +680,8 @@ export const SignInCodeStatusSchema: GenEnum<SignInCodeStatus> = /*@__PURE__*/
  * `ApproveSignInCode`s together from one Device within 15 minutes, its further lookups and
  * approvals fail with `resource_exhausted`.
  *
- * Changes that could hand someone else the User's account need Recent Authentication: the calling
- * Device proved who it is with one of its User's Sign-in Methods in the last 10 minutes. They are
+ * Changes to who can sign in as whom need Recent Authentication: the calling Device proved who it
+ * is with one of its User's Sign-in Methods in the last 10 minutes. They are
  * `ApproveSignInCode` and `UserService`'s `ChangePassword`, `ResetPassword`, `SetRole` and
  * `DeleteUser`. Signing in with `Setup` or `SignIn` gives a Device Recent Authentication; signing
  * in with a Sign-in Code doesn't, since that Device proved nothing itself. Without it, those calls
