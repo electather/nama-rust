@@ -32,25 +32,26 @@ use nama_proto::nama::v1::{
     DeleteLibraryRequest, DeleteLibraryResponse, DeleteUserRequest, DeleteUserResponse,
     EventService, EventType, GetLibraryRequest, GetLibraryResponse, GetMovieRequest,
     GetMovieResponse, GetServerInfoRequest, GetServerInfoResponse, GetShowRequest, GetShowResponse,
-    LIBRARY_SERVICE_SERVICE_NAME, LibraryKind, LibraryService, ListContinueWatchingRequest,
-    ListContinueWatchingResponse, ListDevicesRequest, ListDevicesResponse, ListEpisodesRequest,
-    ListEpisodesResponse, ListLibrariesRequest, ListLibrariesResponse, ListMoviesRequest,
-    ListMoviesResponse, ListShowsRequest, ListShowsResponse, ListUnmatchedItemsRequest,
-    ListUnmatchedItemsResponse, ListUsersRequest, ListUsersResponse, LookUpSignInCodeRequest,
-    LookUpSignInCodeResponse, MATCH_SERVICE_SERVICE_NAME, MatchService, PollSignInCodeRequest,
-    PollSignInCodeResponse, ReportProgressRequest, ReportProgressResponse, ResetPasswordRequest,
-    ResetPasswordResponse, RevokeDeviceRequest, RevokeDeviceResponse,
-    SERVER_SERVICE_GET_SERVER_INFO_SPEC, SIGN_IN_SERVICE_POLL_SIGN_IN_CODE_SPEC,
-    SIGN_IN_SERVICE_SETUP_SPEC, SIGN_IN_SERVICE_SIGN_IN_SPEC,
-    SIGN_IN_SERVICE_START_SIGN_IN_CODE_SPEC, ScanLibraryRequest, ScanLibraryResponse,
-    SearchMetadataRequest, SearchMetadataResponse, ServerService, SessionDelivery, SetMatchRequest,
-    SetMatchResponse, SetPlayedRequest, SetPlayedResponse, SetRoleRequest, SetRoleResponse,
-    SetupRequest, SetupResponse, SignInCodeStatus, SignInRequest, SignInResponse, SignInService,
-    SignOutRequest, SignOutResponse, StartSignInCodeRequest, StartSignInCodeResponse,
-    SubscribeRequest, SubscribeResponse, USER_SERVICE_CHANGE_PASSWORD_SPEC,
-    USER_SERVICE_LIST_DEVICES_SPEC, USER_SERVICE_REVOKE_DEVICE_SPEC, USER_SERVICE_SERVICE_NAME,
-    UpdateLibraryRequest, UpdateLibraryResponse, UserService, WatchStateService, WhoAmIRequest,
-    WhoAmIResponse, external_id, set_played_request::Target,
+    LIBRARY_SERVICE_LIST_LIBRARIES_SPEC, LIBRARY_SERVICE_SERVICE_NAME, LibraryKind, LibraryService,
+    ListContinueWatchingRequest, ListContinueWatchingResponse, ListDevicesRequest,
+    ListDevicesResponse, ListEpisodesRequest, ListEpisodesResponse, ListLibrariesRequest,
+    ListLibrariesResponse, ListMoviesRequest, ListMoviesResponse, ListShowsRequest,
+    ListShowsResponse, ListUnmatchedItemsRequest, ListUnmatchedItemsResponse, ListUsersRequest,
+    ListUsersResponse, LookUpSignInCodeRequest, LookUpSignInCodeResponse,
+    MATCH_SERVICE_SERVICE_NAME, MatchService, PollSignInCodeRequest, PollSignInCodeResponse,
+    ReportProgressRequest, ReportProgressResponse, ResetPasswordRequest, ResetPasswordResponse,
+    RevokeDeviceRequest, RevokeDeviceResponse, SERVER_SERVICE_GET_SERVER_INFO_SPEC,
+    SIGN_IN_SERVICE_POLL_SIGN_IN_CODE_SPEC, SIGN_IN_SERVICE_SETUP_SPEC,
+    SIGN_IN_SERVICE_SIGN_IN_SPEC, SIGN_IN_SERVICE_START_SIGN_IN_CODE_SPEC, ScanLibraryRequest,
+    ScanLibraryResponse, SearchMetadataRequest, SearchMetadataResponse, ServerService,
+    SessionDelivery, SetMatchRequest, SetMatchResponse, SetPlayedRequest, SetPlayedResponse,
+    SetRoleRequest, SetRoleResponse, SetupRequest, SetupResponse, SignInCodeStatus, SignInRequest,
+    SignInResponse, SignInService, SignOutRequest, SignOutResponse, StartSignInCodeRequest,
+    StartSignInCodeResponse, SubscribeRequest, SubscribeResponse,
+    USER_SERVICE_CHANGE_PASSWORD_SPEC, USER_SERVICE_LIST_DEVICES_SPEC,
+    USER_SERVICE_REVOKE_DEVICE_SPEC, USER_SERVICE_SERVICE_NAME, UpdateLibraryRequest,
+    UpdateLibraryResponse, UserService, WatchStateService, WhoAmIRequest, WhoAmIResponse,
+    external_id, set_played_request::Target,
 };
 use tokio::sync::OwnedMutexGuard;
 
@@ -162,7 +163,8 @@ impl Access {
 
     /// The RPCs of an Admin-only service that any signed-in User may call, by path. Each decides
     /// for itself what a Member may do.
-    const SELF_SERVICE: [&str; 3] = [
+    const SELF_SERVICE: [&str; 4] = [
+        LIBRARY_SERVICE_LIST_LIBRARIES_SPEC.procedure,
         USER_SERVICE_LIST_DEVICES_SPEC.procedure,
         USER_SERVICE_REVOKE_DEVICE_SPEC.procedure,
         USER_SERVICE_CHANGE_PASSWORD_SPEC.procedure,
@@ -478,7 +480,7 @@ fn poll_status(status: SignInCodeStatus) -> ServiceResult<PollSignInCodeResponse
 }
 
 /// `nama.v1.LibraryService`: managing the Server's Libraries. Admins only, which
-/// [`require_access`] enforces.
+/// [`require_access`] enforces, except listing them, which any signed-in User may do to browse.
 struct LibraryServiceHandler {
     libraries: Libraries,
     scanner: Scanner,
@@ -509,12 +511,25 @@ impl LibraryService for LibraryServiceHandler {
 
     async fn list_libraries(
         &self,
-        _ctx: RequestContext,
+        ctx: RequestContext,
         _request: ServiceRequest<'_, ListLibrariesRequest>,
     ) -> ServiceResult<ListLibrariesResponse> {
+        // Where a Library's files live on the Server's disk is for Admins only.
+        let shows_folders = caller(&ctx)?.user.role == Role::Admin;
         let libraries = self.libraries.list().await?;
         Response::ok(ListLibrariesResponse {
-            libraries: libraries.into_iter().map(library_to_proto).collect(),
+            libraries: libraries
+                .into_iter()
+                .map(|library| Library {
+                    folders: if shows_folders {
+                        library.folders
+                    } else {
+                        Vec::new()
+                    },
+                    ..library
+                })
+                .map(library_to_proto)
+                .collect(),
             ..Default::default()
         })
     }
