@@ -14,6 +14,7 @@ mod scanner;
 mod sessions;
 mod sign_in_codes;
 pub mod users;
+mod versions;
 #[cfg(feature = "web")]
 mod web;
 

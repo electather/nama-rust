@@ -256,17 +256,41 @@ impl Fixture {
 /// An HTTP response, as a test checks it.
 struct Reply {
     status: u16,
-    content_type: String,
+    headers: hyper::HeaderMap,
     body: Vec<u8>,
+}
+
+impl Reply {
+    /// The value of the header `name`, or `""` if it has none.
+    #[expect(
+        clippy::unwrap_used,
+        reason = "a test helper fails its test by panicking"
+    )]
+    fn header(&self, name: &str) -> &str {
+        self.headers
+            .get(name)
+            .map_or("", |value| value.to_str().unwrap())
+    }
 }
 
 /// Sends a plain HTTP/1.1 `GET` for `path` to `server`, presenting `token`, if any, in the
 /// session cookie, as a browser's `<img src>` does.
+async fn fetch(server: &TestServer, path: &str, token: Option<&str>) -> Reply {
+    fetch_range(server, path, token, None).await
+}
+
+/// Like [`fetch`], asking for only the bytes in `range`, if any, as a browser's `<video>` does
+/// to seek.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
-async fn fetch(server: &TestServer, path: &str, token: Option<&str>) -> Reply {
+async fn fetch_range(
+    server: &TestServer,
+    path: &str,
+    token: Option<&str>,
+    range: Option<&str>,
+) -> Reply {
     use http_body_util::{BodyExt, Empty};
     use hyper::{Request, body::Bytes, client::conn::http1};
     use hyper_util::rt::TokioIo;
@@ -278,24 +302,18 @@ async fn fetch(server: &TestServer, path: &str, token: Option<&str>) -> Reply {
     if let Some(token) = token {
         request = request.header("cookie", format!("nama_session={token}"));
     }
+    if let Some(range) = range {
+        request = request.header("range", range);
+    }
     let response = sender
         .send_request(request.body(Empty::<Bytes>::new()).unwrap())
         .await
         .unwrap();
+    let (parts, body) = response.into_parts();
     Reply {
-        status: response.status().as_u16(),
-        content_type: response
-            .headers()
-            .get("content-type")
-            .map(|value| value.to_str().unwrap().to_owned())
-            .unwrap_or_default(),
-        body: response
-            .into_body()
-            .collect()
-            .await
-            .unwrap()
-            .to_bytes()
-            .to_vec(),
+        status: parts.status.as_u16(),
+        headers: parts.headers,
+        body: body.collect().await.unwrap().to_bytes().to_vec(),
     }
 }
 
@@ -569,7 +587,7 @@ async fn a_poster_a_match_stores_is_served_with_its_content_type() {
     let reply = fetch(&fx.server, &poster, Some(&fx.server.admin_token)).await;
 
     assert_eq!(reply.status, 200);
-    assert_eq!(reply.content_type, "image/jpeg");
+    assert_eq!(reply.header("content-type"), "image/jpeg");
     assert!(reply.body.starts_with(b"\xff\xd8"));
 }
 
@@ -623,6 +641,89 @@ async fn artwork_from_a_provider_that_fails_is_unavailable() {
     .await;
 
     assert_eq!(reply.status, 503);
+}
+
+/// Where a browser's `<video>` plays the Version `version` from.
+fn version_url(version: &Version) -> String {
+    format!("/media/versions/{}", version.id)
+}
+
+#[tokio::test]
+async fn a_version_is_served_whole_with_what_a_video_element_needs() {
+    let fx = Fixture::alien().await;
+    let movie = fx.get_movie(fx.library, ALIEN).await.unwrap();
+
+    let reply = fetch(
+        &fx.server,
+        &version_url(&movie.versions[0]),
+        Some(&fx.server.admin_token),
+    )
+    .await;
+
+    assert_eq!(reply.status, 200);
+    assert_eq!(reply.body, b"video");
+    assert_eq!(reply.header("content-type"), "video/x-matroska");
+    assert_eq!(reply.header("accept-ranges"), "bytes");
+    assert_ne!(reply.header("last-modified"), "");
+}
+
+/// A `<video>` seeks by asking for a range of bytes.
+#[tokio::test]
+async fn a_range_of_a_version_is_served_as_exactly_those_bytes() {
+    let fx = Fixture::alien().await;
+    let movie = fx.get_movie(fx.library, ALIEN).await.unwrap();
+
+    let reply = fetch_range(
+        &fx.server,
+        &version_url(&movie.versions[0]),
+        Some(&fx.server.admin_token),
+        Some("bytes=1-3"),
+    )
+    .await;
+
+    assert_eq!(reply.status, 206);
+    assert_eq!(reply.body, b"ide");
+    assert_eq!(reply.header("content-range"), "bytes 1-3/5");
+}
+
+/// The session cookie is what lets a browser's `<video src>` play a Version (ADR 0014).
+#[tokio::test]
+async fn a_version_without_a_session_is_refused() {
+    let fx = Fixture::alien().await;
+    let movie = fx.get_movie(fx.library, ALIEN).await.unwrap();
+
+    let reply = fetch(&fx.server, &version_url(&movie.versions[0]), None).await;
+
+    assert_eq!(reply.status, 401);
+}
+
+#[tokio::test]
+async fn an_unknown_version_is_not_found() {
+    let fx = Fixture::alien().await;
+
+    let reply = fetch(
+        &fx.server,
+        "/media/versions/999",
+        Some(&fx.server.admin_token),
+    )
+    .await;
+
+    assert_eq!(reply.status, 404);
+}
+
+/// Versions are served by id, so a client can't name a file by its path.
+#[tokio::test]
+async fn a_path_in_place_of_a_version_id_is_a_bad_request() {
+    let fx = Fixture::alien().await;
+
+    let reply = fetch(
+        &fx.server,
+        "/media/versions/..%2F..%2Fnama.db",
+        Some(&fx.server.admin_token),
+    )
+    .await;
+
+    assert_eq!(reply.status, 400);
 }
 
 /// A Season as `GetShow` gives it.

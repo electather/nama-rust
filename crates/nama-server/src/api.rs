@@ -64,9 +64,10 @@ use crate::{
     sessions::{cleared_session_cookie, identify_caller, in_session_cookie, session_cookie},
     sign_in_codes::{self, Poll, SignInCodes},
     users::{self, Caller, Role, SetupCode, SignedIn, Users},
+    versions,
 };
 
-/// Routes every RPC the Server answers, and its artwork, each behind the layers that identify the
+/// Routes every RPC the Server answers, its artwork and its Versions, each behind the layers that identify the
 /// caller and refuse calls they may not make.
 #[expect(
     clippy::too_many_arguments,
@@ -86,6 +87,7 @@ pub(crate) fn router(
         Artwork::new(&config.data_dir, plugins.clone()),
         Contents::new(Arc::clone(&db)),
     );
+    let versions = versions::router(Contents::new(Arc::clone(&db)));
     connectrpc::Router::new()
         .add_service(Arc::new(ServerServiceHandler {
             name: config.name.clone(),
@@ -121,6 +123,7 @@ pub(crate) fn router(
         }))
         .into_axum_router()
         .merge(artwork)
+        .merge(versions)
         .layer(middleware::from_fn(require_access))
         .layer(middleware::from_fn_with_state(users, identify_caller))
 }

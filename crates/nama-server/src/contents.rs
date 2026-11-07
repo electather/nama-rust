@@ -330,6 +330,14 @@ impl Contents {
         .await
     }
 
+    /// The absolute path of the stored file `file`, such as a Version's, or `None` if there is no
+    /// such file.
+    pub(crate) async fn file_path(&self, file: i64) -> Result<Option<String>, sqlx::Error> {
+        sqlx::query_scalar!("SELECT path FROM library_files WHERE id = ?", file)
+            .fetch_optional(self.db.reader())
+            .await
+    }
+
     /// Whether some Match made by the Plugin `plugin` stores `image` as its poster or backdrop.
     pub(crate) async fn stores_image(
         &self,
