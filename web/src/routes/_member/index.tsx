@@ -127,7 +127,7 @@ function Libraries() {
   if (data.libraries.length === 0) {
     return (
       <p className="mt-2 text-muted-foreground">
-        This Server has no Libraries yet. Once an Admin adds one, it shows up here.
+        This Server has no Libraries yet. Once one is added, it shows up here.
       </p>
     );
   }

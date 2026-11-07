@@ -4,6 +4,7 @@ import { Link, Outlet, createFileRoute } from "@tanstack/react-router";
 import { buttonVariants } from "@/components/ui/button";
 import { adminPages, adminPagesFor } from "@/lib/access";
 
+// web/AGENTS.md, "Admin pages need a Permission".
 /**
  * Admin pages, each for Users with the Permission `adminPages` gives it. Anyone else gets the same
  * page the Server's own refusal shows.
@@ -11,10 +12,14 @@ import { adminPages, adminPagesFor } from "@/lib/access";
 export const Route = createFileRoute("/_member/_admin")({
   beforeLoad: ({ context: { signedIn }, location }) => {
     const allowed = adminPagesFor(signedIn.user);
-    // ponytail: matched by path prefix, since no page's path starts another's. `/admin` itself
-    // only needs some page.
+    // ponytail: matched by path prefix, since no page's path starts another's; give each route a
+    // `staticData` Permission instead once one does.
     const page = adminPages.find(({ to }) => location.pathname.startsWith(to));
-    if (allowed.length === 0 || (page && !allowed.includes(page))) {
+    // `/admin` itself needs some page. Any other page missing from `adminPages` opens for nobody.
+    const mayOpen = page
+      ? allowed.includes(page)
+      : /^\/admin\/?$/u.test(location.pathname) && allowed.length > 0;
+    if (!mayOpen) {
       throw new ConnectError("this page needs a Permission you don't have", Code.PermissionDenied);
     }
     return { adminPages: allowed };
