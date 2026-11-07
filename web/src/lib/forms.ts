@@ -8,6 +8,7 @@ export interface FormErrors {
   name?: string;
   password?: string;
   deviceName?: string;
+  signInCode?: string;
   currentPassword?: string;
   newPassword?: string;
   folders?: string;
@@ -32,7 +33,8 @@ export function formText(form: FormData, name: string) {
 
 /**
  * The messages for a form refused with `error`: the ones `byCode` gives for its Connect code, or
- * else a message for the whole form saying the `attempt` (such as "sign in") failed.
+ * else a message for the whole form: too many tries for `resource_exhausted`, or otherwise that
+ * the `attempt` (such as "sign in") failed.
  */
 export function refusal(
   error: unknown,
@@ -40,14 +42,11 @@ export function refusal(
   byCode: Partial<Record<Code, FormErrors>>,
 ): FormErrors {
   const { code } = ConnectError.from(error);
-  if (code === Code.ResourceExhausted) {
-    return { form: "There have been too many tries. Try again in a moment." };
-  }
-  return (
-    byCode[code] ?? {
-      form: `Couldn’t ${attempt}. Check that the Server is running, then try again.`,
-    }
-  );
+  const byDefault =
+    code === Code.ResourceExhausted
+      ? "There have been too many tries. Try again in a moment."
+      : `Couldn’t ${attempt}. Check that the Server is running, then try again.`;
+  return byCode[code] ?? { form: byDefault };
 }
 
 /** The Server's own message for `error`, as a sentence. */
@@ -56,12 +55,11 @@ export function serverMessage(error: unknown) {
   return `${rawMessage.charAt(0).toUpperCase()}${rawMessage.slice(1)}.`;
 }
 
-// ponytail: the Server names the field only in its message ("a Device's name needs…"). Read it
+// ponytail: the Server names the field only in its message ("a User's name needs…"). Read it
 // from Connect error details instead if the Server starts sending them.
-/** Which of a name, password or Device name field an `invalid_argument` refusal is about. */
-export function invalidField(error: unknown): "name" | "password" | "deviceName" {
+/** Which of a username or password field an `invalid_argument` refusal is about. */
+export function invalidField(error: unknown): "name" | "password" {
   const message = String(error);
-  if (message.includes("Device")) return "deviceName";
   if (message.includes("User's name")) return "name";
   return "password";
 }

@@ -30,6 +30,10 @@ _Avoid_: profile, member, local user
 A client installation signed in to a Server as a User. Revoking a Device signs it out.
 _Avoid_: client, session, token (for the Device itself)
 
+**Sign-in Method**:
+A way a User can prove who they are on a Server, such as a password, a passkey or an identity at an outside provider. A User can have several.
+_Avoid_: credential, account, login, identity
+
 **Sign-in Code**:
 A short code a new Device shows so a User already signed in elsewhere can sign it in without typing a password on it.
 _Avoid_: pairing code, PIN, device code

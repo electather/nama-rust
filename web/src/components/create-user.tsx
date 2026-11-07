@@ -4,7 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Choices, FormEnd, FormField } from "@/components/form-field";
 import { Role } from "@/gen/nama/v1/sign_in_pb";
 import { UserService } from "@/gen/nama/v1/user_pb";
-import { formText, onSubmitted } from "@/lib/forms";
+import { type FormErrors, formText, onSubmitted } from "@/lib/forms";
 import { createUserErrors, usersKey } from "@/lib/users";
 
 /** The Roles a new User can have, Member first. */
@@ -39,7 +39,27 @@ export function CreateUser() {
         );
       })}
     >
-      <FormField label="Name" name="name" autoComplete="off" maxLength={64} error={errors.name} />
+      <NewUserFields errors={errors} />
+      <FormEnd
+        action={create.isPending ? "Creating User…" : "Create User"}
+        pending={create.isPending}
+        done={create.isSuccess ? `${create.variables.name} can sign in now.` : undefined}
+        refusal={errors.form}
+      />
+    </form>
+  );
+}
+
+function NewUserFields({ errors }: { errors: FormErrors }) {
+  return (
+    <>
+      <FormField
+        label="Username"
+        name="name"
+        autoComplete="off"
+        maxLength={64}
+        error={errors.name}
+      />
       <FormField
         label="Starting password"
         name="password"
@@ -49,12 +69,6 @@ export function CreateUser() {
         error={errors.password}
       />
       <Choices legend="Role" name="role" choices={roles} />
-      <FormEnd
-        action={create.isPending ? "Creating User…" : "Create User"}
-        pending={create.isPending}
-        done={create.isSuccess ? `${create.variables.name} can sign in now.` : undefined}
-        refusal={errors.form}
-      />
-    </form>
+    </>
   );
 }

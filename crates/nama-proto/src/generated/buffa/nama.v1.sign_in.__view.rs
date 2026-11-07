@@ -716,7 +716,8 @@ pub struct SetupRequestView<'a> {
     ///
     /// Field 3: `password`
     pub password: &'a str,
-    /// The signing-in Device's name: 1 to 64 characters.
+    /// The signing-in Device's name: up to 64 characters. When it is blank, the Server names the
+    /// Device after the browser and OS in its `User-Agent`, such as "Chrome on macOS".
     ///
     /// Field 4: `device_name`
     pub device_name: &'a str,
@@ -1026,7 +1027,8 @@ impl SetupRequestOwnedView {
     pub fn password(&self) -> &'_ str {
         self.0.reborrow().password
     }
-    /// The signing-in Device's name: 1 to 64 characters.
+    /// The signing-in Device's name: up to 64 characters. When it is blank, the Server names the
+    /// Device after the browser and OS in its `User-Agent`, such as "Chrome on macOS".
     ///
     /// Field 4: `device_name`
     #[must_use]
@@ -1458,7 +1460,8 @@ pub struct SignInRequestView<'a> {
     ///
     /// Field 2: `password`
     pub password: &'a str,
-    /// The signing-in Device's name: 1 to 64 characters.
+    /// The signing-in Device's name: up to 64 characters. When it is blank, the Server names the
+    /// Device after the browser and OS in its `User-Agent`, such as "Chrome on macOS".
     ///
     /// Field 3: `device_name`
     pub device_name: &'a str,
@@ -1744,7 +1747,8 @@ impl SignInRequestOwnedView {
     pub fn password(&self) -> &'_ str {
         self.0.reborrow().password
     }
-    /// The signing-in Device's name: 1 to 64 characters.
+    /// The signing-in Device's name: up to 64 characters. When it is blank, the Server names the
+    /// Device after the browser and OS in its `User-Agent`, such as "Chrome on macOS".
     ///
     /// Field 3: `device_name`
     #[must_use]
