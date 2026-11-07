@@ -212,7 +212,7 @@ impl Users {
     }
 
     /// Creates a User named `name` with `password` and `role`, who can then sign in, and returns
-    /// their id.
+    /// their ID.
     pub(crate) async fn create(
         &self,
         name: &str,

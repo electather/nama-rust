@@ -853,16 +853,20 @@ fn role_from_proto(role: EnumValue<proto::Role>) -> Result<Role, ConnectError> {
     }
 }
 
+/// A Role as clients see it.
+fn role_to_proto(role: Role) -> proto::Role {
+    match role {
+        Role::Admin => proto::Role::ROLE_ADMIN,
+        Role::Member => proto::Role::ROLE_MEMBER,
+    }
+}
+
 /// A User as clients see them.
 fn user_to_proto(user: users::User) -> proto::User {
     proto::User {
         id: user.id,
         name: user.name,
-        role: match user.role {
-            Role::Admin => proto::Role::ROLE_ADMIN,
-            Role::Member => proto::Role::ROLE_MEMBER,
-        }
-        .into(),
+        role: role_to_proto(user.role).into(),
         created_at: user.created_at,
         ..Default::default()
     }
