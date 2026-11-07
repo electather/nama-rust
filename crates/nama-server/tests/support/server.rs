@@ -5,7 +5,12 @@ use std::{net::SocketAddr, sync::Arc};
 use connectrpc::client::{ClientConfig, HttpClient};
 use nama_plugin_local_auth::LocalAuth;
 use nama_proto::nama::v1::{SessionDelivery, SetupRequest, SignInServiceClient};
-use nama_server::{config::Config, db::Database, plugins::Registry, users::SetupCode};
+use nama_server::{
+    config::Config,
+    db::Database,
+    plugins::{EnableError, Registry},
+    users::SetupCode,
+};
 use tempfile::TempDir;
 use tokio::{net::TcpListener, sync::oneshot};
 
@@ -23,7 +28,7 @@ pub(crate) struct TestServer {
 
 impl TestServer {
     /// Starts serving `config` on a free port, with a fresh database and the Plugins enabled in
-    /// `plugins` plus `local-auth`, and signs an Admin in.
+    /// `plugins` plus `local-auth`, if it isn't already, and signs an Admin in.
     pub(crate) async fn start(config: Config, plugins: Registry) -> Self {
         Self::start_with_db(config, plugins).await.0
     }
@@ -35,7 +40,12 @@ impl TestServer {
         reason = "a test helper fails its test by panicking"
     )]
     pub(crate) async fn start_with_db(config: Config, plugins: Registry) -> (Self, Arc<Database>) {
-        plugins.enable(Arc::new(LocalAuth)).unwrap();
+        let enabled = plugins.enable(Arc::new(LocalAuth));
+        // Already enabled such as by `Registry::with_builtins`.
+        assert!(
+            matches!(enabled, Ok(()) | Err(EnableError::AlreadyEnabled(_))),
+            "{enabled:?}"
+        );
         let data_dir = tempfile::tempdir().unwrap();
         let config = Config {
             data_dir: data_dir.path().to_owned(),

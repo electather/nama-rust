@@ -52,6 +52,7 @@ export const adminPages = [
   { to: "/admin/libraries", label: "Libraries", permission: Permission.MANAGE_LIBRARIES },
   { to: "/admin/needs-a-match", label: "Needs a Match", permission: Permission.MANAGE_LIBRARIES },
   { to: "/admin/users", label: "Users", permission: Permission.MANAGE_USERS },
+  { to: "/admin/plugins", label: "Plugins", permission: Permission.MANAGE_SETTINGS },
 ] as const;
 
 /** The Admin pages `user` may open. */

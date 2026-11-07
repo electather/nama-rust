@@ -1,0 +1,75 @@
+syntax = "proto3";
+
+package nama.v1;
+
+// The Server's Plugins and their settings. Needs `PERMISSION_MANAGE_SETTINGS`, and fails with
+// `permission_denied` without it. A secret setting's value never leaves the Server.
+service PluginService {
+  // Lists every Plugin on the Server, by id.
+  rpc ListPlugins(ListPluginsRequest) returns (ListPluginsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+}
+
+message ListPluginsRequest {}
+
+message ListPluginsResponse {
+  repeated Plugin plugins = 1;
+}
+
+// Where a Plugin comes from.
+enum PluginKind {
+  PLUGIN_KIND_UNSPECIFIED = 0;
+  // Compiled into the Server.
+  PLUGIN_KIND_BUILT_IN = 1;
+}
+
+// A unit of trusted functionality that plugs into a Server.
+message Plugin {
+  // Its stable, unique name, such as `tmdb`.
+  string id = 1;
+  string version = 2;
+  PluginKind kind = 3;
+  // Whether it is running. A Plugin missing a required setting isn't.
+  bool enabled = 4;
+  // Every setting it takes, in the order a form shows them.
+  repeated Setting settings = 5;
+}
+
+// What kind of value a setting takes.
+enum SettingKind {
+  SETTING_KIND_UNSPECIFIED = 0;
+  SETTING_KIND_TEXT = 1;
+  // Text that is never sent back, such as an API key.
+  SETTING_KIND_SECRET = 2;
+  SETTING_KIND_BOOL = 3;
+  SETTING_KIND_INTEGER = 4;
+}
+
+// One setting a Plugin takes, as its schema declares it, and its stored value.
+message Setting {
+  // The key it is stored under, such as `api_key`.
+  string key = 1;
+  // A short name for a form's label.
+  string label = 2;
+  // What the setting does, for a form's help text.
+  string description = 3;
+  SettingKind kind = 4;
+  // Whether the Plugin can't be enabled without it.
+  bool required = 5;
+  // The value used when none is stored. Never set for a secret.
+  SettingValue default_value = 6;
+  // The stored value. Never set for a secret: see `secret_set`.
+  SettingValue value = 7;
+  // Whether a secret has a stored value. Always false for other kinds.
+  bool secret_set = 8;
+}
+
+// A setting's value, of the setting's kind.
+message SettingValue {
+  oneof value {
+    string text_value = 1;
+    bool bool_value = 2;
+    int64 integer_value = 3;
+  }
+}

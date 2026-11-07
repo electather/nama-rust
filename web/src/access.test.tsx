@@ -168,7 +168,13 @@ test.each([
     ["Libraries", "Needs a Match"],
   ],
   ["Manage Users", Permission.MANAGE_USERS, "/admin/users", ["Users"]],
-  ["Admin", Permission.ADMIN, "/admin/libraries", ["Libraries", "Needs a Match", "Users"]],
+  ["Manage settings", Permission.MANAGE_SETTINGS, "/admin/plugins", ["Plugins"]],
+  [
+    "Admin",
+    Permission.ADMIN,
+    "/admin/libraries",
+    ["Libraries", "Needs a Match", "Users", "Plugins"],
+  ],
 ])(
   "with only the %s Permission, Admin opens on %s and lists only the pages it allows",
   async (_, permission, landing, pages) => {
@@ -187,12 +193,15 @@ test.each([
   },
 );
 
-test("a User with only Manage Libraries opening the Users page is told they can't", async () => {
-  openApp("/admin/users", fakeServer({ signedIn: [Permission.MANAGE_LIBRARIES] }));
+test.each(["/admin/users", "/admin/plugins"])(
+  "a User with only Manage Libraries opening %s is told they can't",
+  async (path) => {
+    openApp(path, fakeServer({ signedIn: [Permission.MANAGE_LIBRARIES] }));
 
-  expect(await screen.findByRole("heading", { name: "You can’t open this page" })).toBeDefined();
-  expect(screen.getByRole("link", { name: "Admin" })).toBeDefined();
-});
+    expect(await screen.findByRole("heading", { name: "You can’t open this page" })).toBeDefined();
+    expect(screen.getByRole("link", { name: "Admin" })).toBeDefined();
+  },
+);
 
 test("a wrong password shows an error and keeps the username", async () => {
   const router = openApp(

@@ -6,6 +6,7 @@ include!("nama.v1.browse.rs");
 include!("nama.v1.request.rs");
 include!("nama.v1.event.rs");
 include!("nama.v1.library.rs");
+include!("nama.v1.plugin.rs");
 include!("nama.v1.refusal.rs");
 include!("nama.v1.server.rs");
 include!("nama.v1.sign_in.rs");
@@ -33,6 +34,7 @@ pub mod __buffa {
         include!("nama.v1.request.__view.rs");
         include!("nama.v1.event.__view.rs");
         include!("nama.v1.library.__view.rs");
+        include!("nama.v1.plugin.__view.rs");
         include!("nama.v1.refusal.__view.rs");
         include!("nama.v1.server.__view.rs");
         include!("nama.v1.sign_in.__view.rs");
@@ -44,6 +46,7 @@ pub mod __buffa {
             include!("nama.v1.watch_state.__view_oneof.rs");
             include!("nama.v1.browse.__view_oneof.rs");
             include!("nama.v1.event.__view_oneof.rs");
+            include!("nama.v1.plugin.__view_oneof.rs");
             include!("nama.v1.sign_in.__view_oneof.rs");
         }
     }
@@ -54,6 +57,7 @@ pub mod __buffa {
         include!("nama.v1.watch_state.__oneof.rs");
         include!("nama.v1.browse.__oneof.rs");
         include!("nama.v1.event.__oneof.rs");
+        include!("nama.v1.plugin.__oneof.rs");
         include!("nama.v1.sign_in.__oneof.rs");
     }
     /// Register this package's `Any` type entries and extension entries.
@@ -133,6 +137,11 @@ pub mod __buffa {
         reg.register_json_any(super::__DELETE_LIBRARY_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__SCAN_LIBRARY_REQUEST_JSON_ANY);
         reg.register_json_any(super::__SCAN_LIBRARY_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__LIST_PLUGINS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_PLUGINS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__PLUGIN_JSON_ANY);
+        reg.register_json_any(super::__SETTING_JSON_ANY);
+        reg.register_json_any(super::__SETTING_VALUE_JSON_ANY);
         reg.register_json_any(super::__REFUSAL_JSON_ANY);
         reg.register_json_any(super::__GET_SERVER_INFO_REQUEST_JSON_ANY);
         reg.register_json_any(super::__GET_SERVER_INFO_RESPONSE_JSON_ANY);
@@ -478,6 +487,26 @@ pub use self::__buffa::view::ScanLibraryRequestOwnedView;
 pub use self::__buffa::view::ScanLibraryResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::ScanLibraryResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListPluginsRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListPluginsRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListPluginsResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListPluginsResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PluginView;
+#[doc(inline)]
+pub use self::__buffa::view::PluginOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SettingView;
+#[doc(inline)]
+pub use self::__buffa::view::SettingOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SettingValueView;
+#[doc(inline)]
+pub use self::__buffa::view::SettingValueOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::RefusalView;
 #[doc(inline)]
