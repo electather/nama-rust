@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT requesters.request_id, requesters.user_id, users.display_username,\n                requesters.requested_at\n         FROM requesters\n         JOIN users ON users.id = requesters.user_id\n         WHERE ?1 IS NULL OR requesters.request_id = ?1\n         ORDER BY requesters.requested_at, requesters.rowid",
+  "describe": {
+    "columns": [
+      {
+        "name": "request_id",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "requesters",
+            "name": "request_id"
+          }
+        }
+      },
+      {
+        "name": "user_id",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "requesters",
+            "name": "user_id"
+          }
+        }
+      },
+      {
+        "name": "display_username",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "display_username"
+          }
+        }
+      },
+      {
+        "name": "requested_at",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "requesters",
+            "name": "requested_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "aa2406ff83515daeea22140386f547fbccd8035e5ae9a6371262738976d5f829"
+}

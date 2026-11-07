@@ -4,13 +4,15 @@
 
 import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
+import type { Request } from "./request_pb";
+import { file_nama_v1_request } from "./request_pb";
 import type { Message, UnknownEnum } from "@bufbuild/protobuf";
 
 /**
  * Describes the file nama/v1/event.proto.
  */
 export const file_nama_v1_event: GenFile = /*@__PURE__*/
-  fileDesc("ChNuYW1hL3YxL2V2ZW50LnByb3RvEgduYW1hLnYxIkoKEFN1YnNjcmliZVJlcXVlc3QSIQoFdHlwZXMYASADKA4yEi5uYW1hLnYxLkV2ZW50VHlwZRITCgtsaWJyYXJ5X2lkcxgCIAMoAyJiChFTdWJzY3JpYmVSZXNwb25zZRIfCgVldmVudBgBIAEoCzIOLm5hbWEudjEuRXZlbnRIABIhCgZsYWdnZWQYAiABKAsyDy5uYW1hLnYxLkxhZ2dlZEgAQgkKB21lc3NhZ2UiGQoGTGFnZ2VkEg8KB2Ryb3BwZWQYASABKAQiwgIKBUV2ZW50EiwKDHNjYW5fc3RhcnRlZBgBIAEoCzIULm5hbWEudjEuU2NhblN0YXJ0ZWRIABIuCg1zY2FuX3Byb2dyZXNzGAIgASgLMhUubmFtYS52MS5TY2FuUHJvZ3Jlc3NIABIuCg1zY2FuX2ZpbmlzaGVkGAMgASgLMhUubmFtYS52MS5TY2FuRmluaXNoZWRIABI3ChJsaWJyYXJ5X2l0ZW1fYWRkZWQYBCABKAsyGS5uYW1hLnYxLkxpYnJhcnlJdGVtQWRkZWRIABI7ChRsaWJyYXJ5X2l0ZW1fcmVtb3ZlZBgFIAEoCzIbLm5hbWEudjEuTGlicmFyeUl0ZW1SZW1vdmVkSAASLAoMaXRlbV9tYXRjaGVkGAYgASgLMhQubmFtYS52MS5JdGVtTWF0Y2hlZEgAQgcKBWV2ZW50IiEKC1NjYW5TdGFydGVkEhIKCmxpYnJhcnlfaWQYASABKAMiSwoMU2NhblByb2dyZXNzEhIKCmxpYnJhcnlfaWQYASABKAMSEgoKZmlsZXNfZG9uZRgCIAEoBBITCgtmaWxlc190b3RhbBgDIAEoBCJmCgxTY2FuRmluaXNoZWQSEgoKbGlicmFyeV9pZBgBIAEoAxINCgVhZGRlZBgCIAEoBBIPCgd1cGRhdGVkGAMgASgEEg8KB3JlbW92ZWQYBCABKAQSEQoJdW5jaGFuZ2VkGAUgASgEIkUKEExpYnJhcnlJdGVtQWRkZWQSEgoKbGlicmFyeV9pZBgBIAEoAxIPCgdpdGVtX2lkGAIgASgDEgwKBHBhdGgYAyABKAkiOQoSTGlicmFyeUl0ZW1SZW1vdmVkEhIKCmxpYnJhcnlfaWQYASABKAMSDwoHaXRlbV9pZBgCIAEoAyJBCgtJdGVtTWF0Y2hlZBISCgpsaWJyYXJ5X2lkGAEgASgDEg8KB2l0ZW1faWQYAiABKAMSDQoFdGl0bGUYAyABKAkq5QEKCUV2ZW50VHlwZRIaChZFVkVOVF9UWVBFX1VOU1BFQ0lGSUVEEAASGwoXRVZFTlRfVFlQRV9TQ0FOX1NUQVJURUQQARIcChhFVkVOVF9UWVBFX1NDQU5fUFJPR1JFU1MQAhIcChhFVkVOVF9UWVBFX1NDQU5fRklOSVNIRUQQAxIhCh1FVkVOVF9UWVBFX0xJQlJBUllfSVRFTV9BRERFRBAEEiMKH0VWRU5UX1RZUEVfTElCUkFSWV9JVEVNX1JFTU9WRUQQBRIbChdFVkVOVF9UWVBFX0lURU1fTUFUQ0hFRBAGMlkKDEV2ZW50U2VydmljZRJJCglTdWJzY3JpYmUSGS5uYW1hLnYxLlN1YnNjcmliZVJlcXVlc3QaGi5uYW1hLnYxLlN1YnNjcmliZVJlc3BvbnNlIgOQAgEwAWIGcHJvdG8z");
+  fileDesc("ChNuYW1hL3YxL2V2ZW50LnByb3RvEgduYW1hLnYxIkoKEFN1YnNjcmliZVJlcXVlc3QSIQoFdHlwZXMYASADKA4yEi5uYW1hLnYxLkV2ZW50VHlwZRITCgtsaWJyYXJ5X2lkcxgCIAMoAyJiChFTdWJzY3JpYmVSZXNwb25zZRIfCgVldmVudBgBIAEoCzIOLm5hbWEudjEuRXZlbnRIABIhCgZsYWdnZWQYAiABKAsyDy5uYW1hLnYxLkxhZ2dlZEgAQgkKB21lc3NhZ2UiGQoGTGFnZ2VkEg8KB2Ryb3BwZWQYASABKAQi6QMKBUV2ZW50EiwKDHNjYW5fc3RhcnRlZBgBIAEoCzIULm5hbWEudjEuU2NhblN0YXJ0ZWRIABIuCg1zY2FuX3Byb2dyZXNzGAIgASgLMhUubmFtYS52MS5TY2FuUHJvZ3Jlc3NIABIuCg1zY2FuX2ZpbmlzaGVkGAMgASgLMhUubmFtYS52MS5TY2FuRmluaXNoZWRIABI3ChJsaWJyYXJ5X2l0ZW1fYWRkZWQYBCABKAsyGS5uYW1hLnYxLkxpYnJhcnlJdGVtQWRkZWRIABI7ChRsaWJyYXJ5X2l0ZW1fcmVtb3ZlZBgFIAEoCzIbLm5hbWEudjEuTGlicmFyeUl0ZW1SZW1vdmVkSAASLAoMaXRlbV9tYXRjaGVkGAYgASgLMhQubmFtYS52MS5JdGVtTWF0Y2hlZEgAEjIKD3JlcXVlc3RfY3JlYXRlZBgHIAEoCzIXLm5hbWEudjEuUmVxdWVzdENyZWF0ZWRIABIyCg9yZXF1ZXN0ZXJfYWRkZWQYCCABKAsyFy5uYW1hLnYxLlJlcXVlc3RlckFkZGVkSAASPQoVcmVxdWVzdF9zdGF0ZV9jaGFuZ2VkGAkgASgLMhwubmFtYS52MS5SZXF1ZXN0U3RhdGVDaGFuZ2VkSABCBwoFZXZlbnQiIQoLU2NhblN0YXJ0ZWQSEgoKbGlicmFyeV9pZBgBIAEoAyJLCgxTY2FuUHJvZ3Jlc3MSEgoKbGlicmFyeV9pZBgBIAEoAxISCgpmaWxlc19kb25lGAIgASgEEhMKC2ZpbGVzX3RvdGFsGAMgASgEImYKDFNjYW5GaW5pc2hlZBISCgpsaWJyYXJ5X2lkGAEgASgDEg0KBWFkZGVkGAIgASgEEg8KB3VwZGF0ZWQYAyABKAQSDwoHcmVtb3ZlZBgEIAEoBBIRCgl1bmNoYW5nZWQYBSABKAQiRQoQTGlicmFyeUl0ZW1BZGRlZBISCgpsaWJyYXJ5X2lkGAEgASgDEg8KB2l0ZW1faWQYAiABKAMSDAoEcGF0aBgDIAEoCSI5ChJMaWJyYXJ5SXRlbVJlbW92ZWQSEgoKbGlicmFyeV9pZBgBIAEoAxIPCgdpdGVtX2lkGAIgASgDIkEKC0l0ZW1NYXRjaGVkEhIKCmxpYnJhcnlfaWQYASABKAMSDwoHaXRlbV9pZBgCIAEoAxINCgV0aXRsZRgDIAEoCSIzCg5SZXF1ZXN0Q3JlYXRlZBIhCgdyZXF1ZXN0GAEgASgLMhAubmFtYS52MS5SZXF1ZXN0IkQKDlJlcXVlc3RlckFkZGVkEiEKB3JlcXVlc3QYASABKAsyEC5uYW1hLnYxLlJlcXVlc3QSDwoHdXNlcl9pZBgCIAEoAyI4ChNSZXF1ZXN0U3RhdGVDaGFuZ2VkEiEKB3JlcXVlc3QYASABKAsyEC5uYW1hLnYxLlJlcXVlc3QqywIKCUV2ZW50VHlwZRIaChZFVkVOVF9UWVBFX1VOU1BFQ0lGSUVEEAASGwoXRVZFTlRfVFlQRV9TQ0FOX1NUQVJURUQQARIcChhFVkVOVF9UWVBFX1NDQU5fUFJPR1JFU1MQAhIcChhFVkVOVF9UWVBFX1NDQU5fRklOSVNIRUQQAxIhCh1FVkVOVF9UWVBFX0xJQlJBUllfSVRFTV9BRERFRBAEEiMKH0VWRU5UX1RZUEVfTElCUkFSWV9JVEVNX1JFTU9WRUQQBRIbChdFVkVOVF9UWVBFX0lURU1fTUFUQ0hFRBAGEh4KGkVWRU5UX1RZUEVfUkVRVUVTVF9DUkVBVEVEEAcSHgoaRVZFTlRfVFlQRV9SRVFVRVNURVJfQURERUQQCBIkCiBFVkVOVF9UWVBFX1JFUVVFU1RfU1RBVEVfQ0hBTkdFRBAJMlkKDEV2ZW50U2VydmljZRJJCglTdWJzY3JpYmUSGS5uYW1hLnYxLlN1YnNjcmliZVJlcXVlc3QaGi5uYW1hLnYxLlN1YnNjcmliZVJlc3BvbnNlIgOQAgEwAWIGcHJvdG8z", [file_nama_v1_request]);
 
 /**
  * @generated from message nama.v1.SubscribeRequest
@@ -24,7 +26,8 @@ export type SubscribeRequest = Message<"nama.v1.SubscribeRequest"> & {
   types: EventType[];
 
   /**
-   * Only events about these Libraries. Empty means every Library.
+   * Only events about these Libraries. Empty means every Library, and events about none, such as a
+   * Request's.
    *
    * @generated from field: repeated int64 library_ids = 2;
    */
@@ -137,6 +140,24 @@ export type Event = Message<"nama.v1.Event"> & {
      */
     value: ItemMatched;
     case: "itemMatched";
+  } | {
+    /**
+     * @generated from field: nama.v1.RequestCreated request_created = 7;
+     */
+    value: RequestCreated;
+    case: "requestCreated";
+  } | {
+    /**
+     * @generated from field: nama.v1.RequesterAdded requester_added = 8;
+     */
+    value: RequesterAdded;
+    case: "requesterAdded";
+  } | {
+    /**
+     * @generated from field: nama.v1.RequestStateChanged request_state_changed = 9;
+     */
+    value: RequestStateChanged;
+    case: "requestStateChanged";
   } | { case: undefined; value?: undefined };
 };
 
@@ -335,6 +356,75 @@ export const ItemMatchedSchema: GenMessage<ItemMatched> = /*@__PURE__*/
   messageDesc(file_nama_v1_event, 9);
 
 /**
+ * A User asked for a Movie that had no open Request, which opened this one. Request events reach
+ * only the Request's Requesters, unless the subscriber has `PERMISSION_VIEW_REQUESTS`.
+ *
+ * @generated from message nama.v1.RequestCreated
+ */
+export type RequestCreated = Message<"nama.v1.RequestCreated"> & {
+  /**
+   * @generated from field: nama.v1.Request request = 1;
+   */
+  request?: Request | undefined;
+};
+
+/**
+ * Describes the message nama.v1.RequestCreated.
+ * Use `create(RequestCreatedSchema)` to create a new message.
+ */
+export const RequestCreatedSchema: GenMessage<RequestCreated> = /*@__PURE__*/
+  messageDesc(file_nama_v1_event, 10);
+
+/**
+ * A User joined a Request as a Requester.
+ *
+ * @generated from message nama.v1.RequesterAdded
+ */
+export type RequesterAdded = Message<"nama.v1.RequesterAdded"> & {
+  /**
+   * The Request as it is now, with them among its Requesters.
+   *
+   * @generated from field: nama.v1.Request request = 1;
+   */
+  request?: Request | undefined;
+
+  /**
+   * The User who joined.
+   *
+   * @generated from field: int64 user_id = 2;
+   */
+  userId: bigint;
+};
+
+/**
+ * Describes the message nama.v1.RequesterAdded.
+ * Use `create(RequesterAddedSchema)` to create a new message.
+ */
+export const RequesterAddedSchema: GenMessage<RequesterAdded> = /*@__PURE__*/
+  messageDesc(file_nama_v1_event, 11);
+
+/**
+ * A Request moved to another state.
+ *
+ * @generated from message nama.v1.RequestStateChanged
+ */
+export type RequestStateChanged = Message<"nama.v1.RequestStateChanged"> & {
+  /**
+   * The Request as it is now, in its new state.
+   *
+   * @generated from field: nama.v1.Request request = 1;
+   */
+  request?: Request | undefined;
+};
+
+/**
+ * Describes the message nama.v1.RequestStateChanged.
+ * Use `create(RequestStateChangedSchema)` to create a new message.
+ */
+export const RequestStateChangedSchema: GenMessage<RequestStateChanged> = /*@__PURE__*/
+  messageDesc(file_nama_v1_event, 12);
+
+/**
  * The kinds of `Event`, one per field of its `event`.
  *
  * @generated from enum nama.v1.EventType
@@ -374,6 +464,21 @@ export const EventType = {
    * @generated from enum value: EVENT_TYPE_ITEM_MATCHED = 6;
    */
   ITEM_MATCHED: 6,
+
+  /**
+   * @generated from enum value: EVENT_TYPE_REQUEST_CREATED = 7;
+   */
+  REQUEST_CREATED: 7,
+
+  /**
+   * @generated from enum value: EVENT_TYPE_REQUESTER_ADDED = 8;
+   */
+  REQUESTER_ADDED: 8,
+
+  /**
+   * @generated from enum value: EVENT_TYPE_REQUEST_STATE_CHANGED = 9;
+   */
+  REQUEST_STATE_CHANGED: 9,
 } as const;
 
 /**

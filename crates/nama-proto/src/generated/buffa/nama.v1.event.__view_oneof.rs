@@ -53,5 +53,20 @@ pub mod event {
                 super::super::super::super::__buffa::view::ItemMatchedView<'a>,
             >,
         ),
+        RequestCreated(
+            ::buffa::alloc::boxed::Box<
+                super::super::super::super::__buffa::view::RequestCreatedView<'a>,
+            >,
+        ),
+        RequesterAdded(
+            ::buffa::alloc::boxed::Box<
+                super::super::super::super::__buffa::view::RequesterAddedView<'a>,
+            >,
+        ),
+        RequestStateChanged(
+            ::buffa::alloc::boxed::Box<
+                super::super::super::super::__buffa::view::RequestStateChangedView<'a>,
+            >,
+        ),
     }
 }

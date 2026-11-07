@@ -16,6 +16,7 @@ import { Route as MemberIndexRouteImport } from './routes/_member/index'
 import { Route as MemberSplatRouteImport } from './routes/_member/$'
 import { Route as MemberAdminRouteImport } from './routes/_member/_admin'
 import { Route as MemberCodeRouteImport } from './routes/_member/code'
+import { Route as MemberRequestsRouteImport } from './routes/_member/requests'
 import { Route as MemberSettingsRouteImport } from './routes/_member/settings'
 import { Route as MemberAdminAdminIndexRouteImport } from './routes/_member/_admin/admin/index'
 import { Route as MemberAdminAdminNeedsAMatchRouteImport } from './routes/_member/_admin/admin/needs-a-match'
@@ -59,6 +60,11 @@ const MemberAdminRoute = MemberAdminRouteImport.update({
 const MemberCodeRoute = MemberCodeRouteImport.update({
   id: '/code',
   path: '/code',
+  getParentRoute: () => MemberRoute,
+} as any)
+const MemberRequestsRoute = MemberRequestsRouteImport.update({
+  id: '/requests',
+  path: '/requests',
   getParentRoute: () => MemberRoute,
 } as any)
 const MemberSettingsRoute = MemberSettingsRouteImport.update({
@@ -133,6 +139,7 @@ export interface FileRoutesByFullPath {
   '/sign-in': typeof SignInRoute
   '/$': typeof MemberSplatRoute
   '/code': typeof MemberCodeRoute
+  '/requests': typeof MemberRequestsRoute
   '/settings': typeof MemberSettingsRoute
   '/admin/needs-a-match': typeof MemberAdminAdminNeedsAMatchRoute
   '/admin/users': typeof MemberAdminAdminUsersRoute
@@ -151,6 +158,7 @@ export interface FileRoutesByTo {
   '/$': typeof MemberSplatRoute
   '/': typeof MemberIndexRoute
   '/code': typeof MemberCodeRoute
+  '/requests': typeof MemberRequestsRoute
   '/settings': typeof MemberSettingsRoute
   '/admin/needs-a-match': typeof MemberAdminAdminNeedsAMatchRoute
   '/admin/users': typeof MemberAdminAdminUsersRoute
@@ -171,6 +179,7 @@ export interface FileRoutesById {
   '/_member/$': typeof MemberSplatRoute
   '/_member/_admin': typeof MemberAdminRouteWithChildren
   '/_member/code': typeof MemberCodeRoute
+  '/_member/requests': typeof MemberRequestsRoute
   '/_member/settings': typeof MemberSettingsRoute
   '/_member/': typeof MemberIndexRoute
   '/_member/_admin/admin/needs-a-match': typeof MemberAdminAdminNeedsAMatchRoute
@@ -192,6 +201,7 @@ export interface FileRouteTypes {
     | '/sign-in'
     | '/$'
     | '/code'
+    | '/requests'
     | '/settings'
     | '/admin/needs-a-match'
     | '/admin/users'
@@ -210,6 +220,7 @@ export interface FileRouteTypes {
     | '/$'
     | '/'
     | '/code'
+    | '/requests'
     | '/settings'
     | '/admin/needs-a-match'
     | '/admin/users'
@@ -229,6 +240,7 @@ export interface FileRouteTypes {
     | '/_member/$'
     | '/_member/_admin'
     | '/_member/code'
+    | '/_member/requests'
     | '/_member/settings'
     | '/_member/'
     | '/_member/_admin/admin/needs-a-match'
@@ -298,6 +310,13 @@ declare module '@tanstack/react-router' {
       path: '/code'
       fullPath: '/code'
       preLoaderRoute: typeof MemberCodeRouteImport
+      parentRoute: typeof MemberRoute
+    }
+    '/_member/requests': {
+      id: '/_member/requests'
+      path: '/requests'
+      fullPath: '/requests'
+      preLoaderRoute: typeof MemberRequestsRouteImport
       parentRoute: typeof MemberRoute
     }
     '/_member/settings': {
@@ -405,6 +424,7 @@ interface MemberRouteChildren {
   MemberSplatRoute: typeof MemberSplatRoute
   MemberAdminRoute: typeof MemberAdminRouteWithChildren
   MemberCodeRoute: typeof MemberCodeRoute
+  MemberRequestsRoute: typeof MemberRequestsRoute
   MemberSettingsRoute: typeof MemberSettingsRoute
   MemberIndexRoute: typeof MemberIndexRoute
   MemberLibrariesLibraryIdIndexRoute: typeof MemberLibrariesLibraryIdIndexRoute
@@ -418,6 +438,7 @@ const MemberRouteChildren: MemberRouteChildren = {
   MemberSplatRoute: MemberSplatRoute,
   MemberAdminRoute: MemberAdminRouteWithChildren,
   MemberCodeRoute: MemberCodeRoute,
+  MemberRequestsRoute: MemberRequestsRoute,
   MemberSettingsRoute: MemberSettingsRoute,
   MemberIndexRoute: MemberIndexRoute,
   MemberLibrariesLibraryIdIndexRoute: MemberLibrariesLibraryIdIndexRoute,

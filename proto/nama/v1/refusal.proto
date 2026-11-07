@@ -115,4 +115,10 @@ enum RefusalReason {
   // `failed_precondition`: the call needs Recent Authentication, which the calling Device gets back
   // with `SignInService.Reauthenticate`.
   REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED = 37;
+
+  // `not_found`: there is no Request with the ID, or none the caller may see. Params: `requestId`.
+  REFUSAL_REASON_REQUEST_NOT_FOUND = 38;
+  // `failed_precondition`: the Movie is already Matched in a Library, so it can't be Requested.
+  // Params: `tmdbId`.
+  REFUSAL_REASON_ALREADY_IN_LIBRARY = 39;
 }

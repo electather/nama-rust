@@ -3,6 +3,7 @@
 include!("nama.v1.match.rs");
 include!("nama.v1.watch_state.rs");
 include!("nama.v1.browse.rs");
+include!("nama.v1.request.rs");
 include!("nama.v1.event.rs");
 include!("nama.v1.library.rs");
 include!("nama.v1.refusal.rs");
@@ -29,6 +30,7 @@ pub mod __buffa {
         include!("nama.v1.match.__view.rs");
         include!("nama.v1.watch_state.__view.rs");
         include!("nama.v1.browse.__view.rs");
+        include!("nama.v1.request.__view.rs");
         include!("nama.v1.event.__view.rs");
         include!("nama.v1.library.__view.rs");
         include!("nama.v1.refusal.__view.rs");
@@ -91,6 +93,15 @@ pub mod __buffa {
         reg.register_json_any(super::__CONTINUE_WATCHING_ENTRY_JSON_ANY);
         reg.register_json_any(super::__LIST_CONTINUE_WATCHING_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_CONTINUE_WATCHING_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__REQUEST_JSON_ANY);
+        reg.register_json_any(super::__REQUESTED_MOVIE_JSON_ANY);
+        reg.register_json_any(super::__REQUESTER_JSON_ANY);
+        reg.register_json_any(super::__CREATE_REQUEST_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__CREATE_REQUEST_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__LIST_REQUESTS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_REQUESTS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__GET_REQUEST_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__GET_REQUEST_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__SUBSCRIBE_REQUEST_JSON_ANY);
         reg.register_json_any(super::__SUBSCRIBE_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__LAGGED_JSON_ANY);
@@ -101,6 +112,9 @@ pub mod __buffa {
         reg.register_json_any(super::__LIBRARY_ITEM_ADDED_JSON_ANY);
         reg.register_json_any(super::__LIBRARY_ITEM_REMOVED_JSON_ANY);
         reg.register_json_any(super::__ITEM_MATCHED_JSON_ANY);
+        reg.register_json_any(super::__REQUEST_CREATED_JSON_ANY);
+        reg.register_json_any(super::__REQUESTER_ADDED_JSON_ANY);
+        reg.register_json_any(super::__REQUEST_STATE_CHANGED_JSON_ANY);
         reg.register_json_any(super::__LIBRARY_JSON_ANY);
         reg.register_json_any(super::__CREATE_LIBRARY_REQUEST_JSON_ANY);
         reg.register_json_any(super::__CREATE_LIBRARY_RESPONSE_JSON_ANY);
@@ -296,6 +310,42 @@ pub use self::__buffa::view::ListContinueWatchingResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::ListContinueWatchingResponseOwnedView;
 #[doc(inline)]
+pub use self::__buffa::view::RequestView;
+#[doc(inline)]
+pub use self::__buffa::view::RequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::RequestedMovieView;
+#[doc(inline)]
+pub use self::__buffa::view::RequestedMovieOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::RequesterView;
+#[doc(inline)]
+pub use self::__buffa::view::RequesterOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::CreateRequestRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::CreateRequestRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::CreateRequestResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::CreateRequestResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListRequestsRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListRequestsRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListRequestsResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListRequestsResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetRequestRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::GetRequestRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetRequestResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::GetRequestResponseOwnedView;
+#[doc(inline)]
 pub use self::__buffa::view::SubscribeRequestView;
 #[doc(inline)]
 pub use self::__buffa::view::SubscribeRequestOwnedView;
@@ -335,6 +385,18 @@ pub use self::__buffa::view::LibraryItemRemovedOwnedView;
 pub use self::__buffa::view::ItemMatchedView;
 #[doc(inline)]
 pub use self::__buffa::view::ItemMatchedOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::RequestCreatedView;
+#[doc(inline)]
+pub use self::__buffa::view::RequestCreatedOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::RequesterAddedView;
+#[doc(inline)]
+pub use self::__buffa::view::RequesterAddedOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::RequestStateChangedView;
+#[doc(inline)]
+pub use self::__buffa::view::RequestStateChangedOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::LibraryView;
 #[doc(inline)]

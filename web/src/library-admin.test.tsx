@@ -1,38 +1,18 @@
-import { type MessageInitShape, create } from "@bufbuild/protobuf";
+import type { MessageInitShape } from "@bufbuild/protobuf";
 import { Code, ConnectError, type ConnectRouter } from "@connectrpc/connect";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, test } from "vite-plus/test";
 
-import {
-  EventSchema,
-  type SubscribeResponse,
-  SubscribeResponseSchema,
-} from "@/gen/nama/v1/event_pb";
+import type { SubscribeResponse } from "@/gen/nama/v1/event_pb";
 import { LibraryKind, LibraryService } from "@/gen/nama/v1/library_pb";
 import { MatchService, TitleKind, type UnmatchedItemSchema } from "@/gen/nama/v1/match_pb";
 
-import { admin, fakeServer, fill, openApp } from "./test-app";
+import { admin, eventFeed, fakeServer, fill, openApp } from "./test-app";
 import { expectUnderField, refused } from "./test-refusal";
 
 afterEach(cleanup);
 
 const films = { id: 1n, name: "Films", kind: LibraryKind.MOVIES, folders: ["/srv/films"] };
-
-/** Events for a test to send the app. What's sent before the app subscribes waits for it. */
-function eventFeed() {
-  let feed: ReadableStreamDefaultController<SubscribeResponse> | undefined;
-  return {
-    stream: new ReadableStream<SubscribeResponse>({
-      start: (controller) => {
-        feed = controller;
-      },
-    }),
-    send: (event: MessageInitShape<typeof EventSchema>) => {
-      const value = create(EventSchema, event);
-      feed?.enqueue(create(SubscribeResponseSchema, { message: { case: "event", value } }));
-    },
-  };
-}
 
 /** A fake Server with the Library `films`, whose Admin is signed in, with `more` services. */
 function adminServer(

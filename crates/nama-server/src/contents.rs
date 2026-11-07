@@ -403,6 +403,20 @@ impl Contents {
         .await
     }
 
+    /// Whether some Library has an Item Matched to the Movie with the TMDB id `tmdb_id`.
+    pub(crate) async fn has_movie(&self, tmdb_id: i64) -> Result<bool, sqlx::Error> {
+        sqlx::query_scalar!(
+            r#"SELECT EXISTS (SELECT 1 FROM item_matches
+                              JOIN library_items ON library_items.id = item_matches.item_id
+                              WHERE item_matches.state = 'matched'
+                                AND library_items.kind = 'movie'
+                                AND item_matches.tmdb_id = ?) AS "has!: bool""#,
+            tmdb_id
+        )
+        .fetch_one(self.db.reader())
+        .await
+    }
+
     /// The Items of the Item `item`'s Library named like it, itself among them, or `None` if
     /// there is no such Item.
     pub(crate) async fn named_like(&self, item: i64) -> Result<Option<Named>, sqlx::Error> {
