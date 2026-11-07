@@ -22,6 +22,14 @@ pub type OwnedSetRoleRequestView = ::buffa::view::OwnedView<
 pub type OwnedSetRoleResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::SetRoleResponseView<'static>,
 >;
+///Shorthand for `OwnedView<DeleteUserRequestView<'static>>`.
+pub type OwnedDeleteUserRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::DeleteUserRequestView<'static>,
+>;
+///Shorthand for `OwnedView<DeleteUserResponseView<'static>>`.
+pub type OwnedDeleteUserResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::DeleteUserResponseView<'static>,
+>;
 ///Shorthand for `OwnedView<ListDevicesRequestView<'static>>`.
 pub type OwnedListDevicesRequestView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::ListDevicesRequestView<'static>,
@@ -140,6 +148,40 @@ for ::buffa::view::OwnedView<
         )
     }
 }
+impl ::connectrpc::Encodable<crate::messages::nama::v1::DeleteUserResponse>
+for crate::messages::nama::v1::__buffa::view::DeleteUserResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::DeleteUserResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::DeleteUserResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
 impl ::connectrpc::Encodable<crate::messages::nama::v1::ListDevicesResponse>
 for crate::messages::nama::v1::__buffa::view::ListDevicesResponseView<'_> {
     fn encode(
@@ -225,6 +267,12 @@ pub const USER_SERVICE_LIST_USERS_SPEC: ::connectrpc::Spec = ::connectrpc::Spec:
 /// Static [`Spec`](::connectrpc::Spec) for the `SetRole` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
 pub const USER_SERVICE_SET_ROLE_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
         "/nama.v1.UserService/SetRole",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
+/// Static [`Spec`](::connectrpc::Spec) for the `DeleteUser` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const USER_SERVICE_DELETE_USER_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.UserService/DeleteUser",
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
@@ -363,6 +411,33 @@ pub trait UserService: Send + Sync + 'static {
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
                 crate::messages::nama::v1::SetRoleResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Deletes a User with their Devices and credentials, so they can't sign in, their sessions stop
+    /// working at once and their open `EventService.Subscribe` streams end. An Admin may delete
+    /// themselves, which signs out the calling Device too. Fails with `not_found` if no User has the
+    /// ID, so a retry after a delete that went through gets `not_found`, and `failed_precondition` if
+    /// it would leave the Server with no Admin.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn delete_user<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::DeleteUserRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::DeleteUserResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -536,6 +611,35 @@ impl<S: UserService> UserServiceExt for S {
                 },
             )
             .with_spec(USER_SERVICE_SET_ROLE_SPEC)
+            .route_view(
+                USER_SERVICE_SERVICE_NAME,
+                "DeleteUser",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::DeleteUserRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::DeleteUserRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.delete_user(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::DeleteUserResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(USER_SERVICE_DELETE_USER_SPEC)
             .route_view_idempotent(
                 USER_SERVICE_SERVICE_NAME,
                 "ListDevices",
@@ -666,6 +770,12 @@ impl<T: UserService> ::connectrpc::Dispatcher for UserServiceServer<T> {
                         .with_spec(USER_SERVICE_SET_ROLE_SPEC),
                 )
             }
+            "DeleteUser" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(USER_SERVICE_DELETE_USER_SPEC),
+                )
+            }
             "ListDevices" => {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
@@ -751,6 +861,26 @@ impl<T: UserService> ::connectrpc::Dispatcher for UserServiceServer<T> {
                     svc.set_role(ctx, req)
                         .await?
                         .encode::<crate::messages::nama::v1::SetRoleResponse>(format)
+                })
+            }
+            "DeleteUser" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::DeleteUserRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::DeleteUserRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::DeleteUserRequest,
+                    >::from_parts(&req, &body);
+                    svc.delete_user(ctx, req)
+                        .await?
+                        .encode::<crate::messages::nama::v1::DeleteUserResponse>(format)
                 })
             }
             "ListDevices" => {
@@ -1037,6 +1167,47 @@ where
                 &self.transport,
                 &self.config,
                 USER_SERVICE_SET_ROLE_SPEC.with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the DeleteUser RPC. Sends a request to /nama.v1.UserService/DeleteUser.
+    pub async fn delete_user(
+        &self,
+        request: crate::messages::nama::v1::DeleteUserRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::DeleteUserResponseView<'static>,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.delete_user_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the DeleteUser RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn delete_user_with_options(
+        &self,
+        request: crate::messages::nama::v1::DeleteUserRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::DeleteUserResponseView<'static>,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                USER_SERVICE_DELETE_USER_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,
             )
