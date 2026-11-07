@@ -405,16 +405,8 @@ impl Contents {
 
     /// Whether some Library has an Item Matched to the Movie with the TMDB id `tmdb_id`.
     pub(crate) async fn has_movie(&self, tmdb_id: i64) -> Result<bool, sqlx::Error> {
-        sqlx::query_scalar!(
-            r#"SELECT EXISTS (SELECT 1 FROM item_matches
-                              JOIN library_items ON library_items.id = item_matches.item_id
-                              WHERE item_matches.state = 'matched'
-                                AND library_items.kind = 'movie'
-                                AND item_matches.tmdb_id = ?) AS "has!: bool""#,
-            tmdb_id
-        )
-        .fetch_one(self.db.reader())
-        .await
+        let mut conn = self.db.reader().acquire().await?;
+        has_movie(&mut conn, tmdb_id).await
     }
 
     /// The Items of the Item `item`'s Library named like it, itself among them, or `None` if
@@ -716,6 +708,24 @@ impl Pin {
         }
         ids
     }
+}
+
+/// Whether some Library has an Item Matched to the Movie with the TMDB id `tmdb_id`, read on
+/// `conn` so a write can act on the answer before a scan changes it.
+pub(crate) async fn has_movie(
+    conn: &mut SqliteConnection,
+    tmdb_id: i64,
+) -> Result<bool, sqlx::Error> {
+    sqlx::query_scalar!(
+        r#"SELECT EXISTS (SELECT 1 FROM item_matches
+                          JOIN library_items ON library_items.id = item_matches.item_id
+                          WHERE item_matches.state = 'matched'
+                            AND library_items.kind = 'movie'
+                            AND item_matches.tmdb_id = ?) AS "has!: bool""#,
+        tmdb_id
+    )
+    .fetch_one(&mut *conn)
+    .await
 }
 
 /// The one of `ids` that identifies a title: its TMDB id if it has one, or else its IMDb or TVDB

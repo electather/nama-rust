@@ -1287,6 +1287,9 @@ impl EventService for EventServiceHandler {
             let filter = Filter {
                 types,
                 libraries: request.library_ids,
+                // ponytail: Permissions as the stream opened, like any request's, so one who loses
+                // `VIEW_REQUESTS` sees everyone's Request events until they resubscribe. End
+                // streams on a Permission change if that matters.
                 requester: requests::visible_to(&caller.user),
             };
             let signed_out = self.users.signed_out(caller.device.id);

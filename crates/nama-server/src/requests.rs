@@ -13,7 +13,7 @@ use nama_proto::nama::v1::{
 use sqlx::SqliteConnection;
 
 use crate::{
-    contents::{Contents, Metadata},
+    contents::{self, Contents, Metadata},
     db::{Database, now},
     events::{EventBus, event},
     matching::{ManualError, Matcher},
@@ -78,6 +78,8 @@ impl Requests {
     /// opens one: Approved if `asker` may have Movies approved as they ask, else Pending. Publishes
     /// what changed, if anything did.
     pub(crate) async fn create(&self, asker: &User, tmdb_id: i64) -> Result<Request, Error> {
+        // Refuses before asking TMDB, which may be down or slow; `ask` checks again for a scan
+        // that Matched the Movie meanwhile.
         if self.contents.has_movie(tmdb_id).await? {
             return Err(Error::InLibrary(tmdb_id));
         }
@@ -96,9 +98,9 @@ impl Requests {
                 ManualError::Database(err) => Error::Database(err),
             })?;
         let state = if asker.permissions.allow(Permission::AutoApproveMovie) {
-            "approved"
+            RequestState::Approved
         } else {
-            "pending"
+            RequestState::Pending
         };
         let user = asker.id;
         let (request, happened) = self
@@ -123,17 +125,21 @@ impl Requests {
     }
 }
 
-/// Adds `user` as a Requester of the open Request for the Movie `tmdb_id`, opening one in the
-/// stored `state` for `movie` if there is none. Returns the Request, and the event for what
-/// changed, if anything did.
+/// Adds `user` as a Requester of the open Request for the Movie `tmdb_id`, opening one in
+/// `state` for `movie` if there is none, unless a Library has the Movie. Returns the Request, and
+/// the event for what changed, if anything did.
 async fn ask(
     conn: &mut SqliteConnection,
     user: i64,
     tmdb_id: i64,
     movie: Metadata,
-    state: &'static str,
-) -> Result<(Request, Option<Event>), sqlx::Error> {
+    state: RequestState,
+) -> Result<(Request, Option<Event>), Error> {
+    if contents::has_movie(conn, tmdb_id).await? {
+        return Err(Error::InLibrary(tmdb_id));
+    }
     let now = now();
+    let state = stored(state);
     // Open as `one_open_request_per_movie` has it.
     let open = sqlx::query_scalar!(
         "SELECT id FROM requests
@@ -254,6 +260,14 @@ async fn load(
             ..Default::default()
         })
         .collect())
+}
+
+/// `state` as `requests.state` stores it. Unspecified has no stored form: `""` fails the CHECK.
+fn stored(state: RequestState) -> &'static str {
+    STATES
+        .iter()
+        .find(|&&(known, _)| known == state)
+        .map_or("", |&(_, name)| name)
 }
 
 fn read_state(stored: &str) -> RequestState {

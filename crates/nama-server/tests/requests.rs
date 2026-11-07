@@ -37,8 +37,8 @@ const DUNE: i64 = 438_631;
 
 const WAIT: Duration = Duration::from_secs(10);
 
-/// What a Member gets: `REQUEST` and `VIEW_REQUESTS`, as a new User does.
-const MEMBER: [Permission; 2] = [Permission::Request, Permission::ViewRequests];
+/// What a new User gets: `REQUEST` and `VIEW_REQUESTS`.
+const NEW_USER: [Permission; 2] = [Permission::Request, Permission::ViewRequests];
 
 /// A Server with the TMDB Plugin enabled against a fake TMDB, and an Admin.
 struct Fixture {
@@ -215,8 +215,8 @@ fn requester_ids(request: &Request) -> Vec<i64> {
 #[tokio::test]
 async fn two_users_asking_for_the_same_movie_share_one_request_with_both_as_requesters() {
     let fixture = Fixture::start().await;
-    let (ada, as_ada) = fixture.user("Ada", &MEMBER).await;
-    let (grace, as_grace) = fixture.user("Grace", &MEMBER).await;
+    let (ada, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let (grace, as_grace) = fixture.user("Grace", &NEW_USER).await;
 
     let first = ask(&requests(as_ada), HEAT).await;
     let second = ask(&requests(as_grace.clone()), HEAT).await;
@@ -244,11 +244,11 @@ async fn a_user_who_may_auto_approve_movies_opens_an_approved_request_and_one_wh
     let (_, covered) = fixture
         .user("Linus", &[Permission::Request, Permission::AutoApprove])
         .await;
-    let (_, member) = fixture.user("Grace", &MEMBER).await;
+    let (_, as_grace) = fixture.user("Grace", &NEW_USER).await;
 
     let approved = ask(&requests(auto), HEAT).await;
     let also_approved = ask(&requests(covered), ALIEN).await;
-    let pending = ask(&requests(member), DUNE).await;
+    let pending = ask(&requests(as_grace), DUNE).await;
 
     assert_eq!(approved.state, RequestState::Approved);
     assert_eq!(also_approved.state, RequestState::Approved);
@@ -280,9 +280,9 @@ async fn a_user_without_request_movie_is_refused_naming_the_permission() {
 async fn requesting_a_movie_matched_in_a_library_is_refused() {
     let fixture = Fixture::start().await;
     let _media = fixture.library_with_alien().await;
-    let (_, as_member) = fixture.user("Grace", &MEMBER).await;
+    let (_, as_grace) = fixture.user("Grace", &NEW_USER).await;
 
-    let refused = requests(as_member)
+    let refused = requests(as_grace)
         .create_request(CreateRequestRequest {
             movie_tmdb_id: ALIEN,
             ..Default::default()
@@ -300,9 +300,9 @@ async fn requesting_a_movie_matched_in_a_library_is_refused() {
 #[tokio::test]
 async fn requesting_a_movie_the_metadata_source_doesnt_have_is_refused() {
     let fixture = Fixture::start().await;
-    let (_, as_member) = fixture.user("Grace", &MEMBER).await;
+    let (_, as_grace) = fixture.user("Grace", &NEW_USER).await;
 
-    let refused = requests(as_member)
+    let refused = requests(as_grace)
         .create_request(CreateRequestRequest {
             movie_tmdb_id: 1,
             ..Default::default()
@@ -321,7 +321,7 @@ async fn requesting_a_movie_the_metadata_source_doesnt_have_is_refused() {
 #[tokio::test]
 async fn without_view_requests_a_user_lists_and_gets_only_their_own_requests() {
     let fixture = Fixture::start().await;
-    let (_, as_ada) = fixture.user("Ada", &MEMBER).await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
     let (_, as_grace) = fixture.user("Grace", &[Permission::RequestMovie]).await;
     let adas = ask(&requests(as_ada.clone()), HEAT).await;
     ask(&requests(as_ada.clone()), DUNE).await;
@@ -360,7 +360,7 @@ async fn without_view_requests_a_user_lists_and_gets_only_their_own_requests() {
 #[tokio::test]
 async fn without_view_requests_the_events_stream_shows_only_the_users_own_requests() {
     let fixture = Fixture::start().await;
-    let (ada, as_ada) = fixture.user("Ada", &MEMBER).await;
+    let (ada, as_ada) = fixture.user("Ada", &NEW_USER).await;
     let (_, as_grace) = fixture.user("Grace", &[Permission::RequestMovie]).await;
     let mut graces_events = subscribe_to_requests(as_grace.clone()).await;
 
@@ -382,7 +382,7 @@ async fn without_view_requests_the_events_stream_shows_only_the_users_own_reques
 #[tokio::test]
 async fn with_view_requests_the_events_stream_shows_everyones_requests() {
     let fixture = Fixture::start().await;
-    let (_, as_ada) = fixture.user("Ada", &MEMBER).await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
     let (grace, as_grace) = fixture.user("Grace", &[Permission::RequestMovie]).await;
     let mut adas_events = subscribe_to_requests(as_ada).await;
 
