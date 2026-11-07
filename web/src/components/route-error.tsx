@@ -2,7 +2,7 @@ import { Code } from "@connectrpc/connect";
 import { Link, type ErrorComponentProps, useRouter } from "@tanstack/react-router";
 
 import { Page } from "@/components/page";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { isCode } from "@/lib/connect-errors";
 
 /** What a page shows instead when it fails, in plain words and never an error code. */
@@ -30,12 +30,12 @@ function AdminsOnly() {
         Only an Admin of this Server can open this page. If you need something changed here, ask
         whoever runs the Server.
       </p>
-      <Link
-        to="/"
-        className="mt-6 inline-block text-sm font-medium underline underline-offset-4 hover:text-muted-foreground"
-      >
-        Back to your Libraries
-      </Link>
+      {/* Pulled back by the button's own padding, so its words line up with the text above. */}
+      <div className="mt-6 -ms-4">
+        <Link to="/" className={buttonVariants({ variant: "ghost" })}>
+          Back to your Libraries
+        </Link>
+      </div>
     </Page>
   );
 }
