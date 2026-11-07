@@ -121,6 +121,8 @@ pub mod __buffa {
         reg.register_json_any(super::__LIST_USERS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__SET_ROLE_REQUEST_JSON_ANY);
         reg.register_json_any(super::__SET_ROLE_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__DELETE_USER_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__DELETE_USER_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__LIST_DEVICES_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_DEVICES_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__REVOKE_DEVICE_REQUEST_JSON_ANY);
@@ -427,6 +429,14 @@ pub use self::__buffa::view::SetRoleRequestOwnedView;
 pub use self::__buffa::view::SetRoleResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::SetRoleResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::DeleteUserRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::DeleteUserRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::DeleteUserResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::DeleteUserResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::ListDevicesRequestView;
 #[doc(inline)]
