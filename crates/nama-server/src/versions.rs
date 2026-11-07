@@ -2,8 +2,8 @@
 //! (ADR 0007: media bytes are not RPC), to anyone with a session. A browser's `<video src>`
 //! presents that session in its cookie (ADR 0014).
 //!
-//! Range requests let a `<video>` seek. Only files a scan stored for a Library are served, by id,
-//! so a client can never name a path.
+//! Range requests let a `<video>` seek. Only Versions, files a scan stored for a Library and
+//! Matched, are served, by id, so a client can never name a path.
 
 use axum::{
     Router,
@@ -16,25 +16,25 @@ use tower_http::services::ServeFile;
 
 use crate::contents::Contents;
 
-/// Serves `GET /media/versions/<id>` with the stored file `id` from `contents`, and 404 if there
-/// is none. Whether the caller has a session is up to the layers the router is put behind.
+/// Serves `GET /media/versions/<id>` with the file of the Version `id` in `contents`, and 404 if
+/// there is none. Whether the caller has a session is up to the layers the router is put behind.
 pub(crate) fn router(contents: Contents) -> Router {
     Router::new()
         .route("/media/versions/{id}", get(serve))
         .with_state(contents)
 }
 
-/// Answers `request` for the stored file `id`, or the bytes of it the request's `Range` asks for.
+/// Answers `request` for the file of the Version `id`, or the bytes of it the request's `Range` asks for.
 async fn serve(
     State(contents): State<Contents>,
     Path(id): Path<i64>,
     request: Request,
 ) -> Response {
-    let path = match contents.file_path(id).await {
+    let path = match contents.version_path(id).await {
         Ok(Some(path)) => path,
         Ok(None) => return StatusCode::NOT_FOUND.into_response(),
         Err(err) => {
-            tracing::error!("could not look up the stored file {id}: {err}");
+            tracing::error!("could not look up the Version {id}: {err}");
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     };

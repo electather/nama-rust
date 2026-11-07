@@ -711,6 +711,30 @@ async fn an_unknown_version_is_not_found() {
     assert_eq!(reply.status, 404);
 }
 
+/// A stored file is a Version only while it is Matched.
+#[tokio::test]
+async fn a_file_whose_match_was_cleared_is_not_found() {
+    let fx = Fixture::alien().await;
+    let movie = fx.get_movie(fx.library, ALIEN).await.unwrap();
+    let item = fx.item(ALIEN_1080P).await;
+    fx.matches
+        .clear_match(ClearMatchRequest {
+            item_id: item,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    let reply = fetch(
+        &fx.server,
+        &version_url(&movie.versions[0]),
+        Some(&fx.server.admin_token),
+    )
+    .await;
+
+    assert_eq!(reply.status, 404);
+}
+
 /// Versions are served by id, so a client can't name a file by its path.
 #[tokio::test]
 async fn a_path_in_place_of_a_version_id_is_a_bad_request() {

@@ -330,12 +330,20 @@ impl Contents {
         .await
     }
 
-    /// The absolute path of the stored file `file`, such as a Version's, or `None` if there is no
-    /// such file.
-    pub(crate) async fn file_path(&self, file: i64) -> Result<Option<String>, sqlx::Error> {
-        sqlx::query_scalar!("SELECT path FROM library_files WHERE id = ?", file)
-            .fetch_optional(self.db.reader())
-            .await
+    /// The absolute path of the Version `version`, a stored file some Item of which is Matched, or
+    /// `None` if there is no such Version.
+    pub(crate) async fn version_path(&self, version: i64) -> Result<Option<String>, sqlx::Error> {
+        sqlx::query_scalar!(
+            "SELECT path FROM library_files
+             WHERE id = ?
+               AND EXISTS (SELECT 1 FROM library_items
+                           JOIN item_matches ON item_matches.item_id = library_items.id
+                           WHERE library_items.file_id = library_files.id
+                             AND item_matches.state = 'matched')",
+            version
+        )
+        .fetch_optional(self.db.reader())
+        .await
     }
 
     /// Whether some Match made by the Plugin `plugin` stores `image` as its poster or backdrop.

@@ -67,8 +67,8 @@ use crate::{
     versions,
 };
 
-/// Routes every RPC the Server answers, its artwork and its Versions, each behind the layers that identify the
-/// caller and refuse calls they may not make.
+/// Routes every RPC the Server answers, its artwork and its Versions, each behind the layers
+/// that identify the caller and refuse calls they may not make.
 #[expect(
     clippy::too_many_arguments,
     reason = "each is a separate handle the services are built from; a struct bundling them would \
