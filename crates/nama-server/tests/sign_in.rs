@@ -562,13 +562,12 @@ async fn no_password_token_or_setup_code_is_logged_even_at_trace() {
         !logged.contains(&code_token),
         "a Sign-in Code's token was logged"
     );
+    // A Sign-in Code matches without its dash, so it mustn't be logged in either form.
+    let logs_sign_in_code =
+        |shown: &str| logged.contains(shown) || logged.contains(&shown.replace('-', ""));
+    assert!(!logs_sign_in_code(&code), "a Sign-in Code was logged");
     assert!(
-        !logged.contains(&code) && !logged.contains(&code.replace('-', "")),
-        "a Sign-in Code was logged"
-    );
-    assert!(
-        !logged.contains(wrong_sign_in_code)
-            && !logged.contains(&wrong_sign_in_code.replace('-', "")),
+        !logs_sign_in_code(wrong_sign_in_code),
         "a wrong Sign-in Code was logged"
     );
     assert!(!logged.contains(&handle), "a poll handle was logged");
