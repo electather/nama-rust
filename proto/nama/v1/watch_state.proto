@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package nama.v1;
 
+import "nama/v1/match.proto";
+
 // Remembering how far the signed-in caller has got through what they play.
 //
 // Watch State is kept per User against the Movie or Episode a Version is Matched to, by its
@@ -20,15 +22,27 @@ service WatchStateService {
   rpc ReportProgress(ReportProgressRequest) returns (ReportProgressResponse) {
     option idempotency_level = IDEMPOTENT;
   }
+  // Marks a Movie, an Episode, or every Episode of a Season or a Show that is Matched in a
+  // Library, played or unplayed for the caller, without playing it. Marking played leaves the
+  // position alone. Marking unplayed clears the Watch State, position and all, so it starts from
+  // the beginning. Fails with `not_found` if there is no such Library, or nothing in it is
+  // Matched to that Movie, Episode, Show or Season, and with `invalid_argument` if no target is
+  // given, or a Movie is asked of a Shows Library or an Episode, Season or Show of a Movies
+  // Library.
+  rpc SetPlayed(SetPlayedRequest) returns (SetPlayedResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
 }
 
 // A User's progress through a Movie or Episode.
 message WatchState {
   // How far in, in milliseconds.
   uint64 position_ms = 1;
-  // How long it is, in milliseconds, as the player last reported it.
+  // How long it is, in milliseconds, as the player last reported it. Zero if no player has, as
+  // when it was marked played without being played.
   uint64 duration_ms = 2;
-  // Whether it has been played: its position has passed 90% of its duration.
+  // Whether it has been played: its position has passed 90% of its duration, or it was marked
+  // played.
   bool played = 3;
   // When it last changed, in seconds since the Unix epoch.
   int64 updated_at = 4;
@@ -44,3 +58,31 @@ message ReportProgressRequest {
 }
 
 message ReportProgressResponse {}
+
+message SetPlayedRequest {
+  // The Library the Movie, Episode, Season or Show is in.
+  int64 library_id = 1;
+  // What to mark, identified as browsing identifies it.
+  oneof target {
+    // A Movie of a Movies Library, by its id as `ListMovies` gave it.
+    ExternalId movie_id = 2;
+    // An Episode of a Shows Library, by its id as `ListEpisodes` gave it.
+    ExternalId episode_id = 3;
+    // Every Episode of one Season of a Show that the Library has.
+    ShowSeason season = 4;
+    // Every Episode of a Show that the Library has, by its id as `ListShows` gave it.
+    ExternalId show_id = 5;
+  }
+  // Whether it is now played.
+  bool played = 6;
+}
+
+// A Season of a Show, as browsing identifies it.
+message ShowSeason {
+  // The Show's id, as `ListShows` gave it.
+  ExternalId show_id = 1;
+  // The Season's number, as `GetShow` gave it.
+  uint32 season_number = 2;
+}
+
+message SetPlayedResponse {}

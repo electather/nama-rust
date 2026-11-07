@@ -37,6 +37,7 @@ pub mod __buffa {
             #[allow(unused_imports)]
             use super::*;
             include!("nama.v1.match.__view_oneof.rs");
+            include!("nama.v1.watch_state.__view_oneof.rs");
             include!("nama.v1.browse.__view_oneof.rs");
             include!("nama.v1.event.__view_oneof.rs");
         }
@@ -45,6 +46,7 @@ pub mod __buffa {
         #[allow(unused_imports)]
         use super::*;
         include!("nama.v1.match.__oneof.rs");
+        include!("nama.v1.watch_state.__oneof.rs");
         include!("nama.v1.browse.__oneof.rs");
         include!("nama.v1.event.__oneof.rs");
     }
@@ -64,6 +66,9 @@ pub mod __buffa {
         reg.register_json_any(super::__WATCH_STATE_JSON_ANY);
         reg.register_json_any(super::__REPORT_PROGRESS_REQUEST_JSON_ANY);
         reg.register_json_any(super::__REPORT_PROGRESS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__SET_PLAYED_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__SHOW_SEASON_JSON_ANY);
+        reg.register_json_any(super::__SET_PLAYED_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__MOVIE_JSON_ANY);
         reg.register_json_any(super::__VERSION_JSON_ANY);
         reg.register_json_any(super::__LIST_MOVIES_REQUEST_JSON_ANY);
@@ -199,6 +204,18 @@ pub use self::__buffa::view::ReportProgressRequestOwnedView;
 pub use self::__buffa::view::ReportProgressResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::ReportProgressResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetPlayedRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::SetPlayedRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ShowSeasonView;
+#[doc(inline)]
+pub use self::__buffa::view::ShowSeasonOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetPlayedResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::SetPlayedResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::MovieView;
 #[doc(inline)]

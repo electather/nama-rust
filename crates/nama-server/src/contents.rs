@@ -203,6 +203,11 @@ impl Show {
         let (_, first) = self.seasons.first_key_value()?;
         first.poster.as_deref()
     }
+
+    /// Every Episode of every Season, by season and episode number.
+    pub(crate) fn episodes(&self) -> impl Iterator<Item = &Episode> {
+        self.seasons.values().flat_map(|season| &season.episodes)
+    }
 }
 
 /// The Episodes of a Show's Season that some Items of a Library are Matched to.

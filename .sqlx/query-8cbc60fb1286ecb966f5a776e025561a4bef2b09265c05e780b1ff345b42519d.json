@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM watch_states WHERE user_id = ? AND kind = ? AND title_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "8cbc60fb1286ecb966f5a776e025561a4bef2b09265c05e780b1ff345b42519d"
+}

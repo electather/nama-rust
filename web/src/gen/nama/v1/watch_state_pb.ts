@@ -4,13 +4,15 @@
 
 import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
+import type { ExternalId } from "./match_pb";
+import { file_nama_v1_match } from "./match_pb";
 import type { Message } from "@bufbuild/protobuf";
 
 /**
  * Describes the file nama/v1/watch_state.proto.
  */
 export const file_nama_v1_watch_state: GenFile = /*@__PURE__*/
-  fileDesc("ChluYW1hL3YxL3dhdGNoX3N0YXRlLnByb3RvEgduYW1hLnYxIloKCldhdGNoU3RhdGUSEwoLcG9zaXRpb25fbXMYASABKAQSEwoLZHVyYXRpb25fbXMYAiABKAQSDgoGcGxheWVkGAMgASgIEhIKCnVwZGF0ZWRfYXQYBCABKAMiVQoVUmVwb3J0UHJvZ3Jlc3NSZXF1ZXN0EhIKCnZlcnNpb25faWQYASABKAMSEwoLcG9zaXRpb25fbXMYAiABKAQSEwoLZHVyYXRpb25fbXMYAyABKAQiGAoWUmVwb3J0UHJvZ3Jlc3NSZXNwb25zZTJrChFXYXRjaFN0YXRlU2VydmljZRJWCg5SZXBvcnRQcm9ncmVzcxIeLm5hbWEudjEuUmVwb3J0UHJvZ3Jlc3NSZXF1ZXN0Gh8ubmFtYS52MS5SZXBvcnRQcm9ncmVzc1Jlc3BvbnNlIgOQAgJiBnByb3RvMw");
+  fileDesc("ChluYW1hL3YxL3dhdGNoX3N0YXRlLnByb3RvEgduYW1hLnYxIloKCldhdGNoU3RhdGUSEwoLcG9zaXRpb25fbXMYASABKAQSEwoLZHVyYXRpb25fbXMYAiABKAQSDgoGcGxheWVkGAMgASgIEhIKCnVwZGF0ZWRfYXQYBCABKAMiVQoVUmVwb3J0UHJvZ3Jlc3NSZXF1ZXN0EhIKCnZlcnNpb25faWQYASABKAMSEwoLcG9zaXRpb25fbXMYAiABKAQSEwoLZHVyYXRpb25fbXMYAyABKAQiGAoWUmVwb3J0UHJvZ3Jlc3NSZXNwb25zZSLjAQoQU2V0UGxheWVkUmVxdWVzdBISCgpsaWJyYXJ5X2lkGAEgASgDEicKCG1vdmllX2lkGAIgASgLMhMubmFtYS52MS5FeHRlcm5hbElkSAASKQoKZXBpc29kZV9pZBgDIAEoCzITLm5hbWEudjEuRXh0ZXJuYWxJZEgAEiUKBnNlYXNvbhgEIAEoCzITLm5hbWEudjEuU2hvd1NlYXNvbkgAEiYKB3Nob3dfaWQYBSABKAsyEy5uYW1hLnYxLkV4dGVybmFsSWRIABIOCgZwbGF5ZWQYBiABKAhCCAoGdGFyZ2V0IkkKClNob3dTZWFzb24SJAoHc2hvd19pZBgBIAEoCzITLm5hbWEudjEuRXh0ZXJuYWxJZBIVCg1zZWFzb25fbnVtYmVyGAIgASgNIhMKEVNldFBsYXllZFJlc3BvbnNlMrQBChFXYXRjaFN0YXRlU2VydmljZRJWCg5SZXBvcnRQcm9ncmVzcxIeLm5hbWEudjEuUmVwb3J0UHJvZ3Jlc3NSZXF1ZXN0Gh8ubmFtYS52MS5SZXBvcnRQcm9ncmVzc1Jlc3BvbnNlIgOQAgISRwoJU2V0UGxheWVkEhkubmFtYS52MS5TZXRQbGF5ZWRSZXF1ZXN0GhoubmFtYS52MS5TZXRQbGF5ZWRSZXNwb25zZSIDkAICYgZwcm90bzM", [file_nama_v1_match]);
 
 /**
  * A User's progress through a Movie or Episode.
@@ -26,14 +28,16 @@ export type WatchState = Message<"nama.v1.WatchState"> & {
   positionMs: bigint;
 
   /**
-   * How long it is, in milliseconds, as the player last reported it.
+   * How long it is, in milliseconds, as the player last reported it. Zero if no player has, as
+   * when it was marked played without being played.
    *
    * @generated from field: uint64 duration_ms = 2;
    */
   durationMs: bigint;
 
   /**
-   * Whether it has been played: its position has passed 90% of its duration.
+   * Whether it has been played: its position has passed 90% of its duration, or it was marked
+   * played.
    *
    * @generated from field: bool played = 3;
    */
@@ -101,6 +105,112 @@ export const ReportProgressResponseSchema: GenMessage<ReportProgressResponse> = 
   messageDesc(file_nama_v1_watch_state, 2);
 
 /**
+ * @generated from message nama.v1.SetPlayedRequest
+ */
+export type SetPlayedRequest = Message<"nama.v1.SetPlayedRequest"> & {
+  /**
+   * The Library the Movie, Episode, Season or Show is in.
+   *
+   * @generated from field: int64 library_id = 1;
+   */
+  libraryId: bigint;
+
+  /**
+   * What to mark, identified as browsing identifies it.
+   *
+   * @generated from oneof nama.v1.SetPlayedRequest.target
+   */
+  target: {
+    /**
+     * A Movie of a Movies Library, by its id as `ListMovies` gave it.
+     *
+     * @generated from field: nama.v1.ExternalId movie_id = 2;
+     */
+    value: ExternalId;
+    case: "movieId";
+  } | {
+    /**
+     * An Episode of a Shows Library, by its id as `ListEpisodes` gave it.
+     *
+     * @generated from field: nama.v1.ExternalId episode_id = 3;
+     */
+    value: ExternalId;
+    case: "episodeId";
+  } | {
+    /**
+     * Every Episode of one Season of a Show that the Library has.
+     *
+     * @generated from field: nama.v1.ShowSeason season = 4;
+     */
+    value: ShowSeason;
+    case: "season";
+  } | {
+    /**
+     * Every Episode of a Show that the Library has, by its id as `ListShows` gave it.
+     *
+     * @generated from field: nama.v1.ExternalId show_id = 5;
+     */
+    value: ExternalId;
+    case: "showId";
+  } | { case: undefined; value?: undefined };
+
+  /**
+   * Whether it is now played.
+   *
+   * @generated from field: bool played = 6;
+   */
+  played: boolean;
+};
+
+/**
+ * Describes the message nama.v1.SetPlayedRequest.
+ * Use `create(SetPlayedRequestSchema)` to create a new message.
+ */
+export const SetPlayedRequestSchema: GenMessage<SetPlayedRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_watch_state, 3);
+
+/**
+ * A Season of a Show, as browsing identifies it.
+ *
+ * @generated from message nama.v1.ShowSeason
+ */
+export type ShowSeason = Message<"nama.v1.ShowSeason"> & {
+  /**
+   * The Show's id, as `ListShows` gave it.
+   *
+   * @generated from field: nama.v1.ExternalId show_id = 1;
+   */
+  showId?: ExternalId | undefined;
+
+  /**
+   * The Season's number, as `GetShow` gave it.
+   *
+   * @generated from field: uint32 season_number = 2;
+   */
+  seasonNumber: number;
+};
+
+/**
+ * Describes the message nama.v1.ShowSeason.
+ * Use `create(ShowSeasonSchema)` to create a new message.
+ */
+export const ShowSeasonSchema: GenMessage<ShowSeason> = /*@__PURE__*/
+  messageDesc(file_nama_v1_watch_state, 4);
+
+/**
+ * @generated from message nama.v1.SetPlayedResponse
+ */
+export type SetPlayedResponse = Message<"nama.v1.SetPlayedResponse"> & {
+};
+
+/**
+ * Describes the message nama.v1.SetPlayedResponse.
+ * Use `create(SetPlayedResponseSchema)` to create a new message.
+ */
+export const SetPlayedResponseSchema: GenMessage<SetPlayedResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_watch_state, 5);
+
+/**
  * Remembering how far the signed-in caller has got through what they play.
  *
  * Watch State is kept per User against the Movie or Episode a Version is Matched to, by its
@@ -127,6 +237,22 @@ export const WatchStateService: GenService<{
     methodKind: "unary";
     input: typeof ReportProgressRequestSchema;
     output: typeof ReportProgressResponseSchema;
+  },
+  /**
+   * Marks a Movie, an Episode, or every Episode of a Season or a Show that is Matched in a
+   * Library, played or unplayed for the caller, without playing it. Marking played leaves the
+   * position alone. Marking unplayed clears the Watch State, position and all, so it starts from
+   * the beginning. Fails with `not_found` if there is no such Library, or nothing in it is
+   * Matched to that Movie, Episode, Show or Season, and with `invalid_argument` if no target is
+   * given, or a Movie is asked of a Shows Library or an Episode, Season or Show of a Movies
+   * Library.
+   *
+   * @generated from rpc nama.v1.WatchStateService.SetPlayed
+   */
+  setPlayed: {
+    methodKind: "unary";
+    input: typeof SetPlayedRequestSchema;
+    output: typeof SetPlayedResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_nama_v1_watch_state, 0);
