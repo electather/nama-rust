@@ -1,8 +1,10 @@
 //! The Server's ConnectRPC API (ADR 0007), served on axum.
 
 use std::{
+    ffi::OsStr,
     future,
     net::{IpAddr, SocketAddr},
+    path::Path,
     sync::Arc,
     time::Instant,
 };
@@ -23,12 +25,13 @@ use connectrpc::{
 use futures_util::StreamExt;
 use nama_plugin_api::metadata::{Candidate, ExternalId, SearchQuery, TitleKind};
 use nama_proto::nama::v1::{
-    self as proto, ApproveSignInCodeRequest, ApproveSignInCodeResponse, ClearMatchRequest,
-    ClearMatchResponse, CreateLibraryRequest, CreateLibraryResponse, CreateUserRequest,
-    CreateUserResponse, DeleteLibraryRequest, DeleteLibraryResponse, EventService, EventType,
-    GetLibraryRequest, GetLibraryResponse, GetServerInfoRequest, GetServerInfoResponse,
-    LIBRARY_SERVICE_SERVICE_NAME, LibraryKind, LibraryService, ListLibrariesRequest,
-    ListLibrariesResponse, ListUnmatchedItemsRequest, ListUnmatchedItemsResponse, ListUsersRequest,
+    self as proto, ApproveSignInCodeRequest, ApproveSignInCodeResponse, BrowseService,
+    ClearMatchRequest, ClearMatchResponse, CreateLibraryRequest, CreateLibraryResponse,
+    CreateUserRequest, CreateUserResponse, DeleteLibraryRequest, DeleteLibraryResponse,
+    EventService, EventType, GetLibraryRequest, GetLibraryResponse, GetMovieRequest,
+    GetMovieResponse, GetServerInfoRequest, GetServerInfoResponse, LIBRARY_SERVICE_SERVICE_NAME,
+    LibraryKind, LibraryService, ListLibrariesRequest, ListLibrariesResponse, ListMoviesRequest,
+    ListMoviesResponse, ListUnmatchedItemsRequest, ListUnmatchedItemsResponse, ListUsersRequest,
     ListUsersResponse, LookUpSignInCodeRequest, LookUpSignInCodeResponse,
     MATCH_SERVICE_SERVICE_NAME, MatchService, PollSignInCodeRequest, PollSignInCodeResponse,
     SERVER_SERVICE_GET_SERVER_INFO_SPEC, SIGN_IN_SERVICE_POLL_SIGN_IN_CODE_SPEC,
@@ -44,8 +47,9 @@ use nama_proto::nama::v1::{
 use tokio::sync::OwnedMutexGuard;
 
 use crate::{
+    artwork,
     config::Config,
-    contents::{Contents, Item, Unmatched},
+    contents::{Contents, Item, Movie, Unmatched, Version},
     db::Database,
     events::{EventBus, Filter},
     libraries::{self, Kind, Libraries, Library},
@@ -91,6 +95,10 @@ pub(crate) fn router(
             contents: Contents::new(Arc::clone(&db)),
             libraries: Libraries::new(Arc::clone(&db)),
             scanner: scanner.clone(),
+        }))
+        .add_service(Arc::new(BrowseServiceHandler {
+            libraries: Libraries::new(Arc::clone(&db)),
+            contents: Contents::new(Arc::clone(&db)),
         }))
         .add_service(Arc::new(LibraryServiceHandler {
             libraries: Libraries::new(db),
@@ -633,6 +641,74 @@ impl MatchService for MatchServiceHandler {
     }
 }
 
+/// `nama.v1.BrowseService`: what a Library holds, for any signed-in User, which
+/// [`require_access`] enforces.
+struct BrowseServiceHandler {
+    libraries: Libraries,
+    contents: Contents,
+}
+
+impl BrowseServiceHandler {
+    /// The Movies of the Library `library`, which must be a Movies Library.
+    async fn movies(&self, library: i64) -> Result<Vec<Movie>, ConnectError> {
+        if self.libraries.get(library).await?.kind != Kind::Movies {
+            return Err(ConnectError::invalid_argument(
+                "the Library isn't a Movies Library",
+            ));
+        }
+        self.contents
+            .movies(library)
+            .await
+            .map_err(|err| database_failed(&err))
+    }
+}
+
+#[expect(
+    refining_impl_trait,
+    reason = "plain `async fn` returning the owned response is the form the generated trait \
+              documents; the refined signature isn't visible outside this crate"
+)]
+impl BrowseService for BrowseServiceHandler {
+    async fn list_movies(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, ListMoviesRequest>,
+    ) -> ServiceResult<ListMoviesResponse> {
+        let movies = self.movies(request.library_id).await?;
+        Response::ok(ListMoviesResponse {
+            movies: movies.into_iter().map(movie_to_proto).collect(),
+            ..Default::default()
+        })
+    }
+
+    async fn get_movie(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, GetMovieRequest>,
+    ) -> ServiceResult<GetMovieResponse> {
+        let request = request.to_owned_message();
+        let id = request
+            .movie_id
+            .into_option()
+            .and_then(|id| id.id)
+            .map(external_id_from_proto)
+            .ok_or_else(|| ConnectError::invalid_argument("the Movie's id is missing"))?;
+        // ponytail: reads the whole Library to find one Movie; query by id if Libraries get big.
+        let movie = self
+            .movies(request.library_id)
+            .await?
+            .into_iter()
+            .find(|movie| movie.id == id)
+            .ok_or_else(|| {
+                ConnectError::not_found("nothing in the Library is Matched to that id")
+            })?;
+        Response::ok(GetMovieResponse {
+            movie: movie_to_proto(movie).into(),
+            ..Default::default()
+        })
+    }
+}
+
 /// `nama.v1.UserService`: managing the Server's Users. Admins only, which [`require_access`]
 /// enforces.
 struct UserServiceHandler {
@@ -811,6 +887,43 @@ fn unmatched_to_proto(unmatched: Unmatched) -> proto::UnmatchedItem {
         year: year.and_then(int32),
         season: numbers.and_then(|(season, _)| int32(season)),
         episode: numbers.and_then(|(_, episode)| int32(episode)),
+        ..Default::default()
+    }
+}
+
+/// A Movie as clients see it, with its images as URLs on this Server.
+fn movie_to_proto(movie: Movie) -> proto::Movie {
+    let plugin = movie.plugin;
+    let artwork_url = |path: String| artwork::url(&plugin, &path);
+    proto::Movie {
+        id: external_id_to_proto(movie.id).into(),
+        title: movie.title,
+        original_title: movie.original_title,
+        overview: movie.overview,
+        release_date: movie.release_date,
+        runtime_minutes: movie
+            .runtime_minutes
+            .and_then(|minutes| u32::try_from(minutes).ok()),
+        poster_url: movie.poster.map(artwork_url),
+        backdrop_url: movie.backdrop.map(artwork_url),
+        versions: movie.versions.iter().map(version_to_proto).collect(),
+        ..Default::default()
+    }
+}
+
+/// A Version as clients see it: its file's name, not the folders it is in.
+fn version_to_proto(version: &Version) -> proto::Version {
+    // A stored path came from a `String`, so its name is UTF-8.
+    let file_name = Path::new(&version.path)
+        .file_name()
+        .and_then(OsStr::to_str)
+        .unwrap_or_default()
+        .to_owned();
+    proto::Version {
+        id: version.id,
+        file_name,
+        // A size is never negative.
+        size: u64::try_from(version.size).unwrap_or_default(),
         ..Default::default()
     }
 }

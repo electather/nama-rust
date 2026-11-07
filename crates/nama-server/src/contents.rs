@@ -136,6 +136,34 @@ pub(crate) struct Metadata {
     pub(crate) backdrop: Option<String>,
 }
 
+/// A Movie some Items of a Library are Matched to, with the metadata the Match of its first
+/// Version stores.
+#[derive(Debug)]
+pub(crate) struct Movie {
+    /// Which of the Match's ids identifies the Movie: see [`primary_id`].
+    pub(crate) id: ExternalId,
+    /// The Plugin whose metadata Provider made the Match, which the image paths are for.
+    pub(crate) plugin: String,
+    pub(crate) title: String,
+    pub(crate) original_title: Option<String>,
+    pub(crate) overview: Option<String>,
+    pub(crate) release_date: Option<String>,
+    pub(crate) runtime_minutes: Option<i64>,
+    pub(crate) poster: Option<String>,
+    pub(crate) backdrop: Option<String>,
+    /// The files Matched to it, by path.
+    pub(crate) versions: Vec<Version>,
+}
+
+/// A stored file that a Movie or Episode is available in.
+#[derive(Debug)]
+pub(crate) struct Version {
+    /// The stored file's id.
+    pub(crate) id: i64,
+    pub(crate) path: String,
+    pub(crate) size: i64,
+}
+
 impl Contents {
     /// The contents of the Libraries in `db`.
     #[must_use]
@@ -361,6 +389,67 @@ impl Contents {
         .await
     }
 
+    /// The Movies the Items of the Library `library` are Matched to, by title, grouped by their
+    /// [`primary_id`].
+    pub(crate) async fn movies(&self, library: i64) -> Result<Vec<Movie>, sqlx::Error> {
+        let rows = sqlx::query!(
+            r#"SELECT library_files.id AS "file!", library_files.path, library_files.size,
+                      item_matches.plugin AS "plugin!", item_matches.tmdb_id,
+                      item_matches.imdb_id, item_matches.tvdb_id, item_matches.title AS "title!",
+                      item_matches.original_title, item_matches.overview,
+                      item_matches.release_date, item_matches.runtime_minutes,
+                      item_matches.poster, item_matches.backdrop
+               FROM item_matches
+               JOIN library_items ON library_items.id = item_matches.item_id
+               JOIN library_files ON library_files.id = library_items.file_id
+               WHERE library_files.library_id = ?
+                 AND library_items.kind = 'movie'
+                 AND item_matches.state = 'matched'
+               ORDER BY item_matches.tmdb_id,
+                        IIF(item_matches.tmdb_id IS NULL, item_matches.imdb_id, NULL),
+                        IIF(item_matches.tmdb_id IS NULL AND item_matches.imdb_id IS NULL,
+                            item_matches.tvdb_id, NULL),
+                        library_files.path"#,
+            library
+        )
+        .fetch_all(self.db.reader())
+        .await?;
+        // Ordered by primary id, then path, so the rows of one Movie are adjacent, by path.
+        let mut movies: Vec<Movie> = Vec::new();
+        for row in rows {
+            let ids = ExternalIds {
+                tmdb: row.tmdb_id,
+                imdb: row.imdb_id,
+                tvdb: row.tvdb_id,
+            };
+            let Some(id) = primary_id(ids) else {
+                continue;
+            };
+            let version = Version {
+                id: row.file,
+                path: row.path,
+                size: row.size,
+            };
+            match movies.last_mut() {
+                Some(movie) if movie.id == id => movie.versions.push(version),
+                _ => movies.push(Movie {
+                    id,
+                    plugin: row.plugin,
+                    title: row.title,
+                    original_title: row.original_title,
+                    overview: row.overview,
+                    release_date: row.release_date,
+                    runtime_minutes: row.runtime_minutes,
+                    poster: row.poster,
+                    backdrop: row.backdrop,
+                    versions: vec![version],
+                }),
+            }
+        }
+        movies.sort_by(|a, b| a.title.cmp(&b.title));
+        Ok(movies)
+    }
+
     /// Pins `pin` for the Items of the Library `library` called `name`, replacing any pin they
     /// had, and stores what was `decided` about them, as of now, in one write. Returns `false`,
     /// having stored nothing, if the Library is gone.
@@ -406,12 +495,7 @@ impl Pin {
         if !pinned {
             return None;
         }
-        let id = ids
-            .tmdb
-            .map(ExternalId::Tmdb)
-            .or_else(|| ids.imdb.map(ExternalId::Imdb))
-            .or_else(|| ids.tvdb.map(ExternalId::Tvdb));
-        Some(id.map_or(Self::Unmatched, Self::Title))
+        Some(primary_id(ids).map_or(Self::Unmatched, Self::Title))
     }
 
     /// The pinned id, as the `pinned_*` columns of `match_pins` hold it.
@@ -425,6 +509,15 @@ impl Pin {
         }
         ids
     }
+}
+
+/// The one of `ids` that identifies a title: its TMDB id if it has one, or else its IMDb or TVDB
+/// id. `None` if it has none.
+fn primary_id(ids: ExternalIds) -> Option<ExternalId> {
+    ids.tmdb
+        .map(ExternalId::Tmdb)
+        .or_else(|| ids.imdb.map(ExternalId::Imdb))
+        .or_else(|| ids.tvdb.map(ExternalId::Tvdb))
 }
 
 /// Applies `changes` to the files of the Library `library`, and returns the events for the Items
