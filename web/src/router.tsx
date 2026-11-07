@@ -40,9 +40,9 @@ export function getRouter(transport: Transport = sameOrigin) {
   // again who is signed in tells them apart. Only when nobody is are the routes' access checks
   // rerun, and the `_member` layout sends the visitor to /sign-in?redirect=….
   function recheckSession(error: Error) {
-    if (isCode(error, Code.Unauthenticated)) void signInAgainIfSignedOut();
+    if (isCode(error, Code.Unauthenticated)) void redirectIfSignedOut();
   }
-  async function signInAgainIfSignedOut() {
+  async function redirectIfSignedOut() {
     queryClient.removeQueries({ queryKey: signedInQuery(transport).queryKey });
     if ((await whoIsSignedIn({ queryClient, transport })) === null) await router.invalidate();
   }
