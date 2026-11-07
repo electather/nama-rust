@@ -173,4 +173,8 @@ function refreshRequests({ event }: Event, queryClient: QueryClient) {
   }
 }
 
-const requestsKey = createConnectQueryKey({ schema: RequestService, cardinality: undefined });
+/** Every Request query, including the Movies found to Request: what to refresh when one changes. */
+export const requestsKey = createConnectQueryKey({
+  schema: RequestService,
+  cardinality: undefined,
+});

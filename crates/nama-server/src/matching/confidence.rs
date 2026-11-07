@@ -147,6 +147,7 @@ mod tests {
             title: title.to_owned(),
             original_title: None,
             year,
+            poster: None,
         }
     }
 

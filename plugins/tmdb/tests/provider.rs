@@ -69,15 +69,22 @@ async fn searching_movies_finds_candidates_with_their_years() {
         .await
         .unwrap();
 
-    let dune = |id, year| Candidate {
+    let dune = |id, year, poster: &str| Candidate {
         id: ExternalId::Tmdb(id),
         title: "Dune".to_owned(),
         original_title: Some("Dune".to_owned()),
         year: Some(year),
+        poster: Some(poster.to_owned()),
     };
     assert_eq!(found.len(), 3);
-    assert_eq!(found[0], dune(438_631, 2021));
-    assert_eq!(found[2], dune(841, 1984));
+    assert_eq!(
+        found[0],
+        dune(438_631, 2021, "/d5NXSklXo0qyIYkgV94XAgMIckC.jpg")
+    );
+    assert_eq!(
+        found[2],
+        dune(841, 1984, "/a3nDwAnKAl0jsSmsGaen2Ndqidy.jpg")
+    );
     let requested = fake.requests();
     assert!(
         requested[0].starts_with("/3/search/movie?")
@@ -105,6 +112,7 @@ async fn searching_shows_uses_their_first_air_year() {
             title: "Dark".to_owned(),
             original_title: Some("Dark".to_owned()),
             year: Some(2017),
+            poster: Some("/apbrbWs8M9lyOpJYU5WXrpFbk1Z.jpg".to_owned()),
         }]
     );
 }

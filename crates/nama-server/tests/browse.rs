@@ -2,6 +2,8 @@
 //! that `WatchStateService` reports or marks and browsing shows, over a real socket, with the
 //! TMDB Plugin enabled against a fake TMDB.
 
+#[path = "support/http.rs"]
+mod http;
 #[path = "support/refused.rs"]
 mod refused;
 #[expect(dead_code, reason = "the harness's plain `start` has no use here")]
@@ -21,6 +23,7 @@ use connectrpc::{
     ConnectError, ErrorCode,
     client::{ClientConfig, HttpClient},
 };
+use http::{fetch, fetch_range};
 use nama_plugin_api::settings::{SettingValue, Settings};
 use nama_plugin_tmdb::{
     Tmdb,
@@ -500,69 +503,6 @@ async fn create_library(
 fn write(path: &Path, contents: &[u8]) {
     fs::create_dir_all(path.parent().unwrap()).unwrap();
     fs::write(path, contents).unwrap();
-}
-
-struct Reply {
-    status: u16,
-    headers: hyper::HeaderMap,
-    body: Vec<u8>,
-}
-
-impl Reply {
-    /// The value of the header `name`, or `""` if it has none.
-    #[expect(
-        clippy::unwrap_used,
-        reason = "a test helper fails its test by panicking"
-    )]
-    fn header(&self, name: &str) -> &str {
-        self.headers
-            .get(name)
-            .map_or("", |value| value.to_str().unwrap())
-    }
-}
-
-/// Sends a plain HTTP/1.1 `GET` for `path` to `server`, presenting `token`, if any, in the
-/// session cookie, as a browser's `<img src>` does.
-async fn fetch(server: &TestServer, path: &str, token: Option<&str>) -> Reply {
-    fetch_range(server, path, token, None).await
-}
-
-/// Like [`fetch`], asking for only the bytes in `range`, if any, as a browser's `<video>` does
-/// to seek.
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
-async fn fetch_range(
-    server: &TestServer,
-    path: &str,
-    token: Option<&str>,
-    range: Option<&str>,
-) -> Reply {
-    use http_body_util::{BodyExt, Empty};
-    use hyper::{Request, body::Bytes, client::conn::http1};
-    use hyper_util::rt::TokioIo;
-
-    let stream = tokio::net::TcpStream::connect(server.addr).await.unwrap();
-    let (mut sender, connection) = http1::handshake(TokioIo::new(stream)).await.unwrap();
-    tokio::spawn(connection);
-    let mut request = Request::get(path).header("host", server.addr.to_string());
-    if let Some(token) = token {
-        request = request.header("cookie", format!("nama_session={token}"));
-    }
-    if let Some(range) = range {
-        request = request.header("range", range);
-    }
-    let response = sender
-        .send_request(request.body(Empty::<Bytes>::new()).unwrap())
-        .await
-        .unwrap();
-    let (parts, body) = response.into_parts();
-    Reply {
-        status: parts.status.as_u16(),
-        headers: parts.headers,
-        body: body.collect().await.unwrap().to_bytes().to_vec(),
-    }
 }
 
 fn tmdb_id(id: i64) -> ExternalId {

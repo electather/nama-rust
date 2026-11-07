@@ -1,11 +1,17 @@
-import type { MessageInitShape } from "@bufbuild/protobuf";
-import { cleanup, screen } from "@testing-library/react";
+import { type MessageInitShape, create } from "@bufbuild/protobuf";
+import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import type { SubscribeResponse } from "@/gen/nama/v1/event_pb";
-import { RequestService, RequestState, type RequestSchema } from "@/gen/nama/v1/request_pb";
+import {
+  FoundMovieSchema,
+  RequestSchema,
+  RequestService,
+  RequestState,
+} from "@/gen/nama/v1/request_pb";
+import { Permission } from "@/gen/nama/v1/sign_in_pb";
 
-import { eventFeed, fakeServer, newUser, openApp } from "./test-app";
+import { eventFeed, fakeServer, fill, newUser, openApp } from "./test-app";
 
 afterEach(cleanup);
 
@@ -70,4 +76,114 @@ test("a Request made elsewhere shows up without a reload", async () => {
   events.send({ event: { case: "requestCreated", value: { request: dune } } });
 
   expect(await screen.findByText("Dune")).toBeDefined();
+});
+
+type Found = MessageInitShape<typeof FoundMovieSchema>;
+
+/**
+ * A fake Server whose metadata source has `movies`, where asking for one opens a Pending Request
+ * for the signed-in User (ID 1), or adds them as a Requester to the one it has.
+ */
+function searchableServer(movies: Found[], permissions = newUser) {
+  const found = new Map(
+    movies.map((init) => {
+      const movie = create(FoundMovieSchema, init);
+      return [movie.tmdbId, movie];
+    }),
+  );
+  return fakeServer({ signedIn: permissions }, {}, {}, (router) => {
+    router.service(RequestService, {
+      listRequests: () => ({}),
+      searchMovies: () => ({ movies: [...found.values()] }),
+      lookUpMovie: ({ movieTmdbId }) => ({ movie: found.get(movieTmdbId) }),
+      createRequest: ({ movieTmdbId }) => {
+        const movie = found.get(movieTmdbId) ?? create(FoundMovieSchema);
+        movie.request = create(RequestSchema, {
+          state: movie.request?.state ?? RequestState.PENDING,
+          requesters: [...(movie.request?.requesters ?? []), { userId: 1n, name: "Sam" }],
+        });
+        return { request: movie.request };
+      },
+    });
+  });
+}
+
+const notOnTheServer: Found = { tmdbId: 438_631n, title: "Dune", year: 2021 };
+const inALibrary: Found = { tmdbId: 348n, title: "Alien", year: 1979, libraryId: 4n };
+const askedForByAda: Found = {
+  tmdbId: 949n,
+  title: "Heat",
+  year: 1995,
+  request: { id: 2n, state: RequestState.APPROVED, requesters: [{ userId: 2n, name: "Ada" }] },
+};
+
+function search(title: string) {
+  fill("Find a Movie", title);
+  fireEvent.click(screen.getByRole("button", { name: "Search" }));
+  return screen.findByRole("region", { name: `Results for “${title}”` });
+}
+
+test("a Movie found that isn't on the Server shows as Pending once Requested, without a reload", async () => {
+  openApp("/requests", searchableServer([notOnTheServer]));
+  await screen.findByLabelText("Find a Movie");
+
+  const results = await search("Dune");
+  fireEvent.click(await within(results).findByRole("button", { name: "Request Dune" }));
+
+  expect(await within(results).findByText("Pending")).toBeDefined();
+  expect(within(results).queryByRole("button", { name: "Request Dune" })).toBeNull();
+});
+
+test("a Movie found in a Library shows as in it, with no Request button", async () => {
+  openApp("/requests", searchableServer([inALibrary]));
+  await screen.findByLabelText("Find a Movie");
+
+  const results = await search("Alien");
+
+  expect(await within(results).findByText("In a Library")).toBeDefined();
+  expect(within(results).queryByRole("button", { name: "Request Alien" })).toBeNull();
+  const link = within(results).getByRole("link", { name: /Alien/u });
+  expect(link.getAttribute("href")).toBe("/libraries/4/movies/tmdb-348");
+});
+
+test("a Movie someone else Requested shows its state, and Requesting it joins", async () => {
+  openApp("/requests", searchableServer([askedForByAda]));
+  await screen.findByLabelText("Find a Movie");
+
+  const results = await search("Heat");
+  expect(await within(results).findByText("Approved")).toBeDefined();
+  fireEvent.click(within(results).getByRole("button", { name: "Request Heat" }));
+
+  await waitFor(() => {
+    expect(within(results).queryByRole("button", { name: "Request Heat" })).toBeNull();
+  });
+  expect(within(results).getByText("Approved")).toBeDefined();
+});
+
+test("a User who may not Request Movies isn't offered the search", async () => {
+  openApp("/requests", searchableServer([], [Permission.VIEW_REQUESTS]));
+
+  await screen.findByText("No Requests yet.");
+  expect(screen.queryByLabelText("Find a Movie")).toBeNull();
+});
+
+test("a Movie's page shows its Request state after Requesting it, without a reload", async () => {
+  openApp(
+    "/movies/tmdb-438631",
+    searchableServer([{ ...notOnTheServer, overview: "Paul Atreides travels to Arrakis." }]),
+  );
+
+  expect(await screen.findByRole("heading", { name: "Dune" })).toBeDefined();
+  expect(screen.getByText("Paul Atreides travels to Arrakis.")).toBeDefined();
+  fireEvent.click(screen.getByRole("button", { name: "Request Dune" }));
+
+  expect(await screen.findByText("Pending")).toBeDefined();
+});
+
+test("a Movie's page for one in a Library opens it there", async () => {
+  const router = openApp("/movies/tmdb-348", searchableServer([inALibrary]));
+
+  await waitFor(() => {
+    expect(router.state.location.pathname).toBe("/libraries/4/movies/tmdb-348");
+  });
 });
