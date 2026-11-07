@@ -46,7 +46,8 @@ pub enum RefusalReason {
     REFUSAL_REASON_OWN_PASSWORD_RESET = 16i32,
     /// `not_found`: the User has no Device with the ID.
     REFUSAL_REASON_DEVICE_NOT_FOUND = 17i32,
-    /// `invalid_argument`: a required field is missing or blank.
+    /// `invalid_argument`: a required field is missing or blank. For a Plugin setting, params:
+    /// `settingKey`.
     REFUSAL_REASON_FIELD_REQUIRED = 18i32,
     /// `invalid_argument`: an enum field is unset, or set to a value this Server doesn't know.
     REFUSAL_REASON_UNKNOWN_ENUM_VALUE = 19i32,
@@ -100,8 +101,8 @@ pub enum RefusalReason {
     REFUSAL_REASON_ALREADY_IN_LIBRARY = 39i32,
     /// `not_found`: no Plugin has the id. Params: `pluginId`.
     REFUSAL_REASON_PLUGIN_NOT_FOUND = 40i32,
-    /// `failed_precondition`: the Plugin is the last one enabled that provides an Authenticator, so
-    /// disabling it would leave nobody able to sign in. Params: `pluginId`.
+    /// `failed_precondition`: no other enabled Plugin provides an Authenticator, so disabling this
+    /// one could leave nobody able to sign in. Params: `pluginId`.
     REFUSAL_REASON_LAST_AUTHENTICATOR = 41i32,
     /// `invalid_argument`: a Plugin setting's value isn't of the kind its schema declares. Params:
     /// `settingKey`, and `settingKind`, the `SettingKind` value's name (`SETTING_KIND_TEXT`).

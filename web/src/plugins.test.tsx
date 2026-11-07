@@ -149,12 +149,12 @@ test("enabling a disabled Plugin asks the Server to", async () => {
   });
 });
 
-test("disabling the only Plugin Users sign in with says why it stays enabled", async () => {
+test("disabling the only Plugin Users sign in with says why it can’t be", async () => {
   openPlugins({
     disablePlugin: () => {
       throw refused(
         Code.FailedPrecondition,
-        "local-auth is the only Plugin Users can sign in with",
+        "local-auth can't be disabled while no other enabled Plugin lets Users sign in",
         {
           reason: RefusalReason.LAST_AUTHENTICATOR,
           field: "id",
@@ -166,7 +166,7 @@ test("disabling the only Plugin Users sign in with says why it stays enabled", a
   fireEvent.click(localAuth.getByRole("button", { name: "Disable local-auth" }));
 
   expect((await localAuth.findByRole("alert")).textContent).toBe(
-    "It stays enabled: it’s the only Plugin Users can sign in with.",
+    "It can’t be disabled while no other enabled Plugin lets Users sign in.",
   );
 });
 

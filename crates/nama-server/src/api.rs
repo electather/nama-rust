@@ -1908,7 +1908,12 @@ impl PluginService for PluginServiceHandler {
             .map_err(|last| {
                 refuse(
                     RefusalReason::REFUSAL_REASON_LAST_AUTHENTICATOR,
-                    format!("{} is the only Plugin Users can sign in with", last.plugin),
+                    // Also when it isn't running (see `disable_unless_last_provider`), so not "is the
+                    // only one".
+                    format!(
+                        "{} can't be disabled while no other enabled Plugin lets Users sign in",
+                        last.plugin
+                    ),
                 )
                 .field("id")
                 .param("pluginId", &last.plugin)

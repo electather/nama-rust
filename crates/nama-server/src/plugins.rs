@@ -43,10 +43,12 @@ struct State {
     builtins: BTreeMap<PluginId, Described>,
 }
 
-/// A Built-in Plugin, kept so it can be enabled again after it is disabled, with what it said
-/// about itself once at start, so listing runs no Plugin code.
+/// A Built-in Plugin, with what it said about itself once at start, so listing runs no Plugin
+/// code.
 struct Described {
-    plugin: Arc<dyn Plugin>,
+    /// Makes the Plugin anew for each enablement. Keeping one instance instead would hold it past
+    /// disabling, so its `Drop` would run uncontained when the registry goes.
+    make: fn() -> Arc<dyn Plugin>,
     version: String,
     settings_schema: SettingsSchema,
 }
@@ -87,9 +89,9 @@ pub struct Builtin {
     pub enabled: bool,
 }
 
-/// Why a Plugin wasn't disabled: it is the last one enabled providing a capability.
+/// Why a Plugin wasn't disabled: no other enabled Plugin provides a capability it may provide.
 #[derive(Debug, Error)]
-#[error("plugin {plugin} is the last one providing {point}")]
+#[error("plugin {plugin} may be the last one providing {point}")]
 pub struct LastProvider {
     /// The Plugin.
     pub plugin: PluginId,
@@ -206,14 +208,13 @@ impl Registry {
     ///
     /// If no Built-in Plugin has the id, or as [`Registry::enable_with_settings`] fails.
     pub fn enable_builtin(&self, id: &PluginId, settings: Settings) -> Result<(), EnableError> {
-        let plugin = self
-            .read(|state| {
-                state
-                    .builtins
-                    .get(id)
-                    .map(|builtin| Arc::clone(&builtin.plugin))
-            })
+        let make = self
+            .read(|state| state.builtins.get(id).map(|builtin| builtin.make))
             .ok_or_else(|| EnableError::Unknown(id.clone()))?;
+        let plugin = contain_sync(make).map_err(|message| EnableError::Panicked {
+            plugin: id.clone(),
+            message,
+        })?;
         self.enable_with_settings(plugin, settings)
     }
 

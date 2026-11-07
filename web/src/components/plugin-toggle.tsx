@@ -62,7 +62,7 @@ function refusedChange(error: unknown, plugin: Plugin, verb: string) {
     {},
     {
       [RefusalReason.LAST_AUTHENTICATOR]: {
-        form: "It stays enabled: it’s the only Plugin Users can sign in with.",
+        form: "It can’t be disabled while no other enabled Plugin lets Users sign in.",
       },
       [RefusalReason.FIELD_REQUIRED]: { form: `It needs ${label} set before it can be enabled.` },
       [RefusalReason.SETTING_WRONG_KIND]: {

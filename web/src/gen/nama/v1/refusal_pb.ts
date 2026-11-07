@@ -189,7 +189,8 @@ export const RefusalReason = {
   DEVICE_NOT_FOUND: 17,
 
   /**
-   * `invalid_argument`: a required field is missing or blank.
+   * `invalid_argument`: a required field is missing or blank. For a Plugin setting, params:
+   * `settingKey`.
    *
    * @generated from enum value: REFUSAL_REASON_FIELD_REQUIRED = 18;
    */
@@ -358,8 +359,8 @@ export const RefusalReason = {
   PLUGIN_NOT_FOUND: 40,
 
   /**
-   * `failed_precondition`: the Plugin is the last one enabled that provides an Authenticator, so
-   * disabling it would leave nobody able to sign in. Params: `pluginId`.
+   * `failed_precondition`: no other enabled Plugin provides an Authenticator, so disabling this
+   * one could leave nobody able to sign in. Params: `pluginId`.
    *
    * @generated from enum value: REFUSAL_REASON_LAST_AUTHENTICATOR = 41;
    */
