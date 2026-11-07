@@ -473,6 +473,17 @@ async fn declining_with_a_blank_reason_gives_none() {
 }
 
 #[tokio::test]
+async fn a_decline_reason_is_kept_without_its_surrounding_spaces() {
+    let fixture = Fixture::start().await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let pending = ask(&requests(as_ada), HEAT).await;
+
+    let declined = decline(&fixture, pending.id, "  Not in 4K yet\n").await;
+
+    assert_eq!(declined.decline_reason.as_deref(), Some("Not in 4K yet"));
+}
+
+#[tokio::test]
 async fn cancelling_removes_a_request_and_tells_its_requesters() {
     let fixture = Fixture::start().await;
     let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;

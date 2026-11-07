@@ -123,10 +123,11 @@ impl Requests {
         self.decide(id, RequestState::Approved, None).await
     }
 
-    /// Declines the Pending Request `id`, giving its Requesters `reason` unless it is blank, and
-    /// publishes that its state changed.
-    pub(crate) async fn decline(&self, id: i64, reason: String) -> Result<Request, Error> {
-        let reason = (!reason.trim().is_empty()).then_some(reason);
+    /// Declines the Pending Request `id`, giving its Requesters `reason`, trimmed, unless it is
+    /// blank, and publishes that its state changed.
+    pub(crate) async fn decline(&self, id: i64, reason: &str) -> Result<Request, Error> {
+        let reason = reason.trim();
+        let reason = (!reason.is_empty()).then(|| reason.to_owned());
         self.decide(id, RequestState::Declined, reason).await
     }
 

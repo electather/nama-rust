@@ -1380,8 +1380,7 @@ impl RequestService for RequestServiceHandler {
         _ctx: RequestContext,
         request: ServiceRequest<'_, DeclineRequestRequest>,
     ) -> ServiceResult<DeclineRequestResponse> {
-        let DeclineRequestRequest { id, reason, .. } = request.to_owned_message();
-        let declined = self.requests.decline(id, reason).await?;
+        let declined = self.requests.decline(request.id, request.reason).await?;
         Response::ok(DeclineRequestResponse {
             request: declined.into(),
             ..Default::default()
