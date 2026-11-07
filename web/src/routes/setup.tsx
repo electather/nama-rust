@@ -8,7 +8,7 @@ import { SignInLayout } from "@/components/sign-in-layout";
 import { ServerService } from "@/gen/nama/v1/server_pb";
 import { SessionDelivery, SignInService } from "@/gen/nama/v1/sign_in_pb";
 import { isSetupRequired } from "@/lib/access";
-import { type FormErrors, formText, invalidField, refusal, serverMessage } from "@/lib/forms";
+import { type FormErrors, formText, onRefusedField, refusal } from "@/lib/forms";
 
 export const Route = createFileRoute("/setup")({
   beforeLoad: async ({ context }) => {
@@ -87,6 +87,6 @@ function setupErrors(error: unknown): FormErrors {
     [Code.FailedPrecondition]: {
       form: "This Server is already set up. Reload the page to sign in.",
     },
-    [Code.InvalidArgument]: { [invalidField(error)]: serverMessage(error) },
+    [Code.InvalidArgument]: onRefusedField(error, ["name", "password"]),
   });
 }

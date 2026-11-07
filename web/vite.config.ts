@@ -74,6 +74,8 @@ export default defineConfig({
           ],
         },
       ],
+      // `expectUnderField` (src/test-refusal.ts) asserts for the tests that call it.
+      "vitest/expect-expect": ["error", { assertFunctionNames: ["expect", "expectUnderField"] }],
       // The automatic JSX runtime needs no `React` in scope.
       "react/react-in-jsx-scope": "off",
       // React props (`children: ReactNode`) and library callback arguments can't be deeply

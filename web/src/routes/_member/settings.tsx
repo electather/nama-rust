@@ -1,4 +1,3 @@
-import { Code } from "@connectrpc/connect";
 import { createQueryOptions, useMutation } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
@@ -7,8 +6,8 @@ import { DeviceList } from "@/components/device-list";
 import { FormEnd, FormField } from "@/components/form-field";
 import { Page } from "@/components/page";
 import { UserService } from "@/gen/nama/v1/user_pb";
-import { type FormErrors, formText, onSubmitted, refusal, serverMessage } from "@/lib/forms";
-import { devicesKey } from "@/lib/users";
+import { formText, onSubmitted } from "@/lib/forms";
+import { changePasswordErrors, devicesKey } from "@/lib/users";
 
 export const Route = createFileRoute("/_member/settings")({
   loader: ({ context: { queryClient, transport } }) =>
@@ -92,11 +91,4 @@ function ChangePassword() {
       />
     </form>
   );
-}
-
-function changePasswordErrors(error: unknown): FormErrors {
-  return refusal(error, "change your password", {
-    [Code.Unauthenticated]: { currentPassword: "That isn’t your current password." },
-    [Code.InvalidArgument]: { newPassword: serverMessage(error) },
-  });
 }

@@ -2,9 +2,11 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
+import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { Role } from "@/gen/nama/v1/sign_in_pb";
 
 import { type ServerState, fakeServer, fill, openApp } from "./test-app";
+import { expectUnderField, refused } from "./test-refusal";
 
 afterEach(cleanup);
 
@@ -77,19 +79,60 @@ test("a wrong Setup Code is shown next to its field", async () => {
     { setupRequired: true },
     {
       setup: () => {
-        throw new ConnectError("wrong Setup Code", Code.PermissionDenied);
+        throw refused(Code.PermissionDenied, "wrong Setup Code", {
+          reason: RefusalReason.WRONG_SETUP_CODE,
+          field: "setup_code",
+        });
       },
     },
   );
   openApp("/setup", transport);
 
   await submitSetup("WRONG");
-  const error = await screen.findByText(
-    "That isn’t the Setup Code. Check the Server’s log for it.",
+  await expectUnderField("Setup Code", "That isn’t the Setup Code. Check the Server’s log for it.");
+});
+
+/** A fresh Server whose `Setup` refuses the request field `field` with `message`. */
+function serverRefusingSetupField(field: string, message: string) {
+  return fakeServer(
+    { setupRequired: true },
+    {
+      setup: () => {
+        throw refused(Code.InvalidArgument, message, { field });
+      },
+    },
   );
-  const field = screen.getByLabelText("Setup Code");
-  expect(field.getAttribute("aria-invalid")).toBe("true");
-  expect(field.getAttribute("aria-describedby")).toContain(error.id);
+}
+
+test.each([
+  [
+    "name",
+    "Username",
+    "a User's name needs 1 to 64 characters",
+    "A User's name needs 1 to 64 characters.",
+  ],
+  [
+    "password",
+    "Password",
+    "the password needs at least 8 characters",
+    "The password needs at least 8 characters.",
+  ],
+])("a refused %s on Setup is shown under its field", async (field, label, message, shown) => {
+  openApp("/setup", serverRefusingSetupField(field, message));
+
+  await submitSetup("ABCD-EFGH");
+  await expectUnderField(label, shown);
+});
+
+test("a refused Device name on Setup isn't shown under the password", async () => {
+  openApp(
+    "/setup",
+    serverRefusingSetupField("device_name", "a Device's name needs 1 to 64 characters"),
+  );
+
+  await submitSetup("ABCD-EFGH");
+  await screen.findByText("A Device's name needs 1 to 64 characters.");
+  expect(screen.getByLabelText("Password").getAttribute("aria-invalid")).toBe("false");
 });
 
 test("signed out, a page sends you to sign in and back again", async () => {

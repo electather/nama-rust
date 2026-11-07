@@ -3,9 +3,11 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
+import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { DeviceSchema, Role } from "@/gen/nama/v1/sign_in_pb";
 
 import { type ServerState, fakeServer, fill, openApp } from "./test-app";
+import { expectUnderField, refused } from "./test-refusal";
 
 afterEach(cleanup);
 
@@ -114,10 +116,9 @@ test("demoting the last Admin says why it was refused", async () => {
       {
         listUsers: () => ({ users: [{ id: 1n, name: "Sam", role: Role.ADMIN }] }),
         setRole: () => {
-          throw new ConnectError(
-            "the Server must keep at least one Admin",
-            Code.FailedPrecondition,
-          );
+          throw refused(Code.FailedPrecondition, "the Server must keep at least one Admin", {
+            reason: RefusalReason.LAST_ADMIN,
+          });
         },
       },
     ),
@@ -197,4 +198,78 @@ test("a User deleted meanwhile is said to be gone, and the Users page stays", as
 
   expect(await screen.findByText("Alex isn’t on this Server any more.")).toBeDefined();
   expect(screen.getByRole("heading", { name: "Users" })).toBeDefined();
+});
+
+test.each([
+  [
+    "name",
+    "Username",
+    "a User's name needs 1 to 64 characters",
+    "A User's name needs 1 to 64 characters.",
+  ],
+  [
+    "password",
+    "Starting password",
+    "the password needs at least 8 characters",
+    "The password needs at least 8 characters.",
+  ],
+])("a refused %s for a new User is shown under its field", async (field, label, message, shown) => {
+  openApp(
+    "/admin/users",
+    fakeServer(
+      { signedIn: Role.ADMIN },
+      {},
+      {
+        listUsers: () => ({}),
+        createUser: () => {
+          throw refused(Code.InvalidArgument, message, { field });
+        },
+      },
+    ),
+  );
+
+  await screen.findByRole("button", { name: "Create User" });
+  fill("Username", "Alex");
+  fill("Starting password", "short");
+  fireEvent.click(screen.getByRole("button", { name: "Create User" }));
+
+  await expectUnderField(label, shown);
+});
+
+/** Settings, on a Server whose `ChangePassword` refuses with `reason`. */
+function openSettingsRefusingPasswordChange(reason: RefusalReason, field = "") {
+  openApp(
+    "/settings",
+    fakeServer(
+      { signedIn: Role.MEMBER },
+      {},
+      {
+        changePassword: () => {
+          throw refused(Code.Unauthenticated, "refused", { reason, field });
+        },
+      },
+    ),
+  );
+}
+
+async function submitPasswordChange() {
+  await screen.findByRole("button", { name: "Change password" });
+  fill("Current password", "correct horse");
+  fill("New password", "battery staple");
+  fireEvent.click(screen.getByRole("button", { name: "Change password" }));
+}
+
+test("a wrong current password is shown under its field", async () => {
+  openSettingsRefusingPasswordChange(RefusalReason.WRONG_PASSWORD, "current_password");
+
+  await submitPasswordChange();
+  await expectUnderField("Current password", "That isn’t your current password.");
+});
+
+test("a Device signed out meanwhile isn't blamed on the current password", async () => {
+  openSettingsRefusingPasswordChange(RefusalReason.SIGNED_OUT);
+
+  await submitPasswordChange();
+  await screen.findByText(/Couldn’t change your password/u);
+  expect(screen.getByLabelText("Current password").getAttribute("aria-invalid")).toBe("false");
 });
