@@ -1,11 +1,18 @@
-//! Browsing Movies through the generated `BrowseService` client, over a real socket, with the TMDB
-//! Plugin enabled against a fake TMDB.
+//! Browsing Movies and Shows through the generated `BrowseService` client, over a real socket,
+//! with the TMDB Plugin enabled against a fake TMDB.
 
 #[expect(dead_code, reason = "the harness's plain `start` has no use here")]
 #[path = "support/server.rs"]
 mod server;
 
-use std::{collections::BTreeMap, fs, path::PathBuf, slice, sync::Arc, time::Duration};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fs,
+    path::PathBuf,
+    slice,
+    sync::Arc,
+    time::Duration,
+};
 
 use connectrpc::{ConnectError, ErrorCode, client::HttpClient};
 use nama_plugin_api::settings::{SettingValue, Settings};
@@ -14,9 +21,10 @@ use nama_plugin_tmdb::{
     testing::{API_KEY, FakeTmdb},
 };
 use nama_proto::nama::v1::{
-    BrowseServiceClient, ClearMatchRequest, CreateLibraryRequest, ExternalId, GetMovieRequest,
-    LibraryKind, LibraryServiceClient, ListMoviesRequest, MatchServiceClient, Movie,
-    ScanLibraryRequest, external_id,
+    BrowseServiceClient, ClearMatchRequest, CreateLibraryRequest, Episode, ExternalId,
+    GetMovieRequest, GetShowRequest, GetShowResponse, LibraryKind, LibraryServiceClient,
+    ListEpisodesRequest, ListMoviesRequest, ListShowsRequest, MatchServiceClient, Movie,
+    ScanLibraryRequest, Season, Show, Version, external_id,
 };
 use nama_server::{config::Config, contents::Contents, plugins::Registry};
 use server::TestServer;
@@ -29,6 +37,21 @@ const ALIEN: i64 = 348;
 
 /// TMDB finds nothing for this file, so it is Unmatched.
 const HOME_MOVIES: &str = "Home Movies (2019)/Home Movies (2019).mkv";
+
+/// Dark, TMDB id 70523, in two folders: TMDB finds the first by its title and year, and the
+/// second names it in an ID hint. The first file holds two Episodes.
+const DARK_S01E01_E02: &str = "Dark (2017)/Season 01/Dark - S01E01-E02.mkv";
+const DARK_S01E01: &str = "Dark {tmdb-70523}/Season 01/Dark - S01E01.mkv";
+const DARK_S02E01: &str = "Dark {tmdb-70523}/Season 02/Dark - S02E01.mkv";
+const DARK: i64 = 70523;
+/// The TMDB ids of Dark's Episodes S01E01, S01E02 and S02E01.
+const SECRETS: i64 = 1_388_538;
+const LIES: i64 = 1_388_539;
+const BEGINNINGS_AND_ENDINGS: i64 = 1_803_405;
+
+/// Both the US and the UK Office fit, so this is Unmatched.
+const THE_OFFICE: &str = "The Office/Season 01/The Office - S01E01.mkv";
+const THE_OFFICE_US: i64 = 2316;
 
 /// A Server with one Library, the TMDB Plugin enabled against a fake TMDB, and the clients a test
 /// browses and fixes Matches with.
@@ -89,6 +112,17 @@ impl Fixture {
             _server: server,
             _media: media,
         }
+    }
+
+    /// Starts a Server with a Shows Library holding Dark and The Office, scanned and Matched.
+    async fn shows() -> Self {
+        let fx = Self::start(LibraryKind::LIBRARY_KIND_SHOWS).await;
+        fx.write(DARK_S01E01_E02, b"two episodes");
+        fx.write(DARK_S01E01, b"one episode");
+        fx.write(DARK_S02E01, b"video");
+        fx.write(THE_OFFICE, b"video");
+        fx.scan_until_decided(4).await;
+        fx
     }
 
     /// Writes `contents` to the file at `relative` in the Library's folder.
@@ -161,6 +195,54 @@ impl Fixture {
             .into_owned();
         Ok(response.movie.into_option().unwrap())
     }
+
+    /// The Shows of the Library `library`, as `ListShows` lists them.
+    async fn list_shows(&self, library: i64) -> Result<Vec<Show>, ConnectError> {
+        Ok(self
+            .browse
+            .list_shows(ListShowsRequest {
+                library_id: library,
+                ..Default::default()
+            })
+            .await?
+            .into_owned()
+            .shows)
+    }
+
+    /// The Show of the Library `library` with the TMDB id `tmdb`, with its Seasons, as `GetShow`
+    /// gives them.
+    async fn get_show(&self, library: i64, tmdb: i64) -> Result<GetShowResponse, ConnectError> {
+        Ok(self
+            .browse
+            .get_show(GetShowRequest {
+                library_id: library,
+                show_id: tmdb_id(tmdb).into(),
+                ..Default::default()
+            })
+            .await?
+            .into_owned())
+    }
+
+    /// The Episodes of Season `season` of the Show with the TMDB id `tmdb`, as `ListEpisodes`
+    /// lists them.
+    async fn list_episodes(
+        &self,
+        library: i64,
+        tmdb: i64,
+        season: u32,
+    ) -> Result<Vec<Episode>, ConnectError> {
+        Ok(self
+            .browse
+            .list_episodes(ListEpisodesRequest {
+                library_id: library,
+                show_id: tmdb_id(tmdb).into(),
+                season_number: season,
+                ..Default::default()
+            })
+            .await?
+            .into_owned()
+            .episodes)
+    }
 }
 
 /// The external id for the TMDB id `id`.
@@ -172,9 +254,8 @@ fn tmdb_id(id: i64) -> ExternalId {
 }
 
 /// Each Version's file name and size; ids are checked apart, since the Server assigns them.
-fn versions(movie: &Movie) -> Vec<(&str, u64)> {
-    movie
-        .versions
+fn versions(versions: &[Version]) -> Vec<(&str, u64)> {
+    versions
         .iter()
         .map(|version| (version.file_name.as_str(), version.size))
         .collect()
@@ -205,7 +286,7 @@ async fn two_files_matching_one_movie_are_one_movie_with_two_versions() {
         Some("/media/artwork/tmdb/%2FAmR3JG1VQVxU8TfAvljUhfSFUOx.jpg")
     );
     assert_eq!(
-        versions(&got),
+        versions(&got.versions),
         [
             ("Alien (1979) - 1080p.mkv", 5),
             ("Alien (1979) - 2160p.mkv", 19)
@@ -242,11 +323,17 @@ async fn an_unknown_library_is_not_found() {
     let fx = Fixture::start(LibraryKind::LIBRARY_KIND_MOVIES).await;
     let unknown = fx.library + 1;
 
-    let listed = fx.list_movies(unknown).await;
-    let got = fx.get_movie(unknown, ALIEN).await;
+    let movies = fx.list_movies(unknown).await;
+    let movie = fx.get_movie(unknown, ALIEN).await;
+    let shows = fx.list_shows(unknown).await;
+    let show = fx.get_show(unknown, DARK).await;
+    let episodes = fx.list_episodes(unknown, DARK, 1).await;
 
-    assert_eq!(listed.unwrap_err().code, ErrorCode::NotFound);
-    assert_eq!(got.unwrap_err().code, ErrorCode::NotFound);
+    assert_eq!(movies.unwrap_err().code, ErrorCode::NotFound);
+    assert_eq!(movie.unwrap_err().code, ErrorCode::NotFound);
+    assert_eq!(shows.unwrap_err().code, ErrorCode::NotFound);
+    assert_eq!(show.unwrap_err().code, ErrorCode::NotFound);
+    assert_eq!(episodes.unwrap_err().code, ErrorCode::NotFound);
 }
 
 #[tokio::test]
@@ -269,4 +356,172 @@ async fn get_movie_for_an_id_nothing_matches_is_not_found() {
     let got = fx.get_movie(fx.library, 949).await;
 
     assert_eq!(got.unwrap_err().code, ErrorCode::NotFound);
+}
+
+#[tokio::test]
+async fn episodes_of_one_show_in_several_folders_are_one_show_with_its_seasons() {
+    let fx = Fixture::shows().await;
+
+    let listed = fx.list_shows(fx.library).await.unwrap();
+    let got = fx.get_show(fx.library, DARK).await.unwrap();
+    let episodes = fx.list_episodes(fx.library, DARK, 1).await.unwrap();
+
+    // Both folders' files are in the one Show.
+    let files: BTreeSet<&str> = episodes
+        .iter()
+        .flat_map(|episode| &episode.versions)
+        .map(|version| version.file_name.as_str())
+        .collect();
+    assert_eq!(
+        files,
+        BTreeSet::from(["Dark - S01E01-E02.mkv", "Dark - S01E01.mkv"])
+    );
+    let show = got.show.into_option().unwrap();
+    assert_eq!(listed, slice::from_ref(&show));
+    assert_eq!(show.id.as_option(), Some(&tmdb_id(DARK)));
+    assert_eq!(show.title, "Dark");
+    // Season 1's poster: a Match stores no poster of the Show's own.
+    assert_eq!(
+        show.poster_url.as_deref(),
+        Some("/media/artwork/tmdb/%2F5LoHuHWA4H8jElFlZDvsmU2n63b.jpg")
+    );
+    assert_eq!(
+        show.backdrop_url.as_deref(),
+        Some("/media/artwork/tmdb/%2F3lBDg3i6nn5R2NKFCJ6oKyUo2j5.jpg")
+    );
+    assert_eq!(
+        got.seasons,
+        [
+            season(1, "/media/artwork/tmdb/%2F5LoHuHWA4H8jElFlZDvsmU2n63b.jpg"),
+            season(2, "/media/artwork/tmdb/%2FkaReZbBdlEAJzfUbuPBRQLrSh9z.jpg"),
+        ]
+    );
+}
+
+#[tokio::test]
+async fn list_episodes_lists_one_seasons_episodes_in_episode_order() {
+    let fx = Fixture::shows().await;
+
+    let first = fx.list_episodes(fx.library, DARK, 1).await.unwrap();
+    let second = fx.list_episodes(fx.library, DARK, 2).await.unwrap();
+
+    assert_eq!(
+        ids_and_numbers(&first),
+        [(Some(tmdb_id(SECRETS)), 1, 1), (Some(tmdb_id(LIES)), 1, 2)]
+    );
+    assert_eq!(
+        ids_and_numbers(&second),
+        [(Some(tmdb_id(BEGINNINGS_AND_ENDINGS)), 2, 1)]
+    );
+    let secrets = first.first().unwrap();
+    assert_eq!(secrets.title, "Secrets");
+    assert!(secrets.overview.as_deref().unwrap().starts_with("In 2019"));
+    assert_eq!(secrets.air_date.as_deref(), Some("2017-12-01"));
+    assert_eq!(secrets.runtime_minutes, Some(52));
+}
+
+#[tokio::test]
+async fn a_file_holding_two_episodes_is_a_version_of_each() {
+    let fx = Fixture::shows().await;
+
+    let episodes = fx.list_episodes(fx.library, DARK, 1).await.unwrap();
+
+    let [secrets, lies] = episodes.as_slice() else {
+        panic!("{episodes:?}");
+    };
+    assert_eq!(
+        versions(&secrets.versions),
+        [("Dark - S01E01-E02.mkv", 12), ("Dark - S01E01.mkv", 11)]
+    );
+    assert_eq!(versions(&lies.versions), [("Dark - S01E01-E02.mkv", 12)]);
+    assert_eq!(secrets.versions.first(), lies.versions.first());
+}
+
+#[tokio::test]
+async fn an_unmatched_item_is_in_no_show_season_or_episode_list() {
+    let fx = Fixture::shows().await;
+    // Unmatches every Episode in the `Dark {tmdb-70523}` folder.
+    let item = fx.item(DARK_S02E01).await;
+    fx.matches
+        .clear_match(ClearMatchRequest {
+            item_id: item,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    let shows = fx.list_shows(fx.library).await.unwrap();
+    let seasons = fx.get_show(fx.library, DARK).await.unwrap().seasons;
+    let first = fx.list_episodes(fx.library, DARK, 1).await.unwrap();
+    let second = fx.list_episodes(fx.library, DARK, 2).await;
+
+    assert_eq!(
+        shows
+            .iter()
+            .map(|show| show.title.as_str())
+            .collect::<Vec<_>>(),
+        ["Dark"]
+    );
+    assert_eq!(
+        seasons
+            .iter()
+            .map(|season| season.number)
+            .collect::<Vec<_>>(),
+        [1]
+    );
+    let versions: Vec<_> = first.iter().map(|e| versions(&e.versions)).collect();
+    assert_eq!(
+        versions,
+        [
+            [("Dark - S01E01-E02.mkv", 12)],
+            [("Dark - S01E01-E02.mkv", 12)]
+        ]
+    );
+    assert_eq!(second.unwrap_err().code, ErrorCode::NotFound);
+}
+
+#[tokio::test]
+async fn an_unknown_show_or_season_is_not_found() {
+    let fx = Fixture::shows().await;
+
+    let show = fx.get_show(fx.library, THE_OFFICE_US).await;
+    let episodes = fx.list_episodes(fx.library, THE_OFFICE_US, 1).await;
+    let season = fx.list_episodes(fx.library, DARK, 3).await;
+
+    assert_eq!(show.unwrap_err().code, ErrorCode::NotFound);
+    assert_eq!(episodes.unwrap_err().code, ErrorCode::NotFound);
+    assert_eq!(season.unwrap_err().code, ErrorCode::NotFound);
+}
+
+#[tokio::test]
+async fn a_movies_library_is_an_invalid_argument_to_browse_shows() {
+    let fx = Fixture::start(LibraryKind::LIBRARY_KIND_MOVIES).await;
+
+    let shows = fx.list_shows(fx.library).await;
+    let show = fx.get_show(fx.library, DARK).await;
+    let episodes = fx.list_episodes(fx.library, DARK, 1).await;
+
+    assert_eq!(shows.unwrap_err().code, ErrorCode::InvalidArgument);
+    assert_eq!(show.unwrap_err().code, ErrorCode::InvalidArgument);
+    assert_eq!(episodes.unwrap_err().code, ErrorCode::InvalidArgument);
+}
+
+/// A Season as `GetShow` gives it.
+fn season(number: u32, poster_url: &str) -> Season {
+    Season {
+        number,
+        poster_url: Some(poster_url.to_owned()),
+        ..Default::default()
+    }
+}
+
+/// Each Episode's id, season number and episode number.
+fn ids_and_numbers(episodes: &[Episode]) -> Vec<(Option<ExternalId>, u32, u32)> {
+    episodes
+        .iter()
+        .map(|episode| {
+            let id = episode.id.as_option().cloned();
+            (id, episode.season_number, episode.episode_number)
+        })
+        .collect()
 }

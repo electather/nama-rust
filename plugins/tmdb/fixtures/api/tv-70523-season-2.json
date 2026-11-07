@@ -1,0 +1,14 @@
+{
+  "_id": "5c9f6f0dc3a3684a1c6c3f2e",
+  "air_date": "2019-06-21",
+  "episodes": [
+    {"air_date": "2019-06-21", "episode_number": 1, "episode_type": "standard", "id": 1803405, "name": "Beginnings and Endings", "overview": "Six months after the disappearances, the police form a task force.", "production_code": "", "runtime": 51, "season_number": 2, "show_id": 70523, "still_path": null, "vote_average": 7.9, "vote_count": 80}
+  ],
+  "name": "Season 2",
+  "overview": "",
+  "id": 116658,
+  "poster_path": "/kaReZbBdlEAJzfUbuPBRQLrSh9z.jpg",
+  "season_number": 2,
+  "vote_average": 8.4,
+  "external_ids": {"freebase_mid": null, "freebase_id": null, "tvdb_id": 803325, "tvrage_id": null, "wikidata_id": null}
+}

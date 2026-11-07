@@ -14,6 +14,30 @@ pub type OwnedGetMovieRequestView = ::buffa::view::OwnedView<
 pub type OwnedGetMovieResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::GetMovieResponseView<'static>,
 >;
+///Shorthand for `OwnedView<ListShowsRequestView<'static>>`.
+pub type OwnedListShowsRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ListShowsRequestView<'static>,
+>;
+///Shorthand for `OwnedView<ListShowsResponseView<'static>>`.
+pub type OwnedListShowsResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ListShowsResponseView<'static>,
+>;
+///Shorthand for `OwnedView<GetShowRequestView<'static>>`.
+pub type OwnedGetShowRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::GetShowRequestView<'static>,
+>;
+///Shorthand for `OwnedView<GetShowResponseView<'static>>`.
+pub type OwnedGetShowResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::GetShowResponseView<'static>,
+>;
+///Shorthand for `OwnedView<ListEpisodesRequestView<'static>>`.
+pub type OwnedListEpisodesRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ListEpisodesRequestView<'static>,
+>;
+///Shorthand for `OwnedView<ListEpisodesResponseView<'static>>`.
+pub type OwnedListEpisodesResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ListEpisodesResponseView<'static>,
+>;
 impl ::connectrpc::Encodable<crate::messages::nama::v1::ListMoviesResponse>
 for crate::messages::nama::v1::__buffa::view::ListMoviesResponseView<'_> {
     fn encode(
@@ -82,6 +106,108 @@ for ::buffa::view::OwnedView<
         )
     }
 }
+impl ::connectrpc::Encodable<crate::messages::nama::v1::ListShowsResponse>
+for crate::messages::nama::v1::__buffa::view::ListShowsResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::ListShowsResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ListShowsResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::GetShowResponse>
+for crate::messages::nama::v1::__buffa::view::GetShowResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::GetShowResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::GetShowResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::ListEpisodesResponse>
+for crate::messages::nama::v1::__buffa::view::ListEpisodesResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::ListEpisodesResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ListEpisodesResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
 /// Full service name for this service.
 pub const BROWSE_SERVICE_SERVICE_NAME: &str = "nama.v1.BrowseService";
 /// Static [`Spec`](::connectrpc::Spec) for the `ListMovies` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
@@ -96,11 +222,31 @@ pub const BROWSE_SERVICE_GET_MOVIE_SPEC: ::connectrpc::Spec = ::connectrpc::Spec
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
+/// Static [`Spec`](::connectrpc::Spec) for the `ListShows` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const BROWSE_SERVICE_LIST_SHOWS_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.BrowseService/ListShows",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
+/// Static [`Spec`](::connectrpc::Spec) for the `GetShow` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const BROWSE_SERVICE_GET_SHOW_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.BrowseService/GetShow",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
+/// Static [`Spec`](::connectrpc::Spec) for the `ListEpisodes` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const BROWSE_SERVICE_LIST_EPISODES_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.BrowseService/ListEpisodes",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
 /// Browsing what a Library holds, for any signed-in User.
 ///
-/// Only Matched items appear. Movies are not stored as such: they are grouped from the items
-/// Matched to the same title, and identified by its external id within the Library. Items that
-/// aren't Matched are in `MatchService.ListUnmatchedItems` instead.
+/// Only Matched items appear. Movies, Shows, Seasons and Episodes are not stored as such: they are
+/// grouped from the items Matched to the same title, and identified by its external id within the
+/// Library. A Show is grouped from its Episodes' Show ids, and a Season is the Show's Episodes that
+/// share a season number. Items that aren't Matched are in `MatchService.ListUnmatchedItems`
+/// instead.
 ///
 /// # Implementing handlers
 ///
@@ -199,6 +345,78 @@ pub trait BrowseService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
+    /// Lists a Shows Library's Shows, by title. Fails with `not_found` if there is no such Library,
+    /// and with `invalid_argument` if it is a Movies Library.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn list_shows<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::ListShowsRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::ListShowsResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Returns one Show of a Shows Library, with its Seasons. Fails like `ListShows`, or with
+    /// `not_found` if nothing in the Library is Matched to an Episode of that Show.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn get_show<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::GetShowRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::GetShowResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Lists one Season's Episodes, by episode number, each with its Versions. Fails like `GetShow`,
+    /// or with `not_found` if the Show has no such Season in the Library.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn list_episodes<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::ListEpisodesRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::ListEpisodesResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
 }
 /// Extension trait for registering a service implementation with a Router.
 ///
@@ -289,6 +507,93 @@ impl<S: BrowseService> BrowseServiceExt for S {
                 },
             )
             .with_spec(BROWSE_SERVICE_GET_MOVIE_SPEC)
+            .route_view_idempotent(
+                BROWSE_SERVICE_SERVICE_NAME,
+                "ListShows",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::ListShowsRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::ListShowsRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.list_shows(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::ListShowsResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(BROWSE_SERVICE_LIST_SHOWS_SPEC)
+            .route_view_idempotent(
+                BROWSE_SERVICE_SERVICE_NAME,
+                "GetShow",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::GetShowRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::GetShowRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.get_show(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::GetShowResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(BROWSE_SERVICE_GET_SHOW_SPEC)
+            .route_view_idempotent(
+                BROWSE_SERVICE_SERVICE_NAME,
+                "ListEpisodes",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::ListEpisodesRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::ListEpisodesRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.list_episodes(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::ListEpisodesResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(BROWSE_SERVICE_LIST_EPISODES_SPEC)
     }
 }
 /// Type-inference marker used by [`Router::add_service`](::connectrpc::Router::add_service).
@@ -355,6 +660,24 @@ impl<T: BrowseService> ::connectrpc::Dispatcher for BrowseServiceServer<T> {
                         .with_spec(BROWSE_SERVICE_GET_MOVIE_SPEC),
                 )
             }
+            "ListShows" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
+                        .with_spec(BROWSE_SERVICE_LIST_SHOWS_SPEC),
+                )
+            }
+            "GetShow" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
+                        .with_spec(BROWSE_SERVICE_GET_SHOW_SPEC),
+                )
+            }
+            "ListEpisodes" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
+                        .with_spec(BROWSE_SERVICE_LIST_EPISODES_SPEC),
+                )
+            }
             _ => None,
         }
     }
@@ -408,6 +731,68 @@ impl<T: BrowseService> ::connectrpc::Dispatcher for BrowseServiceServer<T> {
                     svc.get_movie(ctx, req)
                         .await?
                         .encode::<crate::messages::nama::v1::GetMovieResponse>(format)
+                })
+            }
+            "ListShows" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::ListShowsRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::ListShowsRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::ListShowsRequest,
+                    >::from_parts(&req, &body);
+                    svc.list_shows(ctx, req)
+                        .await?
+                        .encode::<crate::messages::nama::v1::ListShowsResponse>(format)
+                })
+            }
+            "GetShow" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::GetShowRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::GetShowRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::GetShowRequest,
+                    >::from_parts(&req, &body);
+                    svc.get_show(ctx, req)
+                        .await?
+                        .encode::<crate::messages::nama::v1::GetShowResponse>(format)
+                })
+            }
+            "ListEpisodes" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::ListEpisodesRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::ListEpisodesRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::ListEpisodesRequest,
+                    >::from_parts(&req, &body);
+                    svc.list_episodes(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::ListEpisodesResponse,
+                        >(format)
                 })
             }
             _ => ::connectrpc::dispatcher::codegen::unimplemented_unary(path),
@@ -614,6 +999,130 @@ where
                 &self.transport,
                 &self.config,
                 BROWSE_SERVICE_GET_MOVIE_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the ListShows RPC. Sends a request to /nama.v1.BrowseService/ListShows.
+    pub async fn list_shows(
+        &self,
+        request: crate::messages::nama::v1::ListShowsRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::ListShowsResponseView<'static>,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.list_shows_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the ListShows RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn list_shows_with_options(
+        &self,
+        request: crate::messages::nama::v1::ListShowsRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::ListShowsResponseView<'static>,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                BROWSE_SERVICE_LIST_SHOWS_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the GetShow RPC. Sends a request to /nama.v1.BrowseService/GetShow.
+    pub async fn get_show(
+        &self,
+        request: crate::messages::nama::v1::GetShowRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::GetShowResponseView<'static>,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.get_show_with_options(request, ::connectrpc::client::CallOptions::default())
+            .await
+    }
+    /// Call the GetShow RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn get_show_with_options(
+        &self,
+        request: crate::messages::nama::v1::GetShowRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::GetShowResponseView<'static>,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                BROWSE_SERVICE_GET_SHOW_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the ListEpisodes RPC. Sends a request to /nama.v1.BrowseService/ListEpisodes.
+    pub async fn list_episodes(
+        &self,
+        request: crate::messages::nama::v1::ListEpisodesRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::ListEpisodesResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.list_episodes_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the ListEpisodes RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn list_episodes_with_options(
+        &self,
+        request: crate::messages::nama::v1::ListEpisodesRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::ListEpisodesResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                BROWSE_SERVICE_LIST_EPISODES_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,
