@@ -6,7 +6,7 @@ import { createRouter } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
 import { RouteError } from "@/components/route-error";
-import { signedInQuery } from "@/lib/access";
+import { signedInQuery, whoIsSignedIn } from "@/lib/access";
 import { isCode } from "@/lib/connect-errors";
 
 import { routeTree } from "./routeTree.gen";
@@ -37,19 +37,22 @@ export function getRouter(transport: Transport = sameOrigin) {
   });
 
   // Any `unauthenticated` may mean the session has ended, or may just be a wrong password. Asking
-  // again who is signed in and rerunning the routes' access checks tells them apart: a visitor
-  // who is now signed out is sent to /sign-in by the `_member` layout.
+  // again who is signed in tells them apart. Only when nobody is are the routes' access checks
+  // rerun, and the `_member` layout sends the visitor to /sign-in?redirect=….
   function recheckSession(error: Error) {
-    if (!isCode(error, Code.Unauthenticated)) return;
+    if (isCode(error, Code.Unauthenticated)) void signInAgainIfSignedOut();
+  }
+  async function signInAgainIfSignedOut() {
     queryClient.removeQueries({ queryKey: signedInQuery(transport).queryKey });
-    void router.invalidate();
+    if ((await whoIsSignedIn({ queryClient, transport })) === null) await router.invalidate();
   }
 
   return router;
 }
 
 // Retrying can't fix a refusal such as `unauthenticated`, and would hold up its redirect for
-// seconds, so only a Server that couldn't be reached is tried again.
+// seconds, so only a Server that couldn't be reached is tried again. A failed `fetch` arrives as
+// `unknown`, the same as any other error that isn't from the Server.
 function retryIfUnreachable(failures: number, error: Error) {
   return failures < 3 && (isCode(error, Code.Unavailable) || isCode(error, Code.Unknown));
 }

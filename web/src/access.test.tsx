@@ -194,3 +194,38 @@ test("signing out goes to /sign-in", async () => {
   await screen.findByRole("heading", { name: "Sign in to Living Room" });
   expect(router.state.location.pathname).toBe("/sign-in");
 });
+
+test("a session that has ended sends you to sign in and back again", async () => {
+  const state: ServerState = { signedIn: Role.MEMBER };
+  const transport = fakeServer(state, {
+    // The Server revoked this Device after the page loaded.
+    signOut: () => {
+      throw new ConnectError("signed out", Code.Unauthenticated);
+    },
+  });
+  const router = openApp("/settings", transport);
+  const signOut = await screen.findByRole("button", { name: "Sign out" });
+  delete state.signedIn;
+
+  fireEvent.click(signOut);
+  await screen.findByRole("heading", { name: "Sign in to Living Room" });
+  expect(router.state.location.search).toEqual({ redirect: "/settings" });
+});
+
+test("an `unauthenticated` refusal while still signed in keeps you on the page", async () => {
+  const router = openApp(
+    "/settings",
+    fakeServer(
+      { signedIn: Role.MEMBER },
+      {
+        signOut: () => {
+          throw new ConnectError("refused", Code.Unauthenticated);
+        },
+      },
+    ),
+  );
+
+  fireEvent.click(await screen.findByRole("button", { name: "Sign out" }));
+  await screen.findByRole("heading", { name: "Settings" });
+  expect(router.state.location.pathname).toBe("/settings");
+});
