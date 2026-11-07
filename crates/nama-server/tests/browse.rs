@@ -658,6 +658,7 @@ async fn an_unknown_library_is_not_found() {
         RefusalReason::REFUSAL_REASON_LIBRARY_NOT_FOUND,
     );
     let library_id = unknown.to_string();
+    assert_eq!(refusal.field, "library_id");
     assert_eq!(refusal.params.get("libraryId"), Some(&library_id));
     assert_refused(
         movie,
@@ -688,11 +689,12 @@ async fn a_shows_library_is_an_invalid_argument() {
     let listed = fx.list_movies(fx.library).await;
     let got = fx.get_movie(fx.library, ALIEN).await;
 
-    assert_refused(
+    let refusal = assert_refused(
         listed,
         ErrorCode::InvalidArgument,
         RefusalReason::REFUSAL_REASON_WRONG_LIBRARY_KIND,
     );
+    assert_eq!(refusal.field, "library_id");
     assert_refused(
         got,
         ErrorCode::InvalidArgument,

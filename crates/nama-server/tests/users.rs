@@ -21,7 +21,7 @@ use nama_proto::nama::v1::{
     SubscribeResponse, User, UserServiceClient, WhoAmIRequest,
 };
 use nama_server::{config::Config, plugins::Registry};
-use refused::assert_refused;
+use refused::{assert_refused, refusal_of};
 use server::{PASSWORD, TestServer};
 
 /// A Server with an Admin signed in, and a client for its `UserService` calling as them.
@@ -496,18 +496,20 @@ async fn two_admins_demoting_each_other_at_once_leave_exactly_one_admin() {
         set_role(&as_grace, admin, Role::ROLE_MEMBER),
     );
 
-    // Whichever lands second finds its caller already demoted, or itself the last Admin.
-    let refused = |demoted: &Result<(), ConnectError>| {
-        matches!(
-            demoted.as_ref().map_err(|err| err.code),
-            Err(ErrorCode::PermissionDenied | ErrorCode::FailedPrecondition)
-        )
-    };
-    let survivor = match (&grace_demoted, &admin_demoted) {
-        (Ok(()), lost) if refused(lost) => admin,
-        (lost, Ok(())) if refused(lost) => grace,
+    let (survivor, lost) = match (grace_demoted, admin_demoted) {
+        (Ok(()), Err(lost)) => (admin, lost),
+        (Err(lost), Ok(())) => (grace, lost),
         both => panic!("exactly one demotion should succeed: {both:?}"),
     };
+    // Whichever lands second finds its caller already demoted, or itself the last Admin.
+    let reason = refusal_of(&lost).reason;
+    assert!(
+        (lost.code == ErrorCode::PermissionDenied
+            && reason == RefusalReason::REFUSAL_REASON_ADMIN_REQUIRED)
+            || (lost.code == ErrorCode::FailedPrecondition
+                && reason == RefusalReason::REFUSAL_REASON_LAST_ADMIN),
+        "{lost:?}"
+    );
     let as_survivor = if survivor == admin {
         &fixture.client
     } else {
@@ -522,11 +524,12 @@ async fn changing_the_role_of_an_unknown_user_is_not_found() {
 
     let changed = set_role(&fixture.client, 999, Role::ROLE_ADMIN).await;
 
-    assert_refused(
+    let refusal = assert_refused(
         changed,
         ErrorCode::NotFound,
         RefusalReason::REFUSAL_REASON_USER_NOT_FOUND,
     );
+    assert_eq!(refusal.field, "user_id");
 }
 
 #[tokio::test]
@@ -602,11 +605,12 @@ async fn deleting_an_unknown_user_is_not_found() {
 
     let deleted = delete_user(&fixture.client, 999).await;
 
-    assert_refused(
+    let refusal = assert_refused(
         deleted,
         ErrorCode::NotFound,
         RefusalReason::REFUSAL_REASON_USER_NOT_FOUND,
     );
+    assert_eq!(refusal.field, "user_id");
 }
 
 #[tokio::test]
@@ -897,12 +901,20 @@ async fn two_devices_changing_the_password_at_once_leave_one_signed_in_with_its_
         change_password(&as_laptop, PASSWORD, laptop_password),
     );
 
-    // Whichever lands second finds its Device already signed out by the first.
-    let (winner, password) = match (code(from_phone), code(from_laptop)) {
-        (None, Some(ErrorCode::Unauthenticated)) => (&phone, phone_password),
-        (Some(ErrorCode::Unauthenticated), None) => (&laptop, laptop_password),
+    let (winner, password, lost) = match (from_phone, from_laptop) {
+        (Ok(()), Err(lost)) => (&phone, phone_password, lost),
+        (Err(lost), Ok(())) => (&laptop, laptop_password, lost),
         both => panic!("exactly one change should succeed: {both:?}"),
     };
+    // Whichever lands second finds its Device already signed out by the first, before or during
+    // its change.
+    assert_eq!(lost.code, ErrorCode::Unauthenticated, "{lost:?}");
+    let reason = refusal_of(&lost).reason;
+    assert!(
+        reason == RefusalReason::REFUSAL_REASON_SIGN_IN_REQUIRED
+            || reason == RefusalReason::REFUSAL_REASON_SIGNED_OUT,
+        "{lost:?}"
+    );
     assert!(fixture.signed_in(&winner.token).await.unwrap());
     assert_eq!(code(fixture.sign_in("Grace", password).await), None);
 }
@@ -966,11 +978,12 @@ async fn resetting_the_password_of_an_unknown_user_is_not_found() {
 
     let reset = reset_password(&fixture.client, 999, "a brand new password").await;
 
-    assert_refused(
+    let refusal = assert_refused(
         reset,
         ErrorCode::NotFound,
         RefusalReason::REFUSAL_REASON_USER_NOT_FOUND,
     );
+    assert_eq!(refusal.field, "user_id");
 }
 
 #[tokio::test]

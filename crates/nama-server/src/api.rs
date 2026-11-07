@@ -1107,12 +1107,7 @@ fn devices_owner(caller: &Caller, user_id: Option<i64>) -> Result<i64, ConnectEr
 
 /// The Connect error for the request's `user_id` naming nobody the caller may see.
 fn no_such_user() -> ConnectError {
-    refuse(
-        RefusalReason::REFUSAL_REASON_USER_NOT_FOUND,
-        users::Error::NoSuchUser.to_string(),
-    )
-    .field("user_id")
-    .into()
+    users::Error::NoSuchUser.into()
 }
 
 /// `nama.v1.EventService`: live updates.
@@ -1648,7 +1643,10 @@ impl From<users::Error> for ConnectError {
             users::Error::NameTaken => {
                 refuse(R::REFUSAL_REASON_USER_NAME_TAKEN, message).field("name")
             }
-            users::Error::NoSuchUser => refuse(R::REFUSAL_REASON_USER_NOT_FOUND, message),
+            // Every call that names a User names them in `user_id`.
+            users::Error::NoSuchUser => {
+                refuse(R::REFUSAL_REASON_USER_NOT_FOUND, message).field("user_id")
+            }
             users::Error::AlreadySetUp => refuse(R::REFUSAL_REASON_ALREADY_SET_UP, message),
             users::Error::LastAdmin => refuse(R::REFUSAL_REASON_LAST_ADMIN, message),
             users::Error::WrongNameOrPassword => {
@@ -1753,8 +1751,11 @@ impl From<browse::Error> for ConnectError {
         use RefusalReason as R;
         let message = err.to_string();
         let refused = match err {
+            // Every Browse and Watch State call names its Library in `library_id`.
             browse::Error::NoSuchLibrary(id) => {
-                refuse(R::REFUSAL_REASON_LIBRARY_NOT_FOUND, message).param("libraryId", &id)
+                refuse(R::REFUSAL_REASON_LIBRARY_NOT_FOUND, message)
+                    .field("library_id")
+                    .param("libraryId", &id)
             }
             browse::Error::NothingMatched => refuse(R::REFUSAL_REASON_NOTHING_MATCHED, message),
             browse::Error::NoSuchSeason => refuse(R::REFUSAL_REASON_SEASON_NOT_FOUND, message),
@@ -1763,7 +1764,9 @@ impl From<browse::Error> for ConnectError {
                     Kind::Movies => "movies",
                     Kind::Shows => "shows",
                 };
-                refuse(R::REFUSAL_REASON_WRONG_LIBRARY_KIND, message).param("libraryKind", &kind)
+                refuse(R::REFUSAL_REASON_WRONG_LIBRARY_KIND, message)
+                    .field("library_id")
+                    .param("libraryKind", &kind)
             }
             browse::Error::Database(err) => return database_failed(err),
         };

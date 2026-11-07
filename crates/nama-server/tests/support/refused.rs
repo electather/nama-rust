@@ -19,6 +19,19 @@ pub(crate) fn assert_refused<T>(
 ) -> Refusal {
     let err = result.err().expect("the request should have been refused");
     assert_eq!(err.code, code, "{err:?}");
+    let refusal = refusal_of(&err);
+    assert_eq!(refusal.reason, reason, "{err:?}");
+    refusal
+}
+
+/// The Refusal `err` carries, asserting that the detail's `debug` holds the same Refusal as its
+/// `value`. For a refusal that may come with either of two reasons; otherwise use
+/// [`assert_refused`].
+#[expect(
+    clippy::expect_used,
+    reason = "a test helper fails its test by panicking"
+)]
+pub(crate) fn refusal_of(err: &ConnectError) -> Refusal {
     assert_eq!(
         err.details.len(),
         1,
@@ -31,7 +44,6 @@ pub(crate) fn assert_refused<T>(
         .decode(value)
         .expect("the value is unpadded base64");
     let refusal = Refusal::decode_from_slice(&bytes).expect("the value is a Refusal");
-    assert_eq!(refusal.reason, reason, "{err:?}");
     let debug = detail.debug.clone().expect("a Refusal has a debug form");
     let debug: Refusal = serde_json::from_value(debug).expect("the debug form is a Refusal");
     assert!(debug == refusal, "{debug:?} isn't {refusal:?}");
