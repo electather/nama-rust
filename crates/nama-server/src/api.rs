@@ -706,7 +706,7 @@ impl BrowseServiceHandler {
             .await?
             .into_iter()
             .find(|movie| movie.id == id)
-            .ok_or_else(|| ConnectError::not_found("nothing in the Library is Matched to that id"))
+            .ok_or_else(nothing_matched)
     }
 
     /// `movies` as the caller of `ctx` sees them, each with their Watch State.
@@ -750,7 +750,7 @@ impl BrowseServiceHandler {
             .await?
             .into_iter()
             .find(|show| show.id == id)
-            .ok_or_else(|| ConnectError::not_found("nothing in the Library is Matched to that id"))
+            .ok_or_else(nothing_matched)
     }
 
     /// Season `number` of the Show of the Shows Library `library` with the id `show`.
@@ -767,20 +767,20 @@ impl BrowseServiceHandler {
             .ok_or_else(|| ConnectError::not_found("the Show has no such Season in the Library"))
     }
 
-    /// The Episode of any Show of the Shows Library `library` with the id `id`.
-    async fn episode(
+    /// The id of the Episode of any Show of the Shows Library `library` with the id `id`, which
+    /// something in the Library must be Matched to.
+    async fn episode_id(
         &self,
         library: i64,
         id: Option<proto::ExternalId>,
-    ) -> Result<Episode, ConnectError> {
+    ) -> Result<ExternalId, ConnectError> {
         let id = required_id(id, "Episode")?;
-        self.shows(library)
-            .await?
-            .into_iter()
-            .flat_map(|show| show.seasons.into_values())
-            .flat_map(|season| season.episodes)
-            .find(|episode| episode.id == id)
-            .ok_or_else(|| ConnectError::not_found("nothing in the Library is Matched to that id"))
+        let shows = self.shows(library).await?;
+        let mut episodes = shows.iter().flat_map(Show::episodes);
+        if episodes.any(|episode| episode.id == id) {
+            return Ok(id);
+        }
+        Err(nothing_matched())
     }
 
     /// Fails with `not_found` if there is no Library `library`, and with `invalid_argument` if it
@@ -964,10 +964,8 @@ impl WatchStateService for WatchStateServiceHandler {
                 watch_states.mark_movie(user, &movie.id, played).await
             }
             Target::EpisodeId(id) => {
-                let episode = browse.episode(library, Some(*id)).await?;
-                watch_states
-                    .mark_episodes(user, &[&episode.id], played)
-                    .await
+                let episode = browse.episode_id(library, Some(*id)).await?;
+                watch_states.mark_episodes(user, &[&episode], played).await
             }
             Target::Season(season) => {
                 let show = season.show_id.into_option();
@@ -978,8 +976,7 @@ impl WatchStateService for WatchStateServiceHandler {
             }
             Target::ShowId(id) => {
                 let show = browse.show(library, Some(*id)).await?;
-                let episodes = show.seasons.values().flat_map(|season| &season.episodes);
-                let ids: Vec<&ExternalId> = episodes.map(|episode| &episode.id).collect();
+                let ids: Vec<&ExternalId> = show.episodes().map(|episode| &episode.id).collect();
                 watch_states.mark_episodes(user, &ids, played).await
             }
         };
@@ -1411,6 +1408,11 @@ fn version_to_proto(version: &Version) -> proto::Version {
         size: u64::try_from(version.size).unwrap_or_default(),
         ..Default::default()
     }
+}
+
+/// The error for a Movie, Episode or Show id that nothing in a Library is Matched to.
+fn nothing_matched() -> ConnectError {
+    ConnectError::not_found("nothing in the Library is Matched to that id")
 }
 
 /// `n` as a proto `int32`, or `None` if it doesn't fit, which no name a scan parses gives.

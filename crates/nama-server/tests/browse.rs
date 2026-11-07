@@ -1,6 +1,6 @@
 //! Browsing Movies and Shows through the generated `BrowseService` client, and the Watch State
-//! that `WatchStateService` reports or marks and browsing shows, over a real socket, with the TMDB Plugin
-//! enabled against a fake TMDB.
+//! that `WatchStateService` reports or marks and browsing shows, over a real socket, with the
+//! TMDB Plugin enabled against a fake TMDB.
 
 #[expect(dead_code, reason = "the harness's plain `start` has no use here")]
 #[path = "support/server.rs"]
@@ -1392,12 +1392,15 @@ async fn marking_a_movie_of_a_shows_library_or_a_show_of_a_movies_library_is_inv
         .admin()
         .set_played(shows.library, movie(ALIEN), true)
         .await;
-    let a_show = movies
-        .admin()
-        .set_played(movies.library, show(DARK), true)
+    let in_movies = movies.admin();
+    let a_show = in_movies.set_played(movies.library, show(DARK), true).await;
+    let a_season = in_movies
+        .set_played(movies.library, season_of(DARK, 1), true)
         .await;
-    let nothing = movies
-        .admin()
+    let an_episode = in_movies
+        .set_played(movies.library, episode(LIES), true)
+        .await;
+    let nothing = in_movies
         .watch_states
         .set_played(SetPlayedRequest {
             library_id: movies.library,
@@ -1408,5 +1411,7 @@ async fn marking_a_movie_of_a_shows_library_or_a_show_of_a_movies_library_is_inv
 
     assert_eq!(a_movie.unwrap_err().code, ErrorCode::InvalidArgument);
     assert_eq!(a_show.unwrap_err().code, ErrorCode::InvalidArgument);
+    assert_eq!(a_season.unwrap_err().code, ErrorCode::InvalidArgument);
+    assert_eq!(an_episode.unwrap_err().code, ErrorCode::InvalidArgument);
     assert_eq!(nothing.unwrap_err().code, ErrorCode::InvalidArgument);
 }
