@@ -44,7 +44,8 @@ pub struct Config {
     pub trusted_proxies: Vec<IpRange>,
 }
 
-/// One Plugin's config: whether it is enabled, and its settings. Also how they are stored.
+/// Whether one Plugin is enabled, and its settings: a `[plugins.<id>]` table in the file, and a row
+/// in the database once imported (`plugin_settings`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PluginConfig {
     /// Whether the Server enables the Plugin.
