@@ -163,3 +163,38 @@ test("demoting yourself leaves the Admin pages", async () => {
   expect(await screen.findByRole("heading", { name: "Admins only" })).toBeDefined();
   expect(screen.queryByRole("link", { name: "Admin" })).toBeNull();
 });
+
+test("a User deleted meanwhile is said to be gone, and the Users page stays", async () => {
+  const sam = { id: 1n, name: "Sam", role: Role.ADMIN };
+  let users = [sam, { id: 2n, name: "Alex", role: Role.MEMBER }];
+  const devices = [device(3n, "Phone")];
+  let listDevices = () => ({ devices });
+  openApp(
+    "/admin/users",
+    fakeServer(
+      { signedIn: Role.ADMIN },
+      {},
+      {
+        listUsers: () => ({ users }),
+        listDevices: () => listDevices(),
+        // Another Admin deletes Alex while this one has Alex open.
+        revokeDevice: () => {
+          users = [sam];
+          listDevices = () => {
+            throw new ConnectError("no such User", Code.NotFound);
+          };
+          throw new ConnectError("no such User", Code.NotFound);
+        },
+      },
+    ),
+  );
+
+  fireEvent.click(await screen.findByText("Alex"));
+  fireEvent.click(await screen.findByRole("button", { name: "Revoke Phone" }));
+  fireEvent.click(
+    within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Revoke" }),
+  );
+
+  expect(await screen.findByText("Alex isn’t on this Server any more.")).toBeDefined();
+  expect(screen.getByRole("heading", { name: "Users" })).toBeDefined();
+});

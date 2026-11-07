@@ -52,6 +52,7 @@ export function resetPasswordRefusal(error: unknown, name: string) {
   }).form;
 }
 
-function noLongerHere(name: string) {
+/** What to say about the User called `name` once the Server no longer has them. */
+export function noLongerHere(name: string) {
   return { form: `${name} isn’t on this Server any more.` };
 }

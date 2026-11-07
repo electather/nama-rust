@@ -37,7 +37,7 @@ export function UserRow({ user, isYou }: { user: User; isYou: boolean }) {
           <div>
             <h3 className="text-sm font-medium">Devices</h3>
             <div className="mt-2">
-              <DeviceList userId={user.id} />
+              <DeviceList user={user} />
             </div>
           </div>
         </div>
