@@ -69,7 +69,7 @@ export function serverMessage(error: unknown) {
  * `error`'s message next to the field of `fields` its Refusal names, or for the whole form when
  * it names none of them.
  */
-export function onRefusedField(error: unknown, fields: (keyof FormErrors)[]): FormErrors {
+export function refusedFieldErrors(error: unknown, fields: (keyof FormErrors)[]): FormErrors {
   const field = fields.find((each) => each === refusedField(error)) ?? "form";
   return { [field]: serverMessage(error) };
 }
@@ -83,6 +83,7 @@ function refusedField(error: unknown) {
     .replaceAll(/_(\w)/gu, (_, letter: string) => letter.toUpperCase());
 }
 
+// web/AGENTS.md, "Read refusals by reason".
 /** The Refusal `error` carries, or an empty one, with no reason or field, if it carries none. */
 function refusalOf(error: unknown) {
   return ConnectError.from(error).findDetails(RefusalSchema)[0] ?? create(RefusalSchema);

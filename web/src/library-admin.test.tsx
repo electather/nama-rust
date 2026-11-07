@@ -185,14 +185,14 @@ describe.each([
   ["/admin/libraries/1", "Save changes"],
 ])("on %s", (path, action) => {
   test.each([
-    ["name", "Name", "a Library's name can't be blank", "A Library's name can't be blank."],
+    ["Name", "name", "a Library's name can't be blank", "A Library's name can't be blank."],
     [
-      "folders[2]",
       "Folders",
+      "folders[2]",
       "the folder srv is not an absolute path",
       "The folder srv is not an absolute path.",
     ],
-  ])("a refused %s shows under its field", async (field, label, message, shown) => {
+  ])("a refused %s shows under its field", async (label, field, message, shown) => {
     openApp(path, serverRefusingLibraryField(field, message));
     await screen.findByRole("button", { name: action });
     fill("Name", "Films");

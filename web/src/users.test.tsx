@@ -1,5 +1,5 @@
 import { create } from "@bufbuild/protobuf";
-import { Code, ConnectError } from "@connectrpc/connect";
+import { Code } from "@connectrpc/connect";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
@@ -53,7 +53,9 @@ test("a Device revoked elsewhere meanwhile just leaves the list", async () => {
         listDevices: () => ({ devices }),
         revokeDevice: () => {
           devices = devices.slice(0, 1);
-          throw new ConnectError("no such Device", Code.NotFound);
+          throw refused(Code.NotFound, "no such Device", {
+            reason: RefusalReason.DEVICE_NOT_FOUND,
+          });
         },
       },
     ),
@@ -150,7 +152,9 @@ test("demoting yourself leaves the Admin pages", async () => {
         setRole: ({ role }) => {
           state.signedIn = role;
           listUsers = () => {
-            throw new ConnectError("Admins only", Code.PermissionDenied);
+            throw refused(Code.PermissionDenied, "Admins only", {
+              reason: RefusalReason.ADMIN_REQUIRED,
+            });
           };
           return {};
         },
@@ -182,9 +186,9 @@ test("a User deleted meanwhile is said to be gone, and the Users page stays", as
         revokeDevice: () => {
           users = [sam];
           listDevices = () => {
-            throw new ConnectError("no such User", Code.NotFound);
+            throw refused(Code.NotFound, "no such User", { reason: RefusalReason.USER_NOT_FOUND });
           };
-          throw new ConnectError("no such User", Code.NotFound);
+          throw refused(Code.NotFound, "no such User", { reason: RefusalReason.USER_NOT_FOUND });
         },
       },
     ),

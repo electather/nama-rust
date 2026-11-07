@@ -1,4 +1,4 @@
-import { Code, ConnectError } from "@connectrpc/connect";
+import { Code } from "@connectrpc/connect";
 import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
@@ -21,13 +21,13 @@ function serverToSignInTo() {
   });
 }
 
-/** A fake Server whose `SignIn` always fails with `code`. */
-function serverRefusingSignIn(code: Code) {
+/** A fake Server whose `SignIn` always fails with `code`, for `reason`. */
+function serverRefusingSignIn(code: Code, reason: RefusalReason) {
   return fakeServer(
     {},
     {
       signIn: () => {
-        throw new ConnectError("refused", code);
+        throw refused(code, "refused", { reason });
       },
     },
   );
@@ -160,7 +160,10 @@ test("a Member opening an Admin page sees Admins only, and no Admin link", async
 });
 
 test("a wrong password shows an error and keeps the username", async () => {
-  const router = openApp("/sign-in", serverRefusingSignIn(Code.Unauthenticated));
+  const router = openApp(
+    "/sign-in",
+    serverRefusingSignIn(Code.Unauthenticated, RefusalReason.WRONG_NAME_OR_PASSWORD),
+  );
 
   await submitSignIn("wrong");
   expect(await screen.findByText("That username and password don’t match.")).toBeDefined();
@@ -169,7 +172,10 @@ test("a wrong password shows an error and keeps the username", async () => {
 });
 
 test("a rate-limited sign-in says to try again in a moment", async () => {
-  openApp("/sign-in", serverRefusingSignIn(Code.ResourceExhausted));
+  openApp(
+    "/sign-in",
+    serverRefusingSignIn(Code.ResourceExhausted, RefusalReason.TOO_MANY_ATTEMPTS),
+  );
 
   await submitSignIn();
   expect(await screen.findByText(/try again in a moment/iu)).toBeDefined();
@@ -195,7 +201,7 @@ test("a session that has ended sends you to sign in and back again", async () =>
   const transport = fakeServer(state, {
     // The Server revoked this Device after the page loaded.
     signOut: () => {
-      throw new ConnectError("signed out", Code.Unauthenticated);
+      throw refused(Code.Unauthenticated, "signed out", { reason: RefusalReason.SIGN_IN_REQUIRED });
     },
   });
   const router = openApp("/settings", transport);
@@ -214,7 +220,9 @@ test("an `unauthenticated` refusal while still signed in keeps you on the page",
       { signedIn: Role.MEMBER },
       {
         signOut: () => {
-          throw new ConnectError("refused", Code.Unauthenticated);
+          throw refused(Code.Unauthenticated, "refused", {
+            reason: RefusalReason.SIGN_IN_REQUIRED,
+          });
         },
       },
     ),

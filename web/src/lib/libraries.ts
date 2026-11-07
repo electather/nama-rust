@@ -3,7 +3,7 @@ import { createConnectQueryKey } from "@connectrpc/connect-query";
 
 import { LibraryKind, LibraryService } from "@/gen/nama/v1/library_pb";
 
-import { type FormErrors, onRefusedField, refusal, serverMessage } from "./forms";
+import { type FormErrors, refusedFieldErrors, refusal, serverMessage } from "./forms";
 
 /** The query key of the Libraries, and of each one, to refetch after a change to them. */
 export const librariesKey = createConnectQueryKey({
@@ -26,7 +26,7 @@ export function foldersTyped(typed: string) {
 /** Why the Server refused to `attempt` (such as "create the Library"), next to its field. */
 export function libraryErrors(error: unknown, attempt: string): FormErrors {
   return refusal(error, attempt, {
-    [Code.InvalidArgument]: onRefusedField(error, ["name", "folders"]),
+    [Code.InvalidArgument]: refusedFieldErrors(error, ["name", "folders"]),
     [Code.AlreadyExists]: { folders: serverMessage(error) },
     [Code.NotFound]: { form: "This Library isn’t on the Server any more." },
   });
