@@ -73,7 +73,7 @@ function RoleChoice({
         name="role"
         value={value}
         defaultChecked={defaultChecked}
-        className="size-4 accent-primary"
+        className="size-4 accent-foreground"
       />
       {label}
     </label>

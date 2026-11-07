@@ -12,8 +12,12 @@ import { devicesKey, onlyAdminRefusal, resetPasswordRefusal, usersKey } from "@/
 export function ResetPassword({ user }: { user: User }) {
   const queryClient = useQueryClient();
   const reset = useMutation(UserService.method.resetPassword, {
-    // The Server signed out every Device of theirs.
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: devicesKey }),
+    // Their Devices were signed out, or they were deleted meanwhile.
+    onSettled: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: devicesKey }),
+        queryClient.invalidateQueries({ queryKey: usersKey }),
+      ]),
   });
   return (
     <ConfirmDialog
@@ -24,7 +28,7 @@ export function ResetPassword({ user }: { user: User }) {
       onConfirm={(typed) =>
         reset.mutateAsync({ userId: user.id, newPassword: formText(typed, "newPassword") })
       }
-      refusal={resetPasswordRefusal}
+      refusal={(error) => resetPasswordRefusal(error, user.name)}
     >
       <FormField
         label="New password"
@@ -40,7 +44,7 @@ export function ResetPassword({ user }: { user: User }) {
 export function DeleteUser({ user }: { user: User }) {
   const queryClient = useQueryClient();
   const remove = useMutation(UserService.method.deleteUser, {
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: usersKey }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: usersKey }),
   });
   return (
     <ConfirmDialog

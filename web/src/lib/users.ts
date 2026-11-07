@@ -25,13 +25,14 @@ export function roleName(role: Role) {
 
 /**
  * Why the Server refused to `attempt` (such as "delete this User") a change to the User called
- * `name`, such as one that would leave it with no Admin.
+ * `name`: one that would leave it with no Admin, or to a User deleted meanwhile.
  */
 export function onlyAdminRefusal(error: unknown, name: string, attempt: string) {
   return refusal(error, attempt, {
     [Code.FailedPrecondition]: {
       form: `${name} is the only Admin. Make someone else an Admin first.`,
     },
+    [Code.NotFound]: noLongerHere(name),
   }).form;
 }
 
@@ -43,9 +44,14 @@ export function createUserErrors(error: unknown): FormErrors {
   });
 }
 
-/** Why the Server refused a new password an Admin set for someone else. */
-export function resetPasswordRefusal(error: unknown) {
+/** Why the Server refused a new password an Admin set for the User called `name`. */
+export function resetPasswordRefusal(error: unknown, name: string) {
   return refusal(error, "reset the password", {
     [Code.InvalidArgument]: { form: serverMessage(error) },
+    [Code.NotFound]: noLongerHere(name),
   }).form;
+}
+
+function noLongerHere(name: string) {
+  return { form: `${name} isn’t on this Server any more.` };
 }

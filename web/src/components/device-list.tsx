@@ -30,7 +30,8 @@ function Note({ children }: { children: string }) {
 function DeviceRow({ device, whose }: { device: Device; whose: { userId?: bigint } }) {
   const queryClient = useQueryClient();
   const revoke = useMutation(UserService.method.revokeDevice, {
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: devicesKey }),
+    // Refused or not, the list may be out of date.
+    onSettled: () => queryClient.invalidateQueries({ queryKey: devicesKey }),
   });
   return (
     <li className="flex min-h-14 items-center gap-3 border-b py-2 last:border-b-0">

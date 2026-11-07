@@ -5,7 +5,7 @@ import { afterEach, expect, test } from "vite-plus/test";
 
 import { DeviceSchema, Role } from "@/gen/nama/v1/sign_in_pb";
 
-import { type ServerState, fakeServer, openApp } from "./test-app";
+import { type ServerState, fakeServer, fill, openApp } from "./test-app";
 
 afterEach(cleanup);
 
@@ -38,6 +38,64 @@ test("revoking a Device, once confirmed, removes it from Settings", async () => 
     expect(screen.queryByText("Living room TV")).toBeNull();
   });
   expect(screen.getByText("Laptop")).toBeDefined();
+});
+
+test("a Device revoked elsewhere meanwhile just leaves the list", async () => {
+  let devices = [device(1n, "Laptop", true), device(2n, "Living room TV")];
+  openApp(
+    "/settings",
+    fakeServer(
+      { signedIn: Role.MEMBER },
+      {},
+      {
+        listDevices: () => ({ devices }),
+        revokeDevice: () => {
+          devices = devices.slice(0, 1);
+          throw new ConnectError("no such Device", Code.NotFound);
+        },
+      },
+    ),
+  );
+
+  fireEvent.click(await screen.findByRole("button", { name: "Revoke Living room TV" }));
+  fireEvent.click(
+    within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Revoke" }),
+  );
+
+  await waitFor(() => {
+    expect(screen.queryByText("Living room TV")).toBeNull();
+  });
+  expect(screen.queryByRole("alertdialog")).toBeNull();
+});
+
+test("changing your password says your other Devices were signed out", async () => {
+  let devices = [device(1n, "Laptop", true), device(2n, "Living room TV")];
+  openApp(
+    "/settings",
+    fakeServer(
+      { signedIn: Role.MEMBER },
+      {},
+      {
+        listDevices: () => ({ devices }),
+        changePassword: () => {
+          devices = devices.slice(0, 1);
+          return {};
+        },
+      },
+    ),
+  );
+
+  await screen.findByText("Living room TV");
+  fill("Current password", "correct horse");
+  fill("New password", "battery staple");
+  fireEvent.click(screen.getByRole("button", { name: "Change password" }));
+
+  expect(
+    await screen.findByText("Password changed. Your other Devices were signed out."),
+  ).toBeDefined();
+  await waitFor(() => {
+    expect(screen.queryByText("Living room TV")).toBeNull();
+  });
 });
 
 test("a Member sees no Admin entry in the chrome", async () => {

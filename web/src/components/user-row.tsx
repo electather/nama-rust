@@ -50,7 +50,8 @@ function UserActions({ user, isYou }: { user: User; isYou: boolean }) {
   const queryClient = useQueryClient();
   // Demoting yourself makes the Server refuse the refetch, and the router then sees the new Role.
   const setRole = useMutation(UserService.method.setRole, {
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: usersKey }),
+    // Refused or not, the list may be out of date.
+    onSettled: () => queryClient.invalidateQueries({ queryKey: usersKey }),
   });
   const otherRole = user.role === Role.ADMIN ? Role.MEMBER : Role.ADMIN;
   return (
