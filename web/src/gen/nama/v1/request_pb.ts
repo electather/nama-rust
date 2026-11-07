@@ -10,7 +10,7 @@ import type { Message, UnknownEnum } from "@bufbuild/protobuf";
  * Describes the file nama/v1/request.proto.
  */
 export const file_nama_v1_request: GenFile = /*@__PURE__*/
-  fileDesc("ChVuYW1hL3YxL3JlcXVlc3QucHJvdG8SB25hbWEudjEinwEKB1JlcXVlc3QSCgoCaWQYASABKAMSJgoFbW92aWUYAiABKAsyFy5uYW1hLnYxLlJlcXVlc3RlZE1vdmllEiQKBXN0YXRlGAMgASgOMhUubmFtYS52MS5SZXF1ZXN0U3RhdGUSJgoKcmVxdWVzdGVycxgEIAMoCzISLm5hbWEudjEuUmVxdWVzdGVyEhIKCmNyZWF0ZWRfYXQYBSABKAMiXAoOUmVxdWVzdGVkTW92aWUSDwoHdG1kYl9pZBgBIAEoAxINCgV0aXRsZRgCIAEoCRIZCgxyZWxlYXNlX2RhdGUYAyABKAlIAIgBAUIPCg1fcmVsZWFzZV9kYXRlIkAKCVJlcXVlc3RlchIPCgd1c2VyX2lkGAEgASgDEgwKBG5hbWUYAiABKAkSFAoMcmVxdWVzdGVkX2F0GAMgASgDIi0KFENyZWF0ZVJlcXVlc3RSZXF1ZXN0EhUKDW1vdmllX3RtZGJfaWQYASABKAMiOgoVQ3JlYXRlUmVxdWVzdFJlc3BvbnNlEiEKB3JlcXVlc3QYASABKAsyEC5uYW1hLnYxLlJlcXVlc3QiFQoTTGlzdFJlcXVlc3RzUmVxdWVzdCI6ChRMaXN0UmVxdWVzdHNSZXNwb25zZRIiCghyZXF1ZXN0cxgBIAMoCzIQLm5hbWEudjEuUmVxdWVzdCIfChFHZXRSZXF1ZXN0UmVxdWVzdBIKCgJpZBgBIAEoAyI3ChJHZXRSZXF1ZXN0UmVzcG9uc2USIQoHcmVxdWVzdBgBIAEoCzIQLm5hbWEudjEuUmVxdWVzdCK9AgoKRm91bmRNb3ZpZRIPCgd0bWRiX2lkGAEgASgDEg0KBXRpdGxlGAIgASgJEhEKBHllYXIYAyABKAVIAIgBARIVCghvdmVydmlldxgEIAEoCUgBiAEBEhwKD3J1bnRpbWVfbWludXRlcxgFIAEoDUgCiAEBEhcKCnBvc3Rlcl91cmwYBiABKAlIA4gBARIZCgxiYWNrZHJvcF91cmwYByABKAlIBIgBARIXCgpsaWJyYXJ5X2lkGAggASgDSAWIAQESIQoHcmVxdWVzdBgJIAEoCzIQLm5hbWEudjEuUmVxdWVzdEIHCgVfeWVhckILCglfb3ZlcnZpZXdCEgoQX3J1bnRpbWVfbWludXRlc0INCgtfcG9zdGVyX3VybEIPCg1fYmFja2Ryb3BfdXJsQg0KC19saWJyYXJ5X2lkIiQKE1NlYXJjaE1vdmllc1JlcXVlc3QSDQoFdGl0bGUYASABKAkiOwoUU2VhcmNoTW92aWVzUmVzcG9uc2USIwoGbW92aWVzGAEgAygLMhMubmFtYS52MS5Gb3VuZE1vdmllIisKEkxvb2tVcE1vdmllUmVxdWVzdBIVCg1tb3ZpZV90bWRiX2lkGAEgASgDIjkKE0xvb2tVcE1vdmllUmVzcG9uc2USIgoFbW92aWUYASABKAsyEy5uYW1hLnYxLkZvdW5kTW92aWUq/AEKDFJlcXVlc3RTdGF0ZRIdChlSRVFVRVNUX1NUQVRFX1VOU1BFQ0lGSUVEEAASGQoVUkVRVUVTVF9TVEFURV9QRU5ESU5HEAESGgoWUkVRVUVTVF9TVEFURV9BUFBST1ZFRBACEhoKFlJFUVVFU1RfU1RBVEVfREVDTElORUQQAxIcChhSRVFVRVNUX1NUQVRFX1BST0NFU1NJTkcQBBIlCiFSRVFVRVNUX1NUQVRFX1BBUlRJQUxMWV9BVkFJTEFCTEUQBRIbChdSRVFVRVNUX1NUQVRFX0FWQUlMQUJMRRAGEhgKFFJFUVVFU1RfU1RBVEVfRkFJTEVEEAcynwMKDlJlcXVlc3RTZXJ2aWNlEk4KDUNyZWF0ZVJlcXVlc3QSHS5uYW1hLnYxLkNyZWF0ZVJlcXVlc3RSZXF1ZXN0Gh4ubmFtYS52MS5DcmVhdGVSZXF1ZXN0UmVzcG9uc2USUAoMTGlzdFJlcXVlc3RzEhwubmFtYS52MS5MaXN0UmVxdWVzdHNSZXF1ZXN0Gh0ubmFtYS52MS5MaXN0UmVxdWVzdHNSZXNwb25zZSIDkAIBEkoKCkdldFJlcXVlc3QSGi5uYW1hLnYxLkdldFJlcXVlc3RSZXF1ZXN0GhsubmFtYS52MS5HZXRSZXF1ZXN0UmVzcG9uc2UiA5ACARJQCgxTZWFyY2hNb3ZpZXMSHC5uYW1hLnYxLlNlYXJjaE1vdmllc1JlcXVlc3QaHS5uYW1hLnYxLlNlYXJjaE1vdmllc1Jlc3BvbnNlIgOQAgESTQoLTG9va1VwTW92aWUSGy5uYW1hLnYxLkxvb2tVcE1vdmllUmVxdWVzdBocLm5hbWEudjEuTG9va1VwTW92aWVSZXNwb25zZSIDkAIBYgZwcm90bzM");
+  fileDesc("ChVuYW1hL3YxL3JlcXVlc3QucHJvdG8SB25hbWEudjEizwEKB1JlcXVlc3QSCgoCaWQYASABKAMSJgoFbW92aWUYAiABKAsyFy5uYW1hLnYxLlJlcXVlc3RlZE1vdmllEiQKBXN0YXRlGAMgASgOMhUubmFtYS52MS5SZXF1ZXN0U3RhdGUSJgoKcmVxdWVzdGVycxgEIAMoCzISLm5hbWEudjEuUmVxdWVzdGVyEhIKCmNyZWF0ZWRfYXQYBSABKAMSGwoOZGVjbGluZV9yZWFzb24YBiABKAlIAIgBAUIRCg9fZGVjbGluZV9yZWFzb24iXAoOUmVxdWVzdGVkTW92aWUSDwoHdG1kYl9pZBgBIAEoAxINCgV0aXRsZRgCIAEoCRIZCgxyZWxlYXNlX2RhdGUYAyABKAlIAIgBAUIPCg1fcmVsZWFzZV9kYXRlIkAKCVJlcXVlc3RlchIPCgd1c2VyX2lkGAEgASgDEgwKBG5hbWUYAiABKAkSFAoMcmVxdWVzdGVkX2F0GAMgASgDIi0KFENyZWF0ZVJlcXVlc3RSZXF1ZXN0EhUKDW1vdmllX3RtZGJfaWQYASABKAMiOgoVQ3JlYXRlUmVxdWVzdFJlc3BvbnNlEiEKB3JlcXVlc3QYASABKAsyEC5uYW1hLnYxLlJlcXVlc3QiFQoTTGlzdFJlcXVlc3RzUmVxdWVzdCI6ChRMaXN0UmVxdWVzdHNSZXNwb25zZRIiCghyZXF1ZXN0cxgBIAMoCzIQLm5hbWEudjEuUmVxdWVzdCIfChFHZXRSZXF1ZXN0UmVxdWVzdBIKCgJpZBgBIAEoAyI3ChJHZXRSZXF1ZXN0UmVzcG9uc2USIQoHcmVxdWVzdBgBIAEoCzIQLm5hbWEudjEuUmVxdWVzdCIjChVBcHByb3ZlUmVxdWVzdFJlcXVlc3QSCgoCaWQYASABKAMiOwoWQXBwcm92ZVJlcXVlc3RSZXNwb25zZRIhCgdyZXF1ZXN0GAEgASgLMhAubmFtYS52MS5SZXF1ZXN0IjMKFURlY2xpbmVSZXF1ZXN0UmVxdWVzdBIKCgJpZBgBIAEoAxIOCgZyZWFzb24YAiABKAkiOwoWRGVjbGluZVJlcXVlc3RSZXNwb25zZRIhCgdyZXF1ZXN0GAEgASgLMhAubmFtYS52MS5SZXF1ZXN0IiIKFENhbmNlbFJlcXVlc3RSZXF1ZXN0EgoKAmlkGAEgASgDIhcKFUNhbmNlbFJlcXVlc3RSZXNwb25zZSK9AgoKRm91bmRNb3ZpZRIPCgd0bWRiX2lkGAEgASgDEg0KBXRpdGxlGAIgASgJEhEKBHllYXIYAyABKAVIAIgBARIVCghvdmVydmlldxgEIAEoCUgBiAEBEhwKD3J1bnRpbWVfbWludXRlcxgFIAEoDUgCiAEBEhcKCnBvc3Rlcl91cmwYBiABKAlIA4gBARIZCgxiYWNrZHJvcF91cmwYByABKAlIBIgBARIXCgpsaWJyYXJ5X2lkGAggASgDSAWIAQESIQoHcmVxdWVzdBgJIAEoCzIQLm5hbWEudjEuUmVxdWVzdEIHCgVfeWVhckILCglfb3ZlcnZpZXdCEgoQX3J1bnRpbWVfbWludXRlc0INCgtfcG9zdGVyX3VybEIPCg1fYmFja2Ryb3BfdXJsQg0KC19saWJyYXJ5X2lkIiQKE1NlYXJjaE1vdmllc1JlcXVlc3QSDQoFdGl0bGUYASABKAkiOwoUU2VhcmNoTW92aWVzUmVzcG9uc2USIwoGbW92aWVzGAEgAygLMhMubmFtYS52MS5Gb3VuZE1vdmllIisKEkxvb2tVcE1vdmllUmVxdWVzdBIVCg1tb3ZpZV90bWRiX2lkGAEgASgDIjkKE0xvb2tVcE1vdmllUmVzcG9uc2USIgoFbW92aWUYASABKAsyEy5uYW1hLnYxLkZvdW5kTW92aWUq/AEKDFJlcXVlc3RTdGF0ZRIdChlSRVFVRVNUX1NUQVRFX1VOU1BFQ0lGSUVEEAASGQoVUkVRVUVTVF9TVEFURV9QRU5ESU5HEAESGgoWUkVRVUVTVF9TVEFURV9BUFBST1ZFRBACEhoKFlJFUVVFU1RfU1RBVEVfREVDTElORUQQAxIcChhSRVFVRVNUX1NUQVRFX1BST0NFU1NJTkcQBBIlCiFSRVFVRVNUX1NUQVRFX1BBUlRJQUxMWV9BVkFJTEFCTEUQBRIbChdSRVFVRVNUX1NUQVRFX0FWQUlMQUJMRRAGEhgKFFJFUVVFU1RfU1RBVEVfRkFJTEVEEAcylQUKDlJlcXVlc3RTZXJ2aWNlEk4KDUNyZWF0ZVJlcXVlc3QSHS5uYW1hLnYxLkNyZWF0ZVJlcXVlc3RSZXF1ZXN0Gh4ubmFtYS52MS5DcmVhdGVSZXF1ZXN0UmVzcG9uc2USUAoMTGlzdFJlcXVlc3RzEhwubmFtYS52MS5MaXN0UmVxdWVzdHNSZXF1ZXN0Gh0ubmFtYS52MS5MaXN0UmVxdWVzdHNSZXNwb25zZSIDkAIBEkoKCkdldFJlcXVlc3QSGi5uYW1hLnYxLkdldFJlcXVlc3RSZXF1ZXN0GhsubmFtYS52MS5HZXRSZXF1ZXN0UmVzcG9uc2UiA5ACARJQCgxTZWFyY2hNb3ZpZXMSHC5uYW1hLnYxLlNlYXJjaE1vdmllc1JlcXVlc3QaHS5uYW1hLnYxLlNlYXJjaE1vdmllc1Jlc3BvbnNlIgOQAgESTQoLTG9va1VwTW92aWUSGy5uYW1hLnYxLkxvb2tVcE1vdmllUmVxdWVzdBocLm5hbWEudjEuTG9va1VwTW92aWVSZXNwb25zZSIDkAIBElEKDkFwcHJvdmVSZXF1ZXN0Eh4ubmFtYS52MS5BcHByb3ZlUmVxdWVzdFJlcXVlc3QaHy5uYW1hLnYxLkFwcHJvdmVSZXF1ZXN0UmVzcG9uc2USUQoORGVjbGluZVJlcXVlc3QSHi5uYW1hLnYxLkRlY2xpbmVSZXF1ZXN0UmVxdWVzdBofLm5hbWEudjEuRGVjbGluZVJlcXVlc3RSZXNwb25zZRJOCg1DYW5jZWxSZXF1ZXN0Eh0ubmFtYS52MS5DYW5jZWxSZXF1ZXN0UmVxdWVzdBoeLm5hbWEudjEuQ2FuY2VsUmVxdWVzdFJlc3BvbnNlYgZwcm90bzM");
 
 /**
  * Users asking for one Movie. A Movie has at most one open Request: one that is neither Declined
@@ -49,6 +49,14 @@ export type Request = Message<"nama.v1.Request"> & {
    * @generated from field: int64 created_at = 5;
    */
   createdAt: bigint;
+
+  /**
+   * Why it was declined, for its Requesters to read. Only a Declined Request has one, and only if
+   * the decliner gave one.
+   *
+   * @generated from field: optional string decline_reason = 6;
+   */
+  declineReason?: string | undefined;
 };
 
 /**
@@ -232,6 +240,121 @@ export const GetRequestResponseSchema: GenMessage<GetRequestResponse> = /*@__PUR
   messageDesc(file_nama_v1_request, 8);
 
 /**
+ * @generated from message nama.v1.ApproveRequestRequest
+ */
+export type ApproveRequestRequest = Message<"nama.v1.ApproveRequestRequest"> & {
+  /**
+   * The ID of the Request.
+   *
+   * @generated from field: int64 id = 1;
+   */
+  id: bigint;
+};
+
+/**
+ * Describes the message nama.v1.ApproveRequestRequest.
+ * Use `create(ApproveRequestRequestSchema)` to create a new message.
+ */
+export const ApproveRequestRequestSchema: GenMessage<ApproveRequestRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_request, 9);
+
+/**
+ * @generated from message nama.v1.ApproveRequestResponse
+ */
+export type ApproveRequestResponse = Message<"nama.v1.ApproveRequestResponse"> & {
+  /**
+   * The Request, Approved.
+   *
+   * @generated from field: nama.v1.Request request = 1;
+   */
+  request?: Request | undefined;
+};
+
+/**
+ * Describes the message nama.v1.ApproveRequestResponse.
+ * Use `create(ApproveRequestResponseSchema)` to create a new message.
+ */
+export const ApproveRequestResponseSchema: GenMessage<ApproveRequestResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_request, 10);
+
+/**
+ * @generated from message nama.v1.DeclineRequestRequest
+ */
+export type DeclineRequestRequest = Message<"nama.v1.DeclineRequestRequest"> & {
+  /**
+   * The ID of the Request.
+   *
+   * @generated from field: int64 id = 1;
+   */
+  id: bigint;
+
+  /**
+   * Why it is declined, for its Requesters to read. Blank gives none.
+   *
+   * @generated from field: string reason = 2;
+   */
+  reason: string;
+};
+
+/**
+ * Describes the message nama.v1.DeclineRequestRequest.
+ * Use `create(DeclineRequestRequestSchema)` to create a new message.
+ */
+export const DeclineRequestRequestSchema: GenMessage<DeclineRequestRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_request, 11);
+
+/**
+ * @generated from message nama.v1.DeclineRequestResponse
+ */
+export type DeclineRequestResponse = Message<"nama.v1.DeclineRequestResponse"> & {
+  /**
+   * The Request, Declined.
+   *
+   * @generated from field: nama.v1.Request request = 1;
+   */
+  request?: Request | undefined;
+};
+
+/**
+ * Describes the message nama.v1.DeclineRequestResponse.
+ * Use `create(DeclineRequestResponseSchema)` to create a new message.
+ */
+export const DeclineRequestResponseSchema: GenMessage<DeclineRequestResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_request, 12);
+
+/**
+ * @generated from message nama.v1.CancelRequestRequest
+ */
+export type CancelRequestRequest = Message<"nama.v1.CancelRequestRequest"> & {
+  /**
+   * The ID of the Request.
+   *
+   * @generated from field: int64 id = 1;
+   */
+  id: bigint;
+};
+
+/**
+ * Describes the message nama.v1.CancelRequestRequest.
+ * Use `create(CancelRequestRequestSchema)` to create a new message.
+ */
+export const CancelRequestRequestSchema: GenMessage<CancelRequestRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_request, 13);
+
+/**
+ * @generated from message nama.v1.CancelRequestResponse
+ */
+export type CancelRequestResponse = Message<"nama.v1.CancelRequestResponse"> & {
+};
+
+/**
+ * Describes the message nama.v1.CancelRequestResponse.
+ * Use `create(CancelRequestResponseSchema)` to create a new message.
+ */
+export const CancelRequestResponseSchema: GenMessage<CancelRequestResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_request, 14);
+
+/**
  * A Movie in the metadata source, and how close it is to being on the Server: in a Library, asked
  * for in a Request, or neither, in which case `CreateRequest` asks for it.
  *
@@ -308,7 +431,7 @@ export type FoundMovie = Message<"nama.v1.FoundMovie"> & {
  * Use `create(FoundMovieSchema)` to create a new message.
  */
 export const FoundMovieSchema: GenMessage<FoundMovie> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 9);
+  messageDesc(file_nama_v1_request, 15);
 
 /**
  * @generated from message nama.v1.SearchMoviesRequest
@@ -327,7 +450,7 @@ export type SearchMoviesRequest = Message<"nama.v1.SearchMoviesRequest"> & {
  * Use `create(SearchMoviesRequestSchema)` to create a new message.
  */
 export const SearchMoviesRequestSchema: GenMessage<SearchMoviesRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 10);
+  messageDesc(file_nama_v1_request, 16);
 
 /**
  * @generated from message nama.v1.SearchMoviesResponse
@@ -344,7 +467,7 @@ export type SearchMoviesResponse = Message<"nama.v1.SearchMoviesResponse"> & {
  * Use `create(SearchMoviesResponseSchema)` to create a new message.
  */
 export const SearchMoviesResponseSchema: GenMessage<SearchMoviesResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 11);
+  messageDesc(file_nama_v1_request, 17);
 
 /**
  * @generated from message nama.v1.LookUpMovieRequest
@@ -363,7 +486,7 @@ export type LookUpMovieRequest = Message<"nama.v1.LookUpMovieRequest"> & {
  * Use `create(LookUpMovieRequestSchema)` to create a new message.
  */
 export const LookUpMovieRequestSchema: GenMessage<LookUpMovieRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 12);
+  messageDesc(file_nama_v1_request, 18);
 
 /**
  * @generated from message nama.v1.LookUpMovieResponse
@@ -380,7 +503,7 @@ export type LookUpMovieResponse = Message<"nama.v1.LookUpMovieResponse"> & {
  * Use `create(LookUpMovieResponseSchema)` to create a new message.
  */
 export const LookUpMovieResponseSchema: GenMessage<LookUpMovieResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 13);
+  messageDesc(file_nama_v1_request, 19);
 
 /**
  * Where a Request is on its way to the Library (ADR 0012).
@@ -524,6 +647,40 @@ export const RequestService: GenService<{
     methodKind: "unary";
     input: typeof LookUpMovieRequestSchema;
     output: typeof LookUpMovieResponseSchema;
+  },
+  /**
+   * Approves a Pending Request, which then waits for the Movie to be Matched in a Library. Needs
+   * `PERMISSION_MANAGE_REQUESTS`, which manages every User's Requests. Fails with `not_found` if
+   * there is no Request with the ID, and `failed_precondition` if it isn't Pending.
+   *
+   * @generated from rpc nama.v1.RequestService.ApproveRequest
+   */
+  approveRequest: {
+    methodKind: "unary";
+    input: typeof ApproveRequestRequestSchema;
+    output: typeof ApproveRequestResponseSchema;
+  },
+  /**
+   * Declines a Pending Request, which closes it: asking for the Movie again opens a new one. Needs
+   * `PERMISSION_MANAGE_REQUESTS`. Fails as `ApproveRequest` does.
+   *
+   * @generated from rpc nama.v1.RequestService.DeclineRequest
+   */
+  declineRequest: {
+    methodKind: "unary";
+    input: typeof DeclineRequestRequestSchema;
+    output: typeof DeclineRequestResponseSchema;
+  },
+  /**
+   * Removes a Request, whatever its state. Needs `PERMISSION_MANAGE_REQUESTS`. Fails with
+   * `not_found` if there is no Request with the ID.
+   *
+   * @generated from rpc nama.v1.RequestService.CancelRequest
+   */
+  cancelRequest: {
+    methodKind: "unary";
+    input: typeof CancelRequestRequestSchema;
+    output: typeof CancelRequestResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_nama_v1_request, 0);

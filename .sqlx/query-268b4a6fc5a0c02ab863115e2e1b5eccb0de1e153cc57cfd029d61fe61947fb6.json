@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE requests SET state = ?, decline_reason = ? WHERE id = ? AND state = 'pending'",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "268b4a6fc5a0c02ab863115e2e1b5eccb0de1e153cc57cfd029d61fe61947fb6"
+}

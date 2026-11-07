@@ -168,6 +168,10 @@ fn classify(event: &Event) -> Option<(EventType, About<'_>)> {
             T::EVENT_TYPE_REQUEST_STATE_CHANGED,
             Request(e.request.as_option()?),
         ),
+        E::RequestCancelled(e) => (
+            T::EVENT_TYPE_REQUEST_CANCELLED,
+            Request(e.request.as_option()?),
+        ),
     })
 }
 

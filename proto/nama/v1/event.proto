@@ -30,6 +30,7 @@ enum EventType {
   EVENT_TYPE_REQUEST_CREATED = 7;
   EVENT_TYPE_REQUESTER_ADDED = 8;
   EVENT_TYPE_REQUEST_STATE_CHANGED = 9;
+  EVENT_TYPE_REQUEST_CANCELLED = 10;
 }
 
 message SubscribeRequest {
@@ -67,6 +68,7 @@ message Event {
     RequestCreated request_created = 7;
     RequesterAdded requester_added = 8;
     RequestStateChanged request_state_changed = 9;
+    RequestCancelled request_cancelled = 10;
   }
 }
 
@@ -138,5 +140,11 @@ message RequesterAdded {
 // A Request moved to another state.
 message RequestStateChanged {
   // The Request as it is now, in its new state.
+  Request request = 1;
+}
+
+// A User with `PERMISSION_MANAGE_REQUESTS` cancelled a Request, which removed it.
+message RequestCancelled {
+  // The Request as it was before it was removed.
   Request request = 1;
 }

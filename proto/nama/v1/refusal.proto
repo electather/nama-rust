@@ -122,13 +122,16 @@ enum RefusalReason {
   // `failed_precondition`: the Movie is already Matched in a Library, so it can't be Requested.
   // Params: `tmdbId`.
   REFUSAL_REASON_ALREADY_IN_LIBRARY = 39;
+  // `failed_precondition`: the Request isn't Pending, so it can't be approved or declined.
+  // Params: `requestId`.
+  REFUSAL_REASON_REQUEST_NOT_PENDING = 40;
 
   // `not_found`: no Plugin has the id. Params: `pluginId`.
-  REFUSAL_REASON_PLUGIN_NOT_FOUND = 40;
+  REFUSAL_REASON_PLUGIN_NOT_FOUND = 41;
   // `failed_precondition`: no other enabled Plugin provides an Authenticator, so disabling this
   // one could leave nobody able to sign in. Params: `pluginId`.
-  REFUSAL_REASON_LAST_AUTHENTICATOR = 41;
+  REFUSAL_REASON_LAST_AUTHENTICATOR = 42;
   // `invalid_argument`: a Plugin setting's value isn't of the kind its schema declares. Params:
   // `settingKey`, and `settingKind`, the `SettingKind` value's name (`SETTING_KIND_TEXT`).
-  REFUSAL_REASON_SETTING_WRONG_KIND = 42;
+  REFUSAL_REASON_SETTING_WRONG_KIND = 43;
 }

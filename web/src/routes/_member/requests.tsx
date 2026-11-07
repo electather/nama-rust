@@ -3,6 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { FindAMovie, MoviesFound } from "@/components/find-a-movie";
 import { Page } from "@/components/page";
+import { RequestActions } from "@/components/request-actions";
 import { RequestStateLabel } from "@/components/request-state";
 import { type Request, RequestService } from "@/gen/nama/v1/request_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
@@ -60,18 +61,29 @@ function RequestList() {
 function RequestRow({ request }: { request: Request }) {
   const { signedIn } = Route.useRouteContext();
   return (
-    <li className="flex min-h-16 items-center gap-3 border-b py-3 last:border-b-0">
+    // Wraps so a manager's actions get a line of their own, the full width of the row.
+    <li className="flex min-h-16 flex-wrap items-center gap-x-3 border-b py-3 last:border-b-0">
       <div className="min-w-0 flex-1">
         <p className="truncate font-medium">{request.movie?.title}</p>
-        <p className="text-sm text-muted-foreground">
-          {metadataLine(
-            yearOf(request.movie?.releaseDate),
-            requestedBy(request, signedIn.user?.id),
-          )}
-        </p>
+        <p className="text-sm text-muted-foreground">{aboutRequest(request, signedIn.user?.id)}</p>
+        <DeclineReason reason={request.declineReason} />
       </div>
       <RequestStateLabel state={request.state} />
+      {may(signedIn.user, Permission.MANAGE_REQUESTS) && <RequestActions request={request} />}
     </li>
+  );
+}
+
+/** What the row says under a Request's title: the Movie's year, and who asked for it. */
+function aboutRequest(request: Request, you: bigint | undefined) {
+  return metadataLine(yearOf(request.movie?.releaseDate), requestedBy(request, you));
+}
+
+function DeclineReason({ reason }: { reason: string | undefined }) {
+  return (
+    reason !== undefined && (
+      <p className="text-sm text-pretty text-muted-foreground">Reason: {reason}</p>
+    )
   );
 }
 

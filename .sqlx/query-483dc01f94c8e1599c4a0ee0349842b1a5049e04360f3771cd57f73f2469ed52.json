@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id AS \"id!\", tmdb_id, title, release_date, state, created_at\n           FROM requests\n           WHERE (?1 IS NULL OR id = ?1)\n             AND (?2 IS NULL OR EXISTS (SELECT 1 FROM requesters\n                                        WHERE request_id = requests.id AND user_id = ?2))\n           ORDER BY id DESC",
+  "query": "SELECT id AS \"id!\", tmdb_id, title, release_date, state, created_at, decline_reason\n           FROM requests\n           WHERE (?1 IS NULL OR id = ?1)\n             AND (?2 IS NULL OR EXISTS (SELECT 1 FROM requesters\n                                        WHERE request_id = requests.id AND user_id = ?2))\n           ORDER BY id DESC",
   "describe": {
     "columns": [
       {
@@ -68,6 +68,17 @@
             "name": "created_at"
           }
         }
+      },
+      {
+        "name": "decline_reason",
+        "ordinal": 6,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "requests",
+            "name": "decline_reason"
+          }
+        }
       }
     ],
     "parameters": {
@@ -79,8 +90,9 @@
       false,
       true,
       false,
-      false
+      false,
+      true
     ]
   },
-  "hash": "9711b75e62041e3eeb0e48142ef74f9bb6a129724a28a4aacfc0dba4ef6e8a88"
+  "hash": "483dc01f94c8e1599c4a0ee0349842b1a5049e04360f3771cd57f73f2469ed52"
 }
