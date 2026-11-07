@@ -660,7 +660,8 @@ impl BrowseServiceHandler {
     }
 
     /// The Shows of the Library `library`, which must be a Shows Library.
-    // ponytail: reads every Episode and Version to list the Shows; query less if Libraries get big.
+    // ponytail: reads every Episode and Version, even to list Shows or find one; query less if
+    // Libraries get big.
     async fn shows(&self, library: i64) -> Result<Vec<Show>, ConnectError> {
         self.require_kind(library, Kind::Shows).await?;
         self.contents

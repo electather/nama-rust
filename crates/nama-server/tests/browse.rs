@@ -5,7 +5,14 @@
 #[path = "support/server.rs"]
 mod server;
 
-use std::{collections::BTreeMap, fs, path::PathBuf, slice, sync::Arc, time::Duration};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fs,
+    path::PathBuf,
+    slice,
+    sync::Arc,
+    time::Duration,
+};
 
 use connectrpc::{ConnectError, ErrorCode, client::HttpClient};
 use nama_plugin_api::settings::{SettingValue, Settings};
@@ -357,7 +364,18 @@ async fn episodes_of_one_show_in_several_folders_are_one_show_with_its_seasons()
 
     let listed = fx.list_shows(fx.library).await.unwrap();
     let got = fx.get_show(fx.library, DARK).await.unwrap();
+    let episodes = fx.list_episodes(fx.library, DARK, 1).await.unwrap();
 
+    // Both folders' files are in the one Show.
+    let files: BTreeSet<&str> = episodes
+        .iter()
+        .flat_map(|episode| &episode.versions)
+        .map(|version| version.file_name.as_str())
+        .collect();
+    assert_eq!(
+        files,
+        BTreeSet::from(["Dark - S01E01-E02.mkv", "Dark - S01E01.mkv"])
+    );
     let show = got.show.into_option().unwrap();
     assert_eq!(listed, slice::from_ref(&show));
     assert_eq!(show.id.as_option(), Some(&tmdb_id(DARK)));
@@ -388,11 +406,11 @@ async fn list_episodes_lists_one_seasons_episodes_in_episode_order() {
     let second = fx.list_episodes(fx.library, DARK, 2).await.unwrap();
 
     assert_eq!(
-        numbers(&first),
+        ids_and_numbers(&first),
         [(Some(tmdb_id(SECRETS)), 1, 1), (Some(tmdb_id(LIES)), 1, 2)]
     );
     assert_eq!(
-        numbers(&second),
+        ids_and_numbers(&second),
         [(Some(tmdb_id(BEGINNINGS_AND_ENDINGS)), 2, 1)]
     );
     let secrets = first.first().unwrap();
@@ -498,7 +516,7 @@ fn season(number: u32, poster_url: &str) -> Season {
 }
 
 /// Each Episode's id, season number and episode number.
-fn numbers(episodes: &[Episode]) -> Vec<(Option<ExternalId>, u32, u32)> {
+fn ids_and_numbers(episodes: &[Episode]) -> Vec<(Option<ExternalId>, u32, u32)> {
     episodes
         .iter()
         .map(|episode| {

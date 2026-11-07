@@ -184,13 +184,9 @@ pub(crate) struct Show {
 
 impl Show {
     /// The Show's poster: its first Season's, since a Match stores each Episode's Season poster
-    /// and none of the Show's own. Specials (Season 0) count only if they are all there is.
+    /// and none of the Show's own.
     pub(crate) fn poster(&self) -> Option<&str> {
-        let (_, first) = self
-            .seasons
-            .range(1..)
-            .next()
-            .or_else(|| self.seasons.first_key_value())?;
+        let (_, first) = self.seasons.first_key_value()?;
         first.poster.as_deref()
     }
 }
