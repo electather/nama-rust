@@ -195,18 +195,26 @@ async fn an_update_with_bad_input_is_refused_and_leaves_the_library_as_it_was() 
         .await
         .unwrap();
 
-    let invalid = (
-        ErrorCode::InvalidArgument,
-        RefusalReason::REFUSAL_REASON_UNSPECIFIED,
-    );
     let cases: [(&str, &str, &[&str], _, &str); 3] = [
-        ("a blank name", " ", &[&tv], invalid, "name"),
+        (
+            "a blank name",
+            " ",
+            &[&tv],
+            (
+                ErrorCode::InvalidArgument,
+                RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
+            ),
+            "name",
+        ),
         (
             "the same folder twice",
             "TV",
             &[&tv, &tv],
-            invalid,
-            "folders",
+            (
+                ErrorCode::InvalidArgument,
+                RefusalReason::REFUSAL_REASON_FOLDER_REPEATED,
+            ),
+            "folders[1]",
         ),
         (
             "another Library's folder",
@@ -272,19 +280,14 @@ async fn reading_changing_or_deleting_a_library_that_does_not_exist_is_not_found
 }
 
 #[tokio::test]
-async fn a_library_with_a_bad_name_kind_or_folder_is_refused_as_an_invalid_argument() {
+async fn a_library_with_a_blank_name_no_kind_or_no_folders_is_refused_as_an_invalid_argument() {
     let fx = Fixture::start().await;
     let films = fx.folder("films");
-    let missing = fx.media.path().join("missing");
-    let missing = missing.to_str().unwrap();
-    let file = fx.media.path().join("film.mkv");
-    std::fs::write(&file, b"").unwrap();
-    let file = canonical(&file);
     let movies = LibraryKind::LIBRARY_KIND_MOVIES;
 
-    let unspecified = RefusalReason::REFUSAL_REASON_UNSPECIFIED;
-    let cases: [(&str, &str, LibraryKind, &[&str], _, &str); 7] = [
-        ("blank name", "  ", movies, &[&films], unspecified, "name"),
+    let required = RefusalReason::REFUSAL_REASON_FIELD_REQUIRED;
+    let cases: [(&str, &str, LibraryKind, &[&str], _, &str); 3] = [
+        ("blank name", "  ", movies, &[&films], required, "name"),
         (
             "unspecified kind",
             "Movies",
@@ -293,39 +296,7 @@ async fn a_library_with_a_bad_name_kind_or_folder_is_refused_as_an_invalid_argum
             RefusalReason::REFUSAL_REASON_UNKNOWN_ENUM_VALUE,
             "kind",
         ),
-        ("no folders", "Movies", movies, &[], unspecified, "folders"),
-        (
-            "relative folder",
-            "Movies",
-            movies,
-            &["films"],
-            unspecified,
-            "folders",
-        ),
-        (
-            "missing folder",
-            "Movies",
-            movies,
-            &[missing],
-            unspecified,
-            "folders",
-        ),
-        (
-            "a file, not a folder",
-            "Movies",
-            movies,
-            &[&file],
-            unspecified,
-            "folders",
-        ),
-        (
-            "the same folder twice",
-            "Movies",
-            movies,
-            &[&films, &films],
-            unspecified,
-            "folders",
-        ),
+        ("no folders", "Movies", movies, &[], required, "folders"),
     ];
     for (case, name, kind, folders, reason, field) in cases {
         let refused = fx.create(name, kind, folders).await;
@@ -336,19 +307,66 @@ async fn a_library_with_a_bad_name_kind_or_folder_is_refused_as_an_invalid_argum
 
     let created = fx.create("Movies", movies, &[&films]).await.unwrap();
     let blank_name = fx.update(created.id, "", &[&films]).await;
-    let blank_name = assert_refused(
-        blank_name,
-        ErrorCode::InvalidArgument,
-        RefusalReason::REFUSAL_REASON_UNSPECIFIED,
-    );
+    let blank_name = assert_refused(blank_name, ErrorCode::InvalidArgument, required);
     assert_eq!(blank_name.field, "name");
+    assert_eq!(fx.get(created.id).await.unwrap(), created);
+}
+
+#[tokio::test]
+async fn a_bad_folder_is_refused_naming_its_place_in_the_request() {
+    let fx = Fixture::start().await;
+    let films = fx.folder("films");
+    let missing = fx.media.path().join("missing");
+    let missing = missing.to_str().unwrap();
+    let file = fx.media.path().join("film.mkv");
+    std::fs::write(&file, b"").unwrap();
+    let file = canonical(&file);
+
+    // Each case's bad folder is the last one.
+    let cases: [(&str, &[&str], _); 4] = [
+        (
+            "relative folder",
+            &["films"],
+            RefusalReason::REFUSAL_REASON_FOLDER_NOT_ABSOLUTE,
+        ),
+        (
+            "missing folder",
+            &[&films, missing],
+            RefusalReason::REFUSAL_REASON_FOLDER_NOT_FOUND,
+        ),
+        (
+            "a file, not a folder",
+            &[&file],
+            RefusalReason::REFUSAL_REASON_FOLDER_NOT_READABLE,
+        ),
+        (
+            "the same folder twice, spelled differently",
+            &[&films, &format!("{films}{}", std::path::MAIN_SEPARATOR)],
+            RefusalReason::REFUSAL_REASON_FOLDER_REPEATED,
+        ),
+    ];
+    for (case, folders, reason) in cases {
+        let refused = fx
+            .create("Movies", LibraryKind::LIBRARY_KIND_MOVIES, folders)
+            .await;
+        let refusal = assert_refused(refused, ErrorCode::InvalidArgument, reason);
+        let index = folders.len() - 1;
+        assert_eq!(refusal.field, format!("folders[{index}]"), "{case}");
+        assert_eq!(refusal.params["folder"], folders[index], "{case}");
+    }
+    assert_eq!(fx.list().await, [], "a refused Library was created");
+
+    let created = fx
+        .create("Movies", LibraryKind::LIBRARY_KIND_MOVIES, &[&films])
+        .await
+        .unwrap();
     let missing_folder = fx.update(created.id, "Movies", &[missing]).await;
     let missing_folder = assert_refused(
         missing_folder,
         ErrorCode::InvalidArgument,
-        RefusalReason::REFUSAL_REASON_UNSPECIFIED,
+        RefusalReason::REFUSAL_REASON_FOLDER_NOT_FOUND,
     );
-    assert_eq!(missing_folder.field, "folders");
+    assert_eq!(missing_folder.field, "folders[0]");
     assert_eq!(fx.get(created.id).await.unwrap(), created);
 }
 
@@ -422,12 +440,39 @@ async fn a_folder_the_server_cannot_read_is_refused_as_an_invalid_argument() {
         let refusal = assert_refused(
             refused,
             ErrorCode::InvalidArgument,
-            RefusalReason::REFUSAL_REASON_UNSPECIFIED,
+            RefusalReason::REFUSAL_REASON_FOLDER_NOT_READABLE,
         );
-        assert_eq!(refusal.field, "folders", "{case}");
+        assert_eq!(refusal.field, "folders[0]", "{case}");
         // So the scratch directory can be cleaned up.
         std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o700)).unwrap();
     }
+}
+
+/// A folder named in UTF-8 can still resolve to a path that isn't: here a symlink to such a
+/// directory. Linux only: macOS refuses to create a name that isn't UTF-8.
+#[cfg(target_os = "linux")]
+#[tokio::test]
+async fn a_folder_that_resolves_to_a_path_that_isnt_utf8_is_refused_as_an_invalid_argument() {
+    use std::{ffi::OsStr, os::unix::ffi::OsStrExt};
+
+    let fx = Fixture::start().await;
+    let target = fx.media.path().join(OsStr::from_bytes(b"films\xff"));
+    std::fs::create_dir(&target).unwrap();
+    let link = fx.media.path().join("films");
+    std::os::unix::fs::symlink(&target, &link).unwrap();
+    let link = link.to_str().unwrap();
+
+    let refused = fx
+        .create("Movies", LibraryKind::LIBRARY_KIND_MOVIES, &[link])
+        .await;
+
+    let refusal = assert_refused(
+        refused,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_FOLDER_NOT_UTF8,
+    );
+    assert_eq!(refusal.field, "folders[0]");
+    assert_eq!(refusal.params["folder"], link);
 }
 
 /// A symlink is another name for the folder it points to. Unix only: creating one on Windows

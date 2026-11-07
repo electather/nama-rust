@@ -32,14 +32,16 @@ pub(crate) struct Library {
 /// Why a change to the Libraries was refused or failed.
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum Error {
-    /// The request field `field` is wrong, such as a blank name or a folder that isn't a readable
-    /// directory, for the reason `message` gives.
-    #[error("{message}")]
-    Invalid {
-        /// The request field it is about, as clients name it.
-        field: &'static str,
-        /// Why, for the client.
-        message: String,
+    #[error("a Library's name can't be blank")]
+    NameBlank,
+    #[error("a Library needs at least one folder")]
+    FoldersEmpty,
+    /// The folder at `index` in the request, as given, breaks a rule.
+    #[error("the folder {folder:?} {problem}")]
+    Folder {
+        index: usize,
+        folder: String,
+        problem: FolderProblem,
     },
     #[error("there is no Library {0}")]
     NotFound(i64),
@@ -48,6 +50,23 @@ pub(crate) enum Error {
     FolderTaken { folder: String, library: String },
     #[error("database error: {0}")]
     Database(#[from] sqlx::Error),
+}
+
+/// Why a folder can't be one of a Library's.
+#[derive(Debug, thiserror::Error)]
+pub(crate) enum FolderProblem {
+    #[error("is not an absolute path")]
+    NotAbsolute,
+    // The operating system's text stays in the message only: it can't be translated.
+    #[error("can't be found: {0}")]
+    NotFound(std::io::Error),
+    #[error("is not a directory the Server can read: {0}")]
+    NotReadable(std::io::Error),
+    /// The path it resolves to, shown lossily.
+    #[error("resolves to {0}, which is not valid UTF-8")]
+    NotUtf8(String),
+    #[error("is named more than once")]
+    Repeated,
 }
 
 /// The Server's Libraries, kept in its database.
@@ -216,10 +235,7 @@ async fn delete(conn: &mut SqliteConnection, id: i64) -> Result<(), Error> {
 fn check_name(name: &str) -> Result<String, Error> {
     let name = name.trim();
     if name.is_empty() {
-        return Err(Error::Invalid {
-            field: "name",
-            message: "a Library's name can't be blank".to_owned(),
-        });
+        return Err(Error::NameBlank);
     }
     Ok(name.to_owned())
 }
@@ -227,38 +243,43 @@ fn check_name(name: &str) -> Result<String, Error> {
 // Canonical paths make two spellings of one folder (a trailing slash, a symlink) the same folder.
 async fn check_folders(folders: Vec<String>) -> Result<Vec<String>, Error> {
     if folders.is_empty() {
-        return Err(Error::Invalid {
-            field: "folders",
-            message: "a Library needs at least one folder".to_owned(),
-        });
+        return Err(Error::FoldersEmpty);
     }
     let mut canonical = Vec::with_capacity(folders.len());
-    for folder in folders {
-        let invalid = |problem: String| Error::Invalid {
-            field: "folders",
-            message: format!("the folder {folder:?} {problem}"),
-        };
-        if !Path::new(&folder).is_absolute() {
-            return Err(invalid("is not an absolute path".to_owned()));
+    for (index, folder) in folders.into_iter().enumerate() {
+        match check_folder(&folder, &canonical).await {
+            Ok(path) => canonical.push(path),
+            Err(problem) => {
+                return Err(Error::Folder {
+                    index,
+                    folder,
+                    problem,
+                });
+            }
         }
-        let path = tokio::fs::canonicalize(&folder)
-            .await
-            .map_err(|err| invalid(format!("can't be found: {err}")))?;
-        ensure_readable_dir(&path)
-            .await
-            .map_err(|err| invalid(format!("is not a directory the Server can read: {err}")))?;
-        let path = path.into_os_string().into_string().map_err(|path| {
-            invalid(format!(
-                "resolves to {}, which is not valid UTF-8",
-                Path::new(&path).display()
-            ))
-        })?;
-        if canonical.contains(&path) {
-            return Err(invalid("is named more than once".to_owned()));
-        }
-        canonical.push(path);
     }
     Ok(canonical)
+}
+
+/// `folder`'s canonical path, if it can be a Library's and isn't in `earlier` yet.
+async fn check_folder(folder: &str, earlier: &[String]) -> Result<String, FolderProblem> {
+    if !Path::new(folder).is_absolute() {
+        return Err(FolderProblem::NotAbsolute);
+    }
+    let path = tokio::fs::canonicalize(folder)
+        .await
+        .map_err(FolderProblem::NotFound)?;
+    ensure_readable_dir(&path)
+        .await
+        .map_err(FolderProblem::NotReadable)?;
+    let path = path
+        .into_os_string()
+        .into_string()
+        .map_err(|path| FolderProblem::NotUtf8(Path::new(&path).display().to_string()))?;
+    if earlier.contains(&path) {
+        return Err(FolderProblem::Repeated);
+    }
+    Ok(path)
 }
 
 /// Fails unless `path` is a directory the Server can list and open the files in.
