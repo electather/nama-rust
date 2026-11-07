@@ -1,6 +1,6 @@
 //! Admins creating, listing, changing the Role of, resetting the password of and deleting Users,
-//! Users changing their own password, and Users and Admins listing and revoking Devices, through the generated `UserService`
-//! client, over a real socket and against a real SQLite database.
+//! Users changing their own password, and Users and Admins listing and revoking Devices, through
+//! the generated `UserService` client, over a real socket and against a real SQLite database.
 
 #[path = "support/server.rs"]
 mod server;
@@ -806,7 +806,7 @@ async fn two_devices_changing_the_password_at_once_leave_one_signed_in_with_its_
 }
 
 #[tokio::test]
-async fn a_reset_password_signs_in_and_signs_all_the_users_devices_out() {
+async fn after_a_reset_the_new_password_signs_in_and_all_the_users_devices_are_signed_out() {
     let fixture = Fixture::start().await;
     let (phone, laptop) = fixture.grace_on_phone_and_laptop().await;
     let mut phone_events = subscribe(fixture.server.client_config_as(&phone.token)).await;
@@ -829,7 +829,7 @@ async fn a_reset_password_signs_in_and_signs_all_the_users_devices_out() {
 }
 
 #[tokio::test]
-async fn resetting_your_own_password_fails_and_changes_nothing() {
+async fn resetting_your_own_password_fails_and_keeps_you_signed_in() {
     let fixture = Fixture::start().await;
     let admin = fixture.first_admin_id().await;
 

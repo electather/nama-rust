@@ -52,9 +52,7 @@ service UserService {
   // Device of theirs is revoked, as by `RevokeDevice`. Fails with `invalid_argument` if the new
   // password breaks the rules, `not_found` if no User has the ID, and `failed_precondition` for the
   // caller's own User, who uses `ChangePassword` instead to keep the calling Device signed in.
-  rpc ResetPassword(ResetPasswordRequest) returns (ResetPasswordResponse) {
-    option idempotency_level = IDEMPOTENT;
-  }
+  rpc ResetPassword(ResetPasswordRequest) returns (ResetPasswordResponse);
 }
 
 message CreateUserRequest {

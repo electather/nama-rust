@@ -383,7 +383,7 @@ pub const USER_SERVICE_RESET_PASSWORD_SPEC: ::connectrpc::Spec = ::connectrpc::S
         "/nama.v1.UserService/ResetPassword",
         ::connectrpc::StreamType::Unary,
     )
-    .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
 /// Managing the Server's Users and their Devices. Every RPC but `ListDevices`, `RevokeDevice` and
 /// `ChangePassword` needs the Admin Role, and fails with `permission_denied` without it. RPCs name
 /// Users by ID, not by name.
