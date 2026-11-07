@@ -14,7 +14,10 @@ export interface FieldText {
   error?: string | undefined;
 }
 
-/** A labelled, required text input in a native form, with its hint and the Server's error. */
+/**
+ * A labelled text input in a native form, with its hint and the Server's error. It is required
+ * unless `required` says otherwise.
+ */
 export function FormField({ label, hint, error, ...input }: ComponentProps<"input"> & FieldText) {
   return (
     <Field label={label} hint={hint} error={error}>

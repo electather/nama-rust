@@ -1952,18 +1952,18 @@ fn updated_settings(
 )]
 fn settings_refused(err: SettingsError) -> ConnectError {
     let message = err.to_string();
-    match err {
-        SettingsError::Missing(key) => {
-            refuse(RefusalReason::REFUSAL_REASON_FIELD_REQUIRED, message)
-                .field(&format!("settings.{key}"))
-        }
-        SettingsError::WrongKind { key, expected } => {
+    let (refused, key) = match err {
+        SettingsError::Missing(key) => (
+            refuse(RefusalReason::REFUSAL_REASON_FIELD_REQUIRED, message),
+            key,
+        ),
+        SettingsError::WrongKind { key, expected } => (
             refuse(RefusalReason::REFUSAL_REASON_WRONG_SETTING_KIND, message)
-                .field(&format!("settings.{key}"))
-                .param("kind", &setting_kind_to_proto(expected).proto_name())
-        }
-    }
-    .into()
+                .param("kind", &setting_kind_to_proto(expected).proto_name()),
+            key,
+        ),
+    };
+    refused.field(&format!("settings.{key}")).into()
 }
 
 fn plugin_to_proto(

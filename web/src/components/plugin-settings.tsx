@@ -1,4 +1,3 @@
-import { Code } from "@connectrpc/connect";
 import { createConnectQueryKey, useMutation } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
 import { useId, useState } from "react";
@@ -185,9 +184,12 @@ function settingErrors(error: unknown): Record<string, string | undefined> {
   const { reason, field } = refusalOf(error);
   const key = field.replace(/^settings\./u, "");
   if (key === field) {
-    const { form } = refusal(error, "save the settings", {
-      [Code.NotFound]: { form: "This Plugin isn’t on the Server any more." },
-    });
+    const { form } = refusal(
+      error,
+      "save the settings",
+      {},
+      { [RefusalReason.PLUGIN_NOT_FOUND]: { form: "This Plugin isn’t on the Server any more." } },
+    );
     return { form };
   }
   return {

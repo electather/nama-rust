@@ -213,3 +213,16 @@ test("a refusal naming a secret that is set opens its input to show under", asyn
 
   await expectUnderField("API key", "This setting can’t take that value.");
 });
+
+test("a Plugin no longer on the Server says so for the form", async () => {
+  openPlugins(() => {
+    throw refused(Code.NotFound, "there is no Plugin tmdb", {
+      reason: RefusalReason.PLUGIN_NOT_FOUND,
+      field: "plugin_id",
+    });
+  });
+
+  fireEvent.click((await plugin("tmdb")).getByRole("button", { name: "Save" }));
+
+  expect(await screen.findByText("This Plugin isn’t on the Server any more.")).toBeDefined();
+});
