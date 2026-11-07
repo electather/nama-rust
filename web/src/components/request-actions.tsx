@@ -101,7 +101,7 @@ function changeRefusal(error: unknown, title: string, attempt: string) {
     {},
     {
       [RefusalReason.REQUEST_NOT_PENDING]: { form: `${title} was already approved or declined.` },
-      [RefusalReason.REQUEST_NOT_FOUND]: { form: `The Request for ${title} was cancelled.` },
+      [RefusalReason.REQUEST_NOT_FOUND]: { form: `The Request for ${title} is gone.` },
     },
   ).form;
 }

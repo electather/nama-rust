@@ -79,7 +79,6 @@ function aboutRequest(request: Request, you: bigint | undefined) {
   return metadataLine(yearOf(request.movie?.releaseDate), requestedBy(request, you));
 }
 
-/** Why a Declined Request was declined, if the decliner said. */
 function DeclineReason({ reason }: { reason: string | undefined }) {
   return (
     reason !== undefined && (

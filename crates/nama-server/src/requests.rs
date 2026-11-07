@@ -34,7 +34,7 @@ const STATES: [(RequestState, &str); 7] = [
     (RequestState::Failed, "failed"),
 ];
 
-/// Why a Request couldn't be made or found.
+/// Why a Request couldn't be made, found or changed.
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum Error {
     /// There is no such Request, or none the caller may see.
@@ -372,7 +372,6 @@ async fn cancel(conn: &mut SqliteConnection, id: i64) -> Result<Request, Error> 
     Ok(request)
 }
 
-/// The Request with the ID `id`, if there is one.
 async fn load_one(conn: &mut SqliteConnection, id: i64) -> Result<Option<Request>, sqlx::Error> {
     Ok(load(conn, Some(id), None).await?.into_iter().next())
 }

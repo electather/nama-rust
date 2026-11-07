@@ -81,6 +81,22 @@ test("a Request made elsewhere shows up without a reload", async () => {
   expect(await screen.findByText("Dune")).toBeDefined();
 });
 
+test("a Request approved elsewhere shows as Approved without a reload", async () => {
+  const events = eventFeed();
+  let requests: MessageInitShape<typeof RequestSchema>[] = [heat];
+  openApp(
+    "/requests",
+    server(() => requests, events.stream),
+  );
+  await screen.findByText("Pending");
+
+  const approved = { ...heat, state: RequestState.APPROVED };
+  requests = [approved];
+  events.send({ event: { case: "requestStateChanged", value: { request: approved } } });
+
+  expect(await screen.findByText("Approved")).toBeDefined();
+});
+
 test("a Request cancelled elsewhere goes without a reload", async () => {
   const events = eventFeed();
   let requests = [dune];
