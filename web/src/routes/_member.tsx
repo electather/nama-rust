@@ -1,11 +1,11 @@
-import { Outlet, createFileRoute, redirect } from "@tanstack/react-router";
+import { Outlet, createFileRoute, redirect, useMatches } from "@tanstack/react-router";
 
 import { AppChrome } from "@/components/app-chrome";
 import { Role } from "@/gen/nama/v1/sign_in_pb";
 import { isSetupRequired, whoIsSignedIn } from "@/lib/access";
 import { useEvents } from "@/lib/events";
 
-/** Pages for signed-in Users, under the app chrome. */
+/** Pages for signed-in Users, under the app chrome unless they fill the screen. */
 export const Route = createFileRoute("/_member")({
   beforeLoad: async ({ context, location }) => {
     if (await isSetupRequired(context)) throw redirect({ to: "/setup" });
@@ -18,10 +18,16 @@ export const Route = createFileRoute("/_member")({
 
 function MemberLayout() {
   const { signedIn } = Route.useRouteContext();
+  // A full-screen page that didn't load, such as an unknown Movie's player, keeps the chrome, so
+  // its not-found or error page has a way out.
+  const fullScreen = useMatches({
+    select: (matches) =>
+      matches.some((m) => m.staticData.fullScreen === true && m.status === "success"),
+  });
   useEvents();
   return (
     <>
-      <AppChrome isAdmin={signedIn.user?.role === Role.ADMIN} />
+      {!fullScreen && <AppChrome isAdmin={signedIn.user?.role === Role.ADMIN} />}
       <Outlet />
     </>
   );
