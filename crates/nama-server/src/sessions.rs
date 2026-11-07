@@ -6,12 +6,15 @@
 
 use axum::{
     extract::{Request, State},
-    http::{HeaderMap, HeaderValue, StatusCode, header},
+    http::{Extensions, HeaderMap, HeaderValue, StatusCode, header},
     middleware::Next,
     response::{IntoResponse, Response},
 };
 
-use crate::users::{Caller, DEVICE_LIFETIME, Users};
+use crate::{
+    forwarded::RequestSource,
+    users::{Caller, DEVICE_LIFETIME, Users},
+};
 
 /// The cookie a browser's session travels in.
 const COOKIE_NAME: &str = "nama_session";
@@ -36,7 +39,7 @@ pub(crate) async fn identify_caller(
         }
     };
     let refreshed_cookie = (session.refreshed && presented.in_cookie)
-        .then(|| session_cookie(presented.token, request.headers()));
+        .then(|| session_cookie(presented.token, request.extensions()));
     request.extensions_mut().insert::<Caller>(session.caller);
     let mut response = next.run(request).await;
     if let Some(cookie) = refreshed_cookie.and_then(|cookie| HeaderValue::try_from(cookie).ok())
@@ -48,23 +51,25 @@ pub(crate) async fn identify_caller(
 }
 
 /// The `Set-Cookie` value that hands a browser `token`, to keep for as long as an unused Device
-/// lasts. `Secure` only when the request reached a reverse proxy over HTTPS, since a browser drops
-/// a `Secure` cookie sent over plain HTTP, which is how a LAN Server is usually reached (ADR 0015).
-pub(crate) fn session_cookie(token: &str, request_headers: &HeaderMap) -> String {
-    cookie(token, DEVICE_LIFETIME, request_headers)
+/// lasts. `Secure` only when the request reached a trusted reverse proxy over HTTPS, since a
+/// browser drops a `Secure` cookie sent over plain HTTP, which is how a LAN Server is usually
+/// reached (ADR 0015, ADR 0018).
+pub(crate) fn session_cookie(token: &str, request: &Extensions) -> String {
+    cookie(token, DEVICE_LIFETIME, request)
 }
 
 /// The `Set-Cookie` value that has a browser forget its session cookie.
-pub(crate) fn cleared_session_cookie(request_headers: &HeaderMap) -> String {
-    cookie("", 0, request_headers)
+pub(crate) fn cleared_session_cookie(request: &Extensions) -> String {
+    cookie("", 0, request)
 }
 
 /// A session cookie holding `value` for `max_age` seconds, with the attributes every session
-/// cookie has.
-fn cookie(value: &str, max_age: i64, request_headers: &HeaderMap) -> String {
-    let secure = request_headers
-        .get("x-forwarded-proto")
-        .is_some_and(|proto| proto.as_bytes().eq_ignore_ascii_case(b"https"));
+/// cookie has. `request` is the extensions of the request it answers, which say whether that
+/// arrived over HTTPS.
+fn cookie(value: &str, max_age: i64, request: &Extensions) -> String {
+    let secure = request
+        .get::<RequestSource>()
+        .is_some_and(|source| source.https);
     let secure = if secure { "; Secure" } else { "" };
     format!("{COOKIE_NAME}={value}; HttpOnly; SameSite=Strict; Path=/; Max-Age={max_age}{secure}")
 }

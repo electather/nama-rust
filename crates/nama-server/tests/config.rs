@@ -18,6 +18,7 @@ fn defaults_apply_when_there_is_no_config_file_or_environment() {
         assert_eq!(config.name, "Nama");
         assert_eq!(config.listen, "0.0.0.0:7980".parse().unwrap());
         assert_eq!(config.data_dir, PathBuf::from("data"));
+        assert_eq!(config.trusted_proxies, []);
         Ok(())
     });
 }
@@ -159,6 +160,42 @@ fn a_plugins_other_keys_are_its_settings() {
                 ]),
             }
         );
+        Ok(())
+    });
+}
+
+#[test]
+fn trusted_proxies_are_ip_addresses_or_cidr_ranges() {
+    Jail::expect_with(|jail| {
+        jail.create_file("nama.toml", r#"trusted_proxies = ["10.0.0.0/8", "::1"]"#)?;
+
+        let config = Config::load(None).unwrap();
+
+        let trusted = |ip: &str| {
+            let ip = ip.parse().unwrap();
+            config
+                .trusted_proxies
+                .iter()
+                .any(|proxies| proxies.contains(ip))
+        };
+        assert!(trusted("10.20.30.40"));
+        assert!(
+            trusted("::ffff:10.0.0.1"),
+            "an IPv4 peer of a dual-stack socket"
+        );
+        assert!(trusted("::1"));
+        assert!(!trusted("11.0.0.1"));
+        assert!(!trusted("::2"));
+        Ok(())
+    });
+}
+
+#[test]
+fn a_trusted_proxy_that_isnt_an_ip_address_or_cidr_range_is_an_error() {
+    Jail::expect_with(|jail| {
+        jail.create_file("nama.toml", r#"trusted_proxies = ["10.0.0.0/33"]"#)?;
+
+        Config::load(None).unwrap_err();
         Ok(())
     });
 }
