@@ -46,6 +46,14 @@ pub type OwnedRevokeDeviceRequestView = ::buffa::view::OwnedView<
 pub type OwnedRevokeDeviceResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::RevokeDeviceResponseView<'static>,
 >;
+///Shorthand for `OwnedView<ChangePasswordRequestView<'static>>`.
+pub type OwnedChangePasswordRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ChangePasswordRequestView<'static>,
+>;
+///Shorthand for `OwnedView<ChangePasswordResponseView<'static>>`.
+pub type OwnedChangePasswordResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ChangePasswordResponseView<'static>,
+>;
 impl ::connectrpc::Encodable<crate::messages::nama::v1::CreateUserResponse>
 for crate::messages::nama::v1::__buffa::view::CreateUserResponseView<'_> {
     fn encode(
@@ -250,6 +258,40 @@ for ::buffa::view::OwnedView<
         )
     }
 }
+impl ::connectrpc::Encodable<crate::messages::nama::v1::ChangePasswordResponse>
+for crate::messages::nama::v1::__buffa::view::ChangePasswordResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::ChangePasswordResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ChangePasswordResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
 /// Full service name for this service.
 pub const USER_SERVICE_SERVICE_NAME: &str = "nama.v1.UserService";
 /// Static [`Spec`](::connectrpc::Spec) for the `CreateUser` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
@@ -288,9 +330,15 @@ pub const USER_SERVICE_REVOKE_DEVICE_SPEC: ::connectrpc::Spec = ::connectrpc::Sp
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
-/// Managing the Server's Users and their Devices. Every RPC but `ListDevices` and `RevokeDevice`
-/// needs the Admin Role, and fails with `permission_denied` without it. RPCs name Users by ID, not
-/// by name.
+/// Static [`Spec`](::connectrpc::Spec) for the `ChangePassword` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const USER_SERVICE_CHANGE_PASSWORD_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.UserService/ChangePassword",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
+/// Managing the Server's Users and their Devices. Every RPC but `ListDevices`, `RevokeDevice` and
+/// `ChangePassword` needs the Admin Role, and fails with `permission_denied` without it. RPCs name
+/// Users by ID, not by name.
 ///
 /// # Implementing handlers
 ///
@@ -489,6 +537,34 @@ pub trait UserService: Send + Sync + 'static {
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
                 crate::messages::nama::v1::RevokeDeviceResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Changes the caller's own password, given their current one. Their other Devices are revoked,
+    /// as by `RevokeDevice`, and the calling Device stays signed in. Fails with `unauthenticated` if
+    /// the current password is wrong or the calling Device was signed out meanwhile, and
+    /// `invalid_argument` if the new one breaks the rules. A wrong current password counts toward the
+    /// limit on failed `SignInService.SignIn`s for the caller's name, and once it is reached, this
+    /// fails with `resource_exhausted` as `SignIn` does.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn change_password<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::ChangePasswordRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::ChangePasswordResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -698,6 +774,35 @@ impl<S: UserService> UserServiceExt for S {
                 },
             )
             .with_spec(USER_SERVICE_REVOKE_DEVICE_SPEC)
+            .route_view(
+                USER_SERVICE_SERVICE_NAME,
+                "ChangePassword",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::ChangePasswordRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::ChangePasswordRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.change_password(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::ChangePasswordResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(USER_SERVICE_CHANGE_PASSWORD_SPEC)
     }
 }
 /// Type-inference marker used by [`Router::add_service`](::connectrpc::Router::add_service).
@@ -786,6 +891,12 @@ impl<T: UserService> ::connectrpc::Dispatcher for UserServiceServer<T> {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
                         .with_spec(USER_SERVICE_REVOKE_DEVICE_SPEC),
+                )
+            }
+            "ChangePassword" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(USER_SERVICE_CHANGE_PASSWORD_SPEC),
                 )
             }
             _ => None,
@@ -922,6 +1033,28 @@ impl<T: UserService> ::connectrpc::Dispatcher for UserServiceServer<T> {
                         .await?
                         .encode::<
                             crate::messages::nama::v1::RevokeDeviceResponse,
+                        >(format)
+                })
+            }
+            "ChangePassword" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::ChangePasswordRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::ChangePasswordRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::ChangePasswordRequest,
+                    >::from_parts(&req, &body);
+                    svc.change_password(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::ChangePasswordResponse,
                         >(format)
                 })
             }
@@ -1297,6 +1430,51 @@ where
                 &self.transport,
                 &self.config,
                 USER_SERVICE_REVOKE_DEVICE_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the ChangePassword RPC. Sends a request to /nama.v1.UserService/ChangePassword.
+    pub async fn change_password(
+        &self,
+        request: crate::messages::nama::v1::ChangePasswordRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::ChangePasswordResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.change_password_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the ChangePassword RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn change_password_with_options(
+        &self,
+        request: crate::messages::nama::v1::ChangePasswordRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::ChangePasswordResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                USER_SERVICE_CHANGE_PASSWORD_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,

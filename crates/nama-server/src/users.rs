@@ -12,11 +12,11 @@ use nama_plugin_api::{
     auth::{Authenticator, PasswordError},
 };
 use sha2::{Digest, Sha256};
-use sqlx::SqliteConnection;
+use sqlx::{Sqlite, SqliteConnection, Transaction};
 use tokio::{sync::broadcast, task::JoinHandle};
 
 use crate::{
-    db::{Database, now},
+    db::{BoxFuture, Database, now},
     plugins::Registry,
 };
 
@@ -150,6 +150,12 @@ pub enum Error {
     /// doesn't reveal which names exist.
     #[error("the name or password is wrong")]
     WrongNameOrPassword,
+    /// The password given as a User's current one isn't.
+    #[error("the current password is wrong")]
+    WrongPassword,
+    /// The Device asking for a change was signed out before it was made.
+    #[error("this Device was signed out")]
+    SignedOut,
     /// No User has this ID.
     #[error("no User has that ID")]
     NoSuchUser,
@@ -264,14 +270,8 @@ impl Users {
     /// Deletes the User `user` with their credentials and Devices, unless that leaves the Server
     /// with no Admin. Their Devices are signed out as [`Users::sign_out`] does.
     pub(crate) async fn delete(&self, user: i64) -> Result<(), Error> {
-        let devices = self
-            .db
-            .write(move |tx| Box::pin(async move { delete_user(tx, user).await }))
-            .await?;
-        for device in devices {
-            self.announce_sign_out(device);
-        }
-        Ok(())
+        self.write_signing_out(move |tx| Box::pin(async move { delete_user(tx, user).await }))
+            .await
     }
 
     /// The Devices of the User `user` that haven't expired, oldest first, or `None` if there is no
@@ -316,6 +316,36 @@ impl Users {
             self.sign_out(device).await?;
         }
         Ok(theirs)
+    }
+
+    /// Changes the password of `caller`'s User from `current` to `new`, and signs every other
+    /// Device of theirs out. `caller`'s own Device stays signed in.
+    pub(crate) async fn change_password(
+        &self,
+        caller: &Caller,
+        current: &str,
+        new: &str,
+    ) -> Result<(), Error> {
+        // Users are never renamed, so the caller's name still finds them.
+        let found = self.user_named(&caller.user.name).await?;
+        let verified = match &found {
+            Some((_, credentials)) => {
+                self.verify_password(&Arc::from(current), credentials)
+                    .await?
+            }
+            None => false,
+        };
+        if !verified {
+            return Err(Error::WrongPassword);
+        }
+        let credential = self.hash_password(new).await?;
+        let (user, kept) = (caller.user.id, caller.device.id);
+        self.write_signing_out(move |tx| {
+            Box::pin(async move {
+                replace_credential_signing_others_out(tx, user, &credential, kept).await
+            })
+        })
+        .await
     }
 
     /// Signs the Device `device_name` in as the User named `name`, ignoring case, if `password` is
@@ -371,23 +401,39 @@ impl Users {
     /// Signs the Device `device` out by deleting it, so its session stops working and
     /// [`Users::signed_out`] resolves for it.
     pub(crate) async fn sign_out(&self, device: i64) -> Result<(), sqlx::Error> {
-        self.db
-            .write(move |tx| {
-                Box::pin(async move {
-                    sqlx::query!("DELETE FROM devices WHERE id = ?", device)
-                        .execute(&mut **tx)
-                        .await
-                })
+        self.write_signing_out(move |tx| {
+            Box::pin(async move {
+                sqlx::query!("DELETE FROM devices WHERE id = ?", device)
+                    .execute(&mut **tx)
+                    .await?;
+                Ok(vec![device])
             })
-            .await?;
-        self.announce_sign_out(device);
-        Ok(())
+        })
+        .await
     }
 
-    /// Tells whoever waits in [`Users::signed_out`] that the Device `device` was just deleted.
-    fn announce_sign_out(&self, device: i64) {
-        // Fails only when nobody is waiting, which is fine.
-        let _: Result<usize, _> = self.sign_outs.send(device);
+    /// Runs `write`, which deletes Devices and returns their ids, then tells the waiters in
+    /// [`Users::signed_out`] about them. Both run in a task of their own: a queued write goes
+    /// through even if the caller stops waiting, and its Devices' waiters must still hear of it.
+    async fn write_signing_out<E, F>(&self, write: F) -> Result<(), E>
+    where
+        E: From<sqlx::Error> + Send + 'static,
+        F: for<'t> FnOnce(&'t mut Transaction<'_, Sqlite>) -> BoxFuture<'t, Result<Vec<i64>, E>>
+            + Send
+            + 'static,
+    {
+        let users = self.clone();
+        let written = tokio::spawn(async move {
+            for device in users.db.write(write).await? {
+                // Fails only when nobody is waiting, which is fine.
+                let _: Result<usize, _> = users.sign_outs.send(device);
+            }
+            Ok(())
+        });
+        // The task is never aborted, so it only fails if it panicked.
+        written
+            .await
+            .unwrap_or_else(|_| Err(sqlx::Error::WorkerCrashed.into()))
     }
 
     /// Resolves once the Device `device` is signed out, so whatever it opened can end with it. It
@@ -773,6 +819,41 @@ async fn insert_first_admin(
     Ok(Caller { user, device })
 }
 
+/// Makes `credential` the only one the User `user` has, and signs out every Device of theirs but
+/// `kept`, returning the ids of those signed out. Credentials other Plugins made go too, so the old
+/// password can't come back with a Plugin that is enabled again.
+///
+/// Fails if `kept` was signed out meanwhile, such as by another password change, so a change never
+/// succeeds for a Device that is no longer signed in, nor overwrites the one that signed it out.
+async fn replace_credential_signing_others_out(
+    conn: &mut SqliteConnection,
+    user: i64,
+    credential: &Credential,
+    kept: i64,
+) -> Result<Vec<i64>, Error> {
+    let still_signed_in = sqlx::query_scalar!(
+        r#"SELECT EXISTS (SELECT 1 FROM devices WHERE id = ?) AS "exists!: bool""#,
+        kept
+    )
+    .fetch_one(&mut *conn)
+    .await?;
+    if !still_signed_in {
+        return Err(Error::SignedOut);
+    }
+    sqlx::query!("DELETE FROM user_credentials WHERE user_id = ?", user)
+        .execute(&mut *conn)
+        .await?;
+    insert_credential(conn, user, credential).await?;
+    let signed_out = sqlx::query_scalar!(
+        r#"DELETE FROM devices WHERE user_id = ? AND id != ? RETURNING id AS "id!""#,
+        user,
+        kept
+    )
+    .fetch_all(conn)
+    .await?;
+    Ok(signed_out)
+}
+
 /// Stores `credential` for the User `user`.
 async fn insert_credential(
     conn: &mut SqliteConnection,
@@ -982,6 +1063,28 @@ mod tests {
             after_sign_out.is_ok(),
             "signing the Device out didn't end it"
         );
+    }
+
+    #[tokio::test]
+    async fn a_sign_out_whose_caller_stops_waiting_still_ends_the_wait() {
+        let data_dir = tempfile::tempdir().unwrap();
+        let (users, signed_in_at) = signed_in_device(data_dir.path()).await;
+        let device = device_id(&users, signed_in_at).await;
+        let mut waiting = std::pin::pin!(users.signed_out(device));
+        let before =
+            tokio::time::timeout(std::time::Duration::from_millis(200), &mut waiting).await;
+        assert!(before.is_err(), "the wait ended before the sign-out");
+
+        // Polled once, which queues the write, then dropped, as when a client disconnects.
+        let mut abandoned = Box::pin(users.sign_out(device));
+        let polled = abandoned
+            .as_mut()
+            .poll(&mut std::task::Context::from_waker(std::task::Waker::noop()));
+        assert!(polled.is_pending(), "the sign-out finished at once");
+        drop(abandoned);
+        let after = tokio::time::timeout(WAIT, waiting).await;
+
+        assert!(after.is_ok(), "the wait didn't end");
     }
 
     #[tokio::test]

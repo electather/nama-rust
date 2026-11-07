@@ -26,25 +26,26 @@ use futures_util::StreamExt;
 use nama_plugin_api::metadata::{Candidate, ExternalId, SearchQuery, TitleKind};
 use nama_proto::nama::v1::{
     self as proto, ApproveSignInCodeRequest, ApproveSignInCodeResponse, BrowseService,
-    ClearMatchRequest, ClearMatchResponse, CreateLibraryRequest, CreateLibraryResponse,
-    CreateUserRequest, CreateUserResponse, DeleteLibraryRequest, DeleteLibraryResponse,
-    DeleteUserRequest, DeleteUserResponse, EventService, EventType, GetLibraryRequest,
-    GetLibraryResponse, GetMovieRequest, GetMovieResponse, GetServerInfoRequest,
-    GetServerInfoResponse, GetShowRequest, GetShowResponse, LIBRARY_SERVICE_SERVICE_NAME,
-    LibraryKind, LibraryService, ListDevicesRequest, ListDevicesResponse, ListEpisodesRequest,
-    ListEpisodesResponse, ListLibrariesRequest, ListLibrariesResponse, ListMoviesRequest,
-    ListMoviesResponse, ListShowsRequest, ListShowsResponse, ListUnmatchedItemsRequest,
-    ListUnmatchedItemsResponse, ListUsersRequest, ListUsersResponse, LookUpSignInCodeRequest,
-    LookUpSignInCodeResponse, MATCH_SERVICE_SERVICE_NAME, MatchService, PollSignInCodeRequest,
-    PollSignInCodeResponse, ReportProgressRequest, ReportProgressResponse, RevokeDeviceRequest,
-    RevokeDeviceResponse, SERVER_SERVICE_GET_SERVER_INFO_SPEC,
-    SIGN_IN_SERVICE_POLL_SIGN_IN_CODE_SPEC, SIGN_IN_SERVICE_SETUP_SPEC,
-    SIGN_IN_SERVICE_SIGN_IN_SPEC, SIGN_IN_SERVICE_START_SIGN_IN_CODE_SPEC, ScanLibraryRequest,
-    ScanLibraryResponse, SearchMetadataRequest, SearchMetadataResponse, ServerService,
-    SessionDelivery, SetMatchRequest, SetMatchResponse, SetRoleRequest, SetRoleResponse,
-    SetupRequest, SetupResponse, SignInCodeStatus, SignInRequest, SignInResponse, SignInService,
-    SignOutRequest, SignOutResponse, StartSignInCodeRequest, StartSignInCodeResponse,
-    SubscribeRequest, SubscribeResponse, USER_SERVICE_LIST_DEVICES_SPEC,
+    ChangePasswordRequest, ChangePasswordResponse, ClearMatchRequest, ClearMatchResponse,
+    CreateLibraryRequest, CreateLibraryResponse, CreateUserRequest, CreateUserResponse,
+    DeleteLibraryRequest, DeleteLibraryResponse, DeleteUserRequest, DeleteUserResponse,
+    EventService, EventType, GetLibraryRequest, GetLibraryResponse, GetMovieRequest,
+    GetMovieResponse, GetServerInfoRequest, GetServerInfoResponse, GetShowRequest, GetShowResponse,
+    LIBRARY_SERVICE_SERVICE_NAME, LibraryKind, LibraryService, ListDevicesRequest,
+    ListDevicesResponse, ListEpisodesRequest, ListEpisodesResponse, ListLibrariesRequest,
+    ListLibrariesResponse, ListMoviesRequest, ListMoviesResponse, ListShowsRequest,
+    ListShowsResponse, ListUnmatchedItemsRequest, ListUnmatchedItemsResponse, ListUsersRequest,
+    ListUsersResponse, LookUpSignInCodeRequest, LookUpSignInCodeResponse,
+    MATCH_SERVICE_SERVICE_NAME, MatchService, PollSignInCodeRequest, PollSignInCodeResponse,
+    ReportProgressRequest, ReportProgressResponse, RevokeDeviceRequest, RevokeDeviceResponse,
+    SERVER_SERVICE_GET_SERVER_INFO_SPEC, SIGN_IN_SERVICE_POLL_SIGN_IN_CODE_SPEC,
+    SIGN_IN_SERVICE_SETUP_SPEC, SIGN_IN_SERVICE_SIGN_IN_SPEC,
+    SIGN_IN_SERVICE_START_SIGN_IN_CODE_SPEC, ScanLibraryRequest, ScanLibraryResponse,
+    SearchMetadataRequest, SearchMetadataResponse, ServerService, SessionDelivery, SetMatchRequest,
+    SetMatchResponse, SetRoleRequest, SetRoleResponse, SetupRequest, SetupResponse,
+    SignInCodeStatus, SignInRequest, SignInResponse, SignInService, SignOutRequest,
+    SignOutResponse, StartSignInCodeRequest, StartSignInCodeResponse, SubscribeRequest,
+    SubscribeResponse, USER_SERVICE_CHANGE_PASSWORD_SPEC, USER_SERVICE_LIST_DEVICES_SPEC,
     USER_SERVICE_REVOKE_DEVICE_SPEC, USER_SERVICE_SERVICE_NAME, UpdateLibraryRequest,
     UpdateLibraryResponse, UserService, WatchStateService, WhoAmIRequest, WhoAmIResponse,
     external_id,
@@ -65,11 +66,12 @@ use crate::{
     sessions::{cleared_session_cookie, identify_caller, in_session_cookie, session_cookie},
     sign_in_codes::{self, Poll, SignInCodes},
     users::{self, Caller, Role, SetupCode, SignedIn, Users},
+    versions,
     watch_states::{Progress, WatchState, WatchStates},
 };
 
-/// Routes every RPC the Server answers, and its artwork, each behind the layers that identify the
-/// caller and refuse calls they may not make.
+/// Routes every RPC the Server answers, its artwork and its Versions, each behind the layers
+/// that identify the caller and refuse calls they may not make.
 #[expect(
     clippy::too_many_arguments,
     reason = "each is a separate handle the services are built from; a struct bundling them would \
@@ -84,10 +86,13 @@ pub(crate) fn router(
     setup_code: Option<SetupCode>,
 ) -> axum::Router {
     let users = Users::new(Arc::clone(&db), plugins.clone());
+    let contents = Contents::new(Arc::clone(&db));
+    let sign_in_limits = Arc::new(SignInLimits::default());
     let artwork = artwork::router(
         Artwork::new(&config.data_dir, plugins.clone()),
-        Contents::new(Arc::clone(&db)),
+        contents.clone(),
     );
+    let versions = versions::router(contents);
     connectrpc::Router::new()
         .add_service(Arc::new(ServerServiceHandler {
             name: config.name.clone(),
@@ -96,7 +101,7 @@ pub(crate) fn router(
         .add_service(Arc::new(SignInServiceHandler {
             users: users.clone(),
             setup_code,
-            sign_in_limits: SignInLimits::default(),
+            sign_in_limits: Arc::clone(&sign_in_limits),
             sign_in_codes: SignInCodes::default(),
             sign_in_code_limits: SignInCodeLimits::default(),
         }))
@@ -125,9 +130,11 @@ pub(crate) fn router(
         }))
         .add_service(Arc::new(UserServiceHandler {
             users: users.clone(),
+            sign_in_limits,
         }))
         .into_axum_router()
         .merge(artwork)
+        .merge(versions)
         .layer(middleware::from_fn(require_access))
         .layer(middleware::from_fn_with_state(users, identify_caller))
 }
@@ -151,9 +158,10 @@ impl Access {
 
     /// The RPCs of an Admin-only service that any signed-in User may call, by path. Each decides
     /// for itself what a Member may do.
-    const SELF_SERVICE: [&str; 2] = [
+    const SELF_SERVICE: [&str; 3] = [
         USER_SERVICE_LIST_DEVICES_SPEC.procedure,
         USER_SERVICE_REVOKE_DEVICE_SPEC.procedure,
+        USER_SERVICE_CHANGE_PASSWORD_SPEC.procedure,
     ];
 
     /// Who may request `path`: an RPC's `/<service>/<method>`, or media under `/media/`. Only the
@@ -240,8 +248,9 @@ struct SignInServiceHandler {
     users: Users,
     /// What `Setup` must be given. `None` once the Server started with Users.
     setup_code: Option<SetupCode>,
-    /// The recent failures of `Setup` and `SignIn`, which slow guessing down.
-    sign_in_limits: SignInLimits,
+    /// The recent failures of `Setup`, `SignIn` and `UserService.ChangePassword`, which slow
+    /// guessing down.
+    sign_in_limits: Arc<SignInLimits>,
     sign_in_codes: SignInCodes,
     /// The recent failed Sign-in Code lookups and approvals, which slow guessing codes down.
     sign_in_code_limits: SignInCodeLimits,
@@ -886,9 +895,11 @@ impl WatchStateService for WatchStateServiceHandler {
 
 /// `nama.v1.UserService`: managing the Server's Users and their Devices. Admins only, which
 /// [`require_access`] enforces, but for the RPCs in [`Access::SELF_SERVICE`], which check for
-/// themselves with [`devices_owner`].
+/// themselves with [`devices_owner`] or act only on the caller.
 struct UserServiceHandler {
     users: Users,
+    /// The same as `SignInService`'s, so wrong current passwords count toward its limits.
+    sign_in_limits: Arc<SignInLimits>,
 }
 
 #[expect(
@@ -1003,6 +1014,33 @@ impl UserService for UserServiceHandler {
         } else {
             Response::new(response)
         })
+    }
+
+    async fn change_password(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, ChangePasswordRequest>,
+    ) -> ServiceResult<ChangePasswordResponse> {
+        let request = request.to_owned_message();
+        let caller = caller(&ctx)?;
+        let attempt = self
+            .sign_in_limits
+            .admit(peer_ip(&ctx)?, Some(&caller.user.name))?;
+        let changed = self
+            .users
+            .change_password(caller, &request.current_password, &request.new_password)
+            .await;
+        // A new password the rules refuse, or the Device being signed out meanwhile, is only found
+        // after the current one checked out, so that is no guess either, and counting it could
+        // lock the User out of their own sign-in.
+        if matches!(
+            changed,
+            Ok(()) | Err(users::Error::Invalid(_) | users::Error::SignedOut)
+        ) {
+            self.sign_in_limits.succeeded(&attempt);
+        }
+        changed?;
+        Response::ok(ChangePasswordResponse::default())
     }
 }
 
@@ -1376,7 +1414,9 @@ impl From<users::Error> for ConnectError {
             users::Error::AlreadySetUp | users::Error::LastAdmin => {
                 Self::failed_precondition(err.to_string())
             }
-            users::Error::WrongNameOrPassword => Self::unauthenticated(err.to_string()),
+            users::Error::WrongNameOrPassword
+            | users::Error::WrongPassword
+            | users::Error::SignedOut => Self::unauthenticated(err.to_string()),
             users::Error::Database(err) => database_failed(&err),
             users::Error::NoAuthenticator
             | users::Error::Authenticator(_)
