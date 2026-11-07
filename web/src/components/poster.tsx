@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { PlayedMark, WatchProgress } from "@/components/watch-state";
+import { PlayedMark, WatchedBar } from "@/components/watch-state";
 import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
 
 /** A grid of posters, or what to say instead when there are none. */
@@ -40,7 +40,7 @@ export function Poster({
       </div>
       {/* Always there, so captions line up whether or not a title has a bar. */}
       <div className="mt-1.5 h-0.5">
-        <WatchProgress state={watchState} />
+        <WatchedBar state={watchState} />
       </div>
       <p className="mt-1.5 text-sm font-medium text-balance">{title}</p>
       {detail !== undefined && <p className="text-sm text-muted-foreground">{detail}</p>}

@@ -9,6 +9,7 @@ import {
 } from "@/gen/nama/v1/watch_state_pb";
 
 import { browseKey } from "./browse";
+import { retryIfUnreachable } from "./connect-errors";
 
 /**
  * Marks a Movie, Episode, Season or Show played or unplayed, then refetches what's on screen so
@@ -31,7 +32,7 @@ const REPORT_EVERY_MS = 10_000;
  * on pause and seek, and on leaving. Reports go out in the background, so playback never waits
  * on one. A failed report is sent again, and never shown.
  */
-export function useWatchProgress(
+export function useWatchState(
   videoRef: RefObject<HTMLVideoElement | null>,
   versionId: bigint,
   watchState: WatchState | undefined,
@@ -40,7 +41,7 @@ export function useWatchProgress(
   const [resumeFrom] = useState(watchState);
   const queryClient = useQueryClient();
   const { mutate: report } = useMutation(WatchStateService.method.reportProgress, {
-    retry: 3,
+    retry: retryIfUnreachable,
     // One at a time, in order, so a retried report never lands after a newer one.
     scope: { id: "report-progress" },
     onSuccess: () => refreshWatchState(queryClient),
@@ -49,14 +50,14 @@ export function useWatchProgress(
   useEffect(() => {
     const video = videoRef.current;
     return video
-      ? followVideo(video, resumeFrom, (progress) => {
-          report({ versionId, ...progress });
+      ? followVideo(video, resumeFrom, (position) => {
+          report({ versionId, ...position });
         })
       : undefined;
   }, [videoRef, versionId, resumeFrom, report]);
 }
 
-type Progress = Pick<ReportProgressRequest, "positionMs" | "durationMs">;
+type Position = Pick<ReportProgressRequest, "positionMs" | "durationMs">;
 
 /**
  * Starts `video` from `resumeFrom` and passes how far in it is to `report` every few seconds, on
@@ -65,7 +66,7 @@ type Progress = Pick<ReportProgressRequest, "positionMs" | "durationMs">;
 function followVideo(
   video: HTMLVideoElement,
   resumeFrom: WatchState | undefined,
-  report: (progress: Progress) => void,
+  report: (position: Position) => void,
 ) {
   let reportedAt = 0;
   const send = () => {
@@ -74,7 +75,11 @@ function followVideo(
     reportedAt = Date.now();
     report({ positionMs: toMs(video.currentTime), durationMs: toMs(video.duration) });
   };
+  let resumed = false;
+  // Once: a reloaded source mustn't seek back to where it stood on opening.
   const resume = () => {
+    if (resumed) return;
+    resumed = true;
     if (resumeFrom && !resumeFrom.played) video.currentTime = Number(resumeFrom.positionMs) / 1000;
   };
   const sendEveryFewSeconds = () => {
@@ -104,9 +109,10 @@ function toMs(seconds: number) {
 
 /**
  * Refreshes what browsing shows after a report. What's off screen is dropped, so opening it again,
- * such as reopening the player, fetches where you are now instead of starting from a stale copy.
- * ponytail: what's on screen, the player's own title, refetches after every report; one small
- * request every few seconds.
+ * such as reopening the player, fetches where you are now instead of starting from a stale copy
+ * (the loaders never refetch what's cached). ponytail: that drops every page you browsed, so Back
+ * fetches it again, and the player's own title refetches after each report; keep only the played
+ * title's queries fresh if that ever shows.
  */
 function refreshWatchState(queryClient: QueryClient) {
   queryClient.removeQueries({ queryKey: browseKey, type: "inactive" });

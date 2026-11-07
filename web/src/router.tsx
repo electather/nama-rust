@@ -7,7 +7,7 @@ import type { ReactNode } from "react";
 
 import { RouteError } from "@/components/route-error";
 import { signedInQuery, whoIsSignedIn } from "@/lib/access";
-import { isCode } from "@/lib/connect-errors";
+import { isCode, retryIfUnreachable } from "@/lib/connect-errors";
 
 import { routeTree } from "./routeTree.gen";
 
@@ -54,13 +54,6 @@ export function getRouter(transport: Transport = sameOrigin) {
   }
 
   return router;
-}
-
-// Retrying can't fix a refusal such as `unauthenticated`, and would hold up its redirect for
-// seconds, so only a Server that couldn't be reached is tried again. A failed `fetch` arrives as
-// `unknown`, the same as any other error that isn't from the Server.
-function retryIfUnreachable(failures: number, error: Error) {
-  return failures < 3 && (isCode(error, Code.Unavailable) || isCode(error, Code.Unknown));
 }
 
 declare module "@tanstack/react-router" {

@@ -7,7 +7,7 @@ import { afterEach, expect, test } from "vite-plus/test";
 
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { type ReportProgressRequest, WatchStateService } from "@/gen/nama/v1/watch_state_pb";
-import { useWatchProgress } from "@/lib/watch-state";
+import { useWatchState } from "@/lib/watch-state";
 
 afterEach(cleanup);
 
@@ -45,7 +45,7 @@ function server(failures = 0) {
 function Player() {
   const { data } = useSuspenseQuery(BrowseService.method.getMovie, movie);
   const ref = useRef<HTMLVideoElement>(null);
-  useWatchProgress(ref, 7n, data.movie?.watchState);
+  useWatchState(ref, 7n, data.movie?.watchState);
   // oxlint-disable-next-line jsx-a11y/media-has-caption -- A stand-in for the player.
   return <video ref={ref} aria-label="Alien" />;
 }

@@ -11,7 +11,7 @@ function watchedPercent(state: WatchState | undefined) {
 }
 
 /** A bar showing how far in you are, when you've started and not played it. */
-export function WatchProgress({ state }: { state: WatchState | undefined }) {
+export function WatchedBar({ state }: { state: WatchState | undefined }) {
   const percent = watchedPercent(state);
   if (percent === 0) return null;
   return <Progress value={percent} aria-label="Watched" />;

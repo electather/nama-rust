@@ -4,7 +4,7 @@ import { Link, createFileRoute, notFound } from "@tanstack/react-router";
 import { NotFound } from "@/components/route-error";
 import { TitlePage } from "@/components/title-page";
 import { MarkPlayedMenu } from "@/components/mark-played-menu";
-import { PlayedIconButton, WatchProgress } from "@/components/watch-state";
+import { PlayedIconButton, WatchedBar } from "@/components/watch-state";
 import { BrowseService, type Episode, type Season } from "@/gen/nama/v1/browse_pb";
 import {
   dateOf,
@@ -122,7 +122,7 @@ function EpisodeRow({ libraryId, episode }: { libraryId: bigint; episode: Episod
           </span>
         )}
         <span className="mt-3 block max-w-xs empty:hidden">
-          <WatchProgress state={episode.watchState} />
+          <WatchedBar state={episode.watchState} />
         </span>
       </a>
       <PlayedIconButton

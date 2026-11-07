@@ -5,7 +5,7 @@ import { type ReactNode, useState } from "react";
 import { NotFound } from "@/components/route-error";
 import { TitlePage } from "@/components/title-page";
 import { buttonVariants } from "@/components/ui/button";
-import { PlayedButton, WatchProgress } from "@/components/watch-state";
+import { PlayedButton, WatchedBar } from "@/components/watch-state";
 import { BrowseService, type Version } from "@/gen/nama/v1/browse_pb";
 import {
   externalIdFromParam,
@@ -41,7 +41,7 @@ function Movie() {
         {metadataLine(yearOf(movie.releaseDate), runtimeOf(movie.runtimeMinutes))}
       </p>
       <div className="mt-4 max-w-xs empty:hidden">
-        <WatchProgress state={movie.watchState} />
+        <WatchedBar state={movie.watchState} />
       </div>
       <Play versions={movie.versions}>
         <PlayedButton
