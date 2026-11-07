@@ -49,4 +49,5 @@ Stopping and resuming: Ctrl-C keeps branches, commits and worktrees. The next ru
 Failures:
 
 - **Agent gives up or CI stays red:** the issue is relabelled `ready-for-human`.
+- **Issue closed while it's being built:** the factory notices within a minute (and at every stage change), stops that issue's agent, closes its PR and records it as cancelled. The rest of the run carries on. Once the merge has started, closing the issue no longer stops it.
 - **Infra error (Docker, auth, Claude usage limit):** nothing is relabelled. The run finishes shipping what is already built, then exits with code 1. Rerun once the problem is fixed.
