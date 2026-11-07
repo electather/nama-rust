@@ -43,7 +43,7 @@ pub(crate) async fn identify_source(
 /// Where a request from `peer` with `headers` came from. Only a peer in `trusted_proxies` can say,
 /// in forwarded headers, that it relays someone else's request, or one that reached it over HTTPS.
 fn request_source(peer: IpAddr, headers: &HeaderMap, trusted_proxies: &[IpRange]) -> RequestSource {
-    let trusted = |ip: IpAddr| trusted_proxies.iter().any(|proxies| proxies.contains(ip));
+    let trusted = |ip: IpAddr| trusted_proxies.iter().any(|range| range.contains(ip));
     if !trusted(peer) {
         return RequestSource {
             client_ip: peer,
@@ -85,4 +85,37 @@ fn forwarded_https(headers: &HeaderMap) -> bool {
         .next_back()
         .and_then(|value| value.to_str().ok()?.rsplit(',').next())
         .is_some_and(|proto| proto.trim().eq_ignore_ascii_case("https"))
+}
+
+#[cfg(test)]
+mod tests {
+    use axum::http::{HeaderMap, HeaderValue};
+
+    use super::request_source;
+
+    #[test]
+    fn a_forged_chain_cant_name_a_client_past_the_trusted_hops() {
+        let trusted = ["10.0.0.0/8".parse().unwrap()];
+        let source = |lines: &[&str]| {
+            let mut headers = HeaderMap::new();
+            for line in lines {
+                headers.append("x-forwarded-for", HeaderValue::from_str(line).unwrap());
+            }
+            request_source("10.0.0.1".parse().unwrap(), &headers, &trusted).client_ip
+        };
+
+        let cases: [(&[&str], &str); 4] = [
+            (&["1.2.3.4, 198.51.100.7, 10.0.0.5"], "198.51.100.7"),
+            (&["1.2.3.4", "198.51.100.7", "10.0.0.5"], "198.51.100.7"),
+            (&["1.2.3.4", "198.51.100.7:1234, 10.0.0.5"], "10.0.0.5"),
+            (&[""], "10.0.0.1"),
+        ];
+        for (lines, client) in cases {
+            assert_eq!(
+                source(lines),
+                client.parse::<std::net::IpAddr>().unwrap(),
+                "{lines:?}"
+            );
+        }
+    }
 }
