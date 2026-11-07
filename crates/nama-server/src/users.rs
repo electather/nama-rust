@@ -269,8 +269,7 @@ impl Users {
             .write(move |tx| Box::pin(async move { delete_user(tx, user).await }))
             .await?;
         for device in devices {
-            // Fails only when nobody is waiting, which is fine.
-            let _: Result<usize, _> = self.sign_outs.send(device);
+            self.announce_sign_out(device);
         }
         Ok(())
     }
@@ -381,9 +380,14 @@ impl Users {
                 })
             })
             .await?;
+        self.announce_sign_out(device);
+        Ok(())
+    }
+
+    /// Tells whoever waits in [`Users::signed_out`] that the Device `device` was just deleted.
+    fn announce_sign_out(&self, device: i64) {
         // Fails only when nobody is waiting, which is fine.
         let _: Result<usize, _> = self.sign_outs.send(device);
-        Ok(())
     }
 
     /// Resolves once the Device `device` is signed out, so whatever it opened can end with it. It
