@@ -114,27 +114,28 @@ pub(crate) struct SignInCodeLimits {
 }
 
 /// A Sign-in Code lookup or approval let through. Like an [`Attempt`], it counts as a failure
-/// unless it is reported as [`succeeded`](SignInCodeLimits::succeeded).
+/// unless it is reported as [`wasnt_a_guess`](SignInCodeLimits::wasnt_a_guess).
 #[derive(Debug)]
-pub(crate) struct CodeAttempt {
+pub(crate) struct SignInCodeAttempt {
     device: i64,
     at: Instant,
 }
 
 impl SignInCodeLimits {
     /// Lets a lookup or approval by the Device `device` at `now` through unless too many of its
-    /// own have failed recently, and counts it as failed until it succeeds.
-    pub(crate) fn admit(&self, device: i64, now: Instant) -> Result<CodeAttempt, Blocked> {
+    /// own have failed recently, and counts it as failed until it turns out not to be a guess.
+    pub(crate) fn admit(&self, device: i64, now: Instant) -> Result<SignInCodeAttempt, Blocked> {
         let mut failures = self.lock();
         if let Some(retry_after) = failures.wait(&device, FAILURES_PER_DEVICE, now) {
             return Err(Blocked { retry_after });
         }
         failures.record(device, now);
-        Ok(CodeAttempt { device, at: now })
+        Ok(SignInCodeAttempt { device, at: now })
     }
 
-    /// Un-counts `attempt`, which succeeded.
-    pub(crate) fn succeeded(&self, attempt: &CodeAttempt) {
+    /// Un-counts `attempt`, whose code turned out to exist: it succeeded, or failed for a reason
+    /// a guess can't get, such as the code being approved already.
+    pub(crate) fn wasnt_a_guess(&self, attempt: &SignInCodeAttempt) {
         self.lock().forget(&attempt.device, attempt.at);
     }
 
@@ -292,16 +293,16 @@ mod tests {
     }
 
     #[test]
-    fn a_code_attempt_that_succeeded_isnt_counted() {
+    fn a_code_attempt_that_wasnt_a_guess_isnt_counted() {
         let limits = SignInCodeLimits::default();
         let now = Instant::now();
         for _ in 0..10 {
             let attempt = limits.admit(1, now).expect("admitted");
-            limits.succeeded(&attempt);
+            limits.wasnt_a_guess(&attempt);
         }
 
         limits
             .admit(1, now)
-            .expect("admitted after 10 that succeeded");
+            .expect("admitted after 10 that weren't guesses");
     }
 }

@@ -207,7 +207,7 @@ impl SignInServiceHandler {
     /// Looks up or approves a Sign-in Code with `use_code`, as the caller of `ctx` at the time it
     /// is given, unless their Device has failed too often lately. Only a code that is unknown or
     /// expired counts as a failure: that is what a guess gets.
-    fn with_code_limit<T>(
+    fn with_sign_in_code_limit<T>(
         &self,
         ctx: &RequestContext,
         use_code: impl FnOnce(&Caller, Instant) -> Result<T, sign_in_codes::Error>,
@@ -217,7 +217,7 @@ impl SignInServiceHandler {
         let attempt = self.sign_in_code_limits.admit(caller.device.id, now)?;
         let used = use_code(caller, now);
         if !matches!(used, Err(sign_in_codes::Error::NotFound)) {
-            self.sign_in_code_limits.succeeded(&attempt);
+            self.sign_in_code_limits.wasnt_a_guess(&attempt);
         }
         Ok(used?)
     }
@@ -360,8 +360,8 @@ impl SignInService for SignInServiceHandler {
     ) -> impl Future<
         Output = ServiceResult<impl Encodable<LookUpSignInCodeResponse> + Send + use<'a>>,
     > + Send {
-        let looked_up =
-            self.with_code_limit(&ctx, |_, now| self.sign_in_codes.look_up(request.code, now));
+        let looked_up = self
+            .with_sign_in_code_limit(&ctx, |_, now| self.sign_in_codes.look_up(request.code, now));
         future::ready(looked_up.and_then(|device_name| {
             Response::ok(LookUpSignInCodeResponse {
                 device_name,
@@ -377,7 +377,7 @@ impl SignInService for SignInServiceHandler {
     ) -> impl Future<
         Output = ServiceResult<impl Encodable<ApproveSignInCodeResponse> + Send + use<'a>>,
     > + Send {
-        let approved = self.with_code_limit(&ctx, |caller, now| {
+        let approved = self.with_sign_in_code_limit(&ctx, |caller, now| {
             self.sign_in_codes.approve(request.code, &caller.user, now)
         });
         future::ready(approved.and_then(|()| Response::ok(ApproveSignInCodeResponse::default())))
