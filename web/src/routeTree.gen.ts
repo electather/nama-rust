@@ -16,7 +16,11 @@ import { Route as MemberIndexRouteImport } from './routes/_member/index'
 import { Route as MemberSplatRouteImport } from './routes/_member/$'
 import { Route as MemberAdminRouteImport } from './routes/_member/_admin'
 import { Route as MemberSettingsRouteImport } from './routes/_member/settings'
+import { Route as MemberAdminAdminIndexRouteImport } from './routes/_member/_admin/admin/index'
+import { Route as MemberAdminAdminNeedsAMatchRouteImport } from './routes/_member/_admin/admin/needs-a-match'
 import { Route as MemberAdminAdminUsersRouteImport } from './routes/_member/_admin/admin/users'
+import { Route as MemberAdminAdminLibrariesIndexRouteImport } from './routes/_member/_admin/admin/libraries/index'
+import { Route as MemberAdminAdminLibrariesLibraryIdRouteImport } from './routes/_member/_admin/admin/libraries/$libraryId'
 
 const MemberRoute = MemberRouteImport.update({
   id: '/_member',
@@ -51,11 +55,34 @@ const MemberSettingsRoute = MemberSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => MemberRoute,
 } as any)
+const MemberAdminAdminIndexRoute = MemberAdminAdminIndexRouteImport.update({
+  id: '/admin/',
+  path: '/admin/',
+  getParentRoute: () => MemberAdminRoute,
+} as any)
+const MemberAdminAdminNeedsAMatchRoute =
+  MemberAdminAdminNeedsAMatchRouteImport.update({
+    id: '/admin/needs-a-match',
+    path: '/admin/needs-a-match',
+    getParentRoute: () => MemberAdminRoute,
+  } as any)
 const MemberAdminAdminUsersRoute = MemberAdminAdminUsersRouteImport.update({
   id: '/admin/users',
   path: '/admin/users',
   getParentRoute: () => MemberAdminRoute,
 } as any)
+const MemberAdminAdminLibrariesIndexRoute =
+  MemberAdminAdminLibrariesIndexRouteImport.update({
+    id: '/admin/libraries/',
+    path: '/admin/libraries/',
+    getParentRoute: () => MemberAdminRoute,
+  } as any)
+const MemberAdminAdminLibrariesLibraryIdRoute =
+  MemberAdminAdminLibrariesLibraryIdRouteImport.update({
+    id: '/admin/libraries/$libraryId',
+    path: '/admin/libraries/$libraryId',
+    getParentRoute: () => MemberAdminRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof MemberIndexRoute
@@ -63,7 +90,11 @@ export interface FileRoutesByFullPath {
   '/sign-in': typeof SignInRoute
   '/$': typeof MemberSplatRoute
   '/settings': typeof MemberSettingsRoute
+  '/admin/needs-a-match': typeof MemberAdminAdminNeedsAMatchRoute
   '/admin/users': typeof MemberAdminAdminUsersRoute
+  '/admin/': typeof MemberAdminAdminIndexRoute
+  '/admin/libraries/$libraryId': typeof MemberAdminAdminLibrariesLibraryIdRoute
+  '/admin/libraries/': typeof MemberAdminAdminLibrariesIndexRoute
 }
 export interface FileRoutesByTo {
   '/setup': typeof SetupRoute
@@ -71,7 +102,11 @@ export interface FileRoutesByTo {
   '/$': typeof MemberSplatRoute
   '/': typeof MemberIndexRoute
   '/settings': typeof MemberSettingsRoute
+  '/admin/needs-a-match': typeof MemberAdminAdminNeedsAMatchRoute
   '/admin/users': typeof MemberAdminAdminUsersRoute
+  '/admin': typeof MemberAdminAdminIndexRoute
+  '/admin/libraries/$libraryId': typeof MemberAdminAdminLibrariesLibraryIdRoute
+  '/admin/libraries': typeof MemberAdminAdminLibrariesIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -82,13 +117,37 @@ export interface FileRoutesById {
   '/_member/_admin': typeof MemberAdminRouteWithChildren
   '/_member/settings': typeof MemberSettingsRoute
   '/_member/': typeof MemberIndexRoute
+  '/_member/_admin/admin/needs-a-match': typeof MemberAdminAdminNeedsAMatchRoute
   '/_member/_admin/admin/users': typeof MemberAdminAdminUsersRoute
+  '/_member/_admin/admin/': typeof MemberAdminAdminIndexRoute
+  '/_member/_admin/admin/libraries/$libraryId': typeof MemberAdminAdminLibrariesLibraryIdRoute
+  '/_member/_admin/admin/libraries/': typeof MemberAdminAdminLibrariesIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/setup' | '/sign-in' | '/$' | '/settings' | '/admin/users'
+  fullPaths:
+    | '/'
+    | '/setup'
+    | '/sign-in'
+    | '/$'
+    | '/settings'
+    | '/admin/needs-a-match'
+    | '/admin/users'
+    | '/admin/'
+    | '/admin/libraries/$libraryId'
+    | '/admin/libraries/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/setup' | '/sign-in' | '/$' | '/' | '/settings' | '/admin/users'
+  to:
+    | '/setup'
+    | '/sign-in'
+    | '/$'
+    | '/'
+    | '/settings'
+    | '/admin/needs-a-match'
+    | '/admin/users'
+    | '/admin'
+    | '/admin/libraries/$libraryId'
+    | '/admin/libraries'
   id:
     | '__root__'
     | '/_member'
@@ -98,7 +157,11 @@ export interface FileRouteTypes {
     | '/_member/_admin'
     | '/_member/settings'
     | '/_member/'
+    | '/_member/_admin/admin/needs-a-match'
     | '/_member/_admin/admin/users'
+    | '/_member/_admin/admin/'
+    | '/_member/_admin/admin/libraries/$libraryId'
+    | '/_member/_admin/admin/libraries/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -158,6 +221,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MemberSettingsRouteImport
       parentRoute: typeof MemberRoute
     }
+    '/_member/_admin/admin/': {
+      id: '/_member/_admin/admin/'
+      path: '/admin'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof MemberAdminAdminIndexRouteImport
+      parentRoute: typeof MemberAdminRoute
+    }
+    '/_member/_admin/admin/needs-a-match': {
+      id: '/_member/_admin/admin/needs-a-match'
+      path: '/admin/needs-a-match'
+      fullPath: '/admin/needs-a-match'
+      preLoaderRoute: typeof MemberAdminAdminNeedsAMatchRouteImport
+      parentRoute: typeof MemberAdminRoute
+    }
     '/_member/_admin/admin/users': {
       id: '/_member/_admin/admin/users'
       path: '/admin/users'
@@ -165,15 +242,38 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MemberAdminAdminUsersRouteImport
       parentRoute: typeof MemberAdminRoute
     }
+    '/_member/_admin/admin/libraries/': {
+      id: '/_member/_admin/admin/libraries/'
+      path: '/admin/libraries'
+      fullPath: '/admin/libraries/'
+      preLoaderRoute: typeof MemberAdminAdminLibrariesIndexRouteImport
+      parentRoute: typeof MemberAdminRoute
+    }
+    '/_member/_admin/admin/libraries/$libraryId': {
+      id: '/_member/_admin/admin/libraries/$libraryId'
+      path: '/admin/libraries/$libraryId'
+      fullPath: '/admin/libraries/$libraryId'
+      preLoaderRoute: typeof MemberAdminAdminLibrariesLibraryIdRouteImport
+      parentRoute: typeof MemberAdminRoute
+    }
   }
 }
 
 interface MemberAdminRouteChildren {
+  MemberAdminAdminNeedsAMatchRoute: typeof MemberAdminAdminNeedsAMatchRoute
   MemberAdminAdminUsersRoute: typeof MemberAdminAdminUsersRoute
+  MemberAdminAdminIndexRoute: typeof MemberAdminAdminIndexRoute
+  MemberAdminAdminLibrariesLibraryIdRoute: typeof MemberAdminAdminLibrariesLibraryIdRoute
+  MemberAdminAdminLibrariesIndexRoute: typeof MemberAdminAdminLibrariesIndexRoute
 }
 
 const MemberAdminRouteChildren: MemberAdminRouteChildren = {
+  MemberAdminAdminNeedsAMatchRoute: MemberAdminAdminNeedsAMatchRoute,
   MemberAdminAdminUsersRoute: MemberAdminAdminUsersRoute,
+  MemberAdminAdminIndexRoute: MemberAdminAdminIndexRoute,
+  MemberAdminAdminLibrariesLibraryIdRoute:
+    MemberAdminAdminLibrariesLibraryIdRoute,
+  MemberAdminAdminLibrariesIndexRoute: MemberAdminAdminLibrariesIndexRoute,
 }
 
 const MemberAdminRouteWithChildren = MemberAdminRoute._addFileChildren(

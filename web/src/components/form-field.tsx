@@ -1,21 +1,54 @@
-import { type ComponentProps, useId } from "react";
+import { type ComponentProps, type ReactNode, useId } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 
-/** A labelled, required text input in a native form, with its hint and the Server's error. */
-export function FormField({
-  label,
-  hint,
-  error,
-  ...input
-}: ComponentProps<"input"> & {
+/** What a field shows around its control: its label, hint and the Server's error. */
+export interface FieldText {
   label: string;
   name: string;
   /** Says what the field is for, under it. */
-  hint?: string;
+  hint?: string | undefined;
   /** The Server's reason for refusing what was typed, if it did. */
   error?: string | undefined;
+}
+
+/** A labelled, required text input in a native form, with its hint and the Server's error. */
+export function FormField({ label, hint, error, ...input }: ComponentProps<"input"> & FieldText) {
+  return (
+    <Field label={label} hint={hint} error={error}>
+      {(control) => <Input {...control} {...input} />}
+    </Field>
+  );
+}
+
+/** A `FormField` for several lines of text. */
+export function FormTextarea({
+  label,
+  hint,
+  error,
+  ...textarea
+}: ComponentProps<"textarea"> & FieldText) {
+  return (
+    <Field label={label} hint={hint} error={error}>
+      {(control) => <Textarea {...control} {...textarea} />}
+    </Field>
+  );
+}
+
+function Field({
+  label,
+  hint,
+  error,
+  children,
+}: Omit<FieldText, "name"> & {
+  children: (control: {
+    id: string;
+    required: true;
+    "aria-invalid": boolean;
+    "aria-describedby": string;
+  }) => ReactNode;
 }) {
   const id = useId();
   return (
@@ -23,13 +56,12 @@ export function FormField({
       <label htmlFor={id} className="text-sm font-medium">
         {label}
       </label>
-      <Input
-        id={id}
-        required
-        aria-invalid={error !== undefined}
-        aria-describedby={`${id}-hint ${id}-error`}
-        {...input}
-      />
+      {children({
+        id,
+        required: true,
+        "aria-invalid": error !== undefined,
+        "aria-describedby": `${id}-hint ${id}-error`,
+      })}
       <p id={`${id}-hint`} className="text-sm text-muted-foreground empty:hidden">
         {hint}
       </p>
@@ -82,5 +114,34 @@ export function FormEnd({
         </Button>
       </div>
     </>
+  );
+}
+
+/** A group of radio buttons named `name`, as `[value, label]` pairs. The first starts chosen. */
+export function Choices({
+  legend,
+  name,
+  choices,
+}: {
+  legend: string;
+  name: string;
+  choices: [value: string, label: string][];
+}) {
+  return (
+    <fieldset className="flex flex-col gap-2">
+      <legend className="mb-2 text-sm font-medium">{legend}</legend>
+      {choices.map(([value, label], index) => (
+        <label key={value} className="flex items-center gap-3 text-sm">
+          <input
+            type="radio"
+            name={name}
+            value={value}
+            defaultChecked={index === 0}
+            className="size-4 accent-foreground"
+          />
+          {label}
+        </label>
+      ))}
+    </fieldset>
   );
 }

@@ -10,6 +10,7 @@ export interface FormErrors {
   deviceName?: string;
   currentPassword?: string;
   newPassword?: string;
+  folders?: string;
 }
 
 /**
