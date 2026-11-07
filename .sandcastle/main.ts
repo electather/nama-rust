@@ -1,14 +1,16 @@
 // AI factory: ready-for-agent issues → implement → review → PR → CI → squash-merge.
 // Run from the repo root: `npm --prefix .sandcastle run factory`  (the script cd's back to the root)
 import { execFileSync, spawn, spawnSync } from "node:child_process";
-import { mkdirSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { setTimeout as sleep } from "node:timers/promises";
 import * as sandcastle from "@ai-hero/sandcastle";
 import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
 
-const MAX_CYCLES = Number(process.env.MAX_CYCLES ?? 20); // MAX_CYCLES=1 → one batch, then stop
+const MAX_ISSUES = Number(process.env.MAX_ISSUES ?? 60); // issues started per run; MAX_ISSUES=1 → one issue, then stop
 const MAX_PARALLEL = 3; // issues built at once
+// `touch .sandcastle/STOP`: running issues finish, nothing new starts, later runs exit at once. `rm` it to resume.
+const STOP_FILE = ".sandcastle/STOP";
 const MODEL = "claude-opus-5-5";
 const READY = "ready-for-agent";
 const HUMAN = "ready-for-human";
@@ -134,12 +136,27 @@ function prBody(issue: Issue, reviewOut: string) {
   return `${links}\n\n${written || "Built by the sandcastle factory (implement → code-review → fix)."}`;
 }
 
+// Runs the functions passed to it one at a time, in call order.
+function queue() {
+  let tail: Promise<unknown> = Promise.resolve();
+  return <T>(fn: () => Promise<T>): Promise<T> => {
+    const next = tail.then(fn);
+    tail = next.catch(() => {});
+    return next;
+  };
+}
+const serially = queue(); // merges
+// Concurrent `git worktree add`s race on .git/worktrees (one reads another's half-written commondir).
+const oneSandboxAtATime = queue();
+
 async function build(issue: Issue): Promise<{ box: Box; body: string }> {
-  const box = await sandcastle.createSandbox({
-    branch: branchOf(issue),
-    baseBranch: `origin/${BASE}`,
-    sandbox: sandbox(),
-  });
+  const box = await oneSandboxAtATime(() =>
+    sandcastle.createSandbox({
+      branch: branchOf(issue),
+      baseBranch: `origin/${BASE}`,
+      sandbox: sandbox(),
+    }),
+  );
   try {
     await agent(box, issue, "implement");
     if (!ahead(branchOf(issue))) throw new Blocked("implementer made no commits");
@@ -188,7 +205,7 @@ async function greenCi(issue: Issue, box: Box, pr: string) {
   if ((await waitForChecks(branch)) === "fail") throw new Blocked(`CI still failing on PR #${pr} after one fix attempt`);
 }
 
-// Runs as soon as review is done, in parallel with the other issues in the batch.
+// Runs as soon as review is done, in parallel with the other running issues.
 async function openPr(issue: Issue, box: Box, body: string): Promise<string> {
   const branch = branchOf(issue);
   await syncAndPush(issue, box);
@@ -219,13 +236,6 @@ async function mergePr(issue: Issue, box: Box, pr: string) {
   }
 }
 
-let mergeQueue: Promise<unknown> = Promise.resolve();
-function serially<T>(fn: () => Promise<T>): Promise<T> {
-  const next = mergeQueue.then(fn);
-  mergeQueue = next.catch(() => {});
-  return next;
-}
-
 // build → PR → green CI in parallel; only the merge waits its turn.
 async function pipeline(issue: Issue) {
   const { box, body } = await build(issue);
@@ -240,29 +250,41 @@ async function pipeline(issue: Issue) {
   }
 }
 
+// Never shrinks: a merged issue stays open for a few seconds (`Closes #N` lags), so it mustn't be picked again.
+const taken = new Set<number>();
+let running = 0;
 let crashed = false;
-for (let cycle = 1; cycle <= MAX_CYCLES && !crashed; cycle++) {
-  git("fetch", "origin");
-  closeFinishedParents();
-  // ponytail: fixed batches of MAX_PARALLEL instead of a worker pool; leftovers go in the next cycle
-  const batch = readyIssues().slice(0, MAX_PARALLEL);
-  if (batch.length === 0) {
-    console.log("Queue empty. Done.");
-    break;
-  }
-  console.log(`\n=== Cycle ${cycle}: ${batch.map((i) => `#${i.number}`).join(", ")} ===`);
 
-  const results = await Promise.allSettled(batch.map(pipeline));
-  for (const [i, outcome] of results.entries()) {
-    if (outcome.status === "fulfilled") continue;
-    const issue = batch[i]!;
-    if (outcome.reason instanceof Blocked) handBack(issue, outcome.reason.message);
-    else {
-      // Infra failure (docker, auth, network): don't relabel; stop after this cycle.
-      console.error(`  ✗ #${issue.number} crashed:`, outcome.reason);
-      crashed = true;
+// One of MAX_PARALLEL slots: as soon as its issue is merged or handed back, it picks the next one.
+async function worker() {
+  while (!crashed && taken.size < MAX_ISSUES && !existsSync(STOP_FILE)) {
+    // No await between picking and `taken.add`, so two slots can't pick the same issue.
+    git("fetch", "origin");
+    closeFinishedParents();
+    const issue = readyIssues().find((i) => !taken.has(i.number));
+    if (!issue) {
+      if (running === 0) return; // nothing in flight can unblock anything: done
+      await sleep(60_000); // an in-flight merge may unblock an issue
+      continue;
+    }
+    taken.add(issue.number);
+    running++;
+    console.log(`\n=== #${issue.number} ${issue.title} (${running}/${MAX_PARALLEL} running) ===`);
+    try {
+      await pipeline(issue);
+    } catch (e) {
+      if (e instanceof Blocked) handBack(issue, e.message);
+      else {
+        // Infra failure (docker, auth, Claude limit): don't relabel; let in-flight issues finish, pick nothing new.
+        console.error(`  ✗ #${issue.number} crashed:`, e);
+        crashed = true;
+      }
+    } finally {
+      running--;
     }
   }
 }
 
+await Promise.all(Array.from({ length: MAX_PARALLEL }, worker));
+console.log(crashed ? "Stopped after a crash." : existsSync(STOP_FILE) ? `${STOP_FILE} found: stopped.` : "Queue empty. Done.");
 process.exit(crashed ? 1 : 0);
