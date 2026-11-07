@@ -25,13 +25,22 @@ function Requests() {
   const { title } = Route.useSearch();
   return (
     <Page heading="Requests">
-      {may(signedIn.user, Permission.REQUEST_MOVIE) && <FindAMovie title={title} />}
-      {title === undefined ? (
-        <RequestList />
+      {may(signedIn.user, Permission.REQUEST_MOVIE) ? (
+        <FindOrList title={title} you={signedIn.user?.id} />
       ) : (
-        <MoviesFound title={title} you={signedIn.user?.id} />
+        <RequestList />
       )}
     </Page>
+  );
+}
+
+/** The search, then what it found for `title`, or the Requests before anything is searched for. */
+function FindOrList({ title, you }: { title: string | undefined; you: bigint | undefined }) {
+  return (
+    <>
+      <FindAMovie title={title} />
+      {title === undefined ? <RequestList /> : <MoviesFound title={title} you={you} />}
+    </>
   );
 }
 

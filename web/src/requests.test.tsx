@@ -161,10 +161,11 @@ test("a Movie someone else Requested shows its state, and Requesting it joins", 
 });
 
 test("a User who may not Request Movies isn't offered the search", async () => {
-  openApp("/requests", searchableServer([], [Permission.VIEW_REQUESTS]));
+  openApp("/requests?title=Dune", searchableServer([notOnTheServer], [Permission.VIEW_REQUESTS]));
 
   await screen.findByText("No Requests yet.");
   expect(screen.queryByLabelText("Find a Movie")).toBeNull();
+  expect(screen.queryByText("Dune")).toBeNull();
 });
 
 test("a Movie's page shows its Request state after Requesting it, without a reload", async () => {

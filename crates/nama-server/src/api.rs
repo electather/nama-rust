@@ -1652,12 +1652,12 @@ fn version_to_proto(version: &Version) -> proto::Version {
     }
 }
 
-/// `n` as a proto `int32`, or `None` if it doesn't fit, which no name a scan parses gives.
 /// The year of a `YYYY-MM-DD` date.
 fn year_of(date: &str) -> Option<i32> {
     date.get(..4)?.parse().ok()
 }
 
+/// `n` as a proto `int32`, or `None` if it doesn't fit, which no name a scan parses gives.
 fn int32(n: i64) -> Option<i32> {
     i32::try_from(n).ok()
 }
@@ -1940,7 +1940,8 @@ impl From<requests::Error> for ConnectError {
         use RefusalReason as R;
         let message = err.to_string();
         let refused = match err {
-            // Only `GetRequest` names a Request, and only `CreateRequest` a Movie.
+            // Only `GetRequest` names a Request, and only `CreateRequest` and `LookUpMovie` a
+            // Movie, both in `movie_tmdb_id`.
             requests::Error::NoSuchRequest(id) => {
                 refuse(R::REFUSAL_REASON_REQUEST_NOT_FOUND, message)
                     .field("id")
