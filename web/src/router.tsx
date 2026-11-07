@@ -36,15 +36,21 @@ export function getRouter(transport: Transport = sameOrigin) {
     ),
   });
 
-  // Any `unauthenticated` may mean the session has ended, or may just be a wrong password. Asking
-  // again who is signed in tells them apart. Only when nobody is are the routes' access checks
-  // rerun, and the `_member` layout sends the visitor to /sign-in?redirect=….
+  // An `unauthenticated` may mean the session has ended, or may just be a wrong password. A
+  // `permission_denied` may mean an Admin changed your Role. Asking again who is signed in tells
+  // them apart. Only when that changed are the routes' access checks rerun: the `_member` layout
+  // sends a signed-out visitor to /sign-in?redirect=…, and `_admin` a Member to "Admins only".
   function recheckSession(error: Error) {
-    if (isCode(error, Code.Unauthenticated)) void redirectIfSignedOut();
+    if (isCode(error, Code.Unauthenticated) || isCode(error, Code.PermissionDenied)) {
+      void rerunAccessChecksIfChanged();
+    }
   }
-  async function redirectIfSignedOut() {
-    queryClient.removeQueries({ queryKey: signedInQuery(transport).queryKey });
-    if ((await whoIsSignedIn({ queryClient, transport })) === null) await router.invalidate();
+  async function rerunAccessChecksIfChanged() {
+    const { queryKey } = signedInQuery(transport);
+    const before = queryClient.getQueryData(queryKey)?.user;
+    queryClient.removeQueries({ queryKey });
+    const now = (await whoIsSignedIn({ queryClient, transport }))?.user;
+    if (now?.id !== before?.id || now?.role !== before?.role) await router.invalidate();
   }
 
   return router;

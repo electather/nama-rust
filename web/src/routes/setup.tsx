@@ -8,7 +8,7 @@ import { SignInLayout } from "@/components/sign-in-layout";
 import { ServerService } from "@/gen/nama/v1/server_pb";
 import { SessionDelivery, SignInService } from "@/gen/nama/v1/sign_in_pb";
 import { isSetupRequired } from "@/lib/access";
-import { type FormErrors, formText, refusal, serverMessage } from "@/lib/forms";
+import { type FormErrors, formText, invalidField, refusal, serverMessage } from "@/lib/forms";
 
 export const Route = createFileRoute("/setup")({
   beforeLoad: async ({ context }) => {
@@ -91,13 +91,4 @@ function setupErrors(error: unknown): FormErrors {
     },
     [Code.InvalidArgument]: { [invalidField(error)]: serverMessage(error) },
   });
-}
-
-// ponytail: the Server names the field only in its message ("a Device's name needs…"). Read it
-// from Connect error details instead if the Server starts sending them.
-function invalidField(error: unknown): Exclude<keyof FormErrors, "form"> {
-  const message = String(error);
-  if (message.includes("Device")) return "deviceName";
-  if (message.includes("User's name")) return "name";
-  return "password";
 }
