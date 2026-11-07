@@ -33,6 +33,12 @@ const ADMIN_ONLY: [&str; 10] = [
     "/nama.v1.MatchService/ListUnmatchedItems",
 ];
 
+/// The RPCs for browsing what a Library holds, which any signed-in User may call.
+const BROWSE: [&str; 2] = [
+    "/nama.v1.BrowseService/ListMovies",
+    "/nama.v1.BrowseService/GetMovie",
+];
+
 /// Every other unary RPC that needs a session.
 const SIGNED_IN: [&str; 4] = [
     "/nama.v1.SignInService/SignOut",
@@ -153,7 +159,7 @@ async fn subscribe(config: ClientConfig) -> Result<Subscription, ConnectError> {
 async fn an_unauthenticated_call_to_anything_but_the_public_rpcs_is_unauthenticated() {
     let server = TestServer::start(Config::default(), Registry::new()).await;
 
-    for path in ADMIN_ONLY.iter().chain(&SIGNED_IN) {
+    for path in ADMIN_ONLY.iter().chain(&BROWSE).chain(&SIGNED_IN) {
         let reply = post_json(&server, path, None).await;
 
         assert_eq!(reply.code(), "unauthenticated", "{path}");
@@ -187,6 +193,22 @@ async fn an_admin_may_manage_libraries_and_matches() {
         let reply = post_json(&server, path, Some(&server.admin_token)).await;
 
         // An empty request is wrong for most of them, but not for want of access.
+        let code = reply.code();
+        assert!(
+            !["unauthenticated", "permission_denied"].contains(&code.as_str()),
+            "{path}: {code}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn a_member_may_browse() {
+    let (server, member_token) = start_with_member().await;
+
+    for path in BROWSE {
+        let reply = post_json(&server, path, Some(&member_token)).await;
+
+        // An empty request is wrong for them, but not for want of access.
         let code = reply.code();
         assert!(
             !["unauthenticated", "permission_denied"].contains(&code.as_str()),

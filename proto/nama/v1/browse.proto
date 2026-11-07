@@ -1,0 +1,74 @@
+syntax = "proto3";
+
+package nama.v1;
+
+import "nama/v1/match.proto";
+
+// Browsing what a Library holds, for any signed-in User.
+//
+// Only Matched items appear. Movies are not stored as such: they are grouped from the items
+// Matched to the same title, and identified by its external id within the Library. Items that
+// aren't Matched are in `MatchService.ListUnmatchedItems` instead.
+service BrowseService {
+  // Lists a Movies Library's Movies, by title, each with its Versions. Fails with `not_found` if
+  // there is no such Library, and with `invalid_argument` if it is a Shows Library.
+  rpc ListMovies(ListMoviesRequest) returns (ListMoviesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Returns one Movie of a Movies Library, with its Versions. Fails like `ListMovies`, or with
+  // `not_found` if nothing in the Library is Matched to that id.
+  rpc GetMovie(GetMovieRequest) returns (GetMovieResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+}
+
+// A Movie some items of a Library are Matched to, with the metadata its Match stores.
+message Movie {
+  // The Movie's external id, which identifies it within the Library: its TMDB id if the Match
+  // has one, or else its IMDb or TVDB id.
+  ExternalId id = 1;
+  // The title, in the metadata Provider's language.
+  string title = 2;
+  // The title in its original language, if the metadata source has it.
+  optional string original_title = 3;
+  optional string overview = 4;
+  // When it was released, as `YYYY-MM-DD`.
+  optional string release_date = 5;
+  optional uint32 runtime_minutes = 6;
+  // The poster's URL, under `/media/artwork/` on this Server.
+  optional string poster_url = 7;
+  // The backdrop's URL, under `/media/artwork/` on this Server.
+  optional string backdrop_url = 8;
+  // The files the Movie is available in, by path. There is at least one.
+  repeated Version versions = 9;
+}
+
+// One file a Movie or Episode is available in.
+message Version {
+  // Identifies the file, for playing it.
+  int64 id = 1;
+  // The file's name, without the folders it is in.
+  string file_name = 2;
+  // In bytes, so a client can default to the largest.
+  uint64 size = 3;
+}
+
+message ListMoviesRequest {
+  // The Movies Library whose Movies to list.
+  int64 library_id = 1;
+}
+
+message ListMoviesResponse {
+  repeated Movie movies = 1;
+}
+
+message GetMovieRequest {
+  // The Movies Library the Movie is in.
+  int64 library_id = 1;
+  // The Movie's id, as `ListMovies` gave it.
+  ExternalId movie_id = 2;
+}
+
+message GetMovieResponse {
+  Movie movie = 1;
+}

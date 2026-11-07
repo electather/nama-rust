@@ -107,6 +107,13 @@ impl Artwork {
     }
 }
 
+/// Where clients fetch the image at `path` from the Plugin `plugin`'s metadata Provider:
+/// `/media/artwork/<plugin>/<path>`, each part escaped as [`file_name`] does. That escaping is
+/// percent-encoding, so each part is one URL path segment that decodes back to what it was.
+pub(crate) fn url(plugin: &str, path: &str) -> String {
+    format!("/media/artwork/{}/{}", file_name(plugin), file_name(path))
+}
+
 /// Writes `bytes` to `path` so no reader ever sees a partial file, even if two downloads of the
 /// same image race.
 async fn write_atomically(path: &Path, bytes: &[u8]) -> io::Result<()> {
