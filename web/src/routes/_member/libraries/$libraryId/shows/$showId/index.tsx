@@ -3,6 +3,8 @@ import { Link, createFileRoute, notFound } from "@tanstack/react-router";
 
 import { NotFound } from "@/components/route-error";
 import { TitlePage } from "@/components/title-page";
+import { MarkPlayedMenu } from "@/components/mark-played-menu";
+import { PlayedIconButton, WatchedBar } from "@/components/watch-state";
 import { BrowseService, type Episode, type Season } from "@/gen/nama/v1/browse_pb";
 import {
   dateOf,
@@ -11,7 +13,9 @@ import {
   metadataLine,
   queryOrNotFound,
   runtimeOf,
+  seasonName,
 } from "@/lib/browse";
+import { useSetPlayed } from "@/lib/watch-state";
 
 export const Route = createFileRoute("/_member/libraries/$libraryId/shows/$showId/")({
   validateSearch: (search): { season?: number } => {
@@ -41,24 +45,35 @@ export const Route = createFileRoute("/_member/libraries/$libraryId/shows/$showI
 function Show() {
   const { seasonNumber, ...show } = Route.useLoaderData();
   const { data } = useSuspenseQuery(BrowseService.method.getShow, show);
+  const { data: season } = useSuspenseQuery(BrowseService.method.listEpisodes, {
+    ...show,
+    seasonNumber,
+  });
   if (!data.show) return <NotFound />;
   return (
     <TitlePage title={data.show.title} backdropUrl={data.show.backdropUrl}>
-      <Seasons seasons={data.seasons} current={seasonNumber} />
+      {/* Pulled out like the Episodes below, so the menu lines up with their toggles. */}
+      <div className="-me-3 flex max-w-3xl items-start gap-2">
+        <Seasons seasons={data.seasons} current={seasonNumber} />
+        <MarkPlayedMenu
+          {...show}
+          seasonNumber={seasonNumber}
+          seasonPlayed={
+            season.episodes.length > 0 &&
+            season.episodes.every(({ watchState }) => watchState?.played === true)
+          }
+        />
+      </div>
       <Episodes />
     </TitlePage>
   );
-}
-
-function seasonName(number: number) {
-  return number === 0 ? "Specials" : `Season ${number}`;
 }
 
 /** Links to the Show's Seasons, one shown at a time. With only one, it names it. */
 function Seasons({ seasons, current }: { seasons: Season[]; current: number }) {
   return (
     // Pulled out by the links' own padding, so the first lines up with the title.
-    <nav aria-label="Seasons" className="-mx-3 flex flex-wrap gap-1">
+    <nav aria-label="Seasons" className="-ms-3 flex flex-1 flex-wrap gap-1">
       {seasons.map(({ number }) => (
         <Link
           key={number}
@@ -81,22 +96,25 @@ function Episodes() {
     <section aria-label={`${seasonName(input.seasonNumber)} Episodes`} className="mt-6 max-w-3xl">
       <ol className="-mx-3">
         {data.episodes.map((episode) => (
-          <EpisodeRow key={episode.episodeNumber} episode={episode} />
+          <EpisodeRow key={episode.episodeNumber} libraryId={input.libraryId} episode={episode} />
         ))}
       </ol>
     </section>
   );
 }
 
-/** An Episode, which plays its largest Version. */
-function EpisodeRow({ episode }: { episode: Episode }) {
+/** An Episode, which plays its largest Version, with your Watch State and a toggle for it. */
+function EpisodeRow({ libraryId, episode }: { libraryId: bigint; episode: Episode }) {
+  const setPlayed = useSetPlayed();
+  // Without its own ID there's nothing to mark.
+  const episodeId = episode.id;
   return (
-    <li className="border-b last:border-b-0">
+    <li className="flex items-center gap-1 border-b last:border-b-0">
       <Link
         from={Route.fullPath}
         to="./seasons/$season/episodes/$episode/play"
         params={{ season: String(episode.seasonNumber), episode: String(episode.episodeNumber) }}
-        className="block rounded-lg px-3 py-4 outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50"
+        className="block min-w-0 flex-1 rounded-lg px-3 py-4 outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50"
       >
         <span className="font-medium">
           {episode.episodeNumber}. {episode.title}
@@ -109,7 +127,19 @@ function EpisodeRow({ episode }: { episode: Episode }) {
             {episode.overview}
           </span>
         )}
+        <span className="mt-3 block max-w-xs empty:hidden">
+          <WatchedBar state={episode.watchState} />
+        </span>
       </Link>
+      {episodeId && (
+        <PlayedIconButton
+          played={episode.watchState?.played === true}
+          label={`Played: ${episode.title}`}
+          onToggle={(played) => {
+            setPlayed({ libraryId, target: { case: "episodeId", value: episodeId }, played });
+          }}
+        />
+      )}
     </li>
   );
 }

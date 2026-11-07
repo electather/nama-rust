@@ -69,8 +69,10 @@ export function openApp(path: string, transport: ReturnType<typeof createRouterT
   window.history.replaceState(null, "", path);
   const router = getRouter(transport);
   // A route's error page shows what it caught. React's own log of it would inspect the error's
-  // `Headers`, which happy-dom can't.
-  render(<RouterProvider router={router} />, { onCaughtError: () => {} });
+  // `Headers`, which happy-dom can't. The shell renders `<html>` and `<body>`, so the app takes the
+  // whole document, as in a browser: inside a `<div>` in the body React adopts, the first `focus()`
+  // (a menu handing focus back) spins forever finding the event's root.
+  render(<RouterProvider router={router} />, { container: document, onCaughtError: () => {} });
   return router;
 }
 

@@ -24,6 +24,7 @@ function PlayMovie() {
     <Player
       title={movie.title}
       versionId={versionToPlay(movie.versions, version).id}
+      watchState={movie.watchState}
       back={{ to: "/libraries/$libraryId/movies/$movieId", params }}
     />
   );

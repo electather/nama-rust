@@ -3,7 +3,6 @@ import { createConnectQueryKey, useTransport } from "@connectrpc/connect-query";
 import { type QueryClient, queryOptions, skipToken, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 
-import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import {
   type Event,
   EventService,
@@ -14,6 +13,8 @@ import {
   type ScanStarted,
 } from "@/gen/nama/v1/event_pb";
 import { type ListUnmatchedItemsResponse, MatchService } from "@/gen/nama/v1/match_pb";
+
+import { browseKey } from "./browse";
 
 /** The latest scan Event about a Library, if one arrived since the page was opened. */
 export type ScanState = ScanStarted | ScanProgress | ScanFinished;
@@ -33,10 +34,6 @@ export function unmatchedKey(libraryId?: bigint) {
     cardinality: "finite",
   });
 }
-
-// ponytail: every browse query, not only those of the Event's Library. Only the ones on screen
-// refetch, and a household Server has a handful of Libraries.
-const browseKey = createConnectQueryKey({ schema: BrowseService, cardinality: undefined });
 
 /**
  * The Events the app acts on. Asking for these alone keeps the rest, such as each file a scan
@@ -154,6 +151,8 @@ function dropUnmatched(queryClient: QueryClient, libraryId: bigint, itemId: bigi
 /** Refetches the Movies, Shows and Episodes on screen when an Item is Matched or removed. */
 function refreshBrowsing({ event }: Event, queryClient: QueryClient) {
   if (event.case === "itemMatched" || event.case === "libraryItemRemoved") {
+    // ponytail: every browse query, not only those of the Event's Library. Only the ones on screen
+    // refetch, and a household Server has a handful of Libraries.
     void queryClient.invalidateQueries({ queryKey: browseKey });
   }
 }
