@@ -21,7 +21,7 @@ use serde_json::Value;
 use server::{PASSWORD, TestServer};
 
 /// Every RPC that manages Libraries, Matches or Users, which only an Admin may call.
-const ADMIN_ONLY: [&str; 12] = [
+const ADMIN_ONLY: [&str; 13] = [
     "/nama.v1.LibraryService/CreateLibrary",
     "/nama.v1.LibraryService/ListLibraries",
     "/nama.v1.LibraryService/GetLibrary",
@@ -34,6 +34,7 @@ const ADMIN_ONLY: [&str; 12] = [
     "/nama.v1.MatchService/ListUnmatchedItems",
     "/nama.v1.UserService/CreateUser",
     "/nama.v1.UserService/ListUsers",
+    "/nama.v1.UserService/SetRole",
 ];
 
 /// The RPCs for browsing what a Library holds, which any signed-in User may call.

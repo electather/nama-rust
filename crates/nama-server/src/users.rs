@@ -150,6 +150,12 @@ pub enum Error {
     /// doesn't reveal which names exist.
     #[error("the name or password is wrong")]
     WrongNameOrPassword,
+    /// No User has this ID.
+    #[error("no User has that ID")]
+    NoSuchUser,
+    /// The change would leave the Server with no Admin.
+    #[error("the Server must keep at least one Admin")]
+    LastAdmin,
     /// The first Admin can only be created while the Server has no Users.
     #[error("the Server already has Users")]
     AlreadySetUp,
@@ -245,6 +251,14 @@ impl Users {
         )
         .fetch_all(self.db.reader())
         .await
+    }
+
+    /// Gives the User `user` the Role `role`, unless that leaves the Server with no Admin. Their
+    /// Devices stay signed in, and the Role applies from their next request, which reads it afresh.
+    pub(crate) async fn set_role(&self, user: i64, role: Role) -> Result<(), Error> {
+        self.db
+            .write(move |tx| Box::pin(async move { update_role(tx, user, role).await }))
+            .await
     }
 
     /// The Devices of the User `user` that haven't expired, oldest first, or `None` if there is no
@@ -677,6 +691,28 @@ async fn any_user(conn: &mut SqliteConnection) -> Result<bool, sqlx::Error> {
         .await
 }
 
+/// Gives the User `user` the Role `role`, failing if that leaves no Admin. Checked after the write,
+/// in the same transaction, so a refusal rolls the write back. Writes run one at a time, so two
+/// demotions at once can't both pass the check.
+async fn update_role(conn: &mut SqliteConnection, user: i64, role: Role) -> Result<(), Error> {
+    let updated = sqlx::query!("UPDATE users SET role = ? WHERE id = ?", role, user)
+        .execute(&mut *conn)
+        .await?;
+    if updated.rows_affected() == 0 {
+        return Err(Error::NoSuchUser);
+    }
+    let any_admin = sqlx::query_scalar!(
+        r#"SELECT EXISTS (SELECT 1 FROM users WHERE role = 'admin') AS "any!: bool""#
+    )
+    .fetch_one(conn)
+    .await?;
+    if any_admin {
+        Ok(())
+    } else {
+        Err(Error::LastAdmin)
+    }
+}
+
 /// Stores the first Admin, named `name`, with `credential`, and their Device named `device_name`
 /// with the hash of its session token, unless the Server already has a User. The names have been
 /// checked.
@@ -916,6 +952,32 @@ mod tests {
         let duplicate = create_user(&db, "éMILE").await;
 
         assert!(matches!(duplicate, Err(Error::NameTaken)), "{duplicate:?}");
+    }
+
+    #[tokio::test]
+    async fn demoting_two_admins_at_once_leaves_exactly_one() {
+        let data_dir = tempfile::tempdir().unwrap();
+        let db = Arc::new(Database::open(data_dir.path()).await.unwrap());
+        let users = Users::new(Arc::clone(&db), Registry::new());
+        let ada = create_user(&db, "Ada").await.unwrap().id;
+        let grace = create_user(&db, "Grace").await.unwrap().id;
+        users.set_role(ada, Role::Admin).await.unwrap();
+        users.set_role(grace, Role::Admin).await.unwrap();
+
+        // Unlike over the API, no access check stands between the two and the database.
+        let (ada_demoted, grace_demoted) = tokio::join!(
+            users.set_role(ada, Role::Member),
+            users.set_role(grace, Role::Member),
+        );
+
+        let refused = [&ada_demoted, &grace_demoted]
+            .into_iter()
+            .filter(|demoted| matches!(demoted, Err(Error::LastAdmin)))
+            .count();
+        assert_eq!(refused, 1, "{ada_demoted:?} / {grace_demoted:?}");
+        let admins = users.list().await.unwrap();
+        let admins = admins.iter().filter(|user| user.role == Role::Admin);
+        assert_eq!(admins.count(), 1);
     }
 
     #[test]
