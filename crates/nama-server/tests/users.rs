@@ -1,6 +1,6 @@
 //! Admins creating, listing and changing the Role of Users, Users changing their own password, and
-//! Users and Admins listing and revoking Devices, through the generated `UserService` client, over a real socket and against a
-//! real SQLite database.
+//! Users and Admins listing and revoking Devices, through the generated `UserService` client, over
+//! a real socket and against a real SQLite database.
 
 #[path = "support/server.rs"]
 mod server;
@@ -664,4 +664,44 @@ async fn a_new_password_outside_the_rules_is_refused_and_the_old_one_still_works
     assert_eq!(code(changed), Some(ErrorCode::InvalidArgument));
     assert!(fixture.signed_in(&laptop.token).await.unwrap());
     assert_eq!(code(fixture.sign_in("Grace", PASSWORD).await), None);
+}
+
+#[tokio::test]
+async fn new_passwords_outside_the_rules_dont_count_toward_the_limit() {
+    let fixture = Fixture::start().await;
+    let (phone, _laptop) = fixture.grace_on_phone_and_laptop().await;
+    let grace = fixture.client_as(&phone.token);
+    for _ in 0..10 {
+        let refused = change_password(&grace, PASSWORD, "1234567").await;
+        assert_eq!(code(refused), Some(ErrorCode::InvalidArgument));
+    }
+
+    let changed = change_password(&grace, PASSWORD, "a brand new password").await;
+
+    assert_eq!(code(changed), None);
+}
+
+#[tokio::test]
+async fn two_devices_changing_the_password_at_once_leave_one_signed_in_with_its_password() {
+    let fixture = Fixture::start().await;
+    let (phone, laptop) = fixture.grace_on_phone_and_laptop().await;
+    let (phone_password, laptop_password) = ("the phone's password", "the laptop's password");
+    let (as_phone, as_laptop) = (
+        fixture.client_as(&phone.token),
+        fixture.client_as(&laptop.token),
+    );
+
+    let (from_phone, from_laptop) = tokio::join!(
+        change_password(&as_phone, PASSWORD, phone_password),
+        change_password(&as_laptop, PASSWORD, laptop_password),
+    );
+
+    // Whichever lands second finds its Device already signed out by the first.
+    let (winner, password) = match (code(from_phone), code(from_laptop)) {
+        (None, Some(ErrorCode::Unauthenticated)) => (&phone, phone_password),
+        (Some(ErrorCode::Unauthenticated), None) => (&laptop, laptop_password),
+        both => panic!("exactly one change should succeed: {both:?}"),
+    };
+    assert!(fixture.signed_in(&winner.token).await.unwrap());
+    assert_eq!(code(fixture.sign_in("Grace", password).await), None);
 }

@@ -289,8 +289,8 @@ pub const USER_SERVICE_CHANGE_PASSWORD_SPEC: ::connectrpc::Spec = ::connectrpc::
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
 /// Managing the Server's Users and their Devices. Every RPC but `ListDevices`, `RevokeDevice` and
-/// `ChangePassword` needs the Admin Role, and fails with `permission_denied` without it. RPCs name Users by ID, not
-/// by name.
+/// `ChangePassword` needs the Admin Role, and fails with `permission_denied` without it. RPCs name
+/// Users by ID, not by name.
 ///
 /// # Implementing handlers
 ///
@@ -467,9 +467,10 @@ pub trait UserService: Send + Sync + 'static {
     > + Send;
     /// Changes the caller's own password, given their current one. Their other Devices are revoked,
     /// as by `RevokeDevice`, and the calling Device stays signed in. Fails with `unauthenticated` if
-    /// the current password is wrong, and `invalid_argument` if the new one breaks the rules. A
-    /// failure counts toward the limit on failed `SignInService.SignIn`s for the caller's name, and
-    /// once it is reached, fails with `resource_exhausted` as `SignIn` does.
+    /// the current password is wrong or the calling Device was signed out meanwhile, and
+    /// `invalid_argument` if the new one breaks the rules. A wrong current password counts toward the
+    /// limit on failed `SignInService.SignIn`s for the caller's name, and once it is reached, this
+    /// fails with `resource_exhausted` as `SignIn` does.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///

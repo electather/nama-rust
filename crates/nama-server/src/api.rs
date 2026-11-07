@@ -932,10 +932,16 @@ impl UserService for UserServiceHandler {
         let attempt = self
             .sign_in_limits
             .admit(peer_ip(&ctx)?, Some(&caller.user.name))?;
-        self.users
+        let changed = self
+            .users
             .change_password(caller, &request.current_password, &request.new_password)
-            .await?;
-        self.sign_in_limits.succeeded(&attempt);
+            .await;
+        // A new password the rules refuse is only found after the current one checked out, so
+        // that is no guess either, and counting it could lock the User out of their own sign-in.
+        if matches!(changed, Ok(()) | Err(users::Error::Invalid(_))) {
+            self.sign_in_limits.succeeded(&attempt);
+        }
+        changed?;
         Response::ok(ChangePasswordResponse::default())
     }
 }
@@ -1295,9 +1301,9 @@ impl From<users::Error> for ConnectError {
             users::Error::AlreadySetUp | users::Error::LastAdmin => {
                 Self::failed_precondition(err.to_string())
             }
-            users::Error::WrongNameOrPassword | users::Error::WrongPassword => {
-                Self::unauthenticated(err.to_string())
-            }
+            users::Error::WrongNameOrPassword
+            | users::Error::WrongPassword
+            | users::Error::SignedOut => Self::unauthenticated(err.to_string()),
             users::Error::Database(err) => database_failed(&err),
             users::Error::NoAuthenticator
             | users::Error::Authenticator(_)
