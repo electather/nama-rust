@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT EXISTS (SELECT 1 FROM devices WHERE id = ? AND user_id = ?) AS \"theirs!: bool\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "theirs!: bool",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "e83edf786a1aef482b91cd06de18a6d829dc8f59d623a812144a170c0c8c51c4"
+}
