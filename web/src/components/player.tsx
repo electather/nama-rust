@@ -81,8 +81,8 @@ function VideoPlayer({
         className="size-full object-contain"
         {...events}
       />
-      {/* Kept while a control has keyboard focus, so the focus ring never fades away. */}
-      <div className="pointer-events-none absolute inset-0 flex flex-col justify-between transition-opacity duration-500 ease-out group-data-controls-hidden:not-has-focus-visible:opacity-0 motion-reduce:transition-none">
+      {/* Any key brings the controls back, so a focused control shows its ring when it's used. */}
+      <div className="pointer-events-none absolute inset-0 flex flex-col justify-between transition-opacity duration-500 ease-out-expo group-data-controls-hidden:opacity-0 motion-reduce:transition-none">
         <TopBar title={title} back={back} />
         <BottomBar video={video} playerRef={playerRef} />
       </div>
@@ -92,7 +92,7 @@ function VideoPlayer({
 
 function TopBar({ title, back }: { title: string; back: LinkOptions }) {
   return (
-    <header className="pointer-events-auto flex items-center gap-2 bg-linear-to-b from-scrim px-2 pt-2 pb-10 sm:px-4 sm:pt-4">
+    <header className="pointer-events-auto flex group-data-controls-hidden:pointer-events-none items-center gap-2 bg-linear-to-b from-scrim px-2 pt-2 pb-10 sm:px-4 sm:pt-4">
       <BackLink back={back} variant="overlay" size="icon" label="Back">
         <ArrowLeft aria-hidden />
       </BackLink>
@@ -110,9 +110,10 @@ function BottomBar({
 }) {
   const { playing, time, duration } = video.state;
   return (
-    <div className="pointer-events-auto bg-linear-to-t from-scrim px-2 pt-10 pb-2 sm:px-4 sm:pb-4">
+    <div className="pointer-events-auto bg-linear-to-t group-data-controls-hidden:pointer-events-none from-scrim px-2 pt-10 pb-2 sm:px-4 sm:pb-4">
       <div className="px-2">
         <Slider
+          progress
           label="Position"
           valueText={`${clock(time)} of ${clock(duration)}`}
           value={time}
@@ -222,14 +223,14 @@ function BackLink({
   back,
   label,
   children,
-  ...looks
+  ...variantProps
 }: VariantProps<typeof buttonVariants> & {
   back: LinkOptions;
   label?: string;
   children: ReactNode;
 }) {
   return (
-    <Link {...back} aria-label={label} className={cn(buttonVariants(looks))}>
+    <Link {...back} aria-label={label} className={cn(buttonVariants(variantProps))}>
       {children}
     </Link>
   );

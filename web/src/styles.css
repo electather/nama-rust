@@ -13,6 +13,8 @@
   --text-display: 2.5rem;
   --text-display--line-height: 1.05;
   --text-display--letter-spacing: -0.035em;
+  /* DESIGN.md's exponential ease-out, for motion such as the player's controls fading. */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @theme inline {

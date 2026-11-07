@@ -35,6 +35,7 @@ test("without a version, the player plays the largest", async () => {
   openApp("/libraries/1/movies/tmdb-603/play", server);
 
   expect((await findVideo()).getAttribute("src")).toBe("/media/versions/8");
+  expect(screen.queryByRole("navigation", { name: "Main" })).toBeNull();
 });
 
 test("a file the browser can't play shows a message instead of the player", async () => {
@@ -44,4 +45,11 @@ test("a file the browser can't play shows a message instead of the player", asyn
 
   expect(await screen.findByText("This Version can’t play here")).toBeDefined();
   expect(screen.queryByLabelText("The Matrix")).toBeNull();
+});
+
+test("an address with no title to play keeps the app chrome, so there's a way out", async () => {
+  openApp("/libraries/2/movies/tmdb-603/play", server);
+
+  expect(await screen.findByText("Page not found")).toBeDefined();
+  expect(screen.getByRole("navigation", { name: "Main" })).toBeDefined();
 });

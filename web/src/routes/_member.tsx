@@ -18,8 +18,11 @@ export const Route = createFileRoute("/_member")({
 
 function MemberLayout() {
   const { signedIn } = Route.useRouteContext();
+  // A full-screen page that didn't load, such as an unknown Movie's player, keeps the chrome, so
+  // its not-found or error page has a way out.
   const fullScreen = useMatches({
-    select: (matches) => matches.some((m) => m.staticData.fullScreen === true),
+    select: (matches) =>
+      matches.some((m) => m.staticData.fullScreen === true && m.status === "success"),
   });
   useBrowseRefreshes();
   return (
