@@ -9,7 +9,7 @@ mod server;
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs,
-    path::PathBuf,
+    path::{Path, PathBuf},
     slice,
     sync::Arc,
     time::Duration,
@@ -25,12 +25,13 @@ use nama_plugin_tmdb::{
     testing::{API_KEY, FakeTmdb},
 };
 use nama_proto::nama::v1::{
-    BrowseServiceClient, ClearMatchRequest, CreateLibraryRequest, CreateUserRequest, Episode,
-    ExternalId, GetMovieRequest, GetShowRequest, GetShowResponse, LibraryKind,
-    LibraryServiceClient, ListEpisodesRequest, ListMoviesRequest, ListShowsRequest,
-    MatchServiceClient, Movie, ReportProgressRequest, Role, ScanLibraryRequest, Season,
-    SessionDelivery, SetMatchRequest, Show, SignInRequest, SignInServiceClient, UserServiceClient,
-    Version, WatchState, WatchStateServiceClient, external_id,
+    BrowseServiceClient, ClearMatchRequest, ContinueWatchingEntry, CreateLibraryRequest,
+    CreateUserRequest, Episode, ExternalId, GetMovieRequest, GetShowRequest, GetShowResponse,
+    LibraryKind, LibraryServiceClient, ListContinueWatchingRequest, ListEpisodesRequest,
+    ListMoviesRequest, ListShowsRequest, MatchServiceClient, Movie, ReportProgressRequest, Role,
+    ScanLibraryRequest, Season, SessionDelivery, SetMatchRequest, Show, SignInRequest,
+    SignInServiceClient, UserServiceClient, Version, WatchState, WatchStateServiceClient,
+    continue_watching_entry, external_id,
 };
 use nama_server::{config::Config, contents::Contents, plugins::Registry};
 use server::{PASSWORD, TestServer};
@@ -101,21 +102,9 @@ impl Fixture {
         let libraries = LibraryServiceClient::new(HttpClient::plaintext(), config.clone());
         let media = tempfile::tempdir().unwrap();
         let folder = media.path().canonicalize().unwrap();
-        let library = libraries
-            .create_library(CreateLibraryRequest {
-                name: "Media".to_owned(),
-                kind: kind.into(),
-                folders: vec![folder.to_str().unwrap().to_owned()],
-                ..Default::default()
-            })
-            .await
-            .unwrap()
-            .into_owned()
-            .library
-            .into_option()
-            .unwrap();
+        let library = create_library(&libraries, kind, &folder).await;
         Self {
-            library: library.id,
+            library,
             folder,
             libraries,
             browse: BrowseServiceClient::new(HttpClient::plaintext(), config.clone()),
@@ -146,25 +135,37 @@ impl Fixture {
         fx
     }
 
+    /// Adds a Library of `kind` with a folder of its own holding a file at `relative`, scanned
+    /// and Matched. Returns the Library's id, and its folder, which is deleted when dropped.
+    async fn add_library(&self, kind: LibraryKind, relative: &str) -> (i64, TempDir) {
+        let media = tempfile::tempdir().unwrap();
+        let folder = media.path().canonicalize().unwrap();
+        write(&folder.join(relative), b"video");
+        let library = create_library(&self.libraries, kind, &folder).await;
+        self.scan_until(library, async || self.all_decided(library, 1).await)
+            .await;
+        (library, media)
+    }
+
     /// Writes `contents` to the file at `relative` in the Library's folder.
     fn write(&self, relative: &str, contents: &[u8]) {
-        let path = self.folder.join(relative);
-        fs::create_dir_all(path.parent().unwrap()).unwrap();
-        fs::write(path, contents).unwrap();
+        write(&self.folder.join(relative), contents);
     }
 
     /// Scans the Library, and waits until `files` files are stored and Matching has decided
     /// about all their items.
     async fn scan_until_decided(&self, files: usize) {
-        self.scan_until(async || self.all_decided(files).await)
-            .await;
+        self.scan_until(self.library, async || {
+            self.all_decided(self.library, files).await
+        })
+        .await;
     }
 
-    /// Scans the Library, and waits until `done` says so.
-    async fn scan_until(&self, mut done: impl AsyncFnMut() -> bool) {
+    /// Scans the Library `library`, and waits until `done` says so.
+    async fn scan_until(&self, library: i64, mut done: impl AsyncFnMut() -> bool) {
         self.libraries
             .scan_library(ScanLibraryRequest {
-                id: self.library,
+                id: library,
                 ..Default::default()
             })
             .await
@@ -178,9 +179,10 @@ impl Fixture {
         .unwrap();
     }
 
-    /// Whether `files` files are stored, and Matching has decided about every item they hold.
-    async fn all_decided(&self, files: usize) -> bool {
-        let stored = self.contents.files(self.library).await.unwrap();
+    /// Whether `files` files are stored for the Library `library`, and Matching has decided about
+    /// every item they hold.
+    async fn all_decided(&self, library: i64, files: usize) -> bool {
+        let stored = self.contents.files(library).await.unwrap();
         stored.len() == files
             && stored
                 .iter()
@@ -191,7 +193,7 @@ impl Fixture {
     /// Rescans the Library after the file at `relative`, which held the item `before`, changed,
     /// and waits until a new item has replaced it and Matching has decided about that.
     async fn rescan_until_replaced(&self, relative: &str, before: i64) {
-        self.scan_until(async || self.replaced(relative, before).await)
+        self.scan_until(self.library, async || self.replaced(relative, before).await)
             .await;
     }
 
@@ -417,6 +419,16 @@ impl Viewer {
         got
     }
 
+    /// The Viewer's Continue Watching, as `ListContinueWatching` lists it.
+    async fn continue_watching(&self) -> Vec<ContinueWatchingEntry> {
+        self.browse
+            .list_continue_watching(ListContinueWatchingRequest::default())
+            .await
+            .unwrap()
+            .into_owned()
+            .entries
+    }
+
     /// The Viewer's Watch State of each Episode of Dark's Season `season` in the Library
     /// `library`, in episode order, as `ListEpisodes` gives them.
     async fn dark_watch_states(&self, library: i64, season: u32) -> Vec<Option<WatchState>> {
@@ -435,6 +447,42 @@ impl Viewer {
             .map(|episode| episode.watch_state.into_option())
             .collect()
     }
+}
+
+/// Creates a Library of `kind` with the one folder `folder`, and returns its id.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn create_library(
+    libraries: &LibraryServiceClient<HttpClient>,
+    kind: LibraryKind,
+    folder: &Path,
+) -> i64 {
+    libraries
+        .create_library(CreateLibraryRequest {
+            name: "Media".to_owned(),
+            kind: kind.into(),
+            folders: vec![folder.to_str().unwrap().to_owned()],
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_owned()
+        .library
+        .into_option()
+        .unwrap()
+        .id
+}
+
+/// Writes `contents` to the file at `path`, creating the folders it is in.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+fn write(path: &Path, contents: &[u8]) {
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(path, contents).unwrap();
 }
 
 /// An HTTP response, as a test checks it.
@@ -1180,4 +1228,160 @@ async fn progress_on_an_episode_survives_a_rescan_that_replaces_the_item() {
 
     let states = viewer.dark_watch_states(fx.library, 2).await;
     assert_eq!(episode_progress(states), [Some((MINUTE, TWO_HOURS, false))]);
+}
+
+/// A Continue Watching entry's Movie or Episode, as a test checks it.
+#[derive(Debug, PartialEq)]
+enum Listed<'a> {
+    /// A Movie, by its id.
+    Movie(ExternalId),
+    /// An Episode, by its Show's title and its season and episode numbers.
+    Episode(&'a str, u32, u32),
+}
+
+/// Each entry's Library, its Movie or Episode, and the position its Watch State is at.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+fn listed(entries: &[ContinueWatchingEntry]) -> Vec<(i64, Listed<'_>, u64)> {
+    use continue_watching_entry::Title;
+    entries
+        .iter()
+        .map(|entry| {
+            let (listed, state) = match entry.title.as_ref().unwrap() {
+                Title::Movie(movie) => {
+                    let id = movie.id.as_option().unwrap().clone();
+                    (Listed::Movie(id), &movie.watch_state)
+                }
+                Title::Episode(episode) => {
+                    let show = entry.show.as_option().unwrap().title.as_str();
+                    let numbers = (episode.season_number, episode.episode_number);
+                    (
+                        Listed::Episode(show, numbers.0, numbers.1),
+                        &episode.watch_state,
+                    )
+                }
+            };
+            (
+                entry.library_id,
+                listed,
+                state.as_option().unwrap().position_ms,
+            )
+        })
+        .collect()
+}
+
+#[tokio::test]
+async fn started_movies_and_episodes_are_listed_most_recent_first() {
+    let fx = Fixture::alien().await;
+    let (shows, _media) = fx
+        .add_library(LibraryKind::LIBRARY_KIND_SHOWS, DARK_S02E01)
+        .await;
+    let viewer = fx.admin();
+    let [alien] = fx.version_ids(ALIEN).await[..] else {
+        panic!("Alien has one Version");
+    };
+    let episodes = fx.list_episodes(shows, DARK, 2).await.unwrap();
+    let dark = episodes[0].versions[0].id;
+
+    viewer.report(alien, MINUTE, TWO_HOURS).await.unwrap();
+    // A Watch State's `updated_at` is in seconds.
+    tokio::time::sleep(Duration::from_millis(1_100)).await;
+    viewer.report(dark, 2 * MINUTE, TWO_HOURS).await.unwrap();
+
+    let entries = viewer.continue_watching().await;
+    assert_eq!(
+        listed(&entries),
+        [
+            (shows, Listed::Episode("Dark", 2, 1), 2 * MINUTE),
+            (fx.library, Listed::Movie(tmdb_id(ALIEN)), MINUTE),
+        ]
+    );
+    let Some(continue_watching_entry::Title::Movie(movie)) = &entries[1].title else {
+        panic!("Alien is a Movie");
+    };
+    assert_eq!(versions(&movie.versions), [("Alien (1979) - 1080p.mkv", 5)]);
+    assert!(entries[1].show.is_unset(), "a Movie has no Show");
+}
+
+#[tokio::test]
+async fn played_episodes_and_episodes_never_started_are_not_listed() {
+    let fx = Fixture::shows().await;
+    let viewer = fx.admin();
+    let two_episodes = fx.dark_version(1, "Dark - S01E01-E02.mkv").await;
+    let beginnings_and_endings = fx.dark_version(2, "Dark - S02E01.mkv").await;
+
+    // Secrets played, Lies 10 minutes in.
+    viewer
+        .report(two_episodes, 40 * MINUTE, AN_HOUR)
+        .await
+        .unwrap();
+    viewer
+        .report(beginnings_and_endings, 0, AN_HOUR)
+        .await
+        .unwrap();
+
+    let entries = viewer.continue_watching().await;
+    assert_eq!(
+        listed(&entries),
+        [(fx.library, Listed::Episode("Dark", 1, 2), 10 * MINUTE)]
+    );
+}
+
+#[tokio::test]
+async fn a_played_movie_is_not_listed() {
+    let fx = Fixture::alien().await;
+    let viewer = fx.admin();
+    let [version] = fx.version_ids(ALIEN).await[..] else {
+        panic!("Alien has one Version");
+    };
+
+    viewer.report(version, 901, 1_000).await.unwrap();
+    viewer.report(version, 100, 1_000).await.unwrap();
+
+    assert_eq!(viewer.continue_watching().await, []);
+}
+
+#[tokio::test]
+async fn a_movie_whose_file_has_gone_is_listed_again_once_a_rescan_matches_it() {
+    let fx = Fixture::alien().await;
+    let viewer = fx.admin();
+    let [version] = fx.version_ids(ALIEN).await[..] else {
+        panic!("Alien has one Version");
+    };
+    viewer.report(version, MINUTE, TWO_HOURS).await.unwrap();
+
+    fs::remove_file(fx.folder.join(ALIEN_1080P)).unwrap();
+    fx.scan_until(fx.library, async || fx.all_decided(fx.library, 0).await)
+        .await;
+    let gone = viewer.continue_watching().await;
+    fx.write(ALIEN_1080P, b"video");
+    fx.scan_until_decided(1).await;
+    let back = viewer.continue_watching().await;
+
+    assert_eq!(gone, []);
+    assert_eq!(
+        listed(&back),
+        [(fx.library, Listed::Movie(tmdb_id(ALIEN)), MINUTE)]
+    );
+}
+
+#[tokio::test]
+async fn another_users_progress_never_appears() {
+    let fx = Fixture::alien().await;
+    let admin = fx.admin();
+    let grace = fx.member().await;
+    let [version] = fx.version_ids(ALIEN).await[..] else {
+        panic!("Alien has one Version");
+    };
+
+    admin.report(version, MINUTE, TWO_HOURS).await.unwrap();
+    let grace_before = grace.continue_watching().await;
+    grace.report(version, 2 * MINUTE, TWO_HOURS).await.unwrap();
+
+    assert_eq!(grace_before, []);
+    let alien = |position| [(fx.library, Listed::Movie(tmdb_id(ALIEN)), position)];
+    assert_eq!(listed(&admin.continue_watching().await), alien(MINUTE));
+    assert_eq!(listed(&grace.continue_watching().await), alien(2 * MINUTE));
 }

@@ -37,6 +37,7 @@ pub mod __buffa {
             #[allow(unused_imports)]
             use super::*;
             include!("nama.v1.match.__view_oneof.rs");
+            include!("nama.v1.browse.__view_oneof.rs");
             include!("nama.v1.event.__view_oneof.rs");
         }
     }
@@ -44,6 +45,7 @@ pub mod __buffa {
         #[allow(unused_imports)]
         use super::*;
         include!("nama.v1.match.__oneof.rs");
+        include!("nama.v1.browse.__oneof.rs");
         include!("nama.v1.event.__oneof.rs");
     }
     /// Register this package's `Any` type entries and extension entries.
@@ -77,6 +79,9 @@ pub mod __buffa {
         reg.register_json_any(super::__GET_SHOW_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__LIST_EPISODES_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_EPISODES_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__CONTINUE_WATCHING_ENTRY_JSON_ANY);
+        reg.register_json_any(super::__LIST_CONTINUE_WATCHING_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_CONTINUE_WATCHING_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__SUBSCRIBE_REQUEST_JSON_ANY);
         reg.register_json_any(super::__SUBSCRIBE_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__LAGGED_JSON_ANY);
@@ -254,6 +259,18 @@ pub use self::__buffa::view::ListEpisodesRequestOwnedView;
 pub use self::__buffa::view::ListEpisodesResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::ListEpisodesResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ContinueWatchingEntryView;
+#[doc(inline)]
+pub use self::__buffa::view::ContinueWatchingEntryOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListContinueWatchingRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListContinueWatchingRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListContinueWatchingResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListContinueWatchingResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::SubscribeRequestView;
 #[doc(inline)]

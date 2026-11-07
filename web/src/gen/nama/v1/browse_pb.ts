@@ -14,7 +14,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file nama/v1/browse.proto.
  */
 export const file_nama_v1_browse: GenFile = /*@__PURE__*/
-  fileDesc("ChRuYW1hL3YxL2Jyb3dzZS5wcm90bxIHbmFtYS52MSKLAwoFTW92aWUSHwoCaWQYASABKAsyEy5uYW1hLnYxLkV4dGVybmFsSWQSDQoFdGl0bGUYAiABKAkSGwoOb3JpZ2luYWxfdGl0bGUYAyABKAlIAIgBARIVCghvdmVydmlldxgEIAEoCUgBiAEBEhkKDHJlbGVhc2VfZGF0ZRgFIAEoCUgCiAEBEhwKD3J1bnRpbWVfbWludXRlcxgGIAEoDUgDiAEBEhcKCnBvc3Rlcl91cmwYByABKAlIBIgBARIZCgxiYWNrZHJvcF91cmwYCCABKAlIBYgBARIiCgh2ZXJzaW9ucxgJIAMoCzIQLm5hbWEudjEuVmVyc2lvbhIoCgt3YXRjaF9zdGF0ZRgKIAEoCzITLm5hbWEudjEuV2F0Y2hTdGF0ZUIRCg9fb3JpZ2luYWxfdGl0bGVCCwoJX292ZXJ2aWV3Qg8KDV9yZWxlYXNlX2RhdGVCEgoQX3J1bnRpbWVfbWludXRlc0INCgtfcG9zdGVyX3VybEIPCg1fYmFja2Ryb3BfdXJsIjYKB1ZlcnNpb24SCgoCaWQYASABKAMSEQoJZmlsZV9uYW1lGAIgASgJEgwKBHNpemUYAyABKAQiJwoRTGlzdE1vdmllc1JlcXVlc3QSEgoKbGlicmFyeV9pZBgBIAEoAyI0ChJMaXN0TW92aWVzUmVzcG9uc2USHgoGbW92aWVzGAEgAygLMg4ubmFtYS52MS5Nb3ZpZSJMCg9HZXRNb3ZpZVJlcXVlc3QSEgoKbGlicmFyeV9pZBgBIAEoAxIlCghtb3ZpZV9pZBgCIAEoCzITLm5hbWEudjEuRXh0ZXJuYWxJZCIxChBHZXRNb3ZpZVJlc3BvbnNlEh0KBW1vdmllGAEgASgLMg4ubmFtYS52MS5Nb3ZpZSKKAQoEU2hvdxIfCgJpZBgBIAEoCzITLm5hbWEudjEuRXh0ZXJuYWxJZBINCgV0aXRsZRgCIAEoCRIXCgpwb3N0ZXJfdXJsGAMgASgJSACIAQESGQoMYmFja2Ryb3BfdXJsGAQgASgJSAGIAQFCDQoLX3Bvc3Rlcl91cmxCDwoNX2JhY2tkcm9wX3VybCJACgZTZWFzb24SDgoGbnVtYmVyGAEgASgNEhcKCnBvc3Rlcl91cmwYAiABKAlIAIgBAUINCgtfcG9zdGVyX3VybCKwAgoHRXBpc29kZRIfCgJpZBgBIAEoCzITLm5hbWEudjEuRXh0ZXJuYWxJZBIVCg1zZWFzb25fbnVtYmVyGAIgASgNEhYKDmVwaXNvZGVfbnVtYmVyGAMgASgNEg0KBXRpdGxlGAQgASgJEhUKCG92ZXJ2aWV3GAUgASgJSACIAQESFQoIYWlyX2RhdGUYBiABKAlIAYgBARIcCg9ydW50aW1lX21pbnV0ZXMYByABKA1IAogBARIiCgh2ZXJzaW9ucxgIIAMoCzIQLm5hbWEudjEuVmVyc2lvbhIoCgt3YXRjaF9zdGF0ZRgJIAEoCzITLm5hbWEudjEuV2F0Y2hTdGF0ZUILCglfb3ZlcnZpZXdCCwoJX2Fpcl9kYXRlQhIKEF9ydW50aW1lX21pbnV0ZXMiJgoQTGlzdFNob3dzUmVxdWVzdBISCgpsaWJyYXJ5X2lkGAEgASgDIjEKEUxpc3RTaG93c1Jlc3BvbnNlEhwKBXNob3dzGAEgAygLMg0ubmFtYS52MS5TaG93IkoKDkdldFNob3dSZXF1ZXN0EhIKCmxpYnJhcnlfaWQYASABKAMSJAoHc2hvd19pZBgCIAEoCzITLm5hbWEudjEuRXh0ZXJuYWxJZCJQCg9HZXRTaG93UmVzcG9uc2USGwoEc2hvdxgBIAEoCzINLm5hbWEudjEuU2hvdxIgCgdzZWFzb25zGAIgAygLMg8ubmFtYS52MS5TZWFzb24iZgoTTGlzdEVwaXNvZGVzUmVxdWVzdBISCgpsaWJyYXJ5X2lkGAEgASgDEiQKB3Nob3dfaWQYAiABKAsyEy5uYW1hLnYxLkV4dGVybmFsSWQSFQoNc2Vhc29uX251bWJlchgDIAEoDSI6ChRMaXN0RXBpc29kZXNSZXNwb25zZRIiCghlcGlzb2RlcxgBIAMoCzIQLm5hbWEudjEuRXBpc29kZTL/AgoNQnJvd3NlU2VydmljZRJKCgpMaXN0TW92aWVzEhoubmFtYS52MS5MaXN0TW92aWVzUmVxdWVzdBobLm5hbWEudjEuTGlzdE1vdmllc1Jlc3BvbnNlIgOQAgESRAoIR2V0TW92aWUSGC5uYW1hLnYxLkdldE1vdmllUmVxdWVzdBoZLm5hbWEudjEuR2V0TW92aWVSZXNwb25zZSIDkAIBEkcKCUxpc3RTaG93cxIZLm5hbWEudjEuTGlzdFNob3dzUmVxdWVzdBoaLm5hbWEudjEuTGlzdFNob3dzUmVzcG9uc2UiA5ACARJBCgdHZXRTaG93EhcubmFtYS52MS5HZXRTaG93UmVxdWVzdBoYLm5hbWEudjEuR2V0U2hvd1Jlc3BvbnNlIgOQAgESUAoMTGlzdEVwaXNvZGVzEhwubmFtYS52MS5MaXN0RXBpc29kZXNSZXF1ZXN0Gh0ubmFtYS52MS5MaXN0RXBpc29kZXNSZXNwb25zZSIDkAIBYgZwcm90bzM", [file_nama_v1_match, file_nama_v1_watch_state]);
+  fileDesc("ChRuYW1hL3YxL2Jyb3dzZS5wcm90bxIHbmFtYS52MSKLAwoFTW92aWUSHwoCaWQYASABKAsyEy5uYW1hLnYxLkV4dGVybmFsSWQSDQoFdGl0bGUYAiABKAkSGwoOb3JpZ2luYWxfdGl0bGUYAyABKAlIAIgBARIVCghvdmVydmlldxgEIAEoCUgBiAEBEhkKDHJlbGVhc2VfZGF0ZRgFIAEoCUgCiAEBEhwKD3J1bnRpbWVfbWludXRlcxgGIAEoDUgDiAEBEhcKCnBvc3Rlcl91cmwYByABKAlIBIgBARIZCgxiYWNrZHJvcF91cmwYCCABKAlIBYgBARIiCgh2ZXJzaW9ucxgJIAMoCzIQLm5hbWEudjEuVmVyc2lvbhIoCgt3YXRjaF9zdGF0ZRgKIAEoCzITLm5hbWEudjEuV2F0Y2hTdGF0ZUIRCg9fb3JpZ2luYWxfdGl0bGVCCwoJX292ZXJ2aWV3Qg8KDV9yZWxlYXNlX2RhdGVCEgoQX3J1bnRpbWVfbWludXRlc0INCgtfcG9zdGVyX3VybEIPCg1fYmFja2Ryb3BfdXJsIjYKB1ZlcnNpb24SCgoCaWQYASABKAMSEQoJZmlsZV9uYW1lGAIgASgJEgwKBHNpemUYAyABKAQiJwoRTGlzdE1vdmllc1JlcXVlc3QSEgoKbGlicmFyeV9pZBgBIAEoAyI0ChJMaXN0TW92aWVzUmVzcG9uc2USHgoGbW92aWVzGAEgAygLMg4ubmFtYS52MS5Nb3ZpZSJMCg9HZXRNb3ZpZVJlcXVlc3QSEgoKbGlicmFyeV9pZBgBIAEoAxIlCghtb3ZpZV9pZBgCIAEoCzITLm5hbWEudjEuRXh0ZXJuYWxJZCIxChBHZXRNb3ZpZVJlc3BvbnNlEh0KBW1vdmllGAEgASgLMg4ubmFtYS52MS5Nb3ZpZSKKAQoEU2hvdxIfCgJpZBgBIAEoCzITLm5hbWEudjEuRXh0ZXJuYWxJZBINCgV0aXRsZRgCIAEoCRIXCgpwb3N0ZXJfdXJsGAMgASgJSACIAQESGQoMYmFja2Ryb3BfdXJsGAQgASgJSAGIAQFCDQoLX3Bvc3Rlcl91cmxCDwoNX2JhY2tkcm9wX3VybCJACgZTZWFzb24SDgoGbnVtYmVyGAEgASgNEhcKCnBvc3Rlcl91cmwYAiABKAlIAIgBAUINCgtfcG9zdGVyX3VybCKwAgoHRXBpc29kZRIfCgJpZBgBIAEoCzITLm5hbWEudjEuRXh0ZXJuYWxJZBIVCg1zZWFzb25fbnVtYmVyGAIgASgNEhYKDmVwaXNvZGVfbnVtYmVyGAMgASgNEg0KBXRpdGxlGAQgASgJEhUKCG92ZXJ2aWV3GAUgASgJSACIAQESFQoIYWlyX2RhdGUYBiABKAlIAYgBARIcCg9ydW50aW1lX21pbnV0ZXMYByABKA1IAogBARIiCgh2ZXJzaW9ucxgIIAMoCzIQLm5hbWEudjEuVmVyc2lvbhIoCgt3YXRjaF9zdGF0ZRgJIAEoCzITLm5hbWEudjEuV2F0Y2hTdGF0ZUILCglfb3ZlcnZpZXdCCwoJX2Fpcl9kYXRlQhIKEF9ydW50aW1lX21pbnV0ZXMiJgoQTGlzdFNob3dzUmVxdWVzdBISCgpsaWJyYXJ5X2lkGAEgASgDIjEKEUxpc3RTaG93c1Jlc3BvbnNlEhwKBXNob3dzGAEgAygLMg0ubmFtYS52MS5TaG93IkoKDkdldFNob3dSZXF1ZXN0EhIKCmxpYnJhcnlfaWQYASABKAMSJAoHc2hvd19pZBgCIAEoCzITLm5hbWEudjEuRXh0ZXJuYWxJZCJQCg9HZXRTaG93UmVzcG9uc2USGwoEc2hvdxgBIAEoCzINLm5hbWEudjEuU2hvdxIgCgdzZWFzb25zGAIgAygLMg8ubmFtYS52MS5TZWFzb24iZgoTTGlzdEVwaXNvZGVzUmVxdWVzdBISCgpsaWJyYXJ5X2lkGAEgASgDEiQKB3Nob3dfaWQYAiABKAsyEy5uYW1hLnYxLkV4dGVybmFsSWQSFQoNc2Vhc29uX251bWJlchgDIAEoDSI6ChRMaXN0RXBpc29kZXNSZXNwb25zZRIiCghlcGlzb2RlcxgBIAMoCzIQLm5hbWEudjEuRXBpc29kZSKXAQoVQ29udGludWVXYXRjaGluZ0VudHJ5EhIKCmxpYnJhcnlfaWQYASABKAMSHwoFbW92aWUYAiABKAsyDi5uYW1hLnYxLk1vdmllSAASIwoHZXBpc29kZRgDIAEoCzIQLm5hbWEudjEuRXBpc29kZUgAEhsKBHNob3cYBCABKAsyDS5uYW1hLnYxLlNob3dCBwoFdGl0bGUiHQobTGlzdENvbnRpbnVlV2F0Y2hpbmdSZXF1ZXN0Ik8KHExpc3RDb250aW51ZVdhdGNoaW5nUmVzcG9uc2USLwoHZW50cmllcxgBIAMoCzIeLm5hbWEudjEuQ29udGludWVXYXRjaGluZ0VudHJ5MukDCg1Ccm93c2VTZXJ2aWNlEkoKCkxpc3RNb3ZpZXMSGi5uYW1hLnYxLkxpc3RNb3ZpZXNSZXF1ZXN0GhsubmFtYS52MS5MaXN0TW92aWVzUmVzcG9uc2UiA5ACARJECghHZXRNb3ZpZRIYLm5hbWEudjEuR2V0TW92aWVSZXF1ZXN0GhkubmFtYS52MS5HZXRNb3ZpZVJlc3BvbnNlIgOQAgESRwoJTGlzdFNob3dzEhkubmFtYS52MS5MaXN0U2hvd3NSZXF1ZXN0GhoubmFtYS52MS5MaXN0U2hvd3NSZXNwb25zZSIDkAIBEkEKB0dldFNob3cSFy5uYW1hLnYxLkdldFNob3dSZXF1ZXN0GhgubmFtYS52MS5HZXRTaG93UmVzcG9uc2UiA5ACARJQCgxMaXN0RXBpc29kZXMSHC5uYW1hLnYxLkxpc3RFcGlzb2Rlc1JlcXVlc3QaHS5uYW1hLnYxLkxpc3RFcGlzb2Rlc1Jlc3BvbnNlIgOQAgESaAoUTGlzdENvbnRpbnVlV2F0Y2hpbmcSJC5uYW1hLnYxLkxpc3RDb250aW51ZVdhdGNoaW5nUmVxdWVzdBolLm5hbWEudjEuTGlzdENvbnRpbnVlV2F0Y2hpbmdSZXNwb25zZSIDkAIBYgZwcm90bzM", [file_nama_v1_match, file_nama_v1_watch_state]);
 
 /**
  * A Movie some items of a Library are Matched to, with the metadata its Match stores.
@@ -491,7 +491,87 @@ export const ListEpisodesResponseSchema: GenMessage<ListEpisodesResponse> = /*@_
   messageDesc(file_nama_v1_browse, 14);
 
 /**
- * Browsing what a Library holds, for any signed-in User.
+ * A Movie or Episode the caller has started and not played, with what a client needs to show it
+ * and resume it.
+ *
+ * @generated from message nama.v1.ContinueWatchingEntry
+ */
+export type ContinueWatchingEntry = Message<"nama.v1.ContinueWatchingEntry"> & {
+  /**
+   * The Library it is in.
+   *
+   * @generated from field: int64 library_id = 1;
+   */
+  libraryId: bigint;
+
+  /**
+   * It, with its Versions and the caller's Watch State, as browsing describes it.
+   *
+   * @generated from oneof nama.v1.ContinueWatchingEntry.title
+   */
+  title: {
+    /**
+     * @generated from field: nama.v1.Movie movie = 2;
+     */
+    value: Movie;
+    case: "movie";
+  } | {
+    /**
+     * @generated from field: nama.v1.Episode episode = 3;
+     */
+    value: Episode;
+    case: "episode";
+  } | { case: undefined; value?: undefined };
+
+  /**
+   * For an Episode, the Show it is of. Unset for a Movie.
+   *
+   * @generated from field: nama.v1.Show show = 4;
+   */
+  show?: Show | undefined;
+};
+
+/**
+ * Describes the message nama.v1.ContinueWatchingEntry.
+ * Use `create(ContinueWatchingEntrySchema)` to create a new message.
+ */
+export const ContinueWatchingEntrySchema: GenMessage<ContinueWatchingEntry> = /*@__PURE__*/
+  messageDesc(file_nama_v1_browse, 15);
+
+/**
+ * @generated from message nama.v1.ListContinueWatchingRequest
+ */
+export type ListContinueWatchingRequest = Message<"nama.v1.ListContinueWatchingRequest"> & {
+};
+
+/**
+ * Describes the message nama.v1.ListContinueWatchingRequest.
+ * Use `create(ListContinueWatchingRequestSchema)` to create a new message.
+ */
+export const ListContinueWatchingRequestSchema: GenMessage<ListContinueWatchingRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_browse, 16);
+
+/**
+ * @generated from message nama.v1.ListContinueWatchingResponse
+ */
+export type ListContinueWatchingResponse = Message<"nama.v1.ListContinueWatchingResponse"> & {
+  /**
+   * Most recent first.
+   *
+   * @generated from field: repeated nama.v1.ContinueWatchingEntry entries = 1;
+   */
+  entries: ContinueWatchingEntry[];
+};
+
+/**
+ * Describes the message nama.v1.ListContinueWatchingResponse.
+ * Use `create(ListContinueWatchingResponseSchema)` to create a new message.
+ */
+export const ListContinueWatchingResponseSchema: GenMessage<ListContinueWatchingResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_browse, 17);
+
+/**
+ * Browsing what a Library holds, and the caller's Continue Watching, for any signed-in User.
  *
  * Only Matched items appear. Movies, Shows, Seasons and Episodes are not stored as such: they are
  * grouped from the items Matched to the same title, and identified by its external id within the
@@ -558,6 +638,19 @@ export const BrowseService: GenService<{
     methodKind: "unary";
     input: typeof ListEpisodesRequestSchema;
     output: typeof ListEpisodesResponseSchema;
+  },
+  /**
+   * Lists the caller's Continue Watching: the Movies and Episodes whose position is past 0 and
+   * that they haven't played, most recent first by when their Watch State last changed. Only
+   * those Matched in some Library are listed, each in the oldest Library that has it. The Watch
+   * State of the rest is kept, so they are listed again once a rescan Matches them.
+   *
+   * @generated from rpc nama.v1.BrowseService.ListContinueWatching
+   */
+  listContinueWatching: {
+    methodKind: "unary";
+    input: typeof ListContinueWatchingRequestSchema;
+    output: typeof ListContinueWatchingResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_nama_v1_browse, 0);

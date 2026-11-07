@@ -1,6 +1,7 @@
 //! The Server's ConnectRPC API (ADR 0007), served on axum.
 
 use std::{
+    collections::HashMap,
     ffi::OsStr,
     future,
     net::{IpAddr, SocketAddr},
@@ -31,24 +32,25 @@ use nama_proto::nama::v1::{
     DeleteLibraryRequest, DeleteLibraryResponse, DeleteUserRequest, DeleteUserResponse,
     EventService, EventType, GetLibraryRequest, GetLibraryResponse, GetMovieRequest,
     GetMovieResponse, GetServerInfoRequest, GetServerInfoResponse, GetShowRequest, GetShowResponse,
-    LIBRARY_SERVICE_SERVICE_NAME, LibraryKind, LibraryService, ListDevicesRequest,
-    ListDevicesResponse, ListEpisodesRequest, ListEpisodesResponse, ListLibrariesRequest,
-    ListLibrariesResponse, ListMoviesRequest, ListMoviesResponse, ListShowsRequest,
-    ListShowsResponse, ListUnmatchedItemsRequest, ListUnmatchedItemsResponse, ListUsersRequest,
-    ListUsersResponse, LookUpSignInCodeRequest, LookUpSignInCodeResponse,
-    MATCH_SERVICE_SERVICE_NAME, MatchService, PollSignInCodeRequest, PollSignInCodeResponse,
-    ReportProgressRequest, ReportProgressResponse, ResetPasswordRequest, ResetPasswordResponse,
-    RevokeDeviceRequest, RevokeDeviceResponse, SERVER_SERVICE_GET_SERVER_INFO_SPEC,
-    SIGN_IN_SERVICE_POLL_SIGN_IN_CODE_SPEC, SIGN_IN_SERVICE_SETUP_SPEC,
-    SIGN_IN_SERVICE_SIGN_IN_SPEC, SIGN_IN_SERVICE_START_SIGN_IN_CODE_SPEC, ScanLibraryRequest,
-    ScanLibraryResponse, SearchMetadataRequest, SearchMetadataResponse, ServerService,
-    SessionDelivery, SetMatchRequest, SetMatchResponse, SetRoleRequest, SetRoleResponse,
-    SetupRequest, SetupResponse, SignInCodeStatus, SignInRequest, SignInResponse, SignInService,
-    SignOutRequest, SignOutResponse, StartSignInCodeRequest, StartSignInCodeResponse,
-    SubscribeRequest, SubscribeResponse, USER_SERVICE_CHANGE_PASSWORD_SPEC,
-    USER_SERVICE_LIST_DEVICES_SPEC, USER_SERVICE_REVOKE_DEVICE_SPEC, USER_SERVICE_SERVICE_NAME,
-    UpdateLibraryRequest, UpdateLibraryResponse, UserService, WatchStateService, WhoAmIRequest,
-    WhoAmIResponse, external_id,
+    LIBRARY_SERVICE_SERVICE_NAME, LibraryKind, LibraryService, ListContinueWatchingRequest,
+    ListContinueWatchingResponse, ListDevicesRequest, ListDevicesResponse, ListEpisodesRequest,
+    ListEpisodesResponse, ListLibrariesRequest, ListLibrariesResponse, ListMoviesRequest,
+    ListMoviesResponse, ListShowsRequest, ListShowsResponse, ListUnmatchedItemsRequest,
+    ListUnmatchedItemsResponse, ListUsersRequest, ListUsersResponse, LookUpSignInCodeRequest,
+    LookUpSignInCodeResponse, MATCH_SERVICE_SERVICE_NAME, MatchService, PollSignInCodeRequest,
+    PollSignInCodeResponse, ReportProgressRequest, ReportProgressResponse, ResetPasswordRequest,
+    ResetPasswordResponse, RevokeDeviceRequest, RevokeDeviceResponse,
+    SERVER_SERVICE_GET_SERVER_INFO_SPEC, SIGN_IN_SERVICE_POLL_SIGN_IN_CODE_SPEC,
+    SIGN_IN_SERVICE_SETUP_SPEC, SIGN_IN_SERVICE_SIGN_IN_SPEC,
+    SIGN_IN_SERVICE_START_SIGN_IN_CODE_SPEC, ScanLibraryRequest, ScanLibraryResponse,
+    SearchMetadataRequest, SearchMetadataResponse, ServerService, SessionDelivery, SetMatchRequest,
+    SetMatchResponse, SetRoleRequest, SetRoleResponse, SetupRequest, SetupResponse,
+    SignInCodeStatus, SignInRequest, SignInResponse, SignInService, SignOutRequest,
+    SignOutResponse, StartSignInCodeRequest, StartSignInCodeResponse, SubscribeRequest,
+    SubscribeResponse, USER_SERVICE_CHANGE_PASSWORD_SPEC, USER_SERVICE_LIST_DEVICES_SPEC,
+    USER_SERVICE_REVOKE_DEVICE_SPEC, USER_SERVICE_SERVICE_NAME, UpdateLibraryRequest,
+    UpdateLibraryResponse, UserService, WatchStateService, WhoAmIRequest, WhoAmIResponse,
+    external_id,
 };
 use tokio::sync::OwnedMutexGuard;
 
@@ -67,7 +69,7 @@ use crate::{
     sign_in_codes::{self, Poll, SignInCodes},
     users::{self, Caller, Role, SetupCode, SignedIn, Users},
     versions,
-    watch_states::{Progress, WatchState, WatchStates},
+    watch_states::{Progress, Title, WatchState, WatchStates},
 };
 
 /// Routes every RPC the Server answers, its artwork and its Versions, each behind the layers
@@ -734,6 +736,64 @@ impl BrowseServiceHandler {
             .ok_or_else(|| ConnectError::not_found("nothing in the Library is Matched to that id"))
     }
 
+    /// The Continue Watching entries of `in_progress`, the Movies and Episodes the caller has
+    /// started and not played, in the same order. Each is in the oldest Library that has it, and
+    /// one no Library has is left out.
+    // ponytail: reads every Library's contents; query by id if Libraries get big.
+    async fn continue_watching(
+        &self,
+        in_progress: Vec<(Title, WatchState)>,
+    ) -> Result<Vec<proto::ContinueWatchingEntry>, ConnectError> {
+        let mut unfound: HashMap<Title, WatchState> = in_progress.iter().cloned().collect();
+        let mut entries = HashMap::new();
+        for library in self.libraries.list().await? {
+            entries.extend(self.entries_in(&library, &mut unfound).await?);
+        }
+        Ok(in_progress
+            .into_iter()
+            .filter_map(|(title, _)| entries.remove(&title))
+            .collect())
+    }
+
+    /// The Continue Watching entries of the Movies or Episodes in `library` that `unfound` has
+    /// the Watch State of, each taken out of `unfound`.
+    async fn entries_in(
+        &self,
+        library: &Library,
+        unfound: &mut HashMap<Title, WatchState>,
+    ) -> Result<Vec<(Title, proto::ContinueWatchingEntry)>, ConnectError> {
+        let entry = |title, show| continue_watching_entry(library.id, title, show);
+        Ok(match library.kind {
+            Kind::Movies => {
+                let movies = self.contents.movies(library.id).await;
+                let movies = movies.map_err(|err| database_failed(&err))?;
+                movies
+                    .into_iter()
+                    .filter_map(|movie| {
+                        let title = Title::movie(&movie.id);
+                        let state = unfound.remove(&title)?;
+                        Some((
+                            title,
+                            entry(movie_to_proto(movie, Some(state)).into(), None),
+                        ))
+                    })
+                    .collect()
+            }
+            Kind::Shows => {
+                let shows = self.contents.shows(library.id).await;
+                let shows = shows.map_err(|err| database_failed(&err))?;
+                episodes(shows)
+                    .filter_map(|(show, season, episode)| {
+                        let title = Title::episode(&episode.id);
+                        let state = unfound.remove(&title)?;
+                        let episode = episode_to_proto(season, episode, Some(state));
+                        Some((title, entry(episode.into(), Some(show))))
+                    })
+                    .collect()
+            }
+        })
+    }
+
     /// Fails with `not_found` if there is no Library `library`, and with `invalid_argument` if it
     /// doesn't hold `kind`.
     async fn require_kind(&self, library: i64, kind: Kind) -> Result<(), ConnectError> {
@@ -855,6 +915,19 @@ impl BrowseService for BrowseServiceHandler {
                 .zip(states)
                 .map(|(episode, state)| episode_to_proto(number, episode, state))
                 .collect(),
+            ..Default::default()
+        })
+    }
+
+    async fn list_continue_watching(
+        &self,
+        ctx: RequestContext,
+        _request: ServiceRequest<'_, ListContinueWatchingRequest>,
+    ) -> ServiceResult<ListContinueWatchingResponse> {
+        let in_progress = self.watch_states.in_progress(caller(&ctx)?.user.id).await;
+        let in_progress = in_progress.map_err(|err| database_failed(&err))?;
+        Response::ok(ListContinueWatchingResponse {
+            entries: self.continue_watching(in_progress).await?,
             ..Default::default()
         })
     }
@@ -1252,6 +1325,35 @@ fn movie_to_proto(movie: Movie, watch_state: Option<WatchState>) -> proto::Movie
         backdrop_url: movie.backdrop.map(artwork_url),
         versions: movie.versions.iter().map(version_to_proto).collect(),
         watch_state: watch_state.map(watch_state_to_proto).into(),
+        ..Default::default()
+    }
+}
+
+/// Every Episode of `shows`, with the Show it is of, as clients see it, and its season number.
+fn episodes(shows: Vec<Show>) -> impl Iterator<Item = (proto::Show, u32, Episode)> {
+    shows.into_iter().flat_map(|show| {
+        let proto_show = show_to_proto(&show);
+        show.seasons.into_iter().flat_map(move |(number, season)| {
+            let proto_show = proto_show.clone();
+            season
+                .episodes
+                .into_iter()
+                .map(move |episode| (proto_show.clone(), proto_number(number), episode))
+        })
+    })
+}
+
+/// A Continue Watching entry for `title`, a Movie or Episode of the Library `library`, and for an
+/// Episode, the Show it is of.
+fn continue_watching_entry(
+    library: i64,
+    title: proto::continue_watching_entry::Title,
+    show: Option<proto::Show>,
+) -> proto::ContinueWatchingEntry {
+    proto::ContinueWatchingEntry {
+        library_id: library,
+        title: Some(title),
+        show: show.into(),
         ..Default::default()
     }
 }

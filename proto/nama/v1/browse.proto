@@ -5,7 +5,7 @@ package nama.v1;
 import "nama/v1/match.proto";
 import "nama/v1/watch_state.proto";
 
-// Browsing what a Library holds, for any signed-in User.
+// Browsing what a Library holds, and the caller's Continue Watching, for any signed-in User.
 //
 // Only Matched items appear. Movies, Shows, Seasons and Episodes are not stored as such: they are
 // grouped from the items Matched to the same title, and identified by its external id within the
@@ -38,6 +38,13 @@ service BrowseService {
   // State. Fails like `GetShow`, or with `not_found` if the Show has no such Season in the
   // Library.
   rpc ListEpisodes(ListEpisodesRequest) returns (ListEpisodesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Lists the caller's Continue Watching: the Movies and Episodes whose position is past 0 and
+  // that they haven't played, most recent first by when their Watch State last changed. Only
+  // those Matched in some Library are listed, each in the oldest Library that has it. The Watch
+  // State of the rest is kept, so they are listed again once a rescan Matches them.
+  rpc ListContinueWatching(ListContinueWatchingRequest) returns (ListContinueWatchingResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
 }
@@ -170,4 +177,25 @@ message ListEpisodesRequest {
 
 message ListEpisodesResponse {
   repeated Episode episodes = 1;
+}
+
+// A Movie or Episode the caller has started and not played, with what a client needs to show it
+// and resume it.
+message ContinueWatchingEntry {
+  // The Library it is in.
+  int64 library_id = 1;
+  // It, with its Versions and the caller's Watch State, as browsing describes it.
+  oneof title {
+    Movie movie = 2;
+    Episode episode = 3;
+  }
+  // For an Episode, the Show it is of. Unset for a Movie.
+  Show show = 4;
+}
+
+message ListContinueWatchingRequest {}
+
+message ListContinueWatchingResponse {
+  // Most recent first.
+  repeated ContinueWatchingEntry entries = 1;
 }

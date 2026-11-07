@@ -39,13 +39,15 @@ const ADMIN_ONLY: [&str; 15] = [
     "/nama.v1.UserService/ResetPassword",
 ];
 
-/// The RPCs for browsing what a Library holds, which any signed-in User may call.
-const BROWSE: [&str; 5] = [
+/// The RPCs for browsing what a Library holds and the caller's Continue Watching, which any
+/// signed-in User may call.
+const BROWSE: [&str; 6] = [
     "/nama.v1.BrowseService/ListMovies",
     "/nama.v1.BrowseService/GetMovie",
     "/nama.v1.BrowseService/ListShows",
     "/nama.v1.BrowseService/GetShow",
     "/nama.v1.BrowseService/ListEpisodes",
+    "/nama.v1.BrowseService/ListContinueWatching",
 ];
 
 /// Every other unary RPC that needs a session.

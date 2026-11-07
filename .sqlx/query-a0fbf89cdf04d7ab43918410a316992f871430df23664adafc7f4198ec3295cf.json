@@ -1,0 +1,74 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT kind, title_id, position_ms, duration_ms, updated_at\n             FROM watch_states\n             WHERE user_id = ? AND position_ms > 0 AND NOT played\n             ORDER BY updated_at DESC",
+  "describe": {
+    "columns": [
+      {
+        "name": "kind",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "watch_states",
+            "name": "kind"
+          }
+        }
+      },
+      {
+        "name": "title_id",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "watch_states",
+            "name": "title_id"
+          }
+        }
+      },
+      {
+        "name": "position_ms",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "watch_states",
+            "name": "position_ms"
+          }
+        }
+      },
+      {
+        "name": "duration_ms",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "watch_states",
+            "name": "duration_ms"
+          }
+        }
+      },
+      {
+        "name": "updated_at",
+        "ordinal": 4,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "watch_states",
+            "name": "updated_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "a0fbf89cdf04d7ab43918410a316992f871430df23664adafc7f4198ec3295cf"
+}

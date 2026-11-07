@@ -53,7 +53,7 @@ pub const WATCH_STATE_SERVICE_REPORT_PROGRESS_SPEC: ::connectrpc::Spec = ::conne
 /// Watch State is kept per User against the Movie or Episode a Version is Matched to, by its
 /// external id, never against the file. So it survives rescans, renames and new Versions, and every
 /// Version of a Movie or Episode shares it. An Item that isn't Matched has none. `BrowseService`
-/// returns it with each Movie and Episode.
+/// returns it with each Movie and Episode, and lists the caller's Continue Watching.
 ///
 /// # Implementing handlers
 ///
