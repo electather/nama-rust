@@ -37,6 +37,10 @@ impl TestServer {
     pub(crate) async fn start_with_db(config: Config, plugins: Registry) -> (Self, Arc<Database>) {
         plugins.enable(Arc::new(LocalAuth)).unwrap();
         let data_dir = tempfile::tempdir().unwrap();
+        let config = Config {
+            data_dir: data_dir.path().to_owned(),
+            ..config
+        };
         let db = Arc::new(Database::open(data_dir.path()).await.unwrap());
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();

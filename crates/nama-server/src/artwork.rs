@@ -5,6 +5,9 @@
 //! something first asks for it, then kept under `artwork/` in the data directory and served from
 //! there, across restarts too. Callers should only ask for images some Match stores, so clients
 //! can't use the cache to fetch arbitrary images.
+//!
+//! Clients fetch them over plain HTTP at `/media/artwork/<plugin>/<path>` (ADR 0007: media bytes
+//! are not RPC), which is served to anyone with a session.
 
 use std::{
     io,
@@ -12,12 +15,19 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
 };
 
+use axum::{
+    Router,
+    extract::{Path as UrlPath, State},
+    http::{StatusCode, header},
+    response::{IntoResponse, Response},
+    routing::get,
+};
 use nama_plugin_api::{
     PluginId,
     metadata::{MetadataError, MetadataProvider},
 };
 
-use crate::plugins::Registry;
+use crate::{contents::Contents, plugins::Registry};
 
 /// The directory under the data directory that holds the cache.
 const DIR: &str = "artwork";
@@ -105,6 +115,13 @@ impl Artwork {
         write_atomically(&cached.path, &image.bytes).await?;
         Ok(cached)
     }
+
+    /// The media type and bytes of the image [`Artwork::get`] gives.
+    async fn read(&self, plugin: &PluginId, path: &str) -> Result<(&'static str, Vec<u8>), Error> {
+        let image = self.get(plugin, path).await?;
+        let bytes = tokio::fs::read(&image.path).await?;
+        Ok((image.content_type, bytes))
+    }
 }
 
 /// Where clients fetch the image at `path` from the Plugin `plugin`'s metadata Provider:
@@ -112,6 +129,50 @@ impl Artwork {
 /// percent-encoding, so each part is one URL path segment that decodes back to what it was.
 pub(crate) fn url(plugin: &str, path: &str) -> String {
     format!("/media/artwork/{}/{}", file_name(plugin), file_name(path))
+}
+
+/// Serves `GET` [`url`]s with the image at that path from that Plugin's Provider, through
+/// `artwork`, if `contents` has a Match that stores it, and 404 otherwise. Whether the caller has
+/// a session is up to the layers the router is put behind.
+pub(crate) fn router(artwork: Artwork, contents: Contents) -> Router {
+    Router::new()
+        .route("/media/artwork/{plugin}/{path}", get(serve))
+        .with_state((artwork, contents))
+}
+
+/// Answers a request for the image at `path` from the Plugin `plugin`'s Provider.
+async fn serve(
+    State((artwork, contents)): State<(Artwork, Contents)>,
+    UrlPath((plugin, path)): UrlPath<(String, String)>,
+) -> Response {
+    match contents.stores_image(&plugin, &path).await {
+        Ok(true) => {}
+        Ok(false) => return StatusCode::NOT_FOUND.into_response(),
+        Err(err) => {
+            tracing::error!("could not look up a stored image: {err}");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    }
+    match artwork.read(&PluginId::from(plugin), &path).await {
+        Ok((content_type, bytes)) => (
+            [
+                (header::CONTENT_TYPE, content_type),
+                // An unnamed type stays a download: no browser guesses it is HTML.
+                (header::X_CONTENT_TYPE_OPTIONS, "nosniff"),
+            ],
+            bytes,
+        )
+            .into_response(),
+        Err(Error::NotFound) => StatusCode::NOT_FOUND.into_response(),
+        Err(err @ Error::Unavailable(_)) => {
+            tracing::warn!("could not serve {path}: {err}");
+            StatusCode::SERVICE_UNAVAILABLE.into_response()
+        }
+        Err(err @ Error::Io(_)) => {
+            tracing::error!("could not serve {path}: {err}");
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+    }
 }
 
 /// Writes `bytes` to `path` so no reader ever sees a partial file, even if two downloads of the

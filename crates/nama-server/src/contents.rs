@@ -330,6 +330,24 @@ impl Contents {
         .await
     }
 
+    /// Whether some Match made by the Plugin `plugin` stores `image` as its poster or backdrop.
+    pub(crate) async fn stores_image(
+        &self,
+        plugin: &str,
+        image: &str,
+    ) -> Result<bool, sqlx::Error> {
+        sqlx::query_scalar!(
+            r#"SELECT EXISTS (SELECT 1 FROM item_matches
+                              WHERE state = 'matched' AND plugin = ?
+                                AND (poster = ? OR backdrop = ?)) AS "stored!: bool""#,
+            plugin,
+            image,
+            image
+        )
+        .fetch_one(self.db.reader())
+        .await
+    }
+
     /// The Items of the Item `item`'s Library named like it, itself among them, or `None` if
     /// there is no such Item.
     pub(crate) async fn named_like(&self, item: i64) -> Result<Option<Named>, sqlx::Error> {
