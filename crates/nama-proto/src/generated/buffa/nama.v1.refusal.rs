@@ -98,6 +98,14 @@ pub enum RefusalReason {
     /// `failed_precondition`: the Movie is already Matched in a Library, so it can't be Requested.
     /// Params: `tmdbId`.
     REFUSAL_REASON_ALREADY_IN_LIBRARY = 39i32,
+    /// `not_found`: no Plugin has the id. Params: `pluginId`.
+    REFUSAL_REASON_PLUGIN_NOT_FOUND = 40i32,
+    /// `failed_precondition`: the Plugin is the last one enabled that provides an Authenticator, so
+    /// disabling it would leave nobody able to sign in. Params: `pluginId`.
+    REFUSAL_REASON_LAST_AUTHENTICATOR = 41i32,
+    /// `invalid_argument`: a Plugin setting's value isn't of the kind its schema declares. Params:
+    /// `settingKey`, and `settingKind`, the `SettingKind` value's name (`SETTING_KIND_TEXT`).
+    REFUSAL_REASON_SETTING_WRONG_KIND = 42i32,
 }
 impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -220,6 +228,15 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_ALREADY_IN_LIBRARY`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const AlreadyInLibrary: Self = Self::REFUSAL_REASON_ALREADY_IN_LIBRARY;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_PLUGIN_NOT_FOUND`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const PluginNotFound: Self = Self::REFUSAL_REASON_PLUGIN_NOT_FOUND;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_LAST_AUTHENTICATOR`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const LastAuthenticator: Self = Self::REFUSAL_REASON_LAST_AUTHENTICATOR;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_SETTING_WRONG_KIND`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const SettingWrongKind: Self = Self::REFUSAL_REASON_SETTING_WRONG_KIND;
 }
 impl ::core::default::Default for RefusalReason {
     fn default() -> Self {
@@ -389,6 +406,13 @@ impl ::buffa::Enumeration for RefusalReason {
             39i32 => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_ALREADY_IN_LIBRARY)
             }
+            40i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_PLUGIN_NOT_FOUND),
+            41i32 => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_LAST_AUTHENTICATOR)
+            }
+            42i32 => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_SETTING_WRONG_KIND)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -464,6 +488,13 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_REQUEST_NOT_FOUND => "REFUSAL_REASON_REQUEST_NOT_FOUND",
             Self::REFUSAL_REASON_ALREADY_IN_LIBRARY => {
                 "REFUSAL_REASON_ALREADY_IN_LIBRARY"
+            }
+            Self::REFUSAL_REASON_PLUGIN_NOT_FOUND => "REFUSAL_REASON_PLUGIN_NOT_FOUND",
+            Self::REFUSAL_REASON_LAST_AUTHENTICATOR => {
+                "REFUSAL_REASON_LAST_AUTHENTICATOR"
+            }
+            Self::REFUSAL_REASON_SETTING_WRONG_KIND => {
+                "REFUSAL_REASON_SETTING_WRONG_KIND"
             }
         }
     }
@@ -595,6 +626,15 @@ impl ::buffa::Enumeration for RefusalReason {
             "REFUSAL_REASON_ALREADY_IN_LIBRARY" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_ALREADY_IN_LIBRARY)
             }
+            "REFUSAL_REASON_PLUGIN_NOT_FOUND" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_PLUGIN_NOT_FOUND)
+            }
+            "REFUSAL_REASON_LAST_AUTHENTICATOR" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_LAST_AUTHENTICATOR)
+            }
+            "REFUSAL_REASON_SETTING_WRONG_KIND" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_SETTING_WRONG_KIND)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -640,6 +680,9 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED,
             Self::REFUSAL_REASON_REQUEST_NOT_FOUND,
             Self::REFUSAL_REASON_ALREADY_IN_LIBRARY,
+            Self::REFUSAL_REASON_PLUGIN_NOT_FOUND,
+            Self::REFUSAL_REASON_LAST_AUTHENTICATOR,
+            Self::REFUSAL_REASON_SETTING_WRONG_KIND,
         ]
     }
 }

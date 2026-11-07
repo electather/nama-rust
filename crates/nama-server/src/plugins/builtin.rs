@@ -8,7 +8,7 @@ use nama_plugin_log_events::LogEvents;
 use nama_plugin_tmdb::Tmdb;
 use tracing::{error, info, warn};
 
-use super::{EnableError, Registry, contain_sync};
+use super::{Described, EnableError, Registry, contain_sync};
 use crate::config::PluginConfig;
 
 fn all() -> Vec<Arc<dyn Plugin>> {
@@ -40,7 +40,12 @@ impl Registry {
             };
             known.push(id.clone());
             match contain_sync(|| (plugin.version().to_owned(), plugin.settings_schema())) {
-                Ok(described) => {
+                Ok((version, settings_schema)) => {
+                    let described = Described {
+                        plugin: Arc::clone(&plugin),
+                        version,
+                        settings_schema,
+                    };
                     registry.write(|state| state.builtins.insert(id.clone(), described));
                 }
                 Err(message) => {
