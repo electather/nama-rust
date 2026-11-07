@@ -14,6 +14,6 @@ Following deepseek-harness's "everything is a plugin" design, every feature outs
 
 - Extension Points are declared Observe, Intercept or Provide. Hot paths (scanning, segment serving) expose only batched Observe events and per-item or per-session Intercepts.
 - Every registration a Plugin makes belongs to that Plugin, so install, enable and remove work without a restart.
-- A manifest declares the supported `nama-api` version range, a settings schema and allowed HTTP hosts. Hosts are host names (globs allowed) with no port, which is how Extism matches them. Hosts the admin enters in a Plugin's settings, such as a Sonarr URL, are added when the Server loads it (spike #11). Intercepts have timeouts, and a crashing Plugin is disabled, not fatal.
+- A manifest, which the `.wasm` exports as a protobuf message from a `manifest()` function so a Plugin is one file, declares the supported `nama-api` version range, a settings schema and allowed HTTP hosts. Hosts are host names (globs allowed) with no port, which is how Extism matches them. Hosts the admin enters in a Plugin's settings, such as a Sonarr URL, are added when the Server loads it (spike #11). Intercepts have timeouts, and a crashing Plugin is disabled, not fatal.
 - Installed Plugins depend only on host capabilities, never on each other.
 - Built-in Plugins are separate crates (in `plugins/`), not modules of the Server crate. That's the only way to make the compiler stop them reaching into Kernel internals, which is what "everything is a Plugin" depends on.

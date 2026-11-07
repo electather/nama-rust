@@ -46,9 +46,9 @@ _Avoid_: pairing code, PIN, device code
 A one-time code a fresh Server prints to its log, which whoever creates the first Admin must enter.
 _Avoid_: claim token, bootstrap code
 
-**Role**:
-What a User is allowed to do on a Server, either Admin or Member.
-_Avoid_: group, permission level
+**Permission**:
+One thing a User is allowed to do on a Server, such as Request or manage Libraries. Each User has their own set, and new Users get the Server's default set. A User with the Admin Permission may do everything.
+_Avoid_: role, scope, right, group
 
 **Account**:
 A person's identity on the Hub, which can be linked to Users on many Servers.
@@ -95,6 +95,18 @@ _Avoid_: middleware, filter
 **Provider**:
 A Plugin's implementation of a capability the Server needs, such as metadata, checking a User's credentials, or Request fulfillment.
 _Avoid_: driver, backend, adapter
+
+**Fulfiller**:
+A Provider that hands Approved Requests to an outside service, such as Sonarr or Radarr, and reports how they're progressing.
+_Avoid_: downloader, *arr, client
+
+**Notifier**:
+A Provider that delivers notifications about Requests to people through an outside service, such as Telegram. The Server decides who is told what; the Notifier only delivers.
+_Avoid_: notification agent, channel, alerter
+
+**Plugin Connection**:
+A User's identity at an outside service, such as their Telegram chat, that a Plugin acts on for them.
+_Avoid_: integration, link, account
 
 ## Media
 
@@ -145,8 +157,12 @@ _Avoid_: on deck, in progress, resume list
 ## Requests
 
 **Request**:
-A User asking for a Movie, or a set of Seasons of a Show, that isn't on a Server to be added to it.
+Users asking for a Movie, or one Season of a Show, that isn't on a Server to be added to it. Each Movie or Season has at most one open Request, and everyone who asks for it shares it.
 _Avoid_: ticket, order, wish
+
+**Requester**:
+A User who asked for what a Request covers. A Request can have several.
+_Avoid_: owner, submitter
 
 **Partially Available**:
 The state of a Request when some, but not all, of what it asked for has been Matched in a Library.
