@@ -2700,6 +2700,12 @@ pub struct ListUnmatchedItemsResponseView<'a> {
         'a,
         super::super::__buffa::view::UnmatchedItemView<'a>,
     >,
+    /// The absolute paths of the Library's files whose names don't follow the naming conventions,
+    /// by path. They hold no items, so nothing can Match them and there's no item to pass to
+    /// `SetMatch`: renaming the file and rescanning the Library is the fix.
+    ///
+    /// Field 2: `unparsed_paths`
+    pub unparsed_paths: ::buffa::RepeatedView<'a, &'a str>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for ListUnmatchedItemsResponseView<'a> {
@@ -2752,6 +2758,17 @@ impl<'a> ::buffa::MessageView<'a> for ListUnmatchedItemsResponseView<'a> {
                         )?,
                     );
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __elem = ::buffa::types::borrow_str(&mut cur)?;
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&__elem),
+                )?;
+                view.unparsed_paths.push(__elem);
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -2785,6 +2802,7 @@ impl<'a> ::buffa::MessageView<'a> for ListUnmatchedItemsResponseView<'a> {
                 .iter()
                 .map(|v| v.to_owned_from_source(__buffa_src))
                 .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
+            unparsed_paths: self.unparsed_paths.iter().map(|s| s.to_string()).collect(),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -2804,6 +2822,9 @@ impl<'a> ::buffa::ViewEncode<'a> for ListUnmatchedItemsResponseView<'a> {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        for v in &self.unparsed_paths {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -2822,6 +2843,9 @@ impl<'a> ::buffa::ViewEncode<'a> for ListUnmatchedItemsResponseView<'a> {
                 buf,
             );
             v.write_to(__cache, buf);
+        }
+        for v in &self.unparsed_paths {
+            ::buffa::types::put_string_field(2u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2846,6 +2870,9 @@ impl<'__a> ::serde::Serialize for ListUnmatchedItemsResponseView<'__a> {
         let mut __map = __s.serialize_map(::core::option::Option::None)?;
         if !self.items.is_empty() {
             __map.serialize_entry("items", &*self.items)?;
+        }
+        if !self.unparsed_paths.is_empty() {
+            __map.serialize_entry("unparsedPaths", &*self.unparsed_paths)?;
         }
         __map.end()
     }
@@ -2948,6 +2975,15 @@ impl ListUnmatchedItemsResponseOwnedView {
         &self,
     ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::UnmatchedItemView<'_>> {
         &self.0.reborrow().items
+    }
+    /// The absolute paths of the Library's files whose names don't follow the naming conventions,
+    /// by path. They hold no items, so nothing can Match them and there's no item to pass to
+    /// `SetMatch`: renaming the file and rescanning the Library is the fix.
+    ///
+    /// Field 2: `unparsed_paths`
+    #[must_use]
+    pub fn unparsed_paths(&self) -> &::buffa::RepeatedView<'_, &'_ str> {
+        &self.0.reborrow().unparsed_paths
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<ListUnmatchedItemsResponseView<'static>>>
