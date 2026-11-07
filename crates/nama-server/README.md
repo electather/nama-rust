@@ -6,6 +6,16 @@ The Nama Server: owns Libraries, streams media and handles Requests. Its databas
 
 Every write goes through `Database::write`, which hands it to the single writer task that owns the only writable connection. Never open another writable connection. Long jobs such as a scan write in small batches so other writes and reads aren't held up. `src/db.rs` explains why.
 
+## Behind a reverse proxy
+
+A Server believes `X-Forwarded-For` and `X-Forwarded-Proto` only from the peers listed in `trusted_proxies` in `nama.toml` (ADR 0018). Each entry is an IP address or a CIDR range. The list is empty by default, so the headers are ignored: sign-in limits count each socket peer, and the session cookie is never `Secure`.
+
+```toml
+trusted_proxies = ["127.0.0.1", "10.0.0.0/8"]
+```
+
+From a trusted peer, the client is the rightmost `X-Forwarded-For` address that isn't itself a trusted proxy, and the cookie is `Secure` when the last `X-Forwarded-Proto` value is `https`. List every proxy between the client and the Server, and nothing else: any listed peer can name its own client address, which dodges sign-in limits, and claim HTTPS.
+
 ## Regenerating `.sqlx/` after a query or migration change
 
 Queries use `sqlx::query!` and friends, which check them at compile time against the query data checked in under `.sqlx/` at the workspace root. Builds need no database. After adding or changing a query or a migration, regenerate that data against a scratch database, from the workspace root:

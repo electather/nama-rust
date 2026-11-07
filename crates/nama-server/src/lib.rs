@@ -7,6 +7,7 @@ pub mod contents;
 pub mod db;
 mod device_names;
 mod events;
+mod forwarded;
 mod libraries;
 mod matching;
 pub mod plugins;
@@ -41,8 +42,8 @@ use crate::{
 /// to stop.
 ///
 /// While the Server has no Users, `Setup` creates the first Admin for whoever gives `setup_code`.
-/// `Setup` and `SignIn` are rate limited by the peer's IP address. Forwarded-for headers aren't
-/// trusted, so behind a reverse proxy every client shares the proxy's address and its limit.
+/// `Setup` and `SignIn` are rate limited by the client's IP address. That is the peer's, unless the
+/// peer is in [`Config::trusted_proxies`], whose `X-Forwarded-For` names the client.
 ///
 /// Clients speak the Connect protocol over HTTP/1.1 or cleartext HTTP/2, with JSON or binary
 /// protobuf bodies. With the `web` feature, any other `GET` gets the web app.
@@ -79,6 +80,7 @@ pub fn serve(
         scanner.start_all().await;
         let served = axum::serve(
             listener,
+            // The peer's address decides whose rate limit counts and which proxies are trusted.
             app.into_make_service_with_connect_info::<SocketAddr>(),
         )
         .with_graceful_shutdown(async move {

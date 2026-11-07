@@ -12,6 +12,6 @@
 - **Secrets stay out of storage and logs.** The database holds the Authenticator's credential string and the SHA-256 hash of each session token; only `src/users.rs` derives them. Types holding a token or Sign-in Code skip `Debug`. The Setup Code is the one secret logged, on purpose.
 - **Clients name ids.** Media is served by Version id (`Contents::version_path`) and artwork only for paths some Match stores (`Contents::stores_image`). Where a Library lives on disk is shown to Admins only.
 - **New RPCs start closed.** `Access::of` in `src/api.rs` requires a session for any RPC outside `Access::PUBLIC` and `Access::SELF_SERVICE`; opening one is an explicit entry there.
-- **Peer IP only.** Rate limits count by the connection's peer IP, since any client can set forwarded-for headers.
+- **Forwarded headers from trusted proxies only.** Read where a request came from (client IP, HTTPS) from the `RequestSource` that `src/forwarded.rs` sets. It believes `X-Forwarded-*` only from a peer in `Config::trusted_proxies` (ADR 0018), since any client can set them.
 - **Causes stay server-side.** A database or server-side error is logged; the client gets a generic Connect error.
 - **Plugin code runs contained.** Every call into a Plugin, its `Drop` included, goes through `contain_sync` (or its async twin) in `src/plugins.rs`, outside the registry lock.

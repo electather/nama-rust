@@ -39,15 +39,31 @@ struct TestServer {
     reason = "a test helper fails its test by panicking"
 )]
 async fn start() -> TestServer {
-    start_with(Some(SetupCode::generate().unwrap())).await
+    start_with(Some(SetupCode::generate().unwrap()), &Config::default()).await
 }
 
-/// Starts a [`TestServer`] that takes `setup_code`, or none, as one that started with Users.
+/// Starts a [`TestServer`] that takes a Setup Code and trusts the forwarded headers of the test's
+/// own address, as the reverse proxy in front of it, and of `10.0.0.0/8`, as proxies in front of
+/// that one.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
-async fn start_with(setup_code: Option<SetupCode>) -> TestServer {
+async fn start_behind_proxy() -> TestServer {
+    let config = Config {
+        trusted_proxies: vec!["127.0.0.1".parse().unwrap(), "10.0.0.0/8".parse().unwrap()],
+        ..Config::default()
+    };
+    start_with(Some(SetupCode::generate().unwrap()), &config).await
+}
+
+/// Starts a [`TestServer`] serving `config`, that takes `setup_code`, or none, as one that started
+/// with Users.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn start_with(setup_code: Option<SetupCode>, config: &Config) -> TestServer {
     let plugins = Registry::new();
     plugins.enable(Arc::new(LocalAuth)).unwrap();
     let data_dir = tempfile::tempdir().unwrap();
@@ -57,7 +73,7 @@ async fn start_with(setup_code: Option<SetupCode>) -> TestServer {
     let (stop, stopped) = oneshot::channel::<()>();
     tokio::spawn(nama_server::serve(
         listener,
-        &Config::default(),
+        config,
         db,
         plugins,
         setup_code.clone(),
@@ -231,7 +247,7 @@ async fn setup_once_a_user_exists_is_refused_as_already_set_up_whatever_the_code
 
 #[tokio::test]
 async fn setup_on_a_server_that_started_with_users_is_refused_as_already_set_up() {
-    let server = start_with(None).await;
+    let server = start_with(None, &Config::default()).await;
 
     let setup = call(
         &server,
@@ -301,8 +317,8 @@ async fn a_cookie_setup_sets_an_http_only_strict_cookie_and_leaves_the_token_out
 }
 
 #[tokio::test]
-async fn a_cookie_setup_behind_an_https_proxy_sets_a_secure_cookie() {
-    let server = start().await;
+async fn a_cookie_setup_through_a_trusted_https_proxy_sets_a_secure_cookie() {
+    let server = start_behind_proxy().await;
 
     let setup = call(
         &server,
@@ -919,6 +935,25 @@ async fn failures_for_one_name_dont_block_another_name() {
 }
 
 #[tokio::test]
+async fn x_forwarded_proto_from_an_untrusted_peer_doesnt_set_a_secure_cookie() {
+    let server = start().await;
+
+    let setup = call(
+        &server,
+        "Setup",
+        &setup_request(&server, "SESSION_DELIVERY_COOKIE"),
+        &[("x-forwarded-proto", "https")],
+    )
+    .await;
+
+    let (_, attributes) = session_cookie(&setup);
+    assert_eq!(
+        attributes,
+        ["HttpOnly", "SameSite=Strict", "Path=/", "Max-Age=7776000"]
+    );
+}
+
+#[tokio::test]
 async fn a_successful_sign_in_resets_that_names_failures() {
     let server = start().await;
     set_up(&server).await;
@@ -931,17 +966,17 @@ async fn a_successful_sign_in_resets_that_names_failures() {
     assert_eq!(signed_in.status, 200, "{}", signed_in.body);
 }
 
-/// Fails to set up with a wrong Setup Code `times` times, each claiming in `X-Forwarded-For` to
-/// come from another client.
+/// Fails to set up with a wrong Setup Code `times` times, the `i`th time sending
+/// `X-Forwarded-For: forwarded_for(i)`.
 #[expect(
     clippy::indexing_slicing,
     reason = "a test helper fails its test by panicking"
 )]
-async fn fail_setup(server: &TestServer, times: usize) {
+async fn fail_setup(server: &TestServer, times: usize, forwarded_for: impl Fn(usize) -> String) {
     let mut request = setup_request(server, "SESSION_DELIVERY_TOKEN");
     request["setupCode"] = json!("AAAA-AAAA-AAAA");
     for i in 0..times {
-        let forwarded_for = format!("203.0.113.{i}");
+        let forwarded_for = forwarded_for(i);
         let headers = [("x-forwarded-for", forwarded_for.as_str())];
         let refused = call(server, "Setup", &request, &headers).await;
         assert_eq!(
@@ -955,7 +990,7 @@ async fn fail_setup(server: &TestServer, times: usize) {
 #[tokio::test]
 async fn the_51st_failure_from_one_ip_mixing_sign_in_and_setup_is_blocked() {
     let server = start().await;
-    fail_setup(&server, 40).await;
+    fail_setup(&server, 40, |i| format!("203.0.113.{i}")).await;
     fail_sign_in(&server, "Grace", 10).await;
 
     let blocked = set_up(&server).await;
@@ -964,15 +999,59 @@ async fn the_51st_failure_from_one_ip_mixing_sign_in_and_setup_is_blocked() {
 }
 
 #[tokio::test]
-async fn x_forwarded_for_doesnt_change_which_ip_is_counted() {
+async fn x_forwarded_for_from_an_untrusted_peer_doesnt_change_which_ip_is_counted() {
     let server = start().await;
-    fail_setup(&server, 50).await;
+    fail_setup(&server, 50, |i| format!("203.0.113.{i}")).await;
 
     let blocked = call(
         &server,
         "Setup",
         &setup_request(&server, "SESSION_DELIVERY_TOKEN"),
         &[("x-forwarded-for", "198.51.100.1")],
+    )
+    .await;
+
+    assert_blocked(&blocked);
+}
+
+#[tokio::test]
+async fn through_a_trusted_proxy_failures_count_against_the_forwarded_ip() {
+    let server = start_behind_proxy().await;
+    fail_setup(&server, 50, |_| "203.0.113.7".to_owned()).await;
+
+    let blocked = call(
+        &server,
+        "Setup",
+        &setup_request(&server, "SESSION_DELIVERY_TOKEN"),
+        &[("x-forwarded-for", "203.0.113.7")],
+    )
+    .await;
+    let set_up = call(
+        &server,
+        "Setup",
+        &setup_request(&server, "SESSION_DELIVERY_TOKEN"),
+        &[("x-forwarded-for", "203.0.113.8")],
+    )
+    .await;
+
+    assert_blocked(&blocked);
+    assert_eq!(set_up.status, 200, "{}", set_up.body);
+}
+
+#[tokio::test]
+async fn a_forged_x_forwarded_for_chain_counts_against_the_ip_the_trusted_proxies_saw() {
+    let server = start_behind_proxy().await;
+    // The client claims an address of its choosing; the proxies append the one they saw.
+    fail_setup(&server, 50, |i| {
+        format!("203.0.113.{i}, 198.51.100.1, 10.0.0.5")
+    })
+    .await;
+
+    let blocked = call(
+        &server,
+        "Setup",
+        &setup_request(&server, "SESSION_DELIVERY_TOKEN"),
+        &[("x-forwarded-for", "10.0.0.9, 198.51.100.1, 10.0.0.5")],
     )
     .await;
 

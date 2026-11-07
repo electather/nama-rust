@@ -1,17 +1,11 @@
 //! The Server's ConnectRPC API (ADR 0007), served on axum.
 
 use std::{
-    collections::HashMap,
-    ffi::OsStr,
-    future,
-    net::{IpAddr, SocketAddr},
-    path::Path,
-    sync::Arc,
-    time::Instant,
+    collections::HashMap, ffi::OsStr, future, net::IpAddr, path::Path, sync::Arc, time::Instant,
 };
 
 use axum::{
-    extract::{ConnectInfo, Request},
+    extract::Request,
     http::{
         HeaderMap, HeaderValue,
         header::{RETRY_AFTER, SET_COOKIE, USER_AGENT},
@@ -61,6 +55,7 @@ use crate::{
     contents::{Contents, Episode, Item, MatchedTo, Movie, Season, Show, Unmatched, Version},
     db::Database,
     events::{EventBus, Filter},
+    forwarded::{RequestSource, identify_source},
     libraries::{self, Kind, Libraries, Library},
     matching::{ManualError, Matcher},
     plugins::Registry,
@@ -142,6 +137,10 @@ pub(crate) fn router(
         .merge(versions)
         .layer(middleware::from_fn(require_access))
         .layer(middleware::from_fn_with_state(users, identify_caller))
+        .layer(middleware::from_fn_with_state(
+            Arc::from(config.trusted_proxies.as_slice()),
+            identify_source,
+        ))
 }
 
 /// Who may call an RPC or fetch media.
@@ -294,7 +293,7 @@ impl SignInService for SignInServiceHandler {
         request: ServiceRequest<'_, SetupRequest>,
     ) -> ServiceResult<SetupResponse> {
         let request = request.to_owned_message();
-        let attempt = self.sign_in_limits.admit(peer_ip(&ctx)?, None)?;
+        let attempt = self.sign_in_limits.admit(client_ip(&ctx)?, None)?;
         let wants_token = wants_token(request.delivery)?;
         // The Server only made no code because it started with Users. Users are checked before the
         // code, so once there are any every attempt is refused as already set up, as documented.
@@ -319,7 +318,7 @@ impl SignInService for SignInServiceHandler {
         Ok(hand_out_session(
             signed_in,
             wants_token,
-            ctx.headers(),
+            &ctx,
             |caller, token| SetupResponse {
                 user: user_to_proto(caller.user).into(),
                 device: device_to_proto(caller.device, true).into(),
@@ -337,7 +336,7 @@ impl SignInService for SignInServiceHandler {
         let request = request.to_owned_message();
         let attempt = self
             .sign_in_limits
-            .admit(peer_ip(&ctx)?, Some(&request.name))?;
+            .admit(client_ip(&ctx)?, Some(&request.name))?;
         let wants_token = wants_token(request.delivery)?;
         let device_name = device_name(request.device_name, ctx.headers());
         let signed_in = self
@@ -348,7 +347,7 @@ impl SignInService for SignInServiceHandler {
         Ok(hand_out_session(
             signed_in,
             wants_token,
-            ctx.headers(),
+            &ctx,
             |caller, token| SignInResponse {
                 user: user_to_proto(caller.user).into(),
                 device: device_to_proto(caller.device, true).into(),
@@ -368,7 +367,7 @@ impl SignInService for SignInServiceHandler {
             .sign_out(device)
             .await
             .map_err(|err| database_failed(&err))?;
-        Ok(signed_out(SignOutResponse::default(), ctx.headers()))
+        Ok(signed_out(SignOutResponse::default(), &ctx))
     }
 
     fn who_am_i<'a>(
@@ -461,7 +460,7 @@ impl SignInService for SignInServiceHandler {
         Ok(hand_out_session(
             signed_in,
             wants_token,
-            ctx.headers(),
+            &ctx,
             |caller, token| PollSignInCodeResponse {
                 status: SignInCodeStatus::SIGN_IN_CODE_STATUS_SIGNED_IN.into(),
                 user: user_to_proto(caller.user).into(),
@@ -1143,7 +1142,7 @@ impl UserService for UserServiceHandler {
         self.users.delete(request.user_id).await?;
         let response = DeleteUserResponse::default();
         Ok(if request.user_id == caller.user.id {
-            signed_out(response, ctx.headers())
+            signed_out(response, &ctx)
         } else {
             Response::new(response)
         })
@@ -1192,7 +1191,7 @@ impl UserService for UserServiceHandler {
         }
         let response = RevokeDeviceResponse::default();
         Ok(if request.device_id == caller.device.id {
-            signed_out(response, ctx.headers())
+            signed_out(response, &ctx)
         } else {
             Response::new(response)
         })
@@ -1207,7 +1206,7 @@ impl UserService for UserServiceHandler {
         let caller = caller(&ctx)?;
         let attempt = self
             .sign_in_limits
-            .admit(peer_ip(&ctx)?, Some(&caller.user.name))?;
+            .admit(client_ip(&ctx)?, Some(&caller.user.name))?;
         let changed = self
             .users
             .change_password(caller, &request.current_password, &request.new_password)
@@ -1331,10 +1330,10 @@ fn caller(ctx: &RequestContext) -> Result<&Caller, ConnectError> {
 
 /// The response to a request whose own Device was just signed out, carrying `body`. A cookie
 /// session has its cookie cleared.
-fn signed_out<M>(body: M, request_headers: &HeaderMap) -> Response<M> {
+fn signed_out<M>(body: M, ctx: &RequestContext) -> Response<M> {
     let response = Response::new(body);
-    if in_session_cookie(request_headers) {
-        response.with_header(SET_COOKIE, cleared_session_cookie(request_headers))
+    if in_session_cookie(ctx.headers()) {
+        response.with_header(SET_COOKIE, cleared_session_cookie(ctx.extensions()))
     } else {
         response
     }
@@ -1345,14 +1344,14 @@ fn signed_out<M>(body: M, request_headers: &HeaderMap) -> Response<M> {
 fn hand_out_session<M>(
     signed_in: SignedIn,
     wants_token: bool,
-    request_headers: &HeaderMap,
+    ctx: &RequestContext,
     body: impl FnOnce(Caller, String) -> M,
 ) -> Response<M> {
     let SignedIn { caller, token } = signed_in;
     if wants_token {
         Response::new(body(caller, token))
     } else {
-        let cookie = session_cookie(&token, request_headers);
+        let cookie = session_cookie(&token, ctx.extensions());
         Response::new(body(caller, String::new())).with_header(SET_COOKIE, cookie)
     }
 }
@@ -1667,11 +1666,10 @@ impl From<users::Error> for ConnectError {
     }
 }
 
-/// The IP address `ctx` came from, which rate limits count by. Forwarded-for headers are ignored:
-/// any client can set them to dodge its limit.
-fn peer_ip(ctx: &RequestContext) -> Result<IpAddr, ConnectError> {
-    let peer = ctx.extensions().get::<ConnectInfo<SocketAddr>>();
-    peer.map(|ConnectInfo(addr)| addr.ip()).ok_or_else(|| {
+/// The client IP address `ctx` came from, which rate limits count by.
+fn client_ip(ctx: &RequestContext) -> Result<IpAddr, ConnectError> {
+    let source = ctx.extensions().get::<RequestSource>();
+    source.map(|source| source.client_ip).ok_or_else(|| {
         tracing::error!("a request came without its peer's address");
         ConnectError::internal("the Server failed")
     })
