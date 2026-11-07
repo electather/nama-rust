@@ -862,8 +862,12 @@ impl WatchStateService for WatchStateServiceHandler {
         request: ServiceRequest<'_, ReportProgressRequest>,
     ) -> ServiceResult<ReportProgressResponse> {
         let user = caller(&ctx)?.user.id;
-        let progress = Progress::new(request.position_ms, request.duration_ms)
-            .ok_or_else(|| ConnectError::invalid_argument("the duration must not be zero"))?;
+        let progress =
+            Progress::new(request.position_ms, request.duration_ms).ok_or_else(|| {
+                ConnectError::invalid_argument(
+                    "the duration must be more than zero and less than 2^63 milliseconds",
+                )
+            })?;
         let movie_of = self.contents.movie_of(request.version_id).await;
         match movie_of.map_err(|err| database_failed(&err))? {
             MovieOf::NoSuchVersion => {
@@ -1190,10 +1194,10 @@ fn movie_to_proto(movie: Movie, watch_state: Option<WatchState>) -> proto::Movie
 /// A Watch State as clients see it.
 fn watch_state_to_proto(state: WatchState) -> proto::WatchState {
     // Stored positions and durations are never negative.
-    let ms = |ms: i64| u64::try_from(ms).unwrap_or_default();
+    let unsigned = |ms: i64| u64::try_from(ms).unwrap_or_default();
     proto::WatchState {
-        position_ms: ms(state.position_ms),
-        duration_ms: ms(state.duration_ms),
+        position_ms: unsigned(state.position_ms),
+        duration_ms: unsigned(state.duration_ms),
         played: state.played,
         updated_at: state.updated_at,
         ..Default::default()
