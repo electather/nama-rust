@@ -2,6 +2,7 @@
 
 mod api;
 pub mod artwork;
+mod browse;
 pub mod config;
 pub mod contents;
 pub mod db;

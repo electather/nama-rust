@@ -50,8 +50,9 @@ use nama_proto::nama::v1::{
 
 use crate::{
     artwork::{self, Artwork},
+    browse::{self, Browse},
     config::Config,
-    contents::{Contents, Episode, Item, MatchedTo, Movie, Season, Show, Unmatched, Version},
+    contents::{Contents, Episode, Item, MatchedTo, Movie, Show, Unmatched, Version},
     db::Database,
     events::{EventBus, Filter},
     forwarded::{RequestSource, identify_source},
@@ -90,11 +91,7 @@ pub(crate) fn router(
         contents.clone(),
     );
     let versions = versions::router(contents);
-    let browse = BrowseServiceHandler {
-        libraries: Libraries::new(Arc::clone(&db)),
-        contents: Contents::new(Arc::clone(&db)),
-        watch_states: WatchStates::new(Arc::clone(&db)),
-    };
+    let browse = Browse::new(Arc::clone(&db));
     connectrpc::Router::new()
         .add_service(Arc::new(ServerServiceHandler {
             name: config.name.clone(),
@@ -113,7 +110,12 @@ pub(crate) fn router(
             libraries: Libraries::new(Arc::clone(&db)),
             scanner: scanner.clone(),
         }))
-        .add_service(Arc::new(browse.clone()))
+        .add_service(Arc::new(BrowseServiceHandler {
+            browse: browse.clone(),
+            libraries: Libraries::new(Arc::clone(&db)),
+            contents: Contents::new(Arc::clone(&db)),
+            watch_states: WatchStates::new(Arc::clone(&db)),
+        }))
         .add_service(Arc::new(WatchStateServiceHandler {
             contents: Contents::new(Arc::clone(&db)),
             watch_states: WatchStates::new(Arc::clone(&db)),
@@ -689,112 +691,15 @@ impl MatchService for MatchServiceHandler {
 
 /// `nama.v1.BrowseService`: what a Library holds, for any signed-in User, which
 /// [`require_access`] enforces.
-#[derive(Clone)]
 struct BrowseServiceHandler {
+    browse: Browse,
+    // For Continue Watching, until it moves into Browse (#123).
     libraries: Libraries,
     contents: Contents,
     watch_states: WatchStates,
 }
 
 impl BrowseServiceHandler {
-    /// The Movies of the Library `library`, which must be a Movies Library.
-    async fn movies(&self, library: i64) -> Result<Vec<Movie>, ConnectError> {
-        self.require_kind(library, Kind::Movies).await?;
-        self.contents
-            .movies(library)
-            .await
-            .map_err(|err| database_failed(&err))
-    }
-
-    /// The Movie of the Movies Library `library` with the id `id`.
-    // ponytail: whole-Library read (see AGENTS.md).
-    async fn movie(
-        &self,
-        library: i64,
-        id: Option<proto::ExternalId>,
-    ) -> Result<Movie, ConnectError> {
-        let id = required_id(id, "Movie")?;
-        self.movies(library)
-            .await?
-            .into_iter()
-            .find(|movie| movie.id == id)
-            .ok_or_else(nothing_matched)
-    }
-
-    /// `movies` as the caller of `ctx` sees them, each with their Watch State.
-    async fn movies_to_proto(
-        &self,
-        ctx: &RequestContext,
-        movies: Vec<Movie>,
-    ) -> Result<Vec<proto::Movie>, ConnectError> {
-        let ids: Vec<&ExternalId> = movies.iter().map(|movie| &movie.id).collect();
-        let states = self
-            .watch_states
-            .of_movies(caller(ctx)?.user.id, &ids)
-            .await
-            .map_err(|err| database_failed(&err))?;
-        Ok(movies
-            .into_iter()
-            .zip(states)
-            .map(|(movie, state)| movie_to_proto(movie, state))
-            .collect())
-    }
-
-    /// The Shows of the Library `library`, which must be a Shows Library.
-    // ponytail: whole-Library read (see AGENTS.md).
-    async fn shows(&self, library: i64) -> Result<Vec<Show>, ConnectError> {
-        self.require_kind(library, Kind::Shows).await?;
-        self.contents
-            .shows(library)
-            .await
-            .map_err(|err| database_failed(&err))
-    }
-
-    /// The Show of the Shows Library `library` with the id `id`.
-    async fn show(
-        &self,
-        library: i64,
-        id: Option<proto::ExternalId>,
-    ) -> Result<Show, ConnectError> {
-        let id = required_id(id, "Show")?;
-        self.shows(library)
-            .await?
-            .into_iter()
-            .find(|show| show.id == id)
-            .ok_or_else(nothing_matched)
-    }
-
-    /// Season `number` of the Show of the Shows Library `library` with the id `show`.
-    async fn season(
-        &self,
-        library: i64,
-        show: Option<proto::ExternalId>,
-        number: u32,
-    ) -> Result<Season, ConnectError> {
-        self.show(library, show)
-            .await?
-            .seasons
-            .remove(&i64::from(number))
-            .ok_or_else(|| ConnectError::not_found("the Show has no such Season in the Library"))
-    }
-
-    /// The id of the Episode of any Show of the Shows Library `library` with the id `id`, which
-    /// something in the Library must be Matched to.
-    // ponytail: whole-Library read (see AGENTS.md).
-    async fn episode_id(
-        &self,
-        library: i64,
-        id: Option<proto::ExternalId>,
-    ) -> Result<ExternalId, ConnectError> {
-        let id = required_id(id, "Episode")?;
-        let shows = self.shows(library).await?;
-        let mut episodes = shows.iter().flat_map(Show::episodes);
-        if episodes.any(|episode| episode.id == id) {
-            return Ok(id);
-        }
-        Err(nothing_matched())
-    }
-
     /// The Continue Watching entries of `started`, the Movies and Episodes the caller has started
     /// and not played, in the same order. Each is in the oldest Library that has it, and
     /// one no Library has is left out.
@@ -851,18 +756,6 @@ impl BrowseServiceHandler {
             }
         })
     }
-
-    /// Fails with `not_found` if there is no Library `library`, and with `invalid_argument` if it
-    /// doesn't hold `kind`.
-    async fn require_kind(&self, library: i64, kind: Kind) -> Result<(), ConnectError> {
-        if self.libraries.get(library).await?.kind == kind {
-            return Ok(());
-        }
-        Err(ConnectError::invalid_argument(match kind {
-            Kind::Movies => "the Library isn't a Movies Library",
-            Kind::Shows => "the Library isn't a Shows Library",
-        }))
-    }
 }
 
 #[expect(
@@ -876,9 +769,13 @@ impl BrowseService for BrowseServiceHandler {
         ctx: RequestContext,
         request: ServiceRequest<'_, ListMoviesRequest>,
     ) -> ServiceResult<ListMoviesResponse> {
-        let movies = self.movies(request.library_id).await?;
+        let user = caller(&ctx)?.user.id;
+        let movies = self.browse.movies(user, request.library_id).await?;
         Response::ok(ListMoviesResponse {
-            movies: self.movies_to_proto(&ctx, movies).await?,
+            movies: movies
+                .into_iter()
+                .map(|(movie, state)| movie_to_proto(movie, state))
+                .collect(),
             ..Default::default()
         })
     }
@@ -888,13 +785,12 @@ impl BrowseService for BrowseServiceHandler {
         ctx: RequestContext,
         request: ServiceRequest<'_, GetMovieRequest>,
     ) -> ServiceResult<GetMovieResponse> {
+        let user = caller(&ctx)?.user.id;
         let request = request.to_owned_message();
-        let movie = self
-            .movie(request.library_id, request.movie_id.into_option())
-            .await?;
-        let movie = self.movies_to_proto(&ctx, vec![movie]).await?.pop();
+        let id = required_id(request.movie_id.into_option(), "Movie")?;
+        let (movie, state) = self.browse.movie(user, request.library_id, &id).await?;
         Response::ok(GetMovieResponse {
-            movie: movie.into(),
+            movie: movie_to_proto(movie, state).into(),
             ..Default::default()
         })
     }
@@ -904,7 +800,7 @@ impl BrowseService for BrowseServiceHandler {
         _ctx: RequestContext,
         request: ServiceRequest<'_, ListShowsRequest>,
     ) -> ServiceResult<ListShowsResponse> {
-        let shows = self.shows(request.library_id).await?;
+        let shows = self.browse.shows(request.library_id).await?;
         Response::ok(ListShowsResponse {
             shows: shows.iter().map(show_to_proto).collect(),
             ..Default::default()
@@ -917,9 +813,8 @@ impl BrowseService for BrowseServiceHandler {
         request: ServiceRequest<'_, GetShowRequest>,
     ) -> ServiceResult<GetShowResponse> {
         let request = request.to_owned_message();
-        let show = self
-            .show(request.library_id, request.show_id.into_option())
-            .await?;
+        let id = required_id(request.show_id.into_option(), "Show")?;
+        let show = self.browse.show(request.library_id, &id).await?;
         let seasons = show
             .seasons
             .iter()
@@ -944,22 +839,17 @@ impl BrowseService for BrowseServiceHandler {
         ctx: RequestContext,
         request: ServiceRequest<'_, ListEpisodesRequest>,
     ) -> ServiceResult<ListEpisodesResponse> {
+        let user = caller(&ctx)?.user.id;
         let request = request.to_owned_message();
         let number = request.season_number;
-        let season = self
-            .season(request.library_id, request.show_id.into_option(), number)
+        let show = required_id(request.show_id.into_option(), "Show")?;
+        let episodes = self
+            .browse
+            .episodes(user, request.library_id, &show, i64::from(number))
             .await?;
-        let ids: Vec<&ExternalId> = season.episodes.iter().map(|episode| &episode.id).collect();
-        let states = self
-            .watch_states
-            .of_episodes(caller(&ctx)?.user.id, &ids)
-            .await
-            .map_err(|err| database_failed(&err))?;
         Response::ok(ListEpisodesResponse {
-            episodes: season
-                .episodes
+            episodes: episodes
                 .into_iter()
-                .zip(states)
                 .map(|(episode, state)| episode_to_proto(number, episode, state))
                 .collect(),
             ..Default::default()
@@ -988,7 +878,7 @@ struct WatchStateServiceHandler {
     contents: Contents,
     watch_states: WatchStates,
     /// Finds what `SetPlayed` marks as browsing does, so it fails as browsing does.
-    browse: BrowseServiceHandler,
+    browse: Browse,
 }
 
 #[expect(
@@ -1045,22 +935,29 @@ impl WatchStateService for WatchStateServiceHandler {
         let watch_states = &self.watch_states;
         let marked = match target {
             Target::MovieId(id) => {
-                let movie = browse.movie(library, Some(*id)).await?;
+                let id = required_id(Some(*id), "Movie")?;
+                let (movie, _watch_state) = browse.movie(user, library, &id).await?;
                 watch_states.mark_movie(user, &movie.id, played).await
             }
             Target::EpisodeId(id) => {
-                let episode = browse.episode_id(library, Some(*id)).await?;
-                watch_states.mark_episodes(user, &[&episode], played).await
+                let id = required_id(Some(*id), "Episode")?;
+                let episode = browse.episode(library, &id).await?;
+                watch_states
+                    .mark_episodes(user, &[&episode.id], played)
+                    .await
             }
             Target::Season(season) => {
-                let show = season.show_id.into_option();
-                let season = browse.season(library, show, season.season_number).await?;
+                let show = required_id(season.show_id.into_option(), "Show")?;
+                let season = browse
+                    .season(library, &show, i64::from(season.season_number))
+                    .await?;
                 let ids: Vec<&ExternalId> =
                     season.episodes.iter().map(|episode| &episode.id).collect();
                 watch_states.mark_episodes(user, &ids, played).await
             }
             Target::ShowId(id) => {
-                let show = browse.show(library, Some(*id)).await?;
+                let id = required_id(Some(*id), "Show")?;
+                let show = browse.show(library, &id).await?;
                 let ids: Vec<&ExternalId> = show.episodes().map(|episode| &episode.id).collect();
                 watch_states.mark_episodes(user, &ids, played).await
             }
@@ -1544,11 +1441,6 @@ fn version_to_proto(version: &Version) -> proto::Version {
     }
 }
 
-/// The error for a Movie, Episode or Show id that nothing in a Library is Matched to.
-fn nothing_matched() -> ConnectError {
-    ConnectError::not_found("nothing in the Library is Matched to that id")
-}
-
 /// `n` as a proto `int32`, or `None` if it doesn't fit, which no name a scan parses gives.
 fn int32(n: i64) -> Option<i32> {
     i32::try_from(n).ok()
@@ -1723,6 +1615,20 @@ impl From<libraries::Error> for ConnectError {
                 tracing::error!("a Library request failed: {err}");
                 Self::internal("the Server's database failed")
             }
+        }
+    }
+}
+
+/// The Connect error a client gets for a Library, title or Season that Browse didn't find. Database
+/// failures are logged, not sent.
+impl From<browse::Error> for ConnectError {
+    fn from(err: browse::Error) -> Self {
+        match err {
+            browse::Error::NoSuchLibrary(_)
+            | browse::Error::NothingMatched
+            | browse::Error::NoSuchSeason => Self::not_found(err.to_string()),
+            browse::Error::WrongKind { .. } => Self::invalid_argument(err.to_string()),
+            browse::Error::Database(err) => database_failed(&err),
         }
     }
 }
