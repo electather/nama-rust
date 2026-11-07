@@ -3,7 +3,7 @@ import { useMutation, useQuery } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
-import { DeviceNameField, FormField } from "@/components/form-field";
+import { FormField } from "@/components/form-field";
 import { SignInLayout } from "@/components/sign-in-layout";
 import { ServerService } from "@/gen/nama/v1/server_pb";
 import { SessionDelivery, SignInService } from "@/gen/nama/v1/sign_in_pb";
@@ -42,7 +42,6 @@ function Setup() {
           setupCode: formText(form, "setupCode"),
           name: formText(form, "name"),
           password: formText(form, "password"),
-          deviceName: formText(form, "deviceName"),
           delivery: SessionDelivery.COOKIE,
         });
       }}
@@ -63,7 +62,7 @@ function SetupFields({ errors }: { errors: FormErrors }) {
         error={errors.setupCode}
       />
       <FormField
-        label="Your name"
+        label="Username"
         name="name"
         autoComplete="username"
         maxLength={64}
@@ -76,7 +75,6 @@ function SetupFields({ errors }: { errors: FormErrors }) {
         autoComplete="new-password"
         error={errors.password}
       />
-      <DeviceNameField error={errors.deviceName} />
     </>
   );
 }
@@ -93,11 +91,10 @@ function setupErrors(error: unknown): FormErrors {
   });
 }
 
-// ponytail: the Server names the field only in its message ("a Device's name needs…"). Read it
+// ponytail: the Server names the field only in its message ("a User's name needs…"). Read it
 // from Connect error details instead if the Server starts sending them.
 function invalidField(error: unknown): Exclude<keyof FormErrors, "form"> {
   const message = String(error);
-  if (message.includes("Device")) return "deviceName";
   if (message.includes("User's name")) return "name";
   return "password";
 }

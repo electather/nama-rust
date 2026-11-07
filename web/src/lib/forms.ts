@@ -6,7 +6,6 @@ export interface FormErrors {
   setupCode?: string;
   name?: string;
   password?: string;
-  deviceName?: string;
 }
 
 /** The text `form` holds for the input named `name`, or `""` without one. */

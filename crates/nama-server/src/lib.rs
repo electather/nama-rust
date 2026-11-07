@@ -5,6 +5,7 @@ pub mod artwork;
 pub mod config;
 pub mod contents;
 pub mod db;
+mod device_names;
 mod events;
 mod libraries;
 mod matching;

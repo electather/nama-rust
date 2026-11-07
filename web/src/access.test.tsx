@@ -79,18 +79,16 @@ function fill(label: string, value: string) {
 
 async function submitSignIn(password = "correct horse") {
   await screen.findByRole("heading", { name: "Sign in to Living Room" });
-  fill("Name", "Sam");
+  fill("Username", "Sam");
   fill("Password", password);
-  fill("Device name", "Laptop");
   fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 }
 
 async function submitSetup(setupCode: string) {
   await screen.findByRole("heading", { name: "Set up Living Room" });
   fill("Setup Code", setupCode);
-  fill("Your name", "Sam");
+  fill("Username", "Sam");
   fill("Password", "correct horse");
-  fill("Device name", "Laptop");
   fireEvent.click(screen.getByRole("button", { name: "Set up" }));
 }
 
@@ -164,12 +162,12 @@ test("a Member opening an Admin page sees Admins only, and no Admin link", async
   expect(screen.queryByRole("link", { name: "Admin" })).toBeNull();
 });
 
-test("a wrong password shows an error and keeps the name", async () => {
+test("a wrong password shows an error and keeps the username", async () => {
   const router = openApp("/sign-in", serverRefusingSignIn(Code.Unauthenticated));
 
   await submitSignIn("wrong");
-  expect(await screen.findByText("That name and password don’t match.")).toBeDefined();
-  expect(screen.getByLabelText<HTMLInputElement>("Name").value).toBe("Sam");
+  expect(await screen.findByText("That username and password don’t match.")).toBeDefined();
+  expect(screen.getByLabelText<HTMLInputElement>("Username").value).toBe("Sam");
   expect(router.state.location.pathname).toBe("/sign-in");
 });
 

@@ -379,13 +379,12 @@ async fn who_am_i_without_a_valid_session_is_unauthenticated() {
 }
 
 #[tokio::test]
-async fn setup_refuses_names_and_device_names_that_are_blank_or_too_long() {
+async fn setup_refuses_blank_names_and_names_that_are_too_long() {
     let server = start().await;
     let too_long = "é".repeat(65);
     let cases = [
         ("name", "   "),
         ("name", too_long.as_str()),
-        ("deviceName", ""),
         ("deviceName", too_long.as_str()),
     ];
 
@@ -622,6 +621,31 @@ async fn sign_in_with_the_right_password_works_with_the_name_in_any_case() {
 
     assert_eq!(me.body["user"]["name"], "Ada", "{}", me.body);
     assert_eq!(me.body["device"]["name"], "Phone");
+}
+
+#[tokio::test]
+async fn a_device_that_gives_no_name_is_named_after_its_browser_and_os() {
+    const MAC_CHROME: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 \
+        (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+    let server = start().await;
+    let mut setup = setup_request(&server, "SESSION_DELIVERY_TOKEN");
+    setup["deviceName"] = json!("");
+    let mut sign_in = sign_in_request("Ada", PASSWORD, "SESSION_DELIVERY_TOKEN");
+    sign_in["deviceName"] = json!("  ");
+
+    let set_up = call(&server, "Setup", &setup, &[("user-agent", MAC_CHROME)]).await;
+    let signed_in = call(&server, "SignIn", &sign_in, &[("user-agent", MAC_CHROME)]).await;
+
+    assert_eq!(
+        set_up.body["device"]["name"], "Chrome on macOS",
+        "{}",
+        set_up.body
+    );
+    assert_eq!(
+        signed_in.body["device"]["name"], "Chrome on macOS",
+        "{}",
+        signed_in.body
+    );
 }
 
 #[tokio::test]
