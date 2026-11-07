@@ -1,5 +1,7 @@
 //! Managing Libraries through the generated `LibraryService` client, over a real socket.
 
+#[path = "support/refused.rs"]
+mod refused;
 #[path = "support/server.rs"]
 mod server;
 
@@ -8,9 +10,11 @@ use std::path::{Path, PathBuf};
 use connectrpc::{ConnectError, ErrorCode, client::HttpClient};
 use nama_proto::nama::v1::{
     CreateLibraryRequest, DeleteLibraryRequest, GetLibraryRequest, Library, LibraryKind,
-    LibraryServiceClient, ListLibrariesRequest, ScanLibraryRequest, UpdateLibraryRequest,
+    LibraryServiceClient, ListLibrariesRequest, RefusalReason, ScanLibraryRequest,
+    UpdateLibraryRequest,
 };
 use nama_server::{config::Config, plugins::Registry};
+use refused::assert_refused;
 use server::TestServer;
 use tempfile::TempDir;
 
@@ -191,27 +195,34 @@ async fn an_update_with_bad_input_is_refused_and_leaves_the_library_as_it_was() 
         .await
         .unwrap();
 
-    let cases: [(&str, &str, &[&str], ErrorCode); 3] = [
-        ("a blank name", " ", &[&tv], ErrorCode::InvalidArgument),
+    let invalid = (
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_UNSPECIFIED,
+    );
+    let cases: [(&str, &str, &[&str], _, &str); 3] = [
+        ("a blank name", " ", &[&tv], invalid, "name"),
         (
             "the same folder twice",
             "TV",
             &[&tv, &tv],
-            ErrorCode::InvalidArgument,
+            invalid,
+            "folders",
         ),
         (
             "another Library's folder",
             "TV",
             &[&tv, &films],
-            ErrorCode::AlreadyExists,
+            (
+                ErrorCode::AlreadyExists,
+                RefusalReason::REFUSAL_REASON_FOLDER_TAKEN,
+            ),
+            "folders",
         ),
     ];
-    for (case, name, folders, expected) in cases {
-        assert_eq!(
-            code(fx.update(shows.id, name, folders).await),
-            expected,
-            "{case}"
-        );
+    for (case, name, folders, (code, reason), field) in cases {
+        let refused = fx.update(shows.id, name, folders).await;
+        let refusal = assert_refused(refused, code, reason);
+        assert_eq!(refusal.field, field, "{case}");
     }
     assert_eq!(fx.get(shows.id).await.unwrap(), shows);
 }
@@ -227,7 +238,11 @@ async fn a_deleted_library_is_gone_and_its_folders_can_back_another() {
 
     fx.delete(first.id).await.unwrap();
 
-    assert_eq!(code(fx.get(first.id).await), ErrorCode::NotFound);
+    assert_refused(
+        fx.get(first.id).await,
+        ErrorCode::NotFound,
+        RefusalReason::REFUSAL_REASON_LIBRARY_NOT_FOUND,
+    );
     assert_eq!(fx.list().await, []);
     assert!(
         Path::new(&films).is_dir(),
@@ -245,21 +260,15 @@ async fn reading_changing_or_deleting_a_library_that_does_not_exist_is_not_found
     let fx = Fixture::start().await;
     let films = fx.folder("films");
 
-    assert_eq!(code(fx.get(42).await), ErrorCode::NotFound);
-    assert_eq!(
-        code(fx.update(42, "Movies", &[&films]).await),
-        ErrorCode::NotFound
+    let not_found = (
+        ErrorCode::NotFound,
+        RefusalReason::REFUSAL_REASON_LIBRARY_NOT_FOUND,
     );
-    assert_eq!(code(fx.delete(42).await), ErrorCode::NotFound);
-}
-
-/// The Connect code `result` failed with.
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
-fn code<T: std::fmt::Debug>(result: Result<T, ConnectError>) -> ErrorCode {
-    result.unwrap_err().code
+    let got = assert_refused(fx.get(42).await, not_found.0, not_found.1);
+    assert_eq!(got.params.get("libraryId").map(String::as_str), Some("42"));
+    let updated = fx.update(42, "Movies", &[&films]).await;
+    assert_refused(updated, not_found.0, not_found.1);
+    assert_refused(fx.delete(42).await, not_found.0, not_found.1);
 }
 
 #[tokio::test]
@@ -273,35 +282,73 @@ async fn a_library_with_a_bad_name_kind_or_folder_is_refused_as_an_invalid_argum
     let file = canonical(&file);
     let movies = LibraryKind::LIBRARY_KIND_MOVIES;
 
-    let cases: [(&str, &str, LibraryKind, &[&str]); 7] = [
-        ("blank name", "  ", movies, &[&films]),
+    let unspecified = RefusalReason::REFUSAL_REASON_UNSPECIFIED;
+    let cases: [(&str, &str, LibraryKind, &[&str], _, &str); 7] = [
+        ("blank name", "  ", movies, &[&films], unspecified, "name"),
         (
             "unspecified kind",
             "Movies",
             LibraryKind::LIBRARY_KIND_UNSPECIFIED,
             &[&films],
+            RefusalReason::REFUSAL_REASON_UNKNOWN_ENUM_VALUE,
+            "kind",
         ),
-        ("no folders", "Movies", movies, &[]),
-        ("relative folder", "Movies", movies, &["films"]),
-        ("missing folder", "Movies", movies, &[missing]),
-        ("a file, not a folder", "Movies", movies, &[&file]),
-        ("the same folder twice", "Movies", movies, &[&films, &films]),
+        ("no folders", "Movies", movies, &[], unspecified, "folders"),
+        (
+            "relative folder",
+            "Movies",
+            movies,
+            &["films"],
+            unspecified,
+            "folders",
+        ),
+        (
+            "missing folder",
+            "Movies",
+            movies,
+            &[missing],
+            unspecified,
+            "folders",
+        ),
+        (
+            "a file, not a folder",
+            "Movies",
+            movies,
+            &[&file],
+            unspecified,
+            "folders",
+        ),
+        (
+            "the same folder twice",
+            "Movies",
+            movies,
+            &[&films, &films],
+            unspecified,
+            "folders",
+        ),
     ];
-    for (case, name, kind, folders) in cases {
-        let err = fx.create(name, kind, folders).await.unwrap_err();
-        assert_eq!(err.code, ErrorCode::InvalidArgument, "{case}: {err:?}");
+    for (case, name, kind, folders, reason, field) in cases {
+        let refused = fx.create(name, kind, folders).await;
+        let refusal = assert_refused(refused, ErrorCode::InvalidArgument, reason);
+        assert_eq!(refusal.field, field, "{case}");
     }
     assert_eq!(fx.list().await, [], "a refused Library was created");
 
     let created = fx.create("Movies", movies, &[&films]).await.unwrap();
-    assert_eq!(
-        code(fx.update(created.id, "", &[&films]).await),
-        ErrorCode::InvalidArgument
+    let blank_name = fx.update(created.id, "", &[&films]).await;
+    let blank_name = assert_refused(
+        blank_name,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_UNSPECIFIED,
     );
-    assert_eq!(
-        code(fx.update(created.id, "Movies", &[missing]).await),
-        ErrorCode::InvalidArgument
+    assert_eq!(blank_name.field, "name");
+    let missing_folder = fx.update(created.id, "Movies", &[missing]).await;
+    let missing_folder = assert_refused(
+        missing_folder,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_UNSPECIFIED,
     );
+    assert_eq!(missing_folder.field, "folders");
     assert_eq!(fx.get(created.id).await.unwrap(), created);
 }
 
@@ -322,16 +369,25 @@ async fn a_folder_that_already_backs_another_library_is_refused_as_already_exist
     // The same folder, also when spelled differently, whatever the kind.
     let films_with_slash = format!("{films}{}", std::path::MAIN_SEPARATOR);
     for folder in [&films, &films_with_slash] {
-        let err = fx
+        let refused = fx
             .create("Anime", LibraryKind::LIBRARY_KIND_SHOWS, &[&tv, folder])
-            .await
-            .unwrap_err();
-        assert_eq!(err.code, ErrorCode::AlreadyExists, "{folder}: {err:?}");
+            .await;
+        let refusal = assert_refused(
+            refused,
+            ErrorCode::AlreadyExists,
+            RefusalReason::REFUSAL_REASON_FOLDER_TAKEN,
+        );
+        assert_eq!(refusal.field, "folders", "{folder}");
     }
-    assert_eq!(
-        code(fx.update(shows.id, "Shows", &[&tv, &films]).await),
-        ErrorCode::AlreadyExists
+    let updated = fx.update(shows.id, "Shows", &[&tv, &films]).await;
+    let refusal = assert_refused(
+        updated,
+        ErrorCode::AlreadyExists,
+        RefusalReason::REFUSAL_REASON_FOLDER_TAKEN,
     );
+    assert_eq!(refusal.params.get("folder"), Some(&films));
+    let library = refusal.params.get("library").map(String::as_str);
+    assert_eq!(library, Some("Movies"));
 
     assert_eq!(
         fx.list().await,
@@ -359,12 +415,16 @@ async fn a_folder_the_server_cannot_read_is_refused_as_an_invalid_argument() {
             return;
         }
 
-        let err = fx
+        let refused = fx
             .create("Movies", LibraryKind::LIBRARY_KIND_MOVIES, &[&locked])
-            .await
-            .unwrap_err();
+            .await;
 
-        assert_eq!(err.code, ErrorCode::InvalidArgument, "{case}: {err:?}");
+        let refusal = assert_refused(
+            refused,
+            ErrorCode::InvalidArgument,
+            RefusalReason::REFUSAL_REASON_UNSPECIFIED,
+        );
+        assert_eq!(refusal.field, "folders", "{case}");
         // So the scratch directory can be cleaned up.
         std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o700)).unwrap();
     }
@@ -383,16 +443,19 @@ async fn a_symlink_to_a_folder_that_backs_a_library_is_refused_as_already_existi
     let link = fx.media.path().join("films-link");
     std::os::unix::fs::symlink(&films, &link).unwrap();
 
-    let err = fx
+    let refused = fx
         .create(
             "Also Movies",
             LibraryKind::LIBRARY_KIND_MOVIES,
             &[link.to_str().unwrap()],
         )
-        .await
-        .unwrap_err();
+        .await;
 
-    assert_eq!(err.code, ErrorCode::AlreadyExists, "{err:?}");
+    assert_refused(
+        refused,
+        ErrorCode::AlreadyExists,
+        RefusalReason::REFUSAL_REASON_FOLDER_TAKEN,
+    );
 }
 
 #[tokio::test]
@@ -408,6 +471,10 @@ async fn a_scan_can_be_started_for_a_library_but_not_for_one_that_doesnt_exist()
     // Asking again while that scan may still be running is fine too.
     fx.scan(movies.id).await.unwrap();
 
-    let missing = fx.scan(movies.id + 1).await.unwrap_err();
-    assert_eq!(missing.code, ErrorCode::NotFound, "{missing:?}");
+    let missing = fx.scan(movies.id + 1).await;
+    assert_refused(
+        missing,
+        ErrorCode::NotFound,
+        RefusalReason::REFUSAL_REASON_LIBRARY_NOT_FOUND,
+    );
 }

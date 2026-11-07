@@ -29,6 +29,7 @@ nama-plugin-tmdb = { version = "0.1.0", path = "../../plugins/tmdb" }
 nama-proto = { version = "0.1.0", path = "../nama-proto" }
 regex = "1"
 serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 sha2 = "0.10"
 sqlx = { version = "0.9", default-features = false, features = ["macros", "migrate", "runtime-tokio", "sqlite-bundled"] }
 thiserror = "2"
@@ -47,7 +48,6 @@ hyper = { version = "1", features = ["client", "http1"] }
 hyper-util = { version = "0.1", features = ["tokio"] }
 nama-server = { path = ".", features = ["testing"] }
 nama-plugin-tmdb = { version = "0.1.0", path = "../../plugins/tmdb", features = ["testing"] }
-serde_json = "1"
 tempfile = "3"
 tokio = { version = "1", features = ["test-util"] }
 

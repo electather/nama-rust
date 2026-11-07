@@ -1,0 +1,96 @@
+syntax = "proto3";
+
+package nama.v1;
+
+// Why the Server refused a request (ADR 0019). Every error a client can cause carries one, as a
+// Connect error detail of type `nama.v1.Refusal`; server-side failures (`internal`) carry none.
+// The English text stays in the error's `message`. Decode the detail's `value`: its `debug` holds
+// the same Refusal as JSON, for people reading responses by hand.
+message Refusal {
+  // The rule the request broke. Each reason always comes with the same Connect code, given below.
+  RefusalReason reason = 1;
+  // The request field the refusal is about, as a path (`name`, `season.show_id`), or empty if it
+  // is about no one field.
+  string field = 2;
+  // The values the message mentions, so a client can say it in another language. Keys are
+  // lowerCamelCase with the unit in the key (AIP-193); each reason lists its own.
+  map<string, string> params = 3;
+}
+
+// The rules a request can break. Reasons are API contract: one is never renamed or reused. A
+// client that gets one it doesn't know sees `REFUSAL_REASON_UNSPECIFIED`, and shows the message.
+enum RefusalReason {
+  // No reason is given yet; read the message. Comes with `invalid_argument`.
+  REFUSAL_REASON_UNSPECIFIED = 0;
+
+  // `unauthenticated`: the call needs a signed-in Device.
+  REFUSAL_REASON_SIGN_IN_REQUIRED = 1;
+  // `permission_denied`: the call needs the Admin Role.
+  REFUSAL_REASON_ADMIN_REQUIRED = 2;
+  // `unauthenticated`: no User has this name and password. Which of the two is wrong isn't said.
+  REFUSAL_REASON_WRONG_NAME_OR_PASSWORD = 3;
+  // `unauthenticated`: the password given as the User's current one isn't.
+  REFUSAL_REASON_WRONG_PASSWORD = 4;
+  // `unauthenticated`: the calling Device was signed out before its change was made.
+  REFUSAL_REASON_SIGNED_OUT = 5;
+  // `resource_exhausted`: too many attempts failed lately. Params: `retryAfterSeconds`, also sent
+  // as the `Retry-After` header.
+  REFUSAL_REASON_TOO_MANY_ATTEMPTS = 6;
+
+  // `permission_denied`: the Setup Code is wrong.
+  REFUSAL_REASON_WRONG_SETUP_CODE = 7;
+  // `failed_precondition`: the Server already has Users, so it can't be set up again.
+  REFUSAL_REASON_ALREADY_SET_UP = 8;
+
+  // `not_found`: no unexpired Sign-in Code matches.
+  REFUSAL_REASON_SIGN_IN_CODE_NOT_FOUND = 9;
+  // `failed_precondition`: the Sign-in Code was already approved.
+  REFUSAL_REASON_SIGN_IN_CODE_ALREADY_APPROVED = 10;
+  // `resource_exhausted`: too many sign-ins with a Sign-in Code are waiting.
+  REFUSAL_REASON_TOO_MANY_PENDING_SIGN_INS = 11;
+  // `not_found`: no sign-in is waiting on the handle.
+  REFUSAL_REASON_HANDLE_NOT_FOUND = 12;
+
+  // `not_found`: no User has the ID, or none the caller may see.
+  REFUSAL_REASON_USER_NOT_FOUND = 13;
+  // `already_exists`: another User already has the name, ignoring case.
+  REFUSAL_REASON_USER_NAME_TAKEN = 14;
+  // `failed_precondition`: the change would leave the Server with no Admin.
+  REFUSAL_REASON_LAST_ADMIN = 15;
+  // `failed_precondition`: a User changes their own password with `ChangePassword`, not
+  // `ResetPassword`.
+  REFUSAL_REASON_OWN_PASSWORD_RESET = 16;
+  // `not_found`: the User has no Device with the ID.
+  REFUSAL_REASON_DEVICE_NOT_FOUND = 17;
+
+  // `invalid_argument`: a required field is missing or blank.
+  REFUSAL_REASON_FIELD_REQUIRED = 18;
+  // `invalid_argument`: an enum field is unset, or set to a value this Server doesn't know.
+  REFUSAL_REASON_UNKNOWN_ENUM_VALUE = 19;
+
+  // `not_found`: there is no Library with the ID. Params: `libraryId`.
+  REFUSAL_REASON_LIBRARY_NOT_FOUND = 20;
+  // `already_exists`: a folder already belongs to another Library. Params: `folder`, `library`
+  // (the other Library's name).
+  REFUSAL_REASON_FOLDER_TAKEN = 21;
+  // `invalid_argument`: the Library holds another kind of media. Params: `libraryKind`, the kind
+  // the call needs (`movies` or `shows`).
+  REFUSAL_REASON_WRONG_LIBRARY_KIND = 22;
+  // `not_found`: nothing in the Library is Matched to the id.
+  REFUSAL_REASON_NOTHING_MATCHED = 23;
+  // `not_found`: the Show has no such Season in the Library.
+  REFUSAL_REASON_SEASON_NOT_FOUND = 24;
+  // `not_found`: there is no such Version.
+  REFUSAL_REASON_VERSION_NOT_FOUND = 25;
+  // `invalid_argument`: the duration isn't more than zero and less than 2^63 milliseconds.
+  // Params: `minDurationMs`, `maxDurationMs`.
+  REFUSAL_REASON_DURATION_OUT_OF_RANGE = 26;
+
+  // `not_found`: there is no item with the ID. Params: `itemId`.
+  REFUSAL_REASON_ITEM_NOT_FOUND = 27;
+  // `invalid_argument`: the metadata source has no title with the id, or can't look titles up by
+  // it.
+  REFUSAL_REASON_UNKNOWN_TITLE = 28;
+  // `unavailable`: no metadata Provider is enabled, or it failed.
+  REFUSAL_REASON_NO_METADATA_PROVIDER = 29;
+}

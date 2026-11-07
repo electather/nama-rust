@@ -158,10 +158,15 @@ struct StoredPassword {
 /// Why a change to the Users was refused or failed. No variant holds a password or a token.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    /// The request itself is wrong, such as a name that is too long or a password the
-    /// Authenticator rejects, for this reason.
-    #[error("{0}")]
-    Invalid(String),
+    /// The request field `field` is wrong, such as a name that is too long or a password the
+    /// Authenticator rejects, for the reason `message` gives.
+    #[error("{message}")]
+    Invalid {
+        /// The request field it is about, as clients name it.
+        field: &'static str,
+        /// Why, for the client.
+        message: String,
+    },
     /// Another User already has this name, ignoring case.
     #[error("another User already has that name")]
     NameTaken,
@@ -227,13 +232,13 @@ impl Users {
         password: &str,
         device: NewDevice,
     ) -> Result<SignedIn, Error> {
-        let name = checked_name("a User's name", name)?;
+        let name = checked_name("name", "a User's name", name)?;
         let device = device.checked()?;
         // Before hashing, which is slow, though only the check in the write below is race-free.
         if self.any().await? {
             return Err(Error::AlreadySetUp);
         }
-        let credential = self.hash_password(password).await?;
+        let credential = self.hash_password("password", password).await?;
         let token = new_token()?;
         let token_hash = hash_token(&token);
         let caller = self
@@ -255,8 +260,8 @@ impl Users {
         password: &str,
         role: Role,
     ) -> Result<i64, Error> {
-        let name = checked_name("a User's name", name)?;
-        let credential = self.hash_password(password).await?;
+        let name = checked_name("name", "a User's name", name)?;
+        let credential = self.hash_password("password", password).await?;
         self.db
             .write(move |tx| {
                 Box::pin(async move {
@@ -350,7 +355,7 @@ impl Users {
         {
             return Err(Error::WrongPassword);
         }
-        let credential = self.hash_password(new).await?;
+        let credential = self.hash_password("new_password", new).await?;
         let (user, kept) = (caller.user.id, caller.device.id);
         self.write_signing_out(move |tx| {
             Box::pin(
@@ -363,7 +368,7 @@ impl Users {
     /// Sets the password of the User `user` to `new`, without their current one, adding it if they
     /// have none, and signs every Device of theirs out.
     pub(crate) async fn reset_password(&self, user: i64, new: &str) -> Result<(), Error> {
-        let credential = self.hash_password(new).await?;
+        let credential = self.hash_password("new_password", new).await?;
         self.write_signing_out(move |tx| {
             Box::pin(async move { set_password_signing_all_out(tx, user, &credential).await })
         })
@@ -573,8 +578,13 @@ impl Users {
         Ok(())
     }
 
-    /// Has the first enabled Authenticator turn `password` into a credential string.
-    async fn hash_password(&self, password: &str) -> Result<Credential, Error> {
+    /// Has the first enabled Authenticator turn `password`, given as the request field `field`,
+    /// into a credential string.
+    async fn hash_password(
+        &self,
+        field: &'static str,
+        password: &str,
+    ) -> Result<Credential, Error> {
         let password: Arc<str> = Arc::from(password);
         let (plugin, hashed) = self
             .plugins
@@ -587,7 +597,7 @@ impl Users {
             .ok_or(Error::NoAuthenticator)?;
         match hashed {
             Ok(Ok(value)) => Ok(Credential { plugin, value }),
-            Ok(Err(PasswordError::Rejected(reason))) => Err(Error::Invalid(reason)),
+            Ok(Err(PasswordError::Rejected(message))) => Err(Error::Invalid { field, message }),
             Ok(Err(PasswordError::Failed(err))) => Err(Error::Authenticator(err.to_string())),
             Err(panicked) => Err(Error::Authenticator(panicked.to_string())),
         }
@@ -677,7 +687,7 @@ impl Users {
 impl NewDevice {
     /// This Device with its name checked.
     fn checked(self) -> Result<Self, Error> {
-        let name = checked_name("a Device's name", &self.name)?;
+        let name = checked_name("device_name", "a Device's name", &self.name)?;
         Ok(Self { name, ..self })
     }
 }
@@ -751,17 +761,21 @@ fn verify_where_blocking_is_fine(
     tokio::task::spawn_blocking(move || authenticator.verify_password(&password, &credential))
 }
 
-/// `name` trimmed, if it then has an allowed length. `what` names it in the error.
-pub(crate) fn checked_name(what: &str, name: &str) -> Result<String, Error> {
+/// `name`, given as the request field `field`, trimmed, if it then has an allowed length. `what`
+/// names it in the error.
+pub(crate) fn checked_name(field: &'static str, what: &str, name: &str) -> Result<String, Error> {
     let name = name.trim();
     if NAME_LENGTH.contains(&name.chars().count()) {
         Ok(name.to_owned())
     } else {
-        Err(Error::Invalid(format!(
-            "{what} needs {} to {} characters",
-            NAME_LENGTH.start(),
-            NAME_LENGTH.end()
-        )))
+        Err(Error::Invalid {
+            field,
+            message: format!(
+                "{what} needs {} to {} characters",
+                NAME_LENGTH.start(),
+                NAME_LENGTH.end()
+            ),
+        })
     }
 }
 

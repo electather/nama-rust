@@ -1,6 +1,9 @@
 //! Creating the first Admin with the Setup Code, signing Devices in and out, and finding out who
 //! is signed in, over a real socket and against a real SQLite database.
 
+#[path = "support/refused.rs"]
+mod refused;
+
 use std::{
     io,
     net::SocketAddr,
@@ -9,14 +12,18 @@ use std::{
     time::Duration,
 };
 
-use connectrpc::client::{CallOptions, ClientConfig, HttpClient, ServerStream};
+use connectrpc::{
+    ConnectError, ErrorCode,
+    client::{CallOptions, ClientConfig, HttpClient, ServerStream},
+};
 use hyper::HeaderMap;
 use nama_plugin_local_auth::LocalAuth;
 use nama_proto::nama::v1::{
     __buffa::view::SubscribeResponseView, CreateLibraryRequest, EventServiceClient, LibraryKind,
-    LibraryServiceClient, ScanLibraryRequest, SubscribeRequest, SubscribeResponse,
+    LibraryServiceClient, RefusalReason, ScanLibraryRequest, SubscribeRequest, SubscribeResponse,
 };
 use nama_server::{config::Config, db::Database, plugins::Registry, users::SetupCode};
+use refused::assert_refused;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use tempfile::TempDir;
@@ -105,6 +112,17 @@ struct Reply {
     status: u16,
     headers: HeaderMap,
     body: Value,
+}
+
+impl Reply {
+    /// The error the body holds, as a client decodes it.
+    #[expect(
+        clippy::unwrap_used,
+        reason = "a test helper fails its test by panicking"
+    )]
+    fn refused(&self) -> Result<(), ConnectError> {
+        Err(serde_json::from_value(self.body.clone()).unwrap())
+    }
 }
 
 async fn call(server: &TestServer, method: &str, body: &Value, headers: &[(&str, &str)]) -> Reply {
@@ -211,7 +229,12 @@ async fn setup_with_a_wrong_code_is_refused() {
 
     let setup = call(&server, "Setup", &request, &[]).await;
 
-    assert_eq!(setup.body["code"], "permission_denied", "{}", setup.body);
+    let refusal = assert_refused(
+        setup.refused(),
+        ErrorCode::PermissionDenied,
+        RefusalReason::REFUSAL_REASON_WRONG_SETUP_CODE,
+    );
+    assert_eq!(refusal.field, "setup_code");
     let info = server_info(&server).await;
     assert_eq!(info.body["setupRequired"], true, "a User was created");
 }
@@ -224,7 +247,11 @@ async fn setup_once_a_user_exists_is_refused() {
 
     let again = call(&server, "Setup", &request, &[]).await;
 
-    assert_eq!(again.body["code"], "failed_precondition", "{}", again.body);
+    assert_refused(
+        again.refused(),
+        ErrorCode::FailedPrecondition,
+        RefusalReason::REFUSAL_REASON_ALREADY_SET_UP,
+    );
 }
 
 #[tokio::test]
@@ -242,7 +269,11 @@ async fn setup_once_a_user_exists_is_refused_as_already_set_up_whatever_the_code
 
     let again = call(&server, "Setup", &request, &[]).await;
 
-    assert_eq!(again.body["code"], "failed_precondition", "{}", again.body);
+    assert_refused(
+        again.refused(),
+        ErrorCode::FailedPrecondition,
+        RefusalReason::REFUSAL_REASON_ALREADY_SET_UP,
+    );
 }
 
 #[tokio::test]
@@ -257,7 +288,11 @@ async fn setup_on_a_server_that_started_with_users_is_refused_as_already_set_up(
     )
     .await;
 
-    assert_eq!(setup.body["code"], "failed_precondition", "{}", setup.body);
+    assert_refused(
+        setup.refused(),
+        ErrorCode::FailedPrecondition,
+        RefusalReason::REFUSAL_REASON_ALREADY_SET_UP,
+    );
 }
 
 #[tokio::test]
@@ -384,12 +419,13 @@ async fn who_am_i_without_a_valid_session_is_unauthenticated() {
     )
     .await;
 
-    assert_eq!(
-        anonymous.body["code"], "unauthenticated",
-        "{}",
-        anonymous.body
-    );
-    assert_eq!(made_up.body["code"], "unauthenticated", "{}", made_up.body);
+    for refused in [anonymous, made_up] {
+        assert_refused(
+            refused.refused(),
+            ErrorCode::Unauthenticated,
+            RefusalReason::REFUSAL_REASON_SIGN_IN_REQUIRED,
+        );
+    }
 }
 
 #[tokio::test]
@@ -397,22 +433,23 @@ async fn setup_refuses_blank_names_and_names_that_are_too_long() {
     let server = start().await;
     let too_long = "é".repeat(65);
     let cases = [
-        ("name", "   "),
-        ("name", too_long.as_str()),
-        ("deviceName", too_long.as_str()),
+        ("name", "   ", "name"),
+        ("name", too_long.as_str(), "name"),
+        ("deviceName", too_long.as_str(), "device_name"),
     ];
 
-    for (field, value) in cases {
+    for (json_field, value, field) in cases {
         let mut request = setup_request(&server, "SESSION_DELIVERY_TOKEN");
-        request[field] = json!(value);
+        request[json_field] = json!(value);
 
         let setup = call(&server, "Setup", &request, &[]).await;
 
-        assert_eq!(
-            setup.body["code"], "invalid_argument",
-            "{field} {value:?}: {}",
-            setup.body
+        let refusal = assert_refused(
+            setup.refused(),
+            ErrorCode::InvalidArgument,
+            RefusalReason::REFUSAL_REASON_UNSPECIFIED,
         );
+        assert_eq!(refusal.field, field, "{value:?}");
     }
 }
 
@@ -674,7 +711,11 @@ async fn sign_in_with_a_wrong_password_is_refused() {
     )
     .await;
 
-    assert_eq!(refused.body["code"], "unauthenticated", "{}", refused.body);
+    assert_refused(
+        refused.refused(),
+        ErrorCode::Unauthenticated,
+        RefusalReason::REFUSAL_REASON_WRONG_NAME_OR_PASSWORD,
+    );
 }
 
 #[tokio::test]
@@ -725,7 +766,11 @@ async fn signing_out_makes_the_token_stop_working_at_once() {
     let me = call(&server, "WhoAmI", &json!({}), &auth).await;
 
     assert_eq!(signed_out.status, 200, "{}", signed_out.body);
-    assert_eq!(me.body["code"], "unauthenticated", "{}", me.body);
+    assert_refused(
+        me.refused(),
+        ErrorCode::Unauthenticated,
+        RefusalReason::REFUSAL_REASON_SIGN_IN_REQUIRED,
+    );
 }
 
 #[tokio::test]
@@ -768,10 +813,10 @@ async fn signing_out_without_a_session_is_unauthenticated() {
 
     let signed_out = call(&server, "SignOut", &json!({}), &[]).await;
 
-    assert_eq!(
-        signed_out.body["code"], "unauthenticated",
-        "{}",
-        signed_out.body
+    assert_refused(
+        signed_out.refused(),
+        ErrorCode::Unauthenticated,
+        RefusalReason::REFUSAL_REASON_SIGN_IN_REQUIRED,
     );
 }
 
@@ -875,26 +920,30 @@ async fn signing_out_ends_that_devices_event_streams_and_leaves_other_devices_op
 }
 
 /// Fails to sign in as `name` with a wrong password `times` times.
-#[expect(
-    clippy::indexing_slicing,
-    reason = "a test helper fails its test by panicking"
-)]
 async fn fail_sign_in(server: &TestServer, name: &str, times: usize) {
     let request = sign_in_request(name, "not the password", "SESSION_DELIVERY_TOKEN");
     for _ in 0..times {
         let refused = call(server, "SignIn", &request, &[]).await;
-        assert_eq!(refused.body["code"], "unauthenticated", "{}", refused.body);
+        assert_refused(
+            refused.refused(),
+            ErrorCode::Unauthenticated,
+            RefusalReason::REFUSAL_REASON_WRONG_NAME_OR_PASSWORD,
+        );
     }
 }
 
-/// Asserts `reply` was refused as rate limited, with a retry delay of at most 15 minutes.
+/// Asserts `reply` was refused as rate limited, with a retry delay of at most 15 minutes, given in
+/// both the `Retry-After` header and the Refusal.
 #[expect(
     clippy::unwrap_used,
-    clippy::indexing_slicing,
     reason = "a test helper fails its test by panicking"
 )]
 fn assert_blocked(reply: &Reply) {
-    assert_eq!(reply.body["code"], "resource_exhausted", "{}", reply.body);
+    let refusal = assert_refused(
+        reply.refused(),
+        ErrorCode::ResourceExhausted,
+        RefusalReason::REFUSAL_REASON_TOO_MANY_ATTEMPTS,
+    );
     let retry_after: u64 = reply
         .headers
         .get("retry-after")
@@ -904,6 +953,8 @@ fn assert_blocked(reply: &Reply) {
         .parse()
         .unwrap();
     assert!((1..=15 * 60).contains(&retry_after), "{retry_after}");
+    let retry_after_secs = refusal.params.get("retryAfterSeconds");
+    assert_eq!(retry_after_secs, Some(&retry_after.to_string()));
 }
 
 #[tokio::test]
@@ -979,10 +1030,10 @@ async fn fail_setup(server: &TestServer, times: usize, forwarded_for: impl Fn(us
         let forwarded_for = forwarded_for(i);
         let headers = [("x-forwarded-for", forwarded_for.as_str())];
         let refused = call(server, "Setup", &request, &headers).await;
-        assert_eq!(
-            refused.body["code"], "permission_denied",
-            "{}",
-            refused.body
+        assert_refused(
+            refused.refused(),
+            ErrorCode::PermissionDenied,
+            RefusalReason::REFUSAL_REASON_WRONG_SETUP_CODE,
         );
     }
 }
@@ -1118,7 +1169,12 @@ async fn polling_again_after_signing_in_finds_nothing() {
 
     let again = poll(&server, &handle).await;
 
-    assert_eq!(again.body["code"], "not_found", "{}", again.body);
+    let refusal = assert_refused(
+        again.refused(),
+        ErrorCode::NotFound,
+        RefusalReason::REFUSAL_REASON_HANDLE_NOT_FOUND,
+    );
+    assert_eq!(refusal.field, "handle");
 }
 
 #[tokio::test]
@@ -1164,8 +1220,14 @@ async fn an_unknown_code_cant_be_looked_up_or_approved() {
     let looked_up = with_code(&server, "LookUpSignInCode", "AAAA-AAAA", &ada).await;
     let approved = with_code(&server, "ApproveSignInCode", "AAAA-AAAA", &ada).await;
 
-    assert_eq!(looked_up.body["code"], "not_found", "{}", looked_up.body);
-    assert_eq!(approved.body["code"], "not_found", "{}", approved.body);
+    for refused in [looked_up, approved] {
+        let refusal = assert_refused(
+            refused.refused(),
+            ErrorCode::NotFound,
+            RefusalReason::REFUSAL_REASON_SIGN_IN_CODE_NOT_FOUND,
+        );
+        assert_eq!(refusal.field, "code");
+    }
 }
 
 #[tokio::test]
@@ -1193,16 +1255,13 @@ async fn looking_up_or_approving_a_code_without_a_session_is_unauthenticated() {
     let approved = call(&server, "ApproveSignInCode", &request, &[]).await;
     let polled = poll(&server, &handle).await;
 
-    assert_eq!(
-        looked_up.body["code"], "unauthenticated",
-        "{}",
-        looked_up.body
-    );
-    assert_eq!(
-        approved.body["code"], "unauthenticated",
-        "{}",
-        approved.body
-    );
+    for refused in [looked_up, approved] {
+        assert_refused(
+            refused.refused(),
+            ErrorCode::Unauthenticated,
+            RefusalReason::REFUSAL_REASON_SIGN_IN_REQUIRED,
+        );
+    }
     assert_eq!(polled.body["status"], "SIGN_IN_CODE_STATUS_WAITING");
 }
 
@@ -1225,14 +1284,14 @@ async fn the_database_keeps_only_the_hash_of_a_token_a_sign_in_code_handed_out()
 
 /// Fails `times` times to call `method`, `LookUpSignInCode` or `ApproveSignInCode`, with an
 /// unknown code, as the Device whose session is `token`.
-#[expect(
-    clippy::indexing_slicing,
-    reason = "a test helper fails its test by panicking"
-)]
 async fn fail_with_code(server: &TestServer, method: &str, token: &str, times: usize) {
     for _ in 0..times {
         let refused = with_code(server, method, "AAAA-AAAA", token).await;
-        assert_eq!(refused.body["code"], "not_found", "{}", refused.body);
+        assert_refused(
+            refused.refused(),
+            ErrorCode::NotFound,
+            RefusalReason::REFUSAL_REASON_SIGN_IN_CODE_NOT_FOUND,
+        );
     }
 }
 
@@ -1286,5 +1345,10 @@ async fn looking_up_an_approved_code_again_isnt_counted_as_a_failure() {
 
     let again = with_code(&server, "LookUpSignInCode", &code, &ada).await;
 
-    assert_eq!(again.body["code"], "failed_precondition", "{}", again.body);
+    let refusal = assert_refused(
+        again.refused(),
+        ErrorCode::FailedPrecondition,
+        RefusalReason::REFUSAL_REASON_SIGN_IN_CODE_ALREADY_APPROVED,
+    );
+    assert_eq!(refusal.field, "code");
 }
