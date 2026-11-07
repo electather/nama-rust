@@ -254,13 +254,13 @@ async function build(issue: Issue): Promise<{ box: Box; body: string }> {
 
 // Waits for the whole CI workflow run on the branch's pushed commit. `gh pr checks --watch` isn't
 // enough: a job behind `needs` (test after lint) has no check until it starts, so it can pass early.
-// "stale": main moved on (another issue merged), so this run no longer says whether the PR can merge.
+// "stale": another issue merged and the PR now conflicts with main, so this run can't merge.
 async function waitForChecks(issue: Issue): Promise<"pass" | "fail" | "stale"> {
   const branch = branchOf(issue);
   const sha = git("rev-parse", branch);
   const stale = () => {
     ok("git", "fetch", "origin"); // a failed fetch (another worker's fetch holds the lock) just checks the old ref
-    return !ok("git", "merge-base", "--is-ancestor", `origin/${BASE}`, branch);
+    return conflicts(branch);
   };
   let run = "";
   const signal = aborts.get(issue.number)?.signal;
@@ -292,12 +292,19 @@ async function waitForChecks(issue: Issue): Promise<"pass" | "fail" | "stale"> {
   return code === 0 ? "pass" : "fail";
 }
 
-// Rebases onto main if another issue merged first, then pushes.
+// Only a conflict with main needs a rebase (and a fresh CI run): a PR that's merely behind still
+// squash-merges cleanly, and its pull_request run already tested it merged into main.
+// ponytail: two PRs that merge cleanly but break each other are caught by main's push run, not
+// before the merge. Rebase whenever main moves if that ever lands a red main.
+// merge-tree exits non-zero on a conflict (or any error, which then just rebases).
+const conflicts = (branch: string) => !ok("git", "merge-tree", "--write-tree", `origin/${BASE}`, branch);
+
+// Rebases onto main if another issue's merge conflicts with this one, then pushes.
 // (A PR that conflicts with main gets no pull_request CI run at all.)
 async function syncAndPush(issue: Issue, box: Box) {
   const branch = branchOf(issue);
   git("fetch", "origin");
-  if (!ok("git", "merge-base", "--is-ancestor", `origin/${BASE}`, branch)) {
+  if (conflicts(branch)) {
     note(issue, "rebase");
     await agent(box, issue, "fix", { PROBLEM: `It is behind origin/${BASE} (other issues merged first) and may conflict.` });
   }
@@ -347,8 +354,8 @@ async function mergePr(issue: Issue, box: Box, pr: string) {
   const branch = branchOf(issue);
   stage(issue, "merging");
   git("fetch", "origin");
-  if (!ok("git", "merge-base", "--is-ancestor", `origin/${BASE}`, branch)) {
-    await syncAndPush(issue, box); // another issue merged since CI went green: CI again on the rebased branch
+  if (conflicts(branch)) {
+    await syncAndPush(issue, box); // another issue's merge conflicts with this one: CI again on the rebased branch
     await greenCi(issue, box, pr);
   }
   gh("pr", "merge", pr, "--squash");
