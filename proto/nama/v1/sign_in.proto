@@ -91,6 +91,13 @@ message Device {
   int64 id = 1;
   // What the client called itself when it signed in, such as "Living room TV".
   string name = 2;
+  // When it signed in, in seconds since the Unix epoch.
+  int64 created_at = 3;
+  // When it was last used, in seconds since the Unix epoch. Kept to the hour, so it may lag by up
+  // to an hour.
+  int64 last_seen_at = 4;
+  // Whether it is the Device making this call.
+  bool is_current = 5;
 }
 
 message SetupRequest {

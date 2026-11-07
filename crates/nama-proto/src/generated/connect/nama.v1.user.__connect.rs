@@ -22,6 +22,22 @@ pub type OwnedSetRoleRequestView = ::buffa::view::OwnedView<
 pub type OwnedSetRoleResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::SetRoleResponseView<'static>,
 >;
+///Shorthand for `OwnedView<ListDevicesRequestView<'static>>`.
+pub type OwnedListDevicesRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ListDevicesRequestView<'static>,
+>;
+///Shorthand for `OwnedView<ListDevicesResponseView<'static>>`.
+pub type OwnedListDevicesResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ListDevicesResponseView<'static>,
+>;
+///Shorthand for `OwnedView<RevokeDeviceRequestView<'static>>`.
+pub type OwnedRevokeDeviceRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::RevokeDeviceRequestView<'static>,
+>;
+///Shorthand for `OwnedView<RevokeDeviceResponseView<'static>>`.
+pub type OwnedRevokeDeviceResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::RevokeDeviceResponseView<'static>,
+>;
 impl ::connectrpc::Encodable<crate::messages::nama::v1::CreateUserResponse>
 for crate::messages::nama::v1::__buffa::view::CreateUserResponseView<'_> {
     fn encode(
@@ -124,6 +140,74 @@ for ::buffa::view::OwnedView<
         )
     }
 }
+impl ::connectrpc::Encodable<crate::messages::nama::v1::ListDevicesResponse>
+for crate::messages::nama::v1::__buffa::view::ListDevicesResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::ListDevicesResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ListDevicesResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::RevokeDeviceResponse>
+for crate::messages::nama::v1::__buffa::view::RevokeDeviceResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::RevokeDeviceResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::RevokeDeviceResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
 /// Full service name for this service.
 pub const USER_SERVICE_SERVICE_NAME: &str = "nama.v1.UserService";
 /// Static [`Spec`](::connectrpc::Spec) for the `CreateUser` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
@@ -144,8 +228,21 @@ pub const USER_SERVICE_SET_ROLE_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::s
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
-/// Managing the Server's Users. Every RPC needs the Admin Role, and fails with `permission_denied`
-/// without it. RPCs name Users by ID, not by name.
+/// Static [`Spec`](::connectrpc::Spec) for the `ListDevices` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const USER_SERVICE_LIST_DEVICES_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.UserService/ListDevices",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
+/// Static [`Spec`](::connectrpc::Spec) for the `RevokeDevice` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const USER_SERVICE_REVOKE_DEVICE_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.UserService/RevokeDevice",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
+/// Managing the Server's Users and their Devices. Every RPC but `ListDevices` and `RevokeDevice`
+/// needs the Admin Role, and fails with `permission_denied` without it. RPCs name Users by ID, not
+/// by name.
 ///
 /// # Implementing handlers
 ///
@@ -269,6 +366,57 @@ pub trait UserService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
+    /// Lists a User's Devices that haven't expired, oldest first. Any signed-in User may list their
+    /// own; another User's needs the Admin Role. Fails with `not_found` if the User doesn't exist, or
+    /// isn't the caller and the caller isn't an Admin, so a Member can't learn which IDs exist.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn list_devices<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::ListDevicesRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::ListDevicesResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Revokes one of a User's Devices, so its session stops working at once and its open
+    /// `EventService.Subscribe` streams end. Revoking the calling Device signs it out, as `SignOut`
+    /// does. Who may revoke whose Devices is as for `ListDevices`, and fails the same way; it also
+    /// fails with `not_found` if the Device isn't that User's.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn revoke_device<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::RevokeDeviceRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::RevokeDeviceResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
 }
 /// Extension trait for registering a service implementation with a Router.
 ///
@@ -388,6 +536,64 @@ impl<S: UserService> UserServiceExt for S {
                 },
             )
             .with_spec(USER_SERVICE_SET_ROLE_SPEC)
+            .route_view_idempotent(
+                USER_SERVICE_SERVICE_NAME,
+                "ListDevices",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::ListDevicesRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::ListDevicesRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.list_devices(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::ListDevicesResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(USER_SERVICE_LIST_DEVICES_SPEC)
+            .route_view(
+                USER_SERVICE_SERVICE_NAME,
+                "RevokeDevice",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::RevokeDeviceRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::RevokeDeviceRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.revoke_device(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::RevokeDeviceResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(USER_SERVICE_REVOKE_DEVICE_SPEC)
     }
 }
 /// Type-inference marker used by [`Router::add_service`](::connectrpc::Router::add_service).
@@ -458,6 +664,18 @@ impl<T: UserService> ::connectrpc::Dispatcher for UserServiceServer<T> {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
                         .with_spec(USER_SERVICE_SET_ROLE_SPEC),
+                )
+            }
+            "ListDevices" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
+                        .with_spec(USER_SERVICE_LIST_DEVICES_SPEC),
+                )
+            }
+            "RevokeDevice" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(USER_SERVICE_REVOKE_DEVICE_SPEC),
                 )
             }
             _ => None,
@@ -533,6 +751,48 @@ impl<T: UserService> ::connectrpc::Dispatcher for UserServiceServer<T> {
                     svc.set_role(ctx, req)
                         .await?
                         .encode::<crate::messages::nama::v1::SetRoleResponse>(format)
+                })
+            }
+            "ListDevices" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::ListDevicesRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::ListDevicesRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::ListDevicesRequest,
+                    >::from_parts(&req, &body);
+                    svc.list_devices(ctx, req)
+                        .await?
+                        .encode::<crate::messages::nama::v1::ListDevicesResponse>(format)
+                })
+            }
+            "RevokeDevice" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::RevokeDeviceRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::RevokeDeviceRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::RevokeDeviceRequest,
+                    >::from_parts(&req, &body);
+                    svc.revoke_device(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::RevokeDeviceResponse,
+                        >(format)
                 })
             }
             _ => ::connectrpc::dispatcher::codegen::unimplemented_unary(path),
@@ -777,6 +1037,96 @@ where
                 &self.transport,
                 &self.config,
                 USER_SERVICE_SET_ROLE_SPEC.with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the ListDevices RPC. Sends a request to /nama.v1.UserService/ListDevices.
+    pub async fn list_devices(
+        &self,
+        request: crate::messages::nama::v1::ListDevicesRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::ListDevicesResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.list_devices_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the ListDevices RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn list_devices_with_options(
+        &self,
+        request: crate::messages::nama::v1::ListDevicesRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::ListDevicesResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                USER_SERVICE_LIST_DEVICES_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the RevokeDevice RPC. Sends a request to /nama.v1.UserService/RevokeDevice.
+    pub async fn revoke_device(
+        &self,
+        request: crate::messages::nama::v1::RevokeDeviceRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::RevokeDeviceResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.revoke_device_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the RevokeDevice RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn revoke_device_with_options(
+        &self,
+        request: crate::messages::nama::v1::RevokeDeviceRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::RevokeDeviceResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                USER_SERVICE_REVOKE_DEVICE_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,
             )

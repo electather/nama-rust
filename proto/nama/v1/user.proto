@@ -4,8 +4,9 @@ package nama.v1;
 
 import "nama/v1/sign_in.proto";
 
-// Managing the Server's Users. Every RPC needs the Admin Role, and fails with `permission_denied`
-// without it. RPCs name Users by ID, not by name.
+// Managing the Server's Users and their Devices. Every RPC but `ListDevices` and `RevokeDevice`
+// needs the Admin Role, and fails with `permission_denied` without it. RPCs name Users by ID, not
+// by name.
 service UserService {
   // Creates a User, who can sign in at once. Fails with `invalid_argument` if the name, the
   // password or the Role breaks the rules, and `already_exists` if another User has the name,
@@ -21,6 +22,17 @@ service UserService {
   rpc SetRole(SetRoleRequest) returns (SetRoleResponse) {
     option idempotency_level = IDEMPOTENT;
   }
+  // Lists a User's Devices that haven't expired, oldest first. Any signed-in User may list their
+  // own; another User's needs the Admin Role. Fails with `not_found` if the User doesn't exist, or
+  // isn't the caller and the caller isn't an Admin, so a Member can't learn which IDs exist.
+  rpc ListDevices(ListDevicesRequest) returns (ListDevicesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Revokes one of a User's Devices, so its session stops working at once and its open
+  // `EventService.Subscribe` streams end. Revoking the calling Device signs it out, as `SignOut`
+  // does. Who may revoke whose Devices is as for `ListDevices`, and fails the same way; it also
+  // fails with `not_found` if the Device isn't that User's.
+  rpc RevokeDevice(RevokeDeviceRequest) returns (RevokeDeviceResponse);
 }
 
 message CreateUserRequest {
@@ -51,3 +63,21 @@ message SetRoleRequest {
 }
 
 message SetRoleResponse {}
+
+message ListDevicesRequest {
+  // Whose Devices to list. Unset means the caller's own.
+  optional int64 user_id = 1;
+}
+
+message ListDevicesResponse {
+  repeated Device devices = 1;
+}
+
+message RevokeDeviceRequest {
+  // Whose Device to revoke. Unset means the caller's own.
+  optional int64 user_id = 1;
+  // The Device to revoke.
+  int64 device_id = 2;
+}
+
+message RevokeDeviceResponse {}

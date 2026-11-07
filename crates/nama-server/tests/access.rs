@@ -44,11 +44,13 @@ const BROWSE: [&str; 2] = [
 ];
 
 /// Every other unary RPC that needs a session.
-const SIGNED_IN: [&str; 4] = [
+const SIGNED_IN: [&str; 6] = [
     "/nama.v1.SignInService/SignOut",
     "/nama.v1.SignInService/WhoAmI",
     "/nama.v1.SignInService/LookUpSignInCode",
     "/nama.v1.SignInService/ApproveSignInCode",
+    "/nama.v1.UserService/ListDevices",
+    "/nama.v1.UserService/RevokeDevice",
 ];
 
 /// How long a test waits for a stream before failing.

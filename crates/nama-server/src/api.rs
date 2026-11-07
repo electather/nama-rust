@@ -30,10 +30,11 @@ use nama_proto::nama::v1::{
     CreateUserRequest, CreateUserResponse, DeleteLibraryRequest, DeleteLibraryResponse,
     EventService, EventType, GetLibraryRequest, GetLibraryResponse, GetMovieRequest,
     GetMovieResponse, GetServerInfoRequest, GetServerInfoResponse, LIBRARY_SERVICE_SERVICE_NAME,
-    LibraryKind, LibraryService, ListLibrariesRequest, ListLibrariesResponse, ListMoviesRequest,
-    ListMoviesResponse, ListUnmatchedItemsRequest, ListUnmatchedItemsResponse, ListUsersRequest,
-    ListUsersResponse, LookUpSignInCodeRequest, LookUpSignInCodeResponse,
-    MATCH_SERVICE_SERVICE_NAME, MatchService, PollSignInCodeRequest, PollSignInCodeResponse,
+    LibraryKind, LibraryService, ListDevicesRequest, ListDevicesResponse, ListLibrariesRequest,
+    ListLibrariesResponse, ListMoviesRequest, ListMoviesResponse, ListUnmatchedItemsRequest,
+    ListUnmatchedItemsResponse, ListUsersRequest, ListUsersResponse, LookUpSignInCodeRequest,
+    LookUpSignInCodeResponse, MATCH_SERVICE_SERVICE_NAME, MatchService, PollSignInCodeRequest,
+    PollSignInCodeResponse, RevokeDeviceRequest, RevokeDeviceResponse,
     SERVER_SERVICE_GET_SERVER_INFO_SPEC, SIGN_IN_SERVICE_POLL_SIGN_IN_CODE_SPEC,
     SIGN_IN_SERVICE_SETUP_SPEC, SIGN_IN_SERVICE_SIGN_IN_SPEC,
     SIGN_IN_SERVICE_START_SIGN_IN_CODE_SPEC, ScanLibraryRequest, ScanLibraryResponse,
@@ -41,8 +42,9 @@ use nama_proto::nama::v1::{
     SetMatchResponse, SetRoleRequest, SetRoleResponse, SetupRequest, SetupResponse,
     SignInCodeStatus, SignInRequest, SignInResponse, SignInService, SignOutRequest,
     SignOutResponse, StartSignInCodeRequest, StartSignInCodeResponse, SubscribeRequest,
-    SubscribeResponse, USER_SERVICE_SERVICE_NAME, UpdateLibraryRequest, UpdateLibraryResponse,
-    UserService, WhoAmIRequest, WhoAmIResponse, external_id,
+    SubscribeResponse, USER_SERVICE_LIST_DEVICES_SPEC, USER_SERVICE_REVOKE_DEVICE_SPEC,
+    USER_SERVICE_SERVICE_NAME, UpdateLibraryRequest, UpdateLibraryResponse, UserService,
+    WhoAmIRequest, WhoAmIResponse, external_id,
 };
 use tokio::sync::OwnedMutexGuard;
 
@@ -133,11 +135,21 @@ impl Access {
         SIGN_IN_SERVICE_POLL_SIGN_IN_CODE_SPEC.procedure,
     ];
 
+    /// The RPCs of an Admin-only service that any signed-in User may call, by path. Each decides
+    /// for itself what a Member may do.
+    const SELF_SERVICE: [&str; 2] = [
+        USER_SERVICE_LIST_DEVICES_SPEC.procedure,
+        USER_SERVICE_REVOKE_DEVICE_SPEC.procedure,
+    ];
+
     /// Who may call the RPC at `path`, `/<service>/<method>`. Only the RPCs in
     /// [`Access::PUBLIC`] are public, so a new one needs a session until it is opened up.
     fn of(path: &str) -> Self {
         if Self::PUBLIC.contains(&path) {
             return Self::Anyone;
+        }
+        if Self::SELF_SERVICE.contains(&path) {
+            return Self::SignedIn;
         }
         let service = path
             .trim_start_matches('/')
@@ -279,7 +291,7 @@ impl SignInService for SignInServiceHandler {
             ctx.headers(),
             |caller, token| SetupResponse {
                 user: user_to_proto(caller.user).into(),
-                device: device_to_proto(caller.device).into(),
+                device: device_to_proto(caller.device, true).into(),
                 token,
                 ..Default::default()
             },
@@ -307,7 +319,7 @@ impl SignInService for SignInServiceHandler {
             ctx.headers(),
             |caller, token| SignInResponse {
                 user: user_to_proto(caller.user).into(),
-                device: device_to_proto(caller.device).into(),
+                device: device_to_proto(caller.device, true).into(),
                 token,
                 ..Default::default()
             },
@@ -324,12 +336,7 @@ impl SignInService for SignInServiceHandler {
             .sign_out(device)
             .await
             .map_err(|err| database_failed(&err))?;
-        let response = Response::new(SignOutResponse::default());
-        Ok(if in_session_cookie(ctx.headers()) {
-            response.with_header(SET_COOKIE, cleared_session_cookie(ctx.headers()))
-        } else {
-            response
-        })
+        Ok(signed_out(SignOutResponse::default(), ctx.headers()))
     }
 
     fn who_am_i<'a>(
@@ -341,7 +348,7 @@ impl SignInService for SignInServiceHandler {
         future::ready(caller(&ctx).and_then(|caller| {
             Response::ok(WhoAmIResponse {
                 user: user_to_proto(caller.user.clone()).into(),
-                device: device_to_proto(caller.device.clone()).into(),
+                device: device_to_proto(caller.device.clone(), true).into(),
                 ..Default::default()
             })
         }))
@@ -426,7 +433,7 @@ impl SignInService for SignInServiceHandler {
             |caller, token| PollSignInCodeResponse {
                 status: SignInCodeStatus::SIGN_IN_CODE_STATUS_SIGNED_IN.into(),
                 user: user_to_proto(caller.user).into(),
-                device: device_to_proto(caller.device).into(),
+                device: device_to_proto(caller.device, true).into(),
                 token,
                 ..Default::default()
             },
@@ -709,8 +716,9 @@ impl BrowseService for BrowseServiceHandler {
     }
 }
 
-/// `nama.v1.UserService`: managing the Server's Users. Admins only, which [`require_access`]
-/// enforces.
+/// `nama.v1.UserService`: managing the Server's Users and their Devices. Admins only, which
+/// [`require_access`] enforces, but for the RPCs in [`Access::SELF_SERVICE`], which check for
+/// themselves with [`devices_owner`].
 struct UserServiceHandler {
     users: Users,
 }
@@ -764,6 +772,71 @@ impl UserService for UserServiceHandler {
         self.users.set_role(request.user_id, role).await?;
         Response::ok(SetRoleResponse::default())
     }
+
+    async fn list_devices(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, ListDevicesRequest>,
+    ) -> ServiceResult<ListDevicesResponse> {
+        let caller = caller(&ctx)?;
+        let owner = devices_owner(caller, request.user_id)?;
+        let devices = self
+            .users
+            .devices(owner)
+            .await
+            .map_err(|err| database_failed(&err))?
+            .ok_or_else(no_such_user)?;
+        let current = caller.device.id;
+        Response::ok(ListDevicesResponse {
+            devices: devices
+                .into_iter()
+                .map(|device| {
+                    let is_current = device.id == current;
+                    device_to_proto(device, is_current)
+                })
+                .collect(),
+            ..Default::default()
+        })
+    }
+
+    async fn revoke_device(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, RevokeDeviceRequest>,
+    ) -> ServiceResult<RevokeDeviceResponse> {
+        let caller = caller(&ctx)?;
+        let owner = devices_owner(caller, request.user_id)?;
+        let revoked = self
+            .users
+            .revoke(owner, request.device_id)
+            .await
+            .map_err(|err| database_failed(&err))?;
+        if !revoked {
+            return Err(ConnectError::not_found("that User has no such Device"));
+        }
+        let response = RevokeDeviceResponse::default();
+        Ok(if request.device_id == caller.device.id {
+            signed_out(response, ctx.headers())
+        } else {
+            Response::new(response)
+        })
+    }
+}
+
+/// The User whose Devices `caller` asks about with `user_id`: their own if it's unset. Only an
+/// Admin may ask about another User's. A Member who does gets `not_found`, as for a User who
+/// doesn't exist, so they can't learn which IDs do.
+fn devices_owner(caller: &Caller, user_id: Option<i64>) -> Result<i64, ConnectError> {
+    match user_id {
+        None => Ok(caller.user.id),
+        Some(id) if id == caller.user.id || caller.user.role == Role::Admin => Ok(id),
+        Some(_) => Err(no_such_user()),
+    }
+}
+
+/// The Connect error for a User ID that names nobody the caller may see.
+fn no_such_user() -> ConnectError {
+    ConnectError::not_found("no User has that ID")
 }
 
 /// `nama.v1.EventService`: live updates.
@@ -822,6 +895,17 @@ fn caller(ctx: &RequestContext) -> Result<&Caller, ConnectError> {
     ctx.extensions()
         .get::<Caller>()
         .ok_or_else(|| ConnectError::unauthenticated("sign in first"))
+}
+
+/// The response to a request whose own Device was just signed out, carrying `body`. A cookie
+/// session has its cookie cleared.
+fn signed_out<M>(body: M, request_headers: &HeaderMap) -> Response<M> {
+    let response = Response::new(body);
+    if in_session_cookie(request_headers) {
+        response.with_header(SET_COOKIE, cleared_session_cookie(request_headers))
+    } else {
+        response
+    }
 }
 
 /// The response `body` makes for a Device just `signed_in`, with its session token in the body for
@@ -1022,11 +1106,14 @@ fn user_to_proto(user: users::User) -> proto::User {
     }
 }
 
-/// A Device as clients see it.
-fn device_to_proto(device: users::Device) -> proto::Device {
+/// A Device as clients see it, where `is_current` says whether it is the one calling.
+fn device_to_proto(device: users::Device, is_current: bool) -> proto::Device {
     proto::Device {
         id: device.id,
         name: device.name,
+        created_at: device.created_at,
+        last_seen_at: device.last_seen_at,
+        is_current,
         ..Default::default()
     }
 }
