@@ -95,6 +95,8 @@
 }
 
 .dark {
+  /* Native controls, such as radio buttons and scrollbars, drawn for a dark page too. */
+  color-scheme: dark;
   /* Pure neutrals: the artwork brings the colour, so the chrome has none (DESIGN.md, "Neutral"). */
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);

@@ -10,6 +10,8 @@ const buttonVariants = cva(
       variant: {
         // The one primary action on a screen.
         default: "bg-primary font-semibold text-primary-foreground hover:bg-primary/90",
+        // Confirms something that can't be undone, such as deleting a User.
+        destructive: "bg-destructive font-semibold text-background hover:bg-destructive/90",
         ghost: "text-muted-foreground hover:bg-muted hover:text-foreground",
       },
     },

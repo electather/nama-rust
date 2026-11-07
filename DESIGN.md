@@ -137,7 +137,7 @@ Flat by default. Depth comes from tonal layering plus a hairline: each surface s
 
 Only the app shell exists so far. The tokens above set the shape every component inherits:
 
-- **Buttons**: 10px radius, 14px medium text. Primary is Signal Green with black semibold ink, once per screen. Disabled is Muted with Quiet ink, never a faded colour. Secondary is solid ink on black. Everything else is ghost: no fill until hover, then Muted.
+- **Buttons**: 10px radius, 14px medium text. Primary is Signal Green with black semibold ink, once per screen. Disabled is Muted with Quiet ink, never a faded colour. Secondary is solid ink on black. Destructive, the confirm button of a dialog that asks before something can’t be undone (revoking a Device, deleting a User), is the destructive red with Living-room-black semibold ink. Everything else is ghost: no fill until hover, then Muted.
 - **Cards**: Raised black, 14px radius, a hairline border, 18px padding. No shadow.
 - **Inputs**: transparent, 14% hairline, 10px radius. Focus turns the border Signal Green with a 3px green ring at 25%.
 - **Posters**: 2:3, 10px radius, a hairline border. A 2px progress bar sits under a poster with Watch State.
