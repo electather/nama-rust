@@ -49,7 +49,10 @@ export function changePasswordErrors(error: unknown): FormErrors {
   return refusal(
     error,
     "change your password",
-    { [Code.InvalidArgument]: refusedFieldErrors(error, ["newPassword"]) },
+    {
+      [Code.InvalidArgument]: refusedFieldErrors(error, ["newPassword"]),
+      [Code.Unauthenticated]: { form: serverMessage(error) },
+    },
     // `unauthenticated` also means this Device was signed out.
     { [RefusalReason.WRONG_PASSWORD]: { currentPassword: "That isn’t your current password." } },
   );

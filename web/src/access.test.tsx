@@ -124,7 +124,7 @@ test.each([
   await expectUnderField(label, shown);
 });
 
-test("a refused Device name on Setup isn't shown under the password", async () => {
+test("a refused Device name on Setup isn't shown under the name or password", async () => {
   openApp(
     "/setup",
     serverRefusingSetupField("device_name", "a Device's name needs 1 to 64 characters"),
@@ -132,6 +132,7 @@ test("a refused Device name on Setup isn't shown under the password", async () =
 
   await submitSetup("ABCD-EFGH");
   await screen.findByText("A Device's name needs 1 to 64 characters.");
+  expect(screen.getByLabelText("Username").getAttribute("aria-invalid")).toBe("false");
   expect(screen.getByLabelText("Password").getAttribute("aria-invalid")).toBe("false");
 });
 
