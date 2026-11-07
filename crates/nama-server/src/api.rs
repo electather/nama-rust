@@ -1,8 +1,6 @@
 //! The Server's ConnectRPC API (ADR 0007), served on axum.
 
-use std::{
-    collections::HashMap, ffi::OsStr, future, net::IpAddr, path::Path, sync::Arc, time::Instant,
-};
+use std::{ffi::OsStr, future, net::IpAddr, path::Path, sync::Arc, time::Instant};
 
 use axum::{
     extract::Request,
@@ -50,7 +48,7 @@ use nama_proto::nama::v1::{
 
 use crate::{
     artwork::{self, Artwork},
-    browse::{self, Browse},
+    browse::{self, Browse, Started},
     config::Config,
     contents::{Contents, Episode, Item, MatchedTo, Movie, Show, Unmatched, Version},
     db::Database,
@@ -65,7 +63,7 @@ use crate::{
     sign_in_codes::{self, Poll, SignInCodes},
     users::{self, Caller, NewDevice, Role, SetupCode, SignedIn, Users},
     versions,
-    watch_states::{MovieOrEpisode, Progress, WatchState, WatchStates},
+    watch_states::{Progress, WatchState, WatchStates},
 };
 
 /// Routes every RPC the Server answers, its artwork and its Versions, each behind the layers
@@ -112,9 +110,6 @@ pub(crate) fn router(
         }))
         .add_service(Arc::new(BrowseServiceHandler {
             browse: browse.clone(),
-            libraries: Libraries::new(Arc::clone(&db)),
-            contents: Contents::new(Arc::clone(&db)),
-            watch_states: WatchStates::new(Arc::clone(&db)),
         }))
         .add_service(Arc::new(WatchStateServiceHandler {
             contents: Contents::new(Arc::clone(&db)),
@@ -693,69 +688,6 @@ impl MatchService for MatchServiceHandler {
 /// [`require_access`] enforces.
 struct BrowseServiceHandler {
     browse: Browse,
-    // For Continue Watching, until it moves into Browse (#123).
-    libraries: Libraries,
-    contents: Contents,
-    watch_states: WatchStates,
-}
-
-impl BrowseServiceHandler {
-    /// The Continue Watching entries of `started`, the Movies and Episodes the caller has started
-    /// and not played, in the same order. Each is in the oldest Library that has it, and
-    /// one no Library has is left out.
-    // ponytail: whole-Library read (see AGENTS.md).
-    async fn continue_watching(
-        &self,
-        started: Vec<(MovieOrEpisode, WatchState)>,
-    ) -> Result<Vec<proto::ContinueWatchingEntry>, ConnectError> {
-        let mut unfound: HashMap<MovieOrEpisode, WatchState> = started.iter().cloned().collect();
-        let mut entries = HashMap::new();
-        for library in self.libraries.list().await? {
-            entries.extend(self.entries_in(&library, &mut unfound).await?);
-        }
-        Ok(started
-            .into_iter()
-            .filter_map(|(watched, _)| entries.remove(&watched))
-            .collect())
-    }
-
-    /// The Continue Watching entries of the Movies or Episodes in `library` that `unfound` has
-    /// the Watch State of, each taken out of `unfound`.
-    async fn entries_in(
-        &self,
-        library: &Library,
-        unfound: &mut HashMap<MovieOrEpisode, WatchState>,
-    ) -> Result<Vec<(MovieOrEpisode, proto::ContinueWatchingEntry)>, ConnectError> {
-        let entry =
-            |movie_or_episode, show| continue_watching_entry(library.id, movie_or_episode, show);
-        Ok(match library.kind {
-            Kind::Movies => {
-                let movies = self.contents.movies(library.id).await;
-                let movies = movies.map_err(|err| database_failed(&err))?;
-                movies
-                    .into_iter()
-                    .filter_map(|movie| {
-                        let watched = MovieOrEpisode::movie(&movie.id);
-                        let state = unfound.remove(&watched)?;
-                        let movie = movie_to_proto(movie, Some(state));
-                        Some((watched, entry(movie.into(), None)))
-                    })
-                    .collect()
-            }
-            Kind::Shows => {
-                let shows = self.contents.shows(library.id).await;
-                let shows = shows.map_err(|err| database_failed(&err))?;
-                episodes(shows)
-                    .filter_map(|(show, season, episode)| {
-                        let watched = MovieOrEpisode::episode(&episode.id);
-                        let state = unfound.remove(&watched)?;
-                        let episode = episode_to_proto(season, episode, Some(state));
-                        Some((watched, entry(episode.into(), Some(show))))
-                    })
-                    .collect()
-            }
-        })
-    }
 }
 
 #[expect(
@@ -861,13 +793,9 @@ impl BrowseService for BrowseServiceHandler {
         ctx: RequestContext,
         _request: ServiceRequest<'_, ListContinueWatchingRequest>,
     ) -> ServiceResult<ListContinueWatchingResponse> {
-        let started = self
-            .watch_states
-            .continue_watching(caller(&ctx)?.user.id)
-            .await;
-        let started = started.map_err(|err| database_failed(&err))?;
+        let started = self.browse.continue_watching(caller(&ctx)?.user.id).await?;
         Response::ok(ListContinueWatchingResponse {
-            entries: self.continue_watching(started).await?,
+            entries: started.into_iter().map(started_to_proto).collect(),
             ..Default::default()
         })
     }
@@ -1342,29 +1270,27 @@ fn movie_to_proto(movie: Movie, watch_state: Option<WatchState>) -> proto::Movie
     }
 }
 
-/// Every Episode of `shows`, with the Show it is of, as clients see it, and its season number.
-fn episodes(shows: Vec<Show>) -> impl Iterator<Item = (proto::Show, u32, Episode)> {
-    shows.into_iter().flat_map(|show| {
-        let proto_show = show_to_proto(&show);
-        show.seasons.into_iter().flat_map(move |(number, season)| {
-            let proto_show = proto_show.clone();
-            season
-                .episodes
-                .into_iter()
-                .map(move |episode| (proto_show.clone(), proto_number(number), episode))
-        })
-    })
-}
-
-/// A Continue Watching entry for `movie_or_episode`, of the Library `library`, and for an
-/// Episode, the Show it is of.
-fn continue_watching_entry(
-    library: i64,
-    movie_or_episode: proto::continue_watching_entry::MovieOrEpisode,
-    show: Option<proto::Show>,
-) -> proto::ContinueWatchingEntry {
+/// A Continue Watching entry as clients see it.
+fn started_to_proto(started: Started) -> proto::ContinueWatchingEntry {
+    let (library_id, movie_or_episode, show) = match started {
+        Started::Movie {
+            library,
+            movie,
+            state,
+        } => (library, movie_to_proto(movie, Some(state)).into(), None),
+        Started::Episode {
+            library,
+            show,
+            season,
+            episode,
+            state,
+        } => {
+            let episode = episode_to_proto(proto_number(season), episode, Some(state));
+            (library, episode.into(), Some(show_to_proto(&show)))
+        }
+    };
     proto::ContinueWatchingEntry {
-        library_id: library,
+        library_id,
         movie_or_episode: Some(movie_or_episode),
         show: show.into(),
         ..Default::default()
