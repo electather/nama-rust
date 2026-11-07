@@ -345,10 +345,21 @@ async function pipeline(issue: Issue) {
 // Factories on other machines: creating a ref on origin is atomic, so only one of them gets an issue.
 // The claim is a fresh commit each time: pushing a commit the ref already points at would "succeed" as up to date.
 const claimRef = (i: Issue) => `refs/claims/issue-${i.number}`;
-function claim(issue: Issue): boolean {
+function tryClaim(issue: Issue): boolean {
   const commit = git("commit-tree", `origin/${BASE}^{tree}`, "-p", `origin/${BASE}`,
     "-m", `claim #${issue.number} by ${process.pid}@${hostname()} ${Date.now()}`);
   return ok("git", "push", `--force-with-lease=${claimRef(issue)}:`, "origin", `${commit}:${claimRef(issue)}`);
+}
+// Returns undefined once the issue is ours, or who holds it.
+// A claim from this machine whose pid is dead is stale (a killed run): only one factory runs here, so take it over.
+function claim(issue: Issue): string | undefined {
+  if (tryClaim(issue)) return;
+  const owner = claimOwner(issue);
+  const [pid, host] = owner.split("@");
+  if (host !== hostname() || alive(Number(pid))) return owner;
+  log(`#${issue.number} taking over the claim of ${owner}: that run is gone`);
+  ok("git", "push", "origin", "--delete", claimRef(issue));
+  return tryClaim(issue) ? undefined : claimOwner(issue); // another machine may win the gap
 }
 // Who holds a claim: the claim commit's message says "claim #N by pid@host …".
 function claimOwner(issue: Issue): string {
@@ -383,24 +394,42 @@ function noteWaiting(waiting: Waiting[]) {
   record({ kind: "waiting", list: all });
 }
 
-// One of MAX_PARALLEL slots: as soon as its issue is merged or handed back, it picks the next one.
-async function worker() {
-  while (!crashed && taken.size < MAX_ISSUES && !existsSync(STOP_FILE)) {
-    // No await between picking and `taken.add`, so two slots can't pick the same issue.
+// The next issue this factory now holds, "wait" if none is free yet, or "done".
+// Synchronous throughout: no await between picking and `taken.add`, so two slots can't pick the same issue.
+function pickNext(): Issue | "wait" | "done" {
+  for (;;) {
     git("fetch", "origin");
     closeFinishedParents();
     const { ready, waiting } = readyIssues();
     noteWaiting(waiting);
     const issue = ready.find((i) => !taken.has(i.number));
-    if (!issue) {
-      if (inFlight.size === 0) return; // nothing in flight can unblock anything: done
-      await sleep(60_000); // an in-flight merge may unblock an issue
-      continue;
-    }
+    if (!issue) return inFlight.size === 0 ? "done" : "wait"; // nothing in flight can unblock anything: done
     taken.add(issue.number);
-    if (!claim(issue)) {
-      claimedElsewhere.set(issue.number, claimOwner(issue));
-      noteWaiting(waiting);
+    const owner = claim(issue);
+    if (!owner) return issue;
+    claimedElsewhere.set(issue.number, owner);
+    noteWaiting(waiting);
+  }
+}
+
+// One of MAX_PARALLEL slots: as soon as its issue is merged or handed back, it picks the next one.
+async function worker() {
+  while (!crashed && taken.size < MAX_ISSUES && !existsSync(STOP_FILE)) {
+    let issue: Issue | "wait" | "done";
+    try {
+      issue = pickNext();
+    } catch (e) {
+      // e.g. git or gh failing for everyone (network, auth, an Xcode licence prompt): a crash, not the end of
+      // the run. In-flight issues finish and release their claims; nothing new starts.
+      const why = `picking the next issue failed: ${oneLine(e)}`;
+      appendFileSync(`${LOGS}/crash-pick.log`, `${new Date().toISOString()} ${RUN}\n${inspect(e)}\n\n`);
+      log(`✗ ${why} (details: ${LOGS}/crash-pick.log)`);
+      crashed ||= why;
+      return;
+    }
+    if (issue === "done") return;
+    if (issue === "wait") {
+      await sleep(60_000); // an in-flight merge may unblock an issue
       continue;
     }
     inFlight.add(issue);
@@ -422,7 +451,7 @@ async function worker() {
         appendFileSync(`${LOGS}/crash-issue-${issue.number}.log`, `${new Date().toISOString()} ${RUN}\n${inspect(e)}\n\n`);
         log(`✗ #${issue.number} ${why} (details: ${LOGS}/crash-issue-${issue.number}.log)`);
         finish(issue, "crashed", why);
-        crashed = `#${issue.number} ${why}`;
+        crashed ||= `#${issue.number} ${why}`;
       }
     } finally {
       log(`#${issue.number} done after ${took(started)}`);
@@ -464,7 +493,7 @@ log(`=== Factory ${RUN} started: ${MAX_PARALLEL} slots, at most ${MAX_ISSUES} is
 record({ kind: "run-start", slots: MAX_PARALLEL });
 await Promise.all(Array.from({ length: MAX_PARALLEL }, worker));
 summary(
-  crashed ? `crashed on ${crashed}; finished in-flight work, started nothing new`
+  crashed ? `${crashed}; finished in-flight work, started nothing new`
   : existsSync(STOP_FILE) ? `${STOP_FILE} found`
   : taken.size >= MAX_ISSUES ? `MAX_ISSUES (${MAX_ISSUES}) reached`
   : "queue empty",
