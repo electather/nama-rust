@@ -64,6 +64,11 @@ pub mod event {
             ::buffa::alloc::boxed::Box<super::super::super::LibraryItemRemoved>,
         ),
         ItemMatched(::buffa::alloc::boxed::Box<super::super::super::ItemMatched>),
+        RequestCreated(::buffa::alloc::boxed::Box<super::super::super::RequestCreated>),
+        RequesterAdded(::buffa::alloc::boxed::Box<super::super::super::RequesterAdded>),
+        RequestStateChanged(
+            ::buffa::alloc::boxed::Box<super::super::super::RequestStateChanged>,
+        ),
     }
     impl ::buffa::Oneof for Event {}
     impl From<super::super::super::ScanStarted> for Event {
@@ -127,6 +132,37 @@ pub mod event {
             Self::Some(Event::from(v))
         }
     }
+    impl From<super::super::super::RequestCreated> for Event {
+        fn from(v: super::super::super::RequestCreated) -> Self {
+            Self::RequestCreated(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::RequestCreated> for ::core::option::Option<Event> {
+        fn from(v: super::super::super::RequestCreated) -> Self {
+            Self::Some(Event::from(v))
+        }
+    }
+    impl From<super::super::super::RequesterAdded> for Event {
+        fn from(v: super::super::super::RequesterAdded) -> Self {
+            Self::RequesterAdded(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::RequesterAdded> for ::core::option::Option<Event> {
+        fn from(v: super::super::super::RequesterAdded) -> Self {
+            Self::Some(Event::from(v))
+        }
+    }
+    impl From<super::super::super::RequestStateChanged> for Event {
+        fn from(v: super::super::super::RequestStateChanged) -> Self {
+            Self::RequestStateChanged(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::RequestStateChanged>
+    for ::core::option::Option<Event> {
+        fn from(v: super::super::super::RequestStateChanged) -> Self {
+            Self::Some(Event::from(v))
+        }
+    }
     impl ::serde::Serialize for Event {
         fn serialize<S: ::serde::Serializer>(
             &self,
@@ -152,6 +188,15 @@ pub mod event {
                 }
                 Self::ItemMatched(v) => {
                     map.serialize_entry("itemMatched", &**v)?;
+                }
+                Self::RequestCreated(v) => {
+                    map.serialize_entry("requestCreated", &**v)?;
+                }
+                Self::RequesterAdded(v) => {
+                    map.serialize_entry("requesterAdded", &**v)?;
+                }
+                Self::RequestStateChanged(v) => {
+                    map.serialize_entry("requestStateChanged", &**v)?;
                 }
             }
             map.end()

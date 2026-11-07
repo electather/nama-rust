@@ -9,7 +9,12 @@ import {
 import { RouterProvider } from "@tanstack/react-router";
 import { fireEvent, render, screen } from "@testing-library/react";
 
-import { EventService, type SubscribeResponse } from "@/gen/nama/v1/event_pb";
+import {
+  EventSchema,
+  EventService,
+  type SubscribeResponse,
+  SubscribeResponseSchema,
+} from "@/gen/nama/v1/event_pb";
 import { LibraryService, type LibrarySchema } from "@/gen/nama/v1/library_pb";
 import { GetServerInfoResponseSchema, ServerService } from "@/gen/nama/v1/server_pb";
 import { Permission, SignInService, WhoAmIResponseSchema } from "@/gen/nama/v1/sign_in_pb";
@@ -85,4 +90,20 @@ export function openApp(path: string, transport: ReturnType<typeof createRouterT
 
 export function fill(label: string, value: string) {
   fireEvent.change(screen.getByLabelText(label), { target: { value } });
+}
+
+/** Events for a test to send the app. What's sent before the app subscribes waits for it. */
+export function eventFeed() {
+  let feed: ReadableStreamDefaultController<SubscribeResponse> | undefined;
+  return {
+    stream: new ReadableStream<SubscribeResponse>({
+      start: (controller) => {
+        feed = controller;
+      },
+    }),
+    send: (event: MessageInitShape<typeof EventSchema>) => {
+      const value = create(EventSchema, event);
+      feed?.enqueue(create(SubscribeResponseSchema, { message: { case: "event", value } }));
+    },
+  };
 }

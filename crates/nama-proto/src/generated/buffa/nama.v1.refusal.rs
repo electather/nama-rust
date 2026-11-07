@@ -93,6 +93,11 @@ pub enum RefusalReason {
     /// `failed_precondition`: the call needs Recent Authentication, which the calling Device gets back
     /// with `SignInService.Reauthenticate`.
     REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED = 37i32,
+    /// `not_found`: there is no Request with the ID, or none the caller may see. Params: `requestId`.
+    REFUSAL_REASON_REQUEST_NOT_FOUND = 38i32,
+    /// `failed_precondition`: the Movie is already Matched in a Library, so it can't be Requested.
+    /// Params: `tmdbId`.
+    REFUSAL_REASON_ALREADY_IN_LIBRARY = 39i32,
 }
 impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -209,6 +214,12 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const RecentAuthenticationRequired: Self = Self::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_REQUEST_NOT_FOUND`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const RequestNotFound: Self = Self::REFUSAL_REASON_REQUEST_NOT_FOUND;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_ALREADY_IN_LIBRARY`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const AlreadyInLibrary: Self = Self::REFUSAL_REASON_ALREADY_IN_LIBRARY;
 }
 impl ::core::default::Default for RefusalReason {
     fn default() -> Self {
@@ -374,6 +385,10 @@ impl ::buffa::Enumeration for RefusalReason {
                     Self::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED,
                 )
             }
+            38i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_REQUEST_NOT_FOUND),
+            39i32 => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_ALREADY_IN_LIBRARY)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -445,6 +460,10 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_FOLDER_REPEATED => "REFUSAL_REASON_FOLDER_REPEATED",
             Self::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED => {
                 "REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED"
+            }
+            Self::REFUSAL_REASON_REQUEST_NOT_FOUND => "REFUSAL_REASON_REQUEST_NOT_FOUND",
+            Self::REFUSAL_REASON_ALREADY_IN_LIBRARY => {
+                "REFUSAL_REASON_ALREADY_IN_LIBRARY"
             }
         }
     }
@@ -570,6 +589,12 @@ impl ::buffa::Enumeration for RefusalReason {
                     Self::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED,
                 )
             }
+            "REFUSAL_REASON_REQUEST_NOT_FOUND" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_REQUEST_NOT_FOUND)
+            }
+            "REFUSAL_REASON_ALREADY_IN_LIBRARY" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_ALREADY_IN_LIBRARY)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -613,6 +638,8 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_FOLDER_NOT_UTF8,
             Self::REFUSAL_REASON_FOLDER_REPEATED,
             Self::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED,
+            Self::REFUSAL_REASON_REQUEST_NOT_FOUND,
+            Self::REFUSAL_REASON_ALREADY_IN_LIBRARY,
         ]
     }
 }

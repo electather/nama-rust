@@ -1,0 +1,102 @@
+syntax = "proto3";
+
+package nama.v1;
+
+// Users asking for Movies that aren't on the Server to be added to it (ADR 0012). Without
+// `PERMISSION_VIEW_REQUESTS`, a User sees only the Requests they are a Requester of, here and in
+// `EventService`.
+service RequestService {
+  // Asks for a Movie for the caller. If the Movie has an open Request, the caller joins it as a
+  // Requester, which changes nothing if they already are one. Otherwise a new Request opens:
+  // Approved if the caller has `PERMISSION_AUTO_APPROVE_MOVIE`, else Pending. Needs
+  // `PERMISSION_REQUEST_MOVIE`. Fails with `failed_precondition` if a Library already has the
+  // Movie, `invalid_argument` if the metadata source has no Movie with the id, and `unavailable`
+  // if no metadata Provider is enabled, or it failed.
+  rpc CreateRequest(CreateRequestRequest) returns (CreateRequestResponse);
+  // Lists the Requests the caller may see, newest first.
+  rpc ListRequests(ListRequestsRequest) returns (ListRequestsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Returns one Request. Fails with `not_found` if there is none with the ID, or none the caller
+  // may see, so they can't learn which IDs exist.
+  rpc GetRequest(GetRequestRequest) returns (GetRequestResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+}
+
+// Where a Request is on its way to the Library (ADR 0012).
+enum RequestState {
+  REQUEST_STATE_UNSPECIFIED = 0;
+  // Waiting for a User with `PERMISSION_MANAGE_REQUESTS` to approve or decline it.
+  REQUEST_STATE_PENDING = 1;
+  // Approved, and waiting for the Movie to be Matched in a Library.
+  REQUEST_STATE_APPROVED = 2;
+  // Declined, and closed: asking again opens a new Request.
+  REQUEST_STATE_DECLINED = 3;
+  // Handed to a Fulfiller, which is fetching it.
+  REQUEST_STATE_PROCESSING = 4;
+  // Some, but not all, of what it asks for is Matched in a Library.
+  REQUEST_STATE_PARTIALLY_AVAILABLE = 5;
+  // Matched in a Library, and closed.
+  REQUEST_STATE_AVAILABLE = 6;
+  // The Fulfiller couldn't fetch it.
+  REQUEST_STATE_FAILED = 7;
+}
+
+// Users asking for one Movie. A Movie has at most one open Request: one that is neither Declined
+// nor Available.
+message Request {
+  int64 id = 1;
+  // The Movie asked for.
+  RequestedMovie movie = 2;
+  RequestState state = 3;
+  // Who asked for it, first asker first. There is at least one.
+  repeated Requester requesters = 4;
+  // When it was opened, in seconds since the Unix epoch.
+  int64 created_at = 5;
+}
+
+// A Movie a Request asks for, with its metadata as the metadata source gave it when the Request
+// was opened.
+message RequestedMovie {
+  // The Movie's TMDB id.
+  int64 tmdb_id = 1;
+  // The title, in the metadata Provider's language.
+  string title = 2;
+  // When it was released, as `YYYY-MM-DD`.
+  optional string release_date = 3;
+}
+
+// A User who asked for what a Request covers.
+message Requester {
+  int64 user_id = 1;
+  // The User's name.
+  string name = 2;
+  // When they asked, in seconds since the Unix epoch.
+  int64 requested_at = 3;
+}
+
+message CreateRequestRequest {
+  // The TMDB id of the Movie to ask for.
+  int64 movie_tmdb_id = 1;
+}
+
+message CreateRequestResponse {
+  // The Request the caller is now a Requester of.
+  Request request = 1;
+}
+
+message ListRequestsRequest {}
+
+message ListRequestsResponse {
+  repeated Request requests = 1;
+}
+
+message GetRequestRequest {
+  // The ID of the Request.
+  int64 id = 1;
+}
+
+message GetRequestResponse {
+  Request request = 1;
+}

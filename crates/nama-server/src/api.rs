@@ -22,20 +22,22 @@ use nama_plugin_api::metadata::{Candidate, ExternalId, SearchQuery, TitleKind};
 use nama_proto::nama::v1::{
     self as proto, ApproveSignInCodeRequest, ApproveSignInCodeResponse, BrowseService,
     ChangePasswordRequest, ChangePasswordResponse, ClearMatchRequest, ClearMatchResponse,
-    CreateLibraryRequest, CreateLibraryResponse, CreateUserRequest, CreateUserResponse,
-    DeleteLibraryRequest, DeleteLibraryResponse, DeleteUserRequest, DeleteUserResponse,
-    EventService, EventType, GetLibraryRequest, GetLibraryResponse, GetMovieRequest,
-    GetMovieResponse, GetServerInfoRequest, GetServerInfoResponse, GetShowRequest, GetShowResponse,
-    LibraryKind, LibraryService, ListContinueWatchingRequest, ListContinueWatchingResponse,
-    ListDevicesRequest, ListDevicesResponse, ListEpisodesRequest, ListEpisodesResponse,
-    ListLibrariesRequest, ListLibrariesResponse, ListMoviesRequest, ListMoviesResponse,
-    ListShowsRequest, ListShowsResponse, ListUnmatchedItemsRequest, ListUnmatchedItemsResponse,
-    ListUsersRequest, ListUsersResponse, LookUpSignInCodeRequest, LookUpSignInCodeResponse,
-    MatchService, Permission, PollSignInCodeRequest, PollSignInCodeResponse, ReauthenticateRequest,
-    ReauthenticateResponse, Refusal, RefusalReason, ReportProgressRequest, ReportProgressResponse,
-    ResetPasswordRequest, ResetPasswordResponse, RevokeDeviceRequest, RevokeDeviceResponse,
-    ScanLibraryRequest, ScanLibraryResponse, SearchMetadataRequest, SearchMetadataResponse,
-    ServerService, SessionDelivery, SetMatchRequest, SetMatchResponse, SetPermissionsRequest,
+    CreateLibraryRequest, CreateLibraryResponse, CreateRequestRequest, CreateRequestResponse,
+    CreateUserRequest, CreateUserResponse, DeleteLibraryRequest, DeleteLibraryResponse,
+    DeleteUserRequest, DeleteUserResponse, EventService, EventType, GetLibraryRequest,
+    GetLibraryResponse, GetMovieRequest, GetMovieResponse, GetRequestRequest, GetRequestResponse,
+    GetServerInfoRequest, GetServerInfoResponse, GetShowRequest, GetShowResponse, LibraryKind,
+    LibraryService, ListContinueWatchingRequest, ListContinueWatchingResponse, ListDevicesRequest,
+    ListDevicesResponse, ListEpisodesRequest, ListEpisodesResponse, ListLibrariesRequest,
+    ListLibrariesResponse, ListMoviesRequest, ListMoviesResponse, ListRequestsRequest,
+    ListRequestsResponse, ListShowsRequest, ListShowsResponse, ListUnmatchedItemsRequest,
+    ListUnmatchedItemsResponse, ListUsersRequest, ListUsersResponse, LookUpSignInCodeRequest,
+    LookUpSignInCodeResponse, MatchService, Permission, PollSignInCodeRequest,
+    PollSignInCodeResponse, ReauthenticateRequest, ReauthenticateResponse, Refusal, RefusalReason,
+    ReportProgressRequest, ReportProgressResponse, RequestService, ResetPasswordRequest,
+    ResetPasswordResponse, RevokeDeviceRequest, RevokeDeviceResponse, ScanLibraryRequest,
+    ScanLibraryResponse, SearchMetadataRequest, SearchMetadataResponse, ServerService,
+    SessionDelivery, SetMatchRequest, SetMatchResponse, SetPermissionsRequest,
     SetPermissionsResponse, SetPlayedRequest, SetPlayedResponse, SetupRequest, SetupResponse,
     SignInCodeStatus, SignInRequest, SignInResponse, SignInService, SignOutRequest,
     SignOutResponse, StartSignInCodeRequest, StartSignInCodeResponse, SubscribeRequest,
@@ -56,6 +58,7 @@ use crate::{
     matching::{ManualError, Matcher},
     plugins::Registry,
     rate_limits::{Blocked, SignInCodeLimits, SignInLimits},
+    requests::{self, Requests},
     scanner::Scanner,
     sessions::{cleared_session_cookie, identify_caller, in_session_cookie, session_cookie},
     sign_in_codes::{self, Poll, SignInCodes},
@@ -87,6 +90,7 @@ pub(crate) fn router(
     );
     let versions = versions::router(contents);
     let browse = Browse::new(Arc::clone(&db));
+    let matcher = Matcher::new(Arc::clone(&db), plugins, events.clone());
     connectrpc::Router::new()
         .add_service(Arc::new(ServerServiceHandler {
             name: config.name.clone(),
@@ -100,7 +104,7 @@ pub(crate) fn router(
             sign_in_code_limits: SignInCodeLimits::default(),
         }))
         .add_service(Arc::new(MatchServiceHandler {
-            matcher: Matcher::new(Arc::clone(&db), plugins, events.clone()),
+            matcher: matcher.clone(),
             contents: Contents::new(Arc::clone(&db)),
             libraries: Libraries::new(Arc::clone(&db)),
             scanner: scanner.clone(),
@@ -112,6 +116,9 @@ pub(crate) fn router(
             contents: Contents::new(Arc::clone(&db)),
             watch_states: WatchStates::new(Arc::clone(&db)),
             browse,
+        }))
+        .add_service(Arc::new(RequestServiceHandler {
+            requests: Requests::new(Arc::clone(&db), matcher, events.clone()),
         }))
         .add_service(Arc::new(LibraryServiceHandler {
             libraries: Libraries::new(db),
@@ -149,6 +156,9 @@ const MANAGE_LIBRARIES: Access = Access::Needs(Permission::ManageLibraries);
 
 /// Managing Users and their Devices.
 const MANAGE_USERS: Access = Access::Needs(Permission::ManageUsers);
+
+/// Asking for Movies.
+const REQUEST_MOVIE: Access = Access::Needs(Permission::RequestMovie);
 
 /// Who may call each RPC, by path; one missing here is refused to everyone (see AGENTS.md, "New
 /// RPCs start closed"). Media has its own entry, [`MEDIA`].
@@ -192,6 +202,9 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::USER_SERVICE_REVOKE_DEVICE_SPEC.procedure,            Access::SignedIn),
     (proto::USER_SERVICE_CHANGE_PASSWORD_SPEC.procedure,          Access::SignedIn),
     (proto::USER_SERVICE_RESET_PASSWORD_SPEC.procedure,           MANAGE_USERS),
+    (proto::REQUEST_SERVICE_CREATE_REQUEST_SPEC.procedure,        REQUEST_MOVIE),
+    (proto::REQUEST_SERVICE_LIST_REQUESTS_SPEC.procedure,         Access::SignedIn),
+    (proto::REQUEST_SERVICE_GET_REQUEST_SPEC.procedure,           Access::SignedIn),
 ];
 
 /// Who may fetch media: every path under this prefix, which the media routes share.
@@ -1194,6 +1207,59 @@ fn no_such_user() -> ConnectError {
     users::Error::NoSuchUser.into()
 }
 
+/// `nama.v1.RequestService`: Users asking for Movies. Asking needs `PERMISSION_REQUEST_MOVIE`,
+/// which [`require_access`] enforces; without `PERMISSION_VIEW_REQUESTS`, [`Requests`] shows a
+/// User only their own Requests.
+struct RequestServiceHandler {
+    requests: Requests,
+}
+
+#[expect(
+    refining_impl_trait,
+    reason = "plain `async fn` returning the owned response is the form the generated trait \
+              documents; the refined signature isn't visible outside this crate"
+)]
+impl RequestService for RequestServiceHandler {
+    async fn create_request(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, CreateRequestRequest>,
+    ) -> ServiceResult<CreateRequestResponse> {
+        let asker = &caller(&ctx)?.user;
+        let request = self.requests.create(asker, request.movie_tmdb_id).await?;
+        Response::ok(CreateRequestResponse {
+            request: request.into(),
+            ..Default::default()
+        })
+    }
+
+    async fn list_requests(
+        &self,
+        ctx: RequestContext,
+        _request: ServiceRequest<'_, ListRequestsRequest>,
+    ) -> ServiceResult<ListRequestsResponse> {
+        let viewer = &caller(&ctx)?.user;
+        let requests = self.requests.list(viewer).await.map_err(database_failed)?;
+        Response::ok(ListRequestsResponse {
+            requests,
+            ..Default::default()
+        })
+    }
+
+    async fn get_request(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, GetRequestRequest>,
+    ) -> ServiceResult<GetRequestResponse> {
+        let viewer = &caller(&ctx)?.user;
+        let request = self.requests.get(viewer, request.id).await?;
+        Response::ok(GetRequestResponse {
+            request: request.into(),
+            ..Default::default()
+        })
+    }
+}
+
 /// `nama.v1.EventService`: live updates.
 //
 // TODO(M3): once there is per-Library access, only send a caller events about Libraries it may see.
@@ -1212,18 +1278,22 @@ impl EventService for EventServiceHandler {
         Output = ServiceResult<ServiceStream<impl Encodable<SubscribeResponse> + Send + use<>>>,
     > + Send {
         let request = request.to_owned_message();
-        let signed_out = caller(&ctx).map(|caller| self.users.signed_out(caller.device.id));
-        let filter = request
-            .types
-            .into_iter()
-            .map(event_type_from_proto)
-            .collect::<Result<_, _>>()
-            .map(|types| Filter {
+        let subscribed = caller(&ctx).and_then(|caller| {
+            let types = request
+                .types
+                .into_iter()
+                .map(event_type_from_proto)
+                .collect::<Result<_, _>>()?;
+            let filter = Filter {
                 types,
                 libraries: request.library_ids,
-            });
-        let subscribed = signed_out.and_then(|signed_out| {
-            let events = self.events.subscribe(filter?).take_until(signed_out);
+                // ponytail: Permissions as the stream opened, like any request's, so one who loses
+                // `VIEW_REQUESTS` sees everyone's Request events until they resubscribe. End
+                // streams on a Permission change if that matters.
+                requester: requests::visible_to(&caller.user),
+            };
+            let signed_out = self.users.signed_out(caller.device.id);
+            let events = self.events.subscribe(filter).take_until(signed_out);
             let stream: ServiceStream<SubscribeResponse> = Box::pin(events.map(Ok));
             Response::ok(stream)
         });
@@ -1650,7 +1720,8 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_SIGN_IN_CODE_ALREADY_APPROVED
         | R::REFUSAL_REASON_LAST_ADMIN
         | R::REFUSAL_REASON_OWN_PASSWORD_RESET
-        | R::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED => ErrorCode::FailedPrecondition,
+        | R::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED
+        | R::REFUSAL_REASON_ALREADY_IN_LIBRARY => ErrorCode::FailedPrecondition,
         R::REFUSAL_REASON_SIGN_IN_CODE_NOT_FOUND
         | R::REFUSAL_REASON_HANDLE_NOT_FOUND
         | R::REFUSAL_REASON_USER_NOT_FOUND
@@ -1659,7 +1730,8 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_NOTHING_MATCHED
         | R::REFUSAL_REASON_SEASON_NOT_FOUND
         | R::REFUSAL_REASON_VERSION_NOT_FOUND
-        | R::REFUSAL_REASON_ITEM_NOT_FOUND => ErrorCode::NotFound,
+        | R::REFUSAL_REASON_ITEM_NOT_FOUND
+        | R::REFUSAL_REASON_REQUEST_NOT_FOUND => ErrorCode::NotFound,
         R::REFUSAL_REASON_USER_NAME_TAKEN | R::REFUSAL_REASON_FOLDER_TAKEN => {
             ErrorCode::AlreadyExists
         }
@@ -1760,6 +1832,32 @@ impl From<users::Error> for ConnectError {
                 tracing::error!("a change to the Users failed: {err}");
                 return Self::internal("the Server failed");
             }
+        };
+        refused.into()
+    }
+}
+
+/// The Connect error a client gets for a Request that couldn't be made or found. Database failures
+/// are logged, not sent.
+impl From<requests::Error> for ConnectError {
+    fn from(err: requests::Error) -> Self {
+        use RefusalReason as R;
+        let message = err.to_string();
+        let refused = match err {
+            // Only `GetRequest` names a Request, and only `CreateRequest` a Movie.
+            requests::Error::NoSuchRequest(id) => {
+                refuse(R::REFUSAL_REASON_REQUEST_NOT_FOUND, message)
+                    .field("id")
+                    .param("requestId", &id)
+            }
+            requests::Error::InLibrary(id) => refuse(R::REFUSAL_REASON_ALREADY_IN_LIBRARY, message)
+                .field("movie_tmdb_id")
+                .param("tmdbId", &id),
+            requests::Error::NoSuchMovie(id) => refuse(R::REFUSAL_REASON_UNKNOWN_TITLE, message)
+                .field("movie_tmdb_id")
+                .param("titleId", &ExternalId::Tmdb(id)),
+            requests::Error::Unavailable => refuse(R::REFUSAL_REASON_NO_METADATA_PROVIDER, message),
+            requests::Error::Database(err) => return database_failed(err),
         };
         refused.into()
     }

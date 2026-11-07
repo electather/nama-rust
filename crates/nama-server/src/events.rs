@@ -9,7 +9,7 @@
 use futures_util::{Stream, StreamExt, stream};
 use nama_plugin_api::points;
 use nama_proto::nama::v1::{
-    Event, EventType, Lagged, SubscribeResponse, event, subscribe_response,
+    Event, EventType, Lagged, Request, SubscribeResponse, event, subscribe_response,
 };
 use tokio::sync::broadcast::{self, error::RecvError};
 use tokio_util::sync::CancellationToken;
@@ -35,8 +35,17 @@ pub(crate) struct EventBus {
 pub(crate) struct Filter {
     /// Only these types; empty means every type.
     pub(crate) types: Vec<EventType>,
-    /// Only about these Libraries; empty means every Library.
+    /// Only about these Libraries; empty means every Library, and events about none.
     pub(crate) libraries: Vec<i64>,
+    /// Only Request events about Requests this User is a Requester of; `None` means every
+    /// Request's.
+    pub(crate) requester: Option<i64>,
+}
+
+/// What an event is about.
+enum About<'a> {
+    Library(i64),
+    Request(&'a Request),
 }
 
 impl EventBus {
@@ -92,11 +101,24 @@ impl EventBus {
 
 impl Filter {
     fn lets_through(&self, event: &Event) -> bool {
-        let Some((kind, library)) = classify(event) else {
+        let Some((kind, about)) = classify(event) else {
             return false;
         };
-        (self.types.is_empty() || self.types.contains(&kind))
-            && (self.libraries.is_empty() || self.libraries.contains(&library))
+        let wanted = match about {
+            About::Library(library) => {
+                self.libraries.is_empty() || self.libraries.contains(&library)
+            }
+            About::Request(request) => {
+                self.libraries.is_empty()
+                    && self.requester.is_none_or(|user| {
+                        request
+                            .requesters
+                            .iter()
+                            .any(|requester| requester.user_id == user)
+                    })
+            }
+        };
+        (self.types.is_empty() || self.types.contains(&kind)) && wanted
     }
 }
 
@@ -122,16 +144,30 @@ async fn next_message(
     }
 }
 
-/// An event's type and the Library it is about.
-fn classify(event: &Event) -> Option<(EventType, i64)> {
+/// An event's type and what it is about.
+fn classify(event: &Event) -> Option<(EventType, About<'_>)> {
+    use About::{Library, Request};
+    use EventType as T;
     use event::Event as E;
     Some(match event.event.as_ref()? {
-        E::ScanStarted(e) => (EventType::EVENT_TYPE_SCAN_STARTED, e.library_id),
-        E::ScanProgress(e) => (EventType::EVENT_TYPE_SCAN_PROGRESS, e.library_id),
-        E::ScanFinished(e) => (EventType::EVENT_TYPE_SCAN_FINISHED, e.library_id),
-        E::LibraryItemAdded(e) => (EventType::EVENT_TYPE_LIBRARY_ITEM_ADDED, e.library_id),
-        E::LibraryItemRemoved(e) => (EventType::EVENT_TYPE_LIBRARY_ITEM_REMOVED, e.library_id),
-        E::ItemMatched(e) => (EventType::EVENT_TYPE_ITEM_MATCHED, e.library_id),
+        E::ScanStarted(e) => (T::EVENT_TYPE_SCAN_STARTED, Library(e.library_id)),
+        E::ScanProgress(e) => (T::EVENT_TYPE_SCAN_PROGRESS, Library(e.library_id)),
+        E::ScanFinished(e) => (T::EVENT_TYPE_SCAN_FINISHED, Library(e.library_id)),
+        E::LibraryItemAdded(e) => (T::EVENT_TYPE_LIBRARY_ITEM_ADDED, Library(e.library_id)),
+        E::LibraryItemRemoved(e) => (T::EVENT_TYPE_LIBRARY_ITEM_REMOVED, Library(e.library_id)),
+        E::ItemMatched(e) => (T::EVENT_TYPE_ITEM_MATCHED, Library(e.library_id)),
+        E::RequestCreated(e) => (
+            T::EVENT_TYPE_REQUEST_CREATED,
+            Request(e.request.as_option()?),
+        ),
+        E::RequesterAdded(e) => (
+            T::EVENT_TYPE_REQUESTER_ADDED,
+            Request(e.request.as_option()?),
+        ),
+        E::RequestStateChanged(e) => (
+            T::EVENT_TYPE_REQUEST_STATE_CHANGED,
+            Request(e.request.as_option()?),
+        ),
     })
 }
 

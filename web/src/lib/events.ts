@@ -13,6 +13,7 @@ import {
   type ScanStarted,
 } from "@/gen/nama/v1/event_pb";
 import { type ListUnmatchedItemsResponse, MatchService } from "@/gen/nama/v1/match_pb";
+import { RequestService } from "@/gen/nama/v1/request_pb";
 
 import { browseKey } from "./browse";
 
@@ -45,6 +46,9 @@ const types = [
   EventType.SCAN_FINISHED,
   EventType.LIBRARY_ITEM_REMOVED,
   EventType.ITEM_MATCHED,
+  EventType.REQUEST_CREATED,
+  EventType.REQUESTER_ADDED,
+  EventType.REQUEST_STATE_CHANGED,
 ];
 
 // How long to wait before subscribing again after the stream ends or fails.
@@ -100,6 +104,7 @@ function apply({ message }: SubscribeResponse, queryClient: QueryClient) {
     recordScan(message.value, queryClient);
     refreshUnmatched(message.value, queryClient);
     refreshBrowsing(message.value, queryClient);
+    refreshRequests(message.value, queryClient);
   } else if (message.case === "lagged") {
     forgetMissed(queryClient);
   }
@@ -156,3 +161,16 @@ function refreshBrowsing({ event }: Event, queryClient: QueryClient) {
     void queryClient.invalidateQueries({ queryKey: browseKey });
   }
 }
+
+/** Refetches the Requests when one opens, gains a Requester or changes state. */
+function refreshRequests({ event }: Event, queryClient: QueryClient) {
+  if (
+    event.case === "requestCreated" ||
+    event.case === "requesterAdded" ||
+    event.case === "requestStateChanged"
+  ) {
+    void queryClient.invalidateQueries({ queryKey: requestsKey });
+  }
+}
+
+const requestsKey = createConnectQueryKey({ schema: RequestService, cardinality: undefined });

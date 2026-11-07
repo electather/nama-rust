@@ -142,6 +142,16 @@ enum Miss {
     Undecided,
 }
 
+impl Miss {
+    /// Why looking up the title `id` by hand failed.
+    fn looking_up(self, id: &ExternalId) -> ManualError {
+        match self {
+            Self::Unmatched => ManualError::NoSuchTitle(id.clone()),
+            Self::Undecided => ManualError::Unavailable,
+        }
+    }
+}
+
 impl Metadata {
     fn movie(plugin: PluginId, movie: Movie) -> Self {
         Self {
@@ -214,13 +224,12 @@ impl Matcher {
         id: &ExternalId,
     ) -> Result<Summary, ManualError> {
         let named = self.named_like(scan, item).await?;
-        let refusal = |miss| match miss {
-            Miss::Unmatched => ManualError::NoSuchTitle(id.clone()),
-            Miss::Undecided => ManualError::Unavailable,
-        };
         let outcomes = match named.name.kind() {
             TitleKind::Movie => {
-                let movie = self.fetch_movie(id).await.map_err(refusal)?;
+                let movie = self
+                    .fetch_movie(id)
+                    .await
+                    .map_err(|miss| miss.looking_up(id))?;
                 named
                     .items
                     .iter()
@@ -228,7 +237,10 @@ impl Matcher {
                     .collect()
             }
             TitleKind::Show => {
-                let show = self.fetch_show(id).await.map_err(refusal)?;
+                let show = self
+                    .fetch_show(id)
+                    .await
+                    .map_err(|miss| miss.looking_up(id))?;
                 let episodes: Vec<PendingEpisode> = named
                     .items
                     .iter()
@@ -245,6 +257,13 @@ impl Matcher {
         }
         self.pin(item, named, Pin::Title(id.clone()), outcomes)
             .await
+    }
+
+    /// The metadata of the Movie with the id `id`, fetched now.
+    pub(crate) async fn movie(&self, id: &ExternalId) -> Result<Metadata, ManualError> {
+        self.fetch_movie(id)
+            .await
+            .map_err(|miss| miss.looking_up(id))
     }
 
     /// Removes the Match of the item `item` and of every item named like it, and pins them
@@ -907,7 +926,7 @@ mod tests {
         movies.write("Home Movies (2019)/Home Movies (2019).mkv");
         let filter = Filter {
             types: vec![EventType::EVENT_TYPE_ITEM_MATCHED],
-            libraries: vec![],
+            ..Filter::default()
         };
         let mut matches = Box::pin(media.events.subscribe(filter));
 

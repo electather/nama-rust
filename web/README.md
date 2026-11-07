@@ -73,6 +73,7 @@ Tests never need a Server. They fake RPCs with Connect's `createRouterTransport`
 | `/libraries/$libraryId/shows/$showId?season=N`                     | signed in                                 | a Show, one Season at a time                           |
 | `…/movies/$movieId/play?version=…`                                 | signed in                                 | the player for a Movie, full screen without app chrome |
 | `…/shows/$showId/seasons/$season/episodes/$episode/play?version=…` | signed in                                 | the player for an Episode                              |
+| `/requests`                                                        | signed in                                 | Requests, with their state and Requesters              |
 | `/code`                                                            | signed in                                 | enter a Sign-in Code to sign in a new Device           |
 | `/settings`                                                        | signed in                                 | your password and Devices                              |
 | `/admin/libraries`, `/admin/libraries/$libraryId`                  | Manage Libraries                          | Libraries, their folders and scans                     |

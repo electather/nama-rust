@@ -18,6 +18,8 @@ const buttonVariants = cva(
       },
       size: {
         default: "h-9 px-4",
+        // The app bar's links: tighter on phones, so five fit across 390px; narrower, the bar wraps.
+        bar: "h-9 px-2.5 sm:px-4",
         // A square button holding only an icon, named by its `aria-label`.
         icon: "size-10 [&_svg]:size-5",
       },

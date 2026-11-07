@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package nama.v1;
 
+import "nama/v1/request.proto";
+
 // Live updates: what happens on the Server as it happens. Observers receive the same `Event`s.
 service EventService {
   // Streams the events that happen from now on, as filtered by the request, until the client
@@ -25,12 +27,16 @@ enum EventType {
   EVENT_TYPE_LIBRARY_ITEM_ADDED = 4;
   EVENT_TYPE_LIBRARY_ITEM_REMOVED = 5;
   EVENT_TYPE_ITEM_MATCHED = 6;
+  EVENT_TYPE_REQUEST_CREATED = 7;
+  EVENT_TYPE_REQUESTER_ADDED = 8;
+  EVENT_TYPE_REQUEST_STATE_CHANGED = 9;
 }
 
 message SubscribeRequest {
   // Only events of these types. Empty means every type.
   repeated EventType types = 1;
-  // Only events about these Libraries. Empty means every Library.
+  // Only events about these Libraries. Empty means every Library, and events about none, such as a
+  // Request's.
   repeated int64 library_ids = 2;
 }
 
@@ -58,6 +64,9 @@ message Event {
     LibraryItemAdded library_item_added = 4;
     LibraryItemRemoved library_item_removed = 5;
     ItemMatched item_matched = 6;
+    RequestCreated request_created = 7;
+    RequesterAdded requester_added = 8;
+    RequestStateChanged request_state_changed = 9;
   }
 }
 
@@ -110,4 +119,24 @@ message ItemMatched {
   int64 item_id = 2;
   // The title of the Movie or Episode it was Matched to.
   string title = 3;
+}
+
+// A User asked for a Movie that had no open Request, which opened this one. Request events reach
+// only the Request's Requesters, unless the subscriber has `PERMISSION_VIEW_REQUESTS`.
+message RequestCreated {
+  Request request = 1;
+}
+
+// A User joined a Request as a Requester.
+message RequesterAdded {
+  // The Request as it is now, with them among its Requesters.
+  Request request = 1;
+  // The User who joined.
+  int64 user_id = 2;
+}
+
+// A Request moved to another state.
+message RequestStateChanged {
+  // The Request as it is now, in its new state.
+  Request request = 1;
 }

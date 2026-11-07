@@ -14,6 +14,7 @@ mod matching;
 pub mod plugin_settings;
 pub mod plugins;
 mod rate_limits;
+mod requests;
 mod scanner;
 mod sessions;
 mod sign_in_codes;

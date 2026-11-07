@@ -13,11 +13,12 @@ import { SignInService } from "@/gen/nama/v1/sign_in_pb";
 export function AppChrome({ hasAdminPages }: { hasAdminPages: boolean }) {
   return (
     // Lined up with the page's column: each link's own padding makes up the rest of the inset.
-    <header className="mx-auto flex w-full max-w-5xl items-center gap-1 py-3 sm:px-2">
-      <nav aria-label="Main" className="flex items-center gap-1">
+    <header className="mx-auto flex w-full max-w-5xl flex-wrap items-center px-1.5 py-3 sm:gap-1 sm:px-2">
+      <nav aria-label="Main" className="flex items-center sm:gap-1">
         <NavLink to="/" activeOptions={{ exact: true }}>
           Libraries
         </NavLink>
+        <NavLink to="/requests">Requests</NavLink>
         <NavLink to="/settings">Settings</NavLink>
         {hasAdminPages && <NavLink to="/admin">Admin</NavLink>}
       </nav>
@@ -33,6 +34,7 @@ function NavLink(props: LinkProps & { children: ReactNode }) {
     <Link
       className={buttonVariants({
         variant: "ghost",
+        size: "bar",
         className: "aria-[current=page]:text-foreground",
       })}
       {...props}
@@ -53,6 +55,7 @@ function SignOutButton() {
   return (
     <Button
       variant="ghost"
+      size="bar"
       disabled={signOut.isPending}
       onClick={() => {
         signOut.mutate({});
