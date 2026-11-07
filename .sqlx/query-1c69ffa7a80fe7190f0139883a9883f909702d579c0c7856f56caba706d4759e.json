@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT EXISTS (SELECT 1 FROM users WHERE id = ? AND permissions & ? != 0)\n               AS \"admin!: bool\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "admin!: bool",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "1c69ffa7a80fe7190f0139883a9883f909702d579c0c7856f56caba706d4759e"
+}

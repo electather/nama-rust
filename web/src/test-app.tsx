@@ -12,15 +12,22 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { EventService, type SubscribeResponse } from "@/gen/nama/v1/event_pb";
 import { LibraryService, type LibrarySchema } from "@/gen/nama/v1/library_pb";
 import { GetServerInfoResponseSchema, ServerService } from "@/gen/nama/v1/server_pb";
-import { Role, SignInService, WhoAmIResponseSchema } from "@/gen/nama/v1/sign_in_pb";
+import { Permission, SignInService, WhoAmIResponseSchema } from "@/gen/nama/v1/sign_in_pb";
 import { UserService } from "@/gen/nama/v1/user_pb";
 
 import { getRouter } from "./router";
 
+/** What a new User gets: the Permissions to make Requests, which manage nothing. */
+export const newUser = [Permission.REQUEST, Permission.VIEW_REQUESTS];
+
+/** What the first Admin has. */
+export const admin = [Permission.ADMIN];
+
 /** What the fake Server says: whether it needs setting up, who is signed in, if anyone, and its Libraries. */
 export interface ServerState {
   setupRequired?: boolean;
-  signedIn?: Role;
+  /** The Permissions of the User signed in, if anyone is. */
+  signedIn?: Permission[];
   libraries?: MessageInitShape<typeof LibrarySchema>[];
   /** The Events the app's subscription gets. Without them, none arrive. */
   events?: ReadableStream<SubscribeResponse>;
@@ -50,7 +57,7 @@ export function fakeServer(
           throw new ConnectError("signed out", Code.Unauthenticated);
         }
         return create(WhoAmIResponseSchema, {
-          user: { id: 1n, name: "Sam", role: state.signedIn },
+          user: { id: 1n, name: "Sam", permissions: state.signedIn },
         });
       },
       ...signIn,

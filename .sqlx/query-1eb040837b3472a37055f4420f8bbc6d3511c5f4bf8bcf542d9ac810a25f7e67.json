@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id AS \"id!\", display_username AS name, role AS \"role: Role\", created_at\n               FROM users ORDER BY id",
+  "query": "SELECT id AS \"id!\", display_username AS name,\n                      permissions AS \"permissions: Permissions\", created_at\n               FROM users ORDER BY id",
   "describe": {
     "columns": [
       {
@@ -26,13 +26,13 @@
         }
       },
       {
-        "name": "role: Role",
+        "name": "permissions: Permissions",
         "ordinal": 2,
-        "type_info": "Text",
+        "type_info": "Integer",
         "origin": {
           "Table": {
             "table": "users",
-            "name": "role"
+            "name": "permissions"
           }
         }
       },
@@ -58,5 +58,5 @@
       false
     ]
   },
-  "hash": "e75415869a9cdc44a9c9772cec9f6ad7a61af21c54d220a2be1ae2d67cdd1efe"
+  "hash": "1eb040837b3472a37055f4420f8bbc6d3511c5f4bf8bcf542d9ac810a25f7e67"
 }

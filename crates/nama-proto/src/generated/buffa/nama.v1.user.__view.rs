@@ -11,10 +11,6 @@ pub struct CreateUserRequestView<'a> {
     ///
     /// Field 2: `password`
     pub password: &'a str,
-    /// Must not be `ROLE_UNSPECIFIED`.
-    ///
-    /// Field 3: `role`
-    pub role: ::buffa::EnumValue<super::super::Role>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for CreateUserRequestView<'a> {
@@ -61,15 +57,6 @@ impl<'a> ::buffa::MessageView<'a> for CreateUserRequestView<'a> {
                 )?;
                 view.password = ::buffa::types::borrow_str(&mut cur)?;
             }
-            3u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::Varint,
-                )?;
-                view.role = ::buffa::EnumValue::from(
-                    ::buffa::types::decode_int32(&mut cur)?,
-                );
-            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -94,7 +81,6 @@ impl<'a> ::buffa::MessageView<'a> for CreateUserRequestView<'a> {
         ::core::result::Result::Ok(super::super::CreateUserRequest {
             name: self.name.to_string(),
             password: self.password.to_string(),
-            role: self.role,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -112,12 +98,6 @@ impl<'a> ::buffa::ViewEncode<'a> for CreateUserRequestView<'a> {
         if !self.password.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.password) as u64;
         }
-        {
-            let val = self.role.to_i32();
-            if val != 0 {
-                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
-            }
-        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -134,12 +114,6 @@ impl<'a> ::buffa::ViewEncode<'a> for CreateUserRequestView<'a> {
         }
         if !self.password.is_empty() {
             ::buffa::types::put_string_field(2u32, &self.password, buf);
-        }
-        {
-            let val = self.role.to_i32();
-            if val != 0 {
-                ::buffa::types::put_int32_field(3u32, val, buf);
-            }
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -167,9 +141,6 @@ impl<'__a> ::serde::Serialize for CreateUserRequestView<'__a> {
         }
         if !::buffa::json_helpers::skip_if::is_empty_str(self.password) {
             __map.serialize_entry("password", self.password)?;
-        }
-        if !::buffa::json_helpers::skip_if::is_default_enum_value(&self.role) {
-            __map.serialize_entry("role", &self.role)?;
         }
         __map.end()
     }
@@ -279,13 +250,6 @@ impl CreateUserRequestOwnedView {
     #[must_use]
     pub fn password(&self) -> &'_ str {
         self.0.reborrow().password
-    }
-    /// Must not be `ROLE_UNSPECIFIED`.
-    ///
-    /// Field 3: `role`
-    #[must_use]
-    pub fn role(&self) -> ::buffa::EnumValue<super::super::Role> {
-        self.0.reborrow().role
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<CreateUserRequestView<'static>>>
@@ -1071,19 +1035,22 @@ impl ::serde::Serialize for ListUsersResponseOwnedView {
     }
 }
 #[derive(Clone, Debug, Default)]
-pub struct SetRoleRequestView<'a> {
-    /// The ID of the User whose Role changes.
+pub struct SetPermissionsRequestView<'a> {
+    /// The ID of the User whose Permissions change.
     ///
     /// Field 1: `user_id`
     pub user_id: i64,
-    /// Must not be `ROLE_UNSPECIFIED`.
+    /// Every Permission the User is to have, replacing those they had. Empty takes them all away.
     ///
-    /// Field 2: `role`
-    pub role: ::buffa::EnumValue<super::super::Role>,
+    /// Field 2: `permissions`
+    pub permissions: ::buffa::RepeatedView<
+        'a,
+        ::buffa::EnumValue<super::super::Permission>,
+    >,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
-impl<'a> ::buffa::MessageView<'a> for SetRoleRequestView<'a> {
-    type Owned = super::super::SetRoleRequest;
+impl<'a> ::buffa::MessageView<'a> for SetPermissionsRequestView<'a> {
+    type Owned = super::super::SetPermissionsRequest;
     fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
         let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
         let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
@@ -1120,13 +1087,33 @@ impl<'a> ::buffa::MessageView<'a> for SetRoleRequestView<'a> {
                 view.user_id = ::buffa::types::decode_int64(&mut cur)?;
             }
             2u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::Varint,
-                )?;
-                view.role = ::buffa::EnumValue::from(
-                    ::buffa::types::decode_int32(&mut cur)?,
-                );
+                if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
+                    let payload = ::buffa::types::borrow_bytes(&mut cur)?;
+                    view.permissions.reserve(::buffa::encoding::count_varints(payload));
+                    let mut pcur: &[u8] = payload;
+                    while !pcur.is_empty() {
+                        view.permissions
+                            .push(
+                                ::buffa::EnumValue::from(
+                                    ::buffa::types::decode_int32_packed(&mut pcur)?,
+                                ),
+                            );
+                    }
+                } else if tag.wire_type() == ::buffa::encoding::WireType::Varint {
+                    view.permissions
+                        .push(
+                            ::buffa::EnumValue::from(
+                                ::buffa::types::decode_int32(&mut cur)?,
+                            ),
+                        );
+                } else {
+                    return Err(
+                        ::buffa::encoding::wire_type_mismatch(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        ),
+                    );
+                }
             }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
@@ -1138,26 +1125,32 @@ impl<'a> ::buffa::MessageView<'a> for SetRoleRequestView<'a> {
     }
     fn to_owned_message(
         &self,
-    ) -> ::core::result::Result<super::super::SetRoleRequest, ::buffa::DecodeError> {
+    ) -> ::core::result::Result<
+        super::super::SetPermissionsRequest,
+        ::buffa::DecodeError,
+    > {
         self.to_owned_from_source(None)
     }
     #[allow(clippy::useless_conversion, clippy::needless_update)]
     fn to_owned_from_source(
         &self,
         __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
-    ) -> ::core::result::Result<super::super::SetRoleRequest, ::buffa::DecodeError> {
+    ) -> ::core::result::Result<
+        super::super::SetPermissionsRequest,
+        ::buffa::DecodeError,
+    > {
         #[allow(unused_imports)]
         use ::buffa::alloc::string::ToString as _;
         let _ = __buffa_src;
-        ::core::result::Result::Ok(super::super::SetRoleRequest {
+        ::core::result::Result::Ok(super::super::SetPermissionsRequest {
             user_id: self.user_id,
-            role: self.role,
+            permissions: self.permissions.to_vec(),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
     }
 }
-impl<'a> ::buffa::ViewEncode<'a> for SetRoleRequestView<'a> {
+impl<'a> ::buffa::ViewEncode<'a> for SetPermissionsRequestView<'a> {
     #[allow(clippy::needless_borrow, clippy::let_and_return)]
     fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
         #[allow(unused_imports)]
@@ -1166,11 +1159,13 @@ impl<'a> ::buffa::ViewEncode<'a> for SetRoleRequestView<'a> {
         if self.user_id != 0i64 {
             size += 1u64 + ::buffa::types::int64_encoded_len(self.user_id) as u64;
         }
-        {
-            let val = self.role.to_i32();
-            if val != 0 {
-                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
-            }
+        if !self.permissions.is_empty() {
+            let payload: u64 = self
+                .permissions
+                .iter()
+                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                .sum::<u64>();
+            size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
@@ -1186,10 +1181,15 @@ impl<'a> ::buffa::ViewEncode<'a> for SetRoleRequestView<'a> {
         if self.user_id != 0i64 {
             ::buffa::types::put_int64_field(1u32, self.user_id, buf);
         }
-        {
-            let val = self.role.to_i32();
-            if val != 0 {
-                ::buffa::types::put_int32_field(2u32, val, buf);
+        if !self.permissions.is_empty() {
+            let payload: u64 = self
+                .permissions
+                .iter()
+                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                .sum::<u64>();
+            ::buffa::types::put_len_delimited_header(2u32, payload, buf);
+            for v in &self.permissions {
+                ::buffa::types::encode_int32(v.to_i32(), buf);
             }
         }
         self.__buffa_unknown_fields.write_to(buf);
@@ -1206,7 +1206,7 @@ impl<'a> ::buffa::ViewEncode<'a> for SetRoleRequestView<'a> {
 /// fields depends on default-omission rules; serializers that require
 /// known map lengths (e.g. `bincode`) will return a runtime error.
 /// Use the owned message type for those formats.
-impl<'__a> ::serde::Serialize for SetRoleRequestView<'__a> {
+impl<'__a> ::serde::Serialize for SetPermissionsRequestView<'__a> {
     fn serialize<__S: ::serde::Serializer>(
         &self,
         __s: __S,
@@ -1220,28 +1220,34 @@ impl<'__a> ::serde::Serialize for SetRoleRequestView<'__a> {
                     &::buffa::json_helpers::ProtoJson(&self.user_id),
                 )?;
         }
-        if !::buffa::json_helpers::skip_if::is_default_enum_value(&self.role) {
-            __map.serialize_entry("role", &self.role)?;
+        if !self.permissions.is_empty() {
+            __map
+                .serialize_entry(
+                    "permissions",
+                    &::buffa::json_helpers::EnumSeqJson(&self.permissions),
+                )?;
         }
         __map.end()
     }
 }
-impl<'a> ::buffa::MessageName for SetRoleRequestView<'a> {
+impl<'a> ::buffa::MessageName for SetPermissionsRequestView<'a> {
     const PACKAGE: &'static str = "nama.v1";
-    const NAME: &'static str = "SetRoleRequest";
-    const FULL_NAME: &'static str = "nama.v1.SetRoleRequest";
-    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.SetRoleRequest";
+    const NAME: &'static str = "SetPermissionsRequest";
+    const FULL_NAME: &'static str = "nama.v1.SetPermissionsRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.SetPermissionsRequest";
 }
-::buffa::impl_default_view_instance!(SetRoleRequestView);
-::buffa::impl_view_reborrow!(SetRoleRequestView);
-/** Self-contained, `'static` owned view of a `SetRoleRequest` message.
+::buffa::impl_default_view_instance!(SetPermissionsRequestView);
+::buffa::impl_view_reborrow!(SetPermissionsRequestView);
+/** Self-contained, `'static` owned view of a `SetPermissionsRequest` message.
 
- Wraps [`::buffa::OwnedView`]`<`[`SetRoleRequestView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+ Wraps [`::buffa::OwnedView`]`<`[`SetPermissionsRequestView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
 
- Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`SetRoleRequestView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`SetPermissionsRequestView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
 #[derive(Clone, Debug)]
-pub struct SetRoleRequestOwnedView(::buffa::OwnedView<SetRoleRequestView<'static>>);
-impl SetRoleRequestOwnedView {
+pub struct SetPermissionsRequestOwnedView(
+    ::buffa::OwnedView<SetPermissionsRequestView<'static>>,
+);
+impl SetPermissionsRequestOwnedView {
     /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
     ///
     /// The view borrows directly from the buffer's data; the buffer is
@@ -1255,7 +1261,7 @@ impl SetRoleRequestOwnedView {
         bytes: ::buffa::bytes::Bytes,
     ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
         ::core::result::Result::Ok(
-            SetRoleRequestOwnedView(::buffa::OwnedView::decode(bytes)?),
+            SetPermissionsRequestOwnedView(::buffa::OwnedView::decode(bytes)?),
         )
     }
     /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
@@ -1270,7 +1276,7 @@ impl SetRoleRequestOwnedView {
         opts: &::buffa::DecodeOptions,
     ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
         ::core::result::Result::Ok(
-            SetRoleRequestOwnedView(
+            SetPermissionsRequestOwnedView(
                 ::buffa::OwnedView::decode_with_options(bytes, opts)?,
             ),
         )
@@ -1284,15 +1290,15 @@ impl SetRoleRequestOwnedView {
     /// another [`::buffa::DecodeError`] if the re-encoded bytes are
     /// somehow invalid (should not happen for well-formed messages).
     pub fn from_owned(
-        msg: &super::super::SetRoleRequest,
+        msg: &super::super::SetPermissionsRequest,
     ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
         ::core::result::Result::Ok(
-            SetRoleRequestOwnedView(::buffa::OwnedView::from_owned(msg)?),
+            SetPermissionsRequestOwnedView(::buffa::OwnedView::from_owned(msg)?),
         )
     }
-    /// Borrow the full [`SetRoleRequestView`] with its lifetime tied to `&self`.
+    /// Borrow the full [`SetPermissionsRequestView`] with its lifetime tied to `&self`.
     #[must_use]
-    pub fn view(&self) -> &SetRoleRequestView<'_> {
+    pub fn view(&self) -> &SetPermissionsRequestView<'_> {
         self.0.reborrow()
     }
     /// Convert to the owned message type.
@@ -1303,7 +1309,7 @@ impl SetRoleRequestOwnedView {
     /// whose contract also governs handles converted from a raw
     /// [`::buffa::OwnedView`].
     #[must_use]
-    pub fn to_owned_message(&self) -> super::super::SetRoleRequest {
+    pub fn to_owned_message(&self) -> super::super::SetPermissionsRequest {
         self.0.to_owned_message()
     }
     /// The underlying bytes buffer.
@@ -1316,44 +1322,46 @@ impl SetRoleRequestOwnedView {
     pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
         self.0.into_bytes()
     }
-    /// The ID of the User whose Role changes.
+    /// The ID of the User whose Permissions change.
     ///
     /// Field 1: `user_id`
     #[must_use]
     pub fn user_id(&self) -> i64 {
         self.0.reborrow().user_id
     }
-    /// Must not be `ROLE_UNSPECIFIED`.
+    /// Every Permission the User is to have, replacing those they had. Empty takes them all away.
     ///
-    /// Field 2: `role`
+    /// Field 2: `permissions`
     #[must_use]
-    pub fn role(&self) -> ::buffa::EnumValue<super::super::Role> {
-        self.0.reborrow().role
+    pub fn permissions(
+        &self,
+    ) -> &::buffa::RepeatedView<'_, ::buffa::EnumValue<super::super::Permission>> {
+        &self.0.reborrow().permissions
     }
 }
-impl ::core::convert::From<::buffa::OwnedView<SetRoleRequestView<'static>>>
-for SetRoleRequestOwnedView {
-    fn from(inner: ::buffa::OwnedView<SetRoleRequestView<'static>>) -> Self {
-        SetRoleRequestOwnedView(inner)
+impl ::core::convert::From<::buffa::OwnedView<SetPermissionsRequestView<'static>>>
+for SetPermissionsRequestOwnedView {
+    fn from(inner: ::buffa::OwnedView<SetPermissionsRequestView<'static>>) -> Self {
+        SetPermissionsRequestOwnedView(inner)
     }
 }
-impl ::core::convert::From<SetRoleRequestOwnedView>
-for ::buffa::OwnedView<SetRoleRequestView<'static>> {
-    fn from(wrapper: SetRoleRequestOwnedView) -> Self {
+impl ::core::convert::From<SetPermissionsRequestOwnedView>
+for ::buffa::OwnedView<SetPermissionsRequestView<'static>> {
+    fn from(wrapper: SetPermissionsRequestOwnedView) -> Self {
         wrapper.0
     }
 }
-impl ::core::convert::AsRef<::buffa::OwnedView<SetRoleRequestView<'static>>>
-for SetRoleRequestOwnedView {
-    fn as_ref(&self) -> &::buffa::OwnedView<SetRoleRequestView<'static>> {
+impl ::core::convert::AsRef<::buffa::OwnedView<SetPermissionsRequestView<'static>>>
+for SetPermissionsRequestOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<SetPermissionsRequestView<'static>> {
         &self.0
     }
 }
-impl ::buffa::HasMessageView for super::super::SetRoleRequest {
-    type View<'a> = SetRoleRequestView<'a>;
-    type ViewHandle = SetRoleRequestOwnedView;
+impl ::buffa::HasMessageView for super::super::SetPermissionsRequest {
+    type View<'a> = SetPermissionsRequestView<'a>;
+    type ViewHandle = SetPermissionsRequestOwnedView;
 }
-impl ::serde::Serialize for SetRoleRequestOwnedView {
+impl ::serde::Serialize for SetPermissionsRequestOwnedView {
     fn serialize<__S: ::serde::Serializer>(
         &self,
         __s: __S,
@@ -1362,11 +1370,11 @@ impl ::serde::Serialize for SetRoleRequestOwnedView {
     }
 }
 #[derive(Clone, Debug, Default)]
-pub struct SetRoleResponseView<'a> {
+pub struct SetPermissionsResponseView<'a> {
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
-impl<'a> ::buffa::MessageView<'a> for SetRoleResponseView<'a> {
-    type Owned = super::super::SetRoleResponse;
+impl<'a> ::buffa::MessageView<'a> for SetPermissionsResponseView<'a> {
+    type Owned = super::super::SetPermissionsResponse;
     fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
         let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
         let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
@@ -1405,24 +1413,30 @@ impl<'a> ::buffa::MessageView<'a> for SetRoleResponseView<'a> {
     }
     fn to_owned_message(
         &self,
-    ) -> ::core::result::Result<super::super::SetRoleResponse, ::buffa::DecodeError> {
+    ) -> ::core::result::Result<
+        super::super::SetPermissionsResponse,
+        ::buffa::DecodeError,
+    > {
         self.to_owned_from_source(None)
     }
     #[allow(clippy::useless_conversion, clippy::needless_update)]
     fn to_owned_from_source(
         &self,
         __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
-    ) -> ::core::result::Result<super::super::SetRoleResponse, ::buffa::DecodeError> {
+    ) -> ::core::result::Result<
+        super::super::SetPermissionsResponse,
+        ::buffa::DecodeError,
+    > {
         #[allow(unused_imports)]
         use ::buffa::alloc::string::ToString as _;
         let _ = __buffa_src;
-        ::core::result::Result::Ok(super::super::SetRoleResponse {
+        ::core::result::Result::Ok(super::super::SetPermissionsResponse {
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
     }
 }
-impl<'a> ::buffa::ViewEncode<'a> for SetRoleResponseView<'a> {
+impl<'a> ::buffa::ViewEncode<'a> for SetPermissionsResponseView<'a> {
     #[allow(clippy::needless_borrow, clippy::let_and_return)]
     fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
         #[allow(unused_imports)]
@@ -1453,7 +1467,7 @@ impl<'a> ::buffa::ViewEncode<'a> for SetRoleResponseView<'a> {
 /// fields depends on default-omission rules; serializers that require
 /// known map lengths (e.g. `bincode`) will return a runtime error.
 /// Use the owned message type for those formats.
-impl<'__a> ::serde::Serialize for SetRoleResponseView<'__a> {
+impl<'__a> ::serde::Serialize for SetPermissionsResponseView<'__a> {
     fn serialize<__S: ::serde::Serializer>(
         &self,
         __s: __S,
@@ -1463,22 +1477,24 @@ impl<'__a> ::serde::Serialize for SetRoleResponseView<'__a> {
         __map.end()
     }
 }
-impl<'a> ::buffa::MessageName for SetRoleResponseView<'a> {
+impl<'a> ::buffa::MessageName for SetPermissionsResponseView<'a> {
     const PACKAGE: &'static str = "nama.v1";
-    const NAME: &'static str = "SetRoleResponse";
-    const FULL_NAME: &'static str = "nama.v1.SetRoleResponse";
-    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.SetRoleResponse";
+    const NAME: &'static str = "SetPermissionsResponse";
+    const FULL_NAME: &'static str = "nama.v1.SetPermissionsResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.SetPermissionsResponse";
 }
-::buffa::impl_default_view_instance!(SetRoleResponseView);
-::buffa::impl_view_reborrow!(SetRoleResponseView);
-/** Self-contained, `'static` owned view of a `SetRoleResponse` message.
+::buffa::impl_default_view_instance!(SetPermissionsResponseView);
+::buffa::impl_view_reborrow!(SetPermissionsResponseView);
+/** Self-contained, `'static` owned view of a `SetPermissionsResponse` message.
 
- Wraps [`::buffa::OwnedView`]`<`[`SetRoleResponseView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+ Wraps [`::buffa::OwnedView`]`<`[`SetPermissionsResponseView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
 
- Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`SetRoleResponseView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`SetPermissionsResponseView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
 #[derive(Clone, Debug)]
-pub struct SetRoleResponseOwnedView(::buffa::OwnedView<SetRoleResponseView<'static>>);
-impl SetRoleResponseOwnedView {
+pub struct SetPermissionsResponseOwnedView(
+    ::buffa::OwnedView<SetPermissionsResponseView<'static>>,
+);
+impl SetPermissionsResponseOwnedView {
     /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
     ///
     /// The view borrows directly from the buffer's data; the buffer is
@@ -1492,7 +1508,7 @@ impl SetRoleResponseOwnedView {
         bytes: ::buffa::bytes::Bytes,
     ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
         ::core::result::Result::Ok(
-            SetRoleResponseOwnedView(::buffa::OwnedView::decode(bytes)?),
+            SetPermissionsResponseOwnedView(::buffa::OwnedView::decode(bytes)?),
         )
     }
     /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
@@ -1507,7 +1523,7 @@ impl SetRoleResponseOwnedView {
         opts: &::buffa::DecodeOptions,
     ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
         ::core::result::Result::Ok(
-            SetRoleResponseOwnedView(
+            SetPermissionsResponseOwnedView(
                 ::buffa::OwnedView::decode_with_options(bytes, opts)?,
             ),
         )
@@ -1521,15 +1537,15 @@ impl SetRoleResponseOwnedView {
     /// another [`::buffa::DecodeError`] if the re-encoded bytes are
     /// somehow invalid (should not happen for well-formed messages).
     pub fn from_owned(
-        msg: &super::super::SetRoleResponse,
+        msg: &super::super::SetPermissionsResponse,
     ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
         ::core::result::Result::Ok(
-            SetRoleResponseOwnedView(::buffa::OwnedView::from_owned(msg)?),
+            SetPermissionsResponseOwnedView(::buffa::OwnedView::from_owned(msg)?),
         )
     }
-    /// Borrow the full [`SetRoleResponseView`] with its lifetime tied to `&self`.
+    /// Borrow the full [`SetPermissionsResponseView`] with its lifetime tied to `&self`.
     #[must_use]
-    pub fn view(&self) -> &SetRoleResponseView<'_> {
+    pub fn view(&self) -> &SetPermissionsResponseView<'_> {
         self.0.reborrow()
     }
     /// Convert to the owned message type.
@@ -1540,7 +1556,7 @@ impl SetRoleResponseOwnedView {
     /// whose contract also governs handles converted from a raw
     /// [`::buffa::OwnedView`].
     #[must_use]
-    pub fn to_owned_message(&self) -> super::super::SetRoleResponse {
+    pub fn to_owned_message(&self) -> super::super::SetPermissionsResponse {
         self.0.to_owned_message()
     }
     /// The underlying bytes buffer.
@@ -1554,29 +1570,29 @@ impl SetRoleResponseOwnedView {
         self.0.into_bytes()
     }
 }
-impl ::core::convert::From<::buffa::OwnedView<SetRoleResponseView<'static>>>
-for SetRoleResponseOwnedView {
-    fn from(inner: ::buffa::OwnedView<SetRoleResponseView<'static>>) -> Self {
-        SetRoleResponseOwnedView(inner)
+impl ::core::convert::From<::buffa::OwnedView<SetPermissionsResponseView<'static>>>
+for SetPermissionsResponseOwnedView {
+    fn from(inner: ::buffa::OwnedView<SetPermissionsResponseView<'static>>) -> Self {
+        SetPermissionsResponseOwnedView(inner)
     }
 }
-impl ::core::convert::From<SetRoleResponseOwnedView>
-for ::buffa::OwnedView<SetRoleResponseView<'static>> {
-    fn from(wrapper: SetRoleResponseOwnedView) -> Self {
+impl ::core::convert::From<SetPermissionsResponseOwnedView>
+for ::buffa::OwnedView<SetPermissionsResponseView<'static>> {
+    fn from(wrapper: SetPermissionsResponseOwnedView) -> Self {
         wrapper.0
     }
 }
-impl ::core::convert::AsRef<::buffa::OwnedView<SetRoleResponseView<'static>>>
-for SetRoleResponseOwnedView {
-    fn as_ref(&self) -> &::buffa::OwnedView<SetRoleResponseView<'static>> {
+impl ::core::convert::AsRef<::buffa::OwnedView<SetPermissionsResponseView<'static>>>
+for SetPermissionsResponseOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<SetPermissionsResponseView<'static>> {
         &self.0
     }
 }
-impl ::buffa::HasMessageView for super::super::SetRoleResponse {
-    type View<'a> = SetRoleResponseView<'a>;
-    type ViewHandle = SetRoleResponseOwnedView;
+impl ::buffa::HasMessageView for super::super::SetPermissionsResponse {
+    type View<'a> = SetPermissionsResponseView<'a>;
+    type ViewHandle = SetPermissionsResponseOwnedView;
 }
-impl ::serde::Serialize for SetRoleResponseOwnedView {
+impl ::serde::Serialize for SetPermissionsResponseOwnedView {
     fn serialize<__S: ::serde::Serializer>(
         &self,
         __s: __S,

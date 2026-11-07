@@ -2,12 +2,12 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import { Link, Outlet, createFileRoute } from "@tanstack/react-router";
 
 import { buttonVariants } from "@/components/ui/button";
-import { Role } from "@/gen/nama/v1/sign_in_pb";
+import { isAdmin } from "@/lib/users";
 
-/** Pages for Admins. A Member gets the same "Admins only" page the Server's own refusal shows. */
+/** Pages for Admins. Anyone else gets the same "Admins only" page the Server's own refusal shows. */
 export const Route = createFileRoute("/_member/_admin")({
   beforeLoad: ({ context: { signedIn } }) => {
-    if (signedIn.user?.role !== Role.ADMIN) {
+    if (!isAdmin(signedIn.user)) {
       throw new ConnectError("Admins only", Code.PermissionDenied);
     }
   },

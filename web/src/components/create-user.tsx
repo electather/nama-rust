@@ -1,17 +1,10 @@
 import { useMutation } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
 
-import { Choices, FormEnd, FormField } from "@/components/form-field";
-import { Role } from "@/gen/nama/v1/sign_in_pb";
+import { FormEnd, FormField } from "@/components/form-field";
 import { UserService } from "@/gen/nama/v1/user_pb";
 import { type FormErrors, formText, onSubmitted } from "@/lib/forms";
 import { createUserErrors, usersKey } from "@/lib/users";
-
-/** The Roles a new User can have, Member first. */
-const roles: [value: string, label: string][] = [
-  ["member", "Member: watches and makes Requests"],
-  ["admin", "Admin: also manages the Server and its Users"],
-];
 
 export function CreateUser() {
   const queryClient = useQueryClient();
@@ -28,7 +21,6 @@ export function CreateUser() {
           {
             name: formText(typed, "name"),
             password: formText(typed, "password"),
-            role: formText(typed, "role") === "admin" ? Role.ADMIN : Role.MEMBER,
           },
           {
             onSuccess: () => {
@@ -67,7 +59,6 @@ function NewUserFields({ errors }: { errors: FormErrors }) {
         hint="Pass it on to them. They can change it in Settings."
         error={errors.password}
       />
-      <Choices legend="Role" name="role" choices={roles} />
     </>
   );
 }

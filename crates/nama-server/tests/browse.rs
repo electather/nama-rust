@@ -31,7 +31,7 @@ use nama_proto::nama::v1::{
     CreateUserRequest, Episode, ExternalId, GetMovieRequest, GetShowRequest, GetShowResponse,
     LibraryKind, LibraryServiceClient, ListContinueWatchingRequest, ListEpisodesRequest,
     ListMoviesRequest, ListShowsRequest, MatchServiceClient, Movie, RefusalReason,
-    ReportProgressRequest, Role, ScanLibraryRequest, Season, SessionDelivery, SetMatchRequest,
+    ReportProgressRequest, ScanLibraryRequest, Season, SessionDelivery, SetMatchRequest,
     SetPlayedRequest, Show, ShowSeason, SignInRequest, SignInServiceClient, UserServiceClient,
     Version, WatchState, WatchStateServiceClient, continue_watching_entry, external_id,
     set_played_request::Target,
@@ -214,13 +214,13 @@ impl Fixture {
         Viewer::new(self.server.client_config())
     }
 
-    /// A Member named Grace, created and signed in, browsing and playing.
+    /// A User named Grace, created with the Permissions new Users get and signed in, browsing and
+    /// playing.
     async fn member(&self) -> Viewer {
         UserServiceClient::new(HttpClient::plaintext(), self.server.client_config())
             .create_user(CreateUserRequest {
                 name: "Grace".to_owned(),
                 password: PASSWORD.to_owned(),
-                role: Role::ROLE_MEMBER.into(),
                 ..Default::default()
             })
             .await

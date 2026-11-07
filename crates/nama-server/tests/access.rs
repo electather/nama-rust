@@ -1,4 +1,4 @@
-//! Who may call what: a session for everything but the public RPCs, the Admin Role for managing
+//! Who may call what: a session for everything but the public RPCs, a Permission for managing
 //! Libraries, Matches and Users, and Recent Authentication for changing who can sign in as whom,
 //! over a real socket and against a real SQLite database.
 
@@ -9,6 +9,7 @@ mod server;
 
 use std::{collections::BTreeSet, net::Ipv4Addr, time::Duration};
 
+use buffa::Enumeration;
 use connectrpc::{
     ConnectError, ErrorCode,
     client::{ClientConfig, HttpClient, ServerStream},
@@ -17,9 +18,9 @@ use hyper::{HeaderMap, Method};
 use nama_proto::nama::v1::{
     __buffa::view::SubscribeResponseView, ApproveSignInCodeRequest, CreateLibraryRequest,
     CreateUserRequest, EventServiceClient, LibraryKind, LibraryServiceClient, ListLibrariesRequest,
-    PollSignInCodeRequest, RefusalReason, Role, ScanLibraryRequest, SessionDelivery,
-    SignInServiceClient, StartSignInCodeRequest, SubscribeRequest, SubscribeResponse,
-    UserServiceClient,
+    Permission, PollSignInCodeRequest, RefusalReason, ScanLibraryRequest, SessionDelivery,
+    SetPermissionsRequest, SignInServiceClient, StartSignInCodeRequest, SubscribeRequest,
+    SubscribeResponse, UserServiceClient,
 };
 use nama_server::{
     config::Config,
@@ -31,8 +32,8 @@ use refused::{assert_refused, refusal_of};
 use serde_json::{Value, json};
 use server::{PASSWORD, TestServer};
 
-/// Every RPC that manages Libraries, Matches or Users, which only an Admin may call.
-const ADMIN_ONLY: [&str; 14] = [
+/// Every RPC that manages Libraries or Matches, which needs `PERMISSION_MANAGE_LIBRARIES`.
+const MANAGE_LIBRARIES: [&str; 9] = [
     "/nama.v1.LibraryService/CreateLibrary",
     "/nama.v1.LibraryService/GetLibrary",
     "/nama.v1.LibraryService/UpdateLibrary",
@@ -42,9 +43,13 @@ const ADMIN_ONLY: [&str; 14] = [
     "/nama.v1.MatchService/SetMatch",
     "/nama.v1.MatchService/ClearMatch",
     "/nama.v1.MatchService/ListUnmatchedItems",
+];
+
+/// Every RPC that manages Users, which needs `PERMISSION_MANAGE_USERS`.
+const MANAGE_USERS: [&str; 5] = [
     "/nama.v1.UserService/CreateUser",
     "/nama.v1.UserService/ListUsers",
-    "/nama.v1.UserService/SetRole",
+    "/nama.v1.UserService/SetPermissions",
     "/nama.v1.UserService/DeleteUser",
     "/nama.v1.UserService/ResetPassword",
 ];
@@ -81,7 +86,7 @@ const SIGN_OUT: &str = "/nama.v1.SignInService/SignOut";
 const SENSITIVE: [&str; 5] = [
     "/nama.v1.UserService/ChangePassword",
     "/nama.v1.UserService/ResetPassword",
-    "/nama.v1.UserService/SetRole",
+    "/nama.v1.UserService/SetPermissions",
     "/nama.v1.UserService/DeleteUser",
     "/nama.v1.SignInService/ApproveSignInCode",
 ];
@@ -169,19 +174,33 @@ async fn post_json(server: &TestServer, path: &str, bearer: Option<&str>) -> Rep
     send(server, Method::POST, path, &headers, "{}".to_owned()).await
 }
 
-/// Starts a Server with an Admin, and a Member named Grace signed in. Returns her session token.
+/// What a new User gets: the Permissions to make Requests, which manage nothing.
+const NEW_USER: [Permission; 2] = [Permission::Request, Permission::ViewRequests];
+
+/// Starts a Server with an Admin, and a User named Grace with `permissions` signed in. Returns her
+/// session token.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
-async fn start_with_member() -> (TestServer, String) {
+async fn start_with_user(permissions: &[Permission]) -> (TestServer, String) {
     let plugins = Registry::new();
     let (server, db) = TestServer::start_with_db(Config::default(), plugins.clone()).await;
-    UserServiceClient::new(HttpClient::plaintext(), server.client_config())
+    let as_admin = UserServiceClient::new(HttpClient::plaintext(), server.client_config());
+    let grace = as_admin
         .create_user(CreateUserRequest {
             name: "Grace".to_owned(),
             password: PASSWORD.to_owned(),
-            role: Role::ROLE_MEMBER.into(),
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_owned()
+        .id;
+    as_admin
+        .set_permissions(SetPermissionsRequest {
+            user_id: grace,
+            permissions: permissions.iter().map(|&p| p.into()).collect(),
             ..Default::default()
         })
         .await
@@ -250,8 +269,8 @@ async fn authenticated_long_ago(db: &Database) {
 }
 
 /// The RPCs refused for want of Recent Authentication when called as `token`, out of all but
-/// `SignOut`, which would end the session. None may be refused for want of a session or the Admin
-/// Role, so `token` must be an Admin's.
+/// `SignOut`, which would end the session. None may be refused for want of a session or a
+/// Permission, so `token` must be an Admin's.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
@@ -261,7 +280,7 @@ async fn refused_for_recent_authentication(
     token: &str,
 ) -> BTreeSet<&'static str> {
     let mut refused = BTreeSet::new();
-    for path in ADMIN_ONLY.iter().chain(&BROWSE).chain(&SIGNED_IN) {
+    for path in managing().chain(&BROWSE).chain(&SIGNED_IN) {
         if *path == SIGN_OUT {
             continue;
         }
@@ -279,6 +298,45 @@ async fn refused_for_recent_authentication(
         }
     }
     refused
+}
+
+/// Every RPC that manages Libraries, Matches or Users.
+fn managing() -> impl Iterator<Item = &'static &'static str> {
+    MANAGE_LIBRARIES.iter().chain(&MANAGE_USERS)
+}
+
+/// Asserts that `token` may call each of `paths`: an empty request is wrong for most of them, but
+/// not for want of access.
+async fn assert_allowed(server: &TestServer, token: &str, paths: &[&str]) {
+    for path in paths {
+        let reply = post_json(server, path, Some(token)).await;
+
+        let code = reply.code();
+        assert!(
+            !["unauthenticated", "permission_denied"].contains(&code.as_str()),
+            "{path}: {code}"
+        );
+    }
+}
+
+/// Asserts that `token` is refused each of `paths` for want of `needed`, which the Refusal names.
+async fn assert_refused_for_want_of(
+    server: &TestServer,
+    token: &str,
+    paths: &[&str],
+    needed: Permission,
+) {
+    for path in paths {
+        let reply = post_json(server, path, Some(token)).await;
+
+        let refusal = assert_refused(
+            reply.refused(),
+            ErrorCode::PermissionDenied,
+            RefusalReason::REFUSAL_REASON_PERMISSION_REQUIRED,
+        );
+        let permission = refusal.params.get("permission").map(String::as_str);
+        assert_eq!(permission, Some(needed.proto_name()), "{path}");
+    }
 }
 
 #[expect(
@@ -304,7 +362,7 @@ async fn subscribe(config: ClientConfig) -> Result<Subscription, ConnectError> {
 async fn an_unauthenticated_call_to_anything_but_the_public_rpcs_is_unauthenticated() {
     let server = TestServer::start(Config::default(), Registry::new()).await;
 
-    for path in ADMIN_ONLY.iter().chain(&BROWSE).chain(&SIGNED_IN) {
+    for path in managing().chain(&BROWSE).chain(&SIGNED_IN) {
         let reply = post_json(&server, path, None).await;
 
         assert_refused(
@@ -325,18 +383,39 @@ async fn an_unauthenticated_call_to_anything_but_the_public_rpcs_is_unauthentica
 }
 
 #[tokio::test]
-async fn a_member_managing_libraries_matches_or_users_is_permission_denied() {
-    let (server, member_token) = start_with_member().await;
+async fn a_new_user_managing_libraries_matches_or_users_is_refused_naming_the_permission() {
+    let (server, token) = start_with_user(&NEW_USER).await;
 
-    for path in ADMIN_ONLY {
-        let reply = post_json(&server, path, Some(&member_token)).await;
+    assert_refused_for_want_of(
+        &server,
+        &token,
+        &MANAGE_LIBRARIES,
+        Permission::ManageLibraries,
+    )
+    .await;
+    assert_refused_for_want_of(&server, &token, &MANAGE_USERS, Permission::ManageUsers).await;
+}
 
-        assert_refused(
-            reply.refused(),
-            ErrorCode::PermissionDenied,
-            RefusalReason::REFUSAL_REASON_ADMIN_REQUIRED,
-        );
-    }
+#[tokio::test]
+async fn a_user_who_manages_libraries_may_manage_libraries_and_matches_but_not_users() {
+    let (server, token) = start_with_user(&[Permission::ManageLibraries]).await;
+
+    assert_allowed(&server, &token, &MANAGE_LIBRARIES).await;
+    assert_refused_for_want_of(&server, &token, &MANAGE_USERS, Permission::ManageUsers).await;
+}
+
+#[tokio::test]
+async fn a_user_who_manages_users_may_manage_users_but_not_libraries_or_matches() {
+    let (server, token) = start_with_user(&[Permission::ManageUsers]).await;
+
+    assert_allowed(&server, &token, &MANAGE_USERS).await;
+    assert_refused_for_want_of(
+        &server,
+        &token,
+        &MANAGE_LIBRARIES,
+        Permission::ManageLibraries,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -363,24 +442,16 @@ async fn an_unlisted_rpc_is_the_routers_not_found_with_or_without_a_session() {
 async fn an_admin_may_manage_libraries_matches_and_users() {
     let server = TestServer::start(Config::default(), Registry::new()).await;
 
-    for path in ADMIN_ONLY {
-        let reply = post_json(&server, path, Some(&server.admin_token)).await;
-
-        // An empty request is wrong for most of them, but not for want of access.
-        let code = reply.code();
-        assert!(
-            !["unauthenticated", "permission_denied"].contains(&code.as_str()),
-            "{path}: {code}"
-        );
-    }
+    assert_allowed(&server, &server.admin_token, &MANAGE_LIBRARIES).await;
+    assert_allowed(&server, &server.admin_token, &MANAGE_USERS).await;
 }
 
 #[tokio::test]
-async fn a_member_may_browse() {
-    let (server, member_token) = start_with_member().await;
+async fn a_new_user_may_browse() {
+    let (server, token) = start_with_user(&NEW_USER).await;
 
     for path in BROWSE {
-        let reply = post_json(&server, path, Some(&member_token)).await;
+        let reply = post_json(&server, path, Some(&token)).await;
 
         // An empty request is wrong for them, but not for want of access.
         let code = reply.code();
@@ -392,8 +463,8 @@ async fn a_member_may_browse() {
 }
 
 #[tokio::test]
-async fn a_member_lists_libraries_without_their_folders() {
-    let (server, member_token) = start_with_member().await;
+async fn a_new_user_lists_libraries_without_their_folders() {
+    let (server, token) = start_with_user(&NEW_USER).await;
     let folder = tempfile::tempdir().unwrap();
     LibraryServiceClient::new(HttpClient::plaintext(), server.client_config())
         .create_library(CreateLibraryRequest {
@@ -405,14 +476,12 @@ async fn a_member_lists_libraries_without_their_folders() {
         .await
         .unwrap();
 
-    let listed = LibraryServiceClient::new(
-        HttpClient::plaintext(),
-        server.client_config_as(&member_token),
-    )
-    .list_libraries(ListLibrariesRequest::default())
-    .await
-    .unwrap()
-    .into_owned();
+    let listed =
+        LibraryServiceClient::new(HttpClient::plaintext(), server.client_config_as(&token))
+            .list_libraries(ListLibrariesRequest::default())
+            .await
+            .unwrap()
+            .into_owned();
 
     let [library] = listed.libraries.as_slice() else {
         panic!("expected one Library, got {:?}", listed.libraries);
@@ -422,11 +491,9 @@ async fn a_member_lists_libraries_without_their_folders() {
 }
 
 #[tokio::test]
-async fn a_member_receives_events() {
-    let (server, member_token) = start_with_member().await;
-    let mut events = subscribe(server.client_config_as(&member_token))
-        .await
-        .unwrap();
+async fn a_new_user_receives_events() {
+    let (server, token) = start_with_user(&NEW_USER).await;
+    let mut events = subscribe(server.client_config_as(&token)).await.unwrap();
 
     let folder = tempfile::tempdir().unwrap();
     let libraries = LibraryServiceClient::new(HttpClient::plaintext(), server.client_config());

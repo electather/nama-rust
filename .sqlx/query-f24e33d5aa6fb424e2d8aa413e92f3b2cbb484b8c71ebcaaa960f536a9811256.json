@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT u.id AS \"id!\", u.display_username AS name, u.role AS \"role: Role\",\n                      u.created_at, m.id AS \"method_id?\", m.provider_id AS \"provider_id?\",\n                      m.credential AS \"credential?\"\n               FROM users u LEFT JOIN sign_in_methods m ON m.user_id = u.id AND m.subject IS NULL\n               WHERE u.username = ?",
+  "query": "SELECT u.id AS \"id!\", u.display_username AS name,\n                      u.permissions AS \"permissions: Permissions\", u.created_at,\n                      m.id AS \"method_id?\", m.provider_id AS \"provider_id?\",\n                      m.credential AS \"credential?\"\n               FROM users u LEFT JOIN sign_in_methods m ON m.user_id = u.id AND m.subject IS NULL\n               WHERE u.username = ?",
   "describe": {
     "columns": [
       {
@@ -26,13 +26,13 @@
         }
       },
       {
-        "name": "role: Role",
+        "name": "permissions: Permissions",
         "ordinal": 2,
-        "type_info": "Text",
+        "type_info": "Integer",
         "origin": {
           "Table": {
             "table": "users",
-            "name": "role"
+            "name": "permissions"
           }
         }
       },
@@ -94,5 +94,5 @@
       true
     ]
   },
-  "hash": "8009382851d62a963116a1922c76a6e22ab8eb27cba534a9dc0c5b267e79b49b"
+  "hash": "f24e33d5aa6fb424e2d8aa413e92f3b2cbb484b8c71ebcaaa960f536a9811256"
 }

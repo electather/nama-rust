@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT d.id AS \"device_id!\", d.name AS device_name, d.created_at AS device_created_at,\n                      d.last_seen_at, d.authenticated_at,\n                      u.id AS \"user_id!\", u.display_username AS user_name, u.role AS \"role: Role\",\n                      u.created_at\n               FROM devices d JOIN users u ON u.id = d.user_id\n               WHERE d.token_hash = ? AND d.expires_at > ?",
+  "query": "SELECT d.id AS \"device_id!\", d.name AS device_name, d.created_at AS device_created_at,\n                      d.last_seen_at, d.authenticated_at,\n                      u.id AS \"user_id!\", u.display_username AS user_name,\n                      u.permissions AS \"permissions: Permissions\", u.created_at\n               FROM devices d JOIN users u ON u.id = d.user_id\n               WHERE d.token_hash = ? AND d.expires_at > ?",
   "describe": {
     "columns": [
       {
@@ -81,13 +81,13 @@
         }
       },
       {
-        "name": "role: Role",
+        "name": "permissions: Permissions",
         "ordinal": 7,
-        "type_info": "Text",
+        "type_info": "Integer",
         "origin": {
           "Table": {
             "table": "users",
-            "name": "role"
+            "name": "permissions"
           }
         }
       },
@@ -118,5 +118,5 @@
       false
     ]
   },
-  "hash": "2ff7ab1f53ebd5701d86a189aca97cfa0a708df4fe52eca22ca9340c0c6dc087"
+  "hash": "c64a4fead0d691561d4c6955c09880b6705a4f5dc3e4eff717cb2e445fb9cbe3"
 }

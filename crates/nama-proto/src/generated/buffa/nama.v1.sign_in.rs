@@ -158,34 +158,87 @@ impl ::buffa::Enumeration for SessionDelivery {
         ]
     }
 }
-/// What a User is allowed to do on a Server.
+/// One thing a User is allowed to do on a Server (ADR 0020). Each User holds a set of them. Values
+/// are API contract: one is never renumbered or reused.
 #[allow(non_camel_case_types)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 #[repr(i32)]
-pub enum Role {
-    ROLE_UNSPECIFIED = 0i32,
-    /// Manages the Server, its Libraries and its Users.
-    ROLE_ADMIN = 1i32,
-    /// Watches and Requests.
-    ROLE_MEMBER = 2i32,
+pub enum Permission {
+    PERMISSION_UNSPECIFIED = 0i32,
+    /// Passes every check, whatever Permission it needs.
+    PERMISSION_ADMIN = 1i32,
+    /// Manages Users: creates, lists and deletes them, sets their Permissions, resets their passwords
+    /// and manages their Devices.
+    PERMISSION_MANAGE_USERS = 2i32,
+    /// Manages Libraries and their Matches, and sees where a Library lives on disk.
+    PERMISSION_MANAGE_LIBRARIES = 3i32,
+    /// Manages the Server's settings, such as its Plugins.
+    PERMISSION_MANAGE_SETTINGS = 4i32,
+    /// Manages every User's Requests.
+    PERMISSION_MANAGE_REQUESTS = 5i32,
+    /// Requests Movies and Shows: covers `PERMISSION_REQUEST_MOVIE` and `PERMISSION_REQUEST_TV`.
+    PERMISSION_REQUEST = 6i32,
+    /// Requests Movies.
+    PERMISSION_REQUEST_MOVIE = 7i32,
+    /// Requests Shows.
+    PERMISSION_REQUEST_TV = 8i32,
+    /// Has their Requests approved as they make them: covers `PERMISSION_AUTO_APPROVE_MOVIE` and
+    /// `PERMISSION_AUTO_APPROVE_TV`.
+    PERMISSION_AUTO_APPROVE = 9i32,
+    /// Has their Requests for Movies approved as they make them.
+    PERMISSION_AUTO_APPROVE_MOVIE = 10i32,
+    /// Has their Requests for Shows approved as they make them.
+    PERMISSION_AUTO_APPROVE_TV = 11i32,
+    /// Sees every User's Requests, not only their own.
+    PERMISSION_VIEW_REQUESTS = 12i32,
 }
-impl Role {
-    ///Idiomatic alias for [`Self::ROLE_UNSPECIFIED`]; `Debug` prints the variant name.
+impl Permission {
+    ///Idiomatic alias for [`Self::PERMISSION_UNSPECIFIED`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
-    pub const Unspecified: Self = Self::ROLE_UNSPECIFIED;
-    ///Idiomatic alias for [`Self::ROLE_ADMIN`]; `Debug` prints the variant name.
+    pub const Unspecified: Self = Self::PERMISSION_UNSPECIFIED;
+    ///Idiomatic alias for [`Self::PERMISSION_ADMIN`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
-    pub const Admin: Self = Self::ROLE_ADMIN;
-    ///Idiomatic alias for [`Self::ROLE_MEMBER`]; `Debug` prints the variant name.
+    pub const Admin: Self = Self::PERMISSION_ADMIN;
+    ///Idiomatic alias for [`Self::PERMISSION_MANAGE_USERS`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
-    pub const Member: Self = Self::ROLE_MEMBER;
+    pub const ManageUsers: Self = Self::PERMISSION_MANAGE_USERS;
+    ///Idiomatic alias for [`Self::PERMISSION_MANAGE_LIBRARIES`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const ManageLibraries: Self = Self::PERMISSION_MANAGE_LIBRARIES;
+    ///Idiomatic alias for [`Self::PERMISSION_MANAGE_SETTINGS`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const ManageSettings: Self = Self::PERMISSION_MANAGE_SETTINGS;
+    ///Idiomatic alias for [`Self::PERMISSION_MANAGE_REQUESTS`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const ManageRequests: Self = Self::PERMISSION_MANAGE_REQUESTS;
+    ///Idiomatic alias for [`Self::PERMISSION_REQUEST`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Request: Self = Self::PERMISSION_REQUEST;
+    ///Idiomatic alias for [`Self::PERMISSION_REQUEST_MOVIE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const RequestMovie: Self = Self::PERMISSION_REQUEST_MOVIE;
+    ///Idiomatic alias for [`Self::PERMISSION_REQUEST_TV`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const RequestTv: Self = Self::PERMISSION_REQUEST_TV;
+    ///Idiomatic alias for [`Self::PERMISSION_AUTO_APPROVE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const AutoApprove: Self = Self::PERMISSION_AUTO_APPROVE;
+    ///Idiomatic alias for [`Self::PERMISSION_AUTO_APPROVE_MOVIE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const AutoApproveMovie: Self = Self::PERMISSION_AUTO_APPROVE_MOVIE;
+    ///Idiomatic alias for [`Self::PERMISSION_AUTO_APPROVE_TV`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const AutoApproveTv: Self = Self::PERMISSION_AUTO_APPROVE_TV;
+    ///Idiomatic alias for [`Self::PERMISSION_VIEW_REQUESTS`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const ViewRequests: Self = Self::PERMISSION_VIEW_REQUESTS;
 }
-impl ::core::default::Default for Role {
+impl ::core::default::Default for Permission {
     fn default() -> Self {
-        Self::ROLE_UNSPECIFIED
+        Self::PERMISSION_UNSPECIFIED
     }
 }
-impl ::serde::Serialize for Role {
+impl ::serde::Serialize for Permission {
     fn serialize<S: ::serde::Serializer>(
         &self,
         s: S,
@@ -193,37 +246,39 @@ impl ::serde::Serialize for Role {
         s.serialize_str(::buffa::Enumeration::proto_name(self))
     }
 }
-impl<'de> ::serde::Deserialize<'de> for Role {
+impl<'de> ::serde::Deserialize<'de> for Permission {
     fn deserialize<D: ::serde::Deserializer<'de>>(
         d: D,
     ) -> ::core::result::Result<Self, D::Error> {
         struct _V;
         impl ::serde::de::Visitor<'_> for _V {
-            type Value = Role;
+            type Value = Permission;
             fn expecting(
                 &self,
                 f: &mut ::core::fmt::Formatter<'_>,
             ) -> ::core::fmt::Result {
-                f.write_str(concat!("a string, integer, or null for ", stringify!(Role)))
+                f.write_str(
+                    concat!("a string, integer, or null for ", stringify!(Permission)),
+                )
             }
             fn visit_str<E: ::serde::de::Error>(
                 self,
                 v: &str,
-            ) -> ::core::result::Result<Role, E> {
-                <Role as ::buffa::Enumeration>::from_proto_name(v)
+            ) -> ::core::result::Result<Permission, E> {
+                <Permission as ::buffa::Enumeration>::from_proto_name(v)
                     .ok_or_else(|| { ::serde::de::Error::unknown_variant(v, &[]) })
             }
             fn visit_i64<E: ::serde::de::Error>(
                 self,
                 v: i64,
-            ) -> ::core::result::Result<Role, E> {
+            ) -> ::core::result::Result<Permission, E> {
                 let v32 = i32::try_from(v)
                     .map_err(|_| {
                         ::serde::de::Error::custom(
                             ::buffa::alloc::format!("enum value {v} out of i32 range"),
                         )
                     })?;
-                <Role as ::buffa::Enumeration>::from_i32(v32)
+                <Permission as ::buffa::Enumeration>::from_i32(v32)
                     .ok_or_else(|| {
                         ::serde::de::Error::custom(
                             ::buffa::alloc::format!("unknown enum value {v32}"),
@@ -233,14 +288,14 @@ impl<'de> ::serde::Deserialize<'de> for Role {
             fn visit_u64<E: ::serde::de::Error>(
                 self,
                 v: u64,
-            ) -> ::core::result::Result<Role, E> {
+            ) -> ::core::result::Result<Permission, E> {
                 let v32 = i32::try_from(v)
                     .map_err(|_| {
                         ::serde::de::Error::custom(
                             ::buffa::alloc::format!("enum value {v} out of i32 range"),
                         )
                     })?;
-                <Role as ::buffa::Enumeration>::from_i32(v32)
+                <Permission as ::buffa::Enumeration>::from_i32(v32)
                     .ok_or_else(|| {
                         ::serde::de::Error::custom(
                             ::buffa::alloc::format!("unknown enum value {v32}"),
@@ -249,14 +304,14 @@ impl<'de> ::serde::Deserialize<'de> for Role {
             }
             fn visit_unit<E: ::serde::de::Error>(
                 self,
-            ) -> ::core::result::Result<Role, E> {
+            ) -> ::core::result::Result<Permission, E> {
                 ::core::result::Result::Ok(::core::default::Default::default())
             }
         }
         d.deserialize_any(_V)
     }
 }
-impl ::buffa::json_helpers::ProtoElemJson for Role {
+impl ::buffa::json_helpers::ProtoElemJson for Permission {
     fn serialize_proto_json<S: ::serde::Serializer>(
         v: &Self,
         s: S,
@@ -269,12 +324,22 @@ impl ::buffa::json_helpers::ProtoElemJson for Role {
         <Self as ::serde::Deserialize>::deserialize(d)
     }
 }
-impl ::buffa::Enumeration for Role {
+impl ::buffa::Enumeration for Permission {
     fn from_i32(value: i32) -> ::core::option::Option<Self> {
         match value {
-            0i32 => ::core::option::Option::Some(Self::ROLE_UNSPECIFIED),
-            1i32 => ::core::option::Option::Some(Self::ROLE_ADMIN),
-            2i32 => ::core::option::Option::Some(Self::ROLE_MEMBER),
+            0i32 => ::core::option::Option::Some(Self::PERMISSION_UNSPECIFIED),
+            1i32 => ::core::option::Option::Some(Self::PERMISSION_ADMIN),
+            2i32 => ::core::option::Option::Some(Self::PERMISSION_MANAGE_USERS),
+            3i32 => ::core::option::Option::Some(Self::PERMISSION_MANAGE_LIBRARIES),
+            4i32 => ::core::option::Option::Some(Self::PERMISSION_MANAGE_SETTINGS),
+            5i32 => ::core::option::Option::Some(Self::PERMISSION_MANAGE_REQUESTS),
+            6i32 => ::core::option::Option::Some(Self::PERMISSION_REQUEST),
+            7i32 => ::core::option::Option::Some(Self::PERMISSION_REQUEST_MOVIE),
+            8i32 => ::core::option::Option::Some(Self::PERMISSION_REQUEST_TV),
+            9i32 => ::core::option::Option::Some(Self::PERMISSION_AUTO_APPROVE),
+            10i32 => ::core::option::Option::Some(Self::PERMISSION_AUTO_APPROVE_MOVIE),
+            11i32 => ::core::option::Option::Some(Self::PERMISSION_AUTO_APPROVE_TV),
+            12i32 => ::core::option::Option::Some(Self::PERMISSION_VIEW_REQUESTS),
             _ => ::core::option::Option::None,
         }
     }
@@ -283,21 +348,79 @@ impl ::buffa::Enumeration for Role {
     }
     fn proto_name(&self) -> &'static str {
         match self {
-            Self::ROLE_UNSPECIFIED => "ROLE_UNSPECIFIED",
-            Self::ROLE_ADMIN => "ROLE_ADMIN",
-            Self::ROLE_MEMBER => "ROLE_MEMBER",
+            Self::PERMISSION_UNSPECIFIED => "PERMISSION_UNSPECIFIED",
+            Self::PERMISSION_ADMIN => "PERMISSION_ADMIN",
+            Self::PERMISSION_MANAGE_USERS => "PERMISSION_MANAGE_USERS",
+            Self::PERMISSION_MANAGE_LIBRARIES => "PERMISSION_MANAGE_LIBRARIES",
+            Self::PERMISSION_MANAGE_SETTINGS => "PERMISSION_MANAGE_SETTINGS",
+            Self::PERMISSION_MANAGE_REQUESTS => "PERMISSION_MANAGE_REQUESTS",
+            Self::PERMISSION_REQUEST => "PERMISSION_REQUEST",
+            Self::PERMISSION_REQUEST_MOVIE => "PERMISSION_REQUEST_MOVIE",
+            Self::PERMISSION_REQUEST_TV => "PERMISSION_REQUEST_TV",
+            Self::PERMISSION_AUTO_APPROVE => "PERMISSION_AUTO_APPROVE",
+            Self::PERMISSION_AUTO_APPROVE_MOVIE => "PERMISSION_AUTO_APPROVE_MOVIE",
+            Self::PERMISSION_AUTO_APPROVE_TV => "PERMISSION_AUTO_APPROVE_TV",
+            Self::PERMISSION_VIEW_REQUESTS => "PERMISSION_VIEW_REQUESTS",
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
         match name {
-            "ROLE_UNSPECIFIED" => ::core::option::Option::Some(Self::ROLE_UNSPECIFIED),
-            "ROLE_ADMIN" => ::core::option::Option::Some(Self::ROLE_ADMIN),
-            "ROLE_MEMBER" => ::core::option::Option::Some(Self::ROLE_MEMBER),
+            "PERMISSION_UNSPECIFIED" => {
+                ::core::option::Option::Some(Self::PERMISSION_UNSPECIFIED)
+            }
+            "PERMISSION_ADMIN" => ::core::option::Option::Some(Self::PERMISSION_ADMIN),
+            "PERMISSION_MANAGE_USERS" => {
+                ::core::option::Option::Some(Self::PERMISSION_MANAGE_USERS)
+            }
+            "PERMISSION_MANAGE_LIBRARIES" => {
+                ::core::option::Option::Some(Self::PERMISSION_MANAGE_LIBRARIES)
+            }
+            "PERMISSION_MANAGE_SETTINGS" => {
+                ::core::option::Option::Some(Self::PERMISSION_MANAGE_SETTINGS)
+            }
+            "PERMISSION_MANAGE_REQUESTS" => {
+                ::core::option::Option::Some(Self::PERMISSION_MANAGE_REQUESTS)
+            }
+            "PERMISSION_REQUEST" => {
+                ::core::option::Option::Some(Self::PERMISSION_REQUEST)
+            }
+            "PERMISSION_REQUEST_MOVIE" => {
+                ::core::option::Option::Some(Self::PERMISSION_REQUEST_MOVIE)
+            }
+            "PERMISSION_REQUEST_TV" => {
+                ::core::option::Option::Some(Self::PERMISSION_REQUEST_TV)
+            }
+            "PERMISSION_AUTO_APPROVE" => {
+                ::core::option::Option::Some(Self::PERMISSION_AUTO_APPROVE)
+            }
+            "PERMISSION_AUTO_APPROVE_MOVIE" => {
+                ::core::option::Option::Some(Self::PERMISSION_AUTO_APPROVE_MOVIE)
+            }
+            "PERMISSION_AUTO_APPROVE_TV" => {
+                ::core::option::Option::Some(Self::PERMISSION_AUTO_APPROVE_TV)
+            }
+            "PERMISSION_VIEW_REQUESTS" => {
+                ::core::option::Option::Some(Self::PERMISSION_VIEW_REQUESTS)
+            }
             _ => ::core::option::Option::None,
         }
     }
     fn values() -> &'static [Self] {
-        &[Self::ROLE_UNSPECIFIED, Self::ROLE_ADMIN, Self::ROLE_MEMBER]
+        &[
+            Self::PERMISSION_UNSPECIFIED,
+            Self::PERMISSION_ADMIN,
+            Self::PERMISSION_MANAGE_USERS,
+            Self::PERMISSION_MANAGE_LIBRARIES,
+            Self::PERMISSION_MANAGE_SETTINGS,
+            Self::PERMISSION_MANAGE_REQUESTS,
+            Self::PERMISSION_REQUEST,
+            Self::PERMISSION_REQUEST_MOVIE,
+            Self::PERMISSION_REQUEST_TV,
+            Self::PERMISSION_AUTO_APPROVE,
+            Self::PERMISSION_AUTO_APPROVE_MOVIE,
+            Self::PERMISSION_AUTO_APPROVE_TV,
+            Self::PERMISSION_VIEW_REQUESTS,
+        ]
     }
 }
 /// Where a sign-in with a Sign-in Code has got to.
@@ -490,13 +613,6 @@ pub struct User {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub name: ::buffa::alloc::string::String,
-    /// Field 3: `role`
-    #[serde(
-        rename = "role",
-        with = "::buffa::json_helpers::proto_enum",
-        skip_serializing_if = "::buffa::json_helpers::skip_if::is_default_enum_value"
-    )]
-    pub role: ::buffa::EnumValue<Role>,
     /// When the User was created, in seconds since the Unix epoch.
     ///
     /// Field 4: `created_at`
@@ -507,6 +623,15 @@ pub struct User {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i64"
     )]
     pub created_at: i64,
+    /// What the User may do, in the order of `Permission`'s values, each once.
+    ///
+    /// Field 5: `permissions`
+    #[serde(
+        rename = "permissions",
+        with = "::buffa::json_helpers::repeated_enum",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec"
+    )]
+    pub permissions: ::buffa::alloc::vec::Vec<::buffa::EnumValue<Permission>>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -516,8 +641,8 @@ impl ::core::fmt::Debug for User {
         f.debug_struct("User")
             .field("id", &self.id)
             .field("name", &self.name)
-            .field("role", &self.role)
             .field("created_at", &self.created_at)
+            .field("permissions", &self.permissions)
             .finish()
     }
 }
@@ -554,14 +679,16 @@ impl ::buffa::Message for User {
         if !self.name.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.name) as u64;
         }
-        {
-            let val = self.role.to_i32();
-            if val != 0 {
-                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
-            }
-        }
         if self.created_at != 0i64 {
             size += 1u64 + ::buffa::types::int64_encoded_len(self.created_at) as u64;
+        }
+        if !self.permissions.is_empty() {
+            let payload: u64 = self
+                .permissions
+                .iter()
+                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                .sum::<u64>();
+            size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
@@ -579,14 +706,19 @@ impl ::buffa::Message for User {
         if !self.name.is_empty() {
             ::buffa::types::put_string_field(2u32, &self.name, buf);
         }
-        {
-            let val = self.role.to_i32();
-            if val != 0 {
-                ::buffa::types::put_int32_field(3u32, val, buf);
-            }
-        }
         if self.created_at != 0i64 {
             ::buffa::types::put_int64_field(4u32, self.created_at, buf);
+        }
+        if !self.permissions.is_empty() {
+            let payload: u64 = self
+                .permissions
+                .iter()
+                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                .sum::<u64>();
+            ::buffa::types::put_len_delimited_header(5u32, payload, buf);
+            for v in &self.permissions {
+                ::buffa::types::encode_int32(v.to_i32(), buf);
+            }
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -615,19 +747,50 @@ impl ::buffa::Message for User {
                 )?;
                 ::buffa::types::merge_string(&mut self.name, buf)?;
             }
-            3u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::Varint,
-                )?;
-                self.role = ::buffa::EnumValue::from(::buffa::types::decode_int32(buf)?);
-            }
             4u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
                     ::buffa::encoding::WireType::Varint,
                 )?;
                 self.created_at = ::buffa::types::decode_int64(buf)?;
+            }
+            5u32 => {
+                if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
+                    let len = ::buffa::encoding::decode_varint(buf)?;
+                    let len = usize::try_from(len)
+                        .map_err(|_| ::buffa::DecodeError::MessageTooLarge)?;
+                    if buf.remaining() < len {
+                        return ::core::result::Result::Err(
+                            ::buffa::DecodeError::UnexpectedEof,
+                        );
+                    }
+                    self.permissions.reserve(len);
+                    let mut limited = buf.take(len);
+                    while limited.has_remaining() {
+                        self.permissions
+                            .push(
+                                ::buffa::EnumValue::from(
+                                    ::buffa::types::decode_int32_packed(&mut limited)?,
+                                ),
+                            );
+                    }
+                    let leftover = limited.remaining();
+                    if leftover > 0 {
+                        limited.advance(leftover);
+                    }
+                } else if tag.wire_type() == ::buffa::encoding::WireType::Varint {
+                    self.permissions
+                        .push(
+                            ::buffa::EnumValue::from(::buffa::types::decode_int32(buf)?),
+                        );
+                } else {
+                    return ::core::result::Result::Err(
+                        ::buffa::encoding::wire_type_mismatch(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        ),
+                    );
+                }
             }
             _ => {
                 self.__buffa_unknown_fields
@@ -639,8 +802,8 @@ impl ::buffa::Message for User {
     fn clear(&mut self) {
         self.id = 0i64;
         self.name.clear();
-        self.role = ::buffa::EnumValue::from(0);
         self.created_at = 0i64;
+        self.permissions.clear();
         self.__buffa_unknown_fields.clear();
     }
 }

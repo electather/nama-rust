@@ -10,7 +10,7 @@ import type { Message, UnknownEnum } from "@bufbuild/protobuf";
  * Describes the file nama/v1/sign_in.proto.
  */
 export const file_nama_v1_sign_in: GenFile = /*@__PURE__*/
-  fileDesc("ChVuYW1hL3YxL3NpZ25faW4ucHJvdG8SB25hbWEudjEiUQoEVXNlchIKCgJpZBgBIAEoAxIMCgRuYW1lGAIgASgJEhsKBHJvbGUYAyABKA4yDS5uYW1hLnYxLlJvbGUSEgoKY3JlYXRlZF9hdBgEIAEoAyJgCgZEZXZpY2USCgoCaWQYASABKAMSDAoEbmFtZRgCIAEoCRISCgpjcmVhdGVkX2F0GAMgASgDEhQKDGxhc3Rfc2Vlbl9hdBgEIAEoAxISCgppc19jdXJyZW50GAUgASgIIoMBCgxTZXR1cFJlcXVlc3QSEgoKc2V0dXBfY29kZRgBIAEoCRIMCgRuYW1lGAIgASgJEhAKCHBhc3N3b3JkGAMgASgJEhMKC2RldmljZV9uYW1lGAQgASgJEioKCGRlbGl2ZXJ5GAUgASgOMhgubmFtYS52MS5TZXNzaW9uRGVsaXZlcnkiXAoNU2V0dXBSZXNwb25zZRIbCgR1c2VyGAEgASgLMg0ubmFtYS52MS5Vc2VyEh8KBmRldmljZRgCIAEoCzIPLm5hbWEudjEuRGV2aWNlEg0KBXRva2VuGAMgASgJInAKDVNpZ25JblJlcXVlc3QSDAoEbmFtZRgBIAEoCRIQCghwYXNzd29yZBgCIAEoCRITCgtkZXZpY2VfbmFtZRgDIAEoCRIqCghkZWxpdmVyeRgEIAEoDjIYLm5hbWEudjEuU2Vzc2lvbkRlbGl2ZXJ5Il0KDlNpZ25JblJlc3BvbnNlEhsKBHVzZXIYASABKAsyDS5uYW1hLnYxLlVzZXISHwoGZGV2aWNlGAIgASgLMg8ubmFtYS52MS5EZXZpY2USDQoFdG9rZW4YAyABKAkiEAoOU2lnbk91dFJlcXVlc3QiEQoPU2lnbk91dFJlc3BvbnNlIg8KDVdob0FtSVJlcXVlc3QiTgoOV2hvQW1JUmVzcG9uc2USGwoEdXNlchgBIAEoCzINLm5hbWEudjEuVXNlchIfCgZkZXZpY2UYAiABKAsyDy5uYW1hLnYxLkRldmljZSI0ChVSZWF1dGhlbnRpY2F0ZVJlcXVlc3QSEgoIcGFzc3dvcmQYASABKAlIAEIHCgVwcm9vZiIYChZSZWF1dGhlbnRpY2F0ZVJlc3BvbnNlIlkKFlN0YXJ0U2lnbkluQ29kZVJlcXVlc3QSEwoLZGV2aWNlX25hbWUYASABKAkSKgoIZGVsaXZlcnkYAiABKA4yGC5uYW1hLnYxLlNlc3Npb25EZWxpdmVyeSI3ChdTdGFydFNpZ25JbkNvZGVSZXNwb25zZRIMCgRjb2RlGAEgASgJEg4KBmhhbmRsZRgCIAEoCSInChdMb29rVXBTaWduSW5Db2RlUmVxdWVzdBIMCgRjb2RlGAEgASgJIi8KGExvb2tVcFNpZ25JbkNvZGVSZXNwb25zZRITCgtkZXZpY2VfbmFtZRgBIAEoCSIoChhBcHByb3ZlU2lnbkluQ29kZVJlcXVlc3QSDAoEY29kZRgBIAEoCSIbChlBcHByb3ZlU2lnbkluQ29kZVJlc3BvbnNlIicKFVBvbGxTaWduSW5Db2RlUmVxdWVzdBIOCgZoYW5kbGUYASABKAkikAEKFlBvbGxTaWduSW5Db2RlUmVzcG9uc2USKQoGc3RhdHVzGAEgASgOMhkubmFtYS52MS5TaWduSW5Db2RlU3RhdHVzEhsKBHVzZXIYAiABKAsyDS5uYW1hLnYxLlVzZXISHwoGZGV2aWNlGAMgASgLMg8ubmFtYS52MS5EZXZpY2USDQoFdG9rZW4YBCABKAkqbAoPU2Vzc2lvbkRlbGl2ZXJ5EiAKHFNFU1NJT05fREVMSVZFUllfVU5TUEVDSUZJRUQQABIbChdTRVNTSU9OX0RFTElWRVJZX0NPT0tJRRABEhoKFlNFU1NJT05fREVMSVZFUllfVE9LRU4QAio9CgRSb2xlEhQKEFJPTEVfVU5TUEVDSUZJRUQQABIOCgpST0xFX0FETUlOEAESDwoLUk9MRV9NRU1CRVIQAiqcAQoQU2lnbkluQ29kZVN0YXR1cxIjCh9TSUdOX0lOX0NPREVfU1RBVFVTX1VOU1BFQ0lGSUVEEAASHwobU0lHTl9JTl9DT0RFX1NUQVRVU19XQUlUSU5HEAESHwobU0lHTl9JTl9DT0RFX1NUQVRVU19FWFBJUkVEEAISIQodU0lHTl9JTl9DT0RFX1NUQVRVU19TSUdORURfSU4QAzKxBQoNU2lnbkluU2VydmljZRI2CgVTZXR1cBIVLm5hbWEudjEuU2V0dXBSZXF1ZXN0GhYubmFtYS52MS5TZXR1cFJlc3BvbnNlEjkKBlNpZ25JbhIWLm5hbWEudjEuU2lnbkluUmVxdWVzdBoXLm5hbWEudjEuU2lnbkluUmVzcG9uc2USPAoHU2lnbk91dBIXLm5hbWEudjEuU2lnbk91dFJlcXVlc3QaGC5uYW1hLnYxLlNpZ25PdXRSZXNwb25zZRI+CgZXaG9BbUkSFi5uYW1hLnYxLldob0FtSVJlcXVlc3QaFy5uYW1hLnYxLldob0FtSVJlc3BvbnNlIgOQAgESUQoOUmVhdXRoZW50aWNhdGUSHi5uYW1hLnYxLlJlYXV0aGVudGljYXRlUmVxdWVzdBofLm5hbWEudjEuUmVhdXRoZW50aWNhdGVSZXNwb25zZRJUCg9TdGFydFNpZ25JbkNvZGUSHy5uYW1hLnYxLlN0YXJ0U2lnbkluQ29kZVJlcXVlc3QaIC5uYW1hLnYxLlN0YXJ0U2lnbkluQ29kZVJlc3BvbnNlElcKEExvb2tVcFNpZ25JbkNvZGUSIC5uYW1hLnYxLkxvb2tVcFNpZ25JbkNvZGVSZXF1ZXN0GiEubmFtYS52MS5Mb29rVXBTaWduSW5Db2RlUmVzcG9uc2USWgoRQXBwcm92ZVNpZ25JbkNvZGUSIS5uYW1hLnYxLkFwcHJvdmVTaWduSW5Db2RlUmVxdWVzdBoiLm5hbWEudjEuQXBwcm92ZVNpZ25JbkNvZGVSZXNwb25zZRJRCg5Qb2xsU2lnbkluQ29kZRIeLm5hbWEudjEuUG9sbFNpZ25JbkNvZGVSZXF1ZXN0Gh8ubmFtYS52MS5Qb2xsU2lnbkluQ29kZVJlc3BvbnNlYgZwcm90bzM");
+  fileDesc("ChVuYW1hL3YxL3NpZ25faW4ucHJvdG8SB25hbWEudjEiZAoEVXNlchIKCgJpZBgBIAEoAxIMCgRuYW1lGAIgASgJEhIKCmNyZWF0ZWRfYXQYBCABKAMSKAoLcGVybWlzc2lvbnMYBSADKA4yEy5uYW1hLnYxLlBlcm1pc3Npb25KBAgDEAQiYAoGRGV2aWNlEgoKAmlkGAEgASgDEgwKBG5hbWUYAiABKAkSEgoKY3JlYXRlZF9hdBgDIAEoAxIUCgxsYXN0X3NlZW5fYXQYBCABKAMSEgoKaXNfY3VycmVudBgFIAEoCCKDAQoMU2V0dXBSZXF1ZXN0EhIKCnNldHVwX2NvZGUYASABKAkSDAoEbmFtZRgCIAEoCRIQCghwYXNzd29yZBgDIAEoCRITCgtkZXZpY2VfbmFtZRgEIAEoCRIqCghkZWxpdmVyeRgFIAEoDjIYLm5hbWEudjEuU2Vzc2lvbkRlbGl2ZXJ5IlwKDVNldHVwUmVzcG9uc2USGwoEdXNlchgBIAEoCzINLm5hbWEudjEuVXNlchIfCgZkZXZpY2UYAiABKAsyDy5uYW1hLnYxLkRldmljZRINCgV0b2tlbhgDIAEoCSJwCg1TaWduSW5SZXF1ZXN0EgwKBG5hbWUYASABKAkSEAoIcGFzc3dvcmQYAiABKAkSEwoLZGV2aWNlX25hbWUYAyABKAkSKgoIZGVsaXZlcnkYBCABKA4yGC5uYW1hLnYxLlNlc3Npb25EZWxpdmVyeSJdCg5TaWduSW5SZXNwb25zZRIbCgR1c2VyGAEgASgLMg0ubmFtYS52MS5Vc2VyEh8KBmRldmljZRgCIAEoCzIPLm5hbWEudjEuRGV2aWNlEg0KBXRva2VuGAMgASgJIhAKDlNpZ25PdXRSZXF1ZXN0IhEKD1NpZ25PdXRSZXNwb25zZSIPCg1XaG9BbUlSZXF1ZXN0Ik4KDldob0FtSVJlc3BvbnNlEhsKBHVzZXIYASABKAsyDS5uYW1hLnYxLlVzZXISHwoGZGV2aWNlGAIgASgLMg8ubmFtYS52MS5EZXZpY2UiNAoVUmVhdXRoZW50aWNhdGVSZXF1ZXN0EhIKCHBhc3N3b3JkGAEgASgJSABCBwoFcHJvb2YiGAoWUmVhdXRoZW50aWNhdGVSZXNwb25zZSJZChZTdGFydFNpZ25JbkNvZGVSZXF1ZXN0EhMKC2RldmljZV9uYW1lGAEgASgJEioKCGRlbGl2ZXJ5GAIgASgOMhgubmFtYS52MS5TZXNzaW9uRGVsaXZlcnkiNwoXU3RhcnRTaWduSW5Db2RlUmVzcG9uc2USDAoEY29kZRgBIAEoCRIOCgZoYW5kbGUYAiABKAkiJwoXTG9va1VwU2lnbkluQ29kZVJlcXVlc3QSDAoEY29kZRgBIAEoCSIvChhMb29rVXBTaWduSW5Db2RlUmVzcG9uc2USEwoLZGV2aWNlX25hbWUYASABKAkiKAoYQXBwcm92ZVNpZ25JbkNvZGVSZXF1ZXN0EgwKBGNvZGUYASABKAkiGwoZQXBwcm92ZVNpZ25JbkNvZGVSZXNwb25zZSInChVQb2xsU2lnbkluQ29kZVJlcXVlc3QSDgoGaGFuZGxlGAEgASgJIpABChZQb2xsU2lnbkluQ29kZVJlc3BvbnNlEikKBnN0YXR1cxgBIAEoDjIZLm5hbWEudjEuU2lnbkluQ29kZVN0YXR1cxIbCgR1c2VyGAIgASgLMg0ubmFtYS52MS5Vc2VyEh8KBmRldmljZRgDIAEoCzIPLm5hbWEudjEuRGV2aWNlEg0KBXRva2VuGAQgASgJKmwKD1Nlc3Npb25EZWxpdmVyeRIgChxTRVNTSU9OX0RFTElWRVJZX1VOU1BFQ0lGSUVEEAASGwoXU0VTU0lPTl9ERUxJVkVSWV9DT09LSUUQARIaChZTRVNTSU9OX0RFTElWRVJZX1RPS0VOEAIqiwMKClBlcm1pc3Npb24SGgoWUEVSTUlTU0lPTl9VTlNQRUNJRklFRBAAEhQKEFBFUk1JU1NJT05fQURNSU4QARIbChdQRVJNSVNTSU9OX01BTkFHRV9VU0VSUxACEh8KG1BFUk1JU1NJT05fTUFOQUdFX0xJQlJBUklFUxADEh4KGlBFUk1JU1NJT05fTUFOQUdFX1NFVFRJTkdTEAQSHgoaUEVSTUlTU0lPTl9NQU5BR0VfUkVRVUVTVFMQBRIWChJQRVJNSVNTSU9OX1JFUVVFU1QQBhIcChhQRVJNSVNTSU9OX1JFUVVFU1RfTU9WSUUQBxIZChVQRVJNSVNTSU9OX1JFUVVFU1RfVFYQCBIbChdQRVJNSVNTSU9OX0FVVE9fQVBQUk9WRRAJEiEKHVBFUk1JU1NJT05fQVVUT19BUFBST1ZFX01PVklFEAoSHgoaUEVSTUlTU0lPTl9BVVRPX0FQUFJPVkVfVFYQCxIcChhQRVJNSVNTSU9OX1ZJRVdfUkVRVUVTVFMQDCqcAQoQU2lnbkluQ29kZVN0YXR1cxIjCh9TSUdOX0lOX0NPREVfU1RBVFVTX1VOU1BFQ0lGSUVEEAASHwobU0lHTl9JTl9DT0RFX1NUQVRVU19XQUlUSU5HEAESHwobU0lHTl9JTl9DT0RFX1NUQVRVU19FWFBJUkVEEAISIQodU0lHTl9JTl9DT0RFX1NUQVRVU19TSUdORURfSU4QAzKxBQoNU2lnbkluU2VydmljZRI2CgVTZXR1cBIVLm5hbWEudjEuU2V0dXBSZXF1ZXN0GhYubmFtYS52MS5TZXR1cFJlc3BvbnNlEjkKBlNpZ25JbhIWLm5hbWEudjEuU2lnbkluUmVxdWVzdBoXLm5hbWEudjEuU2lnbkluUmVzcG9uc2USPAoHU2lnbk91dBIXLm5hbWEudjEuU2lnbk91dFJlcXVlc3QaGC5uYW1hLnYxLlNpZ25PdXRSZXNwb25zZRI+CgZXaG9BbUkSFi5uYW1hLnYxLldob0FtSVJlcXVlc3QaFy5uYW1hLnYxLldob0FtSVJlc3BvbnNlIgOQAgESUQoOUmVhdXRoZW50aWNhdGUSHi5uYW1hLnYxLlJlYXV0aGVudGljYXRlUmVxdWVzdBofLm5hbWEudjEuUmVhdXRoZW50aWNhdGVSZXNwb25zZRJUCg9TdGFydFNpZ25JbkNvZGUSHy5uYW1hLnYxLlN0YXJ0U2lnbkluQ29kZVJlcXVlc3QaIC5uYW1hLnYxLlN0YXJ0U2lnbkluQ29kZVJlc3BvbnNlElcKEExvb2tVcFNpZ25JbkNvZGUSIC5uYW1hLnYxLkxvb2tVcFNpZ25JbkNvZGVSZXF1ZXN0GiEubmFtYS52MS5Mb29rVXBTaWduSW5Db2RlUmVzcG9uc2USWgoRQXBwcm92ZVNpZ25JbkNvZGUSIS5uYW1hLnYxLkFwcHJvdmVTaWduSW5Db2RlUmVxdWVzdBoiLm5hbWEudjEuQXBwcm92ZVNpZ25JbkNvZGVSZXNwb25zZRJRCg5Qb2xsU2lnbkluQ29kZRIeLm5hbWEudjEuUG9sbFNpZ25JbkNvZGVSZXF1ZXN0Gh8ubmFtYS52MS5Qb2xsU2lnbkluQ29kZVJlc3BvbnNlYgZwcm90bzM");
 
 /**
  * A person's identity on one Server.
@@ -33,16 +33,18 @@ export type User = Message<"nama.v1.User"> & {
   name: string;
 
   /**
-   * @generated from field: nama.v1.Role role = 3;
-   */
-  role: Role;
-
-  /**
    * When the User was created, in seconds since the Unix epoch.
    *
    * @generated from field: int64 created_at = 4;
    */
   createdAt: bigint;
+
+  /**
+   * What the User may do, in the order of `Permission`'s values, each once.
+   *
+   * @generated from field: repeated nama.v1.Permission permissions = 5;
+   */
+  permissions: Permission[];
 };
 
 /**
@@ -579,42 +581,116 @@ export const SessionDeliverySchema: GenEnum<SessionDelivery> = /*@__PURE__*/
   enumDesc(file_nama_v1_sign_in, 0);
 
 /**
- * What a User is allowed to do on a Server.
+ * One thing a User is allowed to do on a Server (ADR 0020). Each User holds a set of them. Values
+ * are API contract: one is never renumbered or reused.
  *
- * @generated from enum nama.v1.Role
+ * @generated from enum nama.v1.Permission
  */
-export const Role = {
+export const Permission = {
   /**
-   * @generated from enum value: ROLE_UNSPECIFIED = 0;
+   * @generated from enum value: PERMISSION_UNSPECIFIED = 0;
    */
   UNSPECIFIED: 0,
 
   /**
-   * Manages the Server, its Libraries and its Users.
+   * Passes every check, whatever Permission it needs.
    *
-   * @generated from enum value: ROLE_ADMIN = 1;
+   * @generated from enum value: PERMISSION_ADMIN = 1;
    */
   ADMIN: 1,
 
   /**
-   * Watches and Requests.
+   * Manages Users: creates, lists and deletes them, sets their Permissions, resets their passwords
+   * and manages their Devices.
    *
-   * @generated from enum value: ROLE_MEMBER = 2;
+   * @generated from enum value: PERMISSION_MANAGE_USERS = 2;
    */
-  MEMBER: 2,
+  MANAGE_USERS: 2,
+
+  /**
+   * Manages Libraries and their Matches, and sees where a Library lives on disk.
+   *
+   * @generated from enum value: PERMISSION_MANAGE_LIBRARIES = 3;
+   */
+  MANAGE_LIBRARIES: 3,
+
+  /**
+   * Manages the Server's settings, such as its Plugins.
+   *
+   * @generated from enum value: PERMISSION_MANAGE_SETTINGS = 4;
+   */
+  MANAGE_SETTINGS: 4,
+
+  /**
+   * Manages every User's Requests.
+   *
+   * @generated from enum value: PERMISSION_MANAGE_REQUESTS = 5;
+   */
+  MANAGE_REQUESTS: 5,
+
+  /**
+   * Requests Movies and Shows: covers `PERMISSION_REQUEST_MOVIE` and `PERMISSION_REQUEST_TV`.
+   *
+   * @generated from enum value: PERMISSION_REQUEST = 6;
+   */
+  REQUEST: 6,
+
+  /**
+   * Requests Movies.
+   *
+   * @generated from enum value: PERMISSION_REQUEST_MOVIE = 7;
+   */
+  REQUEST_MOVIE: 7,
+
+  /**
+   * Requests Shows.
+   *
+   * @generated from enum value: PERMISSION_REQUEST_TV = 8;
+   */
+  REQUEST_TV: 8,
+
+  /**
+   * Has their Requests approved as they make them: covers `PERMISSION_AUTO_APPROVE_MOVIE` and
+   * `PERMISSION_AUTO_APPROVE_TV`.
+   *
+   * @generated from enum value: PERMISSION_AUTO_APPROVE = 9;
+   */
+  AUTO_APPROVE: 9,
+
+  /**
+   * Has their Requests for Movies approved as they make them.
+   *
+   * @generated from enum value: PERMISSION_AUTO_APPROVE_MOVIE = 10;
+   */
+  AUTO_APPROVE_MOVIE: 10,
+
+  /**
+   * Has their Requests for Shows approved as they make them.
+   *
+   * @generated from enum value: PERMISSION_AUTO_APPROVE_TV = 11;
+   */
+  AUTO_APPROVE_TV: 11,
+
+  /**
+   * Sees every User's Requests, not only their own.
+   *
+   * @generated from enum value: PERMISSION_VIEW_REQUESTS = 12;
+   */
+  VIEW_REQUESTS: 12,
 } as const;
 
 /**
- * What a User is allowed to do on a Server.
+ * One thing a User is allowed to do on a Server (ADR 0020). Each User holds a set of them. Values
+ * are API contract: one is never renumbered or reused.
  *
- * @generated from enum nama.v1.Role
+ * @generated from enum nama.v1.Permission
  */
-export type Role = (typeof Role)[keyof typeof Role] | UnknownEnum;
+export type Permission = (typeof Permission)[keyof typeof Permission] | UnknownEnum;
 
 /**
- * Describes the enum nama.v1.Role.
+ * Describes the enum nama.v1.Permission.
  */
-export const RoleSchema: GenEnum<Role> = /*@__PURE__*/
+export const PermissionSchema: GenEnum<Permission> = /*@__PURE__*/
   enumDesc(file_nama_v1_sign_in, 1);
 
 /**
@@ -681,21 +757,21 @@ export const SignInCodeStatusSchema: GenEnum<SignInCodeStatus> = /*@__PURE__*/
  * approvals fail with `resource_exhausted`.
  *
  * Changes to who can sign in as whom need Recent Authentication: the calling Device proved who it
- * is with one of its User's Sign-in Methods in the last 10 minutes. They are
- * `ApproveSignInCode` and `UserService`'s `ChangePassword`, `ResetPassword`, `SetRole` and
- * `DeleteUser`. Signing in with `Setup` or `SignIn` gives a Device Recent Authentication; signing
- * in with a Sign-in Code doesn't, since that Device proved nothing itself. Without it, those calls
- * fail with `failed_precondition` and the `REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED` Refusal
- * before anything in the request is checked. `Reauthenticate` gives it back.
+ * is with one of its User's Sign-in Methods in the last 10 minutes. They are `ApproveSignInCode`
+ * and `UserService`'s `ChangePassword`, `ResetPassword`, `SetPermissions` and `DeleteUser`.
+ * Signing in with `Setup` or `SignIn` gives a Device Recent Authentication; signing in with a
+ * Sign-in Code doesn't, since that Device proved nothing itself. Without it, those calls fail with
+ * `failed_precondition` and the `REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED` Refusal before
+ * anything in the request is checked. `Reauthenticate` gives it back.
  *
  * @generated from service nama.v1.SignInService
  */
 export const SignInService: GenService<{
   /**
-   * Creates the first Admin on a fresh Server and signs the calling Device in as them. Needs the
-   * Setup Code the Server printed to its log. Fails with `permission_denied` if the code is wrong,
-   * `failed_precondition` once the Server has any User, and `invalid_argument` if a name or the
-   * password breaks the rules.
+   * Creates the first Admin, a User with `PERMISSION_ADMIN`, on a fresh Server and signs the
+   * calling Device in as them. Needs the Setup Code the Server printed to its log. Fails with
+   * `permission_denied` if the code is wrong, `failed_precondition` once the Server has any User,
+   * and `invalid_argument` if a name or the password breaks the rules.
    *
    * @generated from rpc nama.v1.SignInService.Setup
    */

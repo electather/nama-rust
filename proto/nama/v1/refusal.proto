@@ -25,8 +25,9 @@ enum RefusalReason {
 
   // `unauthenticated`: the call needs a signed-in Device.
   REFUSAL_REASON_SIGN_IN_REQUIRED = 1;
-  // `permission_denied`: the call needs the Admin Role.
-  REFUSAL_REASON_ADMIN_REQUIRED = 2;
+  // `permission_denied`: the call needs a Permission the caller lacks. Params: `permission`, the
+  // `Permission` value's name (`PERMISSION_MANAGE_USERS`).
+  REFUSAL_REASON_PERMISSION_REQUIRED = 2;
   // `unauthenticated`: no User has this name and password. Which of the two is wrong isn't said.
   REFUSAL_REASON_WRONG_NAME_OR_PASSWORD = 3;
   // `unauthenticated`: the password given isn't the User's.
@@ -55,7 +56,7 @@ enum RefusalReason {
   REFUSAL_REASON_USER_NOT_FOUND = 13;
   // `already_exists`: another User already has the name, ignoring case.
   REFUSAL_REASON_USER_NAME_TAKEN = 14;
-  // `failed_precondition`: the change would leave the Server with no Admin.
+  // `failed_precondition`: the change would leave no User with `PERMISSION_ADMIN`.
   REFUSAL_REASON_LAST_ADMIN = 15;
   // `failed_precondition`: a User changes their own password with `ChangePassword`, not
   // `ResetPassword`.

@@ -77,9 +77,9 @@ Tests never need a Server. They fake RPCs with Connect's `createRouterTransport`
 | `/settings`                                                        | signed in                                 | your password and Devices                              |
 | `/admin/libraries`, `/admin/libraries/$libraryId`                  | Admin                                     | Libraries, their folders and scans                     |
 | `/admin/needs-a-match`                                             | Admin                                     | Unmatched Items, filterable by Library                 |
-| `/admin/users`                                                     | Admin                                     | Users and Roles                                        |
+| `/admin/users`                                                     | Admin                                     | Users and who is an Admin                              |
 
-While the Server needs setup, every page redirects to `/setup`. A pathless `_member` layout requires a session, and an `_admin` layout inside it requires the Admin Role. Put a signed-in page under `src/routes/_member/`, and an Admin page under `src/routes/_member/_admin/`. These checks run in the `beforeLoad` of `/setup`, `/sign-in` and `_member`, through `src/lib/access.ts`, not in the root's: the build prerenders the root into the SPA shell, and the browser reuses what the root's `beforeLoad` returned there instead of running it again. Movie and Show IDs in URLs are the external IDs the API returns. When no `version` is given, the player plays the largest Version.
+While the Server needs setup, every page redirects to `/setup`. A pathless `_member` layout requires a session, and an `_admin` layout inside it requires the Admin Permission. Put a signed-in page under `src/routes/_member/`, and an Admin page under `src/routes/_member/_admin/`. These checks run in the `beforeLoad` of `/setup`, `/sign-in` and `_member`, through `src/lib/access.ts`, not in the root's: the build prerenders the root into the SPA shell, and the browser reuses what the root's `beforeLoad` returned there instead of running it again. Movie and Show IDs in URLs are the external IDs the API returns. When no `version` is given, the player plays the largest Version.
 
 ## Tests
 

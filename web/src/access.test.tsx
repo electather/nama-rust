@@ -3,19 +3,18 @@ import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
-import { Role } from "@/gen/nama/v1/sign_in_pb";
 
-import { type ServerState, fakeServer, fill, openApp } from "./test-app";
+import { admin, fakeServer, fill, newUser, openApp, type ServerState } from "./test-app";
 import { expectUnderField, refused } from "./test-refusal";
 
 afterEach(cleanup);
 
-/** A signed-out Server whose `SignIn` signs the browser in as a Member. */
+/** A signed-out Server whose `SignIn` signs the browser in as a new User. */
 function serverToSignInTo() {
   const state: ServerState = {};
   return fakeServer(state, {
     signIn: () => {
-      state.signedIn = Role.MEMBER;
+      state.signedIn = newUser;
       return {};
     },
   });
@@ -63,7 +62,7 @@ test("setting up creates the first Admin and lands on the home page", async () =
   const transport = fakeServer(state, {
     setup: () => {
       state.setupRequired = false;
-      state.signedIn = Role.ADMIN;
+      state.signedIn = admin;
       return {};
     },
   });
@@ -153,8 +152,8 @@ test("signing in never redirects to another site", async () => {
   expect(router.state.location.href).toBe("/");
 });
 
-test("a Member opening an Admin page sees Admins only, and no Admin link", async () => {
-  openApp("/admin/users", fakeServer({ signedIn: Role.MEMBER }));
+test("a User who isn't an Admin opening an Admin page sees Admins only, and no Admin link", async () => {
+  openApp("/admin/users", fakeServer({ signedIn: newUser }));
 
   expect(await screen.findByRole("heading", { name: "Admins only" })).toBeDefined();
   expect(screen.queryByRole("link", { name: "Admin" })).toBeNull();
@@ -183,7 +182,7 @@ test("a rate-limited sign-in says to try again in a moment", async () => {
 });
 
 test("signing out goes to /sign-in", async () => {
-  const state: ServerState = { signedIn: Role.MEMBER };
+  const state: ServerState = { signedIn: newUser };
   const transport = fakeServer(state, {
     signOut: () => {
       delete state.signedIn;
@@ -198,7 +197,7 @@ test("signing out goes to /sign-in", async () => {
 });
 
 test("a session that has ended sends you to sign in and back again", async () => {
-  const state: ServerState = { signedIn: Role.MEMBER };
+  const state: ServerState = { signedIn: newUser };
   const transport = fakeServer(state, {
     // The Server revoked this Device after the page loaded.
     signOut: () => {
@@ -218,7 +217,7 @@ test("an `unauthenticated` refusal while still signed in keeps you on the page",
   const router = openApp(
     "/settings",
     fakeServer(
-      { signedIn: Role.MEMBER },
+      { signedIn: newUser },
       {
         signOut: () => {
           throw refused(Code.Unauthenticated, "refused", {

@@ -4,10 +4,9 @@ import { afterEach, expect, test } from "vite-plus/test";
 
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
-import { Role } from "@/gen/nama/v1/sign_in_pb";
 import { type ReportProgressRequest, WatchStateService } from "@/gen/nama/v1/watch_state_pb";
 
-import { fakeServer, openApp } from "./test-app";
+import { fakeServer, newUser, openApp } from "./test-app";
 
 afterEach(cleanup);
 
@@ -19,7 +18,7 @@ function server(failures = 0) {
   const reports: ReportProgressRequest[] = [];
   let failed = 0;
   const libraries = [{ id: 1n, name: "Films", kind: LibraryKind.MOVIES }];
-  const transport = fakeServer({ signedIn: Role.MEMBER, libraries }, {}, {}, (router) => {
+  const transport = fakeServer({ signedIn: newUser, libraries }, {}, {}, (router) => {
     router.service(BrowseService, {
       getMovie: () => ({
         movie: {

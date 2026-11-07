@@ -5,35 +5,40 @@ package nama.v1;
 import "nama/v1/sign_in.proto";
 
 // Managing the Server's Users and their Devices. Every RPC but `ListDevices`, `RevokeDevice` and
-// `ChangePassword` needs the Admin Role, and fails with `permission_denied` without it.
-// `ChangePassword`, `ResetPassword`, `SetRole` and `DeleteUser` also need Recent Authentication,
-// as `SignInService` describes. RPCs name Users by ID, not by name.
+// `ChangePassword` needs `PERMISSION_MANAGE_USERS`, and fails with `permission_denied` without it.
+// Only a caller with `PERMISSION_ADMIN` may `SetPermissions`, `ResetPassword` or `DeleteUser` for a
+// User with it, grant it, or set their own Permissions; others fail with `permission_denied` and a
+// Refusal naming `PERMISSION_ADMIN`. `ChangePassword`, `ResetPassword`, `SetPermissions` and
+// `DeleteUser` also need Recent Authentication, as `SignInService` describes. RPCs name Users by
+// ID, not by name.
 service UserService {
-  // Creates a User, who can sign in at once. Fails with `invalid_argument` if the name, the
-  // password or the Role breaks the rules, and `already_exists` if another User has the name,
-  // ignoring case.
+  // Creates a User, who can sign in at once, with `PERMISSION_REQUEST` and
+  // `PERMISSION_VIEW_REQUESTS`. Fails with `invalid_argument` if the name or the password breaks
+  // the rules, and `already_exists` if another User has the name, ignoring case.
   rpc CreateUser(CreateUserRequest) returns (CreateUserResponse);
   // Lists every User on the Server, oldest first.
   rpc ListUsers(ListUsersRequest) returns (ListUsersResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
-  // Gives a User a Role, which applies from their next request. Their Devices stay signed in.
-  // Fails with `invalid_argument` for `ROLE_UNSPECIFIED`, `not_found` if no User has the ID, and
-  // `failed_precondition` if it would leave the Server with no Admin.
-  rpc SetRole(SetRoleRequest) returns (SetRoleResponse) {
+  // Replaces a User's Permissions, which apply from their next request. Their Devices stay signed
+  // in. Fails with `invalid_argument` for `PERMISSION_UNSPECIFIED` or a value the Server doesn't
+  // know, `not_found` if no User has the ID, and `failed_precondition` if it would leave no User
+  // with `PERMISSION_ADMIN`.
+  rpc SetPermissions(SetPermissionsRequest) returns (SetPermissionsResponse) {
     option idempotency_level = IDEMPOTENT;
   }
   // Deletes a User with their Devices and credentials, so they can't sign in, their sessions stop
-  // working at once and their open `EventService.Subscribe` streams end. An Admin may delete
+  // working at once and their open `EventService.Subscribe` streams end. The caller may delete
   // themselves, which signs out the calling Device too. Fails with `not_found` if no User has the
   // ID, so a retry after a delete that went through gets `not_found`, and `failed_precondition` if
-  // it would leave the Server with no Admin.
+  // it would leave no User with `PERMISSION_ADMIN`.
   rpc DeleteUser(DeleteUserRequest) returns (DeleteUserResponse) {
     option idempotency_level = IDEMPOTENT;
   }
   // Lists a User's Devices that haven't expired, oldest first. Any signed-in User may list their
-  // own; another User's needs the Admin Role. Fails with `not_found` if the User doesn't exist, or
-  // isn't the caller and the caller isn't an Admin, so a Member can't learn which IDs exist.
+  // own; another User's needs `PERMISSION_MANAGE_USERS`. Fails with `not_found` if the User doesn't
+  // exist, or isn't the caller and the caller lacks that Permission, so they can't learn which IDs
+  // exist.
   rpc ListDevices(ListDevicesRequest) returns (ListDevicesResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
@@ -46,7 +51,7 @@ service UserService {
   // the calling Device stays signed in. Fails with `unauthenticated` if the calling Device was
   // signed out meanwhile, and `invalid_argument` if the new password breaks the rules.
   rpc ChangePassword(ChangePasswordRequest) returns (ChangePasswordResponse);
-  // Sets a User's password, without their current one, for the Admin to pass on to them. Every
+  // Sets a User's password, without their current one, for the caller to pass on to them. Every
   // Device of theirs is revoked, as by `RevokeDevice`. Fails with `invalid_argument` if the new
   // password breaks the rules, `not_found` if no User has the ID, and `failed_precondition` for the
   // caller's own User, who uses `ChangePassword` instead to keep the calling Device signed in.
@@ -58,8 +63,8 @@ message CreateUserRequest {
   string name = 1;
   // The User's starting password, which the Server's Authenticator checks against its own rules.
   string password = 2;
-  // Must not be `ROLE_UNSPECIFIED`.
-  Role role = 3;
+  // Held what new Users now get from the Server (ADR 0020).
+  reserved 3;
 }
 
 message CreateUserResponse {
@@ -73,14 +78,14 @@ message ListUsersResponse {
   repeated User users = 1;
 }
 
-message SetRoleRequest {
-  // The ID of the User whose Role changes.
+message SetPermissionsRequest {
+  // The ID of the User whose Permissions change.
   int64 user_id = 1;
-  // Must not be `ROLE_UNSPECIFIED`.
-  Role role = 2;
+  // Every Permission the User is to have, replacing those they had. Empty takes them all away.
+  repeated Permission permissions = 2;
 }
 
-message SetRoleResponse {}
+message SetPermissionsResponse {}
 
 message DeleteUserRequest {
   // The ID of the User to delete.

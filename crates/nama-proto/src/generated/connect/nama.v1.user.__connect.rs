@@ -14,13 +14,13 @@ pub type OwnedListUsersRequestView = ::buffa::view::OwnedView<
 pub type OwnedListUsersResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::ListUsersResponseView<'static>,
 >;
-///Shorthand for `OwnedView<SetRoleRequestView<'static>>`.
-pub type OwnedSetRoleRequestView = ::buffa::view::OwnedView<
-    crate::messages::nama::v1::__buffa::view::SetRoleRequestView<'static>,
+///Shorthand for `OwnedView<SetPermissionsRequestView<'static>>`.
+pub type OwnedSetPermissionsRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SetPermissionsRequestView<'static>,
 >;
-///Shorthand for `OwnedView<SetRoleResponseView<'static>>`.
-pub type OwnedSetRoleResponseView = ::buffa::view::OwnedView<
-    crate::messages::nama::v1::__buffa::view::SetRoleResponseView<'static>,
+///Shorthand for `OwnedView<SetPermissionsResponseView<'static>>`.
+pub type OwnedSetPermissionsResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SetPermissionsResponseView<'static>,
 >;
 ///Shorthand for `OwnedView<DeleteUserRequestView<'static>>`.
 pub type OwnedDeleteUserRequestView = ::buffa::view::OwnedView<
@@ -130,8 +130,8 @@ for ::buffa::view::OwnedView<
         )
     }
 }
-impl ::connectrpc::Encodable<crate::messages::nama::v1::SetRoleResponse>
-for crate::messages::nama::v1::__buffa::view::SetRoleResponseView<'_> {
+impl ::connectrpc::Encodable<crate::messages::nama::v1::SetPermissionsResponse>
+for crate::messages::nama::v1::__buffa::view::SetPermissionsResponseView<'_> {
     fn encode(
         &self,
         codec: ::connectrpc::CodecFormat,
@@ -139,9 +139,9 @@ for crate::messages::nama::v1::__buffa::view::SetRoleResponseView<'_> {
         ::connectrpc::__codegen::encode_view_body(self, codec)
     }
 }
-impl ::connectrpc::Encodable<crate::messages::nama::v1::SetRoleResponse>
+impl ::connectrpc::Encodable<crate::messages::nama::v1::SetPermissionsResponse>
 for ::buffa::view::OwnedView<
-    crate::messages::nama::v1::__buffa::view::SetRoleResponseView<'static>,
+    crate::messages::nama::v1::__buffa::view::SetPermissionsResponseView<'static>,
 > {
     fn encode(
         &self,
@@ -348,9 +348,9 @@ pub const USER_SERVICE_LIST_USERS_SPEC: ::connectrpc::Spec = ::connectrpc::Spec:
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
-/// Static [`Spec`](::connectrpc::Spec) for the `SetRole` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
-pub const USER_SERVICE_SET_ROLE_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
-        "/nama.v1.UserService/SetRole",
+/// Static [`Spec`](::connectrpc::Spec) for the `SetPermissions` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const USER_SERVICE_SET_PERMISSIONS_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.UserService/SetPermissions",
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
@@ -385,9 +385,12 @@ pub const USER_SERVICE_RESET_PASSWORD_SPEC: ::connectrpc::Spec = ::connectrpc::S
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
 /// Managing the Server's Users and their Devices. Every RPC but `ListDevices`, `RevokeDevice` and
-/// `ChangePassword` needs the Admin Role, and fails with `permission_denied` without it.
-/// `ChangePassword`, `ResetPassword`, `SetRole` and `DeleteUser` also need Recent Authentication,
-/// as `SignInService` describes. RPCs name Users by ID, not by name.
+/// `ChangePassword` needs `PERMISSION_MANAGE_USERS`, and fails with `permission_denied` without it.
+/// Only a caller with `PERMISSION_ADMIN` may `SetPermissions`, `ResetPassword` or `DeleteUser` for a
+/// User with it, grant it, or set their own Permissions; others fail with `permission_denied` and a
+/// Refusal naming `PERMISSION_ADMIN`. `ChangePassword`, `ResetPassword`, `SetPermissions` and
+/// `DeleteUser` also need Recent Authentication, as `SignInService` describes. RPCs name Users by
+/// ID, not by name.
 ///
 /// # Implementing handlers
 ///
@@ -438,9 +441,9 @@ pub const USER_SERVICE_RESET_PASSWORD_SPEC: ::connectrpc::Spec = ::connectrpc::S
 /// example` doc.
 #[allow(clippy::type_complexity)]
 pub trait UserService: Send + Sync + 'static {
-    /// Creates a User, who can sign in at once. Fails with `invalid_argument` if the name, the
-    /// password or the Role breaks the rules, and `already_exists` if another User has the name,
-    /// ignoring case.
+    /// Creates a User, who can sign in at once, with `PERMISSION_REQUEST` and
+    /// `PERMISSION_VIEW_REQUESTS`. Fails with `invalid_argument` if the name or the password breaks
+    /// the rules, and `already_exists` if another User has the name, ignoring case.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
@@ -486,9 +489,10 @@ pub trait UserService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
-    /// Gives a User a Role, which applies from their next request. Their Devices stay signed in.
-    /// Fails with `invalid_argument` for `ROLE_UNSPECIFIED`, `not_found` if no User has the ID, and
-    /// `failed_precondition` if it would leave the Server with no Admin.
+    /// Replaces a User's Permissions, which apply from their next request. Their Devices stay signed
+    /// in. Fails with `invalid_argument` for `PERMISSION_UNSPECIFIED` or a value the Server doesn't
+    /// know, `not_found` if no User has the ID, and `failed_precondition` if it would leave no User
+    /// with `PERMISSION_ADMIN`.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
@@ -497,25 +501,25 @@ pub trait UserService: Send + Sync + 'static {
     /// (zero-copy). The response cannot borrow from `request` — use
     /// `.to_owned_message()` (or copy the specific fields) for anything
     /// returned, stored, or moved into `tokio::spawn`.
-    fn set_role<'a>(
+    fn set_permissions<'a>(
         &'a self,
         ctx: ::connectrpc::RequestContext,
         request: ::connectrpc::ServiceRequest<
             '_,
-            crate::messages::nama::v1::SetRoleRequest,
+            crate::messages::nama::v1::SetPermissionsRequest,
         >,
     ) -> impl ::std::future::Future<
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
-                crate::messages::nama::v1::SetRoleResponse,
+                crate::messages::nama::v1::SetPermissionsResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
     /// Deletes a User with their Devices and credentials, so they can't sign in, their sessions stop
-    /// working at once and their open `EventService.Subscribe` streams end. An Admin may delete
+    /// working at once and their open `EventService.Subscribe` streams end. The caller may delete
     /// themselves, which signs out the calling Device too. Fails with `not_found` if no User has the
     /// ID, so a retry after a delete that went through gets `not_found`, and `failed_precondition` if
-    /// it would leave the Server with no Admin.
+    /// it would leave no User with `PERMISSION_ADMIN`.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
@@ -539,8 +543,9 @@ pub trait UserService: Send + Sync + 'static {
         >,
     > + Send;
     /// Lists a User's Devices that haven't expired, oldest first. Any signed-in User may list their
-    /// own; another User's needs the Admin Role. Fails with `not_found` if the User doesn't exist, or
-    /// isn't the caller and the caller isn't an Admin, so a Member can't learn which IDs exist.
+    /// own; another User's needs `PERMISSION_MANAGE_USERS`. Fails with `not_found` if the User doesn't
+    /// exist, or isn't the caller and the caller lacks that Permission, so they can't learn which IDs
+    /// exist.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
@@ -614,7 +619,7 @@ pub trait UserService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
-    /// Sets a User's password, without their current one, for the Admin to pass on to them. Every
+    /// Sets a User's password, without their current one, for the caller to pass on to them. Every
     /// Device of theirs is revoked, as by `RevokeDevice`. Fails with `invalid_argument` if the new
     /// password breaks the rules, `not_found` if no User has the ID, and `failed_precondition` for the
     /// caller's own User, who uses `ChangePassword` instead to keep the calling Device signed in.
@@ -732,13 +737,13 @@ impl<S: UserService> UserServiceExt for S {
             .with_spec(USER_SERVICE_LIST_USERS_SPEC)
             .route_view(
                 USER_SERVICE_SERVICE_NAME,
-                "SetRole",
+                "SetPermissions",
                 {
                     let svc = ::std::sync::Arc::clone(&self);
                     ::connectrpc::view_handler_fn(move |
                         ctx,
                         req: ::buffa::view::OwnedView<
-                            crate::messages::nama::v1::__buffa::view::SetRoleRequestView<
+                            crate::messages::nama::v1::__buffa::view::SetPermissionsRequestView<
                                 'static,
                             >,
                         >,
@@ -747,18 +752,18 @@ impl<S: UserService> UserServiceExt for S {
                         let svc = ::std::sync::Arc::clone(&svc);
                         async move {
                             let sreq = ::connectrpc::ServiceRequest::<
-                                crate::messages::nama::v1::SetRoleRequest,
+                                crate::messages::nama::v1::SetPermissionsRequest,
                             >::from_parts(req.reborrow(), req.bytes());
-                            svc.set_role(ctx, sreq)
+                            svc.set_permissions(ctx, sreq)
                                 .await?
                                 .encode::<
-                                    crate::messages::nama::v1::SetRoleResponse,
+                                    crate::messages::nama::v1::SetPermissionsResponse,
                                 >(format)
                         }
                     })
                 },
             )
-            .with_spec(USER_SERVICE_SET_ROLE_SPEC)
+            .with_spec(USER_SERVICE_SET_PERMISSIONS_SPEC)
             .route_view(
                 USER_SERVICE_SERVICE_NAME,
                 "DeleteUser",
@@ -970,10 +975,10 @@ impl<T: UserService> ::connectrpc::Dispatcher for UserServiceServer<T> {
                         .with_spec(USER_SERVICE_LIST_USERS_SPEC),
                 )
             }
-            "SetRole" => {
+            "SetPermissions" => {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
-                        .with_spec(USER_SERVICE_SET_ROLE_SPEC),
+                        .with_spec(USER_SERVICE_SET_PERMISSIONS_SPEC),
                 )
             }
             "DeleteUser" => {
@@ -1061,24 +1066,26 @@ impl<T: UserService> ::connectrpc::Dispatcher for UserServiceServer<T> {
                         .encode::<crate::messages::nama::v1::ListUsersResponse>(format)
                 })
             }
-            "SetRole" => {
+            "SetPermissions" => {
                 let svc = ::std::sync::Arc::clone(&self.inner);
                 Box::pin(async move {
                     let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
-                        crate::messages::nama::v1::SetRoleRequest,
+                        crate::messages::nama::v1::SetPermissionsRequest,
                     >(request.encoded()?, format)?;
-                    let req: crate::messages::nama::v1::__buffa::view::SetRoleRequestView<
+                    let req: crate::messages::nama::v1::__buffa::view::SetPermissionsRequestView<
                         '_,
                     > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
                         &body,
                         ctx.decode_options(),
                     )?;
                     let req = ::connectrpc::ServiceRequest::<
-                        crate::messages::nama::v1::SetRoleRequest,
+                        crate::messages::nama::v1::SetPermissionsRequest,
                     >::from_parts(&req, &body);
-                    svc.set_role(ctx, req)
+                    svc.set_permissions(ctx, req)
                         .await?
-                        .encode::<crate::messages::nama::v1::SetRoleResponse>(format)
+                        .encode::<
+                            crate::messages::nama::v1::SetPermissionsResponse,
+                        >(format)
                 })
             }
             "DeleteUser" => {
@@ -1397,30 +1404,37 @@ where
             )
             .await
     }
-    /// Call the SetRole RPC. Sends a request to /nama.v1.UserService/SetRole.
-    pub async fn set_role(
+    /// Call the SetPermissions RPC. Sends a request to /nama.v1.UserService/SetPermissions.
+    pub async fn set_permissions(
         &self,
-        request: crate::messages::nama::v1::SetRoleRequest,
+        request: crate::messages::nama::v1::SetPermissionsRequest,
     ) -> Result<
         ::connectrpc::client::UnaryResponse<
             ::buffa::view::OwnedView<
-                crate::messages::nama::v1::__buffa::view::SetRoleResponseView<'static>,
+                crate::messages::nama::v1::__buffa::view::SetPermissionsResponseView<
+                    'static,
+                >,
             >,
         >,
         ::connectrpc::ConnectError,
     > {
-        self.set_role_with_options(request, ::connectrpc::client::CallOptions::default())
+        self.set_permissions_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
             .await
     }
-    /// Call the SetRole RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
-    pub async fn set_role_with_options(
+    /// Call the SetPermissions RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn set_permissions_with_options(
         &self,
-        request: crate::messages::nama::v1::SetRoleRequest,
+        request: crate::messages::nama::v1::SetPermissionsRequest,
         options: ::connectrpc::client::CallOptions,
     ) -> Result<
         ::connectrpc::client::UnaryResponse<
             ::buffa::view::OwnedView<
-                crate::messages::nama::v1::__buffa::view::SetRoleResponseView<'static>,
+                crate::messages::nama::v1::__buffa::view::SetPermissionsResponseView<
+                    'static,
+                >,
             >,
         >,
         ::connectrpc::ConnectError,
@@ -1428,7 +1442,8 @@ where
         ::connectrpc::client::call_unary(
                 &self.transport,
                 &self.config,
-                USER_SERVICE_SET_ROLE_SPEC.with_origin(::connectrpc::SpecOrigin::Client),
+                USER_SERVICE_SET_PERMISSIONS_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,
             )

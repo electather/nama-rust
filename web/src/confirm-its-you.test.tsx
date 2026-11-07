@@ -3,9 +3,9 @@ import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/re
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
-import { Role } from "@/gen/nama/v1/sign_in_pb";
+import { Permission } from "@/gen/nama/v1/sign_in_pb";
 
-import { fakeServer, fill, openApp } from "./test-app";
+import { admin, fakeServer, fill, newUser, openApp } from "./test-app";
 import { confirmItsYou, recentAuthenticationRequired, refused } from "./test-refusal";
 
 afterEach(cleanup);
@@ -27,7 +27,7 @@ function openSettingsNeedingRecentAuthentication(alwaysRefuse = false) {
   openApp(
     "/settings",
     fakeServer(
-      { signedIn: Role.MEMBER },
+      { signedIn: newUser },
       {
         reauthenticate: ({ proof }) => {
           if (proof.case !== "password" || proof.value !== "correct horse") {
@@ -106,8 +106,8 @@ test("refused again after you confirm it’s you, the change shows an error, not
 });
 
 /**
- * The Users page, with the Admin Sam and the Members Alex and Kim, on a Server that refuses
- * `ResetPassword` and `SetRole` for want of Recent Authentication until `Reauthenticate`. Returns
+ * The Users page, with the Admin Sam and Alex and Kim, who aren't Admins, on a Server that refuses
+ * `ResetPassword` and `SetPermissions` for want of Recent Authentication until `Reauthenticate`. Returns
  * the resets it made and the Users it made Admin.
  */
 function openUsersNeedingRecentAuthentication() {
@@ -117,7 +117,7 @@ function openUsersNeedingRecentAuthentication() {
   openApp(
     "/admin/users",
     fakeServer(
-      { signedIn: Role.ADMIN },
+      { signedIn: admin },
       {
         reauthenticate: () => {
           reauthenticated = true;
@@ -127,9 +127,9 @@ function openUsersNeedingRecentAuthentication() {
       {
         listUsers: () => ({
           users: [
-            { id: 1n, name: "Sam", role: Role.ADMIN },
-            { id: 2n, name: "Alex", role: Role.MEMBER },
-            { id: 3n, name: "Kim", role: Role.MEMBER },
+            { id: 1n, name: "Sam", permissions: admin },
+            { id: 2n, name: "Alex", permissions: newUser },
+            { id: 3n, name: "Kim", permissions: newUser },
           ],
         }),
         resetPassword: ({ userId, newPassword }) => {
@@ -137,9 +137,9 @@ function openUsersNeedingRecentAuthentication() {
           resets.push([userId, newPassword]);
           return {};
         },
-        setRole: ({ userId }) => {
+        setPermissions: ({ userId, permissions }) => {
           if (!reauthenticated) throw recentAuthenticationRequired();
-          promoted.push(userId);
+          if (permissions.includes(Permission.ADMIN)) promoted.push(userId);
           return {};
         },
       },

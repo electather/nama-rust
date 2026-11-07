@@ -289,8 +289,8 @@ pub const LIBRARY_SERVICE_SCAN_LIBRARY_SPEC: ::connectrpc::Spec = ::connectrpc::
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
 /// The Server's Libraries: named collections of one kind of media, each backed by one or more
-/// folders on the Server's disk. Every RPC but `ListLibraries` needs the Admin Role, and fails with
-/// `permission_denied` without it.
+/// folders on the Server's disk. Every RPC but `ListLibraries` needs `PERMISSION_MANAGE_LIBRARIES`,
+/// and fails with `permission_denied` without it.
 ///
 /// # Implementing handlers
 ///
@@ -367,7 +367,7 @@ pub trait LibraryService: Send + Sync + 'static {
         >,
     > + Send;
     /// Lists every Library on the Server, oldest first. Any signed-in User may list them, to browse,
-    /// but only an Admin gets their folders.
+    /// but only one with `PERMISSION_MANAGE_LIBRARIES` gets their folders.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///

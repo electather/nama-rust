@@ -4,7 +4,7 @@
 
 import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
-import type { Device, Role, User } from "./sign_in_pb";
+import type { Device, Permission, User } from "./sign_in_pb";
 import { file_nama_v1_sign_in } from "./sign_in_pb";
 import type { Message } from "@bufbuild/protobuf";
 
@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file nama/v1/user.proto.
  */
 export const file_nama_v1_user: GenFile = /*@__PURE__*/
-  fileDesc("ChJuYW1hL3YxL3VzZXIucHJvdG8SB25hbWEudjEiUAoRQ3JlYXRlVXNlclJlcXVlc3QSDAoEbmFtZRgBIAEoCRIQCghwYXNzd29yZBgCIAEoCRIbCgRyb2xlGAMgASgOMg0ubmFtYS52MS5Sb2xlIiAKEkNyZWF0ZVVzZXJSZXNwb25zZRIKCgJpZBgBIAEoAyISChBMaXN0VXNlcnNSZXF1ZXN0IjEKEUxpc3RVc2Vyc1Jlc3BvbnNlEhwKBXVzZXJzGAEgAygLMg0ubmFtYS52MS5Vc2VyIj4KDlNldFJvbGVSZXF1ZXN0Eg8KB3VzZXJfaWQYASABKAMSGwoEcm9sZRgCIAEoDjINLm5hbWEudjEuUm9sZSIRCg9TZXRSb2xlUmVzcG9uc2UiJAoRRGVsZXRlVXNlclJlcXVlc3QSDwoHdXNlcl9pZBgBIAEoAyIUChJEZWxldGVVc2VyUmVzcG9uc2UiNgoSTGlzdERldmljZXNSZXF1ZXN0EhQKB3VzZXJfaWQYASABKANIAIgBAUIKCghfdXNlcl9pZCI3ChNMaXN0RGV2aWNlc1Jlc3BvbnNlEiAKB2RldmljZXMYASADKAsyDy5uYW1hLnYxLkRldmljZSJKChNSZXZva2VEZXZpY2VSZXF1ZXN0EhQKB3VzZXJfaWQYASABKANIAIgBARIRCglkZXZpY2VfaWQYAiABKANCCgoIX3VzZXJfaWQiFgoUUmV2b2tlRGV2aWNlUmVzcG9uc2UiRQoVQ2hhbmdlUGFzc3dvcmRSZXF1ZXN0EhQKDG5ld19wYXNzd29yZBgCIAEoCUoECAEQAlIQY3VycmVudF9wYXNzd29yZCIYChZDaGFuZ2VQYXNzd29yZFJlc3BvbnNlIj0KFFJlc2V0UGFzc3dvcmRSZXF1ZXN0Eg8KB3VzZXJfaWQYASABKAMSFAoMbmV3X3Bhc3N3b3JkGAIgASgJIhcKFVJlc2V0UGFzc3dvcmRSZXNwb25zZTLrBAoLVXNlclNlcnZpY2USRQoKQ3JlYXRlVXNlchIaLm5hbWEudjEuQ3JlYXRlVXNlclJlcXVlc3QaGy5uYW1hLnYxLkNyZWF0ZVVzZXJSZXNwb25zZRJHCglMaXN0VXNlcnMSGS5uYW1hLnYxLkxpc3RVc2Vyc1JlcXVlc3QaGi5uYW1hLnYxLkxpc3RVc2Vyc1Jlc3BvbnNlIgOQAgESQQoHU2V0Um9sZRIXLm5hbWEudjEuU2V0Um9sZVJlcXVlc3QaGC5uYW1hLnYxLlNldFJvbGVSZXNwb25zZSIDkAICEkoKCkRlbGV0ZVVzZXISGi5uYW1hLnYxLkRlbGV0ZVVzZXJSZXF1ZXN0GhsubmFtYS52MS5EZWxldGVVc2VyUmVzcG9uc2UiA5ACAhJNCgtMaXN0RGV2aWNlcxIbLm5hbWEudjEuTGlzdERldmljZXNSZXF1ZXN0GhwubmFtYS52MS5MaXN0RGV2aWNlc1Jlc3BvbnNlIgOQAgESSwoMUmV2b2tlRGV2aWNlEhwubmFtYS52MS5SZXZva2VEZXZpY2VSZXF1ZXN0Gh0ubmFtYS52MS5SZXZva2VEZXZpY2VSZXNwb25zZRJRCg5DaGFuZ2VQYXNzd29yZBIeLm5hbWEudjEuQ2hhbmdlUGFzc3dvcmRSZXF1ZXN0Gh8ubmFtYS52MS5DaGFuZ2VQYXNzd29yZFJlc3BvbnNlEk4KDVJlc2V0UGFzc3dvcmQSHS5uYW1hLnYxLlJlc2V0UGFzc3dvcmRSZXF1ZXN0Gh4ubmFtYS52MS5SZXNldFBhc3N3b3JkUmVzcG9uc2ViBnByb3RvMw", [file_nama_v1_sign_in]);
+  fileDesc("ChJuYW1hL3YxL3VzZXIucHJvdG8SB25hbWEudjEiOQoRQ3JlYXRlVXNlclJlcXVlc3QSDAoEbmFtZRgBIAEoCRIQCghwYXNzd29yZBgCIAEoCUoECAMQBCIgChJDcmVhdGVVc2VyUmVzcG9uc2USCgoCaWQYASABKAMiEgoQTGlzdFVzZXJzUmVxdWVzdCIxChFMaXN0VXNlcnNSZXNwb25zZRIcCgV1c2VycxgBIAMoCzINLm5hbWEudjEuVXNlciJSChVTZXRQZXJtaXNzaW9uc1JlcXVlc3QSDwoHdXNlcl9pZBgBIAEoAxIoCgtwZXJtaXNzaW9ucxgCIAMoDjITLm5hbWEudjEuUGVybWlzc2lvbiIYChZTZXRQZXJtaXNzaW9uc1Jlc3BvbnNlIiQKEURlbGV0ZVVzZXJSZXF1ZXN0Eg8KB3VzZXJfaWQYASABKAMiFAoSRGVsZXRlVXNlclJlc3BvbnNlIjYKEkxpc3REZXZpY2VzUmVxdWVzdBIUCgd1c2VyX2lkGAEgASgDSACIAQFCCgoIX3VzZXJfaWQiNwoTTGlzdERldmljZXNSZXNwb25zZRIgCgdkZXZpY2VzGAEgAygLMg8ubmFtYS52MS5EZXZpY2UiSgoTUmV2b2tlRGV2aWNlUmVxdWVzdBIUCgd1c2VyX2lkGAEgASgDSACIAQESEQoJZGV2aWNlX2lkGAIgASgDQgoKCF91c2VyX2lkIhYKFFJldm9rZURldmljZVJlc3BvbnNlIkUKFUNoYW5nZVBhc3N3b3JkUmVxdWVzdBIUCgxuZXdfcGFzc3dvcmQYAiABKAlKBAgBEAJSEGN1cnJlbnRfcGFzc3dvcmQiGAoWQ2hhbmdlUGFzc3dvcmRSZXNwb25zZSI9ChRSZXNldFBhc3N3b3JkUmVxdWVzdBIPCgd1c2VyX2lkGAEgASgDEhQKDG5ld19wYXNzd29yZBgCIAEoCSIXChVSZXNldFBhc3N3b3JkUmVzcG9uc2UygAUKC1VzZXJTZXJ2aWNlEkUKCkNyZWF0ZVVzZXISGi5uYW1hLnYxLkNyZWF0ZVVzZXJSZXF1ZXN0GhsubmFtYS52MS5DcmVhdGVVc2VyUmVzcG9uc2USRwoJTGlzdFVzZXJzEhkubmFtYS52MS5MaXN0VXNlcnNSZXF1ZXN0GhoubmFtYS52MS5MaXN0VXNlcnNSZXNwb25zZSIDkAIBElYKDlNldFBlcm1pc3Npb25zEh4ubmFtYS52MS5TZXRQZXJtaXNzaW9uc1JlcXVlc3QaHy5uYW1hLnYxLlNldFBlcm1pc3Npb25zUmVzcG9uc2UiA5ACAhJKCgpEZWxldGVVc2VyEhoubmFtYS52MS5EZWxldGVVc2VyUmVxdWVzdBobLm5hbWEudjEuRGVsZXRlVXNlclJlc3BvbnNlIgOQAgISTQoLTGlzdERldmljZXMSGy5uYW1hLnYxLkxpc3REZXZpY2VzUmVxdWVzdBocLm5hbWEudjEuTGlzdERldmljZXNSZXNwb25zZSIDkAIBEksKDFJldm9rZURldmljZRIcLm5hbWEudjEuUmV2b2tlRGV2aWNlUmVxdWVzdBodLm5hbWEudjEuUmV2b2tlRGV2aWNlUmVzcG9uc2USUQoOQ2hhbmdlUGFzc3dvcmQSHi5uYW1hLnYxLkNoYW5nZVBhc3N3b3JkUmVxdWVzdBofLm5hbWEudjEuQ2hhbmdlUGFzc3dvcmRSZXNwb25zZRJOCg1SZXNldFBhc3N3b3JkEh0ubmFtYS52MS5SZXNldFBhc3N3b3JkUmVxdWVzdBoeLm5hbWEudjEuUmVzZXRQYXNzd29yZFJlc3BvbnNlYgZwcm90bzM", [file_nama_v1_sign_in]);
 
 /**
  * @generated from message nama.v1.CreateUserRequest
@@ -31,13 +31,6 @@ export type CreateUserRequest = Message<"nama.v1.CreateUserRequest"> & {
    * @generated from field: string password = 2;
    */
   password: string;
-
-  /**
-   * Must not be `ROLE_UNSPECIFIED`.
-   *
-   * @generated from field: nama.v1.Role role = 3;
-   */
-  role: Role;
 };
 
 /**
@@ -97,42 +90,42 @@ export const ListUsersResponseSchema: GenMessage<ListUsersResponse> = /*@__PURE_
   messageDesc(file_nama_v1_user, 3);
 
 /**
- * @generated from message nama.v1.SetRoleRequest
+ * @generated from message nama.v1.SetPermissionsRequest
  */
-export type SetRoleRequest = Message<"nama.v1.SetRoleRequest"> & {
+export type SetPermissionsRequest = Message<"nama.v1.SetPermissionsRequest"> & {
   /**
-   * The ID of the User whose Role changes.
+   * The ID of the User whose Permissions change.
    *
    * @generated from field: int64 user_id = 1;
    */
   userId: bigint;
 
   /**
-   * Must not be `ROLE_UNSPECIFIED`.
+   * Every Permission the User is to have, replacing those they had. Empty takes them all away.
    *
-   * @generated from field: nama.v1.Role role = 2;
+   * @generated from field: repeated nama.v1.Permission permissions = 2;
    */
-  role: Role;
+  permissions: Permission[];
 };
 
 /**
- * Describes the message nama.v1.SetRoleRequest.
- * Use `create(SetRoleRequestSchema)` to create a new message.
+ * Describes the message nama.v1.SetPermissionsRequest.
+ * Use `create(SetPermissionsRequestSchema)` to create a new message.
  */
-export const SetRoleRequestSchema: GenMessage<SetRoleRequest> = /*@__PURE__*/
+export const SetPermissionsRequestSchema: GenMessage<SetPermissionsRequest> = /*@__PURE__*/
   messageDesc(file_nama_v1_user, 4);
 
 /**
- * @generated from message nama.v1.SetRoleResponse
+ * @generated from message nama.v1.SetPermissionsResponse
  */
-export type SetRoleResponse = Message<"nama.v1.SetRoleResponse"> & {
+export type SetPermissionsResponse = Message<"nama.v1.SetPermissionsResponse"> & {
 };
 
 /**
- * Describes the message nama.v1.SetRoleResponse.
- * Use `create(SetRoleResponseSchema)` to create a new message.
+ * Describes the message nama.v1.SetPermissionsResponse.
+ * Use `create(SetPermissionsResponseSchema)` to create a new message.
  */
-export const SetRoleResponseSchema: GenMessage<SetRoleResponse> = /*@__PURE__*/
+export const SetPermissionsResponseSchema: GenMessage<SetPermissionsResponse> = /*@__PURE__*/
   messageDesc(file_nama_v1_user, 5);
 
 /**
@@ -315,17 +308,20 @@ export const ResetPasswordResponseSchema: GenMessage<ResetPasswordResponse> = /*
 
 /**
  * Managing the Server's Users and their Devices. Every RPC but `ListDevices`, `RevokeDevice` and
- * `ChangePassword` needs the Admin Role, and fails with `permission_denied` without it.
- * `ChangePassword`, `ResetPassword`, `SetRole` and `DeleteUser` also need Recent Authentication,
- * as `SignInService` describes. RPCs name Users by ID, not by name.
+ * `ChangePassword` needs `PERMISSION_MANAGE_USERS`, and fails with `permission_denied` without it.
+ * Only a caller with `PERMISSION_ADMIN` may `SetPermissions`, `ResetPassword` or `DeleteUser` for a
+ * User with it, grant it, or set their own Permissions; others fail with `permission_denied` and a
+ * Refusal naming `PERMISSION_ADMIN`. `ChangePassword`, `ResetPassword`, `SetPermissions` and
+ * `DeleteUser` also need Recent Authentication, as `SignInService` describes. RPCs name Users by
+ * ID, not by name.
  *
  * @generated from service nama.v1.UserService
  */
 export const UserService: GenService<{
   /**
-   * Creates a User, who can sign in at once. Fails with `invalid_argument` if the name, the
-   * password or the Role breaks the rules, and `already_exists` if another User has the name,
-   * ignoring case.
+   * Creates a User, who can sign in at once, with `PERMISSION_REQUEST` and
+   * `PERMISSION_VIEW_REQUESTS`. Fails with `invalid_argument` if the name or the password breaks
+   * the rules, and `already_exists` if another User has the name, ignoring case.
    *
    * @generated from rpc nama.v1.UserService.CreateUser
    */
@@ -345,23 +341,24 @@ export const UserService: GenService<{
     output: typeof ListUsersResponseSchema;
   },
   /**
-   * Gives a User a Role, which applies from their next request. Their Devices stay signed in.
-   * Fails with `invalid_argument` for `ROLE_UNSPECIFIED`, `not_found` if no User has the ID, and
-   * `failed_precondition` if it would leave the Server with no Admin.
+   * Replaces a User's Permissions, which apply from their next request. Their Devices stay signed
+   * in. Fails with `invalid_argument` for `PERMISSION_UNSPECIFIED` or a value the Server doesn't
+   * know, `not_found` if no User has the ID, and `failed_precondition` if it would leave no User
+   * with `PERMISSION_ADMIN`.
    *
-   * @generated from rpc nama.v1.UserService.SetRole
+   * @generated from rpc nama.v1.UserService.SetPermissions
    */
-  setRole: {
+  setPermissions: {
     methodKind: "unary";
-    input: typeof SetRoleRequestSchema;
-    output: typeof SetRoleResponseSchema;
+    input: typeof SetPermissionsRequestSchema;
+    output: typeof SetPermissionsResponseSchema;
   },
   /**
    * Deletes a User with their Devices and credentials, so they can't sign in, their sessions stop
-   * working at once and their open `EventService.Subscribe` streams end. An Admin may delete
+   * working at once and their open `EventService.Subscribe` streams end. The caller may delete
    * themselves, which signs out the calling Device too. Fails with `not_found` if no User has the
    * ID, so a retry after a delete that went through gets `not_found`, and `failed_precondition` if
-   * it would leave the Server with no Admin.
+   * it would leave no User with `PERMISSION_ADMIN`.
    *
    * @generated from rpc nama.v1.UserService.DeleteUser
    */
@@ -372,8 +369,9 @@ export const UserService: GenService<{
   },
   /**
    * Lists a User's Devices that haven't expired, oldest first. Any signed-in User may list their
-   * own; another User's needs the Admin Role. Fails with `not_found` if the User doesn't exist, or
-   * isn't the caller and the caller isn't an Admin, so a Member can't learn which IDs exist.
+   * own; another User's needs `PERMISSION_MANAGE_USERS`. Fails with `not_found` if the User doesn't
+   * exist, or isn't the caller and the caller lacks that Permission, so they can't learn which IDs
+   * exist.
    *
    * @generated from rpc nama.v1.UserService.ListDevices
    */
@@ -408,7 +406,7 @@ export const UserService: GenService<{
     output: typeof ChangePasswordResponseSchema;
   },
   /**
-   * Sets a User's password, without their current one, for the Admin to pass on to them. Every
+   * Sets a User's password, without their current one, for the caller to pass on to them. Every
    * Device of theirs is revoked, as by `RevokeDevice`. Fails with `invalid_argument` if the new
    * password breaks the rules, `not_found` if no User has the ID, and `failed_precondition` for the
    * caller's own User, who uses `ChangePassword` instead to keep the calling Device signed in.
