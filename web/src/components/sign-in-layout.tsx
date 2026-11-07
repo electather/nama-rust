@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import { onSubmitted } from "@/lib/forms";
@@ -34,10 +34,7 @@ export function SignInLayout({
   error,
   children,
   ...page
-}: {
-  heading: string;
-  intro: string;
-  footer?: ReactNode;
+}: Omit<ComponentProps<typeof SignInPage>, "children"> & {
   onSubmit: (form: FormData) => void;
   /** Says what submitting does, such as "Sign in". */
   action: string;

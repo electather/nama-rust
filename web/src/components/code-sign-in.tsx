@@ -53,8 +53,9 @@ export function CodeSignIn({
   return (
     <SignInPage heading={heading} intro={<WhereToEnterIt />} footer={footer}>
       <WaitForApproval key={shown.handle} shown={shown} onSignedIn={onSignedIn}>
+        {/* The Device name field is gone by now, so its refusal shows here. */}
         <p role="alert" className="text-sm text-destructive empty:hidden">
-          {errors.form}
+          {errors.form ?? errors.deviceName}
         </p>
         <Button
           disabled={start.isPending}
@@ -184,5 +185,9 @@ function isUndecided(status: SignInCodeStatus | undefined) {
 function startErrors(error: unknown): FormErrors {
   return refusal(error, "get a code", {
     [Code.InvalidArgument]: { deviceName: serverMessage(error) },
+    // The Server caps how many sign-ins wait at once; each code expires within 10 minutes.
+    [Code.ResourceExhausted]: {
+      form: "Too many Devices are waiting to sign in. Try again in a few minutes.",
+    },
   });
 }

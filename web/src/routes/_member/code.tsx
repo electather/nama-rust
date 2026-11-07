@@ -54,12 +54,12 @@ function LookUp({
       <form
         className="mt-6 flex flex-col gap-5"
         onSubmit={onSubmitted((typed) => {
-          onSubmit(formText(typed, "code"));
+          onSubmit(formText(typed, "signInCode"));
         })}
       >
         <FormField
           label="Sign-in Code"
-          name="code"
+          name="signInCode"
           placeholder="XXXX-XXXX"
           autoComplete="off"
           autoCapitalize="characters"

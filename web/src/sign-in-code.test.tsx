@@ -106,6 +106,21 @@ test("a code the Server forgot, after a restart, counts as expired", async () =>
   expect(await screen.findByRole("button", { name: "Get a new code" })).toBeDefined();
 });
 
+test("too many waiting sign-ins says so, not that there were too many tries", async () => {
+  const transport = fakeServer(
+    {},
+    {
+      startSignInCode: () => {
+        throw new ConnectError("too many sign-ins are waiting", Code.ResourceExhausted);
+      },
+    },
+  );
+  openApp("/sign-in", transport);
+
+  await getCode();
+  expect(await screen.findByText(/Too many Devices are waiting to sign in/u)).toBeDefined();
+});
+
 /** Refuses any code but the one "Living room TV" shows, as the Server would match it. */
 function refuseUnlessShown(code: string) {
   if (code !== "abcdefgh") throw new ConnectError("no such code", Code.NotFound);
