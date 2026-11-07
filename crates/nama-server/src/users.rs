@@ -46,7 +46,7 @@ const LAST_SEEN_PRECISION: i64 = 60 * 60;
 
 /// How long, in seconds, a Device has Recent Authentication after proving who it is: 10 minutes
 /// (ADR 0014).
-const RECENT_AUTHENTICATION: i64 = 10 * 60;
+const RECENT_AUTHENTICATION_WINDOW: i64 = 10 * 60;
 
 /// What a User is shown for their password among their Sign-in Methods.
 const PASSWORD_METHOD_NAME: &str = "Password";
@@ -106,7 +106,7 @@ pub(crate) struct Device {
 impl Device {
     /// Whether it has Recent Authentication at `now`, in seconds since the Unix epoch.
     pub(crate) const fn authenticated_recently(&self, now: i64) -> bool {
-        now - self.authenticated_at < RECENT_AUTHENTICATION
+        now - self.authenticated_at < RECENT_AUTHENTICATION_WINDOW
     }
 }
 
@@ -394,7 +394,7 @@ impl Users {
         }
         let device = caller.device.id;
         self.db
-            .write(move |tx| Box::pin(async move { authenticated_now(tx, device).await }))
+            .write(move |tx| Box::pin(async move { record_authentication(tx, device).await }))
             .await
     }
 
@@ -915,7 +915,7 @@ async fn insert_first_admin(
 
 /// Records that the Device `device` proved who it is just now, failing if it was signed out
 /// meanwhile.
-async fn authenticated_now(conn: &mut SqliteConnection, device: i64) -> Result<(), Error> {
+async fn record_authentication(conn: &mut SqliteConnection, device: i64) -> Result<(), Error> {
     let now = now();
     let updated = sqlx::query!(
         "UPDATE devices SET authenticated_at = ?, updated_at = ? WHERE id = ?",
