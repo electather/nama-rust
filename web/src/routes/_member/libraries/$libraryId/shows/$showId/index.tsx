@@ -105,15 +105,15 @@ function Episodes() {
 
 /** An Episode, which plays its largest Version, with your Watch State and a toggle for it. */
 function EpisodeRow({ libraryId, episode }: { libraryId: bigint; episode: Episode }) {
-  const play = `${location.pathname}/seasons/${episode.seasonNumber}/episodes/${episode.episodeNumber}/play`;
   const setPlayed = useSetPlayed();
   // Without its own ID there's nothing to mark.
   const episodeId = episode.id;
   return (
     <li className="flex items-center gap-1 border-b last:border-b-0">
-      {/* ponytail: a plain link until the player's route (#72) exists to type a <Link> against. */}
-      <a
-        href={play}
+      <Link
+        from={Route.fullPath}
+        to="./seasons/$season/episodes/$episode/play"
+        params={{ season: String(episode.seasonNumber), episode: String(episode.episodeNumber) }}
         className="block min-w-0 flex-1 rounded-lg px-3 py-4 outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50"
       >
         <span className="font-medium">
@@ -130,7 +130,7 @@ function EpisodeRow({ libraryId, episode }: { libraryId: bigint; episode: Episod
         <span className="mt-3 block max-w-xs empty:hidden">
           <WatchedBar state={episode.watchState} />
         </span>
-      </a>
+      </Link>
       {episodeId && (
         <PlayedIconButton
           played={episode.watchState?.played === true}

@@ -60,4 +60,8 @@ declare module "@tanstack/react-router" {
   interface Register {
     router: ReturnType<typeof getRouter>;
   }
+  interface StaticDataRouteOption {
+    /** The page fills the screen, without the app chrome, such as the player. */
+    fullScreen?: boolean;
+  }
 }

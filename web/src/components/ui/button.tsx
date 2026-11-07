@@ -13,11 +13,13 @@ const buttonVariants = cva(
         // Confirms something that can't be undone, such as deleting a User.
         destructive: "bg-destructive font-semibold text-background hover:bg-destructive/90",
         ghost: "text-muted-foreground hover:bg-muted hover:text-foreground",
+        // Over video, where Quiet ink would sink into the picture and a faint ring could vanish.
+        overlay: "text-foreground hover:bg-foreground/15 focus-visible:ring-ring",
       },
       size: {
         default: "h-9 px-4",
-        // A square for an icon alone, as large as a fingertip.
-        icon: "size-11",
+        // A square button holding only an icon, named by its `aria-label`.
+        icon: "size-10 [&_svg]:size-5",
       },
     },
     defaultVariants: { variant: "default", size: "default" },

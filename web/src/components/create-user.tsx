@@ -1,11 +1,17 @@
 import { useMutation } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
 
-import { FormEnd, FormField } from "@/components/form-field";
+import { Choices, FormEnd, FormField } from "@/components/form-field";
 import { Role } from "@/gen/nama/v1/sign_in_pb";
 import { UserService } from "@/gen/nama/v1/user_pb";
 import { type FormErrors, formText, onSubmitted } from "@/lib/forms";
 import { createUserErrors, usersKey } from "@/lib/users";
+
+/** The Roles a new User can have, Member first. */
+const roles: [value: string, label: string][] = [
+  ["member", "Member: watches and makes Requests"],
+  ["admin", "Admin: also manages the Server and its Users"],
+];
 
 /** The form an Admin creates a User with: their name, starting password and Role. */
 export function CreateUser() {
@@ -62,34 +68,7 @@ function NewUserFields({ errors }: { errors: FormErrors }) {
         hint="Pass it on to them. They can change it in Settings."
         error={errors.password}
       />
-      <fieldset className="flex flex-col gap-2">
-        <legend className="mb-2 text-sm font-medium">Role</legend>
-        <RoleChoice value="member" label="Member: watches and makes Requests" defaultChecked />
-        <RoleChoice value="admin" label="Admin: also manages the Server and its Users" />
-      </fieldset>
+      <Choices legend="Role" name="role" choices={roles} />
     </>
-  );
-}
-
-function RoleChoice({
-  value,
-  label,
-  defaultChecked = false,
-}: {
-  value: string;
-  label: string;
-  defaultChecked?: boolean;
-}) {
-  return (
-    <label className="flex items-center gap-3 text-sm">
-      <input
-        type="radio"
-        name="role"
-        value={value}
-        defaultChecked={defaultChecked}
-        className="size-4 accent-foreground"
-      />
-      {label}
-    </label>
   );
 }

@@ -9,6 +9,7 @@ import {
 import { RouterProvider } from "@tanstack/react-router";
 import { fireEvent, render, screen } from "@testing-library/react";
 
+import { EventService, type SubscribeResponse } from "@/gen/nama/v1/event_pb";
 import { LibraryService, type LibrarySchema } from "@/gen/nama/v1/library_pb";
 import { GetServerInfoResponseSchema, ServerService } from "@/gen/nama/v1/server_pb";
 import { Role, SignInService, WhoAmIResponseSchema } from "@/gen/nama/v1/sign_in_pb";
@@ -21,6 +22,8 @@ export interface ServerState {
   setupRequired?: boolean;
   signedIn?: Role;
   libraries?: MessageInitShape<typeof LibrarySchema>[];
+  /** The Events the app's subscription gets. Without them, none arrive. */
+  events?: ReadableStream<SubscribeResponse>;
 }
 
 /**
@@ -55,6 +58,8 @@ export function fakeServer(
     // Settings lists your Devices, so every fake Server has an answer for it.
     router.service(UserService, { listDevices: () => ({}), ...users });
     router.service(LibraryService, { listLibraries: () => ({ libraries: state.libraries ?? [] }) });
+    // Every signed-in page follows the Server's Events.
+    router.service(EventService, { subscribe: () => state.events ?? new ReadableStream() });
     more(router);
   });
 }

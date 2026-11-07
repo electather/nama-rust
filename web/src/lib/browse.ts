@@ -43,6 +43,17 @@ export async function libraryFromParam(context: RouterContext, param: string) {
   return library;
 }
 
+/** Loads the Movie the URL names into the cache, and returns the `GetMovie` request that finds it. */
+export async function loadMovie(
+  context: RouterContext,
+  params: { libraryId: string; movieId: string },
+) {
+  const library = await libraryFromParam(context, params.libraryId);
+  const input = { libraryId: library.id, movieId: externalIdFromParam(params.movieId) };
+  await queryOrNotFound(context, BrowseService.method.getMovie, input);
+  return input;
+}
+
 /** How a Movie's or Show's external id is written in a URL, such as `tmdb-603`. */
 export function titleParam(id: ExternalId | undefined) {
   return `${id?.id.case}-${id?.id.value}`;
@@ -96,4 +107,20 @@ export function metadataLine(...facts: (string | undefined)[]) {
 export function largestVersion(versions: Version[]) {
   // The Server sends at least one.
   return versions.reduce((largest, version) => (version.size > largest.size ? version : largest));
+}
+
+/** A whole number in the URL, such as a `$season`, or the router's not-found if it isn't one. */
+export function wholeNumberFromParam(param: string) {
+  if (!/^\d{1,15}$/u.test(param)) throw notFound();
+  return Number(param);
+}
+
+/** A player's search params: the Version `?version=` chose, if it names one by id. */
+export function versionSearch({ version }: Record<string, unknown>): { version?: number } {
+  return typeof version === "number" ? { version } : {};
+}
+
+/** The Version `chosen` names, or the largest when it names none of `versions`. */
+export function versionToPlay(versions: Version[], chosen: number | undefined) {
+  return versions.find(({ id }) => Number(id) === chosen) ?? largestVersion(versions);
 }
