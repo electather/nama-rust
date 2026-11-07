@@ -4,7 +4,7 @@ Users, Devices and their sessions are Kernel state (ADR 0006 lists auth sessions
 
 A Device's session is an opaque random token, stored hashed and deleted to revoke the Device. Browsers send it as an HttpOnly cookie, because a `<video>` range request can't carry an `Authorization` header, and native clients send it as a bearer token. Both resolve to the same Device.
 
-Changing a password, a Sign-in Method, or another User's Role or password needs the Device to have authenticated in the last 10 minutes. A Device that hasn't re-authenticates with any of the User's Sign-in Methods, which refreshes that Device instead of issuing a new session. A Device signed in by a Sign-in Code never proved anything itself, so it starts out needing to.
+Changing a password, a Sign-in Method, or another User's Role or password, and approving a Sign-in Code, need the Device to have authenticated in the last 10 minutes. A Device that hasn't re-authenticates with any of the User's Sign-in Methods, which refreshes that Device instead of issuing a new session. A Device signed in by a Sign-in Code never proved anything itself, so it starts out needing to.
 
 ## Considered Options
 
