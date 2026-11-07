@@ -150,6 +150,9 @@ pub enum Error {
     /// doesn't reveal which names exist.
     #[error("the name or password is wrong")]
     WrongNameOrPassword,
+    /// The password given as a User's current one isn't.
+    #[error("the current password is wrong")]
+    WrongPassword,
     /// No User has this ID.
     #[error("no User has that ID")]
     NoSuchUser,
@@ -305,6 +308,42 @@ impl Users {
         Ok(theirs)
     }
 
+    /// Changes the password of `caller`'s User from `current` to `new`, and signs every other
+    /// Device of theirs out. `caller`'s own Device stays signed in.
+    pub(crate) async fn change_password(
+        &self,
+        caller: &Caller,
+        current: &str,
+        new: &str,
+    ) -> Result<(), Error> {
+        // Users are never renamed, so the caller's name still finds them.
+        let found = self.user_named(&caller.user.name).await?;
+        let verified = match &found {
+            Some((_, credentials)) => {
+                self.verify_password(&Arc::from(current), credentials)
+                    .await?
+            }
+            None => false,
+        };
+        if !verified {
+            return Err(Error::WrongPassword);
+        }
+        let credential = self.hash_password(new).await?;
+        let (user, kept) = (caller.user.id, caller.device.id);
+        let signed_out = self
+            .db
+            .write(move |tx| {
+                Box::pin(async move {
+                    replace_credential_signing_others_out(tx, user, &credential, kept).await
+                })
+            })
+            .await?;
+        for device in signed_out {
+            self.announce_sign_out(device);
+        }
+        Ok(())
+    }
+
     /// Signs the Device `device_name` in as the User named `name`, ignoring case, if `password` is
     /// theirs.
     ///
@@ -367,9 +406,14 @@ impl Users {
                 })
             })
             .await?;
+        self.announce_sign_out(device);
+        Ok(())
+    }
+
+    /// Tells the waiters in [`Users::signed_out`] that the Device `device` was signed out.
+    fn announce_sign_out(&self, device: i64) {
         // Fails only when nobody is waiting, which is fine.
         let _: Result<usize, _> = self.sign_outs.send(device);
-        Ok(())
     }
 
     /// Resolves once the Device `device` is signed out, so whatever it opened can end with it. It
@@ -730,6 +774,29 @@ async fn insert_first_admin(
     insert_credential(conn, user.id, credential).await?;
     let device = insert_device(conn, user.id, device_name, token_hash).await?;
     Ok(Caller { user, device })
+}
+
+/// Makes `credential` the only one the User `user` has, and signs out every Device of theirs but
+/// `kept`, returning the ids of those signed out. Credentials other Plugins made go too, so the old
+/// password can't come back with a Plugin that is enabled again.
+async fn replace_credential_signing_others_out(
+    conn: &mut SqliteConnection,
+    user: i64,
+    credential: &Credential,
+    kept: i64,
+) -> Result<Vec<i64>, Error> {
+    sqlx::query!("DELETE FROM user_credentials WHERE user_id = ?", user)
+        .execute(&mut *conn)
+        .await?;
+    insert_credential(conn, user, credential).await?;
+    let signed_out = sqlx::query_scalar!(
+        r#"DELETE FROM devices WHERE user_id = ? AND id != ? RETURNING id AS "id!""#,
+        user,
+        kept
+    )
+    .fetch_all(conn)
+    .await?;
+    Ok(signed_out)
 }
 
 /// Stores `credential` for the User `user`.

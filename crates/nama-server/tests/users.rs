@@ -1,5 +1,5 @@
-//! Admins creating, listing and changing the Role of Users, and Users and Admins listing and
-//! revoking Devices, through the generated `UserService` client, over a real socket and against a
+//! Admins creating, listing and changing the Role of Users, Users changing their own password, and
+//! Users and Admins listing and revoking Devices, through the generated `UserService` client, over a real socket and against a
 //! real SQLite database.
 
 #[path = "support/server.rs"]
@@ -12,10 +12,10 @@ use connectrpc::{
     client::{ClientConfig, HttpClient, ServerStream},
 };
 use nama_proto::nama::v1::{
-    __buffa::view::SubscribeResponseView, CreateUserRequest, Device, EventServiceClient,
-    ListDevicesRequest, ListUsersRequest, RevokeDeviceRequest, Role, SessionDelivery,
-    SetRoleRequest, SignInRequest, SignInResponse, SignInServiceClient, SubscribeRequest,
-    SubscribeResponse, User, UserServiceClient, WhoAmIRequest,
+    __buffa::view::SubscribeResponseView, ChangePasswordRequest, CreateUserRequest, Device,
+    EventServiceClient, ListDevicesRequest, ListUsersRequest, RevokeDeviceRequest, Role,
+    SessionDelivery, SetRoleRequest, SignInRequest, SignInResponse, SignInServiceClient,
+    SubscribeRequest, SubscribeResponse, User, UserServiceClient, WhoAmIRequest,
 };
 use nama_server::{config::Config, plugins::Registry};
 use server::{PASSWORD, TestServer};
@@ -205,6 +205,22 @@ async fn revoke_device(
         .revoke_device(RevokeDeviceRequest {
             user_id,
             device_id,
+            ..Default::default()
+        })
+        .await?;
+    Ok(())
+}
+
+/// Changes the caller's password from `current` to `new`, through `client`.
+async fn change_password(
+    client: &UserServiceClient<HttpClient>,
+    current: &str,
+    new: &str,
+) -> Result<(), ConnectError> {
+    client
+        .change_password(ChangePasswordRequest {
+            current_password: current.to_owned(),
+            new_password: new.to_owned(),
             ..Default::default()
         })
         .await?;
@@ -583,4 +599,69 @@ async fn an_admin_asking_about_a_user_who_doesnt_exist_gets_not_found() {
 
     assert_eq!(code(listed), Some(ErrorCode::NotFound));
     assert_eq!(code(revoked), Some(ErrorCode::NotFound));
+}
+
+#[tokio::test]
+async fn a_changed_password_signs_in_and_signs_the_users_other_devices_out() {
+    let fixture = Fixture::start().await;
+    let (phone, laptop) = fixture.grace_on_phone_and_laptop().await;
+    let mut laptop_events = subscribe(fixture.server.client_config_as(&laptop.token)).await;
+    let new_password = "a brand new password";
+
+    change_password(&fixture.client_as(&phone.token), PASSWORD, new_password)
+        .await
+        .unwrap();
+
+    assert!(fixture.signed_in(&phone.token).await.unwrap());
+    assert!(!fixture.signed_in(&laptop.token).await.unwrap());
+    assert!(ended(&mut laptop_events).await, "the stream is still open");
+    assert_eq!(code(fixture.sign_in("Grace", new_password).await), None);
+    let old = fixture.sign_in("Grace", PASSWORD).await;
+    assert_eq!(code(old), Some(ErrorCode::Unauthenticated));
+}
+
+#[tokio::test]
+async fn a_wrong_current_password_is_unauthenticated_and_changes_nothing() {
+    let fixture = Fixture::start().await;
+    let (phone, laptop) = fixture.grace_on_phone_and_laptop().await;
+
+    let changed = change_password(
+        &fixture.client_as(&phone.token),
+        "not the password",
+        "a brand new password",
+    )
+    .await;
+
+    assert_eq!(code(changed), Some(ErrorCode::Unauthenticated));
+    assert!(fixture.signed_in(&laptop.token).await.unwrap());
+    assert_eq!(code(fixture.sign_in("Grace", PASSWORD).await), None);
+}
+
+#[tokio::test]
+async fn the_11th_failed_change_for_a_user_is_blocked_even_with_the_right_password() {
+    let fixture = Fixture::start().await;
+    let (phone, _laptop) = fixture.grace_on_phone_and_laptop().await;
+    let grace = fixture.client_as(&phone.token);
+    for _ in 0..10 {
+        let wrong = change_password(&grace, "not the password", "a brand new password").await;
+        assert_eq!(code(wrong), Some(ErrorCode::Unauthenticated));
+    }
+
+    let blocked = change_password(&grace, PASSWORD, "a brand new password").await;
+    let signing_in = fixture.sign_in("grace", PASSWORD).await;
+
+    assert_eq!(code(blocked), Some(ErrorCode::ResourceExhausted));
+    assert_eq!(code(signing_in), Some(ErrorCode::ResourceExhausted));
+}
+
+#[tokio::test]
+async fn a_new_password_outside_the_rules_is_refused_and_the_old_one_still_works() {
+    let fixture = Fixture::start().await;
+    let (phone, laptop) = fixture.grace_on_phone_and_laptop().await;
+
+    let changed = change_password(&fixture.client_as(&phone.token), PASSWORD, "1234567").await;
+
+    assert_eq!(code(changed), Some(ErrorCode::InvalidArgument));
+    assert!(fixture.signed_in(&laptop.token).await.unwrap());
+    assert_eq!(code(fixture.sign_in("Grace", PASSWORD).await), None);
 }

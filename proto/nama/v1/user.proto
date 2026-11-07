@@ -4,8 +4,8 @@ package nama.v1;
 
 import "nama/v1/sign_in.proto";
 
-// Managing the Server's Users and their Devices. Every RPC but `ListDevices` and `RevokeDevice`
-// needs the Admin Role, and fails with `permission_denied` without it. RPCs name Users by ID, not
+// Managing the Server's Users and their Devices. Every RPC but `ListDevices`, `RevokeDevice` and
+// `ChangePassword` needs the Admin Role, and fails with `permission_denied` without it. RPCs name Users by ID, not
 // by name.
 service UserService {
   // Creates a User, who can sign in at once. Fails with `invalid_argument` if the name, the
@@ -33,6 +33,12 @@ service UserService {
   // does. Who may revoke whose Devices is as for `ListDevices`, and fails the same way; it also
   // fails with `not_found` if the Device isn't that User's.
   rpc RevokeDevice(RevokeDeviceRequest) returns (RevokeDeviceResponse);
+  // Changes the caller's own password, given their current one. Their other Devices are revoked,
+  // as by `RevokeDevice`, and the calling Device stays signed in. Fails with `unauthenticated` if
+  // the current password is wrong, and `invalid_argument` if the new one breaks the rules. A
+  // failure counts toward the limit on failed `SignInService.SignIn`s for the caller's name, and
+  // once it is reached, fails with `resource_exhausted` as `SignIn` does.
+  rpc ChangePassword(ChangePasswordRequest) returns (ChangePasswordResponse);
 }
 
 message CreateUserRequest {
@@ -81,3 +87,12 @@ message RevokeDeviceRequest {
 }
 
 message RevokeDeviceResponse {}
+
+message ChangePasswordRequest {
+  // The caller's password now.
+  string current_password = 1;
+  // The password to change to, which the Server's Authenticator checks against its own rules.
+  string new_password = 2;
+}
+
+message ChangePasswordResponse {}
