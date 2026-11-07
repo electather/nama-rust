@@ -13,6 +13,8 @@
   --text-display: 2.5rem;
   --text-display--line-height: 1.05;
   --text-display--letter-spacing: -0.035em;
+  /* DESIGN.md: motion eases out exponentially, never bounces. */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @theme inline {

@@ -60,6 +60,7 @@ test("marking a Season played marks each of its Episodes played", async () => {
       getShow: () => ({ show: { title: "Severance" }, seasons: [{ number: 1 }] }),
       listEpisodes: () => ({
         episodes: [1, 2].map((episodeNumber) => ({
+          id: { id: { case: "tmdb", value: BigInt(episodeNumber) } },
           seasonNumber: 1,
           episodeNumber,
           title: `Episode ${episodeNumber}`,

@@ -59,7 +59,7 @@ export function PlayedButton({
   );
 }
 
-/** Whether an Episode is played, as a round icon toggle that marks it so. */
+/** Whether an Episode is played, as an icon toggle that marks it so. */
 export function PlayedIconButton({
   played,
   label,
@@ -70,16 +70,16 @@ export function PlayedIconButton({
   onToggle: (played: boolean) => void;
 }) {
   return (
-    <button
-      type="button"
+    <Button
+      variant="ghost"
+      size="icon"
       aria-label={label}
       aria-pressed={played}
       onClick={() => {
         onToggle(!played);
       }}
-      className="inline-flex size-11 shrink-0 items-center justify-center rounded-full text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
     >
       <PlayedIcon played={played} />
-    </button>
+    </Button>
   );
 }

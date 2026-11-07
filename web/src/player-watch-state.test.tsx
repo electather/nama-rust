@@ -103,3 +103,18 @@ test("a report that fails is sent again, and nothing is shown", async () => {
   await act(async () => {});
   expect(document.body.textContent).toBe("");
 });
+
+test("hiding the page reports where it is", async () => {
+  const { transport, reports } = server();
+  openPlayer(transport, new QueryClient());
+  const video = await loadedVideo();
+  video.currentTime = 90;
+  Object.defineProperty(document, "visibilityState", { value: "hidden", configurable: true });
+  fireEvent(document, new Event("visibilitychange"));
+  // oxlint-disable-next-line typescript/no-dynamic-delete -- Back to the document's own getter.
+  delete (document as { visibilityState?: unknown }).visibilityState;
+
+  await waitFor(() => {
+    expect(reports.map(({ positionMs }) => positionMs)).toEqual([90_000n]);
+  });
+});

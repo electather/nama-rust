@@ -1,16 +1,14 @@
-import { create } from "@bufbuild/protobuf";
 import { createQueryOptions, useSuspenseQuery } from "@connectrpc/connect-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
 
 import { Page } from "@/components/page";
-import { Poster, PosterGrid } from "@/components/poster";
+import { Poster, PosterGrid, posterLink } from "@/components/poster";
 import {
   BrowseService,
   type ContinueWatchingEntry,
   type Episode,
   type Movie,
   type Show,
-  ShowSchema,
 } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind, LibraryService } from "@/gen/nama/v1/library_pb";
 import { ServerService } from "@/gen/nama/v1/server_pb";
@@ -60,10 +58,7 @@ function ContinueWatching() {
         {data.entries.flatMap(entryCard).map(({ href, poster }) => (
           <li key={href}>
             {/* ponytail: a plain link until the player's route (#72) exists to type a <Link> against. */}
-            <a
-              href={href}
-              className="block rounded-lg outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-            >
+            <a href={href} className={posterLink}>
               <Poster {...poster} />
             </a>
           </li>
@@ -77,8 +72,9 @@ function ContinueWatching() {
 function entryCard({ libraryId, movieOrEpisode, show }: ContinueWatchingEntry) {
   const library = `/libraries/${libraryId}`;
   if (movieOrEpisode.case === "movie") return [movieCard(library, movieOrEpisode.value)];
-  if (movieOrEpisode.case === "episode") {
-    return [episodeCard(library, show ?? create(ShowSchema), movieOrEpisode.value)];
+  // An Episode without its Show has no poster or page to show.
+  if (movieOrEpisode.case === "episode" && show) {
+    return [episodeCard(library, show, movieOrEpisode.value)];
   }
   return [];
 }

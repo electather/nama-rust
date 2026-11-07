@@ -3,6 +3,10 @@ import type { ReactNode } from "react";
 import { PlayedMark, WatchedBar } from "@/components/watch-state";
 import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
 
+/** The classes for a link wrapping a `Poster`, which shows focus around it. */
+export const posterLink =
+  "block rounded-lg outline-none focus-visible:ring-3 focus-visible:ring-ring/50";
+
 /** A grid of posters, or what to say instead when there are none. */
 export function PosterGrid({ empty, children }: { empty: ReactNode; children: ReactNode[] }) {
   if (children.length === 0) return empty;

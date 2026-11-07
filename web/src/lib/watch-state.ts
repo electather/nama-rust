@@ -61,7 +61,7 @@ type Position = Pick<ReportProgressRequest, "positionMs" | "durationMs">;
 
 /**
  * Starts `video` from `resumeFrom` and passes how far in it is to `report` every few seconds, on
- * pause and seek, and in the cleanup it returns.
+ * pause and seek, when the page is hidden or closed, and in the cleanup it returns.
  */
 function followVideo(
   video: HTMLVideoElement,
@@ -92,12 +92,19 @@ function followVideo(
     ["pause", send],
     ["seeked", send],
   ] as const;
+  // Closing the tab unmounts nothing, and a phone may discard a page it hid without ever firing
+  // `pagehide`, so going out of sight is the last sure moment. ponytail: best effort, as the page
+  // may go before it's sent.
+  const sendIfHidden = () => {
+    if (document.visibilityState === "hidden") send();
+  };
   for (const [type, listener] of listeners) video.addEventListener(type, listener);
-  // Closing the tab unmounts nothing. ponytail: best effort, as the page may go before it's sent.
+  document.addEventListener("visibilitychange", sendIfHidden);
   window.addEventListener("pagehide", send);
   if (video.readyState >= HTMLMediaElement.HAVE_METADATA) resume();
   return () => {
     for (const [type, listener] of listeners) video.removeEventListener(type, listener);
+    document.removeEventListener("visibilitychange", sendIfHidden);
     window.removeEventListener("pagehide", send);
     send();
   };

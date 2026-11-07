@@ -3,7 +3,7 @@ import { Link, createFileRoute } from "@tanstack/react-router";
 
 import { Page } from "@/components/page";
 import { NotFound } from "@/components/route-error";
-import { Poster, PosterGrid } from "@/components/poster";
+import { Poster, PosterGrid, posterLink } from "@/components/poster";
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
 import { libraryFromParam, queryOrNotFound, titleParam, yearOf } from "@/lib/browse";
@@ -33,8 +33,6 @@ function Library() {
     </Page>
   );
 }
-
-const posterLink = "block rounded-lg outline-none focus-visible:ring-3 focus-visible:ring-ring/50";
 
 function Movies({ libraryId }: { libraryId: bigint }) {
   const { data } = useSuspenseQuery(BrowseService.method.listMovies, { libraryId });

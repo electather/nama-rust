@@ -52,12 +52,16 @@ function Show() {
   if (!data.show) return <NotFound />;
   return (
     <TitlePage title={data.show.title} backdropUrl={data.show.backdropUrl}>
-      <div className="flex max-w-3xl items-start gap-2">
+      {/* Pulled out like the Episodes below, so the menu lines up with their toggles. */}
+      <div className="-me-3 flex max-w-3xl items-start gap-2">
         <Seasons seasons={data.seasons} current={seasonNumber} />
         <MarkPlayedMenu
           {...show}
           seasonNumber={seasonNumber}
-          seasonPlayed={season.episodes.every(({ watchState }) => watchState?.played === true)}
+          seasonPlayed={
+            season.episodes.length > 0 &&
+            season.episodes.every(({ watchState }) => watchState?.played === true)
+          }
         />
       </div>
       <Episodes />
@@ -103,6 +107,8 @@ function Episodes() {
 function EpisodeRow({ libraryId, episode }: { libraryId: bigint; episode: Episode }) {
   const play = `${location.pathname}/seasons/${episode.seasonNumber}/episodes/${episode.episodeNumber}/play`;
   const setPlayed = useSetPlayed();
+  // Without its own ID there's nothing to mark.
+  const episodeId = episode.id;
   return (
     <li className="flex items-center gap-1 border-b last:border-b-0">
       {/* ponytail: a plain link until the player's route (#72) exists to type a <Link> against. */}
@@ -125,13 +131,15 @@ function EpisodeRow({ libraryId, episode }: { libraryId: bigint; episode: Episod
           <WatchedBar state={episode.watchState} />
         </span>
       </a>
-      <PlayedIconButton
-        played={episode.watchState?.played === true}
-        label={`Played: ${episode.title}`}
-        onToggle={(played) => {
-          setPlayed({ libraryId, target: { case: "episodeId", value: episode.id ?? {} }, played });
-        }}
-      />
+      {episodeId && (
+        <PlayedIconButton
+          played={episode.watchState?.played === true}
+          label={`Played: ${episode.title}`}
+          onToggle={(played) => {
+            setPlayed({ libraryId, target: { case: "episodeId", value: episodeId }, played });
+          }}
+        />
+      )}
     </li>
   );
 }

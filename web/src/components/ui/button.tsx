@@ -4,7 +4,7 @@ import { cn } from "cn";
 
 // DESIGN.md, "Buttons": 10px radius, 14px medium text. Disabled is Muted with Quiet ink, never faded.
 const buttonVariants = cva(
-  "inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg px-4 text-sm font-medium whitespace-nowrap transition-colors outline-none select-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:bg-muted disabled:text-muted-foreground",
+  "inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors outline-none select-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:bg-muted disabled:text-muted-foreground",
   {
     variants: {
       variant: {
@@ -14,20 +14,26 @@ const buttonVariants = cva(
         destructive: "bg-destructive font-semibold text-background hover:bg-destructive/90",
         ghost: "text-muted-foreground hover:bg-muted hover:text-foreground",
       },
+      size: {
+        default: "h-9 px-4",
+        // A square for an icon alone, as large as a fingertip.
+        icon: "size-11",
+      },
     },
-    defaultVariants: { variant: "default" },
+    defaultVariants: { variant: "default", size: "default" },
   },
 );
 
 function Button({
   className,
   variant = "default",
+  size = "default",
   ...props
 }: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
   return (
     <ButtonPrimitive
       data-slot="button"
-      className={cn(buttonVariants({ variant, className }))}
+      className={cn(buttonVariants({ variant, size, className }))}
       {...props}
     />
   );
