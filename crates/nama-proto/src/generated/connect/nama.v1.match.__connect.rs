@@ -330,6 +330,7 @@ pub trait MatchService: Send + Sync + 'static {
     /// Lists the items of a Library that need a Match, by path: those Matching left Unmatched, and
     /// those it hasn't Matched yet, such as when no metadata Provider was enabled. Items pinned
     /// Unmatched with `ClearMatch` aren't listed, since an Admin has already decided about them.
+    /// Also lists the Library's files whose names didn't parse, which an Admin fixes by renaming.
     /// Fails with `not_found` if there is no such Library.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).

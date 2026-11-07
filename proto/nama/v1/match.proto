@@ -34,6 +34,7 @@ service MatchService {
   // Lists the items of a Library that need a Match, by path: those Matching left Unmatched, and
   // those it hasn't Matched yet, such as when no metadata Provider was enabled. Items pinned
   // Unmatched with `ClearMatch` aren't listed, since an Admin has already decided about them.
+  // Also lists the Library's files whose names didn't parse, which an Admin fixes by renaming.
   // Fails with `not_found` if there is no such Library.
   rpc ListUnmatchedItems(ListUnmatchedItemsRequest) returns (ListUnmatchedItemsResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
@@ -115,6 +116,10 @@ message ListUnmatchedItemsRequest {
 
 message ListUnmatchedItemsResponse {
   repeated UnmatchedItem items = 1;
+  // The absolute paths of the Library's files whose names don't follow the naming conventions,
+  // by path. They hold no items, so nothing can Match them and there's no item to pass to
+  // `SetMatch`: renaming the file and rescanning the Library is the fix.
+  repeated string unparsed_paths = 2;
 }
 
 // An item that needs a Match, and what its file's name was parsed as. `kind`, `title` and `year`
