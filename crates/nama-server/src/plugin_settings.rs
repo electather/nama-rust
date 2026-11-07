@@ -1,13 +1,13 @@
 //! Whether each Plugin is enabled, and its settings, kept in the database. They come from the
-//! config's `[plugins.*]` tables once, on the first start after upgrading; from then on the
-//! database is the only store.
+//! config's `[plugins.*]` tables once, on the first start; from then on the database is the only
+//! store.
 
 use std::collections::BTreeMap;
 
 use crate::{config::PluginConfig, db::Database};
 
 /// The `schema_meta` key whose presence records that the config was imported.
-const IMPORTED: &str = "plugin_settings_imported";
+const IMPORTED_KEY: &str = "plugin_settings_imported";
 
 /// Every stored Plugin's settings, by Plugin id, or `None` until [`import`] has run.
 ///
@@ -17,7 +17,7 @@ const IMPORTED: &str = "plugin_settings_imported";
 pub async fn stored(db: &Database) -> Result<Option<BTreeMap<String, PluginConfig>>, sqlx::Error> {
     let imported = sqlx::query_scalar!(
         r#"SELECT EXISTS (SELECT 1 FROM schema_meta WHERE key = ?) AS "imported!: bool""#,
-        IMPORTED
+        IMPORTED_KEY
     )
     .fetch_one(db.reader())
     .await?;
@@ -43,8 +43,8 @@ pub async fn stored(db: &Database) -> Result<Option<BTreeMap<String, PluginConfi
         .map(Some)
 }
 
-/// Stores `plugins`, the config's `[plugins.*]` tables, as each Plugin's settings, and records the
-/// import so [`stored`] returns them from now on.
+/// Stores `plugins`, read from the config's `[plugins.*]` tables, as each Plugin's settings, and
+/// records the import so [`stored`] returns them from now on.
 ///
 /// # Errors
 ///
@@ -75,7 +75,7 @@ pub async fn import(
             }
             sqlx::query!(
                 "INSERT INTO schema_meta (key, value) VALUES (?, 'yes')",
-                IMPORTED
+                IMPORTED_KEY
             )
             .execute(&mut **tx)
             .await?;

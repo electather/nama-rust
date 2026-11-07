@@ -11,6 +11,7 @@ use std::{
 use figment::{
     Figment,
     providers::{Env, Format, Serialized, Toml},
+    value::{Dict, Value},
 };
 use nama_plugin_api::settings::SettingValue;
 use serde::{Deserialize, Serialize};
@@ -26,7 +27,7 @@ pub const ENV_PREFIX: &str = "NAMA_";
 pub const FILE_ENV: &str = "NAMA_CONFIG";
 
 /// Everything a Server needs to know before it starts.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Config {
     /// The Server's display name, which clients show to tell Servers apart.
     pub name: String,
@@ -34,14 +35,64 @@ pub struct Config {
     pub listen: SocketAddr,
     /// Directory where the Server keeps its database and other state.
     pub data_dir: PathBuf,
-    /// Settings for each Plugin, by Plugin id, as `[plugins.<id>]` tables in the file. Imported
-    /// into the database on the first start after upgrading and ignored after (`plugin_settings`).
+    /// The `[plugins.<id>]` tables in the file, imported into the database on the first start and
+    /// ignored after (`plugin_settings`).
     #[serde(default)]
-    pub plugins: BTreeMap<String, PluginConfig>,
+    pub plugins: PluginTables,
     /// Reverse proxies whose `X-Forwarded-For` and `X-Forwarded-Proto` headers the Server believes
     /// (ADR 0018). Empty by default, so the headers are ignored.
     #[serde(default)]
     pub trusted_proxies: Vec<IpRange>,
+}
+
+/// The `[plugins.<id>]` tables in the file, by Plugin id, as written.
+///
+/// They are read as [`PluginConfig`]s only by [`PluginTables::parse`] when they are imported, so
+/// once they are ignored a table that no longer parses can't stop the Server.
+#[derive(Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct PluginTables(BTreeMap<String, Dict>);
+
+impl PluginTables {
+    /// The Plugin ids the tables name.
+    pub fn ids(&self) -> impl Iterator<Item = &str> {
+        self.0.keys().map(String::as_str)
+    }
+
+    /// Each table read as its Plugin's config, by Plugin id.
+    ///
+    /// # Errors
+    ///
+    /// If a table has a value of the wrong type, such as a float setting.
+    pub fn parse(&self) -> Result<BTreeMap<String, PluginConfig>, InvalidPluginTable> {
+        self.0
+            .iter()
+            .map(|(id, table)| {
+                Value::from(table.clone())
+                    .deserialize()
+                    .map(|config| (id.clone(), config))
+                    .map_err(|source| InvalidPluginTable {
+                        id: id.clone(),
+                        source: Box::new(source),
+                    })
+            })
+            .collect()
+    }
+}
+
+// Values may be secrets, never logged (the crate's `AGENTS.md`), so only the Plugin ids are printed.
+impl fmt::Debug for PluginTables {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_set().entries(self.0.keys()).finish()
+    }
+}
+
+/// A `[plugins.<id>]` table that isn't a Plugin's config.
+#[derive(Debug, thiserror::Error)]
+#[error("the [plugins.{id}] table: {source}")]
+pub struct InvalidPluginTable {
+    id: String,
+    source: Box<figment::Error>,
 }
 
 /// Whether one Plugin is enabled, and its settings: a `[plugins.<id>]` table in the file, and a row
@@ -76,7 +127,7 @@ impl Default for Config {
             name: "Nama".to_owned(),
             listen: SocketAddr::from(([0, 0, 0, 0], 7980)),
             data_dir: PathBuf::from("data"),
-            plugins: BTreeMap::new(),
+            plugins: PluginTables::default(),
             trusted_proxies: Vec::new(),
         }
     }

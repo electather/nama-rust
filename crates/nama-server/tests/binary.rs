@@ -252,7 +252,8 @@ fn plugin_settings_are_imported_from_the_config_once_and_the_config_is_ignored_a
 
     std::fs::write(
         &config_file,
-        format!("{data_dir}[plugins.tmdb]\nenabled = false\n"),
+        // A value no Plugin setting takes, which an imported table would be refused for.
+        format!("{data_dir}[plugins.tmdb]\nenabled = false\nretries = 1.5\n"),
     )
     .unwrap();
     let later_start = log_until_listening(&config_file);

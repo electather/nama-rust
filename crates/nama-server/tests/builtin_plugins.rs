@@ -4,14 +4,11 @@
 use std::{collections::BTreeMap, path::Path, process::Command};
 
 use nama_plugin_api::{PluginId, settings::SettingValue};
-use nama_server::{
-    config::{Config, PluginConfig},
-    plugins::Registry,
-};
+use nama_server::{config::PluginConfig, plugins::Registry};
 
 #[test]
 fn every_builtin_plugin_is_enabled_by_default_once_it_has_the_settings_it_requires() {
-    let without_settings = Registry::with_builtins(&Config::default().plugins);
+    let without_settings = Registry::with_builtins(&BTreeMap::new());
     let tmdb = PluginConfig {
         settings: BTreeMap::from([(
             "api_key".to_owned(),

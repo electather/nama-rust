@@ -9,7 +9,7 @@
 
 ### Security
 
-- **Secrets stay out of storage and logs.** The database holds the Authenticator's credential string and the SHA-256 hash of each session token; only `src/users.rs` derives them. Types holding a token or Sign-in Code skip `Debug`. The Setup Code is the one secret logged, on purpose. Plugin settings are the one secret stored as written, since a Plugin needs a key such as TMDB's itself to send it: no setting value is ever logged or sent to a client (`SettingValue`'s `Debug` hides it).
+- **Secrets stay out of storage and logs.** The database holds the Authenticator's credential string and the SHA-256 hash of each session token; only `src/users.rs` derives them. Types holding a token or Sign-in Code skip `Debug`. The Setup Code is the one secret logged, on purpose. Plugin settings are the one secret stored as written, since a Plugin must send a key such as TMDB's as it is: no setting value is ever logged or sent to a client (the `Debug` of `SettingValue` and `PluginTables` hides them).
 - **Clients name ids.** Media is served by Version id (`Contents::version_path`) and artwork only for paths some Match stores (`Contents::stores_image`). Where a Library lives on disk is shown to Admins only.
 - **New RPCs start closed.** `Access::of` in `src/api.rs` requires a session for any RPC outside `Access::PUBLIC` and `Access::SELF_SERVICE`; opening one is an explicit entry there.
 - **Sensitive RPCs need Recent Authentication.** An RPC that changes who can sign in as whom (a password, a Sign-in Method, a Role, deleting a User, approving a Sign-in Code) goes in `NEEDS_RECENT_AUTHENTICATION` in `src/api.rs` (ADR 0014). The access layer checks it before the handler runs; handlers don't check it themselves.
