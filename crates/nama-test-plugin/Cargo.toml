@@ -1,0 +1,23 @@
+[package]
+name = "nama-test-plugin"
+version = "0.1.0"
+description = "An Installed Plugin used only in the Server's tests"
+license = "AGPL-3.0-only"
+edition.workspace = true
+repository.workspace = true
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[features]
+# Builds the Plugin with a `nama-api` requirement no Server meets, so the Server refuses it.
+out-of-range = []
+# Builds the Plugin so its `manifest()` panics, to show the Server gets the panic's message.
+panic = []
+
+[dependencies]
+nama-pdk = { version = "0.1.0", path = "../nama-pdk" }
+
+[lints]
+workspace = true

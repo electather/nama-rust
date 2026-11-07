@@ -2,6 +2,7 @@
 //! Kernel calls them at Extension Points.
 
 mod builtin;
+pub mod installed;
 
 use std::{
     any::Any,

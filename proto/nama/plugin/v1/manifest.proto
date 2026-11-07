@@ -1,0 +1,80 @@
+syntax = "proto3";
+
+// Messages between the Server and its Installed Plugins (ADR 0006). An Installed Plugin is a
+// `.wasm` file whose exports take and return these, encoded as protobuf.
+package nama.plugin.v1;
+
+// What an Installed Plugin is and what it needs from the Server. The Plugin returns it from its
+// `manifest()` export, which takes no input.
+message Manifest {
+  // The Plugin's stable, unique name, such as "sonarr".
+  string id = 1;
+  // The Plugin's own version, such as "1.2.0".
+  string version = 2;
+  // The versions of the Nama API the Plugin works with, as a Cargo-style semver requirement
+  // such as "^0.1.0". A Server whose Nama API version doesn't match refuses the Plugin.
+  string nama_api = 3;
+  // The settings the Plugin takes, in the order a form shows them.
+  repeated SettingField settings = 4;
+  // Host names the Plugin may send HTTP requests to, such as "api.example.com" or
+  // "*.example.com". Ports aren't part of the match, so a host allows every port on it.
+  repeated string allowed_hosts = 5;
+  // The Extension Points the Plugin registers an Observer at.
+  repeated ObservePoint observers = 6;
+  // The capabilities the Plugin registers a Provider for.
+  repeated ProvidePoint providers = 7;
+}
+
+// One setting an Installed Plugin takes.
+message SettingField {
+  // The key it is stored and configured under, such as "api_key".
+  string key = 1;
+  // A short name for a form's label.
+  string label = 2;
+  // What the setting does, for a form's help text.
+  string description = 3;
+  // What kind of value it takes.
+  SettingKind kind = 4;
+  // Whether the Plugin can't be enabled without it.
+  bool required = 5;
+  // The value used when none is given. Unset if there is none.
+  SettingValue default_value = 6;
+}
+
+// What kind of value a setting takes.
+enum SettingKind {
+  SETTING_KIND_UNSPECIFIED = 0;
+  // Text.
+  SETTING_KIND_TEXT = 1;
+  // Text that is never shown back or logged, such as an API key.
+  SETTING_KIND_SECRET = 2;
+  // On or off.
+  SETTING_KIND_BOOL = 3;
+  // A whole number.
+  SETTING_KIND_INTEGER = 4;
+}
+
+// A setting's value.
+message SettingValue {
+  oneof value {
+    // On or off.
+    bool bool = 1;
+    // A whole number.
+    int64 integer = 2;
+    // Text, for both SETTING_KIND_TEXT and SETTING_KIND_SECRET.
+    string text = 3;
+  }
+}
+
+// An Observe Extension Point an Installed Plugin can register an Observer at.
+enum ObservePoint {
+  OBSERVE_POINT_UNSPECIFIED = 0;
+  // Things happened on the Server: the same Events `nama.v1.EventService.Subscribe` streams.
+  OBSERVE_POINT_EVENTS = 1;
+}
+
+// A capability an Installed Plugin can register a Provider for. None can yet; the first is the
+// Fulfiller.
+enum ProvidePoint {
+  PROVIDE_POINT_UNSPECIFIED = 0;
+}

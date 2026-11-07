@@ -6,9 +6,15 @@ license = "MIT OR Apache-2.0"
 edition.workspace = true
 repository.workspace = true
 
+[features]
+default = ["connect"]
+# The ConnectRPC service traits and clients. An Installed Plugin, built for wasm32, turns this off
+# and keeps only the messages.
+connect = ["dep:connectrpc"]
+
 [dependencies]
 buffa = { version = "0.9.2", features = ["json"] }
-connectrpc = { version = "0.9.1", features = ["client"] }
+connectrpc = { version = "0.9.1", features = ["client"], optional = true }
 serde = { version = "1", features = ["derive"] }
 
 [lints]

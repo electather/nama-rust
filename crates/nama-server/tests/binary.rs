@@ -181,6 +181,99 @@ fn server_logs_its_config_creates_its_database_serves_the_api_and_exits_cleanly_
     assert!(!data_dir.join("nama.db-wal").exists());
 }
 
+/// The test Plugin, built from source for wasm32 with `features`.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a Plugin that can't be built fails the test that needs it"
+)]
+fn build_test_plugin(features: &str) -> Vec<u8> {
+    // The `.wasm` lands at the same path whatever the features, so each set gets its own target
+    // directory and tests building different ones can run at once.
+    let target_dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
+        .join("test-plugin")
+        .join(if features.is_empty() {
+            "default"
+        } else {
+            features
+        });
+    let status = Command::new(env!("CARGO"))
+        .args([
+            "build",
+            "--release",
+            "--locked",
+            "--package",
+            "nama-test-plugin",
+        ])
+        .args(["--target", "wasm32-unknown-unknown", "--features", features])
+        .arg("--target-dir")
+        .arg(&target_dir)
+        .status()
+        .unwrap();
+    assert!(status.success(), "building the test Plugin failed");
+    std::fs::read(target_dir.join("wasm32-unknown-unknown/release/nama_test_plugin.wasm")).unwrap()
+}
+
+#[test]
+fn server_logs_installed_plugins_and_skips_the_ones_it_refuses() {
+    let dir = std::env::temp_dir().join(format!("nama-server-installed-{}", std::process::id()));
+    let plugins_dir = dir.join("data").join("plugins");
+    std::fs::create_dir_all(&plugins_dir).unwrap();
+    let dir = RemoveOnDrop(dir);
+    let data_dir = dir.0.join("data");
+    let config_file = dir.0.join("server.toml");
+    std::fs::write(
+        &config_file,
+        format!("data_dir = \"{}\"\n", data_dir.display()),
+    )
+    .unwrap();
+    std::fs::write(plugins_dir.join("test.wasm"), build_test_plugin("")).unwrap();
+    std::fs::write(
+        plugins_dir.join("out-of-range.wasm"),
+        build_test_plugin("out-of-range"),
+    )
+    .unwrap();
+    std::fs::write(plugins_dir.join("panics.wasm"), build_test_plugin("panic")).unwrap();
+    std::fs::write(plugins_dir.join("not-wasm.wasm"), "not a WASM module").unwrap();
+    // WASM's magic number and version, then a byte that starts no valid section.
+    std::fs::write(plugins_dir.join("corrupt.wasm"), b"\0asm\x01\0\0\0\xff").unwrap();
+    // The smallest valid WASM module: the magic number and version, and no exports at all.
+    std::fs::write(plugins_dir.join("no-manifest.wasm"), b"\0asm\x01\0\0\0").unwrap();
+
+    let mut server = spawn_server(&config_file);
+    let lines = log_lines(server.0.as_mut().unwrap());
+
+    // The Server reads the files in name order.
+    let corrupt = wait_for_line(&lines, "corrupt.wasm");
+    assert!(corrupt.contains("could not load it"), "{corrupt}");
+    let no_manifest = wait_for_line(&lines, "no-manifest.wasm");
+    assert!(no_manifest.contains("manifest()"), "{no_manifest}");
+    let not_wasm = wait_for_line(&lines, "not-wasm.wasm");
+    assert!(not_wasm.contains("not a WASM module"), "{not_wasm}");
+    let out_of_range = wait_for_line(&lines, "out-of-range.wasm");
+    assert!(
+        out_of_range.contains("it wants nama-api <0.1, and this Server has 0.1.0"),
+        "{out_of_range}"
+    );
+    // nama-pdk's panic hook hands the panic's message to the Server.
+    let panics = wait_for_line(&lines, "panics.wasm");
+    assert!(
+        panics.contains("its manifest() export failed: panicked at ")
+            && panics.contains(" the test Plugin was built to panic"),
+        "{panics}"
+    );
+    let found = wait_for_line(&lines, "test.wasm");
+    assert!(found.contains("id=test-plugin"), "{found}");
+    assert!(found.contains("version=0.1.0"), "{found}");
+
+    // The refused files don't stop the Server.
+    wait_for_line(&lines, "listening");
+    let cache = std::fs::read_dir(data_dir.join("wasmtime").join("cache")).unwrap();
+    assert!(
+        cache.count() > 0,
+        "wasmtime cached nothing under the data directory"
+    );
+}
+
 #[test]
 fn server_refuses_to_start_without_an_authenticator_says_why_and_starts_once_the_file_is_fixed() {
     let dir = std::env::temp_dir().join(format!("nama-server-no-auth-{}", std::process::id()));

@@ -80,6 +80,10 @@ _Avoid_: core plugin, native plugin
 A Plugin loaded into a running Server from a package, whether bundled with a release or added by an admin.
 _Avoid_: third-party plugin, external plugin, WASM plugin
 
+**Manifest**:
+What an Installed Plugin says about itself: its id and version, the Nama API versions it works with, its settings, the hosts it may reach, and its Observers and Providers. A Server outside those Nama API versions refuses the Plugin.
+_Avoid_: descriptor, plugin.json, metadata
+
 **Extension Point**:
 A named place where the Kernel lets Plugins take part, declared as one of Observe, Intercept or Provide.
 _Avoid_: hook, seam, slot

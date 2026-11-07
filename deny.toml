@@ -21,6 +21,10 @@ allow = [
   "AGPL-3.0-only",
 ]
 confidence-threshold = 0.9
+exceptions = [
+  # Extism's build script runs it to write a C header; none of it is built into the Server.
+  { allow = ["MPL-2.0"], crate = "cbindgen" },
+]
 
 [bans]
 multiple-versions = "warn"
