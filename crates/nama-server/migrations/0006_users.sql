@@ -51,7 +51,9 @@ END;
 CREATE TABLE devices (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL REFERENCES users (id) ON DELETE CASCADE,
-    -- How it signed in, or NULL for a Sign-in Code. Removing the Sign-in Method signs it out.
+    -- How it signed in, or NULL for a Sign-in Code. Removing the Sign-in Method signs it out, but
+    -- the cascade doesn't end its streams: remove one through `Users::write_signing_out`, returning
+    -- these Devices' ids.
     sign_in_method_id INTEGER REFERENCES sign_in_methods (id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     -- The SHA-256 hash of the Device's session token. The token itself is never stored.

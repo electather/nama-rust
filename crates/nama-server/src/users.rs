@@ -132,7 +132,7 @@ impl SignedIn {
 }
 
 /// A Device about to sign in, and where from.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct NewDevice {
     /// What it is called. Signing in checks it, except where the Device was named earlier.
     pub name: String,

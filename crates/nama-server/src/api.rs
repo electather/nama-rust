@@ -309,7 +309,7 @@ impl SignInService for SignInServiceHandler {
         if !setup_code.matches(&request.setup_code) {
             return Err(ConnectError::permission_denied("the Setup Code is wrong"));
         }
-        let device = signing_in(device_name(request.device_name, ctx.headers()), &ctx)?;
+        let device = new_device(device_name(request.device_name, ctx.headers()), &ctx)?;
         let signed_in = self
             .users
             .create_first_admin(&request.name, &request.password, device)
@@ -338,7 +338,7 @@ impl SignInService for SignInServiceHandler {
             .sign_in_limits
             .admit(client_ip(&ctx)?, Some(&request.name))?;
         let wants_token = wants_token(request.delivery)?;
-        let device = signing_in(device_name(request.device_name, ctx.headers()), &ctx)?;
+        let device = new_device(device_name(request.device_name, ctx.headers()), &ctx)?;
         let signed_in = self
             .users
             .sign_in(&request.name, &request.password, device)
@@ -456,7 +456,7 @@ impl SignInService for SignInServiceHandler {
                 wants_token,
             } => (user, device_name, wants_token),
         };
-        let device = signing_in(device_name, &ctx)?;
+        let device = new_device(device_name, &ctx)?;
         let signed_in = self.users.sign_in_as(user, None, device).await?;
         Ok(hand_out_session(
             signed_in,
@@ -1320,7 +1320,7 @@ fn device_name(given: String, headers: &HeaderMap) -> String {
 }
 
 /// The Device named `name` that signs in with the request `ctx`.
-fn signing_in(name: String, ctx: &RequestContext) -> Result<NewDevice, ConnectError> {
+fn new_device(name: String, ctx: &RequestContext) -> Result<NewDevice, ConnectError> {
     Ok(NewDevice {
         name,
         ip_address: client_ip(ctx)?,
