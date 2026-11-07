@@ -1,6 +1,7 @@
-import type { ReactNode, SubmitEvent } from "react";
+import type { ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
+import { onSubmitted } from "@/lib/forms";
 
 /** A page with one native form for getting in: setting up, or signing in. */
 export function SignInLayout({
@@ -22,16 +23,11 @@ export function SignInLayout({
   error: string | undefined;
   children: ReactNode;
 }) {
-  // Handled here rather than as a form `action`, which would clear every field after a refusal.
-  function submit(event: SubmitEvent<HTMLFormElement>) {
-    event.preventDefault();
-    onSubmit(new FormData(event.currentTarget));
-  }
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-sm flex-col justify-center px-6 py-12">
       <h1 className="text-2xl font-semibold tracking-tight text-balance">{heading}</h1>
       <p className="mt-2 text-muted-foreground">{intro}</p>
-      <form className="mt-8 flex flex-col gap-5" onSubmit={submit}>
+      <form className="mt-8 flex flex-col gap-5" onSubmit={onSubmitted(onSubmit)}>
         {children}
         <p role="alert" className="text-sm text-destructive empty:hidden">
           {error}

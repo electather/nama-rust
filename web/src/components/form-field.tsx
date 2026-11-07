@@ -1,5 +1,6 @@
 import { type ComponentProps, useId } from "react";
 
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 /** A labelled, required text input in a native form, with its hint and the Server's error. */
@@ -37,5 +38,35 @@ export function FormField({
         {error}
       </p>
     </div>
+  );
+}
+
+/** The end of a form on a page: what submitting it did, why the Server refused, and its button. */
+export function FormEnd({
+  action,
+  pending,
+  done,
+  refusal,
+}: {
+  /** Says what submitting does, such as "Change password". */
+  action: string;
+  pending: boolean;
+  /** What the last submit did, once it's done. */
+  done: string | undefined;
+  /** Why the Server refused the form as a whole, if it did. */
+  refusal: string | undefined;
+}) {
+  return (
+    <>
+      <output className="text-sm empty:hidden">{done}</output>
+      <p role="alert" className="text-sm text-destructive empty:hidden">
+        {refusal}
+      </p>
+      <div>
+        <Button type="submit" disabled={pending}>
+          {action}
+        </Button>
+      </div>
+    </>
   );
 }

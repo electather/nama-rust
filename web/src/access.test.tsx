@@ -1,45 +1,12 @@
-import { create } from "@bufbuild/protobuf";
-import { Code, ConnectError, type ServiceImpl, createRouterTransport } from "@connectrpc/connect";
-import { RouterProvider } from "@tanstack/react-router";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { Code, ConnectError } from "@connectrpc/connect";
+import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
-import { GetServerInfoResponseSchema, ServerService } from "@/gen/nama/v1/server_pb";
-import { Role, SignInService, WhoAmIResponseSchema } from "@/gen/nama/v1/sign_in_pb";
+import { Role } from "@/gen/nama/v1/sign_in_pb";
 
-import { getRouter } from "./router";
+import { type ServerState, fakeServer, fill, openApp } from "./test-app";
 
 afterEach(cleanup);
-
-/** What the fake Server says: whether it needs setting up, and who is signed in, if anyone. */
-interface ServerState {
-  setupRequired?: boolean;
-  signedIn?: Role;
-}
-
-/** A fake Server in `state`, with `handlers` for the rest of `SignInService`. */
-function fakeServer(state: ServerState, handlers: Partial<ServiceImpl<typeof SignInService>> = {}) {
-  return createRouterTransport(({ service }) => {
-    service(ServerService, {
-      getServerInfo: () =>
-        create(GetServerInfoResponseSchema, {
-          name: "Living Room",
-          setupRequired: state.setupRequired ?? false,
-        }),
-    });
-    service(SignInService, {
-      whoAmI: () => {
-        if (state.signedIn === undefined) {
-          throw new ConnectError("signed out", Code.Unauthenticated);
-        }
-        return create(WhoAmIResponseSchema, {
-          user: { id: 1n, name: "Sam", role: state.signedIn },
-        });
-      },
-      ...handlers,
-    });
-  });
-}
 
 /** A signed-out Server whose `SignIn` signs the browser in as a Member. */
 function serverToSignInTo() {
@@ -62,19 +29,6 @@ function serverRefusingSignIn(code: Code) {
       },
     },
   );
-}
-
-function openApp(path: string, transport: ReturnType<typeof createRouterTransport>) {
-  window.history.replaceState(null, "", path);
-  const router = getRouter(transport);
-  // A route's error page shows what it caught. React's own log of it would inspect the error's
-  // `Headers`, which happy-dom can't.
-  render(<RouterProvider router={router} />, { onCaughtError: () => {} });
-  return router;
-}
-
-function fill(label: string, value: string) {
-  fireEvent.change(screen.getByLabelText(label), { target: { value } });
 }
 
 async function submitSignIn(password = "correct horse") {
