@@ -10,7 +10,7 @@ import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
 import { recorder, type Outcome, type Stage, type Waiting } from "./status.ts";
 
 const MAX_ISSUES = Number(process.env.MAX_ISSUES ?? 60); // issues started per run; MAX_ISSUES=1 → one issue, then stop
-const MAX_PARALLEL = 3; // issues built at once
+const MAX_PARALLEL = 2; // issues built at once
 // `touch .sandcastle/STOP`: running issues finish, nothing new starts, later runs exit at once. `rm` it to resume.
 const STOP_FILE = ".sandcastle/STOP";
 const MODEL = "claude-opus-5-5";

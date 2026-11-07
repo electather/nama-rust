@@ -1,6 +1,6 @@
 # AI factory (sandcastle)
 
-Takes open `ready-for-agent` issues with no open blockers, up to 3 at once (`MAX_PARALLEL`), each through:
+Takes open `ready-for-agent` issues with no open blockers, up to 2 at once (`MAX_PARALLEL`), each through:
 `implement` skill → `code-review` skill + fixes → PR (`Closes #N`) → CI (one auto-fix attempt) → squash-merge.
 While an issue is being built it carries `agent-working`; the label comes off when it merges, is handed back or the run crashes.
 Only one factory runs per machine (`~/.cache/nama-sandcastle/factory.pid`). Factories on different machines can run at once: each claims an issue by creating `refs/claims/issue-N` on origin, which only one of them can do, and deletes it when done or on Ctrl-C. A run that was killed outright leaves its claims behind. Free one with `git push origin --delete refs/claims/issue-N` and remove the issue's `agent-working` label.
