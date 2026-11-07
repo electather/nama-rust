@@ -1,6 +1,7 @@
 import { Outlet, createFileRoute, redirect, useMatches } from "@tanstack/react-router";
 
 import { AppChrome } from "@/components/app-chrome";
+import { ConfirmItsYou } from "@/components/confirm-its-you";
 import { Role } from "@/gen/nama/v1/sign_in_pb";
 import { isSetupRequired, whoIsSignedIn } from "@/lib/access";
 import { useEvents } from "@/lib/events";
@@ -26,9 +27,9 @@ function MemberLayout() {
   });
   useEvents();
   return (
-    <>
+    <ConfirmItsYou>
       {!fullScreen && <AppChrome isAdmin={signedIn.user?.role === Role.ADMIN} />}
       <Outlet />
-    </>
+    </ConfirmItsYou>
   );
 }

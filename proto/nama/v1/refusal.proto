@@ -29,7 +29,7 @@ enum RefusalReason {
   REFUSAL_REASON_ADMIN_REQUIRED = 2;
   // `unauthenticated`: no User has this name and password. Which of the two is wrong isn't said.
   REFUSAL_REASON_WRONG_NAME_OR_PASSWORD = 3;
-  // `unauthenticated`: the password given as the User's current one isn't.
+  // `unauthenticated`: the password given isn't the User's.
   REFUSAL_REASON_WRONG_PASSWORD = 4;
   // `unauthenticated`: the calling Device was signed out before its change was made.
   REFUSAL_REASON_SIGNED_OUT = 5;
@@ -110,4 +110,8 @@ enum RefusalReason {
   REFUSAL_REASON_FOLDER_NOT_UTF8 = 35;
   // `invalid_argument`: a folder is named more than once in the request. Params: `folder`.
   REFUSAL_REASON_FOLDER_REPEATED = 36;
+
+  // `failed_precondition`: the call needs Recent Authentication, which the calling Device gets back
+  // with `SignInService.Reauthenticate`.
+  REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED = 37;
 }

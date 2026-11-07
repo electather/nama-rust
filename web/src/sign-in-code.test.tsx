@@ -6,7 +6,7 @@ import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { Role, SignInCodeStatus } from "@/gen/nama/v1/sign_in_pb";
 
 import { type ServerState, fakeServer, fill, openApp } from "./test-app";
-import { refused } from "./test-refusal";
+import { confirmItsYou, recentAuthenticationRequired, refused } from "./test-refusal";
 
 beforeEach(() => {
   // Polling waits seconds between tries; the tests move the clock on instead.
@@ -178,4 +178,35 @@ test("a wrong code shows a plain error", async () => {
   await lookUp("WRONG-123");
   expect(await screen.findByText(/That code doesn’t match/u)).toBeDefined();
   expect(screen.queryByRole("button", { name: "Sign it in" })).toBeNull();
+});
+
+/** A signed-in Server where "Living room TV" waits, refusing approval until `Reauthenticate`. */
+function serverNeedingRecentAuthentication() {
+  let reauthenticated = false;
+  return fakeServer(
+    { signedIn: Role.MEMBER },
+    {
+      lookUpSignInCode: () => ({ deviceName: "Living room TV" }),
+      approveSignInCode: () => {
+        if (!reauthenticated) throw recentAuthenticationRequired();
+        return {};
+      },
+      reauthenticate: () => {
+        reauthenticated = true;
+        return {};
+      },
+    },
+  );
+}
+
+test("without Recent Authentication, a code is approved once you confirm it’s you", async () => {
+  openApp("/code", serverNeedingRecentAuthentication());
+  await screen.findByRole("heading", { name: "Sign in a Device" });
+
+  await lookUp("abcdefgh");
+  expect(await screen.findByText("Living room TV")).toBeDefined();
+  fireEvent.click(screen.getByRole("button", { name: "Sign it in" }));
+  await confirmItsYou();
+
+  expect(await screen.findByText(/is signed in as you/u)).toBeDefined();
 });

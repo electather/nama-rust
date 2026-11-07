@@ -1,7 +1,6 @@
 import { Code } from "@connectrpc/connect";
 import { createConnectQueryKey } from "@connectrpc/connect-query";
 
-import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { Role } from "@/gen/nama/v1/sign_in_pb";
 import { UserService } from "@/gen/nama/v1/user_pb";
 
@@ -46,16 +45,11 @@ export function createUserErrors(error: unknown): FormErrors {
 
 /** Why the Server refused to change your own password, next to the field it's about. */
 export function changePasswordErrors(error: unknown): FormErrors {
-  return refusal(
-    error,
-    "change your password",
-    {
-      [Code.InvalidArgument]: refusedFieldErrors(error, ["newPassword"]),
-      [Code.Unauthenticated]: { form: serverMessage(error) },
-    },
-    // `unauthenticated` also means this Device was signed out.
-    { [RefusalReason.WRONG_PASSWORD]: { currentPassword: "That isn’t your current password." } },
-  );
+  return refusal(error, "change your password", {
+    [Code.InvalidArgument]: refusedFieldErrors(error, ["newPassword"]),
+    // This Device was signed out meanwhile.
+    [Code.Unauthenticated]: { form: serverMessage(error) },
+  });
 }
 
 /** Why the Server refused a new password an Admin set for the User called `name`. */

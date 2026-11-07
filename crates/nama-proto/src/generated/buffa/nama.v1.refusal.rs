@@ -15,7 +15,7 @@ pub enum RefusalReason {
     REFUSAL_REASON_ADMIN_REQUIRED = 2i32,
     /// `unauthenticated`: no User has this name and password. Which of the two is wrong isn't said.
     REFUSAL_REASON_WRONG_NAME_OR_PASSWORD = 3i32,
-    /// `unauthenticated`: the password given as the User's current one isn't.
+    /// `unauthenticated`: the password given isn't the User's.
     REFUSAL_REASON_WRONG_PASSWORD = 4i32,
     /// `unauthenticated`: the calling Device was signed out before its change was made.
     REFUSAL_REASON_SIGNED_OUT = 5i32,
@@ -89,6 +89,9 @@ pub enum RefusalReason {
     REFUSAL_REASON_FOLDER_NOT_UTF8 = 35i32,
     /// `invalid_argument`: a folder is named more than once in the request. Params: `folder`.
     REFUSAL_REASON_FOLDER_REPEATED = 36i32,
+    /// `failed_precondition`: the call needs Recent Authentication, which the calling Device gets back
+    /// with `SignInService.Reauthenticate`.
+    REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED = 37i32,
 }
 impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -202,6 +205,9 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_FOLDER_REPEATED`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const FolderRepeated: Self = Self::REFUSAL_REASON_FOLDER_REPEATED;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const RecentAuthenticationRequired: Self = Self::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED;
 }
 impl ::core::default::Default for RefusalReason {
     fn default() -> Self {
@@ -360,6 +366,11 @@ impl ::buffa::Enumeration for RefusalReason {
             }
             35i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_FOLDER_NOT_UTF8),
             36i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_FOLDER_REPEATED),
+            37i32 => {
+                ::core::option::Option::Some(
+                    Self::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED,
+                )
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -427,6 +438,9 @@ impl ::buffa::Enumeration for RefusalReason {
             }
             Self::REFUSAL_REASON_FOLDER_NOT_UTF8 => "REFUSAL_REASON_FOLDER_NOT_UTF8",
             Self::REFUSAL_REASON_FOLDER_REPEATED => "REFUSAL_REASON_FOLDER_REPEATED",
+            Self::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED => {
+                "REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED"
+            }
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -546,6 +560,11 @@ impl ::buffa::Enumeration for RefusalReason {
             "REFUSAL_REASON_FOLDER_REPEATED" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_FOLDER_REPEATED)
             }
+            "REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED" => {
+                ::core::option::Option::Some(
+                    Self::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED,
+                )
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -588,6 +607,7 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_FOLDER_NOT_READABLE,
             Self::REFUSAL_REASON_FOLDER_NOT_UTF8,
             Self::REFUSAL_REASON_FOLDER_REPEATED,
+            Self::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED,
         ]
     }
 }

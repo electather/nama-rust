@@ -1592,16 +1592,6 @@ pub const __REVOKE_DEVICE_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAnyEntr
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct ChangePasswordRequest {
-    /// The caller's password now.
-    ///
-    /// Field 1: `current_password`
-    #[serde(
-        rename = "currentPassword",
-        alias = "current_password",
-        with = "::buffa::json_helpers::proto_string",
-        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
-    )]
-    pub current_password: ::buffa::alloc::string::String,
     /// The password to change to, which the Server's Authenticator checks against its own rules.
     ///
     /// Field 2: `new_password`
@@ -1619,7 +1609,6 @@ pub struct ChangePasswordRequest {
 impl ::core::fmt::Debug for ChangePasswordRequest {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
         f.debug_struct("ChangePasswordRequest")
-            .field("current_password", &self.current_password)
             .field("new_password", &self.new_password)
             .finish()
     }
@@ -1651,11 +1640,6 @@ impl ::buffa::Message for ChangePasswordRequest {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
-        if !self.current_password.is_empty() {
-            size
-                += 1u64
-                    + ::buffa::types::string_encoded_len(&self.current_password) as u64;
-        }
         if !self.new_password.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.new_password) as u64;
         }
@@ -1669,9 +1653,6 @@ impl ::buffa::Message for ChangePasswordRequest {
     ) {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
-        if !self.current_password.is_empty() {
-            ::buffa::types::put_string_field(1u32, &self.current_password, buf);
-        }
         if !self.new_password.is_empty() {
             ::buffa::types::put_string_field(2u32, &self.new_password, buf);
         }
@@ -1688,13 +1669,6 @@ impl ::buffa::Message for ChangePasswordRequest {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         match tag.field_number() {
-            1u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::LengthDelimited,
-                )?;
-                ::buffa::types::merge_string(&mut self.current_password, buf)?;
-            }
             2u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -1710,7 +1684,6 @@ impl ::buffa::Message for ChangePasswordRequest {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.current_password.clear();
         self.new_password.clear();
         self.__buffa_unknown_fields.clear();
     }

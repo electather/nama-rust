@@ -1,7 +1,7 @@
-import { useMutation } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
 import { useId, useState } from "react";
 
+import { useSensitiveMutation } from "@/components/confirm-its-you";
 import { DeviceList } from "@/components/device-list";
 import { DeleteUser, ResetPassword } from "@/components/user-dialogs";
 import { Button } from "@/components/ui/button";
@@ -49,7 +49,7 @@ export function UserRow({ user, isYou }: { user: User; isYou: boolean }) {
 function UserActions({ user, isYou }: { user: User; isYou: boolean }) {
   const queryClient = useQueryClient();
   // Demoting yourself makes the Server refuse the refetch, and the router then sees the new Role.
-  const setRole = useMutation(UserService.method.setRole, {
+  const setRole = useSensitiveMutation(UserService.method.setRole, {
     // Refused or not, the list may be out of date.
     onSettled: () => queryClient.invalidateQueries({ queryKey: usersKey }),
   });

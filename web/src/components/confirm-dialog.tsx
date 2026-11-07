@@ -1,4 +1,4 @@
-import { type ReactNode, useId, useRef, useState } from "react";
+import { type ReactNode, type RefObject, useId, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { onSubmitted } from "@/lib/forms";
@@ -27,10 +27,7 @@ export function ConfirmDialog({
   /** The button's accessible name, which says what it acts on, such as "Revoke Laptop". */
   name: string;
 }) {
-  // ponytail: the native modal <dialog> traps focus, closes on Escape and returns focus itself.
   const dialog = useRef<HTMLDialogElement>(null);
-  const id = useId();
-  // Each opening starts afresh, without the last refusal or what was typed.
   const [openings, setOpenings] = useState(0);
   return (
     <>
@@ -45,35 +42,63 @@ export function ConfirmDialog({
       >
         {confirmation.action}
       </Button>
-      <dialog
-        ref={dialog}
-        role="alertdialog"
-        aria-labelledby={`${id}-title`}
-        aria-describedby={`${id}-description`}
-        // Floats above the page, so it alone gets a shadow (DESIGN.md, "Elevation").
-        className="m-auto w-full max-w-xs rounded-xl border bg-popover p-6 text-popover-foreground shadow-xl backdrop:bg-scrim sm:max-w-sm"
-      >
-        <ConfirmForm
-          key={openings}
-          id={id}
-          close={() => dialog.current?.close()}
-          {...confirmation}
-        />
-      </dialog>
+      <ConfirmModal ref={dialog} openings={openings} destructive {...confirmation} />
     </>
+  );
+}
+
+/**
+ * The dialog of a {@link Confirmation}, opened with `showModal()` on `ref`. Bump `openings` before
+ * each opening, so it starts afresh, without the last refusal or what was typed.
+ */
+export function ConfirmModal({
+  ref,
+  openings,
+  destructive = false,
+  onClose,
+  ...confirmation
+}: Confirmation & {
+  ref: RefObject<HTMLDialogElement | null>;
+  openings: number;
+  /** Whether confirming can't be undone, which the confirm button shows. */
+  destructive?: boolean;
+  /** Called whenever it closes: confirmed, cancelled or dismissed with Escape. */
+  onClose?: () => void;
+}) {
+  const id = useId();
+  return (
+    // ponytail: the native modal <dialog> traps focus, closes on Escape and returns focus itself.
+    <dialog
+      ref={ref}
+      role="alertdialog"
+      aria-labelledby={`${id}-title`}
+      aria-describedby={`${id}-description`}
+      onClose={onClose}
+      // Floats above the page, so it alone gets a shadow (DESIGN.md, "Elevation").
+      className="m-auto w-full max-w-xs rounded-xl border bg-popover p-6 text-popover-foreground shadow-xl backdrop:bg-scrim sm:max-w-sm"
+    >
+      <ConfirmForm
+        key={openings}
+        id={id}
+        close={() => ref.current?.close()}
+        destructive={destructive}
+        {...confirmation}
+      />
+    </dialog>
   );
 }
 
 function ConfirmForm({
   id,
   close,
+  destructive,
   action,
   title,
   description,
   children,
   onConfirm,
   refusal,
-}: Confirmation & { id: string; close: () => void }) {
+}: Confirmation & { id: string; close: () => void; destructive: boolean }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
 
@@ -105,7 +130,7 @@ function ConfirmForm({
         <Button variant="ghost" onClick={close}>
           Cancel
         </Button>
-        <Button type="submit" variant="destructive" disabled={pending}>
+        <Button type="submit" variant={destructive ? "destructive" : "default"} disabled={pending}>
           {action}
         </Button>
       </div>

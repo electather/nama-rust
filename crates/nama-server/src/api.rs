@@ -33,9 +33,10 @@ use nama_proto::nama::v1::{
     ListShowsResponse, ListUnmatchedItemsRequest, ListUnmatchedItemsResponse, ListUsersRequest,
     ListUsersResponse, LookUpSignInCodeRequest, LookUpSignInCodeResponse,
     MATCH_SERVICE_SERVICE_NAME, MatchService, PollSignInCodeRequest, PollSignInCodeResponse,
-    Refusal, RefusalReason, ReportProgressRequest, ReportProgressResponse, ResetPasswordRequest,
-    ResetPasswordResponse, RevokeDeviceRequest, RevokeDeviceResponse,
-    SERVER_SERVICE_GET_SERVER_INFO_SPEC, SIGN_IN_SERVICE_POLL_SIGN_IN_CODE_SPEC,
+    ReauthenticateRequest, ReauthenticateResponse, Refusal, RefusalReason, ReportProgressRequest,
+    ReportProgressResponse, ResetPasswordRequest, ResetPasswordResponse, RevokeDeviceRequest,
+    RevokeDeviceResponse, SERVER_SERVICE_GET_SERVER_INFO_SPEC,
+    SIGN_IN_SERVICE_APPROVE_SIGN_IN_CODE_SPEC, SIGN_IN_SERVICE_POLL_SIGN_IN_CODE_SPEC,
     SIGN_IN_SERVICE_SETUP_SPEC, SIGN_IN_SERVICE_SIGN_IN_SPEC,
     SIGN_IN_SERVICE_START_SIGN_IN_CODE_SPEC, ScanLibraryRequest, ScanLibraryResponse,
     SearchMetadataRequest, SearchMetadataResponse, ServerService, SessionDelivery, SetMatchRequest,
@@ -43,9 +44,11 @@ use nama_proto::nama::v1::{
     SetupRequest, SetupResponse, SignInCodeStatus, SignInRequest, SignInResponse, SignInService,
     SignOutRequest, SignOutResponse, StartSignInCodeRequest, StartSignInCodeResponse,
     SubscribeRequest, SubscribeResponse, USER_SERVICE_CHANGE_PASSWORD_SPEC,
-    USER_SERVICE_LIST_DEVICES_SPEC, USER_SERVICE_REVOKE_DEVICE_SPEC, USER_SERVICE_SERVICE_NAME,
-    UpdateLibraryRequest, UpdateLibraryResponse, UserService, WatchStateService, WhoAmIRequest,
-    WhoAmIResponse, external_id, set_played_request::Target,
+    USER_SERVICE_DELETE_USER_SPEC, USER_SERVICE_LIST_DEVICES_SPEC,
+    USER_SERVICE_RESET_PASSWORD_SPEC, USER_SERVICE_REVOKE_DEVICE_SPEC, USER_SERVICE_SERVICE_NAME,
+    USER_SERVICE_SET_ROLE_SPEC, UpdateLibraryRequest, UpdateLibraryResponse, UserService,
+    WatchStateService, WhoAmIRequest, WhoAmIResponse, external_id, reauthenticate_request::Proof,
+    set_played_request::Target,
 };
 
 use crate::{
@@ -53,7 +56,7 @@ use crate::{
     browse::{self, Browse, Started},
     config::Config,
     contents::{Contents, Episode, Item, MatchedTo, Movie, Show, Unmatched, Version},
-    db::Database,
+    db::{Database, now},
     events::{EventBus, Filter},
     forwarded::{RequestSource, identify_source},
     libraries::{self, FolderProblem, Kind, Libraries, Library},
@@ -85,7 +88,6 @@ pub(crate) fn router(
 ) -> axum::Router {
     let users = Users::new(Arc::clone(&db), plugins.clone());
     let contents = Contents::new(Arc::clone(&db));
-    let sign_in_limits = Arc::new(SignInLimits::default());
     let artwork = artwork::router(
         Artwork::new(&config.data_dir, plugins.clone()),
         contents.clone(),
@@ -100,7 +102,7 @@ pub(crate) fn router(
         .add_service(Arc::new(SignInServiceHandler {
             users: users.clone(),
             setup_code,
-            sign_in_limits: Arc::clone(&sign_in_limits),
+            sign_in_limits: SignInLimits::default(),
             sign_in_codes: SignInCodes::default(),
             sign_in_code_limits: SignInCodeLimits::default(),
         }))
@@ -128,7 +130,6 @@ pub(crate) fn router(
         }))
         .add_service(Arc::new(UserServiceHandler {
             users: users.clone(),
-            sign_in_limits,
         }))
         .into_axum_router()
         .merge(artwork)
@@ -206,10 +207,39 @@ impl Access {
     }
 }
 
-/// Refuses `request` unless its caller, which [`identify_caller`] found, may make it.
+/// The RPCs that change who can sign in as whom, by path, which need Recent Authentication on top
+/// of their [`Access`] (ADR 0014, and see AGENTS.md). A list of its own, not an `Access` variant:
+/// `SetRole` needs the Admin Role as well, `ChangePassword` only a session.
+const NEEDS_RECENT_AUTHENTICATION: [&str; 5] = [
+    USER_SERVICE_CHANGE_PASSWORD_SPEC.procedure,
+    USER_SERVICE_RESET_PASSWORD_SPEC.procedure,
+    USER_SERVICE_SET_ROLE_SPEC.procedure,
+    USER_SERVICE_DELETE_USER_SPEC.procedure,
+    SIGN_IN_SERVICE_APPROVE_SIGN_IN_CODE_SPEC.procedure,
+];
+
+/// Why `caller` may not request `path` yet, if it needs Recent Authentication their Device lacks.
+fn check_recent_authentication(path: &str, caller: Option<&Caller>) -> Result<(), ConnectError> {
+    let lacking = caller.is_some_and(|caller| !caller.device.authenticated_recently(now()));
+    if lacking && NEEDS_RECENT_AUTHENTICATION.contains(&path) {
+        return Err(refuse(
+            RefusalReason::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED,
+            "sign in again to do this",
+        )
+        .into());
+    }
+    Ok(())
+}
+
+/// Refuses `request` unless its caller, which [`identify_caller`] found, may make it, before any
+/// handler sees it.
 async fn require_access(request: Request, next: Next) -> axum::response::Response {
     let caller = request.extensions().get::<Caller>();
-    match Access::of(request.uri().path()).check(caller) {
+    let path = request.uri().path();
+    let allowed = Access::of(path)
+        .check(caller)
+        .and_then(|()| check_recent_authentication(path, caller));
+    match allowed {
         Ok(()) => next.run(request).await,
         Err(refused) => refused
             .into_http_response(request.headers())
@@ -249,9 +279,8 @@ struct SignInServiceHandler {
     users: Users,
     /// What `Setup` must be given. `None` once the Server started with Users.
     setup_code: Option<SetupCode>,
-    /// The recent failures of `Setup`, `SignIn` and `UserService.ChangePassword`, which slow
-    /// guessing down.
-    sign_in_limits: Arc<SignInLimits>,
+    /// The recent failures of `Setup`, `SignIn` and `Reauthenticate`, which slow guessing down.
+    sign_in_limits: SignInLimits,
     sign_in_codes: SignInCodes,
     /// The recent failed Sign-in Code lookups and approvals, which slow guessing codes down.
     sign_in_code_limits: SignInCodeLimits,
@@ -376,6 +405,32 @@ impl SignInService for SignInServiceHandler {
                 ..Default::default()
             })
         }))
+    }
+
+    async fn reauthenticate(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, ReauthenticateRequest>,
+    ) -> ServiceResult<ReauthenticateResponse> {
+        let caller = caller(&ctx)?;
+        let attempt = self
+            .sign_in_limits
+            .admit(client_ip(&ctx)?, Some(&caller.user.name))?;
+        let Some(Proof::Password(password)) = request.to_owned_message().proof else {
+            return Err(refuse(
+                RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
+                "the proof of who you are is missing",
+            )
+            .field("proof")
+            .into());
+        };
+        let reauthenticated = self.users.reauthenticate(caller, &password).await;
+        // The Device is only found signed out after the password checked out, so that is no guess.
+        if matches!(reauthenticated, Ok(()) | Err(users::Error::SignedOut)) {
+            self.sign_in_limits.succeeded(&attempt);
+        }
+        reauthenticated?;
+        Response::ok(ReauthenticateResponse::default())
     }
 
     fn start_sign_in_code<'a>(
@@ -926,8 +981,6 @@ impl WatchStateService for WatchStateServiceHandler {
 /// themselves with [`devices_owner`] or act only on the caller.
 struct UserServiceHandler {
     users: Users,
-    /// The same as `SignInService`'s, so wrong current passwords count toward its limits.
-    sign_in_limits: Arc<SignInLimits>,
 }
 
 #[expect(
@@ -1051,27 +1104,9 @@ impl UserService for UserServiceHandler {
         request: ServiceRequest<'_, ChangePasswordRequest>,
     ) -> ServiceResult<ChangePasswordResponse> {
         let request = request.to_owned_message();
-        let caller = caller(&ctx)?;
-        let attempt = self
-            .sign_in_limits
-            .admit(client_ip(&ctx)?, Some(&caller.user.name))?;
-        let changed = self
-            .users
-            .change_password(caller, &request.current_password, &request.new_password)
-            .await;
-        // A new password the rules refuse, or the Device being signed out meanwhile, is only found
-        // after the current one checked out, so that is no guess either, and counting it could
-        // lock the User out of their own sign-in.
-        if matches!(
-            changed,
-            Ok(())
-                | Err(users::Error::NameLength { .. }
-                    | users::Error::PasswordRejected { .. }
-                    | users::Error::SignedOut)
-        ) {
-            self.sign_in_limits.succeeded(&attempt);
-        }
-        changed?;
+        self.users
+            .change_password(caller(&ctx)?, &request.new_password)
+            .await?;
         Response::ok(ChangePasswordResponse::default())
     }
 
@@ -1568,7 +1603,8 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         R::REFUSAL_REASON_ALREADY_SET_UP
         | R::REFUSAL_REASON_SIGN_IN_CODE_ALREADY_APPROVED
         | R::REFUSAL_REASON_LAST_ADMIN
-        | R::REFUSAL_REASON_OWN_PASSWORD_RESET => ErrorCode::FailedPrecondition,
+        | R::REFUSAL_REASON_OWN_PASSWORD_RESET
+        | R::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED => ErrorCode::FailedPrecondition,
         R::REFUSAL_REASON_SIGN_IN_CODE_NOT_FOUND
         | R::REFUSAL_REASON_HANDLE_NOT_FOUND
         | R::REFUSAL_REASON_USER_NOT_FOUND
@@ -1667,7 +1703,7 @@ impl From<users::Error> for ConnectError {
                 refuse(R::REFUSAL_REASON_WRONG_NAME_OR_PASSWORD, message)
             }
             users::Error::WrongPassword => {
-                refuse(R::REFUSAL_REASON_WRONG_PASSWORD, message).field("current_password")
+                refuse(R::REFUSAL_REASON_WRONG_PASSWORD, message).field("password")
             }
             users::Error::SignedOut => refuse(R::REFUSAL_REASON_SIGNED_OUT, message),
             users::Error::Database(err) => return database_failed(err),

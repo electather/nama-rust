@@ -34,6 +34,10 @@ _Avoid_: client, session, token (for the Device itself)
 A way a User can prove who they are on a Server, such as a password, a passkey or an identity at an outside provider. A User can have several.
 _Avoid_: credential, account, login, identity
 
+**Recent Authentication**:
+A Device having proved who it is with one of its User's Sign-in Methods in the last 10 minutes, which sensitive changes need.
+_Avoid_: sudo mode, step-up, fresh session
+
 **Sign-in Code**:
 A short code a new Device shows so a User already signed in elsewhere can sign it in without typing a password on it.
 _Avoid_: pairing code, PIN, device code

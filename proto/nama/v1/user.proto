@@ -5,8 +5,9 @@ package nama.v1;
 import "nama/v1/sign_in.proto";
 
 // Managing the Server's Users and their Devices. Every RPC but `ListDevices`, `RevokeDevice` and
-// `ChangePassword` needs the Admin Role, and fails with `permission_denied` without it. RPCs name
-// Users by ID, not by name.
+// `ChangePassword` needs the Admin Role, and fails with `permission_denied` without it.
+// `ChangePassword`, `ResetPassword`, `SetRole` and `DeleteUser` also need Recent Authentication,
+// as `SignInService` describes. RPCs name Users by ID, not by name.
 service UserService {
   // Creates a User, who can sign in at once. Fails with `invalid_argument` if the name, the
   // password or the Role breaks the rules, and `already_exists` if another User has the name,
@@ -41,12 +42,9 @@ service UserService {
   // does. Who may revoke whose Devices is as for `ListDevices`, and fails the same way; it also
   // fails with `not_found` if the Device isn't that User's.
   rpc RevokeDevice(RevokeDeviceRequest) returns (RevokeDeviceResponse);
-  // Changes the caller's own password, given their current one. Their other Devices are revoked,
-  // as by `RevokeDevice`, and the calling Device stays signed in. Fails with `unauthenticated` if
-  // the current password is wrong or the calling Device was signed out meanwhile, and
-  // `invalid_argument` if the new one breaks the rules. A wrong current password counts toward the
-  // limit on failed `SignInService.SignIn`s for the caller's name, and once it is reached, this
-  // fails with `resource_exhausted` as `SignIn` does.
+  // Changes the caller's own password. Their other Devices are revoked, as by `RevokeDevice`, and
+  // the calling Device stays signed in. Fails with `unauthenticated` if the calling Device was
+  // signed out meanwhile, and `invalid_argument` if the new password breaks the rules.
   rpc ChangePassword(ChangePasswordRequest) returns (ChangePasswordResponse);
   // Sets a User's password, without their current one, for the Admin to pass on to them. Every
   // Device of theirs is revoked, as by `RevokeDevice`. Fails with `invalid_argument` if the new
@@ -110,8 +108,9 @@ message RevokeDeviceRequest {
 message RevokeDeviceResponse {}
 
 message ChangePasswordRequest {
-  // The caller's password now.
-  string current_password = 1;
+  // The current password was asked for before Recent Authentication.
+  reserved 1;
+  reserved "current_password";
   // The password to change to, which the Server's Authenticator checks against its own rules.
   string new_password = 2;
 }

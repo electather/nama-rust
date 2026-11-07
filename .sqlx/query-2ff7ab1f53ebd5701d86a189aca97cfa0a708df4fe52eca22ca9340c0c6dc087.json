@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT d.id AS \"device_id!\", d.name AS device_name, d.created_at AS device_created_at,\n                      d.last_seen_at,\n                      u.id AS \"user_id!\", u.display_username AS user_name, u.role AS \"role: Role\",\n                      u.created_at\n               FROM devices d JOIN users u ON u.id = d.user_id\n               WHERE d.token_hash = ? AND d.expires_at > ?",
+  "query": "SELECT d.id AS \"device_id!\", d.name AS device_name, d.created_at AS device_created_at,\n                      d.last_seen_at, d.authenticated_at,\n                      u.id AS \"user_id!\", u.display_username AS user_name, u.role AS \"role: Role\",\n                      u.created_at\n               FROM devices d JOIN users u ON u.id = d.user_id\n               WHERE d.token_hash = ? AND d.expires_at > ?",
   "describe": {
     "columns": [
       {
@@ -48,8 +48,19 @@
         }
       },
       {
-        "name": "user_id!",
+        "name": "authenticated_at",
         "ordinal": 4,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "devices",
+            "name": "authenticated_at"
+          }
+        }
+      },
+      {
+        "name": "user_id!",
+        "ordinal": 5,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -60,7 +71,7 @@
       },
       {
         "name": "user_name",
-        "ordinal": 5,
+        "ordinal": 6,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -71,7 +82,7 @@
       },
       {
         "name": "role: Role",
-        "ordinal": 6,
+        "ordinal": 7,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -82,7 +93,7 @@
       },
       {
         "name": "created_at",
-        "ordinal": 7,
+        "ordinal": 8,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -103,8 +114,9 @@
       false,
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "a90a2d307131fc2c5b50efab16d5dba2cce60b55a63493d04e9531e9810769ae"
+  "hash": "2ff7ab1f53ebd5701d86a189aca97cfa0a708df4fe52eca22ca9340c0c6dc087"
 }

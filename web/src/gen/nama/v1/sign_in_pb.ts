@@ -10,7 +10,7 @@ import type { Message, UnknownEnum } from "@bufbuild/protobuf";
  * Describes the file nama/v1/sign_in.proto.
  */
 export const file_nama_v1_sign_in: GenFile = /*@__PURE__*/
-  fileDesc("ChVuYW1hL3YxL3NpZ25faW4ucHJvdG8SB25hbWEudjEiUQoEVXNlchIKCgJpZBgBIAEoAxIMCgRuYW1lGAIgASgJEhsKBHJvbGUYAyABKA4yDS5uYW1hLnYxLlJvbGUSEgoKY3JlYXRlZF9hdBgEIAEoAyJgCgZEZXZpY2USCgoCaWQYASABKAMSDAoEbmFtZRgCIAEoCRISCgpjcmVhdGVkX2F0GAMgASgDEhQKDGxhc3Rfc2Vlbl9hdBgEIAEoAxISCgppc19jdXJyZW50GAUgASgIIoMBCgxTZXR1cFJlcXVlc3QSEgoKc2V0dXBfY29kZRgBIAEoCRIMCgRuYW1lGAIgASgJEhAKCHBhc3N3b3JkGAMgASgJEhMKC2RldmljZV9uYW1lGAQgASgJEioKCGRlbGl2ZXJ5GAUgASgOMhgubmFtYS52MS5TZXNzaW9uRGVsaXZlcnkiXAoNU2V0dXBSZXNwb25zZRIbCgR1c2VyGAEgASgLMg0ubmFtYS52MS5Vc2VyEh8KBmRldmljZRgCIAEoCzIPLm5hbWEudjEuRGV2aWNlEg0KBXRva2VuGAMgASgJInAKDVNpZ25JblJlcXVlc3QSDAoEbmFtZRgBIAEoCRIQCghwYXNzd29yZBgCIAEoCRITCgtkZXZpY2VfbmFtZRgDIAEoCRIqCghkZWxpdmVyeRgEIAEoDjIYLm5hbWEudjEuU2Vzc2lvbkRlbGl2ZXJ5Il0KDlNpZ25JblJlc3BvbnNlEhsKBHVzZXIYASABKAsyDS5uYW1hLnYxLlVzZXISHwoGZGV2aWNlGAIgASgLMg8ubmFtYS52MS5EZXZpY2USDQoFdG9rZW4YAyABKAkiEAoOU2lnbk91dFJlcXVlc3QiEQoPU2lnbk91dFJlc3BvbnNlIg8KDVdob0FtSVJlcXVlc3QiTgoOV2hvQW1JUmVzcG9uc2USGwoEdXNlchgBIAEoCzINLm5hbWEudjEuVXNlchIfCgZkZXZpY2UYAiABKAsyDy5uYW1hLnYxLkRldmljZSJZChZTdGFydFNpZ25JbkNvZGVSZXF1ZXN0EhMKC2RldmljZV9uYW1lGAEgASgJEioKCGRlbGl2ZXJ5GAIgASgOMhgubmFtYS52MS5TZXNzaW9uRGVsaXZlcnkiNwoXU3RhcnRTaWduSW5Db2RlUmVzcG9uc2USDAoEY29kZRgBIAEoCRIOCgZoYW5kbGUYAiABKAkiJwoXTG9va1VwU2lnbkluQ29kZVJlcXVlc3QSDAoEY29kZRgBIAEoCSIvChhMb29rVXBTaWduSW5Db2RlUmVzcG9uc2USEwoLZGV2aWNlX25hbWUYASABKAkiKAoYQXBwcm92ZVNpZ25JbkNvZGVSZXF1ZXN0EgwKBGNvZGUYASABKAkiGwoZQXBwcm92ZVNpZ25JbkNvZGVSZXNwb25zZSInChVQb2xsU2lnbkluQ29kZVJlcXVlc3QSDgoGaGFuZGxlGAEgASgJIpABChZQb2xsU2lnbkluQ29kZVJlc3BvbnNlEikKBnN0YXR1cxgBIAEoDjIZLm5hbWEudjEuU2lnbkluQ29kZVN0YXR1cxIbCgR1c2VyGAIgASgLMg0ubmFtYS52MS5Vc2VyEh8KBmRldmljZRgDIAEoCzIPLm5hbWEudjEuRGV2aWNlEg0KBXRva2VuGAQgASgJKmwKD1Nlc3Npb25EZWxpdmVyeRIgChxTRVNTSU9OX0RFTElWRVJZX1VOU1BFQ0lGSUVEEAASGwoXU0VTU0lPTl9ERUxJVkVSWV9DT09LSUUQARIaChZTRVNTSU9OX0RFTElWRVJZX1RPS0VOEAIqPQoEUm9sZRIUChBST0xFX1VOU1BFQ0lGSUVEEAASDgoKUk9MRV9BRE1JThABEg8KC1JPTEVfTUVNQkVSEAIqnAEKEFNpZ25JbkNvZGVTdGF0dXMSIwofU0lHTl9JTl9DT0RFX1NUQVRVU19VTlNQRUNJRklFRBAAEh8KG1NJR05fSU5fQ09ERV9TVEFUVVNfV0FJVElORxABEh8KG1NJR05fSU5fQ09ERV9TVEFUVVNfRVhQSVJFRBACEiEKHVNJR05fSU5fQ09ERV9TVEFUVVNfU0lHTkVEX0lOEAMy3gQKDVNpZ25JblNlcnZpY2USNgoFU2V0dXASFS5uYW1hLnYxLlNldHVwUmVxdWVzdBoWLm5hbWEudjEuU2V0dXBSZXNwb25zZRI5CgZTaWduSW4SFi5uYW1hLnYxLlNpZ25JblJlcXVlc3QaFy5uYW1hLnYxLlNpZ25JblJlc3BvbnNlEjwKB1NpZ25PdXQSFy5uYW1hLnYxLlNpZ25PdXRSZXF1ZXN0GhgubmFtYS52MS5TaWduT3V0UmVzcG9uc2USPgoGV2hvQW1JEhYubmFtYS52MS5XaG9BbUlSZXF1ZXN0GhcubmFtYS52MS5XaG9BbUlSZXNwb25zZSIDkAIBElQKD1N0YXJ0U2lnbkluQ29kZRIfLm5hbWEudjEuU3RhcnRTaWduSW5Db2RlUmVxdWVzdBogLm5hbWEudjEuU3RhcnRTaWduSW5Db2RlUmVzcG9uc2USVwoQTG9va1VwU2lnbkluQ29kZRIgLm5hbWEudjEuTG9va1VwU2lnbkluQ29kZVJlcXVlc3QaIS5uYW1hLnYxLkxvb2tVcFNpZ25JbkNvZGVSZXNwb25zZRJaChFBcHByb3ZlU2lnbkluQ29kZRIhLm5hbWEudjEuQXBwcm92ZVNpZ25JbkNvZGVSZXF1ZXN0GiIubmFtYS52MS5BcHByb3ZlU2lnbkluQ29kZVJlc3BvbnNlElEKDlBvbGxTaWduSW5Db2RlEh4ubmFtYS52MS5Qb2xsU2lnbkluQ29kZVJlcXVlc3QaHy5uYW1hLnYxLlBvbGxTaWduSW5Db2RlUmVzcG9uc2ViBnByb3RvMw");
+  fileDesc("ChVuYW1hL3YxL3NpZ25faW4ucHJvdG8SB25hbWEudjEiUQoEVXNlchIKCgJpZBgBIAEoAxIMCgRuYW1lGAIgASgJEhsKBHJvbGUYAyABKA4yDS5uYW1hLnYxLlJvbGUSEgoKY3JlYXRlZF9hdBgEIAEoAyJgCgZEZXZpY2USCgoCaWQYASABKAMSDAoEbmFtZRgCIAEoCRISCgpjcmVhdGVkX2F0GAMgASgDEhQKDGxhc3Rfc2Vlbl9hdBgEIAEoAxISCgppc19jdXJyZW50GAUgASgIIoMBCgxTZXR1cFJlcXVlc3QSEgoKc2V0dXBfY29kZRgBIAEoCRIMCgRuYW1lGAIgASgJEhAKCHBhc3N3b3JkGAMgASgJEhMKC2RldmljZV9uYW1lGAQgASgJEioKCGRlbGl2ZXJ5GAUgASgOMhgubmFtYS52MS5TZXNzaW9uRGVsaXZlcnkiXAoNU2V0dXBSZXNwb25zZRIbCgR1c2VyGAEgASgLMg0ubmFtYS52MS5Vc2VyEh8KBmRldmljZRgCIAEoCzIPLm5hbWEudjEuRGV2aWNlEg0KBXRva2VuGAMgASgJInAKDVNpZ25JblJlcXVlc3QSDAoEbmFtZRgBIAEoCRIQCghwYXNzd29yZBgCIAEoCRITCgtkZXZpY2VfbmFtZRgDIAEoCRIqCghkZWxpdmVyeRgEIAEoDjIYLm5hbWEudjEuU2Vzc2lvbkRlbGl2ZXJ5Il0KDlNpZ25JblJlc3BvbnNlEhsKBHVzZXIYASABKAsyDS5uYW1hLnYxLlVzZXISHwoGZGV2aWNlGAIgASgLMg8ubmFtYS52MS5EZXZpY2USDQoFdG9rZW4YAyABKAkiEAoOU2lnbk91dFJlcXVlc3QiEQoPU2lnbk91dFJlc3BvbnNlIg8KDVdob0FtSVJlcXVlc3QiTgoOV2hvQW1JUmVzcG9uc2USGwoEdXNlchgBIAEoCzINLm5hbWEudjEuVXNlchIfCgZkZXZpY2UYAiABKAsyDy5uYW1hLnYxLkRldmljZSI0ChVSZWF1dGhlbnRpY2F0ZVJlcXVlc3QSEgoIcGFzc3dvcmQYASABKAlIAEIHCgVwcm9vZiIYChZSZWF1dGhlbnRpY2F0ZVJlc3BvbnNlIlkKFlN0YXJ0U2lnbkluQ29kZVJlcXVlc3QSEwoLZGV2aWNlX25hbWUYASABKAkSKgoIZGVsaXZlcnkYAiABKA4yGC5uYW1hLnYxLlNlc3Npb25EZWxpdmVyeSI3ChdTdGFydFNpZ25JbkNvZGVSZXNwb25zZRIMCgRjb2RlGAEgASgJEg4KBmhhbmRsZRgCIAEoCSInChdMb29rVXBTaWduSW5Db2RlUmVxdWVzdBIMCgRjb2RlGAEgASgJIi8KGExvb2tVcFNpZ25JbkNvZGVSZXNwb25zZRITCgtkZXZpY2VfbmFtZRgBIAEoCSIoChhBcHByb3ZlU2lnbkluQ29kZVJlcXVlc3QSDAoEY29kZRgBIAEoCSIbChlBcHByb3ZlU2lnbkluQ29kZVJlc3BvbnNlIicKFVBvbGxTaWduSW5Db2RlUmVxdWVzdBIOCgZoYW5kbGUYASABKAkikAEKFlBvbGxTaWduSW5Db2RlUmVzcG9uc2USKQoGc3RhdHVzGAEgASgOMhkubmFtYS52MS5TaWduSW5Db2RlU3RhdHVzEhsKBHVzZXIYAiABKAsyDS5uYW1hLnYxLlVzZXISHwoGZGV2aWNlGAMgASgLMg8ubmFtYS52MS5EZXZpY2USDQoFdG9rZW4YBCABKAkqbAoPU2Vzc2lvbkRlbGl2ZXJ5EiAKHFNFU1NJT05fREVMSVZFUllfVU5TUEVDSUZJRUQQABIbChdTRVNTSU9OX0RFTElWRVJZX0NPT0tJRRABEhoKFlNFU1NJT05fREVMSVZFUllfVE9LRU4QAio9CgRSb2xlEhQKEFJPTEVfVU5TUEVDSUZJRUQQABIOCgpST0xFX0FETUlOEAESDwoLUk9MRV9NRU1CRVIQAiqcAQoQU2lnbkluQ29kZVN0YXR1cxIjCh9TSUdOX0lOX0NPREVfU1RBVFVTX1VOU1BFQ0lGSUVEEAASHwobU0lHTl9JTl9DT0RFX1NUQVRVU19XQUlUSU5HEAESHwobU0lHTl9JTl9DT0RFX1NUQVRVU19FWFBJUkVEEAISIQodU0lHTl9JTl9DT0RFX1NUQVRVU19TSUdORURfSU4QAzKxBQoNU2lnbkluU2VydmljZRI2CgVTZXR1cBIVLm5hbWEudjEuU2V0dXBSZXF1ZXN0GhYubmFtYS52MS5TZXR1cFJlc3BvbnNlEjkKBlNpZ25JbhIWLm5hbWEudjEuU2lnbkluUmVxdWVzdBoXLm5hbWEudjEuU2lnbkluUmVzcG9uc2USPAoHU2lnbk91dBIXLm5hbWEudjEuU2lnbk91dFJlcXVlc3QaGC5uYW1hLnYxLlNpZ25PdXRSZXNwb25zZRI+CgZXaG9BbUkSFi5uYW1hLnYxLldob0FtSVJlcXVlc3QaFy5uYW1hLnYxLldob0FtSVJlc3BvbnNlIgOQAgESUQoOUmVhdXRoZW50aWNhdGUSHi5uYW1hLnYxLlJlYXV0aGVudGljYXRlUmVxdWVzdBofLm5hbWEudjEuUmVhdXRoZW50aWNhdGVSZXNwb25zZRJUCg9TdGFydFNpZ25JbkNvZGUSHy5uYW1hLnYxLlN0YXJ0U2lnbkluQ29kZVJlcXVlc3QaIC5uYW1hLnYxLlN0YXJ0U2lnbkluQ29kZVJlc3BvbnNlElcKEExvb2tVcFNpZ25JbkNvZGUSIC5uYW1hLnYxLkxvb2tVcFNpZ25JbkNvZGVSZXF1ZXN0GiEubmFtYS52MS5Mb29rVXBTaWduSW5Db2RlUmVzcG9uc2USWgoRQXBwcm92ZVNpZ25JbkNvZGUSIS5uYW1hLnYxLkFwcHJvdmVTaWduSW5Db2RlUmVxdWVzdBoiLm5hbWEudjEuQXBwcm92ZVNpZ25JbkNvZGVSZXNwb25zZRJRCg5Qb2xsU2lnbkluQ29kZRIeLm5hbWEudjEuUG9sbFNpZ25JbkNvZGVSZXF1ZXN0Gh8ubmFtYS52MS5Qb2xsU2lnbkluQ29kZVJlc3BvbnNlYgZwcm90bzM");
 
 /**
  * A person's identity on one Server.
@@ -319,6 +319,46 @@ export const WhoAmIResponseSchema: GenMessage<WhoAmIResponse> = /*@__PURE__*/
   messageDesc(file_nama_v1_sign_in, 9);
 
 /**
+ * @generated from message nama.v1.ReauthenticateRequest
+ */
+export type ReauthenticateRequest = Message<"nama.v1.ReauthenticateRequest"> & {
+  /**
+   * How the User proves who they are, with one of their Sign-in Methods. Must be set.
+   *
+   * @generated from oneof nama.v1.ReauthenticateRequest.proof
+   */
+  proof: {
+    /**
+     * The User's password.
+     *
+     * @generated from field: string password = 1;
+     */
+    value: string;
+    case: "password";
+  } | { case: undefined; value?: undefined };
+};
+
+/**
+ * Describes the message nama.v1.ReauthenticateRequest.
+ * Use `create(ReauthenticateRequestSchema)` to create a new message.
+ */
+export const ReauthenticateRequestSchema: GenMessage<ReauthenticateRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_sign_in, 10);
+
+/**
+ * @generated from message nama.v1.ReauthenticateResponse
+ */
+export type ReauthenticateResponse = Message<"nama.v1.ReauthenticateResponse"> & {
+};
+
+/**
+ * Describes the message nama.v1.ReauthenticateResponse.
+ * Use `create(ReauthenticateResponseSchema)` to create a new message.
+ */
+export const ReauthenticateResponseSchema: GenMessage<ReauthenticateResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_sign_in, 11);
+
+/**
  * @generated from message nama.v1.StartSignInCodeRequest
  */
 export type StartSignInCodeRequest = Message<"nama.v1.StartSignInCodeRequest"> & {
@@ -342,7 +382,7 @@ export type StartSignInCodeRequest = Message<"nama.v1.StartSignInCodeRequest"> &
  * Use `create(StartSignInCodeRequestSchema)` to create a new message.
  */
 export const StartSignInCodeRequestSchema: GenMessage<StartSignInCodeRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_sign_in, 10);
+  messageDesc(file_nama_v1_sign_in, 12);
 
 /**
  * @generated from message nama.v1.StartSignInCodeResponse
@@ -369,7 +409,7 @@ export type StartSignInCodeResponse = Message<"nama.v1.StartSignInCodeResponse">
  * Use `create(StartSignInCodeResponseSchema)` to create a new message.
  */
 export const StartSignInCodeResponseSchema: GenMessage<StartSignInCodeResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_sign_in, 11);
+  messageDesc(file_nama_v1_sign_in, 13);
 
 /**
  * @generated from message nama.v1.LookUpSignInCodeRequest
@@ -388,7 +428,7 @@ export type LookUpSignInCodeRequest = Message<"nama.v1.LookUpSignInCodeRequest">
  * Use `create(LookUpSignInCodeRequestSchema)` to create a new message.
  */
 export const LookUpSignInCodeRequestSchema: GenMessage<LookUpSignInCodeRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_sign_in, 12);
+  messageDesc(file_nama_v1_sign_in, 14);
 
 /**
  * @generated from message nama.v1.LookUpSignInCodeResponse
@@ -407,7 +447,7 @@ export type LookUpSignInCodeResponse = Message<"nama.v1.LookUpSignInCodeResponse
  * Use `create(LookUpSignInCodeResponseSchema)` to create a new message.
  */
 export const LookUpSignInCodeResponseSchema: GenMessage<LookUpSignInCodeResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_sign_in, 13);
+  messageDesc(file_nama_v1_sign_in, 15);
 
 /**
  * @generated from message nama.v1.ApproveSignInCodeRequest
@@ -426,7 +466,7 @@ export type ApproveSignInCodeRequest = Message<"nama.v1.ApproveSignInCodeRequest
  * Use `create(ApproveSignInCodeRequestSchema)` to create a new message.
  */
 export const ApproveSignInCodeRequestSchema: GenMessage<ApproveSignInCodeRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_sign_in, 14);
+  messageDesc(file_nama_v1_sign_in, 16);
 
 /**
  * @generated from message nama.v1.ApproveSignInCodeResponse
@@ -439,7 +479,7 @@ export type ApproveSignInCodeResponse = Message<"nama.v1.ApproveSignInCodeRespon
  * Use `create(ApproveSignInCodeResponseSchema)` to create a new message.
  */
 export const ApproveSignInCodeResponseSchema: GenMessage<ApproveSignInCodeResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_sign_in, 15);
+  messageDesc(file_nama_v1_sign_in, 17);
 
 /**
  * @generated from message nama.v1.PollSignInCodeRequest
@@ -458,7 +498,7 @@ export type PollSignInCodeRequest = Message<"nama.v1.PollSignInCodeRequest"> & {
  * Use `create(PollSignInCodeRequestSchema)` to create a new message.
  */
 export const PollSignInCodeRequestSchema: GenMessage<PollSignInCodeRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_sign_in, 16);
+  messageDesc(file_nama_v1_sign_in, 18);
 
 /**
  * @generated from message nama.v1.PollSignInCodeResponse
@@ -496,7 +536,7 @@ export type PollSignInCodeResponse = Message<"nama.v1.PollSignInCodeResponse"> &
  * Use `create(PollSignInCodeResponseSchema)` to create a new message.
  */
 export const PollSignInCodeResponseSchema: GenMessage<PollSignInCodeResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_sign_in, 17);
+  messageDesc(file_nama_v1_sign_in, 19);
 
 /**
  * How a signed-in Device is given its session.
@@ -632,13 +672,21 @@ export const SignInCodeStatusSchema: GenEnum<SignInCodeStatus> = /*@__PURE__*/
  *
  * A Device that goes unused for 90 days expires, and its session stops working.
  *
- * Guessing is slowed down: after 10 failed `SignIn`s and `UserService.ChangePassword`s for one
- * name, or 50 failed `Setup`s, `SignIn`s and `ChangePassword`s together from one IP address,
- * within 15 minutes, further attempts fail with `resource_exhausted`, without being checked, and a
- * `Retry-After` header gives the seconds to wait. A successful `SignIn`, or a `ChangePassword`
- * given the right current password, clears its name's failures. In the same way, after 10 failed
- * `LookUpSignInCode`s and `ApproveSignInCode`s together from one Device within 15 minutes, its
- * further lookups and approvals fail with `resource_exhausted`.
+ * Guessing is slowed down: after 10 failed `SignIn`s and `Reauthenticate`s for one name, or 50
+ * failed `Setup`s, `SignIn`s and `Reauthenticate`s together from one IP address, within 15
+ * minutes, further attempts fail with `resource_exhausted`, without being checked, and a
+ * `Retry-After` header gives the seconds to wait. A successful `SignIn` or `Reauthenticate` clears
+ * its name's failures. In the same way, after 10 failed `LookUpSignInCode`s and
+ * `ApproveSignInCode`s together from one Device within 15 minutes, its further lookups and
+ * approvals fail with `resource_exhausted`.
+ *
+ * Changes to who can sign in as whom need Recent Authentication: the calling Device proved who it
+ * is with one of its User's Sign-in Methods in the last 10 minutes. They are
+ * `ApproveSignInCode` and `UserService`'s `ChangePassword`, `ResetPassword`, `SetRole` and
+ * `DeleteUser`. Signing in with `Setup` or `SignIn` gives a Device Recent Authentication; signing
+ * in with a Sign-in Code doesn't, since that Device proved nothing itself. Without it, those calls
+ * fail with `failed_precondition` and the `REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED` Refusal
+ * before anything in the request is checked. `Reauthenticate` gives it back.
  *
  * @generated from service nama.v1.SignInService
  */
@@ -689,6 +737,19 @@ export const SignInService: GenService<{
     methodKind: "unary";
     input: typeof WhoAmIRequestSchema;
     output: typeof WhoAmIResponseSchema;
+  },
+  /**
+   * Gives the calling Device Recent Authentication, once its User proves who they are again. The
+   * Device keeps its session: no new token or cookie is handed out. Fails with `unauthenticated`
+   * if the proof is wrong, the Device was signed out meanwhile, or without a valid session, and
+   * with `invalid_argument` without a proof. A wrong proof counts toward the limits above.
+   *
+   * @generated from rpc nama.v1.SignInService.Reauthenticate
+   */
+  reauthenticate: {
+    methodKind: "unary";
+    input: typeof ReauthenticateRequestSchema;
+    output: typeof ReauthenticateResponseSchema;
   },
   /**
    * Starts signing the calling Device in without a password typed on it. It shows the returned
