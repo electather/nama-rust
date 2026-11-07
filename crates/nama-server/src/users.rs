@@ -278,13 +278,7 @@ impl Users {
     /// such User.
     pub(crate) async fn devices(&self, user: i64) -> Result<Option<Vec<Device>>, sqlx::Error> {
         let mut conn = self.db.reader().acquire().await?;
-        let exists = sqlx::query_scalar!(
-            r#"SELECT EXISTS (SELECT 1 FROM users WHERE id = ?) AS "exists!: bool""#,
-            user
-        )
-        .fetch_one(&mut *conn)
-        .await?;
-        if !exists {
+        if !user_exists(&mut conn, user).await? {
             return Ok(None);
         }
         let expired_before = now() - DEVICE_LIFETIME;
@@ -765,6 +759,16 @@ async fn any_user(conn: &mut SqliteConnection) -> Result<bool, sqlx::Error> {
         .await
 }
 
+/// Whether there is a User with the ID `user`.
+async fn user_exists(conn: &mut SqliteConnection, user: i64) -> Result<bool, sqlx::Error> {
+    sqlx::query_scalar!(
+        r#"SELECT EXISTS (SELECT 1 FROM users WHERE id = ?) AS "exists!: bool""#,
+        user
+    )
+    .fetch_one(conn)
+    .await
+}
+
 /// Gives the User `user` the Role `role`, failing if that leaves no Admin. Checked after the write,
 /// in the same transaction, so a refusal rolls the write back. Writes run one at a time, so two
 /// demotions at once can't both pass the check.
@@ -867,13 +871,7 @@ async fn replace_credential_signing_all_out(
     user: i64,
     credential: &Credential,
 ) -> Result<Vec<i64>, Error> {
-    let exists = sqlx::query_scalar!(
-        r#"SELECT EXISTS (SELECT 1 FROM users WHERE id = ?) AS "exists!: bool""#,
-        user
-    )
-    .fetch_one(&mut *conn)
-    .await?;
-    if !exists {
+    if !user_exists(conn, user).await? {
         return Err(Error::NoSuchUser);
     }
     replace_credential(conn, user, credential).await?;

@@ -820,6 +820,11 @@ async fn after_a_reset_the_new_password_signs_in_and_all_the_users_devices_are_s
     for token in [&phone.token, &laptop.token] {
         assert!(!fixture.signed_in(token).await.unwrap());
     }
+    let admin_token = &fixture.server.admin_token;
+    assert!(
+        fixture.signed_in(admin_token).await.unwrap(),
+        "another User was signed out"
+    );
     for events in [&mut phone_events, &mut laptop_events] {
         assert!(ended(events).await, "a stream is still open");
     }
