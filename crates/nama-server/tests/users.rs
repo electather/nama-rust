@@ -68,6 +68,9 @@ impl Fixture {
     }
 }
 
+/// A time in November 2023, before any test ran, in seconds since the Unix epoch.
+const BEFORE_THESE_TESTS: i64 = 1_700_000_000;
+
 /// The code a call failed with, or `None` if it succeeded.
 fn code<T>(result: Result<T, ConnectError>) -> Option<ErrorCode> {
     result.err().map(|err| err.code)
@@ -89,7 +92,11 @@ async fn a_user_an_admin_creates_can_sign_in_and_is_listed() {
     assert_eq!(names, ["Admin", "Grace"]);
     let grace = users.iter().find(|user| user.id == id).unwrap();
     assert_eq!(grace.role, Role::ROLE_MEMBER);
-    assert!(grace.created_at > 1_700_000_000, "{}", grace.created_at);
+    assert!(
+        grace.created_at > BEFORE_THESE_TESTS,
+        "{}",
+        grace.created_at
+    );
 }
 
 #[tokio::test]
