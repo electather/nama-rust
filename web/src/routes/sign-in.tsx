@@ -1,14 +1,11 @@
-import { Code } from "@connectrpc/connect";
-import { useMutation, useQuery } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
+import { useState } from "react";
 
-import { FormField } from "@/components/form-field";
-import { SignInLayout } from "@/components/sign-in-layout";
-import { ServerService } from "@/gen/nama/v1/server_pb";
-import { SessionDelivery, SignInService } from "@/gen/nama/v1/sign_in_pb";
+import { CodeSignIn } from "@/components/code-sign-in";
+import { PasswordSignIn } from "@/components/password-sign-in";
+import { Button } from "@/components/ui/button";
 import { isSetupRequired } from "@/lib/access";
-import { type FormErrors, formText, refusal } from "@/lib/forms";
 
 export const Route = createFileRoute("/sign-in")({
   // The router merges this over the raw search, so a refused `redirect` has to be overwritten.
@@ -25,48 +22,28 @@ function SignIn() {
   const search = Route.useSearch();
   const navigate = Route.useNavigate();
   const queryClient = useQueryClient();
-  const server = useQuery(ServerService.method.getServerInfo);
-  const signIn = useMutation(SignInService.method.signIn, {
-    onSuccess: async () => {
-      // Forget the signed-out visitor, and anything cached for whoever was signed in before.
-      queryClient.clear();
-      await navigate({ href: search.redirect ?? "/" });
-    },
-  });
-  const errors = signIn.error ? signInErrors(signIn.error) : {};
+  const [withCode, setWithCode] = useState(false);
+  async function signedIn() {
+    // Forget the signed-out visitor, and anything cached for whoever was signed in before.
+    queryClient.clear();
+    await navigate({ href: search.redirect ?? "/" });
+  }
 
-  return (
-    <SignInLayout
-      heading={server.data ? `Sign in to ${server.data.name}` : "Sign in"}
-      intro="Sign in with the username and password you were given for this Server."
-      action={signIn.isPending ? "Signing in…" : "Sign in"}
-      pending={signIn.isPending}
-      error={errors.form}
-      onSubmit={(form) => {
-        signIn.mutate({
-          name: formText(form, "name"),
-          password: formText(form, "password"),
-          delivery: SessionDelivery.COOKIE,
-        });
+  const otherWay = (label: string) => (
+    <Button
+      variant="ghost"
+      onClick={() => {
+        setWithCode(!withCode);
       }}
     >
-      <FormField label="Username" name="name" autoComplete="username" maxLength={64} />
-      <FormField
-        label="Password"
-        name="password"
-        type="password"
-        autoComplete="current-password"
-        error={errors.password}
-      />
-    </SignInLayout>
+      {label}
+    </Button>
   );
-}
-
-function signInErrors(error: unknown): FormErrors {
-  return refusal(error, "sign in", {
-    // The Server doesn’t say whether it was the username or the password, so neither do we.
-    [Code.Unauthenticated]: { password: "That username and password don’t match." },
-  });
+  return withCode ? (
+    <CodeSignIn onSignedIn={signedIn} footer={otherWay("Sign in with a password")} />
+  ) : (
+    <PasswordSignIn onSignedIn={signedIn} footer={otherWay("Sign in with a code")} />
+  );
 }
 
 // Resolving `value` against a stand-in origin keeps only paths on this Server, so a crafted

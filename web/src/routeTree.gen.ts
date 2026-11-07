@@ -15,6 +15,7 @@ import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as MemberIndexRouteImport } from './routes/_member/index'
 import { Route as MemberSplatRouteImport } from './routes/_member/$'
 import { Route as MemberAdminRouteImport } from './routes/_member/_admin'
+import { Route as MemberCodeRouteImport } from './routes/_member/code'
 import { Route as MemberSettingsRouteImport } from './routes/_member/settings'
 import { Route as MemberAdminAdminUsersRouteImport } from './routes/_member/_admin/admin/users'
 import { Route as MemberLibrariesLibraryIdIndexRouteImport } from './routes/_member/libraries/$libraryId/index'
@@ -47,6 +48,11 @@ const MemberSplatRoute = MemberSplatRouteImport.update({
 } as any)
 const MemberAdminRoute = MemberAdminRouteImport.update({
   id: '/_admin',
+  getParentRoute: () => MemberRoute,
+} as any)
+const MemberCodeRoute = MemberCodeRouteImport.update({
+  id: '/code',
+  path: '/code',
   getParentRoute: () => MemberRoute,
 } as any)
 const MemberSettingsRoute = MemberSettingsRouteImport.update({
@@ -83,6 +89,7 @@ export interface FileRoutesByFullPath {
   '/setup': typeof SetupRoute
   '/sign-in': typeof SignInRoute
   '/$': typeof MemberSplatRoute
+  '/code': typeof MemberCodeRoute
   '/settings': typeof MemberSettingsRoute
   '/admin/users': typeof MemberAdminAdminUsersRoute
   '/libraries/$libraryId/': typeof MemberLibrariesLibraryIdIndexRoute
@@ -94,6 +101,7 @@ export interface FileRoutesByTo {
   '/sign-in': typeof SignInRoute
   '/$': typeof MemberSplatRoute
   '/': typeof MemberIndexRoute
+  '/code': typeof MemberCodeRoute
   '/settings': typeof MemberSettingsRoute
   '/admin/users': typeof MemberAdminAdminUsersRoute
   '/libraries/$libraryId': typeof MemberLibrariesLibraryIdIndexRoute
@@ -107,6 +115,7 @@ export interface FileRoutesById {
   '/sign-in': typeof SignInRoute
   '/_member/$': typeof MemberSplatRoute
   '/_member/_admin': typeof MemberAdminRouteWithChildren
+  '/_member/code': typeof MemberCodeRoute
   '/_member/settings': typeof MemberSettingsRoute
   '/_member/': typeof MemberIndexRoute
   '/_member/_admin/admin/users': typeof MemberAdminAdminUsersRoute
@@ -121,6 +130,7 @@ export interface FileRouteTypes {
     | '/setup'
     | '/sign-in'
     | '/$'
+    | '/code'
     | '/settings'
     | '/admin/users'
     | '/libraries/$libraryId/'
@@ -132,6 +142,7 @@ export interface FileRouteTypes {
     | '/sign-in'
     | '/$'
     | '/'
+    | '/code'
     | '/settings'
     | '/admin/users'
     | '/libraries/$libraryId'
@@ -144,6 +155,7 @@ export interface FileRouteTypes {
     | '/sign-in'
     | '/_member/$'
     | '/_member/_admin'
+    | '/_member/code'
     | '/_member/settings'
     | '/_member/'
     | '/_member/_admin/admin/users'
@@ -202,6 +214,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MemberAdminRouteImport
       parentRoute: typeof MemberRoute
     }
+    '/_member/code': {
+      id: '/_member/code'
+      path: '/code'
+      fullPath: '/code'
+      preLoaderRoute: typeof MemberCodeRouteImport
+      parentRoute: typeof MemberRoute
+    }
     '/_member/settings': {
       id: '/_member/settings'
       path: '/settings'
@@ -255,6 +274,7 @@ const MemberAdminRouteWithChildren = MemberAdminRoute._addFileChildren(
 interface MemberRouteChildren {
   MemberSplatRoute: typeof MemberSplatRoute
   MemberAdminRoute: typeof MemberAdminRouteWithChildren
+  MemberCodeRoute: typeof MemberCodeRoute
   MemberSettingsRoute: typeof MemberSettingsRoute
   MemberIndexRoute: typeof MemberIndexRoute
   MemberLibrariesLibraryIdIndexRoute: typeof MemberLibrariesLibraryIdIndexRoute
@@ -265,6 +285,7 @@ interface MemberRouteChildren {
 const MemberRouteChildren: MemberRouteChildren = {
   MemberSplatRoute: MemberSplatRoute,
   MemberAdminRoute: MemberAdminRouteWithChildren,
+  MemberCodeRoute: MemberCodeRoute,
   MemberSettingsRoute: MemberSettingsRoute,
   MemberIndexRoute: MemberIndexRoute,
   MemberLibrariesLibraryIdIndexRoute: MemberLibrariesLibraryIdIndexRoute,
