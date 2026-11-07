@@ -1,7 +1,9 @@
 import { useMutation } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Choices, FormEnd, FormField, FormTextarea } from "@/components/form-field";
 import { type Library, LibraryKind, LibraryService } from "@/gen/nama/v1/library_pb";
 import { type FormErrors, formText, onSubmitted } from "@/lib/forms";
@@ -81,6 +83,28 @@ export function EditLibrary({ library }: { library: Library }) {
         refusal={errors.form}
       />
     </form>
+  );
+}
+
+/** The button that deletes `library`, once the Admin confirms, then goes back to the Libraries. */
+export function DeleteLibrary({ library }: { library: Library }) {
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const remove = useMutation(LibraryService.method.deleteLibrary, {
+    onSuccess: async () => {
+      await navigate({ to: "/admin/libraries" });
+      await queryClient.invalidateQueries({ queryKey: librariesKey });
+    },
+  });
+  return (
+    <ConfirmDialog
+      action="Delete"
+      name={`Delete ${library.name}`}
+      title={`Delete ${library.name}?`}
+      description="Its Movies or Shows leave the Server. The files in its folders stay where they are. This can’t be undone."
+      onConfirm={() => remove.mutateAsync({ id: library.id })}
+      refusal={(error) => libraryErrors(error, "delete the Library").form}
+    />
   );
 }
 

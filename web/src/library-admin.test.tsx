@@ -1,5 +1,5 @@
 import { type MessageInitShape, create } from "@bufbuild/protobuf";
-import type { ConnectRouter } from "@connectrpc/connect";
+import { Code, ConnectError, type ConnectRouter } from "@connectrpc/connect";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
@@ -142,4 +142,20 @@ test("Needs a Match says when the picked Library isn't on the Server", async () 
 
   expect(await screen.findByText("That Library isn’t on the Server.")).toBeDefined();
   expect(screen.queryByText("Everything is Matched.")).toBeNull();
+});
+
+test("a Library that isn't on the Server shows the not-found page, under the app chrome", async () => {
+  openApp(
+    "/admin/libraries/9",
+    adminServer(new ReadableStream(), (router) => {
+      router.service(LibraryService, {
+        getLibrary: () => {
+          throw new ConnectError("there is no Library 9", Code.NotFound);
+        },
+      });
+    }),
+  );
+
+  expect(await screen.findByRole("heading", { name: "Page not found" })).toBeDefined();
+  expect(screen.getByRole("navigation", { name: "Admin" })).toBeDefined();
 });

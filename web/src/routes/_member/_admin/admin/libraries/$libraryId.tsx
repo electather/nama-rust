@@ -1,13 +1,13 @@
-import { createQueryOptions, useMutation, useSuspenseQuery } from "@connectrpc/connect-query";
-import { useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, notFound, useNavigate } from "@tanstack/react-router";
+import { useSuspenseQuery } from "@connectrpc/connect-query";
+import { createFileRoute, notFound } from "@tanstack/react-router";
 
-import { ConfirmDialog } from "@/components/confirm-dialog";
-import { EditLibrary } from "@/components/library-form";
+import { DeleteLibrary, EditLibrary } from "@/components/library-form";
 import { ScanButton, ScanStatus } from "@/components/library-scan";
 import { Page } from "@/components/page";
-import { type Library, LibraryService } from "@/gen/nama/v1/library_pb";
-import { kindName, librariesKey, libraryErrors } from "@/lib/libraries";
+import { NotFound } from "@/components/route-error";
+import { LibraryService } from "@/gen/nama/v1/library_pb";
+import { queryOrNotFound } from "@/lib/browse";
+import { kindName } from "@/lib/libraries";
 
 /** The Library in the URL's id, or "not found" for one that isn't a number. */
 function libraryInput(libraryId: string) {
@@ -16,13 +16,9 @@ function libraryInput(libraryId: string) {
 }
 
 export const Route = createFileRoute("/_member/_admin/admin/libraries/$libraryId")({
-  loader: ({ context: { queryClient, transport }, params }) =>
-    queryClient.query({
-      ...createQueryOptions(LibraryService.method.getLibrary, libraryInput(params.libraryId), {
-        transport,
-      }),
-      staleTime: "static",
-    }),
+  loader: ({ context, params }) =>
+    queryOrNotFound(context, LibraryService.method.getLibrary, libraryInput(params.libraryId)),
+  notFoundComponent: NotFound,
   component: LibraryPage,
 });
 
@@ -56,26 +52,5 @@ function LibraryPage() {
         <EditLibrary library={library} />
       </section>
     </Page>
-  );
-}
-
-function DeleteLibrary({ library }: { library: Library }) {
-  const queryClient = useQueryClient();
-  const navigate = useNavigate();
-  const remove = useMutation(LibraryService.method.deleteLibrary, {
-    onSuccess: async () => {
-      await navigate({ to: "/admin/libraries" });
-      await queryClient.invalidateQueries({ queryKey: librariesKey });
-    },
-  });
-  return (
-    <ConfirmDialog
-      action="Delete"
-      name={`Delete ${library.name}`}
-      title={`Delete ${library.name}?`}
-      description="Its Movies or Shows leave the Server. The files in its folders stay where they are. This can’t be undone."
-      onConfirm={() => remove.mutateAsync({ id: library.id })}
-      refusal={(error) => libraryErrors(error, "delete the Library").form}
-    />
   );
 }

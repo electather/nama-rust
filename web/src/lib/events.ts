@@ -77,7 +77,8 @@ async function follow(
     const responses = client.subscribe({}, { signal, onHeader: catchUp });
     for await (const response of responses) apply(response, queryClient);
   } catch {
-    // The Server went away or hung up. Subscribing again below is all there is to do.
+    // The Server went away or hung up, or the session ended and the routes' access checks will
+    // notice. Subscribing again below is all there is to do.
   }
   setTimeout(() => {
     if (!signal.aborted) void follow(transport, queryClient, signal, true);
