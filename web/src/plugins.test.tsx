@@ -10,10 +10,33 @@ afterEach(cleanup);
 
 const text = (value: string) => ({ value: { case: "textValue" as const, value } });
 
-/** The Built-in Plugins of a fresh Server with a TMDB API key set. */
+/** The Built-in Plugins of a fresh Server with a TMDB API key set, and settings of every kind. */
 const plugins = [
   { id: "local-auth", version: "0.1.0", kind: PluginKind.BUILT_IN, enabled: true },
-  { id: "log-events", version: "0.1.0", kind: PluginKind.BUILT_IN, enabled: false },
+  {
+    id: "log-events",
+    version: "0.1.0",
+    kind: PluginKind.BUILT_IN,
+    enabled: false,
+    settings: [
+      {
+        key: "verbose",
+        label: "Verbose",
+        description: "",
+        kind: SettingKind.BOOL,
+        defaultValue: { value: { case: "boolValue" as const, value: false } },
+        value: { value: { case: "boolValue" as const, value: true } },
+      },
+      {
+        key: "keep_days",
+        label: "Keep for days",
+        description: "",
+        kind: SettingKind.INTEGER,
+        defaultValue: { value: { case: "integerValue" as const, value: 30n } },
+      },
+      { key: "path", label: "Path", description: "", kind: SettingKind.TEXT, required: true },
+    ],
+  },
   {
     id: "tmdb",
     version: "0.1.0",
@@ -83,4 +106,12 @@ test("a Plugin's settings show their values, defaults and whether a secret is se
   expect(await setting("tmdb", "Region")).toBe("US (default)");
   expect(await setting("tmdb", "Token")).toBe("Not set");
   expect((await plugin("tmdb")).getByText("Your TMDB API key.")).toBeDefined();
+});
+
+test("a bool shows as on or off, a number as itself, and a missing required setting says so", async () => {
+  openPlugins();
+
+  expect(await setting("log-events", "Verbose")).toBe("On");
+  expect(await setting("log-events", "Keep for days")).toBe("30 (default)");
+  expect(await setting("log-events", "Path")).toBe("Not set (required)");
 });

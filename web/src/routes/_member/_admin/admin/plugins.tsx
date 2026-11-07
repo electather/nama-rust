@@ -10,7 +10,6 @@ import {
   PluginKind,
   PluginService,
   type Setting,
-  SettingKind,
   type SettingValue,
 } from "@/gen/nama/v1/plugin_pb";
 
@@ -85,14 +84,18 @@ function PluginSection({ plugin }: { plugin: Plugin }) {
   );
 }
 
-/** A setting's value in words: a secret only as set or not, a missing value as its default. */
-function shownValue({ kind, secretSet, value, defaultValue }: Setting) {
-  if (kind === SettingKind.SECRET) return secretText(secretSet);
+/**
+ * A setting's value in words: a secret only as set or not (the Server sends no value for one), a
+ * missing value as its default.
+ */
+function shownValue({ required, secretSet, value, defaultValue }: Setting) {
+  if (secretSet) return "Set";
   if (value) return valueText(value);
-  return defaultValue ? `${valueText(defaultValue)} (default)` : "Not set";
+  return defaultValue ? `${valueText(defaultValue)} (default)` : notSet(required);
 }
 
-const secretText = (set: boolean) => (set ? "Set" : "Not set");
+/** A required setting that isn't set is why its Plugin can't be enabled, so it says so. */
+const notSet = (required: boolean) => (required ? "Not set (required)" : "Not set");
 
 function valueText({ value }: SettingValue) {
   if (value.case === "boolValue") return value.value ? "On" : "Off";

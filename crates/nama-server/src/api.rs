@@ -2273,7 +2273,9 @@ impl From<ManualError> for ConnectError {
 mod tests {
     use std::fs;
 
-    use super::{ACCESS, Access};
+    use nama_plugin_api::settings::{SettingField, SettingKind, SettingValue};
+
+    use super::{ACCESS, Access, setting_to_proto};
 
     /// Every RPC `buf generate` wrote a stub for, by path, read from the generated code so a new
     /// RPC shows up here without anyone listing it.
@@ -2325,5 +2327,24 @@ mod tests {
             Access::of("/media/versions/1"),
             Some(Access::SignedIn)
         ));
+    }
+
+    #[test]
+    fn a_secrets_default_and_stored_value_are_never_sent() {
+        let token = SettingField {
+            key: "token",
+            label: "Token",
+            description: "",
+            kind: SettingKind::Secret,
+            required: false,
+            default: Some(SettingValue::Text("default-token".to_owned())),
+        };
+        let stored = SettingValue::Text("stored-token".to_owned());
+
+        let shown = setting_to_proto(&token, Some(&stored));
+
+        assert!(shown.default_value.is_unset(), "{shown:?}");
+        assert!(shown.value.is_unset(), "{shown:?}");
+        assert!(shown.secret_set);
     }
 }
