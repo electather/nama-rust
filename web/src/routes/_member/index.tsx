@@ -1,5 +1,6 @@
 import { createQueryOptions, useSuspenseQuery } from "@connectrpc/connect-query";
-import { Link, createFileRoute } from "@tanstack/react-router";
+import { Link, type LinkOptions, createFileRoute } from "@tanstack/react-router";
+import type { ComponentProps } from "react";
 
 import { Page } from "@/components/page";
 import { Poster, PosterGrid, posterLink } from "@/components/poster";
@@ -55,12 +56,11 @@ function ContinueWatching() {
         Continue Watching
       </h2>
       <PosterGrid empty={null}>
-        {data.entries.flatMap(entryCard).map(({ href, poster }) => (
-          <li key={href}>
-            {/* ponytail: a plain link until the player's route (#72) exists to type a <Link> against. */}
-            <a href={href} className={posterLink}>
+        {data.entries.flatMap(entryCard).map(({ key, link, poster }) => (
+          <li key={key}>
+            <Link {...link} className={posterLink}>
               <Poster {...poster} />
-            </a>
+            </Link>
           </li>
         ))}
       </PosterGrid>
@@ -68,9 +68,15 @@ function ContinueWatching() {
   );
 }
 
-/** Where an entry plays, resuming where you stopped, and its poster. */
-function entryCard({ libraryId, movieOrEpisode, show }: ContinueWatchingEntry) {
-  const library = `/libraries/${libraryId}`;
+/** A Continue Watching entry: where it plays, resuming where you stopped, and its poster. */
+interface Card {
+  key: string;
+  link: LinkOptions;
+  poster: ComponentProps<typeof Poster>;
+}
+
+function entryCard({ libraryId, movieOrEpisode, show }: ContinueWatchingEntry): Card[] {
+  const library = String(libraryId);
   if (movieOrEpisode.case === "movie") return [movieCard(library, movieOrEpisode.value)];
   // An Episode without its Show has no poster or page to show.
   if (movieOrEpisode.case === "episode" && show) {
@@ -79,9 +85,14 @@ function entryCard({ libraryId, movieOrEpisode, show }: ContinueWatchingEntry) {
   return [];
 }
 
-function movieCard(library: string, movie: Movie) {
+function movieCard(libraryId: string, movie: Movie): Card {
+  const movieId = titleParam(movie.id);
   return {
-    href: `${library}/movies/${titleParam(movie.id)}/play`,
+    key: `${libraryId}/${movieId}`,
+    link: {
+      to: "/libraries/$libraryId/movies/$movieId/play",
+      params: { libraryId, movieId },
+    },
     poster: {
       url: movie.posterUrl,
       title: movie.title,
@@ -92,14 +103,20 @@ function movieCard(library: string, movie: Movie) {
 }
 
 /** An Episode shows its Show's poster, saying which Episode it is. */
-function episodeCard(library: string, show: Show, episode: Episode) {
-  const { seasonNumber, episodeNumber } = episode;
+function episodeCard(libraryId: string, show: Show, episode: Episode): Card {
+  const showId = titleParam(show.id);
+  const season = String(episode.seasonNumber);
+  const number = String(episode.episodeNumber);
   return {
-    href: `${library}/shows/${titleParam(show.id)}/seasons/${seasonNumber}/episodes/${episodeNumber}/play`,
+    key: `${libraryId}/${showId}/${season}/${number}`,
+    link: {
+      to: "/libraries/$libraryId/shows/$showId/seasons/$season/episodes/$episode/play",
+      params: { libraryId, showId, season, episode: number },
+    },
     poster: {
       url: show.posterUrl,
       title: show.title,
-      detail: metadataLine(seasonName(seasonNumber), `Episode ${episodeNumber}`),
+      detail: metadataLine(seasonName(episode.seasonNumber), `Episode ${number}`),
       watchState: episode.watchState,
     },
   };
