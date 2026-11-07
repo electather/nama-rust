@@ -61,6 +61,19 @@ export default defineConfig({
       "no-var": "error",
       "typescript/no-explicit-any": "error",
       "typescript/no-non-null-assertion": "error",
+      // The router's `redirect()` and `notFound()` are thrown, and aren't `Error`s.
+      "typescript/only-throw-error": [
+        "error",
+        {
+          allow: [
+            {
+              from: "package",
+              package: "@tanstack/router-core",
+              name: ["Redirect", "NotFoundError"],
+            },
+          ],
+        },
+      ],
       // The automatic JSX runtime needs no `React` in scope.
       "react/react-in-jsx-scope": "off",
       // React props (`children: ReactNode`) and library callback arguments can't be deeply

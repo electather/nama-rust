@@ -1,9 +1,12 @@
-import { HeadContent, Scripts, createRootRoute } from "@tanstack/react-router";
+import { HeadContent, Scripts, createRootRouteWithContext } from "@tanstack/react-router";
 import type { ReactNode } from "react";
+
+import { NotFound } from "@/components/route-error";
+import type { RouterContext } from "@/lib/access";
 
 import appCss from "../styles.css?url";
 
-export const Route = createRootRoute({
+export const Route = createRootRouteWithContext<RouterContext>()({
   head: () => ({
     meta: [
       { charSet: "utf-8" },
@@ -28,14 +31,5 @@ function RootDocument({ children }: { children: ReactNode }) {
         <Scripts />
       </body>
     </html>
-  );
-}
-
-function NotFound() {
-  return (
-    <main className="mx-auto max-w-prose px-6 py-16">
-      <h1 className="text-2xl font-semibold tracking-tight">Page not found</h1>
-      <p className="mt-2 text-muted-foreground">There’s nothing at this address.</p>
-    </main>
   );
 }

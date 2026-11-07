@@ -9,50 +9,198 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as IndexRouteImport } from './routes/index'
+import { Route as MemberRouteImport } from './routes/_member'
+import { Route as SetupRouteImport } from './routes/setup'
+import { Route as SignInRouteImport } from './routes/sign-in'
+import { Route as MemberIndexRouteImport } from './routes/_member/index'
+import { Route as MemberSplatRouteImport } from './routes/_member/$'
+import { Route as MemberAdminRouteImport } from './routes/_member/_admin'
+import { Route as MemberSettingsRouteImport } from './routes/_member/settings'
+import { Route as MemberAdminAdminUsersRouteImport } from './routes/_member/_admin/admin/users'
 
-const IndexRoute = IndexRouteImport.update({
+const MemberRoute = MemberRouteImport.update({
+  id: '/_member',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SetupRoute = SetupRouteImport.update({
+  id: '/setup',
+  path: '/setup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SignInRoute = SignInRouteImport.update({
+  id: '/sign-in',
+  path: '/sign-in',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MemberIndexRoute = MemberIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => MemberRoute,
+} as any)
+const MemberSplatRoute = MemberSplatRouteImport.update({
+  id: '/$',
+  path: '/$',
+  getParentRoute: () => MemberRoute,
+} as any)
+const MemberAdminRoute = MemberAdminRouteImport.update({
+  id: '/_admin',
+  getParentRoute: () => MemberRoute,
+} as any)
+const MemberSettingsRoute = MemberSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => MemberRoute,
+} as any)
+const MemberAdminAdminUsersRoute = MemberAdminAdminUsersRouteImport.update({
+  id: '/admin/users',
+  path: '/admin/users',
+  getParentRoute: () => MemberAdminRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
+  '/': typeof MemberIndexRoute
+  '/setup': typeof SetupRoute
+  '/sign-in': typeof SignInRoute
+  '/$': typeof MemberSplatRoute
+  '/settings': typeof MemberSettingsRoute
+  '/admin/users': typeof MemberAdminAdminUsersRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
+  '/setup': typeof SetupRoute
+  '/sign-in': typeof SignInRoute
+  '/$': typeof MemberSplatRoute
+  '/': typeof MemberIndexRoute
+  '/settings': typeof MemberSettingsRoute
+  '/admin/users': typeof MemberAdminAdminUsersRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
+  '/_member': typeof MemberRouteWithChildren
+  '/setup': typeof SetupRoute
+  '/sign-in': typeof SignInRoute
+  '/_member/$': typeof MemberSplatRoute
+  '/_member/_admin': typeof MemberAdminRouteWithChildren
+  '/_member/settings': typeof MemberSettingsRoute
+  '/_member/': typeof MemberIndexRoute
+  '/_member/_admin/admin/users': typeof MemberAdminAdminUsersRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths: '/' | '/setup' | '/sign-in' | '/$' | '/settings' | '/admin/users'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/setup' | '/sign-in' | '/$' | '/' | '/settings' | '/admin/users'
+  id:
+    | '__root__'
+    | '/_member'
+    | '/setup'
+    | '/sign-in'
+    | '/_member/$'
+    | '/_member/_admin'
+    | '/_member/settings'
+    | '/_member/'
+    | '/_member/_admin/admin/users'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
+  MemberRoute: typeof MemberRouteWithChildren
+  SetupRoute: typeof SetupRoute
+  SignInRoute: typeof SignInRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/': {
-      id: '/'
+    '/_member': {
+      id: '/_member'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof MemberRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/setup': {
+      id: '/setup'
+      path: '/setup'
+      fullPath: '/setup'
+      preLoaderRoute: typeof SetupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sign-in': {
+      id: '/sign-in'
+      path: '/sign-in'
+      fullPath: '/sign-in'
+      preLoaderRoute: typeof SignInRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_member/': {
+      id: '/_member/'
       path: '/'
       fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof MemberIndexRouteImport
+      parentRoute: typeof MemberRoute
+    }
+    '/_member/$': {
+      id: '/_member/$'
+      path: '/$'
+      fullPath: '/$'
+      preLoaderRoute: typeof MemberSplatRouteImport
+      parentRoute: typeof MemberRoute
+    }
+    '/_member/_admin': {
+      id: '/_member/_admin'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof MemberAdminRouteImport
+      parentRoute: typeof MemberRoute
+    }
+    '/_member/settings': {
+      id: '/_member/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof MemberSettingsRouteImport
+      parentRoute: typeof MemberRoute
+    }
+    '/_member/_admin/admin/users': {
+      id: '/_member/_admin/admin/users'
+      path: '/admin/users'
+      fullPath: '/admin/users'
+      preLoaderRoute: typeof MemberAdminAdminUsersRouteImport
+      parentRoute: typeof MemberAdminRoute
     }
   }
 }
 
+interface MemberAdminRouteChildren {
+  MemberAdminAdminUsersRoute: typeof MemberAdminAdminUsersRoute
+}
+
+const MemberAdminRouteChildren: MemberAdminRouteChildren = {
+  MemberAdminAdminUsersRoute: MemberAdminAdminUsersRoute,
+}
+
+const MemberAdminRouteWithChildren = MemberAdminRoute._addFileChildren(
+  MemberAdminRouteChildren,
+)
+
+interface MemberRouteChildren {
+  MemberSplatRoute: typeof MemberSplatRoute
+  MemberAdminRoute: typeof MemberAdminRouteWithChildren
+  MemberSettingsRoute: typeof MemberSettingsRoute
+  MemberIndexRoute: typeof MemberIndexRoute
+}
+
+const MemberRouteChildren: MemberRouteChildren = {
+  MemberSplatRoute: MemberSplatRoute,
+  MemberAdminRoute: MemberAdminRouteWithChildren,
+  MemberSettingsRoute: MemberSettingsRoute,
+  MemberIndexRoute: MemberIndexRoute,
+}
+
+const MemberRouteWithChildren =
+  MemberRoute._addFileChildren(MemberRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
+  MemberRoute: MemberRouteWithChildren,
+  SetupRoute: SetupRoute,
+  SignInRoute: SignInRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
