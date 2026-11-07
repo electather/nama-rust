@@ -6,7 +6,7 @@ import { useSensitiveMutation } from "@/components/confirm-its-you";
 import type { User } from "@/gen/nama/v1/sign_in_pb";
 import { UserService } from "@/gen/nama/v1/user_pb";
 import { signedInQuery } from "@/lib/access";
-import { usersKey } from "@/lib/users";
+import { defaultPermissionsKey, usersKey } from "@/lib/users";
 
 /** `SetPermissions` for `user`, as `you`, after which the Users and your own access are fresh. */
 export function useSetPermissions(user: User, you: User | undefined) {
@@ -25,5 +25,13 @@ export function useSetPermissions(user: User, you: User | undefined) {
         await router.invalidate();
       }
     },
+  });
+}
+
+/** `SetDefaultPermissions`, after which the default Permissions are fresh. */
+export function useSetDefaultPermissions() {
+  const queryClient = useQueryClient();
+  return useSensitiveMutation(UserService.method.setDefaultPermissions, {
+    onSettled: () => queryClient.invalidateQueries({ queryKey: defaultPermissionsKey }),
   });
 }

@@ -376,16 +376,17 @@ export const SetDefaultPermissionsResponseSchema: GenMessage<SetDefaultPermissio
  * Only a caller with `PERMISSION_ADMIN` may `SetPermissions`, `ResetPassword` or `DeleteUser` for a
  * User with it, grant it, put it in the default Permissions or create a User while they hold it, or
  * set their own Permissions; others fail with `permission_denied` and a Refusal naming
- * `PERMISSION_ADMIN`. `ChangePassword`, `ResetPassword`, `SetPermissions` and
- * `DeleteUser` also need Recent Authentication, as `SignInService` describes. RPCs name Users by
- * ID, not by name.
+ * `PERMISSION_ADMIN`. `ChangePassword`, `ResetPassword`, `SetPermissions`, `SetDefaultPermissions`
+ * and `DeleteUser` also need Recent Authentication, as `SignInService` describes. RPCs name Users
+ * by ID, not by name.
  *
  * @generated from service nama.v1.UserService
  */
 export const UserService: GenService<{
   /**
-   * Creates a User, who can sign in at once, with the default Permissions as they are now. Fails with `invalid_argument` if the name or the password breaks
-   * the rules, and `already_exists` if another User has the name, ignoring case.
+   * Creates a User, who can sign in at once, with the default Permissions as they are now. Fails
+   * with `invalid_argument` if the name or the password breaks the rules, and `already_exists` if
+   * another User has the name, ignoring case.
    *
    * @generated from rpc nama.v1.UserService.CreateUser
    */

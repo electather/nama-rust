@@ -20,7 +20,8 @@ package nama.v1;
 //
 // Changes to who can sign in as whom need Recent Authentication: the calling Device proved who it
 // is with one of its User's Sign-in Methods in the last 10 minutes. They are `ApproveSignInCode`
-// and `UserService`'s `ChangePassword`, `ResetPassword`, `SetPermissions` and `DeleteUser`.
+// and `UserService`'s `ChangePassword`, `ResetPassword`, `SetPermissions`,
+// `SetDefaultPermissions` and `DeleteUser`.
 // Signing in with `Setup` or `SignIn` gives a Device Recent Authentication; signing in with a
 // Sign-in Code doesn't, since that Device proved nothing itself. Without it, those calls fail with
 // `failed_precondition` and the `REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED` Refusal before

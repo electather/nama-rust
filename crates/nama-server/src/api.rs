@@ -252,10 +252,12 @@ fn permission_required(needed: Permission) -> ConnectError {
 /// The RPCs that change who can sign in as whom, by path, which need Recent Authentication on top
 /// of their [`Access`] (ADR 0014, and see AGENTS.md). A list of its own, not an `Access` variant:
 /// `SetPermissions` needs a Permission as well, `ChangePassword` only a session.
-const NEEDS_RECENT_AUTHENTICATION: [&str; 5] = [
+const NEEDS_RECENT_AUTHENTICATION: [&str; 6] = [
     proto::USER_SERVICE_CHANGE_PASSWORD_SPEC.procedure,
     proto::USER_SERVICE_RESET_PASSWORD_SPEC.procedure,
     proto::USER_SERVICE_SET_PERMISSIONS_SPEC.procedure,
+    // It can put ADMIN in what `CreateUser`, which needs none, gives out.
+    proto::USER_SERVICE_SET_DEFAULT_PERMISSIONS_SPEC.procedure,
     proto::USER_SERVICE_DELETE_USER_SPEC.procedure,
     proto::SIGN_IN_SERVICE_APPROVE_SIGN_IN_CODE_SPEC.procedure,
 ];

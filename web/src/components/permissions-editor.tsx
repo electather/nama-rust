@@ -1,9 +1,8 @@
-import { useMutation, useSuspenseQuery } from "@connectrpc/connect-query";
-import { useQueryClient } from "@tanstack/react-query";
+import { useSuspenseQuery } from "@connectrpc/connect-query";
 import { type ComponentProps, useId, useState } from "react";
 
 import { FormEnd } from "@/components/form-field";
-import { useSetPermissions } from "@/components/use-set-permissions";
+import { useSetDefaultPermissions, useSetPermissions } from "@/components/use-set-permissions";
 import type { Permission, User } from "@/gen/nama/v1/sign_in_pb";
 import { UserService } from "@/gen/nama/v1/user_pb";
 import { onSubmitted, refusal } from "@/lib/forms";
@@ -14,7 +13,7 @@ import {
   permissionChoices,
   permissionsToOffer,
 } from "@/lib/permissions";
-import { defaultPermissionsKey, onlyAdminRefusal } from "@/lib/users";
+import { onlyAdminRefusal } from "@/lib/users";
 
 /** `user`'s Permissions as checkboxes, or nothing when `you` may not change them. */
 export function PermissionsEditor({ user, you }: { user: User; you: User | undefined }) {
@@ -79,10 +78,7 @@ function DefaultPermissionsForm({
   initial: Permission[];
   you: User | undefined;
 }) {
-  const queryClient = useQueryClient();
-  const save = useMutation(UserService.method.setDefaultPermissions, {
-    onSettled: () => queryClient.invalidateQueries({ queryKey: defaultPermissionsKey }),
-  });
+  const save = useSetDefaultPermissions();
   return (
     <PermissionsForm
       initial={initial}

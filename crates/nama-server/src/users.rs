@@ -406,8 +406,8 @@ impl Users {
         user: i64,
         permissions: Permissions,
     ) -> Result<(), Error> {
-        let by_admin = by.permissions.allow(Permission::Admin);
-        if !by_admin && (permissions.allow(Permission::Admin) || by.id == user) {
+        ensure_may_grant(by.permissions, permissions)?;
+        if !by.permissions.allow(Permission::Admin) && by.id == user {
             return Err(Error::AdminRequired);
         }
         let by = by.clone();
