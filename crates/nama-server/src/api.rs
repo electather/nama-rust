@@ -515,13 +515,13 @@ impl LibraryService for LibraryServiceHandler {
         _request: ServiceRequest<'_, ListLibrariesRequest>,
     ) -> ServiceResult<ListLibrariesResponse> {
         // Where a Library's files live on the Server's disk is for Admins only.
-        let shows_folders = caller(&ctx)?.user.role == Role::Admin;
+        let is_admin = caller(&ctx)?.user.role == Role::Admin;
         let libraries = self.libraries.list().await?;
         Response::ok(ListLibrariesResponse {
             libraries: libraries
                 .into_iter()
                 .map(|library| Library {
-                    folders: if shows_folders {
+                    folders: if is_admin {
                         library.folders
                     } else {
                         Vec::new()

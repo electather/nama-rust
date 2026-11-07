@@ -52,7 +52,11 @@ const gigabytes = new Intl.NumberFormat("en", {
 
 /** Play, and a choice of Version when there's more than one, starting on the largest. */
 function Play({ versions }: { versions: Version[] }) {
-  const [versionId, setVersionId] = useState(String(largestVersion(versions).id));
+  const [chosenId, setChosenId] = useState<string>();
+  // The largest until one is chosen, and again if an Event removed the chosen one.
+  const versionId = String(
+    (versions.find(({ id }) => String(id) === chosenId) ?? largestVersion(versions)).id,
+  );
   return (
     <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-3">
       {/* ponytail: a plain link until the player's route (#72) exists to type a <Link> against. */}
@@ -65,9 +69,9 @@ function Play({ versions }: { versions: Version[] }) {
           <select
             value={versionId}
             onChange={(event) => {
-              setVersionId(event.target.value);
+              setChosenId(event.target.value);
             }}
-            className="h-9 max-w-64 truncate rounded-lg border border-input bg-background px-3 text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/25"
+            className="h-9 max-w-64 truncate rounded-lg border border-input bg-transparent px-3 text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/25"
           >
             {versions.map((version) => (
               <option key={String(version.id)} value={String(version.id)}>

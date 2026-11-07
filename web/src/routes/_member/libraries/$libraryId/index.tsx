@@ -34,6 +34,8 @@ function Library() {
   );
 }
 
+const posterLink = "block rounded-lg outline-none focus-visible:ring-3 focus-visible:ring-ring/50";
+
 function Movies({ libraryId }: { libraryId: bigint }) {
   const { data } = useSuspenseQuery(BrowseService.method.listMovies, { libraryId });
   return (
@@ -43,7 +45,7 @@ function Movies({ libraryId }: { libraryId: bigint }) {
           <Link
             to="/libraries/$libraryId/movies/$movieId"
             params={{ libraryId: String(libraryId), movieId: titleParam(movie.id) }}
-            className="group block rounded-lg outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+            className={posterLink}
           >
             <Poster url={movie.posterUrl} title={movie.title} detail={yearOf(movie.releaseDate)} />
           </Link>
@@ -62,7 +64,7 @@ function Shows({ libraryId }: { libraryId: bigint }) {
           <Link
             to="/libraries/$libraryId/shows/$showId"
             params={{ libraryId: String(libraryId), showId: titleParam(show.id) }}
-            className="group block rounded-lg outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+            className={posterLink}
           >
             <Poster url={show.posterUrl} title={show.title} />
           </Link>
