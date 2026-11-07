@@ -219,3 +219,21 @@ test("saved default Permissions are named on the Users page after reloading", as
   expect(await screen.findByText("Request Movies · View Requests")).toBeDefined();
   expect(defaults).toEqual([Permission.VIEW_REQUESTS, Permission.REQUEST_MOVIE]);
 });
+
+test("without the Admin Permission, default Permissions holding Admin can't be changed", async () => {
+  openApp(
+    "/admin/users",
+    fakeServer(
+      { signedIn: [Permission.MANAGE_USERS] },
+      {},
+      {
+        listUsers: () => ({ users: [] }),
+        getDefaultPermissions: () => ({ permissions: admin }),
+      },
+    ),
+  );
+
+  const defaults = await screen.findByRole("region", { name: "Default Permissions" });
+  expect(within(defaults).getByText("Admin")).toBeDefined();
+  expect(within(defaults).queryByRole("button", { name: "Change" })).toBeNull();
+});

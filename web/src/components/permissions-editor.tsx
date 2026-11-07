@@ -9,6 +9,7 @@ import { onSubmitted, refusal } from "@/lib/forms";
 import {
   type PermissionChoice,
   isCovered,
+  mayChangeDefaultPermissions,
   mayChangePermissions,
   permissionChoices,
   permissionsToOffer,
@@ -41,7 +42,7 @@ function UserPermissionsForm({ user, you }: { user: User; you: User | undefined 
   );
 }
 
-/** The Permissions new Users get, named, opening to change them as `you` may. */
+/** The Permissions new Users get, named, opening to change them when `you` may. */
 export function DefaultPermissionsEditor({ you }: { you: User | undefined }) {
   const { data } = useSuspenseQuery(UserService.method.getDefaultPermissions, {});
   const [open, setOpen] = useState(false);
@@ -50,17 +51,19 @@ export function DefaultPermissionsEditor({ you }: { you: User | undefined }) {
     <>
       <div className="mt-2 flex items-baseline gap-3">
         <p className="text-sm">{labelsOf(data.permissions)}</p>
-        <button
-          type="button"
-          aria-expanded={open}
-          aria-controls={panel}
-          onClick={() => {
-            setOpen(!open);
-          }}
-          className="ms-auto rounded-sm text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
-        >
-          {open ? "Close" : "Change"}
-        </button>
+        {mayChangeDefaultPermissions(you, data.permissions) && (
+          <button
+            type="button"
+            aria-expanded={open}
+            aria-controls={panel}
+            onClick={() => {
+              setOpen(!open);
+            }}
+            className="ms-auto rounded-sm text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
+            {open ? "Close" : "Change"}
+          </button>
+        )}
       </div>
       {open && (
         <div id={panel} className="mt-4">

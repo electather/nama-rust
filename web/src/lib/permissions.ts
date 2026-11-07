@@ -85,6 +85,14 @@ export function mayChangePermissions(you: User | undefined, user: User) {
   return may(you, Permission.ADMIN) || (you?.id !== user.id && !may(user, Permission.ADMIN));
 }
 
+/**
+ * Whether `you` may change the default Permissions, as the Server checks it: only an Admin while
+ * they hold Admin.
+ */
+export function mayChangeDefaultPermissions(you: User | undefined, defaults: Permission[]) {
+  return may(you, Permission.ADMIN) || !defaults.includes(Permission.ADMIN);
+}
+
 /** The Permissions `you` may give: the Server refuses the Admin Permission from anyone without it. */
 export function permissionsToOffer(you: User | undefined) {
   return may(you, Permission.ADMIN)
