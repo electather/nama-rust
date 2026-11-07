@@ -5,7 +5,10 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use nama_plugin_api::metadata::ExternalId;
+use nama_plugin_api::{
+    PluginId,
+    metadata::{Candidate, ExternalId, SearchQuery, TitleKind},
+};
 use nama_proto::nama::v1::{
     Event, Permission, Request, RequestCreated, RequestState, RequestedMovie, Requester,
     RequesterAdded,
@@ -58,6 +61,19 @@ pub(crate) struct Requests {
     events: EventBus,
 }
 
+/// A Movie the metadata source has, and how close it is to being on the Server.
+#[derive(Debug)]
+pub(crate) struct Found<M> {
+    pub(crate) tmdb_id: i64,
+    /// The Plugin whose metadata Provider gave the Movie, which its image paths are for.
+    pub(crate) plugin: PluginId,
+    pub(crate) movie: M,
+    /// The oldest Library with the Movie Matched, if any.
+    pub(crate) library: Option<i64>,
+    /// The Movie's open Request, if it has one the viewer may see.
+    pub(crate) request: Option<Request>,
+}
+
 /// Whose Requests `viewer` may see: everyone's (`None`), or only those they are a Requester of.
 pub(crate) fn visible_to(viewer: &User) -> Option<i64> {
     (!viewer.permissions.allow(Permission::ViewRequests)).then_some(viewer.id)
@@ -80,23 +96,12 @@ impl Requests {
     pub(crate) async fn create(&self, asker: &User, tmdb_id: i64) -> Result<Request, Error> {
         // Refuses before asking TMDB, which may be down or slow; `ask` checks again for a scan
         // that Matched the Movie meanwhile.
-        if self.contents.has_movie(tmdb_id).await? {
+        if self.contents.library_with_movie(tmdb_id).await?.is_some() {
             return Err(Error::InLibrary(tmdb_id));
         }
         // ponytail: looked up even to join an open Request, so the write has it if that Request
         // closes meanwhile. Look up only when opening one if TMDB's rate limit starts to bite.
-        let movie = self
-            .matcher
-            .movie(&ExternalId::Tmdb(tmdb_id))
-            .await
-            .map_err(|err| match err {
-                // `movie` names no item, so its only refusal is the Movie's.
-                ManualError::NoSuchTitle(_) | ManualError::NoSuchItem(_) => {
-                    Error::NoSuchMovie(tmdb_id)
-                }
-                ManualError::Unavailable => Error::Unavailable,
-                ManualError::Database(err) => Error::Database(err),
-            })?;
+        let movie = self.fetch(tmdb_id).await?;
         let state = if asker.permissions.allow(Permission::AutoApproveMovie) {
             RequestState::Approved
         } else {
@@ -117,12 +122,109 @@ impl Requests {
         load(&mut conn, None, visible_to(viewer)).await
     }
 
+    /// The Movies the metadata source finds titled like `title`, best fit first, as `viewer`
+    /// sees them.
+    pub(crate) async fn search(
+        &self,
+        viewer: &User,
+        title: String,
+    ) -> Result<Vec<Found<Candidate>>, Error> {
+        let query = SearchQuery {
+            kind: TitleKind::Movie,
+            title,
+            year: None,
+        };
+        let candidates = self
+            .matcher
+            .search_metadata(&query)
+            .await
+            .map_err(|err| match err {
+                ManualError::Database(err) => Error::Database(err),
+                // A search names no item or title, so it fails only when no Provider answers.
+                ManualError::NoSuchItem(_)
+                | ManualError::NoSuchTitle(_)
+                | ManualError::Unavailable => Error::Unavailable,
+            })?;
+        let mut conn = self.db.reader().acquire().await?;
+        let mut found = Vec::with_capacity(candidates.len());
+        // ponytail: two queries per Movie found, which a search caps at a page of 20.
+        for (plugin, candidate) in candidates {
+            // Requests name Movies by TMDB id, so a Movie without one can't be asked for.
+            let ExternalId::Tmdb(tmdb_id) = candidate.id else {
+                continue;
+            };
+            found.push(look_around(&mut conn, viewer, tmdb_id, plugin, candidate).await?);
+        }
+        Ok(found)
+    }
+
+    /// The Movie with the TMDB id `tmdb_id`, fetched now, as `viewer` sees it.
+    pub(crate) async fn look_up(
+        &self,
+        viewer: &User,
+        tmdb_id: i64,
+    ) -> Result<Found<Metadata>, Error> {
+        let movie = self.fetch(tmdb_id).await?;
+        let mut conn = self.db.reader().acquire().await?;
+        let plugin = movie.plugin.clone();
+        Ok(look_around(&mut conn, viewer, tmdb_id, plugin, movie).await?)
+    }
+
+    async fn fetch(&self, tmdb_id: i64) -> Result<Metadata, Error> {
+        self.matcher
+            .movie(&ExternalId::Tmdb(tmdb_id))
+            .await
+            .map_err(|err| match err {
+                // `movie` names no item, so its only refusal is the Movie's.
+                ManualError::NoSuchTitle(_) | ManualError::NoSuchItem(_) => {
+                    Error::NoSuchMovie(tmdb_id)
+                }
+                ManualError::Unavailable => Error::Unavailable,
+                ManualError::Database(err) => Error::Database(err),
+            })
+    }
+
     /// The Request `id`, if `viewer` may see it.
     pub(crate) async fn get(&self, viewer: &User, id: i64) -> Result<Request, Error> {
         let mut conn = self.db.reader().acquire().await?;
         let found = load(&mut conn, Some(id), visible_to(viewer)).await?;
         found.into_iter().next().ok_or(Error::NoSuchRequest(id))
     }
+}
+
+/// `movie`, the Movie `tmdb_id` as `plugin`'s Provider gave it, with the Library that has it and
+/// its open Request, if `viewer` may see it.
+async fn look_around<M>(
+    conn: &mut SqliteConnection,
+    viewer: &User,
+    tmdb_id: i64,
+    plugin: PluginId,
+    movie: M,
+) -> Result<Found<M>, sqlx::Error> {
+    let library = contents::library_with_movie(conn, tmdb_id).await?;
+    let requester = visible_to(viewer);
+    // Open as `one_open_request_per_movie` has it.
+    let open = sqlx::query_scalar!(
+        r#"SELECT id AS "id!" FROM requests
+           WHERE tmdb_id = ?1 AND state NOT IN ('declined', 'available')
+             AND (?2 IS NULL OR EXISTS (SELECT 1 FROM requesters
+                                        WHERE request_id = requests.id AND user_id = ?2))"#,
+        tmdb_id,
+        requester
+    )
+    .fetch_optional(&mut *conn)
+    .await?;
+    let request = match open {
+        Some(id) => load(conn, Some(id), None).await?.into_iter().next(),
+        None => None,
+    };
+    Ok(Found {
+        tmdb_id,
+        plugin,
+        movie,
+        library,
+        request,
+    })
 }
 
 /// Adds `user` as a Requester of the open Request for the Movie `tmdb_id`, opening one in
@@ -135,7 +237,7 @@ async fn ask(
     movie: Metadata,
     state: RequestState,
 ) -> Result<(Request, Option<Event>), Error> {
-    if contents::has_movie(conn, tmdb_id).await? {
+    if contents::library_with_movie(conn, tmdb_id).await?.is_some() {
         return Err(Error::InLibrary(tmdb_id));
     }
     let now = now();

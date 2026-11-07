@@ -3,16 +3,20 @@
 //! A Match stores its title's images as paths the metadata Provider handed out, along with the
 //! Plugin whose Provider that was. An image is downloaded through that Provider only when
 //! something first asks for it, then kept under `artwork/` in the data directory and served from
-//! there, across restarts too. Callers should only ask for images some Match stores, so clients
-//! can't use the cache to fetch arbitrary images.
+//! there, across restarts too. Callers should only ask for images some Match stores, or that a
+//! search or lookup offered to clients, so clients can't use the cache to fetch arbitrary images.
 //!
 //! Clients fetch them over plain HTTP at `/media/artwork/<plugin>/<path>` (ADR 0007: media bytes
 //! are not RPC), which is served to anyone with a session.
 
 use std::{
+    collections::HashSet,
     io,
     path::{Path, PathBuf},
-    sync::atomic::{AtomicU64, Ordering},
+    sync::{
+        Arc, Mutex, PoisonError,
+        atomic::{AtomicU64, Ordering},
+    },
 };
 
 use axum::{
@@ -31,11 +35,16 @@ use crate::{contents::Contents, plugins::Registry};
 
 const DIR: &str = "artwork";
 
+/// How many offered images are remembered before [`Artwork::offer`] forgets them all.
+const MAX_OFFERED: usize = 10_000;
+
 /// Images on disk, fetched from metadata Providers on first use.
 #[derive(Debug, Clone)]
 pub struct Artwork {
     dir: PathBuf,
     plugins: Registry,
+    /// The `(plugin, path)` of each image a search or lookup handed out since the Server started.
+    offered: Arc<Mutex<HashSet<(String, String)>>>,
 }
 
 /// An image in the cache.
@@ -70,7 +79,27 @@ impl Artwork {
         Self {
             dir: data_dir.join(DIR),
             plugins,
+            offered: Arc::default(),
         }
+    }
+
+    /// Where clients fetch the image at `path` from the Plugin `plugin`'s metadata Provider, which
+    /// [`router`] serves from now on even though no Match stores it.
+    pub(crate) fn offer(&self, plugin: &PluginId, path: &str) -> String {
+        let plugin = plugin.as_str();
+        let mut offered = self.offered.lock().unwrap_or_else(PoisonError::into_inner);
+        // ponytail: forgets every offer at the cap, so a poster shown long ago may 404 until it is
+        // searched for again. Evict the oldest instead if that bites.
+        if offered.len() >= MAX_OFFERED {
+            offered.clear();
+        }
+        offered.insert((plugin.to_owned(), path.to_owned()));
+        url(plugin, path)
+    }
+
+    fn was_offered(&self, plugin: &str, path: &str) -> bool {
+        let offered = self.offered.lock().unwrap_or_else(PoisonError::into_inner);
+        offered.contains(&(plugin.to_owned(), path.to_owned()))
     }
 
     /// The image at `path` from the Plugin `plugin`'s metadata Provider, downloading it first if
@@ -128,8 +157,8 @@ pub(crate) fn url(plugin: &str, path: &str) -> String {
     format!("/media/artwork/{}/{}", file_name(plugin), file_name(path))
 }
 
-/// Serves `GET` [`url`]s, 404 unless `contents` has a Match that stores the image. Whether the
-/// caller has a session is up to the layers the router is put behind.
+/// Serves `GET` [`url`]s, 404 unless `artwork` offered the image or `contents` has a Match that
+/// stores it. Whether the caller has a session is up to the layers the router is put behind.
 pub(crate) fn router(artwork: Artwork, contents: Contents) -> Router {
     Router::new()
         .route("/media/artwork/{plugin}/{path}", get(serve))
@@ -140,7 +169,12 @@ async fn serve(
     State((artwork, contents)): State<(Artwork, Contents)>,
     UrlPath((plugin, path)): UrlPath<(String, String)>,
 ) -> Response {
-    match contents.stores_image(&plugin, &path).await {
+    let allowed = if artwork.was_offered(&plugin, &path) {
+        Ok(true)
+    } else {
+        contents.stores_image(&plugin, &path).await
+    };
+    match allowed {
         Ok(true) => {}
         Ok(false) => return StatusCode::NOT_FOUND.into_response(),
         Err(err) => {

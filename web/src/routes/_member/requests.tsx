@@ -1,12 +1,17 @@
 import { createQueryOptions, useSuspenseQuery } from "@connectrpc/connect-query";
 import { createFileRoute } from "@tanstack/react-router";
 
+import { FindAMovie, MoviesFound } from "@/components/find-a-movie";
 import { Page } from "@/components/page";
 import { RequestStateLabel } from "@/components/request-state";
 import { type Request, RequestService } from "@/gen/nama/v1/request_pb";
+import { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { metadataLine, yearOf } from "@/lib/browse";
+import { may } from "@/lib/permissions";
 
 export const Route = createFileRoute("/_member/requests")({
+  validateSearch: (search: Record<string, unknown>): { title?: string } =>
+    typeof search["title"] === "string" && search["title"] !== "" ? { title: search["title"] } : {},
   loader: ({ context: { queryClient, transport } }) =>
     queryClient.query({
       ...createQueryOptions(RequestService.method.listRequests, {}, { transport }),
@@ -16,19 +21,39 @@ export const Route = createFileRoute("/_member/requests")({
 });
 
 function Requests() {
-  const { data } = useSuspenseQuery(RequestService.method.listRequests, {});
+  const { signedIn } = Route.useRouteContext();
+  const { title } = Route.useSearch();
   return (
     <Page heading="Requests">
-      {data.requests.length === 0 ? (
-        <p className="mt-8 text-muted-foreground">No Requests yet.</p>
+      {may(signedIn.user, Permission.REQUEST_MOVIE) ? (
+        <FindOrList title={title} you={signedIn.user?.id} />
       ) : (
-        <ul className="mt-8 flex max-w-2xl flex-col">
-          {data.requests.map((request) => (
-            <RequestRow key={String(request.id)} request={request} />
-          ))}
-        </ul>
+        <RequestList />
       )}
     </Page>
+  );
+}
+
+/** The search, then what it found for `title`, or the Requests before anything is searched for. */
+function FindOrList({ title, you }: { title: string | undefined; you: bigint | undefined }) {
+  return (
+    <>
+      <FindAMovie title={title} />
+      {title === undefined ? <RequestList /> : <MoviesFound title={title} you={you} />}
+    </>
+  );
+}
+
+function RequestList() {
+  const { data } = useSuspenseQuery(RequestService.method.listRequests, {});
+  return data.requests.length === 0 ? (
+    <p className="mt-8 text-muted-foreground">No Requests yet.</p>
+  ) : (
+    <ul className="mt-8 flex max-w-2xl flex-col">
+      {data.requests.map((request) => (
+        <RequestRow key={String(request.id)} request={request} />
+      ))}
+    </ul>
   );
 }
 

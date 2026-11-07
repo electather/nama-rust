@@ -403,10 +403,13 @@ impl Contents {
         .await
     }
 
-    /// Whether some Library has an Item Matched to the Movie with the TMDB id `tmdb_id`.
-    pub(crate) async fn has_movie(&self, tmdb_id: i64) -> Result<bool, sqlx::Error> {
+    /// The oldest Library with an Item Matched to the Movie with the TMDB id `tmdb_id`, if any.
+    pub(crate) async fn library_with_movie(
+        &self,
+        tmdb_id: i64,
+    ) -> Result<Option<i64>, sqlx::Error> {
         let mut conn = self.db.reader().acquire().await?;
-        has_movie(&mut conn, tmdb_id).await
+        library_with_movie(&mut conn, tmdb_id).await
     }
 
     /// The Items of the Item `item`'s Library named like it, itself among them, or `None` if
@@ -710,18 +713,20 @@ impl Pin {
     }
 }
 
-/// Whether some Library has an Item Matched to the Movie with the TMDB id `tmdb_id`, read on
-/// `conn` so a write can act on the answer before a scan changes it.
-pub(crate) async fn has_movie(
+/// The oldest Library with an Item Matched to the Movie with the TMDB id `tmdb_id`, if any, read
+/// on `conn` so a write can act on the answer before a scan changes it.
+pub(crate) async fn library_with_movie(
     conn: &mut SqliteConnection,
     tmdb_id: i64,
-) -> Result<bool, sqlx::Error> {
+) -> Result<Option<i64>, sqlx::Error> {
     sqlx::query_scalar!(
-        r#"SELECT EXISTS (SELECT 1 FROM item_matches
-                          JOIN library_items ON library_items.id = item_matches.item_id
-                          WHERE item_matches.state = 'matched'
-                            AND library_items.kind = 'movie'
-                            AND item_matches.tmdb_id = ?) AS "has!: bool""#,
+        r#"SELECT MIN(library_files.library_id) AS "library: i64"
+           FROM item_matches
+           JOIN library_items ON library_items.id = item_matches.item_id
+           JOIN library_files ON library_files.id = library_items.file_id
+           WHERE item_matches.state = 'matched'
+             AND library_items.kind = 'movie'
+             AND item_matches.tmdb_id = ?"#,
         tmdb_id
     )
     .fetch_one(&mut *conn)

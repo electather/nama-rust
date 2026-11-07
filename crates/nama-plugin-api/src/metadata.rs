@@ -108,6 +108,8 @@ pub struct Candidate {
     pub original_title: Option<String>,
     /// The year a Movie was released or a Show first aired.
     pub year: Option<i32>,
+    /// The poster's path, to pass to [`MetadataProvider::image`].
+    pub poster: Option<String>,
 }
 
 /// A Movie's details.

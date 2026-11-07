@@ -14,6 +14,7 @@ pub(crate) struct MovieResult {
     title: String,
     original_title: Option<String>,
     release_date: Option<String>,
+    poster_path: Option<String>,
 }
 
 impl From<MovieResult> for Candidate {
@@ -23,6 +24,7 @@ impl From<MovieResult> for Candidate {
             year: year(movie.release_date.as_deref()),
             title: movie.title,
             original_title: present(movie.original_title),
+            poster: present(movie.poster_path),
         }
     }
 }
@@ -33,6 +35,7 @@ pub(crate) struct ShowResult {
     name: String,
     original_name: Option<String>,
     first_air_date: Option<String>,
+    poster_path: Option<String>,
 }
 
 impl From<ShowResult> for Candidate {
@@ -42,6 +45,7 @@ impl From<ShowResult> for Candidate {
             year: year(show.first_air_date.as_deref()),
             title: show.name,
             original_title: present(show.original_name),
+            poster: present(show.poster_path),
         }
     }
 }

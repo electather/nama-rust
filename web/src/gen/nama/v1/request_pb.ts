@@ -10,7 +10,7 @@ import type { Message, UnknownEnum } from "@bufbuild/protobuf";
  * Describes the file nama/v1/request.proto.
  */
 export const file_nama_v1_request: GenFile = /*@__PURE__*/
-  fileDesc("ChVuYW1hL3YxL3JlcXVlc3QucHJvdG8SB25hbWEudjEinwEKB1JlcXVlc3QSCgoCaWQYASABKAMSJgoFbW92aWUYAiABKAsyFy5uYW1hLnYxLlJlcXVlc3RlZE1vdmllEiQKBXN0YXRlGAMgASgOMhUubmFtYS52MS5SZXF1ZXN0U3RhdGUSJgoKcmVxdWVzdGVycxgEIAMoCzISLm5hbWEudjEuUmVxdWVzdGVyEhIKCmNyZWF0ZWRfYXQYBSABKAMiXAoOUmVxdWVzdGVkTW92aWUSDwoHdG1kYl9pZBgBIAEoAxINCgV0aXRsZRgCIAEoCRIZCgxyZWxlYXNlX2RhdGUYAyABKAlIAIgBAUIPCg1fcmVsZWFzZV9kYXRlIkAKCVJlcXVlc3RlchIPCgd1c2VyX2lkGAEgASgDEgwKBG5hbWUYAiABKAkSFAoMcmVxdWVzdGVkX2F0GAMgASgDIi0KFENyZWF0ZVJlcXVlc3RSZXF1ZXN0EhUKDW1vdmllX3RtZGJfaWQYASABKAMiOgoVQ3JlYXRlUmVxdWVzdFJlc3BvbnNlEiEKB3JlcXVlc3QYASABKAsyEC5uYW1hLnYxLlJlcXVlc3QiFQoTTGlzdFJlcXVlc3RzUmVxdWVzdCI6ChRMaXN0UmVxdWVzdHNSZXNwb25zZRIiCghyZXF1ZXN0cxgBIAMoCzIQLm5hbWEudjEuUmVxdWVzdCIfChFHZXRSZXF1ZXN0UmVxdWVzdBIKCgJpZBgBIAEoAyI3ChJHZXRSZXF1ZXN0UmVzcG9uc2USIQoHcmVxdWVzdBgBIAEoCzIQLm5hbWEudjEuUmVxdWVzdCr8AQoMUmVxdWVzdFN0YXRlEh0KGVJFUVVFU1RfU1RBVEVfVU5TUEVDSUZJRUQQABIZChVSRVFVRVNUX1NUQVRFX1BFTkRJTkcQARIaChZSRVFVRVNUX1NUQVRFX0FQUFJPVkVEEAISGgoWUkVRVUVTVF9TVEFURV9ERUNMSU5FRBADEhwKGFJFUVVFU1RfU1RBVEVfUFJPQ0VTU0lORxAEEiUKIVJFUVVFU1RfU1RBVEVfUEFSVElBTExZX0FWQUlMQUJMRRAFEhsKF1JFUVVFU1RfU1RBVEVfQVZBSUxBQkxFEAYSGAoUUkVRVUVTVF9TVEFURV9GQUlMRUQQBzL+AQoOUmVxdWVzdFNlcnZpY2USTgoNQ3JlYXRlUmVxdWVzdBIdLm5hbWEudjEuQ3JlYXRlUmVxdWVzdFJlcXVlc3QaHi5uYW1hLnYxLkNyZWF0ZVJlcXVlc3RSZXNwb25zZRJQCgxMaXN0UmVxdWVzdHMSHC5uYW1hLnYxLkxpc3RSZXF1ZXN0c1JlcXVlc3QaHS5uYW1hLnYxLkxpc3RSZXF1ZXN0c1Jlc3BvbnNlIgOQAgESSgoKR2V0UmVxdWVzdBIaLm5hbWEudjEuR2V0UmVxdWVzdFJlcXVlc3QaGy5uYW1hLnYxLkdldFJlcXVlc3RSZXNwb25zZSIDkAIBYgZwcm90bzM");
+  fileDesc("ChVuYW1hL3YxL3JlcXVlc3QucHJvdG8SB25hbWEudjEinwEKB1JlcXVlc3QSCgoCaWQYASABKAMSJgoFbW92aWUYAiABKAsyFy5uYW1hLnYxLlJlcXVlc3RlZE1vdmllEiQKBXN0YXRlGAMgASgOMhUubmFtYS52MS5SZXF1ZXN0U3RhdGUSJgoKcmVxdWVzdGVycxgEIAMoCzISLm5hbWEudjEuUmVxdWVzdGVyEhIKCmNyZWF0ZWRfYXQYBSABKAMiXAoOUmVxdWVzdGVkTW92aWUSDwoHdG1kYl9pZBgBIAEoAxINCgV0aXRsZRgCIAEoCRIZCgxyZWxlYXNlX2RhdGUYAyABKAlIAIgBAUIPCg1fcmVsZWFzZV9kYXRlIkAKCVJlcXVlc3RlchIPCgd1c2VyX2lkGAEgASgDEgwKBG5hbWUYAiABKAkSFAoMcmVxdWVzdGVkX2F0GAMgASgDIi0KFENyZWF0ZVJlcXVlc3RSZXF1ZXN0EhUKDW1vdmllX3RtZGJfaWQYASABKAMiOgoVQ3JlYXRlUmVxdWVzdFJlc3BvbnNlEiEKB3JlcXVlc3QYASABKAsyEC5uYW1hLnYxLlJlcXVlc3QiFQoTTGlzdFJlcXVlc3RzUmVxdWVzdCI6ChRMaXN0UmVxdWVzdHNSZXNwb25zZRIiCghyZXF1ZXN0cxgBIAMoCzIQLm5hbWEudjEuUmVxdWVzdCIfChFHZXRSZXF1ZXN0UmVxdWVzdBIKCgJpZBgBIAEoAyI3ChJHZXRSZXF1ZXN0UmVzcG9uc2USIQoHcmVxdWVzdBgBIAEoCzIQLm5hbWEudjEuUmVxdWVzdCK9AgoKRm91bmRNb3ZpZRIPCgd0bWRiX2lkGAEgASgDEg0KBXRpdGxlGAIgASgJEhEKBHllYXIYAyABKAVIAIgBARIVCghvdmVydmlldxgEIAEoCUgBiAEBEhwKD3J1bnRpbWVfbWludXRlcxgFIAEoDUgCiAEBEhcKCnBvc3Rlcl91cmwYBiABKAlIA4gBARIZCgxiYWNrZHJvcF91cmwYByABKAlIBIgBARIXCgpsaWJyYXJ5X2lkGAggASgDSAWIAQESIQoHcmVxdWVzdBgJIAEoCzIQLm5hbWEudjEuUmVxdWVzdEIHCgVfeWVhckILCglfb3ZlcnZpZXdCEgoQX3J1bnRpbWVfbWludXRlc0INCgtfcG9zdGVyX3VybEIPCg1fYmFja2Ryb3BfdXJsQg0KC19saWJyYXJ5X2lkIiQKE1NlYXJjaE1vdmllc1JlcXVlc3QSDQoFdGl0bGUYASABKAkiOwoUU2VhcmNoTW92aWVzUmVzcG9uc2USIwoGbW92aWVzGAEgAygLMhMubmFtYS52MS5Gb3VuZE1vdmllIisKEkxvb2tVcE1vdmllUmVxdWVzdBIVCg1tb3ZpZV90bWRiX2lkGAEgASgDIjkKE0xvb2tVcE1vdmllUmVzcG9uc2USIgoFbW92aWUYASABKAsyEy5uYW1hLnYxLkZvdW5kTW92aWUq/AEKDFJlcXVlc3RTdGF0ZRIdChlSRVFVRVNUX1NUQVRFX1VOU1BFQ0lGSUVEEAASGQoVUkVRVUVTVF9TVEFURV9QRU5ESU5HEAESGgoWUkVRVUVTVF9TVEFURV9BUFBST1ZFRBACEhoKFlJFUVVFU1RfU1RBVEVfREVDTElORUQQAxIcChhSRVFVRVNUX1NUQVRFX1BST0NFU1NJTkcQBBIlCiFSRVFVRVNUX1NUQVRFX1BBUlRJQUxMWV9BVkFJTEFCTEUQBRIbChdSRVFVRVNUX1NUQVRFX0FWQUlMQUJMRRAGEhgKFFJFUVVFU1RfU1RBVEVfRkFJTEVEEAcynwMKDlJlcXVlc3RTZXJ2aWNlEk4KDUNyZWF0ZVJlcXVlc3QSHS5uYW1hLnYxLkNyZWF0ZVJlcXVlc3RSZXF1ZXN0Gh4ubmFtYS52MS5DcmVhdGVSZXF1ZXN0UmVzcG9uc2USUAoMTGlzdFJlcXVlc3RzEhwubmFtYS52MS5MaXN0UmVxdWVzdHNSZXF1ZXN0Gh0ubmFtYS52MS5MaXN0UmVxdWVzdHNSZXNwb25zZSIDkAIBEkoKCkdldFJlcXVlc3QSGi5uYW1hLnYxLkdldFJlcXVlc3RSZXF1ZXN0GhsubmFtYS52MS5HZXRSZXF1ZXN0UmVzcG9uc2UiA5ACARJQCgxTZWFyY2hNb3ZpZXMSHC5uYW1hLnYxLlNlYXJjaE1vdmllc1JlcXVlc3QaHS5uYW1hLnYxLlNlYXJjaE1vdmllc1Jlc3BvbnNlIgOQAgESTQoLTG9va1VwTW92aWUSGy5uYW1hLnYxLkxvb2tVcE1vdmllUmVxdWVzdBocLm5hbWEudjEuTG9va1VwTW92aWVSZXNwb25zZSIDkAIBYgZwcm90bzM");
 
 /**
  * Users asking for one Movie. A Movie has at most one open Request: one that is neither Declined
@@ -232,6 +232,157 @@ export const GetRequestResponseSchema: GenMessage<GetRequestResponse> = /*@__PUR
   messageDesc(file_nama_v1_request, 8);
 
 /**
+ * A Movie in the metadata source, and how close it is to being on the Server: in a Library, asked
+ * for in a Request, or neither, in which case `CreateRequest` asks for it.
+ *
+ * @generated from message nama.v1.FoundMovie
+ */
+export type FoundMovie = Message<"nama.v1.FoundMovie"> & {
+  /**
+   * The Movie's TMDB id.
+   *
+   * @generated from field: int64 tmdb_id = 1;
+   */
+  tmdbId: bigint;
+
+  /**
+   * The title, in the metadata Provider's language.
+   *
+   * @generated from field: string title = 2;
+   */
+  title: string;
+
+  /**
+   * The year it was released, if known.
+   *
+   * @generated from field: optional int32 year = 3;
+   */
+  year?: number | undefined;
+
+  /**
+   * Only `LookUpMovie` gives it.
+   *
+   * @generated from field: optional string overview = 4;
+   */
+  overview?: string | undefined;
+
+  /**
+   * Only `LookUpMovie` gives it.
+   *
+   * @generated from field: optional uint32 runtime_minutes = 5;
+   */
+  runtimeMinutes?: number | undefined;
+
+  /**
+   * The poster's URL, under `/media/artwork/` on this Server.
+   *
+   * @generated from field: optional string poster_url = 6;
+   */
+  posterUrl?: string | undefined;
+
+  /**
+   * The backdrop's URL, under `/media/artwork/` on this Server. Only `LookUpMovie` gives it.
+   *
+   * @generated from field: optional string backdrop_url = 7;
+   */
+  backdropUrl?: string | undefined;
+
+  /**
+   * The oldest Library the Movie is Matched in, if any. `BrowseService.GetMovie` opens it there,
+   * by `tmdb_id`.
+   *
+   * @generated from field: optional int64 library_id = 8;
+   */
+  libraryId?: bigint | undefined;
+
+  /**
+   * The Movie's open Request, if it has one the caller may see.
+   *
+   * @generated from field: nama.v1.Request request = 9;
+   */
+  request?: Request | undefined;
+};
+
+/**
+ * Describes the message nama.v1.FoundMovie.
+ * Use `create(FoundMovieSchema)` to create a new message.
+ */
+export const FoundMovieSchema: GenMessage<FoundMovie> = /*@__PURE__*/
+  messageDesc(file_nama_v1_request, 9);
+
+/**
+ * @generated from message nama.v1.SearchMoviesRequest
+ */
+export type SearchMoviesRequest = Message<"nama.v1.SearchMoviesRequest"> & {
+  /**
+   * Must not be blank.
+   *
+   * @generated from field: string title = 1;
+   */
+  title: string;
+};
+
+/**
+ * Describes the message nama.v1.SearchMoviesRequest.
+ * Use `create(SearchMoviesRequestSchema)` to create a new message.
+ */
+export const SearchMoviesRequestSchema: GenMessage<SearchMoviesRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_request, 10);
+
+/**
+ * @generated from message nama.v1.SearchMoviesResponse
+ */
+export type SearchMoviesResponse = Message<"nama.v1.SearchMoviesResponse"> & {
+  /**
+   * @generated from field: repeated nama.v1.FoundMovie movies = 1;
+   */
+  movies: FoundMovie[];
+};
+
+/**
+ * Describes the message nama.v1.SearchMoviesResponse.
+ * Use `create(SearchMoviesResponseSchema)` to create a new message.
+ */
+export const SearchMoviesResponseSchema: GenMessage<SearchMoviesResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_request, 11);
+
+/**
+ * @generated from message nama.v1.LookUpMovieRequest
+ */
+export type LookUpMovieRequest = Message<"nama.v1.LookUpMovieRequest"> & {
+  /**
+   * The Movie's TMDB id.
+   *
+   * @generated from field: int64 movie_tmdb_id = 1;
+   */
+  movieTmdbId: bigint;
+};
+
+/**
+ * Describes the message nama.v1.LookUpMovieRequest.
+ * Use `create(LookUpMovieRequestSchema)` to create a new message.
+ */
+export const LookUpMovieRequestSchema: GenMessage<LookUpMovieRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_request, 12);
+
+/**
+ * @generated from message nama.v1.LookUpMovieResponse
+ */
+export type LookUpMovieResponse = Message<"nama.v1.LookUpMovieResponse"> & {
+  /**
+   * @generated from field: nama.v1.FoundMovie movie = 1;
+   */
+  movie?: FoundMovie | undefined;
+};
+
+/**
+ * Describes the message nama.v1.LookUpMovieResponse.
+ * Use `create(LookUpMovieResponseSchema)` to create a new message.
+ */
+export const LookUpMovieResponseSchema: GenMessage<LookUpMovieResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_request, 13);
+
+/**
  * Where a Request is on its way to the Library (ADR 0012).
  *
  * @generated from enum nama.v1.RequestState
@@ -348,6 +499,31 @@ export const RequestService: GenService<{
     methodKind: "unary";
     input: typeof GetRequestRequestSchema;
     output: typeof GetRequestResponseSchema;
+  },
+  /**
+   * Searches the metadata source for Movies to ask for, best fit first. Unlike
+   * `MatchService.SearchMetadata`, it needs only `PERMISSION_REQUEST_MOVIE`. Fails with
+   * `invalid_argument` if the title is blank, and `unavailable` if no metadata Provider is
+   * enabled, or it failed.
+   *
+   * @generated from rpc nama.v1.RequestService.SearchMovies
+   */
+  searchMovies: {
+    methodKind: "unary";
+    input: typeof SearchMoviesRequestSchema;
+    output: typeof SearchMoviesResponseSchema;
+  },
+  /**
+   * Returns one Movie from the metadata source, for its page when no Library has it. Needs
+   * `PERMISSION_REQUEST_MOVIE`. Fails with `invalid_argument` if the metadata source has no Movie
+   * with the id, and `unavailable` if no metadata Provider is enabled, or it failed.
+   *
+   * @generated from rpc nama.v1.RequestService.LookUpMovie
+   */
+  lookUpMovie: {
+    methodKind: "unary";
+    input: typeof LookUpMovieRequestSchema;
+    output: typeof LookUpMovieResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_nama_v1_request, 0);

@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT MIN(library_files.library_id) AS \"library: i64\"\n           FROM item_matches\n           JOIN library_items ON library_items.id = item_matches.item_id\n           JOIN library_files ON library_files.id = library_items.file_id\n           WHERE item_matches.state = 'matched'\n             AND library_items.kind = 'movie'\n             AND item_matches.tmdb_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "library: i64",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "8c5861d3543b1355e8cddea9b5aea7ce5976faf3935f30f9c7291e7fc67543d1"
+}
