@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE default_permissions SET permissions = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "37b8e6824c918770246caabe184a4075c172d22fb9eecba63344721c79d43322"
+}

@@ -24,10 +24,11 @@ use nama_proto::nama::v1::{
     ChangePasswordRequest, ChangePasswordResponse, ClearMatchRequest, ClearMatchResponse,
     CreateLibraryRequest, CreateLibraryResponse, CreateRequestRequest, CreateRequestResponse,
     CreateUserRequest, CreateUserResponse, DeleteLibraryRequest, DeleteLibraryResponse,
-    DeleteUserRequest, DeleteUserResponse, EventService, EventType, GetLibraryRequest,
-    GetLibraryResponse, GetMovieRequest, GetMovieResponse, GetRequestRequest, GetRequestResponse,
-    GetServerInfoRequest, GetServerInfoResponse, GetShowRequest, GetShowResponse, LibraryKind,
-    LibraryService, ListContinueWatchingRequest, ListContinueWatchingResponse, ListDevicesRequest,
+    DeleteUserRequest, DeleteUserResponse, EventService, EventType, GetDefaultPermissionsRequest,
+    GetDefaultPermissionsResponse, GetLibraryRequest, GetLibraryResponse, GetMovieRequest,
+    GetMovieResponse, GetRequestRequest, GetRequestResponse, GetServerInfoRequest,
+    GetServerInfoResponse, GetShowRequest, GetShowResponse, LibraryKind, LibraryService,
+    ListContinueWatchingRequest, ListContinueWatchingResponse, ListDevicesRequest,
     ListDevicesResponse, ListEpisodesRequest, ListEpisodesResponse, ListLibrariesRequest,
     ListLibrariesResponse, ListMoviesRequest, ListMoviesResponse, ListRequestsRequest,
     ListRequestsResponse, ListShowsRequest, ListShowsResponse, ListUnmatchedItemsRequest,
@@ -37,13 +38,13 @@ use nama_proto::nama::v1::{
     ReportProgressRequest, ReportProgressResponse, RequestService, ResetPasswordRequest,
     ResetPasswordResponse, RevokeDeviceRequest, RevokeDeviceResponse, ScanLibraryRequest,
     ScanLibraryResponse, SearchMetadataRequest, SearchMetadataResponse, ServerService,
-    SessionDelivery, SetMatchRequest, SetMatchResponse, SetPermissionsRequest,
-    SetPermissionsResponse, SetPlayedRequest, SetPlayedResponse, SetupRequest, SetupResponse,
-    SignInCodeStatus, SignInRequest, SignInResponse, SignInService, SignOutRequest,
-    SignOutResponse, StartSignInCodeRequest, StartSignInCodeResponse, SubscribeRequest,
-    SubscribeResponse, UpdateLibraryRequest, UpdateLibraryResponse, UserService, WatchStateService,
-    WhoAmIRequest, WhoAmIResponse, external_id, reauthenticate_request::Proof,
-    set_played_request::Target,
+    SessionDelivery, SetDefaultPermissionsRequest, SetDefaultPermissionsResponse, SetMatchRequest,
+    SetMatchResponse, SetPermissionsRequest, SetPermissionsResponse, SetPlayedRequest,
+    SetPlayedResponse, SetupRequest, SetupResponse, SignInCodeStatus, SignInRequest,
+    SignInResponse, SignInService, SignOutRequest, SignOutResponse, StartSignInCodeRequest,
+    StartSignInCodeResponse, SubscribeRequest, SubscribeResponse, UpdateLibraryRequest,
+    UpdateLibraryResponse, UserService, WatchStateService, WhoAmIRequest, WhoAmIResponse,
+    external_id, reauthenticate_request::Proof, set_played_request::Target,
 };
 
 use crate::{
@@ -202,6 +203,8 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::USER_SERVICE_REVOKE_DEVICE_SPEC.procedure,            Access::SignedIn),
     (proto::USER_SERVICE_CHANGE_PASSWORD_SPEC.procedure,          Access::SignedIn),
     (proto::USER_SERVICE_RESET_PASSWORD_SPEC.procedure,           MANAGE_USERS),
+    (proto::USER_SERVICE_GET_DEFAULT_PERMISSIONS_SPEC.procedure,  MANAGE_USERS),
+    (proto::USER_SERVICE_SET_DEFAULT_PERMISSIONS_SPEC.procedure,  MANAGE_USERS),
     (proto::REQUEST_SERVICE_CREATE_REQUEST_SPEC.procedure,        REQUEST_MOVIE),
     (proto::REQUEST_SERVICE_LIST_REQUESTS_SPEC.procedure,         Access::SignedIn),
     (proto::REQUEST_SERVICE_GET_REQUEST_SPEC.procedure,           Access::SignedIn),
@@ -1047,11 +1050,14 @@ struct UserServiceHandler {
 impl UserService for UserServiceHandler {
     async fn create_user(
         &self,
-        _ctx: RequestContext,
+        ctx: RequestContext,
         request: ServiceRequest<'_, CreateUserRequest>,
     ) -> ServiceResult<CreateUserResponse> {
         let request = request.to_owned_message();
-        let id = self.users.create(&request.name, &request.password).await?;
+        let id = self
+            .users
+            .create(&caller(&ctx)?.user, &request.name, &request.password)
+            .await?;
         Response::ok(CreateUserResponse {
             id,
             ..Default::default()
@@ -1184,6 +1190,34 @@ impl UserService for UserServiceHandler {
             .reset_password(&caller.user, request.user_id, &request.new_password)
             .await?;
         Response::ok(ResetPasswordResponse::default())
+    }
+
+    async fn get_default_permissions(
+        &self,
+        _ctx: RequestContext,
+        _request: ServiceRequest<'_, GetDefaultPermissionsRequest>,
+    ) -> ServiceResult<GetDefaultPermissionsResponse> {
+        let permissions = self
+            .users
+            .default_permissions()
+            .await
+            .map_err(database_failed)?;
+        Response::ok(GetDefaultPermissionsResponse {
+            permissions: permissions_to_proto(permissions),
+            ..Default::default()
+        })
+    }
+
+    async fn set_default_permissions(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, SetDefaultPermissionsRequest>,
+    ) -> ServiceResult<SetDefaultPermissionsResponse> {
+        let permissions = permissions_from_proto(request.to_owned_message().permissions)?;
+        self.users
+            .set_default_permissions(&caller(&ctx)?.user, permissions)
+            .await?;
+        Response::ok(SetDefaultPermissionsResponse::default())
     }
 }
 
@@ -1645,11 +1679,15 @@ fn permissions_from_proto(
         .collect()
 }
 
+fn permissions_to_proto(permissions: Permissions) -> Vec<EnumValue<Permission>> {
+    permissions.iter().map(EnumValue::from).collect()
+}
+
 fn user_to_proto(user: users::User) -> proto::User {
     proto::User {
         id: user.id,
         name: user.name,
-        permissions: user.permissions.iter().map(EnumValue::from).collect(),
+        permissions: permissions_to_proto(user.permissions),
         created_at: user.created_at,
         ..Default::default()
     }

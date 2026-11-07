@@ -83,8 +83,9 @@ impl Permissions {
     /// What the first Admin gets.
     pub(crate) const ADMIN: Self = Self(bit(Permission::Admin));
 
-    /// What every other new User gets.
-    // ponytail: hardcoded; the Server-wide default set an Admin edits replaces it (#158).
+    /// What a new User gets until the default set is changed: what a fresh or upgraded Server's
+    /// starts as (migration 0012).
+    #[cfg(test)]
     pub(crate) const NEW_USER: Self =
         Self(bit(Permission::Request) | bit(Permission::ViewRequests));
 
@@ -333,15 +334,21 @@ impl Users {
         Ok(SignedIn { caller, token })
     }
 
-    /// Creates a User named `name` with `password` and [`Permissions::NEW_USER`], who can then sign
-    /// in, and returns their ID.
-    pub(crate) async fn create(&self, name: &str, password: &str) -> Result<i64, Error> {
+    /// Creates a User named `name` with `password` and the default Permissions, as `by` asks, who
+    /// can then sign in, and returns their ID. Without `PERMISSION_ADMIN`, `by` may not create one
+    /// while the default set holds it, as they may not grant it.
+    pub(crate) async fn create(&self, by: &User, name: &str, password: &str) -> Result<i64, Error> {
         let name = checked_name("name", "a User's name", name)?;
         let credential = self.hash_password("password", password).await?;
+        let by = by.permissions;
         self.db
             .write(move |tx| {
                 Box::pin(async move {
-                    let user = insert_user(tx, &name, Permissions::NEW_USER).await?;
+                    // Read in the write's transaction, so the default can't gain ADMIN after the
+                    // check.
+                    let permissions = default_permissions(tx).await?;
+                    ensure_may_grant(by, permissions)?;
+                    let user = insert_user(tx, &name, permissions).await?;
                     set_password(tx, user.id, &credential).await?;
                     Ok(user.id)
                 })
@@ -359,6 +366,34 @@ impl Users {
         )
         .fetch_all(self.db.reader())
         .await
+    }
+
+    /// The Permissions [`Users::create`] gives a new User.
+    pub(crate) async fn default_permissions(&self) -> Result<Permissions, sqlx::Error> {
+        default_permissions(&mut *self.db.reader().acquire().await?).await
+    }
+
+    /// Makes `permissions` the ones new Users get, as `by` asks. Without `PERMISSION_ADMIN`, `by`
+    /// may not put it in them. Existing Users keep theirs.
+    pub(crate) async fn set_default_permissions(
+        &self,
+        by: &User,
+        permissions: Permissions,
+    ) -> Result<(), Error> {
+        ensure_may_grant(by.permissions, permissions)?;
+        self.db
+            .write(move |tx| {
+                Box::pin(async move {
+                    sqlx::query!(
+                        "UPDATE default_permissions SET permissions = ?",
+                        permissions.0
+                    )
+                    .execute(&mut **tx)
+                    .await?;
+                    Ok(())
+                })
+            })
+            .await
     }
 
     /// Gives the User `user` exactly `permissions`, as `by` asks, unless that leaves no User with
@@ -921,6 +956,14 @@ async fn any_user(conn: &mut SqliteConnection) -> Result<bool, sqlx::Error> {
         .await
 }
 
+async fn default_permissions(conn: &mut SqliteConnection) -> Result<Permissions, sqlx::Error> {
+    sqlx::query_scalar!(
+        r#"SELECT permissions AS "permissions: Permissions" FROM default_permissions"#
+    )
+    .fetch_one(conn)
+    .await
+}
+
 async fn user_exists(conn: &mut SqliteConnection, user: i64) -> Result<bool, sqlx::Error> {
     sqlx::query_scalar!(
         r#"SELECT EXISTS (SELECT 1 FROM users WHERE id = ?) AS "exists!: bool""#,
@@ -989,6 +1032,16 @@ async fn ensure_may_change(conn: &mut SqliteConnection, by: &User, user: i64) ->
     .fetch_one(conn)
     .await?;
     if changing_an_admin {
+        Err(Error::AdminRequired)
+    } else {
+        Ok(())
+    }
+}
+
+/// Fails with [`Error::AdminRequired`] if a User holding `by`, without `PERMISSION_ADMIN`, would
+/// give it out in `permissions`.
+fn ensure_may_grant(by: Permissions, permissions: Permissions) -> Result<(), Error> {
+    if !by.allow(Permission::Admin) && permissions.allow(Permission::Admin) {
         Err(Error::AdminRequired)
     } else {
         Ok(())
@@ -1481,7 +1534,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn upgrading_gives_admins_admin_and_members_request_and_view_requests() {
+    async fn upgrading_gives_admins_admin_and_members_and_new_users_request_and_view_requests() {
         let data_dir = tempfile::tempdir().unwrap();
         let file = data_dir.path().join(crate::db::FILE_NAME);
         let options = sqlx::sqlite::SqliteConnectOptions::new()
@@ -1501,7 +1554,9 @@ mod tests {
         sqlx::Connection::close(before).await.unwrap();
 
         let db = Arc::new(Database::open(data_dir.path()).await.unwrap());
-        let users = Users::new(db, Registry::new()).list().await.unwrap();
+        let users = Users::new(db, Registry::new());
+        let defaults = users.default_permissions().await.unwrap();
+        let users = users.list().await.unwrap();
 
         let permissions: Vec<_> = users
             .iter()
@@ -1514,6 +1569,7 @@ mod tests {
                 ("Grace", Permissions::NEW_USER)
             ]
         );
+        assert_eq!(defaults, Permissions::NEW_USER);
     }
 
     /// [`Users`] on a fresh database in `data_dir`, whose Authenticator is `local-auth`.
@@ -1623,7 +1679,7 @@ mod tests {
     async fn a_device_signed_in_with_a_password_records_its_method_ip_user_agent_and_when() {
         let data_dir = tempfile::tempdir().unwrap();
         let users = users_with_local_auth(data_dir.path()).await;
-        users.create("Ada", PASSWORD).await.unwrap();
+        users.create(&admin(), "Ada", PASSWORD).await.unwrap();
         let before = now();
 
         let signed_in = users.sign_in("ada", PASSWORD, laptop()).await.unwrap();
@@ -1670,7 +1726,7 @@ mod tests {
     async fn deleting_a_sign_in_method_signs_out_only_the_devices_that_used_it() {
         let data_dir = tempfile::tempdir().unwrap();
         let users = users_with_local_auth(data_dir.path()).await;
-        let ada = users.create("Ada", PASSWORD).await.unwrap();
+        let ada = users.create(&admin(), "Ada", PASSWORD).await.unwrap();
         add_other_sign_in_method(&users, ada).await;
         let by_password = users.sign_in("Ada", PASSWORD, laptop()).await.unwrap();
         let by_code = users
@@ -1689,7 +1745,7 @@ mod tests {
     async fn a_users_last_sign_in_method_cant_be_deleted() {
         let data_dir = tempfile::tempdir().unwrap();
         let users = users_with_local_auth(data_dir.path()).await;
-        let ada = users.create("Ada", PASSWORD).await.unwrap();
+        let ada = users.create(&admin(), "Ada", PASSWORD).await.unwrap();
 
         let password = password_method(&users, ada).await;
         let deleted = delete_sign_in_method(&users, password).await;

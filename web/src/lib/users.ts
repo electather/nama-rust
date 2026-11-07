@@ -12,6 +12,12 @@ export const usersKey = createConnectQueryKey({
   cardinality: "finite",
 });
 
+/** The query key of the default Permissions, to refetch after changing them. */
+export const defaultPermissionsKey = createConnectQueryKey({
+  schema: UserService.method.getDefaultPermissions,
+  cardinality: "finite",
+});
+
 /** The query key of every User's Devices, to refetch after a change that signs some out. */
 export const devicesKey = createConnectQueryKey({
   schema: UserService.method.listDevices,

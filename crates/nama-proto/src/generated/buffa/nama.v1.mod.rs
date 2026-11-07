@@ -167,6 +167,10 @@ pub mod __buffa {
         reg.register_json_any(super::__CHANGE_PASSWORD_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__RESET_PASSWORD_REQUEST_JSON_ANY);
         reg.register_json_any(super::__RESET_PASSWORD_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__GET_DEFAULT_PERMISSIONS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__GET_DEFAULT_PERMISSIONS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__SET_DEFAULT_PERMISSIONS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__SET_DEFAULT_PERMISSIONS_RESPONSE_JSON_ANY);
     }
 }
 #[doc(inline)]
@@ -605,5 +609,21 @@ pub use self::__buffa::view::ResetPasswordRequestOwnedView;
 pub use self::__buffa::view::ResetPasswordResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::ResetPasswordResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetDefaultPermissionsRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::GetDefaultPermissionsRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetDefaultPermissionsResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::GetDefaultPermissionsResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetDefaultPermissionsRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::SetDefaultPermissionsRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetDefaultPermissionsResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::SetDefaultPermissionsResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::register_types;
