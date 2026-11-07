@@ -170,11 +170,24 @@ function closeFinishedParents() {
     gh("issue", "list", "--label", READY, "--state", "open", "--limit", "100", "--json", "number,subIssuesSummary"),
   );
   for (const { number, subIssuesSummary: s } of open) {
-    if (s.total === 0 || s.completed < s.total) continue;
-    gh("issue", "comment", String(number), "--body", `🏭 All ${s.total} sub-issues are closed, so this one is done.`);
-    gh("issue", "close", String(number));
-    log(`✓ parent #${number} closed (${s.total}/${s.total} sub-issues done)`);
+    if (s.total > 0 && s.completed === s.total) closeParent(number, s.total);
   }
+}
+function closeParent(number: number, total: number) {
+  gh("issue", "comment", String(number), "--body", `🏭 All ${total} sub-issues are closed, so this one is done.`);
+  gh("issue", "close", String(number));
+  log(`✓ parent #${number} closed (${total}/${total} sub-issues done)`);
+}
+
+// The sweep only sees parents labelled ready-for-agent. A parent of something the factory merged is closed
+// whatever its labels, and so on up: its own parent may have just finished too.
+function closeIfFinished(number: number) {
+  const p: { state: string; subIssuesSummary: { total: number; completed: number }; parent: { number: number } | null } =
+    JSON.parse(gh("issue", "view", String(number), "--json", "state,subIssuesSummary,parent"));
+  const s = p.subIssuesSummary;
+  if (p.state !== "OPEN" || s.total === 0 || s.completed < s.total) return;
+  closeParent(number, s.total);
+  if (p.parent) closeIfFinished(p.parent.number);
 }
 
 // `Closes #N` closes the issue a few seconds after the merge, not during it.
@@ -343,7 +356,12 @@ async function mergePr(issue: Issue, box: Box, pr: string) {
   log(`✓ #${issue.number} merged via PR #${pr}`);
   if (issue.parent) {
     await waitUntilClosed(issue);
-    closeFinishedParents();
+    try {
+      closeFinishedParents();
+      closeIfFinished(issue.parent);
+    } catch (e) {
+      log(`#${issue.number} merged, but closing its parent #${issue.parent} failed: ${oneLine(e)}`); // not retried: close it by hand
+    }
   }
 }
 
