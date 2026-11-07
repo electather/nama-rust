@@ -135,6 +135,7 @@ impl Fixture {
         file.items.first().unwrap().id
     }
 
+    /// The Movies of the Library `library`, as `ListMovies` lists them.
     async fn list_movies(&self, library: i64) -> Result<Vec<Movie>, ConnectError> {
         Ok(self
             .browse
@@ -147,6 +148,7 @@ impl Fixture {
             .movies)
     }
 
+    /// The Movie of the Library `library` with the TMDB id `tmdb`, as `GetMovie` gives it.
     async fn get_movie(&self, library: i64, tmdb: i64) -> Result<Movie, ConnectError> {
         let response = self
             .browse
@@ -161,6 +163,7 @@ impl Fixture {
     }
 }
 
+/// The external id for the TMDB id `id`.
 fn tmdb_id(id: i64) -> ExternalId {
     ExternalId {
         id: Some(external_id::Id::Tmdb(id)),

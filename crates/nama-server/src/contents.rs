@@ -405,13 +405,16 @@ impl Contents {
                WHERE library_files.library_id = ?
                  AND library_items.kind = 'movie'
                  AND item_matches.state = 'matched'
-               ORDER BY item_matches.tmdb_id, item_matches.imdb_id, item_matches.tvdb_id,
+               ORDER BY item_matches.tmdb_id,
+                        IIF(item_matches.tmdb_id IS NULL, item_matches.imdb_id, NULL),
+                        IIF(item_matches.tmdb_id IS NULL AND item_matches.imdb_id IS NULL,
+                            item_matches.tvdb_id, NULL),
                         library_files.path"#,
             library
         )
         .fetch_all(self.db.reader())
         .await?;
-        // Ordered by id, so the rows of one Movie are adjacent.
+        // Ordered by primary id, then path, so the rows of one Movie are adjacent, by path.
         let mut movies: Vec<Movie> = Vec::new();
         for row in rows {
             let ids = ExternalIds {

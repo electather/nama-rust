@@ -839,6 +839,7 @@ fn movie_to_proto(movie: Movie) -> proto::Movie {
 
 /// A Version as clients see it: its file's name, not the folders it is in.
 fn version_to_proto(version: &Version) -> proto::Version {
+    // A stored path came from a `String`, so its name is UTF-8.
     let file_name = Path::new(&version.path)
         .file_name()
         .and_then(OsStr::to_str)
