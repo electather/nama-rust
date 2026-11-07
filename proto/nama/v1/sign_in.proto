@@ -108,7 +108,8 @@ message SetupRequest {
   string name = 2;
   // The first Admin's password, which the Server's Authenticator checks against its own rules.
   string password = 3;
-  // The signing-in Device's name: 1 to 64 characters.
+  // The signing-in Device's name: up to 64 characters. When it is blank, the Server names the
+  // Device after the browser and OS in its `User-Agent`, such as "Chrome on macOS".
   string device_name = 4;
   // How to hand out the session. Must be specified.
   SessionDelivery delivery = 5;
@@ -128,7 +129,8 @@ message SignInRequest {
   string name = 1;
   // The User's password.
   string password = 2;
-  // The signing-in Device's name: 1 to 64 characters.
+  // The signing-in Device's name: up to 64 characters. When it is blank, the Server names the
+  // Device after the browser and OS in its `User-Agent`, such as "Chrome on macOS".
   string device_name = 3;
   // How to hand out the session. Must be specified.
   SessionDelivery delivery = 4;
