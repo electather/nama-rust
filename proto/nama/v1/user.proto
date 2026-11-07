@@ -65,6 +65,7 @@ message CreateUserRequest {
   string password = 2;
   // Held what new Users now get from the Server (ADR 0020).
   reserved 3;
+  reserved "role";
 }
 
 message CreateUserResponse {

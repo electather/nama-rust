@@ -115,6 +115,7 @@ enum Permission {
 message User {
   // Held what `permissions` replaced (ADR 0020).
   reserved 3;
+  reserved "role";
   // Assigned by the Server, and never reused.
   int64 id = 1;
   // Unique on the Server, ignoring case.
