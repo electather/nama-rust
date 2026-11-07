@@ -1,6 +1,9 @@
 //! Requesting Movies through the generated `RequestService` client, over a real socket, with the
 //! TMDB Plugin enabled against a fake TMDB.
 
+#[expect(dead_code, reason = "these tests fetch only whole files")]
+#[path = "support/http.rs"]
+mod http;
 #[path = "support/refused.rs"]
 mod refused;
 #[expect(dead_code, reason = "the harness's plain `start` has no use here")]
@@ -13,6 +16,7 @@ use connectrpc::{
     ErrorCode,
     client::{ClientConfig, HttpClient, ServerStream},
 };
+use http::fetch;
 use nama_plugin_api::settings::{SettingValue, Settings};
 use nama_plugin_tmdb::{
     Tmdb,
@@ -20,11 +24,12 @@ use nama_plugin_tmdb::{
 };
 use nama_proto::nama::v1::{
     __buffa::view::SubscribeResponseView, BrowseServiceClient, CreateLibraryRequest,
-    CreateRequestRequest, CreateUserRequest, EventServiceClient, EventType, GetRequestRequest,
-    LibraryKind, LibraryServiceClient, ListMoviesRequest, ListRequestsRequest, Permission,
-    RefusalReason, Request, RequestServiceClient, RequestState, ScanLibraryRequest,
-    SessionDelivery, SetPermissionsRequest, SignInRequest, SignInServiceClient, SubscribeRequest,
-    SubscribeResponse, UserServiceClient, event, subscribe_response,
+    CreateRequestRequest, CreateUserRequest, EventServiceClient, EventType, FoundMovie,
+    GetRequestRequest, LibraryKind, LibraryServiceClient, ListMoviesRequest, ListRequestsRequest,
+    LookUpMovieRequest, Permission, RefusalReason, Request, RequestServiceClient, RequestState,
+    ScanLibraryRequest, SearchMoviesRequest, SessionDelivery, SetPermissionsRequest, SignInRequest,
+    SignInServiceClient, SubscribeRequest, SubscribeResponse, UserServiceClient, event,
+    subscribe_response,
 };
 use nama_server::{config::Config, plugins::Registry};
 use refused::assert_refused;
@@ -43,7 +48,7 @@ const NEW_USER: [Permission; 2] = [Permission::Request, Permission::ViewRequests
 /// A Server with the TMDB Plugin enabled against a fake TMDB, and an Admin.
 struct Fixture {
     server: TestServer,
-    _tmdb: FakeTmdb,
+    tmdb: FakeTmdb,
 }
 
 #[expect(
@@ -64,10 +69,7 @@ impl Fixture {
         let server = TestServer::start_with_db(Config::default(), plugins)
             .await
             .0;
-        Self {
-            server,
-            _tmdb: tmdb,
-        }
+        Self { server, tmdb }
     }
 
     /// Creates a User named `name` with `permissions`, signs them in, and returns their ID and
@@ -202,6 +204,23 @@ async fn list(client: &RequestServiceClient<HttpClient>) -> Vec<Request> {
         .unwrap()
         .into_owned()
         .requests
+}
+
+/// The Movies a search for "Alien" finds, as the User `config` calls as sees them.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn search_alien(config: ClientConfig) -> Vec<FoundMovie> {
+    requests(config)
+        .search_movies(SearchMoviesRequest {
+            title: "Alien".to_owned(),
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_owned()
+        .movies
 }
 
 fn requester_ids(request: &Request) -> Vec<i64> {
@@ -435,4 +454,157 @@ async fn next_event(subscription: &mut Subscription) -> event::Event {
         panic!("not an event: {next:?}");
     };
     event.event.expect("an event with nothing in it")
+}
+
+#[tokio::test]
+async fn a_search_finds_movies_with_their_year_and_poster_and_no_library_or_request() {
+    let fixture = Fixture::start().await;
+    let (_, as_grace) = fixture.user("Grace", &NEW_USER).await;
+
+    let found = search_alien(as_grace).await;
+
+    let titles: Vec<_> = found.iter().map(|movie| movie.title.as_str()).collect();
+    assert_eq!(titles, ["Alien", "Alien: Romulus", "Aliens"]);
+    let alien = &found[0];
+    assert_eq!(alien.tmdb_id, ALIEN);
+    assert_eq!(alien.year, Some(1979));
+    assert_eq!(
+        alien.poster_url.as_deref(),
+        Some("/media/artwork/tmdb/%2FvfrQk5IPloGg1v9Rzbh2Eg3VGyM.jpg")
+    );
+    assert_eq!(alien.library_id, None);
+    assert!(alien.request.is_unset(), "{alien:?}");
+}
+
+#[tokio::test]
+async fn a_search_shows_a_movie_matched_in_a_library_as_in_it() {
+    let fixture = Fixture::start().await;
+    let _media = fixture.library_with_alien().await;
+    let (_, as_grace) = fixture.user("Grace", &NEW_USER).await;
+
+    let found = search_alien(as_grace).await;
+
+    assert!(found[0].library_id.is_some(), "{:?}", found[0]);
+    assert_eq!(found[1].library_id, None, "Alien: Romulus isn't in it");
+}
+
+#[tokio::test]
+async fn a_movie_someone_else_requested_shows_their_request_and_asking_joins_it() {
+    let fixture = Fixture::start().await;
+    let (ada, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let (grace, as_grace) = fixture.user("Grace", &NEW_USER).await;
+    let adas = ask(&requests(as_ada), ALIEN).await;
+
+    let found = search_alien(as_grace.clone()).await;
+    let joined = ask(&requests(as_grace.clone()), ALIEN).await;
+    let looked_up = requests(as_grace)
+        .look_up_movie(LookUpMovieRequest {
+            movie_tmdb_id: ALIEN,
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_owned()
+        .movie
+        .into_option()
+        .unwrap();
+
+    assert_eq!(found[0].request.as_option(), Some(&adas));
+    assert_eq!(adas.state, RequestState::Pending);
+    assert!(
+        found[1].request.is_unset(),
+        "nobody asked for Alien: Romulus"
+    );
+    assert_eq!(requester_ids(&joined), [ada, grace]);
+    assert_eq!(looked_up.request.as_option(), Some(&joined));
+    assert_eq!(looked_up.title, "Alien");
+    assert_eq!(looked_up.year, Some(1979));
+    assert_eq!(looked_up.runtime_minutes, Some(117));
+    assert!(looked_up.overview.is_some());
+    assert!(looked_up.backdrop_url.is_some());
+}
+
+#[tokio::test]
+async fn without_view_requests_a_search_hides_other_peoples_requests() {
+    let fixture = Fixture::start().await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let (_, as_grace) = fixture.user("Grace", &[Permission::RequestMovie]).await;
+    ask(&requests(as_ada), ALIEN).await;
+
+    let found = search_alien(as_grace).await;
+
+    assert!(found[0].request.is_unset(), "{:?}", found[0]);
+}
+
+#[tokio::test]
+async fn searching_for_a_blank_title_is_refused() {
+    let fixture = Fixture::start().await;
+    let (_, as_grace) = fixture.user("Grace", &NEW_USER).await;
+
+    let refused = requests(as_grace)
+        .search_movies(SearchMoviesRequest {
+            title: " ".to_owned(),
+            ..Default::default()
+        })
+        .await;
+
+    let refusal = assert_refused(
+        refused,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
+    );
+    assert_eq!(refusal.field, "title");
+}
+
+#[tokio::test]
+async fn looking_up_a_movie_the_metadata_source_doesnt_have_is_refused() {
+    let fixture = Fixture::start().await;
+    let (_, as_grace) = fixture.user("Grace", &NEW_USER).await;
+
+    let refused = requests(as_grace)
+        .look_up_movie(LookUpMovieRequest {
+            movie_tmdb_id: 1,
+            ..Default::default()
+        })
+        .await;
+
+    assert_refused(
+        refused,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_UNKNOWN_TITLE,
+    );
+}
+
+/// Artwork is served for paths a search handed out, and still for no others: Alien's backdrop
+/// is one TMDB has, but no search gave it.
+#[tokio::test]
+async fn a_poster_a_search_found_is_served_and_an_image_none_found_is_not() {
+    let fixture = Fixture::start().await;
+    let (_, as_grace) = fixture.user("Grace", &NEW_USER).await;
+    let found = search_alien(as_grace).await;
+    let token = Some(fixture.server.admin_token.as_str());
+
+    let poster = fetch(
+        &fixture.server,
+        found[0].poster_url.as_deref().unwrap(),
+        token,
+    )
+    .await;
+    let backdrop = fetch(
+        &fixture.server,
+        "/media/artwork/tmdb/%2FAmR3JG1VQVxU8TfAvljUhfSFUOx.jpg",
+        token,
+    )
+    .await;
+
+    assert_eq!(poster.status, 200);
+    assert!(poster.body.starts_with(b"\xff\xd8"));
+    assert_eq!(backdrop.status, 404);
+    let images: Vec<_> = fixture
+        .tmdb
+        .requests()
+        .into_iter()
+        .filter(|request| request.starts_with("/t/p/"))
+        .collect();
+    assert_eq!(images.len(), 1, "only the poster was fetched: {images:?}");
 }

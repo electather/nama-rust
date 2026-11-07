@@ -1,7 +1,7 @@
 FROM node:26-bookworm
 
 RUN apt-get update && apt-get install -y \
-  git curl jq build-essential pkg-config libssl-dev protobuf-compiler \
+  git curl jq build-essential pkg-config libssl-dev protobuf-compiler mold \
   && rm -rf /var/lib/apt/lists/*
 
 # GitHub CLI
@@ -30,6 +30,13 @@ USER ${AGENT_UID}:${AGENT_GID}
 # Rust toolchain (wasm32 target for Extism runtime plugins, ADR 0006)
 RUN curl -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal \
   --component clippy,rustfmt --target wasm32-unknown-unknown
+# Two sandboxes share OrbStack's 16 GiB VM. `cargo test --workspace` with GNU ld ran a link per core at ~1.5 GiB
+# each and ran the VM out of memory. mold and line-tables-only debug info shrink each link; 4 jobs caps how many
+# run at once. Per-target rustflags, not RUSTFLAGS, so the wasm32 build keeps rust-lld. See logs/mem.log.
+ENV CARGO_BUILD_JOBS=4 \
+  CARGO_PROFILE_DEV_DEBUG=line-tables-only \
+  CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUSTFLAGS="-C link-arg=-fuse-ld=mold" \
+  CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS="-C link-arg=-fuse-ld=mold"
 # Cache dirs exist up front so the host cache mounts land on agent-owned dirs
 RUN mkdir -p /home/agent/.cargo/registry /home/agent/.local/share/pnpm/store /home/agent/.claude
 

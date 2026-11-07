@@ -195,11 +195,12 @@ impl Matcher {
         }
     }
 
-    /// The titles the metadata Provider finds for `query`, best fit first.
+    /// The titles the metadata Provider finds for `query`, best fit first, with the Plugin whose
+    /// Provider found them, which their image paths are for.
     pub(crate) async fn search_metadata(
         &self,
         query: &SearchQuery,
-    ) -> Result<Vec<Candidate>, ManualError> {
+    ) -> Result<Vec<(PluginId, Candidate)>, ManualError> {
         let found = self
             .ask(|metadata| {
                 let query = query.clone();
@@ -207,7 +208,10 @@ impl Matcher {
             })
             .await;
         match found {
-            Ok((_, candidates)) => Ok(candidates),
+            Ok((plugin, candidates)) => Ok(candidates
+                .into_iter()
+                .map(|candidate| (plugin.clone(), candidate))
+                .collect()),
             Err(Miss::Unmatched) => Ok(Vec::new()),
             Err(Miss::Undecided) => Err(ManualError::Unavailable),
         }

@@ -22,6 +22,19 @@ service RequestService {
   rpc GetRequest(GetRequestRequest) returns (GetRequestResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
+  // Searches the metadata source for Movies to ask for, best fit first. Unlike
+  // `MatchService.SearchMetadata`, it needs only `PERMISSION_REQUEST_MOVIE`. Fails with
+  // `invalid_argument` if the title is blank, and `unavailable` if no metadata Provider is
+  // enabled, or it failed.
+  rpc SearchMovies(SearchMoviesRequest) returns (SearchMoviesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Returns one Movie from the metadata source, for its page when no Library has it. Needs
+  // `PERMISSION_REQUEST_MOVIE`. Fails with `invalid_argument` if the metadata source has no Movie
+  // with the id, and `unavailable` if no metadata Provider is enabled, or it failed.
+  rpc LookUpMovie(LookUpMovieRequest) returns (LookUpMovieResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
 }
 
 // Where a Request is on its way to the Library (ADR 0012).
@@ -99,4 +112,46 @@ message GetRequestRequest {
 
 message GetRequestResponse {
   Request request = 1;
+}
+
+// A Movie in the metadata source, and how close it is to being on the Server: in a Library, asked
+// for in a Request, or neither, in which case `CreateRequest` asks for it.
+message FoundMovie {
+  // The Movie's TMDB id.
+  int64 tmdb_id = 1;
+  // The title, in the metadata Provider's language.
+  string title = 2;
+  // The year it was released, if known.
+  optional int32 year = 3;
+  // Only `LookUpMovie` gives it.
+  optional string overview = 4;
+  // Only `LookUpMovie` gives it.
+  optional uint32 runtime_minutes = 5;
+  // The poster's URL, under `/media/artwork/` on this Server.
+  optional string poster_url = 6;
+  // The backdrop's URL, under `/media/artwork/` on this Server. Only `LookUpMovie` gives it.
+  optional string backdrop_url = 7;
+  // The oldest Library the Movie is Matched in, if any. `BrowseService.GetMovie` opens it there,
+  // by `tmdb_id`.
+  optional int64 library_id = 8;
+  // The Movie's open Request, if it has one the caller may see.
+  Request request = 9;
+}
+
+message SearchMoviesRequest {
+  // Must not be blank.
+  string title = 1;
+}
+
+message SearchMoviesResponse {
+  repeated FoundMovie movies = 1;
+}
+
+message LookUpMovieRequest {
+  // The Movie's TMDB id.
+  int64 movie_tmdb_id = 1;
+}
+
+message LookUpMovieResponse {
+  FoundMovie movie = 1;
 }

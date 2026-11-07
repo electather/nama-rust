@@ -102,6 +102,11 @@ pub mod __buffa {
         reg.register_json_any(super::__LIST_REQUESTS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__GET_REQUEST_REQUEST_JSON_ANY);
         reg.register_json_any(super::__GET_REQUEST_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__FOUND_MOVIE_JSON_ANY);
+        reg.register_json_any(super::__SEARCH_MOVIES_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__SEARCH_MOVIES_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__LOOK_UP_MOVIE_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LOOK_UP_MOVIE_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__SUBSCRIBE_REQUEST_JSON_ANY);
         reg.register_json_any(super::__SUBSCRIBE_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__LAGGED_JSON_ANY);
@@ -349,6 +354,26 @@ pub use self::__buffa::view::GetRequestRequestOwnedView;
 pub use self::__buffa::view::GetRequestResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::GetRequestResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::FoundMovieView;
+#[doc(inline)]
+pub use self::__buffa::view::FoundMovieOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SearchMoviesRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::SearchMoviesRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SearchMoviesResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::SearchMoviesResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::LookUpMovieRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::LookUpMovieRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::LookUpMovieResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::LookUpMovieResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::SubscribeRequestView;
 #[doc(inline)]

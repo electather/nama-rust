@@ -1,3 +1,6 @@
+import { Code } from "@connectrpc/connect";
+import { useMutation } from "@connectrpc/connect-query";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Check,
   CircleCheck,
@@ -5,12 +8,23 @@ import {
   CircleHelp,
   Clock,
   Download,
+  Library,
   type LucideIcon,
+  Plus,
   TriangleAlert,
   X,
 } from "lucide-react";
 
-import { RequestState } from "@/gen/nama/v1/request_pb";
+import { Button } from "@/components/ui/button";
+import {
+  type FoundMovie,
+  type Request,
+  RequestService,
+  RequestState,
+} from "@/gen/nama/v1/request_pb";
+import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
+import { requestsKey } from "@/lib/events";
+import { refusal, refusalOf } from "@/lib/forms";
 
 interface Shown {
   label: string;
@@ -33,7 +47,84 @@ const unknown: Shown = { label: "Unknown", Icon: CircleHelp };
 
 /** A Request's state as a labelled pill. */
 export function RequestStateLabel({ state }: { state: RequestState }) {
-  const { label, Icon } = states[state] ?? unknown;
+  return <StateLabel {...(states[state] ?? unknown)} />;
+}
+
+/**
+ * Where a Movie found in the metadata source is on its way to the Server: in a Library, or its
+ * Request's state. Request, while the signed-in User `you` isn't one of its Requesters, which
+ * `primary` makes the screen's primary action. The caller lays them out.
+ */
+export function FoundMovieState({
+  movie,
+  you,
+  primary = false,
+}: {
+  movie: FoundMovie;
+  you: bigint | undefined;
+  primary?: boolean;
+}) {
+  if (movie.libraryId !== undefined) return <StateLabel label="In a Library" Icon={Library} />;
+  const { request } = movie;
+  return (
+    <>
+      {request && <RequestStateLabel state={request.state} />}
+      {!isRequester(request, you) && <RequestButton movie={movie} primary={primary} />}
+    </>
+  );
+}
+
+function isRequester(request: Request | undefined, you: bigint | undefined) {
+  return request?.requesters.some(({ userId }) => userId === you) ?? false;
+}
+
+/** Asks for `movie`, then shows its Request once the Server has it. */
+function RequestButton({ movie, primary }: { movie: FoundMovie; primary: boolean }) {
+  const queryClient = useQueryClient();
+  const ask = useMutation(RequestService.method.createRequest, {
+    // Waits for the Request to be read back, so the button stays busy until its state shows.
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: requestsKey }),
+    // A scan Matched the Movie since it was found: read it back to show it in its Library.
+    onError: (error) =>
+      refusalOf(error).reason === RefusalReason.ALREADY_IN_LIBRARY
+        ? queryClient.invalidateQueries({ queryKey: requestsKey })
+        : undefined,
+  });
+  return (
+    <>
+      {/* A ghost button's icon lines up with the caption above it, its padding hanging outside. */}
+      <span className={primary ? undefined : "-ms-4"}>
+        <Button
+          variant={primary ? "default" : "ghost"}
+          aria-label={`Request ${movie.title}`}
+          disabled={ask.isPending}
+          onClick={() => {
+            ask.mutate({ movieTmdbId: movie.tmdbId });
+          }}
+        >
+          <Plus aria-hidden className="size-4" />
+          Request
+        </Button>
+      </span>
+      {ask.isError && (
+        <p role="alert" className="w-full text-sm text-destructive">
+          {requestRefusal(ask.error, movie.title)}
+        </p>
+      )}
+    </>
+  );
+}
+
+function requestRefusal(error: unknown, title: string) {
+  return refusal(
+    error,
+    `Request ${title}`,
+    { [Code.Unavailable]: { form: "The metadata source didn’t answer. Try again in a moment." } },
+    { [RefusalReason.ALREADY_IN_LIBRARY]: { form: `${title} is already in a Library.` } },
+  ).form;
+}
+
+function StateLabel({ label, Icon }: Shown) {
   return (
     <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-sm text-muted-foreground">
       <Icon aria-hidden className="size-3.5" />

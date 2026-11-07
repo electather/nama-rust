@@ -32,12 +32,13 @@ use nama_proto::nama::v1::{
     ListDevicesResponse, ListEpisodesRequest, ListEpisodesResponse, ListLibrariesRequest,
     ListLibrariesResponse, ListMoviesRequest, ListMoviesResponse, ListRequestsRequest,
     ListRequestsResponse, ListShowsRequest, ListShowsResponse, ListUnmatchedItemsRequest,
-    ListUnmatchedItemsResponse, ListUsersRequest, ListUsersResponse, LookUpSignInCodeRequest,
-    LookUpSignInCodeResponse, MatchService, Permission, PollSignInCodeRequest,
-    PollSignInCodeResponse, ReauthenticateRequest, ReauthenticateResponse, Refusal, RefusalReason,
-    ReportProgressRequest, ReportProgressResponse, RequestService, ResetPasswordRequest,
-    ResetPasswordResponse, RevokeDeviceRequest, RevokeDeviceResponse, ScanLibraryRequest,
-    ScanLibraryResponse, SearchMetadataRequest, SearchMetadataResponse, ServerService,
+    ListUnmatchedItemsResponse, ListUsersRequest, ListUsersResponse, LookUpMovieRequest,
+    LookUpMovieResponse, LookUpSignInCodeRequest, LookUpSignInCodeResponse, MatchService,
+    Permission, PollSignInCodeRequest, PollSignInCodeResponse, ReauthenticateRequest,
+    ReauthenticateResponse, Refusal, RefusalReason, ReportProgressRequest, ReportProgressResponse,
+    RequestService, ResetPasswordRequest, ResetPasswordResponse, RevokeDeviceRequest,
+    RevokeDeviceResponse, ScanLibraryRequest, ScanLibraryResponse, SearchMetadataRequest,
+    SearchMetadataResponse, SearchMoviesRequest, SearchMoviesResponse, ServerService,
     SessionDelivery, SetDefaultPermissionsRequest, SetDefaultPermissionsResponse, SetMatchRequest,
     SetMatchResponse, SetPermissionsRequest, SetPermissionsResponse, SetPlayedRequest,
     SetPlayedResponse, SetupRequest, SetupResponse, SignInCodeStatus, SignInRequest,
@@ -51,7 +52,7 @@ use crate::{
     artwork::{self, Artwork},
     browse::{self, Browse, Started},
     config::Config,
-    contents::{Contents, Episode, Item, MatchedTo, Movie, Show, Unmatched, Version},
+    contents::{Contents, Episode, Item, MatchedTo, Metadata, Movie, Show, Unmatched, Version},
     db::{Database, now},
     events::{EventBus, Filter},
     forwarded::{RequestSource, identify_source},
@@ -59,7 +60,7 @@ use crate::{
     matching::{ManualError, Matcher},
     plugins::Registry,
     rate_limits::{Blocked, SignInCodeLimits, SignInLimits},
-    requests::{self, Requests},
+    requests::{self, Found, Requests},
     scanner::Scanner,
     sessions::{cleared_session_cookie, identify_caller, in_session_cookie, session_cookie},
     sign_in_codes::{self, Poll, SignInCodes},
@@ -85,10 +86,8 @@ pub(crate) fn router(
 ) -> axum::Router {
     let users = Users::new(Arc::clone(&db), plugins.clone());
     let contents = Contents::new(Arc::clone(&db));
-    let artwork = artwork::router(
-        Artwork::new(&config.data_dir, plugins.clone()),
-        contents.clone(),
-    );
+    let artwork = Artwork::new(&config.data_dir, plugins.clone());
+    let artwork_router = artwork::router(artwork.clone(), contents.clone());
     let versions = versions::router(contents);
     let browse = Browse::new(Arc::clone(&db));
     let matcher = Matcher::new(Arc::clone(&db), plugins, events.clone());
@@ -120,6 +119,7 @@ pub(crate) fn router(
         }))
         .add_service(Arc::new(RequestServiceHandler {
             requests: Requests::new(Arc::clone(&db), matcher, events.clone()),
+            artwork,
         }))
         .add_service(Arc::new(LibraryServiceHandler {
             libraries: Libraries::new(db),
@@ -133,7 +133,7 @@ pub(crate) fn router(
             users: users.clone(),
         }))
         .into_axum_router()
-        .merge(artwork)
+        .merge(artwork_router)
         .merge(versions)
         .layer(middleware::from_fn(require_access))
         .layer(middleware::from_fn_with_state(users, identify_caller))
@@ -208,6 +208,8 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::REQUEST_SERVICE_CREATE_REQUEST_SPEC.procedure,        REQUEST_MOVIE),
     (proto::REQUEST_SERVICE_LIST_REQUESTS_SPEC.procedure,         Access::SignedIn),
     (proto::REQUEST_SERVICE_GET_REQUEST_SPEC.procedure,           Access::SignedIn),
+    (proto::REQUEST_SERVICE_SEARCH_MOVIES_SPEC.procedure,         REQUEST_MOVIE),
+    (proto::REQUEST_SERVICE_LOOK_UP_MOVIE_SPEC.procedure,         REQUEST_MOVIE),
 ];
 
 /// Who may fetch media: every path under this prefix, which the media routes share.
@@ -740,7 +742,10 @@ impl MatchService for MatchServiceHandler {
         };
         let candidates = self.matcher.search_metadata(&query).await?;
         Response::ok(SearchMetadataResponse {
-            candidates: candidates.into_iter().map(candidate_to_proto).collect(),
+            candidates: candidates
+                .into_iter()
+                .map(|(_, candidate)| candidate_to_proto(candidate))
+                .collect(),
             ..Default::default()
         })
     }
@@ -1248,6 +1253,8 @@ fn no_such_user() -> ConnectError {
 /// User only their own Requests.
 struct RequestServiceHandler {
     requests: Requests,
+    /// Serves the images of the Movies found, which no Match stores.
+    artwork: Artwork,
 }
 
 #[expect(
@@ -1293,6 +1300,90 @@ impl RequestService for RequestServiceHandler {
             request: request.into(),
             ..Default::default()
         })
+    }
+
+    async fn search_movies(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, SearchMoviesRequest>,
+    ) -> ServiceResult<SearchMoviesResponse> {
+        let viewer = &caller(&ctx)?.user;
+        let title = request.to_owned_message().title;
+        if title.trim().is_empty() {
+            return Err(refuse(
+                RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
+                "the title to search for must not be blank",
+            )
+            .field("title")
+            .into());
+        }
+        let found = self.requests.search(viewer, title).await?;
+        Response::ok(SearchMoviesResponse {
+            movies: found
+                .into_iter()
+                .map(|found| self.searched_to_proto(found))
+                .collect(),
+            ..Default::default()
+        })
+    }
+
+    async fn look_up_movie(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, LookUpMovieRequest>,
+    ) -> ServiceResult<LookUpMovieResponse> {
+        let viewer = &caller(&ctx)?.user;
+        let found = self.requests.look_up(viewer, request.movie_tmdb_id).await?;
+        Response::ok(LookUpMovieResponse {
+            movie: self.looked_up_to_proto(found).into(),
+            ..Default::default()
+        })
+    }
+}
+
+impl RequestServiceHandler {
+    /// A Movie a search found, as clients see it, with its poster offered to them.
+    fn searched_to_proto(&self, found: Found<Candidate>) -> proto::FoundMovie {
+        let Found {
+            tmdb_id,
+            plugin,
+            movie,
+            library,
+            request,
+        } = found;
+        proto::FoundMovie {
+            tmdb_id,
+            title: movie.title,
+            year: movie.year,
+            poster_url: movie.poster.map(|path| self.artwork.offer(&plugin, &path)),
+            library_id: library,
+            request: request.into(),
+            ..Default::default()
+        }
+    }
+
+    /// A Movie looked up, as clients see it, with its images offered to them.
+    fn looked_up_to_proto(&self, found: Found<Metadata>) -> proto::FoundMovie {
+        let Found {
+            tmdb_id,
+            plugin,
+            movie,
+            library,
+            request,
+        } = found;
+        let offer = |path: String| self.artwork.offer(&plugin, &path);
+        proto::FoundMovie {
+            tmdb_id,
+            title: movie.title,
+            year: movie.release_date.as_deref().and_then(year_of),
+            overview: movie.overview,
+            runtime_minutes: movie.runtime_minutes,
+            poster_url: movie.poster.map(offer),
+            backdrop_url: movie.backdrop.map(offer),
+            library_id: library,
+            request: request.into(),
+            ..Default::default()
+        }
     }
 }
 
@@ -1597,6 +1688,11 @@ fn version_to_proto(version: &Version) -> proto::Version {
     }
 }
 
+/// The year of a `YYYY-MM-DD` date.
+fn year_of(date: &str) -> Option<i32> {
+    date.get(..4)?.parse().ok()
+}
+
 /// `n` as a proto `int32`, or `None` if it doesn't fit, which no name a scan parses gives.
 fn int32(n: i64) -> Option<i32> {
     i32::try_from(n).ok()
@@ -1884,7 +1980,8 @@ impl From<requests::Error> for ConnectError {
         use RefusalReason as R;
         let message = err.to_string();
         let refused = match err {
-            // Only `GetRequest` names a Request, and only `CreateRequest` a Movie.
+            // Only `GetRequest` names a Request, and only `CreateRequest` and `LookUpMovie` a
+            // Movie, both in `movie_tmdb_id`.
             requests::Error::NoSuchRequest(id) => {
                 refuse(R::REFUSAL_REASON_REQUEST_NOT_FOUND, message)
                     .field("id")

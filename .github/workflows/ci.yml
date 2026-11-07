@@ -20,6 +20,9 @@ env:
   CARGO_TERM_COLOR: always
   # No debug info: CI only needs pass/fail, and builds and links are faster without it.
   CARGO_PROFILE_DEV_DEBUG: 0
+  # A fixed path, so rust-cache restores it: a cache only matches a job that caches the same
+  # absolute paths, and each runner checks out under its own /_work/jit-runner-<id>/.
+  CARGO_TARGET_DIR: /home/runner/target
 
 # Jobs run on autoscaled self-hosted runners on the home lab (electather/home-services,
 # runner-scaler in services/lab/docker-compose.yml). There are only a few of them, so a run
@@ -45,6 +48,11 @@ jobs:
         with:
           components: rustfmt
       - uses: Swatinem/rust-cache@v2
+        with:
+          # CARGO_TARGET_DIR, written relative to the checkout (/_work/jit-runner-<id>/nama-rust/
+          # nama-rust) because rust-cache joins it onto the workspace root.
+          # ponytail: tied to the checkout's depth; fix the runner's work directory to drop it.
+          workspaces: . -> ../../../../home/runner/target
       - run: cargo fmt --all --check
       - uses: bufbuild/buf-action@v1
         with:
@@ -174,6 +182,11 @@ jobs:
           # The Server's tests build the test Plugin (crates/nama-test-plugin) for wasm32.
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
+        with:
+          # CARGO_TARGET_DIR, written relative to the checkout (/_work/jit-runner-<id>/nama-rust/
+          # nama-rust) because rust-cache joins it onto the workspace root.
+          # ponytail: tied to the checkout's depth; fix the runner's work directory to drop it.
+          workspaces: . -> ../../../../home/runner/target
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       # The test Plugin for wasm32, as Installed Plugins are built: with nama-pdk, and nama-proto's
       # messages without its ConnectRPC stubs.

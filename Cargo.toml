@@ -6,6 +6,12 @@ members = ["crates/*", "plugins/*"]
 edition = "2024"
 repository = "https://github.com/electather/nama-rust"
 
+# Unoptimized argon2 takes over a second per hash, and the sign-in tests hash dozens of times.
+[profile.dev.package.argon2]
+opt-level = 3
+[profile.dev.package.blake2]
+opt-level = 3
+
 # The profile that 'dist' will build with
 [profile.dist]
 inherits = "release"
