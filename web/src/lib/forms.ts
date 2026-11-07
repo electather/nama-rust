@@ -4,6 +4,8 @@ import type { SubmitEvent } from "react";
 
 import { RefusalReason, RefusalSchema } from "@/gen/nama/v1/refusal_pb";
 
+import { permissionLabel } from "./permissions";
+
 /** Why a form was refused: next to one of its fields, or for the `form` as a whole. */
 export interface FormErrors {
   form?: string;
@@ -51,9 +53,18 @@ export function refusal(
   // explain by code, such as "the only Admin".
   const reasons: Partial<Record<RefusalReason, FormErrors>> = {
     [RefusalReason.RECENT_AUTHENTICATION_REQUIRED]: { form: serverMessage(error) },
+    [RefusalReason.PERMISSION_REQUIRED]: { form: permissionRequired(error) },
     ...byReason,
   };
   return reasons[refusalOf(error).reason] ?? byCode[code] ?? { form: unexplained(code, attempt) };
+}
+
+/** Which Permission the change refused with `error` needs, by the name the Refusal gives it. */
+function permissionRequired(error: unknown) {
+  const label = permissionLabel(refusalOf(error).params["permission"] ?? "");
+  return label === undefined
+    ? "You don’t have the Permission this needs."
+    : `This needs the ${label} Permission.`;
 }
 
 /**

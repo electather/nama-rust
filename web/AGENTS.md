@@ -8,6 +8,7 @@
 - **Logical properties.** Use `ms-`/`me-`/`ps-`/`pe-`/`start-`/`end-`, never `ml-`/`mr-`/`pl-`/`pr-`/`left-`/`right-`, so right-to-left languages can be added later.
 - **Owned components.** `src/components/ui/` is our code. Restyle what shadcn generates to `DESIGN.md`, and add a component only when a screen uses it. Re-running `shadcn add` overwrites the restyle, so diff it.
 - **Imports go one way.** `src/gen/` and `src/components/ui/` import nothing from the app. `src/components/` and `src/lib/` never import from `src/routes/`. Nothing imports a route file. Fallow enforces this.
+- **Admin pages need a Permission.** Every page under `src/routes/_member/_admin/` has a row in `adminPages` (`src/lib/access.ts`) naming the Permission it needs. The `_admin` layout refuses a page without one to everybody, and the row also puts it in the Admin nav.
 - **Access checks per route.** `whoIsSignedIn` and `isSetupRequired` (`src/lib/access.ts`) run in each route's own `beforeLoad`: the build prerenders the root's, so a check there runs once, at build time.
 - **One person's cache.** Every flow that changes who is signed in (signing in, signing out, setting up) clears the query cache, so the next person sees only their own data.
 - **Read refusals by reason.** Choose a field or a reaction from the `Refusal` detail's `reason` and `field`, never from the message, which is only for showing.

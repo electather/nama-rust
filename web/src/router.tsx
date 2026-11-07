@@ -39,8 +39,8 @@ export function getRouter(transport: Transport = sameOrigin) {
   // An `unauthenticated` may mean the session has ended, or may just be a wrong password. A
   // `permission_denied` may mean an Admin changed your Permissions. Asking again who is signed in
   // tells them apart. Only when that changed are the routes' access checks rerun: the `_member`
-  // layout sends a signed-out visitor to /sign-in?redirect=…, and `_admin` anyone but an Admin to
-  // "Admins only".
+  // layout sends a signed-out visitor to /sign-in?redirect=…, and `_admin` anyone without the page's
+  // Permission to "You can’t open this page".
   function recheckSession(error: Error) {
     if (isCode(error, Code.Unauthenticated) || isCode(error, Code.PermissionDenied)) {
       void rerunAccessChecksIfChanged();
