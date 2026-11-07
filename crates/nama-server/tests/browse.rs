@@ -62,8 +62,8 @@ struct Fixture {
     browse: BrowseServiceClient<HttpClient>,
     matches: MatchServiceClient<HttpClient>,
     contents: Contents,
-    _tmdb: FakeTmdb,
-    _server: TestServer,
+    tmdb: FakeTmdb,
+    server: TestServer,
     _media: TempDir,
 }
 
@@ -108,8 +108,8 @@ impl Fixture {
             browse: BrowseServiceClient::new(HttpClient::plaintext(), config.clone()),
             matches: MatchServiceClient::new(HttpClient::plaintext(), config),
             contents: Contents::new(db),
-            _tmdb: tmdb,
-            _server: server,
+            tmdb,
+            server,
             _media: media,
         }
     }
@@ -122,6 +122,14 @@ impl Fixture {
         fx.write(DARK_S02E01, b"video");
         fx.write(THE_OFFICE, b"video");
         fx.scan_until_decided(4).await;
+        fx
+    }
+
+    /// Starts a Server with a Movies Library holding Alien, scanned and Matched.
+    async fn alien() -> Self {
+        let fx = Self::start(LibraryKind::LIBRARY_KIND_MOVIES).await;
+        fx.write(ALIEN_1080P, b"video");
+        fx.scan_until_decided(1).await;
         fx
     }
 
@@ -242,6 +250,52 @@ impl Fixture {
             .await?
             .into_owned()
             .episodes)
+    }
+}
+
+/// An HTTP response, as a test checks it.
+struct Reply {
+    status: u16,
+    content_type: String,
+    body: Vec<u8>,
+}
+
+/// Sends a plain HTTP/1.1 `GET` for `path` to `server`, presenting `token`, if any, as a bearer
+/// token.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn get(server: &TestServer, path: &str, token: Option<&str>) -> Reply {
+    use http_body_util::{BodyExt, Empty};
+    use hyper::{Request, body::Bytes, client::conn::http1};
+    use hyper_util::rt::TokioIo;
+
+    let stream = tokio::net::TcpStream::connect(server.addr).await.unwrap();
+    let (mut sender, connection) = http1::handshake(TokioIo::new(stream)).await.unwrap();
+    tokio::spawn(connection);
+    let mut request = Request::get(path).header("host", server.addr.to_string());
+    if let Some(token) = token {
+        request = request.header("authorization", format!("Bearer {token}"));
+    }
+    let response = sender
+        .send_request(request.body(Empty::<Bytes>::new()).unwrap())
+        .await
+        .unwrap();
+    Reply {
+        status: response.status().as_u16(),
+        content_type: response
+            .headers()
+            .get("content-type")
+            .map(|value| value.to_str().unwrap().to_owned())
+            .unwrap_or_default(),
+        body: response
+            .into_body()
+            .collect()
+            .await
+            .unwrap()
+            .to_bytes()
+            .to_vec(),
     }
 }
 
@@ -504,6 +558,71 @@ async fn a_movies_library_is_an_invalid_argument_to_browse_shows() {
     assert_eq!(shows.unwrap_err().code, ErrorCode::InvalidArgument);
     assert_eq!(show.unwrap_err().code, ErrorCode::InvalidArgument);
     assert_eq!(episodes.unwrap_err().code, ErrorCode::InvalidArgument);
+}
+
+#[tokio::test]
+async fn a_poster_a_match_stores_is_served_with_its_content_type() {
+    let fx = Fixture::alien().await;
+    let movie = fx.get_movie(fx.library, ALIEN).await.unwrap();
+    let poster = movie.poster_url.unwrap();
+
+    let reply = get(&fx.server, &poster, Some(&fx.server.admin_token)).await;
+
+    assert_eq!(reply.status, 200);
+    assert_eq!(reply.content_type, "image/jpeg");
+    assert!(reply.body.starts_with(b"\xff\xd8"));
+}
+
+/// Only images some Match stores are served, so clients can't use the cache to fetch others.
+#[tokio::test]
+async fn any_other_artwork_path_is_not_found() {
+    let fx = Fixture::alien().await;
+
+    for path in [
+        "/media/artwork/tmdb/%2Fnot-stored.jpg",
+        "/media/artwork/other-plugin/%2FvfrQk5IPloGg1v9Rzbh2Eg3VGyM.jpg",
+        "/media/artwork/tmdb/../../nama.db",
+        "/media/artwork/tmdb/..%2F..%2Fnama.db",
+        "/media/artwork/%2E%2E/%2E%2E%2Fnama.db",
+        "/media/artwork/tmdb",
+    ] {
+        let reply = get(&fx.server, path, Some(&fx.server.admin_token)).await;
+
+        assert_eq!(reply.status, 404, "{path}");
+    }
+    let images = fx.tmdb.requests();
+    assert!(
+        !images.iter().any(|request| request.starts_with("/t/p/")),
+        "{images:?}"
+    );
+}
+
+/// The session cookie, or a bearer token, is what lets a client fetch artwork.
+#[tokio::test]
+async fn artwork_without_a_session_is_refused() {
+    let fx = Fixture::alien().await;
+    let movie = fx.get_movie(fx.library, ALIEN).await.unwrap();
+
+    let reply = get(&fx.server, &movie.poster_url.unwrap(), None).await;
+
+    assert_eq!(reply.status, 401);
+}
+
+/// A client should try again later, rather than take the image to be gone.
+#[tokio::test]
+async fn artwork_from_a_provider_that_fails_is_unavailable() {
+    let fx = Fixture::alien().await;
+    let movie = fx.get_movie(fx.library, ALIEN).await.unwrap();
+    drop(fx.tmdb);
+
+    let reply = get(
+        &fx.server,
+        &movie.poster_url.unwrap(),
+        Some(&fx.server.admin_token),
+    )
+    .await;
+
+    assert_eq!(reply.status, 503);
 }
 
 /// A Season as `GetShow` gives it.

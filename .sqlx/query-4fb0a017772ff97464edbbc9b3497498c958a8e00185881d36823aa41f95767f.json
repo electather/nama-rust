@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT EXISTS (SELECT 1 FROM item_matches\n                              WHERE state = 'matched' AND plugin = ?\n                                AND (poster = ? OR backdrop = ?)) AS \"stored!: bool\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "stored!: bool",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "4fb0a017772ff97464edbbc9b3497498c958a8e00185881d36823aa41f95767f"
+}

@@ -50,7 +50,7 @@ use nama_proto::nama::v1::{
 use tokio::sync::OwnedMutexGuard;
 
 use crate::{
-    artwork,
+    artwork::{self, Artwork},
     config::Config,
     contents::{Contents, Episode, Item, Movie, Show, Unmatched, Version},
     db::Database,
@@ -65,8 +65,8 @@ use crate::{
     users::{self, Caller, Role, SetupCode, SignedIn, Users},
 };
 
-/// Routes every RPC the Server answers, each behind the layers that identify the caller and refuse
-/// calls they may not make.
+/// Routes every RPC the Server answers, and its artwork, each behind the layers that identify the
+/// caller and refuse calls they may not make.
 #[expect(
     clippy::too_many_arguments,
     reason = "each is a separate handle the services are built from; a struct bundling them would \
@@ -81,6 +81,10 @@ pub(crate) fn router(
     setup_code: Option<SetupCode>,
 ) -> axum::Router {
     let users = Users::new(Arc::clone(&db), plugins.clone());
+    let artwork = artwork::router(
+        Artwork::new(&config.data_dir, plugins.clone()),
+        Contents::new(Arc::clone(&db)),
+    );
     connectrpc::Router::new()
         .add_service(Arc::new(ServerServiceHandler {
             name: config.name.clone(),
@@ -115,6 +119,7 @@ pub(crate) fn router(
             users: users.clone(),
         }))
         .into_axum_router()
+        .merge(artwork)
         .layer(middleware::from_fn(require_access))
         .layer(middleware::from_fn_with_state(users, identify_caller))
 }
@@ -144,7 +149,8 @@ impl Access {
     ];
 
     /// Who may call the RPC at `path`, `/<service>/<method>`. Only the RPCs in
-    /// [`Access::PUBLIC`] are public, so a new one needs a session until it is opened up.
+    /// [`Access::PUBLIC`] are public, so a new one needs a session until it is opened up, as does
+    /// everything under `/media/`.
     fn of(path: &str) -> Self {
         if Self::PUBLIC.contains(&path) {
             return Self::Anyone;
