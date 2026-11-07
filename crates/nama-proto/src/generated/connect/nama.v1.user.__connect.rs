@@ -14,6 +14,14 @@ pub type OwnedListUsersRequestView = ::buffa::view::OwnedView<
 pub type OwnedListUsersResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::ListUsersResponseView<'static>,
 >;
+///Shorthand for `OwnedView<SetRoleRequestView<'static>>`.
+pub type OwnedSetRoleRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SetRoleRequestView<'static>,
+>;
+///Shorthand for `OwnedView<SetRoleResponseView<'static>>`.
+pub type OwnedSetRoleResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SetRoleResponseView<'static>,
+>;
 impl ::connectrpc::Encodable<crate::messages::nama::v1::CreateUserResponse>
 for crate::messages::nama::v1::__buffa::view::CreateUserResponseView<'_> {
     fn encode(
@@ -82,6 +90,40 @@ for ::buffa::view::OwnedView<
         )
     }
 }
+impl ::connectrpc::Encodable<crate::messages::nama::v1::SetRoleResponse>
+for crate::messages::nama::v1::__buffa::view::SetRoleResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::SetRoleResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SetRoleResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
 /// Full service name for this service.
 pub const USER_SERVICE_SERVICE_NAME: &str = "nama.v1.UserService";
 /// Static [`Spec`](::connectrpc::Spec) for the `CreateUser` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
@@ -96,6 +138,12 @@ pub const USER_SERVICE_LIST_USERS_SPEC: ::connectrpc::Spec = ::connectrpc::Spec:
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
+/// Static [`Spec`](::connectrpc::Spec) for the `SetRole` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const USER_SERVICE_SET_ROLE_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.UserService/SetRole",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
 /// Managing the Server's Users. Every RPC needs the Admin Role, and fails with `permission_denied`
 /// without it. RPCs name Users by ID, not by name.
 ///
@@ -196,6 +244,31 @@ pub trait UserService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
+    /// Gives a User a Role, which applies from their next request. Their Devices stay signed in.
+    /// Fails with `invalid_argument` for `ROLE_UNSPECIFIED`, `not_found` if no User has the ID, and
+    /// `failed_precondition` if it would leave the Server with no Admin.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn set_role<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::SetRoleRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::SetRoleResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
 }
 /// Extension trait for registering a service implementation with a Router.
 ///
@@ -286,6 +359,35 @@ impl<S: UserService> UserServiceExt for S {
                 },
             )
             .with_spec(USER_SERVICE_LIST_USERS_SPEC)
+            .route_view(
+                USER_SERVICE_SERVICE_NAME,
+                "SetRole",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::SetRoleRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::SetRoleRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.set_role(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::SetRoleResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(USER_SERVICE_SET_ROLE_SPEC)
     }
 }
 /// Type-inference marker used by [`Router::add_service`](::connectrpc::Router::add_service).
@@ -352,6 +454,12 @@ impl<T: UserService> ::connectrpc::Dispatcher for UserServiceServer<T> {
                         .with_spec(USER_SERVICE_LIST_USERS_SPEC),
                 )
             }
+            "SetRole" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(USER_SERVICE_SET_ROLE_SPEC),
+                )
+            }
             _ => None,
         }
     }
@@ -405,6 +513,26 @@ impl<T: UserService> ::connectrpc::Dispatcher for UserServiceServer<T> {
                     svc.list_users(ctx, req)
                         .await?
                         .encode::<crate::messages::nama::v1::ListUsersResponse>(format)
+                })
+            }
+            "SetRole" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::SetRoleRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::SetRoleRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::SetRoleRequest,
+                    >::from_parts(&req, &body);
+                    svc.set_role(ctx, req)
+                        .await?
+                        .encode::<crate::messages::nama::v1::SetRoleResponse>(format)
                 })
             }
             _ => ::connectrpc::dispatcher::codegen::unimplemented_unary(path),
@@ -612,6 +740,43 @@ where
                 &self.config,
                 USER_SERVICE_LIST_USERS_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the SetRole RPC. Sends a request to /nama.v1.UserService/SetRole.
+    pub async fn set_role(
+        &self,
+        request: crate::messages::nama::v1::SetRoleRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::SetRoleResponseView<'static>,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.set_role_with_options(request, ::connectrpc::client::CallOptions::default())
+            .await
+    }
+    /// Call the SetRole RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn set_role_with_options(
+        &self,
+        request: crate::messages::nama::v1::SetRoleRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::SetRoleResponseView<'static>,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                USER_SERVICE_SET_ROLE_SPEC.with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,
             )

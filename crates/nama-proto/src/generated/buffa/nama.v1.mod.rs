@@ -110,6 +110,8 @@ pub mod __buffa {
         reg.register_json_any(super::__CREATE_USER_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__LIST_USERS_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_USERS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__SET_ROLE_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__SET_ROLE_RESPONSE_JSON_ANY);
     }
 }
 #[doc(inline)]
@@ -368,5 +370,13 @@ pub use self::__buffa::view::ListUsersRequestOwnedView;
 pub use self::__buffa::view::ListUsersResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::ListUsersResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetRoleRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::SetRoleRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetRoleResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::SetRoleResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::register_types;

@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file nama/v1/user.proto.
  */
 export const file_nama_v1_user: GenFile = /*@__PURE__*/
-  fileDesc("ChJuYW1hL3YxL3VzZXIucHJvdG8SB25hbWEudjEiUAoRQ3JlYXRlVXNlclJlcXVlc3QSDAoEbmFtZRgBIAEoCRIQCghwYXNzd29yZBgCIAEoCRIbCgRyb2xlGAMgASgOMg0ubmFtYS52MS5Sb2xlIiAKEkNyZWF0ZVVzZXJSZXNwb25zZRIKCgJpZBgBIAEoAyISChBMaXN0VXNlcnNSZXF1ZXN0IjEKEUxpc3RVc2Vyc1Jlc3BvbnNlEhwKBXVzZXJzGAEgAygLMg0ubmFtYS52MS5Vc2VyMp0BCgtVc2VyU2VydmljZRJFCgpDcmVhdGVVc2VyEhoubmFtYS52MS5DcmVhdGVVc2VyUmVxdWVzdBobLm5hbWEudjEuQ3JlYXRlVXNlclJlc3BvbnNlEkcKCUxpc3RVc2VycxIZLm5hbWEudjEuTGlzdFVzZXJzUmVxdWVzdBoaLm5hbWEudjEuTGlzdFVzZXJzUmVzcG9uc2UiA5ACAWIGcHJvdG8z", [file_nama_v1_sign_in]);
+  fileDesc("ChJuYW1hL3YxL3VzZXIucHJvdG8SB25hbWEudjEiUAoRQ3JlYXRlVXNlclJlcXVlc3QSDAoEbmFtZRgBIAEoCRIQCghwYXNzd29yZBgCIAEoCRIbCgRyb2xlGAMgASgOMg0ubmFtYS52MS5Sb2xlIiAKEkNyZWF0ZVVzZXJSZXNwb25zZRIKCgJpZBgBIAEoAyISChBMaXN0VXNlcnNSZXF1ZXN0IjEKEUxpc3RVc2Vyc1Jlc3BvbnNlEhwKBXVzZXJzGAEgAygLMg0ubmFtYS52MS5Vc2VyIj4KDlNldFJvbGVSZXF1ZXN0Eg8KB3VzZXJfaWQYASABKAMSGwoEcm9sZRgCIAEoDjINLm5hbWEudjEuUm9sZSIRCg9TZXRSb2xlUmVzcG9uc2Uy2wEKC1VzZXJTZXJ2aWNlEkUKCkNyZWF0ZVVzZXISGi5uYW1hLnYxLkNyZWF0ZVVzZXJSZXF1ZXN0GhsubmFtYS52MS5DcmVhdGVVc2VyUmVzcG9uc2USRwoJTGlzdFVzZXJzEhkubmFtYS52MS5MaXN0VXNlcnNSZXF1ZXN0GhoubmFtYS52MS5MaXN0VXNlcnNSZXNwb25zZSIDkAIBEjwKB1NldFJvbGUSFy5uYW1hLnYxLlNldFJvbGVSZXF1ZXN0GhgubmFtYS52MS5TZXRSb2xlUmVzcG9uc2ViBnByb3RvMw", [file_nama_v1_sign_in]);
 
 /**
  * @generated from message nama.v1.CreateUserRequest
@@ -97,6 +97,45 @@ export const ListUsersResponseSchema: GenMessage<ListUsersResponse> = /*@__PURE_
   messageDesc(file_nama_v1_user, 3);
 
 /**
+ * @generated from message nama.v1.SetRoleRequest
+ */
+export type SetRoleRequest = Message<"nama.v1.SetRoleRequest"> & {
+  /**
+   * The ID of the User whose Role changes.
+   *
+   * @generated from field: int64 user_id = 1;
+   */
+  userId: bigint;
+
+  /**
+   * Must not be `ROLE_UNSPECIFIED`.
+   *
+   * @generated from field: nama.v1.Role role = 2;
+   */
+  role: Role;
+};
+
+/**
+ * Describes the message nama.v1.SetRoleRequest.
+ * Use `create(SetRoleRequestSchema)` to create a new message.
+ */
+export const SetRoleRequestSchema: GenMessage<SetRoleRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_user, 4);
+
+/**
+ * @generated from message nama.v1.SetRoleResponse
+ */
+export type SetRoleResponse = Message<"nama.v1.SetRoleResponse"> & {
+};
+
+/**
+ * Describes the message nama.v1.SetRoleResponse.
+ * Use `create(SetRoleResponseSchema)` to create a new message.
+ */
+export const SetRoleResponseSchema: GenMessage<SetRoleResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_user, 5);
+
+/**
  * Managing the Server's Users. Every RPC needs the Admin Role, and fails with `permission_denied`
  * without it. RPCs name Users by ID, not by name.
  *
@@ -124,6 +163,18 @@ export const UserService: GenService<{
     methodKind: "unary";
     input: typeof ListUsersRequestSchema;
     output: typeof ListUsersResponseSchema;
+  },
+  /**
+   * Gives a User a Role, which applies from their next request. Their Devices stay signed in.
+   * Fails with `invalid_argument` for `ROLE_UNSPECIFIED`, `not_found` if no User has the ID, and
+   * `failed_precondition` if it would leave the Server with no Admin.
+   *
+   * @generated from rpc nama.v1.UserService.SetRole
+   */
+  setRole: {
+    methodKind: "unary";
+    input: typeof SetRoleRequestSchema;
+    output: typeof SetRoleResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_nama_v1_user, 0);

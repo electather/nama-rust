@@ -15,6 +15,10 @@ service UserService {
   rpc ListUsers(ListUsersRequest) returns (ListUsersResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
+  // Gives a User a Role, which applies from their next request. Their Devices stay signed in.
+  // Fails with `invalid_argument` for `ROLE_UNSPECIFIED`, `not_found` if no User has the ID, and
+  // `failed_precondition` if it would leave the Server with no Admin.
+  rpc SetRole(SetRoleRequest) returns (SetRoleResponse);
 }
 
 message CreateUserRequest {
@@ -36,3 +40,12 @@ message ListUsersRequest {}
 message ListUsersResponse {
   repeated User users = 1;
 }
+
+message SetRoleRequest {
+  // The ID of the User whose Role changes.
+  int64 user_id = 1;
+  // Must not be `ROLE_UNSPECIFIED`.
+  Role role = 2;
+}
+
+message SetRoleResponse {}

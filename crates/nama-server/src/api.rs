@@ -38,11 +38,11 @@ use nama_proto::nama::v1::{
     SIGN_IN_SERVICE_SETUP_SPEC, SIGN_IN_SERVICE_SIGN_IN_SPEC,
     SIGN_IN_SERVICE_START_SIGN_IN_CODE_SPEC, ScanLibraryRequest, ScanLibraryResponse,
     SearchMetadataRequest, SearchMetadataResponse, ServerService, SessionDelivery, SetMatchRequest,
-    SetMatchResponse, SetupRequest, SetupResponse, SignInCodeStatus, SignInRequest, SignInResponse,
-    SignInService, SignOutRequest, SignOutResponse, StartSignInCodeRequest,
-    StartSignInCodeResponse, SubscribeRequest, SubscribeResponse, USER_SERVICE_SERVICE_NAME,
-    UpdateLibraryRequest, UpdateLibraryResponse, UserService, WhoAmIRequest, WhoAmIResponse,
-    external_id,
+    SetMatchResponse, SetRoleRequest, SetRoleResponse, SetupRequest, SetupResponse,
+    SignInCodeStatus, SignInRequest, SignInResponse, SignInService, SignOutRequest,
+    SignOutResponse, StartSignInCodeRequest, StartSignInCodeResponse, SubscribeRequest,
+    SubscribeResponse, USER_SERVICE_SERVICE_NAME, UpdateLibraryRequest, UpdateLibraryResponse,
+    UserService, WhoAmIRequest, WhoAmIResponse, external_id,
 };
 use tokio::sync::OwnedMutexGuard;
 
@@ -753,6 +753,17 @@ impl UserService for UserServiceHandler {
             ..Default::default()
         })
     }
+
+    async fn set_role(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, SetRoleRequest>,
+    ) -> ServiceResult<SetRoleResponse> {
+        let request = request.to_owned_message();
+        let role = role_from_proto(request.role)?;
+        self.users.set_role(request.user_id, role).await?;
+        Response::ok(SetRoleResponse::default())
+    }
 }
 
 /// `nama.v1.EventService`: live updates.
@@ -1034,7 +1045,10 @@ impl From<users::Error> for ConnectError {
         match err {
             users::Error::Invalid(_) => Self::invalid_argument(err.to_string()),
             users::Error::NameTaken => Self::already_exists(err.to_string()),
-            users::Error::AlreadySetUp => Self::failed_precondition(err.to_string()),
+            users::Error::NoSuchUser => Self::not_found(err.to_string()),
+            users::Error::AlreadySetUp | users::Error::LastAdmin => {
+                Self::failed_precondition(err.to_string())
+            }
             users::Error::WrongNameOrPassword => Self::unauthenticated(err.to_string()),
             users::Error::Database(err) => database_failed(&err),
             users::Error::NoAuthenticator

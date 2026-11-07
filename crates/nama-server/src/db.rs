@@ -212,7 +212,10 @@ where
     E: From<sqlx::Error>,
     F: for<'t> FnOnce(&'t mut Transaction<'_, Sqlite>) -> BoxFuture<'t, Result<T, E>>,
 {
-    let mut tx = conn.begin().await?;
+    // IMMEDIATE takes the write lock before `write` reads anything, so what it checks, such as
+    // that a demotion leaves an Admin, can't change before it writes, even if another process
+    // writes to the file.
+    let mut tx = conn.begin_with("BEGIN IMMEDIATE").await?;
     match write(&mut tx).await {
         Ok(value) => {
             tx.commit().await?;
