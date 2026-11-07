@@ -16,7 +16,7 @@ export function AppChrome({ isAdmin }: { isAdmin: boolean }) {
           Libraries
         </NavLink>
         <NavLink to="/settings">Settings</NavLink>
-        {isAdmin && <NavLink to="/admin/users">Admin</NavLink>}
+        {isAdmin && <NavLink to="/admin">Admin</NavLink>}
       </nav>
       <div className="ms-auto">
         <SignOutButton />

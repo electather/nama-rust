@@ -17,8 +17,12 @@ import { Route as MemberSplatRouteImport } from './routes/_member/$'
 import { Route as MemberAdminRouteImport } from './routes/_member/_admin'
 import { Route as MemberCodeRouteImport } from './routes/_member/code'
 import { Route as MemberSettingsRouteImport } from './routes/_member/settings'
+import { Route as MemberAdminAdminIndexRouteImport } from './routes/_member/_admin/admin/index'
+import { Route as MemberAdminAdminNeedsAMatchRouteImport } from './routes/_member/_admin/admin/needs-a-match'
 import { Route as MemberAdminAdminUsersRouteImport } from './routes/_member/_admin/admin/users'
 import { Route as MemberLibrariesLibraryIdIndexRouteImport } from './routes/_member/libraries/$libraryId/index'
+import { Route as MemberAdminAdminLibrariesIndexRouteImport } from './routes/_member/_admin/admin/libraries/index'
+import { Route as MemberAdminAdminLibrariesLibraryIdRouteImport } from './routes/_member/_admin/admin/libraries/$libraryId'
 import { Route as MemberLibrariesLibraryIdMoviesMovieIdIndexRouteImport } from './routes/_member/libraries/$libraryId/movies/$movieId/index'
 import { Route as MemberLibrariesLibraryIdShowsShowIdIndexRouteImport } from './routes/_member/libraries/$libraryId/shows/$showId/index'
 
@@ -60,6 +64,17 @@ const MemberSettingsRoute = MemberSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => MemberRoute,
 } as any)
+const MemberAdminAdminIndexRoute = MemberAdminAdminIndexRouteImport.update({
+  id: '/admin/',
+  path: '/admin/',
+  getParentRoute: () => MemberAdminRoute,
+} as any)
+const MemberAdminAdminNeedsAMatchRoute =
+  MemberAdminAdminNeedsAMatchRouteImport.update({
+    id: '/admin/needs-a-match',
+    path: '/admin/needs-a-match',
+    getParentRoute: () => MemberAdminRoute,
+  } as any)
 const MemberAdminAdminUsersRoute = MemberAdminAdminUsersRouteImport.update({
   id: '/admin/users',
   path: '/admin/users',
@@ -70,6 +85,18 @@ const MemberLibrariesLibraryIdIndexRoute =
     id: '/libraries/$libraryId/',
     path: '/libraries/$libraryId/',
     getParentRoute: () => MemberRoute,
+  } as any)
+const MemberAdminAdminLibrariesIndexRoute =
+  MemberAdminAdminLibrariesIndexRouteImport.update({
+    id: '/admin/libraries/',
+    path: '/admin/libraries/',
+    getParentRoute: () => MemberAdminRoute,
+  } as any)
+const MemberAdminAdminLibrariesLibraryIdRoute =
+  MemberAdminAdminLibrariesLibraryIdRouteImport.update({
+    id: '/admin/libraries/$libraryId',
+    path: '/admin/libraries/$libraryId',
+    getParentRoute: () => MemberAdminRoute,
   } as any)
 const MemberLibrariesLibraryIdMoviesMovieIdIndexRoute =
   MemberLibrariesLibraryIdMoviesMovieIdIndexRouteImport.update({
@@ -91,8 +118,12 @@ export interface FileRoutesByFullPath {
   '/$': typeof MemberSplatRoute
   '/code': typeof MemberCodeRoute
   '/settings': typeof MemberSettingsRoute
+  '/admin/needs-a-match': typeof MemberAdminAdminNeedsAMatchRoute
   '/admin/users': typeof MemberAdminAdminUsersRoute
+  '/admin/': typeof MemberAdminAdminIndexRoute
   '/libraries/$libraryId/': typeof MemberLibrariesLibraryIdIndexRoute
+  '/admin/libraries/$libraryId': typeof MemberAdminAdminLibrariesLibraryIdRoute
+  '/admin/libraries/': typeof MemberAdminAdminLibrariesIndexRoute
   '/libraries/$libraryId/movies/$movieId/': typeof MemberLibrariesLibraryIdMoviesMovieIdIndexRoute
   '/libraries/$libraryId/shows/$showId/': typeof MemberLibrariesLibraryIdShowsShowIdIndexRoute
 }
@@ -103,8 +134,12 @@ export interface FileRoutesByTo {
   '/': typeof MemberIndexRoute
   '/code': typeof MemberCodeRoute
   '/settings': typeof MemberSettingsRoute
+  '/admin/needs-a-match': typeof MemberAdminAdminNeedsAMatchRoute
   '/admin/users': typeof MemberAdminAdminUsersRoute
+  '/admin': typeof MemberAdminAdminIndexRoute
   '/libraries/$libraryId': typeof MemberLibrariesLibraryIdIndexRoute
+  '/admin/libraries/$libraryId': typeof MemberAdminAdminLibrariesLibraryIdRoute
+  '/admin/libraries': typeof MemberAdminAdminLibrariesIndexRoute
   '/libraries/$libraryId/movies/$movieId': typeof MemberLibrariesLibraryIdMoviesMovieIdIndexRoute
   '/libraries/$libraryId/shows/$showId': typeof MemberLibrariesLibraryIdShowsShowIdIndexRoute
 }
@@ -118,8 +153,12 @@ export interface FileRoutesById {
   '/_member/code': typeof MemberCodeRoute
   '/_member/settings': typeof MemberSettingsRoute
   '/_member/': typeof MemberIndexRoute
+  '/_member/_admin/admin/needs-a-match': typeof MemberAdminAdminNeedsAMatchRoute
   '/_member/_admin/admin/users': typeof MemberAdminAdminUsersRoute
+  '/_member/_admin/admin/': typeof MemberAdminAdminIndexRoute
   '/_member/libraries/$libraryId/': typeof MemberLibrariesLibraryIdIndexRoute
+  '/_member/_admin/admin/libraries/$libraryId': typeof MemberAdminAdminLibrariesLibraryIdRoute
+  '/_member/_admin/admin/libraries/': typeof MemberAdminAdminLibrariesIndexRoute
   '/_member/libraries/$libraryId/movies/$movieId/': typeof MemberLibrariesLibraryIdMoviesMovieIdIndexRoute
   '/_member/libraries/$libraryId/shows/$showId/': typeof MemberLibrariesLibraryIdShowsShowIdIndexRoute
 }
@@ -132,8 +171,12 @@ export interface FileRouteTypes {
     | '/$'
     | '/code'
     | '/settings'
+    | '/admin/needs-a-match'
     | '/admin/users'
+    | '/admin/'
     | '/libraries/$libraryId/'
+    | '/admin/libraries/$libraryId'
+    | '/admin/libraries/'
     | '/libraries/$libraryId/movies/$movieId/'
     | '/libraries/$libraryId/shows/$showId/'
   fileRoutesByTo: FileRoutesByTo
@@ -144,8 +187,12 @@ export interface FileRouteTypes {
     | '/'
     | '/code'
     | '/settings'
+    | '/admin/needs-a-match'
     | '/admin/users'
+    | '/admin'
     | '/libraries/$libraryId'
+    | '/admin/libraries/$libraryId'
+    | '/admin/libraries'
     | '/libraries/$libraryId/movies/$movieId'
     | '/libraries/$libraryId/shows/$showId'
   id:
@@ -158,8 +205,12 @@ export interface FileRouteTypes {
     | '/_member/code'
     | '/_member/settings'
     | '/_member/'
+    | '/_member/_admin/admin/needs-a-match'
     | '/_member/_admin/admin/users'
+    | '/_member/_admin/admin/'
     | '/_member/libraries/$libraryId/'
+    | '/_member/_admin/admin/libraries/$libraryId'
+    | '/_member/_admin/admin/libraries/'
     | '/_member/libraries/$libraryId/movies/$movieId/'
     | '/_member/libraries/$libraryId/shows/$showId/'
   fileRoutesById: FileRoutesById
@@ -228,6 +279,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MemberSettingsRouteImport
       parentRoute: typeof MemberRoute
     }
+    '/_member/_admin/admin/': {
+      id: '/_member/_admin/admin/'
+      path: '/admin'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof MemberAdminAdminIndexRouteImport
+      parentRoute: typeof MemberAdminRoute
+    }
+    '/_member/_admin/admin/needs-a-match': {
+      id: '/_member/_admin/admin/needs-a-match'
+      path: '/admin/needs-a-match'
+      fullPath: '/admin/needs-a-match'
+      preLoaderRoute: typeof MemberAdminAdminNeedsAMatchRouteImport
+      parentRoute: typeof MemberAdminRoute
+    }
     '/_member/_admin/admin/users': {
       id: '/_member/_admin/admin/users'
       path: '/admin/users'
@@ -241,6 +306,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/libraries/$libraryId/'
       preLoaderRoute: typeof MemberLibrariesLibraryIdIndexRouteImport
       parentRoute: typeof MemberRoute
+    }
+    '/_member/_admin/admin/libraries/': {
+      id: '/_member/_admin/admin/libraries/'
+      path: '/admin/libraries'
+      fullPath: '/admin/libraries/'
+      preLoaderRoute: typeof MemberAdminAdminLibrariesIndexRouteImport
+      parentRoute: typeof MemberAdminRoute
+    }
+    '/_member/_admin/admin/libraries/$libraryId': {
+      id: '/_member/_admin/admin/libraries/$libraryId'
+      path: '/admin/libraries/$libraryId'
+      fullPath: '/admin/libraries/$libraryId'
+      preLoaderRoute: typeof MemberAdminAdminLibrariesLibraryIdRouteImport
+      parentRoute: typeof MemberAdminRoute
     }
     '/_member/libraries/$libraryId/movies/$movieId/': {
       id: '/_member/libraries/$libraryId/movies/$movieId/'
@@ -260,11 +339,20 @@ declare module '@tanstack/react-router' {
 }
 
 interface MemberAdminRouteChildren {
+  MemberAdminAdminNeedsAMatchRoute: typeof MemberAdminAdminNeedsAMatchRoute
   MemberAdminAdminUsersRoute: typeof MemberAdminAdminUsersRoute
+  MemberAdminAdminIndexRoute: typeof MemberAdminAdminIndexRoute
+  MemberAdminAdminLibrariesLibraryIdRoute: typeof MemberAdminAdminLibrariesLibraryIdRoute
+  MemberAdminAdminLibrariesIndexRoute: typeof MemberAdminAdminLibrariesIndexRoute
 }
 
 const MemberAdminRouteChildren: MemberAdminRouteChildren = {
+  MemberAdminAdminNeedsAMatchRoute: MemberAdminAdminNeedsAMatchRoute,
   MemberAdminAdminUsersRoute: MemberAdminAdminUsersRoute,
+  MemberAdminAdminIndexRoute: MemberAdminAdminIndexRoute,
+  MemberAdminAdminLibrariesLibraryIdRoute:
+    MemberAdminAdminLibrariesLibraryIdRoute,
+  MemberAdminAdminLibrariesIndexRoute: MemberAdminAdminLibrariesIndexRoute,
 }
 
 const MemberAdminRouteWithChildren = MemberAdminRoute._addFileChildren(
