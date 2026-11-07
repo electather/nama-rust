@@ -1,5 +1,5 @@
 //! Slowing down guesses at passwords, the Setup Code and Sign-in Codes, by refusing attempts after
-//! too many recent failures: sign-in, setup and password changes from one peer IP or for one User
+//! too many recent failures: sign-in, setup and password changes from one client IP or for one User
 //! name, and Sign-in Code lookups and approvals from one Device.
 //!
 //! Counts live in memory only. They expire as the window slides past them and a restart forgets
@@ -21,7 +21,7 @@ const WINDOW: Duration = Duration::from_mins(15);
 /// How many failures for one User name the window may hold before attempts for it are refused.
 const FAILURES_PER_NAME: usize = 10;
 
-/// How many failures from one peer IP, sign-in, setup and password changes together, the window
+/// How many failures from one client IP, sign-in, setup and password changes together, the window
 /// may hold before its attempts are refused.
 const FAILURES_PER_IP: usize = 50;
 
@@ -29,7 +29,7 @@ const FAILURES_PER_IP: usize = 50;
 /// its lookups and approvals are refused.
 const FAILURES_PER_DEVICE: usize = 10;
 
-/// The recent failed sign-in, setup and password change attempts, by peer IP and by User name.
+/// The recent failed sign-in, setup and password change attempts, by client IP and by User name.
 #[derive(Debug, Default)]
 pub(crate) struct SignInLimits {
     failures: Mutex<Failures>,
