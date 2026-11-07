@@ -1,5 +1,5 @@
-//! Admins creating, listing, changing the Role of and deleting Users, Users changing their own
-//! password, and Users and Admins listing and revoking Devices, through the generated `UserService`
+//! Admins creating, listing, changing the Role of, resetting the password of and deleting Users,
+//! Users changing their own password, and Users and Admins listing and revoking Devices, through the generated `UserService`
 //! client, over a real socket and against a real SQLite database.
 
 #[path = "support/server.rs"]
@@ -14,9 +14,9 @@ use connectrpc::{
 use nama_proto::nama::v1::{
     __buffa::view::SubscribeResponseView, ChangePasswordRequest, CreateUserRequest,
     DeleteUserRequest, Device, EventServiceClient, ListDevicesRequest, ListUsersRequest,
-    RevokeDeviceRequest, Role, SessionDelivery, SetRoleRequest, SignInRequest, SignInResponse,
-    SignInServiceClient, SubscribeRequest, SubscribeResponse, User, UserServiceClient,
-    WhoAmIRequest,
+    ResetPasswordRequest, RevokeDeviceRequest, Role, SessionDelivery, SetRoleRequest,
+    SignInRequest, SignInResponse, SignInServiceClient, SubscribeRequest, SubscribeResponse, User,
+    UserServiceClient, WhoAmIRequest,
 };
 use nama_server::{config::Config, plugins::Registry};
 use server::{PASSWORD, TestServer};
@@ -235,6 +235,22 @@ async fn change_password(
     client
         .change_password(ChangePasswordRequest {
             current_password: current.to_owned(),
+            new_password: new.to_owned(),
+            ..Default::default()
+        })
+        .await?;
+    Ok(())
+}
+
+/// Sets the password of the User `user_id` to `new`, through `client`.
+async fn reset_password(
+    client: &UserServiceClient<HttpClient>,
+    user_id: i64,
+    new: &str,
+) -> Result<(), ConnectError> {
+    client
+        .reset_password(ResetPasswordRequest {
+            user_id,
             new_password: new.to_owned(),
             ..Default::default()
         })
@@ -787,4 +803,64 @@ async fn two_devices_changing_the_password_at_once_leave_one_signed_in_with_its_
     };
     assert!(fixture.signed_in(&winner.token).await.unwrap());
     assert_eq!(code(fixture.sign_in("Grace", password).await), None);
+}
+
+#[tokio::test]
+async fn a_reset_password_signs_in_and_signs_all_the_users_devices_out() {
+    let fixture = Fixture::start().await;
+    let (phone, laptop) = fixture.grace_on_phone_and_laptop().await;
+    let mut phone_events = subscribe(fixture.server.client_config_as(&phone.token)).await;
+    let mut laptop_events = subscribe(fixture.server.client_config_as(&laptop.token)).await;
+    let new_password = "a brand new password";
+
+    reset_password(&fixture.client, ids(&phone).0, new_password)
+        .await
+        .unwrap();
+
+    for token in [&phone.token, &laptop.token] {
+        assert!(!fixture.signed_in(token).await.unwrap());
+    }
+    for events in [&mut phone_events, &mut laptop_events] {
+        assert!(ended(events).await, "a stream is still open");
+    }
+    assert_eq!(code(fixture.sign_in("Grace", new_password).await), None);
+    let old = fixture.sign_in("Grace", PASSWORD).await;
+    assert_eq!(code(old), Some(ErrorCode::Unauthenticated));
+}
+
+#[tokio::test]
+async fn resetting_your_own_password_fails_and_changes_nothing() {
+    let fixture = Fixture::start().await;
+    let admin = fixture.first_admin_id().await;
+
+    let reset = reset_password(&fixture.client, admin, "a brand new password").await;
+
+    assert_eq!(code(reset), Some(ErrorCode::FailedPrecondition));
+    assert!(
+        fixture
+            .signed_in(&fixture.server.admin_token)
+            .await
+            .unwrap()
+    );
+}
+
+#[tokio::test]
+async fn resetting_the_password_of_an_unknown_user_is_not_found() {
+    let fixture = Fixture::start().await;
+
+    let reset = reset_password(&fixture.client, 999, "a brand new password").await;
+
+    assert_eq!(code(reset), Some(ErrorCode::NotFound));
+}
+
+#[tokio::test]
+async fn a_reset_password_outside_the_rules_is_refused_and_the_old_one_still_works() {
+    let fixture = Fixture::start().await;
+    let (phone, laptop) = fixture.grace_on_phone_and_laptop().await;
+
+    let reset = reset_password(&fixture.client, ids(&phone).0, "1234567").await;
+
+    assert_eq!(code(reset), Some(ErrorCode::InvalidArgument));
+    assert!(fixture.signed_in(&laptop.token).await.unwrap());
+    assert_eq!(code(fixture.sign_in("Grace", PASSWORD).await), None);
 }

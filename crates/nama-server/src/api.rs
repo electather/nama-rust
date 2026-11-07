@@ -37,18 +37,18 @@ use nama_proto::nama::v1::{
     ListShowsResponse, ListUnmatchedItemsRequest, ListUnmatchedItemsResponse, ListUsersRequest,
     ListUsersResponse, LookUpSignInCodeRequest, LookUpSignInCodeResponse,
     MATCH_SERVICE_SERVICE_NAME, MatchService, PollSignInCodeRequest, PollSignInCodeResponse,
-    ReportProgressRequest, ReportProgressResponse, RevokeDeviceRequest, RevokeDeviceResponse,
-    SERVER_SERVICE_GET_SERVER_INFO_SPEC, SIGN_IN_SERVICE_POLL_SIGN_IN_CODE_SPEC,
-    SIGN_IN_SERVICE_SETUP_SPEC, SIGN_IN_SERVICE_SIGN_IN_SPEC,
-    SIGN_IN_SERVICE_START_SIGN_IN_CODE_SPEC, ScanLibraryRequest, ScanLibraryResponse,
-    SearchMetadataRequest, SearchMetadataResponse, ServerService, SessionDelivery, SetMatchRequest,
-    SetMatchResponse, SetRoleRequest, SetRoleResponse, SetupRequest, SetupResponse,
-    SignInCodeStatus, SignInRequest, SignInResponse, SignInService, SignOutRequest,
-    SignOutResponse, StartSignInCodeRequest, StartSignInCodeResponse, SubscribeRequest,
-    SubscribeResponse, USER_SERVICE_CHANGE_PASSWORD_SPEC, USER_SERVICE_LIST_DEVICES_SPEC,
-    USER_SERVICE_REVOKE_DEVICE_SPEC, USER_SERVICE_SERVICE_NAME, UpdateLibraryRequest,
-    UpdateLibraryResponse, UserService, WatchStateService, WhoAmIRequest, WhoAmIResponse,
-    external_id,
+    ReportProgressRequest, ReportProgressResponse, ResetPasswordRequest, ResetPasswordResponse,
+    RevokeDeviceRequest, RevokeDeviceResponse, SERVER_SERVICE_GET_SERVER_INFO_SPEC,
+    SIGN_IN_SERVICE_POLL_SIGN_IN_CODE_SPEC, SIGN_IN_SERVICE_SETUP_SPEC,
+    SIGN_IN_SERVICE_SIGN_IN_SPEC, SIGN_IN_SERVICE_START_SIGN_IN_CODE_SPEC, ScanLibraryRequest,
+    ScanLibraryResponse, SearchMetadataRequest, SearchMetadataResponse, ServerService,
+    SessionDelivery, SetMatchRequest, SetMatchResponse, SetRoleRequest, SetRoleResponse,
+    SetupRequest, SetupResponse, SignInCodeStatus, SignInRequest, SignInResponse, SignInService,
+    SignOutRequest, SignOutResponse, StartSignInCodeRequest, StartSignInCodeResponse,
+    SubscribeRequest, SubscribeResponse, USER_SERVICE_CHANGE_PASSWORD_SPEC,
+    USER_SERVICE_LIST_DEVICES_SPEC, USER_SERVICE_REVOKE_DEVICE_SPEC, USER_SERVICE_SERVICE_NAME,
+    UpdateLibraryRequest, UpdateLibraryResponse, UserService, WatchStateService, WhoAmIRequest,
+    WhoAmIResponse, external_id,
 };
 use tokio::sync::OwnedMutexGuard;
 
@@ -1041,6 +1041,24 @@ impl UserService for UserServiceHandler {
         }
         changed?;
         Response::ok(ChangePasswordResponse::default())
+    }
+
+    async fn reset_password(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, ResetPasswordRequest>,
+    ) -> ServiceResult<ResetPasswordResponse> {
+        let request = request.to_owned_message();
+        // Resetting would sign out the calling Device too; `ChangePassword` keeps it.
+        if request.user_id == caller(&ctx)?.user.id {
+            return Err(ConnectError::failed_precondition(
+                "change your own password with ChangePassword",
+            ));
+        }
+        self.users
+            .reset_password(request.user_id, &request.new_password)
+            .await?;
+        Response::ok(ResetPasswordResponse::default())
     }
 }
 
