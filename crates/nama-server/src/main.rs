@@ -16,10 +16,10 @@ use nama_plugin_api::{
 use nama_server::{
     config::{self, Config},
     db::{self, Database},
-    plugins::Registry,
+    plugins::{Registry, installed},
     users::{SetupCode, Users},
 };
-use tokio::net::TcpListener;
+use tokio::{net::TcpListener, task};
 use tracing::{error, info};
 use tracing_subscriber::EnvFilter;
 
@@ -67,6 +67,7 @@ async fn main() -> ExitCode {
     let Some(db) = open_database(&config).await else {
         return ExitCode::FAILURE;
     };
+    log_installed_plugins(&config).await;
     let setup_code = match setup_code(Users::new(Arc::clone(&db), plugins.clone())).await {
         Ok(setup_code) => setup_code,
         Err(err) => {
@@ -139,6 +140,14 @@ async fn open_database(config: &Config) -> Option<Arc<Database>> {
         "opened database"
     );
     Some(Arc::new(db))
+}
+
+/// Logs the Installed Plugins in the data directory, without enabling any.
+async fn log_installed_plugins(config: &Config) {
+    let data_dir = config.data_dir.clone();
+    if let Err(err) = task::spawn_blocking(move || installed::log_installed(&data_dir)).await {
+        error!("reading the Installed Plugins failed: {err}");
+    }
 }
 
 /// A new Setup Code, logged, while the Server has no Users, so whoever can read the log can create

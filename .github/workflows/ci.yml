@@ -171,8 +171,13 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
+          # The Server's tests build the test Plugin (crates/nama-test-plugin) for wasm32.
+          targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      # The test Plugin for wasm32, as Installed Plugins are built: with nama-pdk, and nama-proto's
+      # messages without its ConnectRPC stubs.
+      - run: cargo clippy --package nama-test-plugin --target wasm32-unknown-unknown --locked -- -D warnings
       - uses: taiki-e/install-action@nextest
       # nextest builds every target it runs, so there's no separate `cargo build`.
       - run: cargo nextest run --workspace --locked
