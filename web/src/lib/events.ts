@@ -3,6 +3,7 @@ import { createConnectQueryKey, useTransport } from "@connectrpc/connect-query";
 import { type QueryClient, queryOptions, skipToken, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 
+import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import {
   type Event,
   EventService,
@@ -31,6 +32,10 @@ export function unmatchedKey(libraryId?: bigint) {
     cardinality: "finite",
   });
 }
+
+// ponytail: every browse query, not only those of the Event's Library. Only the ones on screen
+// refetch, and a household Server has a handful of Libraries.
+const browseKey = createConnectQueryKey({ schema: BrowseService, cardinality: undefined });
 
 // How long to wait before subscribing again after the stream ends or fails.
 const RESUBSCRIBE_MS = 5000;
@@ -83,6 +88,7 @@ function apply({ message }: SubscribeResponse, queryClient: QueryClient) {
   if (message.case === "event") {
     recordScan(message.value, queryClient);
     refreshUnmatched(message.value, queryClient);
+    refreshBrowsing(message.value, queryClient);
   } else if (message.case === "lagged") {
     forgetMissed(queryClient);
   }
@@ -129,4 +135,11 @@ function dropUnmatched(queryClient: QueryClient, libraryId: bigint, itemId: bigi
     (list) => list && { ...list, items: list.items.filter((item) => item.itemId !== itemId) },
   );
   void queryClient.invalidateQueries({ queryKey });
+}
+
+/** Refetches the Movies, Shows and Episodes on screen when an Item is Matched or removed. */
+function refreshBrowsing({ event }: Event, queryClient: QueryClient) {
+  if (event.case === "itemMatched" || event.case === "libraryItemRemoved") {
+    void queryClient.invalidateQueries({ queryKey: browseKey });
+  }
 }

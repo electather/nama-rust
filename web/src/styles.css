@@ -9,6 +9,10 @@
    tokens below can colour anything (ADR 0016). */
 @theme {
   --color-*: initial;
+  /* DESIGN.md's Display: Movie and Show titles over their backdrops. */
+  --text-display: 2.5rem;
+  --text-display--line-height: 1.05;
+  --text-display--letter-spacing: -0.035em;
 }
 
 @theme inline {

@@ -13,17 +13,16 @@ use connectrpc::{
 use hyper::{HeaderMap, Method};
 use nama_proto::nama::v1::{
     __buffa::view::SubscribeResponseView, CreateLibraryRequest, CreateUserRequest,
-    EventServiceClient, LibraryKind, LibraryServiceClient, Role, ScanLibraryRequest,
-    SubscribeRequest, SubscribeResponse, UserServiceClient,
+    EventServiceClient, LibraryKind, LibraryServiceClient, ListLibrariesRequest, Role,
+    ScanLibraryRequest, SubscribeRequest, SubscribeResponse, UserServiceClient,
 };
 use nama_server::{config::Config, plugins::Registry, users::Users};
 use serde_json::Value;
 use server::{PASSWORD, TestServer};
 
 /// Every RPC that manages Libraries, Matches or Users, which only an Admin may call.
-const ADMIN_ONLY: [&str; 15] = [
+const ADMIN_ONLY: [&str; 14] = [
     "/nama.v1.LibraryService/CreateLibrary",
-    "/nama.v1.LibraryService/ListLibraries",
     "/nama.v1.LibraryService/GetLibrary",
     "/nama.v1.LibraryService/UpdateLibrary",
     "/nama.v1.LibraryService/DeleteLibrary",
@@ -39,9 +38,10 @@ const ADMIN_ONLY: [&str; 15] = [
     "/nama.v1.UserService/ResetPassword",
 ];
 
-/// The RPCs for browsing what a Library holds and the caller's Continue Watching, which any
-/// signed-in User may call.
-const BROWSE: [&str; 6] = [
+/// The RPCs for browsing the Libraries, what they hold and the caller's Continue Watching, which
+/// any signed-in User may call.
+const BROWSE: [&str; 7] = [
+    "/nama.v1.LibraryService/ListLibraries",
     "/nama.v1.BrowseService/ListMovies",
     "/nama.v1.BrowseService/GetMovie",
     "/nama.v1.BrowseService/ListShows",
@@ -239,6 +239,36 @@ async fn a_member_may_browse() {
             "{path}: {code}"
         );
     }
+}
+
+#[tokio::test]
+async fn a_member_lists_libraries_without_their_folders() {
+    let (server, member_token) = start_with_member().await;
+    let folder = tempfile::tempdir().unwrap();
+    LibraryServiceClient::new(HttpClient::plaintext(), server.client_config())
+        .create_library(CreateLibraryRequest {
+            name: "Movies".to_owned(),
+            kind: LibraryKind::LIBRARY_KIND_MOVIES.into(),
+            folders: vec![folder.path().to_str().unwrap().to_owned()],
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    let listed = LibraryServiceClient::new(
+        HttpClient::plaintext(),
+        server.client_config_as(&member_token),
+    )
+    .list_libraries(ListLibrariesRequest::default())
+    .await
+    .unwrap()
+    .into_owned();
+
+    let [library] = listed.libraries.as_slice() else {
+        panic!("expected one Library, got {:?}", listed.libraries);
+    };
+    assert_eq!(library.name, "Movies");
+    assert!(library.folders.is_empty(), "{:?}", library.folders);
 }
 
 #[tokio::test]

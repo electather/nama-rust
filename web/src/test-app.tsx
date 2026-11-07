@@ -1,8 +1,8 @@
-import { create } from "@bufbuild/protobuf";
+import { type MessageInitShape, create } from "@bufbuild/protobuf";
 import {
   Code,
-  ConnectError,
   type ConnectRouter,
+  ConnectError,
   type ServiceImpl,
   createRouterTransport,
 } from "@connectrpc/connect";
@@ -10,23 +10,25 @@ import { RouterProvider } from "@tanstack/react-router";
 import { fireEvent, render, screen } from "@testing-library/react";
 
 import { EventService, type SubscribeResponse } from "@/gen/nama/v1/event_pb";
+import { LibraryService, type LibrarySchema } from "@/gen/nama/v1/library_pb";
 import { GetServerInfoResponseSchema, ServerService } from "@/gen/nama/v1/server_pb";
 import { Role, SignInService, WhoAmIResponseSchema } from "@/gen/nama/v1/sign_in_pb";
 import { UserService } from "@/gen/nama/v1/user_pb";
 
 import { getRouter } from "./router";
 
-/** What the fake Server says: whether it needs setting up, and who is signed in, if anyone. */
+/** What the fake Server says: whether it needs setting up, who is signed in, if anyone, and its Libraries. */
 export interface ServerState {
   setupRequired?: boolean;
   signedIn?: Role;
+  libraries?: MessageInitShape<typeof LibrarySchema>[];
   /** The Events the app's subscription gets. Without them, none arrive. */
   events?: ReadableStream<SubscribeResponse>;
 }
 
 /**
- * A fake Server in `state`, with handlers for the rest of `SignInService` and `UserService`, and
- * any `more` services a test needs.
+ * A fake Server in `state`, with handlers for the rest of `SignInService` and `UserService`.
+ * `more` adds other services, such as `BrowseService`.
  */
 export function fakeServer(
   state: ServerState,
@@ -55,6 +57,7 @@ export function fakeServer(
     });
     // Settings lists your Devices, so every fake Server has an answer for it.
     router.service(UserService, { listDevices: () => ({}), ...users });
+    router.service(LibraryService, { listLibraries: () => ({ libraries: state.libraries ?? [] }) });
     // Every signed-in page follows the Server's Events.
     router.service(EventService, { subscribe: () => state.events ?? new ReadableStream() });
     more(router);
