@@ -40,18 +40,24 @@ jobs:
       - name: Download the test reports
         id: reports
         run: |
-          # Fails when the run uploaded none: its tests never ran.
-          if gh run download "$RUN_ID" --pattern 'test-reports-*' --dir "$RUNNER_TEMP/reports"; then
-            echo "found=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "::notice::CI run $RUN_ID has no test reports; nothing to record."
+          if ! error=$(gh run download "$RUN_ID" --pattern "test-reports-$RUN_ATTEMPT-*" \
+              --dir "$RUNNER_TEMP/reports" 2>&1); then
+            # This attempt uploaded none: its tests never ran.
+            if grep -q 'no valid artifacts' <<< "$error"; then
+              echo "::notice::CI run $RUN_ID attempt $RUN_ATTEMPT has no test reports; nothing to record."
+              exit 0
+            fi
+            echo "$error"
+            exit 1
           fi
+          echo "found=true" >> "$GITHUB_OUTPUT"
       - if: steps.reports.outputs.found
         uses: dtolnay/rust-toolchain@stable
       - if: steps.reports.outputs.found
         uses: Swatinem/rust-cache@v2
         with:
-          # ponytail: tied to the checkout's depth, as in ci.yml.
+          # ponytail: tied to the checkout's depth, as in ci.yml; fix the runner's work directory
+          # to drop it.
           workspaces: . -> ../../../../home/runner/target
       - name: Read the history and the flaky-test issues
         if: steps.reports.outputs.found
@@ -64,11 +70,12 @@ jobs:
             git -C history checkout -q --orphan test-history
             git -C history rm -rfq --ignore-unmatch .
           fi
-          # The tool needs the last 30 days: this month's file and the one before.
-          {
-            cat "history/$(date -u -d "${RUN_STARTED_AT:0:10} -30 days" +%Y-%m).jsonl" || true
-            cat "history/${RUN_STARTED_AT:0:7}.jsonl" || true
-          } > "$RUNNER_TEMP/recent.jsonl"
+          # The tool needs the last 30 days: this month's file and, unless it's the same, the one
+          # 30 days back.
+          for month in $(printf '%s\n' "$(date -u -d "${RUN_STARTED_AT:0:10} -30 days" +%Y-%m)" \
+              "${RUN_STARTED_AT:0:7}" | sort -u); do
+            cat "history/$month.jsonl" 2> /dev/null || true
+          done > "$RUNNER_TEMP/recent.jsonl"
           gh issue list --app github-actions --state all --limit 1000 \
             --json number,state,title,body > "$RUNNER_TEMP/issues.json"
       - name: Report
@@ -91,6 +98,11 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           month="${RUN_STARTED_AT:0:7}.jsonl"
+          # A re-run of this workflow mustn't record the same CI run twice.
+          if grep -qF "\"run_id\":$RUN_ID,\"run_attempt\":$RUN_ATTEMPT," "$RUNNER_TEMP/recent.jsonl" \
+              || [ ! -s "$RUNNER_TEMP/out/history.jsonl" ]; then
+            exit 0
+          fi
           for attempt in 1 2 3 4 5; do
             cat "$RUNNER_TEMP/out/history.jsonl" >> "$month"
             git add "$month"

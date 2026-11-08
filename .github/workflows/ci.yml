@@ -148,11 +148,12 @@ jobs:
           vp test
           vp build
           vp run fallow
-      # For the test-report workflow (ADR 0022). Missing when the tests never ran.
+      # For the test-report workflow (ADR 0022). Missing when the tests never ran. Named per
+      # attempt, so a re-run records only the jobs it re-ran.
       - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         with:
-          name: test-reports-vitest
+          name: test-reports-${{ github.run_attempt }}-vitest
           path: web/test-results/vitest.json
           if-no-files-found: ignore
       # From the repo root, where impeccable finds .impeccable/config.json (which ignores
@@ -214,10 +215,12 @@ jobs:
           cache: true
       - run: vp -C web build
       - run: cargo nextest run -p nama-server --features web --test web --locked --profile ci-web
-      # For the test-report workflow (ADR 0022). Missing when the tests never ran.
+      # For the test-report workflow (ADR 0022), as the web job's.
+      # ponytail: the history doesn't record the OS; add it before re-enabling macOS or Windows,
+      # or a test failing on one OS only counts as flaky.
       - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         with:
-          name: test-reports-nextest-${{ matrix.os }}
+          name: test-reports-${{ github.run_attempt }}-nextest-${{ matrix.os }}
           path: ${{ env.CARGO_TARGET_DIR }}/nextest/*/junit.xml
           if-no-files-found: ignore

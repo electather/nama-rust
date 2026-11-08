@@ -41,10 +41,17 @@ pub(crate) struct HistoryLine {
 #[derive(Debug, Deserialize)]
 pub(crate) struct Issue {
     pub(crate) number: u64,
-    /// `OPEN` or `CLOSED`.
-    pub(crate) state: String,
+    pub(crate) state: IssueState,
     pub(crate) title: String,
     pub(crate) body: String,
+}
+
+/// Whether an [`Issue`] is open, as `gh` writes it.
+#[derive(Debug, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "UPPERCASE")]
+pub(crate) enum IssueState {
+    Open,
+    Closed,
 }
 
 /// A change to make to the flaky-test issues.
@@ -129,8 +136,8 @@ const LOOKBACK: i64 = 30 * DAY;
 /// A test that flaked in this run.
 struct Flake<'a> {
     line: &'a HistoryLine,
-    /// Commits it flaked on in the last 30 days, this run's included.
-    commits: usize,
+    /// How many commits it flaked on in the last 30 days, this run's included.
+    commit_count: usize,
 }
 
 fn by_test<'a>(
@@ -143,6 +150,13 @@ fn by_test<'a>(
     by_test
 }
 
+fn history_of<'a, 'b>(
+    earlier: &'b HashMap<&TestId, Vec<&'a HistoryLine>>,
+    test: &TestId,
+) -> &'b [&'a HistoryLine] {
+    earlier.get(test).map(Vec::as_slice).unwrap_or_default()
+}
+
 /// This run's results that make a flake: a pass on retry, or the first time a commit's results
 /// hold both a pass and a failure. Later runs on that commit don't flake it again (ADR 0022).
 fn flakes<'a>(
@@ -152,10 +166,7 @@ fn flakes<'a>(
     lines
         .iter()
         .filter_map(|line| {
-            let before = earlier
-                .get(&line.test)
-                .map(Vec::as_slice)
-                .unwrap_or_default();
+            let before = history_of(earlier, &line.test);
             let flaky_before = flaky_commits(before.iter().copied());
             let flaky_now = flaky_commits(before.iter().copied().chain([line]));
             let commit = line.commit.as_str();
@@ -163,7 +174,7 @@ fn flakes<'a>(
                 || (flaky_now.contains(commit) && !flaky_before.contains(commit));
             new.then_some(Flake {
                 line,
-                commits: flaky_now.len(),
+                commit_count: flaky_now.len(),
             })
         })
         .collect()
@@ -205,10 +216,7 @@ fn slowdowns<'a>(
     lines
         .iter()
         .filter_map(|line| {
-            let history = earlier
-                .get(&line.test)
-                .map(Vec::as_slice)
-                .unwrap_or_default();
+            let history = history_of(earlier, &line.test);
             // Only passing times: a failure can stop early, and a hung test ran into the limit.
             let (recent, older): (Vec<_>, Vec<_>) = history
                 .iter()
@@ -250,7 +258,11 @@ fn issue_actions(
         let test = &flake.line.test;
         // Found by this line, not by title, which the count changes and a person may edit.
         let marker = format!("<!-- flaky-test {} -->", serde_json::to_string(test)?);
-        let title = format!("Flaky: {test} ({}× / 30d)", flake.commits);
+        let title = format!(
+            "Flaky: {test} ({}× / {}d)",
+            flake.commit_count,
+            LOOKBACK / DAY
+        );
         let note = format!(
             "Flaked in [run {id}, attempt {attempt}]({url}/attempts/{attempt}) on `{commit}` (`{branch}`).",
             id = run.id,
@@ -265,11 +277,14 @@ fn issue_actions(
         else {
             actions.push(IssueAction::Open {
                 title,
-                body: format!("{marker}\n`{test}` passed and failed on the same commit.\n\n{note}"),
+                body: format!(
+                    "{marker}\n{} passed and failed on the same commit.\n\n{note}",
+                    code(test)
+                ),
             });
             continue;
         };
-        if issue.state == "CLOSED" {
+        if issue.state == IssueState::Closed {
             actions.push(IssueAction::Reopen {
                 issue: issue.number,
             });
@@ -311,13 +326,13 @@ fn summary(lines: &[HistoryLine], flakes: &[Flake<'_>], slowdowns: &[Slowdown<'_
             } else {
                 "passed and failed on this commit"
             };
-            format!("- `{}`: {how}", flake.line.test)
+            format!("- {}: {how}", code(&flake.line.test))
         })
         .collect();
     let hung: Vec<String> = lines
         .iter()
         .filter(|line| line.outcome == Outcome::Hung)
-        .map(|line| format!("- `{}`", line.test))
+        .map(|line| format!("- {}", code(&line.test)))
         .collect();
     // A hung test's time is the limit it was killed at, so it's left out of the timings.
     let mut by_time: Vec<&HistoryLine> = lines
@@ -334,8 +349,8 @@ fn summary(lines: &[HistoryLine], flakes: &[Flake<'_>], slowdowns: &[Slowdown<'_
         .iter()
         .map(|slowdown| {
             format!(
-                "- `{}`: median {:.1} s this week, {:.1} s the {} days before",
-                slowdown.test,
+                "- {}: median {:.1} s this week, {:.1} s the {} days before",
+                code(slowdown.test),
                 slowdown.recent,
                 slowdown.before,
                 (LOOKBACK - RECENT) / DAY,
@@ -352,9 +367,9 @@ fn summary(lines: &[HistoryLine], flakes: &[Flake<'_>], slowdowns: &[Slowdown<'_
         Some(headline),
         section("Flaky", &flaky),
         section("Hung, killed at 60 s", &hung),
-        section("Slow, over 10 s", &slow),
+        section(&format!("Slow, over {SLOW_SECONDS} s"), &slow),
         section("Slowing down", &slowing),
-        section("10 slowest", &slowest),
+        section(&format!("{SLOWEST_SHOWN} slowest"), &slowest),
     ]
     .into_iter()
     .flatten()
@@ -368,7 +383,13 @@ fn section(title: &str, items: &[String]) -> Option<String> {
 }
 
 fn timed(test: &TestId, seconds: f64) -> String {
-    format!("`{test}`: {seconds:.1} s")
+    format!("{}: {seconds:.1} s", code(test))
+}
+
+/// `test` as Markdown code. Test names come from a PR's reports, so a backtick in one must not
+/// end the code span and let the rest of the name through as Markdown, such as an @mention.
+fn code(test: &TestId) -> String {
+    format!("`{}`", test.to_string().replace('`', "'"))
 }
 
 /// Seconds since the Unix epoch of a UTC `YYYY-MM-DDTHH:MM:SSZ` time, as GitHub writes them.
@@ -397,7 +418,7 @@ fn unix_seconds(time: &str) -> Option<i64> {
 
 #[cfg(test)]
 mod tests {
-    use super::{HistoryLine, Issue, IssueAction, Report, Run, report};
+    use super::{HistoryLine, Issue, IssueAction, IssueState, Report, Run, report};
     use crate::results::{Outcome, TestId, Tool, parse_nextest_junit, parse_vitest_json};
 
     const COMMIT: &str = "c0ffee";
@@ -646,10 +667,10 @@ mod tests {
     }
 
     /// The issue for test `a`, as `gh issue list` gives it.
-    fn issue_for_a(state: &str) -> Issue {
+    fn issue_for_a(state: IssueState) -> Issue {
         Issue {
             number: 42,
-            state: state.to_owned(),
+            state,
             title: "Flaky: nama-server a (1× / 30d)".to_owned(),
             body: "<!-- flaky-test {\"tool\":\"nextest\",\"suite\":\"nama-server\",\"name\":\"a\"} -->\n\
                    `nama-server a` passed and failed on the same commit."
@@ -672,7 +693,7 @@ mod tests {
     #[test]
     fn a_known_flaky_test_flaking_again_gets_a_comment_and_a_new_count() {
         assert_eq!(
-            flakes_again(issue_for_a("OPEN")),
+            flakes_again(issue_for_a(IssueState::Open)),
             vec![
                 IssueAction::Retitle {
                     issue: 42,
@@ -689,7 +710,7 @@ mod tests {
     #[test]
     fn a_closed_issue_is_reopened_when_its_test_flakes_again() {
         assert_eq!(
-            flakes_again(issue_for_a("CLOSED")),
+            flakes_again(issue_for_a(IssueState::Closed)),
             vec![
                 IssueAction::Reopen { issue: 42 },
                 IssueAction::Retitle {
@@ -740,6 +761,17 @@ mod tests {
                 (web("broken"), Outcome::Fail, 0.005),
                 (test("a"), Outcome::Pass, 0.5),
             ]
+        );
+    }
+
+    #[test]
+    fn a_backtick_in_a_test_name_cannot_end_its_code_span() {
+        let report = report_junit(&case("a` @someone `b", 0.5, FLAKY_FAILURE), &[], &[]);
+
+        assert!(
+            report
+                .summary
+                .contains("- `nama-server a' @someone 'b`: passed on retry\n")
         );
     }
 }
