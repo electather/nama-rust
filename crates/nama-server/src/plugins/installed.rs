@@ -100,7 +100,7 @@ struct Running {
     compiled: Arc<CompiledPlugin>,
     /// The values of its secret settings, which the failures it logs mustn't show.
     secrets: Arc<[String]>,
-    /// How many calls in a row crashed.
+    /// How many calls in a row crashed, counted apart for its Observer and its Fulfiller.
     crashes: Arc<AtomicU32>,
 }
 
@@ -145,8 +145,8 @@ impl Running {
         Err(cause.into())
     }
 
-    /// Logs why a call failed, and counts it as [`Self::count_crash`] does.
-    fn failed(&self, err: &extism::Error) {
+    /// Logs why a call to its Observer failed, and counts it as [`Self::count_crash`] does.
+    fn observer_failed(&self, err: &extism::Error) {
         let cause = without_secrets(err.root_cause().to_string(), &self.secrets);
         let failed = if is_crash(err) { "crashed" } else { "failed" };
         warn!(plugin = %self.manifest.id, "observer {failed}: {cause}");
@@ -216,14 +216,14 @@ impl Plugin for Installed {
             secrets: secret_values(&self.settings_schema, settings).into(),
             crashes: Arc::default(),
         };
-        // An Extension Point this Server doesn't know is one the Plugin can do without, since its
-        // nama-api requirement admits this Server.
-        let providers = &self.manifest.providers;
         // Counting its own crashes, so its Observer working between them doesn't hide them.
         let fulfiller = Arc::new(Running {
             crashes: Arc::default(),
             ..running.clone()
         });
+        // An Extension Point this Server doesn't know is one the Plugin can do without, since its
+        // nama-api requirement admits this Server.
+        let providers = &self.manifest.providers;
         if providers.contains(&ProvidePoint::PROVIDE_POINT_MOVIE_FULFILLER.into()) {
             registrar.provide::<dyn Fulfiller<Movies>>(
                 Priority::DEFAULT,
@@ -283,7 +283,7 @@ impl Observer<Events> for Running {
         Box::pin(async move {
             match self.call_blocking("observe_events", input).await {
                 Ok(Ok(_)) => self.crashes.store(0, Ordering::Relaxed),
-                Ok(Err(err)) => self.failed(&err),
+                Ok(Err(err)) => self.observer_failed(&err),
                 Err(err) => warn!(plugin = %self.manifest.id, "observer failed: {err}"),
             }
         })
