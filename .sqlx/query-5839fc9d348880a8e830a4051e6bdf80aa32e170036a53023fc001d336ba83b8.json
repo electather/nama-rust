@@ -1,0 +1,86 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id AS \"id!\", tmdb_id, title, state, created_at, decline_reason\n           FROM followed_shows\n           WHERE (?1 IS NULL OR id = ?1)\n             AND (?2 IS NULL OR EXISTS (SELECT 1 FROM followed_show_requesters\n                                        WHERE followed_show_id = followed_shows.id\n                                          AND user_id = ?2))\n           ORDER BY id DESC",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "followed_shows",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "tmdb_id",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "followed_shows",
+            "name": "tmdb_id"
+          }
+        }
+      },
+      {
+        "name": "title",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "followed_shows",
+            "name": "title"
+          }
+        }
+      },
+      {
+        "name": "state",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "followed_shows",
+            "name": "state"
+          }
+        }
+      },
+      {
+        "name": "created_at",
+        "ordinal": 4,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "followed_shows",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "name": "decline_reason",
+        "ordinal": 5,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "followed_shows",
+            "name": "decline_reason"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "5839fc9d348880a8e830a4051e6bdf80aa32e170036a53023fc001d336ba83b8"
+}

@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id AS \"id!\", title FROM followed_shows\n           WHERE tmdb_id = ? AND state = 'approved'\n             AND (latest_season IS NULL OR latest_season < ?)",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "followed_shows",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "title",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "followed_shows",
+            "name": "title"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "9d511e343add8be07c3083efad8ee4cef19085a33eeb512b1051fd2b144da6c3"
+}

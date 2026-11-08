@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id FROM followed_shows WHERE tmdb_id = ? AND state != 'declined'",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "followed_shows",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "054f52b9182706d4d3eb8311dc669257692b6404945ffea774fca38c66b9fc65"
+}

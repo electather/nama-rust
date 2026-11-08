@@ -3,6 +3,7 @@ import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/re
 import { afterEach, expect, test } from "vite-plus/test";
 
 import {
+  FollowedShowSchema,
   FoundSeasonSchema,
   FoundShowSchema,
   RequestSchema,
@@ -32,6 +33,7 @@ function showServer(
 ) {
   const show = create(FoundShowSchema, init);
   const asked: number[][] = [];
+  const followed: bigint[] = [];
   const state =
     events === undefined ? { signedIn: permissions } : { signedIn: permissions, events };
   const transport = fakeServer(state, {}, {}, (router) => {
@@ -59,9 +61,17 @@ function showServer(
         }
         return { requests: seasons.map(({ request }) => request).filter((r) => r !== undefined) };
       },
+      createFollowedShow: ({ showTmdbId }) => {
+        followed.push(showTmdbId);
+        show.followedShow = create(FollowedShowSchema, {
+          state: RequestState.PENDING,
+          requesters: [{ userId: 1n, name: "Sam" }],
+        });
+        return { followedShow: show.followedShow };
+      },
     });
   });
-  return { transport, asked, show };
+  return { transport, asked, followed, show };
 }
 
 const dark = {
@@ -175,13 +185,15 @@ test("Requesting with no Season picked says to pick one", async () => {
   expect(asked).toEqual([]);
 });
 
-test("a Show whose every Season is in a Library or yours offers no Request", async () => {
+test("a Show you follow, whose every Season is in a Library or yours, offers no Request", async () => {
+  const yours = { state: RequestState.PENDING, requesters: [{ userId: 1n }] };
   const { transport } = showServer({
     ...dark,
     seasons: [
       { seasonNumber: 1, inLibrary: true },
-      { seasonNumber: 2, request: { state: RequestState.PENDING, requesters: [{ userId: 1n }] } },
+      { seasonNumber: 2, request: yours },
     ],
+    followedShow: yours,
   });
   openApp("/shows/tmdb-70523", transport);
   await screen.findByRole("heading", { name: "Dark" });
@@ -219,4 +231,39 @@ test("a Show's page is not found for a User who may not Request Shows", async ()
   openApp("/shows/tmdb-70523", transport);
 
   expect(await screen.findByRole("heading", { name: "Page not found" })).toBeDefined();
+});
+
+test("picking Whole Show leaves out the Seasons, and Requesting it shows it Pending", async () => {
+  const { transport, asked, followed } = showServer(dark);
+  openApp("/shows/tmdb-70523", transport);
+  await screen.findByRole("heading", { name: "Dark" });
+
+  fireEvent.click(checkbox("Season 1"));
+  fireEvent.click(checkbox("Whole Show"));
+  const seasonsWhilePicked = [checkbox("Season 1").disabled, checkbox("Season 3").disabled];
+  fireEvent.click(screen.getByRole("button", { name: "Request Seasons of Dark" }));
+
+  expect(await within(seasonRow("Whole Show")).findByText("Pending")).toBeDefined();
+  expect(seasonsWhilePicked).toEqual([true, true]);
+  expect(followed).toEqual([70_523n]);
+  expect(asked).toEqual([]);
+  expect(checkbox("Whole Show").disabled).toBe(true);
+});
+
+test("a Show someone else follows shows its state, and Requesting the Whole Show joins it", async () => {
+  const { transport, followed } = showServer({
+    ...dark,
+    followedShow: { state: RequestState.APPROVED, requesters: [{ userId: 2n, name: "Ada" }] },
+  });
+  openApp("/shows/tmdb-70523", transport);
+  await screen.findByRole("heading", { name: "Dark" });
+  expect(within(seasonRow("Whole Show")).getByText("Approved")).toBeDefined();
+
+  fireEvent.click(checkbox("Whole Show"));
+  fireEvent.click(screen.getByRole("button", { name: "Request Seasons of Dark" }));
+
+  await waitFor(() => {
+    expect(checkbox("Whole Show").disabled).toBe(true);
+  });
+  expect(followed).toEqual([70_523n]);
 });
