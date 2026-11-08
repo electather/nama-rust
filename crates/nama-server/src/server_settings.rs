@@ -32,22 +32,23 @@ impl ServerUrl {
 
     /// Stores `url`, which the caller checked [`ServerUrl::accepts`], and uses it from now on.
     pub(crate) async fn save(&self, db: &Database, url: String) -> Result<(), sqlx::Error> {
-        let stored = url.clone();
+        let this = self.clone();
         db.write(move |tx| {
             Box::pin(async move {
                 sqlx::query!(
                     "INSERT INTO server_settings (id, url) VALUES (1, ?)
                      ON CONFLICT (id) DO UPDATE SET url = excluded.url",
-                    stored
+                    url
                 )
                 .execute(&mut **tx)
                 .await?;
+                // Here on the one writer, not after `write` returns: saves then take effect in the
+                // order they're stored, and even if the caller stopped waiting.
+                this.set(url);
                 Ok::<_, sqlx::Error>(())
             })
         })
-        .await?;
-        self.set(url);
-        Ok(())
+        .await
     }
 
     /// The URL, or `""` for none.
