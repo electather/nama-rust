@@ -9,15 +9,17 @@ use std::{path::Path, process::Command};
 )]
 pub(crate) fn build(features: &str) -> Vec<u8> {
     // One target directory per feature set: the `.wasm` lands at the same path whatever the
-    // features, and tests in other processes may build another set at the same time.
-    let target_dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
-        .join("test-plugin")
-        .join(if features.is_empty() {
-            "default"
-        } else {
-            features
-        });
+    // features, and tests in other processes may build another set at the same time. They share
+    // one build directory, so the dependencies compile once, not once per set: three cold builds
+    // in a row ran a test past nextest's 60 s limit in CI.
+    let test_plugin = Path::new(env!("CARGO_TARGET_TMPDIR")).join("test-plugin");
+    let target_dir = test_plugin.join(if features.is_empty() {
+        "default"
+    } else {
+        features
+    });
     let status = Command::new(env!("CARGO"))
+        .env("CARGO_BUILD_BUILD_DIR", test_plugin.join("build"))
         .args([
             "build",
             "--release",
