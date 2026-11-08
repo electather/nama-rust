@@ -11,20 +11,23 @@ use std::{
 
 use nama_plugin_api::{
     PluginId,
+    fulfiller::{Fulfiller, Movies},
     metadata::{Candidate, Episode, ExternalId, SearchQuery, Season, TitleKind},
 };
 use nama_proto::nama::v1::{
     Event, Permission, Request, RequestCancelled, RequestCreated, RequestState,
     RequestStateChanged, RequestWithdrawn, RequestedMovie, RequestedSeason, Requester,
-    RequesterAdded, RequesterRemoved,
+    RequesterAdded, RequesterRemoved, event::Event as Happened,
 };
 use sqlx::SqliteConnection;
+use tracing::warn;
 
 use crate::{
     contents::{self, Contents, Metadata},
     db::{Database, now},
     events::{EventBus, event},
     matching::{ManualError, Matcher},
+    plugins::Registry,
     users::User,
 };
 
@@ -74,6 +77,8 @@ pub(crate) struct Requests {
     /// Looks up what a new Request asks for: a Movie, or a Show's Seasons.
     matcher: Matcher,
     events: EventBus,
+    /// Holds the Movie Fulfiller, if one is enabled.
+    plugins: Registry,
 }
 
 /// A Movie the metadata source has, and how close it is to being on the Server.
@@ -116,19 +121,26 @@ pub(crate) fn visible_to(viewer: &User) -> Option<i64> {
 }
 
 impl Requests {
-    /// The Requests in `db`, looking Movies up through `matcher` and publishing on `events`.
-    pub(crate) fn new(db: Arc<Database>, matcher: Matcher, events: EventBus) -> Self {
+    /// The Requests in `db`, looking Movies up through `matcher`, publishing on `events` and
+    /// handing Approved ones to the Movie Fulfiller in `plugins`.
+    pub(crate) fn new(
+        db: Arc<Database>,
+        matcher: Matcher,
+        events: EventBus,
+        plugins: Registry,
+    ) -> Self {
         Self {
             contents: Contents::new(Arc::clone(&db)),
             db,
             matcher,
             events,
+            plugins,
         }
     }
 
     /// Asks for the Movie with the TMDB id `tmdb_id` for `asker`, who joins its open Request, or
-    /// opens one: Approved if `asker` may have Movies approved as they ask, else Pending. Publishes
-    /// what changed, if anything did.
+    /// opens one: Approved, and handed to the Movie Fulfiller, if `asker` may have Movies approved
+    /// as they ask, else Pending. Publishes what changed, if anything did.
     pub(crate) async fn create(&self, asker: &User, tmdb_id: i64) -> Result<Request, Error> {
         // Refuses before asking TMDB, which may be down or slow; `ask` checks again for a scan
         // that Matched the Movie meanwhile.
@@ -150,7 +162,14 @@ impl Requests {
             .db
             .write(move |tx| Box::pin(ask_movie(tx, user, wanted, state)))
             .await?;
+        // Only the asker who opens the Request hands it off, so joining it can't hand it twice.
+        let opened = happened
+            .as_ref()
+            .is_some_and(|happened| matches!(happened.event, Some(Happened::RequestCreated(_))));
         self.events.publish(happened.into_iter().collect());
+        if opened && request.state == RequestState::Approved {
+            return self.hand_off(request).await;
+        }
         Ok(request)
     }
 
@@ -201,9 +220,70 @@ impl Requests {
         Ok(requests)
     }
 
-    /// Approves the Pending Request `id`, and publishes that its state changed.
+    /// Approves the Pending Request `id` and hands it to the Movie Fulfiller, publishing each
+    /// change of its state.
     pub(crate) async fn approve(&self, id: i64) -> Result<Request, Error> {
-        self.decide(id, RequestState::Approved, None).await
+        let approved = self.decide(id, RequestState::Approved, None).await?;
+        self.hand_off(approved).await
+    }
+
+    /// Hands the Approved `request` to the Movie Fulfiller and moves it to Processing, publishing
+    /// that its state changed. Returns the Request as it is now. Without a Movie Fulfiller, or
+    /// when it doesn't take the Request, the Request waits in Approved. A Season Request always
+    /// waits in Approved.
+    ///
+    /// Runs in a task of its own: once the Fulfiller has taken the Request, its reference must be
+    /// stored even if the caller stops waiting.
+    async fn hand_off(&self, request: Request) -> Result<Request, Error> {
+        // ponytail: no Show Fulfiller yet, so a Season Request isn't handed to anyone.
+        if request.movie.is_unset() {
+            return Ok(request);
+        }
+        let requests = self.clone();
+        let handed = tokio::spawn(async move {
+            let Some(reference) = requests.fulfill(&request).await else {
+                return Ok(request);
+            };
+            let id = request.id;
+            let processing = requests
+                .db
+                .write(move |tx| Box::pin(start_processing(tx, id, reference)))
+                .await?;
+            let Some(processing) = processing else {
+                warn!(
+                    request = id,
+                    "the Movie Fulfiller took a Request that was changed meanwhile, and keeps it"
+                );
+                return Ok(request);
+            };
+            requests.events.publish(vec![event(RequestStateChanged {
+                request: processing.clone().into(),
+                ..Default::default()
+            })]);
+            Ok(processing)
+        });
+        // The task is never aborted, so it only fails if it panicked.
+        handed
+            .await
+            .unwrap_or_else(|_| Err(sqlx::Error::WorkerCrashed.into()))
+    }
+
+    /// The reference the Movie Fulfiller gives for `request` once it takes it, if one is enabled
+    /// and takes it.
+    async fn fulfill(&self, request: &Request) -> Option<String> {
+        let fulfilled = self
+            .plugins
+            .call_provider::<dyn Fulfiller<Movies>, _, _>(|fulfiller| async move {
+                fulfiller.fulfill(request).await
+            })
+            .await?;
+        // ponytail: the error is only logged and the Request waits in Approved; #176 makes it
+        // Failed with the error as its reason.
+        fulfilled
+            .inspect_err(|error| {
+                warn!(request = request.id, %error, "the Movie Fulfiller didn't take the Request");
+            })
+            .ok()
     }
 
     /// Declines the Pending Request `id`, giving its Requesters `reason`, trimmed, unless it is
@@ -578,6 +658,29 @@ async fn decide(
         return Err(Error::NotPending(id));
     }
     Ok(request)
+}
+
+/// Moves the Approved Request `id` to Processing, keeping the Fulfiller's `reference` with it, and
+/// returns it as it is now, or `None` if it isn't Approved any more.
+async fn start_processing(
+    conn: &mut SqliteConnection,
+    id: i64,
+    reference: String,
+) -> Result<Option<Request>, sqlx::Error> {
+    let started = sqlx::query!(
+        "UPDATE requests SET state = 'processing', fulfiller_reference = ?
+         WHERE id = ? AND state = 'approved'",
+        reference,
+        id
+    )
+    .execute(&mut *conn)
+    .await?
+    .rows_affected()
+        > 0;
+    if !started {
+        return Ok(None);
+    }
+    load_one(conn, id).await
 }
 
 /// Removes the Request `id`, and its Requesters with it, and returns it as it was.
