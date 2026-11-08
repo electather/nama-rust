@@ -179,7 +179,8 @@ impl ::buffa::Enumeration for SettingKind {
 #[repr(i32)]
 pub enum ObservePoint {
     OBSERVE_POINT_UNSPECIFIED = 0i32,
-    /// Things happened on the Server: the same Events `nama.v1.EventService.Subscribe` streams.
+    /// Things happened on the Server: the same Events `nama.v1.EventService.Subscribe` streams. The
+    /// Plugin's `observe_events` export takes each batch as `ObservedEvents` and returns nothing.
     OBSERVE_POINT_EVENTS = 1i32,
 }
 impl ObservePoint {

@@ -699,10 +699,10 @@ impl Plugin for Configurable {
     }
 
     fn settings_schema(&self) -> SettingsSchema {
-        let field = |key, kind, required, default| SettingField {
-            key,
-            label: key,
-            description: "",
+        let field = |key: &str, kind, required, default| SettingField {
+            key: key.to_owned(),
+            label: key.to_owned(),
+            description: String::new(),
             kind,
             required,
             default,

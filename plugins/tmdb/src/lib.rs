@@ -84,18 +84,21 @@ impl Plugin for Tmdb {
         SettingsSchema {
             fields: vec![
                 SettingField {
-                    key: API_KEY,
-                    label: "API key",
-                    description: "Your TMDB API key (v3), from themoviedb.org under Settings → API.",
+                    key: API_KEY.to_owned(),
+                    label: "API key".to_owned(),
+                    description:
+                        "Your TMDB API key (v3), from themoviedb.org under Settings → API."
+                            .to_owned(),
                     kind: SettingKind::Secret,
                     required: true,
                     default: None,
                 },
                 SettingField {
-                    key: LANGUAGE,
-                    label: "Language",
+                    key: LANGUAGE.to_owned(),
+                    label: "Language".to_owned(),
                     description: "The language titles and overviews are fetched in, as an \
-                                  IETF tag such as en-US or de-DE.",
+                                  IETF tag such as en-US or de-DE."
+                        .to_owned(),
                     kind: SettingKind::Text,
                     required: false,
                     default: Some(SettingValue::Text(DEFAULT_LANGUAGE.to_owned())),

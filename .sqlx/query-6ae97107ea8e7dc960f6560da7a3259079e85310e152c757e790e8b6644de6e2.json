@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO plugin_settings (plugin_id, enabled, settings) VALUES (?, ?, ?)\n                 ON CONFLICT (plugin_id) DO UPDATE\n                 SET enabled = excluded.enabled, settings = excluded.settings",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "6ae97107ea8e7dc960f6560da7a3259079e85310e152c757e790e8b6644de6e2"
+}

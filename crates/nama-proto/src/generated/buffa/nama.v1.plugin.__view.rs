@@ -3519,7 +3519,8 @@ pub struct PluginView<'a> {
     pub version: &'a str,
     /// Field 3: `kind`
     pub kind: ::buffa::EnumValue<super::super::PluginKind>,
-    /// Whether it is running. A Plugin missing a required setting isn't.
+    /// Whether it is running. A Plugin missing a required setting isn't, and an Installed Plugin
+    /// starts disabled.
     ///
     /// Field 4: `enabled`
     pub enabled: bool,
@@ -3534,6 +3535,12 @@ pub struct PluginView<'a> {
     ///
     /// Field 6: `checks_settings`
     pub checks_settings: bool,
+    /// Why the Server refused it, in plain words, such as an Installed Plugin built for another Nama
+    /// API version. Empty unless it was refused. A refused Plugin can't be enabled, and its `id` is
+    /// its file's name, since the Server may not have learnt the id it gives itself.
+    ///
+    /// Field 7: `refused_reason`
+    pub refused_reason: &'a str,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for PluginView<'a> {
@@ -3603,6 +3610,13 @@ impl<'a> ::buffa::MessageView<'a> for PluginView<'a> {
                 )?;
                 view.checks_settings = ::buffa::types::decode_bool(&mut cur)?;
             }
+            7u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.refused_reason = ::buffa::types::borrow_str(&mut cur)?;
+            }
             5u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -3653,6 +3667,7 @@ impl<'a> ::buffa::MessageView<'a> for PluginView<'a> {
                 .map(|v| v.to_owned_from_source(__buffa_src))
                 .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
             checks_settings: self.checks_settings,
+            refused_reason: self.refused_reason.to_string(),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -3690,6 +3705,11 @@ impl<'a> ::buffa::ViewEncode<'a> for PluginView<'a> {
         if self.checks_settings {
             size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
+        if !self.refused_reason.is_empty() {
+            size
+                += 1u64
+                    + ::buffa::types::string_encoded_len(&self.refused_reason) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -3726,6 +3746,9 @@ impl<'a> ::buffa::ViewEncode<'a> for PluginView<'a> {
         }
         if self.checks_settings {
             ::buffa::types::put_bool_field(6u32, self.checks_settings, buf);
+        }
+        if !self.refused_reason.is_empty() {
+            ::buffa::types::put_string_field(7u32, &self.refused_reason, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -3765,6 +3788,9 @@ impl<'__a> ::serde::Serialize for PluginView<'__a> {
         }
         if self.checks_settings {
             __map.serialize_entry("checksSettings", &self.checks_settings)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.refused_reason) {
+            __map.serialize_entry("refusedReason", self.refused_reason)?;
         }
         __map.end()
     }
@@ -3870,7 +3896,8 @@ impl PluginOwnedView {
     pub fn kind(&self) -> ::buffa::EnumValue<super::super::PluginKind> {
         self.0.reborrow().kind
     }
-    /// Whether it is running. A Plugin missing a required setting isn't.
+    /// Whether it is running. A Plugin missing a required setting isn't, and an Installed Plugin
+    /// starts disabled.
     ///
     /// Field 4: `enabled`
     #[must_use]
@@ -3892,6 +3919,15 @@ impl PluginOwnedView {
     #[must_use]
     pub fn checks_settings(&self) -> bool {
         self.0.reborrow().checks_settings
+    }
+    /// Why the Server refused it, in plain words, such as an Installed Plugin built for another Nama
+    /// API version. Empty unless it was refused. A refused Plugin can't be enabled, and its `id` is
+    /// its file's name, since the Server may not have learnt the id it gives itself.
+    ///
+    /// Field 7: `refused_reason`
+    #[must_use]
+    pub fn refused_reason(&self) -> &'_ str {
+        self.0.reborrow().refused_reason
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<PluginView<'static>>> for PluginOwnedView {

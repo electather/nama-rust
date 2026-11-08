@@ -36,10 +36,10 @@ impl Plugin for TestChoices {
     }
 
     fn settings_schema(&self) -> SettingsSchema {
-        let field = |key, label, description, kind, required| SettingField {
-            key,
-            label,
-            description,
+        let field = |key: &str, label: &str, description: &str, kind, required| SettingField {
+            key: key.to_owned(),
+            label: label.to_owned(),
+            description: description.to_owned(),
             kind,
             required,
             default: None,

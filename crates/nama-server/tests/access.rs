@@ -5,6 +5,7 @@
 #[path = "support/refused.rs"]
 mod refused;
 #[path = "support/server.rs"]
+#[expect(dead_code, reason = "the harness's `data_dir` has no use here")]
 mod server;
 
 use std::{collections::BTreeSet, net::Ipv4Addr, time::Duration};

@@ -8,10 +8,14 @@
     reason = "an export returns `FnResult` even when it can't fail"
 )]
 mod exports {
-    use nama_pdk::{Buffa, FnResult, Manifest, extism_pdk, plugin_fn};
+    use nama_pdk::{
+        Buffa, FnResult, Manifest, extism_pdk,
+        nama_proto::nama::plugin::v1::{ObservePoint, ObservedEvents},
+        plugin_fn,
+    };
 
-    // Says who the Plugin is. With the `out-of-range` feature it wants a Nama API no Server has,
-    // and with `panic` it panics instead.
+    // Says who the Plugin is, and that it observes Events. With the `out-of-range` feature it
+    // wants a Nama API no Server has, and with `panic` it panics instead.
     #[plugin_fn]
     pub fn manifest() -> FnResult<Buffa<Manifest>> {
         #[expect(
@@ -21,7 +25,10 @@ mod exports {
         let manifest = if cfg!(feature = "panic") {
             panic!("the test Plugin was built to panic")
         } else {
-            nama_pdk::manifest("test-plugin", env!("CARGO_PKG_VERSION"))
+            Manifest {
+                observers: vec![ObservePoint::OBSERVE_POINT_EVENTS.into()],
+                ..nama_pdk::manifest("test-plugin", env!("CARGO_PKG_VERSION"))
+            }
         };
         #[cfg(feature = "out-of-range")]
         let manifest = Manifest {
@@ -29,5 +36,14 @@ mod exports {
             ..manifest
         };
         Ok(Buffa(manifest))
+    }
+
+    // Logs each Event it is told about, so a test can see them arrive.
+    #[plugin_fn]
+    pub fn observe_events(Buffa(observed): Buffa<ObservedEvents>) -> FnResult<()> {
+        for event in observed.events {
+            extism_pdk::info!("test-plugin observed {event:?}");
+        }
+        Ok(())
     }
 }

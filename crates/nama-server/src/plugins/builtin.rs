@@ -6,9 +6,11 @@ use nama_plugin_api::{Plugin, settings::Settings};
 use nama_plugin_local_auth::LocalAuth;
 use nama_plugin_log_events::LogEvents;
 use nama_plugin_tmdb::Tmdb;
-use tracing::{error, info, warn};
+use tracing::{error, info};
 
-use super::{Described, EnableError, Registry, contain_sync};
+use nama_proto::nama::v1::PluginKind;
+
+use super::{Described, Registry, contain_sync, log_not_enabled};
 use crate::config::PluginConfig;
 
 fn all() -> Vec<fn() -> Arc<dyn Plugin>> {
@@ -30,7 +32,6 @@ impl Registry {
     #[must_use]
     pub fn with_builtins(config: &BTreeMap<String, PluginConfig>) -> Self {
         let registry = Self::new();
-        let mut known = Vec::new();
         for make in all() {
             let plugin = match contain_sync(make) {
                 Ok(plugin) => plugin,
@@ -47,7 +48,6 @@ impl Registry {
                     continue;
                 }
             };
-            known.push(id.clone());
             let describe = || {
                 let checks_settings = plugin.settings_check().is_some();
                 (
@@ -59,12 +59,13 @@ impl Registry {
             match contain_sync(describe) {
                 Ok((version, settings_schema, checks_settings)) => {
                     let described = Described {
-                        make,
+                        kind: PluginKind::PLUGIN_KIND_BUILT_IN,
+                        make: Ok(Arc::new(make)),
                         version,
                         settings_schema,
                         checks_settings,
                     };
-                    registry.write(|state| state.builtins.insert(id.clone(), described));
+                    registry.write(|state| state.known.insert(id.clone(), described));
                 }
                 Err(message) => {
                     error!(plugin = %id, message, "a built-in plugin panicked while describing itself");
@@ -76,18 +77,9 @@ impl Registry {
                 info!(plugin = %id, "plugin disabled in its settings");
                 continue;
             }
-            match registry.enable_with_settings(plugin, Settings::new(config.settings)) {
-                Ok(()) => {}
-                // Not an error: a Plugin such as TMDB needs an API key before it can run.
-                Err(err @ EnableError::InvalidSettings { .. }) => {
-                    warn!(plugin = %id, "plugin not enabled: {err}");
-                }
-                Err(err) => error!(plugin = %id, "could not enable plugin: {err}"),
-            }
-        }
-        for id in config.keys() {
-            if !known.iter().any(|known| known.as_str() == id) {
-                warn!(plugin = %id, "settings name a plugin this Server doesn't have");
+            if let Err(err) = registry.enable_with_settings(plugin, Settings::new(config.settings))
+            {
+                log_not_enabled(&id, &err);
             }
         }
         registry

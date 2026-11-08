@@ -1,6 +1,9 @@
 //! Runs the real `nama-server` binary.
 #![cfg(unix)]
 
+#[path = "support/test_plugin.rs"]
+mod test_plugin;
+
 use std::{
     io::{self, BufRead, BufReader, Read, Write},
     net::{SocketAddr, TcpStream},
@@ -182,33 +185,6 @@ fn server_logs_its_config_creates_its_database_serves_the_api_and_exits_cleanly_
     assert!(!data_dir.join("nama.db-wal").exists());
 }
 
-/// The test Plugin, built from source for wasm32 with `features`.
-#[expect(
-    clippy::unwrap_used,
-    reason = "a Plugin that can't be built fails the test that needs it"
-)]
-fn build_test_plugin(features: &str) -> Vec<u8> {
-    // One target directory for every feature set, so the dependencies compile once and only the
-    // Plugin itself rebuilds. Its `.wasm` lands at the same path whatever the features, so call
-    // this from one test at a time: another build could overwrite it before it's read.
-    let target_dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("test-plugin");
-    let status = Command::new(env!("CARGO"))
-        .args([
-            "build",
-            "--release",
-            "--locked",
-            "--package",
-            "nama-test-plugin",
-        ])
-        .args(["--target", "wasm32-unknown-unknown", "--features", features])
-        .arg("--target-dir")
-        .arg(&target_dir)
-        .status()
-        .unwrap();
-    assert!(status.success(), "building the test Plugin failed");
-    std::fs::read(target_dir.join("wasm32-unknown-unknown/release/nama_test_plugin.wasm")).unwrap()
-}
-
 #[test]
 fn server_logs_installed_plugins_and_skips_the_ones_it_refuses() {
     let dir = std::env::temp_dir().join(format!("nama-server-installed-{}", std::process::id()));
@@ -222,13 +198,13 @@ fn server_logs_installed_plugins_and_skips_the_ones_it_refuses() {
         format!("data_dir = \"{}\"\n", data_dir.display()),
     )
     .unwrap();
-    std::fs::write(plugins_dir.join("test.wasm"), build_test_plugin("")).unwrap();
+    std::fs::write(plugins_dir.join("test.wasm"), test_plugin::build("")).unwrap();
     std::fs::write(
         plugins_dir.join("out-of-range.wasm"),
-        build_test_plugin("out-of-range"),
+        test_plugin::build("out-of-range"),
     )
     .unwrap();
-    std::fs::write(plugins_dir.join("panics.wasm"), build_test_plugin("panic")).unwrap();
+    std::fs::write(plugins_dir.join("panics.wasm"), test_plugin::build("panic")).unwrap();
     std::fs::write(plugins_dir.join("not-wasm.wasm"), "not a WASM module").unwrap();
     // WASM's magic number and version, then a byte that starts no valid section.
     std::fs::write(plugins_dir.join("corrupt.wasm"), b"\0asm\x01\0\0\0\xff").unwrap();

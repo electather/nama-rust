@@ -344,7 +344,8 @@ pub trait PluginService: Send + Sync + 'static {
         >,
     > + Send;
     /// Enables a Plugin with its stored settings, without a restart, and saves that it is enabled.
-    /// Enabling one that is enabled already only saves that. If its stored settings don't fit its
+    /// Enabling one that is enabled already only saves that. A Plugin the Server refused (see
+    /// `Plugin.refused_reason`) fails with `REFUSAL_REASON_PLUGIN_REFUSED`. If its stored settings don't fit its
     /// schema, fails with `REFUSAL_REASON_FIELD_REQUIRED` or `REFUSAL_REASON_SETTING_WRONG_KIND`,
     /// naming the setting in `field` as `settings.<key>` and in the `settingKey` param; the Plugin
     /// stays disabled and nothing is saved.
