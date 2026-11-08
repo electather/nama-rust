@@ -761,8 +761,9 @@ async fn an_approved_request_becomes_available_once_a_scan_matches_its_movie_and
     assert_eq!(list(&ada).await, [changed.request.into_option().unwrap()]);
 }
 
-/// A Season handed to a [`FakeFulfiller`]: its Show's TMDB and TVDB ids, and its number.
-type HandedSeason = (i64, Option<i64>, u32);
+/// A Season handed to a [`FakeFulfiller`]: its Show's TMDB and TVDB ids, its number, and whether
+/// the hand-off asked to follow the Show.
+type HandedSeason = (i64, Option<i64>, u32, bool);
 
 /// A Fulfiller that takes every Request it is handed, giving `movie-<TMDB id>` or
 /// `show-<TMDB id>-season-<number>` as its reference, unless it is refusing them all, and says it
@@ -774,6 +775,10 @@ struct FakeFulfiller {
     /// Each Season it was handed, in order.
     handed_seasons: Arc<Mutex<Vec<HandedSeason>>>,
     refuses: Arc<AtomicBool>,
+    /// Whether it refuses the hand-offs that ask it to follow a Show.
+    refuses_following: Arc<AtomicBool>,
+    /// The TMDB id of each Show it was told to stop following, in order.
+    unfollowed: Arc<Mutex<Vec<i64>>>,
     /// What it says it is downloading, by reference.
     downloading: Arc<Mutex<HashMap<String, Vec<Download>>>>,
     /// Whether it fails to say what it is downloading.
@@ -787,9 +792,16 @@ impl FakeFulfiller {
         fulfiller
     }
 
+    fn refusing_to_follow() -> Self {
+        let fulfiller = Self::default();
+        fulfiller.refuses_following.store(true, Ordering::Relaxed);
+        fulfiller
+    }
+
     /// Takes every Request it is handed from now on.
     fn recover(&self) {
         self.refuses.store(false, Ordering::Relaxed);
+        self.refuses_following.store(false, Ordering::Relaxed);
     }
 
     /// Says it is downloading `downloads` for the Movie `tmdb_id` from now on.
@@ -809,6 +821,13 @@ impl FakeFulfiller {
 
     fn handed_seasons(&self) -> Vec<HandedSeason> {
         self.handed_seasons
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
+    }
+
+    fn unfollowed(&self) -> Vec<i64> {
+        self.unfollowed
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .clone()
@@ -854,17 +873,30 @@ impl Fulfiller<Shows> for FakeFulfiller {
     fn fulfill<'a>(&'a self, request: &'a Request) -> BoxFuture<'a, Result<String, PluginError>> {
         let season = &request.season;
         let (show, season_number) = (season.show_tmdb_id, season.season_number);
+        let follow = request.followed_show_id.is_some();
         self.handed_seasons
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
-            .push((show, season.show_tvdb_id, season_number));
+            .push((show, season.show_tvdb_id, season_number, follow));
         let refuses = self.refuses.load(Ordering::Relaxed);
+        let refuses_to_follow = follow && self.refuses_following.load(Ordering::Relaxed);
         Box::pin(async move {
             if refuses {
                 return Err("Sonarr is unreachable".into());
             }
+            if refuses_to_follow {
+                return Err("Sonarr can't follow this Show".into());
+            }
             Ok(format!("show-{show}-season-{season_number}"))
         })
+    }
+
+    fn unfollow<'a>(&'a self, request: &'a Request) -> BoxFuture<'a, Result<(), PluginError>> {
+        self.unfollowed
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push(request.season.show_tmdb_id);
+        Box::pin(async { Ok(()) })
     }
 
     fn progress<'a>(
@@ -1276,7 +1308,10 @@ async fn approving_a_pending_season_request_hands_it_to_the_shows_fulfiller_and_
     ];
 
     assert_eq!(approved.state, RequestState::Processing);
-    assert_eq!(fulfiller.handed_seasons(), [(DARK, Some(DARK_TVDB), 2)]);
+    assert_eq!(
+        fulfiller.handed_seasons(),
+        [(DARK, Some(DARK_TVDB), 2, false)]
+    );
     assert_eq!(
         fixture.fulfiller_reference(approved.id).await.as_deref(),
         Some("show-70523-season-2")
@@ -1307,7 +1342,10 @@ async fn a_season_request_opened_approved_goes_to_the_shows_fulfiller() {
     );
     assert_eq!(
         fulfiller.handed_seasons(),
-        [(DARK, Some(DARK_TVDB), 1), (DARK, Some(DARK_TVDB), 3)]
+        [
+            (DARK, Some(DARK_TVDB), 1, false),
+            (DARK, Some(DARK_TVDB), 3, false)
+        ]
     );
     assert_eq!(
         fixture.fulfiller_reference(opened[1].id).await.as_deref(),
@@ -1335,7 +1373,10 @@ async fn a_season_request_the_shows_fulfiller_refuses_fails_with_its_reason_and_
     assert_eq!(retried.state, RequestState::Processing);
     assert_eq!(
         fulfiller.handed_seasons(),
-        [(DARK, Some(DARK_TVDB), 1), (DARK, Some(DARK_TVDB), 1)]
+        [
+            (DARK, Some(DARK_TVDB), 1, false),
+            (DARK, Some(DARK_TVDB), 1, false)
+        ]
     );
     assert_eq!(
         fixture.fulfiller_reference(failed.id).await.as_deref(),
@@ -1354,7 +1395,7 @@ async fn a_season_request_whose_show_has_no_tvdb_id_is_still_handed_to_the_shows
     let approved = fixture.approve(pending[0].id).await;
 
     assert_eq!(approved.state, RequestState::Processing);
-    assert_eq!(fulfiller.handed_seasons(), [(DARK, None, 1)]);
+    assert_eq!(fulfiller.handed_seasons(), [(DARK, None, 1, false)]);
 }
 
 /// Forgets every Season Request's Show TVDB id, as for a Show the metadata source has none for.
@@ -2842,7 +2883,8 @@ async fn a_user_who_may_auto_approve_shows_opens_an_approved_followed_show_which
 }
 
 #[tokio::test]
-async fn approving_a_followed_show_hands_its_season_requests_to_the_shows_fulfiller() {
+async fn approving_a_followed_show_hands_its_season_requests_to_the_shows_fulfiller_to_follow_the_show()
+ {
     let fulfiller = FakeFulfiller::default();
     let fixture = Fixture::with_shows_fulfiller(&fulfiller).await;
     let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
@@ -2854,9 +2896,9 @@ async fn approving_a_followed_show_hands_its_season_requests_to_the_shows_fulfil
     assert_eq!(
         fulfiller.handed_seasons(),
         [
-            (DARK, Some(DARK_TVDB), 1),
-            (DARK, Some(DARK_TVDB), 2),
-            (DARK, Some(DARK_TVDB), 3)
+            (DARK, Some(DARK_TVDB), 1, true),
+            (DARK, Some(DARK_TVDB), 2, true),
+            (DARK, Some(DARK_TVDB), 3, true)
         ]
     );
     let mut listed = states(&list(&ada).await);
@@ -2869,7 +2911,8 @@ async fn approving_a_followed_show_hands_its_season_requests_to_the_shows_fulfil
 }
 
 #[tokio::test]
-async fn a_whole_show_asked_for_approved_hands_its_season_requests_to_the_shows_fulfiller() {
+async fn a_whole_show_asked_for_approved_hands_its_season_requests_to_the_shows_fulfiller_to_follow_the_show()
+ {
     let fulfiller = FakeFulfiller::default();
     let fixture = Fixture::with_shows_fulfiller(&fulfiller).await;
     let (_, as_ada) = fixture
@@ -2887,11 +2930,112 @@ async fn a_whole_show_asked_for_approved_hands_its_season_requests_to_the_shows_
     assert_eq!(
         fulfiller.handed_seasons(),
         [
-            (DARK, Some(DARK_TVDB), 1),
-            (DARK, Some(DARK_TVDB), 2),
-            (DARK, Some(DARK_TVDB), 3)
+            (DARK, Some(DARK_TVDB), 1, true),
+            (DARK, Some(DARK_TVDB), 2, true),
+            (DARK, Some(DARK_TVDB), 3, true)
         ]
     );
+}
+
+#[tokio::test]
+async fn a_season_request_approved_alone_while_its_followed_show_is_pending_is_handed_off_without_following()
+ {
+    let fulfiller = FakeFulfiller::default();
+    let fixture = Fixture::with_shows_fulfiller(&fulfiller).await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let (_, asked) = follow(&requests(as_ada), DARK).await;
+
+    let approved = fixture.approve(asked[0].id).await;
+
+    assert_eq!(approved.state, RequestState::Processing);
+    assert_eq!(
+        fulfiller.handed_seasons(),
+        [(DARK, Some(DARK_TVDB), 1, false)]
+    );
+}
+
+#[tokio::test]
+async fn a_season_request_the_shows_fulfiller_cant_follow_for_fails_with_its_reason_and_retrying_once_it_can_moves_it_to_processing()
+ {
+    let fulfiller = FakeFulfiller::refusing_to_follow();
+    let fixture = Fixture::with_shows_fulfiller(&fulfiller).await;
+    let (_, as_ada) = fixture
+        .user("Ada", &[Permission::RequestTv, Permission::AutoApproveTv])
+        .await;
+
+    let (_, asked) = follow(&requests(as_ada), DARK).await;
+    fulfiller.recover();
+    let retried = retry(&fixture, asked[0].id).await.unwrap();
+
+    assert_eq!(asked[0].state, RequestState::Failed);
+    assert_eq!(
+        asked[0].failure_reason.as_deref(),
+        Some("Sonarr can't follow this Show")
+    );
+    assert_eq!(retried.state, RequestState::Processing);
+    assert_eq!(
+        fulfiller.handed_seasons().last(),
+        Some(&(DARK, Some(DARK_TVDB), 1, true))
+    );
+}
+
+#[tokio::test]
+async fn cancelling_an_approved_followed_show_tells_the_shows_fulfiller_to_stop_following_it() {
+    let fulfiller = FakeFulfiller::default();
+    let fixture = Fixture::with_shows_fulfiller(&fulfiller).await;
+    let (_, as_ada) = fixture
+        .user("Ada", &[Permission::RequestTv, Permission::AutoApproveTv])
+        .await;
+    let (followed, _) = follow(&requests(as_ada), DARK).await;
+
+    requests(fixture.server.client_config())
+        .cancel_followed_show(CancelFollowedShowRequest {
+            id: followed.id,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    assert_eq!(fulfiller.unfollowed(), [DARK]);
+}
+
+#[tokio::test]
+async fn the_last_requester_withdrawing_from_an_approved_followed_show_tells_the_shows_fulfiller_to_stop_following_it()
+ {
+    let fulfiller = FakeFulfiller::default();
+    let fixture = Fixture::with_shows_fulfiller(&fulfiller).await;
+    let (_, as_ada) = fixture
+        .user("Ada", &[Permission::RequestTv, Permission::AutoApproveTv])
+        .await;
+    let ada = requests(as_ada);
+    let (followed, _) = follow(&ada, DARK).await;
+
+    ada.withdraw_followed_show(WithdrawFollowedShowRequest {
+        id: followed.id,
+        ..Default::default()
+    })
+    .await
+    .unwrap();
+
+    assert_eq!(fulfiller.unfollowed(), [DARK]);
+}
+
+#[tokio::test]
+async fn cancelling_a_pending_followed_show_tells_the_shows_fulfiller_nothing() {
+    let fulfiller = FakeFulfiller::default();
+    let fixture = Fixture::with_shows_fulfiller(&fulfiller).await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let (followed, _) = follow(&requests(as_ada), DARK).await;
+
+    requests(fixture.server.client_config())
+        .cancel_followed_show(CancelFollowedShowRequest {
+            id: followed.id,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    assert_eq!(fulfiller.unfollowed(), Vec::<i64>::new());
 }
 
 #[tokio::test]

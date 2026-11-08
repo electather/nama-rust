@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT MIN(id) FROM requests WHERE followed_show_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "MIN(id)",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "8ec9f44e3dc72c22cdcc425ec522032dd4a13f7b825eb338384cccdaa2f26999"
+}

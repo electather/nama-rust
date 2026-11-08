@@ -286,6 +286,11 @@ impl<Kind: 'static> Fulfiller<Kind> for Running {
         })
     }
 
+    fn unfollow<'a>(&'a self, request: &'a Request) -> BoxFuture<'a, Result<(), PluginError>> {
+        let input = request.encode_to_vec();
+        Box::pin(async move { self.provide("unfollow", input).await.map(drop) })
+    }
+
     fn progress<'a>(
         &'a self,
         references: &'a [String],
