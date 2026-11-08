@@ -1865,6 +1865,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "nama-plugin-test-choices"
+version = "0.1.0"
+dependencies = [
+ "nama-plugin-api",
+]
+
+[[package]]
 name = "nama-plugin-tmdb"
 version = "0.1.0"
 dependencies = [
@@ -1912,6 +1919,7 @@ dependencies = [
  "nama-plugin-api",
  "nama-plugin-local-auth",
  "nama-plugin-log-events",
+ "nama-plugin-test-choices",
  "nama-plugin-tmdb",
  "nama-proto",
  "nama-server",

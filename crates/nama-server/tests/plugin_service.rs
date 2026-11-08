@@ -15,16 +15,18 @@ use connectrpc::{ConnectError, ErrorCode, client::HttpClient};
 use nama_plugin_api::{
     PluginId, auth::Authenticator, metadata::MetadataProvider, settings::SettingValue,
 };
+use nama_plugin_test_choices as test_choices;
 use nama_proto::nama::v1::{
     DisablePluginRequest, EnablePluginRequest, ListPluginsRequest, ListPluginsResponse, Plugin,
     PluginKind, PluginServiceClient, RefusalReason, Setting, SettingKind,
-    UpdatePluginSettingsRequest, UpdatePluginSettingsResponse, setting_value::Value,
+    TestPluginSettingsRequest, TestPluginSettingsResponse, UpdatePluginSettingsRequest,
+    UpdatePluginSettingsResponse, setting_value::Value,
 };
 use nama_server::{
     config::{Config, PluginConfig},
     db::Database,
     plugin_settings,
-    plugins::Registry,
+    plugins::{Registry, SETTINGS_CHECK_TIMEOUT},
 };
 use refused::assert_refused;
 use server::TestServer;
@@ -64,23 +66,30 @@ impl Started {
         id: &str,
         settings: impl IntoIterator<Item = (&str, Value)>,
     ) -> Result<UpdatePluginSettingsResponse, ConnectError> {
-        let settings = settings
-            .into_iter()
-            .map(|(key, value)| {
-                let value = nama_proto::nama::v1::SettingValue {
-                    value: Some(value),
-                    ..Default::default()
-                };
-                (key.to_owned(), value)
-            })
-            .collect();
         let request = UpdatePluginSettingsRequest {
             id: id.to_owned(),
-            settings,
+            settings: setting_values(settings),
             ..Default::default()
         };
         self.client()
             .update_plugin_settings(request)
+            .await
+            .map(connectrpc::UnaryResponse::into_owned)
+    }
+
+    /// Runs the Plugin `id`'s settings check on `settings`, as the Admin.
+    async fn test(
+        &self,
+        id: &str,
+        settings: impl IntoIterator<Item = (&str, Value)>,
+    ) -> Result<TestPluginSettingsResponse, ConnectError> {
+        let request = TestPluginSettingsRequest {
+            id: id.to_owned(),
+            settings: setting_values(settings),
+            ..Default::default()
+        };
+        self.client()
+            .test_plugin_settings(request)
             .await
             .map(connectrpc::UnaryResponse::into_owned)
     }
@@ -137,6 +146,22 @@ fn disable(id: &str) -> DisablePluginRequest {
     }
 }
 
+/// `settings` as a request's map of setting values, which is whatever map type buffa generates.
+fn setting_values<'a, M: FromIterator<(String, nama_proto::nama::v1::SettingValue)>>(
+    settings: impl IntoIterator<Item = (&'a str, Value)>,
+) -> M {
+    settings
+        .into_iter()
+        .map(|(key, value)| {
+            let value = nama_proto::nama::v1::SettingValue {
+                value: Some(value),
+                ..Default::default()
+            };
+            (key.to_owned(), value)
+        })
+        .collect()
+}
+
 fn text(value: &str) -> Value {
     Value::TextValue(value.to_owned())
 }
@@ -185,7 +210,7 @@ async fn every_builtin_plugin_is_listed_with_whether_it_is_enabled() {
         .iter()
         .map(|plugin| plugin.id.as_str())
         .collect();
-    assert_eq!(ids, ["local-auth", "log-events", "tmdb"]);
+    assert_eq!(ids, ["local-auth", "log-events", test_choices::ID, "tmdb"]);
     for plugin in &listed.plugins {
         assert_eq!(plugin.kind, PluginKind::PLUGIN_KIND_BUILT_IN, "{plugin:?}");
         assert!(!plugin.version.is_empty(), "{plugin:?}");
@@ -542,5 +567,215 @@ async fn enabling_or_disabling_an_unknown_plugin_is_refused() {
             .await,
         ErrorCode::NotFound,
         RefusalReason::REFUSAL_REASON_PLUGIN_NOT_FOUND,
+    );
+}
+
+/// The labels of the choices `tested` offers for the setting `key`.
+fn choice_labels<'a>(tested: &'a TestPluginSettingsResponse, key: &str) -> Vec<&'a str> {
+    tested.choices.get(key).map_or_else(Vec::new, |choices| {
+        choices
+            .choices
+            .iter()
+            .map(|choice| choice.label.as_str())
+            .collect()
+    })
+}
+
+#[tokio::test]
+async fn testing_settings_returns_the_choices_the_check_offers() {
+    let started = Started::with(&BTreeMap::new()).await;
+
+    let tested = started
+        .test(test_choices::ID, [("api_key", text(test_choices::API_KEY))])
+        .await
+        .unwrap();
+
+    assert_eq!(choice_labels(&tested, "profile"), ["HD", "Ultra HD"]);
+    assert_eq!(tested.choices["profile"].choices[0].value, "1");
+}
+
+/// Settings stored for the test Plugin: `api_key` and nothing else.
+fn test_choices_with_key(api_key: &str) -> BTreeMap<String, PluginConfig> {
+    let config = PluginConfig {
+        settings: BTreeMap::from([("api_key".to_owned(), SettingValue::Text(api_key.to_owned()))]),
+        ..PluginConfig::default()
+    };
+    BTreeMap::from([(test_choices::ID.to_owned(), config)])
+}
+
+/// Asserts that `sent`, encoded as the Server sent it, holds no secret's value.
+fn assert_no_secret(sent: &[u8]) {
+    let secret = test_choices::API_KEY.as_bytes();
+    assert!(!sent.windows(secret.len()).any(|bytes| bytes == secret));
+}
+
+#[tokio::test]
+async fn a_failed_check_is_refused_with_the_plugins_error() {
+    let started = Started::with(&BTreeMap::new()).await;
+
+    let tested = started
+        .test(test_choices::ID, [("api_key", text("wrong-key"))])
+        .await;
+
+    let refusal = assert_refused(
+        tested.clone(),
+        ErrorCode::FailedPrecondition,
+        RefusalReason::REFUSAL_REASON_SETTINGS_CHECK_FAILED,
+    );
+    assert_eq!(refusal.params["pluginId"], test_choices::ID);
+    assert_eq!(
+        tested.unwrap_err().message.as_deref(),
+        Some("the service refused the API key")
+    );
+}
+
+#[tokio::test]
+async fn a_check_that_panics_is_a_failed_test_and_the_server_carries_on() {
+    let started = Started::with(&BTreeMap::new()).await;
+
+    let tested = started
+        .test(
+            test_choices::ID,
+            [
+                ("api_key", text(test_choices::API_KEY)),
+                ("fail_with", text(test_choices::PANIC)),
+            ],
+        )
+        .await;
+
+    assert_refused(
+        tested,
+        ErrorCode::FailedPrecondition,
+        RefusalReason::REFUSAL_REASON_SETTINGS_CHECK_FAILED,
+    );
+    let retested = started
+        .test(test_choices::ID, [("api_key", text(test_choices::API_KEY))])
+        .await;
+    assert_eq!(
+        choice_labels(&retested.unwrap(), "profile"),
+        ["HD", "Ultra HD"]
+    );
+}
+
+#[tokio::test]
+async fn a_secret_left_blank_is_tested_with_its_stored_value() {
+    let started = Started::with(&test_choices_with_key(test_choices::API_KEY)).await;
+
+    let tested = started
+        .test(test_choices::ID, [("api_key", text(""))])
+        .await;
+
+    assert_eq!(
+        choice_labels(&tested.unwrap(), "profile"),
+        ["HD", "Ultra HD"]
+    );
+}
+
+#[tokio::test]
+async fn unsaved_settings_are_tested_in_place_of_the_stored_ones_and_not_saved() {
+    let started = Started::with(&test_choices_with_key("old-key")).await;
+
+    let tested = started
+        .test(test_choices::ID, [("api_key", text(test_choices::API_KEY))])
+        .await;
+
+    assert_eq!(
+        choice_labels(&tested.unwrap(), "profile"),
+        ["HD", "Ultra HD"]
+    );
+    assert_eq!(started.stored().await, test_choices_with_key("old-key"));
+}
+
+#[tokio::test]
+async fn testing_without_a_required_setting_is_refused_naming_it() {
+    let started = Started::with(&BTreeMap::new()).await;
+
+    let tested = started.test(test_choices::ID, []).await;
+
+    let refusal = assert_refused(
+        tested,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
+    );
+    assert_eq!(refusal.field, "settings.api_key");
+}
+
+#[tokio::test]
+async fn neither_a_test_nor_its_failure_sends_a_secrets_value() {
+    let started = Started::with(&test_choices_with_key(test_choices::API_KEY)).await;
+
+    let passed = started.test(test_choices::ID, []).await.unwrap();
+    let quoting_the_key = format!("the service refused {}", test_choices::API_KEY);
+    let failed = started
+        .test(test_choices::ID, [("fail_with", text(&quoting_the_key))])
+        .await;
+
+    assert_no_secret(&passed.encode_to_vec());
+    assert_no_secret(format!("{failed:?}").as_bytes());
+    let refusal = assert_refused(
+        failed,
+        ErrorCode::FailedPrecondition,
+        RefusalReason::REFUSAL_REASON_SETTINGS_CHECK_FAILED,
+    );
+    assert_no_secret(&refusal.encode_to_vec());
+}
+
+#[tokio::test]
+async fn only_a_plugin_with_a_check_says_so_and_testing_one_without_is_refused() {
+    let started = Started::with(&tmdb_with_key()).await;
+
+    let listed = started
+        .client()
+        .list_plugins(ListPluginsRequest::default())
+        .await
+        .unwrap()
+        .into_owned();
+    let tested = started.test("tmdb", []).await;
+
+    assert!(plugin(&listed, test_choices::ID).checks_settings);
+    assert!(!plugin(&listed, "tmdb").checks_settings);
+    assert_refused(
+        tested,
+        ErrorCode::FailedPrecondition,
+        RefusalReason::REFUSAL_REASON_SETTINGS_CHECK_FAILED,
+    );
+}
+
+#[tokio::test]
+async fn a_plugin_whose_check_would_hang_starts_and_is_enabled_without_running_it() {
+    let mut settings = test_choices_with_key(test_choices::API_KEY);
+    if let Some(config) = settings.get_mut(test_choices::ID) {
+        config.settings.extend([
+            (
+                "fail_with".to_owned(),
+                SettingValue::Text(test_choices::HANG.to_owned()),
+            ),
+            ("profile".to_owned(), SettingValue::Text("1".to_owned())),
+        ]);
+    }
+
+    // Shorter than the Kernel's timeout for a check, so running the check would fail the test.
+    let deadline = SETTINGS_CHECK_TIMEOUT / 2;
+    let started = tokio::time::timeout(deadline, async {
+        let started = Started::with(&settings).await;
+        let client = started.client();
+        client
+            .disable_plugin(disable(test_choices::ID))
+            .await
+            .unwrap();
+        client
+            .enable_plugin(enable(test_choices::ID))
+            .await
+            .unwrap();
+        started
+    })
+    .await
+    .expect("starting and enabling ran the settings check");
+
+    assert!(
+        started
+            .plugins
+            .enabled()
+            .contains(&PluginId::from_static(test_choices::ID))
     );
 }

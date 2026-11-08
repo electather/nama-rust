@@ -12,16 +12,20 @@ use std::{
     future::Future,
     panic::{self, AssertUnwindSafe},
     sync::{Arc, PoisonError, RwLock},
+    time::Duration,
 };
 
 use futures_util::FutureExt;
 use nama_plugin_api::{
     InterceptPoint, ObservePoint, Observer, OnFailure, Plugin, PluginId, PointKey, Priority,
     Registrar, Registration, Verdict,
-    settings::{Settings, SettingsError, SettingsSchema},
+    settings::{Choices, SettingKind, Settings, SettingsError, SettingsSchema},
 };
 use thiserror::Error;
 use tracing::{error, info, warn};
+
+/// How long a Plugin's settings check may take before it counts as failed.
+pub const SETTINGS_CHECK_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// Every Plugin enabled on this Server and everything they registered.
 ///
@@ -51,6 +55,7 @@ struct Described {
     make: fn() -> Arc<dyn Plugin>,
     version: String,
     settings_schema: SettingsSchema,
+    checks_settings: bool,
 }
 
 struct Enabled {
@@ -85,6 +90,8 @@ pub struct Builtin {
     pub version: String,
     /// The settings it takes.
     pub settings_schema: SettingsSchema,
+    /// Whether it has a settings check, which [`Registry::check_settings`] runs.
+    pub checks_settings: bool,
     /// Whether it is enabled now.
     pub enabled: bool,
 }
@@ -151,6 +158,27 @@ pub enum EnableError {
         /// The panic's message.
         message: String,
     },
+}
+
+/// Why a Plugin's settings check offered no choices.
+#[derive(Debug, Error)]
+pub enum CheckError {
+    /// No Built-in Plugin has the id.
+    #[error("there is no plugin {0}")]
+    Unknown(PluginId),
+    /// The settings don't fit the Plugin's schema.
+    #[error("the settings don't fit the plugin: {0}")]
+    InvalidSettings(SettingsError),
+    /// The check failed or panicked, or the Plugin has none. The message is in plain words for an
+    /// admin, with no secret setting's value in it.
+    #[error("{0}")]
+    Failed(String),
+    /// The check ran past [`SETTINGS_CHECK_TIMEOUT`].
+    #[error(
+        "{0} didn't finish checking its settings within {seconds} seconds",
+        seconds = SETTINGS_CHECK_TIMEOUT.as_secs()
+    )]
+    TimedOut(PluginId),
 }
 
 impl Registry {
@@ -350,6 +378,65 @@ impl Registry {
         Ok(was_enabled)
     }
 
+    /// Runs the Built-in Plugin `id`'s settings check on `settings`, on a fresh instance whether
+    /// it is enabled or not, and returns the choices it offers. The settings are checked against
+    /// its schema first, with its Choice settings optional, and its defaults filled in.
+    ///
+    /// # Errors
+    ///
+    /// If no Built-in Plugin has the id, it has no check, the settings don't fit, or the check
+    /// fails. A check that panics or runs past [`SETTINGS_CHECK_TIMEOUT`] fails without harming the
+    /// Server.
+    pub async fn check_settings(
+        &self,
+        id: &PluginId,
+        settings: Settings,
+    ) -> Result<Choices, CheckError> {
+        let (make, schema, checks_settings) = self
+            .read(|state| {
+                let builtin = state.builtins.get(id)?;
+                Some((
+                    builtin.make,
+                    builtin.settings_schema.clone(),
+                    builtin.checks_settings,
+                ))
+            })
+            .ok_or_else(|| CheckError::Unknown(id.clone()))?;
+        let no_check = || CheckError::Failed(format!("{id} has no settings check"));
+        if !checks_settings {
+            return Err(no_check());
+        }
+        let settings = settings
+            .resolve(&with_optional_choices(schema.clone()))
+            .map_err(CheckError::InvalidSettings)?;
+        let scrubbed = |message: String| without_secrets(message, &schema, &settings);
+        let panicked = |message: String| {
+            let message = scrubbed(message);
+            error!(plugin = %id, message, "plugin panicked while checking its settings");
+            CheckError::Failed(format!("{id} failed while checking its settings"))
+        };
+        let plugin = contain_sync(make).map_err(panicked)?;
+        // The timeout is inside `contain`, so dropping a check it gave up on (Plugin code) is
+        // contained too, as are formatting and dropping the Plugin's error.
+        let check = contain(|| async {
+            let check = plugin.settings_check()?;
+            let checked =
+                tokio::time::timeout(SETTINGS_CHECK_TIMEOUT, check.check(&settings)).await;
+            Some(checked.map(|checked| checked.map_err(|error| error.to_string())))
+        });
+        let checked = match check.await {
+            Ok(Some(Ok(Ok(choices)))) => Ok(choices),
+            Ok(Some(Ok(Err(message)))) => Err(CheckError::Failed(scrubbed(message))),
+            Ok(Some(Err(_elapsed))) => Err(CheckError::TimedOut(id.clone())),
+            Ok(None) => Err(no_check()),
+            Err(message) => Err(panicked(message)),
+        };
+        if let Err(message) = contain_sync(|| drop(plugin)) {
+            error!(plugin = %id, message, "plugin panicked while being dropped");
+        }
+        checked
+    }
+
     /// The ids of the enabled Plugins, sorted.
     #[must_use]
     pub fn enabled(&self) -> Vec<PluginId> {
@@ -367,6 +454,7 @@ impl Registry {
                     id: id.clone(),
                     version: described.version.clone(),
                     settings_schema: described.settings_schema.clone(),
+                    checks_settings: described.checks_settings,
                     enabled: state.plugins.contains_key(id),
                 })
                 .collect()
@@ -588,6 +676,30 @@ impl Registry {
     fn write<T>(&self, f: impl FnOnce(&mut State) -> T) -> T {
         f(&mut self.state.write().unwrap_or_else(PoisonError::into_inner))
     }
+}
+
+/// `schema` with its Choice settings optional, since checking the settings is how an admin finds
+/// what to pick for them.
+fn with_optional_choices(mut schema: SettingsSchema) -> SettingsSchema {
+    for field in &mut schema.fields {
+        field.required &= field.kind != SettingKind::Choice;
+    }
+    schema
+}
+
+/// `message` with the value of each secret in `settings` blanked out, since a Plugin's error may
+/// quote one, such as in a URL it fetched.
+fn without_secrets(mut message: String, schema: &SettingsSchema, settings: &Settings) -> String {
+    let secrets = schema
+        .fields
+        .iter()
+        .filter(|field| field.kind == SettingKind::Secret)
+        .filter_map(|field| settings.text(field.key))
+        .filter(|secret| !secret.is_empty());
+    for secret in secrets {
+        message = message.replace(secret, "…");
+    }
+    message
 }
 
 pub(crate) fn contain_sync<T>(call: impl FnOnce() -> T) -> Result<T, String> {

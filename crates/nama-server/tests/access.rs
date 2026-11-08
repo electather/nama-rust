@@ -57,11 +57,12 @@ const MANAGE_USERS: [&str; 7] = [
 ];
 
 /// Every RPC that manages the Server's settings, which needs `PERMISSION_MANAGE_SETTINGS`.
-const MANAGE_SETTINGS: [&str; 4] = [
+const MANAGE_SETTINGS: [&str; 5] = [
     "/nama.v1.PluginService/ListPlugins",
     "/nama.v1.PluginService/UpdatePluginSettings",
     "/nama.v1.PluginService/EnablePlugin",
     "/nama.v1.PluginService/DisablePlugin",
+    "/nama.v1.PluginService/TestPluginSettings",
 ];
 
 /// The RPCs for browsing the Libraries, what they hold and the caller's Continue Watching, which

@@ -34,6 +34,7 @@ function searchableServer(movies: Found[], permissions = newUser) {
     router.service(RequestService, {
       listRequests: () => ({}),
       searchMovies: () => ({ movies: [...found.values()] }),
+      searchShows: () => ({}),
       lookUpMovie: ({ movieTmdbId }) => ({ movie: found.get(movieTmdbId) }),
       createRequest: ({ movieTmdbId }) => {
         const movie = found.get(movieTmdbId) ?? create(FoundMovieSchema);
@@ -57,14 +58,14 @@ const askedForByAda: Found = {
 };
 
 function search(title: string) {
-  fill("Find a Movie", title);
+  fill("Find a Movie or Show", title);
   fireEvent.click(screen.getByRole("button", { name: "Search" }));
-  return screen.findByRole("region", { name: `Results for “${title}”` });
+  return screen.findByRole("region", { name: `Movies for “${title}”` });
 }
 
 test("a Movie found that isn't on the Server shows as Pending once Requested, without a reload", async () => {
   openApp("/requests", searchableServer([notOnTheServer]));
-  await screen.findByLabelText("Find a Movie");
+  await screen.findByLabelText("Find a Movie or Show");
 
   const results = await search("Dune");
   fireEvent.click(await within(results).findByRole("button", { name: "Request Dune" }));
@@ -75,7 +76,7 @@ test("a Movie found that isn't on the Server shows as Pending once Requested, wi
 
 test("a Movie found in a Library shows as in it, with no Request button", async () => {
   openApp("/requests", searchableServer([inALibrary]));
-  await screen.findByLabelText("Find a Movie");
+  await screen.findByLabelText("Find a Movie or Show");
 
   const results = await search("Alien");
 
@@ -87,7 +88,7 @@ test("a Movie found in a Library shows as in it, with no Request button", async 
 
 test("a Movie someone else Requested shows its state, and Requesting it joins", async () => {
   openApp("/requests", searchableServer([askedForByAda]));
-  await screen.findByLabelText("Find a Movie");
+  await screen.findByLabelText("Find a Movie or Show");
 
   const results = await search("Heat");
   expect(await within(results).findByText("Approved")).toBeDefined();
@@ -103,7 +104,7 @@ test("a User who may not Request Movies isn't offered the search", async () => {
   openApp("/requests?title=Dune", searchableServer([notOnTheServer], [Permission.VIEW_REQUESTS]));
 
   await screen.findByText("No Requests yet.");
-  expect(screen.queryByLabelText("Find a Movie")).toBeNull();
+  expect(screen.queryByLabelText(/Find a/u)).toBeNull();
   expect(screen.queryByText("Dune")).toBeNull();
 });
 
@@ -140,6 +141,7 @@ test("Requesting a Movie a scan Matched meanwhile shows it in its Library", asyn
     router.service(RequestService, {
       listRequests: () => ({}),
       searchMovies: () => ({ movies: [movie] }),
+      searchShows: () => ({}),
       createRequest: () => {
         movie.libraryId = 4n;
         throw refused(Code.FailedPrecondition, "a Library has it", {
@@ -149,7 +151,7 @@ test("Requesting a Movie a scan Matched meanwhile shows it in its Library", asyn
     });
   });
   openApp("/requests", transport);
-  await screen.findByLabelText("Find a Movie");
+  await screen.findByLabelText("Find a Movie or Show");
 
   const results = await search("Dune");
   fireEvent.click(await within(results).findByRole("button", { name: "Request Dune" }));

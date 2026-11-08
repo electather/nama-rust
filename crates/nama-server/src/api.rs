@@ -49,27 +49,29 @@ use nama_proto::nama::v1::{
     ListLibrariesResponse, ListMoviesRequest, ListMoviesResponse, ListPluginsRequest,
     ListPluginsResponse, ListRequestsRequest, ListRequestsResponse, ListShowsRequest,
     ListShowsResponse, ListUnmatchedItemsRequest, ListUnmatchedItemsResponse, ListUsersRequest,
-    ListUsersResponse, LookUpMovieRequest, LookUpMovieResponse, LookUpSignInCodeRequest,
-    LookUpSignInCodeResponse, MatchService, Permission, PluginKind, PluginService,
-    PollSignInCodeRequest, PollSignInCodeResponse, ReauthenticateRequest, ReauthenticateResponse,
-    Refusal, RefusalReason, ReportProgressRequest, ReportProgressResponse, RequestService,
-    ResetPasswordRequest, ResetPasswordResponse, RevokeDeviceRequest, RevokeDeviceResponse,
-    ScanLibraryRequest, ScanLibraryResponse, SearchMetadataRequest, SearchMetadataResponse,
-    SearchMoviesRequest, SearchMoviesResponse, ServerService, SessionDelivery,
+    ListUsersResponse, LookUpMovieRequest, LookUpMovieResponse, LookUpShowRequest,
+    LookUpShowResponse, LookUpSignInCodeRequest, LookUpSignInCodeResponse, MatchService,
+    Permission, PluginKind, PluginService, PollSignInCodeRequest, PollSignInCodeResponse,
+    ReauthenticateRequest, ReauthenticateResponse, Refusal, RefusalReason, ReportProgressRequest,
+    ReportProgressResponse, RequestService, ResetPasswordRequest, ResetPasswordResponse,
+    RevokeDeviceRequest, RevokeDeviceResponse, ScanLibraryRequest, ScanLibraryResponse,
+    SearchMetadataRequest, SearchMetadataResponse, SearchMoviesRequest, SearchMoviesResponse,
+    SearchShowsRequest, SearchShowsResponse, ServerService, SessionDelivery,
     SetDefaultPermissionsRequest, SetDefaultPermissionsResponse, SetMatchRequest, SetMatchResponse,
     SetPermissionsRequest, SetPermissionsResponse, SetPlayedRequest, SetPlayedResponse,
     SetupRequest, SetupResponse, SignInCodeStatus, SignInRequest, SignInResponse, SignInService,
     SignOutRequest, SignOutResponse, StartSignInCodeRequest, StartSignInCodeResponse,
-    SubscribeRequest, SubscribeResponse, UpdateLibraryRequest, UpdateLibraryResponse,
-    UpdatePluginSettingsRequest, UpdatePluginSettingsResponse, UserService, WatchStateService,
-    WhoAmIRequest, WhoAmIResponse, WithdrawRequestRequest, WithdrawRequestResponse, external_id,
-    reauthenticate_request::Proof, set_played_request::Target, setting_value,
+    SubscribeRequest, SubscribeResponse, TestPluginSettingsRequest, TestPluginSettingsResponse,
+    UpdateLibraryRequest, UpdateLibraryResponse, UpdatePluginSettingsRequest,
+    UpdatePluginSettingsResponse, UserService, WatchStateService, WhoAmIRequest, WhoAmIResponse,
+    WithdrawRequestRequest, WithdrawRequestResponse, external_id, reauthenticate_request::Proof,
+    set_played_request::Target, setting_value,
 };
 
 use crate::{
     artwork::{self, Artwork},
     browse::{self, Browse, Started},
-    config::Config,
+    config::{Config, PluginConfig},
     contents::{Contents, Episode, Item, MatchedTo, Metadata, Movie, Show, Unmatched, Version},
     db::{Database, now},
     events::{EventBus, Filter},
@@ -77,9 +79,9 @@ use crate::{
     libraries::{self, FolderProblem, Kind, Libraries, Library},
     matching::{ManualError, Matcher},
     plugin_settings,
-    plugins::{Builtin, EnableError, Registry},
+    plugins::{Builtin, CheckError, EnableError, Registry, SETTINGS_CHECK_TIMEOUT},
     rate_limits::{Blocked, SignInCodeLimits, SignInLimits},
-    requests::{self, Found, Requests},
+    requests::{self, Found, FoundShow, Requests},
     scanner::Scanner,
     sessions::{cleared_session_cookie, identify_caller, in_session_cookie, session_cookie},
     sign_in_codes::{self, Poll, SignInCodes},
@@ -244,6 +246,8 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::REQUEST_SERVICE_GET_REQUEST_SPEC.procedure,           Access::SignedIn),
     (proto::REQUEST_SERVICE_SEARCH_MOVIES_SPEC.procedure,         REQUEST_MOVIE),
     (proto::REQUEST_SERVICE_LOOK_UP_MOVIE_SPEC.procedure,         REQUEST_MOVIE),
+    (proto::REQUEST_SERVICE_SEARCH_SHOWS_SPEC.procedure,          REQUEST_TV),
+    (proto::REQUEST_SERVICE_LOOK_UP_SHOW_SPEC.procedure,          REQUEST_TV),
     (proto::REQUEST_SERVICE_APPROVE_REQUEST_SPEC.procedure,       MANAGE_REQUESTS),
     (proto::REQUEST_SERVICE_DECLINE_REQUEST_SPEC.procedure,       MANAGE_REQUESTS),
     (proto::REQUEST_SERVICE_CANCEL_REQUEST_SPEC.procedure,        MANAGE_REQUESTS),
@@ -252,6 +256,7 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::PLUGIN_SERVICE_UPDATE_PLUGIN_SETTINGS_SPEC.procedure, MANAGE_SETTINGS),
     (proto::PLUGIN_SERVICE_ENABLE_PLUGIN_SPEC.procedure,          MANAGE_SETTINGS),
     (proto::PLUGIN_SERVICE_DISABLE_PLUGIN_SPEC.procedure,         MANAGE_SETTINGS),
+    (proto::PLUGIN_SERVICE_TEST_PLUGIN_SETTINGS_SPEC.procedure,   MANAGE_SETTINGS),
 ];
 
 /// Who may fetch media: every path under this prefix, which the media routes share.
@@ -1290,9 +1295,9 @@ fn no_such_user() -> ConnectError {
     users::Error::NoSuchUser.into()
 }
 
-/// `nama.v1.RequestService`: Users asking for Movies. Asking needs `PERMISSION_REQUEST_MOVIE`,
-/// which [`require_access`] enforces; without `PERMISSION_VIEW_REQUESTS`, [`Requests`] shows a
-/// User only their own Requests.
+/// `nama.v1.RequestService`: Users asking for Movies and Seasons of Shows. Asking needs
+/// `PERMISSION_REQUEST_MOVIE` or `PERMISSION_REQUEST_TV`, which [`require_access`] enforces;
+/// without `PERMISSION_VIEW_REQUESTS`, [`Requests`] shows a User only their own Requests.
 struct RequestServiceHandler {
     requests: Requests,
     /// Serves the images of the Movies found, which no Match stores.
@@ -1375,15 +1380,7 @@ impl RequestService for RequestServiceHandler {
         request: ServiceRequest<'_, SearchMoviesRequest>,
     ) -> ServiceResult<SearchMoviesResponse> {
         let viewer = &caller(&ctx)?.user;
-        let title = request.to_owned_message().title;
-        if title.trim().is_empty() {
-            return Err(refuse(
-                RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
-                "the title to search for must not be blank",
-            )
-            .field("title")
-            .into());
-        }
+        let title = searched_title(request.to_owned_message().title)?;
         let found = self.requests.search(viewer, title).await?;
         Response::ok(SearchMoviesResponse {
             movies: found
@@ -1403,6 +1400,38 @@ impl RequestService for RequestServiceHandler {
         let found = self.requests.look_up(viewer, request.movie_tmdb_id).await?;
         Response::ok(LookUpMovieResponse {
             movie: self.looked_up_to_proto(found).into(),
+            ..Default::default()
+        })
+    }
+
+    async fn search_shows(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, SearchShowsRequest>,
+    ) -> ServiceResult<SearchShowsResponse> {
+        let title = searched_title(request.to_owned_message().title)?;
+        let found = self.requests.search_shows(title).await?;
+        Response::ok(SearchShowsResponse {
+            shows: found
+                .into_iter()
+                .map(|found| self.searched_show_to_proto(found))
+                .collect(),
+            ..Default::default()
+        })
+    }
+
+    async fn look_up_show(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, LookUpShowRequest>,
+    ) -> ServiceResult<LookUpShowResponse> {
+        let viewer = &caller(&ctx)?.user;
+        let found = self
+            .requests
+            .look_up_show(viewer, request.show_tmdb_id)
+            .await?;
+        Response::ok(LookUpShowResponse {
+            show: self.looked_up_show_to_proto(found).into(),
             ..Default::default()
         })
     }
@@ -1495,6 +1524,60 @@ impl RequestServiceHandler {
             ..Default::default()
         }
     }
+
+    /// A Show a search found, as clients see it, with its poster offered to them.
+    fn searched_show_to_proto(&self, found: FoundShow<Candidate>) -> proto::FoundShow {
+        let FoundShow {
+            tmdb_id,
+            plugin,
+            show,
+            ..
+        } = found;
+        proto::FoundShow {
+            tmdb_id,
+            title: show.title,
+            year: show.year,
+            poster_url: show.poster.map(|path| self.artwork.offer(&plugin, &path)),
+            ..Default::default()
+        }
+    }
+
+    /// A Show looked up, as clients see it, with its images offered to them.
+    fn looked_up_show_to_proto(
+        &self,
+        found: FoundShow<nama_plugin_api::metadata::Show>,
+    ) -> proto::FoundShow {
+        let FoundShow {
+            tmdb_id,
+            plugin,
+            show,
+            seasons,
+        } = found;
+        let offer = |path: String| self.artwork.offer(&plugin, &path);
+        proto::FoundShow {
+            tmdb_id,
+            title: show.title,
+            year: show.first_air_date.as_deref().and_then(year_of),
+            overview: show.overview,
+            poster_url: show.poster.map(offer),
+            backdrop_url: show.backdrop.map(offer),
+            seasons,
+            ..Default::default()
+        }
+    }
+}
+
+/// `title`, unless it is blank, which a search for titles refuses.
+fn searched_title(title: String) -> Result<String, ConnectError> {
+    if title.trim().is_empty() {
+        return Err(refuse(
+            RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
+            "the title to search for must not be blank",
+        )
+        .field("title")
+        .into());
+    }
+    Ok(title)
 }
 
 /// `nama.v1.EventService`: live updates.
@@ -1963,25 +2046,16 @@ impl PluginService for PluginServiceHandler {
     ) -> ServiceResult<UpdatePluginSettingsResponse> {
         let request = request.to_owned_message();
         let id = PluginId::from(request.id);
-        let plugin = self
-            .plugins
-            .builtins()
-            .into_iter()
-            .find(|plugin| plugin.id == id)
-            .ok_or_else(|| plugin_not_found(&id))?;
-        let sent = request
-            .settings
-            .iter()
-            .filter_map(|(key, value)| Some((key.clone(), setting_value_from_proto(value)?)))
-            .collect();
+        let plugin = self.builtin(&id)?;
         let _changing = self.changing.lock().await;
-        let stored = plugin_settings::stored(&self.db)
-            .await
-            .map_err(database_failed)?
-            .unwrap_or_default()
-            .remove(plugin.id.as_str())
-            .unwrap_or_default();
-        let settings = updated_settings(&plugin.settings_schema, sent, &stored.settings)
+        let stored = self.stored(&plugin.id).await?;
+        let settings = with_stored_secrets(
+            &plugin.settings_schema,
+            settings_from_proto(&request.settings),
+            &stored.settings,
+        );
+        Settings::new(settings.clone())
+            .resolve(&plugin.settings_schema)
             .map_err(settings_refused)?;
         plugin_settings::save_settings(&self.db, plugin.id.as_str(), &settings)
             .await
@@ -2030,15 +2104,53 @@ impl PluginService for PluginServiceHandler {
         Response::ok(EnablePluginResponse::default())
     }
 
+    async fn test_plugin_settings(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, TestPluginSettingsRequest>,
+    ) -> ServiceResult<TestPluginSettingsResponse> {
+        let request = request.to_owned_message();
+        let id = PluginId::from(request.id);
+        let plugin = self.builtin(&id)?;
+        let stored = self.stored(&id).await?;
+        let settings = with_stored_secrets(
+            &plugin.settings_schema,
+            settings_from_proto(&request.settings),
+            &stored.settings,
+        );
+        let check_failed = |message: String| {
+            refuse(RefusalReason::REFUSAL_REASON_SETTINGS_CHECK_FAILED, message)
+                .param("pluginId", &id)
+        };
+        let choices = self
+            .plugins
+            .check_settings(&id, Settings::new(settings))
+            .await
+            .map_err(|err| match err {
+                CheckError::Unknown(unknown) => plugin_not_found(&unknown),
+                CheckError::InvalidSettings(error) => settings_refused(error),
+                CheckError::Failed(message) => check_failed(message).into(),
+                CheckError::TimedOut(_) => check_failed(err.to_string())
+                    .param("timeoutSeconds", &SETTINGS_CHECK_TIMEOUT.as_secs())
+                    .into(),
+            })?;
+        let choices = choices
+            .into_iter()
+            .map(|(key, choices)| (key, setting_choices_to_proto(choices)))
+            .collect();
+        Response::ok(TestPluginSettingsResponse {
+            choices,
+            ..Default::default()
+        })
+    }
+
     async fn disable_plugin(
         &self,
         _ctx: RequestContext,
         request: ServiceRequest<'_, DisablePluginRequest>,
     ) -> ServiceResult<DisablePluginResponse> {
         let id = PluginId::from(request.id.to_owned());
-        if !self.plugins.builtins().iter().any(|plugin| plugin.id == id) {
-            return Err(plugin_not_found(&id));
-        }
+        self.builtin(&id)?;
         let _changing = self.changing.lock().await;
         // Without an Authenticator nobody could sign in, which is also why `main` won't start.
         self.plugins
@@ -2061,6 +2173,27 @@ impl PluginService for PluginServiceHandler {
             .await
             .map_err(database_failed)?;
         Response::ok(DisablePluginResponse::default())
+    }
+}
+
+impl PluginServiceHandler {
+    /// The Built-in Plugin `id`, or the refusal of a call naming one no Plugin has.
+    fn builtin(&self, id: &PluginId) -> Result<Builtin, ConnectError> {
+        self.plugins
+            .builtins()
+            .into_iter()
+            .find(|plugin| plugin.id == *id)
+            .ok_or_else(|| plugin_not_found(id))
+    }
+
+    /// What is stored for the Plugin `id`: nothing for one that never had settings saved.
+    async fn stored(&self, id: &PluginId) -> Result<PluginConfig, ConnectError> {
+        Ok(plugin_settings::stored(&self.db)
+            .await
+            .map_err(database_failed)?
+            .unwrap_or_default()
+            .remove(id.as_str())
+            .unwrap_or_default())
     }
 }
 
@@ -2094,18 +2227,14 @@ impl From<EnableError> for ConnectError {
     }
 }
 
-/// The settings to store from those `sent` for a Plugin with `schema`: the ones it names, with a
-/// secret left out keeping its `stored` value, so a form can replace a secret without showing it.
-///
-/// # Errors
-///
-/// If they don't fit the schema.
-fn updated_settings(
+/// The settings `sent` for a Plugin with `schema`: the ones it names, with a secret left out
+/// keeping its `stored` value, so a form can replace a secret without showing it.
+fn with_stored_secrets(
     schema: &SettingsSchema,
     mut sent: BTreeMap<String, settings::SettingValue>,
     stored: &BTreeMap<String, settings::SettingValue>,
-) -> Result<BTreeMap<String, settings::SettingValue>, SettingsError> {
-    let settings: BTreeMap<_, _> = schema
+) -> BTreeMap<String, settings::SettingValue> {
+    schema
         .fields
         .iter()
         .filter_map(|field| {
@@ -2115,9 +2244,7 @@ fn updated_settings(
             };
             Some((field.key.to_owned(), sent.remove(field.key).or_else(kept)?))
         })
-        .collect();
-    Settings::new(settings.clone()).resolve(schema)?;
-    Ok(settings)
+        .collect()
 }
 
 /// The refusal of settings that don't fit their Plugin's schema, naming the one that doesn't as
@@ -2157,6 +2284,7 @@ fn plugin_to_proto(
         version: plugin.version,
         kind: PluginKind::PLUGIN_KIND_BUILT_IN.into(),
         enabled: plugin.enabled,
+        checks_settings: plugin.checks_settings,
         settings: plugin
             .settings_schema
             .fields
@@ -2196,6 +2324,30 @@ const fn setting_kind_to_proto(kind: settings::SettingKind) -> proto::SettingKin
         settings::SettingKind::Secret => proto::SettingKind::SETTING_KIND_SECRET,
         settings::SettingKind::Bool => proto::SettingKind::SETTING_KIND_BOOL,
         settings::SettingKind::Integer => proto::SettingKind::SETTING_KIND_INTEGER,
+        settings::SettingKind::Choice => proto::SettingKind::SETTING_KIND_CHOICE,
+    }
+}
+
+/// The settings a request gives, by key, leaving out those [`setting_value_from_proto`] does.
+fn settings_from_proto<'a>(
+    sent: impl IntoIterator<Item = (&'a String, &'a proto::SettingValue)>,
+) -> BTreeMap<String, settings::SettingValue> {
+    sent.into_iter()
+        .filter_map(|(key, value)| Some((key.clone(), setting_value_from_proto(value)?)))
+        .collect()
+}
+
+fn setting_choices_to_proto(choices: Vec<settings::Choice>) -> proto::SettingChoices {
+    proto::SettingChoices {
+        choices: choices
+            .into_iter()
+            .map(|choice| proto::Choice {
+                value: choice.value,
+                label: choice.label,
+                ..Default::default()
+            })
+            .collect(),
+        ..Default::default()
     }
 }
 
@@ -2280,7 +2432,8 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_ALREADY_IN_LIBRARY
         | R::REFUSAL_REASON_REQUEST_NOT_PENDING
         | R::REFUSAL_REASON_NOT_A_REQUESTER
-        | R::REFUSAL_REASON_LAST_AUTHENTICATOR => ErrorCode::FailedPrecondition,
+        | R::REFUSAL_REASON_LAST_AUTHENTICATOR
+        | R::REFUSAL_REASON_SETTINGS_CHECK_FAILED => ErrorCode::FailedPrecondition,
         R::REFUSAL_REASON_SIGN_IN_CODE_NOT_FOUND
         | R::REFUSAL_REASON_HANDLE_NOT_FOUND
         | R::REFUSAL_REASON_USER_NOT_FOUND
@@ -2405,7 +2558,8 @@ impl From<requests::Error> for ConnectError {
         let message = err.to_string();
         let refused = match err {
             // Every RPC naming a Request names it in `id`, only `CreateRequest` and `LookUpMovie`
-            // name a Movie, both in `movie_tmdb_id`, and only `CreateSeasonRequests` a Show.
+            // name a Movie, both in `movie_tmdb_id`, and only `CreateSeasonRequests` and
+            // `LookUpShow` a Show, both in `show_tmdb_id`.
             requests::Error::NoSuchRequest(id) => {
                 refuse(R::REFUSAL_REASON_REQUEST_NOT_FOUND, message)
                     .field("id")

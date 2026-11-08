@@ -23,6 +23,17 @@ service PluginService {
   rpc EnablePlugin(EnablePluginRequest) returns (EnablePluginResponse) {
     option idempotency_level = IDEMPOTENT;
   }
+  // Runs a Plugin's settings check on `settings`, which may not be saved yet, and returns the
+  // choices it offers for each `SETTING_KIND_CHOICE` setting. It runs only when called, never to
+  // enable a Plugin. Settings that don't fit the Plugin's schema are refused as in
+  // `UpdatePluginSettings`, except that a choice setting may be left out. A check that fails, runs
+  // too long or crashes is refused with `REFUSAL_REASON_SETTINGS_CHECK_FAILED`, its message saying
+  // why in plain words, as is a Plugin without a check (see `Plugin.checks_settings`). Fails with
+  // `not_found` for an unknown Plugin.
+  rpc TestPluginSettings(TestPluginSettingsRequest) returns (TestPluginSettingsResponse) {
+    // Not NO_SIDE_EFFECTS, though it has none: that lets a client send it as a GET, which would put
+    // a secret in the URL.
+  }
   // Disables a Plugin, removing everything it registered, without a restart, and saves that it is
   // disabled. Fails with `REFUSAL_REASON_LAST_AUTHENTICATOR` if no other enabled Plugin provides an
   // Authenticator; it stays enabled and nothing is saved.
@@ -57,6 +68,32 @@ message EnablePluginRequest {
 
 message EnablePluginResponse {}
 
+message TestPluginSettingsRequest {
+  // The Plugin's id, such as `tmdb`.
+  string id = 1;
+  // The settings to test, by key, as `UpdatePluginSettingsRequest.settings`: a secret left out or
+  // blank uses its stored value.
+  map<string, SettingValue> settings = 2;
+}
+
+message TestPluginSettingsResponse {
+  // The choices for each `SETTING_KIND_CHOICE` setting, by key.
+  map<string, SettingChoices> choices = 1;
+}
+
+// The values one choice setting may take, in the order a form shows them.
+message SettingChoices {
+  repeated Choice choices = 1;
+}
+
+// One value a choice setting may take.
+message Choice {
+  // What is stored as the setting's `text_value`, such as a quality profile's id.
+  string value = 1;
+  // What an Admin picks it by, such as the profile's name.
+  string label = 2;
+}
+
 message DisablePluginRequest {
   // The Plugin's id, such as `tmdb`.
   string id = 1;
@@ -81,6 +118,8 @@ message Plugin {
   bool enabled = 4;
   // Every setting it takes, in the order a form shows them.
   repeated Setting settings = 5;
+  // Whether it has a settings check, which `TestPluginSettings` runs.
+  bool checks_settings = 6;
 }
 
 // What kind of value a setting takes.
@@ -91,6 +130,8 @@ enum SettingKind {
   SETTING_KIND_SECRET = 2;
   SETTING_KIND_BOOL = 3;
   SETTING_KIND_INTEGER = 4;
+  // Text picked from the choices the Plugin's settings check offers (`TestPluginSettings`).
+  SETTING_KIND_CHOICE = 5;
 }
 
 // One setting a Plugin takes, as its schema declares it, and its stored value.

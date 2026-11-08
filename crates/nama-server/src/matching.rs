@@ -292,11 +292,11 @@ impl Matcher {
             .map_err(|miss| miss.looking_up(id))
     }
 
-    /// The Show with the id `id`, fetched now.
-    pub(crate) async fn show(&self, id: &ExternalId) -> Result<Show, ManualError> {
+    /// The Show with the id `id`, fetched now, and the Plugin whose Provider gave it.
+    pub(crate) async fn show(&self, id: &ExternalId) -> Result<(PluginId, Show), ManualError> {
         self.fetch_show(id)
             .await
-            .map(|found| found.show)
+            .map(|found| (found.plugin, found.show))
             .map_err(|miss| miss.looking_up(id))
     }
 

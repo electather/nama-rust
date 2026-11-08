@@ -19,6 +19,7 @@ import { Route as MemberCodeRouteImport } from './routes/_member/code'
 import { Route as MemberRequestsRouteImport } from './routes/_member/requests'
 import { Route as MemberSettingsRouteImport } from './routes/_member/settings'
 import { Route as MemberMoviesMovieIdRouteImport } from './routes/_member/movies/$movieId'
+import { Route as MemberShowsShowIdRouteImport } from './routes/_member/shows/$showId'
 import { Route as MemberAdminAdminIndexRouteImport } from './routes/_member/_admin/admin/index'
 import { Route as MemberAdminAdminNeedsAMatchRouteImport } from './routes/_member/_admin/admin/needs-a-match'
 import { Route as MemberAdminAdminPluginsRouteImport } from './routes/_member/_admin/admin/plugins'
@@ -77,6 +78,11 @@ const MemberSettingsRoute = MemberSettingsRouteImport.update({
 const MemberMoviesMovieIdRoute = MemberMoviesMovieIdRouteImport.update({
   id: '/movies/$movieId',
   path: '/movies/$movieId',
+  getParentRoute: () => MemberRoute,
+} as any)
+const MemberShowsShowIdRoute = MemberShowsShowIdRouteImport.update({
+  id: '/shows/$showId',
+  path: '/shows/$showId',
   getParentRoute: () => MemberRoute,
 } as any)
 const MemberAdminAdminIndexRoute = MemberAdminAdminIndexRouteImport.update({
@@ -154,6 +160,7 @@ export interface FileRoutesByFullPath {
   '/requests': typeof MemberRequestsRoute
   '/settings': typeof MemberSettingsRoute
   '/movies/$movieId': typeof MemberMoviesMovieIdRoute
+  '/shows/$showId': typeof MemberShowsShowIdRoute
   '/admin/needs-a-match': typeof MemberAdminAdminNeedsAMatchRoute
   '/admin/plugins': typeof MemberAdminAdminPluginsRoute
   '/admin/users': typeof MemberAdminAdminUsersRoute
@@ -175,6 +182,7 @@ export interface FileRoutesByTo {
   '/requests': typeof MemberRequestsRoute
   '/settings': typeof MemberSettingsRoute
   '/movies/$movieId': typeof MemberMoviesMovieIdRoute
+  '/shows/$showId': typeof MemberShowsShowIdRoute
   '/admin/needs-a-match': typeof MemberAdminAdminNeedsAMatchRoute
   '/admin/plugins': typeof MemberAdminAdminPluginsRoute
   '/admin/users': typeof MemberAdminAdminUsersRoute
@@ -199,6 +207,7 @@ export interface FileRoutesById {
   '/_member/settings': typeof MemberSettingsRoute
   '/_member/': typeof MemberIndexRoute
   '/_member/movies/$movieId': typeof MemberMoviesMovieIdRoute
+  '/_member/shows/$showId': typeof MemberShowsShowIdRoute
   '/_member/_admin/admin/needs-a-match': typeof MemberAdminAdminNeedsAMatchRoute
   '/_member/_admin/admin/plugins': typeof MemberAdminAdminPluginsRoute
   '/_member/_admin/admin/users': typeof MemberAdminAdminUsersRoute
@@ -222,6 +231,7 @@ export interface FileRouteTypes {
     | '/requests'
     | '/settings'
     | '/movies/$movieId'
+    | '/shows/$showId'
     | '/admin/needs-a-match'
     | '/admin/plugins'
     | '/admin/users'
@@ -243,6 +253,7 @@ export interface FileRouteTypes {
     | '/requests'
     | '/settings'
     | '/movies/$movieId'
+    | '/shows/$showId'
     | '/admin/needs-a-match'
     | '/admin/plugins'
     | '/admin/users'
@@ -266,6 +277,7 @@ export interface FileRouteTypes {
     | '/_member/settings'
     | '/_member/'
     | '/_member/movies/$movieId'
+    | '/_member/shows/$showId'
     | '/_member/_admin/admin/needs-a-match'
     | '/_member/_admin/admin/plugins'
     | '/_member/_admin/admin/users'
@@ -355,6 +367,13 @@ declare module '@tanstack/react-router' {
       path: '/movies/$movieId'
       fullPath: '/movies/$movieId'
       preLoaderRoute: typeof MemberMoviesMovieIdRouteImport
+      parentRoute: typeof MemberRoute
+    }
+    '/_member/shows/$showId': {
+      id: '/_member/shows/$showId'
+      path: '/shows/$showId'
+      fullPath: '/shows/$showId'
+      preLoaderRoute: typeof MemberShowsShowIdRouteImport
       parentRoute: typeof MemberRoute
     }
     '/_member/_admin/admin/': {
@@ -468,6 +487,7 @@ interface MemberRouteChildren {
   MemberSettingsRoute: typeof MemberSettingsRoute
   MemberIndexRoute: typeof MemberIndexRoute
   MemberMoviesMovieIdRoute: typeof MemberMoviesMovieIdRoute
+  MemberShowsShowIdRoute: typeof MemberShowsShowIdRoute
   MemberLibrariesLibraryIdIndexRoute: typeof MemberLibrariesLibraryIdIndexRoute
   MemberLibrariesLibraryIdMoviesMovieIdPlayRoute: typeof MemberLibrariesLibraryIdMoviesMovieIdPlayRoute
   MemberLibrariesLibraryIdMoviesMovieIdIndexRoute: typeof MemberLibrariesLibraryIdMoviesMovieIdIndexRoute
@@ -483,6 +503,7 @@ const MemberRouteChildren: MemberRouteChildren = {
   MemberSettingsRoute: MemberSettingsRoute,
   MemberIndexRoute: MemberIndexRoute,
   MemberMoviesMovieIdRoute: MemberMoviesMovieIdRoute,
+  MemberShowsShowIdRoute: MemberShowsShowIdRoute,
   MemberLibrariesLibraryIdIndexRoute: MemberLibrariesLibraryIdIndexRoute,
   MemberLibrariesLibraryIdMoviesMovieIdPlayRoute:
     MemberLibrariesLibraryIdMoviesMovieIdPlayRoute,

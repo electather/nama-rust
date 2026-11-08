@@ -46,6 +46,22 @@ pub type OwnedLookUpMovieRequestView = ::buffa::view::OwnedView<
 pub type OwnedLookUpMovieResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::LookUpMovieResponseView<'static>,
 >;
+///Shorthand for `OwnedView<SearchShowsRequestView<'static>>`.
+pub type OwnedSearchShowsRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SearchShowsRequestView<'static>,
+>;
+///Shorthand for `OwnedView<SearchShowsResponseView<'static>>`.
+pub type OwnedSearchShowsResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SearchShowsResponseView<'static>,
+>;
+///Shorthand for `OwnedView<LookUpShowRequestView<'static>>`.
+pub type OwnedLookUpShowRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::LookUpShowRequestView<'static>,
+>;
+///Shorthand for `OwnedView<LookUpShowResponseView<'static>>`.
+pub type OwnedLookUpShowResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::LookUpShowResponseView<'static>,
+>;
 ///Shorthand for `OwnedView<ApproveRequestRequestView<'static>>`.
 pub type OwnedApproveRequestRequestView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::ApproveRequestRequestView<'static>,
@@ -282,6 +298,74 @@ for ::buffa::view::OwnedView<
         )
     }
 }
+impl ::connectrpc::Encodable<crate::messages::nama::v1::SearchShowsResponse>
+for crate::messages::nama::v1::__buffa::view::SearchShowsResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::SearchShowsResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SearchShowsResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::LookUpShowResponse>
+for crate::messages::nama::v1::__buffa::view::LookUpShowResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::LookUpShowResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::LookUpShowResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
 impl ::connectrpc::Encodable<crate::messages::nama::v1::ApproveRequestResponse>
 for crate::messages::nama::v1::__buffa::view::ApproveRequestResponseView<'_> {
     fn encode(
@@ -453,6 +537,18 @@ pub const REQUEST_SERVICE_SEARCH_MOVIES_SPEC: ::connectrpc::Spec = ::connectrpc:
 /// Static [`Spec`](::connectrpc::Spec) for the `LookUpMovie` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
 pub const REQUEST_SERVICE_LOOK_UP_MOVIE_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
         "/nama.v1.RequestService/LookUpMovie",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
+/// Static [`Spec`](::connectrpc::Spec) for the `SearchShows` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const REQUEST_SERVICE_SEARCH_SHOWS_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.RequestService/SearchShows",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
+/// Static [`Spec`](::connectrpc::Spec) for the `LookUpShow` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const REQUEST_SERVICE_LOOK_UP_SHOW_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.RequestService/LookUpShow",
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
@@ -685,6 +781,55 @@ pub trait RequestService: Send + Sync + 'static {
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
                 crate::messages::nama::v1::LookUpMovieResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Searches the metadata source for Shows to ask for Seasons of, best fit first. Needs
+    /// `PERMISSION_REQUEST_TV`. Fails as `SearchMovies` does.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn search_shows<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::SearchShowsRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::SearchShowsResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Returns one Show from the metadata source with each of its Seasons, for picking which to ask
+    /// for. Needs `PERMISSION_REQUEST_TV`. Fails with `invalid_argument` if the metadata source has no
+    /// Show with the id, and `unavailable` if no metadata Provider is enabled, or it failed.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn look_up_show<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::LookUpShowRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::LookUpShowResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -992,6 +1137,64 @@ impl<S: RequestService> RequestServiceExt for S {
                 },
             )
             .with_spec(REQUEST_SERVICE_LOOK_UP_MOVIE_SPEC)
+            .route_view_idempotent(
+                REQUEST_SERVICE_SERVICE_NAME,
+                "SearchShows",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::SearchShowsRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::SearchShowsRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.search_shows(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::SearchShowsResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(REQUEST_SERVICE_SEARCH_SHOWS_SPEC)
+            .route_view_idempotent(
+                REQUEST_SERVICE_SERVICE_NAME,
+                "LookUpShow",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::LookUpShowRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::LookUpShowRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.look_up_show(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::LookUpShowResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(REQUEST_SERVICE_LOOK_UP_SHOW_SPEC)
             .route_view(
                 REQUEST_SERVICE_SERVICE_NAME,
                 "ApproveRequest",
@@ -1198,6 +1401,18 @@ impl<T: RequestService> ::connectrpc::Dispatcher for RequestServiceServer<T> {
                         .with_spec(REQUEST_SERVICE_LOOK_UP_MOVIE_SPEC),
                 )
             }
+            "SearchShows" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
+                        .with_spec(REQUEST_SERVICE_SEARCH_SHOWS_SPEC),
+                )
+            }
+            "LookUpShow" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
+                        .with_spec(REQUEST_SERVICE_LOOK_UP_SHOW_SPEC),
+                )
+            }
             "ApproveRequest" => {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
@@ -1363,6 +1578,46 @@ impl<T: RequestService> ::connectrpc::Dispatcher for RequestServiceServer<T> {
                     svc.look_up_movie(ctx, req)
                         .await?
                         .encode::<crate::messages::nama::v1::LookUpMovieResponse>(format)
+                })
+            }
+            "SearchShows" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::SearchShowsRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::SearchShowsRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::SearchShowsRequest,
+                    >::from_parts(&req, &body);
+                    svc.search_shows(ctx, req)
+                        .await?
+                        .encode::<crate::messages::nama::v1::SearchShowsResponse>(format)
+                })
+            }
+            "LookUpShow" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::LookUpShowRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::LookUpShowRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::LookUpShowRequest,
+                    >::from_parts(&req, &body);
+                    svc.look_up_show(ctx, req)
+                        .await?
+                        .encode::<crate::messages::nama::v1::LookUpShowResponse>(format)
                 })
             }
             "ApproveRequest" => {
@@ -1841,6 +2096,92 @@ where
                 &self.transport,
                 &self.config,
                 REQUEST_SERVICE_LOOK_UP_MOVIE_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the SearchShows RPC. Sends a request to /nama.v1.RequestService/SearchShows.
+    pub async fn search_shows(
+        &self,
+        request: crate::messages::nama::v1::SearchShowsRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::SearchShowsResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.search_shows_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the SearchShows RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn search_shows_with_options(
+        &self,
+        request: crate::messages::nama::v1::SearchShowsRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::SearchShowsResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                REQUEST_SERVICE_SEARCH_SHOWS_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the LookUpShow RPC. Sends a request to /nama.v1.RequestService/LookUpShow.
+    pub async fn look_up_show(
+        &self,
+        request: crate::messages::nama::v1::LookUpShowRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::LookUpShowResponseView<'static>,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.look_up_show_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the LookUpShow RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn look_up_show_with_options(
+        &self,
+        request: crate::messages::nama::v1::LookUpShowRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::LookUpShowResponseView<'static>,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                REQUEST_SERVICE_LOOK_UP_SHOW_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,
