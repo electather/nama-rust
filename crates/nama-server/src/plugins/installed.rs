@@ -227,12 +227,13 @@ impl SettingsCheck for Installed {
     fn check<'a>(&'a self, settings: &'a Settings) -> BoxFuture<'a, Result<Choices, PluginError>> {
         let hosts = allowed_hosts(&self.manifest, &self.settings_schema, settings);
         let config = extism_config(&self.settings_schema, settings);
-        let plugin = self.clone();
+        let wasm = Arc::clone(&self.wasm);
+        let cache_config = Arc::clone(&self.cache_config);
         Box::pin(async move {
             // Compiled for this call alone, since the settings may be unsaved: the hosts of their
             // URL settings are allowed for it and gone once it returns.
             let called = task::spawn_blocking(move || {
-                let compiled = compile(&plugin.wasm, &plugin.cache_config, hosts, config)?;
+                let compiled = compile(&wasm, &cache_config, hosts, config)?;
                 extism::Plugin::new_from_compiled(&compiled)?
                     .call::<(), Vec<u8>>(CHECK_SETTINGS, ())
             })

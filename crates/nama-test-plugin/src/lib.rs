@@ -26,8 +26,8 @@ mod exports {
 
     // Says who the Plugin is, that it observes Events, and its settings: a URL whose host it may
     // reach, one it requests, how its Observer behaves, a profile its check offers, and how its
-    // check fails. With the `out-of-range` feature it
-    // wants a Nama API no Server has, and with `panic` it panics instead.
+    // check fails. With the `out-of-range` feature it wants a Nama API no Server has, and with
+    // `panic` it panics instead.
     #[plugin_fn]
     pub fn manifest() -> FnResult<Buffa<Manifest>> {
         #[expect(
