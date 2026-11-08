@@ -9,7 +9,7 @@ import type {
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 
 import { input, openPlugins, plugin } from "./test-plugins";
-import { refused } from "./test-refusal";
+import { expectUnderField, refused } from "./test-refusal";
 
 afterEach(cleanup);
 
@@ -122,4 +122,39 @@ test("a passing test that offers nothing for a choice unlocks it with nothing to
     expect((await profile()).disabled).toBe(false);
   });
   expect([...(await profile()).options].map((option) => option.text)).toEqual(["Pick one"]);
+});
+
+/** Saves the test Plugin's settings, refused for `reason` with `message`, naming its Profile. */
+async function saveRefusedOnProfile(reason: RefusalReason, message: string) {
+  openPlugins({
+    updatePluginSettings: () => {
+      throw refused(Code.FailedPrecondition, message, {
+        reason,
+        field: "settings.profile",
+        params: { pluginId: "test-choices", settingKey: "profile" },
+      });
+    },
+  });
+  await pressSave();
+}
+
+test("a save refused for a failed check shows the Plugin’s error on the choice it names", async () => {
+  await saveRefusedOnProfile(
+    RefusalReason.SETTINGS_CHECK_FAILED,
+    "the service refused the API key",
+  );
+
+  await expectUnderField("Profile", "The service refused the API key.");
+});
+
+test("a save refused for a choice the Plugin doesn’t offer says so on that choice", async () => {
+  await saveRefusedOnProfile(
+    RefusalReason.CHOICE_NOT_OFFERED,
+    "1 isn't one of the choices for the setting profile",
+  );
+
+  await expectUnderField(
+    "Profile",
+    "The Plugin doesn’t offer this choice now. Test the settings and pick again.",
+  );
 });

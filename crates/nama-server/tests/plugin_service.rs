@@ -741,17 +741,97 @@ async fn only_a_plugin_with_a_check_says_so_and_testing_one_without_is_refused()
     );
 }
 
-#[tokio::test]
-async fn a_plugin_whose_check_would_hang_starts_and_is_enabled_without_running_it() {
+/// Settings stored for the test Plugin: its API key, and `profile` chosen as `1` ("HD").
+fn test_choices_with_profile() -> BTreeMap<String, PluginConfig> {
     let mut settings = test_choices_with_key(test_choices::API_KEY);
     if let Some(config) = settings.get_mut(test_choices::ID) {
-        config.settings.extend([
-            (
-                "fail_with".to_owned(),
-                SettingValue::Text(test_choices::HANG.to_owned()),
-            ),
-            ("profile".to_owned(), SettingValue::Text("1".to_owned())),
-        ]);
+        config
+            .settings
+            .insert("profile".to_owned(), SettingValue::Text("1".to_owned()));
+    }
+    settings
+}
+
+#[tokio::test]
+async fn saving_a_choice_the_check_offers_saves_it() {
+    let started = Started::with(&test_choices_with_profile()).await;
+
+    let updated = started
+        .update(test_choices::ID, [("profile", text("2"))])
+        .await;
+
+    assert!(updated.unwrap().plugin.into_option().unwrap().enabled);
+    let config = started.stored().await.remove(test_choices::ID).unwrap();
+    assert_eq!(
+        config.settings.get("profile"),
+        Some(&SettingValue::Text("2".to_owned()))
+    );
+}
+
+#[tokio::test]
+async fn saving_a_choice_the_check_didnt_offer_is_refused_naming_it_and_nothing_changes() {
+    let started = Started::with(&test_choices_with_profile()).await;
+
+    let updated = started
+        .update(test_choices::ID, [("profile", text("3"))])
+        .await;
+
+    let refusal = assert_refused(
+        updated,
+        ErrorCode::FailedPrecondition,
+        RefusalReason::REFUSAL_REASON_CHOICE_NOT_OFFERED,
+    );
+    assert_eq!(refusal.field, "settings.profile");
+    assert_eq!(refusal.params["settingKey"], "profile");
+    assert_eq!(refusal.params["pluginId"], test_choices::ID);
+    assert_eq!(started.stored().await, test_choices_with_profile());
+    assert!(
+        started
+            .plugins
+            .enabled()
+            .contains(&PluginId::from_static(test_choices::ID))
+    );
+}
+
+#[tokio::test]
+async fn saving_while_the_check_fails_is_refused_with_the_plugins_error_and_nothing_changes() {
+    let started = Started::with(&test_choices_with_profile()).await;
+
+    let updated = started
+        .update(
+            test_choices::ID,
+            [("api_key", text("wrong-key")), ("profile", text("1"))],
+        )
+        .await;
+
+    let refusal = assert_refused(
+        updated.clone(),
+        ErrorCode::FailedPrecondition,
+        RefusalReason::REFUSAL_REASON_SETTINGS_CHECK_FAILED,
+    );
+    assert_eq!(refusal.field, "settings.profile");
+    assert_eq!(refusal.params["settingKey"], "profile");
+    assert_eq!(
+        updated.unwrap_err().message.as_deref(),
+        Some("the service refused the API key")
+    );
+    assert_eq!(started.stored().await, test_choices_with_profile());
+    assert!(
+        started
+            .plugins
+            .enabled()
+            .contains(&PluginId::from_static(test_choices::ID))
+    );
+}
+
+#[tokio::test]
+async fn a_plugin_whose_check_would_hang_starts_and_is_enabled_with_its_stored_choice() {
+    let mut settings = test_choices_with_profile();
+    if let Some(config) = settings.get_mut(test_choices::ID) {
+        config.settings.insert(
+            "fail_with".to_owned(),
+            SettingValue::Text(test_choices::HANG.to_owned()),
+        );
     }
 
     // Shorter than the Kernel's timeout for a check, so running the check would fail the test.
@@ -778,4 +858,5 @@ async fn a_plugin_whose_check_would_hang_starts_and_is_enabled_without_running_i
             .enabled()
             .contains(&PluginId::from_static(test_choices::ID))
     );
+    assert_eq!(started.stored().await, settings);
 }

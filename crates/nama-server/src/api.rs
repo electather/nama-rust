@@ -2071,6 +2071,7 @@ impl PluginService for PluginServiceHandler {
         Settings::new(settings.clone())
             .resolve(&plugin.settings_schema)
             .map_err(settings_refused)?;
+        self.check_choices(&plugin, &settings).await?;
         plugin_settings::save_settings(&self.db, plugin.id.as_str(), &settings)
             .await
             .map_err(database_failed)?;
@@ -2132,22 +2133,11 @@ impl PluginService for PluginServiceHandler {
             settings_from_proto(&request.settings),
             &stored.settings,
         );
-        let check_failed = |message: String| {
-            refuse(RefusalReason::REFUSAL_REASON_SETTINGS_CHECK_FAILED, message)
-                .param("pluginId", &id)
-        };
         let choices = self
             .plugins
             .check_settings(&id, Settings::new(settings))
             .await
-            .map_err(|err| match err {
-                CheckError::Unknown(unknown) => plugin_not_found(&unknown),
-                CheckError::InvalidSettings(error) => settings_refused(error),
-                CheckError::Failed(message) => check_failed(message).into(),
-                CheckError::TimedOut(_) => check_failed(err.to_string())
-                    .param("timeoutSeconds", &SETTINGS_CHECK_TIMEOUT.as_secs())
-                    .into(),
-            })?;
+            .map_err(|err| check_refused(&id, err, |refused| refused))?;
         let choices = choices
             .into_iter()
             .map(|(key, choices)| (key, setting_choices_to_proto(choices)))
@@ -2200,6 +2190,45 @@ impl PluginServiceHandler {
             .ok_or_else(|| plugin_not_found(id))
     }
 
+    /// Refuses `settings` for `plugin` unless its settings check passes on them and offers each
+    /// choice setting's value. The check runs only when some choice setting has a value.
+    async fn check_choices(
+        &self,
+        plugin: &Builtin,
+        settings: &BTreeMap<String, settings::SettingValue>,
+    ) -> Result<(), ConnectError> {
+        let chosen: Vec<_> = plugin
+            .settings_schema
+            .fields
+            .iter()
+            .filter(|field| field.kind == settings::SettingKind::Choice)
+            .filter_map(|field| match settings.get(field.key) {
+                Some(settings::SettingValue::Text(value)) => Some((field.key, value)),
+                _ => None,
+            })
+            .collect();
+        let Some(&(first, _)) = chosen.first() else {
+            return Ok(());
+        };
+        let offered = self
+            .plugins
+            .check_settings(&plugin.id, Settings::new(settings.clone()))
+            .await
+            .map_err(|err| check_refused(&plugin.id, err, |refused| refused.setting(first)))?;
+        for (key, value) in chosen {
+            let is_offered = offered
+                .get(key)
+                .is_some_and(|choices| choices.iter().any(|choice| choice.value == *value));
+            if !is_offered {
+                let message = format!("{value} isn't one of the choices for the setting {key}");
+                let refused = refuse(RefusalReason::REFUSAL_REASON_CHOICE_NOT_OFFERED, message)
+                    .param("pluginId", &plugin.id);
+                return Err(refused.setting(key).into());
+            }
+        }
+        Ok(())
+    }
+
     /// What is stored for the Plugin `id`: nothing for one that never had settings saved.
     async fn stored(&self, id: &PluginId) -> Result<PluginConfig, ConnectError> {
         Ok(plugin_settings::stored(&self.db)
@@ -2208,6 +2237,29 @@ impl PluginServiceHandler {
             .unwrap_or_default()
             .remove(id.as_str())
             .unwrap_or_default())
+    }
+}
+
+/// The refusal of the Plugin `id`'s settings check failing with `err`, which `about` adds to,
+/// such as with the setting a save was refused for.
+fn check_refused(
+    id: &PluginId,
+    err: CheckError,
+    about: impl FnOnce(Refused) -> Refused,
+) -> ConnectError {
+    let check_failed = |message: String| {
+        about(
+            refuse(RefusalReason::REFUSAL_REASON_SETTINGS_CHECK_FAILED, message)
+                .param("pluginId", id),
+        )
+    };
+    match err {
+        CheckError::Unknown(unknown) => plugin_not_found(&unknown),
+        CheckError::InvalidSettings(error) => settings_refused(error),
+        CheckError::Failed(message) => check_failed(message).into(),
+        CheckError::TimedOut(_) => check_failed(err.to_string())
+            .param("timeoutSeconds", &SETTINGS_CHECK_TIMEOUT.as_secs())
+            .into(),
     }
 }
 
@@ -2273,16 +2325,14 @@ fn settings_refused(err: SettingsError) -> ConnectError {
             RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
             format!("the setting {key} is required"),
         )
-        .field(&format!("settings.{key}"))
-        .param("settingKey", &key),
+        .setting(key),
         SettingsError::WrongKind { key, expected } => {
             let kind = setting_kind_to_proto(expected).proto_name();
             refuse(
                 RefusalReason::REFUSAL_REASON_SETTING_WRONG_KIND,
                 format!("the setting {key} must be {kind}"),
             )
-            .field(&format!("settings.{key}"))
-            .param("settingKey", &key)
+            .setting(key)
             .param("settingKind", &kind)
         }
     };
@@ -2448,7 +2498,8 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_REQUEST_NOT_FAILED
         | R::REFUSAL_REASON_NOT_A_REQUESTER
         | R::REFUSAL_REASON_LAST_AUTHENTICATOR
-        | R::REFUSAL_REASON_SETTINGS_CHECK_FAILED => ErrorCode::FailedPrecondition,
+        | R::REFUSAL_REASON_SETTINGS_CHECK_FAILED
+        | R::REFUSAL_REASON_CHOICE_NOT_OFFERED => ErrorCode::FailedPrecondition,
         R::REFUSAL_REASON_SIGN_IN_CODE_NOT_FOUND
         | R::REFUSAL_REASON_HANDLE_NOT_FOUND
         | R::REFUSAL_REASON_USER_NOT_FOUND
@@ -2472,6 +2523,12 @@ impl Refused {
     fn field(mut self, field: &str) -> Self {
         field.clone_into(&mut self.refusal.field);
         self
+    }
+
+    /// Names the Plugin setting `key` that the refusal is about, as `field` and a param.
+    fn setting(self, key: &str) -> Self {
+        self.field(&format!("settings.{key}"))
+            .param("settingKey", &key)
     }
 
     /// Adds `value`, which the message mentions, as the param `key`: lowerCamelCase, with the unit

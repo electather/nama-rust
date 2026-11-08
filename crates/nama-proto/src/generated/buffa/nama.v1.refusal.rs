@@ -118,10 +118,13 @@ pub enum RefusalReason {
     /// `failed_precondition`: a Plugin's settings check failed, ran too long or crashed, or the Plugin
     /// has none. The message says why in plain words: the Plugin's own for a failed check, which can't
     /// be translated, or else the Server's. Params: `pluginId`, and `timeoutSeconds` for a check that ran
-    /// too long.
+    /// too long. A refused save names the choice setting it couldn't check in `field` and `settingKey`.
     REFUSAL_REASON_SETTINGS_CHECK_FAILED = 45i32,
     /// `failed_precondition`: the Request isn't Failed, so it can't be retried. Params: `requestId`.
     REFUSAL_REASON_REQUEST_NOT_FAILED = 46i32,
+    /// `failed_precondition`: a choice setting's value isn't one of the choices the Plugin's settings
+    /// check offers. Params: `pluginId`, `settingKey`.
+    REFUSAL_REASON_CHOICE_NOT_OFFERED = 47i32,
 }
 impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -265,6 +268,9 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_REQUEST_NOT_FAILED`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const RequestNotFailed: Self = Self::REFUSAL_REASON_REQUEST_NOT_FAILED;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_CHOICE_NOT_OFFERED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const ChoiceNotOffered: Self = Self::REFUSAL_REASON_CHOICE_NOT_OFFERED;
 }
 impl ::core::default::Default for RefusalReason {
     fn default() -> Self {
@@ -451,6 +457,9 @@ impl ::buffa::Enumeration for RefusalReason {
             46i32 => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_REQUEST_NOT_FAILED)
             }
+            47i32 => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_CHOICE_NOT_OFFERED)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -543,6 +552,9 @@ impl ::buffa::Enumeration for RefusalReason {
             }
             Self::REFUSAL_REASON_REQUEST_NOT_FAILED => {
                 "REFUSAL_REASON_REQUEST_NOT_FAILED"
+            }
+            Self::REFUSAL_REASON_CHOICE_NOT_OFFERED => {
+                "REFUSAL_REASON_CHOICE_NOT_OFFERED"
             }
         }
     }
@@ -695,6 +707,9 @@ impl ::buffa::Enumeration for RefusalReason {
             "REFUSAL_REASON_REQUEST_NOT_FAILED" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_REQUEST_NOT_FAILED)
             }
+            "REFUSAL_REASON_CHOICE_NOT_OFFERED" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_CHOICE_NOT_OFFERED)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -747,6 +762,7 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_NOT_A_REQUESTER,
             Self::REFUSAL_REASON_SETTINGS_CHECK_FAILED,
             Self::REFUSAL_REASON_REQUEST_NOT_FAILED,
+            Self::REFUSAL_REASON_CHOICE_NOT_OFFERED,
         ]
     }
 }

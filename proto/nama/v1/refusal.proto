@@ -144,9 +144,13 @@ enum RefusalReason {
   // `failed_precondition`: a Plugin's settings check failed, ran too long or crashed, or the Plugin
   // has none. The message says why in plain words: the Plugin's own for a failed check, which can't
   // be translated, or else the Server's. Params: `pluginId`, and `timeoutSeconds` for a check that ran
-  // too long.
+  // too long. A refused save names the choice setting it couldn't check in `field` and `settingKey`.
   REFUSAL_REASON_SETTINGS_CHECK_FAILED = 45;
 
   // `failed_precondition`: the Request isn't Failed, so it can't be retried. Params: `requestId`.
   REFUSAL_REASON_REQUEST_NOT_FAILED = 46;
+
+  // `failed_precondition`: a choice setting's value isn't one of the choices the Plugin's settings
+  // check offers. Params: `pluginId`, `settingKey`.
+  REFUSAL_REASON_CHOICE_NOT_OFFERED = 47;
 }
