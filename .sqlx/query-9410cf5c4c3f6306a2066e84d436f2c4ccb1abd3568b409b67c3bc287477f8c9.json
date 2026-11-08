@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT plugin_id FROM plugin_connections WHERE user_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "plugin_id",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "plugin_connections",
+            "name": "plugin_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "9410cf5c4c3f6306a2066e84d436f2c4ccb1abd3568b409b67c3bc287477f8c9"
+}

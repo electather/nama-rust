@@ -648,6 +648,21 @@ impl Registry {
         Some(result.map_err(|message| without_secrets(message, &entry.secrets)))
     }
 
+    /// Like [`Registry::call_provider_of`], with an `Err`'s message blanked as
+    /// [`Registry::call_provider_blanking_secrets`] blanks it.
+    pub async fn call_provider_of_blanking_secrets<T, V, F>(
+        &self,
+        plugin: &PluginId,
+        call: impl Fn(Arc<T>) -> F,
+    ) -> Option<Result<V, String>>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Future<Output = Result<V, String>>,
+    {
+        let (entry, result) = self.call_providers(Some(plugin), call).await?;
+        Some(result.map_err(|message| without_secrets(message, &entry.secrets)))
+    }
+
     /// Like [`Registry::call_provider`], but also says which Plugin's Provider answered, so the
     /// caller can go back to it with [`Registry::call_provider_of`].
     pub async fn call_provider_with_id<T, R, F>(

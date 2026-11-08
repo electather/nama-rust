@@ -1,5 +1,6 @@
-//! The Telegram Installed Plugin: posts every Request event to a Telegram channel (ADR 0021). The
-//! Server builds it for wasm32 and bundles it in its binary.
+//! The Telegram Installed Plugin: posts every Request event to a Telegram channel, and connects
+//! Users to their own Telegram chat with the bot through a deep link (ADR 0021). The Server builds
+//! it for wasm32 and bundles it in its binary.
 
 use nama_pdk::{
     Notification,
@@ -13,15 +14,20 @@ use nama_pdk::{
     reason = "an export returns `FnResult` even when it can't fail"
 )]
 mod exports {
+    use std::collections::BTreeMap;
+
     use nama_pdk::{
-        Buffa, FnResult, Manifest, Notification, Notifier, Recipient,
+        Buffa, ConnectionStarted, Connector, FnResult, Manifest, Notification, Notifier, Recipient,
         extism_pdk::{self, Error, HttpRequest, HttpResponse, Json, config},
         nama_proto::nama::plugin::v1::{
             ProvidePoint, SettingField, SettingKind, SettingValue, setting_value,
         },
         plugin_fn,
     };
-    use serde::{Deserialize, Serialize};
+    use serde::{
+        Deserialize, Serialize,
+        de::{DeserializeOwned, IgnoredAny},
+    };
 
     const BOT_TOKEN: &str = "bot_token";
     const CHANNEL: &str = "channel";
@@ -37,7 +43,10 @@ mod exports {
             ..SettingField::default()
         };
         Ok(Buffa(Manifest {
-            providers: vec![ProvidePoint::PROVIDE_POINT_NOTIFIER.into()],
+            providers: vec![
+                ProvidePoint::PROVIDE_POINT_NOTIFIER.into(),
+                ProvidePoint::PROVIDE_POINT_CONNECTOR.into(),
+            ],
             allowed_hosts: vec!["api.telegram.org".to_owned()],
             settings: vec![
                 SettingField {
@@ -98,22 +107,54 @@ mod exports {
 
     nama_pdk::notifier!(Telegram);
 
+    /// Connects a User through a deep link to the bot, which sends `/start <code>` from their own
+    /// chat when they press Start. Polled with `getUpdates`, since a webhook needs the Server on a
+    /// public domain.
+    impl Connector for Telegram {
+        fn start_connection(code: String) -> Result<ConnectionStarted, Error> {
+            let bot: Bot = call("getMe", BTreeMap::<&str, &str>::new())?;
+            Ok(ConnectionStarted {
+                url: format!("https://t.me/{}?start={code}", bot.username),
+                pending: code,
+                ..ConnectionStarted::default()
+            })
+        }
+
+        fn poll_connection(pending: String) -> Result<Option<String>, Error> {
+            // The last 100 updates, forgetting older ones, so the queue never fills: a pending
+            // code is at most 10 minutes old, and the bot reads its messages for nothing else.
+            let updates: Vec<Update> = call("getUpdates", GetUpdates { offset: -100 })?;
+            let start = format!("/start {pending}");
+            let started = updates
+                .into_iter()
+                .filter_map(|update| update.message)
+                .find(|message| message.text.as_deref() == Some(start.as_str()));
+            Ok(started.map(|message| message.chat.id.to_string()))
+        }
+    }
+
+    nama_pdk::connector!(Telegram);
+
     /// Posts `text` to the chat `chat_id` with the Bot API's `sendMessage`.
     fn send_message(chat_id: &str, text: &str) -> Result<(), Error> {
+        call::<IgnoredAny>("sendMessage", SendMessage { chat_id, text }).map(drop)
+    }
+
+    /// Calls the Bot API's `method` with `parameters`, and returns its result.
+    fn call<T: DeserializeOwned>(method: &str, parameters: impl Serialize) -> Result<T, Error> {
         let api_url = setting(API_URL)?;
         let token = setting(BOT_TOKEN)?;
-        let url = format!("{}/bot{token}/sendMessage", api_url.trim_end_matches('/'));
+        let url = format!("{}/bot{token}/{method}", api_url.trim_end_matches('/'));
         let request = HttpRequest::new(url)
             .with_method("POST")
             .with_header("Content-Type", "application/json");
-        let message = Json(SendMessage { chat_id, text });
         // Not naming the URL, which holds the token.
-        let response = nama_pdk::http_request(&request, Some(message), "Telegram didn't answer")?;
-        if (200..300).contains(&response.status_code()) {
-            Ok(())
-        } else {
-            Err(refused(&response))
+        let response =
+            nama_pdk::http_request(&request, Some(Json(parameters)), "Telegram didn't answer")?;
+        if !(200..300).contains(&response.status_code()) {
+            return Err(refused(&response));
         }
+        Ok(response.json::<Answer<T>>()?.result)
     }
 
     /// The setting `key`, which the Server sets before every call.
@@ -139,6 +180,43 @@ mod exports {
     struct SendMessage<'a> {
         chat_id: &'a str,
         text: &'a str,
+    }
+
+    /// What `getUpdates` takes.
+    #[derive(Serialize)]
+    struct GetUpdates {
+        offset: i64,
+    }
+
+    /// The body of a Bot API success.
+    #[derive(Deserialize)]
+    struct Answer<T> {
+        result: T,
+    }
+
+    /// The bot, as `getMe` gives it.
+    #[derive(Deserialize)]
+    struct Bot {
+        username: String,
+    }
+
+    /// One update `getUpdates` gives.
+    #[derive(Deserialize)]
+    struct Update {
+        message: Option<Message>,
+    }
+
+    /// A message someone sent the bot.
+    #[derive(Deserialize)]
+    struct Message {
+        chat: Chat,
+        text: Option<String>,
+    }
+
+    /// The chat a message was sent in.
+    #[derive(Deserialize)]
+    struct Chat {
+        id: i64,
     }
 
     /// The body of a Bot API error.

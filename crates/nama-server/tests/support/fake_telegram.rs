@@ -28,8 +28,17 @@ const WAIT: Duration = Duration::from_secs(10);
 /// A fake Telegram Bot API serving on a local port until dropped.
 pub(crate) struct FakeTelegram {
     url: String,
-    sent: Arc<Mutex<Vec<Value>>>,
+    bot: Arc<Bot>,
     server: JoinHandle<()>,
+}
+
+/// What the fake bot has been sent and told.
+#[derive(Default)]
+struct Bot {
+    /// The body of each message sent with the right token, in order.
+    sent: Mutex<Vec<Value>>,
+    /// Each press of Start on a deep link: its code, and the chat pressing it.
+    started: Mutex<Vec<(String, i64)>>,
 }
 
 #[expect(
@@ -41,14 +50,19 @@ impl FakeTelegram {
     pub(crate) async fn start() -> Self {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let url = format!("http://{}", listener.local_addr().unwrap());
-        let sent = Arc::default();
+        let bot = Arc::default();
         let app = Router::new()
-            .route("/{bot}/sendMessage", post(send_message))
-            .with_state(Arc::clone(&sent));
+            .route("/{bot}/{method}", post(answer))
+            .with_state(Arc::clone(&bot));
         let server = tokio::spawn(async move {
             let _: Result<(), _> = axum::serve(listener, app).await;
         });
-        Self { url, sent, server }
+        Self { url, bot, server }
+    }
+
+    /// Someone in the chat `chat_id` opens the bot's deep link with `code` and presses Start.
+    pub(crate) fn press_start(&self, code: &str, chat_id: i64) {
+        lock(&self.bot.started).push((code.to_owned(), chat_id));
     }
 
     /// Where it serves, as the Bot API URL setting names it.
@@ -63,10 +77,7 @@ impl FakeTelegram {
 
     /// The body of each message sent with the right token so far, in order.
     pub(crate) fn sent(&self) -> Vec<Value> {
-        self.sent
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .clone()
+        lock(&self.bot.sent).clone()
     }
 
     /// Waits until `count` messages have been sent, and returns them all.
@@ -93,12 +104,12 @@ impl Drop for FakeTelegram {
     }
 }
 
-async fn send_message(
-    State(sent): State<Arc<Mutex<Vec<Value>>>>,
-    Path(bot): Path<String>,
+async fn answer(
+    State(bot): State<Arc<Bot>>,
+    Path((token, method)): Path<(String, String)>,
     body: Bytes,
 ) -> Response {
-    let token = bot.strip_prefix("bot").unwrap_or_default();
+    let token = token.strip_prefix("bot").unwrap_or_default();
     if token
         .split_once(':')
         .is_none_or(|(id, _)| id.parse::<u64>().is_err())
@@ -108,21 +119,59 @@ async fn send_message(
     if token != BOT_TOKEN {
         return fixture(StatusCode::UNAUTHORIZED, "unauthorized.json");
     }
-    let message = serde_json::from_slice(&body).unwrap_or_default();
-    sent.lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .push(message);
-    fixture(StatusCode::OK, "sendMessage.json")
+    match method.as_str() {
+        "sendMessage" => {
+            let message = serde_json::from_slice(&body).unwrap_or_default();
+            lock(&bot.sent).push(message);
+            fixture(StatusCode::OK, "sendMessage.json")
+        }
+        "getMe" => fixture(StatusCode::OK, "getMe.json"),
+        "getUpdates" => updates(&bot),
+        _ => fixture(StatusCode::NOT_FOUND, "not-found.json"),
+    }
+}
+
+/// `getUpdates.json`'s first update, then its second once per press of Start, with that press's
+/// code and chat.
+#[expect(
+    clippy::indexing_slicing,
+    reason = "a test helper fails its test by panicking"
+)]
+fn updates(bot: &Bot) -> Response {
+    let mut answer: Value =
+        serde_json::from_slice(&recorded("getUpdates.json")).unwrap_or_default();
+    let start = answer["result"][1].take();
+    let mut updates = vec![answer["result"][0].take()];
+    for (code, chat_id) in lock(&bot.started).iter() {
+        let mut update = start.clone();
+        update["message"]["text"] = format!("/start {code}").into();
+        update["message"]["chat"]["id"] = (*chat_id).into();
+        updates.push(update);
+    }
+    answer["result"] = updates.into();
+    json(StatusCode::OK, answer.to_string().into_bytes())
 }
 
 /// The recorded response `file`, with `status`.
+fn fixture(status: StatusCode, file: &str) -> Response {
+    json(status, recorded(file))
+}
+
+fn json(status: StatusCode, body: Vec<u8>) -> Response {
+    (status, [(header::CONTENT_TYPE, "application/json")], body).into_response()
+}
+
+/// The contents of the recorded response `file`.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
-fn fixture(status: StatusCode, file: &str) -> Response {
+fn recorded(file: &str) -> Vec<u8> {
     let fixtures =
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../plugins/telegram/fixtures");
-    let body = std::fs::read(fixtures.join(file)).unwrap();
-    (status, [(header::CONTENT_TYPE, "application/json")], body).into_response()
+    std::fs::read(fixtures.join(file)).unwrap()
+}
+
+fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    mutex.lock().unwrap_or_else(PoisonError::into_inner)
 }

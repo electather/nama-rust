@@ -1,0 +1,12 @@
+{
+  "ok": true,
+  "result": {
+    "id": 123456,
+    "is_bot": true,
+    "first_name": "Nama",
+    "username": "nama_test_bot",
+    "can_join_groups": true,
+    "can_read_all_group_messages": false,
+    "supports_inline_queries": false
+  }
+}

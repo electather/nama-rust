@@ -351,6 +351,10 @@ pub enum ProvidePoint {
     /// A Notifier. The Plugin's `deliver` export takes each notification as `Delivery` and returns
     /// nothing, or fails with why the service didn't take it, which the Server logs.
     PROVIDE_POINT_NOTIFIER = 3i32,
+    /// A Connector, which connects Users to the outside service. The Plugin's `start_connection`
+    /// export takes `ConnectionStart` and returns `ConnectionStarted`, and its `poll_connection` export
+    /// takes `ConnectionPoll` and returns `ConnectionPolled`.
+    PROVIDE_POINT_CONNECTOR = 4i32,
 }
 impl ProvidePoint {
     ///Idiomatic alias for [`Self::PROVIDE_POINT_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -365,6 +369,9 @@ impl ProvidePoint {
     ///Idiomatic alias for [`Self::PROVIDE_POINT_NOTIFIER`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const Notifier: Self = Self::PROVIDE_POINT_NOTIFIER;
+    ///Idiomatic alias for [`Self::PROVIDE_POINT_CONNECTOR`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Connector: Self = Self::PROVIDE_POINT_CONNECTOR;
 }
 impl ::core::default::Default for ProvidePoint {
     fn default() -> Self {
@@ -464,6 +471,7 @@ impl ::buffa::Enumeration for ProvidePoint {
             1i32 => ::core::option::Option::Some(Self::PROVIDE_POINT_MOVIE_FULFILLER),
             2i32 => ::core::option::Option::Some(Self::PROVIDE_POINT_SHOW_FULFILLER),
             3i32 => ::core::option::Option::Some(Self::PROVIDE_POINT_NOTIFIER),
+            4i32 => ::core::option::Option::Some(Self::PROVIDE_POINT_CONNECTOR),
             _ => ::core::option::Option::None,
         }
     }
@@ -476,6 +484,7 @@ impl ::buffa::Enumeration for ProvidePoint {
             Self::PROVIDE_POINT_MOVIE_FULFILLER => "PROVIDE_POINT_MOVIE_FULFILLER",
             Self::PROVIDE_POINT_SHOW_FULFILLER => "PROVIDE_POINT_SHOW_FULFILLER",
             Self::PROVIDE_POINT_NOTIFIER => "PROVIDE_POINT_NOTIFIER",
+            Self::PROVIDE_POINT_CONNECTOR => "PROVIDE_POINT_CONNECTOR",
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -492,6 +501,9 @@ impl ::buffa::Enumeration for ProvidePoint {
             "PROVIDE_POINT_NOTIFIER" => {
                 ::core::option::Option::Some(Self::PROVIDE_POINT_NOTIFIER)
             }
+            "PROVIDE_POINT_CONNECTOR" => {
+                ::core::option::Option::Some(Self::PROVIDE_POINT_CONNECTOR)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -501,6 +513,7 @@ impl ::buffa::Enumeration for ProvidePoint {
             Self::PROVIDE_POINT_MOVIE_FULFILLER,
             Self::PROVIDE_POINT_SHOW_FULFILLER,
             Self::PROVIDE_POINT_NOTIFIER,
+            Self::PROVIDE_POINT_CONNECTOR,
         ]
     }
 }

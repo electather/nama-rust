@@ -1,5 +1,6 @@
 import { Code } from "@connectrpc/connect";
-import { useMutation, useQuery } from "@connectrpc/connect-query";
+import type { Transport } from "@connectrpc/connect";
+import { createQueryOptions, useMutation, useQuery } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -20,6 +21,14 @@ export function DeviceList({ user }: { user?: User }) {
   if (user && error) return <Note>{noLongerHere(user.name).form}</Note>;
   if (!data) return <Note>Loading…</Note>;
   return <Devices devices={data.devices} whose={whose} />;
+}
+
+/** The query for your own Devices, for a page's loader to fetch before it shows. */
+export function yourDevicesQuery(transport: Transport) {
+  return {
+    ...createQueryOptions(UserService.method.listDevices, {}, { transport }),
+    staleTime: "static" as const,
+  };
 }
 
 function Devices({ devices, whose }: { devices: Device[]; whose: Whose }) {

@@ -4,6 +4,7 @@ mod api;
 pub mod artwork;
 mod browse;
 pub mod config;
+mod connections;
 pub mod contents;
 pub mod db;
 mod device_names;

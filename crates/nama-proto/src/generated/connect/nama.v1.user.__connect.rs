@@ -78,6 +78,30 @@ pub type OwnedSetDefaultPermissionsRequestView = ::buffa::view::OwnedView<
 pub type OwnedSetDefaultPermissionsResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::SetDefaultPermissionsResponseView<'static>,
 >;
+///Shorthand for `OwnedView<ListPluginConnectionsRequestView<'static>>`.
+pub type OwnedListPluginConnectionsRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ListPluginConnectionsRequestView<'static>,
+>;
+///Shorthand for `OwnedView<ListPluginConnectionsResponseView<'static>>`.
+pub type OwnedListPluginConnectionsResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ListPluginConnectionsResponseView<'static>,
+>;
+///Shorthand for `OwnedView<StartPluginConnectionRequestView<'static>>`.
+pub type OwnedStartPluginConnectionRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::StartPluginConnectionRequestView<'static>,
+>;
+///Shorthand for `OwnedView<StartPluginConnectionResponseView<'static>>`.
+pub type OwnedStartPluginConnectionResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::StartPluginConnectionResponseView<'static>,
+>;
+///Shorthand for `OwnedView<DeletePluginConnectionRequestView<'static>>`.
+pub type OwnedDeletePluginConnectionRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::DeletePluginConnectionRequestView<'static>,
+>;
+///Shorthand for `OwnedView<DeletePluginConnectionResponseView<'static>>`.
+pub type OwnedDeletePluginConnectionResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::DeletePluginConnectionResponseView<'static>,
+>;
 impl ::connectrpc::Encodable<crate::messages::nama::v1::CreateUserResponse>
 for crate::messages::nama::v1::__buffa::view::CreateUserResponseView<'_> {
     fn encode(
@@ -418,6 +442,108 @@ for ::buffa::view::OwnedView<
         )
     }
 }
+impl ::connectrpc::Encodable<crate::messages::nama::v1::ListPluginConnectionsResponse>
+for crate::messages::nama::v1::__buffa::view::ListPluginConnectionsResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::ListPluginConnectionsResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ListPluginConnectionsResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::StartPluginConnectionResponse>
+for crate::messages::nama::v1::__buffa::view::StartPluginConnectionResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::StartPluginConnectionResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::StartPluginConnectionResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::DeletePluginConnectionResponse>
+for crate::messages::nama::v1::__buffa::view::DeletePluginConnectionResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::DeletePluginConnectionResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::DeletePluginConnectionResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
 /// Full service name for this service.
 pub const USER_SERVICE_SERVICE_NAME: &str = "nama.v1.UserService";
 /// Static [`Spec`](::connectrpc::Spec) for the `CreateUser` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
@@ -480,8 +606,27 @@ pub const USER_SERVICE_SET_DEFAULT_PERMISSIONS_SPEC: ::connectrpc::Spec = ::conn
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
-/// Managing the Server's Users and their Devices. Every RPC but `ListDevices`, `RevokeDevice` and
-/// `ChangePassword` needs `PERMISSION_MANAGE_USERS`, and fails with `permission_denied` without it.
+/// Static [`Spec`](::connectrpc::Spec) for the `ListPluginConnections` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const USER_SERVICE_LIST_PLUGIN_CONNECTIONS_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.UserService/ListPluginConnections",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
+/// Static [`Spec`](::connectrpc::Spec) for the `StartPluginConnection` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const USER_SERVICE_START_PLUGIN_CONNECTION_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.UserService/StartPluginConnection",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
+/// Static [`Spec`](::connectrpc::Spec) for the `DeletePluginConnection` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const USER_SERVICE_DELETE_PLUGIN_CONNECTION_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.UserService/DeletePluginConnection",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
+/// Managing the Server's Users, their Devices and Plugin Connections. Every RPC but `ListDevices`,
+/// `RevokeDevice`, `ChangePassword` and the Plugin Connection ones needs `PERMISSION_MANAGE_USERS`,
+/// and fails with `permission_denied` without it.
 /// Only a caller with `PERMISSION_ADMIN` may `SetPermissions`, `ResetPassword` or `DeleteUser` for a
 /// User with it, grant it, put it in the default Permissions or create a User while they hold it, or
 /// set their own Permissions; others fail with `permission_denied` and a Refusal naming
@@ -787,6 +932,82 @@ pub trait UserService: Send + Sync + 'static {
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
                 crate::messages::nama::v1::SetDefaultPermissionsResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Lists the enabled Plugins the caller can connect to, such as Telegram, by id, with whether
+    /// they are connected. Any signed-in User may list their own, and only their own. What a Plugin
+    /// Connection holds, such as a Telegram chat id, never leaves the Server.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn list_plugin_connections<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::ListPluginConnectionsRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::ListPluginConnectionsResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Starts connecting the caller to a Plugin, and returns the link they open to finish, such as
+    /// `https://t.me/<bot>?start=<code>`. The Plugin Connection is `PLUGIN_CONNECTION_STATE_WAITING`
+    /// until they do, for up to 10 minutes, then the link expires. Starting again replaces the link.
+    /// Fails with `REFUSAL_REASON_PLUGIN_NOT_FOUND` for a Plugin that isn't enabled or can't connect
+    /// Users, and with `unavailable` if the Plugin couldn't make the link.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn start_plugin_connection<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::StartPluginConnectionRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::StartPluginConnectionResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Disconnects the caller from a Plugin, deleting their Plugin Connection, or the link they are
+    /// waiting on. Disconnecting what isn't connected does nothing.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn delete_plugin_connection<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::DeletePluginConnectionRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::DeletePluginConnectionResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -1112,6 +1333,93 @@ impl<S: UserService> UserServiceExt for S {
                 },
             )
             .with_spec(USER_SERVICE_SET_DEFAULT_PERMISSIONS_SPEC)
+            .route_view_idempotent(
+                USER_SERVICE_SERVICE_NAME,
+                "ListPluginConnections",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::ListPluginConnectionsRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::ListPluginConnectionsRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.list_plugin_connections(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::ListPluginConnectionsResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(USER_SERVICE_LIST_PLUGIN_CONNECTIONS_SPEC)
+            .route_view(
+                USER_SERVICE_SERVICE_NAME,
+                "StartPluginConnection",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::StartPluginConnectionRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::StartPluginConnectionRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.start_plugin_connection(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::StartPluginConnectionResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(USER_SERVICE_START_PLUGIN_CONNECTION_SPEC)
+            .route_view(
+                USER_SERVICE_SERVICE_NAME,
+                "DeletePluginConnection",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::DeletePluginConnectionRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::DeletePluginConnectionRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.delete_plugin_connection(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::DeletePluginConnectionResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(USER_SERVICE_DELETE_PLUGIN_CONNECTION_SPEC)
     }
 }
 /// Type-inference marker used by [`Router::add_service`](::connectrpc::Router::add_service).
@@ -1224,6 +1532,24 @@ impl<T: UserService> ::connectrpc::Dispatcher for UserServiceServer<T> {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
                         .with_spec(USER_SERVICE_SET_DEFAULT_PERMISSIONS_SPEC),
+                )
+            }
+            "ListPluginConnections" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
+                        .with_spec(USER_SERVICE_LIST_PLUGIN_CONNECTIONS_SPEC),
+                )
+            }
+            "StartPluginConnection" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(USER_SERVICE_START_PLUGIN_CONNECTION_SPEC),
+                )
+            }
+            "DeletePluginConnection" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(USER_SERVICE_DELETE_PLUGIN_CONNECTION_SPEC),
                 )
             }
             _ => None,
@@ -1450,6 +1776,72 @@ impl<T: UserService> ::connectrpc::Dispatcher for UserServiceServer<T> {
                         .await?
                         .encode::<
                             crate::messages::nama::v1::SetDefaultPermissionsResponse,
+                        >(format)
+                })
+            }
+            "ListPluginConnections" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::ListPluginConnectionsRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::ListPluginConnectionsRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::ListPluginConnectionsRequest,
+                    >::from_parts(&req, &body);
+                    svc.list_plugin_connections(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::ListPluginConnectionsResponse,
+                        >(format)
+                })
+            }
+            "StartPluginConnection" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::StartPluginConnectionRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::StartPluginConnectionRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::StartPluginConnectionRequest,
+                    >::from_parts(&req, &body);
+                    svc.start_plugin_connection(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::StartPluginConnectionResponse,
+                        >(format)
+                })
+            }
+            "DeletePluginConnection" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::DeletePluginConnectionRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::DeletePluginConnectionRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::DeletePluginConnectionRequest,
+                    >::from_parts(&req, &body);
+                    svc.delete_plugin_connection(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::DeletePluginConnectionResponse,
                         >(format)
                 })
             }
@@ -2013,6 +2405,141 @@ where
                 &self.transport,
                 &self.config,
                 USER_SERVICE_SET_DEFAULT_PERMISSIONS_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the ListPluginConnections RPC. Sends a request to /nama.v1.UserService/ListPluginConnections.
+    pub async fn list_plugin_connections(
+        &self,
+        request: crate::messages::nama::v1::ListPluginConnectionsRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::ListPluginConnectionsResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.list_plugin_connections_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the ListPluginConnections RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn list_plugin_connections_with_options(
+        &self,
+        request: crate::messages::nama::v1::ListPluginConnectionsRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::ListPluginConnectionsResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                USER_SERVICE_LIST_PLUGIN_CONNECTIONS_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the StartPluginConnection RPC. Sends a request to /nama.v1.UserService/StartPluginConnection.
+    pub async fn start_plugin_connection(
+        &self,
+        request: crate::messages::nama::v1::StartPluginConnectionRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::StartPluginConnectionResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.start_plugin_connection_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the StartPluginConnection RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn start_plugin_connection_with_options(
+        &self,
+        request: crate::messages::nama::v1::StartPluginConnectionRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::StartPluginConnectionResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                USER_SERVICE_START_PLUGIN_CONNECTION_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the DeletePluginConnection RPC. Sends a request to /nama.v1.UserService/DeletePluginConnection.
+    pub async fn delete_plugin_connection(
+        &self,
+        request: crate::messages::nama::v1::DeletePluginConnectionRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::DeletePluginConnectionResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.delete_plugin_connection_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the DeletePluginConnection RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn delete_plugin_connection_with_options(
+        &self,
+        request: crate::messages::nama::v1::DeletePluginConnectionRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::DeletePluginConnectionResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                USER_SERVICE_DELETE_PLUGIN_CONNECTION_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,
