@@ -159,8 +159,18 @@ enum RefusalReason {
   // `fulfillerPluginId`, the Plugin that has it, and `titleKind`, `Movie` or `Show`.
   REFUSAL_REASON_FULFILLER_TAKEN = 48;
 
+  // `not_found`: there is no Followed Show with the ID, or none the caller may see. Params:
+  // `followedShowId`.
+  REFUSAL_REASON_FOLLOWED_SHOW_NOT_FOUND = 49;
+  // `failed_precondition`: the Followed Show isn't Pending, so it can't be approved or declined.
+  // Params: `followedShowId`.
+  REFUSAL_REASON_FOLLOWED_SHOW_NOT_PENDING = 50;
+  // `failed_precondition`: the caller isn't one of the Followed Show's Requesters, so they can't
+  // withdraw from it. Params: `followedShowId`.
+  REFUSAL_REASON_NOT_A_FOLLOWED_SHOW_REQUESTER = 51;
+
   // `failed_precondition`: the Server refused the Plugin, such as an Installed Plugin built for
   // another Nama API version, so it can't be enabled. The message says why. Params: `pluginId`,
   // `reason` (in plain words, as `Plugin.refused_reason`).
-  REFUSAL_REASON_PLUGIN_REFUSED = 49;
+  REFUSAL_REASON_PLUGIN_REFUSED = 52;
 }

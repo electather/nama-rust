@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id AS \"id!\", tmdb_id, season AS \"season: u32\", title, release_date, state,\n                  created_at, decline_reason, failure_reason\n           FROM requests\n           WHERE (?1 IS NULL OR id = ?1)\n             AND (?2 IS NULL OR EXISTS (SELECT 1 FROM requesters\n                                        WHERE request_id = requests.id AND user_id = ?2))\n           ORDER BY id DESC",
+  "query": "SELECT id AS \"id!\", tmdb_id, season AS \"season: u32\", title, release_date, state,\n                  created_at, decline_reason, failure_reason, followed_show_id\n           FROM requests\n           WHERE (?1 IS NULL OR id = ?1)\n             AND (?2 IS NULL OR EXISTS (SELECT 1 FROM requesters\n                                        WHERE request_id = requests.id AND user_id = ?2))\n           ORDER BY id DESC",
   "describe": {
     "columns": [
       {
@@ -101,6 +101,17 @@
             "name": "failure_reason"
           }
         }
+      },
+      {
+        "name": "followed_show_id",
+        "ordinal": 9,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "requests",
+            "name": "followed_show_id"
+          }
+        }
       }
     ],
     "parameters": {
@@ -115,8 +126,9 @@
       false,
       false,
       true,
+      true,
       true
     ]
   },
-  "hash": "ea15d11b3c5b6b948e47ea9765dcdad9152704c8b40ab5a6c6b477d763795a94"
+  "hash": "e92f2576d7b01ee8be4a8140e645c4a62a1557288afa566b72d9bcb6d57d816a"
 }

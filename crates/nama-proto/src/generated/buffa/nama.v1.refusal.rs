@@ -129,10 +129,19 @@ pub enum RefusalReason {
     /// the Plugin provides one for, and each kind has at most one. Params: `pluginId`,
     /// `fulfillerPluginId`, the Plugin that has it, and `titleKind`, `Movie` or `Show`.
     REFUSAL_REASON_FULFILLER_TAKEN = 48i32,
+    /// `not_found`: there is no Followed Show with the ID, or none the caller may see. Params:
+    /// `followedShowId`.
+    REFUSAL_REASON_FOLLOWED_SHOW_NOT_FOUND = 49i32,
+    /// `failed_precondition`: the Followed Show isn't Pending, so it can't be approved or declined.
+    /// Params: `followedShowId`.
+    REFUSAL_REASON_FOLLOWED_SHOW_NOT_PENDING = 50i32,
+    /// `failed_precondition`: the caller isn't one of the Followed Show's Requesters, so they can't
+    /// withdraw from it. Params: `followedShowId`.
+    REFUSAL_REASON_NOT_A_FOLLOWED_SHOW_REQUESTER = 51i32,
     /// `failed_precondition`: the Server refused the Plugin, such as an Installed Plugin built for
     /// another Nama API version, so it can't be enabled. The message says why. Params: `pluginId`,
     /// `reason` (in plain words, as `Plugin.refused_reason`).
-    REFUSAL_REASON_PLUGIN_REFUSED = 49i32,
+    REFUSAL_REASON_PLUGIN_REFUSED = 52i32,
 }
 impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -282,6 +291,15 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_FULFILLER_TAKEN`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const FulfillerTaken: Self = Self::REFUSAL_REASON_FULFILLER_TAKEN;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_FOLLOWED_SHOW_NOT_FOUND`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const FollowedShowNotFound: Self = Self::REFUSAL_REASON_FOLLOWED_SHOW_NOT_FOUND;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_FOLLOWED_SHOW_NOT_PENDING`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const FollowedShowNotPending: Self = Self::REFUSAL_REASON_FOLLOWED_SHOW_NOT_PENDING;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_NOT_A_FOLLOWED_SHOW_REQUESTER`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const NotAFollowedShowRequester: Self = Self::REFUSAL_REASON_NOT_A_FOLLOWED_SHOW_REQUESTER;
     ///Idiomatic alias for [`Self::REFUSAL_REASON_PLUGIN_REFUSED`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const PluginRefused: Self = Self::REFUSAL_REASON_PLUGIN_REFUSED;
@@ -475,7 +493,22 @@ impl ::buffa::Enumeration for RefusalReason {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_CHOICE_NOT_OFFERED)
             }
             48i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_FULFILLER_TAKEN),
-            49i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_PLUGIN_REFUSED),
+            49i32 => {
+                ::core::option::Option::Some(
+                    Self::REFUSAL_REASON_FOLLOWED_SHOW_NOT_FOUND,
+                )
+            }
+            50i32 => {
+                ::core::option::Option::Some(
+                    Self::REFUSAL_REASON_FOLLOWED_SHOW_NOT_PENDING,
+                )
+            }
+            51i32 => {
+                ::core::option::Option::Some(
+                    Self::REFUSAL_REASON_NOT_A_FOLLOWED_SHOW_REQUESTER,
+                )
+            }
+            52i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_PLUGIN_REFUSED),
             _ => ::core::option::Option::None,
         }
     }
@@ -573,6 +606,15 @@ impl ::buffa::Enumeration for RefusalReason {
                 "REFUSAL_REASON_CHOICE_NOT_OFFERED"
             }
             Self::REFUSAL_REASON_FULFILLER_TAKEN => "REFUSAL_REASON_FULFILLER_TAKEN",
+            Self::REFUSAL_REASON_FOLLOWED_SHOW_NOT_FOUND => {
+                "REFUSAL_REASON_FOLLOWED_SHOW_NOT_FOUND"
+            }
+            Self::REFUSAL_REASON_FOLLOWED_SHOW_NOT_PENDING => {
+                "REFUSAL_REASON_FOLLOWED_SHOW_NOT_PENDING"
+            }
+            Self::REFUSAL_REASON_NOT_A_FOLLOWED_SHOW_REQUESTER => {
+                "REFUSAL_REASON_NOT_A_FOLLOWED_SHOW_REQUESTER"
+            }
             Self::REFUSAL_REASON_PLUGIN_REFUSED => "REFUSAL_REASON_PLUGIN_REFUSED",
         }
     }
@@ -731,6 +773,21 @@ impl ::buffa::Enumeration for RefusalReason {
             "REFUSAL_REASON_FULFILLER_TAKEN" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_FULFILLER_TAKEN)
             }
+            "REFUSAL_REASON_FOLLOWED_SHOW_NOT_FOUND" => {
+                ::core::option::Option::Some(
+                    Self::REFUSAL_REASON_FOLLOWED_SHOW_NOT_FOUND,
+                )
+            }
+            "REFUSAL_REASON_FOLLOWED_SHOW_NOT_PENDING" => {
+                ::core::option::Option::Some(
+                    Self::REFUSAL_REASON_FOLLOWED_SHOW_NOT_PENDING,
+                )
+            }
+            "REFUSAL_REASON_NOT_A_FOLLOWED_SHOW_REQUESTER" => {
+                ::core::option::Option::Some(
+                    Self::REFUSAL_REASON_NOT_A_FOLLOWED_SHOW_REQUESTER,
+                )
+            }
             "REFUSAL_REASON_PLUGIN_REFUSED" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_PLUGIN_REFUSED)
             }
@@ -788,6 +845,9 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_REQUEST_NOT_FAILED,
             Self::REFUSAL_REASON_CHOICE_NOT_OFFERED,
             Self::REFUSAL_REASON_FULFILLER_TAKEN,
+            Self::REFUSAL_REASON_FOLLOWED_SHOW_NOT_FOUND,
+            Self::REFUSAL_REASON_FOLLOWED_SHOW_NOT_PENDING,
+            Self::REFUSAL_REASON_NOT_A_FOLLOWED_SHOW_REQUESTER,
             Self::REFUSAL_REASON_PLUGIN_REFUSED,
         ]
     }

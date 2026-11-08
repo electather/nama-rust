@@ -1,8 +1,12 @@
 //! Requests: Users asking for a Movie, or a Season of a Show, that isn't on the Server to be added
 //! to it (ADR 0012).
 //!
-//! This module is the only code that reads or writes `requests` and `requesters`. It hands
-//! Requests out as their proto messages, since those are also what its events carry.
+//! Followed Shows sit beside them: Users asking for a whole Show, whose later Seasons get Season
+//! Requests as a Library scan Matches their Episodes, never by asking a metadata source.
+//!
+//! This module is the only code that reads or writes `requests`, `requesters`, `followed_shows`
+//! and `followed_show_requesters`. It hands Requests out as their proto messages, since those are
+//! also what its events carry.
 
 use std::{
     collections::{BTreeSet, HashMap, HashSet, hash_map::Entry},
@@ -15,9 +19,9 @@ use nama_plugin_api::{
     metadata::{Candidate, Episode, ExternalId, SearchQuery, Season, Show, TitleKind},
 };
 use nama_proto::nama::v1::{
-    Event, FoundSeason, Permission, Request, RequestCancelled, RequestCreated, RequestState,
-    RequestStateChanged, RequestWithdrawn, RequestedMovie, RequestedSeason, Requester,
-    RequesterAdded, RequesterRemoved, event::Event as Happened,
+    Event, FollowedShow, FoundSeason, Permission, Request, RequestCancelled, RequestCreated,
+    RequestState, RequestStateChanged, RequestWithdrawn, RequestedMovie, RequestedSeason,
+    Requester, RequesterAdded, RequesterRemoved, event::Event as Happened,
 };
 use sqlx::SqliteConnection;
 use tracing::{error, warn};
@@ -67,6 +71,13 @@ pub(crate) enum Error {
     /// No metadata Provider is enabled, or it failed.
     #[error("no metadata Provider could answer")]
     Unavailable,
+    /// There is no such Followed Show, or none the caller may see.
+    #[error("there is no Followed Show {0}")]
+    NoSuchFollowedShow(i64),
+    #[error("the Followed Show {0} isn't Pending")]
+    FollowedShowNotPending(i64),
+    #[error("you aren't a Requester of the Followed Show {0}")]
+    NotAFollowedShowRequester(i64),
     #[error("database error: {0}")]
     Database(#[from] sqlx::Error),
 }
@@ -165,6 +176,8 @@ pub(crate) struct FoundShow<S> {
     pub(crate) show: S,
     /// Its Seasons, in order, as the viewer sees them. Only a lookup fills them.
     pub(crate) seasons: Vec<FoundSeason>,
+    /// Its open Followed Show, if it has one the viewer may see. Only a lookup fills it.
+    pub(crate) followed_show: Option<FollowedShow>,
 }
 
 /// What a new Request asks for, as the metadata source gave it.
@@ -178,6 +191,8 @@ struct Wanted {
     title: String,
     /// The Movie's `YYYY-MM-DD` release date, or the Season's first air date.
     release_date: Option<String>,
+    /// The Followed Show a new Request for it is opened for, if any.
+    followed_show: Option<i64>,
 }
 
 /// Seasons of a Show to ask for, as the metadata source gave them.
@@ -229,6 +244,7 @@ impl Requests {
             season: None,
             title: movie.title,
             release_date: movie.release_date,
+            followed_show: None,
         };
         let state = opening_state(asker, Permission::AutoApproveMovie);
         let user = asker.id;
@@ -292,6 +308,83 @@ impl Requests {
             .await?;
         self.events.publish(happened);
         Ok(requests)
+    }
+
+    /// Asks for the whole Show with the TMDB id `tmdb_id` for `asker`: each current Season not in
+    /// a Library as [`Self::create_seasons`] asks for it, and later ones through the Show's open
+    /// Followed Show, which `asker` joins or opens, in the state their Season Requests open in.
+    /// Returns the Followed Show and the Season Requests in Season order.
+    pub(crate) async fn follow(
+        &self,
+        asker: &User,
+        tmdb_id: i64,
+    ) -> Result<(FollowedShow, Vec<Request>), Error> {
+        let id = ExternalId::Tmdb(tmdb_id);
+        let (_, show) = self
+            .matcher
+            .show(&id)
+            .await
+            .map_err(|err| looking_up(err, Error::NoSuchShow(tmdb_id)))?;
+        let wanted = WantedSeasons {
+            show_tmdb_id: tmdb_id,
+            seasons: self.seasons(tmdb_id, &show).await?,
+            show_title: show.title,
+        };
+        let state = opening_state(asker, Permission::AutoApproveTv);
+        let user = asker.id;
+        let (followed, requests, happened) = self
+            .db
+            .write(move |tx| Box::pin(follow(tx, user, wanted, state)))
+            .await?;
+        self.events.publish(happened);
+        Ok((followed, requests))
+    }
+
+    /// Approves the Pending Followed Show `id`, and each Pending Season Request it opened,
+    /// publishing each Request's change of state.
+    pub(crate) async fn approve_followed(&self, id: i64) -> Result<FollowedShow, Error> {
+        self.decide_followed(id, RequestState::Approved, None).await
+    }
+
+    /// Declines the Pending Followed Show `id`, and each Pending Season Request it opened, as
+    /// [`Self::decline`] declines a Request.
+    pub(crate) async fn decline_followed(
+        &self,
+        id: i64,
+        reason: &str,
+    ) -> Result<FollowedShow, Error> {
+        self.decide_followed(id, RequestState::Declined, given_reason(reason))
+            .await
+    }
+
+    async fn decide_followed(
+        &self,
+        id: i64,
+        state: RequestState,
+        reason: Option<String>,
+    ) -> Result<FollowedShow, Error> {
+        let (followed, happened) = self
+            .db
+            .write(move |tx| Box::pin(decide_followed(tx, id, state, reason)))
+            .await?;
+        self.events.publish(happened);
+        Ok(followed)
+    }
+
+    /// Removes the Followed Show `id`, whatever its state, leaving the Season Requests it opened.
+    pub(crate) async fn cancel_followed(&self, id: i64) -> Result<(), Error> {
+        self.db
+            .write(move |tx| Box::pin(cancel_followed(tx, id)))
+            .await
+    }
+
+    /// Takes `requester` off the Followed Show `id`, removing it once nobody is left on it.
+    pub(crate) async fn withdraw_followed(&self, requester: &User, id: i64) -> Result<(), Error> {
+        let user = requester.id;
+        let visible = visible_to(requester);
+        self.db
+            .write(move |tx| Box::pin(withdraw_followed(tx, user, visible, id)))
+            .await
     }
 
     /// Approves the Pending Request `id` and hands it to the Movie Fulfiller, publishing each
@@ -446,9 +539,8 @@ impl Requests {
     /// Declines the Pending Request `id`, giving its Requesters `reason`, trimmed, unless it is
     /// blank, and publishes that its state changed.
     pub(crate) async fn decline(&self, id: i64, reason: &str) -> Result<Request, Error> {
-        let reason = reason.trim();
-        let reason = (!reason.is_empty()).then(|| reason.to_owned());
-        self.decide(id, RequestState::Declined, reason).await
+        self.decide(id, RequestState::Declined, given_reason(reason))
+            .await
     }
 
     async fn decide(
@@ -488,10 +580,15 @@ impl Requests {
         Ok(())
     }
 
-    /// The Requests `viewer` may see, newest first.
-    pub(crate) async fn list(&self, viewer: &User) -> Result<Vec<Request>, sqlx::Error> {
+    /// The Requests and Followed Shows `viewer` may see, each newest first.
+    pub(crate) async fn list(
+        &self,
+        viewer: &User,
+    ) -> Result<(Vec<Request>, Vec<FollowedShow>), sqlx::Error> {
         let mut conn = self.db.reader().acquire().await?;
-        load(&mut conn, None, visible_to(viewer)).await
+        let requests = load(&mut conn, None, visible_to(viewer)).await?;
+        let followed = load_followed(&mut conn, None, visible_to(viewer)).await?;
+        Ok((requests, followed))
     }
 
     /// The Movies the metadata source finds titled like `title`, best fit first, as `viewer`
@@ -524,6 +621,7 @@ impl Requests {
                 plugin,
                 show,
                 seasons: Vec::new(),
+                followed_show: None,
             })
             .collect())
     }
@@ -568,23 +666,40 @@ impl Requests {
         viewer: &User,
         tmdb_id: i64,
     ) -> Result<FoundShow<Show>, Error> {
-        let id = ExternalId::Tmdb(tmdb_id);
-        let no_such_show = |err| looking_up(err, Error::NoSuchShow(tmdb_id));
-        let (plugin, show) = self.matcher.show(&id).await.map_err(no_such_show)?;
-        let mut seasons = Vec::with_capacity(show.seasons.len());
-        // ponytail: one metadata lookup per Season, one after another.
-        for &number in &show.seasons {
-            let season = self.matcher.show_season(&id, number).await;
-            seasons.push(season.map_err(no_such_show)?);
-        }
+        let (plugin, show) = self
+            .matcher
+            .show(&ExternalId::Tmdb(tmdb_id))
+            .await
+            .map_err(|err| looking_up(err, Error::NoSuchShow(tmdb_id)))?;
+        let seasons = self.seasons(tmdb_id, &show).await?;
         let mut conn = self.db.reader().acquire().await?;
         let seasons = look_around_seasons(&mut conn, viewer, tmdb_id, seasons).await?;
+        let followed_show = match open_followed_show(&mut conn, tmdb_id).await? {
+            Some(id) => load_followed(&mut conn, Some(id), visible_to(viewer))
+                .await?
+                .pop(),
+            None => None,
+        };
         Ok(FoundShow {
             tmdb_id,
             plugin,
             show,
             seasons,
+            followed_show,
         })
+    }
+
+    /// Each of the Seasons `show`, the Show `tmdb_id`, lists, fetched now. One it lists but can't
+    /// give fails the lookup as an unknown Show.
+    async fn seasons(&self, tmdb_id: i64, show: &Show) -> Result<Vec<Season>, Error> {
+        let id = ExternalId::Tmdb(tmdb_id);
+        let mut seasons = Vec::with_capacity(show.seasons.len());
+        // ponytail: one metadata lookup per Season, one after another.
+        for &number in &show.seasons {
+            let season = self.matcher.show_season(&id, number).await;
+            seasons.push(season.map_err(|err| looking_up(err, Error::NoSuchShow(tmdb_id)))?);
+        }
+        Ok(seasons)
     }
 
     /// The Movie with the TMDB id `tmdb_id`, fetched now, as `viewer` sees it.
@@ -622,6 +737,12 @@ fn looking_up(err: ManualError, missing: Error) -> Error {
         ManualError::Unavailable => Error::Unavailable,
         ManualError::Database(err) => Error::Database(err),
     }
+}
+
+/// `reason`, trimmed, unless it is blank.
+fn given_reason(reason: &str) -> Option<String> {
+    let reason = reason.trim();
+    (!reason.is_empty()).then(|| reason.to_owned())
 }
 
 /// The state `asker`'s new Request opens in: Approved if they pass a check for `auto_approve`,
@@ -747,6 +868,7 @@ async fn ask_seasons(
             season: Some(season.number),
             title: show_title.clone(),
             release_date: season.air_date,
+            followed_show: None,
         };
         let (request, event) = ask(conn, user, wanted, state).await?;
         requests.push(request);
@@ -783,6 +905,30 @@ fn availability(episodes: &[Episode], matched: &HashSet<i64>, today: &str) -> Op
     }
 }
 
+/// Opens a Request for `wanted` in `state`, as stored, with no Requesters yet. Returns its ID.
+async fn insert_request(
+    conn: &mut SqliteConnection,
+    wanted: &Wanted,
+    state: &str,
+    now: i64,
+) -> Result<i64, sqlx::Error> {
+    sqlx::query_scalar!(
+        "INSERT INTO requests
+             (tmdb_id, season, title, release_date, state, created_at, followed_show_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
+         RETURNING id",
+        wanted.tmdb_id,
+        wanted.season,
+        wanted.title,
+        wanted.release_date,
+        state,
+        now,
+        wanted.followed_show
+    )
+    .fetch_one(&mut *conn)
+    .await
+}
+
 /// Adds `user` as a Requester of the open Request for `wanted`, opening one in `state` if there
 /// is none. Returns the Request, and the event for what changed, if anything did.
 async fn ask(
@@ -797,21 +943,7 @@ async fn ask(
     let opened = open.is_none();
     let id = match open {
         Some(id) => id,
-        None => {
-            sqlx::query_scalar!(
-                "INSERT INTO requests (tmdb_id, season, title, release_date, state, created_at)
-                 VALUES (?, ?, ?, ?, ?, ?)
-                 RETURNING id",
-                wanted.tmdb_id,
-                wanted.season,
-                wanted.title,
-                wanted.release_date,
-                state,
-                now
-            )
-            .fetch_one(&mut *conn)
-            .await?
-        }
+        None => insert_request(conn, &wanted, state, now).await?,
     };
     let joined = sqlx::query!(
         "INSERT INTO requesters (request_id, user_id, requested_at) VALUES (?, ?, ?)
@@ -867,7 +999,8 @@ pub(crate) async fn make_available(
 /// Makes the open Request for each of `seasons`, as the metadata source gave them just now with
 /// their Show's TMDB id, Partially Available or Available by how many of its aired Episodes a
 /// Library has, and returns an event for each Request that changed (ADR 0012). Declined and
-/// Available Requests are closed, so Episodes that air later don't reopen them.
+/// Available Requests are closed, so Episodes that air later don't reopen them. A Season that came
+/// out after the Show's Approved Followed Show was opened gets a Request in that state.
 pub(crate) async fn make_seasons_available(
     conn: &mut SqliteConnection,
     seasons: Vec<(i64, Season)>,
@@ -875,15 +1008,84 @@ pub(crate) async fn make_seasons_available(
     let today = today(conn).await?;
     let mut happened = Vec::new();
     for (show_tmdb_id, season) in seasons {
-        let Some(id) = open_request(conn, show_tmdb_id, Some(season.number)).await? else {
+        let matched = contents::matched_episodes(conn, show_tmdb_id, season.number.into()).await?;
+        let Some(state) = availability(&season.episodes, &matched, &today) else {
             continue;
         };
-        let matched = contents::matched_episodes(conn, show_tmdb_id, season.number.into()).await?;
-        if let Some(state) = availability(&season.episodes, &matched, &today) {
-            happened.extend(change_state(conn, id, state).await?);
-        }
+        let changed = match open_request(conn, show_tmdb_id, Some(season.number)).await? {
+            Some(id) => change_state(conn, id, state).await?,
+            None => open_followed_season(conn, show_tmdb_id, &season, state).await?,
+        };
+        happened.extend(changed);
     }
     Ok(happened)
+}
+
+/// Opens a Request in `state` for `season` of the Show `show_tmdb_id`, which has no open one, for
+/// the Requesters of the Show's Approved Followed Show, if the Season is numbered after every one
+/// the Followed Show covers and has no Available Request, so a Season once Available isn't asked
+/// for again. The Followed Show covers the Season from then on, so one it opened and someone
+/// declined, cancelled or withdrew from isn't opened again. Returns the event for it.
+async fn open_followed_season(
+    conn: &mut SqliteConnection,
+    show_tmdb_id: i64,
+    season: &Season,
+    state: RequestState,
+) -> Result<Option<Event>, sqlx::Error> {
+    // ponytail: a Season that came out but was skipped, such as a Season 0 added later, gets no
+    // Request; ask for it on its own.
+    let Some(followed) = sqlx::query!(
+        r#"SELECT id AS "id!", title FROM followed_shows
+           WHERE tmdb_id = ? AND state = 'approved'
+             AND (latest_season IS NULL OR latest_season < ?)"#,
+        show_tmdb_id,
+        season.number
+    )
+    .fetch_optional(&mut *conn)
+    .await?
+    else {
+        return Ok(None);
+    };
+    let available = sqlx::query_scalar!(
+        r#"SELECT EXISTS (SELECT 1 FROM requests
+                          WHERE tmdb_id = ? AND season = ? AND state = 'available') AS "is!: bool""#,
+        show_tmdb_id,
+        season.number
+    )
+    .fetch_one(&mut *conn)
+    .await?;
+    if available {
+        return Ok(None);
+    }
+    let wanted = Wanted {
+        tmdb_id: show_tmdb_id,
+        season: Some(season.number),
+        title: followed.title,
+        release_date: season.air_date.clone(),
+        followed_show: Some(followed.id),
+    };
+    let id = insert_request(conn, &wanted, stored(state), now()).await?;
+    sqlx::query!(
+        "UPDATE followed_shows SET latest_season = ? WHERE id = ?",
+        season.number,
+        followed.id
+    )
+    .execute(&mut *conn)
+    .await?;
+    sqlx::query!(
+        "INSERT INTO requesters (request_id, user_id, requested_at)
+         SELECT ?, user_id, requested_at FROM followed_show_requesters WHERE followed_show_id = ?
+         ORDER BY requested_at, rowid",
+        id,
+        followed.id
+    )
+    .execute(&mut *conn)
+    .await?;
+    let request = load_one(conn, id).await?.ok_or(sqlx::Error::RowNotFound)?;
+    Ok(Some(event(RequestCreated {
+        request: request.into(),
+        ..Default::default()
+    })))
 }
 
 /// Moves the Request `id` to `state`, and returns the event for it, or `None` if it was in
@@ -1056,6 +1258,222 @@ async fn withdraw(
     }))
 }
 
+/// Adds `user` as a Requester of the open Followed Show for `show`, opening one in `state` if there
+/// is none, then [`ask`]s for each of its Seasons not in a Library, opening missing ones for the
+/// Followed Show in its state. Returns the Followed Show, the Season Requests and the events for
+/// what changed.
+async fn follow(
+    conn: &mut SqliteConnection,
+    user: i64,
+    show: WantedSeasons,
+    state: RequestState,
+) -> Result<(FollowedShow, Vec<Request>, Vec<Event>), Error> {
+    let WantedSeasons {
+        show_tmdb_id,
+        show_title,
+        seasons,
+    } = show;
+    let now = now();
+    let id = match open_followed_show(conn, show_tmdb_id).await? {
+        Some(id) => id,
+        None => {
+            sqlx::query_scalar!(
+                "INSERT INTO followed_shows (tmdb_id, title, state, latest_season, created_at)
+                 VALUES (?, ?, ?, ?, ?)
+                 RETURNING id",
+                show_tmdb_id,
+                show_title,
+                stored(state),
+                seasons.iter().map(|season| season.number).max(),
+                now
+            )
+            .fetch_one(&mut *conn)
+            .await?
+        }
+    };
+    sqlx::query!(
+        "INSERT INTO followed_show_requesters (followed_show_id, user_id, requested_at) VALUES (?, ?, ?)
+         ON CONFLICT DO NOTHING",
+        id,
+        user,
+        now
+    )
+    .execute(&mut *conn)
+    .await?;
+    let followed = load_followed(conn, Some(id), None).await?.pop();
+    let followed = followed.ok_or(sqlx::Error::RowNotFound)?;
+    // An Approved Followed Show was approved once for every Season, so needs no approving again.
+    let state = followed.state.as_known().unwrap_or(state);
+    let today = today(conn).await?;
+    let mut requests = Vec::with_capacity(seasons.len());
+    let mut happened = Vec::new();
+    for season in seasons {
+        let matched = contents::matched_episodes(conn, show_tmdb_id, season.number.into()).await?;
+        if availability(&season.episodes, &matched, &today) == Some(RequestState::Available) {
+            continue;
+        }
+        let wanted = Wanted {
+            tmdb_id: show_tmdb_id,
+            season: Some(season.number),
+            title: show_title.clone(),
+            release_date: season.air_date,
+            followed_show: Some(id),
+        };
+        let (request, event) = ask(conn, user, wanted, state).await?;
+        requests.push(request);
+        happened.extend(event);
+    }
+    Ok((followed, requests, happened))
+}
+
+/// The open Followed Show of the Show `tmdb_id`.
+async fn open_followed_show(
+    conn: &mut SqliteConnection,
+    tmdb_id: i64,
+) -> Result<Option<i64>, sqlx::Error> {
+    // Open as `one_open_followed_show` has it.
+    sqlx::query_scalar!(
+        "SELECT id FROM followed_shows WHERE tmdb_id = ? AND state != 'declined'",
+        tmdb_id
+    )
+    .fetch_optional(&mut *conn)
+    .await
+}
+
+/// Moves the Pending Followed Show `id`, and each Pending Season Request it opened, to `state`
+/// with `reason`. Returns the Followed Show as it is now, and an event for each Request.
+async fn decide_followed(
+    conn: &mut SqliteConnection,
+    id: i64,
+    state: RequestState,
+    reason: Option<String>,
+) -> Result<(FollowedShow, Vec<Event>), Error> {
+    let stored_state = stored(state);
+    let decided = sqlx::query!(
+        "UPDATE followed_shows SET state = ?, decline_reason = ? WHERE id = ? AND state = 'pending'",
+        stored_state,
+        reason,
+        id
+    )
+    .execute(&mut *conn)
+    .await?
+    .rows_affected()
+        > 0;
+    let followed = load_followed(conn, Some(id), None).await?.pop();
+    let followed = followed.ok_or(Error::NoSuchFollowedShow(id))?;
+    if !decided {
+        return Err(Error::FollowedShowNotPending(id));
+    }
+    let pending = sqlx::query_scalar!(
+        "SELECT id FROM requests WHERE followed_show_id = ? AND state = 'pending'",
+        id
+    )
+    .fetch_all(&mut *conn)
+    .await?;
+    let mut happened = Vec::with_capacity(pending.len());
+    for request in pending {
+        let request = decide(conn, request, state, reason.clone()).await?;
+        happened.push(state_changed(request));
+    }
+    Ok((followed, happened))
+}
+
+/// Removes the Followed Show `id`, and its Requesters with it.
+async fn cancel_followed(conn: &mut SqliteConnection, id: i64) -> Result<(), Error> {
+    let removed = sqlx::query!("DELETE FROM followed_shows WHERE id = ?", id)
+        .execute(&mut *conn)
+        .await?
+        .rows_affected();
+    if removed == 0 {
+        return Err(Error::NoSuchFollowedShow(id));
+    }
+    Ok(())
+}
+
+/// Takes `user` off the Followed Show `id`, among those `visible` lets them see, removing it if
+/// they were its last Requester.
+async fn withdraw_followed(
+    conn: &mut SqliteConnection,
+    user: i64,
+    visible: Option<i64>,
+    id: i64,
+) -> Result<(), Error> {
+    let followed = load_followed(conn, Some(id), visible).await?.pop();
+    let followed = followed.ok_or(Error::NoSuchFollowedShow(id))?;
+    if !followed.requesters.iter().any(|r| r.user_id == user) {
+        return Err(Error::NotAFollowedShowRequester(id));
+    }
+    if followed.requesters.len() == 1 {
+        return cancel_followed(conn, id).await;
+    }
+    sqlx::query!(
+        "DELETE FROM followed_show_requesters WHERE followed_show_id = ? AND user_id = ?",
+        id,
+        user
+    )
+    .execute(&mut *conn)
+    .await?;
+    Ok(())
+}
+
+/// The Followed Shows, newest first: only the one with the ID `id` if given, and only those the
+/// User `requester` is a Requester of if given.
+async fn load_followed(
+    conn: &mut SqliteConnection,
+    id: Option<i64>,
+    requester: Option<i64>,
+) -> Result<Vec<FollowedShow>, sqlx::Error> {
+    let rows = sqlx::query!(
+        r#"SELECT id AS "id!", tmdb_id, title, state, created_at, decline_reason
+           FROM followed_shows
+           WHERE (?1 IS NULL OR id = ?1)
+             AND (?2 IS NULL OR EXISTS (SELECT 1 FROM followed_show_requesters
+                                        WHERE followed_show_id = followed_shows.id
+                                          AND user_id = ?2))
+           ORDER BY id DESC"#,
+        id,
+        requester
+    )
+    .fetch_all(&mut *conn)
+    .await?;
+    // ponytail: every Followed Show's Requesters, as `load` reads every Request's.
+    let mut requesters: HashMap<i64, Vec<Requester>> = HashMap::new();
+    let requester_rows = sqlx::query!(
+        "SELECT r.followed_show_id, r.user_id, users.display_username, r.requested_at
+         FROM followed_show_requesters AS r
+         JOIN users ON users.id = r.user_id
+         WHERE ?1 IS NULL OR r.followed_show_id = ?1
+         ORDER BY r.requested_at, r.rowid",
+        id
+    )
+    .fetch_all(&mut *conn)
+    .await?;
+    for row in requester_rows {
+        requesters
+            .entry(row.followed_show_id)
+            .or_default()
+            .push(Requester {
+                user_id: row.user_id,
+                name: row.display_username,
+                requested_at: row.requested_at,
+                ..Default::default()
+            });
+    }
+    Ok(rows
+        .into_iter()
+        .map(|row| FollowedShow {
+            id: row.id,
+            show_tmdb_id: row.tmdb_id,
+            show_title: row.title,
+            state: read_state(&row.state).into(),
+            requesters: requesters.remove(&row.id).unwrap_or_default(),
+            created_at: row.created_at,
+            decline_reason: row.decline_reason,
+            ..Default::default()
+        })
+        .collect())
+}
+
 async fn load_one(conn: &mut SqliteConnection, id: i64) -> Result<Option<Request>, sqlx::Error> {
     Ok(load(conn, Some(id), None).await?.into_iter().next())
 }
@@ -1069,7 +1487,7 @@ async fn load(
 ) -> Result<Vec<Request>, sqlx::Error> {
     let rows = sqlx::query!(
         r#"SELECT id AS "id!", tmdb_id, season AS "season: u32", title, release_date, state,
-                  created_at, decline_reason, failure_reason
+                  created_at, decline_reason, failure_reason, followed_show_id
            FROM requests
            WHERE (?1 IS NULL OR id = ?1)
              AND (?2 IS NULL OR EXISTS (SELECT 1 FROM requesters
@@ -1115,6 +1533,7 @@ async fn load(
                 created_at: row.created_at,
                 decline_reason: row.decline_reason,
                 failure_reason: row.failure_reason,
+                followed_show_id: row.followed_show_id,
                 ..Default::default()
             };
             match row.season {
@@ -1281,6 +1700,7 @@ mod tests {
             season,
             title: "Shared".to_owned(),
             release_date: None,
+            followed_show: None,
         });
 
         let ids = db
@@ -1397,6 +1817,7 @@ mod tests {
                 season: None,
                 title: format!("Movie {tmdb_id}"),
                 release_date: None,
+                followed_show: None,
             })
             .collect();
         db.write(move |tx| Box::pin(ask_each(tx, wanted, RequestState::Approved)))
@@ -1494,6 +1915,7 @@ mod tests {
             season: Some(1),
             title: "Dark".to_owned(),
             release_date: None,
+            followed_show: None,
         };
         let request = db
             .write(move |tx| Box::pin(ask_each(tx, vec![wanted], RequestState::Pending)))
