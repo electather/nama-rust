@@ -10,3 +10,4 @@ re-recording one, trim it the same way.
 |---|---|
 | `sendMessage.json` | `POST /bot<token>/sendMessage` with the right token: `200 OK` |
 | `unauthorized.json` | any request with a token Telegram doesn't know: `401 Unauthorized` |
+| `not-found.json` | any request with a token not shaped like one, `<bot id>:<secret>`: `404 Not Found` |

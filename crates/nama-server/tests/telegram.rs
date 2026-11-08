@@ -9,7 +9,7 @@ mod log;
 #[path = "support/server.rs"]
 mod server;
 
-use std::{collections::BTreeMap, fs, sync::Arc};
+use std::{collections::BTreeMap, fs, sync::Arc, time::Duration};
 
 use connectrpc::client::{ClientConfig, HttpClient};
 use fake_telegram::{BOT_TOKEN, FakeTelegram};
@@ -249,9 +249,9 @@ async fn member(server: &TestServer, name: &str) -> ClientConfig {
     server.client_config_as(&token)
 }
 
-fn text(key: &str, text: &str) -> (String, nama_proto::nama::v1::SettingValue) {
+fn text(key: &str, value: &str) -> (String, nama_proto::nama::v1::SettingValue) {
     let value = nama_proto::nama::v1::SettingValue {
-        value: Some(Value::TextValue(text.to_owned())),
+        value: Some(Value::TextValue(value.to_owned())),
         ..Default::default()
     };
     (key.to_owned(), value)
@@ -296,8 +296,10 @@ async fn a_request_becoming_available_is_posted_to_the_channel() {
 async fn with_no_channel_set_nothing_is_posted() {
     let fixture = Fixture::with_telegram(BOT_TOKEN, None).await;
     fixture.ada_asks_for(ALIEN).await;
+    // Time for the delivery about Alien to run: once the settings change it would be skipped,
+    // and this test would pass without trying it.
+    tokio::time::sleep(Duration::from_millis(500)).await;
 
-    // Whatever was to be posted about Alien was handed over before this.
     fixture.set_up_telegram(BOT_TOKEN, Some(CHANNEL)).await;
     fixture.ada_asks_for(DUNE).await;
 
@@ -310,28 +312,25 @@ async fn with_no_channel_set_nothing_is_posted() {
     );
 }
 
+// One test for both, since the log is the whole test binary's and their lines are alike.
 #[tokio::test]
-async fn a_refused_bot_token_is_logged_and_the_request_is_unaffected() {
+async fn a_refused_or_malformed_bot_token_is_logged_and_the_request_is_unaffected() {
     let log = Log::global();
-    let fixture = Fixture::with_telegram("654321:not-the-token", Some(CHANNEL)).await;
+    let refused = [
+        "telegram",
+        "provider failed",
+        "Telegram refused the bot token",
+    ];
+    // Telegram answers 401 to an unknown token, and 404 to one not shaped like a token.
+    for (times, token) in [(1, "654321:not-the-token"), (2, "not-a-token")] {
+        let fixture = Fixture::with_telegram(token, Some(CHANNEL)).await;
 
-    let dune = fixture.ada_asks_for(DUNE).await;
+        let dune = fixture.ada_asks_for(DUNE).await;
 
-    log.wait_for(
-        &[
-            "telegram",
-            "provider failed",
-            "Telegram refused the bot token",
-        ],
-        1,
-    )
-    .await;
-    assert_eq!(fixture.get(dune.id).await.state, RequestState::Pending);
-    assert!(
-        !log.contents().contains("not-the-token"),
-        "{}",
-        log.contents()
-    );
+        log.wait_for(&refused, times).await;
+        assert_eq!(fixture.get(dune.id).await.state, RequestState::Pending);
+        assert!(!log.contents().contains(token), "{}", log.contents());
+    }
 }
 
 #[tokio::test]

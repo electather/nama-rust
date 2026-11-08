@@ -98,7 +98,14 @@ async fn send_message(
     Path(bot): Path<String>,
     body: Bytes,
 ) -> Response {
-    if bot.strip_prefix("bot") != Some(BOT_TOKEN) {
+    let token = bot.strip_prefix("bot").unwrap_or_default();
+    if token
+        .split_once(':')
+        .is_none_or(|(id, _)| id.parse::<u64>().is_err())
+    {
+        return fixture(StatusCode::NOT_FOUND, "not-found.json");
+    }
+    if token != BOT_TOKEN {
         return fixture(StatusCode::UNAUTHORIZED, "unauthorized.json");
     }
     let message = serde_json::from_slice(&body).unwrap_or_default();
