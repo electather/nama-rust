@@ -165,6 +165,15 @@ async function agent(box: Box, issue: Issue, step: string, extra: Record<string,
   return result;
 }
 
+// Two fetches at once (a slot picking while another checks for staleness) fail with "cannot lock ref";
+// that clash ended a whole run once, so retry before letting the error through.
+function fetchOrigin() {
+  for (let tries = 1; !ok("git", "fetch", "origin"); tries++) {
+    if (tries === 3) return git("fetch", "origin"); // throws with git's reason
+    spawnSync("sleep", ["5"]); // synchronous: pickNext must not await
+  }
+}
+
 const branchOf = (i: Issue) => `agent/issue-${i.number}`;
 const ahead = (branch: string) =>
   Number(git("rev-list", "--count", `origin/${BASE}..${branch}`)) > 0;
@@ -356,7 +365,7 @@ const conflicts = (branch: string) => !ok("git", "merge-tree", "--write-tree", `
 // (A PR that conflicts with main gets no pull_request CI run at all.)
 async function syncAndPush(issue: Issue, box: Box) {
   const branch = branchOf(issue);
-  git("fetch", "origin");
+  fetchOrigin();
   if (conflicts(branch)) {
     note(issue, "rebase");
     await agent(box, issue, "fix", { PROBLEM: `It is behind origin/${BASE} (other issues merged first) and may conflict.` });
@@ -406,7 +415,7 @@ async function openPr(issue: Issue, box: Box, body: string): Promise<string> {
 async function mergePr(issue: Issue, box: Box, pr: string) {
   const branch = branchOf(issue);
   stage(issue, "merging");
-  git("fetch", "origin");
+  fetchOrigin();
   if (conflicts(branch)) {
     await syncAndPush(issue, box); // another issue's merge conflicts with this one: CI again on the rebased branch
     await greenCi(issue, box, pr);
@@ -500,7 +509,7 @@ function noteWaiting(waiting: Waiting[]) {
 // Synchronous throughout: no await between picking and `taken.add`, so two slots can't pick the same issue.
 function pickNext(): Issue | "wait" | "done" {
   for (;;) {
-    git("fetch", "origin");
+    fetchOrigin();
     closeFinishedParents();
     const { ready, waiting } = readyIssues();
     noteWaiting(waiting);
