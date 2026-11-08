@@ -19,6 +19,7 @@ use futures_util::FutureExt;
 use nama_plugin_api::{
     InterceptPoint, ObservePoint, Observer, OnFailure, Plugin, PluginId, PointKey, Priority,
     Registrar, Registration, Verdict,
+    fulfiller::{Fulfiller, Movies, Shows},
     settings::{Choices, SettingKind, Settings, SettingsError, SettingsSchema},
 };
 use thiserror::Error;
@@ -153,6 +154,17 @@ pub enum EnableError {
         /// What is wrong with them.
         error: SettingsError,
     },
+    /// The Plugin provides a Fulfiller for a kind of title another enabled Plugin already provides
+    /// one for. The Kernel hands each Request to one Fulfiller, so each kind has at most one.
+    #[error("plugin {plugin} provides a {kind} Fulfiller, which plugin {by} already provides")]
+    FulfillerTaken {
+        /// The Plugin.
+        plugin: PluginId,
+        /// The kind of title, `Movie` or `Show`.
+        kind: &'static str,
+        /// The enabled Plugin that provides it.
+        by: PluginId,
+    },
     /// The Plugin panicked while being enabled, such as in [`Plugin::register`].
     #[error("plugin {plugin} panicked while being enabled: {message}")]
     Panicked {
@@ -276,8 +288,13 @@ impl Registry {
         // Plugin values the lock refuses are dropped after it is released, since a Plugin's `Drop`
         // is Plugin code.
         let refused = self.write(|state| {
-            if state.plugins.contains_key(id) {
-                return Some((plugin, registrations));
+            let refusal = if state.plugins.contains_key(id) {
+                Some(EnableError::AlreadyEnabled(id.clone()))
+            } else {
+                state.fulfiller_taken(id, &registrations)
+            };
+            if let Some(refusal) = refusal {
+                return Some((refusal, plugin, registrations));
             }
             let generation = state.next_generation;
             state.next_generation += 1;
@@ -308,8 +325,8 @@ impl Registry {
             }
             None
         });
-        if refused.is_some() {
-            return Err(EnableError::AlreadyEnabled(id.clone()));
+        if let Some((refusal, ..)) = refused {
+            return Err(refusal);
         }
         info!(plugin = %id, %version, registrations = count, "enabled plugin");
         Ok(())
@@ -442,6 +459,14 @@ impl Registry {
             error!(plugin = %id, message, "plugin panicked while being dropped");
         }
         checked
+    }
+
+    /// Whether the enabled Plugin `plugin` provides a `T`.
+    #[must_use]
+    pub fn provides<T: ?Sized + 'static>(&self, plugin: &PluginId) -> bool {
+        self.entries(PointKey::provide::<T>())
+            .iter()
+            .any(|entry| entry.plugin == *plugin)
     }
 
     /// The ids of the enabled Plugins, sorted.
@@ -699,6 +724,35 @@ impl Registry {
 
     fn write<T>(&self, f: impl FnOnce(&mut State) -> T) -> T {
         f(&mut self.state.write().unwrap_or_else(PoisonError::into_inner))
+    }
+}
+
+impl State {
+    /// The refusal of enabling `id` with `registrations`, if they include a Fulfiller for a kind of
+    /// title another enabled Plugin already provides one for.
+    fn fulfiller_taken(
+        &self,
+        id: &PluginId,
+        registrations: &[Registration],
+    ) -> Option<EnableError> {
+        let kinds = [
+            (PointKey::provide::<dyn Fulfiller<Movies>>(), "Movie"),
+            (PointKey::provide::<dyn Fulfiller<Shows>>(), "Show"),
+        ];
+        kinds.into_iter().find_map(|(point, kind)| {
+            let provides = registrations
+                .iter()
+                .any(|registration| registration.point() == point);
+            if !provides {
+                return None;
+            }
+            let by = self.points.get(&point)?.first()?.plugin.clone();
+            Some(EnableError::FulfillerTaken {
+                plugin: id.clone(),
+                kind,
+                by,
+            })
+        })
     }
 }
 

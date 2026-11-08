@@ -153,4 +153,9 @@ enum RefusalReason {
   // `failed_precondition`: a choice setting's value isn't one of the choices the Plugin's settings
   // check offers. Params: `pluginId`, `settingKey`, `settingValue`.
   REFUSAL_REASON_CHOICE_NOT_OFFERED = 47;
+
+  // `failed_precondition`: another enabled Plugin already provides the Fulfiller for a kind of title
+  // the Plugin provides one for, and each kind has at most one. Params: `pluginId`,
+  // `fulfillerPluginId`, the Plugin that has it, and `titleKind`, `Movie` or `Show`.
+  REFUSAL_REASON_FULFILLER_TAKEN = 48;
 }

@@ -209,3 +209,26 @@ test("enabling a Plugin missing a required setting names the setting", async () 
   const alert = await logEvents.findByText("It needs Path set before it can be enabled.");
   expect(alert.getAttribute("role")).toBe("alert");
 });
+
+test("enabling a second Movie Fulfiller names the Plugin that is the Fulfiller", async () => {
+  openPlugins({
+    enablePlugin: () => {
+      throw refused(
+        Code.FailedPrecondition,
+        "log-events can't be enabled while radarr hands Movie Requests on",
+        {
+          reason: RefusalReason.FULFILLER_TAKEN,
+          field: "id",
+          params: { pluginId: "log-events", fulfillerPluginId: "radarr", titleKind: "Movie" },
+        },
+      );
+    },
+  });
+  const logEvents = await plugin("log-events");
+  fireEvent.click(logEvents.getByRole("button", { name: "Enable log-events" }));
+
+  const alert = await logEvents.findByText(
+    "It can’t be enabled while radarr is the Movie Fulfiller. Disable radarr first.",
+  );
+  expect(alert.getAttribute("role")).toBe("alert");
+});
