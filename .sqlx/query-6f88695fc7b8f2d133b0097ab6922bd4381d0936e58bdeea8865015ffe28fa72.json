@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO requesters (request_id, user_id, requested_at)\n         SELECT ?, user_id, requested_at FROM followed_show_requesters WHERE followed_show_id = ?\n         ORDER BY requested_at, rowid",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "6f88695fc7b8f2d133b0097ab6922bd4381d0936e58bdeea8865015ffe28fa72"
+}

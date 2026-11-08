@@ -21,7 +21,15 @@ service RequestService {
   // and `unavailable` if no metadata Provider is enabled, or it failed. A failure changes no
   // Request.
   rpc CreateSeasonRequests(CreateSeasonRequestsRequest) returns (CreateSeasonRequestsResponse);
-  // Lists the Requests the caller may see, newest first.
+  // Asks for a whole Show for the caller: its Seasons now and any that come out later. Asks for
+  // each current Season not in a Library as `CreateSeasonRequests` does, skipping those in one,
+  // and joins the Show's open Followed Show or opens one: Approved if the caller has
+  // `PERMISSION_AUTO_APPROVE_TV`, else Pending. Needs `PERMISSION_REQUEST_TV`. While the Followed
+  // Show is Approved, a scan Matching Episodes of a Season that came out after it was opened opens
+  // a Request for its Requesters. Fails with `invalid_argument` if the metadata source has no Show
+  // with the id, and `unavailable` if no metadata Provider is enabled, or it failed.
+  rpc CreateFollowedShow(CreateFollowedShowRequest) returns (CreateFollowedShowResponse);
+  // Lists the Requests and Followed Shows the caller may see, newest first.
   rpc ListRequests(ListRequestsRequest) returns (ListRequestsResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
@@ -74,6 +82,22 @@ service RequestService {
   // left on it. Fails with `not_found` if there is no Request with the ID, or none the caller may
   // see, and `failed_precondition` if the caller isn't one of its Requesters or it isn't Pending.
   rpc WithdrawRequest(WithdrawRequestRequest) returns (WithdrawRequestResponse);
+  // Approves a Pending Followed Show, and with it each Pending Season Request it opened. Needs
+  // `PERMISSION_MANAGE_REQUESTS`. Fails with `not_found` if there is no Followed Show with the ID,
+  // and `failed_precondition` if it isn't Pending.
+  rpc ApproveFollowedShow(ApproveFollowedShowRequest) returns (ApproveFollowedShowResponse);
+  // Declines a Pending Followed Show, and with it each Pending Season Request it opened, which ends
+  // it. Needs `PERMISSION_MANAGE_REQUESTS`. Fails as `ApproveFollowedShow` does.
+  rpc DeclineFollowedShow(DeclineFollowedShowRequest) returns (DeclineFollowedShowResponse);
+  // Removes a Followed Show, whatever its state, leaving the Season Requests it opened as they are.
+  // Needs `PERMISSION_MANAGE_REQUESTS`. Fails with `not_found` if there is no Followed Show with
+  // the ID.
+  rpc CancelFollowedShow(CancelFollowedShowRequest) returns (CancelFollowedShowResponse);
+  // Takes the caller off a Followed Show's Requesters, which removes it once nobody is left on it,
+  // leaving the Season Requests it opened as they are. Fails with `not_found` if there is no
+  // Followed Show with the ID, or none the caller may see, and `failed_precondition` if the caller
+  // isn't one of its Requesters.
+  rpc WithdrawFollowedShow(WithdrawFollowedShowRequest) returns (WithdrawFollowedShowResponse);
 }
 
 // Where a Request is on its way to the Library (ADR 0012).
@@ -114,6 +138,28 @@ message Request {
   RequestedSeason season = 7;
   // Why the Fulfiller didn't take it, in the Fulfiller's own words. Only a Failed Request has one.
   optional string failure_reason = 8;
+  // The ID of the Followed Show that opened it, while that Followed Show lasts.
+  optional int64 followed_show_id = 9;
+}
+
+// Users asking for a whole Show: its Seasons now and any that come out later, approved once. A
+// Show has at most one open Followed Show: one that isn't Declined.
+message FollowedShow {
+  int64 id = 1;
+  // The Show's TMDB id.
+  int64 show_tmdb_id = 2;
+  // The Show's title, in the metadata Provider's language, as it was when the Followed Show was
+  // opened.
+  string show_title = 3;
+  // Pending, Approved or Declined.
+  RequestState state = 4;
+  // Who asked for it, first asker first. There is at least one.
+  repeated Requester requesters = 5;
+  // When it was opened, in seconds since the Unix epoch.
+  int64 created_at = 6;
+  // Why it was declined, for its Requesters to read. Only a Declined Followed Show has one, and
+  // only if the decliner gave one.
+  optional string decline_reason = 7;
 }
 
 // A Movie a Request asks for, with its metadata as the metadata source gave it when the Request
@@ -177,8 +223,23 @@ message CreateSeasonRequestsResponse {
 
 message ListRequestsRequest {}
 
+message CreateFollowedShowRequest {
+  // The TMDB id of the Show.
+  int64 show_tmdb_id = 1;
+}
+
+message CreateFollowedShowResponse {
+  // The Followed Show the caller is now a Requester of.
+  FollowedShow followed_show = 1;
+  // The Requests the caller is now a Requester of, one per Season not in a Library, in Season
+  // order.
+  repeated Request requests = 2;
+}
+
 message ListRequestsResponse {
   repeated Request requests = 1;
+  // The Followed Shows the caller may see, newest first.
+  repeated FollowedShow followed_shows = 2;
 }
 
 message GetRequestRequest {
@@ -236,6 +297,42 @@ message WithdrawRequestRequest {
 }
 
 message WithdrawRequestResponse {}
+
+message ApproveFollowedShowRequest {
+  // The ID of the Followed Show.
+  int64 id = 1;
+}
+
+message ApproveFollowedShowResponse {
+  // The Followed Show, Approved.
+  FollowedShow followed_show = 1;
+}
+
+message DeclineFollowedShowRequest {
+  // The ID of the Followed Show.
+  int64 id = 1;
+  // Why it is declined, for its Requesters to read. Blank gives none.
+  string reason = 2;
+}
+
+message DeclineFollowedShowResponse {
+  // The Followed Show, Declined.
+  FollowedShow followed_show = 1;
+}
+
+message CancelFollowedShowRequest {
+  // The ID of the Followed Show.
+  int64 id = 1;
+}
+
+message CancelFollowedShowResponse {}
+
+message WithdrawFollowedShowRequest {
+  // The ID of the Followed Show.
+  int64 id = 1;
+}
+
+message WithdrawFollowedShowResponse {}
 
 // A Movie in the metadata source, and how close it is to being on the Server: in a Library, asked
 // for in a Request, or neither, in which case `CreateRequest` asks for it.
@@ -295,6 +392,8 @@ message FoundShow {
   optional string backdrop_url = 6;
   // Its Seasons, in order. Only `LookUpShow` gives them.
   repeated FoundSeason seasons = 7;
+  // The Show's open Followed Show, if it has one the caller may see. Only `LookUpShow` gives it.
+  FollowedShow followed_show = 8;
 }
 
 // A Season of a Show in the metadata source, and how close it is to being on the Server: in a

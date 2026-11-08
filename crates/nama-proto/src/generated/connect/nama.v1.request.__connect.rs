@@ -14,6 +14,14 @@ pub type OwnedCreateSeasonRequestsRequestView = ::buffa::view::OwnedView<
 pub type OwnedCreateSeasonRequestsResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::CreateSeasonRequestsResponseView<'static>,
 >;
+///Shorthand for `OwnedView<CreateFollowedShowRequestView<'static>>`.
+pub type OwnedCreateFollowedShowRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::CreateFollowedShowRequestView<'static>,
+>;
+///Shorthand for `OwnedView<CreateFollowedShowResponseView<'static>>`.
+pub type OwnedCreateFollowedShowResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::CreateFollowedShowResponseView<'static>,
+>;
 ///Shorthand for `OwnedView<ListRequestsRequestView<'static>>`.
 pub type OwnedListRequestsRequestView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::ListRequestsRequestView<'static>,
@@ -102,6 +110,38 @@ pub type OwnedWithdrawRequestRequestView = ::buffa::view::OwnedView<
 pub type OwnedWithdrawRequestResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::WithdrawRequestResponseView<'static>,
 >;
+///Shorthand for `OwnedView<ApproveFollowedShowRequestView<'static>>`.
+pub type OwnedApproveFollowedShowRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ApproveFollowedShowRequestView<'static>,
+>;
+///Shorthand for `OwnedView<ApproveFollowedShowResponseView<'static>>`.
+pub type OwnedApproveFollowedShowResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ApproveFollowedShowResponseView<'static>,
+>;
+///Shorthand for `OwnedView<DeclineFollowedShowRequestView<'static>>`.
+pub type OwnedDeclineFollowedShowRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::DeclineFollowedShowRequestView<'static>,
+>;
+///Shorthand for `OwnedView<DeclineFollowedShowResponseView<'static>>`.
+pub type OwnedDeclineFollowedShowResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::DeclineFollowedShowResponseView<'static>,
+>;
+///Shorthand for `OwnedView<CancelFollowedShowRequestView<'static>>`.
+pub type OwnedCancelFollowedShowRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::CancelFollowedShowRequestView<'static>,
+>;
+///Shorthand for `OwnedView<CancelFollowedShowResponseView<'static>>`.
+pub type OwnedCancelFollowedShowResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::CancelFollowedShowResponseView<'static>,
+>;
+///Shorthand for `OwnedView<WithdrawFollowedShowRequestView<'static>>`.
+pub type OwnedWithdrawFollowedShowRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::WithdrawFollowedShowRequestView<'static>,
+>;
+///Shorthand for `OwnedView<WithdrawFollowedShowResponseView<'static>>`.
+pub type OwnedWithdrawFollowedShowResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::WithdrawFollowedShowResponseView<'static>,
+>;
 impl ::connectrpc::Encodable<crate::messages::nama::v1::CreateRequestResponse>
 for crate::messages::nama::v1::__buffa::view::CreateRequestResponseView<'_> {
     fn encode(
@@ -148,6 +188,40 @@ for crate::messages::nama::v1::__buffa::view::CreateSeasonRequestsResponseView<'
 impl ::connectrpc::Encodable<crate::messages::nama::v1::CreateSeasonRequestsResponse>
 for ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::CreateSeasonRequestsResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::CreateFollowedShowResponse>
+for crate::messages::nama::v1::__buffa::view::CreateFollowedShowResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::CreateFollowedShowResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::CreateFollowedShowResponseView<'static>,
 > {
     fn encode(
         &self,
@@ -544,6 +618,142 @@ for ::buffa::view::OwnedView<
         )
     }
 }
+impl ::connectrpc::Encodable<crate::messages::nama::v1::ApproveFollowedShowResponse>
+for crate::messages::nama::v1::__buffa::view::ApproveFollowedShowResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::ApproveFollowedShowResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ApproveFollowedShowResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::DeclineFollowedShowResponse>
+for crate::messages::nama::v1::__buffa::view::DeclineFollowedShowResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::DeclineFollowedShowResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::DeclineFollowedShowResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::CancelFollowedShowResponse>
+for crate::messages::nama::v1::__buffa::view::CancelFollowedShowResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::CancelFollowedShowResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::CancelFollowedShowResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::WithdrawFollowedShowResponse>
+for crate::messages::nama::v1::__buffa::view::WithdrawFollowedShowResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::WithdrawFollowedShowResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::WithdrawFollowedShowResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
 /// Full service name for this service.
 pub const REQUEST_SERVICE_SERVICE_NAME: &str = "nama.v1.RequestService";
 /// Static [`Spec`](::connectrpc::Spec) for the `CreateRequest` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
@@ -555,6 +765,12 @@ pub const REQUEST_SERVICE_CREATE_REQUEST_SPEC: ::connectrpc::Spec = ::connectrpc
 /// Static [`Spec`](::connectrpc::Spec) for the `CreateSeasonRequests` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
 pub const REQUEST_SERVICE_CREATE_SEASON_REQUESTS_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
         "/nama.v1.RequestService/CreateSeasonRequests",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
+/// Static [`Spec`](::connectrpc::Spec) for the `CreateFollowedShow` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const REQUEST_SERVICE_CREATE_FOLLOWED_SHOW_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.RequestService/CreateFollowedShow",
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
@@ -621,6 +837,30 @@ pub const REQUEST_SERVICE_RETRY_REQUEST_SPEC: ::connectrpc::Spec = ::connectrpc:
 /// Static [`Spec`](::connectrpc::Spec) for the `WithdrawRequest` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
 pub const REQUEST_SERVICE_WITHDRAW_REQUEST_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
         "/nama.v1.RequestService/WithdrawRequest",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
+/// Static [`Spec`](::connectrpc::Spec) for the `ApproveFollowedShow` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const REQUEST_SERVICE_APPROVE_FOLLOWED_SHOW_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.RequestService/ApproveFollowedShow",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
+/// Static [`Spec`](::connectrpc::Spec) for the `DeclineFollowedShow` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const REQUEST_SERVICE_DECLINE_FOLLOWED_SHOW_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.RequestService/DeclineFollowedShow",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
+/// Static [`Spec`](::connectrpc::Spec) for the `CancelFollowedShow` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const REQUEST_SERVICE_CANCEL_FOLLOWED_SHOW_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.RequestService/CancelFollowedShow",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
+/// Static [`Spec`](::connectrpc::Spec) for the `WithdrawFollowedShow` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const REQUEST_SERVICE_WITHDRAW_FOLLOWED_SHOW_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.RequestService/WithdrawFollowedShow",
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
@@ -734,7 +974,36 @@ pub trait RequestService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
-    /// Lists the Requests the caller may see, newest first.
+    /// Asks for a whole Show for the caller: its Seasons now and any that come out later. Asks for
+    /// each current Season not in a Library as `CreateSeasonRequests` does, skipping those in one,
+    /// and joins the Show's open Followed Show or opens one: Approved if the caller has
+    /// `PERMISSION_AUTO_APPROVE_TV`, else Pending. Needs `PERMISSION_REQUEST_TV`. While the Followed
+    /// Show is Approved, a scan Matching Episodes of a Season that came out after it was opened opens
+    /// a Request for its Requesters. Fails with `invalid_argument` if the metadata source has no Show
+    /// with the id, and `unavailable` if no metadata Provider is enabled, or it failed.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn create_followed_show<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::CreateFollowedShowRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::CreateFollowedShowResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Lists the Requests and Followed Shows the caller may see, newest first.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
@@ -1006,6 +1275,106 @@ pub trait RequestService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
+    /// Approves a Pending Followed Show, and with it each Pending Season Request it opened. Needs
+    /// `PERMISSION_MANAGE_REQUESTS`. Fails with `not_found` if there is no Followed Show with the ID,
+    /// and `failed_precondition` if it isn't Pending.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn approve_followed_show<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::ApproveFollowedShowRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::ApproveFollowedShowResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Declines a Pending Followed Show, and with it each Pending Season Request it opened, which ends
+    /// it. Needs `PERMISSION_MANAGE_REQUESTS`. Fails as `ApproveFollowedShow` does.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn decline_followed_show<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::DeclineFollowedShowRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::DeclineFollowedShowResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Removes a Followed Show, whatever its state, leaving the Season Requests it opened as they are.
+    /// Needs `PERMISSION_MANAGE_REQUESTS`. Fails with `not_found` if there is no Followed Show with
+    /// the ID.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn cancel_followed_show<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::CancelFollowedShowRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::CancelFollowedShowResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Takes the caller off a Followed Show's Requesters, which removes it once nobody is left on it,
+    /// leaving the Season Requests it opened as they are. Fails with `not_found` if there is no
+    /// Followed Show with the ID, or none the caller may see, and `failed_precondition` if the caller
+    /// isn't one of its Requesters.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn withdraw_followed_show<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::WithdrawFollowedShowRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::WithdrawFollowedShowResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
 }
 /// Extension trait for registering a service implementation with a Router.
 ///
@@ -1096,6 +1465,35 @@ impl<S: RequestService> RequestServiceExt for S {
                 },
             )
             .with_spec(REQUEST_SERVICE_CREATE_SEASON_REQUESTS_SPEC)
+            .route_view(
+                REQUEST_SERVICE_SERVICE_NAME,
+                "CreateFollowedShow",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::CreateFollowedShowRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::CreateFollowedShowRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.create_followed_show(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::CreateFollowedShowResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(REQUEST_SERVICE_CREATE_FOLLOWED_SHOW_SPEC)
             .route_view_idempotent(
                 REQUEST_SERVICE_SERVICE_NAME,
                 "ListRequests",
@@ -1415,6 +1813,122 @@ impl<S: RequestService> RequestServiceExt for S {
                 },
             )
             .with_spec(REQUEST_SERVICE_WITHDRAW_REQUEST_SPEC)
+            .route_view(
+                REQUEST_SERVICE_SERVICE_NAME,
+                "ApproveFollowedShow",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::ApproveFollowedShowRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::ApproveFollowedShowRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.approve_followed_show(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::ApproveFollowedShowResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(REQUEST_SERVICE_APPROVE_FOLLOWED_SHOW_SPEC)
+            .route_view(
+                REQUEST_SERVICE_SERVICE_NAME,
+                "DeclineFollowedShow",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::DeclineFollowedShowRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::DeclineFollowedShowRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.decline_followed_show(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::DeclineFollowedShowResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(REQUEST_SERVICE_DECLINE_FOLLOWED_SHOW_SPEC)
+            .route_view(
+                REQUEST_SERVICE_SERVICE_NAME,
+                "CancelFollowedShow",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::CancelFollowedShowRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::CancelFollowedShowRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.cancel_followed_show(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::CancelFollowedShowResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(REQUEST_SERVICE_CANCEL_FOLLOWED_SHOW_SPEC)
+            .route_view(
+                REQUEST_SERVICE_SERVICE_NAME,
+                "WithdrawFollowedShow",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::WithdrawFollowedShowRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::WithdrawFollowedShowRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.withdraw_followed_show(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::WithdrawFollowedShowResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(REQUEST_SERVICE_WITHDRAW_FOLLOWED_SHOW_SPEC)
     }
 }
 /// Type-inference marker used by [`Router::add_service`](::connectrpc::Router::add_service).
@@ -1479,6 +1993,12 @@ impl<T: RequestService> ::connectrpc::Dispatcher for RequestServiceServer<T> {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
                         .with_spec(REQUEST_SERVICE_CREATE_SEASON_REQUESTS_SPEC),
+                )
+            }
+            "CreateFollowedShow" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(REQUEST_SERVICE_CREATE_FOLLOWED_SHOW_SPEC),
                 )
             }
             "ListRequests" => {
@@ -1547,6 +2067,30 @@ impl<T: RequestService> ::connectrpc::Dispatcher for RequestServiceServer<T> {
                         .with_spec(REQUEST_SERVICE_WITHDRAW_REQUEST_SPEC),
                 )
             }
+            "ApproveFollowedShow" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(REQUEST_SERVICE_APPROVE_FOLLOWED_SHOW_SPEC),
+                )
+            }
+            "DeclineFollowedShow" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(REQUEST_SERVICE_DECLINE_FOLLOWED_SHOW_SPEC),
+                )
+            }
+            "CancelFollowedShow" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(REQUEST_SERVICE_CANCEL_FOLLOWED_SHOW_SPEC),
+                )
+            }
+            "WithdrawFollowedShow" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(REQUEST_SERVICE_WITHDRAW_FOLLOWED_SHOW_SPEC),
+                )
+            }
             _ => None,
         }
     }
@@ -1603,6 +2147,28 @@ impl<T: RequestService> ::connectrpc::Dispatcher for RequestServiceServer<T> {
                         .await?
                         .encode::<
                             crate::messages::nama::v1::CreateSeasonRequestsResponse,
+                        >(format)
+                })
+            }
+            "CreateFollowedShow" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::CreateFollowedShowRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::CreateFollowedShowRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::CreateFollowedShowRequest,
+                    >::from_parts(&req, &body);
+                    svc.create_followed_show(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::CreateFollowedShowResponse,
                         >(format)
                 })
             }
@@ -1840,6 +2406,94 @@ impl<T: RequestService> ::connectrpc::Dispatcher for RequestServiceServer<T> {
                         >(format)
                 })
             }
+            "ApproveFollowedShow" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::ApproveFollowedShowRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::ApproveFollowedShowRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::ApproveFollowedShowRequest,
+                    >::from_parts(&req, &body);
+                    svc.approve_followed_show(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::ApproveFollowedShowResponse,
+                        >(format)
+                })
+            }
+            "DeclineFollowedShow" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::DeclineFollowedShowRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::DeclineFollowedShowRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::DeclineFollowedShowRequest,
+                    >::from_parts(&req, &body);
+                    svc.decline_followed_show(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::DeclineFollowedShowResponse,
+                        >(format)
+                })
+            }
+            "CancelFollowedShow" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::CancelFollowedShowRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::CancelFollowedShowRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::CancelFollowedShowRequest,
+                    >::from_parts(&req, &body);
+                    svc.cancel_followed_show(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::CancelFollowedShowResponse,
+                        >(format)
+                })
+            }
+            "WithdrawFollowedShow" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::WithdrawFollowedShowRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::WithdrawFollowedShowRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::WithdrawFollowedShowRequest,
+                    >::from_parts(&req, &body);
+                    svc.withdraw_followed_show(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::WithdrawFollowedShowResponse,
+                        >(format)
+                })
+            }
             _ => ::connectrpc::dispatcher::codegen::unimplemented_unary(path),
         }
     }
@@ -2052,6 +2706,51 @@ where
                 &self.transport,
                 &self.config,
                 REQUEST_SERVICE_CREATE_SEASON_REQUESTS_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the CreateFollowedShow RPC. Sends a request to /nama.v1.RequestService/CreateFollowedShow.
+    pub async fn create_followed_show(
+        &self,
+        request: crate::messages::nama::v1::CreateFollowedShowRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::CreateFollowedShowResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.create_followed_show_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the CreateFollowedShow RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn create_followed_show_with_options(
+        &self,
+        request: crate::messages::nama::v1::CreateFollowedShowRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::CreateFollowedShowResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                REQUEST_SERVICE_CREATE_FOLLOWED_SHOW_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,
@@ -2539,6 +3238,186 @@ where
                 &self.transport,
                 &self.config,
                 REQUEST_SERVICE_WITHDRAW_REQUEST_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the ApproveFollowedShow RPC. Sends a request to /nama.v1.RequestService/ApproveFollowedShow.
+    pub async fn approve_followed_show(
+        &self,
+        request: crate::messages::nama::v1::ApproveFollowedShowRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::ApproveFollowedShowResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.approve_followed_show_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the ApproveFollowedShow RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn approve_followed_show_with_options(
+        &self,
+        request: crate::messages::nama::v1::ApproveFollowedShowRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::ApproveFollowedShowResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                REQUEST_SERVICE_APPROVE_FOLLOWED_SHOW_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the DeclineFollowedShow RPC. Sends a request to /nama.v1.RequestService/DeclineFollowedShow.
+    pub async fn decline_followed_show(
+        &self,
+        request: crate::messages::nama::v1::DeclineFollowedShowRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::DeclineFollowedShowResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.decline_followed_show_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the DeclineFollowedShow RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn decline_followed_show_with_options(
+        &self,
+        request: crate::messages::nama::v1::DeclineFollowedShowRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::DeclineFollowedShowResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                REQUEST_SERVICE_DECLINE_FOLLOWED_SHOW_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the CancelFollowedShow RPC. Sends a request to /nama.v1.RequestService/CancelFollowedShow.
+    pub async fn cancel_followed_show(
+        &self,
+        request: crate::messages::nama::v1::CancelFollowedShowRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::CancelFollowedShowResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.cancel_followed_show_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the CancelFollowedShow RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn cancel_followed_show_with_options(
+        &self,
+        request: crate::messages::nama::v1::CancelFollowedShowRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::CancelFollowedShowResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                REQUEST_SERVICE_CANCEL_FOLLOWED_SHOW_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the WithdrawFollowedShow RPC. Sends a request to /nama.v1.RequestService/WithdrawFollowedShow.
+    pub async fn withdraw_followed_show(
+        &self,
+        request: crate::messages::nama::v1::WithdrawFollowedShowRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::WithdrawFollowedShowResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.withdraw_followed_show_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the WithdrawFollowedShow RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn withdraw_followed_show_with_options(
+        &self,
+        request: crate::messages::nama::v1::WithdrawFollowedShowRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::WithdrawFollowedShowResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                REQUEST_SERVICE_WITHDRAW_FOLLOWED_SHOW_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,

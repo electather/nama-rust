@@ -98,6 +98,7 @@ pub mod __buffa {
         reg.register_json_any(super::__LIST_CONTINUE_WATCHING_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_CONTINUE_WATCHING_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__REQUEST_JSON_ANY);
+        reg.register_json_any(super::__FOLLOWED_SHOW_JSON_ANY);
         reg.register_json_any(super::__REQUESTED_MOVIE_JSON_ANY);
         reg.register_json_any(super::__REQUESTED_SEASON_JSON_ANY);
         reg.register_json_any(super::__REQUESTER_JSON_ANY);
@@ -106,6 +107,8 @@ pub mod __buffa {
         reg.register_json_any(super::__CREATE_SEASON_REQUESTS_REQUEST_JSON_ANY);
         reg.register_json_any(super::__CREATE_SEASON_REQUESTS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__LIST_REQUESTS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__CREATE_FOLLOWED_SHOW_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__CREATE_FOLLOWED_SHOW_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__LIST_REQUESTS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__GET_REQUEST_REQUEST_JSON_ANY);
         reg.register_json_any(super::__GET_REQUEST_RESPONSE_JSON_ANY);
@@ -119,6 +122,14 @@ pub mod __buffa {
         reg.register_json_any(super::__RETRY_REQUEST_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__WITHDRAW_REQUEST_REQUEST_JSON_ANY);
         reg.register_json_any(super::__WITHDRAW_REQUEST_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__APPROVE_FOLLOWED_SHOW_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__APPROVE_FOLLOWED_SHOW_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__DECLINE_FOLLOWED_SHOW_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__DECLINE_FOLLOWED_SHOW_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__CANCEL_FOLLOWED_SHOW_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__CANCEL_FOLLOWED_SHOW_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__WITHDRAW_FOLLOWED_SHOW_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__WITHDRAW_FOLLOWED_SHOW_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__FOUND_MOVIE_JSON_ANY);
         reg.register_json_any(super::__SEARCH_MOVIES_REQUEST_JSON_ANY);
         reg.register_json_any(super::__SEARCH_MOVIES_RESPONSE_JSON_ANY);
@@ -364,6 +375,10 @@ pub use self::__buffa::view::RequestView;
 #[doc(inline)]
 pub use self::__buffa::view::RequestOwnedView;
 #[doc(inline)]
+pub use self::__buffa::view::FollowedShowView;
+#[doc(inline)]
+pub use self::__buffa::view::FollowedShowOwnedView;
+#[doc(inline)]
 pub use self::__buffa::view::RequestedMovieView;
 #[doc(inline)]
 pub use self::__buffa::view::RequestedMovieOwnedView;
@@ -395,6 +410,14 @@ pub use self::__buffa::view::CreateSeasonRequestsResponseOwnedView;
 pub use self::__buffa::view::ListRequestsRequestView;
 #[doc(inline)]
 pub use self::__buffa::view::ListRequestsRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::CreateFollowedShowRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::CreateFollowedShowRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::CreateFollowedShowResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::CreateFollowedShowResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::ListRequestsResponseView;
 #[doc(inline)]
@@ -447,6 +470,38 @@ pub use self::__buffa::view::WithdrawRequestRequestOwnedView;
 pub use self::__buffa::view::WithdrawRequestResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::WithdrawRequestResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ApproveFollowedShowRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ApproveFollowedShowRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ApproveFollowedShowResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ApproveFollowedShowResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::DeclineFollowedShowRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::DeclineFollowedShowRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::DeclineFollowedShowResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::DeclineFollowedShowResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::CancelFollowedShowRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::CancelFollowedShowRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::CancelFollowedShowResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::CancelFollowedShowResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::WithdrawFollowedShowRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::WithdrawFollowedShowRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::WithdrawFollowedShowResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::WithdrawFollowedShowResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::FoundMovieView;
 #[doc(inline)]

@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "INSERT INTO requests (tmdb_id, season, title, release_date, show_imdb_id,\n                                       show_tvdb_id, state, created_at)\n                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)\n                 RETURNING id",
+  "query": "SELECT id FROM requests WHERE followed_show_id = ? AND state = 'pending'",
   "describe": {
     "columns": [
       {
@@ -16,11 +16,11 @@
       }
     ],
     "parameters": {
-      "Right": 8
+      "Right": 1
     },
     "nullable": [
       false
     ]
   },
-  "hash": "2b52f1c4a69d57e0099f7c9ef566449712475ca3d4b7cda2fe9c152c22a9a11a"
+  "hash": "3cbc5a877552b9f52c338ab77e938f7af1694e90609344048b4f7d2cf5c9eda9"
 }
