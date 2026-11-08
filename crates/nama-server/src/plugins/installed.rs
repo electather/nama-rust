@@ -6,7 +6,10 @@ use std::{
     collections::BTreeMap,
     fs, io, panic,
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicU32, Ordering},
+    },
     time::Duration,
 };
 
@@ -35,6 +38,10 @@ use crate::config::PluginConfig;
 /// How long one call into an Installed Plugin may run, so one that never returns can't hold up
 /// the start or its Observer's task.
 const CALL_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// How many calls in a row may crash before the Plugin is disabled, so one bad input doesn't
+/// cost an admin a Plugin.
+const CRASHES_BEFORE_DISABLING: u32 = 3;
 
 /// What every binary WASM module starts with.
 const WASM_MAGIC: &[u8] = b"\0asm";
@@ -89,6 +96,8 @@ struct Running {
     compiled: Arc<CompiledPlugin>,
     /// The values of its secret settings, which the failures it logs mustn't show.
     secrets: Arc<[String]>,
+    /// How many calls in a row crashed.
+    crashes: Arc<AtomicU32>,
 }
 
 impl Running {
@@ -97,6 +106,35 @@ impl Running {
     fn call(&self, name: &str, input: Vec<u8>) -> Result<Vec<u8>, extism::Error> {
         extism::Plugin::new_from_compiled(&self.compiled)?.call(name, input)
     }
+
+    /// Logs why a call failed. If it crashed [`CRASHES_BEFORE_DISABLING`] times in a row, unwinds
+    /// with why, so the registry disables the Plugin as it does one whose Rust code panics.
+    fn failed(&self, err: &extism::Error) {
+        let cause = without_secrets(err.root_cause().to_string(), &self.secrets);
+        if !is_crash(err) {
+            self.crashes.store(0, Ordering::Relaxed);
+            warn!(plugin = %self.manifest.id, "observer failed: {cause}");
+            return;
+        }
+        warn!(plugin = %self.manifest.id, "observer crashed: {cause}");
+        if self.crashes.fetch_add(1, Ordering::Relaxed) + 1 == CRASHES_BEFORE_DISABLING {
+            let why =
+                format!("it crashed {CRASHES_BEFORE_DISABLING} times in a row, last with: {cause}");
+            panic::resume_unwind(Box::new(why));
+        }
+    }
+}
+
+/// Whether a failed call trapped or timed out, rather than the Plugin returning an error or a
+/// host function such as an HTTP request refusing it.
+fn is_crash(err: &extism::Error) -> bool {
+    // Extism (1.41) gives a timeout as a bare "timeout", and any other failed call as wasmtime's
+    // own error, which holds a trap (under any panic's message) only if the guest trapped. A host
+    // function's error unwinds the guest too, but holds no trap.
+    err.to_string() == "timeout"
+        || err
+            .downcast_ref::<wasmtime::Error>()
+            .is_some_and(wasmtime::Error::is::<wasmtime::Trap>)
 }
 
 impl Plugin for Installed {
@@ -130,6 +168,7 @@ impl Plugin for Installed {
             manifest: Arc::clone(&self.manifest),
             compiled: Arc::new(compiled),
             secrets: secret_values(&self.settings_schema, settings).into(),
+            crashes: Arc::default(),
         };
         // An Extension Point this Server doesn't know is one the Plugin can do without, since its
         // nama-api requirement admits this Server.
@@ -154,11 +193,8 @@ impl Observer<Events> for Running {
         Box::pin(async move {
             let called = task::spawn_blocking(move || plugin.call("observe_events", input)).await;
             match called {
-                Ok(Ok(_)) => {}
-                Ok(Err(err)) => {
-                    let error = without_secrets(err.root_cause().to_string(), &self.secrets);
-                    warn!(plugin = %self.manifest.id, "observer failed: {error}");
-                }
+                Ok(Ok(_)) => self.crashes.store(0, Ordering::Relaxed),
+                Ok(Err(err)) => self.failed(&err),
                 // So the registry disables the Plugin, as it does one whose Rust code panics.
                 Err(err) if err.is_panic() => panic::resume_unwind(err.into_panic()),
                 Err(err) => warn!(plugin = %self.manifest.id, "observer failed: {err}"),
@@ -503,7 +539,24 @@ mod tests {
     };
     use nama_proto::nama::plugin::v1::{self as wire, Manifest, setting_value};
 
-    use super::{allowed_hosts, check_allowed_hosts, extism_config, settings_schema};
+    use super::{allowed_hosts, check_allowed_hosts, extism_config, is_crash, settings_schema};
+
+    // The errors as Extism 1.41 gives them for the test Plugin's Observer.
+    #[test]
+    fn a_trap_or_timeout_is_a_crash_and_a_returned_or_host_error_is_not() {
+        // As Extism builds it: the panic's message, with the trap as context.
+        let trap = wasmtime::Error::new(wasmtime::Trap::UnreachableCodeReached);
+        let panicked = extism::Error::from(
+            wasmtime::Error::msg("panicked at src/lib.rs:73:30: oops").context(trap),
+        );
+        let refused = extism::Error::msg("HTTP request to http://sonarr.lan/ is not allowed")
+            .context("error while executing at wasm backtrace");
+
+        assert!(is_crash(&panicked));
+        assert!(is_crash(&extism::Error::msg("timeout")));
+        assert!(!is_crash(&refused));
+        assert!(!is_crash(&extism::Error::msg("the service is down")));
+    }
 
     fn field(key: &str, kind: SettingKind) -> SettingField {
         SettingField {

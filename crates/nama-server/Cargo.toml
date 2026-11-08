@@ -44,6 +44,8 @@ tower-http = { version = "0.7.1", default-features = false, features = ["fs"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 walkdir = "2"
+# Only to tell a trap from other failed calls; its version must be the one extism uses.
+wasmtime = { version = "49.0.5", default-features = false }
 
 [dev-dependencies]
 connectrpc = { version = "0.9.1", features = ["client"] }

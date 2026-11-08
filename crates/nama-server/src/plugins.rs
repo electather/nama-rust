@@ -24,6 +24,7 @@ use nama_plugin_api::{
 };
 use nama_proto::nama::v1::PluginKind;
 use thiserror::Error;
+use tokio::sync::mpsc;
 use tracing::{error, info, warn};
 
 /// How long a Plugin's settings check may take before it counts as failed.
@@ -47,6 +48,8 @@ struct State {
     precedence: HashMap<PointKey, Vec<PluginId>>,
     /// Each Plugin the Server has, Built-in or Installed, enabled or not.
     known: BTreeMap<PluginId, Described>,
+    /// Where [`Registry::crashed`] sends the Installed Plugins it disables for crashing.
+    crashed: Option<mpsc::UnboundedSender<PluginId>>,
 }
 
 type Make = Arc<dyn Fn() -> Arc<dyn Plugin> + Send + Sync>;
@@ -774,6 +777,14 @@ impl Registry {
         self.write(|state| state.precedence.insert(PointKey::provide::<T>(), plugins));
     }
 
+    /// The id of each Installed Plugin disabled from now on because it crashed, for the Server to
+    /// save as disabled. Replaces the receiver an earlier call returned.
+    pub(crate) fn crashed(&self) -> mpsc::UnboundedReceiver<PluginId> {
+        let (sender, receiver) = mpsc::unbounded_channel();
+        self.write(|state| state.crashed = Some(sender));
+        receiver
+    }
+
     fn is_current(&self, entry: &Entry) -> bool {
         self.read(|state| {
             state
@@ -783,18 +794,34 @@ impl Registry {
         })
     }
 
-    /// Logs that the handler `entry` panicked at `point` and disables the enablement of its Plugin
-    /// that registered it. A Plugin enabled again since is left alone.
+    /// Logs that the handler `entry` panicked at `point` with `message`, disables the enablement
+    /// of its Plugin that registered it, and tells [`Registry::crashed`] if it is Installed. A
+    /// Plugin enabled again since is left alone.
     fn disable_after_panic(&self, entry: &Entry, point: &str, message: &str) {
-        error!(plugin = %entry.plugin, point, message, "plugin panicked; disabling it");
+        error!(plugin = %entry.plugin, point, message, "plugin crashed; disabling it");
         // A stale generation is no error: that enablement is already gone.
-        let _stale = self.disable_if(&entry.plugin, |_, enabled| {
+        let disabled = self.disable_if(&entry.plugin, |_, enabled| {
             if enabled.is_some_and(|enabled| enabled.generation == entry.generation) {
                 Ok(())
             } else {
                 Err(())
             }
         });
+        // A Built-in Plugin is only disabled until a restart, since saving the last Authenticator disabled would stop
+        // the Server starting.
+        let crashed = self.read(|state| {
+            let installed = state
+                .known
+                .get(&entry.plugin)
+                .is_some_and(|known| known.kind == PluginKind::PLUGIN_KIND_INSTALLED);
+            state.crashed.clone().filter(|_| installed)
+        });
+        if matches!(disabled, Ok(true))
+            && let Some(crashed) = crashed
+        {
+            // Nothing saves it once the Server stops serving.
+            let _stopped = crashed.send(entry.plugin.clone());
+        }
     }
 
     /// A snapshot of the handlers at `point`, in the order they run.

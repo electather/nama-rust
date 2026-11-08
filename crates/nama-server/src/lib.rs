@@ -79,7 +79,7 @@ pub fn serve(
     let scanner = Scanner::new(Arc::clone(&db), plugins.clone(), events.clone());
     let matcher = Matcher::new(Arc::clone(&db), plugins.clone(), events.clone());
     let requests = Requests::new(Arc::clone(&db), matcher, events.clone(), plugins.clone());
-    let app = api::router(
+    let (app, saving_crashed) = api::router(
         config,
         db,
         plugins,
@@ -91,6 +91,7 @@ pub fn serve(
     #[cfg(feature = "web")]
     let app = app.layer(axum::middleware::from_fn(web::serve));
     async move {
+        let saving_crashed = tokio::spawn(saving_crashed);
         scanner.start_all().await;
         // In the background, so a slow Fulfiller doesn't hold up serving.
         let progress = requests.clone();
@@ -117,6 +118,13 @@ pub fn serve(
             && err.is_panic()
         {
             tracing::error!("handing the waiting Requests off panicked: {err}");
+        }
+        // A Plugin disabled for crashing but not saved yet runs again after a restart.
+        saving_crashed.abort();
+        if let Err(err) = saving_crashed.await
+            && err.is_panic()
+        {
+            tracing::error!("saving the Plugins disabled for crashing panicked: {err}");
         }
         // Progress is kept in memory only, so stopping mid-poll loses nothing.
         following.abort();

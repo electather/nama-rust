@@ -7,7 +7,7 @@ import {
   createRouterTransport,
 } from "@connectrpc/connect";
 import { RouterProvider } from "@tanstack/react-router";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { configure, fireEvent, render, screen } from "@testing-library/react";
 
 import {
   EventSchema,
@@ -21,6 +21,10 @@ import { Permission, SignInService, WhoAmIResponseSchema } from "@/gen/nama/v1/s
 import { UserService } from "@/gen/nama/v1/user_pb";
 
 import { getRouter } from "./router";
+
+// A file's first `findBy…` waits while the app's route chunks load for the first time, which took
+// over the default 1 s on a busy CI runner.
+configure({ asyncUtilTimeout: 5000 });
 
 /** What a new User gets: the Permissions to make Requests, which manage nothing. */
 export const newUser = [Permission.REQUEST, Permission.VIEW_REQUESTS];

@@ -1,6 +1,6 @@
 //! Installed Plugins on a running Server: listed once their `.wasm` is dropped into
-//! `<data_dir>/plugins/`, enabled and disabled without a restart, shown with why if refused, and
-//! reaching only the hosts they are allowed.
+//! `<data_dir>/plugins/`, enabled and disabled without a restart, shown with why if refused,
+//! reaching only the hosts they are allowed, and disabled when they keep crashing.
 
 #[path = "support/log.rs"]
 mod log;
@@ -12,7 +12,12 @@ mod server;
 #[path = "support/test_plugin.rs"]
 mod test_plugin;
 
-use std::{collections::BTreeMap, path::Path, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    path::Path,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use connectrpc::{ConnectError, ErrorCode, client::HttpClient};
 use log::Log;
@@ -30,6 +35,9 @@ use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpListener,
 };
+
+/// How long a test waits for the Server to disable a crashing Plugin or save that.
+const WAIT: Duration = Duration::from_secs(10);
 
 /// A running Server with no Installed Plugins yet.
 struct Started {
@@ -83,6 +91,22 @@ impl Started {
         };
         let response = self.client().update_plugin_settings(request).await?;
         Ok(response.into_owned())
+    }
+
+    /// Drops in the test Plugin with its Observer set to `observer` (`log`, `loop` or `panic`),
+    /// enables it, and returns a Library to scan so it is told about Events.
+    async fn observing(&self, observer: &str) -> (i64, tempfile::TempDir) {
+        self.drop_in("test.wasm", "");
+        // Listing is what reads `plugins/`.
+        self.listed("test-plugin").await.unwrap();
+        self.save_settings(&[("observer", observer)]).await.unwrap();
+        self.client()
+            .enable_plugin(enable("test-plugin"))
+            .await
+            .unwrap();
+        let media = tempfile::tempdir().unwrap();
+        std::fs::write(media.path().join("Heat (1995).mkv"), b"video").unwrap();
+        (self.library(media.path()).await, media)
     }
 
     fn client(&self) -> PluginServiceClient<HttpClient> {
@@ -349,4 +373,63 @@ async fn a_url_setting_that_isnt_a_url_is_refused_naming_it() {
         plugin_settings::stored(&started.db).await.unwrap(),
         Some(BTreeMap::new())
     );
+}
+
+#[tokio::test]
+async fn an_observer_that_loops_forever_is_stopped_by_the_timeout_and_the_server_carries_on() {
+    let log = Log::global();
+    let started = Started::new().await;
+    let (library, _media) = started.observing("loop").await;
+
+    started.scan(library).await;
+    log.wait_for(&["test-plugin is looping"], 1).await;
+    // Served while its call loops, which the timeout stops only after 5 seconds.
+    assert!(started.listed("test-plugin").await.is_some());
+    assert_eq!(log.count(&["test-plugin", "observer crashed: timeout"]), 0);
+    log.wait_for(&["test-plugin", "observer crashed: timeout"], 1)
+        .await;
+
+    assert!(started.listed("test-plugin").await.is_some());
+    started.scan(library).await;
+}
+
+#[tokio::test]
+async fn a_plugin_that_keeps_panicking_logs_why_is_disabled_and_saved_so_and_can_be_enabled_again()
+{
+    let log = Log::global();
+    let started = Started::new().await;
+    let test_plugin = PluginId::from_static("test-plugin");
+    let (library, _media) = started.observing("panic").await;
+
+    let disabled_at = Instant::now();
+    while started.plugins.enabled().contains(&test_plugin) {
+        assert!(disabled_at.elapsed() < WAIT, "it was never disabled");
+        started.scan(library).await;
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+
+    log.wait_for(
+        &["test-plugin", "the test Plugin's Observer was set to panic"],
+        3,
+    )
+    .await;
+    log.wait_for(
+        &["test-plugin", "crashed 3 times in a row", "disabling it"],
+        1,
+    )
+    .await;
+    // Saved like an admin's disable, which the Server shows and a restart keeps.
+    assert!(!started.listed("test-plugin").await.unwrap().enabled);
+    let saved_at = Instant::now();
+    while plugin_settings::stored(&started.db).await.unwrap().unwrap()["test-plugin"].enabled {
+        assert!(saved_at.elapsed() < WAIT, "its disable was never saved");
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+
+    started
+        .client()
+        .enable_plugin(enable("test-plugin"))
+        .await
+        .unwrap();
+    assert!(started.listed("test-plugin").await.unwrap().enabled);
 }
