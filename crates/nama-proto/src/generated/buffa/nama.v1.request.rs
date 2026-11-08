@@ -1656,6 +1656,25 @@ pub struct RequestedSeason {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub air_date: ::core::option::Option<::buffa::alloc::string::String>,
+    /// The Show's IMDb id, such as `tt5753856`, if the metadata source has one.
+    ///
+    /// Field 5: `show_imdb_id`
+    #[serde(
+        rename = "showImdbId",
+        alias = "show_imdb_id",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub show_imdb_id: ::core::option::Option<::buffa::alloc::string::String>,
+    /// The Show's TVDB id, if the metadata source has one.
+    ///
+    /// Field 6: `show_tvdb_id`
+    #[serde(
+        rename = "showTvdbId",
+        alias = "show_tvdb_id",
+        with = "::buffa::json_helpers::opt_int64",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub show_tvdb_id: ::core::option::Option<i64>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -1667,6 +1686,8 @@ impl ::core::fmt::Debug for RequestedSeason {
             .field("season_number", &self.season_number)
             .field("show_title", &self.show_title)
             .field("air_date", &self.air_date)
+            .field("show_imdb_id", &self.show_imdb_id)
+            .field("show_tvdb_id", &self.show_tvdb_id)
             .finish()
     }
 }
@@ -1686,6 +1707,23 @@ impl RequestedSeason {
         value: impl Into<::buffa::alloc::string::String>,
     ) -> Self {
         self.air_date = Some(value.into());
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::show_imdb_id`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_show_imdb_id(
+        mut self,
+        value: impl Into<::buffa::alloc::string::String>,
+    ) -> Self {
+        self.show_imdb_id = Some(value.into());
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::show_tvdb_id`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_show_tvdb_id(mut self, value: i64) -> Self {
+        self.show_tvdb_id = Some(value);
         self
     }
 }
@@ -1721,6 +1759,12 @@ impl ::buffa::Message for RequestedSeason {
         if let Some(ref v) = self.air_date {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
+        if let Some(ref v) = self.show_imdb_id {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        if let Some(v) = self.show_tvdb_id {
+            size += 1u64 + ::buffa::types::int64_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -1742,6 +1786,12 @@ impl ::buffa::Message for RequestedSeason {
         }
         if let Some(ref v) = self.air_date {
             ::buffa::types::put_string_field(4u32, v, buf);
+        }
+        if let Some(ref v) = self.show_imdb_id {
+            ::buffa::types::put_string_field(5u32, v, buf);
+        }
+        if let Some(v) = self.show_tvdb_id {
+            ::buffa::types::put_int64_field(6u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -1789,6 +1839,27 @@ impl ::buffa::Message for RequestedSeason {
                     buf,
                 )?;
             }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(
+                    self
+                        .show_imdb_id
+                        .get_or_insert_with(::buffa::alloc::string::String::new),
+                    buf,
+                )?;
+            }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.show_tvdb_id = ::core::option::Option::Some(
+                    ::buffa::types::decode_int64(buf)?,
+                );
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -1801,6 +1872,8 @@ impl ::buffa::Message for RequestedSeason {
         self.season_number = 0u32;
         self.show_title.clear();
         self.air_date = ::core::option::Option::None;
+        self.show_imdb_id = ::core::option::Option::None;
+        self.show_tvdb_id = ::core::option::Option::None;
         self.__buffa_unknown_fields.clear();
     }
 }

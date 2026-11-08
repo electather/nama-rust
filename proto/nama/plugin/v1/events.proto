@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package nama.plugin.v1;
+
+import "nama/v1/event.proto";
+
+// What an Installed Plugin's Observer at `OBSERVE_POINT_EVENTS` is told: one batch of Events, in
+// the order they happened. Two batches may arrive in either order.
+message ObservedEvents {
+  repeated nama.v1.Event events = 1;
+}

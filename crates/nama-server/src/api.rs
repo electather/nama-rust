@@ -5,7 +5,7 @@ use std::{
     ffi::OsStr,
     future,
     net::IpAddr,
-    path::Path,
+    path::{Path, PathBuf},
     sync::Arc,
     time::Instant,
 };
@@ -83,7 +83,7 @@ use crate::{
     libraries::{self, FolderProblem, Kind, Libraries, Library},
     matching::{ManualError, Matcher},
     plugin_settings,
-    plugins::{Builtin, CheckError, EnableError, Registry, SETTINGS_CHECK_TIMEOUT},
+    plugins::{CheckError, EnableError, Listed, Registry, SETTINGS_CHECK_TIMEOUT, installed},
     rate_limits::{Blocked, SignInCodeLimits, SignInLimits},
     requests::{self, Found, FoundShow, Requests},
     scanner::Scanner,
@@ -150,6 +150,7 @@ pub(crate) fn router(
             plugins,
             requests,
             db: Arc::clone(&db),
+            data_dir: config.data_dir.clone(),
             changing: tokio::sync::Mutex::default(),
         }))
         .add_service(Arc::new(LibraryServiceHandler {
@@ -2092,6 +2093,8 @@ struct PluginServiceHandler {
     /// Hands the Requests waiting for a Fulfiller to one once it is enabled.
     requests: Requests,
     db: Arc<Database>,
+    /// Where the Installed Plugins are, in `plugins/`.
+    data_dir: PathBuf,
     /// Held while a Plugin's settings change or it is enabled or disabled, and that is saved, so two
     /// changes at once can't leave it running otherwise than the database says.
     // ponytail: one lock for every Plugin; one per Plugin if Admins ever wait on each other.
@@ -2109,13 +2112,25 @@ impl PluginService for PluginServiceHandler {
         _ctx: RequestContext,
         _request: ServiceRequest<'_, ListPluginsRequest>,
     ) -> ServiceResult<ListPluginsResponse> {
+        let data_dir = self.data_dir.clone();
+        // Compiled before taking `changing`, so a slow Plugin doesn't hold up Plugin changes.
+        let found = tokio::task::spawn_blocking(move || installed::read(&data_dir))
+            .await
+            .map_err(|err| {
+                tracing::error!("reading the Installed Plugins failed: {err}");
+                ConnectError::internal("the Server failed")
+            })?;
+        // Under `changing`, so a Plugin being enabled can't lose its listing halfway.
+        let changing = self.changing.lock().await;
+        self.plugins.list_installed(found);
+        drop(changing);
         let stored = plugin_settings::stored(&self.db)
             .await
             .map_err(database_failed)?
             .unwrap_or_default();
         let plugins = self
             .plugins
-            .builtins()
+            .plugins()
             .into_iter()
             .map(|plugin| {
                 let settings = stored
@@ -2137,9 +2152,9 @@ impl PluginService for PluginServiceHandler {
     ) -> ServiceResult<UpdatePluginSettingsResponse> {
         let request = request.to_owned_message();
         let id = PluginId::from(request.id);
-        let plugin = self.builtin(&id)?;
+        let plugin = self.listed(&id)?;
         let changing = self.changing.lock().await;
-        let stored = self.stored(&plugin.id).await?;
+        let stored = self.stored(&plugin).await?;
         let settings = with_stored_secrets(
             &plugin.settings_schema,
             settings_from_proto(&request.settings),
@@ -2151,7 +2166,7 @@ impl PluginService for PluginServiceHandler {
         // ponytail: checked under `changing`, so a slow outside service holds up other Plugin
         // changes for up to SETTINGS_CHECK_TIMEOUT; check before locking if that bites.
         self.check_choices(&plugin, &settings).await?;
-        plugin_settings::save_settings(&self.db, plugin.id.as_str(), &settings)
+        plugin_settings::save(&self.db, plugin.id.as_str(), stored.enabled, &settings)
             .await
             .map_err(database_failed)?;
         // Enabled again even if it isn't running, such as TMDB left disabled without its key, and
@@ -2160,7 +2175,7 @@ impl PluginService for PluginServiceHandler {
             self.plugins.disable(&plugin.id);
             if let Err(err) = self
                 .plugins
-                .enable_builtin(&plugin.id, Settings::new(settings.clone()))
+                .enable_by_id(&plugin.id, Settings::new(settings.clone()))
             {
                 tracing::error!(plugin = %plugin.id, "could not enable the plugin with its new settings: {err}");
             }
@@ -2171,7 +2186,7 @@ impl PluginService for PluginServiceHandler {
             self.requests.hand_off_waiting_to(&plugin.id).await;
         }
         Response::ok(UpdatePluginSettingsResponse {
-            plugin: plugin_to_proto(Builtin { enabled, ..plugin }, &settings).into(),
+            plugin: plugin_to_proto(Listed { enabled, ..plugin }, &settings).into(),
             ..Default::default()
         })
     }
@@ -2189,7 +2204,7 @@ impl PluginService for PluginServiceHandler {
             .and_then(|mut stored| stored.remove(id.as_str()))
             .map(|config| config.settings)
             .unwrap_or_default();
-        match self.plugins.enable_builtin(&id, Settings::new(settings)) {
+        match self.plugins.enable_by_id(&id, Settings::new(settings)) {
             // Saving it again is how a retry fixes a save that failed below.
             Ok(()) | Err(EnableError::AlreadyEnabled(_)) => {}
             Err(err) => return Err(err.into()),
@@ -2211,8 +2226,8 @@ impl PluginService for PluginServiceHandler {
     ) -> ServiceResult<TestPluginSettingsResponse> {
         let request = request.to_owned_message();
         let id = PluginId::from(request.id);
-        let plugin = self.builtin(&id)?;
-        let stored = self.stored(&id).await?;
+        let plugin = self.listed(&id)?;
+        let stored = self.stored(&plugin).await?;
         let settings = with_stored_secrets(
             &plugin.settings_schema,
             settings_from_proto(&request.settings),
@@ -2239,7 +2254,7 @@ impl PluginService for PluginServiceHandler {
         request: ServiceRequest<'_, DisablePluginRequest>,
     ) -> ServiceResult<DisablePluginResponse> {
         let id = PluginId::from(request.id.to_owned());
-        self.builtin(&id)?;
+        self.listed(&id)?;
         let _changing = self.changing.lock().await;
         // Without an Authenticator nobody could sign in, which is also why `main` won't start.
         self.plugins
@@ -2266,20 +2281,30 @@ impl PluginService for PluginServiceHandler {
 }
 
 impl PluginServiceHandler {
-    /// The Built-in Plugin `id`, or the refusal of a call naming one no Plugin has.
-    fn builtin(&self, id: &PluginId) -> Result<Builtin, ConnectError> {
-        self.plugins
-            .builtins()
+    /// The Plugin `id`, or the refusal of a call naming one no Plugin has or one the Server
+    /// refused.
+    fn listed(&self, id: &PluginId) -> Result<Listed, ConnectError> {
+        let plugin = self
+            .plugins
+            .plugins()
             .into_iter()
             .find(|plugin| plugin.id == *id)
-            .ok_or_else(|| plugin_not_found(id))
+            .ok_or_else(|| plugin_not_found(id))?;
+        match plugin.refused_reason {
+            Some(reason) => Err(EnableError::Refused {
+                plugin: plugin.id,
+                reason,
+            }
+            .into()),
+            None => Ok(plugin),
+        }
     }
 
     /// Refuses `settings` for `plugin` unless its settings check passes on them and offers each
     /// choice setting's value. The check runs only when some choice setting has a value.
     async fn check_choices(
         &self,
-        plugin: &Builtin,
+        plugin: &Listed,
         settings: &BTreeMap<String, settings::SettingValue>,
     ) -> Result<(), ConnectError> {
         let chosen: Vec<_> = plugin
@@ -2287,8 +2312,8 @@ impl PluginServiceHandler {
             .fields
             .iter()
             .filter(|field| field.kind == settings::SettingKind::Choice)
-            .filter_map(|field| match settings.get(field.key) {
-                Some(settings::SettingValue::Text(value)) => Some((field.key, value)),
+            .filter_map(|field| match settings.get(&field.key) {
+                Some(settings::SettingValue::Text(value)) => Some((field.key.as_str(), value)),
                 _ => None,
             })
             .collect();
@@ -2315,14 +2340,19 @@ impl PluginServiceHandler {
         Ok(())
     }
 
-    /// What is stored for the Plugin `id`: nothing for one that never had settings saved.
-    async fn stored(&self, id: &PluginId) -> Result<PluginConfig, ConnectError> {
+    /// What is stored for `plugin`. For one never stored, no settings, and enabled only if it is
+    /// Built-in: Installed Plugins start disabled.
+    async fn stored(&self, plugin: &Listed) -> Result<PluginConfig, ConnectError> {
+        let never_stored = || PluginConfig {
+            enabled: plugin.kind == PluginKind::PLUGIN_KIND_BUILT_IN,
+            ..PluginConfig::default()
+        };
         Ok(plugin_settings::stored(&self.db)
             .await
             .map_err(database_failed)?
             .unwrap_or_default()
-            .remove(id.as_str())
-            .unwrap_or_default())
+            .remove(plugin.id.as_str())
+            .unwrap_or_else(never_stored))
     }
 }
 
@@ -2364,6 +2394,14 @@ impl From<EnableError> for ConnectError {
     fn from(err: EnableError) -> Self {
         match err {
             EnableError::Unknown(id) => plugin_not_found(&id),
+            EnableError::Refused { plugin, reason } => refuse(
+                RefusalReason::REFUSAL_REASON_PLUGIN_REFUSED,
+                format!("the Server refused {plugin}: {reason}"),
+            )
+            .field("id")
+            .param("pluginId", &plugin)
+            .param("reason", &reason)
+            .into(),
             // The settings are the stored ones, not the request's, but #162 asks for the refusal
             // to name one.
             EnableError::InvalidSettings { error, .. } => settings_refused(error),
@@ -2401,33 +2439,29 @@ fn with_stored_secrets(
         .filter_map(|field| {
             let kept = || {
                 let secret = field.kind == settings::SettingKind::Secret;
-                stored.get(field.key).filter(|_| secret).cloned()
+                stored.get(&field.key).filter(|_| secret).cloned()
             };
-            Some((field.key.to_owned(), sent.remove(field.key).or_else(kept)?))
+            Some((field.key.clone(), sent.remove(&field.key).or_else(kept)?))
         })
         .collect()
 }
 
 /// The refusal of settings that don't fit their Plugin's schema, naming the one that doesn't as
 /// `settings.<key>`, the way `Plugin.settings` lists it.
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "by value, so callers can write `.map_err(settings_refused)`"
-)]
 fn settings_refused(err: SettingsError) -> ConnectError {
     let refused = match err {
         SettingsError::Missing(key) => refuse(
             RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
             format!("the setting {key} is required"),
         )
-        .setting(key),
+        .setting(&key),
         SettingsError::WrongKind { key, expected } => {
             let kind = setting_kind_to_proto(expected).proto_name();
             refuse(
                 RefusalReason::REFUSAL_REASON_SETTING_WRONG_KIND,
                 format!("the setting {key} must be {kind}"),
             )
-            .setting(key)
+            .setting(&key)
             .param("settingKind", &kind)
         }
     };
@@ -2435,20 +2469,21 @@ fn settings_refused(err: SettingsError) -> ConnectError {
 }
 
 fn plugin_to_proto(
-    plugin: Builtin,
+    plugin: Listed,
     stored: &BTreeMap<String, settings::SettingValue>,
 ) -> proto::Plugin {
     proto::Plugin {
         id: plugin.id.to_string(),
         version: plugin.version,
-        kind: PluginKind::PLUGIN_KIND_BUILT_IN.into(),
+        kind: plugin.kind.into(),
+        refused_reason: plugin.refused_reason.unwrap_or_default(),
         enabled: plugin.enabled,
         checks_settings: plugin.checks_settings,
         settings: plugin
             .settings_schema
             .fields
             .iter()
-            .map(|field| setting_to_proto(field, stored.get(field.key)))
+            .map(|field| setting_to_proto(field, stored.get(&field.key)))
             .collect(),
         ..Default::default()
     }
@@ -2465,9 +2500,9 @@ fn setting_to_proto(
         value.filter(|_| !secret).map(setting_value_to_proto).into()
     };
     proto::Setting {
-        key: field.key.to_owned(),
-        label: field.label.to_owned(),
-        description: field.description.to_owned(),
+        key: field.key.clone(),
+        label: field.label.clone(),
+        description: field.description.clone(),
         kind: setting_kind_to_proto(field.kind).into(),
         required: field.required,
         default_value: shown(field.default.as_ref()),
@@ -2597,7 +2632,8 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_LAST_AUTHENTICATOR
         | R::REFUSAL_REASON_SETTINGS_CHECK_FAILED
         | R::REFUSAL_REASON_CHOICE_NOT_OFFERED
-        | R::REFUSAL_REASON_FULFILLER_TAKEN => ErrorCode::FailedPrecondition,
+        | R::REFUSAL_REASON_FULFILLER_TAKEN
+        | R::REFUSAL_REASON_PLUGIN_REFUSED => ErrorCode::FailedPrecondition,
         R::REFUSAL_REASON_SIGN_IN_CODE_NOT_FOUND
         | R::REFUSAL_REASON_HANDLE_NOT_FOUND
         | R::REFUSAL_REASON_USER_NOT_FOUND
@@ -3007,9 +3043,9 @@ mod tests {
     #[test]
     fn a_secrets_default_and_stored_value_are_never_sent() {
         let token = SettingField {
-            key: "token",
-            label: "Token",
-            description: "",
+            key: "token".to_owned(),
+            label: "Token".to_owned(),
+            description: String::new(),
             kind: SettingKind::Secret,
             required: false,
             default: Some(SettingValue::Text("default-token".to_owned())),

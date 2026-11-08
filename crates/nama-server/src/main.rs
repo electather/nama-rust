@@ -17,7 +17,7 @@ use nama_server::{
     config::{self, Config},
     db::{self, Database},
     plugin_settings,
-    plugins::{Registry, installed},
+    plugins::Registry,
     users::{SetupCode, Users},
 };
 use tokio::{net::TcpListener, task};
@@ -68,7 +68,6 @@ async fn main() -> ExitCode {
         close(db).await;
         return ExitCode::FAILURE;
     };
-    log_installed_plugins(&config).await;
     let setup_code = match setup_code(Users::new(Arc::clone(&db), plugins.clone())).await {
         Ok(setup_code) => setup_code,
         Err(err) => {
@@ -143,14 +142,6 @@ async fn open_database(config: &Config) -> Option<Arc<Database>> {
     Some(Arc::new(db))
 }
 
-/// Logs the Installed Plugins in the data directory, without enabling any.
-async fn log_installed_plugins(config: &Config) {
-    let data_dir = config.data_dir.clone();
-    if let Err(err) = task::spawn_blocking(move || installed::log_installed(&data_dir)).await {
-        error!("reading the Installed Plugins failed: {err}");
-    }
-}
-
 /// A new Setup Code, logged, while the Server has no Users, so whoever can read the log can create
 /// the first Admin.
 async fn setup_code(users: Users) -> Result<Option<SetupCode>, Box<dyn std::error::Error>> {
@@ -171,8 +162,9 @@ async fn close(db: Arc<Database>) {
     }
 }
 
-/// Enables the Built-in Plugins with the settings stored in `db`. On the first start there are none
-/// yet, so it uses the config's `[plugins.*]` tables and imports them.
+/// Enables the Built-in Plugins and the Installed Plugins in the data directory with the settings
+/// stored in `db`. On the first start there are none yet, so it uses the config's `[plugins.*]`
+/// tables and imports them.
 /// Returns `None`, having logged why, if the settings can't be read or imported, or no Plugin
 /// provides an [`Authenticator`], since then nobody could sign in.
 async fn enable_plugins(config: &Config, db: &Database) -> Option<Registry> {
@@ -200,6 +192,15 @@ async fn enable_plugins(config: &Config, db: &Database) -> Option<Registry> {
             .ok()?,
     };
     let plugins = Registry::with_builtins(&settings);
+    let loading = plugins.clone();
+    let data_dir = config.data_dir.clone();
+    let settings = task::spawn_blocking(move || {
+        loading.load_installed(&data_dir, &settings);
+        settings
+    })
+    .await
+    .inspect_err(|err| error!("reading the Installed Plugins failed: {err}"))
+    .ok()?;
     let enabled: Vec<String> = plugins.enabled().iter().map(ToString::to_string).collect();
     info!(?enabled, "enabled plugins");
     let has_authenticator = plugins

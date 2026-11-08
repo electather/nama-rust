@@ -10,7 +10,8 @@ const text = (value: string) => ({ value: { case: "textValue" as const, value } 
 
 /**
  * The Built-in Plugins of a fresh Server with a TMDB API key set, settings of every kind, and the
- * test Plugin, whose settings check offers choices.
+ * test Plugin, whose settings check offers choices, then an Installed Plugin and one the Server
+ * refused.
  */
 const plugins = [
   { id: "local-auth", version: "0.1.0", kind: PluginKind.BUILT_IN, enabled: true },
@@ -94,6 +95,14 @@ const plugins = [
         value: text("1"),
       },
     ],
+  },
+  { id: "test-plugin", version: "0.1.0", kind: PluginKind.INSTALLED, enabled: false },
+  {
+    id: "out-of-range.wasm",
+    version: "",
+    kind: PluginKind.INSTALLED,
+    enabled: false,
+    refusedReason: "it wants nama-api <0.1, and this Server has 0.1.0",
   },
 ];
 

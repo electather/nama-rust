@@ -1,6 +1,6 @@
 //! A Server serving the API on a random local port, for tests that call it the way clients do.
 
-use std::{net::SocketAddr, sync::Arc};
+use std::{net::SocketAddr, path::Path, sync::Arc};
 
 use connectrpc::client::{ClientConfig, HttpClient};
 use nama_plugin_local_auth::LocalAuth;
@@ -23,7 +23,7 @@ pub(crate) struct TestServer {
     /// The session token of the Admin's Device.
     pub(crate) admin_token: String,
     _stop: oneshot::Sender<()>,
-    _data_dir: TempDir,
+    data_dir: TempDir,
 }
 
 impl TestServer {
@@ -71,9 +71,14 @@ impl TestServer {
             addr,
             admin_token,
             _stop: stop,
-            _data_dir: data_dir,
+            data_dir,
         };
         (server, db)
+    }
+
+    /// The Server's data directory, such as for its Installed Plugins.
+    pub(crate) fn data_dir(&self) -> &Path {
+        self.data_dir.path()
     }
 
     /// Client settings that point at this Server and call it as the Admin.

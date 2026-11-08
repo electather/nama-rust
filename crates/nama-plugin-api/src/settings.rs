@@ -29,11 +29,11 @@ pub struct SettingsSchema {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SettingField {
     /// The key it is stored and configured under, such as `api_key`.
-    pub key: &'static str,
+    pub key: String,
     /// A short name for a form's label.
-    pub label: &'static str,
+    pub label: String,
     /// What the setting does, for a form's help text.
-    pub description: &'static str,
+    pub description: String,
     /// What kind of value it takes.
     pub kind: SettingKind,
     /// Whether the Plugin can't be enabled without it.
@@ -131,17 +131,19 @@ impl Settings {
     /// schema doesn't name are kept, so a Plugin's older settings survive an upgrade.
     pub fn resolve(mut self, schema: &SettingsSchema) -> Result<Self, SettingsError> {
         for field in &schema.fields {
-            match (self.0.get(field.key), &field.default) {
+            match (self.0.get(&field.key), &field.default) {
                 (Some(value), _) if !value.is(field.kind) => {
                     return Err(SettingsError::WrongKind {
-                        key: field.key,
+                        key: field.key.clone(),
                         expected: field.kind,
                     });
                 }
                 (None, Some(default)) => {
-                    self.0.insert(field.key.to_owned(), default.clone());
+                    self.0.insert(field.key.clone(), default.clone());
                 }
-                (None, None) if field.required => return Err(SettingsError::Missing(field.key)),
+                (None, None) if field.required => {
+                    return Err(SettingsError::Missing(field.key.clone()));
+                }
                 (Some(_) | None, _) => {}
             }
         }
@@ -153,11 +155,11 @@ impl Settings {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SettingsError {
     /// A required setting has no value.
-    Missing(&'static str),
+    Missing(String),
     /// A setting's value is of the wrong kind.
     WrongKind {
         /// The setting.
-        key: &'static str,
+        key: String,
         /// The kind the schema declares.
         expected: SettingKind,
     },

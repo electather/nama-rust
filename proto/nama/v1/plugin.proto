@@ -3,7 +3,9 @@ syntax = "proto3";
 package nama.v1;
 
 // The Server's Plugins and their settings. Needs `PERMISSION_MANAGE_SETTINGS`, and fails with
-// `permission_denied` without it. A secret setting's value never leaves the Server.
+// `permission_denied` without it. A secret setting's value never leaves the Server. Every call
+// naming a Plugin the Server refused (see `Plugin.refused_reason`) fails with
+// `REFUSAL_REASON_PLUGIN_REFUSED`.
 service PluginService {
   // Lists every Plugin on the Server, by id.
   rpc ListPlugins(ListPluginsRequest) returns (ListPluginsResponse) {
@@ -109,6 +111,9 @@ enum PluginKind {
   PLUGIN_KIND_UNSPECIFIED = 0;
   // Compiled into the Server.
   PLUGIN_KIND_BUILT_IN = 1;
+  // Loaded from a `.wasm` file in the Server's `<data_dir>/plugins/`, which the Server reads again
+  // each time it lists its Plugins.
+  PLUGIN_KIND_INSTALLED = 2;
 }
 
 // A unit of trusted functionality that plugs into a Server.
@@ -117,12 +122,17 @@ message Plugin {
   string id = 1;
   string version = 2;
   PluginKind kind = 3;
-  // Whether it is running. A Plugin missing a required setting isn't.
+  // Whether it is running. A Plugin missing a required setting isn't, and an Installed Plugin
+  // starts disabled.
   bool enabled = 4;
   // Every setting it takes, in the order a form shows them.
   repeated Setting settings = 5;
   // Whether it has a settings check, which `TestPluginSettings` runs.
   bool checks_settings = 6;
+  // Why the Server refused it, in plain words, such as an Installed Plugin built for another Nama
+  // API version. Empty unless it was refused. A refused Plugin can't be enabled, and its `id` is
+  // its file's name, since the Server may not have learnt the id it gives itself.
+  string refused_reason = 7;
 }
 
 // What kind of value a setting takes.

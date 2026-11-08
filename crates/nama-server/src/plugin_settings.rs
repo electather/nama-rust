@@ -87,15 +87,15 @@ pub async fn import(
     .await
 }
 
-/// Stores `settings` as the Plugin `id`'s, replacing any stored, and leaves whether it is enabled
-/// as it was: enabled for a Plugin with nothing stored yet.
+/// Stores whether the Plugin `id` is enabled and its `settings`, replacing any stored.
 ///
 /// # Errors
 ///
 /// If the database can't be written.
-pub async fn save_settings(
+pub async fn save(
     db: &Database,
     id: &str,
+    enabled: bool,
     settings: &BTreeMap<String, SettingValue>,
 ) -> Result<(), sqlx::Error> {
     let plugin_id = id.to_owned();
@@ -104,9 +104,11 @@ pub async fn save_settings(
     db.write(move |tx| {
         Box::pin(async move {
             sqlx::query!(
-                "INSERT INTO plugin_settings (plugin_id, enabled, settings) VALUES (?, 1, ?)
-                 ON CONFLICT (plugin_id) DO UPDATE SET settings = excluded.settings",
+                "INSERT INTO plugin_settings (plugin_id, enabled, settings) VALUES (?, ?, ?)
+                 ON CONFLICT (plugin_id) DO UPDATE
+                 SET enabled = excluded.enabled, settings = excluded.settings",
                 plugin_id,
+                enabled,
                 settings
             )
             .execute(&mut **tx)

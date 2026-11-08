@@ -1,12 +1,12 @@
 //! A Built-in Plugin used only in tests (the Server's `testing` feature), standing in for one such as
-//! Radarr: its settings check offers choices, its settings can tell it to fail, and it provides a
-//! Movie Fulfiller.
+//! Radarr or Sonarr: its settings check offers choices, its settings can tell it to fail, and it
+//! provides a Fulfiller for Movies and one for Shows.
 
 use std::{collections::HashMap, future, sync::Arc};
 
 use nama_plugin_api::{
     BoxFuture, Plugin, PluginError, PluginId, Priority, Registrar,
-    fulfiller::{Download, Fulfiller, Movies},
+    fulfiller::{Download, Fulfiller, Movies, Shows},
     settings::{
         Choice, Choices, SettingField, SettingKind, Settings, SettingsCheck, SettingsSchema,
     },
@@ -25,7 +25,7 @@ pub const PANIC: &str = "panic";
 /// What `fail_with` is set to for the check never to finish.
 pub const HANG: &str = "hang";
 
-/// The test Plugin. It registers its Movie Fulfiller.
+/// The test Plugin. It registers its Fulfillers.
 #[derive(Debug)]
 pub struct TestChoices;
 
@@ -39,10 +39,10 @@ impl Plugin for TestChoices {
     }
 
     fn settings_schema(&self) -> SettingsSchema {
-        let field = |key, label, description, kind, required| SettingField {
-            key,
-            label,
-            description,
+        let field = |key: &str, label: &str, description: &str, kind, required| SettingField {
+            key: key.to_owned(),
+            label: label.to_owned(),
+            description: description.to_owned(),
             kind,
             required,
             default: None,
@@ -80,6 +80,7 @@ impl Plugin for TestChoices {
 
     fn register(&self, registrar: &mut Registrar) {
         registrar.provide::<dyn Fulfiller<Movies>>(Priority::DEFAULT, Arc::new(Self));
+        registrar.provide::<dyn Fulfiller<Shows>>(Priority::DEFAULT, Arc::new(Self));
     }
 }
 
@@ -87,6 +88,25 @@ impl Plugin for TestChoices {
 impl Fulfiller<Movies> for TestChoices {
     fn fulfill<'a>(&'a self, request: &'a Request) -> BoxFuture<'a, Result<String, PluginError>> {
         let reference = format!("movie-{}", request.movie.tmdb_id);
+        Box::pin(future::ready(Ok(reference)))
+    }
+
+    fn progress<'a>(
+        &'a self,
+        _references: &'a [String],
+    ) -> BoxFuture<'a, Result<HashMap<String, Vec<Download>>, PluginError>> {
+        Box::pin(future::ready(Ok(HashMap::new())))
+    }
+}
+
+/// Takes every Request, giving `show-<TMDB id>-season-<number>` as its reference.
+impl Fulfiller<Shows> for TestChoices {
+    fn fulfill<'a>(&'a self, request: &'a Request) -> BoxFuture<'a, Result<String, PluginError>> {
+        let season = &request.season;
+        let reference = format!(
+            "show-{}-season-{}",
+            season.show_tmdb_id, season.season_number
+        );
         Box::pin(future::ready(Ok(reference)))
     }
 
