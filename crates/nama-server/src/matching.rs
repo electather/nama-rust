@@ -270,6 +270,26 @@ impl Matcher {
             .map_err(|miss| miss.looking_up(id))
     }
 
+    /// The Show with the id `id`, fetched now.
+    pub(crate) async fn show(&self, id: &ExternalId) -> Result<Show, ManualError> {
+        self.fetch_show(id)
+            .await
+            .map(|found| found.show)
+            .map_err(|miss| miss.looking_up(id))
+    }
+
+    /// The Season `number` of the Show with the id `show`, with its Episodes, fetched now. Fails
+    /// with [`ManualError::NoSuchTitle`] naming the Show if it has no such Season.
+    pub(crate) async fn show_season(
+        &self,
+        show: &ExternalId,
+        number: u32,
+    ) -> Result<Season, ManualError> {
+        self.season(show, number.into())
+            .await
+            .map_err(|miss| miss.looking_up(show))
+    }
+
     /// Removes the Match of the item `item` and of every item named like it, and pins them
     /// Unmatched.
     pub(crate) async fn clear_match(

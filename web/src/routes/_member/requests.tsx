@@ -5,9 +5,9 @@ import { FindAMovie, MoviesFound } from "@/components/find-a-movie";
 import { Page } from "@/components/page";
 import { RequestActions } from "@/components/request-actions";
 import { RequestStateLabel } from "@/components/request-state";
-import { type Request, RequestService } from "@/gen/nama/v1/request_pb";
+import { type Request, type RequestedSeason, RequestService } from "@/gen/nama/v1/request_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { metadataLine, yearOf } from "@/lib/browse";
+import { metadataLine, seasonName, yearOf } from "@/lib/browse";
 import { may } from "@/lib/permissions";
 
 export const Route = createFileRoute("/_member/requests")({
@@ -51,10 +51,61 @@ function RequestList() {
     <p className="mt-8 text-muted-foreground">No Requests yet.</p>
   ) : (
     <ul className="mt-8 flex max-w-2xl flex-col">
-      {data.requests.map((request) => (
-        <RequestRow key={String(request.id)} request={request} />
-      ))}
+      {groupShows(data.requests).map((entry) =>
+        "seasons" in entry ? (
+          <ShowRequests key={`show-${entry.show.showTmdbId}`} {...entry} />
+        ) : (
+          <RequestRow key={String(entry.id)} request={entry} />
+        ),
+      )}
     </ul>
+  );
+}
+
+/** A Show's Season Requests, listed together under it. */
+interface ShowGroup {
+  show: RequestedSeason;
+  seasons: Request[];
+}
+
+/**
+ * `requests` in their order, but with each Show's Season Requests together, in Season order,
+ * where the Show's first one was.
+ */
+function groupShows(requests: Request[]) {
+  const shows = new Map<bigint, ShowGroup>();
+  const grouped = requests.flatMap((request): (Request | ShowGroup)[] => {
+    const { season } = request;
+    if (season === undefined) return [request];
+    const group = shows.get(season.showTmdbId);
+    if (group !== undefined) {
+      group.seasons.push(request);
+      return [];
+    }
+    const first = { show: season, seasons: [request] };
+    shows.set(season.showTmdbId, first);
+    return [first];
+  });
+  for (const { seasons } of shows.values()) {
+    seasons.sort((a, b) => seasonNumber(a) - seasonNumber(b));
+  }
+  return grouped;
+}
+
+function seasonNumber(request: Request) {
+  return request.season?.seasonNumber ?? 0;
+}
+
+function ShowRequests({ show, seasons }: ShowGroup) {
+  return (
+    <li className="border-b pt-3 last:border-b-0">
+      <p className="truncate font-medium">{show.showTitle}</p>
+      <ul aria-label={show.showTitle} className="flex flex-col ps-4">
+        {seasons.map((request) => (
+          <RequestRow key={String(request.id)} request={request} />
+        ))}
+      </ul>
+    </li>
   );
 }
 
@@ -64,7 +115,7 @@ function RequestRow({ request }: { request: Request }) {
     // Wraps so the actions get a line of their own, the full width of the row.
     <li className="flex min-h-16 flex-wrap items-center gap-x-3 border-b py-3 last:border-b-0">
       <div className="min-w-0 flex-1">
-        <p className="truncate font-medium">{request.movie?.title}</p>
+        <p className="truncate font-medium">{titleOf(request)}</p>
         <p className="text-sm text-muted-foreground">{aboutRequest(request, signedIn.user?.id)}</p>
         <DeclineReason reason={request.declineReason} />
       </div>
@@ -78,9 +129,15 @@ function RequestRow({ request }: { request: Request }) {
   );
 }
 
-/** What the row says under a Request's title: the Movie's year, and who asked for it. */
+/** A Request's title: its Movie's, or its Season's name, which its Show's title is above. */
+function titleOf({ movie, season }: Request) {
+  return season ? seasonName(season.seasonNumber) : movie?.title;
+}
+
+/** What the row says under a Request's title: the year it came out, and who asked for it. */
 function aboutRequest(request: Request, you: bigint | undefined) {
-  return metadataLine(yearOf(request.movie?.releaseDate), requestedBy(request, you));
+  const released = request.season?.airDate ?? request.movie?.releaseDate;
+  return metadataLine(yearOf(released), requestedBy(request, you));
 }
 
 function DeclineReason({ reason }: { reason: string | undefined }) {

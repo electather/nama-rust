@@ -71,7 +71,8 @@ pub enum RefusalReason {
     /// `not_found`: there is no item with the ID. Params: `itemId`.
     REFUSAL_REASON_ITEM_NOT_FOUND = 27i32,
     /// `invalid_argument`: the metadata source has no title with the id, or can't look titles up by
-    /// it. Params: `titleId`, as the message shows it (`tmdb-949`).
+    /// it. Params: `titleId`, as the message shows it (`tmdb-949`), and for a Season of a Show
+    /// `seasonNumber`.
     REFUSAL_REASON_UNKNOWN_TITLE = 28i32,
     /// `unavailable`: no metadata Provider is enabled, or it failed.
     REFUSAL_REASON_NO_METADATA_PROVIDER = 29i32,
@@ -96,8 +97,9 @@ pub enum RefusalReason {
     REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED = 37i32,
     /// `not_found`: there is no Request with the ID, or none the caller may see. Params: `requestId`.
     REFUSAL_REASON_REQUEST_NOT_FOUND = 38i32,
-    /// `failed_precondition`: the Movie is already Matched in a Library, so it can't be Requested.
-    /// Params: `tmdbId`.
+    /// `failed_precondition`: the Movie, or every aired Episode of the Season, is already Matched in a
+    /// Library, so it can't be Requested. Params: `tmdbId` (a Season's Show's), and for a Season
+    /// `seasonNumber`.
     REFUSAL_REASON_ALREADY_IN_LIBRARY = 39i32,
     /// `failed_precondition`: the Request isn't Pending, so it can't be approved, declined or withdrawn
     /// from. Params: `requestId`.

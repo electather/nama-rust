@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT library_items.episode AS \"episode!\"\n           FROM item_matches\n           JOIN library_items ON library_items.id = item_matches.item_id\n           WHERE item_matches.state = 'matched'\n             AND library_items.kind = 'episode'\n             AND item_matches.show_tmdb_id = ?\n             AND library_items.season = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "episode!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_items",
+            "name": "episode"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "a0597c27a7fedbda7c4ce2be20aa31ffa10667cfbc3a405eb2af86aa18c374c1"
+}
