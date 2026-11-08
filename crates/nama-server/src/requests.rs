@@ -24,13 +24,13 @@ use nama_proto::nama::v1::{
     RequestProgress, RequestState, RequestStateChanged, RequestWithdrawn, RequestedMovie,
     RequestedSeason, Requester, RequesterAdded, RequesterRemoved, event::Event as Happened,
 };
-use sqlx::SqliteConnection;
+use sqlx::{Sqlite, SqliteConnection, Transaction};
 use tokio::{sync::Notify, time::error::Elapsed};
 use tracing::{error, warn};
 
 use crate::{
     contents::{self, Contents, Metadata},
-    db::{Database, now},
+    db::{BoxFuture, Database, now},
     events::{EventBus, event},
     matching::{ManualError, Matcher},
     plugins::Registry,
@@ -434,17 +434,8 @@ impl Requests {
     /// Removes the Followed Show `id`, whatever its state, leaving the Season Requests it opened,
     /// and has the Shows Fulfiller stop following the Show.
     pub(crate) async fn cancel_followed(&self, id: i64) -> Result<(), Error> {
-        let this = self.clone();
-        // The Fulfiller too, so a caller that stops waiting leaves it following no Followed Show.
-        detached(async move {
-            let ended = this
-                .db
-                .write(move |tx| Box::pin(cancel_followed(tx, id)))
-                .await?;
-            this.unfollow(ended).await;
-            Ok(())
-        })
-        .await
+        self.end_followed(move |tx| Box::pin(cancel_followed(tx, id)))
+            .await
     }
 
     /// Takes `requester` off the Followed Show `id`, removing it once nobody is left on it, as
@@ -452,35 +443,42 @@ impl Requests {
     pub(crate) async fn withdraw_followed(&self, requester: &User, id: i64) -> Result<(), Error> {
         let user = requester.id;
         let visible = visible_to(requester);
+        self.end_followed(move |tx| Box::pin(withdraw_followed(tx, user, visible, id)))
+            .await
+    }
+
+    /// Writes `end`, then, if it returns the Season Request of a Followed Show it ended, tells the
+    /// Shows Fulfiller, if one is enabled, to stop following that Show. A failure to tell it is
+    /// only logged: the Followed Show ended either way.
+    ///
+    /// Runs in a task of its own, so a caller that stops waiting leaves the Fulfiller following no
+    /// ended Followed Show.
+    async fn end_followed<F>(&self, end: F) -> Result<(), Error>
+    where
+        F: for<'t> FnOnce(
+                &'t mut Transaction<'_, Sqlite>,
+            ) -> BoxFuture<'t, Result<Option<Request>, Error>>
+            + Send
+            + 'static,
+    {
         let this = self.clone();
-        // As in `cancel_followed`.
         detached(async move {
-            let ended = this
-                .db
-                .write(move |tx| Box::pin(withdraw_followed(tx, user, visible, id)))
-                .await?;
-            this.unfollow(ended).await;
+            if let Some(followed_season) = this.db.write(end).await? {
+                this.unfollow(&followed_season).await;
+            }
             Ok(())
         })
         .await
     }
 
-    /// Tells the Shows Fulfiller, if one is enabled, to stop following the Show `season` is a
-    /// Season Request of, if given. A failure is only logged: the Followed Show ended either way.
-    async fn unfollow(&self, season: Option<Request>) {
-        let Some(season) = season else {
-            return;
-        };
+    async fn unfollow(&self, season: &Request) {
         let unfollowed = self
             .plugins
-            .call_provider_blanking_secrets::<dyn Fulfiller<Shows>, _, _>(|fulfiller| {
-                let season = &season;
-                async move {
-                    fulfiller
-                        .unfollow(season)
-                        .await
-                        .map_err(|error| error.to_string())
-                }
+            .call_provider_blanking_secrets::<dyn Fulfiller<Shows>, _, _>(|fulfiller| async move {
+                fulfiller
+                    .unfollow(season)
+                    .await
+                    .map_err(|error| error.to_string())
             })
             .await;
         if let Some(Err(reason)) = unfollowed {
@@ -1643,6 +1641,9 @@ async fn decide_followed(
 
 /// `request` as its Fulfiller is handed it: naming its Followed Show only while that is Approved,
 /// which asks the Fulfiller to follow the Show.
+// ponytail: only a hand-off asks to follow, so a Followed Show that hands nothing off, such as one
+// whose aired Seasons are all in a Library or already have open Requests, isn't followed until a
+// Fulfiller contract call asks to follow without a hand-off.
 async fn as_handed_off(
     conn: &mut SqliteConnection,
     mut request: Request,
@@ -1669,7 +1670,7 @@ async fn followed_show_approved(conn: &mut SqliteConnection, id: i64) -> Result<
 /// opened, as it was, if it was Approved, so its Fulfiller was asked to follow the Show.
 async fn cancel_followed(conn: &mut SqliteConnection, id: i64) -> Result<Option<Request>, Error> {
     let followed_season = if followed_show_approved(conn, id).await? {
-        // shortcut: a Followed Show stores no Show ids, so once every Season Request it opened is
+        // ponytail: a Followed Show stores no Show ids, so once every Season Request it opened is
         // cancelled its Fulfiller isn't told to stop; store them if that bites.
         let first = sqlx::query_scalar!(
             "SELECT MIN(id) FROM requests WHERE followed_show_id = ?",
