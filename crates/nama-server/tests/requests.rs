@@ -1064,6 +1064,37 @@ async fn a_season_request_the_shows_fulfiller_refuses_fails_with_its_reason_and_
 }
 
 #[tokio::test]
+async fn a_season_request_whose_show_has_no_tvdb_id_is_still_handed_to_the_shows_fulfiller() {
+    let fulfiller = FakeFulfiller::default();
+    let fixture = Fixture::with_shows_fulfiller(&fulfiller).await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let pending = ask_seasons(&requests(as_ada), DARK, &[1]).await;
+    forget_show_tvdb_ids(&fixture.db).await;
+
+    let approved = fixture.approve(pending[0].id).await;
+
+    assert_eq!(approved.state, RequestState::Processing);
+    assert_eq!(fulfiller.handed_seasons(), [(DARK, None, 1)]);
+}
+
+/// Forgets every Season Request's Show TVDB id, as for a Show the metadata source has none for.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn forget_show_tvdb_ids(db: &Database) {
+    db.write(|tx| {
+        Box::pin(async move {
+            sqlx::query("UPDATE requests SET show_tvdb_id = NULL")
+                .execute(&mut **tx)
+                .await
+        })
+    })
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
 async fn an_approved_movie_request_is_not_handed_to_the_shows_fulfiller() {
     let fulfiller = FakeFulfiller::default();
     let fixture = Fixture::with_shows_fulfiller(&fulfiller).await;

@@ -241,7 +241,7 @@ impl Requests {
             .write(move |tx| Box::pin(ask_movie(tx, user, wanted, state)))
             .await?;
         // Only the asker who opens the Request hands it off, so joining it can't hand it twice.
-        let opened = happened.as_ref().and_then(opened).is_some();
+        let opened = happened.as_ref().and_then(opened_request_id).is_some();
         self.events.publish(happened.into_iter().collect());
         if opened && request.state == RequestState::Approved {
             return self.hand_off(request).await;
@@ -294,18 +294,30 @@ impl Requests {
             .db
             .write(move |tx| Box::pin(ask_seasons(tx, user, wanted, state)))
             .await?;
-        let opened: HashSet<i64> = happened.iter().filter_map(opened).collect();
+        let opened: HashSet<i64> = happened.iter().filter_map(opened_request_id).collect();
         self.events.publish(happened);
+        let this = self.clone();
+        // Detached as a whole, so a caller that stops waiting leaves no Season Approved behind.
+        detached(async move { this.hand_off_opened(requests, &opened).await }).await
+    }
+
+    /// Each of `requests`, handed off first if it is Approved and its id is in `opened`, as it is
+    /// after that.
+    async fn hand_off_opened(
+        &self,
+        requests: Vec<Request>,
+        opened: &HashSet<i64>,
+    ) -> Result<Vec<Request>, Error> {
         let mut after_hand_off = Vec::with_capacity(requests.len());
         // ponytail: one hand-off at a time, so a slow Fulfiller takes as long for each Season.
         for request in requests {
-            after_hand_off.push(
-                if opened.contains(&request.id) && request.state == RequestState::Approved {
-                    self.hand_off(request).await?
-                } else {
-                    request
-                },
-            );
+            let request = if opened.contains(&request.id) && request.state == RequestState::Approved
+            {
+                self.hand_off(request).await?
+            } else {
+                request
+            };
+            after_hand_off.push(request);
         }
         Ok(after_hand_off)
     }
@@ -1184,7 +1196,7 @@ async fn detached<T: Send + 'static>(
 }
 
 /// The id of the Request `happened` says was opened, if it says that.
-fn opened(happened: &Event) -> Option<i64> {
+fn opened_request_id(happened: &Event) -> Option<i64> {
     match &happened.event {
         Some(Happened::RequestCreated(created)) => Some(created.request.id),
         _ => None,
