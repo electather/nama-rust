@@ -32,9 +32,9 @@ api_key = "your TMDB API key"
 
 After that it ignores those tables, and logs that it does, so editing them changes nothing.
 
-## Requests to Radarr
+## Requests to Radarr and Sonarr
 
-Approved Movie Requests go to Radarr through the Radarr Plugin ([`plugins/radarr`](plugins/radarr)), an Installed Plugin bundled in the Server. An Admin enables it on the Plugins page with Radarr's URL and API key, and "Test" offers Radarr's quality profiles and root folders to pick from.
+Approved Movie Requests go to Radarr through the Radarr Plugin ([`plugins/radarr`](plugins/radarr)), and Approved Season Requests to Sonarr through the Sonarr Plugin ([`plugins/sonarr`](plugins/sonarr)), both Installed Plugins bundled in the Server. An Admin enables each on the Plugins page with its URL and API key, and "Test" offers its quality profiles and root folders to pick from. Sonarr finds a Show by its TVDB id, so a Show the metadata source has none for can't go to Sonarr.
 
 ## Checks
 
@@ -43,7 +43,7 @@ CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs the following, 
 ```sh
 cargo fmt --all --check
 cargo clippy --workspace --all-targets --locked -- -D warnings
-cargo clippy --package nama-test-plugin --package nama-plugin-radarr --package nama-plugin-telegram --target wasm32-unknown-unknown --locked -- -D warnings
+cargo clippy --package nama-test-plugin --package nama-plugin-radarr --package nama-plugin-sonarr --package nama-plugin-telegram --target wasm32-unknown-unknown --locked -- -D warnings
 cargo nextest run --workspace --locked
 cargo test --workspace --doc --locked
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked

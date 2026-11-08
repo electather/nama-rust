@@ -1,0 +1,18 @@
+[
+  {
+    "name": "Any",
+    "upgradeAllowed": false,
+    "cutoff": 1,
+    "minFormatScore": 0,
+    "cutoffFormatScore": 0,
+    "id": 1
+  },
+  {
+    "name": "HD-1080p",
+    "upgradeAllowed": false,
+    "cutoff": 7,
+    "minFormatScore": 0,
+    "cutoffFormatScore": 0,
+    "id": 4
+  }
+]

@@ -20,7 +20,7 @@ use std::{
 
 /// The Installed Plugins the Server bundles, by their folder in `plugins/`. Each is the package
 /// `nama-plugin-<name>`.
-const BUNDLED: &[&str] = &["radarr", "telegram"];
+const BUNDLED: &[&str] = &["radarr", "sonarr", "telegram"];
 
 fn main() -> Result<(), Box<dyn Error>> {
     // `sqlx::migrate!` embeds migrations/ at compile time; rebuild when it changes.

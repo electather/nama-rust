@@ -1,0 +1,8 @@
+[
+  { "seriesId": 1, "tvdbId": 5839208, "episodeFileId": 0, "seasonNumber": 1, "episodeNumber": 1, "title": "Secrets", "airDate": "2017-12-01", "hasFile": false, "monitored": true, "id": 101 },
+  { "seriesId": 1, "tvdbId": 6337251, "episodeFileId": 0, "seasonNumber": 1, "episodeNumber": 2, "title": "Lies", "airDate": "2017-12-01", "hasFile": false, "monitored": true, "id": 102 },
+  { "seriesId": 1, "tvdbId": 6823370, "episodeFileId": 0, "seasonNumber": 2, "episodeNumber": 1, "title": "Beginnings and Endings", "airDate": "2019-06-21", "hasFile": false, "monitored": false, "id": 201 },
+  { "seriesId": 1, "tvdbId": 6823371, "episodeFileId": 0, "seasonNumber": 2, "episodeNumber": 2, "title": "Dark Matter", "airDate": "2019-06-21", "hasFile": false, "monitored": false, "id": 202 },
+  { "seriesId": 1, "tvdbId": 7680551, "episodeFileId": 0, "seasonNumber": 3, "episodeNumber": 1, "title": "Deja-vu", "airDate": "2020-06-27", "hasFile": false, "monitored": false, "id": 301 },
+  { "seriesId": 1, "tvdbId": 7680552, "episodeFileId": 0, "seasonNumber": 3, "episodeNumber": 2, "title": "The Survivors", "airDate": "2020-06-27", "hasFile": false, "monitored": false, "id": 302 }
+]

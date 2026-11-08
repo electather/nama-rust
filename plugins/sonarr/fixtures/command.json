@@ -1,0 +1,10 @@
+{
+  "name": "SeasonSearch",
+  "commandName": "Season Search",
+  "body": { "seriesId": 1, "seasonNumber": 3, "sendUpdatesToClient": true, "trigger": "manual" },
+  "priority": "normal",
+  "status": "queued",
+  "queued": "2026-11-08T12:00:00Z",
+  "trigger": "manual",
+  "id": 1
+}

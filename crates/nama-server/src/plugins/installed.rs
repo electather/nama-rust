@@ -61,6 +61,7 @@ const CHECK_SETTINGS: &str = "check_settings";
 /// `build.rs` builds them.
 const BUNDLED: &[(&str, &[u8])] = &[
     ("radarr.wasm", include_bytes!(env!("RADARR_WASM"))),
+    ("sonarr.wasm", include_bytes!(env!("SONARR_WASM"))),
     ("telegram.wasm", include_bytes!(env!("TELEGRAM_WASM"))),
 ];
 
