@@ -72,6 +72,12 @@ pub mod event {
         RequestCancelled(
             ::buffa::alloc::boxed::Box<super::super::super::RequestCancelled>,
         ),
+        RequesterRemoved(
+            ::buffa::alloc::boxed::Box<super::super::super::RequesterRemoved>,
+        ),
+        RequestWithdrawn(
+            ::buffa::alloc::boxed::Box<super::super::super::RequestWithdrawn>,
+        ),
     }
     impl ::buffa::Oneof for Event {}
     impl From<super::super::super::ScanStarted> for Event {
@@ -176,6 +182,26 @@ pub mod event {
             Self::Some(Event::from(v))
         }
     }
+    impl From<super::super::super::RequesterRemoved> for Event {
+        fn from(v: super::super::super::RequesterRemoved) -> Self {
+            Self::RequesterRemoved(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::RequesterRemoved> for ::core::option::Option<Event> {
+        fn from(v: super::super::super::RequesterRemoved) -> Self {
+            Self::Some(Event::from(v))
+        }
+    }
+    impl From<super::super::super::RequestWithdrawn> for Event {
+        fn from(v: super::super::super::RequestWithdrawn) -> Self {
+            Self::RequestWithdrawn(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::RequestWithdrawn> for ::core::option::Option<Event> {
+        fn from(v: super::super::super::RequestWithdrawn) -> Self {
+            Self::Some(Event::from(v))
+        }
+    }
     impl ::serde::Serialize for Event {
         fn serialize<S: ::serde::Serializer>(
             &self,
@@ -213,6 +239,12 @@ pub mod event {
                 }
                 Self::RequestCancelled(v) => {
                     map.serialize_entry("requestCancelled", &**v)?;
+                }
+                Self::RequesterRemoved(v) => {
+                    map.serialize_entry("requesterRemoved", &**v)?;
+                }
+                Self::RequestWithdrawn(v) => {
+                    map.serialize_entry("requestWithdrawn", &**v)?;
                 }
             }
             map.end()

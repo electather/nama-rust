@@ -11,7 +11,8 @@ use nama_plugin_api::{
 };
 use nama_proto::nama::v1::{
     Event, Permission, Request, RequestCancelled, RequestCreated, RequestState,
-    RequestStateChanged, RequestedMovie, Requester, RequesterAdded,
+    RequestStateChanged, RequestWithdrawn, RequestedMovie, Requester, RequesterAdded,
+    RequesterRemoved,
 };
 use sqlx::SqliteConnection;
 
@@ -42,6 +43,8 @@ pub(crate) enum Error {
     NoSuchRequest(i64),
     #[error("the Request {0} isn't Pending")]
     NotPending(i64),
+    #[error("you aren't a Requester of the Request {0}")]
+    NotARequester(i64),
     #[error("a Library already has the Movie tmdb-{0}")]
     InLibrary(i64),
     #[error("the metadata source has no Movie tmdb-{0}")]
@@ -155,6 +158,19 @@ impl Requests {
             request: request.into(),
             ..Default::default()
         })]);
+        Ok(())
+    }
+
+    /// Takes `requester` off the Pending Request `id`, removing it once nobody is left on it, and
+    /// publishes which of the two happened.
+    pub(crate) async fn withdraw(&self, requester: &User, id: i64) -> Result<(), Error> {
+        let user = requester.id;
+        let visible = visible_to(requester);
+        let happened = self
+            .db
+            .write(move |tx| Box::pin(withdraw(tx, user, visible, id)))
+            .await?;
+        self.events.publish(vec![happened]);
         Ok(())
     }
 
@@ -407,6 +423,48 @@ async fn cancel(conn: &mut SqliteConnection, id: i64) -> Result<Request, Error> 
         .execute(&mut *conn)
         .await?;
     Ok(request)
+}
+
+/// Takes `user` off the Pending Request `id`, among those `visible` lets them see, removing the
+/// Request if they were its last Requester. Returns the event for what changed.
+async fn withdraw(
+    conn: &mut SqliteConnection,
+    user: i64,
+    visible: Option<i64>,
+    id: i64,
+) -> Result<Event, Error> {
+    let request = load(conn, Some(id), visible)
+        .await?
+        .into_iter()
+        .next()
+        .ok_or(Error::NoSuchRequest(id))?;
+    if !request.requesters.iter().any(|r| r.user_id == user) {
+        return Err(Error::NotARequester(id));
+    }
+    if request.state != RequestState::Pending {
+        return Err(Error::NotPending(id));
+    }
+    if request.requesters.len() == 1 {
+        sqlx::query!("DELETE FROM requests WHERE id = ?", id)
+            .execute(&mut *conn)
+            .await?;
+        return Ok(event(RequestWithdrawn {
+            request: request.into(),
+            ..Default::default()
+        }));
+    }
+    sqlx::query!(
+        "DELETE FROM requesters WHERE request_id = ? AND user_id = ?",
+        id,
+        user
+    )
+    .execute(&mut *conn)
+    .await?;
+    Ok(event(RequesterRemoved {
+        request: request.into(),
+        user_id: user,
+        ..Default::default()
+    }))
 }
 
 async fn load_one(conn: &mut SqliteConnection, id: i64) -> Result<Option<Request>, sqlx::Error> {

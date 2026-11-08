@@ -172,6 +172,14 @@ fn classify(event: &Event) -> Option<(EventType, About<'_>)> {
             T::EVENT_TYPE_REQUEST_CANCELLED,
             Request(e.request.as_option()?),
         ),
+        E::RequesterRemoved(e) => (
+            T::EVENT_TYPE_REQUESTER_REMOVED,
+            Request(e.request.as_option()?),
+        ),
+        E::RequestWithdrawn(e) => (
+            T::EVENT_TYPE_REQUEST_WITHDRAWN,
+            Request(e.request.as_option()?),
+        ),
     })
 }
 

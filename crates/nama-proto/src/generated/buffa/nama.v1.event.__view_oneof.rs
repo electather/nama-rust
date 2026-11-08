@@ -73,5 +73,15 @@ pub mod event {
                 super::super::super::super::__buffa::view::RequestCancelledView<'a>,
             >,
         ),
+        RequesterRemoved(
+            ::buffa::alloc::boxed::Box<
+                super::super::super::super::__buffa::view::RequesterRemovedView<'a>,
+            >,
+        ),
+        RequestWithdrawn(
+            ::buffa::alloc::boxed::Box<
+                super::super::super::super::__buffa::view::RequestWithdrawnView<'a>,
+            >,
+        ),
     }
 }

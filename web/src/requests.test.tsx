@@ -52,7 +52,7 @@ test("the Requests page shows each Request's Movie, its state in words and its R
 
   const rows = await screen.findAllByRole("listitem");
   expect(rows.map((row) => row.textContent)).toEqual([
-    "Heat1995 · Requested by you and AdaPending",
+    "Heat1995 · Requested by you and AdaPendingWithdraw",
     "DuneRequested by GraceApproved",
   ]);
 });
@@ -111,6 +111,21 @@ test("a Request cancelled elsewhere goes without a reload", async () => {
 
   requests = [];
   events.send({ event: { case: "requestCancelled", value: { request: dune } } });
+
+  expect(await screen.findByText("No Requests yet.")).toBeDefined();
+});
+
+test("a Request withdrawn from elsewhere goes without a reload", async () => {
+  const events = eventFeed();
+  let requests = [heat];
+  openApp(
+    "/requests",
+    server(() => requests, events.stream),
+  );
+  await screen.findByText("Heat");
+
+  requests = [];
+  events.send({ event: { case: "requestWithdrawn", value: { request: heat } } });
 
   expect(await screen.findByText("No Requests yet.")).toBeDefined();
 });

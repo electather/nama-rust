@@ -17,6 +17,8 @@ pub enum EventType {
     EVENT_TYPE_REQUESTER_ADDED = 8i32,
     EVENT_TYPE_REQUEST_STATE_CHANGED = 9i32,
     EVENT_TYPE_REQUEST_CANCELLED = 10i32,
+    EVENT_TYPE_REQUESTER_REMOVED = 11i32,
+    EVENT_TYPE_REQUEST_WITHDRAWN = 12i32,
 }
 impl EventType {
     ///Idiomatic alias for [`Self::EVENT_TYPE_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -52,6 +54,12 @@ impl EventType {
     ///Idiomatic alias for [`Self::EVENT_TYPE_REQUEST_CANCELLED`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const RequestCancelled: Self = Self::EVENT_TYPE_REQUEST_CANCELLED;
+    ///Idiomatic alias for [`Self::EVENT_TYPE_REQUESTER_REMOVED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const RequesterRemoved: Self = Self::EVENT_TYPE_REQUESTER_REMOVED;
+    ///Idiomatic alias for [`Self::EVENT_TYPE_REQUEST_WITHDRAWN`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const RequestWithdrawn: Self = Self::EVENT_TYPE_REQUEST_WITHDRAWN;
 }
 impl ::core::default::Default for EventType {
     fn default() -> Self {
@@ -158,6 +166,8 @@ impl ::buffa::Enumeration for EventType {
             8i32 => ::core::option::Option::Some(Self::EVENT_TYPE_REQUESTER_ADDED),
             9i32 => ::core::option::Option::Some(Self::EVENT_TYPE_REQUEST_STATE_CHANGED),
             10i32 => ::core::option::Option::Some(Self::EVENT_TYPE_REQUEST_CANCELLED),
+            11i32 => ::core::option::Option::Some(Self::EVENT_TYPE_REQUESTER_REMOVED),
+            12i32 => ::core::option::Option::Some(Self::EVENT_TYPE_REQUEST_WITHDRAWN),
             _ => ::core::option::Option::None,
         }
     }
@@ -177,6 +187,8 @@ impl ::buffa::Enumeration for EventType {
             Self::EVENT_TYPE_REQUESTER_ADDED => "EVENT_TYPE_REQUESTER_ADDED",
             Self::EVENT_TYPE_REQUEST_STATE_CHANGED => "EVENT_TYPE_REQUEST_STATE_CHANGED",
             Self::EVENT_TYPE_REQUEST_CANCELLED => "EVENT_TYPE_REQUEST_CANCELLED",
+            Self::EVENT_TYPE_REQUESTER_REMOVED => "EVENT_TYPE_REQUESTER_REMOVED",
+            Self::EVENT_TYPE_REQUEST_WITHDRAWN => "EVENT_TYPE_REQUEST_WITHDRAWN",
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -214,6 +226,12 @@ impl ::buffa::Enumeration for EventType {
             "EVENT_TYPE_REQUEST_CANCELLED" => {
                 ::core::option::Option::Some(Self::EVENT_TYPE_REQUEST_CANCELLED)
             }
+            "EVENT_TYPE_REQUESTER_REMOVED" => {
+                ::core::option::Option::Some(Self::EVENT_TYPE_REQUESTER_REMOVED)
+            }
+            "EVENT_TYPE_REQUEST_WITHDRAWN" => {
+                ::core::option::Option::Some(Self::EVENT_TYPE_REQUEST_WITHDRAWN)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -230,6 +248,8 @@ impl ::buffa::Enumeration for EventType {
             Self::EVENT_TYPE_REQUESTER_ADDED,
             Self::EVENT_TYPE_REQUEST_STATE_CHANGED,
             Self::EVENT_TYPE_REQUEST_CANCELLED,
+            Self::EVENT_TYPE_REQUESTER_REMOVED,
+            Self::EVENT_TYPE_REQUEST_WITHDRAWN,
         ]
     }
 }
@@ -1007,6 +1027,22 @@ impl ::buffa::Message for Event {
                         += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
                             + inner as u64;
                 }
+                __buffa::oneof::event::Event::RequesterRemoved(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+                __buffa::oneof::event::Event::RequestWithdrawn(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
             }
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
@@ -1096,6 +1132,22 @@ impl ::buffa::Message for Event {
                 __buffa::oneof::event::Event::RequestCancelled(x) => {
                     ::buffa::types::put_len_delimited_header(
                         10u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                __buffa::oneof::event::Event::RequesterRemoved(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        11u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                __buffa::oneof::event::Event::RequestWithdrawn(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        12u32,
                         u64::from(__cache.consume_next()),
                         buf,
                     );
@@ -1311,6 +1363,46 @@ impl ::buffa::Message for Event {
                     ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
                     self.event = ::core::option::Option::Some(
                         __buffa::oneof::event::Event::RequestCancelled(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
+            }
+            11u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::event::Event::RequesterRemoved(ref mut existing),
+                ) = self.event
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.event = ::core::option::Option::Some(
+                        __buffa::oneof::event::Event::RequesterRemoved(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
+            }
+            12u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::event::Event::RequestWithdrawn(ref mut existing),
+                ) = self.event
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.event = ::core::option::Option::Some(
+                        __buffa::oneof::event::Event::RequestWithdrawn(
                             ::buffa::alloc::boxed::Box::new(val),
                         ),
                     );
@@ -1595,6 +1687,54 @@ impl<'de> ::serde::Deserialize<'de> for Event {
                                 }
                                 __oneof_event = Some(
                                     __buffa::oneof::event::Event::RequestCancelled(
+                                        ::buffa::alloc::boxed::Box::new(v),
+                                    ),
+                                );
+                            }
+                        }
+                        "requesterRemoved" | "requester_removed" => {
+                            let v: ::core::option::Option<RequesterRemoved> = map
+                                .next_value_seed(
+                                    ::buffa::json_helpers::NullableDeserializeSeed(
+                                        ::buffa::json_helpers::DefaultDeserializeSeed::<
+                                            RequesterRemoved,
+                                        >::new(),
+                                    ),
+                                )?;
+                            if let Some(v) = v {
+                                if __oneof_event.is_some() {
+                                    return Err(
+                                        ::serde::de::Error::custom(
+                                            "multiple oneof fields set for 'event'",
+                                        ),
+                                    );
+                                }
+                                __oneof_event = Some(
+                                    __buffa::oneof::event::Event::RequesterRemoved(
+                                        ::buffa::alloc::boxed::Box::new(v),
+                                    ),
+                                );
+                            }
+                        }
+                        "requestWithdrawn" | "request_withdrawn" => {
+                            let v: ::core::option::Option<RequestWithdrawn> = map
+                                .next_value_seed(
+                                    ::buffa::json_helpers::NullableDeserializeSeed(
+                                        ::buffa::json_helpers::DefaultDeserializeSeed::<
+                                            RequestWithdrawn,
+                                        >::new(),
+                                    ),
+                                )?;
+                            if let Some(v) = v {
+                                if __oneof_event.is_some() {
+                                    return Err(
+                                        ::serde::de::Error::custom(
+                                            "multiple oneof fields set for 'event'",
+                                        ),
+                                    );
+                                }
+                                __oneof_event = Some(
+                                    __buffa::oneof::event::Event::RequestWithdrawn(
                                         ::buffa::alloc::boxed::Box::new(v),
                                     ),
                                 );
@@ -3256,5 +3396,312 @@ pub const __REQUEST_CANCELLED_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = :
     type_url: "type.googleapis.com/nama.v1.RequestCancelled",
     to_json: ::buffa::type_registry::any_to_json::<RequestCancelled>,
     from_json: ::buffa::type_registry::any_from_json::<RequestCancelled>,
+    is_wkt: false,
+};
+/// A Requester withdrew from a Pending Request that others are still on.
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct RequesterRemoved {
+    /// The Request as it was, with them still among its Requesters, so they get the event too.
+    ///
+    /// Field 1: `request`
+    #[serde(
+        rename = "request",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
+    )]
+    pub request: ::buffa::MessageField<Request, ::buffa::Inline<Request>>,
+    /// The User who withdrew.
+    ///
+    /// Field 2: `user_id`
+    #[serde(
+        rename = "userId",
+        alias = "user_id",
+        with = "::buffa::json_helpers::int64",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i64"
+    )]
+    pub user_id: i64,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for RequesterRemoved {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("RequesterRemoved")
+            .field("request", &self.request)
+            .field("user_id", &self.user_id)
+            .finish()
+    }
+}
+impl RequesterRemoved {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.RequesterRemoved";
+}
+::buffa::impl_default_instance!(RequesterRemoved);
+impl ::buffa::MessageName for RequesterRemoved {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "RequesterRemoved";
+    const FULL_NAME: &'static str = "nama.v1.RequesterRemoved";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.RequesterRemoved";
+}
+impl ::buffa::Message for RequesterRemoved {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.request.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.request.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        if self.user_id != 0i64 {
+            size += 1u64 + ::buffa::types::int64_encoded_len(self.user_id) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.request.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.request.write_to(__cache, buf);
+        }
+        if self.user_id != 0i64 {
+            ::buffa::types::put_int64_field(2u32, self.user_id, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.request.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.user_id = ::buffa::types::decode_int64(buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.request = ::buffa::MessageField::none();
+        self.user_id = 0i64;
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for RequesterRemoved {
+    const PROTO_FQN: &'static str = "nama.v1.RequesterRemoved";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for RequesterRemoved {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __REQUESTER_REMOVED_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.v1.RequesterRemoved",
+    to_json: ::buffa::type_registry::any_to_json::<RequesterRemoved>,
+    from_json: ::buffa::type_registry::any_from_json::<RequesterRemoved>,
+    is_wkt: false,
+};
+/// A Pending Request's last Requester withdrew, which removed it.
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct RequestWithdrawn {
+    /// The Request as it was before it was removed.
+    ///
+    /// Field 1: `request`
+    #[serde(
+        rename = "request",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
+    )]
+    pub request: ::buffa::MessageField<Request, ::buffa::Inline<Request>>,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for RequestWithdrawn {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("RequestWithdrawn").field("request", &self.request).finish()
+    }
+}
+impl RequestWithdrawn {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.RequestWithdrawn";
+}
+::buffa::impl_default_instance!(RequestWithdrawn);
+impl ::buffa::MessageName for RequestWithdrawn {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "RequestWithdrawn";
+    const FULL_NAME: &'static str = "nama.v1.RequestWithdrawn";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.RequestWithdrawn";
+}
+impl ::buffa::Message for RequestWithdrawn {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.request.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.request.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.request.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.request.write_to(__cache, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.request.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.request = ::buffa::MessageField::none();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for RequestWithdrawn {
+    const PROTO_FQN: &'static str = "nama.v1.RequestWithdrawn";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for RequestWithdrawn {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __REQUEST_WITHDRAWN_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.v1.RequestWithdrawn",
+    to_json: ::buffa::type_registry::any_to_json::<RequestWithdrawn>,
+    from_json: ::buffa::type_registry::any_from_json::<RequestWithdrawn>,
     is_wkt: false,
 };

@@ -13,7 +13,7 @@ mod server;
 use std::{collections::BTreeMap, fs, sync::Arc, time::Duration};
 
 use connectrpc::{
-    ErrorCode,
+    ConnectError, ErrorCode,
     client::{ClientConfig, HttpClient, ServerStream},
 };
 use http::fetch;
@@ -29,8 +29,8 @@ use nama_proto::nama::v1::{
     LibraryKind, LibraryServiceClient, ListMoviesRequest, ListRequestsRequest, LookUpMovieRequest,
     Permission, RefusalReason, Request, RequestServiceClient, RequestState, ScanLibraryRequest,
     SearchMoviesRequest, SessionDelivery, SetPermissionsRequest, SignInRequest,
-    SignInServiceClient, SubscribeRequest, SubscribeResponse, UserServiceClient, event,
-    subscribe_response,
+    SignInServiceClient, SubscribeRequest, SubscribeResponse, UserServiceClient,
+    WithdrawRequestRequest, event, subscribe_response,
 };
 use nama_server::{config::Config, plugins::Registry};
 use refused::assert_refused;
@@ -669,6 +669,125 @@ async fn a_user_without_manage_requests_is_refused_each_action_naming_the_permis
     assert_eq!(list(&ada).await[0].state, RequestState::Pending);
 }
 
+#[tokio::test]
+async fn one_of_two_requesters_withdraws_and_the_request_stays_with_the_other() {
+    let fixture = Fixture::start().await;
+    let (ada, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let (grace, as_grace) = fixture.user("Grace", &NEW_USER).await;
+    let asked = ask(&requests(as_ada.clone()), HEAT).await;
+    ask(&requests(as_grace.clone()), HEAT).await;
+    let mut adas_events = subscribe_to_requests(as_ada.clone()).await;
+    let mut graces_events = subscribe_to_requests(as_grace.clone()).await;
+
+    withdraw(&requests(as_ada), asked.id).await.unwrap();
+
+    for event in [
+        next_event(&mut adas_events).await,
+        next_event(&mut graces_events).await,
+    ] {
+        let event::Event::RequesterRemoved(removed) = event else {
+            panic!("not the withdrawal: {event:?}");
+        };
+        assert_eq!(removed.user_id, ada);
+    }
+    let remaining = list(&requests(as_grace)).await;
+    assert_eq!(remaining.len(), 1);
+    assert_eq!(remaining[0].id, asked.id);
+    assert_eq!(requester_ids(&remaining[0]), [grace]);
+}
+
+#[tokio::test]
+async fn the_last_requester_withdrawing_removes_the_request_and_the_movie_can_be_requested_again() {
+    let fixture = Fixture::start().await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let ada = requests(as_ada.clone());
+    let asked = ask(&ada, HEAT).await;
+    let mut adas_events = subscribe_to_requests(as_ada).await;
+
+    withdraw(&ada, asked.id).await.unwrap();
+    let event = next_event(&mut adas_events).await;
+    let gone = list(&ada).await;
+    let again = ask(&ada, HEAT).await;
+
+    let event::Event::RequestWithdrawn(withdrawn) = event else {
+        panic!("not the withdrawal: {event:?}");
+    };
+    assert_eq!(withdrawn.request.as_option(), Some(&asked));
+    assert_eq!(gone, []);
+    assert_ne!(again.id, asked.id);
+    assert_eq!(again.state, RequestState::Pending);
+}
+
+#[tokio::test]
+async fn withdrawing_from_an_approved_request_is_refused() {
+    let fixture = Fixture::start().await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let ada = requests(as_ada);
+    let asked = ask(&ada, HEAT).await;
+    requests(fixture.server.client_config())
+        .approve_request(ApproveRequestRequest {
+            id: asked.id,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    let refused = withdraw(&ada, asked.id).await;
+
+    let refusal = assert_refused(
+        refused,
+        ErrorCode::FailedPrecondition,
+        RefusalReason::REFUSAL_REASON_REQUEST_NOT_PENDING,
+    );
+    assert_eq!(refusal.field, "id");
+    assert_eq!(list(&ada).await[0].state, RequestState::Approved);
+}
+
+#[tokio::test]
+async fn withdrawing_from_a_request_the_user_isnt_a_requester_of_is_refused() {
+    let fixture = Fixture::start().await;
+    let (ada, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let (_, as_grace) = fixture.user("Grace", &NEW_USER).await;
+    let asked = ask(&requests(as_ada.clone()), HEAT).await;
+
+    let refused = withdraw(&requests(as_grace), asked.id).await;
+
+    let refusal = assert_refused(
+        refused,
+        ErrorCode::FailedPrecondition,
+        RefusalReason::REFUSAL_REASON_NOT_A_REQUESTER,
+    );
+    assert_eq!(refusal.field, "id");
+    assert_eq!(requester_ids(&list(&requests(as_ada)).await[0]), [ada]);
+}
+
+#[tokio::test]
+async fn without_view_requests_withdrawing_from_someone_elses_request_is_refused_as_not_found() {
+    let fixture = Fixture::start().await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let (_, as_grace) = fixture.user("Grace", &[Permission::Request]).await;
+    let asked = ask(&requests(as_ada), HEAT).await;
+
+    let refused = withdraw(&requests(as_grace), asked.id).await;
+
+    assert_refused(
+        refused,
+        ErrorCode::NotFound,
+        RefusalReason::REFUSAL_REASON_REQUEST_NOT_FOUND,
+    );
+}
+
+/// Withdraws the caller of `client` from the Request `id`.
+async fn withdraw(client: &RequestServiceClient<HttpClient>, id: i64) -> Result<(), ConnectError> {
+    client
+        .withdraw_request(WithdrawRequestRequest {
+            id,
+            ..Default::default()
+        })
+        .await
+        .map(drop)
+}
+
 /// Declines the Request `id` as the Admin, giving `reason`.
 #[expect(
     clippy::unwrap_used,
@@ -703,6 +822,8 @@ async fn subscribe_to_requests(config: ClientConfig) -> Subscription {
             EventType::EVENT_TYPE_REQUESTER_ADDED.into(),
             EventType::EVENT_TYPE_REQUEST_STATE_CHANGED.into(),
             EventType::EVENT_TYPE_REQUEST_CANCELLED.into(),
+            EventType::EVENT_TYPE_REQUESTER_REMOVED.into(),
+            EventType::EVENT_TYPE_REQUEST_WITHDRAWN.into(),
         ],
         ..Default::default()
     };

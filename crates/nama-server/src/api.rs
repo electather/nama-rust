@@ -56,7 +56,8 @@ use nama_proto::nama::v1::{
     StartSignInCodeRequest, StartSignInCodeResponse, SubscribeRequest, SubscribeResponse,
     UpdateLibraryRequest, UpdateLibraryResponse, UpdatePluginSettingsRequest,
     UpdatePluginSettingsResponse, UserService, WatchStateService, WhoAmIRequest, WhoAmIResponse,
-    external_id, reauthenticate_request::Proof, set_played_request::Target, setting_value,
+    WithdrawRequestRequest, WithdrawRequestResponse, external_id, reauthenticate_request::Proof,
+    set_played_request::Target, setting_value,
 };
 
 use crate::{
@@ -236,6 +237,7 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::REQUEST_SERVICE_APPROVE_REQUEST_SPEC.procedure,       MANAGE_REQUESTS),
     (proto::REQUEST_SERVICE_DECLINE_REQUEST_SPEC.procedure,       MANAGE_REQUESTS),
     (proto::REQUEST_SERVICE_CANCEL_REQUEST_SPEC.procedure,        MANAGE_REQUESTS),
+    (proto::REQUEST_SERVICE_WITHDRAW_REQUEST_SPEC.procedure,      Access::SignedIn),
     (proto::PLUGIN_SERVICE_LIST_PLUGINS_SPEC.procedure,           MANAGE_SETTINGS),
     (proto::PLUGIN_SERVICE_UPDATE_PLUGIN_SETTINGS_SPEC.procedure, MANAGE_SETTINGS),
     (proto::PLUGIN_SERVICE_ENABLE_PLUGIN_SPEC.procedure,          MANAGE_SETTINGS),
@@ -1402,6 +1404,16 @@ impl RequestService for RequestServiceHandler {
         self.requests.cancel(request.id).await?;
         Response::ok(CancelRequestResponse::default())
     }
+
+    async fn withdraw_request(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, WithdrawRequestRequest>,
+    ) -> ServiceResult<WithdrawRequestResponse> {
+        let requester = &caller(&ctx)?.user;
+        self.requests.withdraw(requester, request.id).await?;
+        Response::ok(WithdrawRequestResponse::default())
+    }
 }
 
 impl RequestServiceHandler {
@@ -2232,6 +2244,7 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED
         | R::REFUSAL_REASON_ALREADY_IN_LIBRARY
         | R::REFUSAL_REASON_REQUEST_NOT_PENDING
+        | R::REFUSAL_REASON_NOT_A_REQUESTER
         | R::REFUSAL_REASON_LAST_AUTHENTICATOR => ErrorCode::FailedPrecondition,
         R::REFUSAL_REASON_SIGN_IN_CODE_NOT_FOUND
         | R::REFUSAL_REASON_HANDLE_NOT_FOUND
@@ -2365,6 +2378,11 @@ impl From<requests::Error> for ConnectError {
             }
             requests::Error::NotPending(id) => {
                 refuse(R::REFUSAL_REASON_REQUEST_NOT_PENDING, message)
+                    .field("id")
+                    .param("requestId", &id)
+            }
+            requests::Error::NotARequester(id) => {
+                refuse(R::REFUSAL_REASON_NOT_A_REQUESTER, message)
                     .field("id")
                     .param("requestId", &id)
             }
