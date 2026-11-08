@@ -3,8 +3,10 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useId, useState } from "react";
 
 import { FormEnd, FormField } from "@/components/form-field";
+import { ChoiceInput, TestButton, testPassed, useSettingsTest } from "@/components/settings-test";
 import { Button } from "@/components/ui/button";
 import {
+  type Choice,
   type Plugin,
   PluginService,
   type Setting,
@@ -12,40 +14,74 @@ import {
   type SettingValue,
 } from "@/gen/nama/v1/plugin_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
-import { formText, onSubmitted, refusal, refusalOf } from "@/lib/forms";
+import { formText, onSubmitted, refusal, refusalOf, serverMessage } from "@/lib/forms";
 
 const pluginsKey = createConnectQueryKey({ schema: PluginService, cardinality: "finite" });
 
-/** The form an Admin changes `plugin`'s settings with, checked against its schema as they type. */
+/**
+ * The form an Admin changes `plugin`'s settings with, checked against its schema as they type. A
+ * Plugin with a settings check can test what was typed, which offers the choices for its choice
+ * settings.
+ */
 export function PluginSettings({ plugin }: { plugin: Plugin }) {
   const queryClient = useQueryClient();
   const update = useMutation(PluginService.method.updatePluginSettings, {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: pluginsKey }),
   });
-  const errors = update.error ? settingErrors(update.error) : {};
+  const { choices, test } = useSettingsTest();
+  // One message at a time: each resets the other.
+  const errors = settingErrors(update.error, test.error);
   return (
     <form
       className="mt-4 flex max-w-md flex-col gap-5"
       onSubmit={onSubmitted((typed) => {
+        test.reset();
         update.mutate({ id: plugin.id, settings: settingsTyped(typed, plugin.settings) });
       })}
     >
       {plugin.settings.map((setting) => (
-        <SettingInput key={setting.key} setting={setting} error={errors[setting.key]} />
+        <SettingInput
+          key={setting.key}
+          setting={setting}
+          // A passing test that offered nothing for a setting still unlocks it, empty.
+          choices={choices && (choices[setting.key]?.choices ?? [])}
+          error={errors[setting.key]}
+        />
       ))}
       <FormEnd
         action={update.isPending ? "Saving…" : "Save"}
         variant="ghost"
         pending={update.isPending}
-        done={update.isSuccess ? saved(update.data.plugin) : undefined}
+        done={update.isSuccess ? saved(update.data.plugin) : testPassed(test.isSuccess)}
         refusal={errors["form"]}
-      />
+      >
+        <TestButton
+          plugin={plugin}
+          pending={test.isPending}
+          onTest={(typed) => {
+            update.reset();
+            test.mutate({ id: plugin.id, settings: settingsTyped(typed, plugin.settings) });
+          }}
+        />
+      </FormEnd>
     </form>
   );
 }
 
-function SettingInput({ setting, error }: { setting: Setting; error: string | undefined }) {
+function SettingInput({
+  setting,
+  choices,
+  error,
+}: {
+  setting: Setting;
+  choices: Choice[] | undefined;
+  error: string | undefined;
+}) {
   if (setting.kind === SettingKind.BOOL) return <BoolInput setting={setting} />;
+  if (setting.kind === SettingKind.CHOICE) {
+    // A new element once the choices come, so it starts on the stored one.
+    return <ChoiceInput key={String(choices !== undefined)} {...{ setting, choices, error }} />;
+  }
   if (setting.secretSet) return <SetSecret setting={setting} error={error} />;
   return <TypedInput setting={setting} error={error} />;
 }
@@ -179,16 +215,29 @@ function valueTyped(typed: FormData, key: string, kind: SettingKind): SettingVal
     : { case: "textValue", value: text };
 }
 
-/** Why the Server refused the settings: next to the setting its Refusal names, or for the form. */
-function settingErrors(error: unknown): Record<string, string | undefined> {
+/**
+ * Why the Server refused to save or test the settings, by whichever it refused. A `null` error
+ * refused nothing.
+ */
+function settingErrors(saving: unknown, testing: unknown) {
+  if (saving !== null) return refusedSettings(saving, "save the settings");
+  return testing === null ? {} : refusedSettings(testing, "test the settings");
+}
+
+/** Why the Server refused the `attempt`: next to the setting its Refusal names, or for the form. */
+function refusedSettings(error: unknown, attempt: string): Record<string, string | undefined> {
   const { reason, field } = refusalOf(error);
   const key = field.replace(/^settings\./u, "");
   if (key === field) {
     const { form } = refusal(
       error,
-      "save the settings",
+      attempt,
       {},
-      { [RefusalReason.PLUGIN_NOT_FOUND]: { form: "This Plugin isn’t on the Server any more." } },
+      {
+        [RefusalReason.PLUGIN_NOT_FOUND]: { form: "This Plugin isn’t on the Server any more." },
+        // The Plugin's own words.
+        [RefusalReason.SETTINGS_CHECK_FAILED]: { form: serverMessage(error) },
+      },
     );
     return { form };
   }

@@ -22,6 +22,14 @@ pub type OwnedEnablePluginRequestView = ::buffa::view::OwnedView<
 pub type OwnedEnablePluginResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::EnablePluginResponseView<'static>,
 >;
+///Shorthand for `OwnedView<TestPluginSettingsRequestView<'static>>`.
+pub type OwnedTestPluginSettingsRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::TestPluginSettingsRequestView<'static>,
+>;
+///Shorthand for `OwnedView<TestPluginSettingsResponseView<'static>>`.
+pub type OwnedTestPluginSettingsResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::TestPluginSettingsResponseView<'static>,
+>;
 ///Shorthand for `OwnedView<DisablePluginRequestView<'static>>`.
 pub type OwnedDisablePluginRequestView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::DisablePluginRequestView<'static>,
@@ -132,6 +140,40 @@ for ::buffa::view::OwnedView<
         )
     }
 }
+impl ::connectrpc::Encodable<crate::messages::nama::v1::TestPluginSettingsResponse>
+for crate::messages::nama::v1::__buffa::view::TestPluginSettingsResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::TestPluginSettingsResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::TestPluginSettingsResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
 impl ::connectrpc::Encodable<crate::messages::nama::v1::DisablePluginResponse>
 for crate::messages::nama::v1::__buffa::view::DisablePluginResponseView<'_> {
     fn encode(
@@ -186,6 +228,12 @@ pub const PLUGIN_SERVICE_ENABLE_PLUGIN_SPEC: ::connectrpc::Spec = ::connectrpc::
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
+/// Static [`Spec`](::connectrpc::Spec) for the `TestPluginSettings` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const PLUGIN_SERVICE_TEST_PLUGIN_SETTINGS_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.PluginService/TestPluginSettings",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
 /// Static [`Spec`](::connectrpc::Spec) for the `DisablePlugin` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
 pub const PLUGIN_SERVICE_DISABLE_PLUGIN_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
         "/nama.v1.PluginService/DisablePlugin",
@@ -316,6 +364,35 @@ pub trait PluginService: Send + Sync + 'static {
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
                 crate::messages::nama::v1::EnablePluginResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Runs a Plugin's settings check on `settings`, which may not be saved yet, and returns the
+    /// choices it offers for each `SETTING_KIND_CHOICE` setting. It runs only when called, never to
+    /// enable a Plugin. Settings that don't fit the Plugin's schema are refused as in
+    /// `UpdatePluginSettings`, except that a choice setting may be left out. A check that fails, runs
+    /// too long or crashes is refused with `REFUSAL_REASON_SETTINGS_CHECK_FAILED`, its message saying
+    /// why in plain words, as is a Plugin without a check (see `Plugin.checks_settings`). Fails with
+    /// `not_found` for an unknown Plugin.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn test_plugin_settings<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::TestPluginSettingsRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::TestPluginSettingsResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -465,6 +542,35 @@ impl<S: PluginService> PluginServiceExt for S {
             .with_spec(PLUGIN_SERVICE_ENABLE_PLUGIN_SPEC)
             .route_view(
                 PLUGIN_SERVICE_SERVICE_NAME,
+                "TestPluginSettings",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::TestPluginSettingsRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::TestPluginSettingsRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.test_plugin_settings(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::TestPluginSettingsResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(PLUGIN_SERVICE_TEST_PLUGIN_SETTINGS_SPEC)
+            .route_view(
+                PLUGIN_SERVICE_SERVICE_NAME,
                 "DisablePlugin",
                 {
                     let svc = ::std::sync::Arc::clone(&self);
@@ -564,6 +670,12 @@ impl<T: PluginService> ::connectrpc::Dispatcher for PluginServiceServer<T> {
                         .with_spec(PLUGIN_SERVICE_ENABLE_PLUGIN_SPEC),
                 )
             }
+            "TestPluginSettings" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(PLUGIN_SERVICE_TEST_PLUGIN_SETTINGS_SPEC),
+                )
+            }
             "DisablePlugin" => {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
@@ -646,6 +758,28 @@ impl<T: PluginService> ::connectrpc::Dispatcher for PluginServiceServer<T> {
                         .await?
                         .encode::<
                             crate::messages::nama::v1::EnablePluginResponse,
+                        >(format)
+                })
+            }
+            "TestPluginSettings" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::TestPluginSettingsRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::TestPluginSettingsRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::TestPluginSettingsRequest,
+                    >::from_parts(&req, &body);
+                    svc.test_plugin_settings(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::TestPluginSettingsResponse,
                         >(format)
                 })
             }
@@ -928,6 +1062,51 @@ where
                 &self.transport,
                 &self.config,
                 PLUGIN_SERVICE_ENABLE_PLUGIN_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the TestPluginSettings RPC. Sends a request to /nama.v1.PluginService/TestPluginSettings.
+    pub async fn test_plugin_settings(
+        &self,
+        request: crate::messages::nama::v1::TestPluginSettingsRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::TestPluginSettingsResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.test_plugin_settings_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the TestPluginSettings RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn test_plugin_settings_with_options(
+        &self,
+        request: crate::messages::nama::v1::TestPluginSettingsRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::TestPluginSettingsResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                PLUGIN_SERVICE_TEST_PLUGIN_SETTINGS_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,

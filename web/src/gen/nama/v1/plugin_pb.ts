@@ -10,7 +10,7 @@ import type { Message, UnknownEnum } from "@bufbuild/protobuf";
  * Describes the file nama/v1/plugin.proto.
  */
 export const file_nama_v1_plugin: GenFile = /*@__PURE__*/
-  fileDesc("ChRuYW1hL3YxL3BsdWdpbi5wcm90bxIHbmFtYS52MSIUChJMaXN0UGx1Z2luc1JlcXVlc3QiNwoTTGlzdFBsdWdpbnNSZXNwb25zZRIgCgdwbHVnaW5zGAEgAygLMg8ubmFtYS52MS5QbHVnaW4itwEKG1VwZGF0ZVBsdWdpblNldHRpbmdzUmVxdWVzdBIKCgJpZBgBIAEoCRJECghzZXR0aW5ncxgCIAMoCzIyLm5hbWEudjEuVXBkYXRlUGx1Z2luU2V0dGluZ3NSZXF1ZXN0LlNldHRpbmdzRW50cnkaRgoNU2V0dGluZ3NFbnRyeRILCgNrZXkYASABKAkSJAoFdmFsdWUYAiABKAsyFS5uYW1hLnYxLlNldHRpbmdWYWx1ZToCOAEiPwocVXBkYXRlUGx1Z2luU2V0dGluZ3NSZXNwb25zZRIfCgZwbHVnaW4YASABKAsyDy5uYW1hLnYxLlBsdWdpbiIhChNFbmFibGVQbHVnaW5SZXF1ZXN0EgoKAmlkGAEgASgJIhYKFEVuYWJsZVBsdWdpblJlc3BvbnNlIiIKFERpc2FibGVQbHVnaW5SZXF1ZXN0EgoKAmlkGAEgASgJIhcKFURpc2FibGVQbHVnaW5SZXNwb25zZSJ9CgZQbHVnaW4SCgoCaWQYASABKAkSDwoHdmVyc2lvbhgCIAEoCRIhCgRraW5kGAMgASgOMhMubmFtYS52MS5QbHVnaW5LaW5kEg8KB2VuYWJsZWQYBCABKAgSIgoIc2V0dGluZ3MYBSADKAsyEC5uYW1hLnYxLlNldHRpbmci2AEKB1NldHRpbmcSCwoDa2V5GAEgASgJEg0KBWxhYmVsGAIgASgJEhMKC2Rlc2NyaXB0aW9uGAMgASgJEiIKBGtpbmQYBCABKA4yFC5uYW1hLnYxLlNldHRpbmdLaW5kEhAKCHJlcXVpcmVkGAUgASgIEiwKDWRlZmF1bHRfdmFsdWUYBiABKAsyFS5uYW1hLnYxLlNldHRpbmdWYWx1ZRIkCgV2YWx1ZRgHIAEoCzIVLm5hbWEudjEuU2V0dGluZ1ZhbHVlEhIKCnNlY3JldF9zZXQYCCABKAgiXAoMU2V0dGluZ1ZhbHVlEhQKCnRleHRfdmFsdWUYASABKAlIABIUCgpib29sX3ZhbHVlGAIgASgISAASFwoNaW50ZWdlcl92YWx1ZRgDIAEoA0gAQgcKBXZhbHVlKkMKClBsdWdpbktpbmQSGwoXUExVR0lOX0tJTkRfVU5TUEVDSUZJRUQQABIYChRQTFVHSU5fS0lORF9CVUlMVF9JThABKowBCgtTZXR0aW5nS2luZBIcChhTRVRUSU5HX0tJTkRfVU5TUEVDSUZJRUQQABIVChFTRVRUSU5HX0tJTkRfVEVYVBABEhcKE1NFVFRJTkdfS0lORF9TRUNSRVQQAhIVChFTRVRUSU5HX0tJTkRfQk9PTBADEhgKFFNFVFRJTkdfS0lORF9JTlRFR0VSEAQy7wIKDVBsdWdpblNlcnZpY2USTQoLTGlzdFBsdWdpbnMSGy5uYW1hLnYxLkxpc3RQbHVnaW5zUmVxdWVzdBocLm5hbWEudjEuTGlzdFBsdWdpbnNSZXNwb25zZSIDkAIBEmgKFFVwZGF0ZVBsdWdpblNldHRpbmdzEiQubmFtYS52MS5VcGRhdGVQbHVnaW5TZXR0aW5nc1JlcXVlc3QaJS5uYW1hLnYxLlVwZGF0ZVBsdWdpblNldHRpbmdzUmVzcG9uc2UiA5ACAhJQCgxFbmFibGVQbHVnaW4SHC5uYW1hLnYxLkVuYWJsZVBsdWdpblJlcXVlc3QaHS5uYW1hLnYxLkVuYWJsZVBsdWdpblJlc3BvbnNlIgOQAgISUwoNRGlzYWJsZVBsdWdpbhIdLm5hbWEudjEuRGlzYWJsZVBsdWdpblJlcXVlc3QaHi5uYW1hLnYxLkRpc2FibGVQbHVnaW5SZXNwb25zZSIDkAICYgZwcm90bzM");
+  fileDesc("ChRuYW1hL3YxL3BsdWdpbi5wcm90bxIHbmFtYS52MSIUChJMaXN0UGx1Z2luc1JlcXVlc3QiNwoTTGlzdFBsdWdpbnNSZXNwb25zZRIgCgdwbHVnaW5zGAEgAygLMg8ubmFtYS52MS5QbHVnaW4itwEKG1VwZGF0ZVBsdWdpblNldHRpbmdzUmVxdWVzdBIKCgJpZBgBIAEoCRJECghzZXR0aW5ncxgCIAMoCzIyLm5hbWEudjEuVXBkYXRlUGx1Z2luU2V0dGluZ3NSZXF1ZXN0LlNldHRpbmdzRW50cnkaRgoNU2V0dGluZ3NFbnRyeRILCgNrZXkYASABKAkSJAoFdmFsdWUYAiABKAsyFS5uYW1hLnYxLlNldHRpbmdWYWx1ZToCOAEiPwocVXBkYXRlUGx1Z2luU2V0dGluZ3NSZXNwb25zZRIfCgZwbHVnaW4YASABKAsyDy5uYW1hLnYxLlBsdWdpbiIhChNFbmFibGVQbHVnaW5SZXF1ZXN0EgoKAmlkGAEgASgJIhYKFEVuYWJsZVBsdWdpblJlc3BvbnNlIrMBChlUZXN0UGx1Z2luU2V0dGluZ3NSZXF1ZXN0EgoKAmlkGAEgASgJEkIKCHNldHRpbmdzGAIgAygLMjAubmFtYS52MS5UZXN0UGx1Z2luU2V0dGluZ3NSZXF1ZXN0LlNldHRpbmdzRW50cnkaRgoNU2V0dGluZ3NFbnRyeRILCgNrZXkYASABKAkSJAoFdmFsdWUYAiABKAsyFS5uYW1hLnYxLlNldHRpbmdWYWx1ZToCOAEiqAEKGlRlc3RQbHVnaW5TZXR0aW5nc1Jlc3BvbnNlEkEKB2Nob2ljZXMYASADKAsyMC5uYW1hLnYxLlRlc3RQbHVnaW5TZXR0aW5nc1Jlc3BvbnNlLkNob2ljZXNFbnRyeRpHCgxDaG9pY2VzRW50cnkSCwoDa2V5GAEgASgJEiYKBXZhbHVlGAIgASgLMhcubmFtYS52MS5TZXR0aW5nQ2hvaWNlczoCOAEiMgoOU2V0dGluZ0Nob2ljZXMSIAoHY2hvaWNlcxgBIAMoCzIPLm5hbWEudjEuQ2hvaWNlIiYKBkNob2ljZRINCgV2YWx1ZRgBIAEoCRINCgVsYWJlbBgCIAEoCSIiChREaXNhYmxlUGx1Z2luUmVxdWVzdBIKCgJpZBgBIAEoCSIXChVEaXNhYmxlUGx1Z2luUmVzcG9uc2UilgEKBlBsdWdpbhIKCgJpZBgBIAEoCRIPCgd2ZXJzaW9uGAIgASgJEiEKBGtpbmQYAyABKA4yEy5uYW1hLnYxLlBsdWdpbktpbmQSDwoHZW5hYmxlZBgEIAEoCBIiCghzZXR0aW5ncxgFIAMoCzIQLm5hbWEudjEuU2V0dGluZxIXCg9jaGVja3Nfc2V0dGluZ3MYBiABKAgi2AEKB1NldHRpbmcSCwoDa2V5GAEgASgJEg0KBWxhYmVsGAIgASgJEhMKC2Rlc2NyaXB0aW9uGAMgASgJEiIKBGtpbmQYBCABKA4yFC5uYW1hLnYxLlNldHRpbmdLaW5kEhAKCHJlcXVpcmVkGAUgASgIEiwKDWRlZmF1bHRfdmFsdWUYBiABKAsyFS5uYW1hLnYxLlNldHRpbmdWYWx1ZRIkCgV2YWx1ZRgHIAEoCzIVLm5hbWEudjEuU2V0dGluZ1ZhbHVlEhIKCnNlY3JldF9zZXQYCCABKAgiXAoMU2V0dGluZ1ZhbHVlEhQKCnRleHRfdmFsdWUYASABKAlIABIUCgpib29sX3ZhbHVlGAIgASgISAASFwoNaW50ZWdlcl92YWx1ZRgDIAEoA0gAQgcKBXZhbHVlKkMKClBsdWdpbktpbmQSGwoXUExVR0lOX0tJTkRfVU5TUEVDSUZJRUQQABIYChRQTFVHSU5fS0lORF9CVUlMVF9JThABKqUBCgtTZXR0aW5nS2luZBIcChhTRVRUSU5HX0tJTkRfVU5TUEVDSUZJRUQQABIVChFTRVRUSU5HX0tJTkRfVEVYVBABEhcKE1NFVFRJTkdfS0lORF9TRUNSRVQQAhIVChFTRVRUSU5HX0tJTkRfQk9PTBADEhgKFFNFVFRJTkdfS0lORF9JTlRFR0VSEAQSFwoTU0VUVElOR19LSU5EX0NIT0lDRRAFMtADCg1QbHVnaW5TZXJ2aWNlEk0KC0xpc3RQbHVnaW5zEhsubmFtYS52MS5MaXN0UGx1Z2luc1JlcXVlc3QaHC5uYW1hLnYxLkxpc3RQbHVnaW5zUmVzcG9uc2UiA5ACARJoChRVcGRhdGVQbHVnaW5TZXR0aW5ncxIkLm5hbWEudjEuVXBkYXRlUGx1Z2luU2V0dGluZ3NSZXF1ZXN0GiUubmFtYS52MS5VcGRhdGVQbHVnaW5TZXR0aW5nc1Jlc3BvbnNlIgOQAgISUAoMRW5hYmxlUGx1Z2luEhwubmFtYS52MS5FbmFibGVQbHVnaW5SZXF1ZXN0Gh0ubmFtYS52MS5FbmFibGVQbHVnaW5SZXNwb25zZSIDkAICEl8KElRlc3RQbHVnaW5TZXR0aW5ncxIiLm5hbWEudjEuVGVzdFBsdWdpblNldHRpbmdzUmVxdWVzdBojLm5hbWEudjEuVGVzdFBsdWdpblNldHRpbmdzUmVzcG9uc2UiABJTCg1EaXNhYmxlUGx1Z2luEh0ubmFtYS52MS5EaXNhYmxlUGx1Z2luUmVxdWVzdBoeLm5hbWEudjEuRGlzYWJsZVBsdWdpblJlc3BvbnNlIgOQAgJiBnByb3RvMw");
 
 /**
  * @generated from message nama.v1.ListPluginsRequest
@@ -121,6 +121,99 @@ export const EnablePluginResponseSchema: GenMessage<EnablePluginResponse> = /*@_
   messageDesc(file_nama_v1_plugin, 5);
 
 /**
+ * @generated from message nama.v1.TestPluginSettingsRequest
+ */
+export type TestPluginSettingsRequest = Message<"nama.v1.TestPluginSettingsRequest"> & {
+  /**
+   * The Plugin's id, such as `tmdb`.
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * The settings to test, by key, as `UpdatePluginSettingsRequest.settings`: a secret left out or
+   * blank uses its stored value.
+   *
+   * @generated from field: map<string, nama.v1.SettingValue> settings = 2;
+   */
+  settings: { [key: string]: SettingValue };
+};
+
+/**
+ * Describes the message nama.v1.TestPluginSettingsRequest.
+ * Use `create(TestPluginSettingsRequestSchema)` to create a new message.
+ */
+export const TestPluginSettingsRequestSchema: GenMessage<TestPluginSettingsRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_plugin, 6);
+
+/**
+ * @generated from message nama.v1.TestPluginSettingsResponse
+ */
+export type TestPluginSettingsResponse = Message<"nama.v1.TestPluginSettingsResponse"> & {
+  /**
+   * The choices for each `SETTING_KIND_CHOICE` setting, by key.
+   *
+   * @generated from field: map<string, nama.v1.SettingChoices> choices = 1;
+   */
+  choices: { [key: string]: SettingChoices };
+};
+
+/**
+ * Describes the message nama.v1.TestPluginSettingsResponse.
+ * Use `create(TestPluginSettingsResponseSchema)` to create a new message.
+ */
+export const TestPluginSettingsResponseSchema: GenMessage<TestPluginSettingsResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_plugin, 7);
+
+/**
+ * The values one choice setting may take, in the order a form shows them.
+ *
+ * @generated from message nama.v1.SettingChoices
+ */
+export type SettingChoices = Message<"nama.v1.SettingChoices"> & {
+  /**
+   * @generated from field: repeated nama.v1.Choice choices = 1;
+   */
+  choices: Choice[];
+};
+
+/**
+ * Describes the message nama.v1.SettingChoices.
+ * Use `create(SettingChoicesSchema)` to create a new message.
+ */
+export const SettingChoicesSchema: GenMessage<SettingChoices> = /*@__PURE__*/
+  messageDesc(file_nama_v1_plugin, 8);
+
+/**
+ * One value a choice setting may take.
+ *
+ * @generated from message nama.v1.Choice
+ */
+export type Choice = Message<"nama.v1.Choice"> & {
+  /**
+   * What is stored as the setting's `text_value`, such as a quality profile's id.
+   *
+   * @generated from field: string value = 1;
+   */
+  value: string;
+
+  /**
+   * What an Admin picks it by, such as the profile's name.
+   *
+   * @generated from field: string label = 2;
+   */
+  label: string;
+};
+
+/**
+ * Describes the message nama.v1.Choice.
+ * Use `create(ChoiceSchema)` to create a new message.
+ */
+export const ChoiceSchema: GenMessage<Choice> = /*@__PURE__*/
+  messageDesc(file_nama_v1_plugin, 9);
+
+/**
  * @generated from message nama.v1.DisablePluginRequest
  */
 export type DisablePluginRequest = Message<"nama.v1.DisablePluginRequest"> & {
@@ -137,7 +230,7 @@ export type DisablePluginRequest = Message<"nama.v1.DisablePluginRequest"> & {
  * Use `create(DisablePluginRequestSchema)` to create a new message.
  */
 export const DisablePluginRequestSchema: GenMessage<DisablePluginRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_plugin, 6);
+  messageDesc(file_nama_v1_plugin, 10);
 
 /**
  * @generated from message nama.v1.DisablePluginResponse
@@ -150,7 +243,7 @@ export type DisablePluginResponse = Message<"nama.v1.DisablePluginResponse"> & {
  * Use `create(DisablePluginResponseSchema)` to create a new message.
  */
 export const DisablePluginResponseSchema: GenMessage<DisablePluginResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_plugin, 7);
+  messageDesc(file_nama_v1_plugin, 11);
 
 /**
  * A unit of trusted functionality that plugs into a Server.
@@ -188,6 +281,13 @@ export type Plugin = Message<"nama.v1.Plugin"> & {
    * @generated from field: repeated nama.v1.Setting settings = 5;
    */
   settings: Setting[];
+
+  /**
+   * Whether it has a settings check, which `TestPluginSettings` runs.
+   *
+   * @generated from field: bool checks_settings = 6;
+   */
+  checksSettings: boolean;
 };
 
 /**
@@ -195,7 +295,7 @@ export type Plugin = Message<"nama.v1.Plugin"> & {
  * Use `create(PluginSchema)` to create a new message.
  */
 export const PluginSchema: GenMessage<Plugin> = /*@__PURE__*/
-  messageDesc(file_nama_v1_plugin, 8);
+  messageDesc(file_nama_v1_plugin, 12);
 
 /**
  * One setting a Plugin takes, as its schema declares it, and its stored value.
@@ -263,7 +363,7 @@ export type Setting = Message<"nama.v1.Setting"> & {
  * Use `create(SettingSchema)` to create a new message.
  */
 export const SettingSchema: GenMessage<Setting> = /*@__PURE__*/
-  messageDesc(file_nama_v1_plugin, 9);
+  messageDesc(file_nama_v1_plugin, 13);
 
 /**
  * A setting's value, of the setting's kind.
@@ -300,7 +400,7 @@ export type SettingValue = Message<"nama.v1.SettingValue"> & {
  * Use `create(SettingValueSchema)` to create a new message.
  */
 export const SettingValueSchema: GenMessage<SettingValue> = /*@__PURE__*/
-  messageDesc(file_nama_v1_plugin, 10);
+  messageDesc(file_nama_v1_plugin, 14);
 
 /**
  * Where a Plugin comes from.
@@ -366,6 +466,13 @@ export const SettingKind = {
    * @generated from enum value: SETTING_KIND_INTEGER = 4;
    */
   INTEGER: 4,
+
+  /**
+   * Text picked from the choices the Plugin's settings check offers (`TestPluginSettings`).
+   *
+   * @generated from enum value: SETTING_KIND_CHOICE = 5;
+   */
+  CHOICE: 5,
 } as const;
 
 /**
@@ -423,6 +530,25 @@ export const PluginService: GenService<{
     methodKind: "unary";
     input: typeof EnablePluginRequestSchema;
     output: typeof EnablePluginResponseSchema;
+  },
+  /**
+   * Runs a Plugin's settings check on `settings`, which may not be saved yet, and returns the
+   * choices it offers for each `SETTING_KIND_CHOICE` setting. It runs only when called, never to
+   * enable a Plugin. Settings that don't fit the Plugin's schema are refused as in
+   * `UpdatePluginSettings`, except that a choice setting may be left out. A check that fails, runs
+   * too long or crashes is refused with `REFUSAL_REASON_SETTINGS_CHECK_FAILED`, its message saying
+   * why in plain words, as is a Plugin without a check (see `Plugin.checks_settings`). Fails with
+   * `not_found` for an unknown Plugin.
+   *
+   * Not NO_SIDE_EFFECTS, though it has none: that lets a client send it as a GET, which would put
+   * a secret in the URL.
+   *
+   * @generated from rpc nama.v1.PluginService.TestPluginSettings
+   */
+  testPluginSettings: {
+    methodKind: "unary";
+    input: typeof TestPluginSettingsRequestSchema;
+    output: typeof TestPluginSettingsResponseSchema;
   },
   /**
    * Disables a Plugin, removing everything it registered, without a restart, and saves that it is

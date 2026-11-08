@@ -1,0 +1,15 @@
+[package]
+name = "nama-plugin-test-choices"
+version = "0.1.0"
+description = "A Built-in Plugin used only in tests, whose settings check offers choices"
+license = "AGPL-3.0-only"
+edition.workspace = true
+repository.workspace = true
+publish = false
+
+# Built-in Plugins depend on no workspace crate but nama-plugin-api and nama-proto (ADR 0006).
+[dependencies]
+nama-plugin-api = { version = "0.1.0", path = "../../crates/nama-plugin-api" }
+
+[lints]
+workspace = true
