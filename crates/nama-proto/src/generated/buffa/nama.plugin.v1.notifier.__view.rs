@@ -17,7 +17,8 @@ pub struct NotificationView<'a> {
     pub request: ::buffa::MessageFieldView<
         super::super::super::super::v1::__buffa::view::RequestView<'a>,
     >,
-    /// The Request's place in the web app, if the Server knows its own URL (`ServerSettings.url`).
+    /// The Request's place in the web app, if the Server knows its own URL (`ServerSettings.url`) and
+    /// the Request wasn't removed.
     ///
     /// Field 3: `request_url`
     pub request_url: ::core::option::Option<&'a str>,
@@ -350,7 +351,8 @@ impl NotificationOwnedView {
     > {
         &self.0.reborrow().request
     }
-    /// The Request's place in the web app, if the Server knows its own URL (`ServerSettings.url`).
+    /// The Request's place in the web app, if the Server knows its own URL (`ServerSettings.url`) and
+    /// the Request wasn't removed.
     ///
     /// Field 3: `request_url`
     #[must_use]

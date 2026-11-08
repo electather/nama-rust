@@ -38,7 +38,8 @@ export type Notification = Message<"nama.plugin.v1.Notification"> & {
   request?: Request | undefined;
 
   /**
-   * The Request's place in the web app, if the Server knows its own URL (`ServerSettings.url`).
+   * The Request's place in the web app, if the Server knows its own URL (`ServerSettings.url`) and
+   * the Request wasn't removed.
    *
    * @generated from field: optional string request_url = 3;
    */

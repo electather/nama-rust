@@ -3,6 +3,8 @@
 
 use std::sync::{Arc, PoisonError, RwLock};
 
+use nama_plugin_api::settings::{SettingKind, SettingValue};
+
 use crate::db::Database;
 
 /// The address people reach the Server at, or `""` for none, held in memory so that building a
@@ -11,6 +13,14 @@ use crate::db::Database;
 pub(crate) struct ServerUrl(Arc<RwLock<String>>);
 
 impl ServerUrl {
+    /// Whether `url` may be the Server URL: empty, or an http or https URL as a URL setting takes,
+    /// with no query or fragment, since links are added to its end.
+    pub(crate) fn accepts(url: &str) -> bool {
+        url.is_empty()
+            || (SettingValue::Text(url.to_owned()).is(SettingKind::Url)
+                && !url.contains(['?', '#']))
+    }
+
     /// Takes the stored URL, if any, as this one.
     pub(crate) async fn load(&self, db: &Database) -> Result<(), sqlx::Error> {
         let stored = sqlx::query_scalar!("SELECT url FROM server_settings")
@@ -20,8 +30,7 @@ impl ServerUrl {
         Ok(())
     }
 
-    /// Stores `url`, which the caller checked is an http or https URL or empty, and uses it from
-    /// now on.
+    /// Stores `url`, which the caller checked [`ServerUrl::accepts`], and uses it from now on.
     pub(crate) async fn save(&self, db: &Database, url: String) -> Result<(), sqlx::Error> {
         let stored = url.clone();
         db.write(move |tx| {

@@ -29,7 +29,8 @@ pub struct Notification {
         super::super::v1::Request,
         ::buffa::Inline<super::super::v1::Request>,
     >,
-    /// The Request's place in the web app, if the Server knows its own URL (`ServerSettings.url`).
+    /// The Request's place in the web app, if the Server knows its own URL (`ServerSettings.url`) and
+    /// the Request wasn't removed.
     ///
     /// Field 3: `request_url`
     #[serde(

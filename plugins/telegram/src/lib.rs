@@ -340,7 +340,7 @@ mod tests {
     fn a_message_ends_with_the_link_to_the_request_the_server_gives() {
         let notification = Notification {
             event: Event {
-                event: Some(RequestCancelled::default().into()),
+                event: Some(RequestStateChanged::default().into()),
                 ..Event::default()
             }
             .into(),
@@ -354,7 +354,7 @@ mod tests {
         assert_eq!(
             posted.as_deref(),
             Some(
-                "The Request for Dune (2021) was cancelled.\n\
+                "Dune (2021) is now Pending.\n\
                  https://nama.example.com/requests#request-7"
             )
         );

@@ -427,12 +427,11 @@ impl ServerService for ServerServiceHandler {
         request: ServiceRequest<'_, UpdateServerSettingsRequest>,
     ) -> ServiceResult<UpdateServerSettingsResponse> {
         let url = request.settings.url.trim().to_owned();
-        if !url.is_empty()
-            && !settings::SettingValue::Text(url.clone()).is(settings::SettingKind::Url)
-        {
+        if !ServerUrl::accepts(&url) {
             return Err(refuse(
                 RefusalReason::REFUSAL_REASON_NOT_A_URL,
-                "the Server URL must be an http or https URL, such as https://nama.example.com",
+                "the Server URL must be an http or https URL with no ? or #, such as \
+                 https://nama.example.com",
             )
             .field("settings.url")
             .into());

@@ -175,7 +175,8 @@ export const ServerService: GenService<{
   },
   /**
    * Replaces the Server's settings. Needs `PERMISSION_MANAGE_SETTINGS`. A `url` that isn't an http
-   * or https URL is refused with `REFUSAL_REASON_NOT_A_URL` naming it, and nothing changes.
+   * or https URL, or has a query or fragment, is refused with `REFUSAL_REASON_NOT_A_URL` naming it,
+   * and nothing changes.
    *
    * @generated from rpc nama.v1.ServerService.UpdateServerSettings
    */

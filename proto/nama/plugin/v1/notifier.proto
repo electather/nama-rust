@@ -12,7 +12,8 @@ message Notification {
   nama.v1.Event event = 1;
   // The Request it happened to, as the event holds it.
   nama.v1.Request request = 2;
-  // The Request's place in the web app, if the Server knows its own URL (`ServerSettings.url`).
+  // The Request's place in the web app, if the Server knows its own URL (`ServerSettings.url`) and
+  // the Request wasn't removed.
   optional string request_url = 3;
 }
 

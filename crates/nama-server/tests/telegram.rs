@@ -20,10 +20,10 @@ use nama_plugin_tmdb::{
     testing::{API_KEY as TMDB_KEY, FakeTmdb},
 };
 use nama_proto::nama::v1::{
-    ApproveRequestRequest, CreateLibraryRequest, CreateRequestRequest, CreateUserRequest,
-    EnablePluginRequest, GetRequestRequest, LibraryKind, LibraryServiceClient, ListPluginsRequest,
-    Permission, Plugin, PluginServiceClient, Request, RequestServiceClient, RequestState,
-    ScanLibraryRequest, ServerServiceClient, ServerSettings, SessionDelivery,
+    ApproveRequestRequest, CancelRequestRequest, CreateLibraryRequest, CreateRequestRequest,
+    CreateUserRequest, EnablePluginRequest, GetRequestRequest, LibraryKind, LibraryServiceClient,
+    ListPluginsRequest, Permission, Plugin, PluginServiceClient, Request, RequestServiceClient,
+    RequestState, ScanLibraryRequest, ServerServiceClient, ServerSettings, SessionDelivery,
     SetPermissionsRequest, SignInRequest, SignInServiceClient, UpdatePluginSettingsRequest,
     UpdateServerSettingsRequest, UserServiceClient, setting_value::Value,
 };
@@ -307,6 +307,28 @@ async fn with_a_server_url_set_a_message_links_to_the_request_in_the_web_app() {
         [to_channel(&format!(
             "New Request: Dune (2021), from Ada, is Pending.\n{link}"
         ))]
+    );
+}
+
+#[tokio::test]
+async fn a_cancelled_request_has_no_link_since_it_is_gone_from_the_web_app() {
+    let fixture = Fixture::with_telegram(BOT_TOKEN, Some(CHANNEL)).await;
+    fixture.set_server_url("https://nama.example.com").await;
+    let dune = fixture.ada_asks_for(DUNE).await;
+
+    fixture
+        .requests()
+        .cancel_request(CancelRequestRequest {
+            id: dune.id,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    let sent = fixture.telegram.wait_for_messages(2).await;
+    assert!(
+        sent.contains(&to_channel("The Request for Dune (2021) was cancelled.")),
+        "{sent:?}"
     );
 }
 

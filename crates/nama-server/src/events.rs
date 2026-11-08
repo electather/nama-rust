@@ -91,13 +91,21 @@ impl EventBus {
     /// Hands `event`, if it is a Request event, to every Notifier for its channel. The Kernel picks
     /// the recipients so that every Notifier shares the rules (ADR 0021).
     fn tell_notifiers(&self, event: &Event) {
-        let Some((_, About::Request(request))) = classify(event) else {
+        let Some((kind, About::Request(request))) = classify(event) else {
             return;
         };
+        let removed = matches!(
+            kind,
+            EventType::EVENT_TYPE_REQUEST_CANCELLED | EventType::EVENT_TYPE_REQUEST_WITHDRAWN
+        );
         let notification = Arc::new(Notification {
             event: event.clone().into(),
             request: request.clone().into(),
-            request_url: self.server_url.request_link(request.id),
+            // A removed Request is no longer in the web app to link to.
+            request_url: self
+                .server_url
+                .request_link(request.id)
+                .filter(|_| !removed),
             ..Default::default()
         });
         self.plugins

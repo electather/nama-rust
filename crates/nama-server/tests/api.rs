@@ -173,7 +173,11 @@ async fn a_server_url_that_isnt_an_http_url_is_refused_naming_it_and_nothing_cha
         .await
         .unwrap();
 
-    for not_a_url in ["nama.example.com", "ftp://nama.example.com"] {
+    for not_a_url in [
+        "nama.example.com",
+        "ftp://nama.example.com",
+        "https://nama.example.com/?a=b",
+    ] {
         let updated = client
             .update_server_settings(set_server_url(not_a_url))
             .await;

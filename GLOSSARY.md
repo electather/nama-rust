@@ -20,6 +20,10 @@ _Avoid_: proxy, tunnel
 One way a client might reach a Server, such as a LAN address, a public URL or a Relay. The Hub gives clients a list of them to try.
 _Avoid_: endpoint, connection, URI
 
+**Server URL**:
+The one address an admin sets for people to reach a Server's web app at, such as `https://nama.example.com`. Notifiers' messages link to Requests there; with none set, they have no links.
+_Avoid_: base URL, public URL
+
 ## People
 
 **User**:

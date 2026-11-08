@@ -460,7 +460,8 @@ export const RefusalReason = {
   PLUGIN_REFUSED: 52,
 
   /**
-   * `invalid_argument`: the field isn't an http or https URL with a host.
+   * `invalid_argument`: the field isn't an http or https URL with a host, or has a query or fragment
+   * where links are added to its end.
    *
    * @generated from enum value: REFUSAL_REASON_NOT_A_URL = 53;
    */

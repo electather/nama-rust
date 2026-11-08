@@ -242,7 +242,8 @@ pub trait ServerService: Send + Sync + 'static {
         >,
     > + Send;
     /// Replaces the Server's settings. Needs `PERMISSION_MANAGE_SETTINGS`. A `url` that isn't an http
-    /// or https URL is refused with `REFUSAL_REASON_NOT_A_URL` naming it, and nothing changes.
+    /// or https URL, or has a query or fragment, is refused with `REFUSAL_REASON_NOT_A_URL` naming it,
+    /// and nothing changes.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
