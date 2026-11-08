@@ -1481,7 +1481,9 @@ fn state_changed(event: event::Event) -> (i64, RequestState) {
     let event::Event::RequestStateChanged(changed) = event else {
         panic!("not a change of state: {event:?}");
     };
-    let request = changed.request.into_option().unwrap_or_default();
+    let Some(request) = changed.request.into_option() else {
+        panic!("a change of state without its Request");
+    };
     (request.id, request.state.as_known().unwrap_or_default())
 }
 
@@ -1549,12 +1551,15 @@ async fn a_season_still_airing_becomes_available_once_its_aired_episodes_are_mat
 }
 
 #[tokio::test]
-async fn a_scan_makes_a_pending_season_request_available_and_leaves_a_declined_one_declined() {
+async fn a_scan_makes_an_approved_season_request_available_and_leaves_a_declined_one_declined() {
     let fixture = Fixture::start().await;
     let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let (_, as_grace) = fixture
+        .user("Grace", &[Permission::RequestTv, Permission::AutoApproveTv])
+        .await;
     let ada = requests(as_ada);
     let declined = decline(&fixture, ask_seasons(&ada, DARK, &[1]).await[0].id, "").await;
-    let pending = ask_seasons(&ada, DARK, &[1]).await;
+    let approved = ask_seasons(&requests(as_grace), DARK, &[1]).await;
 
     let _media = fixture
         .library_with(
@@ -1566,7 +1571,7 @@ async fn a_scan_makes_a_pending_season_request_available_and_leaves_a_declined_o
     assert_eq!(
         states(&list(&ada).await),
         [
-            (pending[0].id, RequestState::Available),
+            (approved[0].id, RequestState::Available),
             (declined.id, RequestState::Declined)
         ]
     );
