@@ -108,7 +108,7 @@ mod exports {
                     search_for_movie: true,
                 },
             };
-            let response = radarr.send(&radarr.request("POST", "movie"), Some(Json(movie)))?;
+            let response = send(&radarr.request("POST", "movie"), Some(Json(movie)))?;
             if is_success(&response) || already_has(&response) {
                 Ok(request.movie.tmdb_id.to_string())
             } else {
@@ -116,7 +116,7 @@ mod exports {
             }
         }
 
-        // shortcut: says nothing is downloading until #146 reads Radarr's queue.
+        // ponytail: says nothing is downloading until #146 reads Radarr's queue.
         fn progress(_references: Vec<String>) -> Result<HashMap<String, Vec<Download>>, Error> {
             Ok(HashMap::new())
         }
@@ -147,18 +147,9 @@ mod exports {
                 .with_header("Content-Type", "application/json")
         }
 
-        fn send<T: ToMemory>(
-            &self,
-            request: &HttpRequest,
-            body: Option<T>,
-        ) -> Result<HttpResponse, Error> {
-            let unreachable = format!("Radarr didn't answer at {}", self.url);
-            nama_pdk::http_request(request, body, &unreachable)
-        }
-
         /// What Radarr answers at the API path `path`.
         fn get<T: DeserializeOwned>(&self, path: &str) -> Result<T, Error> {
-            let response = self.send(&self.request("GET", path), None::<()>)?;
+            let response = send(&self.request("GET", path), None::<()>)?;
             if !is_success(&response) {
                 return Err(refused(&response));
             }
@@ -166,6 +157,11 @@ mod exports {
                 .json()
                 .map_err(|err| Error::msg(format!("Radarr's answer made no sense: {err}")))
         }
+    }
+
+    fn send<T: ToMemory>(request: &HttpRequest, body: Option<T>) -> Result<HttpResponse, Error> {
+        // Not naming the URL: a Request's reason reaches every Requester.
+        nama_pdk::http_request(request, body, "Radarr didn't answer")
     }
 
     /// The setting `key`, which the Server sets before every call but a settings check, and for
@@ -186,15 +182,13 @@ mod exports {
 
     /// Why Radarr refused a request, in words a User understands.
     fn refused(response: &HttpResponse) -> Error {
+        let messages: Vec<_> = failures(response)
+            .into_iter()
+            .map(|failure| failure.error_message)
+            .collect();
         let reason = match response.status_code() {
             401 => "Radarr refused the API key".to_owned(),
-            400 if !failures(response).is_empty() => {
-                let messages: Vec<_> = failures(response)
-                    .into_iter()
-                    .map(|failure| failure.error_message)
-                    .collect();
-                format!("Radarr said: {}", messages.join(" "))
-            }
+            400 if !messages.is_empty() => format!("Radarr said: {}", messages.join(" ")),
             status => format!("Radarr failed with HTTP status {status}"),
         };
         Error::msg(reason)

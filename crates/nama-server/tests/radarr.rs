@@ -255,10 +255,9 @@ async fn testing_radarrs_settings_with_a_wrong_key_or_radarr_down_fails_in_plain
     fixture.radarr.go_down();
     let down = fixture.test_settings(RADARR_KEY).await;
 
-    let down_message = format!("Radarr didn't answer at {}", fixture.radarr.url());
     for (failed, message) in [
         (wrong_key, "Radarr refused the API key"),
-        (down, &down_message),
+        (down, "Radarr didn't answer"),
     ] {
         let shown = failed.as_ref().err().and_then(|err| err.message.clone());
         assert_refused(
@@ -301,8 +300,10 @@ async fn with_radarr_down_a_request_fails_in_plain_words_and_retrying_once_it_is
     let retried = fixture.retry(failed.id).await;
 
     assert_eq!(failed.state, RequestState::Failed);
-    let reason = format!("Radarr didn't answer at {}", fixture.radarr.url());
-    assert_eq!(failed.failure_reason.as_deref(), Some(reason.as_str()));
+    assert_eq!(
+        failed.failure_reason.as_deref(),
+        Some("Radarr didn't answer")
+    );
     assert_eq!(retried.state, RequestState::Processing);
     assert_eq!(fixture.radarr.added().len(), 1);
 }

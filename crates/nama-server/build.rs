@@ -69,6 +69,7 @@ fn build_radarr() -> Result<(), Box<dyn Error>> {
         "plugins/radarr",
         "crates/nama-pdk",
         "crates/nama-proto",
+        "Cargo.toml",
         "Cargo.lock",
     ] {
         println!(
@@ -92,8 +93,8 @@ fn build_radarr() -> Result<(), Box<dyn Error>> {
         .status()?;
     if !status.success() {
         return Err(
-            "building the Radarr Plugin for wasm32 failed; it needs the target: \
-                    `rustup target add wasm32-unknown-unknown`"
+            "building the Radarr Plugin for wasm32 failed: see its errors above, and if the \
+             target is missing, `rustup target add wasm32-unknown-unknown`"
                 .into(),
         );
     }

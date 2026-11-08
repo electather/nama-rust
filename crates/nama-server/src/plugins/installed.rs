@@ -1,6 +1,6 @@
 //! Installed Plugins (ADR 0006): `.wasm` files bundled in the Server (ADR 0003) or that an admin
-//! drops into `<data_dir>/plugins/`, run through Extism behind the same [`Plugin`] trait as a Built-in Plugin, so the Kernel can't tell
-//! them apart.
+//! drops into `<data_dir>/plugins/`, run through Extism behind the same [`Plugin`] trait as a
+//! Built-in Plugin, so the Kernel can't tell them apart.
 
 use std::{
     collections::{BTreeMap, HashMap},
@@ -372,14 +372,14 @@ pub(crate) struct Found(Vec<(PathBuf, Result<Installed, Refused>)>);
 /// Blocks while it compiles each Plugin. wasmtime caches what it compiles under
 /// `<data_dir>/wasmtime/`, not in the home directory.
 pub(crate) fn read(data_dir: &Path) -> Found {
-    Found(read_plugins_dir(data_dir))
+    Found(read_plugins(data_dir))
 }
 
 impl Registry {
     /// Reads and lists the bundled Installed Plugins and those in `<data_dir>/plugins/` at start,
     /// as listing the Plugins does: logs each one's id and version, or why the Server refused it,
-    /// and enables those `config` says are enabled. Installed Plugins start disabled, so one `config` doesn't
-    /// name stays disabled.
+    /// and enables those `config` says are enabled. Installed Plugins start disabled, so one
+    /// `config` doesn't name stays disabled.
     pub fn load_installed(&self, data_dir: &Path, config: &BTreeMap<String, PluginConfig>) {
         let found = read(data_dir);
         for (file, plugin) in &found.0 {
@@ -481,7 +481,7 @@ fn describe(
 /// The bundled Plugins, then each `.wasm` file in `<data_dir>/plugins/` in name order, each with
 /// its Plugin or why the Server refused it. Bundled Plugins come first, so a file with one's id is
 /// refused. Logs why it read no files, if it couldn't.
-fn read_plugins_dir(data_dir: &Path) -> Vec<(PathBuf, Result<Installed, Refused>)> {
+fn read_plugins(data_dir: &Path) -> Vec<(PathBuf, Result<Installed, Refused>)> {
     let dir = data_dir.join("plugins");
     let files = wasm_files(&dir).unwrap_or_else(|err| {
         error!(
