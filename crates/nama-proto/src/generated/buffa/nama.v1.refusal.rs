@@ -114,8 +114,8 @@ pub enum RefusalReason {
     /// from it. Params: `requestId`.
     REFUSAL_REASON_NOT_A_REQUESTER = 44i32,
     /// `failed_precondition`: a Plugin's settings check failed, ran too long or crashed, or the Plugin
-    /// has none. The message is the Plugin's own, in plain words, and can't be translated. Params:
-    /// `pluginId`.
+    /// has none. The message says why in plain words: the Plugin's own for a failed check, which can't
+    /// be translated, or else the Server's. Params: `pluginId`.
     REFUSAL_REASON_SETTINGS_CHECK_FAILED = 45i32,
 }
 impl RefusalReason {

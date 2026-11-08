@@ -1930,12 +1930,7 @@ impl PluginService for PluginServiceHandler {
     ) -> ServiceResult<UpdatePluginSettingsResponse> {
         let request = request.to_owned_message();
         let id = PluginId::from(request.id);
-        let plugin = self
-            .plugins
-            .builtins()
-            .into_iter()
-            .find(|plugin| plugin.id == id)
-            .ok_or_else(|| plugin_not_found(&id))?;
+        let plugin = self.builtin(&id)?;
         let _changing = self.changing.lock().await;
         let stored = self.stored(&plugin.id).await?;
         let settings = with_stored_secrets(
@@ -1998,14 +1993,10 @@ impl PluginService for PluginServiceHandler {
         _ctx: RequestContext,
         request: ServiceRequest<'_, TestPluginSettingsRequest>,
     ) -> ServiceResult<TestPluginSettingsResponse> {
-        let id = PluginId::from(request.id.to_owned());
-        let plugin = self
-            .plugins
-            .builtins()
-            .into_iter()
-            .find(|plugin| plugin.id == id)
-            .ok_or_else(|| plugin_not_found(&id))?;
-        let sent = settings_from_proto(&request.to_owned_message().settings);
+        let request = request.to_owned_message();
+        let id = PluginId::from(request.id);
+        let plugin = self.builtin(&id)?;
+        let sent = settings_from_proto(&request.settings);
         let stored = self.stored(&id).await?;
         let settings = with_stored_secrets(&plugin.settings_schema, sent, &stored.settings);
         let choices = self
@@ -2037,9 +2028,7 @@ impl PluginService for PluginServiceHandler {
         request: ServiceRequest<'_, DisablePluginRequest>,
     ) -> ServiceResult<DisablePluginResponse> {
         let id = PluginId::from(request.id.to_owned());
-        if !self.plugins.builtins().iter().any(|plugin| plugin.id == id) {
-            return Err(plugin_not_found(&id));
-        }
+        self.builtin(&id)?;
         let _changing = self.changing.lock().await;
         // Without an Authenticator nobody could sign in, which is also why `main` won't start.
         self.plugins
@@ -2066,6 +2055,15 @@ impl PluginService for PluginServiceHandler {
 }
 
 impl PluginServiceHandler {
+    /// The Built-in Plugin `id`, or the refusal of a call naming one no Plugin has.
+    fn builtin(&self, id: &PluginId) -> Result<Builtin, ConnectError> {
+        self.plugins
+            .builtins()
+            .into_iter()
+            .find(|plugin| plugin.id == *id)
+            .ok_or_else(|| plugin_not_found(id))
+    }
+
     /// What is stored for the Plugin `id`: nothing for one that never had settings saved.
     async fn stored(&self, id: &PluginId) -> Result<PluginConfig, ConnectError> {
         Ok(plugin_settings::stored(&self.db)

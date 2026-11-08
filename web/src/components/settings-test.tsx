@@ -80,7 +80,10 @@ export function ChoiceInput({
           label={setting.label}
           name={setting.key}
           disabled
-          hint={[setting.description, "Test the settings to choose from what it offers."].join(" ")}
+          hint={[
+            setting.description,
+            "Test the settings to choose from what the Plugin offers.",
+          ].join(" ")}
           error={error}
         >
           <option>{stored === "" ? "Not chosen" : stored}</option>

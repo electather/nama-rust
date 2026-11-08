@@ -107,6 +107,7 @@ export function openPlugins(changes: Partial<ServiceImpl<typeof PluginService>> 
   );
 }
 
+/** The section of the Plugins page for the Plugin `id`. */
 export async function plugin(id: string) {
   return within(await screen.findByRole("region", { name: id }));
 }

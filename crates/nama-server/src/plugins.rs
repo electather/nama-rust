@@ -396,29 +396,29 @@ impl Registry {
         let settings = settings
             .resolve(&with_optional_choices(schema.clone()))
             .map_err(CheckError::InvalidSettings)?;
+        let scrubbed = |message: String| without_secrets(message, &schema, &settings);
         let panicked = |message: String| {
+            let message = scrubbed(message);
             error!(plugin = %id, message, "plugin panicked while checking its settings");
             CheckError::Failed(format!("{id} failed while checking its settings"))
         };
         let plugin = contain_sync(make).map_err(panicked)?;
+        // The timeout is inside `contain`, so dropping a check it gave up on (Plugin code) is
+        // contained too.
         let check = contain(|| async {
             let Some(check) = plugin.settings_check() else {
-                return Err(format!("{id} has no settings check").into());
+                return Ok(Err(format!("{id} has no settings check").into()));
             };
-            check.check(&settings).await
+            tokio::time::timeout(SETTINGS_CHECK_TIMEOUT, check.check(&settings)).await
         });
-        let checked = match tokio::time::timeout(SETTINGS_CHECK_TIMEOUT, check).await {
+        let checked = match check.await {
             Ok(Ok(Ok(choices))) => Ok(choices),
-            Ok(Ok(Err(error))) => Err(CheckError::Failed(without_secrets(
-                error.to_string(),
-                &schema,
-                &settings,
-            ))),
-            Ok(Err(message)) => Err(panicked(message)),
-            Err(_elapsed) => Err(CheckError::Failed(format!(
+            Ok(Ok(Err(error))) => Err(CheckError::Failed(scrubbed(error.to_string()))),
+            Ok(Err(_elapsed)) => Err(CheckError::Failed(format!(
                 "{id} didn't finish checking its settings within {} seconds",
                 SETTINGS_CHECK_TIMEOUT.as_secs()
             ))),
+            Err(message) => Err(panicked(message)),
         };
         if let Err(message) = contain_sync(|| drop(plugin)) {
             error!(plugin = %id, message, "plugin panicked while being dropped");

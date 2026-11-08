@@ -26,7 +26,10 @@ export function FormField({ label, hint, error, ...input }: ComponentProps<"inpu
   );
 }
 
-/** A labelled native dropdown in a native form, with its hint and the Server's error. */
+/**
+ * A labelled native dropdown in a native form, with its hint and the Server's error. Styled as
+ * `ui/input.tsx` is (DESIGN.md, "Inputs").
+ */
 export function FormSelect({
   label,
   hint,

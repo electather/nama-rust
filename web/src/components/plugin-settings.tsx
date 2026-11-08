@@ -29,8 +29,8 @@ export function PluginSettings({ plugin }: { plugin: Plugin }) {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: pluginsKey }),
   });
   const { choices, test } = useSettingsTest();
-  // One message at a time: the last save's or the last test's.
-  const errors = settingErrors(update.error ?? test.error);
+  // One message at a time: each resets the other.
+  const errors = settingErrors(update.error, test.error);
   return (
     <form
       className="mt-4 flex max-w-md flex-col gap-5"
@@ -215,17 +215,22 @@ function valueTyped(typed: FormData, key: string, kind: SettingKind): SettingVal
 }
 
 /**
- * Why the Server refused the settings, to save or test them: next to the setting its Refusal
- * names, or for the form. No `error` (`null`) refused nothing.
+ * Why the Server refused to save or test the settings, by whichever it refused. A `null` error
+ * refused nothing.
  */
-function settingErrors(error: unknown): Record<string, string | undefined> {
-  if (error === null) return {};
+function settingErrors(saving: unknown, testing: unknown) {
+  if (saving !== null) return refusedSettings(saving, "save the settings");
+  return testing === null ? {} : refusedSettings(testing, "test the settings");
+}
+
+/** Why the Server refused the `attempt`: next to the setting its Refusal names, or for the form. */
+function refusedSettings(error: unknown, attempt: string): Record<string, string | undefined> {
   const { reason, field } = refusalOf(error);
   const key = field.replace(/^settings\./u, "");
   if (key === field) {
     const { form } = refusal(
       error,
-      "save the settings",
+      attempt,
       {},
       {
         [RefusalReason.PLUGIN_NOT_FOUND]: { form: "This Plugin isn’t on the Server any more." },
