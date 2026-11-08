@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file nama/v1/server.proto.
  */
 export const file_nama_v1_server: GenFile = /*@__PURE__*/
-  fileDesc("ChRuYW1hL3YxL3NlcnZlci5wcm90bxIHbmFtYS52MSIWChRHZXRTZXJ2ZXJJbmZvUmVxdWVzdCJOChVHZXRTZXJ2ZXJJbmZvUmVzcG9uc2USDAoEbmFtZRgBIAEoCRIPCgd2ZXJzaW9uGAIgASgJEhYKDnNldHVwX3JlcXVpcmVkGAMgASgIMmQKDVNlcnZlclNlcnZpY2USUwoNR2V0U2VydmVySW5mbxIdLm5hbWEudjEuR2V0U2VydmVySW5mb1JlcXVlc3QaHi5uYW1hLnYxLkdldFNlcnZlckluZm9SZXNwb25zZSIDkAIBYgZwcm90bzM");
+  fileDesc("ChRuYW1hL3YxL3NlcnZlci5wcm90bxIHbmFtYS52MSIWChRHZXRTZXJ2ZXJJbmZvUmVxdWVzdCJOChVHZXRTZXJ2ZXJJbmZvUmVzcG9uc2USDAoEbmFtZRgBIAEoCRIPCgd2ZXJzaW9uGAIgASgJEhYKDnNldHVwX3JlcXVpcmVkGAMgASgIIhoKGEdldFNlcnZlclNldHRpbmdzUmVxdWVzdCJGChlHZXRTZXJ2ZXJTZXR0aW5nc1Jlc3BvbnNlEikKCHNldHRpbmdzGAEgASgLMhcubmFtYS52MS5TZXJ2ZXJTZXR0aW5ncyJIChtVcGRhdGVTZXJ2ZXJTZXR0aW5nc1JlcXVlc3QSKQoIc2V0dGluZ3MYASABKAsyFy5uYW1hLnYxLlNlcnZlclNldHRpbmdzIkkKHFVwZGF0ZVNlcnZlclNldHRpbmdzUmVzcG9uc2USKQoIc2V0dGluZ3MYASABKAsyFy5uYW1hLnYxLlNlcnZlclNldHRpbmdzIh0KDlNlcnZlclNldHRpbmdzEgsKA3VybBgBIAEoCTKvAgoNU2VydmVyU2VydmljZRJTCg1HZXRTZXJ2ZXJJbmZvEh0ubmFtYS52MS5HZXRTZXJ2ZXJJbmZvUmVxdWVzdBoeLm5hbWEudjEuR2V0U2VydmVySW5mb1Jlc3BvbnNlIgOQAgESXwoRR2V0U2VydmVyU2V0dGluZ3MSIS5uYW1hLnYxLkdldFNlcnZlclNldHRpbmdzUmVxdWVzdBoiLm5hbWEudjEuR2V0U2VydmVyU2V0dGluZ3NSZXNwb25zZSIDkAIBEmgKFFVwZGF0ZVNlcnZlclNldHRpbmdzEiQubmFtYS52MS5VcGRhdGVTZXJ2ZXJTZXR0aW5nc1JlcXVlc3QaJS5uYW1hLnYxLlVwZGF0ZVNlcnZlclNldHRpbmdzUmVzcG9uc2UiA5ACAmIGcHJvdG8z");
 
 /**
  * @generated from message nama.v1.GetServerInfoRequest
@@ -60,7 +60,95 @@ export const GetServerInfoResponseSchema: GenMessage<GetServerInfoResponse> = /*
   messageDesc(file_nama_v1_server, 1);
 
 /**
- * Facts about a Server that any client can read, before signing in.
+ * @generated from message nama.v1.GetServerSettingsRequest
+ */
+export type GetServerSettingsRequest = Message<"nama.v1.GetServerSettingsRequest"> & {
+};
+
+/**
+ * Describes the message nama.v1.GetServerSettingsRequest.
+ * Use `create(GetServerSettingsRequestSchema)` to create a new message.
+ */
+export const GetServerSettingsRequestSchema: GenMessage<GetServerSettingsRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_server, 2);
+
+/**
+ * @generated from message nama.v1.GetServerSettingsResponse
+ */
+export type GetServerSettingsResponse = Message<"nama.v1.GetServerSettingsResponse"> & {
+  /**
+   * @generated from field: nama.v1.ServerSettings settings = 1;
+   */
+  settings?: ServerSettings | undefined;
+};
+
+/**
+ * Describes the message nama.v1.GetServerSettingsResponse.
+ * Use `create(GetServerSettingsResponseSchema)` to create a new message.
+ */
+export const GetServerSettingsResponseSchema: GenMessage<GetServerSettingsResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_server, 3);
+
+/**
+ * @generated from message nama.v1.UpdateServerSettingsRequest
+ */
+export type UpdateServerSettingsRequest = Message<"nama.v1.UpdateServerSettingsRequest"> & {
+  /**
+   * @generated from field: nama.v1.ServerSettings settings = 1;
+   */
+  settings?: ServerSettings | undefined;
+};
+
+/**
+ * Describes the message nama.v1.UpdateServerSettingsRequest.
+ * Use `create(UpdateServerSettingsRequestSchema)` to create a new message.
+ */
+export const UpdateServerSettingsRequestSchema: GenMessage<UpdateServerSettingsRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_server, 4);
+
+/**
+ * @generated from message nama.v1.UpdateServerSettingsResponse
+ */
+export type UpdateServerSettingsResponse = Message<"nama.v1.UpdateServerSettingsResponse"> & {
+  /**
+   * The settings as saved.
+   *
+   * @generated from field: nama.v1.ServerSettings settings = 1;
+   */
+  settings?: ServerSettings | undefined;
+};
+
+/**
+ * Describes the message nama.v1.UpdateServerSettingsResponse.
+ * Use `create(UpdateServerSettingsResponseSchema)` to create a new message.
+ */
+export const UpdateServerSettingsResponseSchema: GenMessage<UpdateServerSettingsResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_server, 5);
+
+/**
+ * What an admin sets about the Server as a whole.
+ *
+ * @generated from message nama.v1.ServerSettings
+ */
+export type ServerSettings = Message<"nama.v1.ServerSettings"> & {
+  /**
+   * The address people reach the Server at, such as `https://nama.example.com`, which links to the
+   * web app in notifications start with. Empty, the default, for none: notifications have no links.
+   *
+   * @generated from field: string url = 1;
+   */
+  url: string;
+};
+
+/**
+ * Describes the message nama.v1.ServerSettings.
+ * Use `create(ServerSettingsSchema)` to create a new message.
+ */
+export const ServerSettingsSchema: GenMessage<ServerSettings> = /*@__PURE__*/
+  messageDesc(file_nama_v1_server, 6);
+
+/**
+ * Facts about a Server that any client can read, before signing in, and the Server's settings.
  *
  * @generated from service nama.v1.ServerService
  */
@@ -74,6 +162,27 @@ export const ServerService: GenService<{
     methodKind: "unary";
     input: typeof GetServerInfoRequestSchema;
     output: typeof GetServerInfoResponseSchema;
+  },
+  /**
+   * Returns the Server's settings. Needs `PERMISSION_MANAGE_SETTINGS`.
+   *
+   * @generated from rpc nama.v1.ServerService.GetServerSettings
+   */
+  getServerSettings: {
+    methodKind: "unary";
+    input: typeof GetServerSettingsRequestSchema;
+    output: typeof GetServerSettingsResponseSchema;
+  },
+  /**
+   * Replaces the Server's settings. Needs `PERMISSION_MANAGE_SETTINGS`. A `url` that isn't an http
+   * or https URL is refused with `REFUSAL_REASON_NOT_A_URL` naming it, and nothing changes.
+   *
+   * @generated from rpc nama.v1.ServerService.UpdateServerSettings
+   */
+  updateServerSettings: {
+    methodKind: "unary";
+    input: typeof UpdateServerSettingsRequestSchema;
+    output: typeof UpdateServerSettingsResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_nama_v1_server, 0);

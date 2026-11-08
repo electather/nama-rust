@@ -23,8 +23,9 @@ use nama_proto::nama::v1::{
     ApproveRequestRequest, CreateLibraryRequest, CreateRequestRequest, CreateUserRequest,
     EnablePluginRequest, GetRequestRequest, LibraryKind, LibraryServiceClient, ListPluginsRequest,
     Permission, Plugin, PluginServiceClient, Request, RequestServiceClient, RequestState,
-    ScanLibraryRequest, SessionDelivery, SetPermissionsRequest, SignInRequest, SignInServiceClient,
-    UpdatePluginSettingsRequest, UserServiceClient, setting_value::Value,
+    ScanLibraryRequest, ServerServiceClient, ServerSettings, SessionDelivery,
+    SetPermissionsRequest, SignInRequest, SignInServiceClient, UpdatePluginSettingsRequest,
+    UpdateServerSettingsRequest, UserServiceClient, setting_value::Value,
 };
 use nama_server::{config::Config, plugin_settings, plugins::Registry};
 use serde_json::{Value as Json, json};
@@ -105,6 +106,21 @@ impl Fixture {
             .update_plugin_settings(UpdatePluginSettingsRequest {
                 id: "telegram".to_owned(),
                 settings: settings.into_iter().collect(),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+    }
+
+    /// An Admin sets the Server URL to `url`.
+    async fn set_server_url(&self, url: &str) {
+        ServerServiceClient::new(HttpClient::plaintext(), self.server.client_config())
+            .update_server_settings(UpdateServerSettingsRequest {
+                settings: ServerSettings {
+                    url: url.to_owned(),
+                    ..Default::default()
+                }
+                .into(),
                 ..Default::default()
             })
             .await
@@ -263,7 +279,7 @@ fn to_channel(text: &str) -> Json {
 }
 
 #[tokio::test]
-async fn a_new_pending_request_is_posted_to_the_channel() {
+async fn a_new_pending_request_is_posted_to_the_channel_with_no_link_while_no_server_url_is_set() {
     let fixture = Fixture::with_telegram(BOT_TOKEN, Some(CHANNEL)).await;
 
     fixture.ada_asks_for(DUNE).await;
@@ -274,6 +290,23 @@ async fn a_new_pending_request_is_posted_to_the_channel() {
         [to_channel(
             "New Request: Dune (2021), from Ada, is Pending."
         )]
+    );
+}
+
+#[tokio::test]
+async fn with_a_server_url_set_a_message_links_to_the_request_in_the_web_app() {
+    let fixture = Fixture::with_telegram(BOT_TOKEN, Some(CHANNEL)).await;
+    fixture.set_server_url("https://nama.example.com/").await;
+
+    let dune = fixture.ada_asks_for(DUNE).await;
+
+    let sent = fixture.telegram.wait_for_messages(1).await;
+    let link = format!("https://nama.example.com/requests#request-{}", dune.id);
+    assert_eq!(
+        sent,
+        [to_channel(&format!(
+            "New Request: Dune (2021), from Ada, is Pending.\n{link}"
+        ))]
     );
 }
 

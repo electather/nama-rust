@@ -412,6 +412,7 @@ mod tests {
         events::{EventBus, Filter},
         libraries::{self, Kind, Libraries},
         plugins::Registry,
+        server_settings::ServerUrl,
     };
 
     /// How many events a [`Fixture`]'s subscribers may fall behind.
@@ -440,7 +441,7 @@ mod tests {
                 .create("Media", kind, vec![root.to_str().unwrap().to_owned()])
                 .await
                 .unwrap();
-            let events = EventBus::with_capacity(Registry::new(), BUFFERED);
+            let events = EventBus::with_capacity(Registry::new(), ServerUrl::default(), BUFFERED);
             Self {
                 scanner: Scanner::new(Arc::clone(&db), Registry::new(), events.clone()),
                 contents: Contents::new(db),

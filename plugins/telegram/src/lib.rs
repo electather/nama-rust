@@ -148,10 +148,19 @@ mod exports {
     }
 }
 
-/// What to post about `notification`, in the Glossary's words, or `None` for what the channel
-/// isn't told: download progress, which changes every minute, and a state this Plugin doesn't
-/// know.
+/// What to post about `notification`, in the Glossary's words, then the link to its Request if
+/// the Server gives one, or `None` for what the channel isn't told.
 fn message(notification: &Notification) -> Option<String> {
+    let text = what_happened(notification)?;
+    Some(match &notification.request_url {
+        Some(link) => format!("{text}\n{link}"),
+        None => text,
+    })
+}
+
+/// What happened, or `None` for what the channel isn't told: download progress, which changes
+/// every minute, and a state this Plugin doesn't know.
+fn what_happened(notification: &Notification) -> Option<String> {
     let request = notification.request.as_option()?;
     let title = title(request);
     let name = |user_id: i64| {
@@ -325,6 +334,30 @@ mod tests {
         let posted = notify(added, dune(RequestState::REQUEST_STATE_PENDING));
 
         assert_eq!(posted.as_deref(), Some("Ada also asked for Dune (2021)."));
+    }
+
+    #[test]
+    fn a_message_ends_with_the_link_to_the_request_the_server_gives() {
+        let notification = Notification {
+            event: Event {
+                event: Some(RequestCancelled::default().into()),
+                ..Event::default()
+            }
+            .into(),
+            request: dune(RequestState::REQUEST_STATE_PENDING).into(),
+            request_url: Some("https://nama.example.com/requests#request-7".to_owned()),
+            ..Notification::default()
+        };
+
+        let posted = message(&notification);
+
+        assert_eq!(
+            posted.as_deref(),
+            Some(
+                "The Request for Dune (2021) was cancelled.\n\
+                 https://nama.example.com/requests#request-7"
+            )
+        );
     }
 
     #[test]

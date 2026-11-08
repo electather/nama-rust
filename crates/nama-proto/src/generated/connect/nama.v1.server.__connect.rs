@@ -6,6 +6,22 @@ pub type OwnedGetServerInfoRequestView = ::buffa::view::OwnedView<
 pub type OwnedGetServerInfoResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::GetServerInfoResponseView<'static>,
 >;
+///Shorthand for `OwnedView<GetServerSettingsRequestView<'static>>`.
+pub type OwnedGetServerSettingsRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::GetServerSettingsRequestView<'static>,
+>;
+///Shorthand for `OwnedView<GetServerSettingsResponseView<'static>>`.
+pub type OwnedGetServerSettingsResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::GetServerSettingsResponseView<'static>,
+>;
+///Shorthand for `OwnedView<UpdateServerSettingsRequestView<'static>>`.
+pub type OwnedUpdateServerSettingsRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::UpdateServerSettingsRequestView<'static>,
+>;
+///Shorthand for `OwnedView<UpdateServerSettingsResponseView<'static>>`.
+pub type OwnedUpdateServerSettingsResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::UpdateServerSettingsResponseView<'static>,
+>;
 impl ::connectrpc::Encodable<crate::messages::nama::v1::GetServerInfoResponse>
 for crate::messages::nama::v1::__buffa::view::GetServerInfoResponseView<'_> {
     fn encode(
@@ -40,6 +56,74 @@ for ::buffa::view::OwnedView<
         )
     }
 }
+impl ::connectrpc::Encodable<crate::messages::nama::v1::GetServerSettingsResponse>
+for crate::messages::nama::v1::__buffa::view::GetServerSettingsResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::GetServerSettingsResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::GetServerSettingsResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::UpdateServerSettingsResponse>
+for crate::messages::nama::v1::__buffa::view::UpdateServerSettingsResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::UpdateServerSettingsResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::UpdateServerSettingsResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
 /// Full service name for this service.
 pub const SERVER_SERVICE_SERVICE_NAME: &str = "nama.v1.ServerService";
 /// Static [`Spec`](::connectrpc::Spec) for the `GetServerInfo` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
@@ -48,7 +132,19 @@ pub const SERVER_SERVICE_GET_SERVER_INFO_SPEC: ::connectrpc::Spec = ::connectrpc
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
-/// Facts about a Server that any client can read, before signing in.
+/// Static [`Spec`](::connectrpc::Spec) for the `GetServerSettings` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const SERVER_SERVICE_GET_SERVER_SETTINGS_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.ServerService/GetServerSettings",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
+/// Static [`Spec`](::connectrpc::Spec) for the `UpdateServerSettings` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const SERVER_SERVICE_UPDATE_SERVER_SETTINGS_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.ServerService/UpdateServerSettings",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
+/// Facts about a Server that any client can read, before signing in, and the Server's settings.
 ///
 /// # Implementing handlers
 ///
@@ -122,6 +218,53 @@ pub trait ServerService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
+    /// Returns the Server's settings. Needs `PERMISSION_MANAGE_SETTINGS`.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn get_server_settings<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::GetServerSettingsRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::GetServerSettingsResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Replaces the Server's settings. Needs `PERMISSION_MANAGE_SETTINGS`. A `url` that isn't an http
+    /// or https URL is refused with `REFUSAL_REASON_NOT_A_URL` naming it, and nothing changes.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn update_server_settings<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::UpdateServerSettingsRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::UpdateServerSettingsResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
 }
 /// Extension trait for registering a service implementation with a Router.
 ///
@@ -183,6 +326,64 @@ impl<S: ServerService> ServerServiceExt for S {
                 },
             )
             .with_spec(SERVER_SERVICE_GET_SERVER_INFO_SPEC)
+            .route_view_idempotent(
+                SERVER_SERVICE_SERVICE_NAME,
+                "GetServerSettings",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::GetServerSettingsRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::GetServerSettingsRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.get_server_settings(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::GetServerSettingsResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(SERVER_SERVICE_GET_SERVER_SETTINGS_SPEC)
+            .route_view(
+                SERVER_SERVICE_SERVICE_NAME,
+                "UpdateServerSettings",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::UpdateServerSettingsRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::UpdateServerSettingsRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.update_server_settings(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::UpdateServerSettingsResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(SERVER_SERVICE_UPDATE_SERVER_SETTINGS_SPEC)
     }
 }
 /// Type-inference marker used by [`Router::add_service`](::connectrpc::Router::add_service).
@@ -243,6 +444,18 @@ impl<T: ServerService> ::connectrpc::Dispatcher for ServerServiceServer<T> {
                         .with_spec(SERVER_SERVICE_GET_SERVER_INFO_SPEC),
                 )
             }
+            "GetServerSettings" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
+                        .with_spec(SERVER_SERVICE_GET_SERVER_SETTINGS_SPEC),
+                )
+            }
+            "UpdateServerSettings" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(SERVER_SERVICE_UPDATE_SERVER_SETTINGS_SPEC),
+                )
+            }
             _ => None,
         }
     }
@@ -277,6 +490,50 @@ impl<T: ServerService> ::connectrpc::Dispatcher for ServerServiceServer<T> {
                         .await?
                         .encode::<
                             crate::messages::nama::v1::GetServerInfoResponse,
+                        >(format)
+                })
+            }
+            "GetServerSettings" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::GetServerSettingsRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::GetServerSettingsRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::GetServerSettingsRequest,
+                    >::from_parts(&req, &body);
+                    svc.get_server_settings(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::GetServerSettingsResponse,
+                        >(format)
+                })
+            }
+            "UpdateServerSettings" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::UpdateServerSettingsRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::UpdateServerSettingsRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::UpdateServerSettingsRequest,
+                    >::from_parts(&req, &body);
+                    svc.update_server_settings(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::UpdateServerSettingsResponse,
                         >(format)
                 })
             }
@@ -447,6 +704,96 @@ where
                 &self.transport,
                 &self.config,
                 SERVER_SERVICE_GET_SERVER_INFO_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the GetServerSettings RPC. Sends a request to /nama.v1.ServerService/GetServerSettings.
+    pub async fn get_server_settings(
+        &self,
+        request: crate::messages::nama::v1::GetServerSettingsRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::GetServerSettingsResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.get_server_settings_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the GetServerSettings RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn get_server_settings_with_options(
+        &self,
+        request: crate::messages::nama::v1::GetServerSettingsRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::GetServerSettingsResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                SERVER_SERVICE_GET_SERVER_SETTINGS_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the UpdateServerSettings RPC. Sends a request to /nama.v1.ServerService/UpdateServerSettings.
+    pub async fn update_server_settings(
+        &self,
+        request: crate::messages::nama::v1::UpdateServerSettingsRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::UpdateServerSettingsResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.update_server_settings_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the UpdateServerSettings RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn update_server_settings_with_options(
+        &self,
+        request: crate::messages::nama::v1::UpdateServerSettingsRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::UpdateServerSettingsResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                SERVER_SERVICE_UPDATE_SERVER_SETTINGS_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,

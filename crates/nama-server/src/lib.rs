@@ -16,6 +16,7 @@ pub mod plugins;
 mod rate_limits;
 mod requests;
 mod scanner;
+mod server_settings;
 mod sessions;
 mod sign_in_codes;
 pub mod users;
@@ -36,6 +37,7 @@ use crate::{
     plugins::Registry,
     requests::{PROGRESS_EVERY, Requests},
     scanner::Scanner,
+    server_settings::ServerUrl,
     users::SetupCode,
 };
 
@@ -75,10 +77,21 @@ pub fn serve(
     setup_code: Option<SetupCode>,
     shutdown: impl Future<Output = ()> + Send + 'static,
 ) -> impl Future<Output = io::Result<()>> + Send + 'static {
-    let events = EventBus::new(plugins.clone());
+    let server_url = ServerUrl::default();
+    let events = EventBus::new(plugins.clone(), server_url.clone());
     let scanner = Scanner::new(Arc::clone(&db), plugins.clone(), events.clone());
     let matcher = Matcher::new(Arc::clone(&db), plugins.clone(), events.clone());
     let requests = Requests::new(Arc::clone(&db), matcher, events.clone(), plugins.clone());
+    let load_server_url = {
+        let (server_url, db) = (server_url.clone(), Arc::clone(&db));
+        async move {
+            if let Err(err) = server_url.load(&db).await {
+                tracing::error!(
+                    "reading the Server URL failed, so notifications have no links: {err}"
+                );
+            }
+        }
+    };
     let (app, saving_crashed) = api::router(
         config,
         db,
@@ -86,11 +99,14 @@ pub fn serve(
         scanner.clone(),
         events.clone(),
         requests.clone(),
+        server_url,
         setup_code,
     );
     #[cfg(feature = "web")]
     let app = app.layer(axum::middleware::from_fn(web::serve));
     async move {
+        // Before anything can publish an event, so that no notification misses its link.
+        load_server_url.await;
         let saving_crashed = tokio::spawn(saving_crashed);
         scanner.start_all().await;
         // In the background, so a slow Fulfiller doesn't hold up serving.

@@ -1,25 +1,33 @@
 import { createQueryOptions } from "@connectrpc/connect-query";
-import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 
-import { useSensitiveMutation } from "@/components/confirm-its-you";
+import { ChangePassword } from "@/components/change-password";
 import { DeviceList } from "@/components/device-list";
-import { FormEnd, FormField } from "@/components/form-field";
 import { Page } from "@/components/page";
+import { ServerUrl } from "@/components/server-url";
+import { ServerService } from "@/gen/nama/v1/server_pb";
+import { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { UserService } from "@/gen/nama/v1/user_pb";
-import { formText, onSubmitted } from "@/lib/forms";
-import { changePasswordErrors, devicesKey } from "@/lib/users";
+import { may } from "@/lib/permissions";
 
 export const Route = createFileRoute("/_member/settings")({
-  loader: ({ context: { queryClient, transport } }) =>
-    queryClient.query({
-      ...createQueryOptions(UserService.method.listDevices, {}, { transport }),
-      staleTime: "static",
-    }),
+  loader: ({ context: { queryClient, transport, signedIn } }) =>
+    Promise.all([
+      queryClient.query({
+        ...createQueryOptions(UserService.method.listDevices, {}, { transport }),
+        staleTime: "static",
+      }),
+      may(signedIn.user, Permission.MANAGE_SETTINGS) &&
+        queryClient.query({
+          ...createQueryOptions(ServerService.method.getServerSettings, {}, { transport }),
+          staleTime: "static",
+        }),
+    ]),
   component: Settings,
 });
 
 function Settings() {
+  const { signedIn } = Route.useRouteContext();
   return (
     <Page heading="Settings">
       <section aria-labelledby="password" className="mt-10 max-w-sm">
@@ -39,47 +47,14 @@ function Settings() {
           <DeviceList />
         </div>
       </section>
+      {may(signedIn.user, Permission.MANAGE_SETTINGS) && (
+        <section aria-labelledby="server" className="mt-12 max-w-md">
+          <h2 id="server" className="font-medium">
+            Server
+          </h2>
+          <ServerUrl />
+        </section>
+      )}
     </Page>
-  );
-}
-
-function ChangePassword() {
-  const queryClient = useQueryClient();
-  const change = useSensitiveMutation(UserService.method.changePassword, {
-    // The Server signed out every other Device.
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: devicesKey }),
-  });
-  const errors = change.error ? changePasswordErrors(change.error) : {};
-
-  return (
-    <form
-      className="mt-4 flex flex-col gap-5"
-      onSubmit={onSubmitted((typed, form) => {
-        change.mutate(
-          { newPassword: formText(typed, "newPassword") },
-          {
-            onSuccess: () => {
-              form.reset();
-            },
-          },
-        );
-      })}
-    >
-      <FormField
-        label="New password"
-        name="newPassword"
-        type="password"
-        autoComplete="new-password"
-        error={errors.newPassword}
-      />
-      <FormEnd
-        action={change.isPending ? "Changing password…" : "Change password"}
-        pending={change.isPending}
-        done={
-          change.isSuccess ? "Password changed. Your other Devices were signed out." : undefined
-        }
-        refusal={errors.form}
-      />
-    </form>
   );
 }

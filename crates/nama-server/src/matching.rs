@@ -683,6 +683,7 @@ mod tests {
         libraries::{Kind, Libraries},
         plugins::Registry,
         scanner::Scanner,
+        server_settings::ServerUrl,
     };
 
     /// A Movies Library and a Shows Library in scratch folders, a scanner, and a fake TMDB.
@@ -744,7 +745,7 @@ mod tests {
             let movies = create("Movies", Kind::Movies).await;
             let shows = create("Shows", Kind::Shows).await;
             let plugins = Registry::new();
-            let events = EventBus::new(Registry::new());
+            let events = EventBus::new(Registry::new(), ServerUrl::default());
             Self {
                 scanner: Scanner::new(Arc::clone(&db), plugins.clone(), events.clone()),
                 matcher: Matcher::new(Arc::clone(&db), plugins.clone(), events.clone()),

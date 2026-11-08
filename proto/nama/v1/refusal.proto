@@ -173,4 +173,7 @@ enum RefusalReason {
   // another Nama API version, so it can't be enabled. The message says why. Params: `pluginId`,
   // `reason` (in plain words, as `Plugin.refused_reason`).
   REFUSAL_REASON_PLUGIN_REFUSED = 52;
+
+  // `invalid_argument`: the field isn't an http or https URL with a host.
+  REFUSAL_REASON_NOT_A_URL = 53;
 }

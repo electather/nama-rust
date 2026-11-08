@@ -151,7 +151,10 @@ function RequestRow({ request }: { request: Request | FollowedShow }) {
   const { signedIn } = Route.useRouteContext();
   return (
     // Wraps so the downloads and the actions get lines of their own, the full width of the row.
-    <li className="flex min-h-16 flex-wrap items-center gap-x-3 border-b py-3 last:border-b-0">
+    <li
+      id={anchorOf(request)}
+      className="flex min-h-16 flex-wrap items-center gap-x-3 border-b py-3 last:border-b-0"
+    >
       <div className="min-w-0 flex-1">
         <p className="truncate font-medium">{titleOf(request)}</p>
         <p className="text-sm text-muted-foreground">{aboutRequest(request, signedIn.user?.id)}</p>
@@ -166,6 +169,11 @@ function RequestRow({ request }: { request: Request | FollowedShow }) {
       />
     </li>
   );
+}
+
+/** Where a Notifier's link to a Request lands (`ServerUrl::request_link` on the Server). */
+function anchorOf(request: Request | FollowedShow) {
+  return request.$typeName === "nama.v1.Request" ? `request-${request.id}` : undefined;
 }
 
 /**
