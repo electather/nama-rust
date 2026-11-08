@@ -2,7 +2,8 @@
   "_id": "5ef3a0c1e8e2e7003520c1a4",
   "air_date": "2020-06-27",
   "episodes": [
-    {"air_date": "2020-06-27", "episode_number": 1, "episode_type": "standard", "id": 2245560, "name": "Deja-vu", "overview": "Jonas finds himself in a world where he was never born.", "production_code": "", "runtime": 61, "season_number": 3, "show_id": 70523, "still_path": null, "vote_average": 8.1, "vote_count": 70}
+    {"air_date": "2020-06-27", "episode_number": 1, "episode_type": "standard", "id": 2245560, "name": "Deja-vu", "overview": "Jonas finds himself in a world where he was never born.", "production_code": "", "runtime": 61, "season_number": 3, "show_id": 70523, "still_path": null, "vote_average": 8.1, "vote_count": 70},
+    {"air_date": "2099-06-27", "episode_number": 2, "episode_type": "standard", "id": 2245561, "name": "The Survivors", "overview": "", "production_code": "", "runtime": null, "season_number": 3, "show_id": 70523, "still_path": null, "vote_average": 0.0, "vote_count": 0}
   ],
   "name": "Season 3",
   "overview": "",

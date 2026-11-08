@@ -2,7 +2,8 @@
 //! Matching decided about each Item, and the Matches an admin pinned.
 //!
 //! [`Contents`] owns the tables (see the crate's `AGENTS.md`); each method is one read or one write.
-//! A write that stores Matches also makes the Matched Movies' Requests Available (ADR 0012).
+//! A write that stores Matches also makes the Matched Movies' and Seasons' Requests Available, or
+//! Partially Available (ADR 0012).
 
 use std::{
     borrow::Cow,
@@ -12,7 +13,7 @@ use std::{
 
 use nama_plugin_api::{
     PluginId,
-    metadata::{ExternalId, ExternalIds, TitleKind},
+    metadata::{self, ExternalId, ExternalIds, TitleKind},
 };
 use nama_proto::nama::v1::{Event, LibraryItemAdded, LibraryItemRemoved};
 use sqlx::SqliteConnection;
@@ -115,6 +116,25 @@ pub(crate) enum Change {
 pub(crate) enum Decided {
     Matched(Box<Metadata>),
     Unmatched,
+}
+
+/// What Matching decided about some Items, as one write stores it.
+#[derive(Debug, Default)]
+pub(crate) struct Decisions {
+    /// Each Item, with what was decided about it.
+    pub(crate) items: Vec<(i64, Decided)>,
+    /// The Seasons fetched to decide about Episodes, as the metadata source gave them, with their
+    /// Show's TMDB id. Their Requests follow how much of them a Library has.
+    pub(crate) seasons: Vec<(i64, metadata::Season)>,
+}
+
+impl From<Vec<(i64, Decided)>> for Decisions {
+    fn from(items: Vec<(i64, Decided)>) -> Self {
+        Self {
+            items,
+            seasons: Vec::new(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -321,11 +341,12 @@ impl Contents {
     }
 
     /// Stores what was `decided` about each Item, as of now, skipping Items that no longer exist.
-    /// Returns the events for the Requests the Matches make Available.
+    /// Returns the events for the Requests the Matches make Available or Partially Available.
     pub(crate) async fn record(
         &self,
-        decided: Vec<(i64, Decided)>,
+        decided: impl Into<Decisions>,
     ) -> Result<Vec<Event>, sqlx::Error> {
+        let decided = decided.into();
         let now = now();
         self.db
             .write(move |tx| Box::pin(insert_decisions(tx, decided, now)))
@@ -663,15 +684,16 @@ impl Contents {
     }
 
     /// Replaces any pin the Items called `name` had, in one write with `decided`. Returns the
-    /// events for the Requests the Matches make Available, or `None`, having stored nothing, if
-    /// the Library is gone.
+    /// events for the Requests the Matches make Available or Partially Available, or `None`,
+    /// having stored nothing, if the Library is gone.
     pub(crate) async fn pin(
         &self,
         library: i64,
         name: Name,
         pin: Pin,
-        decided: Vec<(i64, Decided)>,
+        decided: impl Into<Decisions>,
     ) -> Result<Option<Vec<Event>>, sqlx::Error> {
+        let decided = decided.into();
         self.db
             .write(move |tx| Box::pin(store_pin(tx, library, name, pin, decided)))
             .await
@@ -879,7 +901,7 @@ async fn store_pin(
     library: i64,
     name: Name,
     pin: Pin,
-    decided: Vec<(i64, Decided)>,
+    decided: Decisions,
 ) -> Result<Option<Vec<Event>>, sqlx::Error> {
     let now = now();
     if !insert_pin(conn, library, &name, &pin, now).await? {
@@ -919,15 +941,15 @@ async fn insert_pin(
     Ok(inserted.rows_affected() > 0)
 }
 
-/// Returns the events for the Requests the Matches make Available, made in the same write so no
-/// Request stays open for a Movie a Library has.
+/// Returns the events for the Requests the Matches make Available or Partially Available, made in
+/// the same write so no Request stays open for a Movie or Season a Library has.
 async fn insert_decisions(
     conn: &mut SqliteConnection,
-    decided: Vec<(i64, Decided)>,
+    decided: Decisions,
     now: i64,
 ) -> Result<Vec<Event>, sqlx::Error> {
     let mut tmdb_ids = Vec::new();
-    for (item, decision) in decided {
+    for (item, decision) in decided.items {
         if let Decided::Matched(metadata) = &decision {
             tmdb_ids.extend(metadata.ids.tmdb);
         }
@@ -962,7 +984,9 @@ async fn insert_decisions(
         .execute(&mut *conn)
         .await?;
     }
-    requests::make_available(conn, tmdb_ids).await
+    let mut happened = requests::make_available(conn, tmdb_ids).await?;
+    happened.extend(requests::make_seasons_available(conn, decided.seasons).await?);
+    Ok(happened)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, sqlx::Type)]
@@ -1387,7 +1411,11 @@ mod tests {
 
         let recorded = fx
             .contents
-            .record(read.iter().map(|&id| (id, Decided::Unmatched)).collect())
+            .record(
+                read.iter()
+                    .map(|&id| (id, Decided::Unmatched))
+                    .collect::<Vec<_>>(),
+            )
             .await;
 
         assert!(recorded.is_ok(), "{recorded:?}");
