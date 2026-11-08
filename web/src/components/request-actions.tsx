@@ -81,7 +81,7 @@ function Approve({ id, title }: Target) {
       name={`Approve ${title}`}
       change={approve}
       id={id}
-      whyRefused={(error) => changeRefusal(error, title, "approve this Request")}
+      refusal={(error) => changeRefusal(error, title, "approve this Request")}
     />
   );
 }
@@ -95,7 +95,7 @@ function Withdraw({ id, title }: Target) {
       name={`Withdraw from ${title}`}
       change={withdraw}
       id={id}
-      whyRefused={(error) => changeRefusal(error, title, "withdraw from this Request")}
+      refusal={(error) => changeRefusal(error, title, "withdraw from this Request")}
     />
   );
 }
@@ -112,11 +112,11 @@ interface ChangeButtonProps {
     error: unknown;
   };
   id: bigint;
-  whyRefused: (error: unknown) => string | undefined;
+  refusal: (error: unknown) => string | undefined;
 }
 
 /** A button that changes a Request at once, and says why if the Server refuses. */
-function ChangeButton({ action, name, change, id, whyRefused }: ChangeButtonProps) {
+function ChangeButton({ action, name, change, id, refusal: whyRefused }: ChangeButtonProps) {
   return (
     <>
       <Button
