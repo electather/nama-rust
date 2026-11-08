@@ -37,8 +37,8 @@ const DUNE: i64 = 438_631;
 /// The channel the Telegram Plugin posts to.
 const CHANNEL: &str = "@nama_requests";
 
-/// A Server with the TMDB Plugin enabled against a fake TMDB, beside a fake Telegram, and a
-/// member, Ada, whose Requests are Pending.
+/// A Server with the TMDB Plugin enabled against a fake TMDB, beside a fake Telegram, and a User,
+/// Ada, whose Requests are Pending.
 struct Fixture {
     server: TestServer,
     telegram: FakeTelegram,
@@ -66,7 +66,7 @@ impl Fixture {
         plugin_settings::import(&db, &BTreeMap::new())
             .await
             .unwrap();
-        let ada = member(&server, "Ada").await;
+        let ada = user(&server, "Ada").await;
         let fixture = Self {
             server,
             telegram: FakeTelegram::start().await,
@@ -212,7 +212,7 @@ impl Fixture {
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
-async fn member(server: &TestServer, name: &str) -> ClientConfig {
+async fn user(server: &TestServer, name: &str) -> ClientConfig {
     let as_admin = UserServiceClient::new(HttpClient::plaintext(), server.client_config());
     let id = as_admin
         .create_user(CreateUserRequest {

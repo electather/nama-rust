@@ -84,9 +84,13 @@ mod exports {
     impl Notifier for Telegram {
         fn deliver(notification: Notification, recipient: Recipient) -> Result<(), Error> {
             let Recipient::Channel(_) = recipient;
-            let channel = config::get(CHANNEL)?.filter(|channel| !channel.trim().is_empty());
+            let channel = config::get(CHANNEL)?;
+            let channel = channel
+                .as_deref()
+                .map(str::trim)
+                .filter(|channel| !channel.is_empty());
             match (channel, super::message(&notification)) {
-                (Some(channel), Some(text)) => send_message(&channel, &text),
+                (Some(channel), Some(text)) => send_message(channel, &text),
                 _ => Ok(()),
             }
         }
