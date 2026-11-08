@@ -107,7 +107,7 @@ mod exports {
                 Error::msg("Sonarr needs the Show's TVDB id, and none is known for it")
             })?;
             let season_number = request.season.season_number;
-            let reference = format!("{tvdb_id}/{season_number}");
+            let reference = season_reference(tvdb_id, season_number);
             let sonarr = Sonarr::from_config()?;
             let id = match sonarr.find(tvdb_id)? {
                 Some(id) => id,
@@ -448,10 +448,9 @@ mod exports {
     impl QueueEntry {
         /// The reference `fulfill` gave its Season.
         fn reference(&self) -> Option<String> {
-            Some(format!(
-                "{}/{}",
+            Some(season_reference(
                 self.series.as_ref()?.tvdb_id,
-                self.season_number?
+                self.season_number?,
             ))
         }
 
@@ -520,6 +519,11 @@ mod exports {
         fn size_bytes(&self) -> Option<u64> {
             (self.size > 0.0).then_some(self.size as u64)
         }
+    }
+
+    /// The reference `fulfill` gives the Season `season_number` of the Show `tvdb_id`.
+    fn season_reference(tvdb_id: i64, season_number: u32) -> String {
+        format!("{tvdb_id}/{season_number}")
     }
 
     /// The seconds in a .NET `TimeSpan` such as `1.02:03:04`, dropping any fraction of a second.
