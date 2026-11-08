@@ -290,15 +290,18 @@ impl Requests {
         };
         let state = opening_state(asker, Permission::AutoApproveTv);
         let user = asker.id;
-        let (requests, happened) = self
-            .db
-            .write(move |tx| Box::pin(ask_seasons(tx, user, wanted, state)))
-            .await?;
-        let opened: HashSet<i64> = happened.iter().filter_map(opened_request_id).collect();
-        self.events.publish(happened);
         let this = self.clone();
-        // Detached as a whole, so a caller that stops waiting leaves no Season Approved behind.
-        detached(async move { this.hand_off_opened(requests, &opened).await }).await
+        // The write too, so a caller that stops waiting leaves no Season Approved behind.
+        detached(async move {
+            let (requests, happened) = this
+                .db
+                .write(move |tx| Box::pin(ask_seasons(tx, user, wanted, state)))
+                .await?;
+            let opened: HashSet<i64> = happened.iter().filter_map(opened_request_id).collect();
+            this.events.publish(happened);
+            this.hand_off_opened(requests, &opened).await
+        })
+        .await
     }
 
     /// Each of `requests`, handed off first if it is Approved and its id is in `opened`, as it is
