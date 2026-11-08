@@ -56,6 +56,9 @@ jobs:
           # nama-rust) because rust-cache joins it onto the workspace root.
           # ponytail: tied to the checkout's depth; fix the runner's work directory to drop it.
           workspaces: . -> ../../../../home/runner/target
+          # rust-cache's key leaves out the root Cargo.toml's [profile]s, so a profile change
+          # restored builds made with the old one, rebuilt every dependency and never saved them.
+          key: ${{ hashFiles('Cargo.toml') }}
       - run: cargo fmt --all --check
       - uses: bufbuild/buf-action@v1
         with:
@@ -205,6 +208,9 @@ jobs:
           # nama-rust) because rust-cache joins it onto the workspace root.
           # ponytail: tied to the checkout's depth; fix the runner's work directory to drop it.
           workspaces: . -> ../../../../home/runner/target
+          # rust-cache's key leaves out the root Cargo.toml's [profile]s, so a profile change
+          # restored builds made with the old one, rebuilt every dependency and never saved them.
+          key: ${{ hashFiles('Cargo.toml') }}
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       # The test Plugin and the bundled ones for wasm32, as Installed Plugins are built: with
       # nama-pdk, and nama-proto's messages without its ConnectRPC stubs.
