@@ -4,3 +4,5 @@
 # from the home directory's.
 /.pnpm-store
 /nama.toml
+# TokenEconomizer tool pruning writes its deny list here; agents must not commit it
+/.claude/settings.local.json

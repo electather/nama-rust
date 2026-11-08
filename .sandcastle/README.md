@@ -16,6 +16,27 @@ Agents are Claude Code (`claude-opus-5-5`, effort `high`) in Docker. Their skill
 
     npx skills add DietrichGebert/ponytail --skill ponytail -g
 
+### TokenEconomizer (optional, per machine)
+
+[TokenEconomizer](https://github.com/microsoft/TokenEconomizer) learns from each agent session in this repo (repo facts, unused tools, stuck turns) to make later sessions cheaper. The factory runs it in every sandbox when the clone is on the machine; without it, or with `TE=off`, the factory runs as before. Set it up on each factory machine:
+
+    git clone https://github.com/microsoft/TokenEconomizer.git ~/Code/TokenEconomizer   # or anywhere, with TE_CLONE=<path>
+
+That's all the factory needs: no image rebuild, no `claude plugin install` (that's only for your own sessions on the machine). The factory mounts three things into each sandbox: the clone (read-only, run from there, so `git pull` in it takes effect at the next sandbox), a state folder, and `claude-settings.json` as the container's `~/.claude/settings.json` (the plugin's hooks with the mounted path). The hooks need the base image's `python3`, so keep `node:26-bookworm`, not `-slim`.
+
+Where it learns, each machine apart (nothing syncs between machines):
+
+- **Native Linux** (Docker or Podman): `~/.tokeneconomizer`, the same state your own sessions on the machine use, so they learn together. Safe because host and containers share one kernel, so TokenEconomizer's `flock` excludes both.
+- **macOS, or Docker Desktop / OrbStack anywhere**: `~/.cache/nama-sandcastle/tokeneconomizer`, the factory's own. Containers run in a VM there and can't see the host's `flock` over the file share, so a shared state would corrupt when a host session and a sandbox wrote at once. Sandboxes still exclude each other.
+
+Check it after a run (on Linux drop the `TOKENECONOMIZER_HOME=` prefix; `sessions` should count the factory's runs):
+
+    TOKENECONOMIZER_HOME=~/.cache/nama-sandcastle/tokeneconomizer ~/Code/TokenEconomizer/plugin/scripts/te --cwd . status
+
+Settings live in that state folder, per repo, so on macOS the factory's are separate from yours. Micro-skills (learned facts) start off; turn them on with the same prefix and `config set microskills=on` (it calls a model every 3 sessions, charged to the run; `microskills=envfacts` learns without one).
+
+Tool pruning writes its deny list to the worktree's `.claude/settings.local.json`, which `.gitignore` keeps out of commits.
+
 Restore the project skills after a clone, or update them, from the repo root:
 
     npx skills experimental_install

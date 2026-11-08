@@ -1,3 +1,4 @@
+# Not -slim: the TokenEconomizer hooks need the base image's python3 (3.10+) and say nothing if it's missing.
 FROM node:26-bookworm
 
 RUN apt-get update && apt-get install -y \

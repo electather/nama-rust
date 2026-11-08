@@ -1,0 +1,10 @@
+{
+  "hooks": {
+    "SessionStart": [{ "hooks": [{ "type": "command", "command": "/home/agent/tokeneconomizer/plugin/scripts/te-hook", "timeout": 15 }] }],
+    "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "/home/agent/tokeneconomizer/plugin/scripts/te-hook", "timeout": 20 }] }],
+    "PostToolUse": [{ "hooks": [{ "type": "command", "command": "/home/agent/tokeneconomizer/plugin/scripts/te-hook", "timeout": 60 }] }],
+    "PostToolUseFailure": [{ "hooks": [{ "type": "command", "command": "/home/agent/tokeneconomizer/plugin/scripts/te-hook", "timeout": 60 }] }],
+    "Stop": [{ "hooks": [{ "type": "command", "command": "/home/agent/tokeneconomizer/plugin/scripts/te-hook", "timeout": 10 }] }],
+    "SessionEnd": [{ "hooks": [{ "type": "command", "command": "/home/agent/tokeneconomizer/plugin/scripts/te-hook", "timeout": 10 }] }]
+  }
+}
