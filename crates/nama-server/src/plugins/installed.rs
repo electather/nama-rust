@@ -4,7 +4,7 @@
 
 use std::{
     collections::BTreeMap,
-    fs, io,
+    fs, io, panic,
     path::{Path, PathBuf},
     sync::Arc,
     time::Duration,
@@ -62,8 +62,8 @@ enum Refused {
     OutOfRange { wants: String },
     #[error("its setting {key} is of a kind this Server doesn't know")]
     UnknownSettingKind { key: String },
-    #[error("its id {0} is a Built-in Plugin's")]
-    BuiltinId(PluginId),
+    #[error("its id {0} is another Plugin's")]
+    IdTaken(PluginId),
 }
 
 /// An Installed Plugin, compiled once. Each call into it gets a fresh instance, so one that traps
@@ -96,7 +96,7 @@ impl Plugin for Installed {
         self.settings_schema.clone()
     }
 
-    // shortcut: the Plugin isn't handed its settings; pass them in once one needs them (#185).
+    // ponytail: the Plugin isn't handed its settings; pass them in once one needs them (#185).
     fn register(&self, registrar: &mut Registrar) {
         // An Extension Point this Server doesn't know is one the Plugin can do without, since its
         // nama-api requirement admits this Server.
@@ -125,6 +125,8 @@ impl Observer<Events> for Installed {
                 Ok(Err(err)) => {
                     warn!(plugin = %self.manifest.id, "observer failed: {}", err.root_cause());
                 }
+                // So the registry disables the Plugin, as it does one whose Rust code panics.
+                Err(err) if err.is_panic() => panic::resume_unwind(err.into_panic()),
                 Err(err) => warn!(plugin = %self.manifest.id, "observer failed: {err}"),
             }
         })
@@ -139,14 +141,14 @@ impl Registry {
     /// Blocks while it compiles each Plugin. wasmtime caches what it compiles under
     /// `<data_dir>/wasmtime/`, not in the home directory.
     pub fn read_installed(&self, data_dir: &Path) {
-        self.list_installed(read_dir(data_dir));
+        self.list_installed(read_plugins_dir(data_dir));
     }
 
     /// As [`Registry::read_installed`], at start: logs each Installed Plugin's id and version, or
     /// why the Server refused it, and enables those `config` says are enabled. Installed Plugins
     /// start disabled, so one `config` doesn't name stays disabled.
     pub fn load_installed(&self, data_dir: &Path, config: &BTreeMap<String, PluginConfig>) {
-        let found = read_dir(data_dir);
+        let found = read_plugins_dir(data_dir);
         for (file, plugin) in &found {
             match plugin {
                 Ok(plugin) => info!(
@@ -179,16 +181,20 @@ impl Registry {
     /// Lists the Installed Plugins `found` in place of those listed before, keeping any that is
     /// enabled.
     fn list_installed(&self, found: Vec<(PathBuf, Result<Installed, Refused>)>) {
-        let builtins: Vec<PluginId> = self.read(|state| {
+        let mut taken: Vec<PluginId> = self.read(|state| {
             let builtin = |(id, known): (&PluginId, &Described)| {
                 (known.kind == PluginKind::PLUGIN_KIND_BUILT_IN).then(|| id.clone())
             };
             state.known.iter().filter_map(builtin).collect()
         });
-        let described: Vec<_> = found
-            .into_iter()
-            .map(|(file, plugin)| describe(&file, plugin, &builtins))
-            .collect();
+        let mut described = Vec::new();
+        for (file, plugin) in found {
+            let (id, plugin) = describe(&file, plugin, &taken);
+            if plugin.make.is_ok() {
+                taken.push(id.clone());
+            }
+            described.push((id, plugin));
+        }
         self.write(|state| {
             let enabled = &state.plugins;
             state.known.retain(|id, known| {
@@ -200,14 +206,14 @@ impl Registry {
 }
 
 /// The Installed Plugin in `file` as the registry lists it: by its id, or by the file's name if
-/// the Server refused it, since it may not know the id. One whose id is in `builtins` is refused.
+/// the Server refused it, since it may not know the id. One whose id is `taken` is refused.
 fn describe(
     file: &Path,
     plugin: Result<Installed, Refused>,
-    builtins: &[PluginId],
+    taken: &[PluginId],
 ) -> (PluginId, Described) {
     let plugin = plugin.and_then(|plugin| match plugin.id() {
-        id if builtins.contains(&id) => Err(Refused::BuiltinId(id)),
+        id if taken.contains(&id) => Err(Refused::IdTaken(id)),
         _ => Ok(plugin),
     });
     match plugin {
@@ -238,7 +244,7 @@ fn describe(
 
 /// Each `.wasm` file in `<data_dir>/plugins/`, in name order, with its Plugin or why the Server
 /// refused it. Logs why it read none, if it couldn't.
-fn read_dir(data_dir: &Path) -> Vec<(PathBuf, Result<Installed, Refused>)> {
+fn read_plugins_dir(data_dir: &Path) -> Vec<(PathBuf, Result<Installed, Refused>)> {
     let dir = data_dir.join("plugins");
     let files = match wasm_files(&dir) {
         Ok(files) if files.is_empty() => return Vec::new(),
@@ -350,7 +356,6 @@ fn check_nama_api(wants: &str) -> Result<(), Refused> {
     }
 }
 
-/// The settings schema `manifest` declares.
 fn settings_schema(manifest: &Manifest) -> Result<SettingsSchema, Refused> {
     let fields = manifest
         .settings
@@ -387,4 +392,57 @@ fn settings_schema(manifest: &Manifest) -> Result<SettingsSchema, Refused> {
         })
         .collect::<Result<_, _>>()?;
     Ok(SettingsSchema { fields })
+}
+
+#[cfg(test)]
+mod tests {
+    use nama_plugin_api::settings::{SettingField, SettingKind, SettingValue};
+    use nama_proto::nama::plugin::v1::{self as wire, Manifest, setting_value};
+
+    use super::settings_schema;
+
+    fn manifest(kind: wire::SettingKind) -> Manifest {
+        let field = wire::SettingField {
+            key: "api_key".to_owned(),
+            label: "API key".to_owned(),
+            description: "The key.".to_owned(),
+            kind: kind.into(),
+            required: true,
+            default_value: wire::SettingValue {
+                value: Some(setting_value::Value::Text("none".to_owned())),
+                ..Default::default()
+            }
+            .into(),
+            ..Default::default()
+        };
+        Manifest {
+            settings: vec![field],
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn a_manifests_settings_become_its_settings_schema() {
+        let schema = settings_schema(&manifest(wire::SettingKind::SETTING_KIND_SECRET)).ok();
+
+        let expected = SettingField {
+            key: "api_key".to_owned(),
+            label: "API key".to_owned(),
+            description: "The key.".to_owned(),
+            kind: SettingKind::Secret,
+            required: true,
+            default: Some(SettingValue::Text("none".to_owned())),
+        };
+        assert_eq!(schema.map(|schema| schema.fields), Some(vec![expected]));
+    }
+
+    #[test]
+    fn a_setting_of_no_known_kind_refuses_the_plugin() {
+        let refused = settings_schema(&manifest(wire::SettingKind::SETTING_KIND_UNSPECIFIED));
+
+        assert_eq!(
+            refused.err().map(|refused| refused.to_string()),
+            Some("its setting api_key is of a kind this Server doesn't know".to_owned())
+        );
+    }
 }

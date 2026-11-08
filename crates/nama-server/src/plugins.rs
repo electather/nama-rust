@@ -48,7 +48,6 @@ struct State {
     known: BTreeMap<PluginId, Described>,
 }
 
-/// Makes a Plugin anew.
 type Make = Arc<dyn Fn() -> Arc<dyn Plugin> + Send + Sync>;
 
 /// A Plugin the Server has, with what it said about itself when the Server read it, so listing

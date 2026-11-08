@@ -247,4 +247,33 @@ async fn a_refused_plugin_is_listed_with_why_and_enabling_it_is_refused() {
     assert_eq!(refusal.field, "id");
     assert_eq!(refusal.params["pluginId"], "out-of-range.wasm");
     assert!(!started.listed("out-of-range.wasm").await.unwrap().enabled);
+    let update = UpdatePluginSettingsRequest {
+        id: "out-of-range.wasm".to_owned(),
+        ..Default::default()
+    };
+    assert_refused(
+        started.client().update_plugin_settings(update).await,
+        ErrorCode::FailedPrecondition,
+        RefusalReason::REFUSAL_REASON_PLUGIN_REFUSED,
+    );
+    assert_eq!(
+        plugin_settings::stored(&started.db).await.unwrap(),
+        Some(BTreeMap::new())
+    );
+}
+
+#[tokio::test]
+async fn a_second_file_with_a_plugins_id_is_refused() {
+    let started = Started::new().await;
+
+    started.drop_in("a.wasm", "");
+    started.drop_in("b.wasm", "");
+
+    let first = started.listed("test-plugin").await.unwrap();
+    assert_eq!(first.refused_reason, "");
+    let second = started.listed("b.wasm").await.unwrap();
+    assert_eq!(
+        second.refused_reason,
+        "its id test-plugin is another Plugin's"
+    );
 }

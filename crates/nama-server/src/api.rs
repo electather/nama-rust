@@ -2037,12 +2037,15 @@ impl PluginService for PluginServiceHandler {
     ) -> ServiceResult<ListPluginsResponse> {
         let registry = self.plugins.clone();
         let data_dir = self.data_dir.clone();
+        // Under `changing`, so a Plugin being enabled can't lose its listing halfway.
+        let changing = self.changing.lock().await;
         tokio::task::spawn_blocking(move || registry.read_installed(&data_dir))
             .await
             .map_err(|err| {
                 tracing::error!("reading the Installed Plugins failed: {err}");
                 ConnectError::internal("the Server failed")
             })?;
+        drop(changing);
         let stored = plugin_settings::stored(&self.db)
             .await
             .map_err(database_failed)?
@@ -2194,13 +2197,23 @@ impl PluginService for PluginServiceHandler {
 }
 
 impl PluginServiceHandler {
-    /// The Plugin `id`, or the refusal of a call naming one no Plugin has.
+    /// The Plugin `id`, or the refusal of a call naming one no Plugin has or one the Server
+    /// refused.
     fn listed(&self, id: &PluginId) -> Result<Listed, ConnectError> {
-        self.plugins
+        let plugin = self
+            .plugins
             .plugins()
             .into_iter()
             .find(|plugin| plugin.id == *id)
-            .ok_or_else(|| plugin_not_found(id))
+            .ok_or_else(|| plugin_not_found(id))?;
+        match plugin.refused_reason {
+            Some(reason) => Err(EnableError::Refused {
+                plugin: plugin.id,
+                reason,
+            }
+            .into()),
+            None => Ok(plugin),
+        }
     }
 
     /// Refuses `settings` for `plugin` unless its settings check passes on them and offers each

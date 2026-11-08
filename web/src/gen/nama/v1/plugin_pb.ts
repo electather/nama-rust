@@ -508,7 +508,9 @@ export const SettingKindSchema: GenEnum<SettingKind> = /*@__PURE__*/
 
 /**
  * The Server's Plugins and their settings. Needs `PERMISSION_MANAGE_SETTINGS`, and fails with
- * `permission_denied` without it. A secret setting's value never leaves the Server.
+ * `permission_denied` without it. A secret setting's value never leaves the Server. Every call
+ * naming a Plugin the Server refused (see `Plugin.refused_reason`) fails with
+ * `REFUSAL_REASON_PLUGIN_REFUSED`.
  *
  * @generated from service nama.v1.PluginService
  */
@@ -540,8 +542,7 @@ export const PluginService: GenService<{
   },
   /**
    * Enables a Plugin with its stored settings, without a restart, and saves that it is enabled.
-   * Enabling one that is enabled already only saves that. A Plugin the Server refused (see
-   * `Plugin.refused_reason`) fails with `REFUSAL_REASON_PLUGIN_REFUSED`. If its stored settings don't fit its
+   * Enabling one that is enabled already only saves that. If its stored settings don't fit its
    * schema, fails with `REFUSAL_REASON_FIELD_REQUIRED` or `REFUSAL_REASON_SETTING_WRONG_KIND`,
    * naming the setting in `field` as `settings.<key>` and in the `settingKey` param; the Plugin
    * stays disabled and nothing is saved.
