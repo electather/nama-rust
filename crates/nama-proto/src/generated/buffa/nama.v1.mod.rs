@@ -112,6 +112,8 @@ pub mod __buffa {
         reg.register_json_any(super::__DECLINE_REQUEST_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__CANCEL_REQUEST_REQUEST_JSON_ANY);
         reg.register_json_any(super::__CANCEL_REQUEST_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__WITHDRAW_REQUEST_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__WITHDRAW_REQUEST_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__FOUND_MOVIE_JSON_ANY);
         reg.register_json_any(super::__SEARCH_MOVIES_REQUEST_JSON_ANY);
         reg.register_json_any(super::__SEARCH_MOVIES_RESPONSE_JSON_ANY);
@@ -131,6 +133,8 @@ pub mod __buffa {
         reg.register_json_any(super::__REQUESTER_ADDED_JSON_ANY);
         reg.register_json_any(super::__REQUEST_STATE_CHANGED_JSON_ANY);
         reg.register_json_any(super::__REQUEST_CANCELLED_JSON_ANY);
+        reg.register_json_any(super::__REQUESTER_REMOVED_JSON_ANY);
+        reg.register_json_any(super::__REQUEST_WITHDRAWN_JSON_ANY);
         reg.register_json_any(super::__LIBRARY_JSON_ANY);
         reg.register_json_any(super::__CREATE_LIBRARY_REQUEST_JSON_ANY);
         reg.register_json_any(super::__CREATE_LIBRARY_RESPONSE_JSON_ANY);
@@ -401,6 +405,14 @@ pub use self::__buffa::view::CancelRequestResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::CancelRequestResponseOwnedView;
 #[doc(inline)]
+pub use self::__buffa::view::WithdrawRequestRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::WithdrawRequestRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::WithdrawRequestResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::WithdrawRequestResponseOwnedView;
+#[doc(inline)]
 pub use self::__buffa::view::FoundMovieView;
 #[doc(inline)]
 pub use self::__buffa::view::FoundMovieOwnedView;
@@ -476,6 +488,14 @@ pub use self::__buffa::view::RequestStateChangedOwnedView;
 pub use self::__buffa::view::RequestCancelledView;
 #[doc(inline)]
 pub use self::__buffa::view::RequestCancelledOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::RequesterRemovedView;
+#[doc(inline)]
+pub use self::__buffa::view::RequesterRemovedOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::RequestWithdrawnView;
+#[doc(inline)]
+pub use self::__buffa::view::RequestWithdrawnOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::LibraryView;
 #[doc(inline)]

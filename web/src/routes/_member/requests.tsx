@@ -61,7 +61,7 @@ function RequestList() {
 function RequestRow({ request }: { request: Request }) {
   const { signedIn } = Route.useRouteContext();
   return (
-    // Wraps so a manager's actions get a line of their own, the full width of the row.
+    // Wraps so the actions get a line of their own, the full width of the row.
     <li className="flex min-h-16 flex-wrap items-center gap-x-3 border-b py-3 last:border-b-0">
       <div className="min-w-0 flex-1">
         <p className="truncate font-medium">{request.movie?.title}</p>
@@ -69,7 +69,11 @@ function RequestRow({ request }: { request: Request }) {
         <DeclineReason reason={request.declineReason} />
       </div>
       <RequestStateLabel state={request.state} />
-      {may(signedIn.user, Permission.MANAGE_REQUESTS) && <RequestActions request={request} />}
+      <RequestActions
+        request={request}
+        you={signedIn.user?.id}
+        manage={may(signedIn.user, Permission.MANAGE_REQUESTS)}
+      />
     </li>
   );
 }

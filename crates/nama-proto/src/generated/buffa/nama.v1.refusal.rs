@@ -99,8 +99,8 @@ pub enum RefusalReason {
     /// `failed_precondition`: the Movie is already Matched in a Library, so it can't be Requested.
     /// Params: `tmdbId`.
     REFUSAL_REASON_ALREADY_IN_LIBRARY = 39i32,
-    /// `failed_precondition`: the Request isn't Pending, so it can't be approved or declined.
-    /// Params: `requestId`.
+    /// `failed_precondition`: the Request isn't Pending, so it can't be approved, declined or withdrawn
+    /// from. Params: `requestId`.
     REFUSAL_REASON_REQUEST_NOT_PENDING = 40i32,
     /// `not_found`: no Plugin has the id. Params: `pluginId`.
     REFUSAL_REASON_PLUGIN_NOT_FOUND = 41i32,
@@ -110,6 +110,9 @@ pub enum RefusalReason {
     /// `invalid_argument`: a Plugin setting's value isn't of the kind its schema declares. Params:
     /// `settingKey`, and `settingKind`, the `SettingKind` value's name (`SETTING_KIND_TEXT`).
     REFUSAL_REASON_SETTING_WRONG_KIND = 43i32,
+    /// `failed_precondition`: the caller isn't one of the Request's Requesters, so they can't withdraw
+    /// from it. Params: `requestId`.
+    REFUSAL_REASON_NOT_A_REQUESTER = 44i32,
 }
 impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -244,6 +247,9 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_SETTING_WRONG_KIND`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const SettingWrongKind: Self = Self::REFUSAL_REASON_SETTING_WRONG_KIND;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_NOT_A_REQUESTER`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const NotARequester: Self = Self::REFUSAL_REASON_NOT_A_REQUESTER;
 }
 impl ::core::default::Default for RefusalReason {
     fn default() -> Self {
@@ -423,6 +429,7 @@ impl ::buffa::Enumeration for RefusalReason {
             43i32 => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_SETTING_WRONG_KIND)
             }
+            44i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_NOT_A_REQUESTER),
             _ => ::core::option::Option::None,
         }
     }
@@ -509,6 +516,7 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_SETTING_WRONG_KIND => {
                 "REFUSAL_REASON_SETTING_WRONG_KIND"
             }
+            Self::REFUSAL_REASON_NOT_A_REQUESTER => "REFUSAL_REASON_NOT_A_REQUESTER",
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -651,6 +659,9 @@ impl ::buffa::Enumeration for RefusalReason {
             "REFUSAL_REASON_SETTING_WRONG_KIND" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_SETTING_WRONG_KIND)
             }
+            "REFUSAL_REASON_NOT_A_REQUESTER" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_NOT_A_REQUESTER)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -700,6 +711,7 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_PLUGIN_NOT_FOUND,
             Self::REFUSAL_REASON_LAST_AUTHENTICATOR,
             Self::REFUSAL_REASON_SETTING_WRONG_KIND,
+            Self::REFUSAL_REASON_NOT_A_REQUESTER,
         ]
     }
 }
