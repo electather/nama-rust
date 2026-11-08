@@ -8,9 +8,14 @@
 //! registrar.provide::<dyn Notifier>(Priority::DEFAULT, Arc::new(my_notifier));
 //! ```
 
+use std::time::Duration;
+
 pub use nama_proto::nama::plugin::v1::Notification;
 
 use crate::{BoxFuture, PluginError};
+
+/// How long one [`Notifier::deliver`] may take before the Kernel gives up on it as failed.
+pub const DELIVER_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// Whom a [`Notification`] is for.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -23,12 +28,12 @@ pub enum Recipient {
 /// A Provider that delivers notifications about Requests through an outside service.
 pub trait Notifier: Send + Sync + 'static {
     /// Formats `notification` and sends it to `recipient`. The Kernel doesn't wait for this, so a
-    /// slow service holds up nothing else.
+    /// slow service holds up nothing else, and gives up after [`DELIVER_TIMEOUT`].
     ///
     /// # Errors
     ///
-    /// When the service didn't take the notification. The Kernel logs the reason and doesn't
-    /// retry.
+    /// When the service didn't take the notification. The Kernel logs the reason, or the
+    /// timeout, and doesn't retry.
     fn deliver<'a>(
         &'a self,
         notification: &'a Notification,

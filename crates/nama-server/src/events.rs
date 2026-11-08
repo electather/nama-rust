@@ -10,7 +10,8 @@ use std::sync::Arc;
 
 use futures_util::{Stream, StreamExt, stream};
 use nama_plugin_api::{
-    notifier::{Notification, Notifier, Recipient},
+    PluginError,
+    notifier::{DELIVER_TIMEOUT, Notification, Notifier, Recipient},
     points,
 };
 use nama_proto::nama::v1::{
@@ -95,8 +96,7 @@ impl EventBus {
         });
         self.plugins
             .call_each_provider(move |notifier: Arc<dyn Notifier>| {
-                let notification = Arc::clone(&notification);
-                async move { notifier.deliver(&notification, &Recipient::Channel).await }
+                deliver_to_channel(notifier, Arc::clone(&notification))
             });
     }
 
@@ -167,6 +167,19 @@ async fn next_message(
             Err(RecvError::Closed) => return None,
         }
     }
+}
+
+/// Hands `notification` to `notifier` for its channel, giving up after [`DELIVER_TIMEOUT`].
+async fn deliver_to_channel(
+    notifier: Arc<dyn Notifier>,
+    notification: Arc<Notification>,
+) -> Result<(), PluginError> {
+    let delivered = notifier.deliver(&notification, &Recipient::Channel);
+    tokio::time::timeout(DELIVER_TIMEOUT, delivered)
+        .await
+        .unwrap_or_else(|elapsed| {
+            Err(format!("timed out after {DELIVER_TIMEOUT:?} ({elapsed})").into())
+        })
 }
 
 /// An event's type and what it is about.

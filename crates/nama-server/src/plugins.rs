@@ -727,8 +727,28 @@ impl Registry {
         T: ?Sized,
         F: Future<Output = Result<(), PluginError>>,
     {
-        // The Plugin may have been disabled since `call_each_provider`.
-        if !self.is_current(&entry) {
+        self.call_if_current(&entry, Arc::clone(&provider), call)
+            .await;
+        // This task may hold the last handle on a Plugin disabled meanwhile, and its `Drop` is
+        // Plugin code.
+        let plugin = entry.plugin.clone();
+        if let Err(message) = contain_sync(|| drop((provider, entry))) {
+            error!(plugin = %plugin, message, "plugin panicked while being dropped");
+        }
+    }
+
+    /// Calls `call` with `provider`, logging its error, unless `entry`'s Plugin has been disabled
+    /// since [`Registry::call_each_provider`].
+    async fn call_if_current<T, F>(
+        &self,
+        entry: &Entry,
+        provider: Arc<T>,
+        call: impl FnOnce(Arc<T>) -> F,
+    ) where
+        T: ?Sized,
+        F: Future<Output = Result<(), PluginError>>,
+    {
+        if !self.is_current(entry) {
             return;
         }
         let point = entry.registration.point().name();
@@ -743,7 +763,7 @@ impl Registry {
                 let error = without_secrets(error, &entry.secrets);
                 warn!(plugin = %entry.plugin, point, error, "provider failed");
             }
-            Err(message) => self.disable_after_panic(&entry, point, &message),
+            Err(message) => self.disable_after_panic(entry, point, &message),
         }
     }
 
