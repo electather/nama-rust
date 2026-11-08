@@ -10,11 +10,11 @@ import type { Message, UnknownEnum } from "@bufbuild/protobuf";
  * Describes the file nama/v1/request.proto.
  */
 export const file_nama_v1_request: GenFile = /*@__PURE__*/
-  fileDesc("ChVuYW1hL3YxL3JlcXVlc3QucHJvdG8SB25hbWEudjEizwEKB1JlcXVlc3QSCgoCaWQYASABKAMSJgoFbW92aWUYAiABKAsyFy5uYW1hLnYxLlJlcXVlc3RlZE1vdmllEiQKBXN0YXRlGAMgASgOMhUubmFtYS52MS5SZXF1ZXN0U3RhdGUSJgoKcmVxdWVzdGVycxgEIAMoCzISLm5hbWEudjEuUmVxdWVzdGVyEhIKCmNyZWF0ZWRfYXQYBSABKAMSGwoOZGVjbGluZV9yZWFzb24YBiABKAlIAIgBAUIRCg9fZGVjbGluZV9yZWFzb24iXAoOUmVxdWVzdGVkTW92aWUSDwoHdG1kYl9pZBgBIAEoAxINCgV0aXRsZRgCIAEoCRIZCgxyZWxlYXNlX2RhdGUYAyABKAlIAIgBAUIPCg1fcmVsZWFzZV9kYXRlIkAKCVJlcXVlc3RlchIPCgd1c2VyX2lkGAEgASgDEgwKBG5hbWUYAiABKAkSFAoMcmVxdWVzdGVkX2F0GAMgASgDIi0KFENyZWF0ZVJlcXVlc3RSZXF1ZXN0EhUKDW1vdmllX3RtZGJfaWQYASABKAMiOgoVQ3JlYXRlUmVxdWVzdFJlc3BvbnNlEiEKB3JlcXVlc3QYASABKAsyEC5uYW1hLnYxLlJlcXVlc3QiFQoTTGlzdFJlcXVlc3RzUmVxdWVzdCI6ChRMaXN0UmVxdWVzdHNSZXNwb25zZRIiCghyZXF1ZXN0cxgBIAMoCzIQLm5hbWEudjEuUmVxdWVzdCIfChFHZXRSZXF1ZXN0UmVxdWVzdBIKCgJpZBgBIAEoAyI3ChJHZXRSZXF1ZXN0UmVzcG9uc2USIQoHcmVxdWVzdBgBIAEoCzIQLm5hbWEudjEuUmVxdWVzdCIjChVBcHByb3ZlUmVxdWVzdFJlcXVlc3QSCgoCaWQYASABKAMiOwoWQXBwcm92ZVJlcXVlc3RSZXNwb25zZRIhCgdyZXF1ZXN0GAEgASgLMhAubmFtYS52MS5SZXF1ZXN0IjMKFURlY2xpbmVSZXF1ZXN0UmVxdWVzdBIKCgJpZBgBIAEoAxIOCgZyZWFzb24YAiABKAkiOwoWRGVjbGluZVJlcXVlc3RSZXNwb25zZRIhCgdyZXF1ZXN0GAEgASgLMhAubmFtYS52MS5SZXF1ZXN0IiIKFENhbmNlbFJlcXVlc3RSZXF1ZXN0EgoKAmlkGAEgASgDIhcKFUNhbmNlbFJlcXVlc3RSZXNwb25zZSK9AgoKRm91bmRNb3ZpZRIPCgd0bWRiX2lkGAEgASgDEg0KBXRpdGxlGAIgASgJEhEKBHllYXIYAyABKAVIAIgBARIVCghvdmVydmlldxgEIAEoCUgBiAEBEhwKD3J1bnRpbWVfbWludXRlcxgFIAEoDUgCiAEBEhcKCnBvc3Rlcl91cmwYBiABKAlIA4gBARIZCgxiYWNrZHJvcF91cmwYByABKAlIBIgBARIXCgpsaWJyYXJ5X2lkGAggASgDSAWIAQESIQoHcmVxdWVzdBgJIAEoCzIQLm5hbWEudjEuUmVxdWVzdEIHCgVfeWVhckILCglfb3ZlcnZpZXdCEgoQX3J1bnRpbWVfbWludXRlc0INCgtfcG9zdGVyX3VybEIPCg1fYmFja2Ryb3BfdXJsQg0KC19saWJyYXJ5X2lkIiQKE1NlYXJjaE1vdmllc1JlcXVlc3QSDQoFdGl0bGUYASABKAkiOwoUU2VhcmNoTW92aWVzUmVzcG9uc2USIwoGbW92aWVzGAEgAygLMhMubmFtYS52MS5Gb3VuZE1vdmllIisKEkxvb2tVcE1vdmllUmVxdWVzdBIVCg1tb3ZpZV90bWRiX2lkGAEgASgDIjkKE0xvb2tVcE1vdmllUmVzcG9uc2USIgoFbW92aWUYASABKAsyEy5uYW1hLnYxLkZvdW5kTW92aWUq/AEKDFJlcXVlc3RTdGF0ZRIdChlSRVFVRVNUX1NUQVRFX1VOU1BFQ0lGSUVEEAASGQoVUkVRVUVTVF9TVEFURV9QRU5ESU5HEAESGgoWUkVRVUVTVF9TVEFURV9BUFBST1ZFRBACEhoKFlJFUVVFU1RfU1RBVEVfREVDTElORUQQAxIcChhSRVFVRVNUX1NUQVRFX1BST0NFU1NJTkcQBBIlCiFSRVFVRVNUX1NUQVRFX1BBUlRJQUxMWV9BVkFJTEFCTEUQBRIbChdSRVFVRVNUX1NUQVRFX0FWQUlMQUJMRRAGEhgKFFJFUVVFU1RfU1RBVEVfRkFJTEVEEAcylQUKDlJlcXVlc3RTZXJ2aWNlEk4KDUNyZWF0ZVJlcXVlc3QSHS5uYW1hLnYxLkNyZWF0ZVJlcXVlc3RSZXF1ZXN0Gh4ubmFtYS52MS5DcmVhdGVSZXF1ZXN0UmVzcG9uc2USUAoMTGlzdFJlcXVlc3RzEhwubmFtYS52MS5MaXN0UmVxdWVzdHNSZXF1ZXN0Gh0ubmFtYS52MS5MaXN0UmVxdWVzdHNSZXNwb25zZSIDkAIBEkoKCkdldFJlcXVlc3QSGi5uYW1hLnYxLkdldFJlcXVlc3RSZXF1ZXN0GhsubmFtYS52MS5HZXRSZXF1ZXN0UmVzcG9uc2UiA5ACARJQCgxTZWFyY2hNb3ZpZXMSHC5uYW1hLnYxLlNlYXJjaE1vdmllc1JlcXVlc3QaHS5uYW1hLnYxLlNlYXJjaE1vdmllc1Jlc3BvbnNlIgOQAgESTQoLTG9va1VwTW92aWUSGy5uYW1hLnYxLkxvb2tVcE1vdmllUmVxdWVzdBocLm5hbWEudjEuTG9va1VwTW92aWVSZXNwb25zZSIDkAIBElEKDkFwcHJvdmVSZXF1ZXN0Eh4ubmFtYS52MS5BcHByb3ZlUmVxdWVzdFJlcXVlc3QaHy5uYW1hLnYxLkFwcHJvdmVSZXF1ZXN0UmVzcG9uc2USUQoORGVjbGluZVJlcXVlc3QSHi5uYW1hLnYxLkRlY2xpbmVSZXF1ZXN0UmVxdWVzdBofLm5hbWEudjEuRGVjbGluZVJlcXVlc3RSZXNwb25zZRJOCg1DYW5jZWxSZXF1ZXN0Eh0ubmFtYS52MS5DYW5jZWxSZXF1ZXN0UmVxdWVzdBoeLm5hbWEudjEuQ2FuY2VsUmVxdWVzdFJlc3BvbnNlYgZwcm90bzM");
+  fileDesc("ChVuYW1hL3YxL3JlcXVlc3QucHJvdG8SB25hbWEudjEi+QEKB1JlcXVlc3QSCgoCaWQYASABKAMSJgoFbW92aWUYAiABKAsyFy5uYW1hLnYxLlJlcXVlc3RlZE1vdmllEiQKBXN0YXRlGAMgASgOMhUubmFtYS52MS5SZXF1ZXN0U3RhdGUSJgoKcmVxdWVzdGVycxgEIAMoCzISLm5hbWEudjEuUmVxdWVzdGVyEhIKCmNyZWF0ZWRfYXQYBSABKAMSGwoOZGVjbGluZV9yZWFzb24YBiABKAlIAIgBARIoCgZzZWFzb24YByABKAsyGC5uYW1hLnYxLlJlcXVlc3RlZFNlYXNvbkIRCg9fZGVjbGluZV9yZWFzb24iXAoOUmVxdWVzdGVkTW92aWUSDwoHdG1kYl9pZBgBIAEoAxINCgV0aXRsZRgCIAEoCRIZCgxyZWxlYXNlX2RhdGUYAyABKAlIAIgBAUIPCg1fcmVsZWFzZV9kYXRlInYKD1JlcXVlc3RlZFNlYXNvbhIUCgxzaG93X3RtZGJfaWQYASABKAMSFQoNc2Vhc29uX251bWJlchgCIAEoDRISCgpzaG93X3RpdGxlGAMgASgJEhUKCGFpcl9kYXRlGAQgASgJSACIAQFCCwoJX2Fpcl9kYXRlIkAKCVJlcXVlc3RlchIPCgd1c2VyX2lkGAEgASgDEgwKBG5hbWUYAiABKAkSFAoMcmVxdWVzdGVkX2F0GAMgASgDIi0KFENyZWF0ZVJlcXVlc3RSZXF1ZXN0EhUKDW1vdmllX3RtZGJfaWQYASABKAMiOgoVQ3JlYXRlUmVxdWVzdFJlc3BvbnNlEiEKB3JlcXVlc3QYASABKAsyEC5uYW1hLnYxLlJlcXVlc3QiSwobQ3JlYXRlU2Vhc29uUmVxdWVzdHNSZXF1ZXN0EhQKDHNob3dfdG1kYl9pZBgBIAEoAxIWCg5zZWFzb25fbnVtYmVycxgCIAMoDSJCChxDcmVhdGVTZWFzb25SZXF1ZXN0c1Jlc3BvbnNlEiIKCHJlcXVlc3RzGAEgAygLMhAubmFtYS52MS5SZXF1ZXN0IhUKE0xpc3RSZXF1ZXN0c1JlcXVlc3QiOgoUTGlzdFJlcXVlc3RzUmVzcG9uc2USIgoIcmVxdWVzdHMYASADKAsyEC5uYW1hLnYxLlJlcXVlc3QiHwoRR2V0UmVxdWVzdFJlcXVlc3QSCgoCaWQYASABKAMiNwoSR2V0UmVxdWVzdFJlc3BvbnNlEiEKB3JlcXVlc3QYASABKAsyEC5uYW1hLnYxLlJlcXVlc3QiIwoVQXBwcm92ZVJlcXVlc3RSZXF1ZXN0EgoKAmlkGAEgASgDIjsKFkFwcHJvdmVSZXF1ZXN0UmVzcG9uc2USIQoHcmVxdWVzdBgBIAEoCzIQLm5hbWEudjEuUmVxdWVzdCIzChVEZWNsaW5lUmVxdWVzdFJlcXVlc3QSCgoCaWQYASABKAMSDgoGcmVhc29uGAIgASgJIjsKFkRlY2xpbmVSZXF1ZXN0UmVzcG9uc2USIQoHcmVxdWVzdBgBIAEoCzIQLm5hbWEudjEuUmVxdWVzdCIiChRDYW5jZWxSZXF1ZXN0UmVxdWVzdBIKCgJpZBgBIAEoAyIXChVDYW5jZWxSZXF1ZXN0UmVzcG9uc2UiJAoWV2l0aGRyYXdSZXF1ZXN0UmVxdWVzdBIKCgJpZBgBIAEoAyIZChdXaXRoZHJhd1JlcXVlc3RSZXNwb25zZSK9AgoKRm91bmRNb3ZpZRIPCgd0bWRiX2lkGAEgASgDEg0KBXRpdGxlGAIgASgJEhEKBHllYXIYAyABKAVIAIgBARIVCghvdmVydmlldxgEIAEoCUgBiAEBEhwKD3J1bnRpbWVfbWludXRlcxgFIAEoDUgCiAEBEhcKCnBvc3Rlcl91cmwYBiABKAlIA4gBARIZCgxiYWNrZHJvcF91cmwYByABKAlIBIgBARIXCgpsaWJyYXJ5X2lkGAggASgDSAWIAQESIQoHcmVxdWVzdBgJIAEoCzIQLm5hbWEudjEuUmVxdWVzdEIHCgVfeWVhckILCglfb3ZlcnZpZXdCEgoQX3J1bnRpbWVfbWludXRlc0INCgtfcG9zdGVyX3VybEIPCg1fYmFja2Ryb3BfdXJsQg0KC19saWJyYXJ5X2lkIiQKE1NlYXJjaE1vdmllc1JlcXVlc3QSDQoFdGl0bGUYASABKAkiOwoUU2VhcmNoTW92aWVzUmVzcG9uc2USIwoGbW92aWVzGAEgAygLMhMubmFtYS52MS5Gb3VuZE1vdmllIisKEkxvb2tVcE1vdmllUmVxdWVzdBIVCg1tb3ZpZV90bWRiX2lkGAEgASgDIjkKE0xvb2tVcE1vdmllUmVzcG9uc2USIgoFbW92aWUYASABKAsyEy5uYW1hLnYxLkZvdW5kTW92aWUq/AEKDFJlcXVlc3RTdGF0ZRIdChlSRVFVRVNUX1NUQVRFX1VOU1BFQ0lGSUVEEAASGQoVUkVRVUVTVF9TVEFURV9QRU5ESU5HEAESGgoWUkVRVUVTVF9TVEFURV9BUFBST1ZFRBACEhoKFlJFUVVFU1RfU1RBVEVfREVDTElORUQQAxIcChhSRVFVRVNUX1NUQVRFX1BST0NFU1NJTkcQBBIlCiFSRVFVRVNUX1NUQVRFX1BBUlRJQUxMWV9BVkFJTEFCTEUQBRIbChdSRVFVRVNUX1NUQVRFX0FWQUlMQUJMRRAGEhgKFFJFUVVFU1RfU1RBVEVfRkFJTEVEEAcy0AYKDlJlcXVlc3RTZXJ2aWNlEk4KDUNyZWF0ZVJlcXVlc3QSHS5uYW1hLnYxLkNyZWF0ZVJlcXVlc3RSZXF1ZXN0Gh4ubmFtYS52MS5DcmVhdGVSZXF1ZXN0UmVzcG9uc2USYwoUQ3JlYXRlU2Vhc29uUmVxdWVzdHMSJC5uYW1hLnYxLkNyZWF0ZVNlYXNvblJlcXVlc3RzUmVxdWVzdBolLm5hbWEudjEuQ3JlYXRlU2Vhc29uUmVxdWVzdHNSZXNwb25zZRJQCgxMaXN0UmVxdWVzdHMSHC5uYW1hLnYxLkxpc3RSZXF1ZXN0c1JlcXVlc3QaHS5uYW1hLnYxLkxpc3RSZXF1ZXN0c1Jlc3BvbnNlIgOQAgESSgoKR2V0UmVxdWVzdBIaLm5hbWEudjEuR2V0UmVxdWVzdFJlcXVlc3QaGy5uYW1hLnYxLkdldFJlcXVlc3RSZXNwb25zZSIDkAIBElAKDFNlYXJjaE1vdmllcxIcLm5hbWEudjEuU2VhcmNoTW92aWVzUmVxdWVzdBodLm5hbWEudjEuU2VhcmNoTW92aWVzUmVzcG9uc2UiA5ACARJNCgtMb29rVXBNb3ZpZRIbLm5hbWEudjEuTG9va1VwTW92aWVSZXF1ZXN0GhwubmFtYS52MS5Mb29rVXBNb3ZpZVJlc3BvbnNlIgOQAgESUQoOQXBwcm92ZVJlcXVlc3QSHi5uYW1hLnYxLkFwcHJvdmVSZXF1ZXN0UmVxdWVzdBofLm5hbWEudjEuQXBwcm92ZVJlcXVlc3RSZXNwb25zZRJRCg5EZWNsaW5lUmVxdWVzdBIeLm5hbWEudjEuRGVjbGluZVJlcXVlc3RSZXF1ZXN0Gh8ubmFtYS52MS5EZWNsaW5lUmVxdWVzdFJlc3BvbnNlEk4KDUNhbmNlbFJlcXVlc3QSHS5uYW1hLnYxLkNhbmNlbFJlcXVlc3RSZXF1ZXN0Gh4ubmFtYS52MS5DYW5jZWxSZXF1ZXN0UmVzcG9uc2USVAoPV2l0aGRyYXdSZXF1ZXN0Eh8ubmFtYS52MS5XaXRoZHJhd1JlcXVlc3RSZXF1ZXN0GiAubmFtYS52MS5XaXRoZHJhd1JlcXVlc3RSZXNwb25zZWIGcHJvdG8z");
 
 /**
- * Users asking for one Movie. A Movie has at most one open Request: one that is neither Declined
- * nor Available.
+ * Users asking for one Movie, or one Season of a Show. Each has at most one open Request: one that
+ * is neither Declined nor Available.
  *
  * @generated from message nama.v1.Request
  */
@@ -25,7 +25,7 @@ export type Request = Message<"nama.v1.Request"> & {
   id: bigint;
 
   /**
-   * The Movie asked for.
+   * The Movie asked for, unless it asks for a Season.
    *
    * @generated from field: nama.v1.RequestedMovie movie = 2;
    */
@@ -57,6 +57,13 @@ export type Request = Message<"nama.v1.Request"> & {
    * @generated from field: optional string decline_reason = 6;
    */
   declineReason?: string | undefined;
+
+  /**
+   * The Season asked for, unless it asks for a Movie.
+   *
+   * @generated from field: nama.v1.RequestedSeason season = 7;
+   */
+  season?: RequestedSeason | undefined;
 };
 
 /**
@@ -103,6 +110,49 @@ export const RequestedMovieSchema: GenMessage<RequestedMovie> = /*@__PURE__*/
   messageDesc(file_nama_v1_request, 1);
 
 /**
+ * A Season a Request asks for, with its metadata as the metadata source gave it when the Request
+ * was opened.
+ *
+ * @generated from message nama.v1.RequestedSeason
+ */
+export type RequestedSeason = Message<"nama.v1.RequestedSeason"> & {
+  /**
+   * The Show's TMDB id.
+   *
+   * @generated from field: int64 show_tmdb_id = 1;
+   */
+  showTmdbId: bigint;
+
+  /**
+   * The Season's number within the Show. Season 0 holds specials.
+   *
+   * @generated from field: uint32 season_number = 2;
+   */
+  seasonNumber: number;
+
+  /**
+   * The Show's title, in the metadata Provider's language.
+   *
+   * @generated from field: string show_title = 3;
+   */
+  showTitle: string;
+
+  /**
+   * When the Season first aired, as `YYYY-MM-DD`.
+   *
+   * @generated from field: optional string air_date = 4;
+   */
+  airDate?: string | undefined;
+};
+
+/**
+ * Describes the message nama.v1.RequestedSeason.
+ * Use `create(RequestedSeasonSchema)` to create a new message.
+ */
+export const RequestedSeasonSchema: GenMessage<RequestedSeason> = /*@__PURE__*/
+  messageDesc(file_nama_v1_request, 2);
+
+/**
  * A User who asked for what a Request covers.
  *
  * @generated from message nama.v1.Requester
@@ -133,7 +183,7 @@ export type Requester = Message<"nama.v1.Requester"> & {
  * Use `create(RequesterSchema)` to create a new message.
  */
 export const RequesterSchema: GenMessage<Requester> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 2);
+  messageDesc(file_nama_v1_request, 3);
 
 /**
  * @generated from message nama.v1.CreateRequestRequest
@@ -152,7 +202,7 @@ export type CreateRequestRequest = Message<"nama.v1.CreateRequestRequest"> & {
  * Use `create(CreateRequestRequestSchema)` to create a new message.
  */
 export const CreateRequestRequestSchema: GenMessage<CreateRequestRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 3);
+  messageDesc(file_nama_v1_request, 4);
 
 /**
  * @generated from message nama.v1.CreateRequestResponse
@@ -171,7 +221,52 @@ export type CreateRequestResponse = Message<"nama.v1.CreateRequestResponse"> & {
  * Use `create(CreateRequestResponseSchema)` to create a new message.
  */
 export const CreateRequestResponseSchema: GenMessage<CreateRequestResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 4);
+  messageDesc(file_nama_v1_request, 5);
+
+/**
+ * @generated from message nama.v1.CreateSeasonRequestsRequest
+ */
+export type CreateSeasonRequestsRequest = Message<"nama.v1.CreateSeasonRequestsRequest"> & {
+  /**
+   * The TMDB id of the Show.
+   *
+   * @generated from field: int64 show_tmdb_id = 1;
+   */
+  showTmdbId: bigint;
+
+  /**
+   * The numbers of the Seasons to ask for: at least one. A number given twice counts once.
+   *
+   * @generated from field: repeated uint32 season_numbers = 2;
+   */
+  seasonNumbers: number[];
+};
+
+/**
+ * Describes the message nama.v1.CreateSeasonRequestsRequest.
+ * Use `create(CreateSeasonRequestsRequestSchema)` to create a new message.
+ */
+export const CreateSeasonRequestsRequestSchema: GenMessage<CreateSeasonRequestsRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_request, 6);
+
+/**
+ * @generated from message nama.v1.CreateSeasonRequestsResponse
+ */
+export type CreateSeasonRequestsResponse = Message<"nama.v1.CreateSeasonRequestsResponse"> & {
+  /**
+   * The Requests the caller is now a Requester of, one per Season, in Season order.
+   *
+   * @generated from field: repeated nama.v1.Request requests = 1;
+   */
+  requests: Request[];
+};
+
+/**
+ * Describes the message nama.v1.CreateSeasonRequestsResponse.
+ * Use `create(CreateSeasonRequestsResponseSchema)` to create a new message.
+ */
+export const CreateSeasonRequestsResponseSchema: GenMessage<CreateSeasonRequestsResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_request, 7);
 
 /**
  * @generated from message nama.v1.ListRequestsRequest
@@ -184,7 +279,7 @@ export type ListRequestsRequest = Message<"nama.v1.ListRequestsRequest"> & {
  * Use `create(ListRequestsRequestSchema)` to create a new message.
  */
 export const ListRequestsRequestSchema: GenMessage<ListRequestsRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 5);
+  messageDesc(file_nama_v1_request, 8);
 
 /**
  * @generated from message nama.v1.ListRequestsResponse
@@ -201,7 +296,7 @@ export type ListRequestsResponse = Message<"nama.v1.ListRequestsResponse"> & {
  * Use `create(ListRequestsResponseSchema)` to create a new message.
  */
 export const ListRequestsResponseSchema: GenMessage<ListRequestsResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 6);
+  messageDesc(file_nama_v1_request, 9);
 
 /**
  * @generated from message nama.v1.GetRequestRequest
@@ -220,7 +315,7 @@ export type GetRequestRequest = Message<"nama.v1.GetRequestRequest"> & {
  * Use `create(GetRequestRequestSchema)` to create a new message.
  */
 export const GetRequestRequestSchema: GenMessage<GetRequestRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 7);
+  messageDesc(file_nama_v1_request, 10);
 
 /**
  * @generated from message nama.v1.GetRequestResponse
@@ -237,7 +332,7 @@ export type GetRequestResponse = Message<"nama.v1.GetRequestResponse"> & {
  * Use `create(GetRequestResponseSchema)` to create a new message.
  */
 export const GetRequestResponseSchema: GenMessage<GetRequestResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 8);
+  messageDesc(file_nama_v1_request, 11);
 
 /**
  * @generated from message nama.v1.ApproveRequestRequest
@@ -256,7 +351,7 @@ export type ApproveRequestRequest = Message<"nama.v1.ApproveRequestRequest"> & {
  * Use `create(ApproveRequestRequestSchema)` to create a new message.
  */
 export const ApproveRequestRequestSchema: GenMessage<ApproveRequestRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 9);
+  messageDesc(file_nama_v1_request, 12);
 
 /**
  * @generated from message nama.v1.ApproveRequestResponse
@@ -275,7 +370,7 @@ export type ApproveRequestResponse = Message<"nama.v1.ApproveRequestResponse"> &
  * Use `create(ApproveRequestResponseSchema)` to create a new message.
  */
 export const ApproveRequestResponseSchema: GenMessage<ApproveRequestResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 10);
+  messageDesc(file_nama_v1_request, 13);
 
 /**
  * @generated from message nama.v1.DeclineRequestRequest
@@ -301,7 +396,7 @@ export type DeclineRequestRequest = Message<"nama.v1.DeclineRequestRequest"> & {
  * Use `create(DeclineRequestRequestSchema)` to create a new message.
  */
 export const DeclineRequestRequestSchema: GenMessage<DeclineRequestRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 11);
+  messageDesc(file_nama_v1_request, 14);
 
 /**
  * @generated from message nama.v1.DeclineRequestResponse
@@ -320,7 +415,7 @@ export type DeclineRequestResponse = Message<"nama.v1.DeclineRequestResponse"> &
  * Use `create(DeclineRequestResponseSchema)` to create a new message.
  */
 export const DeclineRequestResponseSchema: GenMessage<DeclineRequestResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 12);
+  messageDesc(file_nama_v1_request, 15);
 
 /**
  * @generated from message nama.v1.CancelRequestRequest
@@ -339,7 +434,7 @@ export type CancelRequestRequest = Message<"nama.v1.CancelRequestRequest"> & {
  * Use `create(CancelRequestRequestSchema)` to create a new message.
  */
 export const CancelRequestRequestSchema: GenMessage<CancelRequestRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 13);
+  messageDesc(file_nama_v1_request, 16);
 
 /**
  * @generated from message nama.v1.CancelRequestResponse
@@ -352,7 +447,39 @@ export type CancelRequestResponse = Message<"nama.v1.CancelRequestResponse"> & {
  * Use `create(CancelRequestResponseSchema)` to create a new message.
  */
 export const CancelRequestResponseSchema: GenMessage<CancelRequestResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 14);
+  messageDesc(file_nama_v1_request, 17);
+
+/**
+ * @generated from message nama.v1.WithdrawRequestRequest
+ */
+export type WithdrawRequestRequest = Message<"nama.v1.WithdrawRequestRequest"> & {
+  /**
+   * The ID of the Request.
+   *
+   * @generated from field: int64 id = 1;
+   */
+  id: bigint;
+};
+
+/**
+ * Describes the message nama.v1.WithdrawRequestRequest.
+ * Use `create(WithdrawRequestRequestSchema)` to create a new message.
+ */
+export const WithdrawRequestRequestSchema: GenMessage<WithdrawRequestRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_request, 18);
+
+/**
+ * @generated from message nama.v1.WithdrawRequestResponse
+ */
+export type WithdrawRequestResponse = Message<"nama.v1.WithdrawRequestResponse"> & {
+};
+
+/**
+ * Describes the message nama.v1.WithdrawRequestResponse.
+ * Use `create(WithdrawRequestResponseSchema)` to create a new message.
+ */
+export const WithdrawRequestResponseSchema: GenMessage<WithdrawRequestResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_request, 19);
 
 /**
  * A Movie in the metadata source, and how close it is to being on the Server: in a Library, asked
@@ -431,7 +558,7 @@ export type FoundMovie = Message<"nama.v1.FoundMovie"> & {
  * Use `create(FoundMovieSchema)` to create a new message.
  */
 export const FoundMovieSchema: GenMessage<FoundMovie> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 15);
+  messageDesc(file_nama_v1_request, 20);
 
 /**
  * @generated from message nama.v1.SearchMoviesRequest
@@ -450,7 +577,7 @@ export type SearchMoviesRequest = Message<"nama.v1.SearchMoviesRequest"> & {
  * Use `create(SearchMoviesRequestSchema)` to create a new message.
  */
 export const SearchMoviesRequestSchema: GenMessage<SearchMoviesRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 16);
+  messageDesc(file_nama_v1_request, 21);
 
 /**
  * @generated from message nama.v1.SearchMoviesResponse
@@ -467,7 +594,7 @@ export type SearchMoviesResponse = Message<"nama.v1.SearchMoviesResponse"> & {
  * Use `create(SearchMoviesResponseSchema)` to create a new message.
  */
 export const SearchMoviesResponseSchema: GenMessage<SearchMoviesResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 17);
+  messageDesc(file_nama_v1_request, 22);
 
 /**
  * @generated from message nama.v1.LookUpMovieRequest
@@ -486,7 +613,7 @@ export type LookUpMovieRequest = Message<"nama.v1.LookUpMovieRequest"> & {
  * Use `create(LookUpMovieRequestSchema)` to create a new message.
  */
 export const LookUpMovieRequestSchema: GenMessage<LookUpMovieRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 18);
+  messageDesc(file_nama_v1_request, 23);
 
 /**
  * @generated from message nama.v1.LookUpMovieResponse
@@ -503,7 +630,7 @@ export type LookUpMovieResponse = Message<"nama.v1.LookUpMovieResponse"> & {
  * Use `create(LookUpMovieResponseSchema)` to create a new message.
  */
 export const LookUpMovieResponseSchema: GenMessage<LookUpMovieResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 19);
+  messageDesc(file_nama_v1_request, 24);
 
 /**
  * Where a Request is on its way to the Library (ADR 0012).
@@ -524,7 +651,7 @@ export const RequestState = {
   PENDING: 1,
 
   /**
-   * Approved, and waiting for the Movie to be Matched in a Library.
+   * Approved, and waiting for what it asks for to be Matched in a Library.
    *
    * @generated from enum value: REQUEST_STATE_APPROVED = 2;
    */
@@ -580,9 +707,9 @@ export const RequestStateSchema: GenEnum<RequestState> = /*@__PURE__*/
   enumDesc(file_nama_v1_request, 0);
 
 /**
- * Users asking for Movies that aren't on the Server to be added to it (ADR 0012). Without
- * `PERMISSION_VIEW_REQUESTS`, a User sees only the Requests they are a Requester of, here and in
- * `EventService`.
+ * Users asking for Movies, and Seasons of Shows, that aren't on the Server to be added to it
+ * (ADR 0012). Without `PERMISSION_VIEW_REQUESTS`, a User sees only the Requests they are a
+ * Requester of, here and in `EventService`.
  *
  * @generated from service nama.v1.RequestService
  */
@@ -601,6 +728,22 @@ export const RequestService: GenService<{
     methodKind: "unary";
     input: typeof CreateRequestRequestSchema;
     output: typeof CreateRequestResponseSchema;
+  },
+  /**
+   * Asks for Seasons of a Show for the caller, one Request per Season, each as `CreateRequest`
+   * asks for a Movie: Approved if the caller has `PERMISSION_AUTO_APPROVE_TV`, else Pending. Needs
+   * `PERMISSION_REQUEST_TV`. A Season is in a Library once it has aired and every one of its aired
+   * Episodes is Matched, and asking for such a Season fails with `failed_precondition`. Fails with
+   * `invalid_argument` if no Season is named or the metadata source has no such Show or Season,
+   * and `unavailable` if no metadata Provider is enabled, or it failed. A failure changes no
+   * Request.
+   *
+   * @generated from rpc nama.v1.RequestService.CreateSeasonRequests
+   */
+  createSeasonRequests: {
+    methodKind: "unary";
+    input: typeof CreateSeasonRequestsRequestSchema;
+    output: typeof CreateSeasonRequestsResponseSchema;
   },
   /**
    * Lists the Requests the caller may see, newest first.
@@ -681,6 +824,18 @@ export const RequestService: GenService<{
     methodKind: "unary";
     input: typeof CancelRequestRequestSchema;
     output: typeof CancelRequestResponseSchema;
+  },
+  /**
+   * Takes the caller off a Pending Request's Requesters, which removes the Request once nobody is
+   * left on it. Fails with `not_found` if there is no Request with the ID, or none the caller may
+   * see, and `failed_precondition` if the caller isn't one of its Requesters or it isn't Pending.
+   *
+   * @generated from rpc nama.v1.RequestService.WithdrawRequest
+   */
+  withdrawRequest: {
+    methodKind: "unary";
+    input: typeof WithdrawRequestRequestSchema;
+    output: typeof WithdrawRequestResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_nama_v1_request, 0);

@@ -12,7 +12,7 @@ import type { Message, UnknownEnum } from "@bufbuild/protobuf";
  * Describes the file nama/v1/event.proto.
  */
 export const file_nama_v1_event: GenFile = /*@__PURE__*/
-  fileDesc("ChNuYW1hL3YxL2V2ZW50LnByb3RvEgduYW1hLnYxIkoKEFN1YnNjcmliZVJlcXVlc3QSIQoFdHlwZXMYASADKA4yEi5uYW1hLnYxLkV2ZW50VHlwZRITCgtsaWJyYXJ5X2lkcxgCIAMoAyJiChFTdWJzY3JpYmVSZXNwb25zZRIfCgVldmVudBgBIAEoCzIOLm5hbWEudjEuRXZlbnRIABIhCgZsYWdnZWQYAiABKAsyDy5uYW1hLnYxLkxhZ2dlZEgAQgkKB21lc3NhZ2UiGQoGTGFnZ2VkEg8KB2Ryb3BwZWQYASABKAQioQQKBUV2ZW50EiwKDHNjYW5fc3RhcnRlZBgBIAEoCzIULm5hbWEudjEuU2NhblN0YXJ0ZWRIABIuCg1zY2FuX3Byb2dyZXNzGAIgASgLMhUubmFtYS52MS5TY2FuUHJvZ3Jlc3NIABIuCg1zY2FuX2ZpbmlzaGVkGAMgASgLMhUubmFtYS52MS5TY2FuRmluaXNoZWRIABI3ChJsaWJyYXJ5X2l0ZW1fYWRkZWQYBCABKAsyGS5uYW1hLnYxLkxpYnJhcnlJdGVtQWRkZWRIABI7ChRsaWJyYXJ5X2l0ZW1fcmVtb3ZlZBgFIAEoCzIbLm5hbWEudjEuTGlicmFyeUl0ZW1SZW1vdmVkSAASLAoMaXRlbV9tYXRjaGVkGAYgASgLMhQubmFtYS52MS5JdGVtTWF0Y2hlZEgAEjIKD3JlcXVlc3RfY3JlYXRlZBgHIAEoCzIXLm5hbWEudjEuUmVxdWVzdENyZWF0ZWRIABIyCg9yZXF1ZXN0ZXJfYWRkZWQYCCABKAsyFy5uYW1hLnYxLlJlcXVlc3RlckFkZGVkSAASPQoVcmVxdWVzdF9zdGF0ZV9jaGFuZ2VkGAkgASgLMhwubmFtYS52MS5SZXF1ZXN0U3RhdGVDaGFuZ2VkSAASNgoRcmVxdWVzdF9jYW5jZWxsZWQYCiABKAsyGS5uYW1hLnYxLlJlcXVlc3RDYW5jZWxsZWRIAEIHCgVldmVudCIhCgtTY2FuU3RhcnRlZBISCgpsaWJyYXJ5X2lkGAEgASgDIksKDFNjYW5Qcm9ncmVzcxISCgpsaWJyYXJ5X2lkGAEgASgDEhIKCmZpbGVzX2RvbmUYAiABKAQSEwoLZmlsZXNfdG90YWwYAyABKAQiZgoMU2NhbkZpbmlzaGVkEhIKCmxpYnJhcnlfaWQYASABKAMSDQoFYWRkZWQYAiABKAQSDwoHdXBkYXRlZBgDIAEoBBIPCgdyZW1vdmVkGAQgASgEEhEKCXVuY2hhbmdlZBgFIAEoBCJFChBMaWJyYXJ5SXRlbUFkZGVkEhIKCmxpYnJhcnlfaWQYASABKAMSDwoHaXRlbV9pZBgCIAEoAxIMCgRwYXRoGAMgASgJIjkKEkxpYnJhcnlJdGVtUmVtb3ZlZBISCgpsaWJyYXJ5X2lkGAEgASgDEg8KB2l0ZW1faWQYAiABKAMiQQoLSXRlbU1hdGNoZWQSEgoKbGlicmFyeV9pZBgBIAEoAxIPCgdpdGVtX2lkGAIgASgDEg0KBXRpdGxlGAMgASgJIjMKDlJlcXVlc3RDcmVhdGVkEiEKB3JlcXVlc3QYASABKAsyEC5uYW1hLnYxLlJlcXVlc3QiRAoOUmVxdWVzdGVyQWRkZWQSIQoHcmVxdWVzdBgBIAEoCzIQLm5hbWEudjEuUmVxdWVzdBIPCgd1c2VyX2lkGAIgASgDIjgKE1JlcXVlc3RTdGF0ZUNoYW5nZWQSIQoHcmVxdWVzdBgBIAEoCzIQLm5hbWEudjEuUmVxdWVzdCI1ChBSZXF1ZXN0Q2FuY2VsbGVkEiEKB3JlcXVlc3QYASABKAsyEC5uYW1hLnYxLlJlcXVlc3Qq7QIKCUV2ZW50VHlwZRIaChZFVkVOVF9UWVBFX1VOU1BFQ0lGSUVEEAASGwoXRVZFTlRfVFlQRV9TQ0FOX1NUQVJURUQQARIcChhFVkVOVF9UWVBFX1NDQU5fUFJPR1JFU1MQAhIcChhFVkVOVF9UWVBFX1NDQU5fRklOSVNIRUQQAxIhCh1FVkVOVF9UWVBFX0xJQlJBUllfSVRFTV9BRERFRBAEEiMKH0VWRU5UX1RZUEVfTElCUkFSWV9JVEVNX1JFTU9WRUQQBRIbChdFVkVOVF9UWVBFX0lURU1fTUFUQ0hFRBAGEh4KGkVWRU5UX1RZUEVfUkVRVUVTVF9DUkVBVEVEEAcSHgoaRVZFTlRfVFlQRV9SRVFVRVNURVJfQURERUQQCBIkCiBFVkVOVF9UWVBFX1JFUVVFU1RfU1RBVEVfQ0hBTkdFRBAJEiAKHEVWRU5UX1RZUEVfUkVRVUVTVF9DQU5DRUxMRUQQCjJZCgxFdmVudFNlcnZpY2USSQoJU3Vic2NyaWJlEhkubmFtYS52MS5TdWJzY3JpYmVSZXF1ZXN0GhoubmFtYS52MS5TdWJzY3JpYmVSZXNwb25zZSIDkAIBMAFiBnByb3RvMw", [file_nama_v1_request]);
+  fileDesc("ChNuYW1hL3YxL2V2ZW50LnByb3RvEgduYW1hLnYxIkoKEFN1YnNjcmliZVJlcXVlc3QSIQoFdHlwZXMYASADKA4yEi5uYW1hLnYxLkV2ZW50VHlwZRITCgtsaWJyYXJ5X2lkcxgCIAMoAyJiChFTdWJzY3JpYmVSZXNwb25zZRIfCgVldmVudBgBIAEoCzIOLm5hbWEudjEuRXZlbnRIABIhCgZsYWdnZWQYAiABKAsyDy5uYW1hLnYxLkxhZ2dlZEgAQgkKB21lc3NhZ2UiGQoGTGFnZ2VkEg8KB2Ryb3BwZWQYASABKAQikQUKBUV2ZW50EiwKDHNjYW5fc3RhcnRlZBgBIAEoCzIULm5hbWEudjEuU2NhblN0YXJ0ZWRIABIuCg1zY2FuX3Byb2dyZXNzGAIgASgLMhUubmFtYS52MS5TY2FuUHJvZ3Jlc3NIABIuCg1zY2FuX2ZpbmlzaGVkGAMgASgLMhUubmFtYS52MS5TY2FuRmluaXNoZWRIABI3ChJsaWJyYXJ5X2l0ZW1fYWRkZWQYBCABKAsyGS5uYW1hLnYxLkxpYnJhcnlJdGVtQWRkZWRIABI7ChRsaWJyYXJ5X2l0ZW1fcmVtb3ZlZBgFIAEoCzIbLm5hbWEudjEuTGlicmFyeUl0ZW1SZW1vdmVkSAASLAoMaXRlbV9tYXRjaGVkGAYgASgLMhQubmFtYS52MS5JdGVtTWF0Y2hlZEgAEjIKD3JlcXVlc3RfY3JlYXRlZBgHIAEoCzIXLm5hbWEudjEuUmVxdWVzdENyZWF0ZWRIABIyCg9yZXF1ZXN0ZXJfYWRkZWQYCCABKAsyFy5uYW1hLnYxLlJlcXVlc3RlckFkZGVkSAASPQoVcmVxdWVzdF9zdGF0ZV9jaGFuZ2VkGAkgASgLMhwubmFtYS52MS5SZXF1ZXN0U3RhdGVDaGFuZ2VkSAASNgoRcmVxdWVzdF9jYW5jZWxsZWQYCiABKAsyGS5uYW1hLnYxLlJlcXVlc3RDYW5jZWxsZWRIABI2ChFyZXF1ZXN0ZXJfcmVtb3ZlZBgLIAEoCzIZLm5hbWEudjEuUmVxdWVzdGVyUmVtb3ZlZEgAEjYKEXJlcXVlc3Rfd2l0aGRyYXduGAwgASgLMhkubmFtYS52MS5SZXF1ZXN0V2l0aGRyYXduSABCBwoFZXZlbnQiIQoLU2NhblN0YXJ0ZWQSEgoKbGlicmFyeV9pZBgBIAEoAyJLCgxTY2FuUHJvZ3Jlc3MSEgoKbGlicmFyeV9pZBgBIAEoAxISCgpmaWxlc19kb25lGAIgASgEEhMKC2ZpbGVzX3RvdGFsGAMgASgEImYKDFNjYW5GaW5pc2hlZBISCgpsaWJyYXJ5X2lkGAEgASgDEg0KBWFkZGVkGAIgASgEEg8KB3VwZGF0ZWQYAyABKAQSDwoHcmVtb3ZlZBgEIAEoBBIRCgl1bmNoYW5nZWQYBSABKAQiRQoQTGlicmFyeUl0ZW1BZGRlZBISCgpsaWJyYXJ5X2lkGAEgASgDEg8KB2l0ZW1faWQYAiABKAMSDAoEcGF0aBgDIAEoCSI5ChJMaWJyYXJ5SXRlbVJlbW92ZWQSEgoKbGlicmFyeV9pZBgBIAEoAxIPCgdpdGVtX2lkGAIgASgDIkEKC0l0ZW1NYXRjaGVkEhIKCmxpYnJhcnlfaWQYASABKAMSDwoHaXRlbV9pZBgCIAEoAxINCgV0aXRsZRgDIAEoCSIzCg5SZXF1ZXN0Q3JlYXRlZBIhCgdyZXF1ZXN0GAEgASgLMhAubmFtYS52MS5SZXF1ZXN0IkQKDlJlcXVlc3RlckFkZGVkEiEKB3JlcXVlc3QYASABKAsyEC5uYW1hLnYxLlJlcXVlc3QSDwoHdXNlcl9pZBgCIAEoAyI4ChNSZXF1ZXN0U3RhdGVDaGFuZ2VkEiEKB3JlcXVlc3QYASABKAsyEC5uYW1hLnYxLlJlcXVlc3QiNQoQUmVxdWVzdENhbmNlbGxlZBIhCgdyZXF1ZXN0GAEgASgLMhAubmFtYS52MS5SZXF1ZXN0IkYKEFJlcXVlc3RlclJlbW92ZWQSIQoHcmVxdWVzdBgBIAEoCzIQLm5hbWEudjEuUmVxdWVzdBIPCgd1c2VyX2lkGAIgASgDIjUKEFJlcXVlc3RXaXRoZHJhd24SIQoHcmVxdWVzdBgBIAEoCzIQLm5hbWEudjEuUmVxdWVzdCqxAwoJRXZlbnRUeXBlEhoKFkVWRU5UX1RZUEVfVU5TUEVDSUZJRUQQABIbChdFVkVOVF9UWVBFX1NDQU5fU1RBUlRFRBABEhwKGEVWRU5UX1RZUEVfU0NBTl9QUk9HUkVTUxACEhwKGEVWRU5UX1RZUEVfU0NBTl9GSU5JU0hFRBADEiEKHUVWRU5UX1RZUEVfTElCUkFSWV9JVEVNX0FEREVEEAQSIwofRVZFTlRfVFlQRV9MSUJSQVJZX0lURU1fUkVNT1ZFRBAFEhsKF0VWRU5UX1RZUEVfSVRFTV9NQVRDSEVEEAYSHgoaRVZFTlRfVFlQRV9SRVFVRVNUX0NSRUFURUQQBxIeChpFVkVOVF9UWVBFX1JFUVVFU1RFUl9BRERFRBAIEiQKIEVWRU5UX1RZUEVfUkVRVUVTVF9TVEFURV9DSEFOR0VEEAkSIAocRVZFTlRfVFlQRV9SRVFVRVNUX0NBTkNFTExFRBAKEiAKHEVWRU5UX1RZUEVfUkVRVUVTVEVSX1JFTU9WRUQQCxIgChxFVkVOVF9UWVBFX1JFUVVFU1RfV0lUSERSQVdOEAwyWQoMRXZlbnRTZXJ2aWNlEkkKCVN1YnNjcmliZRIZLm5hbWEudjEuU3Vic2NyaWJlUmVxdWVzdBoaLm5hbWEudjEuU3Vic2NyaWJlUmVzcG9uc2UiA5ACATABYgZwcm90bzM", [file_nama_v1_request]);
 
 /**
  * @generated from message nama.v1.SubscribeRequest
@@ -164,6 +164,18 @@ export type Event = Message<"nama.v1.Event"> & {
      */
     value: RequestCancelled;
     case: "requestCancelled";
+  } | {
+    /**
+     * @generated from field: nama.v1.RequesterRemoved requester_removed = 11;
+     */
+    value: RequesterRemoved;
+    case: "requesterRemoved";
+  } | {
+    /**
+     * @generated from field: nama.v1.RequestWithdrawn request_withdrawn = 12;
+     */
+    value: RequestWithdrawn;
+    case: "requestWithdrawn";
   } | { case: undefined; value?: undefined };
 };
 
@@ -452,6 +464,55 @@ export const RequestCancelledSchema: GenMessage<RequestCancelled> = /*@__PURE__*
   messageDesc(file_nama_v1_event, 13);
 
 /**
+ * A Requester withdrew from a Pending Request that others are still on.
+ *
+ * @generated from message nama.v1.RequesterRemoved
+ */
+export type RequesterRemoved = Message<"nama.v1.RequesterRemoved"> & {
+  /**
+   * The Request as it was, with them still among its Requesters, so they get the event too.
+   *
+   * @generated from field: nama.v1.Request request = 1;
+   */
+  request?: Request | undefined;
+
+  /**
+   * The User who withdrew.
+   *
+   * @generated from field: int64 user_id = 2;
+   */
+  userId: bigint;
+};
+
+/**
+ * Describes the message nama.v1.RequesterRemoved.
+ * Use `create(RequesterRemovedSchema)` to create a new message.
+ */
+export const RequesterRemovedSchema: GenMessage<RequesterRemoved> = /*@__PURE__*/
+  messageDesc(file_nama_v1_event, 14);
+
+/**
+ * A Pending Request's last Requester withdrew, which removed it.
+ *
+ * @generated from message nama.v1.RequestWithdrawn
+ */
+export type RequestWithdrawn = Message<"nama.v1.RequestWithdrawn"> & {
+  /**
+   * The Request as it was before it was removed.
+   *
+   * @generated from field: nama.v1.Request request = 1;
+   */
+  request?: Request | undefined;
+};
+
+/**
+ * Describes the message nama.v1.RequestWithdrawn.
+ * Use `create(RequestWithdrawnSchema)` to create a new message.
+ */
+export const RequestWithdrawnSchema: GenMessage<RequestWithdrawn> = /*@__PURE__*/
+  messageDesc(file_nama_v1_event, 15);
+
+/**
  * The kinds of `Event`, one per field of its `event`.
  *
  * @generated from enum nama.v1.EventType
@@ -511,6 +572,16 @@ export const EventType = {
    * @generated from enum value: EVENT_TYPE_REQUEST_CANCELLED = 10;
    */
   REQUEST_CANCELLED: 10,
+
+  /**
+   * @generated from enum value: EVENT_TYPE_REQUESTER_REMOVED = 11;
+   */
+  REQUESTER_REMOVED: 11,
+
+  /**
+   * @generated from enum value: EVENT_TYPE_REQUEST_WITHDRAWN = 12;
+   */
+  REQUEST_WITHDRAWN: 12,
 } as const;
 
 /**

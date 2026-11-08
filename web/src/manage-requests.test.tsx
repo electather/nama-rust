@@ -77,6 +77,20 @@ test("approving a Pending Request shows it Approved", async () => {
   expect(screen.queryByRole("button", { name: "Approve Heat" })).toBeNull();
 });
 
+test("a Season Request's actions name its Show and Season", async () => {
+  const specials = create(RequestSchema, {
+    id: 3n,
+    season: { showTmdbId: 70_523n, seasonNumber: 0, showTitle: "Dark" },
+    state: RequestState.PENDING,
+    requesters: [{ userId: 2n, name: "Ada" }],
+  });
+  openApp("/requests", managedServer(admin, specials));
+
+  fireEvent.click(await screen.findByRole("button", { name: "Approve Dark Specials" }));
+
+  expect(await screen.findByText("Approved")).toBeDefined();
+});
+
 test("declining a Request asks why, then shows it Declined with the reason", async () => {
   openApp("/requests", managedServer(admin, create(RequestSchema, heat)));
 

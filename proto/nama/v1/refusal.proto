@@ -91,7 +91,8 @@ enum RefusalReason {
   // `not_found`: there is no item with the ID. Params: `itemId`.
   REFUSAL_REASON_ITEM_NOT_FOUND = 27;
   // `invalid_argument`: the metadata source has no title with the id, or can't look titles up by
-  // it. Params: `titleId`, as the message shows it (`tmdb-949`).
+  // it. Params: `titleId`, as the message shows it (`tmdb-949`), and for a Season of a Show
+  // `seasonNumber`.
   REFUSAL_REASON_UNKNOWN_TITLE = 28;
   // `unavailable`: no metadata Provider is enabled, or it failed.
   REFUSAL_REASON_NO_METADATA_PROVIDER = 29;
@@ -119,11 +120,12 @@ enum RefusalReason {
 
   // `not_found`: there is no Request with the ID, or none the caller may see. Params: `requestId`.
   REFUSAL_REASON_REQUEST_NOT_FOUND = 38;
-  // `failed_precondition`: the Movie is already Matched in a Library, so it can't be Requested.
-  // Params: `tmdbId`.
+  // `failed_precondition`: the Movie, or every aired Episode of the Season, is already Matched in a
+  // Library, so it can't be Requested. Params: `tmdbId` (a Season's Show's), and for a Season
+  // `seasonNumber`.
   REFUSAL_REASON_ALREADY_IN_LIBRARY = 39;
-  // `failed_precondition`: the Request isn't Pending, so it can't be approved or declined.
-  // Params: `requestId`.
+  // `failed_precondition`: the Request isn't Pending, so it can't be approved, declined or withdrawn
+  // from. Params: `requestId`.
   REFUSAL_REASON_REQUEST_NOT_PENDING = 40;
 
   // `not_found`: no Plugin has the id. Params: `pluginId`.
@@ -134,4 +136,8 @@ enum RefusalReason {
   // `invalid_argument`: a Plugin setting's value isn't of the kind its schema declares. Params:
   // `settingKey`, and `settingKind`, the `SettingKind` value's name (`SETTING_KIND_TEXT`).
   REFUSAL_REASON_SETTING_WRONG_KIND = 43;
+
+  // `failed_precondition`: the caller isn't one of the Request's Requesters, so they can't withdraw
+  // from it. Params: `requestId`.
+  REFUSAL_REASON_NOT_A_REQUESTER = 44;
 }
