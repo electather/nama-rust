@@ -732,10 +732,15 @@ impl Registry {
             return;
         }
         let point = entry.registration.point().name();
-        match contain(|| call(provider)).await {
+        // The error is Plugin code too: its message and its `Drop` stay contained.
+        let called = contain(|| {
+            let answer = call(provider);
+            async move { answer.await.map_err(|error| error.to_string()) }
+        });
+        match called.await {
             Ok(Ok(())) => {}
             Ok(Err(error)) => {
-                let error = without_secrets(error.to_string(), &entry.secrets);
+                let error = without_secrets(error, &entry.secrets);
                 warn!(plugin = %entry.plugin, point, error, "provider failed");
             }
             Err(message) => self.disable_after_panic(&entry, point, &message),
