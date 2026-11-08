@@ -120,6 +120,8 @@ pub enum RefusalReason {
     /// be translated, or else the Server's. Params: `pluginId`, and `timeoutSeconds` for a check that ran
     /// too long.
     REFUSAL_REASON_SETTINGS_CHECK_FAILED = 45i32,
+    /// `failed_precondition`: the Request isn't Failed, so it can't be retried. Params: `requestId`.
+    REFUSAL_REASON_REQUEST_NOT_FAILED = 46i32,
 }
 impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -260,6 +262,9 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_SETTINGS_CHECK_FAILED`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const SettingsCheckFailed: Self = Self::REFUSAL_REASON_SETTINGS_CHECK_FAILED;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_REQUEST_NOT_FAILED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const RequestNotFailed: Self = Self::REFUSAL_REASON_REQUEST_NOT_FAILED;
 }
 impl ::core::default::Default for RefusalReason {
     fn default() -> Self {
@@ -443,6 +448,9 @@ impl ::buffa::Enumeration for RefusalReason {
             45i32 => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_SETTINGS_CHECK_FAILED)
             }
+            46i32 => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_REQUEST_NOT_FAILED)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -532,6 +540,9 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_NOT_A_REQUESTER => "REFUSAL_REASON_NOT_A_REQUESTER",
             Self::REFUSAL_REASON_SETTINGS_CHECK_FAILED => {
                 "REFUSAL_REASON_SETTINGS_CHECK_FAILED"
+            }
+            Self::REFUSAL_REASON_REQUEST_NOT_FAILED => {
+                "REFUSAL_REASON_REQUEST_NOT_FAILED"
             }
         }
     }
@@ -681,6 +692,9 @@ impl ::buffa::Enumeration for RefusalReason {
             "REFUSAL_REASON_SETTINGS_CHECK_FAILED" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_SETTINGS_CHECK_FAILED)
             }
+            "REFUSAL_REASON_REQUEST_NOT_FAILED" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_REQUEST_NOT_FAILED)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -732,6 +746,7 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_SETTING_WRONG_KIND,
             Self::REFUSAL_REASON_NOT_A_REQUESTER,
             Self::REFUSAL_REASON_SETTINGS_CHECK_FAILED,
+            Self::REFUSAL_REASON_REQUEST_NOT_FAILED,
         ]
     }
 }

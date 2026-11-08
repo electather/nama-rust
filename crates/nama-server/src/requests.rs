@@ -50,6 +50,8 @@ pub(crate) enum Error {
     NoSuchRequest(i64),
     #[error("the Request {0} isn't Pending")]
     NotPending(i64),
+    #[error("the Request {0} isn't Failed")]
+    NotFailed(i64),
     #[error("you aren't a Requester of the Request {0}")]
     NotARequester(i64),
     #[error("a Library already has the Movie tmdb-{0}")]
@@ -77,7 +79,7 @@ pub(crate) struct Requests {
     /// Looks up what a new Request asks for: a Movie, or a Show's Seasons.
     matcher: Matcher,
     events: EventBus,
-    /// Holds the Movie Fulfiller, if one is enabled.
+    /// Holds the Movie Fulfiller, if one is enabled, and blanks its secrets out of its errors.
     plugins: Registry,
 }
 
@@ -227,10 +229,18 @@ impl Requests {
         self.hand_off(approved).await
     }
 
-    /// Hands the Approved `request` to the Movie Fulfiller and moves it to Processing, publishing
-    /// that its state changed. Returns the Request as it is now. Without a Movie Fulfiller, or
-    /// when it doesn't take the Request, the Request waits in Approved. A Season Request always
-    /// waits in Approved.
+    /// Moves the Failed Request `id` back to Approved and hands it to the Movie Fulfiller again,
+    /// publishing each change of its state.
+    pub(crate) async fn retry(&self, id: i64) -> Result<Request, Error> {
+        let approved = self.db.write(move |tx| Box::pin(retry(tx, id))).await?;
+        self.events.publish(vec![state_changed(approved.clone())]);
+        self.hand_off(approved).await
+    }
+
+    /// Hands the Approved `request` to the Movie Fulfiller, publishing that its state changed:
+    /// to Processing once it takes the Request, or to Failed, with its reason, if it doesn't.
+    /// Returns the Request as it is now. Without a Movie Fulfiller the Request waits in Approved,
+    /// as a Season Request always does.
     ///
     /// Runs in a task of its own: once the Fulfiller has taken the Request, its reference must be
     /// stored even if the caller stops waiting.
@@ -241,26 +251,28 @@ impl Requests {
         }
         let requests = self.clone();
         let handed = tokio::spawn(async move {
-            let Some(reference) = requests.fulfill(&request).await else {
+            let Some(fulfilled) = requests.fulfill(&request).await else {
                 return Ok(request);
             };
             let id = request.id;
-            let processing = requests
+            let took = fulfilled.is_ok();
+            let settled = requests
                 .db
-                .write(move |tx| Box::pin(start_processing(tx, id, reference)))
+                .write(move |tx| Box::pin(settle(tx, id, fulfilled)))
                 .await?;
-            let Some(processing) = processing else {
+            if took && settled.is_none() {
                 warn!(
                     request = id,
                     "the Movie Fulfiller took a Request that was changed meanwhile, and keeps it"
                 );
+            }
+            let Some(settled) = settled else {
                 return Ok(request);
             };
-            requests.events.publish(vec![event(RequestStateChanged {
-                request: processing.clone().into(),
-                ..Default::default()
-            })]);
-            Ok(processing)
+            requests
+                .events
+                .publish(vec![state_changed(settled.clone())]);
+            Ok(settled)
         });
         // The task is never aborted, so it only fails if it panicked.
         handed
@@ -268,22 +280,30 @@ impl Requests {
             .unwrap_or_else(|_| Err(sqlx::Error::WorkerCrashed.into()))
     }
 
-    /// The reference the Movie Fulfiller gives for `request` once it takes it, if one is enabled
-    /// and takes it.
-    async fn fulfill(&self, request: &Request) -> Option<String> {
-        let fulfilled = self
+    /// What the Movie Fulfiller says to `request`, if one is enabled: the reference it gives once
+    /// it takes it, or why it doesn't, with no secret setting's value in it.
+    async fn fulfill(&self, request: &Request) -> Option<Result<String, String>> {
+        let (plugin, fulfilled) = self
             .plugins
-            .call_provider::<dyn Fulfiller<Movies>, _, _>(|fulfiller| async move {
-                fulfiller.fulfill(request).await
+            .call_provider_with_id::<dyn Fulfiller<Movies>, _, _>(|fulfiller| async move {
+                // Inside the call, so formatting and dropping the Plugin's error are contained.
+                fulfiller
+                    .fulfill(request)
+                    .await
+                    .map_err(|error| error.to_string())
             })
             .await?;
-        // ponytail: the error is only logged and the Request waits in Approved; #176 makes it
-        // Failed with the error as its reason.
-        fulfilled
-            .inspect_err(|error| {
-                warn!(request = request.id, %error, "the Movie Fulfiller didn't take the Request");
-            })
-            .ok()
+        Some(fulfilled.map_err(|error| {
+            let reason = self
+                .plugins
+                .without_secrets(&plugin, error)
+                .unwrap_or_else(|| format!("{plugin} failed, and was disabled since"));
+            warn!(
+                request = request.id,
+                reason, "the Movie Fulfiller didn't take the Request"
+            );
+            reason
+        }))
     }
 
     /// Declines the Pending Request `id`, giving its Requesters `reason`, trimmed, unless it is
@@ -304,10 +324,7 @@ impl Requests {
             .db
             .write(move |tx| Box::pin(decide(tx, id, state, reason)))
             .await?;
-        self.events.publish(vec![event(RequestStateChanged {
-            request: request.clone().into(),
-            ..Default::default()
-        })]);
+        self.events.publish(vec![state_changed(request.clone())]);
         Ok(request)
     }
 
@@ -610,10 +627,7 @@ pub(crate) async fn make_available(
             .execute(&mut *conn)
             .await?;
         let request = load_one(conn, id).await?.ok_or(sqlx::Error::RowNotFound)?;
-        happened.push(event(RequestStateChanged {
-            request: request.into(),
-            ..Default::default()
-        }));
+        happened.push(state_changed(request));
     }
     Ok(happened)
 }
@@ -660,27 +674,54 @@ async fn decide(
     Ok(request)
 }
 
-/// Moves the Approved Request `id` to Processing, keeping the Fulfiller's `reference` with it, and
-/// returns it as it is now, or `None` if it isn't Approved any more.
-async fn start_processing(
+/// Moves the Approved Request `id` on as its Fulfiller said: to Processing, keeping the reference
+/// it gave, or to Failed, keeping why. Returns it as it is now, or `None` if it isn't Approved any
+/// more.
+async fn settle(
     conn: &mut SqliteConnection,
     id: i64,
-    reference: String,
+    fulfilled: Result<String, String>,
 ) -> Result<Option<Request>, sqlx::Error> {
-    let started = sqlx::query!(
-        "UPDATE requests SET state = 'processing', fulfiller_reference = ?
+    let (state, reference, reason) = match fulfilled {
+        Ok(reference) => (RequestState::Processing, Some(reference), None),
+        Err(reason) => (RequestState::Failed, None, Some(reason)),
+    };
+    let state = stored(state);
+    let settled = sqlx::query!(
+        "UPDATE requests SET state = ?, fulfiller_reference = ?, failure_reason = ?
          WHERE id = ? AND state = 'approved'",
+        state,
         reference,
+        reason,
         id
     )
     .execute(&mut *conn)
     .await?
     .rows_affected()
         > 0;
-    if !started {
+    if !settled {
         return Ok(None);
     }
     load_one(conn, id).await
+}
+
+/// Moves the Failed Request `id` back to Approved, forgetting why it failed, and returns it as it
+/// is now.
+async fn retry(conn: &mut SqliteConnection, id: i64) -> Result<Request, Error> {
+    let retried = sqlx::query!(
+        "UPDATE requests SET state = 'approved', failure_reason = NULL
+         WHERE id = ? AND state = 'failed'",
+        id
+    )
+    .execute(&mut *conn)
+    .await?
+    .rows_affected()
+        > 0;
+    let request = load_one(conn, id).await?.ok_or(Error::NoSuchRequest(id))?;
+    if !retried {
+        return Err(Error::NotFailed(id));
+    }
+    Ok(request)
 }
 
 /// Removes the Request `id`, and its Requesters with it, and returns it as it was.
@@ -747,7 +788,7 @@ async fn load(
 ) -> Result<Vec<Request>, sqlx::Error> {
     let rows = sqlx::query!(
         r#"SELECT id AS "id!", tmdb_id, season AS "season: u32", title, release_date, state,
-                  created_at, decline_reason
+                  created_at, decline_reason, failure_reason
            FROM requests
            WHERE (?1 IS NULL OR id = ?1)
              AND (?2 IS NULL OR EXISTS (SELECT 1 FROM requesters
@@ -792,6 +833,7 @@ async fn load(
                 requesters: requesters.remove(&row.id).unwrap_or_default(),
                 created_at: row.created_at,
                 decline_reason: row.decline_reason,
+                failure_reason: row.failure_reason,
                 ..Default::default()
             };
             match row.season {
@@ -818,6 +860,14 @@ async fn load(
             request
         })
         .collect())
+}
+
+/// The event saying `request` is now in the state it has.
+fn state_changed(request: Request) -> Event {
+    event(RequestStateChanged {
+        request: request.into(),
+        ..Default::default()
+    })
 }
 
 /// `state` as `requests.state` stores it. Unspecified has no stored form: `""` fails the CHECK.

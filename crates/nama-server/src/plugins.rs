@@ -64,6 +64,8 @@ struct Enabled {
     /// Tells this enablement apart from earlier ones of the same Plugin, so a call that started
     /// before a disable can't reach or disable the Plugin enabled again since.
     generation: u64,
+    /// The values of its secret settings, which its errors mustn't show.
+    secrets: Vec<String>,
 }
 
 #[derive(Clone)]
@@ -257,12 +259,14 @@ impl Registry {
         if self.read(|state| state.plugins.contains_key(id)) {
             return Err(EnableError::AlreadyEnabled(id.clone()));
         }
+        let schema = plugin.settings_schema();
         let settings = settings
-            .resolve(&plugin.settings_schema())
+            .resolve(&schema)
             .map_err(|error| EnableError::InvalidSettings {
                 plugin: id.clone(),
                 error,
             })?;
+        let secrets = secret_values(&schema, &settings);
         let mut registrar = Registrar::with_settings(settings);
         plugin.register(&mut registrar);
         let registrations = registrar.into_registrations();
@@ -281,6 +285,7 @@ impl Registry {
                 Enabled {
                     _plugin: plugin,
                     generation,
+                    secrets,
                 },
             );
             for (index, registration) in registrations.into_iter().enumerate() {
@@ -409,7 +414,8 @@ impl Registry {
         let settings = settings
             .resolve(&with_optional_choices(schema.clone()))
             .map_err(CheckError::InvalidSettings)?;
-        let scrubbed = |message: String| without_secrets(message, &schema, &settings);
+        let secrets = secret_values(&schema, &settings);
+        let scrubbed = |message: String| without_secrets(message, &secrets);
         let panicked = |message: String| {
             let message = scrubbed(message);
             error!(plugin = %id, message, "plugin panicked while checking its settings");
@@ -435,6 +441,17 @@ impl Registry {
             error!(plugin = %id, message, "plugin panicked while being dropped");
         }
         checked
+    }
+
+    /// `message`, which the enabled Plugin `plugin` gave, with the value of each of its secret
+    /// settings blanked out, for showing to Users. `None` if the Plugin isn't enabled any more, so
+    /// its secrets aren't known.
+    #[must_use]
+    pub fn without_secrets(&self, plugin: &PluginId, message: String) -> Option<String> {
+        self.read(|state| {
+            let enabled = state.plugins.get(plugin)?;
+            Some(without_secrets(message, &enabled.secrets))
+        })
     }
 
     /// The ids of the enabled Plugins, sorted.
@@ -687,17 +704,23 @@ fn with_optional_choices(mut schema: SettingsSchema) -> SettingsSchema {
     schema
 }
 
-/// `message` with the value of each secret in `settings` blanked out, since a Plugin's error may
-/// quote one, such as in a URL it fetched.
-fn without_secrets(mut message: String, schema: &SettingsSchema, settings: &Settings) -> String {
-    let secrets = schema
+/// The value of each secret in `settings`, leaving out blank ones.
+fn secret_values(schema: &SettingsSchema, settings: &Settings) -> Vec<String> {
+    schema
         .fields
         .iter()
         .filter(|field| field.kind == SettingKind::Secret)
         .filter_map(|field| settings.text(field.key))
-        .filter(|secret| !secret.is_empty());
+        .filter(|secret| !secret.is_empty())
+        .map(str::to_owned)
+        .collect()
+}
+
+/// `message` with each of `secrets` blanked out, since a Plugin's error may quote one, such as in
+/// a URL it fetched.
+fn without_secrets(mut message: String, secrets: &[String]) -> String {
     for secret in secrets {
-        message = message.replace(secret, "…");
+        message = message.replace(secret.as_str(), "…");
     }
     message
 }

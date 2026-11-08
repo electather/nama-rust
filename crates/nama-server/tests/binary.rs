@@ -129,7 +129,7 @@ fn server_logs_its_config_creates_its_database_serves_the_api_and_exits_cleanly_
     let database_line = wait_for_line(&lines, "opened database");
     assert!(
         database_line
-            .contains("migrations_applied=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]"),
+            .contains("migrations_applied=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]"),
         "{database_line}"
     );
     assert!(data_dir.join("nama.db").is_file());

@@ -70,6 +70,14 @@ pub type OwnedCancelRequestRequestView = ::buffa::view::OwnedView<
 pub type OwnedCancelRequestResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::CancelRequestResponseView<'static>,
 >;
+///Shorthand for `OwnedView<RetryRequestRequestView<'static>>`.
+pub type OwnedRetryRequestRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::RetryRequestRequestView<'static>,
+>;
+///Shorthand for `OwnedView<RetryRequestResponseView<'static>>`.
+pub type OwnedRetryRequestResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::RetryRequestResponseView<'static>,
+>;
 ///Shorthand for `OwnedView<WithdrawRequestRequestView<'static>>`.
 pub type OwnedWithdrawRequestRequestView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::WithdrawRequestRequestView<'static>,
@@ -384,6 +392,40 @@ for ::buffa::view::OwnedView<
         )
     }
 }
+impl ::connectrpc::Encodable<crate::messages::nama::v1::RetryRequestResponse>
+for crate::messages::nama::v1::__buffa::view::RetryRequestResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::RetryRequestResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::RetryRequestResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
 impl ::connectrpc::Encodable<crate::messages::nama::v1::WithdrawRequestResponse>
 for crate::messages::nama::v1::__buffa::view::WithdrawRequestResponseView<'_> {
     fn encode(
@@ -471,6 +513,12 @@ pub const REQUEST_SERVICE_DECLINE_REQUEST_SPEC: ::connectrpc::Spec = ::connectrp
 /// Static [`Spec`](::connectrpc::Spec) for the `CancelRequest` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
 pub const REQUEST_SERVICE_CANCEL_REQUEST_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
         "/nama.v1.RequestService/CancelRequest",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
+/// Static [`Spec`](::connectrpc::Spec) for the `RetryRequest` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const REQUEST_SERVICE_RETRY_REQUEST_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.RequestService/RetryRequest",
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
@@ -688,9 +736,11 @@ pub trait RequestService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
-    /// Approves a Pending Request, which then waits for the Movie to be Matched in a Library. Needs
-    /// `PERMISSION_MANAGE_REQUESTS`, which manages every User's Requests. Fails with `not_found` if
-    /// there is no Request with the ID, and `failed_precondition` if it isn't Pending.
+    /// Approves a Pending Request and hands a Movie Request to the Movie Fulfiller, if one is enabled:
+    /// Processing once it takes it, or Failed if it doesn't. Either way it then waits for what it asks
+    /// for to be Matched in a Library. Needs `PERMISSION_MANAGE_REQUESTS`, which manages every User's
+    /// Requests. Fails with `not_found` if there is no Request with the ID, and `failed_precondition`
+    /// if it isn't Pending.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
@@ -758,6 +808,31 @@ pub trait RequestService: Send + Sync + 'static {
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
                 crate::messages::nama::v1::CancelRequestResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Moves a Failed Request back to Approved and hands it to its Fulfiller again, as
+    /// `ApproveRequest` does. Needs `PERMISSION_MANAGE_REQUESTS`. Fails with `not_found` if there is no
+    /// Request with the ID, and `failed_precondition` if it isn't Failed.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn retry_request<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::RetryRequestRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::RetryRequestResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -1081,6 +1156,35 @@ impl<S: RequestService> RequestServiceExt for S {
             .with_spec(REQUEST_SERVICE_CANCEL_REQUEST_SPEC)
             .route_view(
                 REQUEST_SERVICE_SERVICE_NAME,
+                "RetryRequest",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::RetryRequestRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::RetryRequestRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.retry_request(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::RetryRequestResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(REQUEST_SERVICE_RETRY_REQUEST_SPEC)
+            .route_view(
+                REQUEST_SERVICE_SERVICE_NAME,
                 "WithdrawRequest",
                 {
                     let svc = ::std::sync::Arc::clone(&self);
@@ -1214,6 +1318,12 @@ impl<T: RequestService> ::connectrpc::Dispatcher for RequestServiceServer<T> {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
                         .with_spec(REQUEST_SERVICE_CANCEL_REQUEST_SPEC),
+                )
+            }
+            "RetryRequest" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(REQUEST_SERVICE_RETRY_REQUEST_SPEC),
                 )
             }
             "WithdrawRequest" => {
@@ -1428,6 +1538,28 @@ impl<T: RequestService> ::connectrpc::Dispatcher for RequestServiceServer<T> {
                         .await?
                         .encode::<
                             crate::messages::nama::v1::CancelRequestResponse,
+                        >(format)
+                })
+            }
+            "RetryRequest" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::RetryRequestRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::RetryRequestRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::RetryRequestRequest,
+                    >::from_parts(&req, &body);
+                    svc.retry_request(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::RetryRequestResponse,
                         >(format)
                 })
             }
@@ -1976,6 +2108,51 @@ where
                 &self.transport,
                 &self.config,
                 REQUEST_SERVICE_CANCEL_REQUEST_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the RetryRequest RPC. Sends a request to /nama.v1.RequestService/RetryRequest.
+    pub async fn retry_request(
+        &self,
+        request: crate::messages::nama::v1::RetryRequestRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::RetryRequestResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.retry_request_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the RetryRequest RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn retry_request_with_options(
+        &self,
+        request: crate::messages::nama::v1::RetryRequestRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::RetryRequestResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                REQUEST_SERVICE_RETRY_REQUEST_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,

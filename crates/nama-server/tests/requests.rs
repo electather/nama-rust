@@ -13,7 +13,10 @@ mod server;
 use std::{
     collections::{BTreeMap, HashMap},
     fs,
-    sync::{Arc, Mutex, PoisonError},
+    sync::{
+        Arc, Mutex, PoisonError,
+        atomic::{AtomicBool, Ordering},
+    },
     time::Duration,
 };
 
@@ -37,9 +40,9 @@ use nama_proto::nama::v1::{
     CreateUserRequest, DeclineRequestRequest, EventServiceClient, EventType, FoundMovie,
     GetRequestRequest, LibraryKind, LibraryServiceClient, ListMoviesRequest, ListRequestsRequest,
     ListShowsRequest, LookUpMovieRequest, Permission, RefusalReason, Request, RequestServiceClient,
-    RequestState, ScanLibraryRequest, SearchMoviesRequest, SessionDelivery, SetPermissionsRequest,
-    SignInRequest, SignInServiceClient, SubscribeRequest, SubscribeResponse, UserServiceClient,
-    WithdrawRequestRequest, event, subscribe_response,
+    RequestState, RetryRequestRequest, ScanLibraryRequest, SearchMoviesRequest, SessionDelivery,
+    SetPermissionsRequest, SignInRequest, SignInServiceClient, SubscribeRequest, SubscribeResponse,
+    UserServiceClient, WithdrawRequestRequest, event, subscribe_response,
 };
 use nama_server::{config::Config, db::Database, plugins::Registry};
 use refused::assert_refused;
@@ -580,20 +583,24 @@ async fn an_approved_request_becomes_available_once_a_scan_matches_its_movie_and
 }
 
 /// A Movie Fulfiller that takes every Request it is handed, giving `movie-<TMDB id>` as its
-/// reference, unless it refuses them all.
+/// reference, unless it is refusing them all.
 #[derive(Clone, Default)]
 struct FakeFulfiller {
     /// The TMDB id of each Movie it was handed, in order.
     handed: Arc<Mutex<Vec<i64>>>,
-    refuses: bool,
+    refuses: Arc<AtomicBool>,
 }
 
 impl FakeFulfiller {
     fn refusing() -> Self {
-        Self {
-            refuses: true,
-            ..Self::default()
-        }
+        let fulfiller = Self::default();
+        fulfiller.refuses.store(true, Ordering::Relaxed);
+        fulfiller
+    }
+
+    /// Takes every Request it is handed from now on.
+    fn recover(&self) {
+        self.refuses.store(false, Ordering::Relaxed);
     }
 
     fn handed(&self) -> Vec<i64> {
@@ -611,7 +618,7 @@ impl Fulfiller<Movies> for FakeFulfiller {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .push(tmdb_id);
-        let refuses = self.refuses;
+        let refuses = self.refuses.load(Ordering::Relaxed);
         Box::pin(async move {
             if refuses {
                 return Err("Radarr is unreachable".into());
@@ -700,19 +707,93 @@ async fn a_request_opened_approved_goes_to_the_movie_fulfiller_and_joining_it_do
 }
 
 #[tokio::test]
-async fn a_request_the_movie_fulfiller_refuses_waits_in_approved() {
+async fn a_request_the_movie_fulfiller_refuses_fails_with_its_reason_and_the_member_sees_it_live() {
+    let fulfiller = FakeFulfiller::refusing();
+    let fixture = Fixture::with_fulfiller(&fulfiller).await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let ada = requests(as_ada.clone());
+    let pending = ask(&ada, HEAT).await;
+    let mut adas_events = subscribe_to_requests(as_ada).await;
+
+    let failed = fixture.approve(pending.id).await;
+    let events = [
+        next_event(&mut adas_events).await,
+        next_event(&mut adas_events).await,
+    ];
+
+    assert_eq!(failed.state, RequestState::Failed);
+    assert_eq!(
+        failed.failure_reason.as_deref(),
+        Some("Radarr is unreachable")
+    );
+    assert_eq!(fulfiller.handed(), [HEAT]);
+    assert_eq!(fixture.fulfiller_reference(pending.id).await, None);
+    let [_, event::Event::RequestStateChanged(changed)] = events else {
+        panic!("not the approval, then the failure: {events:?}");
+    };
+    assert_eq!(changed.request.as_option(), Some(&failed));
+    assert_eq!(list(&ada).await, [failed]);
+}
+
+#[tokio::test]
+async fn retrying_a_failed_request_once_the_movie_fulfiller_recovers_moves_it_to_processing() {
     let fulfiller = FakeFulfiller::refusing();
     let fixture = Fixture::with_fulfiller(&fulfiller).await;
     let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
     let ada = requests(as_ada);
+    let failed = fixture.approve(ask(&ada, HEAT).await.id).await;
+
+    fulfiller.recover();
+    let retried = retry(&fixture, failed.id).await.unwrap();
+
+    assert_eq!(retried.state, RequestState::Processing);
+    assert_eq!(retried.failure_reason, None);
+    assert_eq!(fulfiller.handed(), [HEAT, HEAT]);
+    assert_eq!(
+        fixture.fulfiller_reference(failed.id).await.as_deref(),
+        Some("movie-949")
+    );
+    assert_eq!(list(&ada).await, [retried]);
+}
+
+#[tokio::test]
+async fn retrying_a_request_that_isnt_failed_is_refused() {
+    let fixture = Fixture::with_fulfiller(&FakeFulfiller::default()).await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let ada = requests(as_ada);
     let pending = ask(&ada, HEAT).await;
+    let processing = fixture.approve(ask(&ada, ALIEN).await.id).await;
 
-    let approved = fixture.approve(pending.id).await;
+    for id in [pending.id, processing.id] {
+        let refusal = assert_refused(
+            retry(&fixture, id).await,
+            ErrorCode::FailedPrecondition,
+            RefusalReason::REFUSAL_REASON_REQUEST_NOT_FAILED,
+        );
+        assert_eq!(refusal.field, "id");
+    }
+    assert_eq!(
+        states(&list(&ada).await),
+        [
+            (processing.id, RequestState::Processing),
+            (pending.id, RequestState::Pending)
+        ]
+    );
+}
 
-    assert_eq!(approved.state, RequestState::Approved);
-    assert_eq!(fulfiller.handed(), [HEAT]);
-    assert_eq!(fixture.fulfiller_reference(pending.id).await, None);
-    assert_eq!(list(&ada).await, [approved]);
+/// Retries the Request `id` as the Admin.
+async fn retry(fixture: &Fixture, id: i64) -> Result<Request, ConnectError> {
+    let retried = requests(fixture.server.client_config())
+        .retry_request(RetryRequestRequest {
+            id,
+            ..Default::default()
+        })
+        .await?;
+    Ok(retried
+        .into_owned()
+        .request
+        .into_option()
+        .unwrap_or_default())
 }
 
 #[tokio::test]
@@ -926,8 +1007,15 @@ async fn a_user_without_manage_requests_is_refused_each_action_naming_the_permis
         })
         .await
         .map(drop);
+    let retry = ada
+        .retry_request(RetryRequestRequest {
+            id,
+            ..Default::default()
+        })
+        .await
+        .map(drop);
 
-    for refused in [approve, decline, cancel] {
+    for refused in [approve, decline, cancel, retry] {
         let refusal = assert_refused(
             refused,
             ErrorCode::PermissionDenied,

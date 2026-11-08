@@ -127,6 +127,23 @@ test.each([
   expect(await screen.findByText(label)).toBeDefined();
 });
 
+test("a Request its Fulfiller didn't take shows as Failed with the reason, without a reload", async () => {
+  const events = eventFeed();
+  let requests: MessageInitShape<typeof RequestSchema>[] = [dune];
+  openApp(
+    "/requests",
+    server(() => requests, events.stream),
+  );
+  await screen.findByText("Approved");
+
+  const failed = { ...dune, state: RequestState.FAILED, failureReason: "Radarr is unreachable" };
+  requests = [failed];
+  events.send({ event: { case: "requestStateChanged", value: { request: failed } } });
+
+  expect(await screen.findByText("Failed")).toBeDefined();
+  expect(screen.getByText("Reason: Radarr is unreachable")).toBeDefined();
+});
+
 test("a Request cancelled elsewhere goes without a reload", async () => {
   const events = eventFeed();
   let requests = [dune];

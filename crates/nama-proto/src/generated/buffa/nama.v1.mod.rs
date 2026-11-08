@@ -115,6 +115,8 @@ pub mod __buffa {
         reg.register_json_any(super::__DECLINE_REQUEST_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__CANCEL_REQUEST_REQUEST_JSON_ANY);
         reg.register_json_any(super::__CANCEL_REQUEST_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__RETRY_REQUEST_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__RETRY_REQUEST_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__WITHDRAW_REQUEST_REQUEST_JSON_ANY);
         reg.register_json_any(super::__WITHDRAW_REQUEST_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__FOUND_MOVIE_JSON_ANY);
@@ -423,6 +425,14 @@ pub use self::__buffa::view::CancelRequestRequestOwnedView;
 pub use self::__buffa::view::CancelRequestResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::CancelRequestResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::RetryRequestRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::RetryRequestRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::RetryRequestResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::RetryRequestResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::WithdrawRequestRequestView;
 #[doc(inline)]

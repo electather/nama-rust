@@ -12,7 +12,7 @@ import { formText, refusal } from "@/lib/forms";
 
 /**
  * What the signed-in User `you` may do to `request`: withdraw from it if it's their own and
- * Pending, and approve, decline or cancel it if they `manage` Requests.
+ * Pending, and approve, decline, retry or cancel it if they `manage` Requests.
  */
 export function RequestActions({
   request,
@@ -29,7 +29,7 @@ export function RequestActions({
     // Hidden when it has no buttons, so it adds no space to the row.
     <div className="-ms-4 mt-1 flex basis-full flex-wrap gap-1 empty:hidden">
       {canWithdraw(request, you) && <Withdraw {...target} />}
-      {manage && <Manage pending={request.state === RequestState.PENDING} {...target} />}
+      {manage && <Manage state={request.state} {...target} />}
     </div>
   );
 }
@@ -42,16 +42,17 @@ function canWithdraw(request: Request, you: bigint | undefined) {
   );
 }
 
-/** Approve and Decline for a Pending Request, and Cancel for any. */
-function Manage({ pending, ...target }: Target & { pending: boolean }) {
+/** Approve and Decline for a Pending Request, Retry for a Failed one, and Cancel for any. */
+function Manage({ state, ...target }: Target & { state: RequestState }) {
   return (
     <>
-      {pending && (
+      {state === RequestState.PENDING && (
         <>
           <Approve {...target} />
           <Decline {...target} />
         </>
       )}
+      {state === RequestState.FAILED && <Retry {...target} />}
       <Cancel {...target} />
     </>
   );
@@ -85,6 +86,20 @@ function Approve({ id, title }: Target) {
       change={approve}
       id={id}
       refusal={(error) => changeRefusal(error, title, "approve this Request")}
+    />
+  );
+}
+
+/** Hands a Failed Request to its Fulfiller again. */
+function Retry({ id, title }: Target) {
+  const retry = useMutation(RequestService.method.retryRequest, useRefetchRequests());
+  return (
+    <ChangeButton
+      action="Retry"
+      name={`Retry ${title}`}
+      change={retry}
+      id={id}
+      refusal={(error) => changeRefusal(error, title, "retry this Request")}
     />
   );
 }
@@ -180,6 +195,7 @@ function changeRefusal(error: unknown, title: string, attempt: string) {
     {},
     {
       [RefusalReason.REQUEST_NOT_PENDING]: { form: `${title} was already approved or declined.` },
+      [RefusalReason.REQUEST_NOT_FAILED]: { form: `${title} was already retried.` },
       [RefusalReason.REQUEST_NOT_FOUND]: { form: `The Request for ${title} is gone.` },
       [RefusalReason.NOT_A_REQUESTER]: { form: `You’re no longer a Requester of ${title}.` },
     },

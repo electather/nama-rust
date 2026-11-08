@@ -53,17 +53,18 @@ use nama_proto::nama::v1::{
     LookUpSignInCodeResponse, MatchService, Permission, PluginKind, PluginService,
     PollSignInCodeRequest, PollSignInCodeResponse, ReauthenticateRequest, ReauthenticateResponse,
     Refusal, RefusalReason, ReportProgressRequest, ReportProgressResponse, RequestService,
-    ResetPasswordRequest, ResetPasswordResponse, RevokeDeviceRequest, RevokeDeviceResponse,
-    ScanLibraryRequest, ScanLibraryResponse, SearchMetadataRequest, SearchMetadataResponse,
-    SearchMoviesRequest, SearchMoviesResponse, ServerService, SessionDelivery,
-    SetDefaultPermissionsRequest, SetDefaultPermissionsResponse, SetMatchRequest, SetMatchResponse,
-    SetPermissionsRequest, SetPermissionsResponse, SetPlayedRequest, SetPlayedResponse,
-    SetupRequest, SetupResponse, SignInCodeStatus, SignInRequest, SignInResponse, SignInService,
-    SignOutRequest, SignOutResponse, StartSignInCodeRequest, StartSignInCodeResponse,
-    SubscribeRequest, SubscribeResponse, TestPluginSettingsRequest, TestPluginSettingsResponse,
-    UpdateLibraryRequest, UpdateLibraryResponse, UpdatePluginSettingsRequest,
-    UpdatePluginSettingsResponse, UserService, WatchStateService, WhoAmIRequest, WhoAmIResponse,
-    WithdrawRequestRequest, WithdrawRequestResponse, external_id, reauthenticate_request::Proof,
+    ResetPasswordRequest, ResetPasswordResponse, RetryRequestRequest, RetryRequestResponse,
+    RevokeDeviceRequest, RevokeDeviceResponse, ScanLibraryRequest, ScanLibraryResponse,
+    SearchMetadataRequest, SearchMetadataResponse, SearchMoviesRequest, SearchMoviesResponse,
+    ServerService, SessionDelivery, SetDefaultPermissionsRequest, SetDefaultPermissionsResponse,
+    SetMatchRequest, SetMatchResponse, SetPermissionsRequest, SetPermissionsResponse,
+    SetPlayedRequest, SetPlayedResponse, SetupRequest, SetupResponse, SignInCodeStatus,
+    SignInRequest, SignInResponse, SignInService, SignOutRequest, SignOutResponse,
+    StartSignInCodeRequest, StartSignInCodeResponse, SubscribeRequest, SubscribeResponse,
+    TestPluginSettingsRequest, TestPluginSettingsResponse, UpdateLibraryRequest,
+    UpdateLibraryResponse, UpdatePluginSettingsRequest, UpdatePluginSettingsResponse, UserService,
+    WatchStateService, WhoAmIRequest, WhoAmIResponse, WithdrawRequestRequest,
+    WithdrawRequestResponse, external_id, reauthenticate_request::Proof,
     set_played_request::Target, setting_value,
 };
 
@@ -248,6 +249,7 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::REQUEST_SERVICE_APPROVE_REQUEST_SPEC.procedure,       MANAGE_REQUESTS),
     (proto::REQUEST_SERVICE_DECLINE_REQUEST_SPEC.procedure,       MANAGE_REQUESTS),
     (proto::REQUEST_SERVICE_CANCEL_REQUEST_SPEC.procedure,        MANAGE_REQUESTS),
+    (proto::REQUEST_SERVICE_RETRY_REQUEST_SPEC.procedure,         MANAGE_REQUESTS),
     (proto::REQUEST_SERVICE_WITHDRAW_REQUEST_SPEC.procedure,      Access::SignedIn),
     (proto::PLUGIN_SERVICE_LIST_PLUGINS_SPEC.procedure,           MANAGE_SETTINGS),
     (proto::PLUGIN_SERVICE_UPDATE_PLUGIN_SETTINGS_SPEC.procedure, MANAGE_SETTINGS),
@@ -1442,6 +1444,18 @@ impl RequestService for RequestServiceHandler {
         Response::ok(CancelRequestResponse::default())
     }
 
+    async fn retry_request(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, RetryRequestRequest>,
+    ) -> ServiceResult<RetryRequestResponse> {
+        let retried = self.requests.retry(request.id).await?;
+        Response::ok(RetryRequestResponse {
+            request: retried.into(),
+            ..Default::default()
+        })
+    }
+
     async fn withdraw_request(
         &self,
         ctx: RequestContext,
@@ -2350,6 +2364,7 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED
         | R::REFUSAL_REASON_ALREADY_IN_LIBRARY
         | R::REFUSAL_REASON_REQUEST_NOT_PENDING
+        | R::REFUSAL_REASON_REQUEST_NOT_FAILED
         | R::REFUSAL_REASON_NOT_A_REQUESTER
         | R::REFUSAL_REASON_LAST_AUTHENTICATOR
         | R::REFUSAL_REASON_SETTINGS_CHECK_FAILED => ErrorCode::FailedPrecondition,
@@ -2488,6 +2503,9 @@ impl From<requests::Error> for ConnectError {
                     .field("id")
                     .param("requestId", &id)
             }
+            requests::Error::NotFailed(id) => refuse(R::REFUSAL_REASON_REQUEST_NOT_FAILED, message)
+                .field("id")
+                .param("requestId", &id),
             requests::Error::NotARequester(id) => {
                 refuse(R::REFUSAL_REASON_NOT_A_REQUESTER, message)
                     .field("id")

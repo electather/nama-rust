@@ -743,6 +743,33 @@ async fn a_plugin_is_enabled_with_its_settings_and_their_defaults() {
 }
 
 #[test]
+fn an_enabled_plugins_error_is_shown_without_its_secret_settings() {
+    let registry = Registry::new();
+    let (tx, _rx) = mpsc::unbounded_channel();
+    registry
+        .enable_with_settings(
+            Arc::new(Configurable(tx)),
+            settings(&[
+                ("api_key", SettingValue::Text("s3cr3t".to_owned())),
+                ("language", SettingValue::Text("en".to_owned())),
+            ]),
+        )
+        .unwrap();
+    let id = PluginId::from_static("configurable");
+    let error = || "GET /movies?key=s3cr3t&language=en failed".to_owned();
+
+    let shown = registry.without_secrets(&id, error());
+    registry.disable(&id);
+    let after_disabling = registry.without_secrets(&id, error());
+
+    assert_eq!(
+        shown.as_deref(),
+        Some("GET /movies?key=…&language=en failed")
+    );
+    assert_eq!(after_disabling, None);
+}
+
+#[test]
 fn a_plugin_whose_settings_do_not_fit_its_schema_is_not_enabled() {
     let registry = Registry::new();
     let (tx, _rx) = mpsc::unbounded_channel();
