@@ -1,0 +1,120 @@
+name: test-report
+
+# Records each finished CI run's test results on the `test-history` branch, writes a summary of
+# its flaky and slow tests, and keeps one `needs-triage` issue per flaky test (ADR 0022).
+# `crates/nama-test-report` holds the logic; this workflow does the git and `gh` work around it.
+#
+# A `workflow_run` workflow, so the write token lives here and never in CI, whose Dependabot runs
+# only get a read-only one. It runs main's code, never the PR's, and reads the run's test reports
+# only as data.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+
+permissions:
+  # Downloads the CI run's artifacts.
+  actions: read
+  # Pushes to `test-history`.
+  contents: write
+  issues: write
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_PROFILE_DEV_DEBUG: 0
+  # A fixed path, so rust-cache restores it (see ci.yml).
+  CARGO_TARGET_DIR: /home/runner/target
+  GH_TOKEN: ${{ github.token }}
+  GH_REPO: ${{ github.repository }}
+  RUN_ID: ${{ github.event.workflow_run.id }}
+  RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+  RUN_STARTED_AT: ${{ github.event.workflow_run.run_started_at }}
+
+jobs:
+  report:
+    # A cancelled run is partial, and a skipped one (a closed PR's) ran nothing.
+    if: contains(fromJSON('["success", "failure"]'), github.event.workflow_run.conclusion)
+    runs-on: [self-hosted, nama-rust]
+    steps:
+      - uses: actions/checkout@v7
+      - name: Download the test reports
+        id: reports
+        run: |
+          # Fails when the run uploaded none: its tests never ran.
+          if gh run download "$RUN_ID" --pattern 'test-reports-*' --dir "$RUNNER_TEMP/reports"; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::CI run $RUN_ID has no test reports; nothing to record."
+          fi
+      - if: steps.reports.outputs.found
+        uses: dtolnay/rust-toolchain@stable
+      - if: steps.reports.outputs.found
+        uses: Swatinem/rust-cache@v2
+        with:
+          # ponytail: tied to the checkout's depth, as in ci.yml.
+          workspaces: . -> ../../../../home/runner/target
+      - name: Read the history and the flaky-test issues
+        if: steps.reports.outputs.found
+        run: |
+          git fetch origin +refs/heads/test-history:refs/remotes/origin/test-history || true
+          if git rev-parse --verify -q origin/test-history; then
+            git worktree add --detach history origin/test-history
+          else
+            git worktree add --detach history
+            git -C history checkout -q --orphan test-history
+            git -C history rm -rfq --ignore-unmatch .
+          fi
+          # The tool needs the last 30 days: this month's file and the one before.
+          {
+            cat "history/$(date -u -d "${RUN_STARTED_AT:0:10} -30 days" +%Y-%m).jsonl" || true
+            cat "history/${RUN_STARTED_AT:0:7}.jsonl" || true
+          } > "$RUNNER_TEMP/recent.jsonl"
+          gh issue list --app github-actions --state all --limit 1000 \
+            --json number,state,title,body > "$RUNNER_TEMP/issues.json"
+      - name: Report
+        if: steps.reports.outputs.found
+        env:
+          # Through a file, never inline in the script: the PR's branch name is in here.
+          RUN: ${{ toJSON(github.event.workflow_run) }}
+        run: |
+          printf '%s' "$RUN" > "$RUNNER_TEMP/run.json"
+          mkdir "$RUNNER_TEMP/out"
+          mapfile -d '' reports < <(find "$RUNNER_TEMP/reports" -type f \( -name '*.xml' -o -name '*.json' \) -print0)
+          cargo run --release --locked -p nama-test-report -- \
+            --run "$RUNNER_TEMP/run.json" --history "$RUNNER_TEMP/recent.jsonl" \
+            --issues "$RUNNER_TEMP/issues.json" --out "$RUNNER_TEMP/out" "${reports[@]}"
+          cat "$RUNNER_TEMP/out/summary.md" >> "$GITHUB_STEP_SUMMARY"
+      - name: Append to the history
+        if: steps.reports.outputs.found
+        working-directory: history
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          month="${RUN_STARTED_AT:0:7}.jsonl"
+          for attempt in 1 2 3 4 5; do
+            cat "$RUNNER_TEMP/out/history.jsonl" >> "$month"
+            git add "$month"
+            git commit -qm "CI run $RUN_ID, attempt $RUN_ATTEMPT"
+            git push -q origin HEAD:refs/heads/test-history && exit 0
+            # Another report pushed first. Lines are only ever appended, so start again from its
+            # history rather than merge.
+            sleep $((attempt * 5))
+            git fetch -q origin +refs/heads/test-history:refs/remotes/origin/test-history
+            git reset -q --hard origin/test-history
+          done
+          echo "::error::Couldn't push to test-history"
+          exit 1
+      - name: Update the flaky-test issues
+        if: steps.reports.outputs.found
+        run: |
+          # Each value goes to gh as one argument, never through the shell: test names come
+          # from the PR's reports.
+          while IFS= read -r action; do
+            field() { jq -r ".$1" <<< "$action"; }
+            case "$(field action)" in
+              open) gh issue create --title "$(field title)" --body "$(field body)" --label needs-triage ;;
+              comment) gh issue comment "$(field issue)" --body "$(field body)" ;;
+              reopen) gh issue reopen "$(field issue)" ;;
+              retitle) gh issue edit "$(field issue)" --title "$(field title)" ;;
+            esac
+          done < "$RUNNER_TEMP/out/issue-actions.jsonl"

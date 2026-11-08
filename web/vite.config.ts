@@ -6,6 +6,10 @@ import { defineConfig } from "vite-plus";
 // The Server `vp dev` forwards RPCs and media to, so the browser sees one origin (ADR 0015).
 const serverUrl = process.env["NAMA_SERVER_URL"] ?? "http://localhost:7980";
 
+// CI sets `CI`. There a failed test is retried twice and the results go to a report that
+// `nama-test-report` reads (ADR 0022); locally a flaky test fails, so you notice it.
+const ci = Boolean(process.env["CI"]);
+
 // Written by `buf generate` and the router plugin, never by hand.
 const generated = ["src/gen/**", "src/routeTree.gen.ts"];
 
@@ -27,6 +31,10 @@ export default defineConfig({
   preview: { host: "127.0.0.1" },
   test: {
     environment: "happy-dom",
+    retry: ci ? 2 : 0,
+    // JSON, not JUnit: vitest's JUnit report doesn't show which tests passed only on a retry.
+    reporters: ci ? ["default", "json"] : ["default"],
+    outputFile: { json: "test-results/vitest.json" },
   },
   fmt: {
     ignorePatterns: generated,

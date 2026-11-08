@@ -148,6 +148,13 @@ jobs:
           vp test
           vp build
           vp run fallow
+      # For the test-report workflow (ADR 0022). Missing when the tests never ran.
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: test-reports-vitest
+          path: web/test-results/vitest.json
+          if-no-files-found: ignore
       # From the repo root, where impeccable finds .impeccable/config.json (which ignores
       # web/src/gen) and DESIGN.md. From web/ it would read neither.
       - name: Design check
@@ -192,8 +199,12 @@ jobs:
       # messages without its ConnectRPC stubs.
       - run: cargo clippy --package nama-test-plugin --target wasm32-unknown-unknown --locked -- -D warnings
       - uses: taiki-e/install-action@nextest
-      # nextest builds every target it runs, so there's no separate `cargo build`.
-      - run: cargo nextest run --workspace --locked
+      # nextest builds every target it runs, so there's no separate `cargo build`. The `ci` profile
+      # (.config/nextest.toml) retries, kills hung tests and writes a JUnit report. The cached
+      # target directory can hold an earlier run's report, so it starts empty.
+      - run: |
+          rm -rf "$CARGO_TARGET_DIR/nextest"
+          cargo nextest run --workspace --locked --profile ci
       # nextest doesn't run doctests.
       - run: cargo test --workspace --doc --locked
       # The Server with the `web` feature, which embeds the `vp build` output.
@@ -202,4 +213,11 @@ jobs:
           working-directory: web
           cache: true
       - run: vp -C web build
-      - run: cargo test -p nama-server --features web --test web --locked
+      - run: cargo nextest run -p nama-server --features web --test web --locked --profile ci-web
+      # For the test-report workflow (ADR 0022). Missing when the tests never ran.
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: test-reports-nextest-${{ matrix.os }}
+          path: ${{ env.CARGO_TARGET_DIR }}/nextest/*/junit.xml
+          if-no-files-found: ignore

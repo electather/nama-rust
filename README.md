@@ -12,6 +12,7 @@ A self-hosted media server and request manager, with an optional central Hub for
 | [`crates/nama-pdk`](crates/nama-pdk) | Plugin development kit for Installed Plugins |
 | [`crates/nama-proto`](crates/nama-proto) | Rust types and ConnectRPC stubs generated from `proto/` |
 | [`crates/nama-test-plugin`](crates/nama-test-plugin) | An Installed Plugin used only in the Server's tests |
+| [`crates/nama-test-report`](crates/nama-test-report) | CI tooling: records test results and reports flaky and slow tests |
 | [`plugins/`](plugins) | Built-in Plugins |
 | [`web/`](web) | The web app the Server serves |
 | [`proto/`](proto) | The Protobuf API schema |
@@ -50,7 +51,16 @@ The Server's tests build the test Plugin for wasm32 themselves, so they need the
 
 It also checks that the generated code and the sqlx query data are current. If you change `proto/`, see [`crates/nama-proto/README.md`](crates/nama-proto/README.md). If you change a query or a migration, see [`crates/nama-server/README.md`](crates/nama-server/README.md).
 
-A `web` job runs the web app's checks ([`web/README.md`](web/README.md), "Checks"). The test job then builds the web app and runs `cargo test -p nama-server --features web --test web` against it.
+A `web` job runs the web app's checks ([`web/README.md`](web/README.md), "Checks"). The test job then builds the web app and runs `cargo nextest run -p nama-server --features web --test web` against it.
+
+### Flaky and slow tests
+
+CI runs nextest with its `ci` profile ([`.config/nextest.toml`](.config/nextest.toml)), and vitest with `CI` set, so a failed test is retried twice there; locally it isn't. The [`test-report`](.github/workflows/test-report.yml) workflow then records every test's result on the `test-history` branch, summarises the run's flaky and slow tests, and opens or updates a `needs-triage` issue per flaky test (ADR 0022). To ask the history your own questions:
+
+```sh
+git fetch origin test-history
+git show origin/test-history:2026-11.jsonl | jq -c 'select(.outcome != "pass")'
+```
 
 ## License
 
