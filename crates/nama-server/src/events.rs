@@ -243,21 +243,34 @@ pub(crate) fn users_to_tell(event: &Event, users: &[User]) -> Vec<i64> {
             .filter(|user| user.permissions.allow(Permission::ManageRequests))
             .map(|user| user.id)
             .collect(),
+        // A scan opens a Followed Show's new Season already (Partially) Available. One opened
+        // Approved tells nobody: its asker auto-approved it.
+        Some(E::RequestCreated(created))
+            if matches!(
+                created.request.state.as_known(),
+                Some(S::PartiallyAvailable | S::Available)
+            ) =>
+        {
+            requesters(&created.request)
+        }
         Some(E::RequestStateChanged(changed))
             if matches!(
                 changed.request.state.as_known(),
                 Some(S::Approved | S::Declined | S::Failed | S::PartiallyAvailable | S::Available)
             ) =>
         {
-            changed
-                .request
-                .requesters
-                .iter()
-                .map(|requester| requester.user_id)
-                .collect()
+            requesters(&changed.request)
         }
         _ => Vec::new(),
     }
+}
+
+fn requesters(request: &Request) -> Vec<i64> {
+    request
+        .requesters
+        .iter()
+        .map(|requester| requester.user_id)
+        .collect()
 }
 
 /// An [`Event`] holding `happened`, one of the things that can happen, such as a `ScanStarted`.
@@ -349,6 +362,17 @@ mod tests {
     }
 
     #[test]
+    fn a_followed_shows_season_opening_available_picks_its_requesters() {
+        for state in [RequestState::PartiallyAvailable, RequestState::Available] {
+            assert_eq!(
+                users_to_tell(&created(state, &[1, 2]), &users()),
+                [1, 2],
+                "{state:?}"
+            );
+        }
+    }
+
+    #[test]
     fn a_new_pending_request_picks_every_user_with_manage_requests() {
         let users = users();
         assert_eq!(
@@ -375,6 +399,7 @@ mod tests {
                 request: pending.into(),
                 ..Default::default()
             }),
+            // Auto-approved: its asker approved it.
             created(RequestState::Approved, &[1]),
             moved_to(RequestState::Processing, &[1]),
         ];
