@@ -133,7 +133,7 @@ function RequestRow({ request }: { request: Request }) {
       <div className="min-w-0 flex-1">
         <p className="truncate font-medium">{titleOf(request)}</p>
         <p className="text-sm text-muted-foreground">{aboutRequest(request, signedIn.user?.id)}</p>
-        <DeclineReason reason={request.declineReason} />
+        <Reason reason={request.declineReason ?? request.failureReason} />
       </div>
       <RequestStateLabel state={request.state} />
       <RequestActions
@@ -156,10 +156,11 @@ function aboutRequest(request: Request, you: bigint | undefined) {
   return metadataLine(yearOf(released), requestedBy(request, you));
 }
 
-function DeclineReason({ reason }: { reason: string | undefined }) {
+/** Why a Request was Declined, or why it Failed, in the decliner's or the Fulfiller's words. */
+function Reason({ reason }: { reason: string | undefined }) {
   return (
     reason !== undefined && (
-      <p className="text-sm text-pretty text-muted-foreground">Reason: {reason}</p>
+      <p className="text-sm text-pretty wrap-break-word text-muted-foreground">Reason: {reason}</p>
     )
   );
 }

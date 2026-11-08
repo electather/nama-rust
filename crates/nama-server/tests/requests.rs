@@ -13,7 +13,11 @@ mod server;
 use std::{
     collections::{BTreeMap, HashMap},
     fs, future,
-    sync::{Arc, Mutex, PoisonError},
+    path::Path,
+    sync::{
+        Arc, Mutex, PoisonError,
+        atomic::{AtomicBool, Ordering},
+    },
     time::Duration,
 };
 
@@ -39,9 +43,9 @@ use nama_proto::nama::v1::{
     FoundMovie, FoundShow, GetRequestRequest, LibraryKind, LibraryServiceClient, ListMoviesRequest,
     ListRequestsRequest, ListShowsRequest, LookUpMovieRequest, LookUpShowRequest, Permission,
     PluginServiceClient, RefusalReason, Request, RequestServiceClient, RequestState,
-    ScanLibraryRequest, SearchMoviesRequest, SearchShowsRequest, SessionDelivery,
-    SetPermissionsRequest, SignInRequest, SignInServiceClient, SubscribeRequest, SubscribeResponse,
-    UserServiceClient, WithdrawRequestRequest, event, subscribe_response,
+    RetryRequestRequest, ScanLibraryRequest, SearchMoviesRequest, SearchShowsRequest,
+    SessionDelivery, SetPermissionsRequest, SignInRequest, SignInServiceClient, SubscribeRequest,
+    SubscribeResponse, UserServiceClient, WithdrawRequestRequest, event, subscribe_response,
 };
 use nama_server::{
     config::{Config, PluginConfig},
@@ -61,7 +65,12 @@ const DUNE: i64 = 438_631;
 /// A Show the fake TMDB knows, whose Season 1 has three aired Episodes and Season 2 one.
 const DARK: i64 = 70523;
 const DARK_S01E01: &str = "Dark {tmdb-70523}/Season 01/Dark - S01E01.mkv";
+const DARK_S01E02: &str = "Dark {tmdb-70523}/Season 01/Dark - S01E02.mkv";
+const DARK_S01E03: &str = "Dark {tmdb-70523}/Season 01/Dark - S01E03.mkv";
 const DARK_S02E01: &str = "Dark {tmdb-70523}/Season 02/Dark - S02E01.mkv";
+/// Season 3 of Dark is still airing in the fake TMDB: Episode 1 has aired, Episode 2 hasn't.
+const DARK_S03E01: &str = "Dark {tmdb-70523}/Season 03/Dark - S03E01.mkv";
+const DARK_S03E02: &str = "Dark {tmdb-70523}/Season 03/Dark - S03E02.mkv";
 const THE_OFFICE: i64 = 2316;
 
 const WAIT: Duration = Duration::from_secs(10);
@@ -252,11 +261,7 @@ impl Fixture {
     async fn library_with(&self, kind: LibraryKind, files: &[&str]) -> (tempfile::TempDir, i64) {
         let media = tempfile::tempdir().unwrap();
         let folder = media.path().canonicalize().unwrap();
-        for file in files {
-            let file = folder.join(file);
-            fs::create_dir_all(file.parent().unwrap()).unwrap();
-            fs::write(file, b"video").unwrap();
-        }
+        write_files(&folder, files);
         let library =
             LibraryServiceClient::new(HttpClient::plaintext(), self.server.client_config())
                 .create_library(CreateLibraryRequest {
@@ -291,6 +296,19 @@ impl Fixture {
         tokio::time::timeout(WAIT, until_listed(&browse, library, kind, has_titles))
             .await
             .unwrap();
+    }
+}
+
+/// Writes `files` under `folder`, as stand-in videos.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+fn write_files(folder: &Path, files: &[&str]) {
+    for file in files {
+        let file = folder.join(file);
+        fs::create_dir_all(file.parent().unwrap()).unwrap();
+        fs::write(file, b"video").unwrap();
     }
 }
 
@@ -653,20 +671,24 @@ async fn an_approved_request_becomes_available_once_a_scan_matches_its_movie_and
 }
 
 /// A Movie Fulfiller that takes every Request it is handed, giving `movie-<TMDB id>` as its
-/// reference, unless it refuses them all.
+/// reference, unless it is refusing them all.
 #[derive(Clone, Default)]
 struct FakeFulfiller {
     /// The TMDB id of each Movie it was handed, in order.
     handed: Arc<Mutex<Vec<i64>>>,
-    refuses: bool,
+    refuses: Arc<AtomicBool>,
 }
 
 impl FakeFulfiller {
     fn refusing() -> Self {
-        Self {
-            refuses: true,
-            ..Self::default()
-        }
+        let fulfiller = Self::default();
+        fulfiller.refuses.store(true, Ordering::Relaxed);
+        fulfiller
+    }
+
+    /// Takes every Request it is handed from now on.
+    fn recover(&self) {
+        self.refuses.store(false, Ordering::Relaxed);
     }
 
     fn handed(&self) -> Vec<i64> {
@@ -684,7 +706,7 @@ impl Fulfiller<Movies> for FakeFulfiller {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .push(tmdb_id);
-        let refuses = self.refuses;
+        let refuses = self.refuses.load(Ordering::Relaxed);
         Box::pin(async move {
             if refuses {
                 return Err("Radarr is unreachable".into());
@@ -773,19 +795,110 @@ async fn a_request_opened_approved_goes_to_the_movie_fulfiller_and_joining_it_do
 }
 
 #[tokio::test]
-async fn a_request_the_movie_fulfiller_refuses_waits_in_approved() {
+async fn a_request_the_movie_fulfiller_refuses_fails_with_its_reason_and_the_member_sees_it_live() {
     let fulfiller = FakeFulfiller::refusing();
     let fixture = Fixture::with_fulfiller(&fulfiller).await;
     let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
-    let ada = requests(as_ada);
+    let ada = requests(as_ada.clone());
     let pending = ask(&ada, HEAT).await;
+    let mut adas_events = subscribe_to_requests(as_ada).await;
 
-    let approved = fixture.approve(pending.id).await;
+    let failed = fixture.approve(pending.id).await;
+    let events = [
+        next_event(&mut adas_events).await,
+        next_event(&mut adas_events).await,
+    ];
 
-    assert_eq!(approved.state, RequestState::Approved);
+    assert_eq!(failed.state, RequestState::Failed);
+    assert_eq!(
+        failed.failure_reason.as_deref(),
+        Some("Radarr is unreachable")
+    );
     assert_eq!(fulfiller.handed(), [HEAT]);
     assert_eq!(fixture.fulfiller_reference(pending.id).await, None);
-    assert_eq!(list(&ada).await, [approved]);
+    let [_, event::Event::RequestStateChanged(changed)] = events else {
+        panic!("not the approval, then the failure: {events:?}");
+    };
+    assert_eq!(changed.request.as_option(), Some(&failed));
+    assert_eq!(list(&ada).await, [failed]);
+}
+
+#[tokio::test]
+async fn retrying_a_failed_request_once_the_movie_fulfiller_recovers_moves_it_to_processing() {
+    let fulfiller = FakeFulfiller::refusing();
+    let fixture = Fixture::with_fulfiller(&fulfiller).await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let ada = requests(as_ada.clone());
+    let failed = fixture.approve(ask(&ada, HEAT).await.id).await;
+    let mut adas_events = subscribe_to_requests(as_ada).await;
+
+    fulfiller.recover();
+    let retried = retry(&fixture, failed.id).await.unwrap();
+    let events = [
+        next_event(&mut adas_events).await,
+        next_event(&mut adas_events).await,
+    ];
+
+    let [
+        event::Event::RequestStateChanged(approved),
+        event::Event::RequestStateChanged(processing),
+    ] = events
+    else {
+        panic!("not Approved, then Processing: {events:?}");
+    };
+    assert_eq!(
+        approved.request.as_option().map(|request| request.state),
+        Some(RequestState::Approved.into())
+    );
+    assert_eq!(processing.request.as_option(), Some(&retried));
+    assert_eq!(retried.state, RequestState::Processing);
+    assert_eq!(retried.failure_reason, None);
+    assert_eq!(fulfiller.handed(), [HEAT, HEAT]);
+    assert_eq!(
+        fixture.fulfiller_reference(failed.id).await.as_deref(),
+        Some("movie-949")
+    );
+    assert_eq!(list(&ada).await, [retried]);
+}
+
+#[tokio::test]
+async fn retrying_a_request_that_isnt_failed_is_refused() {
+    let fixture = Fixture::with_fulfiller(&FakeFulfiller::default()).await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let ada = requests(as_ada);
+    let pending = ask(&ada, HEAT).await;
+    let processing = fixture.approve(ask(&ada, ALIEN).await.id).await;
+
+    for id in [pending.id, processing.id] {
+        let refusal = assert_refused(
+            retry(&fixture, id).await,
+            ErrorCode::FailedPrecondition,
+            RefusalReason::REFUSAL_REASON_REQUEST_NOT_FAILED,
+        );
+        assert_eq!(refusal.field, "id");
+    }
+    assert_eq!(
+        states(&list(&ada).await),
+        [
+            (processing.id, RequestState::Processing),
+            (pending.id, RequestState::Pending)
+        ]
+    );
+}
+
+/// Retries the Request `id` as the Admin.
+async fn retry(fixture: &Fixture, id: i64) -> Result<Request, ConnectError> {
+    let retried = requests(fixture.server.client_config())
+        .retry_request(RetryRequestRequest {
+            id,
+            ..Default::default()
+        })
+        .await?;
+    Ok(retried
+        .into_owned()
+        .request
+        .into_option()
+        .unwrap_or_default())
 }
 
 #[tokio::test]
@@ -895,6 +1008,21 @@ async fn a_processing_request_becomes_available_once_a_scan_matches_its_movie() 
         states(&list(&ada).await),
         [(processing.id, RequestState::Available)]
     );
+}
+
+#[tokio::test]
+async fn a_failed_request_becomes_available_without_its_reason_once_a_scan_matches_its_movie() {
+    let fixture = Fixture::with_fulfiller(&FakeFulfiller::refusing()).await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let ada = requests(as_ada);
+    let failed = fixture.approve(ask(&ada, ALIEN).await.id).await;
+    assert_eq!(failed.state, RequestState::Failed);
+
+    let _media = fixture.library_with_alien().await;
+
+    let [available] = list(&ada).await.try_into().unwrap();
+    assert_eq!(available.state, RequestState::Available);
+    assert_eq!(available.failure_reason, None);
 }
 
 #[tokio::test]
@@ -1079,8 +1207,15 @@ async fn a_user_without_manage_requests_is_refused_each_action_naming_the_permis
         })
         .await
         .map(drop);
+    let retry = ada
+        .retry_request(RetryRequestRequest {
+            id,
+            ..Default::default()
+        })
+        .await
+        .map(drop);
 
-    for refused in [approve, decline, cancel] {
+    for refused in [approve, decline, cancel, retry] {
         let refusal = assert_refused(
             refused,
             ErrorCode::PermissionDenied,
@@ -1234,24 +1369,33 @@ async fn decline(fixture: &Fixture, id: i64, reason: &str) -> Request {
 type Subscription = ServerStream<hyper::body::Incoming, SubscribeResponseView<'static>>;
 
 /// Subscribes to Request events, as the User `config` calls as.
+async fn subscribe_to_requests(config: ClientConfig) -> Subscription {
+    subscribe(
+        config,
+        &[
+            EventType::EVENT_TYPE_REQUEST_CREATED,
+            EventType::EVENT_TYPE_REQUESTER_ADDED,
+            EventType::EVENT_TYPE_REQUEST_STATE_CHANGED,
+            EventType::EVENT_TYPE_REQUEST_CANCELLED,
+            EventType::EVENT_TYPE_REQUESTER_REMOVED,
+            EventType::EVENT_TYPE_REQUEST_WITHDRAWN,
+        ],
+    )
+    .await
+}
+
+/// Subscribes to events of `types`, as the User `config` calls as.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
-async fn subscribe_to_requests(config: ClientConfig) -> Subscription {
-    let only_requests = SubscribeRequest {
-        types: vec![
-            EventType::EVENT_TYPE_REQUEST_CREATED.into(),
-            EventType::EVENT_TYPE_REQUESTER_ADDED.into(),
-            EventType::EVENT_TYPE_REQUEST_STATE_CHANGED.into(),
-            EventType::EVENT_TYPE_REQUEST_CANCELLED.into(),
-            EventType::EVENT_TYPE_REQUESTER_REMOVED.into(),
-            EventType::EVENT_TYPE_REQUEST_WITHDRAWN.into(),
-        ],
+async fn subscribe(config: ClientConfig, types: &[EventType]) -> Subscription {
+    let only = SubscribeRequest {
+        types: types.iter().map(|&kind| kind.into()).collect(),
         ..Default::default()
     };
     EventServiceClient::new(HttpClient::plaintext(), config)
-        .subscribe(only_requests)
+        .subscribe(only)
         .await
         .unwrap()
 }
@@ -1602,6 +1746,108 @@ async fn without_view_requests_the_events_stream_shows_only_the_users_own_season
         panic!("Ada's Request reached Grace first: {event:?}");
     };
     assert_eq!(created.request.as_option(), graces.first());
+}
+
+/// The Request `event` says changed state, and its state now.
+#[expect(clippy::panic, reason = "a test helper fails its test by panicking")]
+fn state_changed(event: event::Event) -> (i64, RequestState) {
+    let event::Event::RequestStateChanged(changed) = event else {
+        panic!("not a change of state: {event:?}");
+    };
+    let Some(request) = changed.request.into_option() else {
+        panic!("a change of state without its Request");
+    };
+    (request.id, request.state.as_known().unwrap_or_default())
+}
+
+#[tokio::test]
+async fn matching_season_1s_aired_episodes_makes_its_request_partially_available_then_available_live()
+ {
+    let fixture = Fixture::start().await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let ada = requests(as_ada.clone());
+    let asked = ask_seasons(&ada, DARK, &[1, 2]).await;
+    let (season_1, season_2) = (asked[0].id, asked[1].id);
+    let mut adas_events = subscribe_to_requests(as_ada).await;
+
+    let (media, library) = fixture
+        .library_with(LibraryKind::LIBRARY_KIND_SHOWS, &[DARK_S01E01])
+        .await;
+    let some_matched = state_changed(next_event(&mut adas_events).await);
+    write_files(media.path(), &[DARK_S01E02, DARK_S01E03]);
+    fixture
+        .scan_until(library, LibraryKind::LIBRARY_KIND_SHOWS, true)
+        .await;
+    let all_matched = state_changed(next_event(&mut adas_events).await);
+
+    assert_eq!(some_matched, (season_1, RequestState::PartiallyAvailable));
+    assert_eq!(all_matched, (season_1, RequestState::Available));
+    assert_eq!(
+        states(&list(&ada).await),
+        [
+            (season_2, RequestState::Pending),
+            (season_1, RequestState::Available)
+        ]
+    );
+}
+
+#[tokio::test]
+async fn a_season_still_airing_becomes_available_once_its_aired_episodes_are_matched_and_a_later_episode_does_not_reopen_it()
+ {
+    let fixture = Fixture::start().await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let ada = requests(as_ada);
+    let asked = ask_seasons(&ada, DARK, &[3]).await;
+
+    let (media, library) = fixture
+        .library_with(LibraryKind::LIBRARY_KIND_SHOWS, &[DARK_S03E01])
+        .await;
+    let aired_matched = states(&list(&ada).await);
+    let mut matches = subscribe(
+        fixture.server.client_config(),
+        &[EventType::EVENT_TYPE_ITEM_MATCHED],
+    )
+    .await;
+    write_files(media.path(), &[DARK_S03E02]);
+    fixture
+        .scan_until(library, LibraryKind::LIBRARY_KIND_SHOWS, true)
+        .await;
+    let later = next_event(&mut matches).await;
+
+    assert_eq!(aired_matched, [(asked[0].id, RequestState::Available)]);
+    assert!(matches!(later, event::Event::ItemMatched(_)), "{later:?}");
+    assert_eq!(
+        states(&list(&ada).await),
+        aired_matched,
+        "still Available, with no new Request"
+    );
+}
+
+#[tokio::test]
+async fn a_scan_makes_an_approved_season_request_available_and_leaves_a_declined_one_declined() {
+    let fixture = Fixture::start().await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let (_, as_grace) = fixture
+        .user("Grace", &[Permission::RequestTv, Permission::AutoApproveTv])
+        .await;
+    let ada = requests(as_ada);
+    let declined = decline(&fixture, ask_seasons(&ada, DARK, &[1]).await[0].id, "").await;
+    let approved = ask_seasons(&requests(as_grace), DARK, &[1]).await;
+
+    let _media = fixture
+        .library_with(
+            LibraryKind::LIBRARY_KIND_SHOWS,
+            &[DARK_S01E01, DARK_S01E02, DARK_S01E03],
+        )
+        .await;
+
+    assert_eq!(
+        states(&list(&ada).await),
+        [
+            (approved[0].id, RequestState::Available),
+            (declined.id, RequestState::Declined)
+        ]
+    );
 }
 
 /// Dark as `LookUpShow` gives it to the User `config` calls as.

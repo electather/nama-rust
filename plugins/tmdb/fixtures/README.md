@@ -9,3 +9,6 @@ bytes, served under `/t/p/<size>/`.
 The bodies follow TMDB's documented response shapes and are trimmed to a realistic subset of
 fields. They were written by hand rather than captured, because the factory that built the
 plugin had no TMDB API key. When re-recording one, keep its route and trim it the same way.
+
+`tv-70523-season-3.json` departs from TMDB on purpose: its second Episode airs in 2099, so tests
+have a Season still airing.

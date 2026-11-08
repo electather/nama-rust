@@ -54,9 +54,11 @@ service RequestService {
   rpc LookUpShow(LookUpShowRequest) returns (LookUpShowResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
-  // Approves a Pending Request, which then waits for the Movie to be Matched in a Library. Needs
-  // `PERMISSION_MANAGE_REQUESTS`, which manages every User's Requests. Fails with `not_found` if
-  // there is no Request with the ID, and `failed_precondition` if it isn't Pending.
+  // Approves a Pending Request and hands a Movie Request to the Movie Fulfiller, if one is enabled:
+  // Processing once it takes it, or Failed if it doesn't. Either way it then waits for what it asks
+  // for to be Matched in a Library. Needs `PERMISSION_MANAGE_REQUESTS`, which manages every User's
+  // Requests. Fails with `not_found` if there is no Request with the ID, and `failed_precondition`
+  // if it isn't Pending.
   rpc ApproveRequest(ApproveRequestRequest) returns (ApproveRequestResponse);
   // Declines a Pending Request, which closes it: asking for the Movie again opens a new one. Needs
   // `PERMISSION_MANAGE_REQUESTS`. Fails as `ApproveRequest` does.
@@ -64,6 +66,10 @@ service RequestService {
   // Removes a Request, whatever its state. Needs `PERMISSION_MANAGE_REQUESTS`. Fails with
   // `not_found` if there is no Request with the ID.
   rpc CancelRequest(CancelRequestRequest) returns (CancelRequestResponse);
+  // Moves a Failed Request back to Approved and hands it to its Fulfiller again, as
+  // `ApproveRequest` does. Needs `PERMISSION_MANAGE_REQUESTS`. Fails with `not_found` if there is no
+  // Request with the ID, and `failed_precondition` if it isn't Failed.
+  rpc RetryRequest(RetryRequestRequest) returns (RetryRequestResponse);
   // Takes the caller off a Pending Request's Requesters, which removes the Request once nobody is
   // left on it. Fails with `not_found` if there is no Request with the ID, or none the caller may
   // see, and `failed_precondition` if the caller isn't one of its Requesters or it isn't Pending.
@@ -85,7 +91,8 @@ enum RequestState {
   REQUEST_STATE_PARTIALLY_AVAILABLE = 5;
   // Matched in a Library, and closed.
   REQUEST_STATE_AVAILABLE = 6;
-  // The Fulfiller couldn't fetch it.
+  // The Fulfiller didn't take it, for the reason in `failure_reason`. It stays Failed until
+  // `RequestService.RetryRequest` hands it over again.
   REQUEST_STATE_FAILED = 7;
 }
 
@@ -105,6 +112,8 @@ message Request {
   optional string decline_reason = 6;
   // The Season asked for, unless it asks for a Movie.
   RequestedSeason season = 7;
+  // Why the Fulfiller didn't take it, in the Fulfiller's own words. Only a Failed Request has one.
+  optional string failure_reason = 8;
 }
 
 // A Movie a Request asks for, with its metadata as the metadata source gave it when the Request
@@ -205,6 +214,17 @@ message CancelRequestRequest {
 }
 
 message CancelRequestResponse {}
+
+message RetryRequestRequest {
+  // The ID of the Request.
+  int64 id = 1;
+}
+
+message RetryRequestResponse {
+  // The Request, Processing if its Fulfiller took it, else Failed again, or Approved if no
+  // Fulfiller is enabled.
+  Request request = 1;
+}
 
 message WithdrawRequestRequest {
   // The ID of the Request.

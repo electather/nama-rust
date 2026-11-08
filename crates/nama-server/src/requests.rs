@@ -50,6 +50,8 @@ pub(crate) enum Error {
     NoSuchRequest(i64),
     #[error("the Request {0} isn't Pending")]
     NotPending(i64),
+    #[error("the Request {0} isn't Failed")]
+    NotFailed(i64),
     #[error("you aren't a Requester of the Request {0}")]
     NotARequester(i64),
     #[error("a Library already has the Movie tmdb-{0}")]
@@ -266,14 +268,32 @@ impl Requests {
     /// Approves the Pending Request `id` and hands it to the Movie Fulfiller, publishing each
     /// change of its state.
     pub(crate) async fn approve(&self, id: i64) -> Result<Request, Error> {
-        let approved = self.decide(id, RequestState::Approved, None).await?;
-        self.hand_off(approved).await
+        let requests = self.clone();
+        detached(async move {
+            let approved = requests.decide(id, RequestState::Approved, None).await?;
+            requests.hand_off(approved).await
+        })
+        .await
     }
 
-    /// Hands the Approved `request` to the Movie Fulfiller and moves it to Processing, publishing
-    /// that its state changed. Returns the Request as it is now. Without a Movie Fulfiller, or
-    /// when it doesn't take the Request, the Request waits in Approved. A Season Request always
-    /// waits in Approved, and one already being handed off is left to that hand-off.
+    /// Moves the Failed Request `id` back to Approved and hands it to the Movie Fulfiller again,
+    /// publishing each change of its state.
+    pub(crate) async fn retry(&self, id: i64) -> Result<Request, Error> {
+        let requests = self.clone();
+        detached(async move {
+            let approved = requests.db.write(move |tx| Box::pin(retry(tx, id))).await?;
+            requests
+                .events
+                .publish(vec![state_changed(approved.clone())]);
+            requests.hand_off(approved).await
+        })
+        .await
+    }
+
+    /// Hands the Approved `request` to the Movie Fulfiller, publishing that its state changed:
+    /// to Processing once it takes the Request, or to Failed, with its reason, if it doesn't.
+    /// Returns the Request as it is now. Without a Movie Fulfiller the Request waits in Approved,
+    /// as a Season Request always does, and one already being handed off is left to that hand-off.
     ///
     /// Runs in a task of its own: once the Fulfiller has taken the Request, its reference must be
     /// stored even if the caller stops waiting.
@@ -283,18 +303,15 @@ impl Requests {
             return Ok(request);
         }
         let requests = self.clone();
-        let handed = tokio::spawn(async move {
+        detached(async move {
             // An approval and enabling the Fulfiller may hand the same Request off at once, which
             // would hand it to the Fulfiller twice.
             let Some(_claim) = Claim::take(&requests, request.id) else {
                 return Ok(request);
             };
             requests.hand_off_claimed(request).await
-        });
-        // The task is never aborted, so it only fails if it panicked.
-        handed
-            .await
-            .unwrap_or_else(|_| Err(sqlx::Error::WorkerCrashed.into()))
+        })
+        .await
     }
 
     /// [`Self::hand_off`] for `request`, which no other hand-off has, as it is in the database now:
@@ -309,25 +326,25 @@ impl Requests {
             None => return Ok(request),
         };
         drop(conn);
-        let Some(reference) = self.fulfill(&current).await else {
+        let Some(fulfilled) = self.fulfill(&current).await else {
             return Ok(current);
         };
-        let processing = self
+        let took = fulfilled.is_ok();
+        let settled = self
             .db
-            .write(move |tx| Box::pin(start_processing(tx, id, reference)))
+            .write(move |tx| Box::pin(settle(tx, id, fulfilled)))
             .await?;
-        let Some(processing) = processing else {
+        if took && settled.is_none() {
             warn!(
                 request = id,
                 "the Movie Fulfiller took a Request that was changed meanwhile, and keeps it"
             );
+        }
+        let Some(settled) = settled else {
             return Ok(current);
         };
-        self.events.publish(vec![event(RequestStateChanged {
-            request: processing.clone().into(),
-            ..Default::default()
-        })]);
-        Ok(processing)
+        self.events.publish(vec![state_changed(settled.clone())]);
+        Ok(settled)
     }
 
     /// Hands each Approved Request, oldest first, to the enabled Plugin `plugin`'s Movie Fulfiller,
@@ -363,22 +380,25 @@ impl Requests {
         Ok(())
     }
 
-    /// The reference the Movie Fulfiller gives for `request` once it takes it, if one is enabled
-    /// and takes it.
-    async fn fulfill(&self, request: &Request) -> Option<String> {
+    /// What the Movie Fulfiller says to `request`, if one is enabled: the reference it gives once
+    /// it takes it, or why it doesn't, with no secret setting's value in it.
+    async fn fulfill(&self, request: &Request) -> Option<Result<String, String>> {
         let fulfilled = self
             .plugins
-            .call_provider::<dyn Fulfiller<Movies>, _, _>(|fulfiller| async move {
-                fulfiller.fulfill(request).await
+            .call_provider_blanking_secrets::<dyn Fulfiller<Movies>, _, _>(|fulfiller| async move {
+                // Inside the call, so formatting and dropping the Plugin's error are contained.
+                fulfiller
+                    .fulfill(request)
+                    .await
+                    .map_err(|error| error.to_string())
             })
             .await?;
-        // ponytail: the error is only logged and the Request waits in Approved; #176 makes it
-        // Failed with the error as its reason.
-        fulfilled
-            .inspect_err(|error| {
-                warn!(request = request.id, %error, "the Movie Fulfiller didn't take the Request");
-            })
-            .ok()
+        Some(fulfilled.inspect_err(|reason| {
+            warn!(
+                request = request.id,
+                reason, "the Movie Fulfiller didn't take the Request"
+            );
+        }))
     }
 
     /// Declines the Pending Request `id`, giving its Requesters `reason`, trimmed, unless it is
@@ -399,10 +419,7 @@ impl Requests {
             .db
             .write(move |tx| Box::pin(decide(tx, id, state, reason)))
             .await?;
-        self.events.publish(vec![event(RequestStateChanged {
-            request: request.clone().into(),
-            ..Default::default()
-        })]);
+        self.events.publish(vec![state_changed(request.clone())]);
         Ok(request)
     }
 
@@ -611,7 +628,8 @@ async fn look_around_seasons(
         let request = visible_open_request(conn, viewer, show_tmdb_id, Some(season.number)).await?;
         found.push(FoundSeason {
             season_number: season.number,
-            in_library: in_library(&season.episodes, &matched, &today),
+            in_library: availability(&season.episodes, &matched, &today)
+                == Some(RequestState::Available),
             air_date: season.air_date,
             request: request.into(),
             ..Default::default()
@@ -676,7 +694,7 @@ async fn ask_seasons(
     let mut happened = Vec::new();
     for season in seasons {
         let matched = contents::matched_episodes(conn, show_tmdb_id, season.number.into()).await?;
-        if in_library(&season.episodes, &matched, &today) {
+        if availability(&season.episodes, &matched, &today) == Some(RequestState::Available) {
             return Err(Error::SeasonInLibrary {
                 show: show_tmdb_id,
                 season: season.number,
@@ -695,11 +713,12 @@ async fn ask_seasons(
     Ok((requests, happened))
 }
 
-/// Whether a Library has the Season with `episodes`, of which those numbered in `matched` are
-/// Matched: one has aired by `today` (`YYYY-MM-DD`, as air dates are, so they sort as text), and
-/// every one that has is Matched. A Season yet to air isn't in a Library, so it can be Requested.
-fn in_library(episodes: &[Episode], matched: &HashSet<i64>, today: &str) -> bool {
-    let mut aired = episodes
+/// How much a Library has of the Season with `episodes`, of which those numbered in `matched` are
+/// Matched, counting only those aired by `today` (`YYYY-MM-DD`, as air dates are, so they sort as
+/// text): Available once every aired Episode is Matched, Partially Available while some are, and
+/// `None` while none are. So a Season yet to air isn't in a Library, and can be Requested.
+fn availability(episodes: &[Episode], matched: &HashSet<i64>, today: &str) -> Option<RequestState> {
+    let aired: Vec<i64> = episodes
         .iter()
         .filter(|episode| {
             episode
@@ -707,8 +726,19 @@ fn in_library(episodes: &[Episode], matched: &HashSet<i64>, today: &str) -> bool
                 .as_deref()
                 .is_some_and(|aired| aired <= today)
         })
-        .peekable();
-    aired.peek().is_some() && aired.all(|episode| matched.contains(&i64::from(episode.number)))
+        .map(|episode| episode.number.into())
+        .collect();
+    let have = aired
+        .iter()
+        .filter(|number| matched.contains(number))
+        .count();
+    if have == 0 {
+        None
+    } else if have == aired.len() {
+        Some(RequestState::Available)
+    } else {
+        Some(RequestState::PartiallyAvailable)
+    }
 }
 
 /// Adds `user` as a Requester of the open Request for `wanted`, opening one in `state` if there
@@ -787,16 +817,58 @@ pub(crate) async fn make_available(
         if contents::library_with_movie(conn, tmdb_id).await?.is_none() {
             continue;
         }
-        sqlx::query!("UPDATE requests SET state = 'available' WHERE id = ?", id)
-            .execute(&mut *conn)
-            .await?;
-        let request = load_one(conn, id).await?.ok_or(sqlx::Error::RowNotFound)?;
-        happened.push(event(RequestStateChanged {
-            request: request.into(),
-            ..Default::default()
-        }));
+        happened.extend(change_state(conn, id, RequestState::Available).await?);
     }
     Ok(happened)
+}
+
+/// Makes the open Request for each of `seasons`, as the metadata source gave them just now with
+/// their Show's TMDB id, Partially Available or Available by how many of its aired Episodes a
+/// Library has, and returns an event for each Request that changed (ADR 0012). Declined and
+/// Available Requests are closed, so Episodes that air later don't reopen them.
+pub(crate) async fn make_seasons_available(
+    conn: &mut SqliteConnection,
+    seasons: Vec<(i64, Season)>,
+) -> Result<Vec<Event>, sqlx::Error> {
+    let today = today(conn).await?;
+    let mut happened = Vec::new();
+    for (show_tmdb_id, season) in seasons {
+        let Some(id) = open_request(conn, show_tmdb_id, Some(season.number)).await? else {
+            continue;
+        };
+        let matched = contents::matched_episodes(conn, show_tmdb_id, season.number.into()).await?;
+        if let Some(state) = availability(&season.episodes, &matched, &today) {
+            happened.extend(change_state(conn, id, state).await?);
+        }
+    }
+    Ok(happened)
+}
+
+/// Moves the Request `id` to `state`, and returns the event for it, or `None` if it was in
+/// `state` already.
+async fn change_state(
+    conn: &mut SqliteConnection,
+    id: i64,
+    state: RequestState,
+) -> Result<Option<Event>, sqlx::Error> {
+    let state = stored(state);
+    let changed = sqlx::query!(
+        "UPDATE requests SET state = ?1, failure_reason = NULL WHERE id = ?2 AND state != ?1",
+        state,
+        id
+    )
+    .execute(&mut *conn)
+    .await?
+    .rows_affected()
+        > 0;
+    if !changed {
+        return Ok(None);
+    }
+    let request = load_one(conn, id).await?.ok_or(sqlx::Error::RowNotFound)?;
+    Ok(Some(event(RequestStateChanged {
+        request: request.into(),
+        ..Default::default()
+    })))
 }
 
 /// The open Request for the Movie `tmdb_id`, or for its Season `season` if `tmdb_id` is a Show's.
@@ -841,27 +913,54 @@ async fn decide(
     Ok(request)
 }
 
-/// Moves the Approved Request `id` to Processing, keeping the Fulfiller's `reference` with it, and
-/// returns it as it is now, or `None` if it isn't Approved any more.
-async fn start_processing(
+/// Moves the Approved Request `id` on as its Fulfiller said: to Processing, keeping the reference
+/// it gave, or to Failed, keeping why. Returns it as it is now, or `None` if it isn't Approved any
+/// more.
+async fn settle(
     conn: &mut SqliteConnection,
     id: i64,
-    reference: String,
+    fulfilled: Result<String, String>,
 ) -> Result<Option<Request>, sqlx::Error> {
-    let started = sqlx::query!(
-        "UPDATE requests SET state = 'processing', fulfiller_reference = ?
+    let (state, reference, reason) = match fulfilled {
+        Ok(reference) => (RequestState::Processing, Some(reference), None),
+        Err(reason) => (RequestState::Failed, None, Some(reason)),
+    };
+    let state = stored(state);
+    let settled = sqlx::query!(
+        "UPDATE requests SET state = ?, fulfiller_reference = ?, failure_reason = ?
          WHERE id = ? AND state = 'approved'",
+        state,
         reference,
+        reason,
         id
     )
     .execute(&mut *conn)
     .await?
     .rows_affected()
         > 0;
-    if !started {
+    if !settled {
         return Ok(None);
     }
     load_one(conn, id).await
+}
+
+/// Moves the Failed Request `id` back to Approved, forgetting why it failed, and returns it as it
+/// is now.
+async fn retry(conn: &mut SqliteConnection, id: i64) -> Result<Request, Error> {
+    let retried = sqlx::query!(
+        "UPDATE requests SET state = 'approved', failure_reason = NULL
+         WHERE id = ? AND state = 'failed'",
+        id
+    )
+    .execute(&mut *conn)
+    .await?
+    .rows_affected()
+        > 0;
+    let request = load_one(conn, id).await?.ok_or(Error::NoSuchRequest(id))?;
+    if !retried {
+        return Err(Error::NotFailed(id));
+    }
+    Ok(request)
 }
 
 /// Removes the Request `id`, and its Requesters with it, and returns it as it was.
@@ -928,7 +1027,7 @@ async fn load(
 ) -> Result<Vec<Request>, sqlx::Error> {
     let rows = sqlx::query!(
         r#"SELECT id AS "id!", tmdb_id, season AS "season: u32", title, release_date, state,
-                  created_at, decline_reason
+                  created_at, decline_reason, failure_reason
            FROM requests
            WHERE (?1 IS NULL OR id = ?1)
              AND (?2 IS NULL OR EXISTS (SELECT 1 FROM requesters
@@ -973,6 +1072,7 @@ async fn load(
                 requesters: requesters.remove(&row.id).unwrap_or_default(),
                 created_at: row.created_at,
                 decline_reason: row.decline_reason,
+                failure_reason: row.failure_reason,
                 ..Default::default()
             };
             match row.season {
@@ -999,6 +1099,25 @@ async fn load(
             request
         })
         .collect())
+}
+
+/// Runs `work` in a task of its own, so it finishes even if the caller stops waiting: a Request
+/// written Approved must still reach the Fulfiller, and its reference must still be stored.
+async fn detached<T: Send + 'static>(
+    work: impl Future<Output = Result<T, Error>> + Send + 'static,
+) -> Result<T, Error> {
+    // The task is never aborted, so it only fails if it panicked.
+    tokio::spawn(work)
+        .await
+        .unwrap_or_else(|_| Err(sqlx::Error::WorkerCrashed.into()))
+}
+
+/// The event saying `request` is now in the state it has.
+fn state_changed(request: Request) -> Event {
+    event(RequestStateChanged {
+        request: request.into(),
+        ..Default::default()
+    })
 }
 
 /// `state` as `requests.state` stores it. Unspecified has no stored form: `""` fails the CHECK.
@@ -1030,14 +1149,21 @@ mod tests {
     use nama_plugin_api::{
         BoxFuture, Plugin, PluginError, PluginId, Priority, Registrar,
         fulfiller::{Download, Fulfiller, Movies},
-        metadata::{Episode, ExternalIds},
+        metadata::{Episode, ExternalIds, Season},
     };
     use nama_proto::nama::v1::{Request, RequestState};
     use sqlx::SqliteConnection;
     use tokio::sync::Notify;
 
-    use super::{Requests, Wanted, ask, in_library};
-    use crate::{db::Database, events::EventBus, matching::Matcher, plugins::Registry};
+    use super::{Requests, Wanted, ask, availability, load_one};
+    use crate::{
+        contents::{Change, Contents, Decided, Decisions, Item, Metadata},
+        db::Database,
+        events::EventBus,
+        libraries::{Kind, Libraries},
+        matching::Matcher,
+        plugins::Registry,
+    };
 
     const TODAY: &str = "2026-11-08";
 
@@ -1055,7 +1181,7 @@ mod tests {
     }
 
     #[test]
-    fn a_season_is_in_a_library_once_every_aired_episode_is_matched() {
+    fn a_season_still_airing_follows_how_many_of_its_aired_episodes_are_matched() {
         let airing = [
             episode(1, Some("2026-11-01")),
             episode(2, Some(TODAY)),
@@ -1063,16 +1189,24 @@ mod tests {
             episode(4, None),
         ];
 
-        assert!(in_library(&airing, &HashSet::from([1, 2]), TODAY));
-        assert!(!in_library(&airing, &HashSet::from([1, 3, 4]), TODAY));
+        let all_aired = availability(&airing, &HashSet::from([1, 2]), TODAY);
+        let some_aired = availability(&airing, &HashSet::from([1, 3, 4]), TODAY);
+        let none_aired = availability(&airing, &HashSet::from([3, 4]), TODAY);
+
+        assert_eq!(all_aired, Some(RequestState::Available));
+        assert_eq!(some_aired, Some(RequestState::PartiallyAvailable));
+        assert_eq!(none_aired, None);
     }
 
     #[test]
     fn a_season_yet_to_air_is_not_in_a_library() {
         let announced = [episode(1, Some("2027-01-01")), episode(2, None)];
 
-        assert!(!in_library(&announced, &HashSet::from([1, 2]), TODAY));
-        assert!(!in_library(&[], &HashSet::new(), TODAY));
+        assert_eq!(
+            availability(&announced, &HashSet::from([1, 2]), TODAY),
+            None
+        );
+        assert_eq!(availability(&[], &HashSet::new(), TODAY), None);
     }
 
     /// Asks for each of `wanted` in turn as a new User, opening Requests in `state`, and returns
@@ -1162,6 +1296,43 @@ mod tests {
         }
     }
 
+    /// A Match of an Episode of the Show `show_tmdb_id`.
+    fn matched_to_show(show_tmdb_id: i64) -> Decided {
+        Decided::Matched(Box::new(Metadata {
+            plugin: PluginId::from_static("tmdb"),
+            ids: ExternalIds::default(),
+            show_ids: ExternalIds {
+                tmdb: Some(show_tmdb_id),
+                ..ExternalIds::default()
+            },
+            title: "Episode 1".to_owned(),
+            original_title: None,
+            show_title: None,
+            overview: None,
+            release_date: None,
+            runtime_minutes: None,
+            poster: None,
+            backdrop: None,
+        }))
+    }
+
+    /// Season 1, as the metadata source gives it: Episode 1 aired in 2017, and Episode 2 airs on
+    /// `episode_2_airs`.
+    fn season_1(episode_2_airs: &str) -> Season {
+        Season {
+            ids: ExternalIds::default(),
+            number: 1,
+            title: "Season 1".to_owned(),
+            overview: None,
+            air_date: None,
+            poster: None,
+            episodes: vec![
+                episode(1, Some("2017-12-01")),
+                episode(2, Some(episode_2_airs)),
+            ],
+        }
+    }
+
     #[tokio::test]
     async fn a_request_being_handed_off_is_not_handed_to_the_fulfiller_again() {
         let data = tempfile::tempdir().unwrap();
@@ -1196,5 +1367,65 @@ mod tests {
         first.await.unwrap();
 
         assert_eq!(gated.handed.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn an_available_season_request_stays_available_when_a_later_episode_airs() {
+        const DARK: i64 = 70523;
+        let data = tempfile::tempdir().unwrap();
+        let folder = tempfile::tempdir().unwrap();
+        let db = Arc::new(Database::open(data.path()).await.unwrap());
+        let root = folder.path().canonicalize().unwrap();
+        let library = Libraries::new(Arc::clone(&db))
+            .create(
+                "Shows",
+                Kind::Shows,
+                vec![root.to_str().unwrap().to_owned()],
+            )
+            .await
+            .unwrap()
+            .id;
+        let contents = Contents::new(Arc::clone(&db));
+        let pilot = Item::Episode {
+            show: "Dark".to_owned(),
+            year: None,
+            tmdb_id: Some(DARK),
+            season: 1,
+            episode: 1,
+        };
+        let store = Change::Store {
+            path: "/media/Dark/Season 01/Dark - S01E01.mkv".to_owned(),
+            size: 1,
+            modified_ns: 0,
+            items: vec![pilot],
+        };
+        contents.apply(library, vec![store]).await.unwrap();
+        let item = contents.files(library).await.unwrap()[0].items[0].id;
+        let wanted = Wanted {
+            tmdb_id: DARK,
+            season: Some(1),
+            title: "Dark".to_owned(),
+            release_date: None,
+        };
+        let request = db
+            .write(move |tx| Box::pin(ask_each(tx, vec![wanted], RequestState::Pending)))
+            .await
+            .unwrap()[0];
+        let scan = |episode_2_airs| Decisions {
+            items: vec![(item, matched_to_show(DARK))],
+            seasons: vec![(DARK, season_1(episode_2_airs))],
+        };
+        contents.record(scan("2099-12-01")).await.unwrap();
+
+        let episode_2_aired = contents.record(scan("2017-12-08")).await.unwrap();
+
+        let state = db
+            .write(move |tx| Box::pin(load_one(tx, request)))
+            .await
+            .unwrap()
+            .unwrap()
+            .state;
+        assert_eq!(state.as_known(), Some(RequestState::Available));
+        assert!(episode_2_aired.is_empty(), "{episode_2_aired:?}");
     }
 }

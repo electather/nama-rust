@@ -40,7 +40,7 @@ use nama_proto::nama::v1::{Event, ItemMatched};
 use tokio_util::sync::CancellationToken;
 
 use crate::{
-    contents::{Contents, Decided, Item, Metadata, Name, Named, Pin},
+    contents::{Contents, Decided, Decisions, Item, Metadata, Name, Named, Pin},
     db::Database,
     events::{EventBus, event},
     plugins::Registry,
@@ -110,6 +110,31 @@ struct FoundShow {
 struct Pending {
     movies: BTreeMap<TitleKey, Vec<i64>>,
     shows: BTreeMap<TitleKey, Vec<PendingEpisode>>,
+}
+
+/// What looking items up found for each, with the Seasons fetched to find Episodes in, by their
+/// Show's TMDB id, which Season Requests follow.
+#[derive(Debug, Default)]
+struct Outcomes {
+    items: Vec<(i64, Result<Metadata, Miss>)>,
+    seasons: Vec<(i64, Season)>,
+}
+
+impl Outcomes {
+    fn any_undecided(&self) -> bool {
+        self.items
+            .iter()
+            .any(|(_, outcome)| matches!(outcome, Err(Miss::Undecided)))
+    }
+}
+
+impl FromIterator<(i64, Result<Metadata, Miss>)> for Outcomes {
+    fn from_iter<I: IntoIterator<Item = (i64, Result<Metadata, Miss>)>>(iter: I) -> Self {
+        Self {
+            items: iter.into_iter().collect(),
+            seasons: Vec::new(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -253,10 +278,7 @@ impl Matcher {
                 self.match_in_show(&show, &episodes).await
             }
         };
-        if outcomes
-            .iter()
-            .any(|(_, outcome)| matches!(outcome, Err(Miss::Undecided)))
-        {
+        if outcomes.any_undecided() {
             return Err(ManualError::Unavailable);
         }
         self.pin(item, named, Pin::Title(id.clone()), outcomes)
@@ -341,9 +363,7 @@ impl Matcher {
                 continue;
             }
             let decided = self.match_episodes(&key, &episodes).await;
-            available = !decided
-                .iter()
-                .any(|(_, outcome)| matches!(outcome, Err(Miss::Undecided)));
+            available = !decided.any_undecided();
             self.store(library, decided, &mut summary).await?;
         }
         if summary != Summary::default() {
@@ -402,11 +422,7 @@ impl Matcher {
         Ok(Metadata::movie(plugin, movie))
     }
 
-    async fn match_episodes(
-        &self,
-        key: &TitleKey,
-        episodes: &[PendingEpisode],
-    ) -> Vec<(i64, Result<Metadata, Miss>)> {
+    async fn match_episodes(&self, key: &TitleKey, episodes: &[PendingEpisode]) -> Outcomes {
         let show = match self.find(TitleKind::Show, key).await {
             Ok(id) => self.fetch_show(&id).await,
             Err(miss) => Err(miss),
@@ -431,20 +447,19 @@ impl Matcher {
         })
     }
 
-    async fn match_in_show(
-        &self,
-        show: &FoundShow,
-        episodes: &[PendingEpisode],
-    ) -> Vec<(i64, Result<Metadata, Miss>)> {
+    async fn match_in_show(&self, show: &FoundShow, episodes: &[PendingEpisode]) -> Outcomes {
         let FoundShow { plugin, id, show } = show;
         let mut by_season: BTreeMap<i64, Vec<&PendingEpisode>> = BTreeMap::new();
         for pending in episodes {
             by_season.entry(pending.season).or_default().push(pending);
         }
-        let mut decided = Vec::with_capacity(episodes.len());
+        let mut outcomes = Outcomes {
+            items: Vec::with_capacity(episodes.len()),
+            seasons: Vec::new(),
+        };
         for (number, in_season) in by_season {
             let season = self.season(id, number).await;
-            decided.extend(in_season.into_iter().map(|pending| {
+            outcomes.items.extend(in_season.into_iter().map(|pending| {
                 let found = match &season {
                     Ok(season) => season
                         .episodes
@@ -456,8 +471,11 @@ impl Matcher {
                 };
                 (pending.item, found)
             }));
+            if let (Ok(season), Some(show_tmdb_id)) = (season, show.ids.tmdb) {
+                outcomes.seasons.push((show_tmdb_id, season));
+            }
         }
-        decided
+        outcomes
     }
 
     async fn season(&self, show: &ExternalId, number: i64) -> Result<Season, Miss> {
@@ -556,14 +574,14 @@ impl Matcher {
     async fn store(
         &self,
         library: i64,
-        outcomes: Vec<(i64, Result<Metadata, Miss>)>,
+        outcomes: Outcomes,
         summary: &mut Summary,
     ) -> Result<(), sqlx::Error> {
         let decided = tally(outcomes, summary);
-        if decided.is_empty() {
+        if decided.items.is_empty() {
             return Ok(());
         }
-        let mut happened = matched_events(library, &decided);
+        let mut happened = matched_events(library, &decided.items);
         happened.extend(self.contents.record(decided).await?);
         self.events.publish(happened);
         Ok(())
@@ -575,7 +593,7 @@ impl Matcher {
         item: i64,
         named: Named,
         pin: Pin,
-        outcomes: Vec<(i64, Result<Metadata, Miss>)>,
+        outcomes: Outcomes,
     ) -> Result<Summary, ManualError> {
         let mut summary = Summary::default();
         let decided = tally(outcomes, &mut summary);
@@ -586,7 +604,7 @@ impl Matcher {
             ?summary,
             "fixing a Match by hand"
         );
-        let mut happened = matched_events(named.library, &decided);
+        let mut happened = matched_events(named.library, &decided.items);
         // The Library may have been deleted since its items were read.
         let made_available = self
             .contents
@@ -603,12 +621,10 @@ pub(crate) fn count(n: usize) -> u64 {
     u64::try_from(n).unwrap_or(u64::MAX)
 }
 
-fn tally(
-    outcomes: Vec<(i64, Result<Metadata, Miss>)>,
-    summary: &mut Summary,
-) -> Vec<(i64, Decided)> {
+/// What `outcomes` decided, counted into `summary`. An item left undecided is left out.
+fn tally(outcomes: Outcomes, summary: &mut Summary) -> Decisions {
     let mut decided = Vec::new();
-    for (item, outcome) in outcomes {
+    for (item, outcome) in outcomes.items {
         match outcome {
             Ok(metadata) => {
                 summary.matched += 1;
@@ -621,7 +637,10 @@ fn tally(
             Err(Miss::Undecided) => summary.undecided += 1,
         }
     }
-    decided
+    Decisions {
+        items: decided,
+        seasons: outcomes.seasons,
+    }
 }
 
 fn matched_events(library: i64, decided: &[(i64, Decided)]) -> Vec<Event> {

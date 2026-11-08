@@ -120,10 +120,12 @@ pub enum RefusalReason {
     /// be translated, or else the Server's. Params: `pluginId`, and `timeoutSeconds` for a check that ran
     /// too long.
     REFUSAL_REASON_SETTINGS_CHECK_FAILED = 45i32,
+    /// `failed_precondition`: the Request isn't Failed, so it can't be retried. Params: `requestId`.
+    REFUSAL_REASON_REQUEST_NOT_FAILED = 46i32,
     /// `failed_precondition`: another enabled Plugin already provides the Fulfiller for a kind of title
     /// the Plugin provides one for, and each kind has at most one. Params: `pluginId`,
     /// `fulfillerPluginId`, the Plugin that has it, and `titleKind`, `Movie` or `Show`.
-    REFUSAL_REASON_FULFILLER_TAKEN = 46i32,
+    REFUSAL_REASON_FULFILLER_TAKEN = 47i32,
 }
 impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -264,6 +266,9 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_SETTINGS_CHECK_FAILED`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const SettingsCheckFailed: Self = Self::REFUSAL_REASON_SETTINGS_CHECK_FAILED;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_REQUEST_NOT_FAILED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const RequestNotFailed: Self = Self::REFUSAL_REASON_REQUEST_NOT_FAILED;
     ///Idiomatic alias for [`Self::REFUSAL_REASON_FULFILLER_TAKEN`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const FulfillerTaken: Self = Self::REFUSAL_REASON_FULFILLER_TAKEN;
@@ -450,7 +455,10 @@ impl ::buffa::Enumeration for RefusalReason {
             45i32 => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_SETTINGS_CHECK_FAILED)
             }
-            46i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_FULFILLER_TAKEN),
+            46i32 => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_REQUEST_NOT_FAILED)
+            }
+            47i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_FULFILLER_TAKEN),
             _ => ::core::option::Option::None,
         }
     }
@@ -540,6 +548,9 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_NOT_A_REQUESTER => "REFUSAL_REASON_NOT_A_REQUESTER",
             Self::REFUSAL_REASON_SETTINGS_CHECK_FAILED => {
                 "REFUSAL_REASON_SETTINGS_CHECK_FAILED"
+            }
+            Self::REFUSAL_REASON_REQUEST_NOT_FAILED => {
+                "REFUSAL_REASON_REQUEST_NOT_FAILED"
             }
             Self::REFUSAL_REASON_FULFILLER_TAKEN => "REFUSAL_REASON_FULFILLER_TAKEN",
         }
@@ -690,6 +701,9 @@ impl ::buffa::Enumeration for RefusalReason {
             "REFUSAL_REASON_SETTINGS_CHECK_FAILED" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_SETTINGS_CHECK_FAILED)
             }
+            "REFUSAL_REASON_REQUEST_NOT_FAILED" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_REQUEST_NOT_FAILED)
+            }
             "REFUSAL_REASON_FULFILLER_TAKEN" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_FULFILLER_TAKEN)
             }
@@ -744,6 +758,7 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_SETTING_WRONG_KIND,
             Self::REFUSAL_REASON_NOT_A_REQUESTER,
             Self::REFUSAL_REASON_SETTINGS_CHECK_FAILED,
+            Self::REFUSAL_REASON_REQUEST_NOT_FAILED,
             Self::REFUSAL_REASON_FULFILLER_TAKEN,
         ]
     }
