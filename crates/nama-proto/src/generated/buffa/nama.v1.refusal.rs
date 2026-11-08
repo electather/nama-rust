@@ -113,6 +113,10 @@ pub enum RefusalReason {
     /// `failed_precondition`: the caller isn't one of the Request's Requesters, so they can't withdraw
     /// from it. Params: `requestId`.
     REFUSAL_REASON_NOT_A_REQUESTER = 44i32,
+    /// `failed_precondition`: a Plugin's settings check failed, ran too long or crashed, or the Plugin
+    /// has none. The message is the Plugin's own, in plain words, and can't be translated. Params:
+    /// `pluginId`.
+    REFUSAL_REASON_SETTINGS_CHECK_FAILED = 45i32,
 }
 impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -250,6 +254,9 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_NOT_A_REQUESTER`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const NotARequester: Self = Self::REFUSAL_REASON_NOT_A_REQUESTER;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_SETTINGS_CHECK_FAILED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const SettingsCheckFailed: Self = Self::REFUSAL_REASON_SETTINGS_CHECK_FAILED;
 }
 impl ::core::default::Default for RefusalReason {
     fn default() -> Self {
@@ -430,6 +437,9 @@ impl ::buffa::Enumeration for RefusalReason {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_SETTING_WRONG_KIND)
             }
             44i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_NOT_A_REQUESTER),
+            45i32 => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_SETTINGS_CHECK_FAILED)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -517,6 +527,9 @@ impl ::buffa::Enumeration for RefusalReason {
                 "REFUSAL_REASON_SETTING_WRONG_KIND"
             }
             Self::REFUSAL_REASON_NOT_A_REQUESTER => "REFUSAL_REASON_NOT_A_REQUESTER",
+            Self::REFUSAL_REASON_SETTINGS_CHECK_FAILED => {
+                "REFUSAL_REASON_SETTINGS_CHECK_FAILED"
+            }
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -662,6 +675,9 @@ impl ::buffa::Enumeration for RefusalReason {
             "REFUSAL_REASON_NOT_A_REQUESTER" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_NOT_A_REQUESTER)
             }
+            "REFUSAL_REASON_SETTINGS_CHECK_FAILED" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_SETTINGS_CHECK_FAILED)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -712,6 +728,7 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_LAST_AUTHENTICATOR,
             Self::REFUSAL_REASON_SETTING_WRONG_KIND,
             Self::REFUSAL_REASON_NOT_A_REQUESTER,
+            Self::REFUSAL_REASON_SETTINGS_CHECK_FAILED,
         ]
     }
 }

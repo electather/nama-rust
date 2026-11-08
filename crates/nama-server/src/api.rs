@@ -54,16 +54,17 @@ use nama_proto::nama::v1::{
     SetPlayedRequest, SetPlayedResponse, SetupRequest, SetupResponse, SignInCodeStatus,
     SignInRequest, SignInResponse, SignInService, SignOutRequest, SignOutResponse,
     StartSignInCodeRequest, StartSignInCodeResponse, SubscribeRequest, SubscribeResponse,
-    UpdateLibraryRequest, UpdateLibraryResponse, UpdatePluginSettingsRequest,
-    UpdatePluginSettingsResponse, UserService, WatchStateService, WhoAmIRequest, WhoAmIResponse,
-    WithdrawRequestRequest, WithdrawRequestResponse, external_id, reauthenticate_request::Proof,
+    TestPluginSettingsRequest, TestPluginSettingsResponse, UpdateLibraryRequest,
+    UpdateLibraryResponse, UpdatePluginSettingsRequest, UpdatePluginSettingsResponse, UserService,
+    WatchStateService, WhoAmIRequest, WhoAmIResponse, WithdrawRequestRequest,
+    WithdrawRequestResponse, external_id, reauthenticate_request::Proof,
     set_played_request::Target, setting_value,
 };
 
 use crate::{
     artwork::{self, Artwork},
     browse::{self, Browse, Started},
-    config::Config,
+    config::{Config, PluginConfig},
     contents::{Contents, Episode, Item, MatchedTo, Metadata, Movie, Show, Unmatched, Version},
     db::{Database, now},
     events::{EventBus, Filter},
@@ -71,7 +72,7 @@ use crate::{
     libraries::{self, FolderProblem, Kind, Libraries, Library},
     matching::{ManualError, Matcher},
     plugin_settings,
-    plugins::{Builtin, EnableError, Registry},
+    plugins::{Builtin, CheckError, EnableError, Registry},
     rate_limits::{Blocked, SignInCodeLimits, SignInLimits},
     requests::{self, Found, Requests},
     scanner::Scanner,
@@ -242,6 +243,7 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::PLUGIN_SERVICE_UPDATE_PLUGIN_SETTINGS_SPEC.procedure, MANAGE_SETTINGS),
     (proto::PLUGIN_SERVICE_ENABLE_PLUGIN_SPEC.procedure,          MANAGE_SETTINGS),
     (proto::PLUGIN_SERVICE_DISABLE_PLUGIN_SPEC.procedure,         MANAGE_SETTINGS),
+    (proto::PLUGIN_SERVICE_TEST_PLUGIN_SETTINGS_SPEC.procedure,   MANAGE_SETTINGS),
 ];
 
 /// Who may fetch media: every path under this prefix, which the media routes share.
@@ -1934,19 +1936,15 @@ impl PluginService for PluginServiceHandler {
             .into_iter()
             .find(|plugin| plugin.id == id)
             .ok_or_else(|| plugin_not_found(&id))?;
-        let sent = request
-            .settings
-            .iter()
-            .filter_map(|(key, value)| Some((key.clone(), setting_value_from_proto(value)?)))
-            .collect();
         let _changing = self.changing.lock().await;
-        let stored = plugin_settings::stored(&self.db)
-            .await
-            .map_err(database_failed)?
-            .unwrap_or_default()
-            .remove(plugin.id.as_str())
-            .unwrap_or_default();
-        let settings = updated_settings(&plugin.settings_schema, sent, &stored.settings)
+        let stored = self.stored(&plugin.id).await?;
+        let settings = with_stored_secrets(
+            &plugin.settings_schema,
+            settings_from_proto(&request.settings),
+            &stored.settings,
+        );
+        Settings::new(settings.clone())
+            .resolve(&plugin.settings_schema)
             .map_err(settings_refused)?;
         plugin_settings::save_settings(&self.db, plugin.id.as_str(), &settings)
             .await
@@ -1995,6 +1993,44 @@ impl PluginService for PluginServiceHandler {
         Response::ok(EnablePluginResponse::default())
     }
 
+    async fn test_plugin_settings(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, TestPluginSettingsRequest>,
+    ) -> ServiceResult<TestPluginSettingsResponse> {
+        let id = PluginId::from(request.id.to_owned());
+        let plugin = self
+            .plugins
+            .builtins()
+            .into_iter()
+            .find(|plugin| plugin.id == id)
+            .ok_or_else(|| plugin_not_found(&id))?;
+        let sent = settings_from_proto(&request.to_owned_message().settings);
+        let stored = self.stored(&id).await?;
+        let settings = with_stored_secrets(&plugin.settings_schema, sent, &stored.settings);
+        let choices = self
+            .plugins
+            .check_settings(&id, Settings::new(settings))
+            .await
+            .map_err(|err| match err {
+                CheckError::Unknown(unknown) => plugin_not_found(&unknown),
+                CheckError::InvalidSettings(error) => settings_refused(error),
+                CheckError::Failed(message) => {
+                    refuse(RefusalReason::REFUSAL_REASON_SETTINGS_CHECK_FAILED, message)
+                        .param("pluginId", &id)
+                        .into()
+                }
+            })?;
+        let choices = choices
+            .into_iter()
+            .map(|(key, choices)| (key, setting_choices_to_proto(choices)))
+            .collect();
+        Response::ok(TestPluginSettingsResponse {
+            choices,
+            ..Default::default()
+        })
+    }
+
     async fn disable_plugin(
         &self,
         _ctx: RequestContext,
@@ -2029,6 +2065,18 @@ impl PluginService for PluginServiceHandler {
     }
 }
 
+impl PluginServiceHandler {
+    /// What is stored for the Plugin `id`: nothing for one that never had settings saved.
+    async fn stored(&self, id: &PluginId) -> Result<PluginConfig, ConnectError> {
+        Ok(plugin_settings::stored(&self.db)
+            .await
+            .map_err(database_failed)?
+            .unwrap_or_default()
+            .remove(id.as_str())
+            .unwrap_or_default())
+    }
+}
+
 /// The refusal of a call naming the Plugin `id` in `id`, which no Plugin has.
 fn plugin_not_found(id: &PluginId) -> ConnectError {
     refuse(
@@ -2059,18 +2107,14 @@ impl From<EnableError> for ConnectError {
     }
 }
 
-/// The settings to store from those `sent` for a Plugin with `schema`: the ones it names, with a
-/// secret left out keeping its `stored` value, so a form can replace a secret without showing it.
-///
-/// # Errors
-///
-/// If they don't fit the schema.
-fn updated_settings(
+/// The settings `sent` for a Plugin with `schema`: the ones it names, with a secret left out
+/// keeping its `stored` value, so a form can replace a secret without showing it.
+fn with_stored_secrets(
     schema: &SettingsSchema,
     mut sent: BTreeMap<String, settings::SettingValue>,
     stored: &BTreeMap<String, settings::SettingValue>,
-) -> Result<BTreeMap<String, settings::SettingValue>, SettingsError> {
-    let settings: BTreeMap<_, _> = schema
+) -> BTreeMap<String, settings::SettingValue> {
+    schema
         .fields
         .iter()
         .filter_map(|field| {
@@ -2080,9 +2124,7 @@ fn updated_settings(
             };
             Some((field.key.to_owned(), sent.remove(field.key).or_else(kept)?))
         })
-        .collect();
-    Settings::new(settings.clone()).resolve(schema)?;
-    Ok(settings)
+        .collect()
 }
 
 /// The refusal of settings that don't fit their Plugin's schema, naming the one that doesn't as
@@ -2122,6 +2164,7 @@ fn plugin_to_proto(
         version: plugin.version,
         kind: PluginKind::PLUGIN_KIND_BUILT_IN.into(),
         enabled: plugin.enabled,
+        checks_settings: plugin.checks_settings,
         settings: plugin
             .settings_schema
             .fields
@@ -2161,6 +2204,30 @@ const fn setting_kind_to_proto(kind: settings::SettingKind) -> proto::SettingKin
         settings::SettingKind::Secret => proto::SettingKind::SETTING_KIND_SECRET,
         settings::SettingKind::Bool => proto::SettingKind::SETTING_KIND_BOOL,
         settings::SettingKind::Integer => proto::SettingKind::SETTING_KIND_INTEGER,
+        settings::SettingKind::Choice => proto::SettingKind::SETTING_KIND_CHOICE,
+    }
+}
+
+/// The settings a request gives, by key, leaving out those [`setting_value_from_proto`] does.
+fn settings_from_proto<'a>(
+    sent: impl IntoIterator<Item = (&'a String, &'a proto::SettingValue)>,
+) -> BTreeMap<String, settings::SettingValue> {
+    sent.into_iter()
+        .filter_map(|(key, value)| Some((key.clone(), setting_value_from_proto(value)?)))
+        .collect()
+}
+
+fn setting_choices_to_proto(choices: Vec<settings::Choice>) -> proto::SettingChoices {
+    proto::SettingChoices {
+        choices: choices
+            .into_iter()
+            .map(|choice| proto::Choice {
+                value: choice.value,
+                label: choice.label,
+                ..Default::default()
+            })
+            .collect(),
+        ..Default::default()
     }
 }
 
@@ -2245,7 +2312,8 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_ALREADY_IN_LIBRARY
         | R::REFUSAL_REASON_REQUEST_NOT_PENDING
         | R::REFUSAL_REASON_NOT_A_REQUESTER
-        | R::REFUSAL_REASON_LAST_AUTHENTICATOR => ErrorCode::FailedPrecondition,
+        | R::REFUSAL_REASON_LAST_AUTHENTICATOR
+        | R::REFUSAL_REASON_SETTINGS_CHECK_FAILED => ErrorCode::FailedPrecondition,
         R::REFUSAL_REASON_SIGN_IN_CODE_NOT_FOUND
         | R::REFUSAL_REASON_HANDLE_NOT_FOUND
         | R::REFUSAL_REASON_USER_NOT_FOUND

@@ -138,4 +138,9 @@ enum RefusalReason {
   // `failed_precondition`: the caller isn't one of the Request's Requesters, so they can't withdraw
   // from it. Params: `requestId`.
   REFUSAL_REASON_NOT_A_REQUESTER = 44;
+
+  // `failed_precondition`: a Plugin's settings check failed, ran too long or crashed, or the Plugin
+  // has none. The message is the Plugin's own, in plain words, and can't be translated. Params:
+  // `pluginId`.
+  REFUSAL_REASON_SETTINGS_CHECK_FAILED = 45;
 }

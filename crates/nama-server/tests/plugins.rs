@@ -5,14 +5,14 @@
     reason = "test helpers and test Plugins panic to fail a test or to test panic containment"
 )]
 
-use std::{sync::Arc, time::Duration};
+use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
 use nama_plugin_api::{
     BoxFuture, InterceptPoint, Interceptor, ObservePoint, Observer, OnFailure, Plugin, PluginError,
     PluginId, Priority, Registrar, Verdict,
     settings::{SettingField, SettingKind, SettingValue, Settings, SettingsSchema},
 };
-use nama_server::plugins::{EnableError, Outcome, Registry};
+use nama_server::plugins::{CheckError, EnableError, Outcome, Registry, test_choices};
 use tokio::sync::mpsc::{self, error::TryRecvError};
 
 const WAIT: Duration = Duration::from_secs(5);
@@ -789,4 +789,34 @@ async fn a_caller_can_learn_which_plugin_provided_and_ask_that_plugin_again() {
     assert_eq!(first, Some((PluginId::from_static("fr"), "bonjour")));
     assert_eq!(from_en, Some("hello"));
     assert_eq!(from_disabled, None);
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_settings_check_that_runs_past_its_timeout_has_failed_and_harms_nothing() {
+    let registry = Registry::with_builtins(&BTreeMap::new());
+    let id = PluginId::from_static(test_choices::ID);
+    let settings = |fail_with: Option<&str>| {
+        let mut settings = BTreeMap::from([(
+            "api_key".to_owned(),
+            SettingValue::Text(test_choices::API_KEY.to_owned()),
+        )]);
+        if let Some(fail_with) = fail_with {
+            settings.insert(
+                "fail_with".to_owned(),
+                SettingValue::Text(fail_with.to_owned()),
+            );
+        }
+        Settings::new(settings)
+    };
+
+    let hung = registry
+        .check_settings(&id, settings(Some(test_choices::HANG)))
+        .await;
+
+    let Err(CheckError::Failed(message)) = hung else {
+        panic!("expected the check to fail, got {hung:?}");
+    };
+    assert!(message.contains("didn't finish"), "{message}");
+    let checked = registry.check_settings(&id, settings(None)).await;
+    assert!(checked.is_ok(), "{checked:?}");
 }

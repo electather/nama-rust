@@ -11,12 +11,14 @@ use tracing::{error, info, warn};
 use super::{Described, EnableError, Registry, contain_sync};
 use crate::config::PluginConfig;
 
-fn all() -> [fn() -> Arc<dyn Plugin>; 3] {
-    [
-        || Arc::new(LocalAuth),
-        || Arc::new(LogEvents),
-        || Arc::new(Tmdb::new()),
-    ]
+fn all() -> Vec<fn() -> Arc<dyn Plugin>> {
+    let mut all: Vec<fn() -> Arc<dyn Plugin>> =
+        vec![|| Arc::new(LocalAuth), || Arc::new(LogEvents), || {
+            Arc::new(Tmdb::new())
+        }];
+    #[cfg(feature = "testing")]
+    all.push(|| Arc::new(super::test_choices::TestChoices));
+    all
 }
 
 impl Registry {
@@ -46,12 +48,21 @@ impl Registry {
                 }
             };
             known.push(id.clone());
-            match contain_sync(|| (plugin.version().to_owned(), plugin.settings_schema())) {
-                Ok((version, settings_schema)) => {
+            let describe = || {
+                let checks_settings = plugin.settings_check().is_some();
+                (
+                    plugin.version().to_owned(),
+                    plugin.settings_schema(),
+                    checks_settings,
+                )
+            };
+            match contain_sync(describe) {
+                Ok((version, settings_schema, checks_settings)) => {
                     let described = Described {
                         make,
                         version,
                         settings_schema,
+                        checks_settings,
                     };
                     registry.write(|state| state.builtins.insert(id.clone(), described));
                 }

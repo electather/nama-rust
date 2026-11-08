@@ -26,6 +26,26 @@ export function FormField({ label, hint, error, ...input }: ComponentProps<"inpu
   );
 }
 
+/** A labelled native dropdown in a native form, with its hint and the Server's error. */
+export function FormSelect({
+  label,
+  hint,
+  error,
+  ...select
+}: ComponentProps<"select"> & FieldText) {
+  return (
+    <Field label={label} hint={hint} error={error}>
+      {(control) => (
+        <select
+          {...control}
+          {...select}
+          className="h-10 w-full min-w-0 rounded-lg border border-input bg-transparent px-3 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/25 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground aria-invalid:border-destructive"
+        />
+      )}
+    </Field>
+  );
+}
+
 export function FormTextarea({
   label,
   hint,
@@ -82,6 +102,7 @@ export function FormEnd({
   pending,
   done,
   refusal,
+  children,
 }: {
   /** Says what submitting does, such as "Change password". */
   action: string;
@@ -92,6 +113,8 @@ export function FormEnd({
   done: string | undefined;
   /** Why the Server refused the form as a whole, if it did. */
   refusal: string | undefined;
+  /** Other buttons, after the submit button. */
+  children?: ReactNode;
 }) {
   return (
     <>
@@ -100,10 +123,11 @@ export function FormEnd({
         {refusal}
       </p>
       {/* A ghost button is pulled back by its own padding, so its words line up with the fields. */}
-      <div className={variant === "ghost" ? "-ms-4" : undefined}>
+      <div className={variant === "ghost" ? "-ms-4 flex gap-2" : "flex gap-2"}>
         <Button type="submit" variant={variant} disabled={pending}>
           {action}
         </Button>
+        {children}
       </div>
     </>
   );
