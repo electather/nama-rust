@@ -1,6 +1,6 @@
 //! The Telegram Installed Plugin, bundled in the Server, against a fake Telegram: its settings on
-//! the Plugins page, every Request event posted to its channel, and Users connecting their own
-//! chat.
+//! the Plugins page, every Request event posted to its channel, Users connecting their own chat,
+//! and the messages they get there.
 
 #[path = "support/fake_telegram.rs"]
 mod fake_telegram;
@@ -227,23 +227,31 @@ impl Fixture {
         PluginServiceClient::new(HttpClient::plaintext(), self.server.client_config())
     }
 
-    fn requests(&self) -> RequestServiceClient<HttpClient> {
-        RequestServiceClient::new(HttpClient::plaintext(), self.server.client_config())
-    }
-
     /// Ada asks for the Movie `tmdb_id`, which opens a Pending Request.
     async fn ada_asks_for(&self, tmdb_id: i64) -> Request {
-        RequestServiceClient::new(HttpClient::plaintext(), self.ada.clone())
-            .create_request(CreateRequestRequest {
-                movie_tmdb_id: tmdb_id,
+        asks_for(&self.ada, tmdb_id).await
+    }
+
+    /// An Admin gives Ada `MANAGE_REQUESTS` on top of what a new User gets.
+    async fn ada_manages_requests(&self) {
+        UserServiceClient::new(HttpClient::plaintext(), self.server.client_config())
+            .set_permissions(SetPermissionsRequest {
+                user_id: self.ada_id,
+                permissions: [
+                    Permission::Request,
+                    Permission::ViewRequests,
+                    Permission::ManageRequests,
+                ]
+                .map(Into::into)
+                .into(),
                 ..Default::default()
             })
             .await
-            .unwrap()
-            .into_owned()
-            .request
-            .into_option()
-            .unwrap()
+            .unwrap();
+    }
+
+    fn requests(&self) -> RequestServiceClient<HttpClient> {
+        RequestServiceClient::new(HttpClient::plaintext(), self.server.client_config())
     }
 
     async fn approve(&self, id: i64) {
@@ -347,6 +355,26 @@ async fn user(server: &TestServer, name: &str) -> (i64, ClientConfig) {
     (id, server.client_config_as(&token))
 }
 
+/// The User whose client settings are `user` asks for the Movie `tmdb_id`, which opens a Pending
+/// Request.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn asks_for(user: &ClientConfig, tmdb_id: i64) -> Request {
+    RequestServiceClient::new(HttpClient::plaintext(), user.clone())
+        .create_request(CreateRequestRequest {
+            movie_tmdb_id: tmdb_id,
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_owned()
+        .request
+        .into_option()
+        .unwrap()
+}
+
 fn text(key: &str, value: &str) -> (String, nama_proto::nama::v1::SettingValue) {
     let value = nama_proto::nama::v1::SettingValue {
         value: Some(Value::TextValue(value.to_owned())),
@@ -358,6 +386,17 @@ fn text(key: &str, value: &str) -> (String, nama_proto::nama::v1::SettingValue) 
 /// A message to the channel saying `text`, as `sendMessage` takes it.
 fn to_channel(text: &str) -> Json {
     json!({ "chat_id": CHANNEL, "text": text })
+}
+
+/// A message to Ada's own chat saying `text`, as `sendMessage` takes it.
+fn to_ada(text: &str) -> Json {
+    json!({ "chat_id": ADA_CHAT.to_string(), "text": text })
+}
+
+/// `messages`, in an order that doesn't depend on which delivery finished first.
+fn sorted(mut messages: Vec<Json>) -> Vec<Json> {
+    messages.sort_by_key(Json::to_string);
+    messages
 }
 
 #[tokio::test]
@@ -624,4 +663,64 @@ async fn telegram_is_not_listed_to_connect_while_disabled() {
 
     assert_eq!(listed, []);
     assert_eq!(refused.code, connectrpc::ErrorCode::NotFound);
+}
+
+#[tokio::test]
+async fn a_requester_who_connected_is_messaged_with_the_link_when_their_request_becomes_available()
+{
+    let fixture = Fixture::with_telegram(BOT_TOKEN, None).await;
+    fixture.set_server_url("https://nama.example.com").await;
+    fixture.connect_ada().await;
+    let alien = fixture.ada_asks_for(ALIEN).await;
+    fixture.approve(alien.id).await;
+
+    let _media = fixture.library_with_alien().await;
+
+    let sent = fixture.telegram.wait_for_messages(2).await;
+    let link = format!("https://nama.example.com/requests#request-{}", alien.id);
+    assert_eq!(
+        sorted(sent),
+        sorted(vec![
+            to_ada(&format!("Alien (1979) is now Approved.\n{link}")),
+            to_ada(&format!("Alien (1979) is now Available.\n{link}")),
+        ])
+    );
+}
+
+#[tokio::test]
+async fn a_user_with_manage_requests_who_connected_is_messaged_about_a_new_pending_request() {
+    let fixture = Fixture::with_telegram(BOT_TOKEN, None).await;
+    fixture.connect_ada().await;
+    fixture.ada_manages_requests().await;
+    let (_, ben) = user(&fixture.server, "Ben").await;
+
+    asks_for(&ben, DUNE).await;
+
+    let sent = fixture.telegram.wait_for_messages(1).await;
+    assert_eq!(
+        sent,
+        [to_ada("New Request: Dune (2021), from Ben, is Pending.")]
+    );
+}
+
+#[tokio::test]
+async fn a_requester_who_did_not_connect_is_skipped_and_the_channel_still_posts() {
+    let fixture = Fixture::with_telegram(BOT_TOKEN, Some(CHANNEL)).await;
+    fixture.connect_ada().await;
+    let (_, ben) = user(&fixture.server, "Ben").await;
+    let dune = asks_for(&ben, DUNE).await;
+    fixture.ada_asks_for(DUNE).await;
+
+    fixture.approve(dune.id).await;
+
+    let sent = fixture.telegram.wait_for_messages(4).await;
+    assert_eq!(
+        sorted(sent),
+        sorted(vec![
+            to_channel("New Request: Dune (2021), from Ben, is Pending."),
+            to_channel("Ada also asked for Dune (2021)."),
+            to_channel("Dune (2021) is now Approved."),
+            to_ada("Dune (2021) is now Approved."),
+        ])
+    );
 }

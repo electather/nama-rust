@@ -23,6 +23,9 @@ pub enum Recipient {
     /// The channel set in the Notifier's settings, which hears about every Request event. A
     /// Notifier with no channel set does nothing with these.
     Channel,
+    /// The Plugin Connection of one User the Kernel tells, as the Plugin's Connector found it,
+    /// such as their Telegram chat id.
+    Connection(String),
 }
 
 /// A Provider that delivers notifications about Requests through an outside service.

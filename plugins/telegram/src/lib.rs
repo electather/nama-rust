@@ -1,6 +1,7 @@
-//! The Telegram Installed Plugin: posts every Request event to a Telegram channel, and connects
-//! Users to their own Telegram chat with the bot through a deep link (ADR 0021). The Server builds
-//! it for wasm32 and bundles it in its binary.
+//! The Telegram Installed Plugin: posts every Request event to a Telegram channel, connects Users
+//! to their own Telegram chat with the bot through a deep link, and messages them there about the
+//! Requests the Server tells them of (ADR 0021). The Server builds it for wasm32 and bundles it in
+//! its binary.
 
 use nama_pdk::{
     Notification,
@@ -87,22 +88,29 @@ mod exports {
         }))
     }
 
-    /// Posts each notification for the channel to it, if one is set.
+    /// Posts each notification for the channel to it, if one is set, and sends each one for a
+    /// User to the chat their Plugin Connection names.
     struct Telegram;
 
     impl Notifier for Telegram {
         fn deliver(notification: Notification, recipient: Recipient) -> Result<(), Error> {
-            let Recipient::Channel(_) = recipient;
-            let channel = config::get(CHANNEL)?;
-            let channel = channel
-                .as_deref()
-                .map(str::trim)
-                .filter(|channel| !channel.is_empty());
-            match (channel, super::message(&notification)) {
-                (Some(channel), Some(text)) => send_message(channel, &text),
+            let chat = match recipient {
+                Recipient::Channel(_) => channel()?,
+                Recipient::Connection(chat_id) => Some(chat_id),
+            };
+            match (chat, super::message(&notification)) {
+                (Some(chat), Some(text)) => send_message(&chat, &text),
                 _ => Ok(()),
             }
         }
+    }
+
+    /// The channel setting, or `None` if it is empty.
+    fn channel() -> Result<Option<String>, Error> {
+        let channel = config::get(CHANNEL)?;
+        Ok(channel
+            .map(|channel| channel.trim().to_owned())
+            .filter(|channel| !channel.is_empty()))
     }
 
     nama_pdk::notifier!(Telegram);

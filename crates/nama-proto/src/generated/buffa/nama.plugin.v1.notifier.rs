@@ -299,6 +299,9 @@ impl ::buffa::Message for Delivery {
                         += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
                             + inner as u64;
                 }
+                __buffa::oneof::delivery::Recipient::Connection(x) => {
+                    size += 1u64 + ::buffa::types::string_encoded_len(x) as u64;
+                }
             }
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
@@ -328,6 +331,9 @@ impl ::buffa::Message for Delivery {
                         buf,
                     );
                     x.write_to(__cache, buf);
+                }
+                __buffa::oneof::delivery::Recipient::Connection(x) => {
+                    ::buffa::types::put_string_field(3u32, x, buf);
                 }
             }
         }
@@ -374,6 +380,17 @@ impl ::buffa::Message for Delivery {
                         ),
                     );
                 }
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                self.recipient = ::core::option::Option::Some(
+                    __buffa::oneof::delivery::Recipient::Connection(
+                        ::buffa::types::decode_string(buf)?,
+                    ),
+                );
             }
             _ => {
                 self.__buffa_unknown_fields
@@ -455,6 +472,30 @@ impl<'de> ::serde::Deserialize<'de> for Delivery {
                                     __buffa::oneof::delivery::Recipient::Channel(
                                         ::buffa::alloc::boxed::Box::new(v),
                                     ),
+                                );
+                            }
+                        }
+                        "connection" => {
+                            let v: ::core::option::Option<
+                                ::buffa::alloc::string::String,
+                            > = map
+                                .next_value_seed(
+                                    ::buffa::json_helpers::NullableDeserializeSeed(
+                                        ::buffa::json_helpers::DefaultDeserializeSeed::<
+                                            ::buffa::alloc::string::String,
+                                        >::new(),
+                                    ),
+                                )?;
+                            if let Some(v) = v {
+                                if __oneof_recipient.is_some() {
+                                    return Err(
+                                        ::serde::de::Error::custom(
+                                            "multiple oneof fields set for 'recipient'",
+                                        ),
+                                    );
+                                }
+                                __oneof_recipient = Some(
+                                    __buffa::oneof::delivery::Recipient::Connection(v),
                                 );
                             }
                         }

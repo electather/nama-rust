@@ -14,7 +14,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file nama/plugin/v1/notifier.proto.
  */
 export const file_nama_plugin_v1_notifier: GenFile = /*@__PURE__*/
-  fileDesc("Ch1uYW1hL3BsdWdpbi92MS9ub3RpZmllci5wcm90bxIObmFtYS5wbHVnaW4udjEiegoMTm90aWZpY2F0aW9uEh0KBWV2ZW50GAEgASgLMg4ubmFtYS52MS5FdmVudBIhCgdyZXF1ZXN0GAIgASgLMhAubmFtYS52MS5SZXF1ZXN0EhgKC3JlcXVlc3RfdXJsGAMgASgJSACIAQFCDgoMX3JlcXVlc3RfdXJsIncKCERlbGl2ZXJ5EjIKDG5vdGlmaWNhdGlvbhgBIAEoCzIcLm5hbWEucGx1Z2luLnYxLk5vdGlmaWNhdGlvbhIqCgdjaGFubmVsGAIgASgLMhcubmFtYS5wbHVnaW4udjEuQ2hhbm5lbEgAQgsKCXJlY2lwaWVudCIJCgdDaGFubmVsYgZwcm90bzM", [file_nama_v1_event, file_nama_v1_request]);
+  fileDesc("Ch1uYW1hL3BsdWdpbi92MS9ub3RpZmllci5wcm90bxIObmFtYS5wbHVnaW4udjEiegoMTm90aWZpY2F0aW9uEh0KBWV2ZW50GAEgASgLMg4ubmFtYS52MS5FdmVudBIhCgdyZXF1ZXN0GAIgASgLMhAubmFtYS52MS5SZXF1ZXN0EhgKC3JlcXVlc3RfdXJsGAMgASgJSACIAQFCDgoMX3JlcXVlc3RfdXJsIo0BCghEZWxpdmVyeRIyCgxub3RpZmljYXRpb24YASABKAsyHC5uYW1hLnBsdWdpbi52MS5Ob3RpZmljYXRpb24SKgoHY2hhbm5lbBgCIAEoCzIXLm5hbWEucGx1Z2luLnYxLkNoYW5uZWxIABIUCgpjb25uZWN0aW9uGAMgASgJSABCCwoJcmVjaXBpZW50IgkKB0NoYW5uZWxiBnByb3RvMw", [file_nama_v1_event, file_nama_v1_request]);
 
 /**
  * What the Kernel hands a Notifier to deliver: something that happened to a Request. The Notifier
@@ -79,6 +79,15 @@ export type Delivery = Message<"nama.plugin.v1.Delivery"> & {
      */
     value: Channel;
     case: "channel";
+  } | {
+    /**
+     * The Plugin Connection of one User the Server tells, as the Plugin's Connector found it, such
+     * as their Telegram chat id.
+     *
+     * @generated from field: string connection = 3;
+     */
+    value: string;
+    case: "connection";
   } | { case: undefined; value?: undefined };
 };
 

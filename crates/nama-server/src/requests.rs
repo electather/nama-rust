@@ -2214,7 +2214,7 @@ mod tests {
         plugins
             .enable(Arc::new(FulfillerPlugin(fulfiller)))
             .unwrap();
-        let events = EventBus::new(plugins.clone(), ServerUrl::default());
+        let events = EventBus::new(Arc::clone(&db), plugins.clone(), ServerUrl::default());
         let matcher = Matcher::new(Arc::clone(&db), plugins.clone(), events.clone());
         (data, Requests::new(db, matcher, events, plugins))
     }

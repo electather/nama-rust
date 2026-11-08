@@ -79,7 +79,7 @@ pub fn serve(
     shutdown: impl Future<Output = ()> + Send + 'static,
 ) -> impl Future<Output = io::Result<()>> + Send + 'static {
     let server_url = ServerUrl::default();
-    let events = EventBus::new(plugins.clone(), server_url.clone());
+    let events = EventBus::new(Arc::clone(&db), plugins.clone(), server_url.clone());
     let scanner = Scanner::new(Arc::clone(&db), plugins.clone(), events.clone());
     let matcher = Matcher::new(Arc::clone(&db), plugins.clone(), events.clone());
     let requests = Requests::new(Arc::clone(&db), matcher, events.clone(), plugins.clone());

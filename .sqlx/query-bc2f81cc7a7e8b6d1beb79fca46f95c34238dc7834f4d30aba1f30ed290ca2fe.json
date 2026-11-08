@@ -1,0 +1,74 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT users.id AS \"id!\", users.display_username AS name,\n                  users.permissions AS \"permissions: Permissions\", users.created_at,\n                  plugin_connections.connection\n           FROM plugin_connections JOIN users ON users.id = plugin_connections.user_id\n           WHERE plugin_connections.plugin_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "name",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "display_username"
+          }
+        }
+      },
+      {
+        "name": "permissions: Permissions",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "permissions"
+          }
+        }
+      },
+      {
+        "name": "created_at",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "name": "connection",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "plugin_connections",
+            "name": "connection"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "bc2f81cc7a7e8b6d1beb79fca46f95c34238dc7834f4d30aba1f30ed290ca2fe"
+}
