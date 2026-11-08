@@ -27,7 +27,7 @@ export function RequestActions({
     // Pulled back by the buttons' own padding, so the first one's words line up with the title.
     // Hidden when it has no buttons, so it adds no space to the row.
     <div className="-ms-4 mt-1 flex basis-full flex-wrap gap-1 empty:hidden">
-      {isPendingFor(request, you) && <Withdraw {...target} />}
+      {canWithdraw(request, you) && <Withdraw {...target} />}
       {manage && <Manage pending={request.state === RequestState.PENDING} {...target} />}
     </div>
   );
@@ -38,7 +38,7 @@ function targetOf(request: Request): Target {
 }
 
 /** Whether `request` is Pending and the User `you` is one of its Requesters. */
-function isPendingFor(request: Request, you: bigint | undefined) {
+function canWithdraw(request: Request, you: bigint | undefined) {
   return (
     request.state === RequestState.PENDING &&
     request.requesters.some(({ userId }) => userId === you)

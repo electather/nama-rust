@@ -596,14 +596,19 @@ async fn one_of_two_requesters_withdraws_and_the_request_stays_with_the_other() 
     let asked = ask(&requests(as_ada.clone()), HEAT).await;
     ask(&requests(as_grace.clone()), HEAT).await;
     let mut adas_events = subscribe_to_requests(as_ada.clone()).await;
+    let mut graces_events = subscribe_to_requests(as_grace.clone()).await;
 
     withdraw(&requests(as_ada), asked.id).await.unwrap();
-    let event = next_event(&mut adas_events).await;
 
-    let event::Event::RequesterRemoved(removed) = event else {
-        panic!("not the withdrawal: {event:?}");
-    };
-    assert_eq!(removed.user_id, ada);
+    for event in [
+        next_event(&mut adas_events).await,
+        next_event(&mut graces_events).await,
+    ] {
+        let event::Event::RequesterRemoved(removed) = event else {
+            panic!("not the withdrawal: {event:?}");
+        };
+        assert_eq!(removed.user_id, ada);
+    }
     let remaining = list(&requests(as_grace)).await;
     assert_eq!(remaining.len(), 1);
     assert_eq!(remaining[0].id, asked.id);
