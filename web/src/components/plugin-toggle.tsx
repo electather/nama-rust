@@ -53,10 +53,11 @@ export function PluginToggle({ plugin }: { plugin: Plugin }) {
 
 /** Why `plugin` couldn't be enabled or disabled, by its Refusal (web/AGENTS.md). */
 function refusedChange(error: unknown, plugin: Plugin, verb: string) {
+  const { field, params } = refusalOf(error);
   // The Server names a setting as `settings.<key>`.
-  const key = refusalOf(error).field.replace(/^settings\./u, "");
+  const key = field.replace(/^settings\./u, "");
   const label = plugin.settings.find((setting) => setting.key === key)?.label ?? key;
-  const { fulfillerPluginId, titleKind } = refusalOf(error).params;
+  const { fulfillerPluginId, titleKind } = params;
   return refusal(
     error,
     `${verb} ${plugin.id}`,
