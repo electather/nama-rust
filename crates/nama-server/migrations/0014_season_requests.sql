@@ -6,5 +6,5 @@ ALTER TABLE requests ADD COLUMN season INTEGER CHECK (season >= 0);
 -- Movie and a Show may share a `tmdb_id`; -1 stands for a Movie's missing Season, since a unique
 -- index counts every NULL as distinct.
 DROP INDEX one_open_request_per_movie;
-CREATE UNIQUE INDEX one_open_request_per_title ON requests (tmdb_id, IFNULL(season, -1))
+CREATE UNIQUE INDEX one_open_request_per_movie_or_season ON requests (tmdb_id, IFNULL(season, -1))
 WHERE state NOT IN ('declined', 'available');

@@ -5,13 +5,13 @@
 //! Requests out as their proto messages, since those are also what its events carry.
 
 use std::{
-    collections::{BTreeSet, HashMap},
+    collections::{BTreeSet, HashMap, HashSet},
     sync::Arc,
 };
 
 use nama_plugin_api::{
     PluginId,
-    metadata::{Candidate, ExternalId, SearchQuery, Season, TitleKind},
+    metadata::{Candidate, Episode, ExternalId, SearchQuery, Season, TitleKind},
 };
 use nama_proto::nama::v1::{
     Event, Permission, Request, RequestCancelled, RequestCreated, RequestState,
@@ -338,7 +338,7 @@ async fn look_around<M>(
 ) -> Result<Found<M>, sqlx::Error> {
     let library = contents::library_with_movie(conn, tmdb_id).await?;
     let requester = visible_to(viewer);
-    // Open as `one_open_request_per_title` has it.
+    // Open as `one_open_request_per_movie_or_season` has it.
     let open = sqlx::query_scalar!(
         r#"SELECT id AS "id!" FROM requests
            WHERE tmdb_id = ?1 AND season IS NULL AND state NOT IN ('declined', 'available')
@@ -391,7 +391,7 @@ async fn ask_seasons(
         show_title,
         seasons,
     } = show;
-    // SQLite's calendar, since `std` has none. Air dates are `YYYY-MM-DD`, so they sort as text.
+    // SQLite's calendar, since `std` has none.
     let today = sqlx::query_scalar!(r#"SELECT date('now') AS "today!: String""#)
         .fetch_one(&mut *conn)
         .await?;
@@ -399,17 +399,7 @@ async fn ask_seasons(
     let mut happened = Vec::new();
     for season in seasons {
         let matched = contents::matched_episodes(conn, show_tmdb_id, season.number.into()).await?;
-        let in_library = season
-            .episodes
-            .iter()
-            .filter(|episode| {
-                episode
-                    .air_date
-                    .as_ref()
-                    .is_some_and(|aired| *aired <= today)
-            })
-            .all(|episode| matched.contains(&i64::from(episode.number)));
-        if in_library {
+        if in_library(&season.episodes, &matched, &today) {
             return Err(Error::SeasonInLibrary {
                 show: show_tmdb_id,
                 season: season.number,
@@ -428,6 +418,22 @@ async fn ask_seasons(
     Ok((requests, happened))
 }
 
+/// Whether a Library has the Season with `episodes`, of which those numbered in `matched` are
+/// Matched: one has aired by `today` (`YYYY-MM-DD`, as air dates are, so they sort as text), and
+/// every one that has is Matched. A Season yet to air isn't in a Library, so it can be Requested.
+fn in_library(episodes: &[Episode], matched: &HashSet<i64>, today: &str) -> bool {
+    let mut aired = episodes
+        .iter()
+        .filter(|episode| {
+            episode
+                .air_date
+                .as_deref()
+                .is_some_and(|aired| aired <= today)
+        })
+        .peekable();
+    aired.peek().is_some() && aired.all(|episode| matched.contains(&i64::from(episode.number)))
+}
+
 /// Adds `user` as a Requester of the open Request for `wanted`, opening one in `state` if there
 /// is none. Returns the Request, and the event for what changed, if anything did.
 async fn ask(
@@ -438,7 +444,7 @@ async fn ask(
 ) -> Result<(Request, Option<Event>), sqlx::Error> {
     let now = now();
     let state = stored(state);
-    // Open as `one_open_request_per_title` has it.
+    // Open as `one_open_request_per_movie_or_season` has it.
     let open = sqlx::query_scalar!(
         "SELECT id FROM requests
          WHERE tmdb_id = ? AND season IS ? AND state NOT IN ('declined', 'available')",
@@ -628,4 +634,95 @@ fn read_state(stored: &str) -> RequestState {
         .iter()
         .find(|&&(_, name)| name == stored)
         .map_or(RequestState::REQUEST_STATE_UNSPECIFIED, |&(state, _)| state)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashSet;
+
+    use nama_plugin_api::metadata::{Episode, ExternalIds};
+    use nama_proto::nama::v1::RequestState;
+    use sqlx::SqliteConnection;
+
+    use super::{Wanted, ask, in_library};
+    use crate::db::Database;
+
+    const TODAY: &str = "2026-11-08";
+
+    fn episode(number: u32, air_date: Option<&str>) -> Episode {
+        Episode {
+            ids: ExternalIds::default(),
+            season: 1,
+            number,
+            title: format!("Episode {number}"),
+            overview: None,
+            air_date: air_date.map(str::to_owned),
+            runtime_minutes: None,
+            still: None,
+        }
+    }
+
+    #[test]
+    fn a_season_is_in_a_library_once_every_aired_episode_is_matched() {
+        let airing = [
+            episode(1, Some("2026-11-01")),
+            episode(2, Some(TODAY)),
+            episode(3, Some("2026-11-15")),
+            episode(4, None),
+        ];
+
+        assert!(in_library(&airing, &HashSet::from([1, 2]), TODAY));
+        assert!(!in_library(&airing, &HashSet::from([1, 3, 4]), TODAY));
+    }
+
+    #[test]
+    fn a_season_yet_to_air_is_not_in_a_library() {
+        let announced = [episode(1, Some("2027-01-01")), episode(2, None)];
+
+        assert!(!in_library(&announced, &HashSet::from([1, 2]), TODAY));
+        assert!(!in_library(&[], &HashSet::new(), TODAY));
+    }
+
+    /// Asks for each of `wanted` in turn as a new User, and returns the Requests' ids.
+    async fn ask_each(
+        conn: &mut SqliteConnection,
+        wanted: Vec<Wanted>,
+    ) -> Result<Vec<i64>, sqlx::Error> {
+        let user = sqlx::query_scalar(
+            "INSERT INTO users (username, display_username, permissions, created_at, updated_at)
+             VALUES ('ada', 'Ada', 0, 0, 0) RETURNING id",
+        )
+        .fetch_one(&mut *conn)
+        .await?;
+        let mut ids = Vec::new();
+        for one in wanted {
+            let (request, _) = ask(conn, user, one, RequestState::Pending).await?;
+            ids.push(request.id);
+        }
+        Ok(ids)
+    }
+
+    #[tokio::test]
+    async fn a_movie_and_a_show_with_the_same_tmdb_id_have_requests_of_their_own() {
+        let data = tempfile::tempdir().unwrap();
+        let db = Database::open(data.path()).await.unwrap();
+        let wanted = [None, Some(0), Some(1), None].map(|season| Wanted {
+            tmdb_id: 1,
+            season,
+            title: "Shared".to_owned(),
+            release_date: None,
+        });
+
+        let ids = db
+            .write(move |tx| Box::pin(ask_each(tx, wanted.into())))
+            .await
+            .unwrap();
+
+        assert_eq!(ids.iter().collect::<HashSet<_>>().len(), 3, "{ids:?}");
+        assert_eq!(
+            ids.first(),
+            ids.last(),
+            "asking again joins the Movie's Request"
+        );
+    }
 }

@@ -676,9 +676,8 @@ export const RequestStateSchema: GenEnum<RequestState> = /*@__PURE__*/
 
 /**
  * Users asking for Movies, and Seasons of Shows, that aren't on the Server to be added to it
- * (ADR 0012). Without
- * `PERMISSION_VIEW_REQUESTS`, a User sees only the Requests they are a Requester of, here and in
- * `EventService`.
+ * (ADR 0012). Without `PERMISSION_VIEW_REQUESTS`, a User sees only the Requests they are a
+ * Requester of, here and in `EventService`.
  *
  * @generated from service nama.v1.RequestService
  */
@@ -701,8 +700,8 @@ export const RequestService: GenService<{
   /**
    * Asks for Seasons of a Show for the caller, one Request per Season, each as `CreateRequest`
    * asks for a Movie: Approved if the caller has `PERMISSION_AUTO_APPROVE_TV`, else Pending. Needs
-   * `PERMISSION_REQUEST_TV`. A Season is in a Library when every one of its aired Episodes is
-   * Matched, and asking for such a Season fails with `failed_precondition`. Fails with
+   * `PERMISSION_REQUEST_TV`. A Season is in a Library once it has aired and every one of its aired
+   * Episodes is Matched, and asking for such a Season fails with `failed_precondition`. Fails with
    * `invalid_argument` if no Season is named or the metadata source has no such Show or Season,
    * and `unavailable` if no metadata Provider is enabled, or it failed. A failure changes no
    * Request.

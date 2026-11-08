@@ -161,32 +161,51 @@ impl Fixture {
             .await
             .unwrap();
         let browse = BrowseServiceClient::new(HttpClient::plaintext(), config);
-        tokio::time::timeout(WAIT, until_a_title_is_matched(&browse, library))
+        tokio::time::timeout(WAIT, until_a_title_is_matched(&browse, library, kind))
             .await
             .unwrap();
         media
     }
 }
 
-/// Waits until the Library `library` lists a Movie or a Show. Matching stores a Show's Episodes
-/// together, so they are all Matched by then.
-async fn until_a_title_is_matched(browse: &BrowseServiceClient<HttpClient>, library: i64) {
+/// Waits until the Library `library` of `kind` lists a Movie or a Show. Matching stores a Show's
+/// Episodes together, so they are all Matched by then.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn until_a_title_is_matched(
+    browse: &BrowseServiceClient<HttpClient>,
+    library: i64,
+    kind: LibraryKind,
+) {
     loop {
-        let movies = browse
-            .list_movies(ListMoviesRequest {
+        let listed = if kind == LibraryKind::LIBRARY_KIND_MOVIES {
+            let listing = ListMoviesRequest {
                 library_id: library,
                 ..Default::default()
-            })
-            .await;
-        let shows = browse
-            .list_shows(ListShowsRequest {
+            };
+            browse
+                .list_movies(listing)
+                .await
+                .unwrap()
+                .into_owned()
+                .movies
+                .len()
+        } else {
+            let listing = ListShowsRequest {
                 library_id: library,
                 ..Default::default()
-            })
-            .await;
-        let has_movies = movies.is_ok_and(|listed| !listed.into_owned().movies.is_empty());
-        let has_shows = shows.is_ok_and(|listed| !listed.into_owned().shows.is_empty());
-        if has_movies || has_shows {
+            };
+            browse
+                .list_shows(listing)
+                .await
+                .unwrap()
+                .into_owned()
+                .shows
+                .len()
+        };
+        if listed > 0 {
             return;
         }
         tokio::time::sleep(Duration::from_millis(10)).await;
