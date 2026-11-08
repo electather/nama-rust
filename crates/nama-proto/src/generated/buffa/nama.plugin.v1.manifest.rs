@@ -348,6 +348,9 @@ pub enum ProvidePoint {
     /// The Fulfiller for Season Requests, with the same exports as PROVIDE_POINT_MOVIE_FULFILLER. A
     /// Plugin providing both tells a Movie Request from a Season one by which it holds.
     PROVIDE_POINT_SHOW_FULFILLER = 2i32,
+    /// A Notifier. The Plugin's `deliver` export takes each notification as `Delivery` and returns
+    /// nothing, or fails with why the service didn't take it, which the Server logs.
+    PROVIDE_POINT_NOTIFIER = 3i32,
 }
 impl ProvidePoint {
     ///Idiomatic alias for [`Self::PROVIDE_POINT_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -359,6 +362,9 @@ impl ProvidePoint {
     ///Idiomatic alias for [`Self::PROVIDE_POINT_SHOW_FULFILLER`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const ShowFulfiller: Self = Self::PROVIDE_POINT_SHOW_FULFILLER;
+    ///Idiomatic alias for [`Self::PROVIDE_POINT_NOTIFIER`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Notifier: Self = Self::PROVIDE_POINT_NOTIFIER;
 }
 impl ::core::default::Default for ProvidePoint {
     fn default() -> Self {
@@ -457,6 +463,7 @@ impl ::buffa::Enumeration for ProvidePoint {
             0i32 => ::core::option::Option::Some(Self::PROVIDE_POINT_UNSPECIFIED),
             1i32 => ::core::option::Option::Some(Self::PROVIDE_POINT_MOVIE_FULFILLER),
             2i32 => ::core::option::Option::Some(Self::PROVIDE_POINT_SHOW_FULFILLER),
+            3i32 => ::core::option::Option::Some(Self::PROVIDE_POINT_NOTIFIER),
             _ => ::core::option::Option::None,
         }
     }
@@ -468,6 +475,7 @@ impl ::buffa::Enumeration for ProvidePoint {
             Self::PROVIDE_POINT_UNSPECIFIED => "PROVIDE_POINT_UNSPECIFIED",
             Self::PROVIDE_POINT_MOVIE_FULFILLER => "PROVIDE_POINT_MOVIE_FULFILLER",
             Self::PROVIDE_POINT_SHOW_FULFILLER => "PROVIDE_POINT_SHOW_FULFILLER",
+            Self::PROVIDE_POINT_NOTIFIER => "PROVIDE_POINT_NOTIFIER",
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -481,6 +489,9 @@ impl ::buffa::Enumeration for ProvidePoint {
             "PROVIDE_POINT_SHOW_FULFILLER" => {
                 ::core::option::Option::Some(Self::PROVIDE_POINT_SHOW_FULFILLER)
             }
+            "PROVIDE_POINT_NOTIFIER" => {
+                ::core::option::Option::Some(Self::PROVIDE_POINT_NOTIFIER)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -489,6 +500,7 @@ impl ::buffa::Enumeration for ProvidePoint {
             Self::PROVIDE_POINT_UNSPECIFIED,
             Self::PROVIDE_POINT_MOVIE_FULFILLER,
             Self::PROVIDE_POINT_SHOW_FULFILLER,
+            Self::PROVIDE_POINT_NOTIFIER,
         ]
     }
 }
