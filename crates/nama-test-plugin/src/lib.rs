@@ -11,7 +11,8 @@ mod exports {
     use std::collections::HashMap;
 
     use nama_pdk::{
-        Buffa, CheckedSettings, Download, FnResult, Fulfiller, Manifest, Request,
+        Buffa, CheckedSettings, Download, FnResult, Fulfiller, Manifest, Notification, Notifier,
+        Recipient, Request,
         extism_pdk::{self, Error, HttpRequest, config, http},
         nama_proto::nama::plugin::v1::{
             ObservePoint, ObservedEvents, ProvidePoint, SettingField, SettingKind, SettingValue,
@@ -26,13 +27,16 @@ mod exports {
     /// The setting that picks what its Fulfiller does: `take`, `error`, `loop` or `panic`.
     const FULFILLER: &str = "fulfiller";
 
+    /// The setting that picks what its Notifier does: `post`, `error`, `loop` or `panic`.
+    const NOTIFIER: &str = "notifier";
+
     /// The setting that makes its settings check fail with its text, or loop forever or panic for
     /// `loop` or `panic`.
     const FAIL_WITH: &str = "fail_with";
 
-    // Says who the Plugin is, that it observes Events and fulfills Movie Requests, and its
-    // settings: a URL whose host it may reach, one it requests, how its Observer and its
-    // Fulfiller behave, a profile its check offers, and how its check fails. With the
+    // Says who the Plugin is, that it observes Events, fulfills Movie Requests and notifies, and
+    // its settings: a URL whose host it may reach, one it requests, how its Observer, Fulfiller
+    // and Notifier behave, a profile its check offers, and how its check fails. With the
     // `out-of-range` feature it wants a Nama API no Server has, and with `panic` it panics
     // instead.
     #[plugin_fn]
@@ -46,7 +50,10 @@ mod exports {
         } else {
             Manifest {
                 observers: vec![ObservePoint::OBSERVE_POINT_EVENTS.into()],
-                providers: vec![ProvidePoint::PROVIDE_POINT_MOVIE_FULFILLER.into()],
+                providers: vec![
+                    ProvidePoint::PROVIDE_POINT_MOVIE_FULFILLER.into(),
+                    ProvidePoint::PROVIDE_POINT_NOTIFIER.into(),
+                ],
                 settings: vec![
                     setting("url", SettingKind::SETTING_KIND_URL),
                     setting("fetch", SettingKind::SETTING_KIND_TEXT),
@@ -59,6 +66,11 @@ mod exports {
                         FULFILLER,
                         "take",
                         "when handed a Request: take, error, loop or panic",
+                    ),
+                    behaviour_setting(
+                        NOTIFIER,
+                        "post",
+                        "when handed a notification: post, error, loop or panic",
                     ),
                     setting("profile", SettingKind::SETTING_KIND_CHOICE),
                     setting(FAIL_WITH, SettingKind::SETTING_KIND_TEXT),
@@ -155,6 +167,35 @@ mod exports {
     }
 
     nama_pdk::fulfiller!(TestFulfiller);
+
+    /// A Notifier that, as its `notifier` setting says, posts each notification for its channel,
+    /// encoded as protobuf, to its `url` setting's URL if it has one, fails, loops forever or
+    /// panics.
+    struct TestNotifier;
+
+    impl Notifier for TestNotifier {
+        fn deliver(notification: Notification, recipient: Recipient) -> Result<(), Error> {
+            let Recipient::Channel(_) = recipient;
+            match config::get(NOTIFIER)?.as_deref() {
+                Some("error") => Err(Error::msg("the test Plugin's Notifier was set to error")),
+                Some("loop") => loop_forever(),
+                #[expect(clippy::panic, reason = "it panics on purpose")]
+                Some("panic") => panic!("the test Plugin's Notifier was set to panic"),
+                _ => post(notification),
+            }
+        }
+    }
+
+    nama_pdk::notifier!(TestNotifier);
+
+    /// Posts `notification`, encoded as protobuf, to its `url` setting's URL, if it has one.
+    fn post(notification: Notification) -> Result<(), Error> {
+        if let Some(url) = config::get("url")? {
+            let request = HttpRequest::new(&url).with_method("POST");
+            http::request(&request, Some(Buffa(notification)))?;
+        }
+        Ok(())
+    }
 
     // Requests its `url` setting's URL, if it has one, as Sonarr's check would, then offers two
     // profiles. Its `fail_with` setting makes it fail, loop forever or panic instead.

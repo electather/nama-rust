@@ -38,6 +38,9 @@
 //!
 //! A Plugin that hands Requests to an outside service implements [`Fulfiller`] and exports it with
 //! [`fulfiller!`].
+//!
+//! A Plugin that tells people about Requests through an outside service implements [`Notifier`] and
+//! exports it with [`notifier!`].
 
 use std::collections::HashMap;
 
@@ -45,7 +48,7 @@ pub use extism_pdk::{self, FnResult, plugin_fn};
 pub use nama_proto::{
     self,
     nama::{
-        plugin::v1::{CheckedSettings, Manifest},
+        plugin::v1::{CheckedSettings, Manifest, Notification, delivery::Recipient},
         v1::{Download, Request},
     },
 };
@@ -166,6 +169,62 @@ macro_rules! fulfiller {
                     downloads,
                     ..Progress::default()
                 }))
+            }
+        };
+    };
+}
+
+/// A Notifier: tells people about Requests through an outside service, such as Telegram (ADR
+/// 0021). The Server decides who is told what, and hands it each notification with its recipient.
+/// Its Manifest lists `PROVIDE_POINT_NOTIFIER` in `providers`, and [`notifier!`] exports it:
+///
+/// ```
+/// use nama_pdk::{Notification, Notifier, Recipient, extism_pdk::Error};
+///
+/// struct Telegram;
+///
+/// impl Notifier for Telegram {
+///     fn deliver(notification: Notification, recipient: Recipient) -> Result<(), Error> {
+///         let Recipient::Channel(_) = recipient;
+///         // Format `notification` and post it to the channel in the settings, if there is one.
+///         Ok(())
+///     }
+/// }
+///
+/// nama_pdk::notifier!(Telegram);
+/// ```
+pub trait Notifier {
+    /// Formats `notification` and sends it to `recipient`. A Server with a recipient this
+    /// `nama-pdk` doesn't know gets an error instead, so nobody is told what isn't for them.
+    ///
+    /// # Errors
+    ///
+    /// When the service didn't take the notification. The Server logs the error's message and
+    /// doesn't retry.
+    fn deliver(notification: Notification, recipient: Recipient) -> Result<(), Error>;
+}
+
+/// Exports a [`Notifier`] as the Plugin's `deliver`, taking the `nama.plugin.v1.Delivery` the
+/// Server sends it.
+#[macro_export]
+macro_rules! notifier {
+    ($notifier:ty) => {
+        const _: () = {
+            // `plugin_fn` expands to paths starting with `extism_pdk`.
+            use $crate::{
+                Buffa, FnResult, Notifier,
+                extism_pdk::{self, Error},
+                nama_proto::nama::plugin::v1::Delivery,
+                plugin_fn,
+            };
+
+            #[plugin_fn]
+            pub fn deliver(Buffa(delivery): Buffa<Delivery>) -> FnResult<()> {
+                let recipient = delivery
+                    .recipient
+                    .ok_or_else(|| Error::msg("it doesn't know whom the notification is for"))?;
+                let notification = delivery.notification.into_option().unwrap_or_default();
+                Ok(<$notifier as Notifier>::deliver(notification, recipient)?)
             }
         };
     };

@@ -106,4 +106,7 @@ enum ProvidePoint {
   // The Fulfiller for Season Requests, with the same exports as PROVIDE_POINT_MOVIE_FULFILLER. A
   // Plugin providing both tells a Movie Request from a Season one by which it holds.
   PROVIDE_POINT_SHOW_FULFILLER = 2;
+  // A Notifier. The Plugin's `deliver` export takes each notification as `Delivery` and returns
+  // nothing, or fails with why the service didn't take it, which the Server logs.
+  PROVIDE_POINT_NOTIFIER = 3;
 }

@@ -14,7 +14,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file nama/plugin/v1/notifier.proto.
  */
 export const file_nama_plugin_v1_notifier: GenFile = /*@__PURE__*/
-  fileDesc("Ch1uYW1hL3BsdWdpbi92MS9ub3RpZmllci5wcm90bxIObmFtYS5wbHVnaW4udjEiUAoMTm90aWZpY2F0aW9uEh0KBWV2ZW50GAEgASgLMg4ubmFtYS52MS5FdmVudBIhCgdyZXF1ZXN0GAIgASgLMhAubmFtYS52MS5SZXF1ZXN0YgZwcm90bzM", [file_nama_v1_event, file_nama_v1_request]);
+  fileDesc("Ch1uYW1hL3BsdWdpbi92MS9ub3RpZmllci5wcm90bxIObmFtYS5wbHVnaW4udjEiUAoMTm90aWZpY2F0aW9uEh0KBWV2ZW50GAEgASgLMg4ubmFtYS52MS5FdmVudBIhCgdyZXF1ZXN0GAIgASgLMhAubmFtYS52MS5SZXF1ZXN0IncKCERlbGl2ZXJ5EjIKDG5vdGlmaWNhdGlvbhgBIAEoCzIcLm5hbWEucGx1Z2luLnYxLk5vdGlmaWNhdGlvbhIqCgdjaGFubmVsGAIgASgLMhcubmFtYS5wbHVnaW4udjEuQ2hhbm5lbEgAQgsKCXJlY2lwaWVudCIJCgdDaGFubmVsYgZwcm90bzM", [file_nama_v1_event, file_nama_v1_request]);
 
 /**
  * What the Kernel hands a Notifier to deliver: something that happened to a Request. The Notifier
@@ -44,4 +44,55 @@ export type Notification = Message<"nama.plugin.v1.Notification"> & {
  */
 export const NotificationSchema: GenMessage<Notification> = /*@__PURE__*/
   messageDesc(file_nama_plugin_v1_notifier, 0);
+
+/**
+ * What an Installed Plugin's `deliver` export takes: a notification and whom it is for.
+ *
+ * @generated from message nama.plugin.v1.Delivery
+ */
+export type Delivery = Message<"nama.plugin.v1.Delivery"> & {
+  /**
+   * @generated from field: nama.plugin.v1.Notification notification = 1;
+   */
+  notification?: Notification | undefined;
+
+  /**
+   * Whom it is for. A Plugin that finds none it knows, which a newer Server may send, fails
+   * rather than tell the wrong people.
+   *
+   * @generated from oneof nama.plugin.v1.Delivery.recipient
+   */
+  recipient: {
+    /**
+     * The channel set in the Plugin's settings, which hears about every Request event. A Plugin
+     * with no channel set does nothing with these.
+     *
+     * @generated from field: nama.plugin.v1.Channel channel = 2;
+     */
+    value: Channel;
+    case: "channel";
+  } | { case: undefined; value?: undefined };
+};
+
+/**
+ * Describes the message nama.plugin.v1.Delivery.
+ * Use `create(DeliverySchema)` to create a new message.
+ */
+export const DeliverySchema: GenMessage<Delivery> = /*@__PURE__*/
+  messageDesc(file_nama_plugin_v1_notifier, 1);
+
+/**
+ * The Plugin's own channel, set in its settings.
+ *
+ * @generated from message nama.plugin.v1.Channel
+ */
+export type Channel = Message<"nama.plugin.v1.Channel"> & {
+};
+
+/**
+ * Describes the message nama.plugin.v1.Channel.
+ * Use `create(ChannelSchema)` to create a new message.
+ */
+export const ChannelSchema: GenMessage<Channel> = /*@__PURE__*/
+  messageDesc(file_nama_plugin_v1_notifier, 2);
 
