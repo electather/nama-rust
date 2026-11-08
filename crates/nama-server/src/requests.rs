@@ -179,7 +179,7 @@ impl Requests {
                 fulfiller.fulfill(request).await
             })
             .await?;
-        // shortcut: the error is only logged and the Request waits in Approved; #176 makes it
+        // ponytail: the error is only logged and the Request waits in Approved; #176 makes it
         // Failed with the error as its reason.
         fulfilled
             .inspect_err(|error| {

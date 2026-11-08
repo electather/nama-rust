@@ -476,17 +476,7 @@ async fn an_admin_approves_a_members_pending_request_and_the_member_sees_it_live
     let pending = ask(&requests(as_ada.clone()), HEAT).await;
     let mut adas_events = subscribe_to_requests(as_ada).await;
 
-    let approved = requests(fixture.server.client_config())
-        .approve_request(ApproveRequestRequest {
-            id: pending.id,
-            ..Default::default()
-        })
-        .await
-        .unwrap()
-        .into_owned()
-        .request
-        .into_option()
-        .unwrap();
+    let approved = fixture.approve(pending.id).await;
     let event = next_event(&mut adas_events).await;
 
     assert_eq!(approved.state, RequestState::Approved);
@@ -503,13 +493,7 @@ async fn an_approved_request_becomes_available_once_a_scan_matches_its_movie_and
     let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
     let ada = requests(as_ada.clone());
     let pending = ask(&ada, ALIEN).await;
-    requests(fixture.server.client_config())
-        .approve_request(ApproveRequestRequest {
-            id: pending.id,
-            ..Default::default()
-        })
-        .await
-        .unwrap();
+    fixture.approve(pending.id).await;
     let mut adas_events = subscribe_to_requests(as_ada).await;
 
     let _media = fixture.library_with_alien().await;
