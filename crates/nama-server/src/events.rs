@@ -15,12 +15,13 @@ use nama_plugin_api::{
     points,
 };
 use nama_proto::nama::v1::{
-    Event, EventType, Lagged, Request, SubscribeResponse, event, subscribe_response,
+    Event, EventType, Lagged, Permission, Request, RequestState, SubscribeResponse, event,
+    subscribe_response,
 };
 use tokio::sync::broadcast::{self, error::RecvError};
 use tokio_util::sync::CancellationToken;
 
-use crate::plugins::Registry;
+use crate::{plugins::Registry, users::User};
 
 /// How many events a subscriber may fall behind before it lags. A scan publishes a batch of up to
 /// one event per Item of [`crate::scanner`]'s batch of files at once, which this must hold.
@@ -225,10 +226,160 @@ fn classify(event: &Event) -> Option<(EventType, About<'_>)> {
     })
 }
 
+/// The IDs of the Users told about `event`, so every Notifier shares the rules (ADR 0021): a
+/// Request's Requesters when it is approved, declined, Failed, Partially Available or Available,
+/// and each of `users` with `PERMISSION_MANAGE_REQUESTS` about a new Pending Request. Nobody else,
+/// and nobody for any other event.
+#[cfg_attr(
+    not(test),
+    expect(dead_code, reason = "Plugin Connections (#148) deliver to these Users")
+)]
+pub(crate) fn users_to_tell(event: &Event, users: &[User]) -> Vec<i64> {
+    use RequestState as S;
+    use event::Event as E;
+    match event.event.as_ref() {
+        Some(E::RequestCreated(created)) if created.request.state == S::Pending => users
+            .iter()
+            .filter(|user| user.permissions.allow(Permission::ManageRequests))
+            .map(|user| user.id)
+            .collect(),
+        Some(E::RequestStateChanged(changed))
+            if matches!(
+                changed.request.state.as_known(),
+                Some(S::Approved | S::Declined | S::Failed | S::PartiallyAvailable | S::Available)
+            ) =>
+        {
+            changed
+                .request
+                .requesters
+                .iter()
+                .map(|requester| requester.user_id)
+                .collect()
+        }
+        _ => Vec::new(),
+    }
+}
+
 /// An [`Event`] holding `happened`, one of the things that can happen, such as a `ScanStarted`.
 pub(crate) fn event(happened: impl Into<event::Event>) -> Event {
     Event {
         event: Some(happened.into()),
         ..Default::default()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use nama_proto::nama::v1::{
+        Event, Permission, Request, RequestCancelled, RequestCreated, RequestState,
+        RequestStateChanged, Requester, RequesterAdded,
+    };
+
+    use super::{event, users_to_tell};
+    use crate::users::{Permissions, User};
+
+    /// Users 1 and 2 are Members, 3 has `MANAGE_REQUESTS` and 4 is an Admin.
+    fn users() -> Vec<User> {
+        let user = |id, permissions| User {
+            id,
+            name: format!("User {id}"),
+            permissions,
+            created_at: 0,
+        };
+        vec![
+            user(1, Permissions::NEW_USER),
+            user(2, Permissions::NEW_USER),
+            user(3, std::iter::once(Permission::ManageRequests).collect()),
+            user(4, Permissions::ADMIN),
+        ]
+    }
+
+    fn request(state: RequestState, requesters: &[i64]) -> Request {
+        Request {
+            state: state.into(),
+            requesters: requesters
+                .iter()
+                .map(|&user_id| Requester {
+                    user_id,
+                    ..Default::default()
+                })
+                .collect(),
+            ..Default::default()
+        }
+    }
+
+    fn created(state: RequestState, requesters: &[i64]) -> Event {
+        event(RequestCreated {
+            request: request(state, requesters).into(),
+            ..Default::default()
+        })
+    }
+
+    fn moved_to(state: RequestState, requesters: &[i64]) -> Event {
+        event(RequestStateChanged {
+            request: request(state, requesters).into(),
+            ..Default::default()
+        })
+    }
+
+    #[test]
+    fn approving_or_declining_a_request_picks_its_requesters_and_nobody_else() {
+        for state in [RequestState::Approved, RequestState::Declined] {
+            assert_eq!(
+                users_to_tell(&moved_to(state, &[2, 1]), &users()),
+                [2, 1],
+                "{state:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_request_failing_or_becoming_available_picks_its_requesters() {
+        for state in [
+            RequestState::Failed,
+            RequestState::PartiallyAvailable,
+            RequestState::Available,
+        ] {
+            assert_eq!(
+                users_to_tell(&moved_to(state, &[1]), &users()),
+                [1],
+                "{state:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_new_pending_request_picks_every_user_with_manage_requests() {
+        let users = users();
+        assert_eq!(
+            users_to_tell(&created(RequestState::Pending, &[1]), &users),
+            [3, 4]
+        );
+        assert_eq!(
+            users_to_tell(&created(RequestState::Pending, &[3]), &users),
+            [3, 4],
+            "an asker with MANAGE_REQUESTS is told as one of them"
+        );
+    }
+
+    #[test]
+    fn other_request_events_pick_nobody() {
+        let pending = request(RequestState::Pending, &[1, 2]);
+        let others = [
+            event(RequesterAdded {
+                request: pending.clone().into(),
+                user_id: 2,
+                ..Default::default()
+            }),
+            event(RequestCancelled {
+                request: pending.into(),
+                ..Default::default()
+            }),
+            created(RequestState::Approved, &[1]),
+            moved_to(RequestState::Processing, &[1]),
+        ];
+        for other in others {
+            assert!(users_to_tell(&other, &users()).is_empty(), "{other:?}");
+        }
     }
 }
