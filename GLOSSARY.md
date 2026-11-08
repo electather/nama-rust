@@ -177,5 +177,5 @@ The state of a Request once its Fulfiller has taken it, until a Library scan Mat
 _Avoid_: downloading, sent, in progress
 
 **Partially Available**:
-The state of a Request when some, but not all, of what it asked for has been Matched in a Library.
+The state of a Request when some, but not all, of what it asked for has been Matched in a Library. For a Season, what it asked for is the Episodes aired so far, so a Season still airing can become Available, and Episodes that air later don't reopen it.
 _Avoid_: in progress, partial

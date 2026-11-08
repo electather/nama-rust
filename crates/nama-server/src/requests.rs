@@ -487,15 +487,12 @@ async fn ask_seasons(
         show_title,
         seasons,
     } = show;
-    // SQLite's calendar, since `std` has none.
-    let today = sqlx::query_scalar!(r#"SELECT date('now') AS "today!: String""#)
-        .fetch_one(&mut *conn)
-        .await?;
+    let today = today(conn).await?;
     let mut requests = Vec::with_capacity(seasons.len());
     let mut happened = Vec::new();
     for season in seasons {
         let matched = contents::matched_episodes(conn, show_tmdb_id, season.number.into()).await?;
-        if in_library(&season.episodes, &matched, &today) {
+        if availability(&season.episodes, &matched, &today) == Some(RequestState::Available) {
             return Err(Error::SeasonInLibrary {
                 show: show_tmdb_id,
                 season: season.number,
@@ -514,11 +511,19 @@ async fn ask_seasons(
     Ok((requests, happened))
 }
 
-/// Whether a Library has the Season with `episodes`, of which those numbered in `matched` are
-/// Matched: one has aired by `today` (`YYYY-MM-DD`, as air dates are, so they sort as text), and
-/// every one that has is Matched. A Season yet to air isn't in a Library, so it can be Requested.
-fn in_library(episodes: &[Episode], matched: &HashSet<i64>, today: &str) -> bool {
-    let mut aired = episodes
+/// Today as `YYYY-MM-DD`, by SQLite's calendar, since `std` has none.
+async fn today(conn: &mut SqliteConnection) -> Result<String, sqlx::Error> {
+    sqlx::query_scalar!(r#"SELECT date('now') AS "today!: String""#)
+        .fetch_one(&mut *conn)
+        .await
+}
+
+/// How much a Library has of the Season with `episodes`, of which those numbered in `matched` are
+/// Matched, counting only those aired by `today` (`YYYY-MM-DD`, as air dates are, so they sort as
+/// text): Available once every aired Episode is Matched, Partially Available while some are, and
+/// `None` while none are. So a Season yet to air isn't in a Library, and can be Requested.
+fn availability(episodes: &[Episode], matched: &HashSet<i64>, today: &str) -> Option<RequestState> {
+    let aired: Vec<i64> = episodes
         .iter()
         .filter(|episode| {
             episode
@@ -526,8 +531,19 @@ fn in_library(episodes: &[Episode], matched: &HashSet<i64>, today: &str) -> bool
                 .as_deref()
                 .is_some_and(|aired| aired <= today)
         })
-        .peekable();
-    aired.peek().is_some() && aired.all(|episode| matched.contains(&i64::from(episode.number)))
+        .map(|episode| episode.number.into())
+        .collect();
+    let have = aired
+        .iter()
+        .filter(|number| matched.contains(number))
+        .count();
+    if have == 0 {
+        None
+    } else if have == aired.len() {
+        Some(RequestState::Available)
+    } else {
+        Some(RequestState::PartiallyAvailable)
+    }
 }
 
 /// Adds `user` as a Requester of the open Request for `wanted`, opening one in `state` if there
@@ -606,16 +622,58 @@ pub(crate) async fn make_available(
         if contents::library_with_movie(conn, tmdb_id).await?.is_none() {
             continue;
         }
-        sqlx::query!("UPDATE requests SET state = 'available' WHERE id = ?", id)
-            .execute(&mut *conn)
-            .await?;
-        let request = load_one(conn, id).await?.ok_or(sqlx::Error::RowNotFound)?;
-        happened.push(event(RequestStateChanged {
-            request: request.into(),
-            ..Default::default()
-        }));
+        happened.extend(change_state(conn, id, RequestState::Available).await?);
     }
     Ok(happened)
+}
+
+/// Makes the open Request for each of `seasons`, as the metadata source gave them just now with
+/// their Show's TMDB id, Partially Available or Available by how many of its aired Episodes a
+/// Library has, and returns an event for each Request that changed (ADR 0012). Declined and
+/// Available Requests are closed, so Episodes that air later don't reopen them.
+pub(crate) async fn make_seasons_available(
+    conn: &mut SqliteConnection,
+    seasons: Vec<(i64, Season)>,
+) -> Result<Vec<Event>, sqlx::Error> {
+    let today = today(conn).await?;
+    let mut happened = Vec::new();
+    for (show_tmdb_id, season) in seasons {
+        let Some(id) = open_request(conn, show_tmdb_id, Some(season.number)).await? else {
+            continue;
+        };
+        let matched = contents::matched_episodes(conn, show_tmdb_id, season.number.into()).await?;
+        if let Some(state) = availability(&season.episodes, &matched, &today) {
+            happened.extend(change_state(conn, id, state).await?);
+        }
+    }
+    Ok(happened)
+}
+
+/// Moves the Request `id` to `state`, and returns the event for it, or `None` if it was in
+/// `state` already.
+async fn change_state(
+    conn: &mut SqliteConnection,
+    id: i64,
+    state: RequestState,
+) -> Result<Option<Event>, sqlx::Error> {
+    let state = stored(state);
+    let changed = sqlx::query!(
+        "UPDATE requests SET state = ?1 WHERE id = ?2 AND state != ?1",
+        state,
+        id
+    )
+    .execute(&mut *conn)
+    .await?
+    .rows_affected()
+        > 0;
+    if !changed {
+        return Ok(None);
+    }
+    let request = load_one(conn, id).await?.ok_or(sqlx::Error::RowNotFound)?;
+    Ok(Some(event(RequestStateChanged {
+        request: request.into(),
+        ..Default::default()
+    })))
 }
 
 /// The open Request for the Movie `tmdb_id`, or for its Season `season` if `tmdb_id` is a Show's.
@@ -843,7 +901,7 @@ mod tests {
     use nama_proto::nama::v1::RequestState;
     use sqlx::SqliteConnection;
 
-    use super::{Wanted, ask, in_library};
+    use super::{Wanted, ask, availability};
     use crate::db::Database;
 
     const TODAY: &str = "2026-11-08";
@@ -862,7 +920,7 @@ mod tests {
     }
 
     #[test]
-    fn a_season_is_in_a_library_once_every_aired_episode_is_matched() {
+    fn a_season_still_airing_is_available_once_every_aired_episode_is_matched() {
         let airing = [
             episode(1, Some("2026-11-01")),
             episode(2, Some(TODAY)),
@@ -870,16 +928,24 @@ mod tests {
             episode(4, None),
         ];
 
-        assert!(in_library(&airing, &HashSet::from([1, 2]), TODAY));
-        assert!(!in_library(&airing, &HashSet::from([1, 3, 4]), TODAY));
+        let all_aired = availability(&airing, &HashSet::from([1, 2]), TODAY);
+        let some_aired = availability(&airing, &HashSet::from([1, 3, 4]), TODAY);
+        let none_aired = availability(&airing, &HashSet::from([3, 4]), TODAY);
+
+        assert_eq!(all_aired, Some(RequestState::Available));
+        assert_eq!(some_aired, Some(RequestState::PartiallyAvailable));
+        assert_eq!(none_aired, None);
     }
 
     #[test]
     fn a_season_yet_to_air_is_not_in_a_library() {
         let announced = [episode(1, Some("2027-01-01")), episode(2, None)];
 
-        assert!(!in_library(&announced, &HashSet::from([1, 2]), TODAY));
-        assert!(!in_library(&[], &HashSet::new(), TODAY));
+        assert_eq!(
+            availability(&announced, &HashSet::from([1, 2]), TODAY),
+            None
+        );
+        assert_eq!(availability(&[], &HashSet::new(), TODAY), None);
     }
 
     /// Asks for each of `wanted` in turn as a new User, and returns the Requests' ids.
