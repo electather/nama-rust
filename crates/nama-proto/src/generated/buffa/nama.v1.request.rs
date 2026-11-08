@@ -895,6 +895,16 @@ pub struct Download {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_default_enum_value"
     )]
     pub status: ::buffa::EnumValue<DownloadStatus>,
+    /// Why it needs attention, in the Fulfiller's own words, if it says. Only a download that needs
+    /// attention has one.
+    ///
+    /// Field 6: `attention_reason`
+    #[serde(
+        rename = "attentionReason",
+        alias = "attention_reason",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub attention_reason: ::core::option::Option<::buffa::alloc::string::String>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -907,6 +917,7 @@ impl ::core::fmt::Debug for Download {
             .field("size_bytes", &self.size_bytes)
             .field("eta_seconds", &self.eta_seconds)
             .field("status", &self.status)
+            .field("attention_reason", &self.attention_reason)
             .finish()
     }
 }
@@ -930,6 +941,16 @@ impl Download {
     ///Sets [`Self::eta_seconds`] to `Some(value)`, consuming and returning `self`.
     pub fn with_eta_seconds(mut self, value: u64) -> Self {
         self.eta_seconds = Some(value);
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::attention_reason`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_attention_reason(
+        mut self,
+        value: impl Into<::buffa::alloc::string::String>,
+    ) -> Self {
+        self.attention_reason = Some(value.into());
         self
     }
 }
@@ -971,6 +992,9 @@ impl ::buffa::Message for Download {
                 size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
             }
         }
+        if let Some(ref v) = self.attention_reason {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -998,6 +1022,9 @@ impl ::buffa::Message for Download {
             if val != 0 {
                 ::buffa::types::put_int32_field(5u32, val, buf);
             }
+        }
+        if let Some(ref v) = self.attention_reason {
+            ::buffa::types::put_string_field(6u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -1053,6 +1080,18 @@ impl ::buffa::Message for Download {
                     ::buffa::types::decode_int32(buf)?,
                 );
             }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(
+                    self
+                        .attention_reason
+                        .get_or_insert_with(::buffa::alloc::string::String::new),
+                    buf,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -1066,6 +1105,7 @@ impl ::buffa::Message for Download {
         self.size_bytes = ::core::option::Option::None;
         self.eta_seconds = ::core::option::Option::None;
         self.status = ::buffa::EnumValue::from(0);
+        self.attention_reason = ::core::option::Option::None;
         self.__buffa_unknown_fields.clear();
     }
 }

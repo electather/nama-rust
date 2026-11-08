@@ -1,0 +1,67 @@
+{
+  "page": 1,
+  "pageSize": 1000,
+  "sortKey": "timeleft",
+  "sortDirection": "ascending",
+  "totalRecords": 3,
+  "records": [
+    {
+      "movieId": 2,
+      "movie": { "id": 2, "title": "Heat", "year": 1995, "tmdbId": 949 },
+      "size": 8000000000,
+      "title": "Heat.1995.1080p.BluRay.x264",
+      "sizeleft": 3200000000,
+      "timeleft": "00:45:00",
+      "estimatedCompletionTime": "2026-11-08T12:45:00Z",
+      "status": "downloading",
+      "trackedDownloadStatus": "ok",
+      "trackedDownloadState": "downloading",
+      "statusMessages": [],
+      "downloadId": "A1B2C3D4E5F6",
+      "protocol": "torrent",
+      "downloadClient": "qBittorrent",
+      "indexer": "Example Indexer",
+      "id": 101
+    },
+    {
+      "movieId": 1,
+      "movie": { "id": 1, "title": "Alien", "year": 1979, "tmdbId": 348 },
+      "size": 4000000000,
+      "title": "Alien.1979.Directors.Cut.1080p",
+      "sizeleft": 0,
+      "status": "completed",
+      "trackedDownloadStatus": "warning",
+      "trackedDownloadState": "importBlocked",
+      "statusMessages": [
+        {
+          "title": "Alien.1979.Directors.Cut.1080p",
+          "messages": [
+            "Found matching movie via grab history, but release was matched to movie by ID. Automatic import is not possible."
+          ]
+        }
+      ],
+      "downloadId": "F6E5D4C3B2A1",
+      "protocol": "torrent",
+      "downloadClient": "qBittorrent",
+      "indexer": "Example Indexer",
+      "id": 102
+    },
+    {
+      "movieId": 7,
+      "movie": { "id": 7, "title": "The Matrix", "year": 1999, "tmdbId": 603 },
+      "size": 6000000000,
+      "title": "The.Matrix.1999.1080p",
+      "sizeleft": 6000000000,
+      "timeleft": "00:00:00",
+      "status": "queued",
+      "trackedDownloadStatus": "ok",
+      "trackedDownloadState": "downloading",
+      "statusMessages": [],
+      "downloadId": "0A1B2C3D4E5F",
+      "protocol": "torrent",
+      "downloadClient": "qBittorrent",
+      "indexer": "Example Indexer",
+      "id": 103
+    }
+  ]
+}
