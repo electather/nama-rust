@@ -95,20 +95,20 @@ mod exports {
     }
 
     /// Has Sonarr monitor and search for each Season, adding its Show first if Sonarr doesn't have
-    /// it. Its reference is `<the Show's TVDB id>/<the Season number>`.
+    /// it, and follows a Show by having Sonarr monitor its new Seasons. Its reference is
+    /// `<the Show's TVDB id>/<the Season number>`.
     struct SonarrFulfiller;
 
     impl Fulfiller for SonarrFulfiller {
         fn fulfill(request: Request) -> Result<String, Error> {
-            let tvdb_id = request.season.show_tvdb_id.ok_or_else(|| {
-                Error::msg("Sonarr needs the Show's TVDB id, and none is known for it")
-            })?;
+            let tvdb_id = show_tvdb_id(&request)?;
             let season_number = request.season.season_number;
+            let follow = request.followed_show_id.is_some();
             let reference = format!("{tvdb_id}/{season_number}");
             let sonarr = Sonarr::from_config()?;
             let id = match sonarr.find(tvdb_id)? {
                 Some(id) => id,
-                None if sonarr.add(sonarr.look_up(tvdb_id)?, season_number)? => {
+                None if sonarr.add(sonarr.look_up(tvdb_id)?, season_number, follow)? => {
                     return Ok(reference);
                 }
                 // Another hand-off for the Show added it since `find`.
@@ -117,8 +117,22 @@ mod exports {
                 })?,
             };
             sonarr.wait_until_added(id)?;
+            if follow {
+                sonarr.monitor_new_seasons(id, true)?;
+            }
             sonarr.monitor_and_search(id, season_number)?;
             Ok(reference)
+        }
+
+        fn unfollow(request: Request) -> Result<(), Error> {
+            let sonarr = Sonarr::from_config()?;
+            // A Show Sonarr doesn't have, it isn't following.
+            let Some(id) = sonarr.find(show_tvdb_id(&request)?)? else {
+                return Ok(());
+            };
+            // A refresh saves the whole Show as it read it, so would undo the change too.
+            sonarr.wait_until_added(id)?;
+            sonarr.monitor_new_seasons(id, false)
         }
 
         // ponytail: says nothing is downloading until #146 reads Sonarr's queue.
@@ -159,9 +173,9 @@ mod exports {
             })
         }
 
-        /// Adds `show` with only the Season `season_number` monitored, and has Sonarr search for
-        /// it. Returns `false` if Sonarr already has the Show.
-        fn add(&self, show: Show, season_number: u32) -> Result<bool, Error> {
+        /// Adds `show` with only the Season `season_number` monitored, and its new Seasons too if
+        /// `follow`, and has Sonarr search for it. Returns `false` if Sonarr already has the Show.
+        fn add(&self, show: Show, season_number: u32, follow: bool) -> Result<bool, Error> {
             let seasons = show
                 .seasons
                 .into_iter()
@@ -178,7 +192,7 @@ mod exports {
                     .map_err(|err| Error::msg(format!("the quality profile isn't an id: {err}")))?,
                 root_folder_path: setting(ROOT_FOLDER)?,
                 monitored: true,
-                monitor_new_items: "none",
+                monitor_new_items: new_items(follow),
                 season_folder: true,
                 seasons,
                 add_options: AddOptions {
@@ -222,6 +236,15 @@ mod exports {
             }
             // A Plugin has no clock, so a wait is timed by Sonarr's, and can't be without it.
             second_of_day(&response).map(Some).ok_or_else(still_adding)
+        }
+
+        /// Has Sonarr monitor the new Seasons of the Show it has as `show_id`, or stop to.
+        fn monitor_new_seasons(&self, show_id: i64, monitored: bool) -> Result<(), Error> {
+            let editor = SeriesEditor {
+                series_ids: [show_id],
+                monitor_new_items: new_items(monitored),
+            };
+            self.change("PUT", "series/editor", editor)
         }
 
         /// Monitors the Season `season_number` of the Show Sonarr has as `show_id`, and its
@@ -281,6 +304,18 @@ mod exports {
         fn change(&self, method: &str, path: &str, body: impl Serialize) -> Result<(), Error> {
             accepted(send(&self.request(method, path), Some(Json(body)))?).map(drop)
         }
+    }
+
+    fn show_tvdb_id(request: &Request) -> Result<i64, Error> {
+        request
+            .season
+            .show_tvdb_id
+            .ok_or_else(|| Error::msg("Sonarr needs the Show's TVDB id, and none is known for it"))
+    }
+
+    /// Sonarr's `monitorNewItems` for a Show whose new Seasons it monitors if `monitored`.
+    fn new_items(monitored: bool) -> &'static str {
+        if monitored { "all" } else { "none" }
     }
 
     fn send<T: ToMemory>(request: &HttpRequest, body: Option<T>) -> Result<HttpResponse, Error> {
@@ -409,7 +444,6 @@ mod exports {
         quality_profile_id: i64,
         root_folder_path: String,
         monitored: bool,
-        /// Following new Seasons is a Followed Show's job (#172), not a Season Request's.
         monitor_new_items: &'static str,
         season_folder: bool,
         seasons: Vec<Season>,
@@ -424,6 +458,14 @@ mod exports {
         monitor: &'static str,
         /// Searches the monitored Episodes, which are only the requested Season's.
         search_for_missing_episodes: bool,
+    }
+
+    /// What `PUT /api/v3/series/editor` takes. Sonarr changes only the fields it is sent.
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct SeriesEditor {
+        series_ids: [i64; 1],
+        monitor_new_items: &'static str,
     }
 
     /// What `POST /api/v3/seasonpass` takes. Sonarr changes only the Seasons it names.
