@@ -68,16 +68,26 @@ enum Refused {
     IdTaken(PluginId),
 }
 
-/// An Installed Plugin, compiled once. Each call into it gets a fresh instance, so one that traps
-/// or times out leaves nothing behind for the next.
+/// An Installed Plugin the Server read and checked, ready to enable.
 #[derive(Clone)]
 struct Installed {
     manifest: Arc<Manifest>,
     settings_schema: SettingsSchema,
+    /// The `.wasm` file's contents. Extism fixes the hosts a Plugin may reach and the settings it
+    /// reads when it compiles it, so each enabling compiles them again.
+    wasm: Arc<[u8]>,
+    cache_config: Arc<Path>,
+}
+
+/// An enabled Installed Plugin, compiled once with its allowed hosts and settings. Each call into
+/// it gets a fresh instance, so one that traps or times out leaves nothing behind for the next.
+#[derive(Clone)]
+struct Running {
+    manifest: Arc<Manifest>,
     compiled: Arc<CompiledPlugin>,
 }
 
-impl Installed {
+impl Running {
     /// Calls the Plugin's export `name` with `input`, a protobuf message, on a fresh instance.
     /// Blocks while the Plugin runs.
     fn call(&self, name: &str, input: Vec<u8>) -> Result<Vec<u8>, extism::Error> {
@@ -98,8 +108,24 @@ impl Plugin for Installed {
         self.settings_schema.clone()
     }
 
-    // ponytail: the Plugin isn't handed its settings; pass them in once one needs them (#185).
+    // ponytail: compiles on the calling thread, an async one when an admin enables it; wasmtime's
+    // cache makes that quick, so spawn_blocking only if a Plugin is slow to enable.
     fn register(&self, registrar: &mut Registrar) {
+        let settings = registrar.settings();
+        let hosts = allowed_hosts(&self.manifest, &self.settings_schema, settings);
+        let config = config(&self.settings_schema, settings);
+        let compiled = match compile(&self.wasm, &self.cache_config, hosts, config) {
+            Ok(compiled) => compiled,
+            #[expect(
+                clippy::panic,
+                reason = "the registry contains the panic and refuses to enable the Plugin, saying why"
+            )]
+            Err(err) => panic!("could not compile it with its settings: {err:#}"),
+        };
+        let running = Running {
+            manifest: Arc::clone(&self.manifest),
+            compiled: Arc::new(compiled),
+        };
         // An Extension Point this Server doesn't know is one the Plugin can do without, since its
         // nama-api requirement admits this Server.
         if self
@@ -107,12 +133,12 @@ impl Plugin for Installed {
             .observers
             .contains(&ObservePoint::OBSERVE_POINT_EVENTS.into())
         {
-            registrar.observe::<Events>(self.clone());
+            registrar.observe::<Events>(running);
         }
     }
 }
 
-impl Observer<Events> for Installed {
+impl Observer<Events> for Running {
     fn observe<'a>(&'a self, event: &'a Vec<Event>) -> BoxFuture<'a, ()> {
         let input = ObservedEvents {
             events: event.clone(),
@@ -326,15 +352,12 @@ fn load(file: &Path, cache_config: &Path) -> Result<Installed, Refused> {
     if !wasm.starts_with(WASM_MAGIC) {
         return Err(Refused::NotWasm);
     }
-    let builder =
-        PluginBuilder::new(extism::Manifest::new([Wasm::data(wasm)]).with_timeout(CALL_TIMEOUT))
-            .with_cache_config(cache_config);
-    let (compiled, bytes) = contain_sync(|| {
-        let compiled = CompiledPlugin::new(builder).map_err(Refused::Load)?;
-        let bytes = extism::Plugin::new_from_compiled(&compiled)
+    let bytes = contain_sync(|| {
+        let compiled =
+            compile(&wasm, cache_config, Vec::new(), Vec::new()).map_err(Refused::Load)?;
+        extism::Plugin::new_from_compiled(&compiled)
             .and_then(|mut plugin| plugin.call::<(), Vec<u8>>("manifest", ()))
-            .map_err(Refused::Manifest)?;
-        Ok((compiled, bytes))
+            .map_err(Refused::Manifest)
     })
     .map_err(Refused::Panicked)??;
     let manifest = Manifest::decode_from_slice(&bytes).map_err(Refused::Decode)?;
@@ -343,8 +366,58 @@ fn load(file: &Path, cache_config: &Path) -> Result<Installed, Refused> {
     Ok(Installed {
         manifest: Arc::new(manifest),
         settings_schema,
-        compiled: Arc::new(compiled),
+        wasm: wasm.into(),
+        cache_config: cache_config.into(),
     })
+}
+
+/// Compiles `wasm`, letting it send HTTP requests to `hosts` and read `config`.
+fn compile(
+    wasm: &[u8],
+    cache_config: &Path,
+    hosts: Vec<String>,
+    config: Vec<(String, String)>,
+) -> Result<CompiledPlugin, extism::Error> {
+    let manifest = extism::Manifest::new([Wasm::data(wasm.to_vec())])
+        .with_timeout(CALL_TIMEOUT)
+        .with_allowed_hosts(hosts.into_iter())
+        .with_config(config.into_iter());
+    CompiledPlugin::new(PluginBuilder::new(manifest).with_cache_config(cache_config))
+}
+
+/// The hosts a Plugin enabled with `settings` may send HTTP requests to: those its Manifest
+/// names, and the host of each of its URL settings (ADR 0006).
+fn allowed_hosts(manifest: &Manifest, schema: &SettingsSchema, settings: &Settings) -> Vec<String> {
+    // shortcut: an IPv6 host such as `[::1]` reads as a glob character class to Extism, so it
+    // never matches; escape it if a Plugin must reach one.
+    let url_hosts = schema
+        .fields
+        .iter()
+        .filter(|field| field.kind == SettingKind::Url)
+        .filter_map(|field| settings.url(&field.key)?.host_str().map(str::to_owned));
+    manifest
+        .allowed_hosts
+        .iter()
+        .cloned()
+        .chain(url_hosts)
+        .collect()
+}
+
+/// `settings` as the Extism config a Plugin reads them from, each value as text: a bool as
+/// `true` or `false`, a number in decimal.
+fn config(schema: &SettingsSchema, settings: &Settings) -> Vec<(String, String)> {
+    schema
+        .fields
+        .iter()
+        .filter_map(|field| {
+            let text = match settings.get(&field.key)? {
+                SettingValue::Bool(on) => on.to_string(),
+                SettingValue::Integer(number) => number.to_string(),
+                SettingValue::Text(text) => text.clone(),
+            };
+            Some((field.key.clone(), text))
+        })
+        .collect()
 }
 
 /// Checks that this Server's Nama API version meets `wants`, a Plugin's semver requirement.
@@ -373,6 +446,7 @@ fn settings_schema(manifest: &Manifest) -> Result<SettingsSchema, Refused> {
                 Some(wire::SettingKind::SETTING_KIND_SECRET) => SettingKind::Secret,
                 Some(wire::SettingKind::SETTING_KIND_BOOL) => SettingKind::Bool,
                 Some(wire::SettingKind::SETTING_KIND_INTEGER) => SettingKind::Integer,
+                Some(wire::SettingKind::SETTING_KIND_URL) => SettingKind::Url,
                 Some(wire::SettingKind::SETTING_KIND_UNSPECIFIED) | None => {
                     return Err(Refused::UnknownSettingKind {
                         key: field.key.clone(),
@@ -409,10 +483,79 @@ fn settings_schema(manifest: &Manifest) -> Result<SettingsSchema, Refused> {
 
 #[cfg(test)]
 mod tests {
-    use nama_plugin_api::settings::{SettingField, SettingKind, SettingValue};
+    use nama_plugin_api::settings::{
+        SettingField, SettingKind, SettingValue, Settings, SettingsSchema,
+    };
     use nama_proto::nama::plugin::v1::{self as wire, Manifest, setting_value};
 
-    use super::settings_schema;
+    use super::{allowed_hosts, config, settings_schema};
+
+    fn field(key: &str, kind: SettingKind) -> SettingField {
+        SettingField {
+            key: key.to_owned(),
+            label: String::new(),
+            description: String::new(),
+            kind,
+            required: false,
+            default: None,
+        }
+    }
+
+    fn text(text: &str) -> SettingValue {
+        SettingValue::Text(text.to_owned())
+    }
+
+    #[test]
+    fn a_plugin_may_reach_its_manifests_hosts_and_the_hosts_of_its_url_settings_only() {
+        let manifest = Manifest {
+            allowed_hosts: vec!["*.themoviedb.org".to_owned()],
+            ..Default::default()
+        };
+        let schema = SettingsSchema {
+            fields: vec![
+                field("sonarr", SettingKind::Url),
+                field("radarr", SettingKind::Url),
+                field("note", SettingKind::Text),
+            ],
+        };
+        let settings = Settings::new(
+            [
+                ("sonarr".to_owned(), text("http://sonarr.lan:8989/api")),
+                ("note".to_owned(), text("http://not-a-url-setting.lan/")),
+            ]
+            .into(),
+        );
+
+        let hosts = allowed_hosts(&manifest, &schema, &settings);
+
+        assert_eq!(hosts, ["*.themoviedb.org", "sonarr.lan"]);
+    }
+
+    #[test]
+    fn a_plugin_reads_each_setting_as_text() {
+        let schema = SettingsSchema {
+            fields: vec![
+                field("on", SettingKind::Bool),
+                field("count", SettingKind::Integer),
+                field("name", SettingKind::Text),
+                field("unset", SettingKind::Text),
+            ],
+        };
+        let settings = Settings::new(
+            [
+                ("on".to_owned(), SettingValue::Bool(true)),
+                ("count".to_owned(), SettingValue::Integer(-3)),
+                ("name".to_owned(), text("Nama")),
+            ]
+            .into(),
+        );
+
+        let config = config(&schema, &settings);
+
+        let expected = [("on", "true"), ("count", "-3"), ("name", "Nama")]
+            .map(|(key, value)| (key.to_owned(), value.to_owned()));
+        assert_eq!(config, expected);
+    }
 
     fn manifest(kind: wire::SettingKind) -> Manifest {
         let field = wire::SettingField {

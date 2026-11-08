@@ -13,7 +13,7 @@ import type { Message, UnknownEnum } from "@bufbuild/protobuf";
  * Describes the file nama/plugin/v1/manifest.proto.
  */
 export const file_nama_plugin_v1_manifest: GenFile = /*@__PURE__*/
-  fileDesc("Ch1uYW1hL3BsdWdpbi92MS9tYW5pZmVzdC5wcm90bxIObmFtYS5wbHVnaW4udjEi4gEKCE1hbmlmZXN0EgoKAmlkGAEgASgJEg8KB3ZlcnNpb24YAiABKAkSEAoIbmFtYV9hcGkYAyABKAkSLgoIc2V0dGluZ3MYBCADKAsyHC5uYW1hLnBsdWdpbi52MS5TZXR0aW5nRmllbGQSFQoNYWxsb3dlZF9ob3N0cxgFIAMoCRIvCglvYnNlcnZlcnMYBiADKA4yHC5uYW1hLnBsdWdpbi52MS5PYnNlcnZlUG9pbnQSLwoJcHJvdmlkZXJzGAcgAygOMhwubmFtYS5wbHVnaW4udjEuUHJvdmlkZVBvaW50IrEBCgxTZXR0aW5nRmllbGQSCwoDa2V5GAEgASgJEg0KBWxhYmVsGAIgASgJEhMKC2Rlc2NyaXB0aW9uGAMgASgJEikKBGtpbmQYBCABKA4yGy5uYW1hLnBsdWdpbi52MS5TZXR0aW5nS2luZBIQCghyZXF1aXJlZBgFIAEoCBIzCg1kZWZhdWx0X3ZhbHVlGAYgASgLMhwubmFtYS5wbHVnaW4udjEuU2V0dGluZ1ZhbHVlIkoKDFNldHRpbmdWYWx1ZRIOCgRib29sGAEgASgISAASEQoHaW50ZWdlchgCIAEoA0gAEg4KBHRleHQYAyABKAlIAEIHCgV2YWx1ZSqMAQoLU2V0dGluZ0tpbmQSHAoYU0VUVElOR19LSU5EX1VOU1BFQ0lGSUVEEAASFQoRU0VUVElOR19LSU5EX1RFWFQQARIXChNTRVRUSU5HX0tJTkRfU0VDUkVUEAISFQoRU0VUVElOR19LSU5EX0JPT0wQAxIYChRTRVRUSU5HX0tJTkRfSU5URUdFUhAEKkcKDE9ic2VydmVQb2ludBIdChlPQlNFUlZFX1BPSU5UX1VOU1BFQ0lGSUVEEAASGAoUT0JTRVJWRV9QT0lOVF9FVkVOVFMQASotCgxQcm92aWRlUG9pbnQSHQoZUFJPVklERV9QT0lOVF9VTlNQRUNJRklFRBAAYgZwcm90bzM");
+  fileDesc("Ch1uYW1hL3BsdWdpbi92MS9tYW5pZmVzdC5wcm90bxIObmFtYS5wbHVnaW4udjEi4gEKCE1hbmlmZXN0EgoKAmlkGAEgASgJEg8KB3ZlcnNpb24YAiABKAkSEAoIbmFtYV9hcGkYAyABKAkSLgoIc2V0dGluZ3MYBCADKAsyHC5uYW1hLnBsdWdpbi52MS5TZXR0aW5nRmllbGQSFQoNYWxsb3dlZF9ob3N0cxgFIAMoCRIvCglvYnNlcnZlcnMYBiADKA4yHC5uYW1hLnBsdWdpbi52MS5PYnNlcnZlUG9pbnQSLwoJcHJvdmlkZXJzGAcgAygOMhwubmFtYS5wbHVnaW4udjEuUHJvdmlkZVBvaW50IrEBCgxTZXR0aW5nRmllbGQSCwoDa2V5GAEgASgJEg0KBWxhYmVsGAIgASgJEhMKC2Rlc2NyaXB0aW9uGAMgASgJEikKBGtpbmQYBCABKA4yGy5uYW1hLnBsdWdpbi52MS5TZXR0aW5nS2luZBIQCghyZXF1aXJlZBgFIAEoCBIzCg1kZWZhdWx0X3ZhbHVlGAYgASgLMhwubmFtYS5wbHVnaW4udjEuU2V0dGluZ1ZhbHVlIkoKDFNldHRpbmdWYWx1ZRIOCgRib29sGAEgASgISAASEQoHaW50ZWdlchgCIAEoA0gAEg4KBHRleHQYAyABKAlIAEIHCgV2YWx1ZSqiAQoLU2V0dGluZ0tpbmQSHAoYU0VUVElOR19LSU5EX1VOU1BFQ0lGSUVEEAASFQoRU0VUVElOR19LSU5EX1RFWFQQARIXChNTRVRUSU5HX0tJTkRfU0VDUkVUEAISFQoRU0VUVElOR19LSU5EX0JPT0wQAxIYChRTRVRUSU5HX0tJTkRfSU5URUdFUhAEEhQKEFNFVFRJTkdfS0lORF9VUkwQBSpHCgxPYnNlcnZlUG9pbnQSHQoZT0JTRVJWRV9QT0lOVF9VTlNQRUNJRklFRBAAEhgKFE9CU0VSVkVfUE9JTlRfRVZFTlRTEAEqLQoMUHJvdmlkZVBvaW50Eh0KGVBST1ZJREVfUE9JTlRfVU5TUEVDSUZJRUQQAGIGcHJvdG8z");
 
 /**
  * What an Installed Plugin is and what it needs from the Server. The Plugin returns it from its
@@ -45,7 +45,9 @@ export type Manifest = Message<"nama.plugin.v1.Manifest"> & {
   namaApi: string;
 
   /**
-   * The settings the Plugin takes, in the order a form shows them.
+   * The settings the Plugin takes, in the order a form shows them. The Plugin reads each one's
+   * value from its Extism config under its key, as text: a bool as "true" or "false", a number in
+   * decimal.
    *
    * @generated from field: repeated nama.plugin.v1.SettingField settings = 4;
    */
@@ -164,7 +166,7 @@ export type SettingValue = Message<"nama.plugin.v1.SettingValue"> & {
     case: "integer";
   } | {
     /**
-     * Text, for both SETTING_KIND_TEXT and SETTING_KIND_SECRET.
+     * Text, for SETTING_KIND_TEXT, SETTING_KIND_SECRET and SETTING_KIND_URL.
      *
      * @generated from field: string text = 3;
      */
@@ -218,6 +220,14 @@ export const SettingKind = {
    * @generated from enum value: SETTING_KIND_INTEGER = 4;
    */
   INTEGER: 4,
+
+  /**
+   * An http or https URL, such as a Sonarr address. The Plugin may send HTTP requests to its
+   * host, as if `allowed_hosts` named it.
+   *
+   * @generated from enum value: SETTING_KIND_URL = 5;
+   */
+  URL: 5,
 } as const;
 
 /**

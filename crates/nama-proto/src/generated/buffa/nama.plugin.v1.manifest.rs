@@ -15,6 +15,9 @@ pub enum SettingKind {
     SETTING_KIND_BOOL = 3i32,
     /// A whole number.
     SETTING_KIND_INTEGER = 4i32,
+    /// An http or https URL, such as a Sonarr address. The Plugin may send HTTP requests to its
+    /// host, as if `allowed_hosts` named it.
+    SETTING_KIND_URL = 5i32,
 }
 impl SettingKind {
     ///Idiomatic alias for [`Self::SETTING_KIND_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -32,6 +35,9 @@ impl SettingKind {
     ///Idiomatic alias for [`Self::SETTING_KIND_INTEGER`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const Integer: Self = Self::SETTING_KIND_INTEGER;
+    ///Idiomatic alias for [`Self::SETTING_KIND_URL`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Url: Self = Self::SETTING_KIND_URL;
 }
 impl ::core::default::Default for SettingKind {
     fn default() -> Self {
@@ -132,6 +138,7 @@ impl ::buffa::Enumeration for SettingKind {
             2i32 => ::core::option::Option::Some(Self::SETTING_KIND_SECRET),
             3i32 => ::core::option::Option::Some(Self::SETTING_KIND_BOOL),
             4i32 => ::core::option::Option::Some(Self::SETTING_KIND_INTEGER),
+            5i32 => ::core::option::Option::Some(Self::SETTING_KIND_URL),
             _ => ::core::option::Option::None,
         }
     }
@@ -145,6 +152,7 @@ impl ::buffa::Enumeration for SettingKind {
             Self::SETTING_KIND_SECRET => "SETTING_KIND_SECRET",
             Self::SETTING_KIND_BOOL => "SETTING_KIND_BOOL",
             Self::SETTING_KIND_INTEGER => "SETTING_KIND_INTEGER",
+            Self::SETTING_KIND_URL => "SETTING_KIND_URL",
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -160,6 +168,7 @@ impl ::buffa::Enumeration for SettingKind {
             "SETTING_KIND_INTEGER" => {
                 ::core::option::Option::Some(Self::SETTING_KIND_INTEGER)
             }
+            "SETTING_KIND_URL" => ::core::option::Option::Some(Self::SETTING_KIND_URL),
             _ => ::core::option::Option::None,
         }
     }
@@ -170,6 +179,7 @@ impl ::buffa::Enumeration for SettingKind {
             Self::SETTING_KIND_SECRET,
             Self::SETTING_KIND_BOOL,
             Self::SETTING_KIND_INTEGER,
+            Self::SETTING_KIND_URL,
         ]
     }
 }
@@ -480,7 +490,9 @@ pub struct Manifest {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub nama_api: ::buffa::alloc::string::String,
-    /// The settings the Plugin takes, in the order a form shows them.
+    /// The settings the Plugin takes, in the order a form shows them. The Plugin reads each one's
+    /// value from its Extism config under its key, as text: a bool as "true" or "false", a number in
+    /// decimal.
     ///
     /// Field 4: `settings`
     #[serde(

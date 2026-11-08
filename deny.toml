@@ -24,6 +24,9 @@ confidence-threshold = 0.9
 exceptions = [
   # Extism's build script runs it to write a C header; none of it is built into the Server.
   { allow = ["MPL-2.0"], crate = "cbindgen" },
+  # Mozilla's root certificates, as data. Extism's HTTP client for Installed Plugins (ureq) turns
+  # them on, and a dependent can't turn a dependency's default features off.
+  { allow = ["CDLA-Permissive-2.0"], crate = "webpki-roots" },
 ]
 
 [bans]

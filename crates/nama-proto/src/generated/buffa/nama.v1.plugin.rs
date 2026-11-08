@@ -169,6 +169,9 @@ pub enum SettingKind {
     SETTING_KIND_INTEGER = 4i32,
     /// Text picked from the choices the Plugin's settings check offers (`TestPluginSettings`).
     SETTING_KIND_CHOICE = 5i32,
+    /// An http or https URL, such as a Sonarr address. An Installed Plugin may send HTTP requests
+    /// to its host.
+    SETTING_KIND_URL = 6i32,
 }
 impl SettingKind {
     ///Idiomatic alias for [`Self::SETTING_KIND_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -189,6 +192,9 @@ impl SettingKind {
     ///Idiomatic alias for [`Self::SETTING_KIND_CHOICE`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const Choice: Self = Self::SETTING_KIND_CHOICE;
+    ///Idiomatic alias for [`Self::SETTING_KIND_URL`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Url: Self = Self::SETTING_KIND_URL;
 }
 impl ::core::default::Default for SettingKind {
     fn default() -> Self {
@@ -290,6 +296,7 @@ impl ::buffa::Enumeration for SettingKind {
             3i32 => ::core::option::Option::Some(Self::SETTING_KIND_BOOL),
             4i32 => ::core::option::Option::Some(Self::SETTING_KIND_INTEGER),
             5i32 => ::core::option::Option::Some(Self::SETTING_KIND_CHOICE),
+            6i32 => ::core::option::Option::Some(Self::SETTING_KIND_URL),
             _ => ::core::option::Option::None,
         }
     }
@@ -304,6 +311,7 @@ impl ::buffa::Enumeration for SettingKind {
             Self::SETTING_KIND_BOOL => "SETTING_KIND_BOOL",
             Self::SETTING_KIND_INTEGER => "SETTING_KIND_INTEGER",
             Self::SETTING_KIND_CHOICE => "SETTING_KIND_CHOICE",
+            Self::SETTING_KIND_URL => "SETTING_KIND_URL",
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -322,6 +330,7 @@ impl ::buffa::Enumeration for SettingKind {
             "SETTING_KIND_CHOICE" => {
                 ::core::option::Option::Some(Self::SETTING_KIND_CHOICE)
             }
+            "SETTING_KIND_URL" => ::core::option::Option::Some(Self::SETTING_KIND_URL),
             _ => ::core::option::Option::None,
         }
     }
@@ -333,6 +342,7 @@ impl ::buffa::Enumeration for SettingKind {
             Self::SETTING_KIND_BOOL,
             Self::SETTING_KIND_INTEGER,
             Self::SETTING_KIND_CHOICE,
+            Self::SETTING_KIND_URL,
         ]
     }
 }

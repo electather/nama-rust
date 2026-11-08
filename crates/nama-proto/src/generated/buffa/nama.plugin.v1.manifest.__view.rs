@@ -18,7 +18,9 @@ pub struct ManifestView<'a> {
     ///
     /// Field 3: `nama_api`
     pub nama_api: &'a str,
-    /// The settings the Plugin takes, in the order a form shows them.
+    /// The settings the Plugin takes, in the order a form shows them. The Plugin reads each one's
+    /// value from its Extism config under its key, as text: a bool as "true" or "false", a number in
+    /// decimal.
     ///
     /// Field 4: `settings`
     pub settings: ::buffa::RepeatedView<
@@ -480,7 +482,9 @@ impl ManifestOwnedView {
     pub fn nama_api(&self) -> &'_ str {
         self.0.reborrow().nama_api
     }
-    /// The settings the Plugin takes, in the order a form shows them.
+    /// The settings the Plugin takes, in the order a form shows them. The Plugin reads each one's
+    /// value from its Extism config under its key, as text: a bool as "true" or "false", a number in
+    /// decimal.
     ///
     /// Field 4: `settings`
     #[must_use]

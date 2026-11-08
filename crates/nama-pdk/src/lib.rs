@@ -14,6 +14,10 @@
 //! }
 //! ```
 //!
+//! The Plugin reads its settings with [`extism_pdk::config::get`], and sends HTTP requests with
+//! [`extism_pdk::http::request`] to the hosts its Manifest's `allowed_hosts` and its URL settings
+//! name.
+//!
 //! If the Plugin panics, the Server gets the panic's message with the error of the call that
 //! panicked, not just a bare trap.
 
