@@ -1211,6 +1211,34 @@ async fn a_request_an_installed_fulfiller_loops_forever_or_panics_on_fails_and_t
 }
 
 #[tokio::test]
+async fn an_installed_fulfiller_that_crashes_three_times_in_a_row_is_disabled_and_the_third_request_waits_approved()
+ {
+    let fixture = Fixture::with_installed_fulfiller("panic").await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let ada = requests(as_ada);
+    let mut approved = Vec::new();
+    for tmdb_id in [HEAT, ALIEN, DUNE] {
+        let pending = ask(&ada, tmdb_id).await;
+        approved.push(fixture.approve(pending.id).await.state);
+    }
+
+    assert_eq!(
+        approved,
+        [
+            RequestState::Failed,
+            RequestState::Failed,
+            RequestState::Approved
+        ]
+    );
+    assert!(
+        !fixture
+            .plugins
+            .enabled()
+            .contains(&PluginId::from_static("test-plugin"))
+    );
+}
+
+#[tokio::test]
 async fn an_approved_season_request_is_not_handed_to_the_movie_fulfiller() {
     let fulfiller = FakeFulfiller::default();
     let fixture = Fixture::with_fulfiller(&fulfiller).await;

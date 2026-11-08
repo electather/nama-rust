@@ -47,10 +47,6 @@ const CALL_TIMEOUT: Duration = Duration::from_secs(5);
 /// cost an admin a Plugin.
 const CRASHES_BEFORE_DISABLING: u32 = 3;
 
-/// How Extism (1.41) gives a call that ran past [`CALL_TIMEOUT`]: as a bare error with this
-/// message.
-const TIMEOUT: &str = "timeout";
-
 /// What every binary WASM module starts with.
 const WASM_MAGIC: &[u8] = b"\0asm";
 
@@ -129,30 +125,41 @@ impl Running {
         }
     }
 
-    /// [`Self::call_blocking`] for a Provider, whose caller gets why it failed: in the Plugin's own
-    /// words, or that it crashed. Its crashes don't count towards disabling it, since each
-    /// failure is the caller's to show, such as a Request's reason for being Failed.
+    /// [`Self::call_blocking`] for a Provider, whose caller gets why it failed, to log or show
+    /// such as a Request's reason for being Failed: in the Plugin's own words, or that it crashed.
+    /// Counts its crashes as [`Self::count_crash`] does.
     async fn provide(&self, name: &'static str, input: Vec<u8>) -> Result<Vec<u8>, PluginError> {
-        self.call_blocking(name, input).await?.map_err(|err| {
-            if err.to_string() == TIMEOUT {
-                format!("it didn't answer within {CALL_TIMEOUT:?}").into()
-            } else {
-                err.root_cause().to_string().into()
+        let err = match self.call_blocking(name, input).await? {
+            Ok(output) => {
+                self.crashes.store(0, Ordering::Relaxed);
+                return Ok(output);
             }
-        })
+            Err(err) => err,
+        };
+        let cause = if is_timeout(&err) {
+            format!("it didn't answer within {CALL_TIMEOUT:?}")
+        } else {
+            err.root_cause().to_string()
+        };
+        self.count_crash(&err, &without_secrets(cause.clone(), &self.secrets));
+        Err(cause.into())
     }
 
-    /// Logs why a call failed. If it crashed [`CRASHES_BEFORE_DISABLING`] times in a row, unwinds
-    /// with why, so the registry disables the Plugin as it does one whose Rust code panics.
+    /// Logs why a call failed, and counts it as [`Self::count_crash`] does.
     fn failed(&self, err: &extism::Error) {
         let cause = without_secrets(err.root_cause().to_string(), &self.secrets);
+        let failed = if is_crash(err) { "crashed" } else { "failed" };
+        warn!(plugin = %self.manifest.id, "observer {failed}: {cause}");
+        self.count_crash(err, &cause);
+    }
+
+    /// Counts the crashes in a row, `err` among them if it is one. On the
+    /// [`CRASHES_BEFORE_DISABLING`]th, unwinds with why, `cause`, so the registry disables the
+    /// Plugin as it does one whose Rust code panics.
+    fn count_crash(&self, err: &extism::Error, cause: &str) {
         if !is_crash(err) {
             self.crashes.store(0, Ordering::Relaxed);
-            warn!(plugin = %self.manifest.id, "observer failed: {cause}");
-            return;
-        }
-        warn!(plugin = %self.manifest.id, "observer crashed: {cause}");
-        if self.crashes.fetch_add(1, Ordering::Relaxed) + 1 == CRASHES_BEFORE_DISABLING {
+        } else if self.crashes.fetch_add(1, Ordering::Relaxed) + 1 == CRASHES_BEFORE_DISABLING {
             let why =
                 format!("it crashed {CRASHES_BEFORE_DISABLING} times in a row, last with: {cause}");
             panic::resume_unwind(Box::new(why));
@@ -165,10 +172,15 @@ impl Running {
 fn is_crash(err: &extism::Error) -> bool {
     // Any other failed call is wasmtime's own error, which holds a trap (under any panic's message)
     // only if the guest trapped. A host function's error unwinds the guest too, but holds no trap.
-    err.to_string() == TIMEOUT
+    is_timeout(err)
         || err
             .downcast_ref::<wasmtime::Error>()
             .is_some_and(wasmtime::Error::is::<wasmtime::Trap>)
+}
+
+/// Whether a call ran past [`CALL_TIMEOUT`], which Extism (1.41) gives as a bare "timeout".
+fn is_timeout(err: &extism::Error) -> bool {
+    err.to_string() == "timeout"
 }
 
 impl Plugin for Installed {
@@ -207,12 +219,19 @@ impl Plugin for Installed {
         // An Extension Point this Server doesn't know is one the Plugin can do without, since its
         // nama-api requirement admits this Server.
         let providers = &self.manifest.providers;
+        // Counting its own crashes, so its Observer working between them doesn't hide them.
+        let fulfiller = Arc::new(Running {
+            crashes: Arc::default(),
+            ..running.clone()
+        });
         if providers.contains(&ProvidePoint::PROVIDE_POINT_MOVIE_FULFILLER.into()) {
-            registrar
-                .provide::<dyn Fulfiller<Movies>>(Priority::DEFAULT, Arc::new(running.clone()));
+            registrar.provide::<dyn Fulfiller<Movies>>(
+                Priority::DEFAULT,
+                Arc::<Running>::clone(&fulfiller),
+            );
         }
         if providers.contains(&ProvidePoint::PROVIDE_POINT_SHOW_FULFILLER.into()) {
-            registrar.provide::<dyn Fulfiller<Shows>>(Priority::DEFAULT, Arc::new(running.clone()));
+            registrar.provide::<dyn Fulfiller<Shows>>(Priority::DEFAULT, fulfiller);
         }
         if self
             .manifest
@@ -245,8 +264,8 @@ impl<Kind: 'static> Fulfiller<Kind> for Running {
         .encode_to_vec();
         Box::pin(async move {
             let output = self.provide("progress", input).await?;
-            let progress = Progress::decode_from_slice(&output)?.downloads;
-            Ok(progress
+            let downloads = Progress::decode_from_slice(&output)?.downloads;
+            Ok(downloads
                 .into_iter()
                 .map(|(reference, downloads)| (reference, downloads.downloads))
                 .collect())
