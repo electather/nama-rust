@@ -221,7 +221,7 @@ impl Fixture {
             .list_plugins(ListPluginsRequest::default())
             .await
             .unwrap();
-        fixture.set_installed(settings).await;
+        fixture.set_installed_settings(settings).await;
         plugins
             .enable_plugin(EnablePluginRequest {
                 id: "test-plugin".to_owned(),
@@ -233,8 +233,8 @@ impl Fixture {
     }
 
     /// Sets the Installed test Plugin's text `settings`, as an Admin would.
-    async fn set_installed(&self, settings: &[(&str, &str)]) {
-        let text = |(key, text): &(&str, &str)| {
+    async fn set_installed_settings(&self, settings: &[(&str, &str)]) {
+        let text_setting = |(key, text): &(&str, &str)| {
             let value = nama_proto::nama::v1::SettingValue {
                 value: Some(setting_value::Value::TextValue((*text).to_owned())),
                 ..Default::default()
@@ -244,7 +244,7 @@ impl Fixture {
         self.plugin_service()
             .update_plugin_settings(UpdatePluginSettingsRequest {
                 id: "test-plugin".to_owned(),
-                settings: settings.iter().map(text).collect(),
+                settings: settings.iter().map(text_setting).collect(),
                 ..Default::default()
             })
             .await
@@ -1176,7 +1176,9 @@ async fn a_request_an_installed_fulfiller_refuses_fails_with_its_reason_and_retr
     let pending = ask(&requests(as_ada), HEAT).await;
 
     let failed = fixture.approve(pending.id).await;
-    fixture.set_installed(&[("fulfiller", "take")]).await;
+    fixture
+        .set_installed_settings(&[("fulfiller", "take")])
+        .await;
     let retried = retry(&fixture, pending.id).await.unwrap();
 
     assert_eq!(failed.state, RequestState::Failed);
@@ -1204,7 +1206,9 @@ async fn a_request_an_installed_fulfiller_loops_forever_or_panics_on_fails_and_t
         let pending = ask(&requests(as_ada), HEAT).await;
 
         let failed = fixture.approve(pending.id).await;
-        fixture.set_installed(&[("fulfiller", "take")]).await;
+        fixture
+            .set_installed_settings(&[("fulfiller", "take")])
+            .await;
         let retried = retry(&fixture, pending.id).await.unwrap();
 
         assert_eq!(failed.state, RequestState::Failed, "{fulfiller}");
@@ -3184,7 +3188,12 @@ async fn an_installed_notifiers_error_is_logged_with_its_reason_and_the_request_
 
     assert_eq!(request.state, RequestState::Pending);
     log.wait_for(
-        &["test-plugin", "the test Plugin's Notifier was set to error"],
+        &[
+            "test-plugin",
+            "notifier::Notifier",
+            "provider failed",
+            "the test Plugin's Notifier was set to error",
+        ],
         1,
     )
     .await;
