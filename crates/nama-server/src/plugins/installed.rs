@@ -32,7 +32,7 @@ use thiserror::Error;
 use tokio::task;
 use tracing::{error, info, warn};
 
-use super::{Described, Registry, contain_sync, log_not_enabled};
+use super::{Described, Registry, contain_sync, log_not_enabled, secret_values, without_secrets};
 use crate::config::PluginConfig;
 
 /// How long one call into an Installed Plugin may run, so one that never returns can't hold up
@@ -91,6 +91,8 @@ struct Installed {
 struct Running {
     id: PluginId,
     compiled: Arc<CompiledPlugin>,
+    /// The values of the secret settings it was enabled with, which its errors mustn't log.
+    secrets: Vec<String>,
     /// How many calls in a row crashed.
     crashes: AtomicU32,
 }
@@ -99,7 +101,7 @@ impl Running {
     /// Logs why a call failed. If it crashed [`CRASHES_BEFORE_DISABLING`] times in a row, unwinds
     /// with why, so the registry disables the Plugin as it does one whose Rust code panics.
     fn failed(&self, err: &extism::Error) {
-        let cause = err.root_cause();
+        let cause = without_secrets(err.root_cause().to_string(), &self.secrets);
         if !is_crash(err) {
             self.crashes.store(0, Ordering::Relaxed);
             warn!(plugin = %self.id, "observer failed: {cause}");
@@ -164,6 +166,7 @@ impl Plugin for Installed {
         let running = Running {
             id: self.id(),
             compiled: Arc::new(compiled),
+            secrets: secret_values(&self.settings_schema, settings),
             crashes: AtomicU32::new(0),
         };
         // An Extension Point this Server doesn't know is one the Plugin can do without, since its

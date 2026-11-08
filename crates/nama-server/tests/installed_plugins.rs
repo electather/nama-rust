@@ -351,6 +351,7 @@ async fn an_observer_that_loops_forever_is_stopped_by_the_timeout_and_the_server
     let (library, _media) = started.observing("loop").await;
 
     started.scan(library).await;
+    log.wait_for(&["test-plugin is looping"], 1).await;
     // Served while its call loops, which the timeout stops only after 5 seconds.
     assert!(started.listed("test-plugin").await.is_some());
     assert_eq!(log.count(&["test-plugin", "observer crashed: timeout"]), 0);

@@ -228,7 +228,10 @@ async fn enable_plugins(config: &Config, db: &Database) -> Option<Registry> {
 
 /// Logs to stdout at `info`, or at whatever `RUST_LOG` asks for.
 fn init_tracing() {
-    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+    // Extism logs an Installed Plugin's error or panic as it is, which may quote a secret setting;
+    // the Server logs it itself with secrets blanked.
+    let filter = EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| EnvFilter::new("info,extism::plugin=off"));
     tracing_subscriber::fmt()
         .with_env_filter(filter)
         .with_ansi(io::stdout().is_terminal())

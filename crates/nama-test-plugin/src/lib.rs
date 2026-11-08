@@ -66,9 +66,12 @@ mod exports {
     pub fn observe_events(Buffa(observed): Buffa<ObservedEvents>) -> FnResult<()> {
         match extism_pdk::config::get(OBSERVER)?.as_deref() {
             #[expect(clippy::infinite_loop, reason = "it loops forever on purpose")]
-            Some("loop") => loop {
-                std::hint::spin_loop();
-            },
+            Some("loop") => {
+                extism_pdk::info!("test-plugin is looping");
+                loop {
+                    std::hint::spin_loop();
+                }
+            }
             #[expect(clippy::panic, reason = "it panics on purpose")]
             Some("panic") => panic!("the test Plugin's Observer was set to panic"),
             _ => {
