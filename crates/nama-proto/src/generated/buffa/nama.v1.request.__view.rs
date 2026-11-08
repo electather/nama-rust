@@ -1392,6 +1392,14 @@ pub struct RequestedSeasonView<'a> {
     ///
     /// Field 4: `air_date`
     pub air_date: ::core::option::Option<&'a str>,
+    /// The Show's IMDb id, such as `tt5753856`, if the metadata source has one.
+    ///
+    /// Field 5: `show_imdb_id`
+    pub show_imdb_id: ::core::option::Option<&'a str>,
+    /// The Show's TVDB id, if the metadata source has one.
+    ///
+    /// Field 6: `show_tvdb_id`
+    pub show_tvdb_id: ::core::option::Option<i64>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for RequestedSeasonView<'a> {
@@ -1452,6 +1460,20 @@ impl<'a> ::buffa::MessageView<'a> for RequestedSeasonView<'a> {
                 )?;
                 view.air_date = Some(::buffa::types::borrow_str(&mut cur)?);
             }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.show_imdb_id = Some(::buffa::types::borrow_str(&mut cur)?);
+            }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.show_tvdb_id = Some(::buffa::types::decode_int64(&mut cur)?);
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -1478,6 +1500,8 @@ impl<'a> ::buffa::MessageView<'a> for RequestedSeasonView<'a> {
             season_number: self.season_number,
             show_title: self.show_title.to_string(),
             air_date: self.air_date.map(|s| s.to_string()),
+            show_imdb_id: self.show_imdb_id.map(|s| s.to_string()),
+            show_tvdb_id: self.show_tvdb_id,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -1501,6 +1525,12 @@ impl<'a> ::buffa::ViewEncode<'a> for RequestedSeasonView<'a> {
         if let Some(ref v) = self.air_date {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
+        if let Some(ref v) = self.show_imdb_id {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        if let Some(v) = self.show_tvdb_id {
+            size += 1u64 + ::buffa::types::int64_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -1523,6 +1553,12 @@ impl<'a> ::buffa::ViewEncode<'a> for RequestedSeasonView<'a> {
         }
         if let Some(ref v) = self.air_date {
             ::buffa::types::put_string_field(4u32, v, buf);
+        }
+        if let Some(ref v) = self.show_imdb_id {
+            ::buffa::types::put_string_field(5u32, v, buf);
+        }
+        if let Some(v) = self.show_tvdb_id {
+            ::buffa::types::put_int64_field(6u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -1564,6 +1600,13 @@ impl<'__a> ::serde::Serialize for RequestedSeasonView<'__a> {
         }
         if let ::core::option::Option::Some(__v) = self.air_date {
             __map.serialize_entry("airDate", __v)?;
+        }
+        if let ::core::option::Option::Some(__v) = self.show_imdb_id {
+            __map.serialize_entry("showImdbId", __v)?;
+        }
+        if let ::core::option::Option::Some(__v) = self.show_tvdb_id {
+            __map
+                .serialize_entry("showTvdbId", &::buffa::json_helpers::ProtoJson(&__v))?;
         }
         __map.end()
     }
@@ -1685,6 +1728,20 @@ impl RequestedSeasonOwnedView {
     #[must_use]
     pub fn air_date(&self) -> ::core::option::Option<&'_ str> {
         self.0.reborrow().air_date
+    }
+    /// The Show's IMDb id, such as `tt5753856`, if the metadata source has one.
+    ///
+    /// Field 5: `show_imdb_id`
+    #[must_use]
+    pub fn show_imdb_id(&self) -> ::core::option::Option<&'_ str> {
+        self.0.reborrow().show_imdb_id
+    }
+    /// The Show's TVDB id, if the metadata source has one.
+    ///
+    /// Field 6: `show_tvdb_id`
+    #[must_use]
+    pub fn show_tvdb_id(&self) -> ::core::option::Option<i64> {
+        self.0.reborrow().show_tvdb_id
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<RequestedSeasonView<'static>>>

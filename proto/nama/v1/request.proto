@@ -184,6 +184,10 @@ message RequestedSeason {
   string show_title = 3;
   // When the Season first aired, as `YYYY-MM-DD`.
   optional string air_date = 4;
+  // The Show's IMDb id, such as `tt5753856`, if the metadata source has one.
+  optional string show_imdb_id = 5;
+  // The Show's TVDB id, if the metadata source has one.
+  optional int64 show_tvdb_id = 6;
 }
 
 // A User who asked for what a Request covers.

@@ -15,8 +15,8 @@ use std::{
 
 use nama_plugin_api::{
     PluginId,
-    fulfiller::{Fulfiller, Movies},
-    metadata::{Candidate, Episode, ExternalId, SearchQuery, Season, Show, TitleKind},
+    fulfiller::{Fulfiller, Movies, Shows},
+    metadata::{Candidate, Episode, ExternalId, ExternalIds, SearchQuery, Season, Show, TitleKind},
 };
 use nama_proto::nama::v1::{
     Event, FollowedShow, FoundSeason, Permission, Request, RequestCancelled, RequestCreated,
@@ -90,7 +90,7 @@ pub(crate) struct Requests {
     /// Looks up what a new Request asks for: a Movie, or a Show's Seasons.
     matcher: Matcher,
     events: EventBus,
-    /// Holds the Movie Fulfiller, if one is enabled.
+    /// Holds the Fulfillers for Movies and for Shows, where they are enabled.
     plugins: Registry,
     /// The ids of the Requests being handed to a Fulfiller now, each with whether another hand-off
     /// skipped it meanwhile.
@@ -191,6 +191,8 @@ struct Wanted {
     title: String,
     /// The Movie's `YYYY-MM-DD` release date, or the Season's first air date.
     release_date: Option<String>,
+    /// For a Season, its Show's ids; none for a Movie.
+    show_ids: ExternalIds,
     /// The Followed Show a new Request for it is opened for, if any.
     followed_show: Option<i64>,
 }
@@ -199,6 +201,7 @@ struct Wanted {
 #[derive(Debug)]
 struct WantedSeasons {
     show_tmdb_id: i64,
+    show_ids: ExternalIds,
     show_title: String,
     seasons: Vec<Season>,
 }
@@ -210,7 +213,7 @@ pub(crate) fn visible_to(viewer: &User) -> Option<i64> {
 
 impl Requests {
     /// The Requests in `db`, looking Movies up through `matcher`, publishing on `events` and
-    /// handing Approved ones to the Movie Fulfiller in `plugins`.
+    /// handing Approved ones to the Fulfillers in `plugins`.
     pub(crate) fn new(
         db: Arc<Database>,
         matcher: Matcher,
@@ -228,8 +231,8 @@ impl Requests {
     }
 
     /// Asks for the Movie with the TMDB id `tmdb_id` for `asker`, who joins its open Request, or
-    /// opens one: Approved, and handed to the Movie Fulfiller, if `asker` may have Movies approved
-    /// as they ask, else Pending. Publishes what changed, if anything did.
+    /// opens one: Approved, and handed to the Fulfiller for Movies, if `asker` may have Movies
+    /// approved as they ask, else Pending. Publishes what changed, if anything did.
     pub(crate) async fn create(&self, asker: &User, tmdb_id: i64) -> Result<Request, Error> {
         // Refuses before asking TMDB, which may be down or slow; `ask` checks again for a scan
         // that Matched the Movie meanwhile.
@@ -244,6 +247,7 @@ impl Requests {
             season: None,
             title: movie.title,
             release_date: movie.release_date,
+            show_ids: ExternalIds::default(),
             followed_show: None,
         };
         let state = opening_state(asker, Permission::AutoApproveMovie);
@@ -253,9 +257,7 @@ impl Requests {
             .write(move |tx| Box::pin(ask_movie(tx, user, wanted, state)))
             .await?;
         // Only the asker who opens the Request hands it off, so joining it can't hand it twice.
-        let opened = happened
-            .as_ref()
-            .is_some_and(|happened| matches!(happened.event, Some(Happened::RequestCreated(_))));
+        let opened = happened.as_ref().and_then(opened_request_id).is_some();
         self.events.publish(happened.into_iter().collect());
         if opened && request.state == RequestState::Approved {
             return self.hand_off(request).await;
@@ -265,7 +267,8 @@ impl Requests {
 
     /// Asks for the Seasons `numbers` of the Show with the TMDB id `tmdb_id` for `asker`, one
     /// Request per Season in Season order, each as [`Self::create`] asks for a Movie but with
-    /// `AUTO_APPROVE_TV`. Asks for none if a Library has any of them: every aired Episode Matched.
+    /// `AUTO_APPROVE_TV` and the Fulfiller for Shows. Asks for none if a Library has any of them:
+    /// every aired Episode Matched.
     pub(crate) async fn create_seasons(
         &self,
         asker: &User,
@@ -297,17 +300,45 @@ impl Requests {
         }
         let wanted = WantedSeasons {
             show_tmdb_id: tmdb_id,
+            show_ids: show.ids,
             show_title: show.title,
             seasons,
         };
         let state = opening_state(asker, Permission::AutoApproveTv);
         let user = asker.id;
-        let (requests, happened) = self
-            .db
-            .write(move |tx| Box::pin(ask_seasons(tx, user, wanted, state)))
-            .await?;
-        self.events.publish(happened);
-        Ok(requests)
+        let this = self.clone();
+        // The write too, so a caller that stops waiting leaves no Season Approved behind.
+        detached(async move {
+            let (requests, happened) = this
+                .db
+                .write(move |tx| Box::pin(ask_seasons(tx, user, wanted, state)))
+                .await?;
+            let opened: HashSet<i64> = happened.iter().filter_map(opened_request_id).collect();
+            this.events.publish(happened);
+            this.hand_off_opened(requests, &opened).await
+        })
+        .await
+    }
+
+    /// Each of `requests`, handed off first if it is Approved and its id is in `opened`, as it is
+    /// after that.
+    async fn hand_off_opened(
+        &self,
+        requests: Vec<Request>,
+        opened: &HashSet<i64>,
+    ) -> Result<Vec<Request>, Error> {
+        let mut after_hand_off = Vec::with_capacity(requests.len());
+        // ponytail: one hand-off at a time, so a slow Fulfiller takes as long for each Season.
+        for request in requests {
+            let request = if opened.contains(&request.id) && request.state == RequestState::Approved
+            {
+                self.hand_off(request).await?
+            } else {
+                request
+            };
+            after_hand_off.push(request);
+        }
+        Ok(after_hand_off)
     }
 
     /// Asks for the whole Show with the TMDB id `tmdb_id` for `asker`: each current Season not in
@@ -328,20 +359,28 @@ impl Requests {
         let wanted = WantedSeasons {
             show_tmdb_id: tmdb_id,
             seasons: self.seasons(tmdb_id, &show).await?,
+            show_ids: show.ids,
             show_title: show.title,
         };
         let state = opening_state(asker, Permission::AutoApproveTv);
         let user = asker.id;
-        let (followed, requests, happened) = self
-            .db
-            .write(move |tx| Box::pin(follow(tx, user, wanted, state)))
-            .await?;
-        self.events.publish(happened);
-        Ok((followed, requests))
+        let this = self.clone();
+        // The write too, as in `create_seasons`.
+        detached(async move {
+            let (followed, requests, happened) = this
+                .db
+                .write(move |tx| Box::pin(follow(tx, user, wanted, state)))
+                .await?;
+            let opened: HashSet<i64> = happened.iter().filter_map(opened_request_id).collect();
+            this.events.publish(happened);
+            let requests = this.hand_off_opened(requests, &opened).await?;
+            Ok((followed, requests))
+        })
+        .await
     }
 
-    /// Approves the Pending Followed Show `id`, and each Pending Season Request it opened,
-    /// publishing each Request's change of state.
+    /// Approves the Pending Followed Show `id`, and each Pending Season Request it opened, handing
+    /// those to the Shows Fulfiller, publishing each Request's change of state.
     pub(crate) async fn approve_followed(&self, id: i64) -> Result<FollowedShow, Error> {
         self.decide_followed(id, RequestState::Approved, None).await
     }
@@ -363,12 +402,20 @@ impl Requests {
         state: RequestState,
         reason: Option<String>,
     ) -> Result<FollowedShow, Error> {
-        let (followed, happened) = self
-            .db
-            .write(move |tx| Box::pin(decide_followed(tx, id, state, reason)))
-            .await?;
-        self.events.publish(happened);
-        Ok(followed)
+        let this = self.clone();
+        // The write too, as in `approve`.
+        detached(async move {
+            let (followed, decided) = this
+                .db
+                .write(move |tx| Box::pin(decide_followed(tx, id, state, reason)))
+                .await?;
+            this.events
+                .publish(decided.iter().cloned().map(state_changed).collect());
+            let ids: HashSet<i64> = decided.iter().map(|request| request.id).collect();
+            this.hand_off_opened(decided, &ids).await?;
+            Ok(followed)
+        })
+        .await
     }
 
     /// Removes the Followed Show `id`, whatever its state, leaving the Season Requests it opened.
@@ -387,8 +434,8 @@ impl Requests {
             .await
     }
 
-    /// Approves the Pending Request `id` and hands it to the Movie Fulfiller, publishing each
-    /// change of its state.
+    /// Approves the Pending Request `id` and hands it to its Fulfiller, publishing each change of
+    /// its state.
     pub(crate) async fn approve(&self, id: i64) -> Result<Request, Error> {
         let requests = self.clone();
         detached(async move {
@@ -398,7 +445,7 @@ impl Requests {
         .await
     }
 
-    /// Moves the Failed Request `id` back to Approved and hands it to the Movie Fulfiller again,
+    /// Moves the Failed Request `id` back to Approved and hands it to its Fulfiller again,
     /// publishing each change of its state.
     pub(crate) async fn retry(&self, id: i64) -> Result<Request, Error> {
         let requests = self.clone();
@@ -412,18 +459,14 @@ impl Requests {
         .await
     }
 
-    /// Hands the Approved `request` to the Movie Fulfiller, publishing that its state changed:
-    /// to Processing once it takes the Request, or to Failed, with its reason, if it doesn't.
-    /// Returns the Request as it is now. Without a Movie Fulfiller the Request waits in Approved,
-    /// as a Season Request always does, and one already being handed off is left to that hand-off.
+    /// Hands the Approved `request` to the Fulfiller for its kind, Movies or Shows, publishing that
+    /// its state changed: to Processing once it takes the Request, or to Failed, with its reason,
+    /// if it doesn't. Returns the Request as it is now. Without a Fulfiller for its kind the
+    /// Request waits in Approved, and one already being handed off is left to that hand-off.
     ///
     /// Runs in a task of its own: once the Fulfiller has taken the Request, its reference must be
     /// stored even if the caller stops waiting.
     async fn hand_off(&self, request: Request) -> Result<Request, Error> {
-        // ponytail: no Show Fulfiller yet, so a Season Request isn't handed to anyone.
-        if request.movie.is_unset() {
-            return Ok(request);
-        }
         let requests = self.clone();
         detached(async move {
             // An approval and enabling the Fulfiller may hand the same Request off at once, which
@@ -466,7 +509,7 @@ impl Requests {
         if took && settled.is_none() {
             warn!(
                 request = id,
-                "the Movie Fulfiller took a Request that was changed meanwhile, and keeps it"
+                "the Fulfiller took a Request that was changed meanwhile, and keeps it"
             );
         }
         let Some(settled) = settled else {
@@ -476,26 +519,28 @@ impl Requests {
         Ok(settled)
     }
 
-    /// Hands each Approved Request, oldest first, to the enabled Plugin `plugin`'s Movie Fulfiller,
-    /// if it provides one, as [`Self::hand_off_waiting`] does.
+    /// Hands each Approved Request, oldest first, to its Fulfiller, as [`Self::hand_off_waiting`]
+    /// does, if the enabled Plugin `plugin` provides a Fulfiller.
     ///
     /// Runs in a task of its own, so a caller that stops waiting leaves none of them waiting.
     pub(crate) async fn hand_off_waiting_to(&self, plugin: &PluginId) {
-        if !self.plugins.provides::<dyn Fulfiller<Movies>>(plugin) {
+        if !self.plugins.provides::<dyn Fulfiller<Movies>>(plugin)
+            && !self.plugins.provides::<dyn Fulfiller<Shows>>(plugin)
+        {
             return;
         }
         let requests = self.clone();
         if let Err(err) = detached(async move { requests.try_hand_off_waiting().await }).await {
-            error!("handing the waiting Requests to the Movie Fulfiller failed: {err}");
+            error!("handing the waiting Requests to their Fulfillers failed: {err}");
         }
     }
 
-    /// Hands each Approved Request, oldest first, to the Movie Fulfiller as [`Self::hand_off`]
-    /// does, such as those that waited for one to be enabled. A failure is only logged, and leaves
-    /// the rest waiting.
+    /// Hands each Approved Request, oldest first, to its Fulfiller as [`Self::hand_off`] does, such
+    /// as those that waited for one to be enabled. A failure is only logged, and leaves the rest
+    /// waiting.
     pub(crate) async fn hand_off_waiting(&self) {
         if let Err(err) = self.try_hand_off_waiting().await {
-            error!("handing the waiting Requests to the Movie Fulfiller failed: {err}");
+            error!("handing the waiting Requests to their Fulfillers failed: {err}");
         }
     }
 
@@ -515,25 +560,33 @@ impl Requests {
         Ok(())
     }
 
-    /// What the Movie Fulfiller says to `request`, if one is enabled: the reference it gives once
-    /// it takes it, or why it doesn't, with no secret setting's value in it.
+    /// What the Fulfiller for `request`'s kind says to it, if one is enabled: the reference it
+    /// gives once it takes it, or why it doesn't, with no secret setting's value in it.
     async fn fulfill(&self, request: &Request) -> Option<Result<String, String>> {
-        let fulfilled = self
-            .plugins
-            .call_provider_blanking_secrets::<dyn Fulfiller<Movies>, _, _>(|fulfiller| async move {
+        let fulfilled = if request.movie.is_unset() {
+            self.fulfill_as::<Shows>(request).await
+        } else {
+            self.fulfill_as::<Movies>(request).await
+        }?;
+        Some(fulfilled.inspect_err(|reason| {
+            warn!(
+                request = request.id,
+                reason, "the Fulfiller didn't take the Request"
+            );
+        }))
+    }
+
+    /// [`Self::fulfill`] by the Fulfiller of `Kind`.
+    async fn fulfill_as<Kind: 'static>(&self, request: &Request) -> Option<Result<String, String>> {
+        self.plugins
+            .call_provider_blanking_secrets::<dyn Fulfiller<Kind>, _, _>(|fulfiller| async move {
                 // Inside the call, so formatting and dropping the Plugin's error are contained.
                 fulfiller
                     .fulfill(request)
                     .await
                     .map_err(|error| error.to_string())
             })
-            .await?;
-        Some(fulfilled.inspect_err(|reason| {
-            warn!(
-                request = request.id,
-                reason, "the Movie Fulfiller didn't take the Request"
-            );
-        }))
+            .await
     }
 
     /// Declines the Pending Request `id`, giving its Requesters `reason`, trimmed, unless it is
@@ -849,6 +902,7 @@ async fn ask_seasons(
 ) -> Result<(Vec<Request>, Vec<Event>), Error> {
     let WantedSeasons {
         show_tmdb_id,
+        show_ids,
         show_title,
         seasons,
     } = show;
@@ -868,6 +922,7 @@ async fn ask_seasons(
             season: Some(season.number),
             title: show_title.clone(),
             release_date: season.air_date,
+            show_ids: show_ids.clone(),
             followed_show: None,
         };
         let (request, event) = ask(conn, user, wanted, state).await?;
@@ -913,14 +968,16 @@ async fn insert_request(
     now: i64,
 ) -> Result<i64, sqlx::Error> {
     sqlx::query_scalar!(
-        "INSERT INTO requests
-             (tmdb_id, season, title, release_date, state, created_at, followed_show_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?)
+        "INSERT INTO requests (tmdb_id, season, title, release_date, show_imdb_id, show_tvdb_id,
+                               state, created_at, followed_show_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
          RETURNING id",
         wanted.tmdb_id,
         wanted.season,
         wanted.title,
         wanted.release_date,
+        wanted.show_ids.imdb,
+        wanted.show_ids.tvdb,
         state,
         now,
         wanted.followed_show
@@ -1062,6 +1119,8 @@ async fn open_followed_season(
         season: Some(season.number),
         title: followed.title,
         release_date: season.air_date.clone(),
+        // ponytail: a Followed Show stores no Show ids, and this Season opens already in a Library.
+        show_ids: ExternalIds::default(),
         followed_show: Some(followed.id),
     };
     let id = insert_request(conn, &wanted, stored(state), now()).await?;
@@ -1270,6 +1329,7 @@ async fn follow(
 ) -> Result<(FollowedShow, Vec<Request>, Vec<Event>), Error> {
     let WantedSeasons {
         show_tmdb_id,
+        show_ids,
         show_title,
         seasons,
     } = show;
@@ -1317,6 +1377,7 @@ async fn follow(
             season: Some(season.number),
             title: show_title.clone(),
             release_date: season.air_date,
+            show_ids: show_ids.clone(),
             followed_show: Some(id),
         };
         let (request, event) = ask(conn, user, wanted, state).await?;
@@ -1341,13 +1402,13 @@ async fn open_followed_show(
 }
 
 /// Moves the Pending Followed Show `id`, and each Pending Season Request it opened, to `state`
-/// with `reason`. Returns the Followed Show as it is now, and an event for each Request.
+/// with `reason`. Returns the Followed Show and those Requests as they are now.
 async fn decide_followed(
     conn: &mut SqliteConnection,
     id: i64,
     state: RequestState,
     reason: Option<String>,
-) -> Result<(FollowedShow, Vec<Event>), Error> {
+) -> Result<(FollowedShow, Vec<Request>), Error> {
     let stored_state = stored(state);
     let decided = sqlx::query!(
         "UPDATE followed_shows SET state = ?, decline_reason = ? WHERE id = ? AND state = 'pending'",
@@ -1370,12 +1431,11 @@ async fn decide_followed(
     )
     .fetch_all(&mut *conn)
     .await?;
-    let mut happened = Vec::with_capacity(pending.len());
+    let mut requests = Vec::with_capacity(pending.len());
     for request in pending {
-        let request = decide(conn, request, state, reason.clone()).await?;
-        happened.push(state_changed(request));
+        requests.push(decide(conn, request, state, reason.clone()).await?);
     }
-    Ok((followed, happened))
+    Ok((followed, requests))
 }
 
 /// Removes the Followed Show `id`, and its Requesters with it.
@@ -1486,8 +1546,8 @@ async fn load(
     requester: Option<i64>,
 ) -> Result<Vec<Request>, sqlx::Error> {
     let rows = sqlx::query!(
-        r#"SELECT id AS "id!", tmdb_id, season AS "season: u32", title, release_date, state,
-                  created_at, decline_reason, failure_reason, followed_show_id
+        r#"SELECT id AS "id!", tmdb_id, season AS "season: u32", title, release_date, show_imdb_id,
+                  show_tvdb_id, state, created_at, decline_reason, failure_reason, followed_show_id
            FROM requests
            WHERE (?1 IS NULL OR id = ?1)
              AND (?2 IS NULL OR EXISTS (SELECT 1 FROM requesters
@@ -1543,6 +1603,8 @@ async fn load(
                         season_number,
                         show_title: row.title,
                         air_date: row.release_date,
+                        show_imdb_id: row.show_imdb_id,
+                        show_tvdb_id: row.show_tvdb_id,
                         ..Default::default()
                     }
                     .into();
@@ -1571,6 +1633,14 @@ async fn detached<T: Send + 'static>(
     tokio::spawn(work)
         .await
         .unwrap_or_else(|_| Err(sqlx::Error::WorkerCrashed.into()))
+}
+
+/// The id of the Request `happened` says was opened, if it says that.
+fn opened_request_id(happened: &Event) -> Option<i64> {
+    match &happened.event {
+        Some(Happened::RequestCreated(created)) => Some(created.request.id),
+        _ => None,
+    }
 }
 
 /// The event saying `request` is now in the state it has.
@@ -1700,6 +1770,7 @@ mod tests {
             season,
             title: "Shared".to_owned(),
             release_date: None,
+            show_ids: ExternalIds::default(),
             followed_show: None,
         });
 
@@ -1817,6 +1888,7 @@ mod tests {
                 season: None,
                 title: format!("Movie {tmdb_id}"),
                 release_date: None,
+                show_ids: ExternalIds::default(),
                 followed_show: None,
             })
             .collect();
@@ -1915,6 +1987,7 @@ mod tests {
             season: Some(1),
             title: "Dark".to_owned(),
             release_date: None,
+            show_ids: ExternalIds::default(),
             followed_show: None,
         };
         let request = db
