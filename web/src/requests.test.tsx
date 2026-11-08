@@ -81,7 +81,10 @@ test("a Request made elsewhere shows up without a reload", async () => {
   expect(await screen.findByText("Dune")).toBeDefined();
 });
 
-test("a Request approved elsewhere shows as Approved without a reload", async () => {
+test.each([
+  { how: "approved elsewhere", state: RequestState.APPROVED, label: "Approved" },
+  { how: "Matched by a scan", state: RequestState.AVAILABLE, label: "Available" },
+])("a Request $how shows as $label without a reload", async ({ state, label }) => {
   const events = eventFeed();
   let requests: MessageInitShape<typeof RequestSchema>[] = [heat];
   openApp(
@@ -90,11 +93,11 @@ test("a Request approved elsewhere shows as Approved without a reload", async ()
   );
   await screen.findByText("Pending");
 
-  const approved = { ...heat, state: RequestState.APPROVED };
-  requests = [approved];
-  events.send({ event: { case: "requestStateChanged", value: { request: approved } } });
+  const changed = { ...heat, state };
+  requests = [changed];
+  events.send({ event: { case: "requestStateChanged", value: { request: changed } } });
 
-  expect(await screen.findByText("Approved")).toBeDefined();
+  expect(await screen.findByText(label)).toBeDefined();
 });
 
 test("a Request cancelled elsewhere goes without a reload", async () => {
