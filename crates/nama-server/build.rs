@@ -1,7 +1,8 @@
 //! Build script for the Server.
 //!
 //! It builds the Installed Plugins the Server bundles (ADR 0003) for wasm32, and sets
-//! `RADARR_WASM` to the Radarr Plugin's `.wasm` for `src/plugins/installed.rs` to embed.
+//! `<NAME>_WASM`, such as `RADARR_WASM`, to each one's `.wasm` for
+//! `src/plugins/installed.rs` to embed.
 //!
 //! With the `web` feature, it also embeds the built web app so a release is one binary (ADR 0004).
 //! It writes `web_assets.rs` to `OUT_DIR` for `src/web.rs`: `SHELL`, the prerendered
@@ -17,10 +18,14 @@ use std::{
     process::{Command, Stdio},
 };
 
+/// The Installed Plugins the Server bundles, by their folder in `plugins/`. Each is the package
+/// `nama-plugin-<name>`.
+const BUNDLED: &[&str] = &["radarr", "telegram"];
+
 fn main() -> Result<(), Box<dyn Error>> {
     // `sqlx::migrate!` embeds migrations/ at compile time; rebuild when it changes.
     println!("cargo:rerun-if-changed=migrations");
-    build_radarr()?;
+    build_bundled()?;
     if env::var_os("CARGO_FEATURE_WEB").is_none() {
         return Ok(());
     }
@@ -62,32 +67,37 @@ fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-/// Builds the Radarr Plugin for wasm32 and sets `RADARR_WASM` to its `.wasm`.
-fn build_radarr() -> Result<(), Box<dyn Error>> {
+/// Builds the [`BUNDLED`] Plugins for wasm32 and sets `<NAME>_WASM` to each one's `.wasm`.
+fn build_bundled() -> Result<(), Box<dyn Error>> {
     let workspace = PathBuf::from(env::var("CARGO_MANIFEST_DIR")?).join("../..");
-    for source in [
-        "plugins/radarr",
+    let sources = [
         "crates/nama-pdk",
         "crates/nama-proto",
         "Cargo.toml",
         "Cargo.lock",
-    ] {
+    ];
+    let plugins = BUNDLED.iter().map(|name| format!("plugins/{name}"));
+    for source in plugins.chain(sources.map(str::to_owned)) {
         println!(
             "cargo:rerun-if-changed={}",
             workspace.join(source).display()
         );
     }
     // A target directory of its own: this build holds the lock on the Server's.
-    // ponytail: one per OUT_DIR, so each profile and feature set builds it again; share one if
+    // ponytail: one per OUT_DIR, so each profile and feature set builds them again; share one if
     // that gets slow.
     let target_dir = PathBuf::from(env::var("OUT_DIR")?).join("plugins");
-    let status = Command::new(env::var("CARGO")?)
-        .args(["build", "--release", "--locked", "--package", "nama-plugin-radarr"])
+    let mut cargo = Command::new(env::var("CARGO")?);
+    cargo.args(["build", "--release", "--locked"]);
+    for name in BUNDLED {
+        cargo.args(["--package", &format!("nama-plugin-{name}")]);
+    }
+    let status = cargo
         .args(["--target", "wasm32-unknown-unknown", "--target-dir"])
         .arg(&target_dir)
         // Cargo sets these for the Server's own host build. Inherited, the host's flags would reach
-        // the wasm32 build, and under `cargo clippy` the Plugin would be linted inside it, where
-        // CI's own clippy run already covers it.
+        // the wasm32 build, and under `cargo clippy` the Plugins would be linted inside it, where
+        // CI's own clippy run already covers them.
         .env_remove("CARGO_ENCODED_RUSTFLAGS")
         .env_remove("RUSTC_WORKSPACE_WRAPPER")
         // Cargo reads a build script's stdout as instructions.
@@ -95,13 +105,21 @@ fn build_radarr() -> Result<(), Box<dyn Error>> {
         .status()?;
     if !status.success() {
         return Err(
-            "building the Radarr Plugin for wasm32 failed: see its errors above, and if the \
+            "building the bundled Plugins for wasm32 failed: see the errors above, and if the \
              target is missing, `rustup target add wasm32-unknown-unknown`"
                 .into(),
         );
     }
-    let wasm = target_dir.join("wasm32-unknown-unknown/release/nama_plugin_radarr.wasm");
-    println!("cargo:rustc-env=RADARR_WASM={}", utf8(&wasm)?);
+    for name in BUNDLED {
+        let wasm = target_dir.join(format!(
+            "wasm32-unknown-unknown/release/nama_plugin_{name}.wasm"
+        ));
+        println!(
+            "cargo:rustc-env={}_WASM={}",
+            name.to_uppercase(),
+            utf8(&wasm)?
+        );
+    }
     Ok(())
 }
 

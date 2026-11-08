@@ -1907,6 +1907,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "nama-plugin-telegram"
+version = "0.1.0"
+dependencies = [
+ "nama-pdk",
+ "serde",
+]
+
+[[package]]
 name = "nama-plugin-test-choices"
 version = "0.1.0"
 dependencies = [

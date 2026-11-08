@@ -43,7 +43,7 @@ CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs the following, 
 ```sh
 cargo fmt --all --check
 cargo clippy --workspace --all-targets --locked -- -D warnings
-cargo clippy --package nama-test-plugin --package nama-plugin-radarr --target wasm32-unknown-unknown --locked -- -D warnings
+cargo clippy --package nama-test-plugin --package nama-plugin-radarr --package nama-plugin-telegram --target wasm32-unknown-unknown --locked -- -D warnings
 cargo nextest run --workspace --locked
 cargo test --workspace --doc --locked
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked

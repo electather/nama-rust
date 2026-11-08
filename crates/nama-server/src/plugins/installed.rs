@@ -59,7 +59,10 @@ const CHECK_SETTINGS: &str = "check_settings";
 
 /// The Installed Plugins bundled in the Server, each by the name it is listed under if refused.
 /// `build.rs` builds them.
-const BUNDLED: &[(&str, &[u8])] = &[("radarr.wasm", include_bytes!(env!("RADARR_WASM")))];
+const BUNDLED: &[(&str, &[u8])] = &[
+    ("radarr.wasm", include_bytes!(env!("RADARR_WASM"))),
+    ("telegram.wasm", include_bytes!(env!("TELEGRAM_WASM"))),
+];
 
 /// What every binary WASM module starts with.
 const WASM_MAGIC: &[u8] = b"\0asm";

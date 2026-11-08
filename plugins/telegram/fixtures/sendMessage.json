@@ -1,0 +1,20 @@
+{
+  "ok": true,
+  "result": {
+    "message_id": 42,
+    "sender_chat": {
+      "id": -1001234567890,
+      "title": "Nama Requests",
+      "username": "nama_requests",
+      "type": "channel"
+    },
+    "chat": {
+      "id": -1001234567890,
+      "title": "Nama Requests",
+      "username": "nama_requests",
+      "type": "channel"
+    },
+    "date": 1793750400,
+    "text": "New Request: Dune (2021), from Ada, is Pending."
+  }
+}

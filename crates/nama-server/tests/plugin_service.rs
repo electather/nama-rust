@@ -205,7 +205,7 @@ fn setting<'a>(plugin: &'a Plugin, key: &str) -> &'a Setting {
 async fn every_builtin_and_bundled_plugin_is_listed_with_whether_it_is_enabled() {
     let listed = list_plugins_with(BTreeMap::new()).await;
 
-    let ids: Vec<_> = listed
+    let kinds: Vec<_> = listed
         .plugins
         .iter()
         .map(|plugin| (plugin.id.as_str(), plugin.kind.as_known()))
@@ -213,11 +213,12 @@ async fn every_builtin_and_bundled_plugin_is_listed_with_whether_it_is_enabled()
     let built_in = Some(PluginKind::PLUGIN_KIND_BUILT_IN);
     let installed = Some(PluginKind::PLUGIN_KIND_INSTALLED);
     assert_eq!(
-        ids,
+        kinds,
         [
             ("local-auth", built_in),
             ("log-events", built_in),
             ("radarr", installed),
+            ("telegram", installed),
             (test_choices::ID, built_in),
             ("tmdb", built_in)
         ]
@@ -229,6 +230,7 @@ async fn every_builtin_and_bundled_plugin_is_listed_with_whether_it_is_enabled()
     // TMDB can't run without an API key, and an Installed Plugin starts disabled.
     assert!(!plugin(&listed, "tmdb").enabled);
     assert!(!plugin(&listed, "radarr").enabled);
+    assert!(!plugin(&listed, "telegram").enabled);
 }
 
 #[tokio::test]

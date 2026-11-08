@@ -1,0 +1,343 @@
+//! The Telegram Installed Plugin: posts every Request event to a Telegram channel (ADR 0021). The
+//! Server builds it for wasm32 and bundles it in its binary.
+
+use nama_pdk::{
+    Notification,
+    nama_proto::nama::v1::{Request, RequestState, event::Event},
+};
+
+/// The Plugin's exports. `plugin_fn` drops their doc comments and attributes, so lints about the
+/// code it generates are expected here.
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "an export returns `FnResult` even when it can't fail"
+)]
+mod exports {
+    use nama_pdk::{
+        Buffa, FnResult, Manifest, Notification, Notifier, Recipient,
+        extism_pdk::{self, Error, HttpRequest, HttpResponse, Json, config},
+        nama_proto::nama::plugin::v1::{
+            ProvidePoint, SettingField, SettingKind, SettingValue, setting_value,
+        },
+        plugin_fn,
+    };
+    use serde::{Deserialize, Serialize};
+
+    const BOT_TOKEN: &str = "bot_token";
+    const CHANNEL: &str = "channel";
+    const API_URL: &str = "api_url";
+
+    #[plugin_fn]
+    pub fn manifest() -> FnResult<Buffa<Manifest>> {
+        let setting = |key: &str, label: &str, description: &str, kind: SettingKind| SettingField {
+            key: key.to_owned(),
+            label: label.to_owned(),
+            description: description.to_owned(),
+            kind: kind.into(),
+            ..SettingField::default()
+        };
+        Ok(Buffa(Manifest {
+            providers: vec![ProvidePoint::PROVIDE_POINT_NOTIFIER.into()],
+            allowed_hosts: vec!["api.telegram.org".to_owned()],
+            settings: vec![
+                SettingField {
+                    required: true,
+                    ..setting(
+                        BOT_TOKEN,
+                        "Bot token",
+                        "The token BotFather gave your bot, such as 123456:ABC-DEF1234ghIkl.",
+                        SettingKind::SETTING_KIND_SECRET,
+                    )
+                },
+                setting(
+                    CHANNEL,
+                    "Channel",
+                    "Where every Request event is posted: a chat id, such as -1001234567890, or a \
+                     public channel's @name. The bot must be an admin there. Leave it empty to \
+                     post nothing.",
+                    SettingKind::SETTING_KIND_TEXT,
+                ),
+                SettingField {
+                    default_value: SettingValue {
+                        value: Some(setting_value::Value::Text(
+                            "https://api.telegram.org".to_owned(),
+                        )),
+                        ..SettingValue::default()
+                    }
+                    .into(),
+                    ..setting(
+                        API_URL,
+                        "Bot API URL",
+                        "Where the Telegram Bot API is. Change it only for a Bot API server of \
+                         your own.",
+                        SettingKind::SETTING_KIND_URL,
+                    )
+                },
+            ],
+            ..nama_pdk::manifest("telegram", env!("CARGO_PKG_VERSION"))
+        }))
+    }
+
+    /// Posts each notification for the channel to it, if one is set.
+    struct Telegram;
+
+    impl Notifier for Telegram {
+        fn deliver(notification: Notification, recipient: Recipient) -> Result<(), Error> {
+            let Recipient::Channel(_) = recipient;
+            let channel = config::get(CHANNEL)?;
+            let channel = channel
+                .as_deref()
+                .map(str::trim)
+                .filter(|channel| !channel.is_empty());
+            match (channel, super::message(&notification)) {
+                (Some(channel), Some(text)) => send_message(channel, &text),
+                _ => Ok(()),
+            }
+        }
+    }
+
+    nama_pdk::notifier!(Telegram);
+
+    /// Posts `text` to the chat `chat_id` with the Bot API's `sendMessage`.
+    fn send_message(chat_id: &str, text: &str) -> Result<(), Error> {
+        let api_url = setting(API_URL)?;
+        let token = setting(BOT_TOKEN)?;
+        let url = format!("{}/bot{token}/sendMessage", api_url.trim_end_matches('/'));
+        let request = HttpRequest::new(url)
+            .with_method("POST")
+            .with_header("Content-Type", "application/json");
+        let message = Json(SendMessage { chat_id, text });
+        // Not naming the URL, which holds the token.
+        let response = nama_pdk::http_request(&request, Some(message), "Telegram didn't answer")?;
+        if (200..300).contains(&response.status_code()) {
+            Ok(())
+        } else {
+            Err(refused(&response))
+        }
+    }
+
+    /// The setting `key`, which the Server sets before every call.
+    fn setting(key: &str) -> Result<String, Error> {
+        config::get(key)?.ok_or_else(|| Error::msg(format!("the setting {key} isn't set")))
+    }
+
+    /// Why Telegram refused a request, in words an admin understands.
+    fn refused(response: &HttpResponse) -> Error {
+        let reason = match response.status_code() {
+            // Telegram answers 404 to a token that isn't even shaped like one.
+            401 | 404 => "Telegram refused the bot token".to_owned(),
+            status => match response.json::<Refusal>() {
+                Ok(refusal) => format!("Telegram said: {}", refusal.description),
+                Err(_) => format!("Telegram failed with HTTP status {status}"),
+            },
+        };
+        Error::msg(reason)
+    }
+
+    /// What `sendMessage` takes. Plain text, so a title needs no escaping.
+    #[derive(Serialize)]
+    struct SendMessage<'a> {
+        chat_id: &'a str,
+        text: &'a str,
+    }
+
+    /// The body of a Bot API error.
+    #[derive(Deserialize)]
+    struct Refusal {
+        description: String,
+    }
+}
+
+/// What to post about `notification`, in the Glossary's words, or `None` for what the channel
+/// isn't told: download progress, which changes every minute, and a state this Plugin doesn't
+/// know.
+fn message(notification: &Notification) -> Option<String> {
+    let request = notification.request.as_option()?;
+    let title = title(request);
+    let name = |user_id: i64| {
+        request
+            .requesters
+            .iter()
+            .find(|requester| requester.user_id == user_id)
+            .map_or("Someone", |requester| requester.name.as_str())
+    };
+    Some(match notification.event.as_option()?.event.as_ref()? {
+        Event::RequestCreated(_) => {
+            let asker = request
+                .requesters
+                .first()
+                .map_or("someone", |requester| requester.name.as_str());
+            format!(
+                "New Request: {title}, from {asker}, is {}.",
+                state(request)?
+            )
+        }
+        Event::RequesterAdded(added) => format!("{} also asked for {title}.", name(added.user_id)),
+        Event::RequestStateChanged(_) => {
+            let reason = request
+                .failure_reason
+                .as_ref()
+                .or(request.decline_reason.as_ref());
+            let reason = reason.map_or_else(String::new, |reason| format!(" Reason: {reason}"));
+            format!("{title} is now {}.{reason}", state(request)?)
+        }
+        Event::RequestCancelled(_) => format!("The Request for {title} was cancelled."),
+        Event::RequesterRemoved(removed) => format!(
+            "{} withdrew from the Request for {title}.",
+            name(removed.user_id)
+        ),
+        Event::RequestWithdrawn(_) => format!("The Request for {title} was withdrawn."),
+        Event::RequestProgress(_)
+        | Event::ScanStarted(_)
+        | Event::ScanProgress(_)
+        | Event::ScanFinished(_)
+        | Event::LibraryItemAdded(_)
+        | Event::LibraryItemRemoved(_)
+        | Event::ItemMatched(_) => return None,
+    })
+}
+
+/// What `request` asks for, with the year it came out if known: `Dune (2021)` or
+/// `Dark Season 2 (2019)`.
+fn title(request: &Request) -> String {
+    let (title, date) = match request.movie.as_option() {
+        Some(movie) => (movie.title.clone(), movie.release_date.as_deref()),
+        None => (
+            format!(
+                "{} Season {}",
+                request.season.show_title, request.season.season_number
+            ),
+            request.season.air_date.as_deref(),
+        ),
+    };
+    // Dates are `YYYY-MM-DD`.
+    match date.and_then(|date| date.get(..4)) {
+        Some(year) => format!("{title} ({year})"),
+        None => title,
+    }
+}
+
+/// The Glossary's name for `request`'s state.
+fn state(request: &Request) -> Option<&'static str> {
+    Some(match request.state.as_known()? {
+        RequestState::REQUEST_STATE_PENDING => "Pending",
+        RequestState::REQUEST_STATE_APPROVED => "Approved",
+        RequestState::REQUEST_STATE_DECLINED => "Declined",
+        RequestState::REQUEST_STATE_PROCESSING => "Processing",
+        RequestState::REQUEST_STATE_PARTIALLY_AVAILABLE => "Partially Available",
+        RequestState::REQUEST_STATE_AVAILABLE => "Available",
+        RequestState::REQUEST_STATE_FAILED => "Failed",
+        RequestState::REQUEST_STATE_UNSPECIFIED => return None,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use nama_pdk::{
+        Notification,
+        nama_proto::nama::v1::{
+            Event, Request, RequestCancelled, RequestProgress, RequestState, RequestStateChanged,
+            RequestedMovie, RequestedSeason, Requester, RequesterAdded, event,
+        },
+    };
+
+    use super::message;
+
+    fn requester(user_id: i64, name: &str) -> Requester {
+        Requester {
+            user_id,
+            name: name.to_owned(),
+            ..Requester::default()
+        }
+    }
+
+    /// Dune, released in 2021, in `state`, asked for by Sam then Ada.
+    fn dune(state: RequestState) -> Request {
+        Request {
+            movie: RequestedMovie {
+                title: "Dune".to_owned(),
+                release_date: Some("2021-09-15".to_owned()),
+                ..RequestedMovie::default()
+            }
+            .into(),
+            state: state.into(),
+            requesters: vec![requester(1, "Sam"), requester(2, "Ada")],
+            ..Request::default()
+        }
+    }
+
+    fn notify(event: impl Into<Option<event::Event>>, request: Request) -> Option<String> {
+        let event = Event {
+            event: event.into(),
+            ..Event::default()
+        };
+        message(&Notification {
+            event: event.into(),
+            request: request.into(),
+            ..Notification::default()
+        })
+    }
+
+    #[test]
+    fn a_failed_request_says_why() {
+        let request = Request {
+            failure_reason: Some("Radarr didn't answer".to_owned()),
+            ..dune(RequestState::REQUEST_STATE_FAILED)
+        };
+
+        let posted = notify(RequestStateChanged::default(), request);
+
+        assert_eq!(
+            posted.as_deref(),
+            Some("Dune (2021) is now Failed. Reason: Radarr didn't answer")
+        );
+    }
+
+    #[test]
+    fn a_season_is_named_by_its_show_and_number() {
+        let request = Request {
+            movie: None.into(),
+            season: RequestedSeason {
+                show_title: "Dark".to_owned(),
+                season_number: 2,
+                air_date: Some("2019-06-21".to_owned()),
+                ..RequestedSeason::default()
+            }
+            .into(),
+            ..dune(RequestState::REQUEST_STATE_PARTIALLY_AVAILABLE)
+        };
+
+        let posted = notify(RequestStateChanged::default(), request);
+
+        assert_eq!(
+            posted.as_deref(),
+            Some("Dark Season 2 (2019) is now Partially Available.")
+        );
+    }
+
+    #[test]
+    fn a_requester_joining_is_named() {
+        let added = RequesterAdded {
+            user_id: 2,
+            ..RequesterAdded::default()
+        };
+
+        let posted = notify(added, dune(RequestState::REQUEST_STATE_PENDING));
+
+        assert_eq!(posted.as_deref(), Some("Ada also asked for Dune (2021)."));
+    }
+
+    #[test]
+    fn a_cancelled_request_is_posted_but_download_progress_is_not() {
+        let request = dune(RequestState::REQUEST_STATE_PROCESSING);
+
+        let cancelled = notify(RequestCancelled::default(), request.clone());
+        let progress = notify(RequestProgress::default(), request);
+
+        assert_eq!(
+            cancelled.as_deref(),
+            Some("The Request for Dune (2021) was cancelled.")
+        );
+        assert_eq!(progress, None);
+    }
+}
