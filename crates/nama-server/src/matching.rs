@@ -120,10 +120,18 @@ struct Outcomes {
     seasons: Vec<(i64, Season)>,
 }
 
-impl From<Vec<(i64, Result<Metadata, Miss>)>> for Outcomes {
-    fn from(items: Vec<(i64, Result<Metadata, Miss>)>) -> Self {
+impl Outcomes {
+    fn any_undecided(&self) -> bool {
+        self.items
+            .iter()
+            .any(|(_, outcome)| matches!(outcome, Err(Miss::Undecided)))
+    }
+}
+
+impl FromIterator<(i64, Result<Metadata, Miss>)> for Outcomes {
+    fn from_iter<I: IntoIterator<Item = (i64, Result<Metadata, Miss>)>>(iter: I) -> Self {
         Self {
-            items,
+            items: iter.into_iter().collect(),
             seasons: Vec::new(),
         }
     }
@@ -255,8 +263,7 @@ impl Matcher {
                     .items
                     .iter()
                     .map(|&(alike, _)| (alike, Ok(movie.clone())))
-                    .collect::<Vec<_>>()
-                    .into()
+                    .collect()
             }
             TitleKind::Show => {
                 let show = self
@@ -271,11 +278,7 @@ impl Matcher {
                 self.match_in_show(&show, &episodes).await
             }
         };
-        if outcomes
-            .items
-            .iter()
-            .any(|(_, outcome)| matches!(outcome, Err(Miss::Undecided)))
-        {
+        if outcomes.any_undecided() {
             return Err(ManualError::Unavailable);
         }
         self.pin(item, named, Pin::Title(id.clone()), outcomes)
@@ -317,12 +320,12 @@ impl Matcher {
         item: i64,
     ) -> Result<Summary, ManualError> {
         let named = self.named_like(scan, item).await?;
-        let outcomes: Vec<_> = named
+        let outcomes = named
             .items
             .iter()
             .map(|&(alike, _)| (alike, Err(Miss::Unmatched)))
             .collect();
-        self.pin(item, named, Pin::Unmatched, outcomes.into()).await
+        self.pin(item, named, Pin::Unmatched, outcomes).await
     }
 
     /// Matches the items of the Library `scan` covers that Matching hasn't decided yet, until
@@ -348,11 +351,8 @@ impl Matcher {
             }
             let outcome = self.match_movie(&key).await;
             available = !matches!(outcome, Err(Miss::Undecided));
-            let decided: Vec<_> = items
-                .into_iter()
-                .map(|item| (item, outcome.clone()))
-                .collect();
-            self.store(library, decided.into(), &mut summary).await?;
+            let decided = items.into_iter().map(|item| (item, outcome.clone()));
+            self.store(library, decided.collect(), &mut summary).await?;
         }
         for (key, episodes) in shows {
             if cancel.is_cancelled() {
@@ -363,10 +363,7 @@ impl Matcher {
                 continue;
             }
             let decided = self.match_episodes(&key, &episodes).await;
-            available = !decided
-                .items
-                .iter()
-                .any(|(_, outcome)| matches!(outcome, Err(Miss::Undecided)));
+            available = !decided.any_undecided();
             self.store(library, decided, &mut summary).await?;
         }
         if summary != Summary::default() {
@@ -432,11 +429,7 @@ impl Matcher {
         };
         match show {
             Ok(show) => self.match_in_show(&show, episodes).await,
-            Err(miss) => episodes
-                .iter()
-                .map(|e| (e.item, Err(miss)))
-                .collect::<Vec<_>>()
-                .into(),
+            Err(miss) => episodes.iter().map(|e| (e.item, Err(miss))).collect(),
         }
     }
 
