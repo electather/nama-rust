@@ -4,7 +4,7 @@ import { execFile, execFileSync, spawn, spawnSync } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, hostname } from "node:os";
 import { setTimeout as sleep } from "node:timers/promises";
-import { inspect, promisify } from "node:util";
+import { inspect, parseEnv, promisify } from "node:util";
 import * as sandcastle from "@ai-hero/sandcastle";
 import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
 import { podman } from "@ai-hero/sandcastle/sandboxes/podman";
@@ -514,9 +514,63 @@ function pickNext(): Issue | "wait" | "done" {
   }
 }
 
+// Past USAGE_PAUSE of the Claude 5-hour limit, start nothing new until it resets: in-flight issues get the rest,
+// fewer runs crash on the limit, and the subscription stays usable meanwhile. The API has no usage endpoint for a
+// setup-token, but every reply carries the unified rate-limit headers, so a 1-token Haiku call reads them.
+// The OAuth token is only accepted with Claude Code's system prompt.
+const USAGE_PAUSE = Number(process.env.USAGE_PAUSE ?? 0.75);
+const OAUTH_TOKEN = parseEnv(readFileSync(".sandcastle/.env", "utf8")).CLAUDE_CODE_OAUTH_TOKEN;
+let usage: { used: number; resetsAt: number; readAt: number } | undefined;
+async function readUsage() {
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${OAUTH_TOKEN}`,
+      "anthropic-beta": "oauth-2025-04-20",
+      "anthropic-version": "2023-06-01",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "claude-haiku-5-5",
+      max_tokens: 1,
+      system: "You are Claude Code, Anthropic's official CLI for Claude.",
+      messages: [{ role: "user", content: "hi" }],
+    }),
+  });
+  // A 429 from the limit itself still carries the headers.
+  const used = Number(res.headers.get("anthropic-ratelimit-unified-5h-utilization"));
+  const resetsAt = Number(res.headers.get("anthropic-ratelimit-unified-5h-reset")) * 1000;
+  if (!res.headers.has("anthropic-ratelimit-unified-5h-utilization") || !resetsAt) throw new Error(`HTTP ${res.status}, no usage headers`);
+  return { used, resetsAt, readAt: Date.now() };
+}
+// True (after a minute's sleep) while over USAGE_PAUSE. A failed read lets work start: the limit, if hit, still
+// ends the run as an infra crash. Read at most once a minute, and not at all before a known reset.
+let usageRead: Promise<void> | undefined;
+async function overUsage(): Promise<boolean> {
+  const now = Date.now();
+  const fresh = usage && (usage.used >= USAGE_PAUSE ? now < usage.resetsAt : now - usage.readAt < 60_000);
+  if (!fresh) {
+    usageRead ??= readUsage()
+      .then((u) => {
+        const was = usage && usage.used >= USAGE_PAUSE && Date.now() < usage.resetsAt;
+        usage = u;
+        const pct = `${Math.round(u.used * 100)}%`;
+        if (u.used >= USAGE_PAUSE && !was) log(`⏸ Claude 5h usage at ${pct}: starting nothing new until ${new Date(u.resetsAt).toTimeString().slice(0, 5)}`);
+        if (u.used < USAGE_PAUSE && was) log(`▶ Claude 5h usage at ${pct}: picking issues again`);
+      })
+      .catch((e) => log(`couldn't read Claude usage, carrying on: ${oneLine(e)}`))
+      .finally(() => { usageRead = undefined; });
+    await usageRead;
+  }
+  if (!usage || usage.used < USAGE_PAUSE || Date.now() >= usage.resetsAt) return false;
+  await sleep(60_000);
+  return true;
+}
+
 // One of MAX_PARALLEL slots: as soon as its issue is merged or handed back, it picks the next one.
 async function worker() {
   while (!crashed && taken.size < MAX_ISSUES && !existsSync(STOP_FILE)) {
+    if (await overUsage()) continue;
     let issue: Issue | "wait" | "done";
     try {
       issue = pickNext();
