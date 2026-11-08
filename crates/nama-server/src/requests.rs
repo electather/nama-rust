@@ -1666,15 +1666,21 @@ async fn followed_show_approved(conn: &mut SqliteConnection, id: i64) -> Result<
 }
 
 /// Removes the Followed Show `id`, and its Requesters with it. Returns the first Season Request it
-/// opened, as it is now, if it was Approved, so its Fulfiller was asked to follow the Show.
+/// opened, as it was, if it was Approved, so its Fulfiller was asked to follow the Show.
 async fn cancel_followed(conn: &mut SqliteConnection, id: i64) -> Result<Option<Request>, Error> {
     let followed_season = if followed_show_approved(conn, id).await? {
-        sqlx::query_scalar!(
+        // shortcut: a Followed Show stores no Show ids, so once every Season Request it opened is
+        // cancelled its Fulfiller isn't told to stop; store them if that bites.
+        let first = sqlx::query_scalar!(
             "SELECT MIN(id) FROM requests WHERE followed_show_id = ?",
             id
         )
         .fetch_one(&mut *conn)
-        .await?
+        .await?;
+        match first {
+            Some(first) => load_one(conn, first).await?,
+            None => None,
+        }
     } else {
         None
     };
@@ -1685,10 +1691,7 @@ async fn cancel_followed(conn: &mut SqliteConnection, id: i64) -> Result<Option<
     if removed == 0 {
         return Err(Error::NoSuchFollowedShow(id));
     }
-    match followed_season {
-        Some(season) => Ok(load_one(conn, season).await?),
-        None => Ok(None),
-    }
+    Ok(followed_season)
 }
 
 /// Takes `user` off the Followed Show `id`, among those `visible` lets them see, removing it as
