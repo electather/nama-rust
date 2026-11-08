@@ -1,6 +1,6 @@
 //! Requests: Users asking for a Movie that isn't on the Server to be added to it (ADR 0012).
 //!
-//! [`Requests`] is the only code that reads or writes `requests` and `requesters`. It hands
+//! This module is the only code that reads or writes `requests` and `requesters`. It hands
 //! Requests out as their proto messages, since those are also what its events carry.
 
 use std::{collections::HashMap, sync::Arc};
@@ -284,14 +284,7 @@ async fn ask(
     }
     let now = now();
     let state = stored(state);
-    // Open as `one_open_request_per_movie` has it.
-    let open = sqlx::query_scalar!(
-        "SELECT id FROM requests
-         WHERE tmdb_id = ? AND state NOT IN ('declined', 'available')",
-        tmdb_id
-    )
-    .fetch_optional(&mut *conn)
-    .await?;
+    let open = open_request(conn, tmdb_id).await?;
     let opened = open.is_none();
     let id = match open {
         Some(id) => id,
@@ -337,6 +330,49 @@ async fn ask(
         None
     };
     Ok((request, happened))
+}
+
+/// Makes Available the open Request for each of the Movies `tmdb_ids` that a Library now has,
+/// and returns an event for each (ADR 0012). Declined Requests are closed, so they stay as they
+/// are.
+pub(crate) async fn make_available(
+    conn: &mut SqliteConnection,
+    tmdb_ids: Vec<i64>,
+) -> Result<Vec<Event>, sqlx::Error> {
+    let mut happened = Vec::new();
+    for tmdb_id in tmdb_ids {
+        let Some(id) = open_request(conn, tmdb_id).await? else {
+            continue;
+        };
+        // The Match isn't stored if its Item went since it was decided about.
+        if contents::library_with_movie(conn, tmdb_id).await?.is_none() {
+            continue;
+        }
+        sqlx::query!("UPDATE requests SET state = 'available' WHERE id = ?", id)
+            .execute(&mut *conn)
+            .await?;
+        let request = load_one(conn, id).await?.ok_or(sqlx::Error::RowNotFound)?;
+        happened.push(event(RequestStateChanged {
+            request: request.into(),
+            ..Default::default()
+        }));
+    }
+    Ok(happened)
+}
+
+/// The ID of the Movie `tmdb_id`'s open Request, if it has one.
+async fn open_request(
+    conn: &mut SqliteConnection,
+    tmdb_id: i64,
+) -> Result<Option<i64>, sqlx::Error> {
+    // Open as `one_open_request_per_movie` has it.
+    sqlx::query_scalar!(
+        "SELECT id FROM requests
+         WHERE tmdb_id = ? AND state NOT IN ('declined', 'available')",
+        tmdb_id
+    )
+    .fetch_optional(&mut *conn)
+    .await
 }
 
 /// Moves the Pending Request `id` to `state` with `reason`, and returns it as it is now.

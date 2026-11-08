@@ -22,10 +22,11 @@ use nama_plugin_tmdb::{
     testing::{API_KEY, FakeTmdb},
 };
 use nama_proto::nama::v1::{
-    ClearMatchRequest, CreateLibraryRequest, ExternalId, LibraryKind, LibraryServiceClient,
-    ListUnmatchedItemsRequest, ListUnmatchedItemsResponse, MatchServiceClient, RefusalReason,
-    ScanLibraryRequest, SearchMetadataRequest, SetMatchRequest, SetMatchResponse, TitleKind,
-    UnmatchedItem, external_id,
+    ClearMatchRequest, CreateLibraryRequest, CreateRequestRequest, ExternalId, GetRequestRequest,
+    LibraryKind, LibraryServiceClient, ListUnmatchedItemsRequest, ListUnmatchedItemsResponse,
+    MatchServiceClient, RefusalReason, RequestServiceClient, RequestState, ScanLibraryRequest,
+    SearchMetadataRequest, SetMatchRequest, SetMatchResponse, TitleKind, UnmatchedItem,
+    external_id,
 };
 use nama_server::{config::Config, contents::Contents, plugins::Registry};
 use refused::assert_refused;
@@ -54,7 +55,7 @@ struct Fixture {
     matches: MatchServiceClient<HttpClient>,
     contents: Contents,
     _tmdb: Option<FakeTmdb>,
-    _server: TestServer,
+    server: TestServer,
     _media: TempDir,
 }
 
@@ -109,7 +110,7 @@ impl Fixture {
             matches: MatchServiceClient::new(HttpClient::plaintext(), config),
             contents: Contents::new(db),
             _tmdb: tmdb,
-            _server: server,
+            server,
             _media: media,
         }
     }
@@ -385,6 +386,40 @@ async fn search_metadata_without_a_metadata_provider_is_unavailable() {
         ErrorCode::Unavailable,
         RefusalReason::REFUSAL_REASON_NO_METADATA_PROVIDER,
     );
+}
+
+#[tokio::test]
+async fn matching_a_file_by_hand_to_a_requested_movie_makes_its_request_available() {
+    let fx = Fixture::start(LibraryKind::LIBRARY_KIND_MOVIES).await;
+    fx.write(HOME_MOVIES, VIDEO);
+    let (item, _) = fx.scan_until_decided(HOME_MOVIES, VIDEO).await;
+    let requests = RequestServiceClient::new(HttpClient::plaintext(), fx.server.client_config());
+    let heat = requests
+        .create_request(CreateRequestRequest {
+            movie_tmdb_id: 949,
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_owned()
+        .request
+        .into_option()
+        .unwrap();
+
+    fx.set_match(item, 949).await.unwrap();
+    let after = requests
+        .get_request(GetRequestRequest {
+            id: heat.id,
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_owned()
+        .request
+        .into_option()
+        .unwrap();
+
+    assert_eq!(after.state, RequestState::Available);
 }
 
 #[tokio::test]
