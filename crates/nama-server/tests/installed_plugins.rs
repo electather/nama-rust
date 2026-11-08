@@ -527,20 +527,27 @@ async fn a_check_that_loops_forever_or_panics_fails_in_plain_words_and_the_serve
     let looped = started.test_settings(&[("fail_with", "loop")]).await;
     let panicked = started.test_settings(&[("fail_with", "panic")]).await;
 
-    for (failed, message) in [
+    for (failed, message, timeout_seconds) in [
         (
             looped,
             "test-plugin didn't finish checking its settings within 5 seconds",
+            Some("5"),
         ),
-        (panicked, "test-plugin failed while checking its settings"),
+        (
+            panicked,
+            "test-plugin failed while checking its settings",
+            None,
+        ),
     ] {
         let err = failed.clone().unwrap_err();
-        assert_refused(
+        let refusal = assert_refused(
             failed,
             ErrorCode::FailedPrecondition,
             RefusalReason::REFUSAL_REASON_SETTINGS_CHECK_FAILED,
         );
         assert_eq!(err.message.as_deref(), Some(message));
+        let timeout = refusal.params.get("timeoutSeconds").map(String::as_str);
+        assert_eq!(timeout, timeout_seconds);
     }
     let retested = started.test_settings(&[]).await.unwrap();
     assert_eq!(choice_labels(&retested, "profile"), ["HD", "Ultra HD"]);

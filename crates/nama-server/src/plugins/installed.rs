@@ -37,11 +37,14 @@ use thiserror::Error;
 use tokio::task;
 use tracing::{error, info, warn};
 
-use super::{Described, Registry, contain_sync, log_not_enabled, secret_values, without_secrets};
+use super::{
+    CheckTimedOut, Described, Registry, contain_sync, log_not_enabled, secret_values,
+    without_secrets,
+};
 use crate::config::PluginConfig;
 
 /// How long one call into an Installed Plugin may run, so one that never returns can't hold up
-/// the start or its Observer's task.
+/// the start, its Observer's task or a settings check.
 const CALL_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// How many calls in a row may crash before the Plugin is disabled, so one bad input doesn't
@@ -240,14 +243,7 @@ impl SettingsCheck for Installed {
             .await;
             let output = match called {
                 Ok(Ok(output)) => output,
-                Ok(Err(err)) if is_timeout(&err) => {
-                    let seconds = CALL_TIMEOUT.as_secs();
-                    let id = &self.manifest.id;
-                    let message = format!(
-                        "{id} didn't finish checking its settings within {seconds} seconds"
-                    );
-                    return Err(message.into());
-                }
+                Ok(Err(err)) if is_timeout(&err) => return Err(CheckTimedOut(CALL_TIMEOUT).into()),
                 // So the registry logs why and fails the check in plain words, as it does when a
                 // Built-in Plugin's check panics.
                 Ok(Err(err)) if is_crash(&err) => {

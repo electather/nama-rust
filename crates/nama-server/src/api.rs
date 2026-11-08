@@ -83,7 +83,7 @@ use crate::{
     libraries::{self, FolderProblem, Kind, Libraries, Library},
     matching::{ManualError, Matcher},
     plugin_settings,
-    plugins::{CheckError, EnableError, Listed, Registry, SETTINGS_CHECK_TIMEOUT, installed},
+    plugins::{CheckError, EnableError, Listed, Registry, installed},
     rate_limits::{Blocked, SignInCodeLimits, SignInLimits},
     requests::{self, Found, FoundShow, Requests},
     scanner::Scanner,
@@ -2401,8 +2401,8 @@ fn check_refused(id: &PluginId, err: CheckError, setting: Option<&str>) -> Conne
         CheckError::Unknown(unknown) => plugin_not_found(&unknown),
         CheckError::InvalidSettings(error) => settings_refused(error),
         CheckError::Failed(message) => check_failed(message).into(),
-        CheckError::TimedOut(_) => check_failed(err.to_string())
-            .param("timeoutSeconds", &SETTINGS_CHECK_TIMEOUT.as_secs())
+        CheckError::TimedOut(_, after) => check_failed(err.to_string())
+            .param("timeoutSeconds", &after.as_secs())
             .into(),
     }
 }
