@@ -123,7 +123,7 @@ mod exports {
         /// that isn't in it has no downloads, and Availability comes from the Library, not here
         /// (ADR 0012).
         fn progress(references: Vec<String>) -> Result<HashMap<String, Vec<Download>>, Error> {
-            // shortcut: reads only the first 1000 entries; page through `totalRecords` if a
+            // ponytail: reads only the first 1000 entries; page through `totalRecords` if a
             // queue ever holds more.
             let queue: Queue =
                 Radarr::from_config()?.get("queue?pageSize=1000&includeMovie=true")?;
@@ -303,17 +303,19 @@ mod exports {
             }
         }
 
-        /// Whether it waits on a person: Radarr warns about it, it failed, or its import is
-        /// blocked.
+        /// Whether it waits on a person: Radarr warns about it, it failed, its import is blocked,
+        /// or Radarr can't reach its download client.
         fn needs_attention(&self) -> bool {
             matches!(
                 self.tracked_download_status.as_deref(),
                 Some("warning" | "error")
-            ) || matches!(self.status.as_str(), "failed" | "warning")
-                || matches!(
-                    self.tracked_download_state.as_deref(),
-                    Some("importBlocked" | "failedPending" | "failed")
-                )
+            ) || matches!(
+                self.status.as_str(),
+                "failed" | "warning" | "downloadClientUnavailable"
+            ) || matches!(
+                self.tracked_download_state.as_deref(),
+                Some("importBlocked" | "failedPending" | "failed")
+            )
         }
 
         /// Radarr's messages about it, if it has any.
