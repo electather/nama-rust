@@ -1,6 +1,7 @@
 //! Calls the Server's API over a real socket, the way clients will.
 
 #[path = "support/server.rs"]
+#[expect(dead_code, reason = "the harness's `data_dir` has no use here")]
 mod server;
 
 use std::net::SocketAddr;

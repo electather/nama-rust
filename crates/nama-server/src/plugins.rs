@@ -22,6 +22,7 @@ use nama_plugin_api::{
     fulfiller::{Fulfiller, Movies, Shows},
     settings::{Choices, SettingKind, Settings, SettingsError, SettingsSchema},
 };
+use nama_proto::nama::v1::PluginKind;
 use thiserror::Error;
 use tracing::{error, info, warn};
 
@@ -44,16 +45,20 @@ struct State {
     points: HashMap<PointKey, Vec<Entry>>,
     /// The admin's ranking of Providers, by capability. It outlasts Plugins being disabled.
     precedence: HashMap<PointKey, Vec<PluginId>>,
-    /// Each Built-in Plugin, enabled or not.
-    builtins: BTreeMap<PluginId, Described>,
+    /// Each Plugin the Server has, Built-in or Installed, enabled or not.
+    known: BTreeMap<PluginId, Described>,
 }
 
-/// A Built-in Plugin, with what it said about itself once at start, so listing runs no Plugin
-/// code.
+type Make = Arc<dyn Fn() -> Arc<dyn Plugin> + Send + Sync>;
+
+/// A Plugin the Server has, with what it said about itself when the Server read it, so listing
+/// runs no Plugin code.
 struct Described {
-    /// Makes the Plugin anew for each enablement. Keeping one instance instead would hold it past
-    /// disabling, so its `Drop` would run uncontained when the registry goes.
-    make: fn() -> Arc<dyn Plugin>,
+    kind: PluginKind,
+    /// Makes the Plugin anew for each enablement, or says why the Server refused it. Keeping one
+    /// instance instead would hold it past disabling, so its `Drop` would run uncontained when the
+    /// registry goes.
+    make: Result<Make, String>,
     version: String,
     settings_schema: SettingsSchema,
     checks_settings: bool,
@@ -85,11 +90,15 @@ impl Entry {
     }
 }
 
-/// A Built-in Plugin, as [`Registry::builtins`] lists it.
+/// A Plugin the Server has, as [`Registry::plugins`] lists it.
 #[derive(Debug, Clone)]
-pub struct Builtin {
-    /// Its unique id.
+pub struct Listed {
+    /// Its unique id, or for an Installed Plugin the Server refused, its file's name.
     pub id: PluginId,
+    /// Whether it is Built-in or Installed.
+    pub kind: PluginKind,
+    /// Why the Server refused it, if it did, in which case it can't be enabled.
+    pub refused_reason: Option<String>,
     /// Its version.
     pub version: String,
     /// The settings it takes.
@@ -134,9 +143,17 @@ pub enum Outcome<A> {
 /// Why a Plugin couldn't be enabled.
 #[derive(Debug, Error)]
 pub enum EnableError {
-    /// No Built-in Plugin has the id.
+    /// No Plugin has the id.
     #[error("there is no plugin {0}")]
     Unknown(PluginId),
+    /// The Server refused the Plugin, for the reason given.
+    #[error("the Server refused plugin {plugin}: {reason}")]
+    Refused {
+        /// The Plugin.
+        plugin: PluginId,
+        /// Why the Server refused it.
+        reason: String,
+    },
     /// A Plugin with the same id is already enabled.
     #[error("plugin {0} is already enabled")]
     AlreadyEnabled(PluginId),
@@ -178,7 +195,7 @@ pub enum EnableError {
 /// Why a Plugin's settings check offered no choices.
 #[derive(Debug, Error)]
 pub enum CheckError {
-    /// No Built-in Plugin has the id.
+    /// No Plugin has the id.
     #[error("there is no plugin {0}")]
     Unknown(PluginId),
     /// The settings don't fit the Plugin's schema.
@@ -244,17 +261,22 @@ impl Registry {
         })
     }
 
-    /// Enables the Built-in Plugin `id` with `settings`, as [`Registry::enable_with_settings`]
-    /// does.
+    /// Enables the Plugin `id` that [`Registry::plugins`] lists with `settings`, as
+    /// [`Registry::enable_with_settings`] does.
     ///
     /// # Errors
     ///
-    /// If no Built-in Plugin has the id, or as [`Registry::enable_with_settings`] fails.
-    pub fn enable_builtin(&self, id: &PluginId, settings: Settings) -> Result<(), EnableError> {
+    /// If no Plugin has the id, the Server refused it, or as [`Registry::enable_with_settings`]
+    /// fails.
+    pub fn enable_by_id(&self, id: &PluginId, settings: Settings) -> Result<(), EnableError> {
         let make = self
-            .read(|state| state.builtins.get(id).map(|builtin| builtin.make))
-            .ok_or_else(|| EnableError::Unknown(id.clone()))?;
-        let plugin = contain_sync(make).map_err(|message| EnableError::Panicked {
+            .read(|state| state.known.get(id).map(|known| known.make.clone()))
+            .ok_or_else(|| EnableError::Unknown(id.clone()))?
+            .map_err(|reason| EnableError::Refused {
+                plugin: id.clone(),
+                reason,
+            })?;
+        let plugin = contain_sync(|| make()).map_err(|message| EnableError::Panicked {
             plugin: id.clone(),
             message,
         })?;
@@ -401,13 +423,13 @@ impl Registry {
         Ok(was_enabled)
     }
 
-    /// Runs the Built-in Plugin `id`'s settings check on `settings`, on a fresh instance whether
+    /// Runs the Plugin `id`'s settings check on `settings`, on a fresh instance whether
     /// it is enabled or not, and returns the choices it offers. The settings are checked against
     /// its schema first, with its Choice settings optional, and its defaults filled in.
     ///
     /// # Errors
     ///
-    /// If no Built-in Plugin has the id, it has no check, the settings don't fit, or the check
+    /// If no Plugin has the id, it has no check, the settings don't fit, or the check
     /// fails. A check that panics or runs past [`SETTINGS_CHECK_TIMEOUT`] fails without harming the
     /// Server.
     pub async fn check_settings(
@@ -415,20 +437,19 @@ impl Registry {
         id: &PluginId,
         settings: Settings,
     ) -> Result<Choices, CheckError> {
-        let (make, schema, checks_settings) = self
+        let (make, schema) = self
             .read(|state| {
-                let builtin = state.builtins.get(id)?;
+                let known = state.known.get(id)?;
                 Some((
-                    builtin.make,
-                    builtin.settings_schema.clone(),
-                    builtin.checks_settings,
+                    known.make.clone().ok().filter(|_| known.checks_settings),
+                    known.settings_schema.clone(),
                 ))
             })
             .ok_or_else(|| CheckError::Unknown(id.clone()))?;
         let no_check = || CheckError::Failed(format!("{id} has no settings check"));
-        if !checks_settings {
+        let Some(make) = make else {
             return Err(no_check());
-        }
+        };
         let settings = settings
             .resolve(&with_optional_choices(schema.clone()))
             .map_err(CheckError::InvalidSettings)?;
@@ -439,7 +460,7 @@ impl Registry {
             error!(plugin = %id, message, "plugin panicked while checking its settings");
             CheckError::Failed(format!("{id} failed while checking its settings"))
         };
-        let plugin = contain_sync(make).map_err(panicked)?;
+        let plugin = contain_sync(|| make()).map_err(panicked)?;
         // The timeout is inside `contain`, so dropping a check it gave up on (Plugin code) is
         // contained too, as are formatting and dropping the Plugin's error.
         let check = contain(|| async {
@@ -475,15 +496,18 @@ impl Registry {
         self.read(|state| state.plugins.keys().cloned().collect())
     }
 
-    /// Every Built-in Plugin [`Registry::with_builtins`] knew, enabled or not, sorted by id.
+    /// Every Plugin the Server has, enabled or not, sorted by id: the Built-in ones
+    /// [`Registry::with_builtins`] knew, and the Installed ones the Server last read.
     #[must_use]
-    pub fn builtins(&self) -> Vec<Builtin> {
+    pub fn plugins(&self) -> Vec<Listed> {
         self.read(|state| {
             state
-                .builtins
+                .known
                 .iter()
-                .map(|(id, described)| Builtin {
+                .map(|(id, described)| Listed {
                     id: id.clone(),
+                    kind: described.kind,
+                    refused_reason: described.make.as_ref().err().cloned(),
                     version: described.version.clone(),
                     settings_schema: described.settings_schema.clone(),
                     checks_settings: described.checks_settings,
@@ -771,7 +795,7 @@ fn secret_values(schema: &SettingsSchema, settings: &Settings) -> Vec<String> {
         .fields
         .iter()
         .filter(|field| field.kind == SettingKind::Secret)
-        .filter_map(|field| settings.text(field.key))
+        .filter_map(|field| settings.text(&field.key))
         .filter(|secret| !secret.is_empty())
         .map(str::to_owned)
         .collect()
@@ -784,6 +808,16 @@ fn without_secrets(mut message: String, secrets: &[String]) -> String {
         message = message.replace(secret.as_str(), "…");
     }
     message
+}
+
+/// Logs why the Plugin `id` wasn't enabled at start.
+fn log_not_enabled(id: &PluginId, err: &EnableError) {
+    // Not an error: a Plugin such as TMDB needs an API key before it can run.
+    if matches!(err, EnableError::InvalidSettings { .. }) {
+        warn!(plugin = %id, "plugin not enabled: {err}");
+    } else {
+        error!(plugin = %id, "could not enable plugin: {err}");
+    }
 }
 
 pub(crate) fn contain_sync<T>(call: impl FnOnce() -> T) -> Result<T, String> {

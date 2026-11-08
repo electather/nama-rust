@@ -1,10 +1,12 @@
 import { createQueryOptions, useSuspenseQuery } from "@connectrpc/connect-query";
 import { createFileRoute } from "@tanstack/react-router";
+import { Ban } from "lucide-react";
 import { useId } from "react";
 
 import { Page } from "@/components/page";
 import { PluginSettings } from "@/components/plugin-settings";
 import { PluginToggle } from "@/components/plugin-toggle";
+import { StateLabel } from "@/components/state-label";
 import { type Plugin, PluginKind, PluginService } from "@/gen/nama/v1/plugin_pb";
 
 export const Route = createFileRoute("/_member/_admin/admin/plugins")({
@@ -34,6 +36,7 @@ function Plugins() {
 
 function PluginSection({ plugin }: { plugin: Plugin }) {
   const heading = useId();
+  const kind = plugin.kind === PluginKind.BUILT_IN ? "Built-in" : "Installed";
   return (
     <section aria-labelledby={heading} className="py-6">
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
@@ -42,17 +45,32 @@ function PluginSection({ plugin }: { plugin: Plugin }) {
             {plugin.id}
           </h2>
           <p className="text-sm text-muted-foreground">
-            {plugin.kind === PluginKind.BUILT_IN ? "Built-in, version " : "Version "}
-            {plugin.version}
+            {plugin.version === "" ? kind : `${kind}, version ${plugin.version}`}
           </p>
         </div>
-        <PluginToggle plugin={plugin} />
+        {plugin.refusedReason === "" ? (
+          <PluginToggle plugin={plugin} />
+        ) : (
+          <StateLabel label="Refused" Icon={Ban} />
+        )}
       </div>
-      {plugin.settings.length > 0 ? (
-        <PluginSettings plugin={plugin} />
-      ) : (
-        <p className="mt-4 text-sm text-muted-foreground">No settings.</p>
-      )}
+      <PluginBody plugin={plugin} />
     </section>
+  );
+}
+
+/** Why the Server refused `plugin`, or else its settings. */
+function PluginBody({ plugin }: { plugin: Plugin }) {
+  if (plugin.refusedReason !== "") {
+    return (
+      <p className="mt-4 max-w-prose text-sm text-pretty text-muted-foreground">
+        The Server can’t run it: {plugin.refusedReason}.
+      </p>
+    );
+  }
+  return plugin.settings.length > 0 ? (
+    <PluginSettings plugin={plugin} />
+  ) : (
+    <p className="mt-4 text-sm text-muted-foreground">No settings.</p>
   );
 }

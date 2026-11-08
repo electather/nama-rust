@@ -245,7 +245,8 @@ export const ObservePoint = {
   UNSPECIFIED: 0,
 
   /**
-   * Things happened on the Server: the same Events `nama.v1.EventService.Subscribe` streams.
+   * Things happened on the Server: the same Events `nama.v1.EventService.Subscribe` streams. The
+   * Plugin's `observe_events` export takes each batch as `ObservedEvents` and returns nothing.
    *
    * @generated from enum value: OBSERVE_POINT_EVENTS = 1;
    */

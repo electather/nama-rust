@@ -138,6 +138,10 @@ pub enum RefusalReason {
     /// `failed_precondition`: the caller isn't one of the Followed Show's Requesters, so they can't
     /// withdraw from it. Params: `followedShowId`.
     REFUSAL_REASON_NOT_A_FOLLOWED_SHOW_REQUESTER = 51i32,
+    /// `failed_precondition`: the Server refused the Plugin, such as an Installed Plugin built for
+    /// another Nama API version, so it can't be enabled. The message says why. Params: `pluginId`,
+    /// `reason` (in plain words, as `Plugin.refused_reason`).
+    REFUSAL_REASON_PLUGIN_REFUSED = 52i32,
 }
 impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -296,6 +300,9 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_NOT_A_FOLLOWED_SHOW_REQUESTER`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const NotAFollowedShowRequester: Self = Self::REFUSAL_REASON_NOT_A_FOLLOWED_SHOW_REQUESTER;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_PLUGIN_REFUSED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const PluginRefused: Self = Self::REFUSAL_REASON_PLUGIN_REFUSED;
 }
 impl ::core::default::Default for RefusalReason {
     fn default() -> Self {
@@ -501,6 +508,7 @@ impl ::buffa::Enumeration for RefusalReason {
                     Self::REFUSAL_REASON_NOT_A_FOLLOWED_SHOW_REQUESTER,
                 )
             }
+            52i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_PLUGIN_REFUSED),
             _ => ::core::option::Option::None,
         }
     }
@@ -607,6 +615,7 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_NOT_A_FOLLOWED_SHOW_REQUESTER => {
                 "REFUSAL_REASON_NOT_A_FOLLOWED_SHOW_REQUESTER"
             }
+            Self::REFUSAL_REASON_PLUGIN_REFUSED => "REFUSAL_REASON_PLUGIN_REFUSED",
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -779,6 +788,9 @@ impl ::buffa::Enumeration for RefusalReason {
                     Self::REFUSAL_REASON_NOT_A_FOLLOWED_SHOW_REQUESTER,
                 )
             }
+            "REFUSAL_REASON_PLUGIN_REFUSED" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_PLUGIN_REFUSED)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -836,6 +848,7 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_FOLLOWED_SHOW_NOT_FOUND,
             Self::REFUSAL_REASON_FOLLOWED_SHOW_NOT_PENDING,
             Self::REFUSAL_REASON_NOT_A_FOLLOWED_SHOW_REQUESTER,
+            Self::REFUSAL_REASON_PLUGIN_REFUSED,
         ]
     }
 }

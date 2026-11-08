@@ -9,6 +9,9 @@ pub enum PluginKind {
     PLUGIN_KIND_UNSPECIFIED = 0i32,
     /// Compiled into the Server.
     PLUGIN_KIND_BUILT_IN = 1i32,
+    /// Loaded from a `.wasm` file in the Server's `<data_dir>/plugins/`, which the Server reads again
+    /// each time it lists its Plugins.
+    PLUGIN_KIND_INSTALLED = 2i32,
 }
 impl PluginKind {
     ///Idiomatic alias for [`Self::PLUGIN_KIND_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -17,6 +20,9 @@ impl PluginKind {
     ///Idiomatic alias for [`Self::PLUGIN_KIND_BUILT_IN`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const BuiltIn: Self = Self::PLUGIN_KIND_BUILT_IN;
+    ///Idiomatic alias for [`Self::PLUGIN_KIND_INSTALLED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Installed: Self = Self::PLUGIN_KIND_INSTALLED;
 }
 impl ::core::default::Default for PluginKind {
     fn default() -> Self {
@@ -114,6 +120,7 @@ impl ::buffa::Enumeration for PluginKind {
         match value {
             0i32 => ::core::option::Option::Some(Self::PLUGIN_KIND_UNSPECIFIED),
             1i32 => ::core::option::Option::Some(Self::PLUGIN_KIND_BUILT_IN),
+            2i32 => ::core::option::Option::Some(Self::PLUGIN_KIND_INSTALLED),
             _ => ::core::option::Option::None,
         }
     }
@@ -124,6 +131,7 @@ impl ::buffa::Enumeration for PluginKind {
         match self {
             Self::PLUGIN_KIND_UNSPECIFIED => "PLUGIN_KIND_UNSPECIFIED",
             Self::PLUGIN_KIND_BUILT_IN => "PLUGIN_KIND_BUILT_IN",
+            Self::PLUGIN_KIND_INSTALLED => "PLUGIN_KIND_INSTALLED",
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -134,11 +142,18 @@ impl ::buffa::Enumeration for PluginKind {
             "PLUGIN_KIND_BUILT_IN" => {
                 ::core::option::Option::Some(Self::PLUGIN_KIND_BUILT_IN)
             }
+            "PLUGIN_KIND_INSTALLED" => {
+                ::core::option::Option::Some(Self::PLUGIN_KIND_INSTALLED)
+            }
             _ => ::core::option::Option::None,
         }
     }
     fn values() -> &'static [Self] {
-        &[Self::PLUGIN_KIND_UNSPECIFIED, Self::PLUGIN_KIND_BUILT_IN]
+        &[
+            Self::PLUGIN_KIND_UNSPECIFIED,
+            Self::PLUGIN_KIND_BUILT_IN,
+            Self::PLUGIN_KIND_INSTALLED,
+        ]
     }
 }
 /// What kind of value a setting takes.
@@ -1953,7 +1968,8 @@ pub struct Plugin {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_default_enum_value"
     )]
     pub kind: ::buffa::EnumValue<PluginKind>,
-    /// Whether it is running. A Plugin missing a required setting isn't.
+    /// Whether it is running. A Plugin missing a required setting isn't, and an Installed Plugin
+    /// starts disabled.
     ///
     /// Field 4: `enabled`
     #[serde(
@@ -1981,6 +1997,18 @@ pub struct Plugin {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
     )]
     pub checks_settings: bool,
+    /// Why the Server refused it, in plain words, such as an Installed Plugin built for another Nama
+    /// API version. Empty unless it was refused. A refused Plugin can't be enabled, and its `id` is
+    /// its file's name, since the Server may not have learnt the id it gives itself.
+    ///
+    /// Field 7: `refused_reason`
+    #[serde(
+        rename = "refusedReason",
+        alias = "refused_reason",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub refused_reason: ::buffa::alloc::string::String,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -1994,6 +2022,7 @@ impl ::core::fmt::Debug for Plugin {
             .field("enabled", &self.enabled)
             .field("settings", &self.settings)
             .field("checks_settings", &self.checks_settings)
+            .field("refused_reason", &self.refused_reason)
             .finish()
     }
 }
@@ -2050,6 +2079,11 @@ impl ::buffa::Message for Plugin {
         if self.checks_settings {
             size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
+        if !self.refused_reason.is_empty() {
+            size
+                += 1u64
+                    + ::buffa::types::string_encoded_len(&self.refused_reason) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -2085,6 +2119,9 @@ impl ::buffa::Message for Plugin {
         }
         if self.checks_settings {
             ::buffa::types::put_bool_field(6u32, self.checks_settings, buf);
+        }
+        if !self.refused_reason.is_empty() {
+            ::buffa::types::put_string_field(7u32, &self.refused_reason, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2146,6 +2183,13 @@ impl ::buffa::Message for Plugin {
                 )?;
                 self.checks_settings = ::buffa::types::decode_bool(buf)?;
             }
+            7u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.refused_reason, buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -2160,6 +2204,7 @@ impl ::buffa::Message for Plugin {
         self.enabled = false;
         self.settings.clear();
         self.checks_settings = false;
+        self.refused_reason.clear();
         self.__buffa_unknown_fields.clear();
     }
 }

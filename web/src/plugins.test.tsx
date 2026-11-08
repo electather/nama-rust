@@ -37,6 +37,26 @@ test("the Plugins page lists every Plugin with whether it is enabled", async () 
   expect((await plugin("tmdb")).getByText("Enabled")).toBeDefined();
 });
 
+test("each Plugin says whether it is Built-in or Installed", async () => {
+  openPlugins();
+
+  expect((await plugin("tmdb")).getByText("Built-in, version 0.1.0")).toBeDefined();
+  expect((await plugin("test-plugin")).getByText("Installed, version 0.1.0")).toBeDefined();
+});
+
+test("a refused Plugin says why and offers no way to enable it", async () => {
+  openPlugins();
+
+  const section = await plugin("out-of-range.wasm");
+  expect(section.getByText("Refused")).toBeDefined();
+  expect(
+    section.getByText(
+      "The Server can’t run it: it wants nama-api <0.1, and this Server has 0.1.0.",
+    ),
+  ).toBeDefined();
+  expect(section.queryByRole("button")).toBeNull();
+});
+
 test("a Plugin's settings fill its form, with defaults as hints and a set secret only as set", async () => {
   openPlugins();
 
