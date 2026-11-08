@@ -11,6 +11,8 @@ mod refused;
 #[expect(dead_code, reason = "the harness's plain `start` has no use here")]
 #[path = "support/server.rs"]
 mod server;
+#[path = "support/test_plugin.rs"]
+mod test_plugin;
 
 use std::{
     collections::{BTreeMap, HashMap},
@@ -47,12 +49,13 @@ use nama_proto::nama::v1::{
     CreateSeasonRequestsRequest, CreateUserRequest, DeclineFollowedShowRequest,
     DeclineRequestRequest, EnablePluginRequest, EventServiceClient, EventType, FollowedShow,
     FoundMovie, FoundShow, GetRequestRequest, LibraryKind, LibraryServiceClient, ListMoviesRequest,
-    ListRequestsRequest, ListShowsRequest, LookUpMovieRequest, LookUpShowRequest, Permission,
-    PluginServiceClient, RefusalReason, Request, RequestServiceClient, RequestState,
-    RetryRequestRequest, ScanLibraryRequest, SearchMoviesRequest, SearchShowsRequest,
-    SessionDelivery, SetPermissionsRequest, SignInRequest, SignInServiceClient, SubscribeRequest,
-    SubscribeResponse, UserServiceClient, WithdrawFollowedShowRequest, WithdrawRequestRequest,
-    event, subscribe_response,
+    ListPluginsRequest, ListRequestsRequest, ListShowsRequest, LookUpMovieRequest,
+    LookUpShowRequest, Permission, PluginServiceClient, RefusalReason, Request,
+    RequestServiceClient, RequestState, RetryRequestRequest, ScanLibraryRequest,
+    SearchMoviesRequest, SearchShowsRequest, SessionDelivery, SetPermissionsRequest, SignInRequest,
+    SignInServiceClient, SubscribeRequest, SubscribeResponse, UpdatePluginSettingsRequest,
+    UserServiceClient, WithdrawFollowedShowRequest, WithdrawRequestRequest, event, setting_value,
+    subscribe_response,
 };
 use nama_server::{
     config::{Config, PluginConfig},
@@ -198,6 +201,54 @@ impl Fixture {
             })
             .await
             .map(drop)
+    }
+
+    /// A Fixture whose Movie Fulfiller is the test Plugin, Installed and enabled as an Admin would,
+    /// with its `fulfiller` setting `fulfiller`.
+    async fn with_installed_fulfiller(fulfiller: &str) -> Self {
+        let fixture = Self::start().await;
+        // As on a Server's first start.
+        plugin_settings::import(&fixture.db, &BTreeMap::new())
+            .await
+            .unwrap();
+        let dir = fixture.server.data_dir().join("plugins");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("test.wasm"), test_plugin::build("")).unwrap();
+        // Listing is what reads `plugins/`.
+        let plugins = fixture.plugin_service();
+        plugins
+            .list_plugins(ListPluginsRequest::default())
+            .await
+            .unwrap();
+        fixture.set_installed_fulfiller(fulfiller).await;
+        plugins
+            .enable_plugin(EnablePluginRequest {
+                id: "test-plugin".to_owned(),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        fixture
+    }
+
+    /// Sets the Installed test Plugin's `fulfiller` setting to `fulfiller`, as an Admin would.
+    async fn set_installed_fulfiller(&self, fulfiller: &str) {
+        let value = nama_proto::nama::v1::SettingValue {
+            value: Some(setting_value::Value::TextValue(fulfiller.to_owned())),
+            ..Default::default()
+        };
+        self.plugin_service()
+            .update_plugin_settings(UpdatePluginSettingsRequest {
+                id: "test-plugin".to_owned(),
+                settings: std::iter::once(("fulfiller".to_owned(), value)).collect(),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+    }
+
+    fn plugin_service(&self) -> PluginServiceClient<HttpClient> {
+        PluginServiceClient::new(HttpClient::plaintext(), self.server.client_config())
     }
 
     /// The reference the Fulfiller gave for the Request `id`, as the Server stored it.
@@ -1084,6 +1135,79 @@ async fn retry(fixture: &Fixture, id: i64) -> Result<Request, ConnectError> {
         .request
         .into_option()
         .unwrap_or_default())
+}
+
+#[tokio::test]
+async fn approving_a_request_hands_it_to_an_installed_movie_fulfiller_which_says_how_it_is_progressing()
+ {
+    let fixture = Fixture::with_installed_fulfiller("take").await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let pending = ask(&requests(as_ada.clone()), HEAT).await;
+    let mut adas_events = subscribe(as_ada, &[EventType::EVENT_TYPE_REQUEST_PROGRESS]).await;
+
+    let approved = fixture.approve(pending.id).await;
+    let event = next_event(&mut adas_events).await;
+
+    assert_eq!(approved.state, RequestState::Processing);
+    assert_eq!(
+        fixture.fulfiller_reference(pending.id).await.as_deref(),
+        Some("test-949")
+    );
+    let event::Event::RequestProgress(progress) = event else {
+        panic!("not progress: {event:?}");
+    };
+    let half_done = Download {
+        title: "test-949".to_owned(),
+        percent: 50.0,
+        ..Default::default()
+    };
+    assert_eq!(progress.request.downloads, [half_done]);
+}
+
+#[tokio::test]
+async fn a_request_an_installed_fulfiller_refuses_fails_with_its_reason_and_retrying_once_it_takes_it_moves_it_to_processing()
+ {
+    let fixture = Fixture::with_installed_fulfiller("error").await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let pending = ask(&requests(as_ada), HEAT).await;
+
+    let failed = fixture.approve(pending.id).await;
+    fixture.set_installed_fulfiller("take").await;
+    let retried = retry(&fixture, pending.id).await.unwrap();
+
+    assert_eq!(failed.state, RequestState::Failed);
+    assert_eq!(
+        failed.failure_reason.as_deref(),
+        Some("the test Plugin's Fulfiller was set to error")
+    );
+    assert_eq!(retried.state, RequestState::Processing);
+    assert_eq!(
+        fixture.fulfiller_reference(pending.id).await.as_deref(),
+        Some("test-949")
+    );
+}
+
+#[tokio::test]
+async fn a_request_an_installed_fulfiller_loops_forever_or_panics_on_fails_and_the_server_carries_on()
+ {
+    let crashes = [
+        ("loop", "it didn't answer within 5s"),
+        ("panic", "the test Plugin's Fulfiller was set to panic"),
+    ];
+    for (fulfiller, reason) in crashes {
+        let fixture = Fixture::with_installed_fulfiller(fulfiller).await;
+        let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+        let pending = ask(&requests(as_ada), HEAT).await;
+
+        let failed = fixture.approve(pending.id).await;
+        fixture.set_installed_fulfiller("take").await;
+        let retried = retry(&fixture, pending.id).await.unwrap();
+
+        assert_eq!(failed.state, RequestState::Failed, "{fulfiller}");
+        let failure = failed.failure_reason.unwrap_or_default();
+        assert!(failure.contains(reason), "{fulfiller}: {failure}");
+        assert_eq!(retried.state, RequestState::Processing, "{fulfiller}");
+    }
 }
 
 #[tokio::test]

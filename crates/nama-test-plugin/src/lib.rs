@@ -8,11 +8,14 @@
     reason = "an export returns `FnResult` even when it can't fail"
 )]
 mod exports {
+    use std::collections::HashMap;
+
     use nama_pdk::{
-        Buffa, FnResult, Manifest,
-        extism_pdk::{self, HttpRequest, config, http},
+        Buffa, Download, FnResult, Fulfiller, Manifest, Request,
+        extism_pdk::{self, Error, HttpRequest, config, http},
         nama_proto::nama::plugin::v1::{
-            ObservePoint, ObservedEvents, SettingField, SettingKind, SettingValue, setting_value,
+            ObservePoint, ObservedEvents, ProvidePoint, SettingField, SettingKind, SettingValue,
+            setting_value,
         },
         plugin_fn,
     };
@@ -20,9 +23,13 @@ mod exports {
     /// The setting that picks what its Observer does: `log`, `loop` or `panic`.
     const OBSERVER: &str = "observer";
 
-    // Says who the Plugin is, that it observes Events, and its settings: a URL whose host it may
-    // reach, one it requests, and how its Observer behaves. With the `out-of-range` feature it
-    // wants a Nama API no Server has, and with `panic` it panics instead.
+    /// The setting that picks what its Fulfiller does: `take`, `error`, `loop` or `panic`.
+    const FULFILLER: &str = "fulfiller";
+
+    // Says who the Plugin is, that it observes Events and fulfills Movie Requests, and its
+    // settings: a URL whose host it may reach, one it requests, and how its Observer and its
+    // Fulfiller behave. With the `out-of-range` feature it wants a Nama API no Server has, and
+    // with `panic` it panics instead.
     #[plugin_fn]
     pub fn manifest() -> FnResult<Buffa<Manifest>> {
         #[expect(
@@ -34,10 +41,20 @@ mod exports {
         } else {
             Manifest {
                 observers: vec![ObservePoint::OBSERVE_POINT_EVENTS.into()],
+                providers: vec![ProvidePoint::PROVIDE_POINT_MOVIE_FULFILLER.into()],
                 settings: vec![
                     setting("url", SettingKind::SETTING_KIND_URL),
                     setting("fetch", SettingKind::SETTING_KIND_TEXT),
-                    observer_setting(),
+                    behaviour_setting(
+                        OBSERVER,
+                        "log",
+                        "when told about Events: log, loop or panic",
+                    ),
+                    behaviour_setting(
+                        FULFILLER,
+                        "take",
+                        "when handed a Request: take, error, loop or panic",
+                    ),
                 ],
                 ..nama_pdk::manifest("test-plugin", env!("CARGO_PKG_VERSION"))
             }
@@ -59,16 +76,16 @@ mod exports {
         }
     }
 
-    fn observer_setting() -> SettingField {
+    /// The text setting `key`, `default` unless set, that picks what the Plugin does `when`.
+    fn behaviour_setting(key: &str, default: &str, when: &str) -> SettingField {
         SettingField {
-            label: "Observer".to_owned(),
-            description: "What it does when told about Events: log, loop or panic.".to_owned(),
+            description: format!("What it does {when}."),
             default_value: SettingValue {
-                value: Some(setting_value::Value::Text("log".to_owned())),
+                value: Some(setting_value::Value::Text(default.to_owned())),
                 ..Default::default()
             }
             .into(),
-            ..setting(OBSERVER, SettingKind::SETTING_KIND_TEXT)
+            ..setting(key, SettingKind::SETTING_KIND_TEXT)
         }
     }
 
@@ -78,13 +95,7 @@ mod exports {
     #[plugin_fn]
     pub fn observe_events(Buffa(observed): Buffa<ObservedEvents>) -> FnResult<()> {
         match config::get(OBSERVER)?.as_deref() {
-            #[expect(clippy::infinite_loop, reason = "it loops forever on purpose")]
-            Some("loop") => {
-                extism_pdk::info!("test-plugin is looping");
-                loop {
-                    std::hint::spin_loop();
-                }
-            }
+            Some("loop") => loop_forever(),
             #[expect(clippy::panic, reason = "it panics on purpose")]
             Some("panic") => panic!("the test Plugin's Observer was set to panic"),
             _ => {
@@ -99,4 +110,42 @@ mod exports {
             }
         }
     }
+
+    fn loop_forever() -> ! {
+        extism_pdk::info!("test-plugin is looping");
+        loop {
+            std::hint::spin_loop();
+        }
+    }
+
+    /// A Movie Fulfiller that, as its `fulfiller` setting says, takes each Request, giving
+    /// `test-<TMDB id>` as its reference, refuses it, loops forever or panics. It says each
+    /// reference it is asked about is half downloaded.
+    struct TestFulfiller;
+
+    impl Fulfiller for TestFulfiller {
+        fn fulfill(request: Request) -> Result<String, Error> {
+            match config::get(FULFILLER)?.as_deref() {
+                Some("error") => Err(Error::msg("the test Plugin's Fulfiller was set to error")),
+                Some("loop") => loop_forever(),
+                #[expect(clippy::panic, reason = "it panics on purpose")]
+                Some("panic") => panic!("the test Plugin's Fulfiller was set to panic"),
+                _ => Ok(format!("test-{}", request.movie.tmdb_id)),
+            }
+        }
+
+        fn progress(references: Vec<String>) -> Result<HashMap<String, Vec<Download>>, Error> {
+            let half_done = |reference: String| {
+                let download = Download {
+                    title: reference.clone(),
+                    percent: 50.0,
+                    ..Download::default()
+                };
+                (reference, vec![download])
+            };
+            Ok(references.into_iter().map(half_done).collect())
+        }
+    }
+
+    nama_pdk::fulfiller!(TestFulfiller);
 }

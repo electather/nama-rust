@@ -3,7 +3,7 @@
 //! them apart.
 
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, HashMap},
     fs, io, panic,
     path::{Path, PathBuf},
     sync::{
@@ -16,15 +16,19 @@ use std::{
 use buffa::Message;
 use extism::{CompiledPlugin, PluginBuilder, Wasm};
 use nama_plugin_api::{
-    BoxFuture, Observer, Plugin, PluginId, Registrar,
+    BoxFuture, Observer, Plugin, PluginError, PluginId, Priority, Registrar,
+    fulfiller::{Download, Fulfiller, Movies, Shows},
     points::Events,
     settings::{SettingField, SettingKind, SettingValue, Settings, SettingsSchema},
 };
 use nama_proto::{
     NAMA_API_VERSION,
     nama::{
-        plugin::v1::{self as wire, Manifest, ObservePoint, ObservedEvents, setting_value},
-        v1::{Event, PluginKind},
+        plugin::v1::{
+            self as wire, Fulfilled, Manifest, ObservePoint, ObservedEvents, Progress,
+            ProgressAsked, ProvidePoint, setting_value,
+        },
+        v1::{Event, PluginKind, Request},
     },
 };
 use semver::{Version, VersionReq};
@@ -42,6 +46,10 @@ const CALL_TIMEOUT: Duration = Duration::from_secs(5);
 /// How many calls in a row may crash before the Plugin is disabled, so one bad input doesn't
 /// cost an admin a Plugin.
 const CRASHES_BEFORE_DISABLING: u32 = 3;
+
+/// How Extism (1.41) gives a call that ran past [`CALL_TIMEOUT`]: as a bare error with this
+/// message.
+const TIMEOUT: &str = "timeout";
 
 /// What every binary WASM module starts with.
 const WASM_MAGIC: &[u8] = b"\0asm";
@@ -107,6 +115,33 @@ impl Running {
         extism::Plugin::new_from_compiled(&self.compiled)?.call(name, input)
     }
 
+    /// [`Self::call`] on a blocking thread. A panic there unwinds here, so the registry disables
+    /// the Plugin as it does one whose Rust code panics.
+    async fn call_blocking(
+        &self,
+        name: &'static str,
+        input: Vec<u8>,
+    ) -> Result<Result<Vec<u8>, extism::Error>, task::JoinError> {
+        let plugin = self.clone();
+        match task::spawn_blocking(move || plugin.call(name, input)).await {
+            Err(err) if err.is_panic() => panic::resume_unwind(err.into_panic()),
+            called => called,
+        }
+    }
+
+    /// [`Self::call_blocking`] for a Provider, whose caller gets why it failed: in the Plugin's own
+    /// words, or that it crashed. Its crashes don't count towards disabling it, since each
+    /// failure is the caller's to show, such as a Request's reason for being Failed.
+    async fn provide(&self, name: &'static str, input: Vec<u8>) -> Result<Vec<u8>, PluginError> {
+        self.call_blocking(name, input).await?.map_err(|err| {
+            if err.to_string() == TIMEOUT {
+                format!("it didn't answer within {CALL_TIMEOUT:?}").into()
+            } else {
+                err.root_cause().to_string().into()
+            }
+        })
+    }
+
     /// Logs why a call failed. If it crashed [`CRASHES_BEFORE_DISABLING`] times in a row, unwinds
     /// with why, so the registry disables the Plugin as it does one whose Rust code panics.
     fn failed(&self, err: &extism::Error) {
@@ -128,10 +163,9 @@ impl Running {
 /// Whether a failed call trapped or timed out, rather than the Plugin returning an error or a
 /// host function such as an HTTP request refusing it.
 fn is_crash(err: &extism::Error) -> bool {
-    // Extism (1.41) gives a timeout as a bare "timeout", and any other failed call as wasmtime's
-    // own error, which holds a trap (under any panic's message) only if the guest trapped. A host
-    // function's error unwinds the guest too, but holds no trap.
-    err.to_string() == "timeout"
+    // Any other failed call is wasmtime's own error, which holds a trap (under any panic's message)
+    // only if the guest trapped. A host function's error unwinds the guest too, but holds no trap.
+    err.to_string() == TIMEOUT
         || err
             .downcast_ref::<wasmtime::Error>()
             .is_some_and(wasmtime::Error::is::<wasmtime::Trap>)
@@ -172,6 +206,14 @@ impl Plugin for Installed {
         };
         // An Extension Point this Server doesn't know is one the Plugin can do without, since its
         // nama-api requirement admits this Server.
+        let providers = &self.manifest.providers;
+        if providers.contains(&ProvidePoint::PROVIDE_POINT_MOVIE_FULFILLER.into()) {
+            registrar
+                .provide::<dyn Fulfiller<Movies>>(Priority::DEFAULT, Arc::new(running.clone()));
+        }
+        if providers.contains(&ProvidePoint::PROVIDE_POINT_SHOW_FULFILLER.into()) {
+            registrar.provide::<dyn Fulfiller<Shows>>(Priority::DEFAULT, Arc::new(running.clone()));
+        }
         if self
             .manifest
             .observers
@@ -182,6 +224,36 @@ impl Plugin for Installed {
     }
 }
 
+// One impl for both kinds: the Plugin tells a Movie Request from a Season one by which it holds.
+impl<Kind: 'static> Fulfiller<Kind> for Running {
+    fn fulfill<'a>(&'a self, request: &'a Request) -> BoxFuture<'a, Result<String, PluginError>> {
+        let input = request.encode_to_vec();
+        Box::pin(async move {
+            let output = self.provide("fulfill", input).await?;
+            Ok(Fulfilled::decode_from_slice(&output)?.reference)
+        })
+    }
+
+    fn progress<'a>(
+        &'a self,
+        references: &'a [String],
+    ) -> BoxFuture<'a, Result<HashMap<String, Vec<Download>>, PluginError>> {
+        let input = ProgressAsked {
+            references: references.to_vec(),
+            ..Default::default()
+        }
+        .encode_to_vec();
+        Box::pin(async move {
+            let output = self.provide("progress", input).await?;
+            let progress = Progress::decode_from_slice(&output)?.downloads;
+            Ok(progress
+                .into_iter()
+                .map(|(reference, downloads)| (reference, downloads.downloads))
+                .collect())
+        })
+    }
+}
+
 impl Observer<Events> for Running {
     fn observe<'a>(&'a self, event: &'a Vec<Event>) -> BoxFuture<'a, ()> {
         let input = ObservedEvents {
@@ -189,14 +261,10 @@ impl Observer<Events> for Running {
             ..Default::default()
         }
         .encode_to_vec();
-        let plugin = self.clone();
         Box::pin(async move {
-            let called = task::spawn_blocking(move || plugin.call("observe_events", input)).await;
-            match called {
+            match self.call_blocking("observe_events", input).await {
                 Ok(Ok(_)) => self.crashes.store(0, Ordering::Relaxed),
                 Ok(Err(err)) => self.failed(&err),
-                // So the registry disables the Plugin, as it does one whose Rust code panics.
-                Err(err) if err.is_panic() => panic::resume_unwind(err.into_panic()),
                 Err(err) => warn!(plugin = %self.manifest.id, "observer failed: {err}"),
             }
         })

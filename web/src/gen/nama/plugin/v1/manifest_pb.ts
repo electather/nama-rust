@@ -13,7 +13,7 @@ import type { Message, UnknownEnum } from "@bufbuild/protobuf";
  * Describes the file nama/plugin/v1/manifest.proto.
  */
 export const file_nama_plugin_v1_manifest: GenFile = /*@__PURE__*/
-  fileDesc("Ch1uYW1hL3BsdWdpbi92MS9tYW5pZmVzdC5wcm90bxIObmFtYS5wbHVnaW4udjEi4gEKCE1hbmlmZXN0EgoKAmlkGAEgASgJEg8KB3ZlcnNpb24YAiABKAkSEAoIbmFtYV9hcGkYAyABKAkSLgoIc2V0dGluZ3MYBCADKAsyHC5uYW1hLnBsdWdpbi52MS5TZXR0aW5nRmllbGQSFQoNYWxsb3dlZF9ob3N0cxgFIAMoCRIvCglvYnNlcnZlcnMYBiADKA4yHC5uYW1hLnBsdWdpbi52MS5PYnNlcnZlUG9pbnQSLwoJcHJvdmlkZXJzGAcgAygOMhwubmFtYS5wbHVnaW4udjEuUHJvdmlkZVBvaW50IrEBCgxTZXR0aW5nRmllbGQSCwoDa2V5GAEgASgJEg0KBWxhYmVsGAIgASgJEhMKC2Rlc2NyaXB0aW9uGAMgASgJEikKBGtpbmQYBCABKA4yGy5uYW1hLnBsdWdpbi52MS5TZXR0aW5nS2luZBIQCghyZXF1aXJlZBgFIAEoCBIzCg1kZWZhdWx0X3ZhbHVlGAYgASgLMhwubmFtYS5wbHVnaW4udjEuU2V0dGluZ1ZhbHVlIkoKDFNldHRpbmdWYWx1ZRIOCgRib29sGAEgASgISAASEQoHaW50ZWdlchgCIAEoA0gAEg4KBHRleHQYAyABKAlIAEIHCgV2YWx1ZSqiAQoLU2V0dGluZ0tpbmQSHAoYU0VUVElOR19LSU5EX1VOU1BFQ0lGSUVEEAASFQoRU0VUVElOR19LSU5EX1RFWFQQARIXChNTRVRUSU5HX0tJTkRfU0VDUkVUEAISFQoRU0VUVElOR19LSU5EX0JPT0wQAxIYChRTRVRUSU5HX0tJTkRfSU5URUdFUhAEEhQKEFNFVFRJTkdfS0lORF9VUkwQBSpHCgxPYnNlcnZlUG9pbnQSHQoZT0JTRVJWRV9QT0lOVF9VTlNQRUNJRklFRBAAEhgKFE9CU0VSVkVfUE9JTlRfRVZFTlRTEAEqLQoMUHJvdmlkZVBvaW50Eh0KGVBST1ZJREVfUE9JTlRfVU5TUEVDSUZJRUQQAGIGcHJvdG8z");
+  fileDesc("Ch1uYW1hL3BsdWdpbi92MS9tYW5pZmVzdC5wcm90bxIObmFtYS5wbHVnaW4udjEi4gEKCE1hbmlmZXN0EgoKAmlkGAEgASgJEg8KB3ZlcnNpb24YAiABKAkSEAoIbmFtYV9hcGkYAyABKAkSLgoIc2V0dGluZ3MYBCADKAsyHC5uYW1hLnBsdWdpbi52MS5TZXR0aW5nRmllbGQSFQoNYWxsb3dlZF9ob3N0cxgFIAMoCRIvCglvYnNlcnZlcnMYBiADKA4yHC5uYW1hLnBsdWdpbi52MS5PYnNlcnZlUG9pbnQSLwoJcHJvdmlkZXJzGAcgAygOMhwubmFtYS5wbHVnaW4udjEuUHJvdmlkZVBvaW50IrEBCgxTZXR0aW5nRmllbGQSCwoDa2V5GAEgASgJEg0KBWxhYmVsGAIgASgJEhMKC2Rlc2NyaXB0aW9uGAMgASgJEikKBGtpbmQYBCABKA4yGy5uYW1hLnBsdWdpbi52MS5TZXR0aW5nS2luZBIQCghyZXF1aXJlZBgFIAEoCBIzCg1kZWZhdWx0X3ZhbHVlGAYgASgLMhwubmFtYS5wbHVnaW4udjEuU2V0dGluZ1ZhbHVlIkoKDFNldHRpbmdWYWx1ZRIOCgRib29sGAEgASgISAASEQoHaW50ZWdlchgCIAEoA0gAEg4KBHRleHQYAyABKAlIAEIHCgV2YWx1ZSqiAQoLU2V0dGluZ0tpbmQSHAoYU0VUVElOR19LSU5EX1VOU1BFQ0lGSUVEEAASFQoRU0VUVElOR19LSU5EX1RFWFQQARIXChNTRVRUSU5HX0tJTkRfU0VDUkVUEAISFQoRU0VUVElOR19LSU5EX0JPT0wQAxIYChRTRVRUSU5HX0tJTkRfSU5URUdFUhAEEhQKEFNFVFRJTkdfS0lORF9VUkwQBSpHCgxPYnNlcnZlUG9pbnQSHQoZT0JTRVJWRV9QT0lOVF9VTlNQRUNJRklFRBAAEhgKFE9CU0VSVkVfUE9JTlRfRVZFTlRTEAEqcgoMUHJvdmlkZVBvaW50Eh0KGVBST1ZJREVfUE9JTlRfVU5TUEVDSUZJRUQQABIhCh1QUk9WSURFX1BPSU5UX01PVklFX0ZVTEZJTExFUhABEiAKHFBST1ZJREVfUE9JTlRfU0hPV19GVUxGSUxMRVIQAmIGcHJvdG8z");
 
 /**
  * What an Installed Plugin is and what it needs from the Server. The Plugin returns it from its
@@ -278,8 +278,7 @@ export const ObservePointSchema: GenEnum<ObservePoint> = /*@__PURE__*/
   enumDesc(file_nama_plugin_v1_manifest, 1);
 
 /**
- * A capability an Installed Plugin can register a Provider for. None can yet; the first is the
- * Fulfiller.
+ * A capability an Installed Plugin can register a Provider for.
  *
  * @generated from enum nama.plugin.v1.ProvidePoint
  */
@@ -288,11 +287,27 @@ export const ProvidePoint = {
    * @generated from enum value: PROVIDE_POINT_UNSPECIFIED = 0;
    */
   UNSPECIFIED: 0,
+
+  /**
+   * The Fulfiller for Movie Requests. The Plugin's `fulfill` export takes each Request as a
+   * `nama.v1.Request` and returns `Fulfilled`, and its `progress` export takes `ProgressAsked` and
+   * returns `Progress`.
+   *
+   * @generated from enum value: PROVIDE_POINT_MOVIE_FULFILLER = 1;
+   */
+  MOVIE_FULFILLER: 1,
+
+  /**
+   * The Fulfiller for Season Requests, with the same exports as PROVIDE_POINT_MOVIE_FULFILLER. A
+   * Plugin providing both tells a Movie Request from a Season one by which it holds.
+   *
+   * @generated from enum value: PROVIDE_POINT_SHOW_FULFILLER = 2;
+   */
+  SHOW_FULFILLER: 2,
 } as const;
 
 /**
- * A capability an Installed Plugin can register a Provider for. None can yet; the first is the
- * Fulfiller.
+ * A capability an Installed Plugin can register a Provider for.
  *
  * @generated from enum nama.plugin.v1.ProvidePoint
  */

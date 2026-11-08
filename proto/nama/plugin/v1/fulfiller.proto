@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package nama.plugin.v1;
+
+import "nama/v1/request.proto";
+
+// What an Installed Plugin's `fulfill` export returns once its Fulfiller took the Request it was
+// handed as a `nama.v1.Request`. If the service didn't take it, the export fails instead, and its
+// error is the reason the Request shows as Failed.
+message Fulfilled {
+  // An opaque reference the Kernel keeps with the Request and passes back to `progress`.
+  string reference = 1;
+}
+
+// What an Installed Plugin's `progress` export is asked about: the references its Fulfiller gave
+// for its Processing Requests.
+message ProgressAsked {
+  repeated string references = 1;
+}
+
+// What an Installed Plugin's `progress` export returns: what the service is downloading, by
+// reference. A reference with nothing downloading may be left out.
+message Progress {
+  map<string, Downloads> downloads = 1;
+}
+
+// What the service is downloading for one reference.
+message Downloads {
+  repeated nama.v1.Download downloads = 1;
+}

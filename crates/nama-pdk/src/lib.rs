@@ -20,9 +20,20 @@
 //!
 //! If the Plugin panics, the Server gets the panic's message with the error of the call that
 //! panicked, not just a bare trap.
+//!
+//! A Plugin that hands Requests to an outside service implements [`Fulfiller`] and exports it with
+//! [`fulfiller!`].
+
+use std::collections::HashMap;
 
 pub use extism_pdk::{self, FnResult, plugin_fn};
-pub use nama_proto::{self, nama::plugin::v1::Manifest};
+pub use nama_proto::{
+    self,
+    nama::{
+        plugin::v1::Manifest,
+        v1::{Download, Request},
+    },
+};
 
 use extism_pdk::{Error, FromBytesOwned, ToBytes};
 
@@ -56,6 +67,92 @@ pub fn manifest(id: &str, version: &str) -> Manifest {
         nama_api: format!("^{}", nama_proto::NAMA_API_VERSION),
         ..Manifest::default()
     }
+}
+
+/// A Fulfiller: hands Approved Requests for Movies or Shows to an outside service, such as Radarr
+/// (ADR 0003). Its Manifest lists `PROVIDE_POINT_MOVIE_FULFILLER`, `PROVIDE_POINT_SHOW_FULFILLER` or
+/// both in `providers`, and [`fulfiller!`] exports it:
+///
+/// ```
+/// use std::collections::HashMap;
+///
+/// use nama_pdk::{Download, Fulfiller, Request, extism_pdk::Error};
+///
+/// struct Radarr;
+///
+/// impl Fulfiller for Radarr {
+///     fn fulfill(request: Request) -> Result<String, Error> {
+///         Ok(format!("radarr-{}", request.movie.tmdb_id))
+///     }
+///
+///     fn progress(_references: Vec<String>) -> Result<HashMap<String, Vec<Download>>, Error> {
+///         Ok(HashMap::new())
+///     }
+/// }
+///
+/// nama_pdk::fulfiller!(Radarr);
+/// ```
+pub trait Fulfiller {
+    /// Hands `request` to the service and returns at once, without waiting for it to be
+    /// fulfilled, with a reference the Server keeps with the Request and passes back to
+    /// [`Fulfiller::progress`]. A Plugin providing both kinds tells a Movie Request from a Season
+    /// one by which it holds.
+    ///
+    /// # Errors
+    ///
+    /// When the service didn't take the Request, such as when it is unreachable or doesn't know
+    /// the title. The error's message is the reason the Request shows as Failed.
+    fn fulfill(request: Request) -> Result<String, Error>;
+
+    /// What the service is downloading for each of `references`, by reference. A reference with
+    /// nothing downloading may be left out.
+    ///
+    /// # Errors
+    ///
+    /// When the service couldn't be asked.
+    fn progress(references: Vec<String>) -> Result<HashMap<String, Vec<Download>>, Error>;
+}
+
+/// Exports a [`Fulfiller`] as the Plugin's `fulfill` and `progress`, taking and returning the
+/// `nama.plugin.v1` messages the Server exchanges with them.
+#[macro_export]
+macro_rules! fulfiller {
+    ($fulfiller:ty) => {
+        const _: () = {
+            // `plugin_fn` expands to paths starting with `extism_pdk`.
+            use $crate::{
+                Buffa, FnResult, Fulfiller, Request, extism_pdk,
+                nama_proto::nama::plugin::v1::{Downloads, Fulfilled, Progress, ProgressAsked},
+                plugin_fn,
+            };
+
+            #[plugin_fn]
+            pub fn fulfill(Buffa(request): Buffa<Request>) -> FnResult<Buffa<Fulfilled>> {
+                Ok(Buffa(Fulfilled {
+                    reference: <$fulfiller as Fulfiller>::fulfill(request)?,
+                    ..Fulfilled::default()
+                }))
+            }
+
+            #[plugin_fn]
+            pub fn progress(Buffa(asked): Buffa<ProgressAsked>) -> FnResult<Buffa<Progress>> {
+                let downloads = <$fulfiller as Fulfiller>::progress(asked.references)?
+                    .into_iter()
+                    .map(|(reference, downloads)| {
+                        let downloads = Downloads {
+                            downloads,
+                            ..Downloads::default()
+                        };
+                        (reference, downloads)
+                    })
+                    .collect();
+                Ok(Buffa(Progress {
+                    downloads,
+                    ..Progress::default()
+                }))
+            }
+        };
+    };
 }
 
 /// Installs the panic hook. Extism calls a guest's `_initialize` export whenever it instantiates
