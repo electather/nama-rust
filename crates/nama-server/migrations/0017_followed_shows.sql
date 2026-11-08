@@ -8,8 +8,9 @@ CREATE TABLE followed_shows (
     title TEXT NOT NULL,
     -- Cancelling or the last Requester withdrawing removes the row, so only declining closes one.
     state TEXT NOT NULL CHECK (state IN ('pending', 'approved', 'declined')),
-    -- The Show's highest Season number when the Followed Show was opened, NULL if it had none. Only
-    -- a Season numbered after it is new, and gets a Request when a scan Matches its Episodes.
+    -- The highest Season number it covers, NULL if none: the Show's latest when the Followed Show
+    -- was opened, then each new one a scan opened a Request for. Only a Season numbered after it
+    -- is new, so a Season Request it opened and someone ended isn't opened again.
     latest_season INTEGER CHECK (latest_season >= 0),
     created_at INTEGER NOT NULL,
     decline_reason TEXT
@@ -31,3 +32,5 @@ CREATE INDEX followed_show_requesters_by_user ON followed_show_requesters (user_
 -- The Followed Show that opened a Season Request. Ending the Followed Show leaves the Request.
 ALTER TABLE requests ADD COLUMN followed_show_id INTEGER
     REFERENCES followed_shows (id) ON DELETE SET NULL;
+
+CREATE INDEX requests_by_followed_show ON requests (followed_show_id);

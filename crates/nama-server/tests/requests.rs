@@ -2216,3 +2216,41 @@ async fn a_scan_matching_more_of_a_season_in_a_library_when_its_show_was_followe
 
     assert_eq!(dark_seasons_requested(&ada).await, [1, 2]);
 }
+
+#[tokio::test]
+async fn a_season_request_a_followed_show_opened_isnt_opened_again_once_cancelled() {
+    let fixture = Fixture::start().await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let ada = requests(as_ada);
+    let (followed, _) = follow_dark_before_season_3(&fixture, &ada).await;
+    approve_followed(&fixture, followed.id).await.unwrap();
+    let (media, library) = fixture
+        .library_with(LibraryKind::LIBRARY_KIND_SHOWS, &[DARK_S03E01])
+        .await;
+    let opened: Vec<_> = list(&ada)
+        .await
+        .into_iter()
+        .filter(|request| season_of(request) == Some(("Dark", 3)))
+        .collect();
+    requests(fixture.server.client_config())
+        .cancel_request(CancelRequestRequest {
+            id: opened[0].id,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let mut matches = subscribe(
+        fixture.server.client_config(),
+        &[EventType::EVENT_TYPE_ITEM_MATCHED],
+    )
+    .await;
+
+    write_files(media.path(), &[DARK_S03E02]);
+    fixture
+        .scan_until(library, LibraryKind::LIBRARY_KIND_SHOWS, true)
+        .await;
+    next_event(&mut matches).await;
+
+    assert_eq!(opened.len(), 1, "{opened:?}");
+    assert_eq!(dark_seasons_requested(&ada).await, [1, 2]);
+}

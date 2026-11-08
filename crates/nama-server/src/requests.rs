@@ -781,6 +781,30 @@ fn availability(episodes: &[Episode], matched: &HashSet<i64>, today: &str) -> Op
     }
 }
 
+/// Opens a Request for `wanted` in `state`, as stored, with no Requesters yet. Returns its ID.
+async fn insert_request(
+    conn: &mut SqliteConnection,
+    wanted: &Wanted,
+    state: &str,
+    now: i64,
+) -> Result<i64, sqlx::Error> {
+    sqlx::query_scalar!(
+        "INSERT INTO requests
+             (tmdb_id, season, title, release_date, state, created_at, followed_show_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
+         RETURNING id",
+        wanted.tmdb_id,
+        wanted.season,
+        wanted.title,
+        wanted.release_date,
+        state,
+        now,
+        wanted.followed_show
+    )
+    .fetch_one(&mut *conn)
+    .await
+}
+
 /// Adds `user` as a Requester of the open Request for `wanted`, opening one in `state` if there
 /// is none. Returns the Request, and the event for what changed, if anything did.
 async fn ask(
@@ -795,23 +819,7 @@ async fn ask(
     let opened = open.is_none();
     let id = match open {
         Some(id) => id,
-        None => {
-            sqlx::query_scalar!(
-                "INSERT INTO requests
-                     (tmdb_id, season, title, release_date, state, created_at, followed_show_id)
-                 VALUES (?, ?, ?, ?, ?, ?, ?)
-                 RETURNING id",
-                wanted.tmdb_id,
-                wanted.season,
-                wanted.title,
-                wanted.release_date,
-                state,
-                now,
-                wanted.followed_show
-            )
-            .fetch_one(&mut *conn)
-            .await?
-        }
+        None => insert_request(conn, &wanted, state, now).await?,
     };
     let joined = sqlx::query!(
         "INSERT INTO requesters (request_id, user_id, requested_at) VALUES (?, ?, ?)
@@ -890,9 +898,10 @@ pub(crate) async fn make_seasons_available(
 }
 
 /// Opens a Request in `state` for `season` of the Show `show_tmdb_id`, which has no open one, for
-/// the Requesters of the Show's Approved Followed Show, if the Season came out after it was opened
-/// and has no Available Request, so a Season once Available isn't asked for again. Returns the
-/// event for it.
+/// the Requesters of the Show's Approved Followed Show, if the Season is numbered after every one
+/// the Followed Show covers and has no Available Request, so a Season once Available isn't asked
+/// for again. The Followed Show covers the Season from then on, so one it opened and someone
+/// declined, cancelled or withdrew from isn't opened again. Returns the event for it.
 async fn open_followed_season(
     conn: &mut SqliteConnection,
     show_tmdb_id: i64,
@@ -924,22 +933,20 @@ async fn open_followed_season(
     if available {
         return Ok(None);
     }
-    let state = stored(state);
-    let now = now();
-    let id = sqlx::query_scalar!(
-        "INSERT INTO requests
-             (tmdb_id, season, title, release_date, state, created_at, followed_show_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?)
-         RETURNING id",
-        show_tmdb_id,
+    let wanted = Wanted {
+        tmdb_id: show_tmdb_id,
+        season: Some(season.number),
+        title: followed.title,
+        release_date: season.air_date.clone(),
+        followed_show: Some(followed.id),
+    };
+    let id = insert_request(conn, &wanted, stored(state), now()).await?;
+    sqlx::query!(
+        "UPDATE followed_shows SET latest_season = ? WHERE id = ?",
         season.number,
-        followed.title,
-        season.air_date,
-        state,
-        now,
         followed.id
     )
-    .fetch_one(&mut *conn)
+    .execute(&mut *conn)
     .await?;
     sqlx::query!(
         "INSERT INTO requesters (request_id, user_id, requested_at)
