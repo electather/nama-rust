@@ -123,7 +123,7 @@ pub enum RefusalReason {
     /// `failed_precondition`: the Request isn't Failed, so it can't be retried. Params: `requestId`.
     REFUSAL_REASON_REQUEST_NOT_FAILED = 46i32,
     /// `failed_precondition`: a choice setting's value isn't one of the choices the Plugin's settings
-    /// check offers. Params: `pluginId`, `settingKey`.
+    /// check offers. Params: `pluginId`, `settingKey`, `settingValue`.
     REFUSAL_REASON_CHOICE_NOT_OFFERED = 47i32,
 }
 impl RefusalReason {

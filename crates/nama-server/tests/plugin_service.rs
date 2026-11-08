@@ -784,6 +784,7 @@ async fn saving_a_choice_the_check_didnt_offer_is_refused_naming_it_and_nothing_
     assert_eq!(refusal.field, "settings.profile");
     assert_eq!(refusal.params["settingKey"], "profile");
     assert_eq!(refusal.params["pluginId"], test_choices::ID);
+    assert_eq!(refusal.params["settingValue"], "3");
     assert_eq!(started.stored().await, test_choices_with_profile());
     assert!(
         started

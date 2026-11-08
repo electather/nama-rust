@@ -411,7 +411,7 @@ export const RefusalReason = {
 
   /**
    * `failed_precondition`: a choice setting's value isn't one of the choices the Plugin's settings
-   * check offers. Params: `pluginId`, `settingKey`.
+   * check offers. Params: `pluginId`, `settingKey`, `settingValue`.
    *
    * @generated from enum value: REFUSAL_REASON_CHOICE_NOT_OFFERED = 47;
    */

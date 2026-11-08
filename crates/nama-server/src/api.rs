@@ -2071,6 +2071,8 @@ impl PluginService for PluginServiceHandler {
         Settings::new(settings.clone())
             .resolve(&plugin.settings_schema)
             .map_err(settings_refused)?;
+        // ponytail: checked under `changing`, so a slow outside service holds up other Plugin
+        // changes for up to SETTINGS_CHECK_TIMEOUT; check before locking if that bites.
         self.check_choices(&plugin, &settings).await?;
         plugin_settings::save_settings(&self.db, plugin.id.as_str(), &settings)
             .await
@@ -2137,7 +2139,7 @@ impl PluginService for PluginServiceHandler {
             .plugins
             .check_settings(&id, Settings::new(settings))
             .await
-            .map_err(|err| check_refused(&id, err, |refused| refused))?;
+            .map_err(|err| check_refused(&id, err, None))?;
         let choices = choices
             .into_iter()
             .map(|(key, choices)| (key, setting_choices_to_proto(choices)))
@@ -2214,7 +2216,7 @@ impl PluginServiceHandler {
             .plugins
             .check_settings(&plugin.id, Settings::new(settings.clone()))
             .await
-            .map_err(|err| check_refused(&plugin.id, err, |refused| refused.setting(first)))?;
+            .map_err(|err| check_refused(&plugin.id, err, Some(first)))?;
         for (key, value) in chosen {
             let is_offered = offered
                 .get(key)
@@ -2222,7 +2224,8 @@ impl PluginServiceHandler {
             if !is_offered {
                 let message = format!("{value} isn't one of the choices for the setting {key}");
                 let refused = refuse(RefusalReason::REFUSAL_REASON_CHOICE_NOT_OFFERED, message)
-                    .param("pluginId", &plugin.id);
+                    .param("pluginId", &plugin.id)
+                    .param("settingValue", value);
                 return Err(refused.setting(key).into());
             }
         }
@@ -2240,18 +2243,16 @@ impl PluginServiceHandler {
     }
 }
 
-/// The refusal of the Plugin `id`'s settings check failing with `err`, which `about` adds to,
-/// such as with the setting a save was refused for.
-fn check_refused(
-    id: &PluginId,
-    err: CheckError,
-    about: impl FnOnce(Refused) -> Refused,
-) -> ConnectError {
+/// The refusal of the Plugin `id`'s settings check failing with `err`, naming the `setting` a
+/// save was refused for, if any.
+fn check_refused(id: &PluginId, err: CheckError, setting: Option<&str>) -> ConnectError {
     let check_failed = |message: String| {
-        about(
-            refuse(RefusalReason::REFUSAL_REASON_SETTINGS_CHECK_FAILED, message)
-                .param("pluginId", id),
-        )
+        let refused = refuse(RefusalReason::REFUSAL_REASON_SETTINGS_CHECK_FAILED, message)
+            .param("pluginId", id);
+        match setting {
+            Some(key) => refused.setting(key),
+            None => refused,
+        }
     };
     match err {
         CheckError::Unknown(unknown) => plugin_not_found(&unknown),
