@@ -303,8 +303,7 @@ mod exports {
             }
         }
 
-        /// Whether it waits on a person: Radarr warns about it, it failed, its import is blocked,
-        /// or Radarr can't reach its download client.
+        /// Whether it waits on a person, rather than on Radarr or its download client.
         fn needs_attention(&self) -> bool {
             matches!(
                 self.tracked_download_status.as_deref(),
