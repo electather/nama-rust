@@ -11,6 +11,11 @@ repository = "https://github.com/electather/nama-rust"
 opt-level = 3
 [profile.dev.package.blake2]
 opt-level = 3
+# Every dependency, not the workspace's own crates. Unoptimized Cranelift takes seconds to compile
+# each Plugin's wasm, and every Installed Plugin test compiles them afresh, so in parallel they
+# hit nextest's 60 s timeout.
+[profile.dev.package."*"]
+opt-level = 2
 
 # The profile that 'dist' will build with
 [profile.dist]
