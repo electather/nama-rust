@@ -1,0 +1,16 @@
+[
+  {
+    "path": "/tv",
+    "accessible": true,
+    "freeSpace": 1099511627776,
+    "unmappedFolders": [],
+    "id": 1
+  },
+  {
+    "path": "/anime",
+    "accessible": true,
+    "freeSpace": 4398046511104,
+    "unmappedFolders": [],
+    "id": 2
+  }
+]

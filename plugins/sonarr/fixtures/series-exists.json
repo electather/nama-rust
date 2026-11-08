@@ -1,0 +1,9 @@
+[
+  {
+    "propertyName": "TvdbId",
+    "errorMessage": "This series has already been added",
+    "attemptedValue": 334824,
+    "severity": "error",
+    "errorCode": "SeriesExistsValidator"
+  }
+]

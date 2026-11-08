@@ -1,0 +1,28 @@
+[
+  {
+    "title": "Dark",
+    "sortTitle": "dark",
+    "status": "ended",
+    "ended": true,
+    "overview": "A missing child sets four families on a frantic hunt for answers.",
+    "network": "Netflix",
+    "year": 2017,
+    "seasons": [
+      { "seasonNumber": 0, "monitored": false },
+      { "seasonNumber": 1, "monitored": false },
+      { "seasonNumber": 2, "monitored": false },
+      { "seasonNumber": 3, "monitored": false }
+    ],
+    "seasonFolder": false,
+    "monitored": false,
+    "monitorNewItems": "all",
+    "runtime": 60,
+    "tvdbId": 334824,
+    "tmdbId": 70523,
+    "imdbId": "tt5753856",
+    "titleSlug": "dark",
+    "folder": "Dark (2017)",
+    "seriesType": "standard",
+    "added": "0001-01-01T00:00:00Z"
+  }
+]

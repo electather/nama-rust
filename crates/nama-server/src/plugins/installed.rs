@@ -61,6 +61,7 @@ const CHECK_SETTINGS: &str = "check_settings";
 /// `build.rs` builds them.
 const BUNDLED: &[(&str, &[u8])] = &[
     ("radarr.wasm", include_bytes!(env!("RADARR_WASM"))),
+    ("sonarr.wasm", include_bytes!(env!("SONARR_WASM"))),
     ("telegram.wasm", include_bytes!(env!("TELEGRAM_WASM"))),
 ];
 
@@ -608,7 +609,8 @@ fn load(wasm: Vec<u8>, cache_config: &Path) -> Result<Installed, Refused> {
     })
 }
 
-/// Compiles `wasm`, letting it send HTTP requests to `hosts` and read `config`.
+/// Compiles `wasm`, letting it send HTTP requests to `hosts`, read their responses' headers, and
+/// read `config`.
 fn compile(
     wasm: &[u8],
     cache_config: &Path,
@@ -619,7 +621,12 @@ fn compile(
         .with_timeout(CALL_TIMEOUT)
         .with_allowed_hosts(hosts.into_iter())
         .with_config(config.into_iter());
-    CompiledPlugin::new(PluginBuilder::new(manifest).with_cache_config(cache_config))
+    // Response headers include `Date`, the only clock a Plugin has: Sonarr's times a wait by it.
+    CompiledPlugin::new(
+        PluginBuilder::new(manifest)
+            .with_cache_config(cache_config)
+            .with_http_response_headers(true),
+    )
 }
 
 /// The hosts a Plugin enabled with `settings` may send HTTP requests to: those its Manifest

@@ -218,6 +218,7 @@ async fn every_builtin_and_bundled_plugin_is_listed_with_whether_it_is_enabled()
             ("local-auth", built_in),
             ("log-events", built_in),
             ("radarr", installed),
+            ("sonarr", installed),
             ("telegram", installed),
             (test_choices::ID, built_in),
             ("tmdb", built_in)
@@ -230,6 +231,7 @@ async fn every_builtin_and_bundled_plugin_is_listed_with_whether_it_is_enabled()
     // TMDB can't run without an API key, and an Installed Plugin starts disabled.
     assert!(!plugin(&listed, "tmdb").enabled);
     assert!(!plugin(&listed, "radarr").enabled);
+    assert!(!plugin(&listed, "sonarr").enabled);
     assert!(!plugin(&listed, "telegram").enabled);
 }
 
