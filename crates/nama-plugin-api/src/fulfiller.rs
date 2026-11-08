@@ -42,7 +42,8 @@ pub trait Fulfiller<Kind>: Send + Sync + 'static {
 
     /// What the service is downloading for each of `references`, by reference. A reference with
     /// nothing downloading may be left out. While any Request is Processing, the Kernel asks this
-    /// every minute, with the references of all this Fulfiller's Processing Requests at once.
+    /// every minute, with the references of all this Fulfiller's Processing Requests at once, and
+    /// gives up on an answer that takes longer than that.
     ///
     /// # Errors
     ///

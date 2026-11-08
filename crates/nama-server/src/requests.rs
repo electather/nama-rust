@@ -585,13 +585,16 @@ impl Requests {
         let any = !(movies.is_empty() && seasons.is_empty());
         let mut polled = self.progress_of::<Movies>(movies).await;
         polled.extend(self.progress_of::<Shows>(seasons).await);
-        let mut changed = self.keep_progress(polled);
+        let mut changed = self.changed_progress(&polled);
         if changed.is_empty() {
+            *lock(&self.progress) = polled;
             return Ok(any);
         }
-        // ponytail: reads every Request to publish the changed ones; load them by id if there get
-        // many.
+        // Read before keeping `polled`, so if this fails the next poll sees the change again and
+        // publishes it then. ponytail: reads every Request to publish the changed ones; load them
+        // by id if there get many.
         let all = load(&mut *self.db.reader().acquire().await?, None, None).await?;
+        *lock(&self.progress) = polled;
         let events = all
             .into_iter()
             // One that left Processing since it was asked about has no progress any more.
@@ -654,17 +657,18 @@ impl Requests {
             .collect()
     }
 
-    /// Keeps `polled`, what each Processing Request is downloading now, in place of what was kept,
-    /// and returns those of them that changed.
-    fn keep_progress(&self, polled: HashMap<i64, Vec<Download>>) -> HashMap<i64, Vec<Download>> {
-        let mut kept = lock(&self.progress);
-        let changed = polled
+    /// Those of `polled`, what each Processing Request is downloading now, that differ from what
+    /// was kept.
+    fn changed_progress(
+        &self,
+        polled: &HashMap<i64, Vec<Download>>,
+    ) -> HashMap<i64, Vec<Download>> {
+        let kept = lock(&self.progress);
+        polled
             .iter()
             .filter(|&(id, now)| kept.get(id).map_or(&[][..], Vec::as_slice) != now.as_slice())
             .map(|(&id, now)| (id, now.clone()))
-            .collect();
-        *kept = polled;
-        changed
+            .collect()
     }
 
     /// `request` with what its Fulfiller said it is downloading when last asked, if it is
@@ -2080,6 +2084,21 @@ mod tests {
             .write(move |tx| Box::pin(change_state(tx, id, state)))
             .await
             .unwrap();
+    }
+
+    #[tokio::test]
+    async fn one_poll_asks_the_fulfiller_once_about_every_processing_request() {
+        let asked = Arc::new(Asked::default());
+        let fulfiller = Arc::clone(&asked);
+        let (_data, requests) = approved_for(&[949, 438_631, 603], fulfiller).await;
+        requests.hand_off_waiting().await;
+        move_to(&requests, 3, RequestState::Available).await;
+
+        let any = requests.poll_progress().await.unwrap();
+
+        assert!(any);
+        assert_eq!(asked.batches().len(), 1);
+        assert_eq!(asked.last_asked_about(), ["438631", "949"]);
     }
 
     #[tokio::test]
