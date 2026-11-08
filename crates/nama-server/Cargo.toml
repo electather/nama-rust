@@ -16,7 +16,7 @@ web = []
 
 [dependencies]
 axum = { version = "0.8", default-features = false, features = ["http1", "http2", "tokio"] }
-base64 = "0.22"
+base64 = "0.23"
 buffa = "0.9.2"
 clap = { version = "4", features = ["derive", "env"] }
 connectrpc = { version = "0.9.1", features = ["axum"] }
