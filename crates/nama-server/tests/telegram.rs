@@ -1,5 +1,6 @@
 //! The Telegram Installed Plugin, bundled in the Server, against a fake Telegram: its settings on
-//! the Plugins page, and every Request event posted to its channel.
+//! the Plugins page, every Request event posted to its channel, and Users connecting their own
+//! chat.
 
 #[path = "support/fake_telegram.rs"]
 mod fake_telegram;
@@ -21,13 +22,15 @@ use nama_plugin_tmdb::{
 };
 use nama_proto::nama::v1::{
     ApproveRequestRequest, CancelRequestRequest, CreateLibraryRequest, CreateRequestRequest,
-    CreateUserRequest, EnablePluginRequest, GetRequestRequest, LibraryKind, LibraryServiceClient,
-    ListPluginsRequest, Permission, Plugin, PluginServiceClient, Request, RequestServiceClient,
-    RequestState, ScanLibraryRequest, ServerServiceClient, ServerSettings, SessionDelivery,
-    SetPermissionsRequest, SignInRequest, SignInServiceClient, UpdatePluginSettingsRequest,
-    UpdateServerSettingsRequest, UserServiceClient, setting_value::Value,
+    CreateUserRequest, DeletePluginConnectionRequest, DeleteUserRequest, EnablePluginRequest,
+    GetRequestRequest, LibraryKind, LibraryServiceClient, ListPluginConnectionsRequest,
+    ListPluginsRequest, Permission, Plugin, PluginConnectionState, PluginServiceClient, Request,
+    RequestServiceClient, RequestState, ScanLibraryRequest, ServerServiceClient, ServerSettings,
+    SessionDelivery, SetPermissionsRequest, SignInRequest, SignInServiceClient,
+    StartPluginConnectionRequest, UpdatePluginSettingsRequest, UpdateServerSettingsRequest,
+    UserServiceClient, setting_value::Value,
 };
-use nama_server::{config::Config, plugin_settings, plugins::Registry};
+use nama_server::{config::Config, db::Database, plugin_settings, plugins::Registry};
 use serde_json::{Value as Json, json};
 use server::{PASSWORD, TestServer};
 
@@ -38,11 +41,19 @@ const DUNE: i64 = 438_631;
 /// The channel the Telegram Plugin posts to.
 const CHANNEL: &str = "@nama_requests";
 
+/// The chat Ada presses Start in.
+const ADA_CHAT: i64 = 987_654_321;
+
+/// How long a test waits for a Plugin Connection.
+const WAIT: Duration = Duration::from_secs(10);
+
 /// A Server with the TMDB Plugin enabled against a fake TMDB, beside a fake Telegram, and a User,
 /// Ada, whose Requests are Pending.
 struct Fixture {
     server: TestServer,
+    db: Arc<Database>,
     telegram: FakeTelegram,
+    ada_id: i64,
     ada: ClientConfig,
     _tmdb: FakeTmdb,
 }
@@ -67,10 +78,12 @@ impl Fixture {
         plugin_settings::import(&db, &BTreeMap::new())
             .await
             .unwrap();
-        let ada = user(&server, "Ada").await;
+        let (ada_id, ada) = user(&server, "Ada").await;
         let fixture = Self {
             server,
+            db,
             telegram: FakeTelegram::start().await,
+            ada_id,
             ada,
             _tmdb: tmdb,
         };
@@ -139,6 +152,75 @@ impl Fixture {
             .plugins
             .into_iter()
             .find(|plugin| plugin.id == "telegram")
+    }
+
+    fn ada_users(&self) -> UserServiceClient<HttpClient> {
+        UserServiceClient::new(HttpClient::plaintext(), self.ada.clone())
+    }
+
+    /// Ada's Plugin Connections as she lists them, by Plugin id.
+    async fn ada_connections(&self) -> Vec<(String, PluginConnectionState)> {
+        let listed = self
+            .ada_users()
+            .list_plugin_connections(ListPluginConnectionsRequest::default())
+            .await
+            .unwrap()
+            .into_owned();
+        listed
+            .connections
+            .into_iter()
+            .map(|connection| (connection.plugin_id, connection.state.as_known().unwrap()))
+            .collect()
+    }
+
+    /// Ada starts connecting Telegram, and gets the link to open.
+    async fn ada_starts_connecting(&self) -> String {
+        self.ada_users()
+            .start_plugin_connection(StartPluginConnectionRequest {
+                plugin_id: "telegram".to_owned(),
+                ..Default::default()
+            })
+            .await
+            .unwrap()
+            .into_owned()
+            .url
+    }
+
+    /// Ada connects Telegram through its deep link, pressing Start in her chat, and waits until
+    /// she is connected.
+    async fn connect_ada(&self) {
+        let link = self.ada_starts_connecting().await;
+        let (_, code) = link.split_once("?start=").unwrap();
+        self.telegram.press_start(code, ADA_CHAT);
+        self.wait_for_ada(PluginConnectionState::PLUGIN_CONNECTION_STATE_CONNECTED)
+            .await;
+    }
+
+    /// Waits until Ada's Telegram connection is in `state`.
+    async fn wait_for_ada(&self, state: PluginConnectionState) {
+        let started = tokio::time::Instant::now();
+        loop {
+            let connections = self.ada_connections().await;
+            if connections == [("telegram".to_owned(), state)] {
+                return;
+            }
+            assert!(
+                started.elapsed() < WAIT,
+                "Ada's connections stayed {connections:?}"
+            );
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    }
+
+    /// What the Server keeps as Ada's Plugin Connection to Telegram, if anything.
+    async fn adas_stored_connection(&self) -> Option<String> {
+        sqlx::query_scalar(
+            "SELECT connection FROM plugin_connections WHERE user_id = ? AND plugin_id = 'telegram'",
+        )
+        .bind(self.ada_id)
+        .fetch_optional(self.db.reader())
+        .await
+        .unwrap()
     }
 
     fn plugins(&self) -> PluginServiceClient<HttpClient> {
@@ -222,13 +304,13 @@ impl Fixture {
     }
 }
 
-/// Creates a User named `name` with what a new User gets, signs them in, and returns client
-/// settings that call as them.
+/// Creates a User named `name` with what a new User gets, signs them in, and returns their id and
+/// client settings that call as them.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
-async fn user(server: &TestServer, name: &str) -> ClientConfig {
+async fn user(server: &TestServer, name: &str) -> (i64, ClientConfig) {
     let as_admin = UserServiceClient::new(HttpClient::plaintext(), server.client_config());
     let id = as_admin
         .create_user(CreateUserRequest {
@@ -262,7 +344,7 @@ async fn user(server: &TestServer, name: &str) -> ClientConfig {
         .unwrap()
         .into_owned()
         .token;
-    server.client_config_as(&token)
+    (id, server.client_config_as(&token))
 }
 
 fn text(key: &str, value: &str) -> (String, nama_proto::nama::v1::SettingValue) {
@@ -423,4 +505,123 @@ async fn the_plugins_page_lists_telegrams_three_settings_without_the_bot_token()
     let token = &listed.settings[0];
     assert!(token.secret_set);
     assert!(!format!("{listed:?}").contains(BOT_TOKEN), "{listed:?}");
+}
+
+#[tokio::test]
+async fn connecting_through_the_deep_link_stores_the_chat_id_as_the_users_plugin_connection_unseen_by_them()
+ {
+    let fixture = Fixture::with_telegram(BOT_TOKEN, None).await;
+    let before = fixture.ada_connections().await;
+
+    let link = fixture.ada_starts_connecting().await;
+    let waiting = fixture.ada_connections().await;
+    let (bot, code) = link.split_once("?start=").unwrap();
+    fixture.telegram.press_start(code, ADA_CHAT);
+    fixture
+        .wait_for_ada(PluginConnectionState::PLUGIN_CONNECTION_STATE_CONNECTED)
+        .await;
+    let listed = fixture
+        .ada_users()
+        .list_plugin_connections(ListPluginConnectionsRequest::default())
+        .await
+        .unwrap()
+        .into_owned();
+
+    let telegram = |state| vec![("telegram".to_owned(), state)];
+    assert_eq!(
+        before,
+        telegram(PluginConnectionState::PLUGIN_CONNECTION_STATE_NOT_CONNECTED)
+    );
+    assert_eq!(
+        waiting,
+        telegram(PluginConnectionState::PLUGIN_CONNECTION_STATE_WAITING)
+    );
+    assert_eq!(bot, "https://t.me/nama_test_bot");
+    assert!(code.len() >= 32, "the one-time code {code:?} is guessable");
+    assert_eq!(
+        fixture.adas_stored_connection().await.as_deref(),
+        Some("987654321")
+    );
+    assert!(
+        !format!("{listed:?}").contains("987654321"),
+        "the chat id reached Ada: {listed:?}"
+    );
+}
+
+#[tokio::test]
+async fn a_start_with_another_code_connects_nobody() {
+    let fixture = Fixture::with_telegram(BOT_TOKEN, None).await;
+    fixture.ada_starts_connecting().await;
+
+    fixture.telegram.press_start("someone-elses-code", ADA_CHAT);
+    // Two polls' time.
+    tokio::time::sleep(Duration::from_secs(5)).await;
+
+    assert_eq!(
+        fixture.ada_connections().await,
+        [(
+            "telegram".to_owned(),
+            PluginConnectionState::PLUGIN_CONNECTION_STATE_WAITING
+        )]
+    );
+    assert_eq!(fixture.adas_stored_connection().await, None);
+}
+
+#[tokio::test]
+async fn disconnecting_deletes_the_plugin_connection() {
+    let fixture = Fixture::with_telegram(BOT_TOKEN, None).await;
+    fixture.connect_ada().await;
+
+    fixture
+        .ada_users()
+        .delete_plugin_connection(DeletePluginConnectionRequest {
+            plugin_id: "telegram".to_owned(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    assert_eq!(
+        fixture.ada_connections().await,
+        [(
+            "telegram".to_owned(),
+            PluginConnectionState::PLUGIN_CONNECTION_STATE_NOT_CONNECTED
+        )]
+    );
+    assert_eq!(fixture.adas_stored_connection().await, None);
+}
+
+#[tokio::test]
+async fn deleting_the_user_deletes_their_plugin_connection() {
+    let fixture = Fixture::with_telegram(BOT_TOKEN, None).await;
+    fixture.connect_ada().await;
+
+    UserServiceClient::new(HttpClient::plaintext(), fixture.server.client_config())
+        .delete_user(DeleteUserRequest {
+            user_id: fixture.ada_id,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    assert_eq!(fixture.adas_stored_connection().await, None);
+}
+
+#[tokio::test]
+async fn telegram_is_not_listed_to_connect_while_disabled() {
+    let fixture = Fixture::start().await;
+    fixture.set_up_telegram(BOT_TOKEN, None).await;
+
+    let listed = fixture.ada_connections().await;
+    let refused = fixture
+        .ada_users()
+        .start_plugin_connection(StartPluginConnectionRequest {
+            plugin_id: "telegram".to_owned(),
+            ..Default::default()
+        })
+        .await
+        .unwrap_err();
+
+    assert_eq!(listed, []);
+    assert_eq!(refused.code, connectrpc::ErrorCode::NotFound);
 }

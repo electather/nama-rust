@@ -40,6 +40,9 @@
 //!
 //! A Plugin that tells people about Requests through an outside service implements [`Notifier`] and
 //! exports it with [`notifier!`].
+//!
+//! A Plugin that connects Users to an outside service, such as their Telegram chat, implements
+//! [`Connector`] and exports it with [`connector!`].
 
 use std::collections::HashMap;
 
@@ -47,7 +50,9 @@ pub use extism_pdk::{self, FnResult, plugin_fn};
 pub use nama_proto::{
     self,
     nama::{
-        plugin::v1::{CheckedSettings, Manifest, Notification, delivery::Recipient},
+        plugin::v1::{
+            CheckedSettings, ConnectionStarted, Manifest, Notification, delivery::Recipient,
+        },
         v1::{Download, Request},
     },
 };
@@ -245,6 +250,85 @@ macro_rules! notifier {
                     .notification
                     .ok_or_else(|| Error::msg("the Server sent no notification"))?;
                 Ok(<$notifier as Notifier>::deliver(notification, recipient)?)
+            }
+        };
+    };
+}
+
+/// A Connector: connects a User to an outside service through a link they open, such as a
+/// Telegram deep link (ADR 0021). The Server keeps what it finds as the User's Plugin Connection.
+/// Its Manifest lists `PROVIDE_POINT_CONNECTOR` in `providers`, and [`connector!`] exports it:
+///
+/// ```
+/// use nama_pdk::{ConnectionStarted, Connector, extism_pdk::Error};
+///
+/// struct Telegram;
+///
+/// impl Connector for Telegram {
+///     fn start_connection(code: String) -> Result<ConnectionStarted, Error> {
+///         Ok(ConnectionStarted {
+///             url: format!("https://t.me/my_bot?start={code}"),
+///             pending: code,
+///             ..ConnectionStarted::default()
+///         })
+///     }
+///
+///     fn poll_connection(_pending: String) -> Result<Option<String>, Error> {
+///         // Look for `/start <code>` among the bot's messages, and return its chat id.
+///         Ok(None)
+///     }
+/// }
+///
+/// nama_pdk::connector!(Telegram);
+/// ```
+pub trait Connector {
+    /// The link a User opens to connect, made with `code`, a fresh random one-time code from the
+    /// Server, and what the Server passes back to [`Connector::poll_connection`] while it waits.
+    ///
+    /// # Errors
+    ///
+    /// When the service couldn't be asked. The Server logs the error's message.
+    fn start_connection(code: String) -> Result<ConnectionStarted, Error>;
+
+    /// The User's identity at the service once they finished with the link `pending` came from,
+    /// or `None` while they haven't. The Server asks every few seconds for up to 10 minutes.
+    ///
+    /// # Errors
+    ///
+    /// When the service couldn't be asked. The Server logs the error's message and asks again.
+    fn poll_connection(pending: String) -> Result<Option<String>, Error>;
+}
+
+/// Exports a [`Connector`] as the Plugin's `start_connection` and `poll_connection`, taking and
+/// returning the `nama.plugin.v1` messages the Server exchanges with them.
+#[macro_export]
+macro_rules! connector {
+    ($connector:ty) => {
+        const _: () = {
+            // `plugin_fn` expands to paths starting with `extism_pdk`.
+            use $crate::{
+                Buffa, ConnectionStarted, Connector, FnResult, extism_pdk,
+                nama_proto::nama::plugin::v1::{ConnectionPoll, ConnectionPolled, ConnectionStart},
+                plugin_fn,
+            };
+
+            #[plugin_fn]
+            pub fn start_connection(
+                Buffa(start): Buffa<ConnectionStart>,
+            ) -> FnResult<Buffa<ConnectionStarted>> {
+                Ok(Buffa(<$connector as Connector>::start_connection(
+                    start.code,
+                )?))
+            }
+
+            #[plugin_fn]
+            pub fn poll_connection(
+                Buffa(poll): Buffa<ConnectionPoll>,
+            ) -> FnResult<Buffa<ConnectionPolled>> {
+                Ok(Buffa(ConnectionPolled {
+                    connection: <$connector as Connector>::poll_connection(poll.pending)?,
+                    ..ConnectionPolled::default()
+                }))
             }
         };
     };

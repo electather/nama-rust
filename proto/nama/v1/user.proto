@@ -4,8 +4,9 @@ package nama.v1;
 
 import "nama/v1/sign_in.proto";
 
-// Managing the Server's Users and their Devices. Every RPC but `ListDevices`, `RevokeDevice` and
-// `ChangePassword` needs `PERMISSION_MANAGE_USERS`, and fails with `permission_denied` without it.
+// Managing the Server's Users, their Devices and Plugin Connections. Every RPC but `ListDevices`,
+// `RevokeDevice`, `ChangePassword` and the Plugin Connection ones needs `PERMISSION_MANAGE_USERS`,
+// and fails with `permission_denied` without it.
 // Only a caller with `PERMISSION_ADMIN` may `SetPermissions`, `ResetPassword` or `DeleteUser` for a
 // User with it, grant it, put it in the default Permissions or create a User while they hold it, or
 // set their own Permissions; others fail with `permission_denied` and a Refusal naming
@@ -65,6 +66,23 @@ service UserService {
   // Replaces the default Permissions. Users created before keep the Permissions they have. Fails
   // with `invalid_argument` for `PERMISSION_UNSPECIFIED` or a value the Server doesn't know.
   rpc SetDefaultPermissions(SetDefaultPermissionsRequest) returns (SetDefaultPermissionsResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
+  // Lists the enabled Plugins the caller can connect to, such as Telegram, by id, with whether
+  // they are connected. Any signed-in User may list their own, and only their own. What a Plugin
+  // Connection holds, such as a Telegram chat id, never leaves the Server.
+  rpc ListPluginConnections(ListPluginConnectionsRequest) returns (ListPluginConnectionsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Starts connecting the caller to a Plugin, and returns the link they open to finish, such as
+  // `https://t.me/<bot>?start=<code>`. The Plugin Connection is `PLUGIN_CONNECTION_STATE_WAITING`
+  // until they do, for up to 10 minutes, then the link expires. Starting again replaces the link.
+  // Fails with `REFUSAL_REASON_PLUGIN_NOT_FOUND` for a Plugin that isn't enabled or can't connect
+  // Users, and with `unavailable` if the Plugin couldn't make the link.
+  rpc StartPluginConnection(StartPluginConnectionRequest) returns (StartPluginConnectionResponse);
+  // Disconnects the caller from a Plugin, deleting their Plugin Connection, or the link they are
+  // waiting on. Disconnecting what isn't connected does nothing.
+  rpc DeletePluginConnection(DeletePluginConnectionRequest) returns (DeletePluginConnectionResponse) {
     option idempotency_level = IDEMPOTENT;
   }
 }
@@ -156,3 +174,45 @@ message SetDefaultPermissionsRequest {
 }
 
 message SetDefaultPermissionsResponse {}
+
+message ListPluginConnectionsRequest {}
+
+message ListPluginConnectionsResponse {
+  // One per Plugin the caller can connect to, by Plugin id.
+  repeated PluginConnection connections = 1;
+}
+
+// A User's Plugin Connection, as the User sees it.
+message PluginConnection {
+  // The Plugin's id, such as `telegram`.
+  string plugin_id = 1;
+  PluginConnectionState state = 2;
+}
+
+// Where a User's Plugin Connection is.
+enum PluginConnectionState {
+  PLUGIN_CONNECTION_STATE_UNSPECIFIED = 0;
+  // Not connected, and no link is waiting.
+  PLUGIN_CONNECTION_STATE_NOT_CONNECTED = 1;
+  // `StartPluginConnection` gave a link that the User hasn't finished with yet.
+  PLUGIN_CONNECTION_STATE_WAITING = 2;
+  // Connected.
+  PLUGIN_CONNECTION_STATE_CONNECTED = 3;
+}
+
+message StartPluginConnectionRequest {
+  // The Plugin's id, such as `telegram`.
+  string plugin_id = 1;
+}
+
+message StartPluginConnectionResponse {
+  // The link the User opens to finish connecting.
+  string url = 1;
+}
+
+message DeletePluginConnectionRequest {
+  // The Plugin's id, such as `telegram`.
+  string plugin_id = 1;
+}
+
+message DeletePluginConnectionResponse {}

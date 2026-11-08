@@ -75,10 +75,11 @@ export function fakeServer(
       },
       ...signIn,
     });
-    // Settings lists your Devices, so every fake Server has an answer for it.
+    // Settings lists your Devices and Plugin Connections, so every fake Server has an answer for them.
     // The Users page shows the default Permissions, so every fake Server has them.
     router.service(UserService, {
       listDevices: () => ({}),
+      listPluginConnections: () => ({}),
       getDefaultPermissions: () => ({ permissions: newUser }),
       ...users,
     });

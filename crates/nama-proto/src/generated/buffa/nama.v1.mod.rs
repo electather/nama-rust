@@ -235,6 +235,13 @@ pub mod __buffa {
         reg.register_json_any(super::__GET_DEFAULT_PERMISSIONS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__SET_DEFAULT_PERMISSIONS_REQUEST_JSON_ANY);
         reg.register_json_any(super::__SET_DEFAULT_PERMISSIONS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__LIST_PLUGIN_CONNECTIONS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_PLUGIN_CONNECTIONS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__PLUGIN_CONNECTION_JSON_ANY);
+        reg.register_json_any(super::__START_PLUGIN_CONNECTION_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__START_PLUGIN_CONNECTION_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__DELETE_PLUGIN_CONNECTION_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__DELETE_PLUGIN_CONNECTION_RESPONSE_JSON_ANY);
     }
 }
 #[doc(inline)]
@@ -929,5 +936,33 @@ pub use self::__buffa::view::SetDefaultPermissionsRequestOwnedView;
 pub use self::__buffa::view::SetDefaultPermissionsResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::SetDefaultPermissionsResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListPluginConnectionsRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListPluginConnectionsRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListPluginConnectionsResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListPluginConnectionsResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PluginConnectionView;
+#[doc(inline)]
+pub use self::__buffa::view::PluginConnectionOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::StartPluginConnectionRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::StartPluginConnectionRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::StartPluginConnectionResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::StartPluginConnectionResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::DeletePluginConnectionRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::DeletePluginConnectionRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::DeletePluginConnectionResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::DeletePluginConnectionResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::register_types;

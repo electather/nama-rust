@@ -17,6 +17,7 @@ use buffa::Message;
 use extism::{CompiledPlugin, PluginBuilder, Wasm};
 use nama_plugin_api::{
     BoxFuture, Observer, Plugin, PluginError, PluginId, Priority, Registrar,
+    connector::{ConnectionStarted, Connector},
     fulfiller::{Download, Fulfiller, Movies, Shows},
     notifier::{Notification, Notifier, Recipient},
     points::Events,
@@ -29,8 +30,9 @@ use nama_proto::{
     NAMA_API_VERSION,
     nama::{
         plugin::v1::{
-            self as wire, Channel, CheckedSettings, Delivery, Fulfilled, Manifest, ObservePoint,
-            ObservedEvents, Progress, ProgressAsked, ProvidePoint, setting_value,
+            self as wire, Channel, CheckedSettings, ConnectionPoll, ConnectionPolled,
+            ConnectionStart, Delivery, Fulfilled, Manifest, ObservePoint, ObservedEvents, Progress,
+            ProgressAsked, ProvidePoint, setting_value,
         },
         v1::{Event, PluginKind, Request},
     },
@@ -120,8 +122,8 @@ struct Running {
     compiled: Arc<CompiledPlugin>,
     /// The values of its secret settings, which the failures it logs mustn't show.
     secrets: Arc<[String]>,
-    /// How many calls in a row crashed, counted apart for its Observer, its Fulfiller and its
-    /// Notifier.
+    /// How many calls in a row crashed, counted apart for its Observer, its Fulfiller, its
+    /// Notifier and its Connector.
     crashes: Arc<AtomicU32>,
 }
 
@@ -266,6 +268,9 @@ impl Plugin for Installed {
         if providers.contains(&ProvidePoint::PROVIDE_POINT_NOTIFIER.into()) {
             registrar.provide::<dyn Notifier>(Priority::DEFAULT, with_own_crash_count());
         }
+        if providers.contains(&ProvidePoint::PROVIDE_POINT_CONNECTOR.into()) {
+            registrar.provide::<dyn Connector>(Priority::DEFAULT, with_own_crash_count());
+        }
         if self
             .manifest
             .observers
@@ -327,6 +332,38 @@ impl Notifier for Running {
         }
         .encode_to_vec();
         Box::pin(async move { self.provide("deliver", input).await.map(drop) })
+    }
+}
+
+impl Connector for Running {
+    fn start_connection<'a>(
+        &'a self,
+        code: &'a str,
+    ) -> BoxFuture<'a, Result<ConnectionStarted, PluginError>> {
+        let input = ConnectionStart {
+            code: code.to_owned(),
+            ..Default::default()
+        }
+        .encode_to_vec();
+        Box::pin(async move {
+            let output = self.provide("start_connection", input).await?;
+            Ok(ConnectionStarted::decode_from_slice(&output)?)
+        })
+    }
+
+    fn poll_connection<'a>(
+        &'a self,
+        pending: &'a str,
+    ) -> BoxFuture<'a, Result<Option<String>, PluginError>> {
+        let input = ConnectionPoll {
+            pending: pending.to_owned(),
+            ..Default::default()
+        }
+        .encode_to_vec();
+        Box::pin(async move {
+            let output = self.provide("poll_connection", input).await?;
+            Ok(ConnectionPolled::decode_from_slice(&output)?.connection)
+        })
     }
 }
 

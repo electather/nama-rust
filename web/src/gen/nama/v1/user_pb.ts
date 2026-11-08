@@ -2,17 +2,17 @@
 // @generated from file nama/v1/user.proto (package nama.v1, syntax proto3)
 /* eslint-disable */
 
-import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
-import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
+import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
+import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
 import type { Device, Permission, User } from "./sign_in_pb";
 import { file_nama_v1_sign_in } from "./sign_in_pb";
-import type { Message } from "@bufbuild/protobuf";
+import type { Message, UnknownEnum } from "@bufbuild/protobuf";
 
 /**
  * Describes the file nama/v1/user.proto.
  */
 export const file_nama_v1_user: GenFile = /*@__PURE__*/
-  fileDesc("ChJuYW1hL3YxL3VzZXIucHJvdG8SB25hbWEudjEiPwoRQ3JlYXRlVXNlclJlcXVlc3QSDAoEbmFtZRgBIAEoCRIQCghwYXNzd29yZBgCIAEoCUoECAMQBFIEcm9sZSIgChJDcmVhdGVVc2VyUmVzcG9uc2USCgoCaWQYASABKAMiEgoQTGlzdFVzZXJzUmVxdWVzdCIxChFMaXN0VXNlcnNSZXNwb25zZRIcCgV1c2VycxgBIAMoCzINLm5hbWEudjEuVXNlciJSChVTZXRQZXJtaXNzaW9uc1JlcXVlc3QSDwoHdXNlcl9pZBgBIAEoAxIoCgtwZXJtaXNzaW9ucxgCIAMoDjITLm5hbWEudjEuUGVybWlzc2lvbiIYChZTZXRQZXJtaXNzaW9uc1Jlc3BvbnNlIiQKEURlbGV0ZVVzZXJSZXF1ZXN0Eg8KB3VzZXJfaWQYASABKAMiFAoSRGVsZXRlVXNlclJlc3BvbnNlIjYKEkxpc3REZXZpY2VzUmVxdWVzdBIUCgd1c2VyX2lkGAEgASgDSACIAQFCCgoIX3VzZXJfaWQiNwoTTGlzdERldmljZXNSZXNwb25zZRIgCgdkZXZpY2VzGAEgAygLMg8ubmFtYS52MS5EZXZpY2UiSgoTUmV2b2tlRGV2aWNlUmVxdWVzdBIUCgd1c2VyX2lkGAEgASgDSACIAQESEQoJZGV2aWNlX2lkGAIgASgDQgoKCF91c2VyX2lkIhYKFFJldm9rZURldmljZVJlc3BvbnNlIkUKFUNoYW5nZVBhc3N3b3JkUmVxdWVzdBIUCgxuZXdfcGFzc3dvcmQYAiABKAlKBAgBEAJSEGN1cnJlbnRfcGFzc3dvcmQiGAoWQ2hhbmdlUGFzc3dvcmRSZXNwb25zZSI9ChRSZXNldFBhc3N3b3JkUmVxdWVzdBIPCgd1c2VyX2lkGAEgASgDEhQKDG5ld19wYXNzd29yZBgCIAEoCSIXChVSZXNldFBhc3N3b3JkUmVzcG9uc2UiHgocR2V0RGVmYXVsdFBlcm1pc3Npb25zUmVxdWVzdCJJCh1HZXREZWZhdWx0UGVybWlzc2lvbnNSZXNwb25zZRIoCgtwZXJtaXNzaW9ucxgBIAMoDjITLm5hbWEudjEuUGVybWlzc2lvbiJIChxTZXREZWZhdWx0UGVybWlzc2lvbnNSZXF1ZXN0EigKC3Blcm1pc3Npb25zGAEgAygOMhMubmFtYS52MS5QZXJtaXNzaW9uIh8KHVNldERlZmF1bHRQZXJtaXNzaW9uc1Jlc3BvbnNlMtoGCgtVc2VyU2VydmljZRJFCgpDcmVhdGVVc2VyEhoubmFtYS52MS5DcmVhdGVVc2VyUmVxdWVzdBobLm5hbWEudjEuQ3JlYXRlVXNlclJlc3BvbnNlEkcKCUxpc3RVc2VycxIZLm5hbWEudjEuTGlzdFVzZXJzUmVxdWVzdBoaLm5hbWEudjEuTGlzdFVzZXJzUmVzcG9uc2UiA5ACARJWCg5TZXRQZXJtaXNzaW9ucxIeLm5hbWEudjEuU2V0UGVybWlzc2lvbnNSZXF1ZXN0Gh8ubmFtYS52MS5TZXRQZXJtaXNzaW9uc1Jlc3BvbnNlIgOQAgISSgoKRGVsZXRlVXNlchIaLm5hbWEudjEuRGVsZXRlVXNlclJlcXVlc3QaGy5uYW1hLnYxLkRlbGV0ZVVzZXJSZXNwb25zZSIDkAICEk0KC0xpc3REZXZpY2VzEhsubmFtYS52MS5MaXN0RGV2aWNlc1JlcXVlc3QaHC5uYW1hLnYxLkxpc3REZXZpY2VzUmVzcG9uc2UiA5ACARJLCgxSZXZva2VEZXZpY2USHC5uYW1hLnYxLlJldm9rZURldmljZVJlcXVlc3QaHS5uYW1hLnYxLlJldm9rZURldmljZVJlc3BvbnNlElEKDkNoYW5nZVBhc3N3b3JkEh4ubmFtYS52MS5DaGFuZ2VQYXNzd29yZFJlcXVlc3QaHy5uYW1hLnYxLkNoYW5nZVBhc3N3b3JkUmVzcG9uc2USTgoNUmVzZXRQYXNzd29yZBIdLm5hbWEudjEuUmVzZXRQYXNzd29yZFJlcXVlc3QaHi5uYW1hLnYxLlJlc2V0UGFzc3dvcmRSZXNwb25zZRJrChVHZXREZWZhdWx0UGVybWlzc2lvbnMSJS5uYW1hLnYxLkdldERlZmF1bHRQZXJtaXNzaW9uc1JlcXVlc3QaJi5uYW1hLnYxLkdldERlZmF1bHRQZXJtaXNzaW9uc1Jlc3BvbnNlIgOQAgESawoVU2V0RGVmYXVsdFBlcm1pc3Npb25zEiUubmFtYS52MS5TZXREZWZhdWx0UGVybWlzc2lvbnNSZXF1ZXN0GiYubmFtYS52MS5TZXREZWZhdWx0UGVybWlzc2lvbnNSZXNwb25zZSIDkAICYgZwcm90bzM", [file_nama_v1_sign_in]);
+  fileDesc("ChJuYW1hL3YxL3VzZXIucHJvdG8SB25hbWEudjEiPwoRQ3JlYXRlVXNlclJlcXVlc3QSDAoEbmFtZRgBIAEoCRIQCghwYXNzd29yZBgCIAEoCUoECAMQBFIEcm9sZSIgChJDcmVhdGVVc2VyUmVzcG9uc2USCgoCaWQYASABKAMiEgoQTGlzdFVzZXJzUmVxdWVzdCIxChFMaXN0VXNlcnNSZXNwb25zZRIcCgV1c2VycxgBIAMoCzINLm5hbWEudjEuVXNlciJSChVTZXRQZXJtaXNzaW9uc1JlcXVlc3QSDwoHdXNlcl9pZBgBIAEoAxIoCgtwZXJtaXNzaW9ucxgCIAMoDjITLm5hbWEudjEuUGVybWlzc2lvbiIYChZTZXRQZXJtaXNzaW9uc1Jlc3BvbnNlIiQKEURlbGV0ZVVzZXJSZXF1ZXN0Eg8KB3VzZXJfaWQYASABKAMiFAoSRGVsZXRlVXNlclJlc3BvbnNlIjYKEkxpc3REZXZpY2VzUmVxdWVzdBIUCgd1c2VyX2lkGAEgASgDSACIAQFCCgoIX3VzZXJfaWQiNwoTTGlzdERldmljZXNSZXNwb25zZRIgCgdkZXZpY2VzGAEgAygLMg8ubmFtYS52MS5EZXZpY2UiSgoTUmV2b2tlRGV2aWNlUmVxdWVzdBIUCgd1c2VyX2lkGAEgASgDSACIAQESEQoJZGV2aWNlX2lkGAIgASgDQgoKCF91c2VyX2lkIhYKFFJldm9rZURldmljZVJlc3BvbnNlIkUKFUNoYW5nZVBhc3N3b3JkUmVxdWVzdBIUCgxuZXdfcGFzc3dvcmQYAiABKAlKBAgBEAJSEGN1cnJlbnRfcGFzc3dvcmQiGAoWQ2hhbmdlUGFzc3dvcmRSZXNwb25zZSI9ChRSZXNldFBhc3N3b3JkUmVxdWVzdBIPCgd1c2VyX2lkGAEgASgDEhQKDG5ld19wYXNzd29yZBgCIAEoCSIXChVSZXNldFBhc3N3b3JkUmVzcG9uc2UiHgocR2V0RGVmYXVsdFBlcm1pc3Npb25zUmVxdWVzdCJJCh1HZXREZWZhdWx0UGVybWlzc2lvbnNSZXNwb25zZRIoCgtwZXJtaXNzaW9ucxgBIAMoDjITLm5hbWEudjEuUGVybWlzc2lvbiJIChxTZXREZWZhdWx0UGVybWlzc2lvbnNSZXF1ZXN0EigKC3Blcm1pc3Npb25zGAEgAygOMhMubmFtYS52MS5QZXJtaXNzaW9uIh8KHVNldERlZmF1bHRQZXJtaXNzaW9uc1Jlc3BvbnNlIh4KHExpc3RQbHVnaW5Db25uZWN0aW9uc1JlcXVlc3QiTwodTGlzdFBsdWdpbkNvbm5lY3Rpb25zUmVzcG9uc2USLgoLY29ubmVjdGlvbnMYASADKAsyGS5uYW1hLnYxLlBsdWdpbkNvbm5lY3Rpb24iVAoQUGx1Z2luQ29ubmVjdGlvbhIRCglwbHVnaW5faWQYASABKAkSLQoFc3RhdGUYAiABKA4yHi5uYW1hLnYxLlBsdWdpbkNvbm5lY3Rpb25TdGF0ZSIxChxTdGFydFBsdWdpbkNvbm5lY3Rpb25SZXF1ZXN0EhEKCXBsdWdpbl9pZBgBIAEoCSIsCh1TdGFydFBsdWdpbkNvbm5lY3Rpb25SZXNwb25zZRILCgN1cmwYASABKAkiMgodRGVsZXRlUGx1Z2luQ29ubmVjdGlvblJlcXVlc3QSEQoJcGx1Z2luX2lkGAEgASgJIiAKHkRlbGV0ZVBsdWdpbkNvbm5lY3Rpb25SZXNwb25zZSq3AQoVUGx1Z2luQ29ubmVjdGlvblN0YXRlEicKI1BMVUdJTl9DT05ORUNUSU9OX1NUQVRFX1VOU1BFQ0lGSUVEEAASKQolUExVR0lOX0NPTk5FQ1RJT05fU1RBVEVfTk9UX0NPTk5FQ1RFRBABEiMKH1BMVUdJTl9DT05ORUNUSU9OX1NUQVRFX1dBSVRJTkcQAhIlCiFQTFVHSU5fQ09OTkVDVElPTl9TVEFURV9DT05ORUNURUQQAzKfCQoLVXNlclNlcnZpY2USRQoKQ3JlYXRlVXNlchIaLm5hbWEudjEuQ3JlYXRlVXNlclJlcXVlc3QaGy5uYW1hLnYxLkNyZWF0ZVVzZXJSZXNwb25zZRJHCglMaXN0VXNlcnMSGS5uYW1hLnYxLkxpc3RVc2Vyc1JlcXVlc3QaGi5uYW1hLnYxLkxpc3RVc2Vyc1Jlc3BvbnNlIgOQAgESVgoOU2V0UGVybWlzc2lvbnMSHi5uYW1hLnYxLlNldFBlcm1pc3Npb25zUmVxdWVzdBofLm5hbWEudjEuU2V0UGVybWlzc2lvbnNSZXNwb25zZSIDkAICEkoKCkRlbGV0ZVVzZXISGi5uYW1hLnYxLkRlbGV0ZVVzZXJSZXF1ZXN0GhsubmFtYS52MS5EZWxldGVVc2VyUmVzcG9uc2UiA5ACAhJNCgtMaXN0RGV2aWNlcxIbLm5hbWEudjEuTGlzdERldmljZXNSZXF1ZXN0GhwubmFtYS52MS5MaXN0RGV2aWNlc1Jlc3BvbnNlIgOQAgESSwoMUmV2b2tlRGV2aWNlEhwubmFtYS52MS5SZXZva2VEZXZpY2VSZXF1ZXN0Gh0ubmFtYS52MS5SZXZva2VEZXZpY2VSZXNwb25zZRJRCg5DaGFuZ2VQYXNzd29yZBIeLm5hbWEudjEuQ2hhbmdlUGFzc3dvcmRSZXF1ZXN0Gh8ubmFtYS52MS5DaGFuZ2VQYXNzd29yZFJlc3BvbnNlEk4KDVJlc2V0UGFzc3dvcmQSHS5uYW1hLnYxLlJlc2V0UGFzc3dvcmRSZXF1ZXN0Gh4ubmFtYS52MS5SZXNldFBhc3N3b3JkUmVzcG9uc2USawoVR2V0RGVmYXVsdFBlcm1pc3Npb25zEiUubmFtYS52MS5HZXREZWZhdWx0UGVybWlzc2lvbnNSZXF1ZXN0GiYubmFtYS52MS5HZXREZWZhdWx0UGVybWlzc2lvbnNSZXNwb25zZSIDkAIBEmsKFVNldERlZmF1bHRQZXJtaXNzaW9ucxIlLm5hbWEudjEuU2V0RGVmYXVsdFBlcm1pc3Npb25zUmVxdWVzdBomLm5hbWEudjEuU2V0RGVmYXVsdFBlcm1pc3Npb25zUmVzcG9uc2UiA5ACAhJrChVMaXN0UGx1Z2luQ29ubmVjdGlvbnMSJS5uYW1hLnYxLkxpc3RQbHVnaW5Db25uZWN0aW9uc1JlcXVlc3QaJi5uYW1hLnYxLkxpc3RQbHVnaW5Db25uZWN0aW9uc1Jlc3BvbnNlIgOQAgESZgoVU3RhcnRQbHVnaW5Db25uZWN0aW9uEiUubmFtYS52MS5TdGFydFBsdWdpbkNvbm5lY3Rpb25SZXF1ZXN0GiYubmFtYS52MS5TdGFydFBsdWdpbkNvbm5lY3Rpb25SZXNwb25zZRJuChZEZWxldGVQbHVnaW5Db25uZWN0aW9uEiYubmFtYS52MS5EZWxldGVQbHVnaW5Db25uZWN0aW9uUmVxdWVzdBonLm5hbWEudjEuRGVsZXRlUGx1Z2luQ29ubmVjdGlvblJlc3BvbnNlIgOQAgJiBnByb3RvMw", [file_nama_v1_sign_in]);
 
 /**
  * @generated from message nama.v1.CreateUserRequest
@@ -371,8 +371,183 @@ export const SetDefaultPermissionsResponseSchema: GenMessage<SetDefaultPermissio
   messageDesc(file_nama_v1_user, 19);
 
 /**
- * Managing the Server's Users and their Devices. Every RPC but `ListDevices`, `RevokeDevice` and
- * `ChangePassword` needs `PERMISSION_MANAGE_USERS`, and fails with `permission_denied` without it.
+ * @generated from message nama.v1.ListPluginConnectionsRequest
+ */
+export type ListPluginConnectionsRequest = Message<"nama.v1.ListPluginConnectionsRequest"> & {
+};
+
+/**
+ * Describes the message nama.v1.ListPluginConnectionsRequest.
+ * Use `create(ListPluginConnectionsRequestSchema)` to create a new message.
+ */
+export const ListPluginConnectionsRequestSchema: GenMessage<ListPluginConnectionsRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_user, 20);
+
+/**
+ * @generated from message nama.v1.ListPluginConnectionsResponse
+ */
+export type ListPluginConnectionsResponse = Message<"nama.v1.ListPluginConnectionsResponse"> & {
+  /**
+   * One per Plugin the caller can connect to, by Plugin id.
+   *
+   * @generated from field: repeated nama.v1.PluginConnection connections = 1;
+   */
+  connections: PluginConnection[];
+};
+
+/**
+ * Describes the message nama.v1.ListPluginConnectionsResponse.
+ * Use `create(ListPluginConnectionsResponseSchema)` to create a new message.
+ */
+export const ListPluginConnectionsResponseSchema: GenMessage<ListPluginConnectionsResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_user, 21);
+
+/**
+ * A User's Plugin Connection, as the User sees it.
+ *
+ * @generated from message nama.v1.PluginConnection
+ */
+export type PluginConnection = Message<"nama.v1.PluginConnection"> & {
+  /**
+   * The Plugin's id, such as `telegram`.
+   *
+   * @generated from field: string plugin_id = 1;
+   */
+  pluginId: string;
+
+  /**
+   * @generated from field: nama.v1.PluginConnectionState state = 2;
+   */
+  state: PluginConnectionState;
+};
+
+/**
+ * Describes the message nama.v1.PluginConnection.
+ * Use `create(PluginConnectionSchema)` to create a new message.
+ */
+export const PluginConnectionSchema: GenMessage<PluginConnection> = /*@__PURE__*/
+  messageDesc(file_nama_v1_user, 22);
+
+/**
+ * @generated from message nama.v1.StartPluginConnectionRequest
+ */
+export type StartPluginConnectionRequest = Message<"nama.v1.StartPluginConnectionRequest"> & {
+  /**
+   * The Plugin's id, such as `telegram`.
+   *
+   * @generated from field: string plugin_id = 1;
+   */
+  pluginId: string;
+};
+
+/**
+ * Describes the message nama.v1.StartPluginConnectionRequest.
+ * Use `create(StartPluginConnectionRequestSchema)` to create a new message.
+ */
+export const StartPluginConnectionRequestSchema: GenMessage<StartPluginConnectionRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_user, 23);
+
+/**
+ * @generated from message nama.v1.StartPluginConnectionResponse
+ */
+export type StartPluginConnectionResponse = Message<"nama.v1.StartPluginConnectionResponse"> & {
+  /**
+   * The link the User opens to finish connecting.
+   *
+   * @generated from field: string url = 1;
+   */
+  url: string;
+};
+
+/**
+ * Describes the message nama.v1.StartPluginConnectionResponse.
+ * Use `create(StartPluginConnectionResponseSchema)` to create a new message.
+ */
+export const StartPluginConnectionResponseSchema: GenMessage<StartPluginConnectionResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_user, 24);
+
+/**
+ * @generated from message nama.v1.DeletePluginConnectionRequest
+ */
+export type DeletePluginConnectionRequest = Message<"nama.v1.DeletePluginConnectionRequest"> & {
+  /**
+   * The Plugin's id, such as `telegram`.
+   *
+   * @generated from field: string plugin_id = 1;
+   */
+  pluginId: string;
+};
+
+/**
+ * Describes the message nama.v1.DeletePluginConnectionRequest.
+ * Use `create(DeletePluginConnectionRequestSchema)` to create a new message.
+ */
+export const DeletePluginConnectionRequestSchema: GenMessage<DeletePluginConnectionRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_user, 25);
+
+/**
+ * @generated from message nama.v1.DeletePluginConnectionResponse
+ */
+export type DeletePluginConnectionResponse = Message<"nama.v1.DeletePluginConnectionResponse"> & {
+};
+
+/**
+ * Describes the message nama.v1.DeletePluginConnectionResponse.
+ * Use `create(DeletePluginConnectionResponseSchema)` to create a new message.
+ */
+export const DeletePluginConnectionResponseSchema: GenMessage<DeletePluginConnectionResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_user, 26);
+
+/**
+ * Where a User's Plugin Connection is.
+ *
+ * @generated from enum nama.v1.PluginConnectionState
+ */
+export const PluginConnectionState = {
+  /**
+   * @generated from enum value: PLUGIN_CONNECTION_STATE_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED: 0,
+
+  /**
+   * Not connected, and no link is waiting.
+   *
+   * @generated from enum value: PLUGIN_CONNECTION_STATE_NOT_CONNECTED = 1;
+   */
+  NOT_CONNECTED: 1,
+
+  /**
+   * `StartPluginConnection` gave a link that the User hasn't finished with yet.
+   *
+   * @generated from enum value: PLUGIN_CONNECTION_STATE_WAITING = 2;
+   */
+  WAITING: 2,
+
+  /**
+   * Connected.
+   *
+   * @generated from enum value: PLUGIN_CONNECTION_STATE_CONNECTED = 3;
+   */
+  CONNECTED: 3,
+} as const;
+
+/**
+ * Where a User's Plugin Connection is.
+ *
+ * @generated from enum nama.v1.PluginConnectionState
+ */
+export type PluginConnectionState = (typeof PluginConnectionState)[keyof typeof PluginConnectionState] | UnknownEnum;
+
+/**
+ * Describes the enum nama.v1.PluginConnectionState.
+ */
+export const PluginConnectionStateSchema: GenEnum<PluginConnectionState> = /*@__PURE__*/
+  enumDesc(file_nama_v1_user, 0);
+
+/**
+ * Managing the Server's Users, their Devices and Plugin Connections. Every RPC but `ListDevices`,
+ * `RevokeDevice`, `ChangePassword` and the Plugin Connection ones needs `PERMISSION_MANAGE_USERS`,
+ * and fails with `permission_denied` without it.
  * Only a caller with `PERMISSION_ADMIN` may `SetPermissions`, `ResetPassword` or `DeleteUser` for a
  * User with it, grant it, put it in the default Permissions or create a User while they hold it, or
  * set their own Permissions; others fail with `permission_denied` and a Refusal naming
@@ -504,6 +679,43 @@ export const UserService: GenService<{
     methodKind: "unary";
     input: typeof SetDefaultPermissionsRequestSchema;
     output: typeof SetDefaultPermissionsResponseSchema;
+  },
+  /**
+   * Lists the enabled Plugins the caller can connect to, such as Telegram, by id, with whether
+   * they are connected. Any signed-in User may list their own, and only their own. What a Plugin
+   * Connection holds, such as a Telegram chat id, never leaves the Server.
+   *
+   * @generated from rpc nama.v1.UserService.ListPluginConnections
+   */
+  listPluginConnections: {
+    methodKind: "unary";
+    input: typeof ListPluginConnectionsRequestSchema;
+    output: typeof ListPluginConnectionsResponseSchema;
+  },
+  /**
+   * Starts connecting the caller to a Plugin, and returns the link they open to finish, such as
+   * `https://t.me/<bot>?start=<code>`. The Plugin Connection is `PLUGIN_CONNECTION_STATE_WAITING`
+   * until they do, for up to 10 minutes, then the link expires. Starting again replaces the link.
+   * Fails with `REFUSAL_REASON_PLUGIN_NOT_FOUND` for a Plugin that isn't enabled or can't connect
+   * Users, and with `unavailable` if the Plugin couldn't make the link.
+   *
+   * @generated from rpc nama.v1.UserService.StartPluginConnection
+   */
+  startPluginConnection: {
+    methodKind: "unary";
+    input: typeof StartPluginConnectionRequestSchema;
+    output: typeof StartPluginConnectionResponseSchema;
+  },
+  /**
+   * Disconnects the caller from a Plugin, deleting their Plugin Connection, or the link they are
+   * waiting on. Disconnecting what isn't connected does nothing.
+   *
+   * @generated from rpc nama.v1.UserService.DeletePluginConnection
+   */
+  deletePluginConnection: {
+    methodKind: "unary";
+    input: typeof DeletePluginConnectionRequestSchema;
+    output: typeof DeletePluginConnectionResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_nama_v1_user, 0);

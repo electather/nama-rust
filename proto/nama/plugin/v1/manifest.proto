@@ -109,4 +109,8 @@ enum ProvidePoint {
   // A Notifier. The Plugin's `deliver` export takes each notification as `Delivery` and returns
   // nothing, or fails with why the service didn't take it, which the Server logs.
   PROVIDE_POINT_NOTIFIER = 3;
+  // A Connector, which connects Users to the outside service. The Plugin's `start_connection`
+  // export takes `ConnectionStart` and returns `ConnectionStarted`, and its `poll_connection` export
+  // takes `ConnectionPoll` and returns `ConnectionPolled`.
+  PROVIDE_POINT_CONNECTOR = 4;
 }

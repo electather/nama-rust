@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+package nama.plugin.v1;
+
+// What an Installed Plugin's `start_connection` export takes: the one-time code to connect a User
+// with. The Server makes it, since an Installed Plugin has no source of randomness.
+message ConnectionStart {
+  // Random, unguessable, and made of letters, digits, `-` and `_`, as a Telegram deep link takes.
+  string code = 1;
+}
+
+// What an Installed Plugin's `start_connection` export returns: where the User goes to connect,
+// and what the Server passes back to `poll_connection` while it waits.
+message ConnectionStarted {
+  // The link the User opens, such as `https://t.me/<bot>?start=<code>`.
+  string url = 1;
+  // Opaque to the Server.
+  string pending = 2;
+}
+
+// What an Installed Plugin's `poll_connection` export takes: what `start_connection` returned as
+// `pending`.
+message ConnectionPoll {
+  string pending = 1;
+}
+
+// What an Installed Plugin's `poll_connection` export returns.
+message ConnectionPolled {
+  // The User's identity at the outside service, such as their Telegram chat id, once they
+  // connected. Unset while they haven't. The Server keeps it as their Plugin Connection.
+  optional string connection = 1;
+}

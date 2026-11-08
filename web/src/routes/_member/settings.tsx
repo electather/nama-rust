@@ -2,21 +2,18 @@ import { createQueryOptions } from "@connectrpc/connect-query";
 import { createFileRoute } from "@tanstack/react-router";
 
 import { ChangePassword } from "@/components/change-password";
-import { DeviceList } from "@/components/device-list";
+import { DeviceList, yourDevicesQuery } from "@/components/device-list";
 import { Page } from "@/components/page";
+import { PluginConnections } from "@/components/plugin-connections";
 import { ServerUrl } from "@/components/server-url";
 import { ServerService } from "@/gen/nama/v1/server_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { UserService } from "@/gen/nama/v1/user_pb";
 import { may } from "@/lib/permissions";
 
 export const Route = createFileRoute("/_member/settings")({
   loader: ({ context: { queryClient, transport, signedIn } }) =>
     Promise.all([
-      queryClient.query({
-        ...createQueryOptions(UserService.method.listDevices, {}, { transport }),
-        staleTime: "static",
-      }),
+      queryClient.query(yourDevicesQuery(transport)),
       may(signedIn.user, Permission.MANAGE_SETTINGS) &&
         queryClient.query({
           ...createQueryOptions(ServerService.method.getServerSettings, {}, { transport }),
@@ -47,6 +44,7 @@ function Settings() {
           <DeviceList />
         </div>
       </section>
+      <PluginConnections />
       {may(signedIn.user, Permission.MANAGE_SETTINGS) && (
         <section aria-labelledby="server" className="mt-12 max-w-md">
           <h2 id="server" className="font-medium">

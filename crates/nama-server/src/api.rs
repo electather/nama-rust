@@ -42,31 +42,33 @@ use nama_proto::nama::v1::{
     CreateSeasonRequestsRequest, CreateSeasonRequestsResponse, CreateUserRequest,
     CreateUserResponse, DeclineFollowedShowRequest, DeclineFollowedShowResponse,
     DeclineRequestRequest, DeclineRequestResponse, DeleteLibraryRequest, DeleteLibraryResponse,
-    DeleteUserRequest, DeleteUserResponse, DisablePluginRequest, DisablePluginResponse,
-    EnablePluginRequest, EnablePluginResponse, EventService, EventType,
-    GetDefaultPermissionsRequest, GetDefaultPermissionsResponse, GetLibraryRequest,
-    GetLibraryResponse, GetMovieRequest, GetMovieResponse, GetRequestRequest, GetRequestResponse,
-    GetServerInfoRequest, GetServerInfoResponse, GetServerSettingsRequest,
-    GetServerSettingsResponse, GetShowRequest, GetShowResponse, LibraryKind, LibraryService,
-    ListContinueWatchingRequest, ListContinueWatchingResponse, ListDevicesRequest,
-    ListDevicesResponse, ListEpisodesRequest, ListEpisodesResponse, ListLibrariesRequest,
-    ListLibrariesResponse, ListMoviesRequest, ListMoviesResponse, ListPluginsRequest,
-    ListPluginsResponse, ListRequestsRequest, ListRequestsResponse, ListShowsRequest,
-    ListShowsResponse, ListUnmatchedItemsRequest, ListUnmatchedItemsResponse, ListUsersRequest,
-    ListUsersResponse, LookUpMovieRequest, LookUpMovieResponse, LookUpShowRequest,
-    LookUpShowResponse, LookUpSignInCodeRequest, LookUpSignInCodeResponse, MatchService,
-    Permission, PluginKind, PluginService, PollSignInCodeRequest, PollSignInCodeResponse,
-    ReauthenticateRequest, ReauthenticateResponse, Refusal, RefusalReason, ReportProgressRequest,
-    ReportProgressResponse, RequestService, ResetPasswordRequest, ResetPasswordResponse,
-    RetryRequestRequest, RetryRequestResponse, RevokeDeviceRequest, RevokeDeviceResponse,
-    ScanLibraryRequest, ScanLibraryResponse, SearchMetadataRequest, SearchMetadataResponse,
-    SearchMoviesRequest, SearchMoviesResponse, SearchShowsRequest, SearchShowsResponse,
-    ServerService, ServerSettings, SessionDelivery, SetDefaultPermissionsRequest,
-    SetDefaultPermissionsResponse, SetMatchRequest, SetMatchResponse, SetPermissionsRequest,
-    SetPermissionsResponse, SetPlayedRequest, SetPlayedResponse, SetupRequest, SetupResponse,
-    SignInCodeStatus, SignInRequest, SignInResponse, SignInService, SignOutRequest,
-    SignOutResponse, StartSignInCodeRequest, StartSignInCodeResponse, SubscribeRequest,
-    SubscribeResponse, TestPluginSettingsRequest, TestPluginSettingsResponse, UpdateLibraryRequest,
+    DeletePluginConnectionRequest, DeletePluginConnectionResponse, DeleteUserRequest,
+    DeleteUserResponse, DisablePluginRequest, DisablePluginResponse, EnablePluginRequest,
+    EnablePluginResponse, EventService, EventType, GetDefaultPermissionsRequest,
+    GetDefaultPermissionsResponse, GetLibraryRequest, GetLibraryResponse, GetMovieRequest,
+    GetMovieResponse, GetRequestRequest, GetRequestResponse, GetServerInfoRequest,
+    GetServerInfoResponse, GetServerSettingsRequest, GetServerSettingsResponse, GetShowRequest,
+    GetShowResponse, LibraryKind, LibraryService, ListContinueWatchingRequest,
+    ListContinueWatchingResponse, ListDevicesRequest, ListDevicesResponse, ListEpisodesRequest,
+    ListEpisodesResponse, ListLibrariesRequest, ListLibrariesResponse, ListMoviesRequest,
+    ListMoviesResponse, ListPluginConnectionsRequest, ListPluginConnectionsResponse,
+    ListPluginsRequest, ListPluginsResponse, ListRequestsRequest, ListRequestsResponse,
+    ListShowsRequest, ListShowsResponse, ListUnmatchedItemsRequest, ListUnmatchedItemsResponse,
+    ListUsersRequest, ListUsersResponse, LookUpMovieRequest, LookUpMovieResponse,
+    LookUpShowRequest, LookUpShowResponse, LookUpSignInCodeRequest, LookUpSignInCodeResponse,
+    MatchService, Permission, PluginConnection, PluginConnectionState, PluginKind, PluginService,
+    PollSignInCodeRequest, PollSignInCodeResponse, ReauthenticateRequest, ReauthenticateResponse,
+    Refusal, RefusalReason, ReportProgressRequest, ReportProgressResponse, RequestService,
+    ResetPasswordRequest, ResetPasswordResponse, RetryRequestRequest, RetryRequestResponse,
+    RevokeDeviceRequest, RevokeDeviceResponse, ScanLibraryRequest, ScanLibraryResponse,
+    SearchMetadataRequest, SearchMetadataResponse, SearchMoviesRequest, SearchMoviesResponse,
+    SearchShowsRequest, SearchShowsResponse, ServerService, ServerSettings, SessionDelivery,
+    SetDefaultPermissionsRequest, SetDefaultPermissionsResponse, SetMatchRequest, SetMatchResponse,
+    SetPermissionsRequest, SetPermissionsResponse, SetPlayedRequest, SetPlayedResponse,
+    SetupRequest, SetupResponse, SignInCodeStatus, SignInRequest, SignInResponse, SignInService,
+    SignOutRequest, SignOutResponse, StartPluginConnectionRequest, StartPluginConnectionResponse,
+    StartSignInCodeRequest, StartSignInCodeResponse, SubscribeRequest, SubscribeResponse,
+    TestPluginSettingsRequest, TestPluginSettingsResponse, UpdateLibraryRequest,
     UpdateLibraryResponse, UpdatePluginSettingsRequest, UpdatePluginSettingsResponse,
     UpdateServerSettingsRequest, UpdateServerSettingsResponse, UserService, WatchStateService,
     WhoAmIRequest, WhoAmIResponse, WithdrawFollowedShowRequest, WithdrawFollowedShowResponse,
@@ -78,6 +80,7 @@ use crate::{
     artwork::{self, Artwork},
     browse::{self, Browse, Started},
     config::{Config, PluginConfig},
+    connections::{self, Connections},
     contents::{Contents, Episode, Item, MatchedTo, Metadata, Movie, Show, Unmatched, Version},
     db::{Database, now},
     events::{EventBus, Filter},
@@ -128,6 +131,7 @@ pub(crate) fn router(
     let artwork_router = artwork::router(artwork.clone(), contents.clone());
     let versions = versions::router(contents);
     let browse = Browse::new(Arc::clone(&db));
+    let connections = Connections::new(Arc::clone(&db), plugins.clone());
     let router = connectrpc::Router::new()
         .add_service(Arc::new(ServerServiceHandler {
             name: config.name.clone(),
@@ -177,6 +181,7 @@ pub(crate) fn router(
         }))
         .add_service(Arc::new(UserServiceHandler {
             users: users.clone(),
+            connections,
         }))
         .into_axum_router()
         .merge(artwork_router)
@@ -263,6 +268,9 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::USER_SERVICE_RESET_PASSWORD_SPEC.procedure,           MANAGE_USERS),
     (proto::USER_SERVICE_GET_DEFAULT_PERMISSIONS_SPEC.procedure,  MANAGE_USERS),
     (proto::USER_SERVICE_SET_DEFAULT_PERMISSIONS_SPEC.procedure,  MANAGE_USERS),
+    (proto::USER_SERVICE_LIST_PLUGIN_CONNECTIONS_SPEC.procedure,  Access::SignedIn),
+    (proto::USER_SERVICE_START_PLUGIN_CONNECTION_SPEC.procedure,  Access::SignedIn),
+    (proto::USER_SERVICE_DELETE_PLUGIN_CONNECTION_SPEC.procedure, Access::SignedIn),
     (proto::REQUEST_SERVICE_CREATE_REQUEST_SPEC.procedure,        REQUEST_MOVIE),
     (proto::REQUEST_SERVICE_CREATE_SEASON_REQUESTS_SPEC.procedure, REQUEST_TV),
     (proto::REQUEST_SERVICE_LIST_REQUESTS_SPEC.procedure,         Access::SignedIn),
@@ -1166,12 +1174,13 @@ impl WatchStateService for WatchStateServiceHandler {
     }
 }
 
-/// `nama.v1.UserService`: managing the Server's Users and their Devices. Needs
+/// `nama.v1.UserService`: managing the Server's Users, their Devices and Plugin Connections. Needs
 /// `PERMISSION_MANAGE_USERS`, which [`require_access`] enforces, but for the self-service RPCs
 /// [`ACCESS`] opens to any session, which check for themselves with [`devices_owner`] or act only
 /// on the caller.
 struct UserServiceHandler {
     users: Users,
+    connections: Connections,
 }
 
 #[expect(
@@ -1350,6 +1359,81 @@ impl UserService for UserServiceHandler {
             .set_default_permissions(&caller(&ctx)?.user, permissions)
             .await?;
         Response::ok(SetDefaultPermissionsResponse::default())
+    }
+
+    async fn list_plugin_connections(
+        &self,
+        ctx: RequestContext,
+        _request: ServiceRequest<'_, ListPluginConnectionsRequest>,
+    ) -> ServiceResult<ListPluginConnectionsResponse> {
+        let listed = self
+            .connections
+            .list(caller(&ctx)?.user.id)
+            .await
+            .map_err(database_failed)?;
+        let connection = |(plugin, state): (PluginId, connections::State)| PluginConnection {
+            plugin_id: plugin.to_string(),
+            state: match state {
+                connections::State::NotConnected => {
+                    PluginConnectionState::PLUGIN_CONNECTION_STATE_NOT_CONNECTED
+                }
+                connections::State::Waiting => {
+                    PluginConnectionState::PLUGIN_CONNECTION_STATE_WAITING
+                }
+                connections::State::Connected => {
+                    PluginConnectionState::PLUGIN_CONNECTION_STATE_CONNECTED
+                }
+            }
+            .into(),
+            ..Default::default()
+        };
+        Response::ok(ListPluginConnectionsResponse {
+            connections: listed.into_iter().map(connection).collect(),
+            ..Default::default()
+        })
+    }
+
+    async fn start_plugin_connection(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, StartPluginConnectionRequest>,
+    ) -> ServiceResult<StartPluginConnectionResponse> {
+        let plugin = PluginId::from(request.plugin_id.to_owned());
+        let url = match self.connections.start(caller(&ctx)?.user.id, &plugin).await {
+            Ok(url) => url,
+            Err(connections::StartError::NoConnector) => {
+                return Err(refuse(
+                    RefusalReason::REFUSAL_REASON_PLUGIN_NOT_FOUND,
+                    format!("no enabled Plugin {plugin} connects Users"),
+                )
+                .field("plugin_id")
+                .param("pluginId", &plugin)
+                .into());
+            }
+            Err(err) => {
+                tracing::error!(%plugin, "starting a Plugin Connection failed: {err}");
+                return Err(ConnectError::unavailable(
+                    "the Plugin couldn't make the link",
+                ));
+            }
+        };
+        Response::ok(StartPluginConnectionResponse {
+            url,
+            ..Default::default()
+        })
+    }
+
+    async fn delete_plugin_connection(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, DeletePluginConnectionRequest>,
+    ) -> ServiceResult<DeletePluginConnectionResponse> {
+        let plugin = PluginId::from(request.plugin_id.to_owned());
+        self.connections
+            .delete(caller(&ctx)?.user.id, plugin)
+            .await
+            .map_err(database_failed)?;
+        Response::ok(DeletePluginConnectionResponse::default())
     }
 }
 

@@ -1,7 +1,7 @@
 [package]
 name = "nama-plugin-telegram"
 version = "0.1.0"
-description = "Installed Plugin posting Request events to a Telegram channel, bundled in the Server"
+description = "Installed Plugin posting Request events to a Telegram channel and connecting Users to their chats, bundled in the Server"
 license = "AGPL-3.0-only"
 edition.workspace = true
 repository.workspace = true
