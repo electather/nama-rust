@@ -25,8 +25,9 @@ use nama_plugin_api::PluginId;
 use nama_proto::nama::v1::{
     CreateLibraryRequest, DisablePluginRequest, EnablePluginRequest, LibraryKind,
     LibraryServiceClient, ListPluginsRequest, Plugin, PluginKind, PluginServiceClient,
-    RefusalReason, ScanLibraryRequest, SettingValue, UpdatePluginSettingsRequest,
-    UpdatePluginSettingsResponse, setting_value::Value,
+    RefusalReason, ScanLibraryRequest, SettingValue, TestPluginSettingsRequest,
+    TestPluginSettingsResponse, UpdatePluginSettingsRequest, UpdatePluginSettingsResponse,
+    setting_value::Value,
 };
 use nama_server::{config::Config, db::Database, plugin_settings, plugins::Registry};
 use refused::assert_refused;
@@ -77,19 +78,26 @@ impl Started {
         &self,
         settings: &[(&str, &str)],
     ) -> Result<UpdatePluginSettingsResponse, ConnectError> {
-        let settings = settings.iter().map(|(key, text)| {
-            let value = SettingValue {
-                value: Some(Value::TextValue((*text).to_owned())),
-                ..Default::default()
-            };
-            ((*key).to_owned(), value)
-        });
         let request = UpdatePluginSettingsRequest {
             id: "test-plugin".to_owned(),
-            settings: settings.collect(),
+            settings: text_values(settings),
             ..Default::default()
         };
         let response = self.client().update_plugin_settings(request).await?;
+        Ok(response.into_owned())
+    }
+
+    /// Tests the test Plugin's unsaved `settings` as the Plugins page's "Test" does, each one text.
+    async fn test_settings(
+        &self,
+        settings: &[(&str, &str)],
+    ) -> Result<TestPluginSettingsResponse, ConnectError> {
+        let request = TestPluginSettingsRequest {
+            id: "test-plugin".to_owned(),
+            settings: text_values(settings),
+            ..Default::default()
+        };
+        let response = self.client().test_plugin_settings(request).await?;
         Ok(response.into_owned())
     }
 
@@ -177,6 +185,31 @@ async fn http_server() -> String {
         }
     });
     url
+}
+
+/// `settings` as the Plugins page sends them, each one text.
+fn text_values<M: FromIterator<(String, SettingValue)>>(settings: &[(&str, &str)]) -> M {
+    settings
+        .iter()
+        .map(|(key, text)| {
+            let value = SettingValue {
+                value: Some(Value::TextValue((*text).to_owned())),
+                ..Default::default()
+            };
+            ((*key).to_owned(), value)
+        })
+        .collect()
+}
+
+/// The labels of the choices `tested` offers for the setting `key`.
+fn choice_labels<'a>(tested: &'a TestPluginSettingsResponse, key: &str) -> Vec<&'a str> {
+    tested.choices.get(key).map_or_else(Vec::new, |choices| {
+        choices
+            .choices
+            .iter()
+            .map(|choice| choice.label.as_str())
+            .collect()
+    })
 }
 
 fn enable(id: &str) -> EnablePluginRequest {
@@ -432,4 +465,106 @@ async fn a_plugin_that_keeps_panicking_logs_why_is_disabled_and_saved_so_and_can
         .await
         .unwrap();
     assert!(started.listed("test-plugin").await.unwrap().enabled);
+}
+
+#[tokio::test]
+async fn testing_offers_the_checks_choices_and_only_an_offered_one_is_saved() {
+    let started = Started::new().await;
+    started.drop_in("test.wasm", "");
+    assert!(started.listed("test-plugin").await.unwrap().checks_settings);
+
+    let tested = started.test_settings(&[]).await.unwrap();
+
+    assert_eq!(choice_labels(&tested, "profile"), ["HD", "Ultra HD"]);
+    assert_eq!(tested.choices["profile"].choices[1].value, "2");
+    started.save_settings(&[("profile", "2")]).await.unwrap();
+    let refusal = assert_refused(
+        started.save_settings(&[("profile", "3")]).await,
+        ErrorCode::FailedPrecondition,
+        RefusalReason::REFUSAL_REASON_CHOICE_NOT_OFFERED,
+    );
+    assert_eq!(refusal.field, "settings.profile");
+    let stored = plugin_settings::stored(&started.db).await.unwrap().unwrap();
+    assert_eq!(
+        stored["test-plugin"].settings.get("profile"),
+        Some(&nama_plugin_api::settings::SettingValue::Text(
+            "2".to_owned()
+        ))
+    );
+}
+
+#[tokio::test]
+async fn testing_an_unsaved_url_reaches_its_host_for_that_test_alone() {
+    let log = Log::global();
+    let server = http_server().await;
+    let started = Started::new().await;
+    started.drop_in("test.wasm", "");
+    assert!(started.listed("test-plugin").await.is_some());
+
+    let tested = started.test_settings(&[("url", &server)]).await.unwrap();
+
+    assert_eq!(choice_labels(&tested, "profile"), ["HD", "Ultra HD"]);
+    // The Plugin enabled afterwards, whose saved settings don't name the host, may not reach it.
+    let media = tempfile::tempdir().unwrap();
+    let library = started.library(media.path()).await;
+    started.save_settings(&[("fetch", &server)]).await.unwrap();
+    started
+        .client()
+        .enable_plugin(enable("test-plugin"))
+        .await
+        .unwrap();
+    started.scan(library).await;
+    let refused = format!("HTTP request to {server} is not allowed");
+    log.wait_for(&["observer failed", &refused], 1).await;
+}
+
+#[tokio::test]
+async fn a_check_that_loops_forever_or_panics_fails_in_plain_words_and_the_server_carries_on() {
+    let started = Started::new().await;
+    started.drop_in("test.wasm", "");
+    assert!(started.listed("test-plugin").await.is_some());
+
+    let looped = started.test_settings(&[("fail_with", "loop")]).await;
+    let panicked = started.test_settings(&[("fail_with", "panic")]).await;
+
+    for (failed, message, timeout_seconds) in [
+        (
+            looped,
+            "test-plugin didn't finish checking its settings within 5 seconds",
+            Some("5"),
+        ),
+        (
+            panicked,
+            "test-plugin failed while checking its settings",
+            None,
+        ),
+    ] {
+        let err = failed.clone().unwrap_err();
+        let refusal = assert_refused(
+            failed,
+            ErrorCode::FailedPrecondition,
+            RefusalReason::REFUSAL_REASON_SETTINGS_CHECK_FAILED,
+        );
+        assert_eq!(err.message.as_deref(), Some(message));
+        let timeout = refusal.params.get("timeoutSeconds").map(String::as_str);
+        assert_eq!(timeout, timeout_seconds);
+    }
+    let retested = started.test_settings(&[]).await.unwrap();
+    assert_eq!(choice_labels(&retested, "profile"), ["HD", "Ultra HD"]);
+}
+
+#[tokio::test]
+async fn a_check_that_fails_is_refused_with_the_plugins_error() {
+    let started = Started::new().await;
+    started.drop_in("test.wasm", "");
+    assert!(started.listed("test-plugin").await.is_some());
+
+    let failed = started
+        .test_settings(&[("fail_with", "the service refused the API key")])
+        .await;
+
+    assert_eq!(
+        failed.unwrap_err().message.as_deref(),
+        Some("the service refused the API key")
+    );
 }

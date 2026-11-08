@@ -4,8 +4,16 @@ syntax = "proto3";
 // `.wasm` file whose exports take and return these, encoded as protobuf.
 package nama.plugin.v1;
 
+import "nama/v1/plugin.proto";
+
 // What an Installed Plugin is and what it needs from the Server. The Plugin returns it from its
 // `manifest()` export, which takes no input.
+//
+// A Plugin may also export `check_settings()`, which takes no input and checks its settings, read
+// from its Extism config as for any call, against the outside service they are for. It returns
+// `CheckedSettings`, or fails with an error an admin can act on. The Server calls it only when an
+// admin tests settings, which may be unsaved, so the hosts of the URL settings tested are allowed
+// for that call alone.
 message Manifest {
   // The Plugin's stable, unique name, such as "sonarr".
   string id = 1;
@@ -58,6 +66,8 @@ enum SettingKind {
   // An http or https URL, such as a Sonarr address. The Plugin may send HTTP requests to its
   // host, as if `allowed_hosts` named it.
   SETTING_KIND_URL = 5;
+  // Text picked from the choices the Plugin's `check_settings()` offers.
+  SETTING_KIND_CHOICE = 6;
 }
 
 // A setting's value.
@@ -67,9 +77,15 @@ message SettingValue {
     bool bool = 1;
     // A whole number.
     int64 integer = 2;
-    // Text, for SETTING_KIND_TEXT, SETTING_KIND_SECRET and SETTING_KIND_URL.
+    // Text, for SETTING_KIND_TEXT, SETTING_KIND_SECRET, SETTING_KIND_URL and SETTING_KIND_CHOICE.
     string text = 3;
   }
+}
+
+// What an Installed Plugin's `check_settings()` returns when its settings work.
+message CheckedSettings {
+  // The choices for each `SETTING_KIND_CHOICE` setting, by key.
+  map<string, nama.v1.SettingChoices> choices = 1;
 }
 
 // An Observe Extension Point an Installed Plugin can register an Observer at.
