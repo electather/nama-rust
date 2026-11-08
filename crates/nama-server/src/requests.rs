@@ -147,27 +147,37 @@ impl Requests {
     /// Hands the Approved `request` to the Movie Fulfiller and moves it to Processing, publishing
     /// that its state changed. Returns the Request as it is now. Without a Movie Fulfiller, or
     /// when it doesn't take the Request, the Request waits in Approved.
+    ///
+    /// Runs in a task of its own: once the Fulfiller has taken the Request, its reference must be
+    /// stored even if the caller stops waiting.
     async fn hand_off(&self, request: Request) -> Result<Request, Error> {
-        let Some(reference) = self.fulfill(&request).await else {
-            return Ok(request);
-        };
-        let id = request.id;
-        let processing = self
-            .db
-            .write(move |tx| Box::pin(start_processing(tx, id, reference)))
-            .await?;
-        let Some(processing) = processing else {
-            warn!(
-                request = id,
-                "the Movie Fulfiller took a Request that was changed meanwhile, and keeps it"
-            );
-            return Ok(request);
-        };
-        self.events.publish(vec![event(RequestStateChanged {
-            request: processing.clone().into(),
-            ..Default::default()
-        })]);
-        Ok(processing)
+        let requests = self.clone();
+        let handed = tokio::spawn(async move {
+            let Some(reference) = requests.fulfill(&request).await else {
+                return Ok(request);
+            };
+            let id = request.id;
+            let processing = requests
+                .db
+                .write(move |tx| Box::pin(start_processing(tx, id, reference)))
+                .await?;
+            let Some(processing) = processing else {
+                warn!(
+                    request = id,
+                    "the Movie Fulfiller took a Request that was changed meanwhile, and keeps it"
+                );
+                return Ok(request);
+            };
+            requests.events.publish(vec![event(RequestStateChanged {
+                request: processing.clone().into(),
+                ..Default::default()
+            })]);
+            Ok(processing)
+        });
+        // The task is never aborted, so it only fails if it panicked.
+        handed
+            .await
+            .unwrap_or_else(|_| Err(sqlx::Error::WorkerCrashed.into()))
     }
 
     /// The reference the Movie Fulfiller gives for `request` once it takes it, if one is enabled

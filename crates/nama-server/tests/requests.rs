@@ -71,14 +71,13 @@ impl Fixture {
         Self::start_with(Registry::new()).await
     }
 
-    /// A Fixture whose Movie Fulfiller is a fake, which it returns too.
-    async fn with_fulfiller() -> (Self, FakeFulfiller) {
-        let fulfiller = FakeFulfiller::default();
+    /// A Fixture whose Movie Fulfiller is `fulfiller`.
+    async fn with_fulfiller(fulfiller: &FakeFulfiller) -> Self {
         let plugins = Registry::new();
         plugins
             .enable(Arc::new(FulfillerPlugin(fulfiller.clone())))
             .unwrap();
-        (Self::start_with(plugins).await, fulfiller)
+        Self::start_with(plugins).await
     }
 
     /// A Fixture with the Plugins enabled in `plugins` too.
@@ -507,14 +506,22 @@ async fn an_approved_request_becomes_available_once_a_scan_matches_its_movie_and
 }
 
 /// A Movie Fulfiller that takes every Request it is handed, giving `movie-<TMDB id>` as its
-/// reference.
+/// reference, unless it refuses them all.
 #[derive(Clone, Default)]
 struct FakeFulfiller {
     /// The TMDB id of each Movie it was handed, in order.
     handed: Arc<Mutex<Vec<i64>>>,
+    refuses: bool,
 }
 
 impl FakeFulfiller {
+    fn refusing() -> Self {
+        Self {
+            refuses: true,
+            ..Self::default()
+        }
+    }
+
     fn handed(&self) -> Vec<i64> {
         self.handed
             .lock()
@@ -530,7 +537,13 @@ impl Fulfiller<Movies> for FakeFulfiller {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .push(tmdb_id);
-        Box::pin(async move { Ok(format!("movie-{tmdb_id}")) })
+        let refuses = self.refuses;
+        Box::pin(async move {
+            if refuses {
+                return Err("Radarr is unreachable".into());
+            }
+            Ok(format!("movie-{tmdb_id}"))
+        })
     }
 
     fn progress<'a>(
@@ -561,7 +574,8 @@ impl Plugin for FulfillerPlugin {
 #[tokio::test]
 async fn approving_a_pending_request_hands_it_to_the_movie_fulfiller_and_the_member_sees_it_processing_live()
  {
-    let (fixture, fulfiller) = Fixture::with_fulfiller().await;
+    let fulfiller = FakeFulfiller::default();
+    let fixture = Fixture::with_fulfiller(&fulfiller).await;
     let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
     let ada = requests(as_ada.clone());
     let pending = ask(&ada, HEAT).await;
@@ -593,7 +607,8 @@ async fn approving_a_pending_request_hands_it_to_the_movie_fulfiller_and_the_mem
 
 #[tokio::test]
 async fn a_request_opened_approved_goes_to_the_movie_fulfiller_and_joining_it_does_not_again() {
-    let (fixture, fulfiller) = Fixture::with_fulfiller().await;
+    let fulfiller = FakeFulfiller::default();
+    let fixture = Fixture::with_fulfiller(&fulfiller).await;
     let may_auto_approve = [Permission::Request, Permission::AutoApproveMovie];
     let (_, as_ada) = fixture.user("Ada", &may_auto_approve).await;
     let (_, as_grace) = fixture.user("Grace", &may_auto_approve).await;
@@ -611,8 +626,24 @@ async fn a_request_opened_approved_goes_to_the_movie_fulfiller_and_joining_it_do
 }
 
 #[tokio::test]
+async fn a_request_the_movie_fulfiller_refuses_waits_in_approved() {
+    let fulfiller = FakeFulfiller::refusing();
+    let fixture = Fixture::with_fulfiller(&fulfiller).await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let ada = requests(as_ada);
+    let pending = ask(&ada, HEAT).await;
+
+    let approved = fixture.approve(pending.id).await;
+
+    assert_eq!(approved.state, RequestState::Approved);
+    assert_eq!(fulfiller.handed(), [HEAT]);
+    assert_eq!(fixture.fulfiller_reference(pending.id).await, None);
+    assert_eq!(list(&ada).await, [approved]);
+}
+
+#[tokio::test]
 async fn a_processing_request_becomes_available_once_a_scan_matches_its_movie() {
-    let (fixture, _fulfiller) = Fixture::with_fulfiller().await;
+    let fixture = Fixture::with_fulfiller(&FakeFulfiller::default()).await;
     let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
     let ada = requests(as_ada);
     let processing = fixture.approve(ask(&ada, ALIEN).await.id).await;
