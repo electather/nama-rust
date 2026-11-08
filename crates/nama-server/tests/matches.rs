@@ -22,11 +22,11 @@ use nama_plugin_tmdb::{
     testing::{API_KEY, FakeTmdb},
 };
 use nama_proto::nama::v1::{
-    ClearMatchRequest, CreateLibraryRequest, CreateRequestRequest, ExternalId, GetRequestRequest,
-    LibraryKind, LibraryServiceClient, ListUnmatchedItemsRequest, ListUnmatchedItemsResponse,
-    MatchServiceClient, RefusalReason, RequestServiceClient, RequestState, ScanLibraryRequest,
-    SearchMetadataRequest, SetMatchRequest, SetMatchResponse, TitleKind, UnmatchedItem,
-    external_id,
+    ClearMatchRequest, CreateLibraryRequest, CreateRequestRequest, CreateSeasonRequestsRequest,
+    ExternalId, GetRequestRequest, LibraryKind, LibraryServiceClient, ListUnmatchedItemsRequest,
+    ListUnmatchedItemsResponse, MatchServiceClient, RefusalReason, RequestServiceClient,
+    RequestState, ScanLibraryRequest, SearchMetadataRequest, SetMatchRequest, SetMatchResponse,
+    TitleKind, UnmatchedItem, external_id,
 };
 use nama_server::{config::Config, contents::Contents, plugins::Registry};
 use refused::assert_refused;
@@ -420,6 +420,42 @@ async fn matching_a_file_by_hand_to_a_requested_movie_makes_its_request_availabl
         .unwrap();
 
     assert_eq!(after.state, RequestState::Available);
+}
+
+#[tokio::test]
+async fn matching_one_of_two_aired_episodes_by_hand_makes_its_season_request_partially_available() {
+    let fx = Fixture::start(LibraryKind::LIBRARY_KIND_SHOWS).await;
+    let pilot = "The Office/Season 01/The Office - S01E01.mkv";
+    fx.write(pilot, VIDEO);
+    // Both the US and the UK Office fit, so the scan leaves it Unmatched.
+    let (item, _) = fx.scan_until_decided(pilot, VIDEO).await;
+    let requests = RequestServiceClient::new(HttpClient::plaintext(), fx.server.client_config());
+    let season_1 = requests
+        .create_season_requests(CreateSeasonRequestsRequest {
+            show_tmdb_id: 2316,
+            season_numbers: vec![1],
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_owned()
+        .requests
+        .remove(0);
+
+    fx.set_match(item, 2316).await.unwrap();
+    let after = requests
+        .get_request(GetRequestRequest {
+            id: season_1.id,
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_owned()
+        .request
+        .into_option()
+        .unwrap();
+
+    assert_eq!(after.state, RequestState::PartiallyAvailable);
 }
 
 #[tokio::test]

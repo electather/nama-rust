@@ -181,5 +181,5 @@ The state of a Request its Fulfiller didn't take, such as when the service is un
 _Avoid_: errored, stuck, timed out
 
 **Partially Available**:
-The state of a Request when some, but not all, of what it asked for has been Matched in a Library.
+The state of a Request when some, but not all, of what it asked for has been Matched in a Library. For a Season, what it asked for is the Episodes aired so far, so a Season still airing can become Available, and Episodes that air later don't reopen it.
 _Avoid_: in progress, partial

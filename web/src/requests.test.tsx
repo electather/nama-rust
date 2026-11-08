@@ -144,6 +144,39 @@ test("a Request its Fulfiller didn't take shows as Failed with the reason, witho
   expect(screen.getByText("Reason: Radarr is unreachable")).toBeDefined();
 });
 
+test("a Season Request shows as Partially Available, then Available, as a scan Matches its Episodes, without a reload", async () => {
+  const events = eventFeed();
+  const season2 = darkSeason(4n, 2, RequestState.PENDING);
+  let requests = [season2, darkSeason(3n, 1, RequestState.PENDING)];
+  openApp(
+    "/requests",
+    server(() => requests, events.stream),
+  );
+  const seasons = await screen.findByRole("list", { name: "Dark" });
+
+  async function season1Becomes(state: RequestState, label: string) {
+    const season1 = darkSeason(3n, 1, state);
+    requests = [season2, season1];
+    events.send({ event: { case: "requestStateChanged", value: { request: season1 } } });
+    await within(seasons).findByText(label);
+    return within(seasons)
+      .getAllByRole("listitem")
+      .map((row) => row.textContent);
+  }
+
+  const someMatched = await season1Becomes(RequestState.PARTIALLY_AVAILABLE, "Partially Available");
+  const allMatched = await season1Becomes(RequestState.AVAILABLE, "Available");
+
+  expect(someMatched).toEqual([
+    "Season 12017 · Requested by youPartially Available",
+    "Season 22017 · Requested by youPendingWithdraw",
+  ]);
+  expect(allMatched).toEqual([
+    "Season 12017 · Requested by youAvailable",
+    "Season 22017 · Requested by youPendingWithdraw",
+  ]);
+});
+
 test("a Request cancelled elsewhere goes without a reload", async () => {
   const events = eventFeed();
   let requests = [dune];
