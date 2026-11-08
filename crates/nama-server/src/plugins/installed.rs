@@ -236,13 +236,13 @@ impl Plugin for Installed {
             crashes: Arc::default(),
         };
         // Each counting its own crashes, so its Observer working between them doesn't hide them.
-        let own_crashes = || {
+        let with_own_crash_count = || {
             Arc::new(Running {
                 crashes: Arc::default(),
                 ..running.clone()
             })
         };
-        let fulfiller = own_crashes();
+        let fulfiller = with_own_crash_count();
         // An Extension Point this Server doesn't know is one the Plugin can do without, since its
         // nama-api requirement admits this Server.
         let providers = &self.manifest.providers;
@@ -256,7 +256,7 @@ impl Plugin for Installed {
             registrar.provide::<dyn Fulfiller<Shows>>(Priority::DEFAULT, fulfiller);
         }
         if providers.contains(&ProvidePoint::PROVIDE_POINT_NOTIFIER.into()) {
-            registrar.provide::<dyn Notifier>(Priority::DEFAULT, own_crashes());
+            registrar.provide::<dyn Notifier>(Priority::DEFAULT, with_own_crash_count());
         }
         if self
             .manifest

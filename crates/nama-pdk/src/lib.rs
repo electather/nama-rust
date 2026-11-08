@@ -223,7 +223,9 @@ macro_rules! notifier {
                 let recipient = delivery
                     .recipient
                     .ok_or_else(|| Error::msg("it doesn't know whom the notification is for"))?;
-                let notification = delivery.notification.into_option().unwrap_or_default();
+                let notification = delivery
+                    .notification
+                    .ok_or_else(|| Error::msg("the Server sent no notification"))?;
                 Ok(<$notifier as Notifier>::deliver(notification, recipient)?)
             }
         };

@@ -3201,11 +3201,16 @@ async fn an_installed_notifier_that_loops_forever_or_panics_is_logged_and_the_se
         let fixture = Fixture::with_installed_plugin(&[("notifier", notifier)]).await;
         let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
         let ada = requests(as_ada);
-        let logged = log.count(&["test-plugin", "provider failed", reason]);
+        let failed = [
+            "test-plugin",
+            "notifier::Notifier",
+            "provider failed",
+            reason,
+        ];
+        let logged = log.count(&failed);
 
         let first = ask(&ada, HEAT).await;
-        log.wait_for(&["test-plugin", "provider failed", reason], logged + 1)
-            .await;
+        log.wait_for(&failed, logged + 1).await;
         let second = ask(&ada, ALIEN).await;
 
         assert_eq!(first.state, RequestState::Pending, "{notifier}");
