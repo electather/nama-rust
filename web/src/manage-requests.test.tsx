@@ -31,10 +31,18 @@ const dune: MessageInitShape<typeof RequestSchema> = {
   requesters: [{ userId: 3n, name: "Grace" }],
 };
 
+const alien: MessageInitShape<typeof RequestSchema> = {
+  id: 4n,
+  movie: { tmdbId: 348n, title: "Alien" },
+  state: RequestState.FAILED,
+  failureReason: "Radarr is unreachable",
+  requesters: [{ userId: 2n, name: "Ada" }],
+};
+
 /**
- * A fake Server holding `requests`, signed in with `permissions`, that approves, declines and
- * cancels them. It changes the messages given, so a test can change them too, as someone else
- * would.
+ * A fake Server holding `requests`, signed in with `permissions`, that approves, declines,
+ * cancels and retries them, the Fulfiller taking a retried one. It changes the messages given, so
+ * a test can change them too, as someone else would.
  */
 function managedServer(permissions: Permission[], ...requests: Request[]) {
   const held = new Map(requests.map((request) => [request.id, request]));
@@ -57,15 +65,29 @@ function managedServer(permissions: Permission[], ...requests: Request[]) {
         held.delete(id);
         return {};
       },
+      retryRequest: ({ id }) => {
+        const request = held.get(id) ?? create(RequestSchema);
+        if (request.state !== RequestState.FAILED) {
+          throw refused(Code.FailedPrecondition, "it isn't Failed", {
+            reason: RefusalReason.REQUEST_NOT_FAILED,
+          });
+        }
+        Object.assign(request, { state: RequestState.PROCESSING, failureReason: undefined });
+        return { request };
+      },
     });
   });
 }
 
-test("a User without Manage Requests isn't offered Approve, Decline or Cancel", async () => {
-  openApp("/requests", managedServer(newUser, create(RequestSchema, heat)));
+test("a User without Manage Requests isn't offered Approve, Decline, Cancel or Retry", async () => {
+  openApp(
+    "/requests",
+    managedServer(newUser, create(RequestSchema, heat), create(RequestSchema, alien)),
+  );
 
   await screen.findByText("Heat");
-  expect(screen.queryByRole("button", { name: /^(Approve|Decline|Cancel)/u })).toBeNull();
+  expect(screen.getByText("Reason: Radarr is unreachable")).toBeDefined();
+  expect(screen.queryByRole("button", { name: /^(Approve|Decline|Cancel|Retry)/u })).toBeNull();
 });
 
 test("approving a Pending Request shows it Approved", async () => {
@@ -125,4 +147,26 @@ test("approving a Request someone else declined meanwhile says so, and shows it 
 
   expect(await screen.findByText("Heat was already approved or declined.")).toBeDefined();
   expect(await screen.findByText("Declined")).toBeDefined();
+});
+
+test("retrying a Failed Request shows it Processing, without its reason", async () => {
+  openApp("/requests", managedServer(admin, create(RequestSchema, alien)));
+
+  fireEvent.click(await screen.findByRole("button", { name: "Retry Alien" }));
+
+  expect(await screen.findByText("Processing")).toBeDefined();
+  expect(screen.queryByText("Reason: Radarr is unreachable")).toBeNull();
+  expect(screen.queryByRole("button", { name: "Retry Alien" })).toBeNull();
+});
+
+test("retrying a Request that stopped being Failed meanwhile says so", async () => {
+  const request = create(RequestSchema, alien);
+  openApp("/requests", managedServer(admin, request));
+  const retry = await screen.findByRole("button", { name: "Retry Alien" });
+
+  request.state = RequestState.PROCESSING;
+  fireEvent.click(retry);
+
+  expect(await screen.findByText("Alien isn’t Failed any more.")).toBeDefined();
+  expect(await screen.findByText("Processing")).toBeDefined();
 });

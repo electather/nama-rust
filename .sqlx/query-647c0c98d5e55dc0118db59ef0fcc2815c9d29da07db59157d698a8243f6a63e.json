@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE requests SET state = ?1, failure_reason = NULL WHERE id = ?2 AND state != ?1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "647c0c98d5e55dc0118db59ef0fcc2815c9d29da07db59157d698a8243f6a63e"
+}

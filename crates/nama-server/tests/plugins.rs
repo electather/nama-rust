@@ -671,8 +671,22 @@ async fn a_panic_from_a_stale_call_does_not_disable_the_plugin_enabled_since() {
     );
 }
 
+/// A Provider whose every call fails.
+trait Fetcher: Send + Sync {
+    fn fetch(&self) -> Result<(), String>;
+}
+
+/// Fails quoting the URL it fetched, which holds an API key.
+struct QuotesItsUrl(String);
+
+impl Fetcher for QuotesItsUrl {
+    fn fetch(&self) -> Result<(), String> {
+        Err(format!("GET {} failed", self.0))
+    }
+}
+
 /// A Plugin taking a required `api_key` and a `language` that defaults to `en`, which tells the
-/// test the settings it was enabled with.
+/// test the settings it was enabled with and provides a [`Fetcher`] that quotes them.
 struct Configurable(mpsc::UnboundedSender<Settings>);
 
 impl Plugin for Configurable {
@@ -707,7 +721,14 @@ impl Plugin for Configurable {
     }
 
     fn register(&self, registrar: &mut Registrar) {
-        let _: Result<(), _> = self.0.send(registrar.settings().clone());
+        let settings = registrar.settings().clone();
+        let url = format!(
+            "/movies?key={}&language={}",
+            settings.text("api_key").unwrap_or_default(),
+            settings.text("language").unwrap_or_default()
+        );
+        registrar.provide::<dyn Fetcher>(Priority::DEFAULT, Arc::new(QuotesItsUrl(url)));
+        let _: Result<(), _> = self.0.send(settings);
     }
 }
 
@@ -739,6 +760,29 @@ async fn a_plugin_is_enabled_with_its_settings_and_their_defaults() {
             ("api_key", key),
             ("language", SettingValue::Text("en".to_owned()))
         ])
+    );
+}
+
+#[tokio::test]
+async fn a_providers_error_for_users_comes_without_its_plugins_secret_settings() {
+    let registry = Registry::new();
+    let (tx, _rx) = mpsc::unbounded_channel();
+    registry
+        .enable_with_settings(
+            Arc::new(Configurable(tx)),
+            settings(&[("api_key", SettingValue::Text("s3cr3t".to_owned()))]),
+        )
+        .unwrap();
+
+    let fetched = registry
+        .call_provider_blanking_secrets::<dyn Fetcher, _, _>(
+            |fetcher| async move { fetcher.fetch() },
+        )
+        .await;
+
+    assert_eq!(
+        fetched,
+        Some(Err("GET /movies?key=…&language=en failed".to_owned()))
     );
 }
 

@@ -72,6 +72,9 @@ struct Entry {
     generation: u64,
     /// Position among the Plugin's own registrations, which breaks the last tie.
     index: usize,
+    /// The values of the secret settings the Plugin was enabled with, which its errors mustn't
+    /// show.
+    secrets: Arc<[String]>,
     registration: Registration,
 }
 
@@ -257,12 +260,14 @@ impl Registry {
         if self.read(|state| state.plugins.contains_key(id)) {
             return Err(EnableError::AlreadyEnabled(id.clone()));
         }
+        let schema = plugin.settings_schema();
         let settings = settings
-            .resolve(&plugin.settings_schema())
+            .resolve(&schema)
             .map_err(|error| EnableError::InvalidSettings {
                 plugin: id.clone(),
                 error,
             })?;
+        let secrets: Arc<[String]> = secret_values(&schema, &settings).into();
         let mut registrar = Registrar::with_settings(settings);
         plugin.register(&mut registrar);
         let registrations = registrar.into_registrations();
@@ -292,6 +297,7 @@ impl Registry {
                         plugin: id.clone(),
                         generation,
                         index,
+                        secrets: Arc::clone(&secrets),
                         registration,
                     });
             }
@@ -409,7 +415,8 @@ impl Registry {
         let settings = settings
             .resolve(&with_optional_choices(schema.clone()))
             .map_err(CheckError::InvalidSettings)?;
-        let scrubbed = |message: String| without_secrets(message, &schema, &settings);
+        let secrets = secret_values(&schema, &settings);
+        let scrubbed = |message: String| without_secrets(message, &secrets);
         let panicked = |message: String| {
             let message = scrubbed(message);
             error!(plugin = %id, message, "plugin panicked while checking its settings");
@@ -564,6 +571,20 @@ impl Registry {
             .map(|(_, result)| result)
     }
 
+    /// Like [`Registry::call_provider`], for a call whose error Users may see: an `Err`'s message
+    /// comes back with the value of each secret setting of the Plugin that answered blanked out.
+    pub async fn call_provider_blanking_secrets<T, V, F>(
+        &self,
+        call: impl Fn(Arc<T>) -> F,
+    ) -> Option<Result<V, String>>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Future<Output = Result<V, String>>,
+    {
+        let (entry, result) = self.call_providers(None, call).await?;
+        Some(result.map_err(|message| without_secrets(message, &entry.secrets)))
+    }
+
     /// Like [`Registry::call_provider`], but also says which Plugin's Provider answered, so the
     /// caller can go back to it with [`Registry::call_provider_of`].
     pub async fn call_provider_with_id<T, R, F>(
@@ -574,7 +595,9 @@ impl Registry {
         T: ?Sized + Send + Sync + 'static,
         F: Future<Output = R>,
     {
-        self.call_providers(None, call).await
+        self.call_providers(None, call)
+            .await
+            .map(|(entry, result)| (entry.plugin, result))
     }
 
     /// Calls `call` with the Plugin `plugin`'s Provider of `T`, such as to fetch something that
@@ -595,12 +618,13 @@ impl Registry {
     }
 
     /// Calls `call` with the first Provider of `T` that answers without panicking, in the order
-    /// [`Registry::call_provider`] describes, considering only `only`'s if given.
+    /// [`Registry::call_provider`] describes, considering only `only`'s if given. Returns the
+    /// Provider's entry with its answer.
     async fn call_providers<T, R, F>(
         &self,
         only: Option<&PluginId>,
         call: impl Fn(Arc<T>) -> F,
-    ) -> Option<(PluginId, R)>
+    ) -> Option<(Entry, R)>
     where
         T: ?Sized + Send + Sync + 'static,
         F: Future<Output = R>,
@@ -625,7 +649,7 @@ impl Registry {
                 continue;
             }
             match contain(|| call(provider)).await {
-                Ok(result) => return Some((entry.plugin, result)),
+                Ok(result) => return Some((entry, result)),
                 Err(message) => self.disable_after_panic(&entry, point.name(), &message),
             }
         }
@@ -687,17 +711,23 @@ fn with_optional_choices(mut schema: SettingsSchema) -> SettingsSchema {
     schema
 }
 
-/// `message` with the value of each secret in `settings` blanked out, since a Plugin's error may
-/// quote one, such as in a URL it fetched.
-fn without_secrets(mut message: String, schema: &SettingsSchema, settings: &Settings) -> String {
-    let secrets = schema
+/// The value of each secret in `settings`, leaving out blank ones.
+fn secret_values(schema: &SettingsSchema, settings: &Settings) -> Vec<String> {
+    schema
         .fields
         .iter()
         .filter(|field| field.kind == SettingKind::Secret)
         .filter_map(|field| settings.text(field.key))
-        .filter(|secret| !secret.is_empty());
+        .filter(|secret| !secret.is_empty())
+        .map(str::to_owned)
+        .collect()
+}
+
+/// `message` with each of `secrets` blanked out, since a Plugin's error may quote one, such as in
+/// a URL it fetched.
+fn without_secrets(mut message: String, secrets: &[String]) -> String {
     for secret in secrets {
-        message = message.replace(secret, "…");
+        message = message.replace(secret.as_str(), "…");
     }
     message
 }
