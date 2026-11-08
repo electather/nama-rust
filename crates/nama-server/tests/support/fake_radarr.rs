@@ -6,7 +6,7 @@ use std::{
     path::PathBuf,
     sync::{
         Arc, Mutex, PoisonError,
-        atomic::{AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
     },
 };
 
@@ -31,6 +31,8 @@ pub(crate) struct FakeRadarr {
 }
 
 struct Fake {
+    /// Whether it refuses [`API_KEY`] too, as after an Admin made Radarr a new one.
+    refuses_key: AtomicBool,
     /// The TMDB ids of the Movies it already has.
     existing: Vec<i64>,
     /// The TMDB ids it can't find.
@@ -55,6 +57,7 @@ impl FakeRadarr {
         let mut radarr = Self {
             addr: listener.local_addr().unwrap(),
             state: Arc::new(Fake {
+                refuses_key: AtomicBool::default(),
                 existing: existing.to_vec(),
                 not_found: not_found.to_vec(),
                 added: Mutex::default(),
@@ -92,6 +95,11 @@ impl FakeRadarr {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .clone()
+    }
+
+    /// Refuses every API key from now on, as when an Admin makes Radarr a new one.
+    pub(crate) fn refuse_key(&self) {
+        self.state.refuses_key.store(true, Ordering::Relaxed);
     }
 
     /// Makes its queue answer with the fixture `file`, such as `queue.json`.
@@ -132,7 +140,9 @@ async fn answer(
     headers: HeaderMap,
     body: Bytes,
 ) -> Response {
-    if headers.get("x-api-key").is_none_or(|key| key != API_KEY) {
+    if fake.refuses_key.load(Ordering::Relaxed)
+        || headers.get("x-api-key").is_none_or(|key| key != API_KEY)
+    {
         return StatusCode::UNAUTHORIZED.into_response();
     }
     match (method, uri.path()) {

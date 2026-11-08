@@ -16,7 +16,10 @@ use connectrpc::{
     client::{ClientConfig, HttpClient, ServerStream},
 };
 use fake_radarr::{API_KEY as RADARR_KEY, FakeRadarr};
-use nama_plugin_api::settings::{SettingValue, Settings};
+use nama_plugin_api::{
+    fulfiller::{Fulfiller, Movies},
+    settings::{SettingValue, Settings},
+};
 use nama_plugin_tmdb::{
     Tmdb,
     testing::{API_KEY as TMDB_KEY, FakeTmdb},
@@ -49,6 +52,8 @@ type Subscription = ServerStream<hyper::body::Incoming, SubscribeResponseView<'s
 /// has Alien and can't find Dune.
 struct Fixture {
     server: TestServer,
+    /// The Server's Plugins, to ask Radarr's Fulfiller directly.
+    plugins: Registry,
     radarr: FakeRadarr,
     _tmdb: FakeTmdb,
 }
@@ -68,13 +73,14 @@ impl Fixture {
         plugins
             .enable_with_settings(Arc::new(Tmdb::with_endpoints(tmdb.endpoints())), settings)
             .unwrap();
-        let (server, db) = TestServer::start_with_db(Config::default(), plugins).await;
+        let (server, db) = TestServer::start_with_db(Config::default(), plugins.clone()).await;
         // As on a Server's first start.
         plugin_settings::import(&db, &BTreeMap::new())
             .await
             .unwrap();
         let fixture = Self {
             server,
+            plugins,
             radarr: FakeRadarr::start(&[ALIEN], &[DUNE]).await,
             _tmdb: tmdb,
         };
@@ -186,11 +192,20 @@ impl Fixture {
         retried.into_owned().request.into_option().unwrap()
     }
 
+    /// Asks the Movie Fulfiller, Radarr, what it is downloading for `references`, with its error
+    /// as Users would see it.
+    async fn progress(&self, references: &[String]) -> Result<Vec<String>, String> {
+        self.plugins
+            .call_provider::<dyn Fulfiller<Movies>, _, _>(|radarr| async move {
+                radarr.progress(references).await
+            })
+            .await
+            .unwrap()
+            .map(|by_reference| by_reference.into_keys().collect())
+            .map_err(|error| error.to_string())
+    }
+
     /// Subscribes as the Admin to the progress of every Request.
-    #[expect(
-        clippy::unwrap_used,
-        reason = "a test helper fails its test by panicking"
-    )]
     async fn subscribe_to_progress(&self) -> Subscription {
         let only = SubscribeRequest {
             types: vec![EventType::EVENT_TYPE_REQUEST_PROGRESS.into()],
@@ -428,4 +443,21 @@ async fn processing_movie_requests_show_radarrs_queue_as_it_advances_asked_once_
         ]
     );
     assert_eq!(fixture.radarr.queue_calls(), 2);
+}
+
+#[tokio::test]
+async fn with_radarr_refusing_the_key_or_down_progress_fails_in_plain_words() {
+    let mut fixture = Fixture::with_radarr_enabled().await;
+    fixture.radarr.set_queue("queue.json");
+    let heat = [HEAT.to_string()];
+
+    let answered = fixture.progress(&heat).await;
+    fixture.radarr.refuse_key();
+    let refused = fixture.progress(&heat).await;
+    fixture.radarr.go_down();
+    let down = fixture.progress(&heat).await;
+
+    assert_eq!(answered, Ok(vec![HEAT.to_string()]));
+    assert_eq!(refused, Err("Radarr refused the API key".to_owned()));
+    assert_eq!(down, Err("Radarr didn't answer".to_owned()));
 }
