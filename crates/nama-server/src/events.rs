@@ -31,6 +31,10 @@ use crate::{
 /// one event per Item of [`crate::scanner`]'s batch of files at once, which this must hold.
 const BUFFERED: usize = 4096;
 
+/// How many recipients one Notifier delivers a notification to at once. An Installed Plugin's
+/// delivery holds a blocking thread, so a Request with many Users to tell mustn't take one each.
+const DELIVERING_AT_ONCE: usize = 4;
+
 /// Publishes events to subscribers and Observers.
 ///
 /// Cloning an `EventBus` gives another handle to the same one.
@@ -198,8 +202,9 @@ async fn next_message(
     }
 }
 
-/// Hands `notification` to `plugin`'s `notifier` for its channel and, at once, for the Plugin
-/// Connection to `plugin` of each User told about it. A User with none is skipped.
+/// Hands `notification` to `plugin`'s `notifier` for its channel and for the Plugin Connection to
+/// `plugin` of each User told about it, [`DELIVERING_AT_ONCE`] at a time. A User with none is
+/// skipped.
 ///
 /// # Errors
 ///
@@ -213,7 +218,7 @@ async fn deliver(
 ) -> Result<(), PluginError> {
     let mut recipients = vec![("the channel".to_owned(), Recipient::Channel)];
     match connections::connected(&db, &plugin).await {
-        Ok(connected) => recipients.extend(to_tell(&notification.event, connected)),
+        Ok(connected) => recipients.extend(connections_to_tell(&notification.event, connected)),
         Err(err) => error!(%plugin, "could not read whom to message about a Request: {err}"),
     }
     let deliveries = recipients.into_iter().map(|(whom, recipient)| {
@@ -223,11 +228,11 @@ async fn deliver(
             delivered.err().map(|error| format!("to {whom}: {error}"))
         }
     });
-    let failed: Vec<String> = future::join_all(deliveries)
-        .await
-        .into_iter()
-        .flatten()
-        .collect();
+    let failed: Vec<String> = stream::iter(deliveries)
+        .buffer_unordered(DELIVERING_AT_ONCE)
+        .filter_map(future::ready)
+        .collect()
+        .await;
     if failed.is_empty() {
         Ok(())
     } else {
@@ -237,7 +242,7 @@ async fn deliver(
 
 /// The Plugin Connection of each of `connected` that [`users_to_tell`] picks for `event`, named
 /// by whose it is.
-fn to_tell(event: &Event, connected: Vec<(User, String)>) -> Vec<(String, Recipient)> {
+fn connections_to_tell(event: &Event, connected: Vec<(User, String)>) -> Vec<(String, Recipient)> {
     let (users, connections): (Vec<_>, Vec<_>) = connected.into_iter().unzip();
     let told = users_to_tell(event, &users);
     users

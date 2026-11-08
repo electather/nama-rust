@@ -355,7 +355,8 @@ async fn user(server: &TestServer, name: &str) -> (i64, ClientConfig) {
     (id, server.client_config_as(&token))
 }
 
-/// The User `user` calls as asks for the Movie `tmdb_id`, which opens a Pending Request.
+/// The User whose client settings are `user` asks for the Movie `tmdb_id`, which opens a Pending
+/// Request.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
