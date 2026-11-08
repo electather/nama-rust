@@ -12,6 +12,7 @@ use std::{
 };
 
 use nama_plugin_api::{PluginId, connector::Connector};
+use tokio::time::Instant;
 use tracing::{error, warn};
 
 use crate::{
@@ -151,8 +152,7 @@ impl Connections {
     /// Polls for the link `code` until its User finishes with it, then stores their Plugin
     /// Connection, or gives up after [`LIFETIME`].
     async fn wait_for(self, waiter: Waiter, code: String, pending: String) {
-        let polled = tokio::time::timeout(LIFETIME, self.poll(&waiter, &code, &pending)).await;
-        if let Ok(Some(connection)) = polled
+        if let Some(connection) = self.poll(&waiter, &code, &pending).await
             && let Err(err) = self.store(&waiter, &code, connection).await
         {
             error!(plugin = %waiter.1, "could not store a Plugin Connection: {err}");
@@ -165,12 +165,16 @@ impl Connections {
     }
 
     /// The User's identity at the service once they finished with the link `code`, or `None` if
-    /// it stopped waiting first or its Plugin went.
+    /// it expired or stopped waiting first, or its Plugin went.
     async fn poll(&self, waiter: &Waiter, code: &str, pending: &str) -> Option<String> {
         let (_, plugin) = waiter;
+        // A deadline checked between polls, not a timeout around them: a timeout would drop a
+        // poll in flight, which is Plugin code, outside `contain` (`crates/nama-server/AGENTS.md`,
+        // "Plugin code runs contained").
+        let expires = Instant::now() + LIFETIME;
         loop {
             tokio::time::sleep(POLL_EVERY).await;
-            if !self.is_waiting(waiter, code) {
+            if Instant::now() >= expires || !self.is_waiting(waiter, code) {
                 return None;
             }
             match self.poll_once(plugin, pending).await? {

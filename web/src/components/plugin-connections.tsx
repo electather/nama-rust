@@ -1,3 +1,4 @@
+import type { ConnectError } from "@connectrpc/connect";
 import { createConnectQueryKey, useMutation, useQuery } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -139,9 +140,14 @@ function useConnectionChanges(name: string) {
     onSettled,
   });
   const remove = useMutation(UserService.method.deletePluginConnection, { onSettled });
-  const error = start.error ?? remove.error;
-  const failed = error ? refusal(error, `connect ${name}`, {}).form : undefined;
+  const failed =
+    failure(start.error, `connect ${name}`) ?? failure(remove.error, `disconnect ${name}`);
   return { start, remove, failed };
+}
+
+/** Why the `attempt` failed with `error`, if it did. */
+function failure(error: ConnectError | null, attempt: string) {
+  return error ? refusal(error, attempt, {}).form : undefined;
 }
 
 /** Where the User's connection to the Plugin `name` is, in plain words. */

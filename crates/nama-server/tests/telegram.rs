@@ -508,7 +508,8 @@ async fn the_plugins_page_lists_telegrams_three_settings_without_the_bot_token()
 }
 
 #[tokio::test]
-async fn connecting_through_the_deep_link_stores_the_chat_id_as_the_users_plugin_connection() {
+async fn connecting_through_the_deep_link_stores_the_chat_id_as_the_users_plugin_connection_unseen_by_them()
+ {
     let fixture = Fixture::with_telegram(BOT_TOKEN, None).await;
     let before = fixture.ada_connections().await;
 
@@ -519,6 +520,12 @@ async fn connecting_through_the_deep_link_stores_the_chat_id_as_the_users_plugin
     fixture
         .wait_for_ada(PluginConnectionState::PLUGIN_CONNECTION_STATE_CONNECTED)
         .await;
+    let listed = fixture
+        .ada_users()
+        .list_plugin_connections(ListPluginConnectionsRequest::default())
+        .await
+        .unwrap()
+        .into_owned();
 
     let telegram = |state| vec![("telegram".to_owned(), state)];
     assert_eq!(
@@ -534,6 +541,10 @@ async fn connecting_through_the_deep_link_stores_the_chat_id_as_the_users_plugin
     assert_eq!(
         fixture.adas_stored_connection().await.as_deref(),
         Some("987654321")
+    );
+    assert!(
+        !format!("{listed:?}").contains("987654321"),
+        "the chat id reached Ada: {listed:?}"
     );
 }
 

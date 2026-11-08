@@ -112,6 +112,10 @@ _Avoid_: downloader, *arr, client
 A Provider that delivers notifications about Requests to people through an outside service, such as Telegram. The Server decides who is told what; the Notifier only delivers.
 _Avoid_: notification agent, channel, alerter
 
+**Connector**:
+A Provider that connects a User to an outside service through a link they open, such as a Telegram deep link, and says who they are there. The Kernel keeps that as their Plugin Connection.
+_Avoid_: linker, integration
+
 **Plugin Connection**:
 A User's identity at an outside service, such as their Telegram chat, that a Plugin acts on for them.
 _Avoid_: integration, link, account
