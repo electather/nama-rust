@@ -2519,6 +2519,7 @@ const fn setting_kind_to_proto(kind: settings::SettingKind) -> proto::SettingKin
         settings::SettingKind::Bool => proto::SettingKind::SETTING_KIND_BOOL,
         settings::SettingKind::Integer => proto::SettingKind::SETTING_KIND_INTEGER,
         settings::SettingKind::Choice => proto::SettingKind::SETTING_KIND_CHOICE,
+        settings::SettingKind::Url => proto::SettingKind::SETTING_KIND_URL,
     }
 }
 

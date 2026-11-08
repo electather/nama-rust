@@ -20,10 +20,11 @@ base64 = "0.22"
 buffa = "0.9.2"
 clap = { version = "4", features = ["derive", "env"] }
 connectrpc = { version = "0.9.1", features = ["axum"] }
-extism = { version = "1.41.0", default-features = false, features = ["wasmtime-default-features"] }
+extism = { version = "1.41.0", default-features = false, features = ["http", "wasmtime-default-features"] }
 figment = { version = "0.10", features = ["env", "toml"] }
 futures-util = { version = "0.3", default-features = false, features = ["std"] }
 getrandom = "0.4"
+glob = "0.3"
 nama-plugin-api = { version = "0.1.0", path = "../nama-plugin-api" }
 nama-plugin-local-auth = { version = "0.1.0", path = "../../plugins/local-auth" }
 nama-plugin-log-events = { version = "0.1.0", path = "../../plugins/log-events" }

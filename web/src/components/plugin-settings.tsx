@@ -86,7 +86,7 @@ function SettingInput({
   return <TypedInput setting={setting} error={error} />;
 }
 
-/** A text, secret or number setting's input. A secret's value never comes back, so it starts blank. */
+/** A text, secret, number or URL setting's input. A secret's value never comes back, so it starts blank. */
 function TypedInput({
   setting,
   error,
@@ -118,6 +118,7 @@ function TypedInput({
 const inputs: Partial<Record<SettingKind, { type: string; step?: number }>> = {
   [SettingKind.SECRET]: { type: "password" },
   [SettingKind.INTEGER]: { type: "number", step: 1 },
+  [SettingKind.URL]: { type: "url" },
 };
 
 /** Whether leaving `setting` blank leaves it without a value: it has no default or stored secret. */

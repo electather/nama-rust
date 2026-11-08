@@ -70,7 +70,7 @@ test("a Plugin's settings fill its form, with defaults as hints and a set secret
   expect((await input("tmdb", "Token")).type).toBe("password");
 });
 
-test("the form checks the schema: a required setting is required and a number is whole", async () => {
+test("the form checks the schema: a required setting is required, a number is whole and a URL is a URL", async () => {
   openPlugins();
 
   expect((await input("log-events", "Path")).required).toBe(true);
@@ -78,6 +78,8 @@ test("the form checks the schema: a required setting is required and a number is
   const days = await input("log-events", "Keep for days");
   expect([days.type, days.step]).toEqual(["number", "1"]);
   expect((await input("log-events", "Verbose")).checked).toBe(true);
+  const url = await input("test-plugin", "Sonarr URL");
+  expect([url.type, url.value]).toEqual(["url", "http://sonarr.lan:8989"]);
 });
 
 test("saving sends what was typed, leaving out blanks and a set secret", async () => {
