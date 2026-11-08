@@ -107,6 +107,7 @@ pub(crate) fn router(
     plugins: Registry,
     scanner: Scanner,
     events: EventBus,
+    requests: Requests,
     setup_code: Option<SetupCode>,
 ) -> axum::Router {
     let users = Users::new(Arc::clone(&db), plugins.clone());
@@ -115,7 +116,6 @@ pub(crate) fn router(
     let artwork_router = artwork::router(artwork.clone(), contents.clone());
     let versions = versions::router(contents);
     let browse = Browse::new(Arc::clone(&db));
-    let matcher = Matcher::new(Arc::clone(&db), plugins.clone(), events.clone());
     connectrpc::Router::new()
         .add_service(Arc::new(ServerServiceHandler {
             name: config.name.clone(),
@@ -129,7 +129,7 @@ pub(crate) fn router(
             sign_in_code_limits: SignInCodeLimits::default(),
         }))
         .add_service(Arc::new(MatchServiceHandler {
-            matcher: matcher.clone(),
+            matcher: Matcher::new(Arc::clone(&db), plugins.clone(), events.clone()),
             contents: Contents::new(Arc::clone(&db)),
             libraries: Libraries::new(Arc::clone(&db)),
             scanner: scanner.clone(),
@@ -143,11 +143,12 @@ pub(crate) fn router(
             browse,
         }))
         .add_service(Arc::new(RequestServiceHandler {
-            requests: Requests::new(Arc::clone(&db), matcher, events.clone(), plugins.clone()),
+            requests: requests.clone(),
             artwork,
         }))
         .add_service(Arc::new(PluginServiceHandler {
             plugins,
+            requests,
             db: Arc::clone(&db),
             changing: tokio::sync::Mutex::default(),
         }))
@@ -2088,6 +2089,8 @@ fn device_to_proto(device: users::Device, is_current: bool) -> proto::Device {
 /// `PERMISSION_MANAGE_SETTINGS`, which [`require_access`] enforces.
 struct PluginServiceHandler {
     plugins: Registry,
+    /// Hands the Requests waiting for a Fulfiller to one once it is enabled.
+    requests: Requests,
     db: Arc<Database>,
     /// Held while a Plugin's settings change or it is enabled or disabled, and that is saved, so two
     /// changes at once can't leave it running otherwise than the database says.
@@ -2135,7 +2138,7 @@ impl PluginService for PluginServiceHandler {
         let request = request.to_owned_message();
         let id = PluginId::from(request.id);
         let plugin = self.builtin(&id)?;
-        let _changing = self.changing.lock().await;
+        let changing = self.changing.lock().await;
         let stored = self.stored(&plugin.id).await?;
         let settings = with_stored_secrets(
             &plugin.settings_schema,
@@ -2163,6 +2166,10 @@ impl PluginService for PluginServiceHandler {
             }
         }
         let enabled = self.plugins.enabled().contains(&plugin.id);
+        drop(changing);
+        if enabled {
+            self.requests.hand_off_waiting_to(&plugin.id).await;
+        }
         Response::ok(UpdatePluginSettingsResponse {
             plugin: plugin_to_proto(Builtin { enabled, ..plugin }, &settings).into(),
             ..Default::default()
@@ -2175,7 +2182,7 @@ impl PluginService for PluginServiceHandler {
         request: ServiceRequest<'_, EnablePluginRequest>,
     ) -> ServiceResult<EnablePluginResponse> {
         let id = PluginId::from(request.id.to_owned());
-        let _changing = self.changing.lock().await;
+        let changing = self.changing.lock().await;
         let settings = plugin_settings::stored(&self.db)
             .await
             .map_err(database_failed)?
@@ -2192,6 +2199,8 @@ impl PluginService for PluginServiceHandler {
         plugin_settings::set_enabled(&self.db, id.as_str(), true)
             .await
             .map_err(database_failed)?;
+        drop(changing);
+        self.requests.hand_off_waiting_to(&id).await;
         Response::ok(EnablePluginResponse::default())
     }
 
@@ -2358,6 +2367,17 @@ impl From<EnableError> for ConnectError {
             // The settings are the stored ones, not the request's, but #162 asks for the refusal
             // to name one.
             EnableError::InvalidSettings { error, .. } => settings_refused(error),
+            EnableError::FulfillerTaken { plugin, kind, by } => refuse(
+                RefusalReason::REFUSAL_REASON_FULFILLER_TAKEN,
+                format!(
+                    "{plugin} can't be enabled while {by} hands {kind} Requests on: disable {by} first"
+                ),
+            )
+            .field("id")
+            .param("pluginId", &plugin)
+            .param("fulfillerPluginId", &by)
+            .param("titleKind", &kind)
+            .into(),
             EnableError::AlreadyEnabled(_)
             | EnableError::IdPanicked { .. }
             | EnableError::Panicked { .. } => {
@@ -2576,7 +2596,8 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_NOT_A_FOLLOWED_SHOW_REQUESTER
         | R::REFUSAL_REASON_LAST_AUTHENTICATOR
         | R::REFUSAL_REASON_SETTINGS_CHECK_FAILED
-        | R::REFUSAL_REASON_CHOICE_NOT_OFFERED => ErrorCode::FailedPrecondition,
+        | R::REFUSAL_REASON_CHOICE_NOT_OFFERED
+        | R::REFUSAL_REASON_FULFILLER_TAKEN => ErrorCode::FailedPrecondition,
         R::REFUSAL_REASON_SIGN_IN_CODE_NOT_FOUND
         | R::REFUSAL_REASON_HANDLE_NOT_FOUND
         | R::REFUSAL_REASON_USER_NOT_FOUND
