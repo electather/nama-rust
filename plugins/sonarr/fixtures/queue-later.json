@@ -1,0 +1,140 @@
+{
+  "page": 1,
+  "pageSize": 1000,
+  "sortKey": "timeleft",
+  "sortDirection": "ascending",
+  "totalRecords": 5,
+  "records": [
+    {
+      "seriesId": 1,
+      "episodeId": 101,
+      "seasonNumber": 1,
+      "series": {
+        "id": 1,
+        "title": "Dark",
+        "year": 2017,
+        "tvdbId": 334824
+      },
+      "size": 20000000000,
+      "title": "Dark.S01.1080p.NF.WEB-DL.x264",
+      "sizeleft": 8000000000,
+      "timeleft": "00:45:00",
+      "status": "downloading",
+      "trackedDownloadStatus": "ok",
+      "trackedDownloadState": "downloading",
+      "statusMessages": [],
+      "downloadId": "D1S01PACK",
+      "protocol": "torrent",
+      "downloadClient": "qBittorrent",
+      "indexer": "Example Indexer",
+      "episodeHasFile": false,
+      "id": 201
+    },
+    {
+      "seriesId": 1,
+      "episodeId": 102,
+      "seasonNumber": 1,
+      "series": {
+        "id": 1,
+        "title": "Dark",
+        "year": 2017,
+        "tvdbId": 334824
+      },
+      "size": 20000000000,
+      "title": "Dark.S01.1080p.NF.WEB-DL.x264",
+      "sizeleft": 8000000000,
+      "timeleft": "00:45:00",
+      "status": "downloading",
+      "trackedDownloadStatus": "ok",
+      "trackedDownloadState": "downloading",
+      "statusMessages": [],
+      "downloadId": "D1S01PACK",
+      "protocol": "torrent",
+      "downloadClient": "qBittorrent",
+      "indexer": "Example Indexer",
+      "episodeHasFile": false,
+      "id": 202
+    },
+    {
+      "seriesId": 1,
+      "episodeId": 201,
+      "seasonNumber": 2,
+      "series": {
+        "id": 1,
+        "title": "Dark",
+        "year": 2017,
+        "tvdbId": 334824
+      },
+      "size": 2000000000,
+      "title": "Dark.S02E01.1080p.NF.WEB-DL.x264",
+      "sizeleft": 2000000000,
+      "timeleft": "00:00:00",
+      "status": "queued",
+      "trackedDownloadStatus": "ok",
+      "trackedDownloadState": "downloading",
+      "statusMessages": [],
+      "downloadId": "D1S02E01",
+      "protocol": "torrent",
+      "downloadClient": "qBittorrent",
+      "indexer": "Example Indexer",
+      "episodeHasFile": false,
+      "id": 203
+    },
+    {
+      "seriesId": 1,
+      "episodeId": 301,
+      "seasonNumber": 3,
+      "series": {
+        "id": 1,
+        "title": "Dark",
+        "year": 2017,
+        "tvdbId": 334824
+      },
+      "size": 2000000000,
+      "title": "Dark.S03E01.1080p.NF.WEB-DL.x264",
+      "sizeleft": 500000000,
+      "timeleft": "00:10:00",
+      "status": "downloading",
+      "trackedDownloadStatus": "ok",
+      "trackedDownloadState": "downloading",
+      "statusMessages": [],
+      "downloadId": "D1S03E01",
+      "protocol": "torrent",
+      "downloadClient": "qBittorrent",
+      "indexer": "Example Indexer",
+      "episodeHasFile": false,
+      "id": 204
+    },
+    {
+      "seriesId": 1,
+      "episodeId": 302,
+      "seasonNumber": 3,
+      "series": {
+        "id": 1,
+        "title": "Dark",
+        "year": 2017,
+        "tvdbId": 334824
+      },
+      "size": 2000000000,
+      "title": "Dark.S03E02.1080p.NF.WEB-DL.x264",
+      "sizeleft": 0,
+      "status": "completed",
+      "trackedDownloadStatus": "warning",
+      "trackedDownloadState": "importBlocked",
+      "statusMessages": [
+        {
+          "title": "Dark.S03E02.1080p.NF.WEB-DL.x264",
+          "messages": [
+            "Not an upgrade for existing episode file(s)"
+          ]
+        }
+      ],
+      "downloadId": "D1S03E02",
+      "protocol": "torrent",
+      "downloadClient": "qBittorrent",
+      "indexer": "Example Indexer",
+      "episodeHasFile": false,
+      "id": 205
+    }
+  ]
+}

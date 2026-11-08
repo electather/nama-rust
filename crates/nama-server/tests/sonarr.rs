@@ -1,5 +1,5 @@
 //! The Sonarr Installed Plugin, bundled in the Server, against a fake Sonarr: its settings check
-//! on the Plugins page, and Season Requests handed to it once Approved.
+//! on the Plugins page, Season Requests handed to it once Approved, and their download progress.
 
 #[path = "support/fake_sonarr.rs"]
 mod fake_sonarr;
@@ -9,25 +9,29 @@ mod refused;
 #[path = "support/server.rs"]
 mod server;
 
-use std::{collections::BTreeMap, sync::Arc};
+use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
 use connectrpc::{
     ConnectError, ErrorCode,
-    client::{ClientConfig, HttpClient},
+    client::{ClientConfig, HttpClient, ServerStream},
 };
 use fake_sonarr::{API_KEY as SONARR_KEY, DARK_TVDB, FakeSonarr};
-use nama_plugin_api::settings::{SettingValue, Settings};
+use nama_plugin_api::{
+    fulfiller::{Fulfiller, Shows},
+    settings::{SettingValue, Settings},
+};
 use nama_plugin_tmdb::{
     Tmdb,
     testing::{API_KEY as TMDB_KEY, FakeTmdb},
 };
 use nama_proto::nama::v1::{
-    ApproveRequestRequest, CancelFollowedShowRequest, CreateFollowedShowRequest,
-    CreateSeasonRequestsRequest, CreateUserRequest, EnablePluginRequest, ListPluginsRequest,
+    __buffa::view::SubscribeResponseView, ApproveRequestRequest, CancelFollowedShowRequest,
+    CreateFollowedShowRequest, CreateSeasonRequestsRequest, CreateUserRequest, Download,
+    DownloadStatus, EnablePluginRequest, EventServiceClient, EventType, ListPluginsRequest,
     PluginServiceClient, RefusalReason, Request, RequestServiceClient, RequestState,
-    RetryRequestRequest, SessionDelivery, SignInRequest, SignInServiceClient,
-    TestPluginSettingsRequest, TestPluginSettingsResponse, UpdatePluginSettingsRequest,
-    setting_value::Value,
+    RetryRequestRequest, SessionDelivery, SignInRequest, SignInServiceClient, SubscribeRequest,
+    SubscribeResponse, TestPluginSettingsRequest, TestPluginSettingsResponse,
+    UpdatePluginSettingsRequest, event, setting_value::Value, subscribe_response,
 };
 use nama_server::{config::Config, db::Database, plugin_settings, plugins::Registry};
 use refused::assert_refused;
@@ -37,11 +41,18 @@ use server::{PASSWORD, TestServer};
 const DARK: i64 = 70_523;
 const THE_OFFICE: i64 = 2316;
 
+/// How long to wait for the Server to tell of progress.
+const WAIT: Duration = Duration::from_secs(10);
+
+type Subscription = ServerStream<hyper::body::Incoming, SubscribeResponseView<'static>>;
+
 /// A Server with the TMDB Plugin enabled against a fake TMDB, beside a fake Sonarr that has no
 /// Shows yet.
 struct Fixture {
     server: TestServer,
     db: Arc<Database>,
+    /// The Server's Plugins, to ask Sonarr's Fulfiller directly.
+    plugins: Registry,
     sonarr: FakeSonarr,
     _tmdb: FakeTmdb,
 }
@@ -61,7 +72,7 @@ impl Fixture {
         plugins
             .enable_with_settings(Arc::new(Tmdb::with_endpoints(tmdb.endpoints())), settings)
             .unwrap();
-        let (server, db) = TestServer::start_with_db(Config::default(), plugins).await;
+        let (server, db) = TestServer::start_with_db(Config::default(), plugins.clone()).await;
         // As on a Server's first start.
         plugin_settings::import(&db, &BTreeMap::new())
             .await
@@ -69,6 +80,7 @@ impl Fixture {
         let fixture = Self {
             server,
             db,
+            plugins,
             sonarr: FakeSonarr::start().await,
             _tmdb: tmdb,
         };
@@ -223,6 +235,31 @@ impl Fixture {
             })
             .await
             .unwrap();
+    }
+
+    /// Asks the Show Fulfiller, Sonarr, what it is downloading for `references`, with its error
+    /// as Users would see it.
+    async fn progress(&self, references: &[String]) -> Result<Vec<String>, String> {
+        self.plugins
+            .call_provider::<dyn Fulfiller<Shows>, _, _>(|sonarr| async move {
+                sonarr.progress(references).await
+            })
+            .await
+            .unwrap()
+            .map(|by_reference| by_reference.into_keys().collect())
+            .map_err(|error| error.to_string())
+    }
+
+    /// Subscribes as the Admin to the progress of every Request.
+    async fn subscribe_to_progress(&self) -> Subscription {
+        let only = SubscribeRequest {
+            types: vec![EventType::EVENT_TYPE_REQUEST_PROGRESS.into()],
+            ..Default::default()
+        };
+        EventServiceClient::new(HttpClient::plaintext(), self.server.client_config())
+            .subscribe(only)
+            .await
+            .unwrap()
     }
 
     /// Creates a User with the Permissions a new User gets, signs them in, and returns client
@@ -462,6 +499,108 @@ async fn a_show_sonarr_cant_find_fails_in_plain_words() {
         failed.failure_reason.as_deref(),
         Some("Sonarr couldn't find the Show by its TVDB id, 73244")
     );
+}
+
+/// The Request and its downloads in the next progress event on `subscription`.
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn next_progress(subscription: &mut Subscription) -> (i64, Vec<Download>) {
+    let next = tokio::time::timeout(WAIT, subscription.message::<SubscribeResponse>())
+        .await
+        .expect("timed out waiting for progress")
+        .unwrap()
+        .expect("the stream ended")
+        .to_owned_message()
+        .message;
+    let Some(subscribe_response::Message::Event(event)) = next else {
+        panic!("not an event: {next:?}");
+    };
+    let Some(event::Event::RequestProgress(progress)) = event.event else {
+        panic!("not progress: {event:?}");
+    };
+    let request = progress
+        .request
+        .into_option()
+        .expect("progress of no Request");
+    (request.id, request.downloads)
+}
+
+#[tokio::test]
+async fn processing_season_requests_show_sonarrs_queue_for_their_season_only_asked_once_per_poll() {
+    let fixture = Fixture::with_sonarr_enabled().await;
+    fixture.sonarr.set_queue("queue.json");
+    let mut progress = fixture.subscribe_to_progress().await;
+
+    let first_season = fixture.ask_approved(DARK, &[1]).await.remove(0);
+    let first = next_progress(&mut progress).await;
+    fixture.sonarr.finish_refreshes().await;
+    fixture.sonarr.set_queue("queue-later.json");
+    // Becoming Processing wakes the poll at once, rather than in a minute.
+    let third_season = fixture.ask_approved(DARK, &[3]).await.remove(0);
+    let mut later = [
+        next_progress(&mut progress).await,
+        next_progress(&mut progress).await,
+    ];
+    later.sort_by_key(|(id, _)| *id);
+
+    let pack_at = |percent, eta_seconds| Download {
+        title: "Dark.S01.1080p.NF.WEB-DL.x264".to_owned(),
+        percent,
+        size_bytes: Some(20_000_000_000),
+        eta_seconds: Some(eta_seconds),
+        status: DownloadStatus::DOWNLOAD_STATUS_DOWNLOADING.into(),
+        ..Default::default()
+    };
+    let third_season_episodes = vec![
+        Download {
+            title: "Dark.S03E01.1080p.NF.WEB-DL.x264".to_owned(),
+            percent: 75.0,
+            size_bytes: Some(2_000_000_000),
+            eta_seconds: Some(600),
+            status: DownloadStatus::DOWNLOAD_STATUS_DOWNLOADING.into(),
+            ..Default::default()
+        },
+        Download {
+            title: "Dark.S03E02.1080p.NF.WEB-DL.x264".to_owned(),
+            percent: 100.0,
+            size_bytes: Some(2_000_000_000),
+            status: DownloadStatus::DOWNLOAD_STATUS_NEEDS_ATTENTION.into(),
+            attention_reason: Some(
+                "Sonarr said: Not an upgrade for existing episode file(s)".to_owned(),
+            ),
+            ..Default::default()
+        },
+    ];
+    assert_eq!(first, (first_season.id, vec![pack_at(25.0, 93_600)]));
+    assert_eq!(
+        later,
+        [
+            (first_season.id, vec![pack_at(60.0, 2_700)]),
+            (third_season.id, third_season_episodes)
+        ]
+    );
+    assert_eq!(fixture.sonarr.queue_calls(), 2);
+}
+
+#[tokio::test]
+async fn with_sonarr_refusing_the_key_or_down_progress_fails_in_plain_words() {
+    let mut fixture = Fixture::with_sonarr_enabled().await;
+    fixture.sonarr.set_queue("queue.json");
+    let first_season = [format!("{DARK_TVDB}/1")];
+
+    let answered = fixture.progress(&first_season).await;
+    fixture.sonarr.refuse_key();
+    let refused = fixture.progress(&first_season).await;
+    fixture.sonarr.go_down();
+    let down = fixture.progress(&first_season).await;
+
+    assert_eq!(answered, Ok(first_season.to_vec()));
+    assert_eq!(refused, Err("Sonarr refused the API key".to_owned()));
+    assert_eq!(down, Err("Sonarr didn't answer".to_owned()));
 }
 
 #[tokio::test]
