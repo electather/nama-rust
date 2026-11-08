@@ -11,19 +11,21 @@
 use std::{
     collections::{BTreeSet, HashMap, HashSet, hash_map::Entry},
     sync::{Arc, Mutex, MutexGuard, PoisonError},
+    time::Duration,
 };
 
 use nama_plugin_api::{
     PluginId,
-    fulfiller::{Fulfiller, Movies},
+    fulfiller::{Download, Fulfiller, Movies, Shows},
     metadata::{Candidate, Episode, ExternalId, SearchQuery, Season, Show, TitleKind},
 };
 use nama_proto::nama::v1::{
     Event, FollowedShow, FoundSeason, Permission, Request, RequestCancelled, RequestCreated,
-    RequestState, RequestStateChanged, RequestWithdrawn, RequestedMovie, RequestedSeason,
-    Requester, RequesterAdded, RequesterRemoved, event::Event as Happened,
+    RequestProgress, RequestState, RequestStateChanged, RequestWithdrawn, RequestedMovie,
+    RequestedSeason, Requester, RequesterAdded, RequesterRemoved, event::Event as Happened,
 };
 use sqlx::SqliteConnection;
+use tokio::{sync::Notify, time::error::Elapsed};
 use tracing::{error, warn};
 
 use crate::{
@@ -45,6 +47,10 @@ const STATES: [(RequestState, &str); 7] = [
     (RequestState::Available, "available"),
     (RequestState::Failed, "failed"),
 ];
+
+/// How often the Fulfillers are asked how their Processing Requests are progressing, as Seerr asks
+/// (ADR 0012).
+pub(crate) const PROGRESS_EVERY: Duration = Duration::from_secs(60);
 
 /// Why a Request couldn't be made, found or changed.
 #[derive(Debug, thiserror::Error)]
@@ -95,6 +101,11 @@ pub(crate) struct Requests {
     /// The ids of the Requests being handed to a Fulfiller now, each with whether another hand-off
     /// skipped it meanwhile.
     handing: Arc<Mutex<HashMap<i64, bool>>>,
+    /// What each Processing Request's Fulfiller said it is downloading when last asked, by Request
+    /// id. Kept in memory only (ADR 0012).
+    progress: Arc<Mutex<HashMap<i64, Vec<Download>>>>,
+    /// Wakes [`Requests::follow_progress`] when a Request becomes Processing.
+    became_processing: Arc<Notify>,
 }
 
 /// A hand-off's hold on one Request in [`Requests::handing`], let go however the hand-off ends, a
@@ -149,9 +160,9 @@ impl Drop for Claim {
     }
 }
 
-// Nothing panics while it is held, so a poisoned map is still whole.
-fn lock(handing: &Mutex<HashMap<i64, bool>>) -> MutexGuard<'_, HashMap<i64, bool>> {
-    handing.lock().unwrap_or_else(PoisonError::into_inner)
+// Nothing panics while one is held, so a poisoned map is still whole.
+fn lock<T>(map: &Mutex<T>) -> MutexGuard<'_, T> {
+    map.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
 /// A Movie the metadata source has, and how close it is to being on the Server.
@@ -224,6 +235,8 @@ impl Requests {
             events,
             plugins,
             handing: Arc::default(),
+            progress: Arc::default(),
+            became_processing: Arc::default(),
         }
     }
 
@@ -473,6 +486,9 @@ impl Requests {
             return Ok(current);
         };
         self.events.publish(vec![state_changed(settled.clone())]);
+        if settled.state == RequestState::Processing {
+            self.became_processing.notify_one();
+        }
         Ok(settled)
     }
 
@@ -536,6 +552,127 @@ impl Requests {
         }))
     }
 
+    /// Asks the Fulfillers how their Processing Requests are progressing, every `interval` while any
+    /// Request is Processing, and at once when one becomes Processing. Runs until dropped.
+    #[expect(
+        clippy::infinite_loop,
+        reason = "it follows progress for as long as the Server serves, which aborts it"
+    )]
+    pub(crate) async fn follow_progress(&self, interval: Duration) {
+        loop {
+            let processing = self.poll_progress().await.unwrap_or_else(|err| {
+                error!("reading the Processing Requests failed: {err}");
+                true
+            });
+            // A Request that became Processing while the Fulfillers were asked left a permit, so
+            // this wakes at once for it.
+            let woken = self.became_processing.notified();
+            if processing {
+                let _: Result<(), Elapsed> = tokio::time::timeout(interval, woken).await;
+            } else {
+                woken.await;
+            }
+        }
+    }
+
+    /// Asks each enabled Fulfiller once what it is downloading for the Processing Requests it took,
+    /// keeps the answers in place of the last ones, and publishes each Request whose downloads
+    /// changed. Returns whether any Request is Processing.
+    async fn poll_progress(&self) -> Result<bool, sqlx::Error> {
+        let processing = processing(&mut *self.db.reader().acquire().await?).await?;
+        let (movies, seasons): (Vec<_>, Vec<_>) =
+            processing.into_iter().partition(|request| request.is_movie);
+        let any = !(movies.is_empty() && seasons.is_empty());
+        let mut polled = self.progress_of::<Movies>(movies).await;
+        polled.extend(self.progress_of::<Shows>(seasons).await);
+        let mut changed = self.keep_progress(polled);
+        if changed.is_empty() {
+            return Ok(any);
+        }
+        // ponytail: reads every Request to publish the changed ones; load them by id if there get
+        // many.
+        let all = load(&mut *self.db.reader().acquire().await?, None, None).await?;
+        let events = all
+            .into_iter()
+            .filter_map(|mut request| {
+                request.downloads = changed.remove(&request.id)?;
+                Some(event(RequestProgress {
+                    request: request.into(),
+                    ..Default::default()
+                }))
+            })
+            .collect();
+        self.events.publish(events);
+        Ok(any)
+    }
+
+    /// What `Kind`'s Fulfiller, if one is enabled, is downloading for each of `processing`, by
+    /// Request id, asked in one batch. Each has nothing downloading if it couldn't say.
+    async fn progress_of<Kind: 'static>(
+        &self,
+        processing: Vec<Processing>,
+    ) -> HashMap<i64, Vec<Download>> {
+        if processing.is_empty() {
+            return HashMap::new();
+        }
+        let references: Vec<String> = processing
+            .iter()
+            .map(|request| request.reference.clone())
+            .collect();
+        let references = references.as_slice();
+        let answered = self
+            .plugins
+            .call_provider_blanking_secrets::<dyn Fulfiller<Kind>, _, _>(|fulfiller| async move {
+                // Inside the call, so formatting and dropping the Plugin's error are contained.
+                fulfiller
+                    .progress(references)
+                    .await
+                    .map_err(|error| error.to_string())
+            })
+            .await;
+        let by_reference = match answered {
+            Some(Ok(by_reference)) => by_reference,
+            Some(Err(reason)) => {
+                warn!(
+                    reason,
+                    "a Fulfiller couldn't say how its Requests are progressing"
+                );
+                HashMap::new()
+            }
+            None => HashMap::new(),
+        };
+        processing
+            .into_iter()
+            .map(|request| {
+                let downloads = by_reference.get(&request.reference).cloned();
+                (request.id, downloads.unwrap_or_default())
+            })
+            .collect()
+    }
+
+    /// Keeps `polled`, what each Processing Request is downloading now, in place of what was kept,
+    /// and returns those of them that changed.
+    fn keep_progress(&self, polled: HashMap<i64, Vec<Download>>) -> HashMap<i64, Vec<Download>> {
+        let mut kept = lock(&self.progress);
+        let changed = polled
+            .iter()
+            .filter(|&(id, now)| kept.get(id).map_or(&[][..], Vec::as_slice) != now.as_slice())
+            .map(|(&id, now)| (id, now.clone()))
+            .collect();
+        *kept = polled;
+        changed
+    }
+
+    /// `request` with what its Fulfiller said it is downloading when last asked, if it is
+    /// Processing.
+    fn with_progress(&self, mut request: Request) -> Request {
+        if request.state == RequestState::Processing {
+            let kept = lock(&self.progress).get(&request.id).cloned();
+            request.downloads = kept.unwrap_or_default();
+        }
+        request
+    }
+
     /// Declines the Pending Request `id`, giving its Requesters `reason`, trimmed, unless it is
     /// blank, and publishes that its state changed.
     pub(crate) async fn decline(&self, id: i64, reason: &str) -> Result<Request, Error> {
@@ -588,6 +725,10 @@ impl Requests {
         let mut conn = self.db.reader().acquire().await?;
         let requests = load(&mut conn, None, visible_to(viewer)).await?;
         let followed = load_followed(&mut conn, None, visible_to(viewer)).await?;
+        let requests = requests
+            .into_iter()
+            .map(|request| self.with_progress(request))
+            .collect();
         Ok((requests, followed))
     }
 
@@ -603,7 +744,9 @@ impl Requests {
         let mut found = Vec::with_capacity(candidates.len());
         // ponytail: two queries per Movie found, which a search caps at a page of 20.
         for (tmdb_id, plugin, candidate) in candidates {
-            found.push(look_around(&mut conn, viewer, tmdb_id, plugin, candidate).await?);
+            let mut movie = look_around(&mut conn, viewer, tmdb_id, plugin, candidate).await?;
+            movie.request = movie.request.map(|request| self.with_progress(request));
+            found.push(movie);
         }
         Ok(found)
     }
@@ -673,7 +816,11 @@ impl Requests {
             .map_err(|err| looking_up(err, Error::NoSuchShow(tmdb_id)))?;
         let seasons = self.seasons(tmdb_id, &show).await?;
         let mut conn = self.db.reader().acquire().await?;
-        let seasons = look_around_seasons(&mut conn, viewer, tmdb_id, seasons).await?;
+        let mut seasons = look_around_seasons(&mut conn, viewer, tmdb_id, seasons).await?;
+        for season in &mut seasons {
+            let request = season.request.take();
+            season.request = request.map(|request| self.with_progress(request)).into();
+        }
         let followed_show = match open_followed_show(&mut conn, tmdb_id).await? {
             Some(id) => load_followed(&mut conn, Some(id), visible_to(viewer))
                 .await?
@@ -711,7 +858,9 @@ impl Requests {
         let movie = self.fetch(tmdb_id).await?;
         let mut conn = self.db.reader().acquire().await?;
         let plugin = movie.plugin.clone();
-        Ok(look_around(&mut conn, viewer, tmdb_id, plugin, movie).await?)
+        let mut found = look_around(&mut conn, viewer, tmdb_id, plugin, movie).await?;
+        found.request = found.request.map(|request| self.with_progress(request));
+        Ok(found)
     }
 
     async fn fetch(&self, tmdb_id: i64) -> Result<Metadata, Error> {
@@ -725,7 +874,8 @@ impl Requests {
     pub(crate) async fn get(&self, viewer: &User, id: i64) -> Result<Request, Error> {
         let mut conn = self.db.reader().acquire().await?;
         let found = load(&mut conn, Some(id), visible_to(viewer)).await?;
-        found.into_iter().next().ok_or(Error::NoSuchRequest(id))
+        let request = found.into_iter().next().ok_or(Error::NoSuchRequest(id))?;
+        Ok(self.with_progress(request))
     }
 }
 
@@ -1562,6 +1712,28 @@ async fn load(
         .collect())
 }
 
+/// A Processing Request, as [`Requests::poll_progress`] asks its Fulfiller about it.
+struct Processing {
+    id: i64,
+    /// Whether it asks for a Movie, rather than a Season.
+    is_movie: bool,
+    /// What its Fulfiller gave when it took it.
+    reference: String,
+}
+
+/// Each Processing Request.
+async fn processing(conn: &mut SqliteConnection) -> Result<Vec<Processing>, sqlx::Error> {
+    sqlx::query_as!(
+        Processing,
+        r#"SELECT id AS "id!", season IS NULL AS "is_movie!: bool",
+                  fulfiller_reference AS "reference!"
+           FROM requests
+           WHERE state = 'processing' AND fulfiller_reference IS NOT NULL"#
+    )
+    .fetch_all(&mut *conn)
+    .await
+}
+
 /// Runs `work` in a task of its own, so it finishes even if the caller stops waiting: a Request
 /// written Approved must still reach the Fulfiller, and its reference must still be stored.
 async fn detached<T: Send + 'static>(
@@ -1616,7 +1788,7 @@ mod tests {
     use sqlx::SqliteConnection;
     use tokio::sync::Notify;
 
-    use super::{Claim, Requests, Wanted, ask, availability, load_one};
+    use super::{Claim, Requests, Wanted, ask, availability, change_state, load_one};
     use crate::{
         contents::{Change, Contents, Decided, Decisions, Item, Metadata},
         db::Database,
@@ -1751,9 +1923,46 @@ mod tests {
         }
     }
 
-    struct GatedPlugin(Arc<Gated>);
+    /// A Movie Fulfiller that takes every Request at once, giving its TMDB id as the reference,
+    /// and keeps each batch of references it is asked about.
+    #[derive(Default)]
+    struct Asked(std::sync::Mutex<Vec<Vec<String>>>);
 
-    impl Plugin for GatedPlugin {
+    impl Fulfiller<Movies> for Asked {
+        fn fulfill<'a>(
+            &'a self,
+            request: &'a Request,
+        ) -> BoxFuture<'a, Result<String, PluginError>> {
+            let reference = request.movie.tmdb_id.to_string();
+            Box::pin(async { Ok(reference) })
+        }
+
+        fn progress<'a>(
+            &'a self,
+            references: &'a [String],
+        ) -> BoxFuture<'a, Result<HashMap<String, Vec<Download>>, PluginError>> {
+            super::lock(&self.0).push(references.to_vec());
+            Box::pin(async { Ok(HashMap::new()) })
+        }
+    }
+
+    impl Asked {
+        fn batches(&self) -> Vec<Vec<String>> {
+            super::lock(&self.0).clone()
+        }
+
+        /// The references it was last asked about, sorted.
+        fn last_asked_about(&self) -> Vec<String> {
+            let mut batch = super::lock(&self.0).last().cloned().unwrap_or_default();
+            batch.sort();
+            batch
+        }
+    }
+
+    /// A Plugin, `gated`, providing a Movie Fulfiller.
+    struct FulfillerPlugin(Arc<dyn Fulfiller<Movies>>);
+
+    impl Plugin for FulfillerPlugin {
         fn id(&self) -> PluginId {
             PluginId::from_static("gated")
         }
@@ -1763,8 +1972,7 @@ mod tests {
         }
 
         fn register(&self, registrar: &mut Registrar) {
-            let gated: Arc<Gated> = Arc::clone(&self.0);
-            registrar.provide::<dyn Fulfiller<Movies>>(Priority::DEFAULT, gated);
+            registrar.provide::<dyn Fulfiller<Movies>>(Priority::DEFAULT, Arc::clone(&self.0));
         }
     }
 
@@ -1808,6 +2016,18 @@ mod tests {
     /// Requests in a new database, which holds an Approved Movie Request for each of `tmdb_ids`,
     /// and whose one Plugin provides the returned [`Gated`] as the Movie Fulfiller.
     async fn approved_for_gated(tmdb_ids: &[i64]) -> (tempfile::TempDir, Requests, Arc<Gated>) {
+        let gated = Arc::new(Gated::default());
+        let fulfiller = Arc::clone(&gated);
+        let (data, requests) = approved_for(tmdb_ids, fulfiller).await;
+        (data, requests, gated)
+    }
+
+    /// Requests in a new database, which holds an Approved Movie Request for each of `tmdb_ids`,
+    /// and whose one Plugin provides `fulfiller` as the Movie Fulfiller.
+    async fn approved_for(
+        tmdb_ids: &[i64],
+        fulfiller: Arc<dyn Fulfiller<Movies>>,
+    ) -> (tempfile::TempDir, Requests) {
         let data = tempfile::tempdir().unwrap();
         let db = Arc::new(Database::open(data.path()).await.unwrap());
         let wanted = tmdb_ids
@@ -1823,14 +2043,67 @@ mod tests {
         db.write(move |tx| Box::pin(ask_each(tx, wanted, RequestState::Approved)))
             .await
             .unwrap();
-        let gated = Arc::new(Gated::default());
         let plugins = Registry::new();
         plugins
-            .enable(Arc::new(GatedPlugin(Arc::clone(&gated))))
+            .enable(Arc::new(FulfillerPlugin(fulfiller)))
             .unwrap();
         let events = EventBus::new(plugins.clone());
         let matcher = Matcher::new(Arc::clone(&db), plugins.clone(), events.clone());
-        (data, Requests::new(db, matcher, events, plugins), gated)
+        (data, Requests::new(db, matcher, events, plugins))
+    }
+
+    /// Waits until `asked` has been asked about `references`, sorted, in one batch.
+    async fn until_asked_about(asked: &Asked, references: &[&str]) {
+        let wait = async {
+            while asked.last_asked_about() != references {
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        };
+        tokio::time::timeout(Duration::from_secs(5), wait)
+            .await
+            .expect("never asked about them in one batch");
+    }
+
+    /// How many times `asked` is asked about anything while `quiet` passes.
+    async fn asked_while(asked: &Asked, quiet: Duration) -> usize {
+        let before = asked.batches().len();
+        tokio::time::sleep(quiet).await;
+        asked.batches().len() - before
+    }
+
+    async fn move_to(requests: &Requests, id: i64, state: RequestState) {
+        requests
+            .db
+            .write(move |tx| Box::pin(change_state(tx, id, state)))
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn the_fulfiller_is_asked_about_all_its_processing_requests_at_once_only_while_any_is() {
+        const EVERY: Duration = Duration::from_millis(10);
+        let asked = Arc::new(Asked::default());
+        let fulfiller = Arc::clone(&asked);
+        let (_data, requests) = approved_for(&[949, 438_631], fulfiller).await;
+        let following = requests.clone();
+        let follow = tokio::spawn(async move { following.follow_progress(EVERY).await });
+        let nothing_processing = asked_while(&asked, EVERY * 10).await;
+
+        requests.hand_off_waiting().await;
+        until_asked_about(&asked, &["438631", "949"]).await;
+        move_to(&requests, 1, RequestState::Available).await;
+        move_to(&requests, 2, RequestState::Available).await;
+        // Asked once more at most, if it was already asking as they became Available.
+        asked_while(&asked, EVERY * 5).await;
+        let nothing_processing_again = asked_while(&asked, EVERY * 10).await;
+        // As if it were Approved again, to be handed off again.
+        move_to(&requests, 2, RequestState::Approved).await;
+        requests.hand_off_waiting().await;
+
+        until_asked_about(&asked, &["438631"]).await;
+        follow.abort();
+        assert_eq!(nothing_processing, 0);
+        assert_eq!(nothing_processing_again, 0);
     }
 
     #[tokio::test]

@@ -121,6 +121,20 @@ test("a Movie's page shows its Request state after Requesting it, without a relo
   expect(await screen.findByText("Pending")).toBeDefined();
 });
 
+test("a Movie's page shows how far its Processing Request's download has got", async () => {
+  const downloading = {
+    id: 2n,
+    state: RequestState.PROCESSING,
+    requesters: [{ userId: 1n, name: "Sam" }],
+    downloads: [{ title: "Dune.2021.2160p", percent: 42 }],
+  };
+  openApp("/movies/tmdb-438631", searchableServer([{ ...notOnTheServer, request: downloading }]));
+
+  const bar = await screen.findByRole("progressbar", { name: "Downloaded" });
+  expect(bar.getAttribute("aria-valuenow")).toBe("42");
+  expect(screen.getByText("Dune.2021.2160p")).toBeDefined();
+});
+
 test("a Movie's page for one in a Library opens it there", async () => {
   const router = openApp("/movies/tmdb-348", searchableServer([inALibrary]));
 

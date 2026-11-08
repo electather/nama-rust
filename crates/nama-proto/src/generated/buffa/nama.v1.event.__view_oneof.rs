@@ -83,5 +83,10 @@ pub mod event {
                 super::super::super::super::__buffa::view::RequestWithdrawnView<'a>,
             >,
         ),
+        RequestProgress(
+            ::buffa::alloc::boxed::Box<
+                super::super::super::super::__buffa::view::RequestProgressView<'a>,
+            >,
+        ),
     }
 }

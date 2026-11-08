@@ -4,7 +4,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { FindATitle, type Searchable, TitlesFound } from "@/components/find-a-title";
 import { Page } from "@/components/page";
 import { RequestActions } from "@/components/request-actions";
-import { RequestStateLabel } from "@/components/request-state";
+import { RequestProgress, RequestStateLabel } from "@/components/request-state";
 import { type FollowedShow, type Request, RequestService } from "@/gen/nama/v1/request_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { metadataLine, seasonName, yearOf } from "@/lib/browse";
@@ -150,7 +150,7 @@ function ShowRequests({ showTitle, followed, seasons }: ShowGroup) {
 function RequestRow({ request }: { request: Request | FollowedShow }) {
   const { signedIn } = Route.useRouteContext();
   return (
-    // Wraps so the actions get a line of their own, the full width of the row.
+    // Wraps so the downloads and the actions get lines of their own, the full width of the row.
     <li className="flex min-h-16 flex-wrap items-center gap-x-3 border-b py-3 last:border-b-0">
       <div className="min-w-0 flex-1">
         <p className="truncate font-medium">{titleOf(request)}</p>
@@ -158,6 +158,7 @@ function RequestRow({ request }: { request: Request | FollowedShow }) {
         <Reason reason={reasonOf(request)} />
       </div>
       <RequestStateLabel state={request.state} />
+      {request.$typeName === "nama.v1.Request" && <RequestProgress request={request} />}
       <RequestActions
         request={request}
         you={signedIn.user?.id}

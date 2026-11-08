@@ -28,7 +28,7 @@ use connectrpc::{
 use http::fetch;
 use nama_plugin_api::{
     BoxFuture, Plugin, PluginError, PluginId, Priority, Registrar,
-    fulfiller::{Download, Fulfiller, Movies},
+    fulfiller::{Download, DownloadStatus, Fulfiller, Movies},
     settings::{SettingValue, Settings},
 };
 use nama_plugin_test_choices as test_choices;
@@ -427,6 +427,24 @@ async fn list(client: &RequestServiceClient<HttpClient>) -> Vec<Request> {
         .requests
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn get(client: &RequestServiceClient<HttpClient>, id: i64) -> Request {
+    client
+        .get_request(GetRequestRequest {
+            id,
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_owned()
+        .request
+        .into_option()
+        .unwrap()
+}
+
 /// The Movies a search for "Alien" finds, as the User `config` calls as sees them.
 #[expect(
     clippy::unwrap_used,
@@ -674,12 +692,16 @@ async fn an_approved_request_becomes_available_once_a_scan_matches_its_movie_and
 }
 
 /// A Movie Fulfiller that takes every Request it is handed, giving `movie-<TMDB id>` as its
-/// reference, unless it is refusing them all.
+/// reference, unless it is refusing them all, and says it is downloading what the test set.
 #[derive(Clone, Default)]
 struct FakeFulfiller {
     /// The TMDB id of each Movie it was handed, in order.
     handed: Arc<Mutex<Vec<i64>>>,
     refuses: Arc<AtomicBool>,
+    /// What it says it is downloading, by reference.
+    downloading: Arc<Mutex<HashMap<String, Vec<Download>>>>,
+    /// Whether it fails to say what it is downloading.
+    progress_fails: Arc<AtomicBool>,
 }
 
 impl FakeFulfiller {
@@ -692,6 +714,14 @@ impl FakeFulfiller {
     /// Takes every Request it is handed from now on.
     fn recover(&self) {
         self.refuses.store(false, Ordering::Relaxed);
+    }
+
+    /// Says it is downloading `downloads` for the Movie `tmdb_id` from now on.
+    fn download(&self, tmdb_id: i64, downloads: Vec<Download>) {
+        self.downloading
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .insert(format!("movie-{tmdb_id}"), downloads);
     }
 
     fn handed(&self) -> Vec<i64> {
@@ -722,7 +752,18 @@ impl Fulfiller<Movies> for FakeFulfiller {
         &'a self,
         _references: &'a [String],
     ) -> BoxFuture<'a, Result<HashMap<String, Vec<Download>>, PluginError>> {
-        Box::pin(async { Ok(HashMap::new()) })
+        let fails = self.progress_fails.load(Ordering::Relaxed);
+        let downloading = self
+            .downloading
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone();
+        Box::pin(async move {
+            if fails {
+                return Err("Radarr is unreachable".into());
+            }
+            Ok(downloading)
+        })
     }
 }
 
@@ -741,6 +782,77 @@ impl Plugin for FulfillerPlugin {
     fn register(&self, registrar: &mut Registrar) {
         registrar.provide::<dyn Fulfiller<Movies>>(Priority::DEFAULT, Arc::new(self.0.clone()));
     }
+}
+
+/// One download, `percent` done, as a Fulfiller reports it.
+fn downloading(title: &str, percent: f32) -> Download {
+    Download {
+        title: title.to_owned(),
+        percent,
+        size_bytes: Some(4_000_000_000),
+        eta_seconds: Some(600),
+        status: DownloadStatus::DOWNLOAD_STATUS_DOWNLOADING.into(),
+        ..Default::default()
+    }
+}
+
+#[tokio::test]
+async fn without_view_requests_a_user_sees_the_progress_of_only_their_own_processing_requests() {
+    let fulfiller = FakeFulfiller::default();
+    let fixture = Fixture::with_fulfiller(&fulfiller).await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let (_, as_grace) = fixture.user("Grace", &[Permission::RequestMovie]).await;
+    let heat = downloading("Heat.1995.1080p", 42.5);
+    let dune = downloading("Dune.2021.2160p", 7.0);
+    fulfiller.download(HEAT, vec![heat.clone()]);
+    fulfiller.download(DUNE, vec![dune.clone()]);
+    let adas = ask(&requests(as_ada), HEAT).await;
+    let graces = ask(&requests(as_grace.clone()), DUNE).await;
+    let mut graces_events =
+        subscribe(as_grace.clone(), &[EventType::EVENT_TYPE_REQUEST_PROGRESS]).await;
+
+    fixture.approve(adas.id).await;
+    fixture.approve(graces.id).await;
+    let event = next_event(&mut graces_events).await;
+
+    let event::Event::RequestProgress(progress) = event else {
+        panic!("not progress: {event:?}");
+    };
+    assert_eq!(progress.request.id, graces.id);
+    assert_eq!(progress.request.downloads, std::slice::from_ref(&dune));
+    let listed = list(&requests(as_grace.clone())).await;
+    assert_eq!(states(&listed), [(graces.id, RequestState::Processing)]);
+    assert_eq!(listed[0].downloads, [dune]);
+    let got = get(&requests(fixture.server.client_config()), adas.id).await;
+    assert_eq!(got.downloads, [heat]);
+}
+
+#[tokio::test]
+async fn a_request_whose_fulfiller_cant_say_how_it_is_progressing_stays_processing_with_none() {
+    let fulfiller = FakeFulfiller::default();
+    let fixture = Fixture::with_fulfiller(&fulfiller).await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let ada = requests(as_ada.clone());
+    let mut adas_events = subscribe(as_ada, &[EventType::EVENT_TYPE_REQUEST_PROGRESS]).await;
+    fulfiller.download(HEAT, vec![downloading("Heat.1995.1080p", 42.5)]);
+    let heat = fixture.approve(ask(&ada, HEAT).await.id).await;
+    let event::Event::RequestProgress(_) = next_event(&mut adas_events).await else {
+        panic!("not Heat's first progress");
+    };
+
+    fulfiller.progress_fails.store(true, Ordering::Relaxed);
+    // The Server asks again as soon as another Request becomes Processing.
+    fixture.approve(ask(&ada, ALIEN).await.id).await;
+    let event = next_event(&mut adas_events).await;
+
+    let event::Event::RequestProgress(progress) = event else {
+        panic!("not progress: {event:?}");
+    };
+    assert_eq!(progress.request.id, heat.id);
+    assert_eq!(progress.request.downloads, []);
+    let got = get(&ada, heat.id).await;
+    assert_eq!(got.state, RequestState::Processing);
+    assert_eq!(got.downloads, []);
 }
 
 #[tokio::test]
