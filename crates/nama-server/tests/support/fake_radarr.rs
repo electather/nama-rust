@@ -29,9 +29,9 @@ pub(crate) struct FakeRadarr {
 
 struct Fake {
     /// The TMDB ids of the Movies it already has.
-    has: Vec<i64>,
+    existing: Vec<i64>,
     /// The TMDB ids it can't find.
-    unknown: Vec<i64>,
+    not_found: Vec<i64>,
     /// The body of each request that added a Movie, in order.
     added: Mutex<Vec<Value>>,
 }
@@ -41,15 +41,15 @@ struct Fake {
     reason = "a test helper fails its test by panicking"
 )]
 impl FakeRadarr {
-    /// Starts serving on a free local port, already having the Movies with the TMDB ids `has`,
-    /// and finding none with the TMDB ids `unknown`.
-    pub(crate) async fn start(has: &[i64], unknown: &[i64]) -> Self {
+    /// Starts serving on a free local port, already having the Movies with the TMDB ids
+    /// `existing`, and finding none with the TMDB ids `not_found`.
+    pub(crate) async fn start(existing: &[i64], not_found: &[i64]) -> Self {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let mut radarr = Self {
             addr: listener.local_addr().unwrap(),
             state: Arc::new(Fake {
-                has: has.to_vec(),
-                unknown: unknown.to_vec(),
+                existing: existing.to_vec(),
+                not_found: not_found.to_vec(),
                 added: Mutex::default(),
             }),
             server: None,
@@ -126,9 +126,9 @@ fn add_movie(fake: &Fake, body: &[u8]) -> Response {
         .get("tmdbId")
         .and_then(Value::as_i64)
         .unwrap_or_default();
-    if fake.has.contains(&tmdb_id) {
+    if fake.existing.contains(&tmdb_id) {
         fixture(StatusCode::BAD_REQUEST, "movie-exists.json")
-    } else if fake.unknown.contains(&tmdb_id) {
+    } else if fake.not_found.contains(&tmdb_id) {
         fixture(StatusCode::BAD_REQUEST, "movie-not-found.json")
     } else {
         fake.added

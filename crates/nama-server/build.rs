@@ -85,7 +85,9 @@ fn build_radarr() -> Result<(), Box<dyn Error>> {
         .args(["build", "--release", "--locked", "--package", "nama-plugin-radarr"])
         .args(["--target", "wasm32-unknown-unknown", "--target-dir"])
         .arg(&target_dir)
-        // The flags and wrapper (such as clippy's) cargo set for the Server's own build.
+        // Cargo sets these for the Server's own host build. Inherited, the host's flags would reach
+        // the wasm32 build, and under `cargo clippy` the Plugin would be linted inside it, where
+        // CI's own clippy run already covers it.
         .env_remove("CARGO_ENCODED_RUSTFLAGS")
         .env_remove("RUSTC_WORKSPACE_WRAPPER")
         // Cargo reads a build script's stdout as instructions.
