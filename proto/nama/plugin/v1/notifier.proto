@@ -26,6 +26,9 @@ message Delivery {
     // The channel set in the Plugin's settings, which hears about every Request event. A Plugin
     // with no channel set does nothing with these.
     Channel channel = 2;
+    // The Plugin Connection of one User the Server tells, as the Plugin's Connector found it, such
+    // as their Telegram chat id.
+    string connection = 3;
   }
 }
 

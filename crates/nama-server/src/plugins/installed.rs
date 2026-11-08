@@ -324,6 +324,9 @@ impl Notifier for Running {
     ) -> BoxFuture<'a, Result<(), PluginError>> {
         let recipient = match recipient {
             Recipient::Channel => wire::delivery::Recipient::from(Channel::default()),
+            Recipient::Connection(connection) => {
+                wire::delivery::Recipient::Connection(connection.clone())
+            }
         };
         let input = Delivery {
             notification: notification.clone().into(),

@@ -1,6 +1,7 @@
 //! The event bus: the Kernel publishes what happens on it, and it hands each event to every
 //! client subscribed through `EventService.Subscribe` and to every Observer at
-//! [`points::Events`], and each Request event to every [`Notifier`].
+//! [`points::Events`], and each Request event to every [`Notifier`], for its channel and for the
+//! Plugin Connections of the Users told about it.
 //!
 //! Publishing never waits for a subscriber. Each subscriber may fall up to [`BUFFERED`] events
 //! behind; past that its oldest unread events are dropped, and it is sent a `Lagged` in their
@@ -8,9 +9,9 @@
 
 use std::sync::Arc;
 
-use futures_util::{Stream, StreamExt, stream};
+use futures_util::{Stream, StreamExt, future, stream};
 use nama_plugin_api::{
-    PluginError,
+    PluginError, PluginId,
     notifier::{DELIVER_TIMEOUT, Notification, Notifier, Recipient},
     points,
 };
@@ -20,8 +21,11 @@ use nama_proto::nama::v1::{
 };
 use tokio::sync::broadcast::{self, error::RecvError};
 use tokio_util::sync::CancellationToken;
+use tracing::error;
 
-use crate::{plugins::Registry, server_settings::ServerUrl, users::User};
+use crate::{
+    connections, db::Database, plugins::Registry, server_settings::ServerUrl, users::User,
+};
 
 /// How many events a subscriber may fall behind before it lags. A scan publishes a batch of up to
 /// one event per Item of [`crate::scanner`]'s batch of files at once, which this must hold.
@@ -33,6 +37,8 @@ const BUFFERED: usize = 4096;
 #[derive(Debug, Clone)]
 pub(crate) struct EventBus {
     sender: broadcast::Sender<Event>,
+    /// Where the Plugin Connections of the Users a notification is for are.
+    db: Arc<Database>,
     plugins: Registry,
     /// What a notification's link to its Request starts with.
     server_url: ServerUrl,
@@ -59,15 +65,22 @@ enum About<'a> {
 
 impl EventBus {
     /// A bus that also tells the Observers and Notifiers enabled in `plugins`, linking
-    /// notifications to their Requests at `server_url`.
-    pub(crate) fn new(plugins: Registry, server_url: ServerUrl) -> Self {
-        Self::with_capacity(plugins, server_url, BUFFERED)
+    /// notifications to their Requests at `server_url`, and finding the Users' Plugin Connections
+    /// in `db`.
+    pub(crate) fn new(db: Arc<Database>, plugins: Registry, server_url: ServerUrl) -> Self {
+        Self::with_capacity(db, plugins, server_url, BUFFERED)
     }
 
     /// A bus on which subscribers may fall `capacity` events behind.
-    pub(crate) fn with_capacity(plugins: Registry, server_url: ServerUrl, capacity: usize) -> Self {
+    pub(crate) fn with_capacity(
+        db: Arc<Database>,
+        plugins: Registry,
+        server_url: ServerUrl,
+        capacity: usize,
+    ) -> Self {
         Self {
             sender: broadcast::channel(capacity).0,
+            db,
             plugins,
             server_url,
             closed: CancellationToken::new(),
@@ -88,8 +101,9 @@ impl EventBus {
         self.plugins.notify::<points::Events>(events);
     }
 
-    /// Hands `event`, if it is a Request event, to every Notifier for its channel. The Kernel picks
-    /// the recipients so that every Notifier shares the rules (ADR 0021).
+    /// Hands `event`, if it is a Request event, to every Notifier for its channel and for the
+    /// Plugin Connection to it of each User [`users_to_tell`] picks. The Kernel picks the
+    /// recipients so that every Notifier shares the rules (ADR 0021).
     fn tell_notifiers(&self, event: &Event) {
         let Some((kind, About::Request(request))) = classify(event) else {
             return;
@@ -108,9 +122,10 @@ impl EventBus {
                 .filter(|_| !removed),
             ..Default::default()
         });
+        let db = Arc::clone(&self.db);
         self.plugins
-            .call_each_provider(move |notifier: Arc<dyn Notifier>| {
-                deliver_to_channel(notifier, Arc::clone(&notification))
+            .call_each_provider(move |plugin, notifier: Arc<dyn Notifier>| {
+                deliver(Arc::clone(&db), plugin, notifier, Arc::clone(&notification))
             });
     }
 
@@ -183,12 +198,64 @@ async fn next_message(
     }
 }
 
-/// Hands `notification` to `notifier` for its channel, giving up after [`DELIVER_TIMEOUT`].
-async fn deliver_to_channel(
+/// Hands `notification` to `plugin`'s `notifier` for its channel and, at once, for the Plugin
+/// Connection to `plugin` of each User told about it. A User with none is skipped.
+///
+/// # Errors
+///
+/// Each recipient's that failed, together. Reading the Plugin Connections failing is logged, and
+/// the channel still told.
+async fn deliver(
+    db: Arc<Database>,
+    plugin: PluginId,
     notifier: Arc<dyn Notifier>,
     notification: Arc<Notification>,
 ) -> Result<(), PluginError> {
-    let delivered = notifier.deliver(&notification, &Recipient::Channel);
+    let mut recipients = vec![("the channel".to_owned(), Recipient::Channel)];
+    match connections::connected(&db, &plugin).await {
+        Ok(connected) => recipients.extend(to_tell(&notification.event, connected)),
+        Err(err) => error!(%plugin, "could not read whom to message about a Request: {err}"),
+    }
+    let deliveries = recipients.into_iter().map(|(whom, recipient)| {
+        let (notifier, notification) = (&notifier, &notification);
+        async move {
+            let delivered = deliver_to(notifier.as_ref(), notification, &recipient).await;
+            delivered.err().map(|error| format!("to {whom}: {error}"))
+        }
+    });
+    let failed: Vec<String> = future::join_all(deliveries)
+        .await
+        .into_iter()
+        .flatten()
+        .collect();
+    if failed.is_empty() {
+        Ok(())
+    } else {
+        Err(failed.join("; ").into())
+    }
+}
+
+/// The Plugin Connection of each of `connected` that [`users_to_tell`] picks for `event`, named
+/// by whose it is.
+fn to_tell(event: &Event, connected: Vec<(User, String)>) -> Vec<(String, Recipient)> {
+    let (users, connections): (Vec<_>, Vec<_>) = connected.into_iter().unzip();
+    let told = users_to_tell(event, &users);
+    users
+        .iter()
+        .zip(connections)
+        .filter(|(user, _)| told.contains(&user.id))
+        // By id, so that no log names a chat id.
+        .map(|(user, connection)| (format!("User {}", user.id), Recipient::Connection(connection)))
+        .collect()
+}
+
+/// Hands `notification` to `notifier` for `recipient`, giving up after [`DELIVER_TIMEOUT`].
+async fn deliver_to(
+    notifier: &dyn Notifier,
+    notification: &Notification,
+    recipient: &Recipient,
+) -> Result<(), PluginError> {
+    let delivered = notifier.deliver(notification, recipient);
     tokio::time::timeout(DELIVER_TIMEOUT, delivered)
         .await
         .unwrap_or_else(|elapsed| {
@@ -243,10 +310,6 @@ fn classify(event: &Event) -> Option<(EventType, About<'_>)> {
 /// Request's Requesters when it is approved, declined, Failed, Partially Available or Available,
 /// and each of `users` with `PERMISSION_MANAGE_REQUESTS` about a new Pending Request. Nobody else,
 /// and nobody for any other event.
-#[cfg_attr(
-    not(test),
-    expect(dead_code, reason = "Plugin Connections (#148) deliver to these Users")
-)]
 pub(crate) fn users_to_tell(event: &Event, users: &[User]) -> Vec<i64> {
     use RequestState as S;
     use event::Event as E;

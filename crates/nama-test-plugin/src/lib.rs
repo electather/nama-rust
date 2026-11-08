@@ -175,7 +175,9 @@ mod exports {
 
     impl Notifier for TestNotifier {
         fn deliver(notification: Notification, recipient: Recipient) -> Result<(), Error> {
-            let Recipient::Channel(_) = recipient;
+            let Recipient::Channel(_) = recipient else {
+                return Ok(());
+            };
             match config::get(NOTIFIER)?.as_deref() {
                 Some("error") => Err(Error::msg("the test Plugin's Notifier was set to error")),
                 Some("loop") => loop_forever(),

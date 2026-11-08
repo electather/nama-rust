@@ -484,6 +484,17 @@ impl<'a> ::buffa::MessageView<'a> for DeliveryView<'a> {
                     );
                 }
             }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.recipient = Some(
+                    super::super::__buffa::view::oneof::delivery::Recipient::Connection(
+                        ::buffa::types::borrow_str(&mut cur)?,
+                    ),
+                );
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -528,6 +539,13 @@ impl<'a> ::buffa::MessageView<'a> for DeliveryView<'a> {
                                     ),
                                 )
                             }
+                            super::super::__buffa::view::oneof::delivery::Recipient::Connection(
+                                v,
+                            ) => {
+                                super::super::__buffa::oneof::delivery::Recipient::Connection(
+                                    v.to_string(),
+                                )
+                            }
                         },
                     )
                 }
@@ -562,6 +580,11 @@ impl<'a> ::buffa::ViewEncode<'a> for DeliveryView<'a> {
                         += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
                             + inner as u64;
                 }
+                super::super::__buffa::view::oneof::delivery::Recipient::Connection(
+                    x,
+                ) => {
+                    size += 1u64 + ::buffa::types::string_encoded_len(x) as u64;
+                }
             }
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
@@ -592,6 +615,11 @@ impl<'a> ::buffa::ViewEncode<'a> for DeliveryView<'a> {
                         buf,
                     );
                     x.write_to(__cache, buf);
+                }
+                super::super::__buffa::view::oneof::delivery::Recipient::Connection(
+                    x,
+                ) => {
+                    ::buffa::types::put_string_field(3u32, x, buf);
                 }
             }
         }
@@ -625,6 +653,11 @@ impl<'__a> ::serde::Serialize for DeliveryView<'__a> {
             match __ov {
                 super::super::__buffa::view::oneof::delivery::Recipient::Channel(v) => {
                     __map.serialize_entry("channel", v)?;
+                }
+                super::super::__buffa::view::oneof::delivery::Recipient::Connection(
+                    v,
+                ) => {
+                    __map.serialize_entry("connection", v)?;
                 }
             }
         }

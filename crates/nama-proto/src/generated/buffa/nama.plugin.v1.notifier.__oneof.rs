@@ -9,6 +9,7 @@ pub mod delivery {
     #[derive(Clone, PartialEq, Debug)]
     pub enum Recipient {
         Channel(::buffa::alloc::boxed::Box<super::super::super::Channel>),
+        Connection(::buffa::alloc::string::String),
     }
     impl ::buffa::Oneof for Recipient {}
     impl From<super::super::super::Channel> for Recipient {
@@ -31,6 +32,9 @@ pub mod delivery {
             match self {
                 Self::Channel(v) => {
                     map.serialize_entry("channel", &**v)?;
+                }
+                Self::Connection(v) => {
+                    map.serialize_entry("connection", v)?;
                 }
             }
             map.end()

@@ -11,5 +11,6 @@ pub mod delivery {
                 super::super::super::super::__buffa::view::ChannelView<'a>,
             >,
         ),
+        Connection(&'a str),
     }
 }

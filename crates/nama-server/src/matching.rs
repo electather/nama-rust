@@ -745,7 +745,7 @@ mod tests {
             let movies = create("Movies", Kind::Movies).await;
             let shows = create("Shows", Kind::Shows).await;
             let plugins = Registry::new();
-            let events = EventBus::new(Registry::new(), ServerUrl::default());
+            let events = EventBus::new(Arc::clone(&db), Registry::new(), ServerUrl::default());
             Self {
                 scanner: Scanner::new(Arc::clone(&db), plugins.clone(), events.clone()),
                 matcher: Matcher::new(Arc::clone(&db), plugins.clone(), events.clone()),

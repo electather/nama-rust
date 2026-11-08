@@ -208,9 +208,12 @@ macro_rules! fulfiller {
 ///
 /// impl Notifier for Telegram {
 ///     fn deliver(notification: Notification, recipient: Recipient) -> Result<(), Error> {
-///         let Recipient::Channel(_) = recipient;
-///         // Format `notification` and post it to the channel in the settings, if there is one.
-///         Ok(())
+///         match recipient {
+///             // Format `notification` and post it to the channel in the settings, if there is one.
+///             Recipient::Channel(_) => Ok(()),
+///             // Send it to the User whose Plugin Connection, such as a chat id, this is.
+///             Recipient::Connection(_) => Ok(()),
+///         }
 ///     }
 /// }
 ///

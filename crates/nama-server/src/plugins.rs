@@ -734,12 +734,15 @@ impl Registry {
         None
     }
 
-    /// Calls `call` with every Provider of `T`, each as its own task, without waiting for them.
+    /// Calls `call` with every Provider of `T`, and the id of the Plugin providing it, each as its
+    /// own task, without waiting for them.
     ///
     /// An error is logged, without the Plugin's secret settings, and not retried. A Provider that
     /// panics is disabled. Must be called within a Tokio runtime.
-    pub fn call_each_provider<T, F>(&self, call: impl Fn(Arc<T>) -> F + Clone + Send + 'static)
-    where
+    pub fn call_each_provider<T, F>(
+        &self,
+        call: impl Fn(PluginId, Arc<T>) -> F + Clone + Send + 'static,
+    ) where
         T: ?Sized + Send + Sync + 'static,
         F: Future<Output = Result<(), PluginError>> + Send + 'static,
     {
@@ -751,8 +754,12 @@ impl Registry {
     }
 
     /// The task [`Registry::call_each_provider`] runs for one Provider.
-    async fn call_one<T, F>(self, entry: Entry, provider: Arc<T>, call: impl FnOnce(Arc<T>) -> F)
-    where
+    async fn call_one<T, F>(
+        self,
+        entry: Entry,
+        provider: Arc<T>,
+        call: impl FnOnce(PluginId, Arc<T>) -> F,
+    ) where
         T: ?Sized,
         F: Future<Output = Result<(), PluginError>>,
     {
@@ -772,7 +779,7 @@ impl Registry {
         &self,
         entry: &Entry,
         provider: Arc<T>,
-        call: impl FnOnce(Arc<T>) -> F,
+        call: impl FnOnce(PluginId, Arc<T>) -> F,
     ) where
         T: ?Sized,
         F: Future<Output = Result<(), PluginError>>,
@@ -783,7 +790,7 @@ impl Registry {
         let point = entry.registration.point().name();
         // The error is Plugin code too: its message and its `Drop` stay contained.
         let called = contain(|| {
-            let answer = call(provider);
+            let answer = call(entry.plugin.clone(), provider);
             async move { answer.await.map_err(|error| error.to_string()) }
         });
         match called.await {

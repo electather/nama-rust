@@ -18,7 +18,7 @@ use tracing::{error, warn};
 use crate::{
     db::{Database, now},
     plugins::Registry,
-    users,
+    users::{self, Permissions, User},
 };
 
 /// How long a link waits for its User to finish with it.
@@ -250,6 +250,36 @@ impl Connections {
     fn lock(&self) -> MutexGuard<'_, HashMap<Waiter, String>> {
         lock(&self.waiting)
     }
+}
+
+/// Each User with a Plugin Connection to `plugin`, with it.
+pub(crate) async fn connected(
+    db: &Database,
+    plugin: &PluginId,
+) -> Result<Vec<(User, String)>, sqlx::Error> {
+    let plugin = plugin.as_str();
+    let rows = sqlx::query!(
+        r#"SELECT users.id AS "id!", users.display_username AS name,
+                  users.permissions AS "permissions: Permissions", users.created_at,
+                  plugin_connections.connection
+           FROM plugin_connections JOIN users ON users.id = plugin_connections.user_id
+           WHERE plugin_connections.plugin_id = ?"#,
+        plugin
+    )
+    .fetch_all(db.reader())
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|row| {
+            let user = User {
+                id: row.id,
+                name: row.name,
+                permissions: row.permissions,
+                created_at: row.created_at,
+            };
+            (user, row.connection)
+        })
+        .collect())
 }
 
 fn lock(waiting: &Mutex<HashMap<Waiter, String>>) -> MutexGuard<'_, HashMap<Waiter, String>> {
