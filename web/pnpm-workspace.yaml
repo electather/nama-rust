@@ -14,6 +14,9 @@ catalog:
   vite-plus: 1.5.0
 overrides:
   vite@*: "catalog:"
+  # GHSA-g3hv-75wg-m249: shadcn's ts-morph still asks for minimatch 10, which has no patched release.
+  # Drop this once @ts-morph/common allows 11.
+  "@ts-morph/common>minimatch": ^11.0.1
 peerDependencyRules:
   allowAny:
     - vite
