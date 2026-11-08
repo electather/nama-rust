@@ -62,6 +62,8 @@ enum Refused {
     OutOfRange { wants: String },
     #[error("its setting {key} is of a kind this Server doesn't know")]
     UnknownSettingKind { key: String },
+    #[error("its setting {key}'s default isn't {kind:?}")]
+    DefaultWrongKind { key: String, kind: SettingKind },
     #[error("its id {0} is another Plugin's")]
     IdTaken(PluginId),
 }
@@ -133,23 +135,25 @@ impl Observer<Events> for Installed {
     }
 }
 
-impl Registry {
-    /// Reads the Installed Plugins in `<data_dir>/plugins/` and lists them beside the Built-in
-    /// ones, in place of those read before. An enabled Plugin stays listed even if its file is
-    /// gone. Enables none.
-    ///
-    /// Blocks while it compiles each Plugin. wasmtime caches what it compiles under
-    /// `<data_dir>/wasmtime/`, not in the home directory.
-    pub fn read_installed(&self, data_dir: &Path) {
-        self.list_installed(read_plugins_dir(data_dir));
-    }
+/// The Installed Plugins in `<data_dir>/plugins/`, compiled but not yet listed.
+pub(crate) struct Found(Vec<(PathBuf, Result<Installed, Refused>)>);
 
-    /// As [`Registry::read_installed`], at start: logs each Installed Plugin's id and version, or
-    /// why the Server refused it, and enables those `config` says are enabled. Installed Plugins
-    /// start disabled, so one `config` doesn't name stays disabled.
+/// Reads the Installed Plugins in `<data_dir>/plugins/`, for [`Registry::list_installed`] to list.
+///
+/// Blocks while it compiles each Plugin. wasmtime caches what it compiles under
+/// `<data_dir>/wasmtime/`, not in the home directory.
+pub(crate) fn read(data_dir: &Path) -> Found {
+    Found(read_plugins_dir(data_dir))
+}
+
+impl Registry {
+    /// Reads and lists the Installed Plugins in `<data_dir>/plugins/` at start, as listing the
+    /// Plugins does: logs each one's id and version, or why the Server refused it, and enables
+    /// those `config` says are enabled. Installed Plugins start disabled, so one `config` doesn't
+    /// name stays disabled.
     pub fn load_installed(&self, data_dir: &Path, config: &BTreeMap<String, PluginConfig>) {
-        let found = read_plugins_dir(data_dir);
-        for (file, plugin) in &found {
+        let found = read(data_dir);
+        for (file, plugin) in &found.0 {
             match plugin {
                 Ok(plugin) => info!(
                     file = %file.display(),
@@ -178,9 +182,10 @@ impl Registry {
         }
     }
 
-    /// Lists the Installed Plugins `found` in place of those listed before, keeping any that is
-    /// enabled.
-    fn list_installed(&self, found: Vec<(PathBuf, Result<Installed, Refused>)>) {
+    /// Lists the Installed Plugins `found` beside the Built-in ones, in place of those listed
+    /// before. An enabled Plugin stays listed as it was enabled, even if its file is gone or
+    /// changed, until it is disabled. Enables none.
+    pub(crate) fn list_installed(&self, found: Found) {
         let mut taken: Vec<PluginId> = self.read(|state| {
             let builtin = |(id, known): (&PluginId, &Described)| {
                 (known.kind == PluginKind::PLUGIN_KIND_BUILT_IN).then(|| id.clone())
@@ -188,7 +193,7 @@ impl Registry {
             state.known.iter().filter_map(builtin).collect()
         });
         let mut described = Vec::new();
-        for (file, plugin) in found {
+        for (file, plugin) in found.0 {
             let (id, plugin) = describe(&file, plugin, &taken);
             if plugin.make.is_ok() {
                 taken.push(id.clone());
@@ -200,7 +205,9 @@ impl Registry {
             state.known.retain(|id, known| {
                 known.kind == PluginKind::PLUGIN_KIND_BUILT_IN || enabled.contains_key(id)
             });
-            state.known.extend(described);
+            for (id, plugin) in described {
+                state.known.entry(id).or_insert(plugin);
+            }
         });
     }
 }
@@ -381,6 +388,12 @@ fn settings_schema(manifest: &Manifest) -> Result<SettingsSchema, Refused> {
                     setting_value::Value::Integer(number) => SettingValue::Integer(*number),
                     setting_value::Value::Text(text) => SettingValue::Text(text.clone()),
                 });
+            if default.as_ref().is_some_and(|default| !default.is(kind)) {
+                return Err(Refused::DefaultWrongKind {
+                    key: field.key.clone(),
+                    kind,
+                });
+            }
             Ok(SettingField {
                 key: field.key.clone(),
                 label: field.label.clone(),
@@ -434,6 +447,16 @@ mod tests {
             default: Some(SettingValue::Text("none".to_owned())),
         };
         assert_eq!(schema.map(|schema| schema.fields), Some(vec![expected]));
+    }
+
+    #[test]
+    fn a_default_of_another_kind_refuses_the_plugin() {
+        let refused = settings_schema(&manifest(wire::SettingKind::SETTING_KIND_BOOL));
+
+        assert_eq!(
+            refused.err().map(|refused| refused.to_string()),
+            Some("its setting api_key's default isn't Bool".to_owned())
+        );
     }
 
     #[test]

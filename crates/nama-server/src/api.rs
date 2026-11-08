@@ -80,7 +80,7 @@ use crate::{
     libraries::{self, FolderProblem, Kind, Libraries, Library},
     matching::{ManualError, Matcher},
     plugin_settings,
-    plugins::{CheckError, EnableError, Listed, Registry, SETTINGS_CHECK_TIMEOUT},
+    plugins::{CheckError, EnableError, Listed, Registry, SETTINGS_CHECK_TIMEOUT, installed},
     rate_limits::{Blocked, SignInCodeLimits, SignInLimits},
     requests::{self, Found, FoundShow, Requests},
     scanner::Scanner,
@@ -2035,16 +2035,17 @@ impl PluginService for PluginServiceHandler {
         _ctx: RequestContext,
         _request: ServiceRequest<'_, ListPluginsRequest>,
     ) -> ServiceResult<ListPluginsResponse> {
-        let registry = self.plugins.clone();
         let data_dir = self.data_dir.clone();
-        // Under `changing`, so a Plugin being enabled can't lose its listing halfway.
-        let changing = self.changing.lock().await;
-        tokio::task::spawn_blocking(move || registry.read_installed(&data_dir))
+        // Compiled before taking `changing`, so a slow Plugin doesn't hold up Plugin changes.
+        let found = tokio::task::spawn_blocking(move || installed::read(&data_dir))
             .await
             .map_err(|err| {
                 tracing::error!("reading the Installed Plugins failed: {err}");
                 ConnectError::internal("the Server failed")
             })?;
+        // Under `changing`, so a Plugin being enabled can't lose its listing halfway.
+        let changing = self.changing.lock().await;
+        self.plugins.list_installed(found);
         drop(changing);
         let stored = plugin_settings::stored(&self.db)
             .await
@@ -2316,6 +2317,7 @@ impl From<EnableError> for ConnectError {
             )
             .field("id")
             .param("pluginId", &plugin)
+            .param("reason", &reason)
             .into(),
             // The settings are the stored ones, not the request's, but #162 asks for the refusal
             // to name one.

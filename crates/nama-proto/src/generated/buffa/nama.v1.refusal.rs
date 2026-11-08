@@ -126,7 +126,8 @@ pub enum RefusalReason {
     /// check offers. Params: `pluginId`, `settingKey`, `settingValue`.
     REFUSAL_REASON_CHOICE_NOT_OFFERED = 47i32,
     /// `failed_precondition`: the Server refused the Plugin, such as an Installed Plugin built for
-    /// another Nama API version, so it can't be enabled. The message says why. Params: `pluginId`.
+    /// another Nama API version, so it can't be enabled. The message says why. Params: `pluginId`,
+    /// `reason` (in plain words, as `Plugin.refused_reason`).
     REFUSAL_REASON_PLUGIN_REFUSED = 48i32,
 }
 impl RefusalReason {

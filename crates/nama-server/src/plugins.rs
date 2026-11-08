@@ -472,8 +472,7 @@ impl Registry {
     }
 
     /// Every Plugin the Server has, enabled or not, sorted by id: the Built-in ones
-    /// [`Registry::with_builtins`] knew, and the Installed ones [`Registry::read_installed`] last
-    /// read.
+    /// [`Registry::with_builtins`] knew, and the Installed ones the Server last read.
     #[must_use]
     pub fn plugins(&self) -> Vec<Listed> {
         self.read(|state| {
