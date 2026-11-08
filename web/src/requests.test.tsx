@@ -109,6 +109,7 @@ test("a Request made elsewhere shows up without a reload", async () => {
 
 test.each([
   { how: "approved elsewhere", state: RequestState.APPROVED, label: "Approved" },
+  { how: "taken by its Fulfiller", state: RequestState.PROCESSING, label: "Processing" },
   { how: "Matched by a scan", state: RequestState.AVAILABLE, label: "Available" },
 ])("a Request $how shows as $label without a reload", async ({ state, label }) => {
   const events = eventFeed();

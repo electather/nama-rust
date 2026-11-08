@@ -18,6 +18,7 @@
 //! Everything registered there belongs to that Plugin, so disabling the Plugin removes all of it.
 
 pub mod auth;
+pub mod fulfiller;
 pub mod metadata;
 pub mod points;
 pub mod settings;
@@ -33,14 +34,14 @@ use std::{
     time::Duration,
 };
 
-use crate::settings::{Settings, SettingsSchema};
+use crate::settings::{Settings, SettingsCheck, SettingsSchema};
 
 /// A boxed future that can move between threads, as Extension Point handlers return.
 ///
 /// Write a handler's body as `Box::pin(async move { ... })`.
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
-/// Why an Interceptor failed, for the log.
+/// Why a Plugin's handler or settings check failed.
 pub type PluginError = Box<dyn Error + Send + Sync>;
 
 /// A Plugin's stable, unique name, such as `log-events`.
@@ -90,6 +91,13 @@ pub trait Plugin: Send + Sync + 'static {
     /// enables the Plugin only with settings that fit it.
     fn settings_schema(&self) -> SettingsSchema {
         SettingsSchema::default()
+    }
+
+    /// The Plugin's check of its settings, if it has one, which offers the choices for its
+    /// [`SettingKind::Choice`](settings::SettingKind::Choice) settings. The Kernel runs it on a
+    /// fresh instance that isn't enabled.
+    fn settings_check(&self) -> Option<&dyn SettingsCheck> {
+        None
     }
 
     /// Registers the Plugin's Observers, Interceptors and Providers.

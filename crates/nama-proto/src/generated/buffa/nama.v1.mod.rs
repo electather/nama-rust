@@ -163,6 +163,10 @@ pub mod __buffa {
         reg.register_json_any(super::__UPDATE_PLUGIN_SETTINGS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__ENABLE_PLUGIN_REQUEST_JSON_ANY);
         reg.register_json_any(super::__ENABLE_PLUGIN_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__TEST_PLUGIN_SETTINGS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__TEST_PLUGIN_SETTINGS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__SETTING_CHOICES_JSON_ANY);
+        reg.register_json_any(super::__CHOICE_JSON_ANY);
         reg.register_json_any(super::__DISABLE_PLUGIN_REQUEST_JSON_ANY);
         reg.register_json_any(super::__DISABLE_PLUGIN_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__PLUGIN_JSON_ANY);
@@ -617,6 +621,22 @@ pub use self::__buffa::view::EnablePluginRequestOwnedView;
 pub use self::__buffa::view::EnablePluginResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::EnablePluginResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::TestPluginSettingsRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::TestPluginSettingsRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::TestPluginSettingsResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::TestPluginSettingsResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SettingChoicesView;
+#[doc(inline)]
+pub use self::__buffa::view::SettingChoicesOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ChoiceView;
+#[doc(inline)]
+pub use self::__buffa::view::ChoiceOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::DisablePluginRequestView;
 #[doc(inline)]

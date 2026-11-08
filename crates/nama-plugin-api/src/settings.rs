@@ -4,6 +4,10 @@
 //! enables the Plugin, fills in defaults, and hands the result to [`Plugin::register`] through
 //! [`Registrar::settings`]. Changing settings means enabling the Plugin again.
 //!
+//! A [`SettingKind::Choice`] setting is picked from what the Plugin's [`SettingsCheck`] offers, such
+//! as a quality profile only the outside service knows. The Kernel runs the check only when an
+//! admin asks, never to enable the Plugin, so the outside service being down can't stop it.
+//!
 //! [`Plugin::settings_schema`]: crate::Plugin::settings_schema
 //! [`Plugin::register`]: crate::Plugin::register
 //! [`Registrar::settings`]: crate::Registrar::settings
@@ -11,6 +15,8 @@
 use std::{collections::BTreeMap, fmt};
 
 use serde::{Deserialize, Serialize};
+
+use crate::{BoxFuture, PluginError};
 
 /// The settings a Plugin takes, in the order a form shows them.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -47,6 +53,8 @@ pub enum SettingKind {
     Bool,
     /// A whole number.
     Integer,
+    /// Text picked from the choices the Plugin's [`SettingsCheck`] offers.
+    Choice,
 }
 
 /// A setting's value.
@@ -57,7 +65,7 @@ pub enum SettingValue {
     Bool(bool),
     /// A whole number.
     Integer(i64),
-    /// Text, for both [`SettingKind::Text`] and [`SettingKind::Secret`].
+    /// Text, for [`SettingKind::Text`], [`SettingKind::Secret`] and [`SettingKind::Choice`].
     Text(String),
 }
 
@@ -69,7 +77,10 @@ impl SettingValue {
             (self, kind),
             (Self::Bool(_), SettingKind::Bool)
                 | (Self::Integer(_), SettingKind::Integer)
-                | (Self::Text(_), SettingKind::Text | SettingKind::Secret)
+                | (
+                    Self::Text(_),
+                    SettingKind::Text | SettingKind::Secret | SettingKind::Choice
+                )
         )
     }
 }
@@ -164,3 +175,28 @@ impl fmt::Display for SettingsError {
 }
 
 impl std::error::Error for SettingsError {}
+
+/// One value a [`SettingKind::Choice`] setting may take.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Choice {
+    /// What is stored as the setting's text, such as a quality profile's id.
+    pub value: String,
+    /// What an admin picks it by, such as the profile's name.
+    pub label: String,
+}
+
+/// The choices for each [`SettingKind::Choice`] setting, by key.
+pub type Choices = BTreeMap<String, Vec<Choice>>;
+
+/// A Plugin's check of its settings against the outside service they are for.
+pub trait SettingsCheck: Send + Sync {
+    /// Checks `settings`, which fit the Plugin's schema except that [`SettingKind::Choice`]
+    /// settings may be missing, and returns the choices for each Choice setting. The Kernel gives
+    /// up on a check that runs too long.
+    ///
+    /// # Errors
+    ///
+    /// When the settings don't work, such as an API key the service refuses, in plain words an
+    /// admin can act on.
+    fn check<'a>(&'a self, settings: &'a Settings) -> BoxFuture<'a, Result<Choices, PluginError>>;
+}

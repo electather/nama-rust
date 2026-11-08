@@ -7,8 +7,9 @@ edition.workspace = true
 repository.workspace = true
 
 [features]
-# `contents::Contents::files`: what a Library holds, as integration tests read it back.
-testing = []
+# `contents::Contents::files`: what a Library holds, as integration tests read it back; and the
+# Built-in Plugin `nama-plugin-test-choices`, whose settings check offers choices.
+testing = ["dep:nama-plugin-test-choices"]
 # Embeds the built web app (`web/dist`, from `vp build`) and serves it. Off by default so builds
 # and tests need no Node; release builds turn it on (`dist-workspace.toml`).
 web = []
@@ -26,6 +27,7 @@ getrandom = "0.4"
 nama-plugin-api = { version = "0.1.0", path = "../nama-plugin-api" }
 nama-plugin-local-auth = { version = "0.1.0", path = "../../plugins/local-auth" }
 nama-plugin-log-events = { version = "0.1.0", path = "../../plugins/log-events" }
+nama-plugin-test-choices = { version = "0.1.0", path = "../../plugins/test-choices", optional = true }
 nama-plugin-tmdb = { version = "0.1.0", path = "../../plugins/tmdb" }
 nama-proto = { version = "0.1.0", path = "../nama-proto" }
 regex = "1"
