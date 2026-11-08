@@ -9,7 +9,7 @@ use std::{
     path::PathBuf,
     sync::{
         Arc, Mutex, MutexGuard, PoisonError,
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
     },
     time::Duration,
 };
@@ -40,8 +40,9 @@ pub(crate) struct FakeSonarr {
     server: Option<JoinHandle<()>>,
 }
 
-#[derive(Default)]
 struct Fake {
+    /// Whether it refuses [`API_KEY`] too, as after an Admin made Sonarr a new one.
+    refuses_key: AtomicBool,
     /// The Shows it has, each as it was added with its `id` and Seasons' monitoring kept current.
     shows: Mutex<Vec<Value>>,
     /// Whether the next list of its Shows by TVDB id answers as if it didn't have them.
@@ -56,6 +57,27 @@ struct Fake {
     searches: Mutex<Vec<(i64, u64)>>,
     /// The ids of the Episodes monitored one by one, in order.
     monitored_episodes: Mutex<Vec<i64>>,
+    /// The fixture its queue answers with.
+    queue: Mutex<&'static str>,
+    /// How many times its queue was asked for.
+    queue_calls: AtomicUsize,
+}
+
+impl Default for Fake {
+    fn default() -> Self {
+        Self {
+            refuses_key: AtomicBool::default(),
+            shows: Mutex::default(),
+            stale_find: AtomicBool::default(),
+            hold_refreshes: AtomicBool::default(),
+            commands: Mutex::default(),
+            refreshed: Mutex::default(),
+            searches: Mutex::default(),
+            monitored_episodes: Mutex::default(),
+            queue: Mutex::new("queue-empty.json"),
+            queue_calls: AtomicUsize::default(),
+        }
+    }
 }
 
 #[expect(
@@ -142,6 +164,21 @@ impl FakeSonarr {
         lock(&self.state.monitored_episodes).clone()
     }
 
+    /// Refuses every API key from now on, as when an Admin makes Sonarr a new one.
+    pub(crate) fn refuse_key(&self) {
+        self.state.refuses_key.store(true, Ordering::Relaxed);
+    }
+
+    /// Makes its queue answer with the fixture `file`, such as `queue.json`.
+    pub(crate) fn set_queue(&self, file: &'static str) {
+        *lock(&self.state.queue) = file;
+    }
+
+    /// How many times its queue was asked for so far.
+    pub(crate) fn queue_calls(&self) -> usize {
+        self.state.queue_calls.load(Ordering::Relaxed)
+    }
+
     fn serve(&mut self, listener: TcpListener) {
         let app = Router::new()
             .fallback(answer)
@@ -170,7 +207,9 @@ async fn answer(
     headers: HeaderMap,
     body: Bytes,
 ) -> Response {
-    if headers.get("x-api-key").is_none_or(|key| key != API_KEY) {
+    if fake.refuses_key.load(Ordering::Relaxed)
+        || headers.get("x-api-key").is_none_or(|key| key != API_KEY)
+    {
         return StatusCode::UNAUTHORIZED.into_response();
     }
     let query: HashMap<String, String> = Query::try_from_uri(&uri)
@@ -191,6 +230,7 @@ async fn answer(
         (Method::PUT, "/api/v3/episode/monitor") => monitor_episodes(&fake, &body),
         (Method::GET, "/api/v3/command") => json(StatusCode::OK, &json!(*lock(&fake.commands))),
         (Method::POST, "/api/v3/command") => command(&fake, &body),
+        (Method::GET, "/api/v3/queue") => queue(&fake, param("includeSeries")),
         _ => StatusCode::NOT_FOUND.into_response(),
     }
 }
@@ -342,6 +382,15 @@ fn command(fake: &Fake, command: &Value) -> Response {
     );
     lock(&fake.searches).push(searched);
     fixture(StatusCode::CREATED, "command.json")
+}
+
+fn queue(fake: &Fake, include_series: &str) -> Response {
+    // Without the Show, a queue entry names it only by Sonarr's own id.
+    if include_series != "true" {
+        return StatusCode::BAD_REQUEST.into_response();
+    }
+    fake.queue_calls.fetch_add(1, Ordering::Relaxed);
+    fixture(StatusCode::OK, *lock(&fake.queue))
 }
 
 fn seasons(show: &Value) -> &[Value] {
