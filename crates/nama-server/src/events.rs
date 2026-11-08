@@ -244,7 +244,7 @@ pub(crate) fn users_to_tell(event: &Event, users: &[User]) -> Vec<i64> {
             .map(|user| user.id)
             .collect(),
         // A scan opens a Followed Show's new Season already (Partially) Available. One opened
-        // Approved tells nobody: its asker auto-approved it.
+        // Approved tells nobody: its one Requester just asked for it.
         Some(E::RequestCreated(created))
             if matches!(
                 created.request.state.as_known(),
@@ -291,7 +291,7 @@ mod tests {
     use super::{event, users_to_tell};
     use crate::users::{Permissions, User};
 
-    /// Users 1 and 2 are Members, 3 has `MANAGE_REQUESTS` and 4 is an Admin.
+    /// Users 1 and 2 have a new User's Permissions, 3 has `MANAGE_REQUESTS` and 4 has `ADMIN`.
     fn users() -> Vec<User> {
         let user = |id, permissions| User {
             id,
@@ -399,7 +399,7 @@ mod tests {
                 request: pending.into(),
                 ..Default::default()
             }),
-            // Auto-approved: its asker approved it.
+            // Opened Approved: its one Requester just asked for it.
             created(RequestState::Approved, &[1]),
             moved_to(RequestState::Processing, &[1]),
         ];
