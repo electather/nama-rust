@@ -41,8 +41,8 @@ const alien: MessageInitShape<typeof RequestSchema> = {
 
 /**
  * A fake Server holding `requests`, signed in with `permissions`, that approves, declines,
- * cancels and retries them, the Fulfiller taking a retried one. It changes the messages given, so a test can change them too, as someone else
- * would.
+ * cancels and retries them, the Fulfiller taking a retried one. It changes the messages given, so
+ * a test can change them too, as someone else would.
  */
 function managedServer(permissions: Permission[], ...requests: Request[]) {
   const held = new Map(requests.map((request) => [request.id, request]));
@@ -159,7 +159,7 @@ test("retrying a Failed Request shows it Processing, without its reason", async 
   expect(screen.queryByRole("button", { name: "Retry Alien" })).toBeNull();
 });
 
-test("retrying a Request someone else retried meanwhile says so", async () => {
+test("retrying a Request that stopped being Failed meanwhile says so", async () => {
   const request = create(RequestSchema, alien);
   openApp("/requests", managedServer(admin, request));
   const retry = await screen.findByRole("button", { name: "Retry Alien" });
@@ -167,6 +167,6 @@ test("retrying a Request someone else retried meanwhile says so", async () => {
   request.state = RequestState.PROCESSING;
   fireEvent.click(retry);
 
-  expect(await screen.findByText("Alien was already retried.")).toBeDefined();
+  expect(await screen.findByText("Alien isn’t Failed any more.")).toBeDefined();
   expect(await screen.findByText("Processing")).toBeDefined();
 });

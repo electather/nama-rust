@@ -225,16 +225,26 @@ impl Requests {
     /// Approves the Pending Request `id` and hands it to the Movie Fulfiller, publishing each
     /// change of its state.
     pub(crate) async fn approve(&self, id: i64) -> Result<Request, Error> {
-        let approved = self.decide(id, RequestState::Approved, None).await?;
-        self.hand_off(approved).await
+        let requests = self.clone();
+        detached(async move {
+            let approved = requests.decide(id, RequestState::Approved, None).await?;
+            requests.hand_off(approved).await
+        })
+        .await
     }
 
     /// Moves the Failed Request `id` back to Approved and hands it to the Movie Fulfiller again,
     /// publishing each change of its state.
     pub(crate) async fn retry(&self, id: i64) -> Result<Request, Error> {
-        let approved = self.db.write(move |tx| Box::pin(retry(tx, id))).await?;
-        self.events.publish(vec![state_changed(approved.clone())]);
-        self.hand_off(approved).await
+        let requests = self.clone();
+        detached(async move {
+            let approved = requests.db.write(move |tx| Box::pin(retry(tx, id))).await?;
+            requests
+                .events
+                .publish(vec![state_changed(approved.clone())]);
+            requests.hand_off(approved).await
+        })
+        .await
     }
 
     /// Hands the Approved `request` to the Movie Fulfiller, publishing that its state changed:
@@ -250,7 +260,7 @@ impl Requests {
             return Ok(request);
         }
         let requests = self.clone();
-        let handed = tokio::spawn(async move {
+        detached(async move {
             let Some(fulfilled) = requests.fulfill(&request).await else {
                 return Ok(request);
             };
@@ -273,11 +283,8 @@ impl Requests {
                 .events
                 .publish(vec![state_changed(settled.clone())]);
             Ok(settled)
-        });
-        // The task is never aborted, so it only fails if it panicked.
-        handed
-            .await
-            .unwrap_or_else(|_| Err(sqlx::Error::WorkerCrashed.into()))
+        })
+        .await
     }
 
     /// What the Movie Fulfiller says to `request`, if one is enabled: the reference it gives once
@@ -858,6 +865,17 @@ async fn load(
             request
         })
         .collect())
+}
+
+/// Runs `work` in a task of its own, so it finishes even if the caller stops waiting: a Request
+/// written Approved must still reach the Fulfiller, and its reference must still be stored.
+async fn detached<T: Send + 'static>(
+    work: impl Future<Output = Result<T, Error>> + Send + 'static,
+) -> Result<T, Error> {
+    // The task is never aborted, so it only fails if it panicked.
+    tokio::spawn(work)
+        .await
+        .unwrap_or_else(|_| Err(sqlx::Error::WorkerCrashed.into()))
 }
 
 /// The event saying `request` is now in the state it has.

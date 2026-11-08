@@ -740,12 +740,29 @@ async fn retrying_a_failed_request_once_the_movie_fulfiller_recovers_moves_it_to
     let fulfiller = FakeFulfiller::refusing();
     let fixture = Fixture::with_fulfiller(&fulfiller).await;
     let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
-    let ada = requests(as_ada);
+    let ada = requests(as_ada.clone());
     let failed = fixture.approve(ask(&ada, HEAT).await.id).await;
+    let mut adas_events = subscribe_to_requests(as_ada).await;
 
     fulfiller.recover();
     let retried = retry(&fixture, failed.id).await.unwrap();
+    let events = [
+        next_event(&mut adas_events).await,
+        next_event(&mut adas_events).await,
+    ];
 
+    let [
+        event::Event::RequestStateChanged(approved),
+        event::Event::RequestStateChanged(processing),
+    ] = events
+    else {
+        panic!("not Approved, then Processing: {events:?}");
+    };
+    assert_eq!(
+        approved.request.as_option().map(|request| request.state),
+        Some(RequestState::Approved.into())
+    );
+    assert_eq!(processing.request.as_option(), Some(&retried));
     assert_eq!(retried.state, RequestState::Processing);
     assert_eq!(retried.failure_reason, None);
     assert_eq!(fulfiller.handed(), [HEAT, HEAT]);
