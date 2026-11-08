@@ -18,13 +18,32 @@
 //! [`extism_pdk::http::request`] to the hosts its Manifest's `allowed_hosts` and its URL settings
 //! name.
 //!
+//! A Plugin with [`SETTING_KIND_CHOICE`](nama_proto::nama::plugin::v1::SettingKind) settings exports `check_settings()`, which
+//! checks its settings against the outside service and offers the choices for each, built with
+//! [`checked_settings`]. It runs only when an admin tests settings, which may be unsaved, and may
+//! reach the hosts of the URL settings tested:
+//!
+//! ```
+//! use nama_pdk::{Buffa, CheckedSettings, FnResult, extism_pdk, plugin_fn};
+//!
+//! #[plugin_fn]
+//! pub fn check_settings() -> FnResult<Buffa<CheckedSettings>> {
+//!     let profiles = [("1", "HD"), ("4", "Ultra HD")];
+//!     Ok(Buffa(nama_pdk::checked_settings([("profile", profiles)])))
+//! }
+//! ```
+//!
 //! If the Plugin panics, the Server gets the panic's message with the error of the call that
 //! panicked, not just a bare trap.
 
 pub use extism_pdk::{self, FnResult, plugin_fn};
-pub use nama_proto::{self, nama::plugin::v1::Manifest};
+pub use nama_proto::{
+    self,
+    nama::plugin::v1::{CheckedSettings, Manifest},
+};
 
 use extism_pdk::{Error, FromBytesOwned, ToBytes};
+use nama_proto::nama::v1::{Choice, SettingChoices};
 
 /// Wraps a protobuf message so it crosses an Extism call encoded as protobuf, as an export's
 /// input or output.
@@ -55,6 +74,37 @@ pub fn manifest(id: &str, version: &str) -> Manifest {
         version: version.to_owned(),
         nama_api: format!("^{}", nama_proto::NAMA_API_VERSION),
         ..Manifest::default()
+    }
+}
+
+/// What `check_settings()` returns: for each Choice setting's key, its choices as `(value, label)`
+/// pairs in the order a form shows them. The value is what is stored, such as a quality profile's
+/// id, and the label what an admin picks it by, such as its name.
+#[must_use]
+pub fn checked_settings<K, C, V, L>(choices: impl IntoIterator<Item = (K, C)>) -> CheckedSettings
+where
+    K: Into<String>,
+    C: IntoIterator<Item = (V, L)>,
+    V: Into<String>,
+    L: Into<String>,
+{
+    let setting_choices = |pairs: C| SettingChoices {
+        choices: pairs
+            .into_iter()
+            .map(|(value, label)| Choice {
+                value: value.into(),
+                label: label.into(),
+                ..Choice::default()
+            })
+            .collect(),
+        ..SettingChoices::default()
+    };
+    CheckedSettings {
+        choices: choices
+            .into_iter()
+            .map(|(key, pairs)| (key.into(), setting_choices(pairs)))
+            .collect(),
+        ..CheckedSettings::default()
     }
 }
 

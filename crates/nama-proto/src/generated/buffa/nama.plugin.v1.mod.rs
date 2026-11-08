@@ -40,6 +40,7 @@ pub mod __buffa {
         reg.register_json_any(super::__MANIFEST_JSON_ANY);
         reg.register_json_any(super::__SETTING_FIELD_JSON_ANY);
         reg.register_json_any(super::__SETTING_VALUE_JSON_ANY);
+        reg.register_json_any(super::__CHECKED_SETTINGS_JSON_ANY);
         reg.register_json_any(super::__NOTIFICATION_JSON_ANY);
     }
 }
@@ -59,6 +60,10 @@ pub use self::__buffa::view::SettingFieldOwnedView;
 pub use self::__buffa::view::SettingValueView;
 #[doc(inline)]
 pub use self::__buffa::view::SettingValueOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::CheckedSettingsView;
+#[doc(inline)]
+pub use self::__buffa::view::CheckedSettingsOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::NotificationView;
 #[doc(inline)]

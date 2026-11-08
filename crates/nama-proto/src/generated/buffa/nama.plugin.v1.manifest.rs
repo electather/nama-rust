@@ -18,6 +18,8 @@ pub enum SettingKind {
     /// An http or https URL, such as a Sonarr address. The Plugin may send HTTP requests to its
     /// host, as if `allowed_hosts` named it.
     SETTING_KIND_URL = 5i32,
+    /// Text picked from the choices the Plugin's `check_settings()` offers.
+    SETTING_KIND_CHOICE = 6i32,
 }
 impl SettingKind {
     ///Idiomatic alias for [`Self::SETTING_KIND_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -38,6 +40,9 @@ impl SettingKind {
     ///Idiomatic alias for [`Self::SETTING_KIND_URL`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const Url: Self = Self::SETTING_KIND_URL;
+    ///Idiomatic alias for [`Self::SETTING_KIND_CHOICE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Choice: Self = Self::SETTING_KIND_CHOICE;
 }
 impl ::core::default::Default for SettingKind {
     fn default() -> Self {
@@ -139,6 +144,7 @@ impl ::buffa::Enumeration for SettingKind {
             3i32 => ::core::option::Option::Some(Self::SETTING_KIND_BOOL),
             4i32 => ::core::option::Option::Some(Self::SETTING_KIND_INTEGER),
             5i32 => ::core::option::Option::Some(Self::SETTING_KIND_URL),
+            6i32 => ::core::option::Option::Some(Self::SETTING_KIND_CHOICE),
             _ => ::core::option::Option::None,
         }
     }
@@ -153,6 +159,7 @@ impl ::buffa::Enumeration for SettingKind {
             Self::SETTING_KIND_BOOL => "SETTING_KIND_BOOL",
             Self::SETTING_KIND_INTEGER => "SETTING_KIND_INTEGER",
             Self::SETTING_KIND_URL => "SETTING_KIND_URL",
+            Self::SETTING_KIND_CHOICE => "SETTING_KIND_CHOICE",
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -169,6 +176,9 @@ impl ::buffa::Enumeration for SettingKind {
                 ::core::option::Option::Some(Self::SETTING_KIND_INTEGER)
             }
             "SETTING_KIND_URL" => ::core::option::Option::Some(Self::SETTING_KIND_URL),
+            "SETTING_KIND_CHOICE" => {
+                ::core::option::Option::Some(Self::SETTING_KIND_CHOICE)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -180,6 +190,7 @@ impl ::buffa::Enumeration for SettingKind {
             Self::SETTING_KIND_BOOL,
             Self::SETTING_KIND_INTEGER,
             Self::SETTING_KIND_URL,
+            Self::SETTING_KIND_CHOICE,
         ]
     }
 }
@@ -457,6 +468,12 @@ impl ::buffa::Enumeration for ProvidePoint {
 }
 /// What an Installed Plugin is and what it needs from the Server. The Plugin returns it from its
 /// `manifest()` export, which takes no input.
+///
+/// A Plugin may also export `check_settings()`, which takes no input and checks its settings, read
+/// from its Extism config as for any call, against the outside service they are for. It returns
+/// `CheckedSettings`, or fails with an error an admin can act on. The Server calls it only when an
+/// admin tests settings, which may be unsaved, so the hosts of the URL settings tested are allowed
+/// for that call alone.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
@@ -1397,3 +1414,142 @@ pub mod setting_value {
     #[doc(inline)]
     pub use super::__buffa::view::oneof::setting_value::Value as ValueView;
 }
+/// What an Installed Plugin's `check_settings()` returns when its settings work.
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct CheckedSettings {
+    /// The choices for each `SETTING_KIND_CHOICE` setting, by key.
+    ///
+    /// Field 1: `choices`
+    #[serde(
+        rename = "choices",
+        skip_serializing_if = "::buffa::__private::HashMap::is_empty",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub choices: ::buffa::__private::HashMap<
+        ::buffa::alloc::string::String,
+        super::super::v1::SettingChoices,
+    >,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for CheckedSettings {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("CheckedSettings").field("choices", &self.choices).finish()
+    }
+}
+impl CheckedSettings {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.CheckedSettings";
+}
+::buffa::impl_default_instance!(CheckedSettings);
+impl ::buffa::MessageName for CheckedSettings {
+    const PACKAGE: &'static str = "nama.plugin.v1";
+    const NAME: &'static str = "CheckedSettings";
+    const FULL_NAME: &'static str = "nama.plugin.v1.CheckedSettings";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.CheckedSettings";
+}
+impl ::buffa::Message for CheckedSettings {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        size
+            += ::buffa::map_codec::message_field_len::<
+                ::buffa::map_codec::Str,
+                _,
+                _,
+            >(&self.choices, 1u64, __cache);
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        ::buffa::map_codec::write_message_field::<
+            ::buffa::map_codec::Str,
+            _,
+            _,
+        >(&self.choices, 1u32, __cache, buf);
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::map_codec::merge_entry::<
+                    ::buffa::map_codec::Str,
+                    ::buffa::map_codec::Msg<_>,
+                    _,
+                >(&mut self.choices, buf, ctx)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.choices.clear();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for CheckedSettings {
+    const PROTO_FQN: &'static str = "nama.plugin.v1.CheckedSettings";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for CheckedSettings {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __CHECKED_SETTINGS_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.plugin.v1.CheckedSettings",
+    to_json: ::buffa::type_registry::any_to_json::<CheckedSettings>,
+    from_json: ::buffa::type_registry::any_from_json::<CheckedSettings>,
+    is_wkt: false,
+};

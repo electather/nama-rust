@@ -16,14 +16,19 @@ use std::{
 use buffa::Message;
 use extism::{CompiledPlugin, PluginBuilder, Wasm};
 use nama_plugin_api::{
-    BoxFuture, Observer, Plugin, PluginId, Registrar,
+    BoxFuture, Observer, Plugin, PluginError, PluginId, Registrar,
     points::Events,
-    settings::{SettingField, SettingKind, SettingValue, Settings, SettingsSchema},
+    settings::{
+        Choice, Choices, SettingField, SettingKind, SettingValue, Settings, SettingsCheck,
+        SettingsSchema,
+    },
 };
 use nama_proto::{
     NAMA_API_VERSION,
     nama::{
-        plugin::v1::{self as wire, Manifest, ObservePoint, ObservedEvents, setting_value},
+        plugin::v1::{
+            self as wire, CheckedSettings, Manifest, ObservePoint, ObservedEvents, setting_value,
+        },
         v1::{Event, PluginKind},
     },
 };
@@ -32,16 +37,22 @@ use thiserror::Error;
 use tokio::task;
 use tracing::{error, info, warn};
 
-use super::{Described, Registry, contain_sync, log_not_enabled, secret_values, without_secrets};
+use super::{
+    CheckTimedOut, Described, Registry, contain_sync, log_not_enabled, secret_values,
+    without_secrets,
+};
 use crate::config::PluginConfig;
 
 /// How long one call into an Installed Plugin may run, so one that never returns can't hold up
-/// the start or its Observer's task.
+/// the start, its Observer's task or a settings check.
 const CALL_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// How many calls in a row may crash before the Plugin is disabled, so one bad input doesn't
 /// cost an admin a Plugin.
 const CRASHES_BEFORE_DISABLING: u32 = 3;
+
+/// The export that checks a Plugin's settings, if it has one.
+const CHECK_SETTINGS: &str = "check_settings";
 
 /// What every binary WASM module starts with.
 const WASM_MAGIC: &[u8] = b"\0asm";
@@ -86,6 +97,8 @@ struct Installed {
     /// reads when it compiles it, so each enabling compiles them again.
     wasm: Arc<[u8]>,
     cache_config: Arc<Path>,
+    /// Whether it exports [`CHECK_SETTINGS`].
+    checks_settings: bool,
 }
 
 /// An enabled Installed Plugin, compiled once with its allowed hosts and settings. Each call into
@@ -128,13 +141,19 @@ impl Running {
 /// Whether a failed call trapped or timed out, rather than the Plugin returning an error or a
 /// host function such as an HTTP request refusing it.
 fn is_crash(err: &extism::Error) -> bool {
-    // Extism (1.41) gives a timeout as a bare "timeout", and any other failed call as wasmtime's
-    // own error, which holds a trap (under any panic's message) only if the guest trapped. A host
-    // function's error unwinds the guest too, but holds no trap.
-    err.to_string() == "timeout"
+    // Any failed call but a timeout is wasmtime's own error, which holds a trap (under any panic's
+    // message) only if the guest trapped. A host function's error unwinds the guest too, but holds
+    // no trap.
+    is_timeout(err)
         || err
             .downcast_ref::<wasmtime::Error>()
             .is_some_and(wasmtime::Error::is::<wasmtime::Trap>)
+}
+
+/// Whether a failed call ran past [`CALL_TIMEOUT`].
+fn is_timeout(err: &extism::Error) -> bool {
+    // Extism (1.41) gives a timeout as a bare "timeout".
+    err.to_string() == "timeout"
 }
 
 impl Plugin for Installed {
@@ -148,6 +167,10 @@ impl Plugin for Installed {
 
     fn settings_schema(&self) -> SettingsSchema {
         self.settings_schema.clone()
+    }
+
+    fn settings_check(&self) -> Option<&dyn SettingsCheck> {
+        self.checks_settings.then_some(self)
     }
 
     // ponytail: compiles on the calling thread, an async one when an admin enables it; wasmtime's
@@ -201,6 +224,58 @@ impl Observer<Events> for Running {
             }
         })
     }
+}
+
+impl SettingsCheck for Installed {
+    fn check<'a>(&'a self, settings: &'a Settings) -> BoxFuture<'a, Result<Choices, PluginError>> {
+        let hosts = allowed_hosts(&self.manifest, &self.settings_schema, settings);
+        let config = extism_config(&self.settings_schema, settings);
+        let wasm = Arc::clone(&self.wasm);
+        let cache_config = Arc::clone(&self.cache_config);
+        Box::pin(async move {
+            // Compiled for this call alone, since the settings may be unsaved: the hosts of their
+            // URL settings are allowed for it and gone once it returns.
+            let called = task::spawn_blocking(move || {
+                let compiled = compile(&wasm, &cache_config, hosts, config)?;
+                extism::Plugin::new_from_compiled(&compiled)?
+                    .call::<(), Vec<u8>>(CHECK_SETTINGS, ())
+            })
+            .await;
+            let output = match called {
+                Ok(Ok(output)) => output,
+                Ok(Err(err)) if is_timeout(&err) => return Err(CheckTimedOut(CALL_TIMEOUT).into()),
+                // So the registry logs why and fails the check in plain words, as it does when a
+                // Built-in Plugin's check panics.
+                Ok(Err(err)) if is_crash(&err) => {
+                    panic::resume_unwind(Box::new(err.root_cause().to_string()))
+                }
+                Ok(Err(err)) => return Err(err.root_cause().to_string().into()),
+                Err(err) if err.is_panic() => panic::resume_unwind(err.into_panic()),
+                Err(err) => return Err(err.into()),
+            };
+            let checked = CheckedSettings::decode_from_slice(&output).map_err(|err| {
+                format!(
+                    "its {CHECK_SETTINGS}() returned something that isn't CheckedSettings: {err}"
+                )
+            })?;
+            Ok(choices(checked))
+        })
+    }
+}
+
+/// The choices `checked` offers, as the Kernel takes them.
+fn choices(checked: CheckedSettings) -> Choices {
+    checked
+        .choices
+        .into_iter()
+        .map(|(key, offered)| {
+            let offered = offered.choices.into_iter().map(|choice| Choice {
+                value: choice.value,
+                label: choice.label,
+            });
+            (key, offered.collect())
+        })
+        .collect()
 }
 
 /// The Installed Plugins in `<data_dir>/plugins/`, compiled but not yet listed.
@@ -298,7 +373,7 @@ fn describe(
                 kind: PluginKind::PLUGIN_KIND_INSTALLED,
                 version: plugin.manifest.version.clone(),
                 settings_schema: plugin.settings_schema.clone(),
-                checks_settings: false,
+                checks_settings: plugin.checks_settings,
                 make: Ok(Arc::new(move || Arc::new(plugin.clone()))),
             };
             (id, described)
@@ -394,12 +469,14 @@ fn load(file: &Path, cache_config: &Path) -> Result<Installed, Refused> {
     if !wasm.starts_with(WASM_MAGIC) {
         return Err(Refused::NotWasm);
     }
-    let bytes = contain_sync(|| {
+    let (bytes, checks_settings) = contain_sync(|| {
         let compiled =
             compile(&wasm, cache_config, Vec::new(), Vec::new()).map_err(Refused::Load)?;
-        extism::Plugin::new_from_compiled(&compiled)
-            .and_then(|mut plugin| plugin.call::<(), Vec<u8>>("manifest", ()))
-            .map_err(Refused::Manifest)
+        let mut plugin = extism::Plugin::new_from_compiled(&compiled).map_err(Refused::Manifest)?;
+        let bytes = plugin
+            .call::<(), Vec<u8>>("manifest", ())
+            .map_err(Refused::Manifest)?;
+        Ok((bytes, plugin.function_exists(CHECK_SETTINGS)))
     })
     .map_err(Refused::Panicked)??;
     let manifest = Manifest::decode_from_slice(&bytes).map_err(Refused::Decode)?;
@@ -411,6 +488,7 @@ fn load(file: &Path, cache_config: &Path) -> Result<Installed, Refused> {
         settings_schema,
         wasm: wasm.into(),
         cache_config: cache_config.into(),
+        checks_settings,
     })
 }
 
@@ -498,6 +576,7 @@ fn settings_schema(manifest: &Manifest) -> Result<SettingsSchema, Refused> {
                 Some(wire::SettingKind::SETTING_KIND_BOOL) => SettingKind::Bool,
                 Some(wire::SettingKind::SETTING_KIND_INTEGER) => SettingKind::Integer,
                 Some(wire::SettingKind::SETTING_KIND_URL) => SettingKind::Url,
+                Some(wire::SettingKind::SETTING_KIND_CHOICE) => SettingKind::Choice,
                 Some(wire::SettingKind::SETTING_KIND_UNSPECIFIED) | None => {
                     return Err(Refused::UnknownSettingKind {
                         key: field.key.clone(),

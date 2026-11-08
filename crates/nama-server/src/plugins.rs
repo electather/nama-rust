@@ -208,13 +208,20 @@ pub enum CheckError {
     /// admin, with no secret setting's value in it.
     #[error("{0}")]
     Failed(String),
-    /// The check ran past [`SETTINGS_CHECK_TIMEOUT`].
+    /// The check ran past the time it had: [`SETTINGS_CHECK_TIMEOUT`], or less for an Installed
+    /// Plugin, whose every call has a shorter one.
     #[error(
         "{0} didn't finish checking its settings within {seconds} seconds",
-        seconds = SETTINGS_CHECK_TIMEOUT.as_secs()
+        seconds = .1.as_secs()
     )]
-    TimedOut(PluginId),
+    TimedOut(PluginId, Duration),
 }
+
+/// What a settings check the Server runs itself, such as an Installed Plugin's, fails with when
+/// it runs past the time it had, so the registry refuses it as [`CheckError::TimedOut`].
+#[derive(Debug, Error)]
+#[error("ran past {} seconds", .0.as_secs())]
+struct CheckTimedOut(Duration);
 
 impl Registry {
     /// A registry with no Plugins enabled.
@@ -468,14 +475,18 @@ impl Registry {
         // contained too, as are formatting and dropping the Plugin's error.
         let check = contain(|| async {
             let check = plugin.settings_check()?;
-            let checked =
-                tokio::time::timeout(SETTINGS_CHECK_TIMEOUT, check.check(&settings)).await;
-            Some(checked.map(|checked| checked.map_err(|error| error.to_string())))
+            let checked = tokio::time::timeout(SETTINGS_CHECK_TIMEOUT, check.check(&settings))
+                .await
+                .unwrap_or_else(|_elapsed| Err(CheckTimedOut(SETTINGS_CHECK_TIMEOUT).into()));
+            Some(
+                checked.map_err(|error| match error.downcast::<CheckTimedOut>() {
+                    Ok(timed_out) => CheckError::TimedOut(id.clone(), timed_out.0),
+                    Err(error) => CheckError::Failed(scrubbed(error.to_string())),
+                }),
+            )
         });
         let checked = match check.await {
-            Ok(Some(Ok(Ok(choices)))) => Ok(choices),
-            Ok(Some(Ok(Err(message)))) => Err(CheckError::Failed(scrubbed(message))),
-            Ok(Some(Err(_elapsed))) => Err(CheckError::TimedOut(id.clone())),
+            Ok(Some(checked)) => checked,
             Ok(None) => Err(no_check()),
             Err(message) => Err(panicked(message)),
         };

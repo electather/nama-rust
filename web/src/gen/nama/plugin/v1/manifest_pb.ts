@@ -7,17 +7,25 @@
 
 import type { GenEnum, GenFile, GenMessage } from "@bufbuild/protobuf/codegenv2";
 import { enumDesc, fileDesc, messageDesc } from "@bufbuild/protobuf/codegenv2";
+import type { SettingChoices } from "../../v1/plugin_pb";
+import { file_nama_v1_plugin } from "../../v1/plugin_pb";
 import type { Message, UnknownEnum } from "@bufbuild/protobuf";
 
 /**
  * Describes the file nama/plugin/v1/manifest.proto.
  */
 export const file_nama_plugin_v1_manifest: GenFile = /*@__PURE__*/
-  fileDesc("Ch1uYW1hL3BsdWdpbi92MS9tYW5pZmVzdC5wcm90bxIObmFtYS5wbHVnaW4udjEi4gEKCE1hbmlmZXN0EgoKAmlkGAEgASgJEg8KB3ZlcnNpb24YAiABKAkSEAoIbmFtYV9hcGkYAyABKAkSLgoIc2V0dGluZ3MYBCADKAsyHC5uYW1hLnBsdWdpbi52MS5TZXR0aW5nRmllbGQSFQoNYWxsb3dlZF9ob3N0cxgFIAMoCRIvCglvYnNlcnZlcnMYBiADKA4yHC5uYW1hLnBsdWdpbi52MS5PYnNlcnZlUG9pbnQSLwoJcHJvdmlkZXJzGAcgAygOMhwubmFtYS5wbHVnaW4udjEuUHJvdmlkZVBvaW50IrEBCgxTZXR0aW5nRmllbGQSCwoDa2V5GAEgASgJEg0KBWxhYmVsGAIgASgJEhMKC2Rlc2NyaXB0aW9uGAMgASgJEikKBGtpbmQYBCABKA4yGy5uYW1hLnBsdWdpbi52MS5TZXR0aW5nS2luZBIQCghyZXF1aXJlZBgFIAEoCBIzCg1kZWZhdWx0X3ZhbHVlGAYgASgLMhwubmFtYS5wbHVnaW4udjEuU2V0dGluZ1ZhbHVlIkoKDFNldHRpbmdWYWx1ZRIOCgRib29sGAEgASgISAASEQoHaW50ZWdlchgCIAEoA0gAEg4KBHRleHQYAyABKAlIAEIHCgV2YWx1ZSqiAQoLU2V0dGluZ0tpbmQSHAoYU0VUVElOR19LSU5EX1VOU1BFQ0lGSUVEEAASFQoRU0VUVElOR19LSU5EX1RFWFQQARIXChNTRVRUSU5HX0tJTkRfU0VDUkVUEAISFQoRU0VUVElOR19LSU5EX0JPT0wQAxIYChRTRVRUSU5HX0tJTkRfSU5URUdFUhAEEhQKEFNFVFRJTkdfS0lORF9VUkwQBSpHCgxPYnNlcnZlUG9pbnQSHQoZT0JTRVJWRV9QT0lOVF9VTlNQRUNJRklFRBAAEhgKFE9CU0VSVkVfUE9JTlRfRVZFTlRTEAEqLQoMUHJvdmlkZVBvaW50Eh0KGVBST1ZJREVfUE9JTlRfVU5TUEVDSUZJRUQQAGIGcHJvdG8z");
+  fileDesc("Ch1uYW1hL3BsdWdpbi92MS9tYW5pZmVzdC5wcm90bxIObmFtYS5wbHVnaW4udjEi4gEKCE1hbmlmZXN0EgoKAmlkGAEgASgJEg8KB3ZlcnNpb24YAiABKAkSEAoIbmFtYV9hcGkYAyABKAkSLgoIc2V0dGluZ3MYBCADKAsyHC5uYW1hLnBsdWdpbi52MS5TZXR0aW5nRmllbGQSFQoNYWxsb3dlZF9ob3N0cxgFIAMoCRIvCglvYnNlcnZlcnMYBiADKA4yHC5uYW1hLnBsdWdpbi52MS5PYnNlcnZlUG9pbnQSLwoJcHJvdmlkZXJzGAcgAygOMhwubmFtYS5wbHVnaW4udjEuUHJvdmlkZVBvaW50IrEBCgxTZXR0aW5nRmllbGQSCwoDa2V5GAEgASgJEg0KBWxhYmVsGAIgASgJEhMKC2Rlc2NyaXB0aW9uGAMgASgJEikKBGtpbmQYBCABKA4yGy5uYW1hLnBsdWdpbi52MS5TZXR0aW5nS2luZBIQCghyZXF1aXJlZBgFIAEoCBIzCg1kZWZhdWx0X3ZhbHVlGAYgASgLMhwubmFtYS5wbHVnaW4udjEuU2V0dGluZ1ZhbHVlIkoKDFNldHRpbmdWYWx1ZRIOCgRib29sGAEgASgISAASEQoHaW50ZWdlchgCIAEoA0gAEg4KBHRleHQYAyABKAlIAEIHCgV2YWx1ZSKZAQoPQ2hlY2tlZFNldHRpbmdzEj0KB2Nob2ljZXMYASADKAsyLC5uYW1hLnBsdWdpbi52MS5DaGVja2VkU2V0dGluZ3MuQ2hvaWNlc0VudHJ5GkcKDENob2ljZXNFbnRyeRILCgNrZXkYASABKAkSJgoFdmFsdWUYAiABKAsyFy5uYW1hLnYxLlNldHRpbmdDaG9pY2VzOgI4ASq7AQoLU2V0dGluZ0tpbmQSHAoYU0VUVElOR19LSU5EX1VOU1BFQ0lGSUVEEAASFQoRU0VUVElOR19LSU5EX1RFWFQQARIXChNTRVRUSU5HX0tJTkRfU0VDUkVUEAISFQoRU0VUVElOR19LSU5EX0JPT0wQAxIYChRTRVRUSU5HX0tJTkRfSU5URUdFUhAEEhQKEFNFVFRJTkdfS0lORF9VUkwQBRIXChNTRVRUSU5HX0tJTkRfQ0hPSUNFEAYqRwoMT2JzZXJ2ZVBvaW50Eh0KGU9CU0VSVkVfUE9JTlRfVU5TUEVDSUZJRUQQABIYChRPQlNFUlZFX1BPSU5UX0VWRU5UUxABKi0KDFByb3ZpZGVQb2ludBIdChlQUk9WSURFX1BPSU5UX1VOU1BFQ0lGSUVEEABiBnByb3RvMw", [file_nama_v1_plugin]);
 
 /**
  * What an Installed Plugin is and what it needs from the Server. The Plugin returns it from its
  * `manifest()` export, which takes no input.
+ *
+ * A Plugin may also export `check_settings()`, which takes no input and checks its settings, read
+ * from its Extism config as for any call, against the outside service they are for. It returns
+ * `CheckedSettings`, or fails with an error an admin can act on. The Server calls it only when an
+ * admin tests settings, which may be unsaved, so the hosts of the URL settings tested are allowed
+ * for that call alone.
  *
  * @generated from message nama.plugin.v1.Manifest
  */
@@ -167,7 +175,7 @@ export type SettingValue = Message<"nama.plugin.v1.SettingValue"> & {
     case: "integer";
   } | {
     /**
-     * Text, for SETTING_KIND_TEXT, SETTING_KIND_SECRET and SETTING_KIND_URL.
+     * Text, for SETTING_KIND_TEXT, SETTING_KIND_SECRET, SETTING_KIND_URL and SETTING_KIND_CHOICE.
      *
      * @generated from field: string text = 3;
      */
@@ -182,6 +190,27 @@ export type SettingValue = Message<"nama.plugin.v1.SettingValue"> & {
  */
 export const SettingValueSchema: GenMessage<SettingValue> = /*@__PURE__*/
   messageDesc(file_nama_plugin_v1_manifest, 2);
+
+/**
+ * What an Installed Plugin's `check_settings()` returns when its settings work.
+ *
+ * @generated from message nama.plugin.v1.CheckedSettings
+ */
+export type CheckedSettings = Message<"nama.plugin.v1.CheckedSettings"> & {
+  /**
+   * The choices for each `SETTING_KIND_CHOICE` setting, by key.
+   *
+   * @generated from field: map<string, nama.v1.SettingChoices> choices = 1;
+   */
+  choices: { [key: string]: SettingChoices };
+};
+
+/**
+ * Describes the message nama.plugin.v1.CheckedSettings.
+ * Use `create(CheckedSettingsSchema)` to create a new message.
+ */
+export const CheckedSettingsSchema: GenMessage<CheckedSettings> = /*@__PURE__*/
+  messageDesc(file_nama_plugin_v1_manifest, 3);
 
 /**
  * What kind of value a setting takes.
@@ -229,6 +258,13 @@ export const SettingKind = {
    * @generated from enum value: SETTING_KIND_URL = 5;
    */
   URL: 5,
+
+  /**
+   * Text picked from the choices the Plugin's `check_settings()` offers.
+   *
+   * @generated from enum value: SETTING_KIND_CHOICE = 6;
+   */
+  CHOICE: 6,
 } as const;
 
 /**
