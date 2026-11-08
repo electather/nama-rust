@@ -2,11 +2,21 @@ syntax = "proto3";
 
 package nama.v1;
 
-// Facts about a Server that any client can read, before signing in.
+// Facts about a Server that any client can read, before signing in, and the Server's settings.
 service ServerService {
   // Returns the Server's name and the version of Nama it runs.
   rpc GetServerInfo(GetServerInfoRequest) returns (GetServerInfoResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Returns the Server's settings. Needs `PERMISSION_MANAGE_SETTINGS`.
+  rpc GetServerSettings(GetServerSettingsRequest) returns (GetServerSettingsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Replaces the Server's settings. Needs `PERMISSION_MANAGE_SETTINGS`. A `url` that isn't an http
+  // or https URL, or has a query or fragment, is refused with `REFUSAL_REASON_NOT_A_URL` naming it,
+  // and nothing changes.
+  rpc UpdateServerSettings(UpdateServerSettingsRequest) returns (UpdateServerSettingsResponse) {
+    option idempotency_level = IDEMPOTENT;
   }
 }
 
@@ -20,4 +30,26 @@ message GetServerInfoResponse {
   // Whether the Server has no Users yet, so the first Admin still has to be created with
   // `SignInService.Setup`.
   bool setup_required = 3;
+}
+
+message GetServerSettingsRequest {}
+
+message GetServerSettingsResponse {
+  ServerSettings settings = 1;
+}
+
+message UpdateServerSettingsRequest {
+  ServerSettings settings = 1;
+}
+
+message UpdateServerSettingsResponse {
+  // The settings as saved.
+  ServerSettings settings = 1;
+}
+
+// What an admin sets about the Server as a whole.
+message ServerSettings {
+  // The address people reach the Server at, such as `https://nama.example.com`, which links to the
+  // web app in notifications start with. Empty, the default, for none: notifications have no links.
+  string url = 1;
 }

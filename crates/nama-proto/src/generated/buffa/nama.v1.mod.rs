@@ -190,6 +190,11 @@ pub mod __buffa {
         reg.register_json_any(super::__REFUSAL_JSON_ANY);
         reg.register_json_any(super::__GET_SERVER_INFO_REQUEST_JSON_ANY);
         reg.register_json_any(super::__GET_SERVER_INFO_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__GET_SERVER_SETTINGS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__GET_SERVER_SETTINGS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__UPDATE_SERVER_SETTINGS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__UPDATE_SERVER_SETTINGS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__SERVER_SETTINGS_JSON_ANY);
         reg.register_json_any(super::__USER_JSON_ANY);
         reg.register_json_any(super::__DEVICE_JSON_ANY);
         reg.register_json_any(super::__SETUP_REQUEST_JSON_ANY);
@@ -744,6 +749,26 @@ pub use self::__buffa::view::GetServerInfoRequestOwnedView;
 pub use self::__buffa::view::GetServerInfoResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::GetServerInfoResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetServerSettingsRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::GetServerSettingsRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetServerSettingsResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::GetServerSettingsResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::UpdateServerSettingsRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::UpdateServerSettingsRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::UpdateServerSettingsResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::UpdateServerSettingsResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ServerSettingsView;
+#[doc(inline)]
+pub use self::__buffa::view::ServerSettingsOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::UserView;
 #[doc(inline)]

@@ -46,8 +46,9 @@ use nama_proto::nama::v1::{
     EnablePluginRequest, EnablePluginResponse, EventService, EventType,
     GetDefaultPermissionsRequest, GetDefaultPermissionsResponse, GetLibraryRequest,
     GetLibraryResponse, GetMovieRequest, GetMovieResponse, GetRequestRequest, GetRequestResponse,
-    GetServerInfoRequest, GetServerInfoResponse, GetShowRequest, GetShowResponse, LibraryKind,
-    LibraryService, ListContinueWatchingRequest, ListContinueWatchingResponse, ListDevicesRequest,
+    GetServerInfoRequest, GetServerInfoResponse, GetServerSettingsRequest,
+    GetServerSettingsResponse, GetShowRequest, GetShowResponse, LibraryKind, LibraryService,
+    ListContinueWatchingRequest, ListContinueWatchingResponse, ListDevicesRequest,
     ListDevicesResponse, ListEpisodesRequest, ListEpisodesResponse, ListLibrariesRequest,
     ListLibrariesResponse, ListMoviesRequest, ListMoviesResponse, ListPluginsRequest,
     ListPluginsResponse, ListRequestsRequest, ListRequestsResponse, ListShowsRequest,
@@ -60,16 +61,17 @@ use nama_proto::nama::v1::{
     RetryRequestRequest, RetryRequestResponse, RevokeDeviceRequest, RevokeDeviceResponse,
     ScanLibraryRequest, ScanLibraryResponse, SearchMetadataRequest, SearchMetadataResponse,
     SearchMoviesRequest, SearchMoviesResponse, SearchShowsRequest, SearchShowsResponse,
-    ServerService, SessionDelivery, SetDefaultPermissionsRequest, SetDefaultPermissionsResponse,
-    SetMatchRequest, SetMatchResponse, SetPermissionsRequest, SetPermissionsResponse,
-    SetPlayedRequest, SetPlayedResponse, SetupRequest, SetupResponse, SignInCodeStatus,
-    SignInRequest, SignInResponse, SignInService, SignOutRequest, SignOutResponse,
-    StartSignInCodeRequest, StartSignInCodeResponse, SubscribeRequest, SubscribeResponse,
-    TestPluginSettingsRequest, TestPluginSettingsResponse, UpdateLibraryRequest,
-    UpdateLibraryResponse, UpdatePluginSettingsRequest, UpdatePluginSettingsResponse, UserService,
-    WatchStateService, WhoAmIRequest, WhoAmIResponse, WithdrawFollowedShowRequest,
-    WithdrawFollowedShowResponse, WithdrawRequestRequest, WithdrawRequestResponse, external_id,
-    reauthenticate_request::Proof, set_played_request::Target, setting_value,
+    ServerService, ServerSettings, SessionDelivery, SetDefaultPermissionsRequest,
+    SetDefaultPermissionsResponse, SetMatchRequest, SetMatchResponse, SetPermissionsRequest,
+    SetPermissionsResponse, SetPlayedRequest, SetPlayedResponse, SetupRequest, SetupResponse,
+    SignInCodeStatus, SignInRequest, SignInResponse, SignInService, SignOutRequest,
+    SignOutResponse, StartSignInCodeRequest, StartSignInCodeResponse, SubscribeRequest,
+    SubscribeResponse, TestPluginSettingsRequest, TestPluginSettingsResponse, UpdateLibraryRequest,
+    UpdateLibraryResponse, UpdatePluginSettingsRequest, UpdatePluginSettingsResponse,
+    UpdateServerSettingsRequest, UpdateServerSettingsResponse, UserService, WatchStateService,
+    WhoAmIRequest, WhoAmIResponse, WithdrawFollowedShowRequest, WithdrawFollowedShowResponse,
+    WithdrawRequestRequest, WithdrawRequestResponse, external_id, reauthenticate_request::Proof,
+    set_played_request::Target, setting_value,
 };
 
 use crate::{
@@ -87,6 +89,7 @@ use crate::{
     rate_limits::{Blocked, SignInCodeLimits, SignInLimits},
     requests::{self, Found, FoundShow, Requests},
     scanner::Scanner,
+    server_settings::ServerUrl,
     sessions::{cleared_session_cookie, identify_caller, in_session_cookie, session_cookie},
     sign_in_codes::{self, Poll, SignInCodes},
     users::{self, Caller, NewDevice, Permissions, SetupCode, SignedIn, Users},
@@ -109,6 +112,7 @@ pub(crate) fn router(
     scanner: Scanner,
     events: EventBus,
     requests: Requests,
+    server_url: ServerUrl,
     setup_code: Option<SetupCode>,
 ) -> (axum::Router, impl Future<Output = ()> + Send + 'static) {
     let changing = Arc::default();
@@ -128,6 +132,8 @@ pub(crate) fn router(
         .add_service(Arc::new(ServerServiceHandler {
             name: config.name.clone(),
             users: users.clone(),
+            db: Arc::clone(&db),
+            server_url,
         }))
         .add_service(Arc::new(SignInServiceHandler {
             users: users.clone(),
@@ -217,6 +223,8 @@ const REQUEST_TV: Access = Access::Needs(Permission::RequestTv);
 #[rustfmt::skip]
 const ACCESS: &[(&str, Access)] = &[
     (proto::SERVER_SERVICE_GET_SERVER_INFO_SPEC.procedure,        Access::Anyone),
+    (proto::SERVER_SERVICE_GET_SERVER_SETTINGS_SPEC.procedure,    MANAGE_SETTINGS),
+    (proto::SERVER_SERVICE_UPDATE_SERVER_SETTINGS_SPEC.procedure, MANAGE_SETTINGS),
     (proto::SIGN_IN_SERVICE_SETUP_SPEC.procedure,                 Access::Anyone),
     (proto::SIGN_IN_SERVICE_SIGN_IN_SPEC.procedure,               Access::Anyone),
     (proto::SIGN_IN_SERVICE_SIGN_OUT_SPEC.procedure,              Access::SignedIn),
@@ -376,6 +384,8 @@ fn unlisted(path: &str) -> ConnectError {
 struct ServerServiceHandler {
     name: String,
     users: Users,
+    db: Arc<Database>,
+    server_url: ServerUrl,
 }
 
 #[expect(
@@ -396,6 +406,53 @@ impl ServerService for ServerServiceHandler {
             setup_required,
             ..Default::default()
         })
+    }
+
+    fn get_server_settings<'a>(
+        &'a self,
+        _ctx: RequestContext,
+        _request: ServiceRequest<'_, GetServerSettingsRequest>,
+    ) -> impl Future<
+        Output = ServiceResult<impl Encodable<GetServerSettingsResponse> + Send + use<'a>>,
+    > + Send {
+        future::ready(Response::ok(GetServerSettingsResponse {
+            settings: self.server_settings().into(),
+            ..Default::default()
+        }))
+    }
+
+    async fn update_server_settings(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, UpdateServerSettingsRequest>,
+    ) -> ServiceResult<UpdateServerSettingsResponse> {
+        let url = request.settings.url.trim().to_owned();
+        if !ServerUrl::accepts(&url) {
+            return Err(refuse(
+                RefusalReason::REFUSAL_REASON_NOT_A_URL,
+                "the Server URL must be an http or https URL with no ? or #, such as \
+                 https://nama.example.com",
+            )
+            .field("settings.url")
+            .into());
+        }
+        self.server_url
+            .save(&self.db, url)
+            .await
+            .map_err(database_failed)?;
+        Response::ok(UpdateServerSettingsResponse {
+            settings: self.server_settings().into(),
+            ..Default::default()
+        })
+    }
+}
+
+impl ServerServiceHandler {
+    fn server_settings(&self) -> ServerSettings {
+        ServerSettings {
+            url: self.server_url.get(),
+            ..Default::default()
+        }
     }
 }
 
@@ -2638,7 +2695,8 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_FOLDER_NOT_READABLE
         | R::REFUSAL_REASON_FOLDER_NOT_UTF8
         | R::REFUSAL_REASON_FOLDER_REPEATED
-        | R::REFUSAL_REASON_SETTING_WRONG_KIND => ErrorCode::InvalidArgument,
+        | R::REFUSAL_REASON_SETTING_WRONG_KIND
+        | R::REFUSAL_REASON_NOT_A_URL => ErrorCode::InvalidArgument,
         R::REFUSAL_REASON_SIGN_IN_REQUIRED
         | R::REFUSAL_REASON_WRONG_NAME_OR_PASSWORD
         | R::REFUSAL_REASON_WRONG_PASSWORD

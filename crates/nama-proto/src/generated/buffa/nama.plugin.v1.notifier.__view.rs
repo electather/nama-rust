@@ -17,6 +17,11 @@ pub struct NotificationView<'a> {
     pub request: ::buffa::MessageFieldView<
         super::super::super::super::v1::__buffa::view::RequestView<'a>,
     >,
+    /// The Request's place in the web app, if the Server knows its own URL (`ServerSettings.url`) and
+    /// the Request wasn't removed.
+    ///
+    /// Field 3: `request_url`
+    pub request_url: ::core::option::Option<&'a str>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for NotificationView<'a> {
@@ -91,6 +96,13 @@ impl<'a> ::buffa::MessageView<'a> for NotificationView<'a> {
                     }
                 }
             }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.request_url = Some(::buffa::types::borrow_str(&mut cur)?);
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -131,6 +143,7 @@ impl<'a> ::buffa::MessageView<'a> for NotificationView<'a> {
                 }
                 None => ::buffa::MessageField::none(),
             },
+            request_url: self.request_url.map(|s| s.to_string()),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -158,6 +171,9 @@ impl<'a> ::buffa::ViewEncode<'a> for NotificationView<'a> {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if let Some(ref v) = self.request_url {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -184,6 +200,9 @@ impl<'a> ::buffa::ViewEncode<'a> for NotificationView<'a> {
                 buf,
             );
             self.request.write_to(__cache, buf);
+        }
+        if let Some(ref v) = self.request_url {
+            ::buffa::types::put_string_field(3u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -215,6 +234,9 @@ impl<'__a> ::serde::Serialize for NotificationView<'__a> {
             if let ::core::option::Option::Some(__v) = self.request.as_option() {
                 __map.serialize_entry("request", __v)?;
             }
+        }
+        if let ::core::option::Option::Some(__v) = self.request_url {
+            __map.serialize_entry("requestUrl", __v)?;
         }
         __map.end()
     }
@@ -328,6 +350,14 @@ impl NotificationOwnedView {
         super::super::super::super::v1::__buffa::view::RequestView<'_>,
     > {
         &self.0.reborrow().request
+    }
+    /// The Request's place in the web app, if the Server knows its own URL (`ServerSettings.url`) and
+    /// the Request wasn't removed.
+    ///
+    /// Field 3: `request_url`
+    #[must_use]
+    pub fn request_url(&self) -> ::core::option::Option<&'_ str> {
+        self.0.reborrow().request_url
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<NotificationView<'static>>>

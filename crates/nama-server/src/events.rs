@@ -21,7 +21,7 @@ use nama_proto::nama::v1::{
 use tokio::sync::broadcast::{self, error::RecvError};
 use tokio_util::sync::CancellationToken;
 
-use crate::{plugins::Registry, users::User};
+use crate::{plugins::Registry, server_settings::ServerUrl, users::User};
 
 /// How many events a subscriber may fall behind before it lags. A scan publishes a batch of up to
 /// one event per Item of [`crate::scanner`]'s batch of files at once, which this must hold.
@@ -34,6 +34,8 @@ const BUFFERED: usize = 4096;
 pub(crate) struct EventBus {
     sender: broadcast::Sender<Event>,
     plugins: Registry,
+    /// What a notification's link to its Request starts with.
+    server_url: ServerUrl,
     /// Cancelled when the Server shuts down, which ends every subscription.
     closed: CancellationToken,
 }
@@ -56,16 +58,18 @@ enum About<'a> {
 }
 
 impl EventBus {
-    /// A bus that also tells the Observers enabled in `plugins`.
-    pub(crate) fn new(plugins: Registry) -> Self {
-        Self::with_capacity(plugins, BUFFERED)
+    /// A bus that also tells the Observers and Notifiers enabled in `plugins`, linking
+    /// notifications to their Requests at `server_url`.
+    pub(crate) fn new(plugins: Registry, server_url: ServerUrl) -> Self {
+        Self::with_capacity(plugins, server_url, BUFFERED)
     }
 
     /// A bus on which subscribers may fall `capacity` events behind.
-    pub(crate) fn with_capacity(plugins: Registry, capacity: usize) -> Self {
+    pub(crate) fn with_capacity(plugins: Registry, server_url: ServerUrl, capacity: usize) -> Self {
         Self {
             sender: broadcast::channel(capacity).0,
             plugins,
+            server_url,
             closed: CancellationToken::new(),
         }
     }
@@ -87,12 +91,21 @@ impl EventBus {
     /// Hands `event`, if it is a Request event, to every Notifier for its channel. The Kernel picks
     /// the recipients so that every Notifier shares the rules (ADR 0021).
     fn tell_notifiers(&self, event: &Event) {
-        let Some((_, About::Request(request))) = classify(event) else {
+        let Some((kind, About::Request(request))) = classify(event) else {
             return;
         };
+        let removed = matches!(
+            kind,
+            EventType::EVENT_TYPE_REQUEST_CANCELLED | EventType::EVENT_TYPE_REQUEST_WITHDRAWN
+        );
         let notification = Arc::new(Notification {
             event: event.clone().into(),
             request: request.clone().into(),
+            // A removed Request is no longer in the web app to link to.
+            request_url: self
+                .server_url
+                .request_link(request.id)
+                .filter(|_| !removed),
             ..Default::default()
         });
         self.plugins

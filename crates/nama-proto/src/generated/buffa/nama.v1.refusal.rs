@@ -142,6 +142,9 @@ pub enum RefusalReason {
     /// another Nama API version, so it can't be enabled. The message says why. Params: `pluginId`,
     /// `reason` (in plain words, as `Plugin.refused_reason`).
     REFUSAL_REASON_PLUGIN_REFUSED = 52i32,
+    /// `invalid_argument`: the field isn't an http or https URL with a host, or has a query or fragment
+    /// where links are added to its end.
+    REFUSAL_REASON_NOT_A_URL = 53i32,
 }
 impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -303,6 +306,9 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_PLUGIN_REFUSED`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const PluginRefused: Self = Self::REFUSAL_REASON_PLUGIN_REFUSED;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_NOT_A_URL`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const NotAUrl: Self = Self::REFUSAL_REASON_NOT_A_URL;
 }
 impl ::core::default::Default for RefusalReason {
     fn default() -> Self {
@@ -509,6 +515,7 @@ impl ::buffa::Enumeration for RefusalReason {
                 )
             }
             52i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_PLUGIN_REFUSED),
+            53i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_NOT_A_URL),
             _ => ::core::option::Option::None,
         }
     }
@@ -616,6 +623,7 @@ impl ::buffa::Enumeration for RefusalReason {
                 "REFUSAL_REASON_NOT_A_FOLLOWED_SHOW_REQUESTER"
             }
             Self::REFUSAL_REASON_PLUGIN_REFUSED => "REFUSAL_REASON_PLUGIN_REFUSED",
+            Self::REFUSAL_REASON_NOT_A_URL => "REFUSAL_REASON_NOT_A_URL",
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -791,6 +799,9 @@ impl ::buffa::Enumeration for RefusalReason {
             "REFUSAL_REASON_PLUGIN_REFUSED" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_PLUGIN_REFUSED)
             }
+            "REFUSAL_REASON_NOT_A_URL" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_NOT_A_URL)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -849,6 +860,7 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_FOLLOWED_SHOW_NOT_PENDING,
             Self::REFUSAL_REASON_NOT_A_FOLLOWED_SHOW_REQUESTER,
             Self::REFUSAL_REASON_PLUGIN_REFUSED,
+            Self::REFUSAL_REASON_NOT_A_URL,
         ]
     }
 }

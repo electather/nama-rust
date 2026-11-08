@@ -66,6 +66,17 @@ function darkSeason(id: bigint, seasonNumber: number, state: RequestState) {
   };
 }
 
+test("a link to a Request, as a Notifier's message has, lands on its row", async () => {
+  openApp(
+    "/requests#request-2",
+    server(() => [heat, dune]),
+  );
+
+  await screen.findAllByRole("listitem");
+
+  expect(document.querySelector("#request-2")?.textContent).toContain("Heat");
+});
+
 test("the Requests page groups a Show's Season Requests, in Season order, with their states in words", async () => {
   openApp(
     "/requests",

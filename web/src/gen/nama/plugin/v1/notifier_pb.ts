@@ -14,7 +14,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file nama/plugin/v1/notifier.proto.
  */
 export const file_nama_plugin_v1_notifier: GenFile = /*@__PURE__*/
-  fileDesc("Ch1uYW1hL3BsdWdpbi92MS9ub3RpZmllci5wcm90bxIObmFtYS5wbHVnaW4udjEiUAoMTm90aWZpY2F0aW9uEh0KBWV2ZW50GAEgASgLMg4ubmFtYS52MS5FdmVudBIhCgdyZXF1ZXN0GAIgASgLMhAubmFtYS52MS5SZXF1ZXN0IncKCERlbGl2ZXJ5EjIKDG5vdGlmaWNhdGlvbhgBIAEoCzIcLm5hbWEucGx1Z2luLnYxLk5vdGlmaWNhdGlvbhIqCgdjaGFubmVsGAIgASgLMhcubmFtYS5wbHVnaW4udjEuQ2hhbm5lbEgAQgsKCXJlY2lwaWVudCIJCgdDaGFubmVsYgZwcm90bzM", [file_nama_v1_event, file_nama_v1_request]);
+  fileDesc("Ch1uYW1hL3BsdWdpbi92MS9ub3RpZmllci5wcm90bxIObmFtYS5wbHVnaW4udjEiegoMTm90aWZpY2F0aW9uEh0KBWV2ZW50GAEgASgLMg4ubmFtYS52MS5FdmVudBIhCgdyZXF1ZXN0GAIgASgLMhAubmFtYS52MS5SZXF1ZXN0EhgKC3JlcXVlc3RfdXJsGAMgASgJSACIAQFCDgoMX3JlcXVlc3RfdXJsIncKCERlbGl2ZXJ5EjIKDG5vdGlmaWNhdGlvbhgBIAEoCzIcLm5hbWEucGx1Z2luLnYxLk5vdGlmaWNhdGlvbhIqCgdjaGFubmVsGAIgASgLMhcubmFtYS5wbHVnaW4udjEuQ2hhbm5lbEgAQgsKCXJlY2lwaWVudCIJCgdDaGFubmVsYgZwcm90bzM", [file_nama_v1_event, file_nama_v1_request]);
 
 /**
  * What the Kernel hands a Notifier to deliver: something that happened to a Request. The Notifier
@@ -36,6 +36,14 @@ export type Notification = Message<"nama.plugin.v1.Notification"> & {
    * @generated from field: nama.v1.Request request = 2;
    */
   request?: Request | undefined;
+
+  /**
+   * The Request's place in the web app, if the Server knows its own URL (`ServerSettings.url`) and
+   * the Request wasn't removed.
+   *
+   * @generated from field: optional string request_url = 3;
+   */
+  requestUrl?: string | undefined;
 };
 
 /**

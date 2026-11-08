@@ -1873,6 +1873,7 @@ mod tests {
         libraries::{Kind, Libraries},
         matching::Matcher,
         plugins::Registry,
+        server_settings::ServerUrl,
     };
 
     const TODAY: &str = "2026-11-08";
@@ -2126,7 +2127,7 @@ mod tests {
         plugins
             .enable(Arc::new(FulfillerPlugin(fulfiller)))
             .unwrap();
-        let events = EventBus::new(plugins.clone());
+        let events = EventBus::new(plugins.clone(), ServerUrl::default());
         let matcher = Matcher::new(Arc::clone(&db), plugins.clone(), events.clone());
         (data, Requests::new(db, matcher, events, plugins))
     }
