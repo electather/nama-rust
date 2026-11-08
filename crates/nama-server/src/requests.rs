@@ -1,17 +1,21 @@
-//! Requests: Users asking for a Movie that isn't on the Server to be added to it (ADR 0012).
+//! Requests: Users asking for a Movie, or a Season of a Show, that isn't on the Server to be added
+//! to it (ADR 0012).
 //!
 //! [`Requests`] is the only code that reads or writes `requests` and `requesters`. It hands
 //! Requests out as their proto messages, since those are also what its events carry.
 
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{BTreeSet, HashMap},
+    sync::Arc,
+};
 
 use nama_plugin_api::{
     PluginId,
-    metadata::{Candidate, ExternalId, SearchQuery, TitleKind},
+    metadata::{Candidate, ExternalId, SearchQuery, Season, TitleKind},
 };
 use nama_proto::nama::v1::{
     Event, Permission, Request, RequestCancelled, RequestCreated, RequestState,
-    RequestStateChanged, RequestedMovie, Requester, RequesterAdded,
+    RequestStateChanged, RequestedMovie, RequestedSeason, Requester, RequesterAdded,
 };
 use sqlx::SqliteConnection;
 
@@ -44,8 +48,14 @@ pub(crate) enum Error {
     NotPending(i64),
     #[error("a Library already has the Movie tmdb-{0}")]
     InLibrary(i64),
+    #[error("every aired Episode of Season {season} of the Show tmdb-{show} is in a Library")]
+    SeasonInLibrary { show: i64, season: u32 },
     #[error("the metadata source has no Movie tmdb-{0}")]
     NoSuchMovie(i64),
+    #[error("the metadata source has no Show tmdb-{0}")]
+    NoSuchShow(i64),
+    #[error("the metadata source has no Season {season} of the Show tmdb-{show}")]
+    NoSuchSeason { show: i64, season: u32 },
     /// No metadata Provider is enabled, or it failed.
     #[error("no metadata Provider could answer")]
     Unavailable,
@@ -58,7 +68,7 @@ pub(crate) enum Error {
 pub(crate) struct Requests {
     db: Arc<Database>,
     contents: Contents,
-    /// Looks up a newly Requested Movie's title.
+    /// Looks up what a new Request asks for: a Movie, or a Show's Seasons.
     matcher: Matcher,
     events: EventBus,
 }
@@ -74,6 +84,27 @@ pub(crate) struct Found<M> {
     pub(crate) library: Option<i64>,
     /// The Movie's open Request, if it has one the viewer may see.
     pub(crate) request: Option<Request>,
+}
+
+/// What a new Request asks for, as the metadata source gave it.
+#[derive(Debug)]
+struct Wanted {
+    /// The Movie's TMDB id, or for a Season its Show's.
+    tmdb_id: i64,
+    /// The Season's number, or `None` for a Movie.
+    season: Option<u32>,
+    /// The Movie's title, or for a Season its Show's.
+    title: String,
+    /// The Movie's `YYYY-MM-DD` release date, or the Season's first air date.
+    release_date: Option<String>,
+}
+
+/// Seasons of a Show to ask for, as the metadata source gave them.
+#[derive(Debug)]
+struct WantedSeasons {
+    show_tmdb_id: i64,
+    show_title: String,
+    seasons: Vec<Season>,
 }
 
 /// Whose Requests `viewer` may see: everyone's (`None`), or only those they are a Requester of.
@@ -104,18 +135,67 @@ impl Requests {
         // ponytail: looked up even to join an open Request, so the write has it if that Request
         // closes meanwhile. Look up only when opening one if TMDB's rate limit starts to bite.
         let movie = self.fetch(tmdb_id).await?;
-        let state = if asker.permissions.allow(Permission::AutoApproveMovie) {
-            RequestState::Approved
-        } else {
-            RequestState::Pending
+        let wanted = Wanted {
+            tmdb_id,
+            season: None,
+            title: movie.title,
+            release_date: movie.release_date,
         };
+        let state = opening_state(asker, Permission::AutoApproveMovie);
         let user = asker.id;
         let (request, happened) = self
             .db
-            .write(move |tx| Box::pin(ask(tx, user, tmdb_id, movie, state)))
+            .write(move |tx| Box::pin(ask_movie(tx, user, wanted, state)))
             .await?;
         self.events.publish(happened.into_iter().collect());
         Ok(request)
+    }
+
+    /// Asks for the Seasons `numbers` of the Show with the TMDB id `tmdb_id` for `asker`, one
+    /// Request per Season in Season order, each as [`Self::create`] asks for a Movie but with
+    /// `AUTO_APPROVE_TV`. Asks for none if a Library has any of them: every aired Episode Matched.
+    pub(crate) async fn create_seasons(
+        &self,
+        asker: &User,
+        tmdb_id: i64,
+        numbers: &BTreeSet<u32>,
+    ) -> Result<Vec<Request>, Error> {
+        let id = ExternalId::Tmdb(tmdb_id);
+        let show = self
+            .matcher
+            .show(&id)
+            .await
+            .map_err(|err| looking_up(err, Error::NoSuchShow(tmdb_id)))?;
+        let mut seasons = Vec::with_capacity(numbers.len());
+        // ponytail: one metadata lookup per Season, one after another.
+        for &number in numbers {
+            let no_such_season = || Error::NoSuchSeason {
+                show: tmdb_id,
+                season: number,
+            };
+            if !show.seasons.contains(&number) {
+                return Err(no_such_season());
+            }
+            let season = self
+                .matcher
+                .show_season(&id, number)
+                .await
+                .map_err(|err| looking_up(err, no_such_season()))?;
+            seasons.push(season);
+        }
+        let wanted = WantedSeasons {
+            show_tmdb_id: tmdb_id,
+            show_title: show.title,
+            seasons,
+        };
+        let state = opening_state(asker, Permission::AutoApproveTv);
+        let user = asker.id;
+        let (requests, happened) = self
+            .db
+            .write(move |tx| Box::pin(ask_seasons(tx, user, wanted, state)))
+            .await?;
+        self.events.publish(happened);
+        Ok(requests)
     }
 
     /// Approves the Pending Request `id`, and publishes that its state changed.
@@ -216,14 +296,7 @@ impl Requests {
         self.matcher
             .movie(&ExternalId::Tmdb(tmdb_id))
             .await
-            .map_err(|err| match err {
-                // `movie` names no item, so its only refusal is the Movie's.
-                ManualError::NoSuchTitle(_) | ManualError::NoSuchItem(_) => {
-                    Error::NoSuchMovie(tmdb_id)
-                }
-                ManualError::Unavailable => Error::Unavailable,
-                ManualError::Database(err) => Error::Database(err),
-            })
+            .map_err(|err| looking_up(err, Error::NoSuchMovie(tmdb_id)))
     }
 
     /// The Request `id`, if `viewer` may see it.
@@ -231,6 +304,26 @@ impl Requests {
         let mut conn = self.db.reader().acquire().await?;
         let found = load(&mut conn, Some(id), visible_to(viewer)).await?;
         found.into_iter().next().ok_or(Error::NoSuchRequest(id))
+    }
+}
+
+/// `err` from looking a title up, which is `missing` if the metadata source doesn't have it.
+fn looking_up(err: ManualError, missing: Error) -> Error {
+    match err {
+        // A look-up names no item, so its only refusal is the title's.
+        ManualError::NoSuchTitle(_) | ManualError::NoSuchItem(_) => missing,
+        ManualError::Unavailable => Error::Unavailable,
+        ManualError::Database(err) => Error::Database(err),
+    }
+}
+
+/// The state `asker`'s new Request opens in: Approved if they pass a check for `auto_approve`,
+/// else Pending.
+fn opening_state(asker: &User, auto_approve: Permission) -> RequestState {
+    if asker.permissions.allow(auto_approve) {
+        RequestState::Approved
+    } else {
+        RequestState::Pending
     }
 }
 
@@ -245,10 +338,10 @@ async fn look_around<M>(
 ) -> Result<Found<M>, sqlx::Error> {
     let library = contents::library_with_movie(conn, tmdb_id).await?;
     let requester = visible_to(viewer);
-    // Open as `one_open_request_per_movie` has it.
+    // Open as `one_open_request_per_title` has it.
     let open = sqlx::query_scalar!(
         r#"SELECT id AS "id!" FROM requests
-           WHERE tmdb_id = ?1 AND state NOT IN ('declined', 'available')
+           WHERE tmdb_id = ?1 AND season IS NULL AND state NOT IN ('declined', 'available')
              AND (?2 IS NULL OR EXISTS (SELECT 1 FROM requesters
                                         WHERE request_id = requests.id AND user_id = ?2))"#,
         tmdb_id,
@@ -269,26 +362,88 @@ async fn look_around<M>(
     })
 }
 
-/// Adds `user` as a Requester of the open Request for the Movie `tmdb_id`, opening one in
-/// `state` for `movie` if there is none, unless a Library has the Movie. Returns the Request, and
-/// the event for what changed, if anything did.
+/// [`ask`]s for the Movie `wanted`, unless a Library has it.
+async fn ask_movie(
+    conn: &mut SqliteConnection,
+    user: i64,
+    wanted: Wanted,
+    state: RequestState,
+) -> Result<(Request, Option<Event>), Error> {
+    if contents::library_with_movie(conn, wanted.tmdb_id)
+        .await?
+        .is_some()
+    {
+        return Err(Error::InLibrary(wanted.tmdb_id));
+    }
+    Ok(ask(conn, user, wanted, state).await?)
+}
+
+/// [`ask`]s for each of the Seasons `show`, unless a Library has any of them. Returns the Requests
+/// in the order of `show.seasons`, and the events for what changed.
+async fn ask_seasons(
+    conn: &mut SqliteConnection,
+    user: i64,
+    show: WantedSeasons,
+    state: RequestState,
+) -> Result<(Vec<Request>, Vec<Event>), Error> {
+    let WantedSeasons {
+        show_tmdb_id,
+        show_title,
+        seasons,
+    } = show;
+    // SQLite's calendar, since `std` has none. Air dates are `YYYY-MM-DD`, so they sort as text.
+    let today = sqlx::query_scalar!(r#"SELECT date('now') AS "today!: String""#)
+        .fetch_one(&mut *conn)
+        .await?;
+    let mut requests = Vec::with_capacity(seasons.len());
+    let mut happened = Vec::new();
+    for season in seasons {
+        let matched = contents::matched_episodes(conn, show_tmdb_id, season.number.into()).await?;
+        let in_library = season
+            .episodes
+            .iter()
+            .filter(|episode| {
+                episode
+                    .air_date
+                    .as_ref()
+                    .is_some_and(|aired| *aired <= today)
+            })
+            .all(|episode| matched.contains(&i64::from(episode.number)));
+        if in_library {
+            return Err(Error::SeasonInLibrary {
+                show: show_tmdb_id,
+                season: season.number,
+            });
+        }
+        let wanted = Wanted {
+            tmdb_id: show_tmdb_id,
+            season: Some(season.number),
+            title: show_title.clone(),
+            release_date: season.air_date,
+        };
+        let (request, event) = ask(conn, user, wanted, state).await?;
+        requests.push(request);
+        happened.extend(event);
+    }
+    Ok((requests, happened))
+}
+
+/// Adds `user` as a Requester of the open Request for `wanted`, opening one in `state` if there
+/// is none. Returns the Request, and the event for what changed, if anything did.
 async fn ask(
     conn: &mut SqliteConnection,
     user: i64,
-    tmdb_id: i64,
-    movie: Metadata,
+    wanted: Wanted,
     state: RequestState,
-) -> Result<(Request, Option<Event>), Error> {
-    if contents::library_with_movie(conn, tmdb_id).await?.is_some() {
-        return Err(Error::InLibrary(tmdb_id));
-    }
+) -> Result<(Request, Option<Event>), sqlx::Error> {
     let now = now();
     let state = stored(state);
-    // Open as `one_open_request_per_movie` has it.
+    // Open as `one_open_request_per_title` has it.
     let open = sqlx::query_scalar!(
         "SELECT id FROM requests
-         WHERE tmdb_id = ? AND state NOT IN ('declined', 'available')",
-        tmdb_id
+         WHERE tmdb_id = ? AND season IS ? AND state NOT IN ('declined', 'available')",
+        wanted.tmdb_id,
+        wanted.season
     )
     .fetch_optional(&mut *conn)
     .await?;
@@ -297,12 +452,13 @@ async fn ask(
         Some(id) => id,
         None => {
             sqlx::query_scalar!(
-                "INSERT INTO requests (tmdb_id, title, release_date, state, created_at)
-                 VALUES (?, ?, ?, ?, ?)
+                "INSERT INTO requests (tmdb_id, season, title, release_date, state, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?)
                  RETURNING id",
-                tmdb_id,
-                movie.title,
-                movie.release_date,
+                wanted.tmdb_id,
+                wanted.season,
+                wanted.title,
+                wanted.release_date,
                 state,
                 now
             )
@@ -385,7 +541,8 @@ async fn load(
     requester: Option<i64>,
 ) -> Result<Vec<Request>, sqlx::Error> {
     let rows = sqlx::query!(
-        r#"SELECT id AS "id!", tmdb_id, title, release_date, state, created_at, decline_reason
+        r#"SELECT id AS "id!", tmdb_id, season AS "season: u32", title, release_date, state,
+                  created_at, decline_reason
            FROM requests
            WHERE (?1 IS NULL OR id = ?1)
              AND (?2 IS NULL OR EXISTS (SELECT 1 FROM requesters
@@ -423,20 +580,37 @@ async fn load(
     }
     Ok(rows
         .into_iter()
-        .map(|row| Request {
-            id: row.id,
-            movie: RequestedMovie {
-                tmdb_id: row.tmdb_id,
-                title: row.title,
-                release_date: row.release_date,
+        .map(|row| {
+            let mut request = Request {
+                id: row.id,
+                state: read_state(&row.state).into(),
+                requesters: requesters.remove(&row.id).unwrap_or_default(),
+                created_at: row.created_at,
+                decline_reason: row.decline_reason,
                 ..Default::default()
+            };
+            match row.season {
+                Some(season_number) => {
+                    request.season = RequestedSeason {
+                        show_tmdb_id: row.tmdb_id,
+                        season_number,
+                        show_title: row.title,
+                        air_date: row.release_date,
+                        ..Default::default()
+                    }
+                    .into();
+                }
+                None => {
+                    request.movie = RequestedMovie {
+                        tmdb_id: row.tmdb_id,
+                        title: row.title,
+                        release_date: row.release_date,
+                        ..Default::default()
+                    }
+                    .into();
+                }
             }
-            .into(),
-            state: read_state(&row.state).into(),
-            requesters: requesters.remove(&row.id).unwrap_or_default(),
-            created_at: row.created_at,
-            decline_reason: row.decline_reason,
-            ..Default::default()
+            request
         })
         .collect())
 }

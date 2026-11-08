@@ -57,6 +57,38 @@ test("the Requests page shows each Request's Movie, its state in words and its R
   ]);
 });
 
+/** A Season Request of Dark, asked for by Sam, the signed-in User. */
+function darkSeason(id: bigint, seasonNumber: number, state: RequestState) {
+  return {
+    id,
+    season: { showTmdbId: 70_523n, seasonNumber, showTitle: "Dark", airDate: "2017-12-01" },
+    state,
+    requesters: [{ userId: 1n, name: "Sam" }],
+  };
+}
+
+test("the Requests page groups a Show's Season Requests, in Season order, with their states in words", async () => {
+  openApp(
+    "/requests",
+    server(() => [
+      darkSeason(4n, 2, RequestState.APPROVED),
+      heat,
+      darkSeason(3n, 1, RequestState.PENDING),
+      dune,
+    ]),
+  );
+
+  const seasons = await screen.findByRole("list", { name: "Dark" });
+  expect(
+    within(seasons)
+      .getAllByRole("listitem")
+      .map((row) => row.textContent),
+  ).toEqual(["Season 12017 · Requested by youPending", "Season 22017 · Requested by youApproved"]);
+  // Each row's title is its first paragraph.
+  const titles = screen.getAllByRole("listitem").map((row) => row.querySelector("p")?.textContent);
+  expect(titles).toEqual(["Dark", "Season 1", "Season 2", "Heat", "Dune"]);
+});
+
 test("the Requests page says so when there are none", async () => {
   openApp(
     "/requests",

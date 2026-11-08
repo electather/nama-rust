@@ -264,7 +264,8 @@ export const RefusalReason = {
 
   /**
    * `invalid_argument`: the metadata source has no title with the id, or can't look titles up by
-   * it. Params: `titleId`, as the message shows it (`tmdb-949`).
+   * it. Params: `titleId`, as the message shows it (`tmdb-949`), and for a Season of a Show
+   * `seasonNumber`.
    *
    * @generated from enum value: REFUSAL_REASON_UNKNOWN_TITLE = 28;
    */
@@ -344,8 +345,9 @@ export const RefusalReason = {
   REQUEST_NOT_FOUND: 38,
 
   /**
-   * `failed_precondition`: the Movie is already Matched in a Library, so it can't be Requested.
-   * Params: `tmdbId`.
+   * `failed_precondition`: the Movie, or every aired Episode of the Season, is already Matched in a
+   * Library, so it can't be Requested. Params: `tmdbId` (a Season's Show's), and for a Season
+   * `seasonNumber`.
    *
    * @generated from enum value: REFUSAL_REASON_ALREADY_IN_LIBRARY = 39;
    */

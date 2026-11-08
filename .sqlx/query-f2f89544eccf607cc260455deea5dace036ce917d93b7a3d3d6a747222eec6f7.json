@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "INSERT INTO requests (tmdb_id, title, release_date, state, created_at)\n                 VALUES (?, ?, ?, ?, ?)\n                 RETURNING id",
+  "query": "SELECT id FROM requests\n         WHERE tmdb_id = ? AND season IS ? AND state NOT IN ('declined', 'available')",
   "describe": {
     "columns": [
       {
@@ -16,11 +16,11 @@
       }
     ],
     "parameters": {
-      "Right": 5
+      "Right": 2
     },
     "nullable": [
       false
     ]
   },
-  "hash": "b0cf2d8ab5ef4e98538a0a665cfcfe3d338b302568537b3c9cd63de13bd58f84"
+  "hash": "f2f89544eccf607cc260455deea5dace036ce917d93b7a3d3d6a747222eec6f7"
 }

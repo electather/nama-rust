@@ -5,7 +5,7 @@
 
 use std::{
     borrow::Cow,
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, HashMap, HashSet},
     sync::Arc,
 };
 
@@ -731,6 +731,30 @@ pub(crate) async fn library_with_movie(
     )
     .fetch_one(&mut *conn)
     .await
+}
+
+/// The numbers of the Episodes of Season `season` of the Show with the TMDB id `show_tmdb_id`
+/// Matched in any Library.
+pub(crate) async fn matched_episodes(
+    conn: &mut SqliteConnection,
+    show_tmdb_id: i64,
+    season: i64,
+) -> Result<HashSet<i64>, sqlx::Error> {
+    // Matching finds an Episode by the numbers its file's name gives, so they are the Episode's.
+    let numbers = sqlx::query_scalar!(
+        r#"SELECT library_items.episode AS "episode!"
+           FROM item_matches
+           JOIN library_items ON library_items.id = item_matches.item_id
+           WHERE item_matches.state = 'matched'
+             AND library_items.kind = 'episode'
+             AND item_matches.show_tmdb_id = ?
+             AND library_items.season = ?"#,
+        show_tmdb_id,
+        season
+    )
+    .fetch_all(&mut *conn)
+    .await?;
+    Ok(numbers.into_iter().collect())
 }
 
 /// The one of `ids` that identifies a title: its TMDB id if it has one, or else its IMDb or TVDB

@@ -1,4 +1,4 @@
-//! Requesting Movies through the generated `RequestService` client, over a real socket, with the
+//! Requesting Movies and Seasons through the generated `RequestService` client, over a real socket, with the
 //! TMDB Plugin enabled against a fake TMDB.
 
 #[expect(dead_code, reason = "these tests fetch only whole files")]
@@ -24,13 +24,13 @@ use nama_plugin_tmdb::{
 };
 use nama_proto::nama::v1::{
     __buffa::view::SubscribeResponseView, ApproveRequestRequest, BrowseServiceClient,
-    CancelRequestRequest, CreateLibraryRequest, CreateRequestRequest, CreateUserRequest,
-    DeclineRequestRequest, EventServiceClient, EventType, FoundMovie, GetRequestRequest,
-    LibraryKind, LibraryServiceClient, ListMoviesRequest, ListRequestsRequest, LookUpMovieRequest,
-    Permission, RefusalReason, Request, RequestServiceClient, RequestState, ScanLibraryRequest,
-    SearchMoviesRequest, SessionDelivery, SetPermissionsRequest, SignInRequest,
-    SignInServiceClient, SubscribeRequest, SubscribeResponse, UserServiceClient, event,
-    subscribe_response,
+    CancelRequestRequest, CreateLibraryRequest, CreateRequestRequest, CreateSeasonRequestsRequest,
+    CreateUserRequest, DeclineRequestRequest, EventServiceClient, EventType, FoundMovie,
+    GetRequestRequest, LibraryKind, LibraryServiceClient, ListMoviesRequest, ListRequestsRequest,
+    ListShowsRequest, LookUpMovieRequest, Permission, RefusalReason, Request, RequestServiceClient,
+    RequestState, ScanLibraryRequest, SearchMoviesRequest, SessionDelivery, SetPermissionsRequest,
+    SignInRequest, SignInServiceClient, SubscribeRequest, SubscribeResponse, UserServiceClient,
+    event, subscribe_response,
 };
 use nama_server::{config::Config, plugins::Registry};
 use refused::assert_refused;
@@ -40,6 +40,12 @@ use server::{PASSWORD, TestServer};
 const ALIEN: i64 = 348;
 const HEAT: i64 = 949;
 const DUNE: i64 = 438_631;
+
+/// A Show the fake TMDB knows, whose Season 1 has three aired Episodes and Season 2 one.
+const DARK: i64 = 70523;
+const DARK_S01E01: &str = "Dark {tmdb-70523}/Season 01/Dark - S01E01.mkv";
+const DARK_S02E01: &str = "Dark {tmdb-70523}/Season 02/Dark - S02E01.mkv";
+const THE_OFFICE: i64 = 2316;
 
 const WAIT: Duration = Duration::from_secs(10);
 
@@ -115,17 +121,28 @@ impl Fixture {
 
     /// Creates a Movies Library holding Alien, scans it, and waits until Alien is Matched.
     async fn library_with_alien(&self) -> tempfile::TempDir {
+        self.library_with(
+            LibraryKind::LIBRARY_KIND_MOVIES,
+            &["Alien (1979)/Alien (1979).mkv"],
+        )
+        .await
+    }
+
+    /// Creates a Library of `kind` holding `files`, scans it, and waits until a title is Matched.
+    async fn library_with(&self, kind: LibraryKind, files: &[&str]) -> tempfile::TempDir {
         let media = tempfile::tempdir().unwrap();
         let folder = media.path().canonicalize().unwrap();
-        let file = folder.join("Alien (1979)/Alien (1979).mkv");
-        fs::create_dir_all(file.parent().unwrap()).unwrap();
-        fs::write(file, b"video").unwrap();
+        for file in files {
+            let file = folder.join(file);
+            fs::create_dir_all(file.parent().unwrap()).unwrap();
+            fs::write(file, b"video").unwrap();
+        }
         let config = self.server.client_config();
         let libraries = LibraryServiceClient::new(HttpClient::plaintext(), config.clone());
         let library = libraries
             .create_library(CreateLibraryRequest {
-                name: "Movies".to_owned(),
-                kind: LibraryKind::LIBRARY_KIND_MOVIES.into(),
+                name: "Media".to_owned(),
+                kind: kind.into(),
                 folders: vec![folder.to_str().unwrap().to_owned()],
                 ..Default::default()
             })
@@ -144,30 +161,34 @@ impl Fixture {
             .await
             .unwrap();
         let browse = BrowseServiceClient::new(HttpClient::plaintext(), config);
-        tokio::time::timeout(WAIT, until_a_movie_is_matched(&browse, library))
+        tokio::time::timeout(WAIT, until_a_title_is_matched(&browse, library))
             .await
             .unwrap();
         media
     }
 }
 
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
-async fn until_a_movie_is_matched(browse: &BrowseServiceClient<HttpClient>, library: i64) {
-    let listing = ListMoviesRequest {
-        library_id: library,
-        ..Default::default()
-    };
-    while browse
-        .list_movies(listing.clone())
-        .await
-        .unwrap()
-        .into_owned()
-        .movies
-        .is_empty()
-    {
+/// Waits until the Library `library` lists a Movie or a Show. Matching stores a Show's Episodes
+/// together, so they are all Matched by then.
+async fn until_a_title_is_matched(browse: &BrowseServiceClient<HttpClient>, library: i64) {
+    loop {
+        let movies = browse
+            .list_movies(ListMoviesRequest {
+                library_id: library,
+                ..Default::default()
+            })
+            .await;
+        let shows = browse
+            .list_shows(ListShowsRequest {
+                library_id: library,
+                ..Default::default()
+            })
+            .await;
+        let has_movies = movies.is_ok_and(|listed| !listed.into_owned().movies.is_empty());
+        let has_shows = shows.is_ok_and(|listed| !listed.into_owned().shows.is_empty());
+        if has_movies || has_shows {
+            return;
+        }
         tokio::time::sleep(Duration::from_millis(10)).await;
     }
 }
@@ -192,6 +213,38 @@ async fn ask(client: &RequestServiceClient<HttpClient>, tmdb_id: i64) -> Request
         .request
         .into_option()
         .unwrap()
+}
+
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn ask_seasons(
+    client: &RequestServiceClient<HttpClient>,
+    show: i64,
+    seasons: &[u32],
+) -> Vec<Request> {
+    client
+        .create_season_requests(season_request(show, seasons))
+        .await
+        .unwrap()
+        .into_owned()
+        .requests
+}
+
+/// Asks for the Seasons `seasons` of the Show `show`.
+fn season_request(show: i64, seasons: &[u32]) -> CreateSeasonRequestsRequest {
+    CreateSeasonRequestsRequest {
+        show_tmdb_id: show,
+        season_numbers: seasons.to_vec(),
+        ..Default::default()
+    }
+}
+
+/// The Show title and Season number `request` asks for, if it asks for a Season.
+fn season_of(request: &Request) -> Option<(&str, u32)> {
+    let season = request.season.as_option()?;
+    Some((season.show_title.as_str(), season.season_number))
 }
 
 #[expect(
@@ -802,4 +855,160 @@ async fn a_poster_a_search_found_is_served_and_an_image_none_found_is_not() {
         .filter(|request| request.starts_with("/t/p/"))
         .collect();
     assert_eq!(images.len(), 1, "only the poster was fetched: {images:?}");
+}
+
+#[tokio::test]
+async fn requesting_seasons_1_and_2_of_a_show_creates_two_requests() {
+    let fixture = Fixture::start().await;
+    let (_, as_grace) = fixture.user("Grace", &NEW_USER).await;
+    let grace = requests(as_grace);
+
+    let asked = ask_seasons(&grace, DARK, &[2, 1, 2]).await;
+
+    let seasons: Vec<_> = asked.iter().map(season_of).collect();
+    assert_eq!(seasons, [Some(("Dark", 1)), Some(("Dark", 2))]);
+    assert!(asked.iter().all(|request| request.movie.is_unset()));
+    let mut listed = list(&grace).await;
+    listed.reverse();
+    assert_eq!(listed, asked);
+}
+
+#[tokio::test]
+async fn two_users_asking_for_the_same_season_share_one_request_with_both_as_requesters() {
+    let fixture = Fixture::start().await;
+    let (ada, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let (grace, as_grace) = fixture.user("Grace", &NEW_USER).await;
+
+    let first = ask_seasons(&requests(as_ada), DARK, &[1]).await;
+    let second = ask_seasons(&requests(as_grace), DARK, &[1, 2]).await;
+
+    assert_eq!(second.len(), 2);
+    assert_eq!(second[0].id, first[0].id);
+    assert_eq!(requester_ids(&second[0]), [ada, grace]);
+    assert_eq!(requester_ids(&second[1]), [grace]);
+}
+
+#[tokio::test]
+async fn a_user_who_may_auto_approve_shows_opens_approved_season_requests_and_one_who_may_not_pending_ones()
+ {
+    let fixture = Fixture::start().await;
+    let (_, auto) = fixture
+        .user("Ada", &[Permission::RequestTv, Permission::AutoApproveTv])
+        .await;
+    let (_, covered) = fixture
+        .user("Linus", &[Permission::Request, Permission::AutoApprove])
+        .await;
+    let (_, movies_only) = fixture
+        .user(
+            "Grace",
+            &[Permission::RequestTv, Permission::AutoApproveMovie],
+        )
+        .await;
+
+    let approved = ask_seasons(&requests(auto), DARK, &[1]).await;
+    let also_approved = ask_seasons(&requests(covered), DARK, &[2]).await;
+    let pending = ask_seasons(&requests(movies_only), THE_OFFICE, &[1]).await;
+
+    assert_eq!(approved[0].state, RequestState::Approved);
+    assert_eq!(also_approved[0].state, RequestState::Approved);
+    assert_eq!(pending[0].state, RequestState::Pending);
+}
+
+#[tokio::test]
+async fn a_user_without_request_tv_is_refused_naming_the_permission() {
+    let fixture = Fixture::start().await;
+    let (_, as_movie_asker) = fixture.user("Ada", &[Permission::RequestMovie]).await;
+
+    let refused = requests(as_movie_asker)
+        .create_season_requests(season_request(DARK, &[1]))
+        .await;
+
+    let refusal = assert_refused(
+        refused,
+        ErrorCode::PermissionDenied,
+        RefusalReason::REFUSAL_REASON_PERMISSION_REQUIRED,
+    );
+    let permission = refusal.params.get("permission").map(String::as_str);
+    assert_eq!(permission, Some("PERMISSION_REQUEST_TV"));
+}
+
+#[tokio::test]
+async fn requesting_a_season_whose_aired_episodes_are_all_matched_is_refused_but_one_with_some_matched_is_not()
+ {
+    let fixture = Fixture::start().await;
+    let _media = fixture
+        .library_with(LibraryKind::LIBRARY_KIND_SHOWS, &[DARK_S01E01, DARK_S02E01])
+        .await;
+    let (_, as_grace) = fixture.user("Grace", &NEW_USER).await;
+    let grace = requests(as_grace);
+
+    let refused = grace
+        .create_season_requests(season_request(DARK, &[1, 2]))
+        .await;
+    let nothing_asked = list(&grace).await;
+    let partly_in_library = ask_seasons(&grace, DARK, &[1]).await;
+
+    let refusal = assert_refused(
+        refused,
+        ErrorCode::FailedPrecondition,
+        RefusalReason::REFUSAL_REASON_ALREADY_IN_LIBRARY,
+    );
+    assert_eq!(refusal.field, "season_numbers");
+    let season = refusal.params.get("seasonNumber").map(String::as_str);
+    assert_eq!(season, Some("2"));
+    assert_eq!(nothing_asked, [], "a refusal opens no Request");
+    assert_eq!(partly_in_library[0].state, RequestState::Pending);
+}
+
+#[tokio::test]
+async fn requesting_a_season_the_show_doesnt_have_is_refused() {
+    let fixture = Fixture::start().await;
+    let (_, as_grace) = fixture.user("Grace", &NEW_USER).await;
+
+    let refused = requests(as_grace)
+        .create_season_requests(season_request(DARK, &[1, 9]))
+        .await;
+
+    let refusal = assert_refused(
+        refused,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_UNKNOWN_TITLE,
+    );
+    assert_eq!(refusal.field, "season_numbers");
+    let season = refusal.params.get("seasonNumber").map(String::as_str);
+    assert_eq!(season, Some("9"));
+}
+
+#[tokio::test]
+async fn requesting_no_season_is_refused() {
+    let fixture = Fixture::start().await;
+    let (_, as_grace) = fixture.user("Grace", &NEW_USER).await;
+
+    let refused = requests(as_grace)
+        .create_season_requests(season_request(DARK, &[]))
+        .await;
+
+    let refusal = assert_refused(
+        refused,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
+    );
+    assert_eq!(refusal.field, "season_numbers");
+}
+
+#[tokio::test]
+async fn without_view_requests_the_events_stream_shows_only_the_users_own_season_requests() {
+    let fixture = Fixture::start().await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let (_, as_grace) = fixture.user("Grace", &[Permission::RequestTv]).await;
+    let mut graces_events = subscribe_to_requests(as_grace.clone()).await;
+
+    ask_seasons(&requests(as_ada), DARK, &[1]).await;
+    let graces = ask_seasons(&requests(as_grace), DARK, &[2]).await;
+    let event = next_event(&mut graces_events).await;
+
+    let event::Event::RequestCreated(created) = event else {
+        panic!("Ada's Request reached Grace first: {event:?}");
+    };
+    assert_eq!(created.request.as_option(), graces.first());
 }

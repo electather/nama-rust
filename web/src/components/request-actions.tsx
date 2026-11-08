@@ -6,12 +6,13 @@ import { FormTextarea } from "@/components/form-field";
 import { Button } from "@/components/ui/button";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { type Request, RequestService, RequestState } from "@/gen/nama/v1/request_pb";
+import { seasonName } from "@/lib/browse";
 import { requestsKey } from "@/lib/events";
 import { formText, refusal } from "@/lib/forms";
 
 /** Approve and Decline for a Pending Request, and Cancel for any, for a User who manages them. */
 export function RequestActions({ request }: { request: Request }) {
-  const target = { id: request.id, title: request.movie?.title ?? "this Movie" };
+  const target = { id: request.id, title: nameOf(request) };
   return (
     // Pulled back by the buttons' own padding, so the first one's words line up with the title.
     <div className="-ms-4 mt-1 flex basis-full flex-wrap gap-1">
@@ -28,8 +29,14 @@ export function RequestActions({ request }: { request: Request }) {
 
 interface Target {
   id: bigint;
-  /** The Movie's title, which names the Request to the User. */
+  /** What the Request asks for, which names it to the User. */
   title: string;
+}
+
+/** What `request` asks for, in words: a Movie's title, or a Show's with the Season's name. */
+function nameOf({ movie, season }: Request) {
+  if (season) return `${season.showTitle} ${seasonName(season.seasonNumber)}`;
+  return movie?.title ?? "this Movie";
 }
 
 /** Mutation options that refetch the Requests once a change to one is done or refused. */

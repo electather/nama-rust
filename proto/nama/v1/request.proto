@@ -2,7 +2,8 @@ syntax = "proto3";
 
 package nama.v1;
 
-// Users asking for Movies that aren't on the Server to be added to it (ADR 0012). Without
+// Users asking for Movies, and Seasons of Shows, that aren't on the Server to be added to it
+// (ADR 0012). Without
 // `PERMISSION_VIEW_REQUESTS`, a User sees only the Requests they are a Requester of, here and in
 // `EventService`.
 service RequestService {
@@ -13,6 +14,14 @@ service RequestService {
   // Movie, `invalid_argument` if the metadata source has no Movie with the id, and `unavailable`
   // if no metadata Provider is enabled, or it failed.
   rpc CreateRequest(CreateRequestRequest) returns (CreateRequestResponse);
+  // Asks for Seasons of a Show for the caller, one Request per Season, each as `CreateRequest`
+  // asks for a Movie: Approved if the caller has `PERMISSION_AUTO_APPROVE_TV`, else Pending. Needs
+  // `PERMISSION_REQUEST_TV`. A Season is in a Library when every one of its aired Episodes is
+  // Matched, and asking for such a Season fails with `failed_precondition`. Fails with
+  // `invalid_argument` if no Season is named or the metadata source has no such Show or Season,
+  // and `unavailable` if no metadata Provider is enabled, or it failed. A failure changes no
+  // Request.
+  rpc CreateSeasonRequests(CreateSeasonRequestsRequest) returns (CreateSeasonRequestsResponse);
   // Lists the Requests the caller may see, newest first.
   rpc ListRequests(ListRequestsRequest) returns (ListRequestsResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
@@ -52,7 +61,7 @@ enum RequestState {
   REQUEST_STATE_UNSPECIFIED = 0;
   // Waiting for a User with `PERMISSION_MANAGE_REQUESTS` to approve or decline it.
   REQUEST_STATE_PENDING = 1;
-  // Approved, and waiting for the Movie to be Matched in a Library.
+  // Approved, and waiting for what it asks for to be Matched in a Library.
   REQUEST_STATE_APPROVED = 2;
   // Declined, and closed: asking again opens a new Request.
   REQUEST_STATE_DECLINED = 3;
@@ -66,11 +75,11 @@ enum RequestState {
   REQUEST_STATE_FAILED = 7;
 }
 
-// Users asking for one Movie. A Movie has at most one open Request: one that is neither Declined
-// nor Available.
+// Users asking for one Movie, or one Season of a Show. Each has at most one open Request: one that
+// is neither Declined nor Available.
 message Request {
   int64 id = 1;
-  // The Movie asked for.
+  // The Movie asked for, unless it asks for a Season.
   RequestedMovie movie = 2;
   RequestState state = 3;
   // Who asked for it, first asker first. There is at least one.
@@ -80,6 +89,8 @@ message Request {
   // Why it was declined, for its Requesters to read. Only a Declined Request has one, and only if
   // the decliner gave one.
   optional string decline_reason = 6;
+  // The Season asked for, unless it asks for a Movie.
+  RequestedSeason season = 7;
 }
 
 // A Movie a Request asks for, with its metadata as the metadata source gave it when the Request
@@ -91,6 +102,19 @@ message RequestedMovie {
   string title = 2;
   // When it was released, as `YYYY-MM-DD`.
   optional string release_date = 3;
+}
+
+// A Season a Request asks for, with its metadata as the metadata source gave it when the Request
+// was opened.
+message RequestedSeason {
+  // The Show's TMDB id.
+  int64 show_tmdb_id = 1;
+  // The Season's number within the Show. Season 0 holds specials.
+  uint32 season_number = 2;
+  // The Show's title, in the metadata Provider's language.
+  string show_title = 3;
+  // When the Season first aired, as `YYYY-MM-DD`.
+  optional string air_date = 4;
 }
 
 // A User who asked for what a Request covers.
@@ -110,6 +134,18 @@ message CreateRequestRequest {
 message CreateRequestResponse {
   // The Request the caller is now a Requester of.
   Request request = 1;
+}
+
+message CreateSeasonRequestsRequest {
+  // The TMDB id of the Show.
+  int64 show_tmdb_id = 1;
+  // The numbers of the Seasons to ask for: at least one. A number given twice counts once.
+  repeated uint32 season_numbers = 2;
+}
+
+message CreateSeasonRequestsResponse {
+  // The Requests the caller is now a Requester of, one per Season, in Season order.
+  repeated Request requests = 1;
 }
 
 message ListRequestsRequest {}
