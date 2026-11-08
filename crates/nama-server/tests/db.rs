@@ -14,7 +14,7 @@ async fn a_fresh_start_creates_the_database_and_restarting_applies_no_migrations
     assert!(data_dir.join(db::FILE_NAME).is_file());
     assert_eq!(
         first_start.migrations_applied(),
-        [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
+        [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
     );
     insert_rows(&first_start, 0, 1).await.unwrap();
     first_start.close().await;

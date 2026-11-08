@@ -10,14 +10,23 @@ mod refused;
 #[path = "support/server.rs"]
 mod server;
 
-use std::{collections::BTreeMap, fs, sync::Arc, time::Duration};
+use std::{
+    collections::{BTreeMap, HashMap},
+    fs,
+    sync::{Arc, Mutex, PoisonError},
+    time::Duration,
+};
 
 use connectrpc::{
     ErrorCode,
     client::{ClientConfig, HttpClient, ServerStream},
 };
 use http::fetch;
-use nama_plugin_api::settings::{SettingValue, Settings};
+use nama_plugin_api::{
+    BoxFuture, Plugin, PluginError, PluginId, Priority, Registrar,
+    fulfiller::{Download, Fulfiller, Movies},
+    settings::{SettingValue, Settings},
+};
 use nama_plugin_tmdb::{
     Tmdb,
     testing::{API_KEY, FakeTmdb},
@@ -32,7 +41,7 @@ use nama_proto::nama::v1::{
     SignInServiceClient, SubscribeRequest, SubscribeResponse, UserServiceClient, event,
     subscribe_response,
 };
-use nama_server::{config::Config, plugins::Registry};
+use nama_server::{config::Config, db::Database, plugins::Registry};
 use refused::assert_refused;
 use server::{PASSWORD, TestServer};
 
@@ -49,6 +58,7 @@ const NEW_USER: [Permission; 2] = [Permission::Request, Permission::ViewRequests
 /// A Server with the TMDB Plugin enabled against a fake TMDB, and an Admin.
 struct Fixture {
     server: TestServer,
+    db: Arc<Database>,
     tmdb: FakeTmdb,
 }
 
@@ -58,8 +68,22 @@ struct Fixture {
 )]
 impl Fixture {
     async fn start() -> Self {
-        let tmdb = FakeTmdb::start().await;
+        Self::start_with(Registry::new()).await
+    }
+
+    /// A Fixture whose Movie Fulfiller is a fake, which it returns too.
+    async fn with_fulfiller() -> (Self, FakeFulfiller) {
+        let fulfiller = FakeFulfiller::default();
         let plugins = Registry::new();
+        plugins
+            .enable(Arc::new(FulfillerPlugin(fulfiller.clone())))
+            .unwrap();
+        (Self::start_with(plugins).await, fulfiller)
+    }
+
+    /// A Fixture with the Plugins enabled in `plugins` too.
+    async fn start_with(plugins: Registry) -> Self {
+        let tmdb = FakeTmdb::start().await;
         let settings = Settings::new(BTreeMap::from([(
             "api_key".to_owned(),
             SettingValue::Text(API_KEY.to_owned()),
@@ -67,10 +91,32 @@ impl Fixture {
         plugins
             .enable_with_settings(Arc::new(Tmdb::with_endpoints(tmdb.endpoints())), settings)
             .unwrap();
-        let server = TestServer::start_with_db(Config::default(), plugins)
+        let (server, db) = TestServer::start_with_db(Config::default(), plugins).await;
+        Self { server, db, tmdb }
+    }
+
+    /// The reference the Fulfiller gave for the Request `id`, as the Server stored it.
+    async fn fulfiller_reference(&self, id: i64) -> Option<String> {
+        sqlx::query_scalar("SELECT fulfiller_reference FROM requests WHERE id = ?")
+            .bind(id)
+            .fetch_one(self.db.reader())
             .await
-            .0;
-        Self { server, tmdb }
+            .unwrap()
+    }
+
+    /// Approves the Request `id` as the Admin, and returns it as the approval left it.
+    async fn approve(&self, id: i64) -> Request {
+        requests(self.server.client_config())
+            .approve_request(ApproveRequestRequest {
+                id,
+                ..Default::default()
+            })
+            .await
+            .unwrap()
+            .into_owned()
+            .request
+            .into_option()
+            .unwrap()
     }
 
     /// Creates a User named `name` with `permissions`, signs them in, and returns their ID and
@@ -474,6 +520,126 @@ async fn an_approved_request_becomes_available_once_a_scan_matches_its_movie_and
     };
     assert_eq!(changed.request.state, RequestState::Available);
     assert_eq!(list(&ada).await, [changed.request.into_option().unwrap()]);
+}
+
+/// A Movie Fulfiller that takes every Request it is handed, giving `movie-<TMDB id>` as its
+/// reference.
+#[derive(Clone, Default)]
+struct FakeFulfiller {
+    /// The TMDB id of each Movie it was handed, in order.
+    handed: Arc<Mutex<Vec<i64>>>,
+}
+
+impl FakeFulfiller {
+    fn handed(&self) -> Vec<i64> {
+        self.handed
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
+    }
+}
+
+impl Fulfiller<Movies> for FakeFulfiller {
+    fn fulfill<'a>(&'a self, request: &'a Request) -> BoxFuture<'a, Result<String, PluginError>> {
+        let tmdb_id = request.movie.tmdb_id;
+        self.handed
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push(tmdb_id);
+        Box::pin(async move { Ok(format!("movie-{tmdb_id}")) })
+    }
+
+    fn progress<'a>(
+        &'a self,
+        _references: &'a [String],
+    ) -> BoxFuture<'a, Result<HashMap<String, Vec<Download>>, PluginError>> {
+        Box::pin(async { Ok(HashMap::new()) })
+    }
+}
+
+/// A test Plugin providing a [`FakeFulfiller`] for Movies.
+struct FulfillerPlugin(FakeFulfiller);
+
+impl Plugin for FulfillerPlugin {
+    fn id(&self) -> PluginId {
+        PluginId::from_static("fake-fulfiller")
+    }
+
+    fn version(&self) -> &'static str {
+        "0.0.0"
+    }
+
+    fn register(&self, registrar: &mut Registrar) {
+        registrar.provide::<dyn Fulfiller<Movies>>(Priority::DEFAULT, Arc::new(self.0.clone()));
+    }
+}
+
+#[tokio::test]
+async fn approving_a_pending_request_hands_it_to_the_movie_fulfiller_and_the_member_sees_it_processing_live()
+ {
+    let (fixture, fulfiller) = Fixture::with_fulfiller().await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let ada = requests(as_ada.clone());
+    let pending = ask(&ada, HEAT).await;
+    let mut adas_events = subscribe_to_requests(as_ada).await;
+
+    let approved = fixture.approve(pending.id).await;
+    let events = [
+        next_event(&mut adas_events).await,
+        next_event(&mut adas_events).await,
+    ];
+
+    assert_eq!(approved.state, RequestState::Processing);
+    assert_eq!(fulfiller.handed(), [HEAT]);
+    assert_eq!(
+        fixture.fulfiller_reference(pending.id).await.as_deref(),
+        Some("movie-949")
+    );
+    let [
+        event::Event::RequestStateChanged(was_approved),
+        event::Event::RequestStateChanged(processing),
+    ] = events
+    else {
+        panic!("not the approval, then the hand-off: {events:?}");
+    };
+    assert_eq!(was_approved.request.state, RequestState::Approved);
+    assert_eq!(processing.request.as_option(), Some(&approved));
+    assert_eq!(list(&ada).await, [approved]);
+}
+
+#[tokio::test]
+async fn a_request_opened_approved_goes_to_the_movie_fulfiller_and_joining_it_does_not_again() {
+    let (fixture, fulfiller) = Fixture::with_fulfiller().await;
+    let may_auto_approve = [Permission::Request, Permission::AutoApproveMovie];
+    let (_, as_ada) = fixture.user("Ada", &may_auto_approve).await;
+    let (_, as_grace) = fixture.user("Grace", &may_auto_approve).await;
+
+    let opened = ask(&requests(as_ada), HEAT).await;
+    let joined = ask(&requests(as_grace), HEAT).await;
+
+    assert_eq!(opened.state, RequestState::Processing);
+    assert_eq!(joined.state, RequestState::Processing);
+    assert_eq!(fulfiller.handed(), [HEAT]);
+    assert_eq!(
+        fixture.fulfiller_reference(opened.id).await.as_deref(),
+        Some("movie-949")
+    );
+}
+
+#[tokio::test]
+async fn a_processing_request_becomes_available_once_a_scan_matches_its_movie() {
+    let (fixture, _fulfiller) = Fixture::with_fulfiller().await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let ada = requests(as_ada);
+    let processing = fixture.approve(ask(&ada, ALIEN).await.id).await;
+    assert_eq!(processing.state, RequestState::Processing);
+
+    let _media = fixture.library_with_alien().await;
+
+    assert_eq!(
+        states(&list(&ada).await),
+        [(processing.id, RequestState::Available)]
+    );
 }
 
 #[tokio::test]

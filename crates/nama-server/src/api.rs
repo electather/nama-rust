@@ -130,7 +130,7 @@ pub(crate) fn router(
             browse,
         }))
         .add_service(Arc::new(RequestServiceHandler {
-            requests: Requests::new(Arc::clone(&db), matcher, events.clone()),
+            requests: Requests::new(Arc::clone(&db), matcher, events.clone(), plugins.clone()),
             artwork,
         }))
         .add_service(Arc::new(PluginServiceHandler {
