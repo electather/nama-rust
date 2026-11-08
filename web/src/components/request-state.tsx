@@ -69,22 +69,29 @@ export function FoundMovieState({
   );
 }
 
-function isRequester(request: Request | undefined, you: bigint | undefined) {
+/** Whether the signed-in User `you` is one of `request`'s Requesters. */
+export function isRequester(request: Request | undefined, you: bigint | undefined) {
   return request?.requesters.some(({ userId }) => userId === you) ?? false;
+}
+
+/**
+ * Mutation options for asking for a title, which read the Requests back once it's asked for, or
+ * once it's refused because a scan Matched it since it was found, to show it in its Library.
+ */
+export function useReadBackAsked() {
+  const queryClient = useQueryClient();
+  // Waits for the Requests to be read back, so the button stays busy until the change shows.
+  const readBack = () => queryClient.invalidateQueries({ queryKey: requestsKey });
+  return {
+    onSuccess: readBack,
+    onError: (error: unknown) =>
+      refusalOf(error).reason === RefusalReason.ALREADY_IN_LIBRARY ? readBack() : undefined,
+  };
 }
 
 /** Asks for `movie`, then shows its Request once the Server has it. */
 function RequestButton({ movie, primary }: { movie: FoundMovie; primary: boolean }) {
-  const queryClient = useQueryClient();
-  const ask = useMutation(RequestService.method.createRequest, {
-    // Waits for the Request to be read back, so the button stays busy until its state shows.
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: requestsKey }),
-    // A scan Matched the Movie since it was found: read it back to show it in its Library.
-    onError: (error) =>
-      refusalOf(error).reason === RefusalReason.ALREADY_IN_LIBRARY
-        ? queryClient.invalidateQueries({ queryKey: requestsKey })
-        : undefined,
-  });
+  const ask = useMutation(RequestService.method.createRequest, useReadBackAsked());
   return (
     <>
       {/* A ghost button's icon lines up with the caption above it, its padding hanging outside. */}
@@ -103,18 +110,25 @@ function RequestButton({ movie, primary }: { movie: FoundMovie; primary: boolean
       </span>
       {ask.isError && (
         <p role="alert" className="w-full text-sm text-destructive">
-          {requestRefusal(ask.error, movie.title)}
+          {askRefusal(ask.error, `Request ${movie.title}`, {
+            [RefusalReason.ALREADY_IN_LIBRARY]: { form: `${movie.title} is already in a Library.` },
+          })}
         </p>
       )}
     </>
   );
 }
 
-function requestRefusal(error: unknown, title: string) {
+/** Why the Server refused the `attempt` to ask for a title, as `byReason` explains it or else by code. */
+export function askRefusal(
+  error: unknown,
+  attempt: string,
+  byReason: Parameters<typeof refusal>[3],
+) {
   return refusal(
     error,
-    `Request ${title}`,
+    attempt,
     { [Code.Unavailable]: { form: "The metadata source didn’t answer. Try again in a moment." } },
-    { [RefusalReason.ALREADY_IN_LIBRARY]: { form: `${title} is already in a Library.` } },
+    byReason,
   ).form;
 }
