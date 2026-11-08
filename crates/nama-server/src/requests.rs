@@ -5,7 +5,7 @@
 //! Requests out as their proto messages, since those are also what its events carry.
 
 use std::{
-    collections::{BTreeSet, HashMap, HashSet},
+    collections::{BTreeSet, HashMap, HashSet, hash_map::Entry},
     sync::{Arc, Mutex, MutexGuard, PoisonError},
 };
 
@@ -81,36 +81,65 @@ pub(crate) struct Requests {
     events: EventBus,
     /// Holds the Movie Fulfiller, if one is enabled.
     plugins: Registry,
-    /// The ids of the Requests being handed to a Fulfiller now.
-    handing: Arc<Mutex<HashSet<i64>>>,
+    /// The ids of the Requests being handed to a Fulfiller now, each with whether another hand-off
+    /// skipped it meanwhile.
+    handing: Arc<Mutex<HashMap<i64, bool>>>,
 }
 
 /// A hand-off's hold on one Request in [`Requests::handing`], let go however the hand-off ends, a
 /// panic included, so the Request can be handed off again.
 struct Claim {
-    handing: Arc<Mutex<HashSet<i64>>>,
+    handing: Arc<Mutex<HashMap<i64, bool>>>,
     id: i64,
+    /// Whether [`Self::release`] has let go already, so dropping it mustn't.
+    released: bool,
 }
 
 impl Claim {
-    /// Claims the Request `id`, unless another hand-off has it.
+    /// Claims the Request `id`, unless another hand-off has it, which then has to look again.
     fn take(requests: &Requests, id: i64) -> Option<Self> {
-        let claimed = lock(&requests.handing).insert(id);
-        claimed.then(|| Self {
-            handing: Arc::clone(&requests.handing),
-            id,
-        })
+        match lock(&requests.handing).entry(id) {
+            Entry::Occupied(mut skipped) => {
+                skipped.insert(true);
+                None
+            }
+            Entry::Vacant(free) => {
+                free.insert(false);
+                Some(Self {
+                    handing: Arc::clone(&requests.handing),
+                    id,
+                    released: false,
+                })
+            }
+        }
+    }
+
+    /// Lets go of the Request, unless another hand-off skipped it since the claim was taken or last
+    /// kept: that one may have come for a Fulfiller enabled after this one looked, so the claim is
+    /// kept for one more look.
+    fn release(mut self) -> Option<Self> {
+        let mut handing = lock(&self.handing);
+        if handing.insert(self.id, false) == Some(true) {
+            drop(handing);
+            return Some(self);
+        }
+        handing.remove(&self.id);
+        drop(handing);
+        self.released = true;
+        None
     }
 }
 
 impl Drop for Claim {
     fn drop(&mut self) {
-        lock(&self.handing).remove(&self.id);
+        if !self.released {
+            lock(&self.handing).remove(&self.id);
+        }
     }
 }
 
-// Nothing panics while it is held, so a poisoned set is still whole.
-fn lock(handing: &Mutex<HashSet<i64>>) -> MutexGuard<'_, HashSet<i64>> {
+// Nothing panics while it is held, so a poisoned map is still whole.
+fn lock(handing: &Mutex<HashMap<i64, bool>>) -> MutexGuard<'_, HashMap<i64, bool>> {
     handing.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
@@ -306,12 +335,17 @@ impl Requests {
         detached(async move {
             // An approval and enabling the Fulfiller may hand the same Request off at once, which
             // would hand it to the Fulfiller twice.
-            // shortcut: an approval that looked for the Fulfiller just before it was enabled leaves
-            // its Request Approved, until the next enable or start; retry under the claim if seen.
-            let Some(_claim) = Claim::take(&requests, request.id) else {
+            let Some(mut claim) = Claim::take(&requests, request.id) else {
                 return Ok(request);
             };
-            requests.hand_off_claimed(request).await
+            let mut request = request;
+            loop {
+                request = requests.hand_off_claimed(request).await?;
+                match claim.release() {
+                    Some(kept) => claim = kept,
+                    None => return Ok(request),
+                }
+            }
         })
         .await
     }
@@ -358,9 +392,8 @@ impl Requests {
             return;
         }
         let requests = self.clone();
-        let handing_off = tokio::spawn(async move { requests.hand_off_waiting().await });
-        if let Err(err) = handing_off.await {
-            error!("handing the waiting Requests off panicked: {err}");
+        if let Err(err) = detached(async move { requests.try_hand_off_waiting().await }).await {
+            error!("handing the waiting Requests to the Movie Fulfiller failed: {err}");
         }
     }
 
@@ -1164,7 +1197,7 @@ mod tests {
     use sqlx::SqliteConnection;
     use tokio::sync::Notify;
 
-    use super::{Requests, Wanted, ask, availability, load_one};
+    use super::{Claim, Requests, Wanted, ask, availability, load_one};
     use crate::{
         contents::{Change, Contents, Decided, Decisions, Item, Metadata},
         db::Database,
@@ -1352,16 +1385,20 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn a_request_being_handed_off_is_not_handed_to_the_fulfiller_again() {
+    /// Requests in a new database, which holds an Approved Movie Request for each of `tmdb_ids`,
+    /// and whose one Plugin provides the returned [`Gated`] as the Movie Fulfiller.
+    async fn approved_for_gated(tmdb_ids: &[i64]) -> (tempfile::TempDir, Requests, Arc<Gated>) {
         let data = tempfile::tempdir().unwrap();
         let db = Arc::new(Database::open(data.path()).await.unwrap());
-        let wanted = vec![Wanted {
-            tmdb_id: 949,
-            season: None,
-            title: "Heat".to_owned(),
-            release_date: None,
-        }];
+        let wanted = tmdb_ids
+            .iter()
+            .map(|&tmdb_id| Wanted {
+                tmdb_id,
+                season: None,
+                title: format!("Movie {tmdb_id}"),
+                release_date: None,
+            })
+            .collect();
         db.write(move |tx| Box::pin(ask_each(tx, wanted, RequestState::Approved)))
             .await
             .unwrap();
@@ -1372,7 +1409,12 @@ mod tests {
             .unwrap();
         let events = EventBus::new(plugins.clone());
         let matcher = Matcher::new(Arc::clone(&db), plugins.clone(), events.clone());
-        let requests = Requests::new(db, matcher, events, plugins);
+        (data, Requests::new(db, matcher, events, plugins), gated)
+    }
+
+    #[tokio::test]
+    async fn a_request_being_handed_off_is_not_handed_to_the_fulfiller_again() {
+        let (_data, requests, gated) = approved_for_gated(&[949]).await;
         let handing_first = requests.clone();
         let first = tokio::spawn(async move { handing_first.hand_off_waiting().await });
         while gated.handed.load(Ordering::SeqCst) == 0 {
@@ -1389,27 +1431,21 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn a_claim_another_hand_off_skipped_is_kept_for_one_more_look() {
+        let (_data, requests, _) = approved_for_gated(&[]).await;
+        let claim = Claim::take(&requests, 1).unwrap();
+        assert!(Claim::take(&requests, 1).is_none());
+
+        let kept = claim.release().expect("the skipped Request was let go");
+
+        assert!(kept.release().is_none());
+        assert!(Claim::take(&requests, 1).is_some());
+    }
+
+    #[tokio::test]
     async fn enabling_a_fulfiller_hands_it_every_waiting_request_even_if_the_admin_stops_waiting() {
-        let data = tempfile::tempdir().unwrap();
-        let db = Arc::new(Database::open(data.path()).await.unwrap());
-        let wanted = [949, 438_631].map(|tmdb_id| Wanted {
-            tmdb_id,
-            season: None,
-            title: format!("Movie {tmdb_id}"),
-            release_date: None,
-        });
-        db.write(move |tx| Box::pin(ask_each(tx, wanted.into(), RequestState::Approved)))
-            .await
-            .unwrap();
-        let gated = Arc::new(Gated::default());
-        let plugins = Registry::new();
+        let (_data, requests, gated) = approved_for_gated(&[949, 438_631]).await;
         let id = PluginId::from_static("gated");
-        plugins
-            .enable(Arc::new(GatedPlugin(Arc::clone(&gated))))
-            .unwrap();
-        let events = EventBus::new(plugins.clone());
-        let matcher = Matcher::new(Arc::clone(&db), plugins.clone(), events.clone());
-        let requests = Requests::new(db, matcher, events, plugins);
         let enabling = tokio::spawn(async move { requests.hand_off_waiting_to(&id).await });
         while gated.handed.load(Ordering::SeqCst) == 0 {
             tokio::task::yield_now().await;
