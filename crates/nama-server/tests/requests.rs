@@ -1,5 +1,5 @@
-//! Requesting Movies and Seasons through the generated `RequestService` client, over a real socket, with the
-//! TMDB Plugin enabled against a fake TMDB.
+//! Requesting Movies and Seasons through the generated `RequestService` client, over a real
+//! socket, with the TMDB Plugin enabled against a fake TMDB.
 
 #[expect(dead_code, reason = "these tests fetch only whole files")]
 #[path = "support/http.rs"]
@@ -996,6 +996,25 @@ async fn requesting_a_season_the_show_doesnt_have_is_refused() {
     assert_eq!(refusal.field, "season_numbers");
     let season = refusal.params.get("seasonNumber").map(String::as_str);
     assert_eq!(season, Some("9"));
+}
+
+#[tokio::test]
+async fn requesting_a_season_of_a_show_the_metadata_source_doesnt_have_is_refused() {
+    let fixture = Fixture::start().await;
+    let (_, as_grace) = fixture.user("Grace", &NEW_USER).await;
+
+    let refused = requests(as_grace)
+        .create_season_requests(season_request(1, &[1]))
+        .await;
+
+    let refusal = assert_refused(
+        refused,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_UNKNOWN_TITLE,
+    );
+    assert_eq!(refusal.field, "show_tmdb_id");
+    let title = refusal.params.get("titleId").map(String::as_str);
+    assert_eq!(title, Some("tmdb-1"));
 }
 
 #[tokio::test]
