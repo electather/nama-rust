@@ -43,6 +43,17 @@ service RequestService {
   rpc LookUpMovie(LookUpMovieRequest) returns (LookUpMovieResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
+  // Searches the metadata source for Shows to ask for Seasons of, best fit first. Needs
+  // `PERMISSION_REQUEST_TV`. Fails as `SearchMovies` does.
+  rpc SearchShows(SearchShowsRequest) returns (SearchShowsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Returns one Show from the metadata source with each of its Seasons, for picking which to ask
+  // for. Needs `PERMISSION_REQUEST_TV`. Fails with `invalid_argument` if the metadata source has no
+  // Show with the id, and `unavailable` if no metadata Provider is enabled, or it failed.
+  rpc LookUpShow(LookUpShowRequest) returns (LookUpShowResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
   // Approves a Pending Request and hands a Movie Request to the Movie Fulfiller, if one is enabled:
   // Processing once it takes it, or Failed if it doesn't. Either way it then waits for what it asks
   // for to be Matched in a Library. Needs `PERMISSION_MANAGE_REQUESTS`, which manages every User's
@@ -262,4 +273,54 @@ message LookUpMovieRequest {
 
 message LookUpMovieResponse {
   FoundMovie movie = 1;
+}
+
+// A Show in the metadata source, whose Seasons `CreateSeasonRequests` asks for.
+message FoundShow {
+  // The Show's TMDB id.
+  int64 tmdb_id = 1;
+  // The title, in the metadata Provider's language.
+  string title = 2;
+  // The year it first aired, if known.
+  optional int32 year = 3;
+  // Only `LookUpShow` gives it.
+  optional string overview = 4;
+  // The poster's URL, under `/media/artwork/` on this Server.
+  optional string poster_url = 5;
+  // The backdrop's URL, under `/media/artwork/` on this Server. Only `LookUpShow` gives it.
+  optional string backdrop_url = 6;
+  // Its Seasons, in order. Only `LookUpShow` gives them.
+  repeated FoundSeason seasons = 7;
+}
+
+// A Season of a Show in the metadata source, and how close it is to being on the Server: in a
+// Library, asked for in a Request, or neither.
+message FoundSeason {
+  // The Season's number within the Show. Season 0 holds specials.
+  uint32 season_number = 1;
+  // When the Season first aired, as `YYYY-MM-DD`.
+  optional string air_date = 2;
+  // Whether a Library has it: it has aired, and every one of its aired Episodes is Matched.
+  // `CreateSeasonRequests` refuses to ask for such a Season.
+  bool in_library = 3;
+  // The Season's open Request, if it has one the caller may see.
+  Request request = 4;
+}
+
+message SearchShowsRequest {
+  // Must not be blank.
+  string title = 1;
+}
+
+message SearchShowsResponse {
+  repeated FoundShow shows = 1;
+}
+
+message LookUpShowRequest {
+  // The Show's TMDB id.
+  int64 show_tmdb_id = 1;
+}
+
+message LookUpShowResponse {
+  FoundShow show = 1;
 }

@@ -1,7 +1,7 @@
 import { createQueryOptions, useSuspenseQuery } from "@connectrpc/connect-query";
 import { createFileRoute } from "@tanstack/react-router";
 
-import { FindAMovie, MoviesFound } from "@/components/find-a-movie";
+import { FindATitle, type Searchable, TitlesFound } from "@/components/find-a-title";
 import { Page } from "@/components/page";
 import { RequestActions } from "@/components/request-actions";
 import { RequestStateLabel } from "@/components/request-state";
@@ -24,10 +24,14 @@ export const Route = createFileRoute("/_member/requests")({
 function Requests() {
   const { signedIn } = Route.useRouteContext();
   const { title } = Route.useSearch();
+  const kinds = {
+    movies: may(signedIn.user, Permission.REQUEST_MOVIE),
+    shows: may(signedIn.user, Permission.REQUEST_TV),
+  };
   return (
     <Page heading="Requests">
-      {may(signedIn.user, Permission.REQUEST_MOVIE) ? (
-        <FindOrList title={title} you={signedIn.user?.id} />
+      {kinds.movies || kinds.shows ? (
+        <FindOrList title={title} kinds={kinds} you={signedIn.user?.id} />
       ) : (
         <RequestList />
       )}
@@ -36,11 +40,23 @@ function Requests() {
 }
 
 /** The search, then what it found for `title`, or the Requests before anything is searched for. */
-function FindOrList({ title, you }: { title: string | undefined; you: bigint | undefined }) {
+function FindOrList({
+  title,
+  kinds,
+  you,
+}: {
+  title: string | undefined;
+  kinds: Searchable;
+  you: bigint | undefined;
+}) {
   return (
     <>
-      <FindAMovie title={title} />
-      {title === undefined ? <RequestList /> : <MoviesFound title={title} you={you} />}
+      <FindATitle title={title} kinds={kinds} />
+      {title === undefined ? (
+        <RequestList />
+      ) : (
+        <TitlesFound title={title} kinds={kinds} you={you} />
+      )}
     </>
   );
 }
