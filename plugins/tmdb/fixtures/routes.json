@@ -11,6 +11,7 @@
   "/3/tv/70523?append_to_response=external_ids": "tv-70523.json",
   "/3/tv/70523/season/1?append_to_response=external_ids": "tv-70523-season-1.json",
   "/3/tv/70523/season/2?append_to_response=external_ids": "tv-70523-season-2.json",
+  "/3/tv/70523/season/3?append_to_response=external_ids": "tv-70523-season-3.json",
   "/3/tv/70523/season/1/episode/1?append_to_response=external_ids": "tv-70523-season-1-episode-1.json",
   "/3/movie/10688?append_to_response=external_ids": "movie-10688.json",
   "/3/movie/58995?append_to_response=external_ids": "movie-58995.json",

@@ -122,6 +122,12 @@ pub mod __buffa {
         reg.register_json_any(super::__SEARCH_MOVIES_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__LOOK_UP_MOVIE_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LOOK_UP_MOVIE_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__FOUND_SHOW_JSON_ANY);
+        reg.register_json_any(super::__FOUND_SEASON_JSON_ANY);
+        reg.register_json_any(super::__SEARCH_SHOWS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__SEARCH_SHOWS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__LOOK_UP_SHOW_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LOOK_UP_SHOW_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__SUBSCRIBE_REQUEST_JSON_ANY);
         reg.register_json_any(super::__SUBSCRIBE_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__LAGGED_JSON_ANY);
@@ -447,6 +453,30 @@ pub use self::__buffa::view::LookUpMovieRequestOwnedView;
 pub use self::__buffa::view::LookUpMovieResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::LookUpMovieResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::FoundShowView;
+#[doc(inline)]
+pub use self::__buffa::view::FoundShowOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::FoundSeasonView;
+#[doc(inline)]
+pub use self::__buffa::view::FoundSeasonOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SearchShowsRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::SearchShowsRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SearchShowsResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::SearchShowsResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::LookUpShowRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::LookUpShowRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::LookUpShowResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::LookUpShowResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::SubscribeRequestView;
 #[doc(inline)]

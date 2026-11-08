@@ -182,8 +182,9 @@ function refreshRequests({ event }: Event, queryClient: QueryClient) {
 }
 
 /** Every Request query, including the Movies found to Request: what to refresh when one changes. */
-// ponytail: refreshing a search or Movie page on screen asks TMDB again, once per Request Event.
-// Patch the found Movie from the Event's Request instead if that load shows.
+// ponytail: refreshing a search, Movie or Show page on screen asks TMDB again, once per Request
+// Event, and a Show page once more per Season. Patch the found title from the Event's Request
+// instead if that load shows.
 export const requestsKey = createConnectQueryKey({
   schema: RequestService,
   cardinality: undefined,

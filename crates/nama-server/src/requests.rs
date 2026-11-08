@@ -11,10 +11,10 @@ use std::{
 
 use nama_plugin_api::{
     PluginId,
-    metadata::{Candidate, Episode, ExternalId, SearchQuery, Season, TitleKind},
+    metadata::{Candidate, Episode, ExternalId, SearchQuery, Season, Show, TitleKind},
 };
 use nama_proto::nama::v1::{
-    Event, Permission, Request, RequestCancelled, RequestCreated, RequestState,
+    Event, FoundSeason, Permission, Request, RequestCancelled, RequestCreated, RequestState,
     RequestStateChanged, RequestWithdrawn, RequestedMovie, RequestedSeason, Requester,
     RequesterAdded, RequesterRemoved,
 };
@@ -87,6 +87,17 @@ pub(crate) struct Found<M> {
     pub(crate) library: Option<i64>,
     /// The Movie's open Request, if it has one the viewer may see.
     pub(crate) request: Option<Request>,
+}
+
+/// A Show the metadata source has, as `S` holds it.
+#[derive(Debug)]
+pub(crate) struct FoundShow<S> {
+    pub(crate) tmdb_id: i64,
+    /// The Plugin whose metadata Provider gave the Show, which its image paths are for.
+    pub(crate) plugin: PluginId,
+    pub(crate) show: S,
+    /// Its Seasons, in order, as the viewer sees them. Only a lookup fills them.
+    pub(crate) seasons: Vec<FoundSeason>,
 }
 
 /// What a new Request asks for, as the metadata source gave it.
@@ -164,7 +175,7 @@ impl Requests {
         numbers: &BTreeSet<u32>,
     ) -> Result<Vec<Request>, Error> {
         let id = ExternalId::Tmdb(tmdb_id);
-        let show = self
+        let (_, show) = self
             .matcher
             .show(&id)
             .await
@@ -267,8 +278,42 @@ impl Requests {
         viewer: &User,
         title: String,
     ) -> Result<Vec<Found<Candidate>>, Error> {
+        let candidates = self.find(TitleKind::Movie, title).await?;
+        let mut conn = self.db.reader().acquire().await?;
+        let mut found = Vec::with_capacity(candidates.len());
+        // ponytail: two queries per Movie found, which a search caps at a page of 20.
+        for (tmdb_id, plugin, candidate) in candidates {
+            found.push(look_around(&mut conn, viewer, tmdb_id, plugin, candidate).await?);
+        }
+        Ok(found)
+    }
+
+    /// The Shows the metadata source finds titled like `title`, best fit first.
+    pub(crate) async fn search_shows(
+        &self,
+        title: String,
+    ) -> Result<Vec<FoundShow<Candidate>>, Error> {
+        let candidates = self.find(TitleKind::Show, title).await?;
+        Ok(candidates
+            .into_iter()
+            .map(|(tmdb_id, plugin, show)| FoundShow {
+                tmdb_id,
+                plugin,
+                show,
+                seasons: Vec::new(),
+            })
+            .collect())
+    }
+
+    /// The titles of `kind` the metadata source finds titled like `title`, best fit first, each
+    /// with its TMDB id and the Plugin whose Provider found it.
+    async fn find(
+        &self,
+        kind: TitleKind,
+        title: String,
+    ) -> Result<Vec<(i64, PluginId, Candidate)>, Error> {
         let query = SearchQuery {
-            kind: TitleKind::Movie,
+            kind,
             title,
             year: None,
         };
@@ -283,17 +328,40 @@ impl Requests {
                 | ManualError::NoSuchTitle(_)
                 | ManualError::Unavailable => Error::Unavailable,
             })?;
-        let mut conn = self.db.reader().acquire().await?;
-        let mut found = Vec::with_capacity(candidates.len());
-        // ponytail: two queries per Movie found, which a search caps at a page of 20.
-        for (plugin, candidate) in candidates {
-            // Requests name Movies by TMDB id, so a Movie without one can't be asked for.
-            let ExternalId::Tmdb(tmdb_id) = candidate.id else {
-                continue;
-            };
-            found.push(look_around(&mut conn, viewer, tmdb_id, plugin, candidate).await?);
+        // Requests name titles by TMDB id, so a title without one can't be asked for.
+        Ok(candidates
+            .into_iter()
+            .filter_map(|(plugin, candidate)| match candidate.id {
+                ExternalId::Tmdb(tmdb_id) => Some((tmdb_id, plugin, candidate)),
+                ExternalId::Imdb(_) | ExternalId::Tvdb(_) => None,
+            })
+            .collect())
+    }
+
+    /// The Show with the TMDB id `tmdb_id` and each of its Seasons, fetched now, as `viewer` sees
+    /// them.
+    pub(crate) async fn look_up_show(
+        &self,
+        viewer: &User,
+        tmdb_id: i64,
+    ) -> Result<FoundShow<Show>, Error> {
+        let id = ExternalId::Tmdb(tmdb_id);
+        let no_such_show = |err| looking_up(err, Error::NoSuchShow(tmdb_id));
+        let (plugin, show) = self.matcher.show(&id).await.map_err(no_such_show)?;
+        let mut seasons = Vec::with_capacity(show.seasons.len());
+        // ponytail: one metadata lookup per Season, one after another.
+        for &number in &show.seasons {
+            let season = self.matcher.show_season(&id, number).await;
+            seasons.push(season.map_err(no_such_show)?);
         }
-        Ok(found)
+        let mut conn = self.db.reader().acquire().await?;
+        let seasons = look_around_seasons(&mut conn, viewer, tmdb_id, seasons).await?;
+        Ok(FoundShow {
+            tmdb_id,
+            plugin,
+            show,
+            seasons,
+        })
     }
 
     /// The Movie with the TMDB id `tmdb_id`, fetched now, as `viewer` sees it.
@@ -353,22 +421,7 @@ async fn look_around<M>(
     movie: M,
 ) -> Result<Found<M>, sqlx::Error> {
     let library = contents::library_with_movie(conn, tmdb_id).await?;
-    let requester = visible_to(viewer);
-    // Open as `one_open_request_per_movie_or_season` has it.
-    let open = sqlx::query_scalar!(
-        r#"SELECT id AS "id!" FROM requests
-           WHERE tmdb_id = ?1 AND season IS NULL AND state NOT IN ('declined', 'available')
-             AND (?2 IS NULL OR EXISTS (SELECT 1 FROM requesters
-                                        WHERE request_id = requests.id AND user_id = ?2))"#,
-        tmdb_id,
-        requester
-    )
-    .fetch_optional(&mut *conn)
-    .await?;
-    let request = match open {
-        Some(id) => load_one(conn, id).await?,
-        None => None,
-    };
+    let request = visible_open_request(conn, viewer, tmdb_id, None).await?;
     Ok(Found {
         tmdb_id,
         plugin,
@@ -376,6 +429,53 @@ async fn look_around<M>(
         library,
         request,
     })
+}
+
+/// Each of `seasons`, of the Show `show_tmdb_id`, as `viewer` sees it: whether a Library has it,
+/// and its open Request.
+async fn look_around_seasons(
+    conn: &mut SqliteConnection,
+    viewer: &User,
+    show_tmdb_id: i64,
+    seasons: Vec<Season>,
+) -> Result<Vec<FoundSeason>, sqlx::Error> {
+    let today = today(conn).await?;
+    let mut found = Vec::with_capacity(seasons.len());
+    // ponytail: two or three queries per Season, and a Show has a few dozen at most.
+    for season in seasons {
+        let matched = contents::matched_episodes(conn, show_tmdb_id, season.number.into()).await?;
+        let request = visible_open_request(conn, viewer, show_tmdb_id, Some(season.number)).await?;
+        found.push(FoundSeason {
+            season_number: season.number,
+            in_library: in_library(&season.episodes, &matched, &today),
+            air_date: season.air_date,
+            request: request.into(),
+            ..Default::default()
+        });
+    }
+    Ok(found)
+}
+
+/// The open Request for the Movie `tmdb_id`, or for its Season `season` if `tmdb_id` is a Show's,
+/// if `viewer` may see it.
+async fn visible_open_request(
+    conn: &mut SqliteConnection,
+    viewer: &User,
+    tmdb_id: i64,
+    season: Option<u32>,
+) -> Result<Option<Request>, sqlx::Error> {
+    let Some(id) = open_request(conn, tmdb_id, season).await? else {
+        return Ok(None);
+    };
+    let visible = load(conn, Some(id), visible_to(viewer)).await?;
+    Ok(visible.into_iter().next())
+}
+
+/// Today as `YYYY-MM-DD`, by SQLite's calendar, since `std` has none.
+async fn today(conn: &mut SqliteConnection) -> Result<String, sqlx::Error> {
+    sqlx::query_scalar!(r#"SELECT date('now') AS "today!: String""#)
+        .fetch_one(&mut *conn)
+        .await
 }
 
 /// [`ask`]s for the Movie `wanted`, unless a Library has it.
@@ -407,10 +507,7 @@ async fn ask_seasons(
         show_title,
         seasons,
     } = show;
-    // SQLite's calendar, since `std` has none.
-    let today = sqlx::query_scalar!(r#"SELECT date('now') AS "today!: String""#)
-        .fetch_one(&mut *conn)
-        .await?;
+    let today = today(conn).await?;
     let mut requests = Vec::with_capacity(seasons.len());
     let mut happened = Vec::new();
     for season in seasons {

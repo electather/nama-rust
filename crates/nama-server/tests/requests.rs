@@ -25,12 +25,13 @@ use nama_plugin_tmdb::{
 use nama_proto::nama::v1::{
     __buffa::view::SubscribeResponseView, ApproveRequestRequest, BrowseServiceClient,
     CancelRequestRequest, CreateLibraryRequest, CreateRequestRequest, CreateSeasonRequestsRequest,
-    CreateUserRequest, DeclineRequestRequest, EventServiceClient, EventType, FoundMovie,
+    CreateUserRequest, DeclineRequestRequest, EventServiceClient, EventType, FoundMovie, FoundShow,
     GetRequestRequest, LibraryKind, LibraryServiceClient, ListMoviesRequest, ListRequestsRequest,
-    ListShowsRequest, LookUpMovieRequest, Permission, RefusalReason, Request, RequestServiceClient,
-    RequestState, ScanLibraryRequest, SearchMoviesRequest, SessionDelivery, SetPermissionsRequest,
-    SignInRequest, SignInServiceClient, SubscribeRequest, SubscribeResponse, UserServiceClient,
-    WithdrawRequestRequest, event, subscribe_response,
+    ListShowsRequest, LookUpMovieRequest, LookUpShowRequest, Permission, RefusalReason, Request,
+    RequestServiceClient, RequestState, ScanLibraryRequest, SearchMoviesRequest,
+    SearchShowsRequest, SessionDelivery, SetPermissionsRequest, SignInRequest, SignInServiceClient,
+    SubscribeRequest, SubscribeResponse, UserServiceClient, WithdrawRequestRequest, event,
+    subscribe_response,
 };
 use nama_server::{config::Config, plugins::Registry};
 use refused::assert_refused;
@@ -1255,4 +1256,141 @@ async fn without_view_requests_the_events_stream_shows_only_the_users_own_season
         panic!("Ada's Request reached Grace first: {event:?}");
     };
     assert_eq!(created.request.as_option(), graces.first());
+}
+
+/// Dark as `LookUpShow` gives it to the User `config` calls as.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn look_up_dark(config: ClientConfig) -> FoundShow {
+    requests(config)
+        .look_up_show(LookUpShowRequest {
+            show_tmdb_id: DARK,
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_owned()
+        .show
+        .into_option()
+        .unwrap()
+}
+
+#[tokio::test]
+async fn a_shows_seasons_say_whether_they_are_in_a_library_requested_or_neither() {
+    let fixture = Fixture::start().await;
+    let (_media, _) = fixture
+        .library_with(LibraryKind::LIBRARY_KIND_SHOWS, &[DARK_S01E01, DARK_S02E01])
+        .await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let (_, as_grace) = fixture.user("Grace", &NEW_USER).await;
+    let adas = ask_seasons(&requests(as_ada), DARK, &[1]).await;
+
+    let dark = look_up_dark(as_grace).await;
+
+    assert_eq!(dark.title, "Dark");
+    assert_eq!(dark.year, Some(2017));
+    assert!(dark.overview.is_some());
+    assert!(dark.poster_url.is_some());
+    assert!(dark.backdrop_url.is_some());
+    let seasons: Vec<_> = dark
+        .seasons
+        .iter()
+        .map(|season| {
+            let request = season.request.as_option();
+            (season.season_number, season.in_library, request)
+        })
+        .collect();
+    assert_eq!(
+        seasons,
+        [(1, false, adas.first()), (2, true, None), (3, false, None)],
+        "only one of Season 1's three aired Episodes is Matched"
+    );
+    assert_eq!(dark.seasons[0].air_date.as_deref(), Some("2017-12-01"));
+}
+
+#[tokio::test]
+async fn without_view_requests_a_shows_seasons_hide_other_peoples_requests() {
+    let fixture = Fixture::start().await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let (_, as_grace) = fixture.user("Grace", &[Permission::RequestTv]).await;
+    ask_seasons(&requests(as_ada), DARK, &[1]).await;
+
+    let dark = look_up_dark(as_grace).await;
+
+    assert!(dark.seasons[0].request.is_unset(), "{:?}", dark.seasons[0]);
+}
+
+#[tokio::test]
+async fn a_show_search_finds_shows_with_their_year_and_poster() {
+    let fixture = Fixture::start().await;
+    let (_, as_grace) = fixture.user("Grace", &NEW_USER).await;
+
+    let found = requests(as_grace)
+        .search_shows(SearchShowsRequest {
+            title: "The Office".to_owned(),
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_owned()
+        .shows;
+
+    assert_eq!(
+        found[0].poster_url.as_deref(),
+        Some("/media/artwork/tmdb/%2F7DJKHzAi83BmQrWLrYYOqcoKfhR.jpg")
+    );
+    let found: Vec<_> = found
+        .iter()
+        .map(|show| (show.tmdb_id, show.title.as_str(), show.year))
+        .collect();
+    assert_eq!(
+        found,
+        [
+            (THE_OFFICE, "The Office", Some(2005)),
+            (2996, "The Office", Some(2001))
+        ]
+    );
+}
+
+#[tokio::test]
+async fn looking_up_a_show_the_metadata_source_doesnt_have_is_refused() {
+    let fixture = Fixture::start().await;
+    let (_, as_grace) = fixture.user("Grace", &NEW_USER).await;
+
+    let refused = requests(as_grace)
+        .look_up_show(LookUpShowRequest {
+            show_tmdb_id: 1,
+            ..Default::default()
+        })
+        .await;
+
+    let refusal = assert_refused(
+        refused,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_UNKNOWN_TITLE,
+    );
+    assert_eq!(refusal.field, "show_tmdb_id");
+}
+
+#[tokio::test]
+async fn a_user_without_request_tv_is_refused_looking_up_a_show() {
+    let fixture = Fixture::start().await;
+    let (_, as_grace) = fixture.user("Grace", &[Permission::RequestMovie]).await;
+
+    let refused = requests(as_grace)
+        .look_up_show(LookUpShowRequest {
+            show_tmdb_id: DARK,
+            ..Default::default()
+        })
+        .await;
+
+    let refusal = assert_refused(
+        refused,
+        ErrorCode::PermissionDenied,
+        RefusalReason::REFUSAL_REASON_PERMISSION_REQUIRED,
+    );
+    let permission = refusal.params.get("permission").map(String::as_str);
+    assert_eq!(permission, Some("PERMISSION_REQUEST_TV"));
 }
