@@ -6,10 +6,10 @@ import { FormEnd, FormField } from "@/components/form-field";
 import { ChoiceInput, TestButton, testPassed, useSettingsTest } from "@/components/settings-test";
 import { Button } from "@/components/ui/button";
 import {
+  type Choice,
   type Plugin,
   PluginService,
   type Setting,
-  type SettingChoices,
   SettingKind,
   type SettingValue,
 } from "@/gen/nama/v1/plugin_pb";
@@ -43,7 +43,8 @@ export function PluginSettings({ plugin }: { plugin: Plugin }) {
         <SettingInput
           key={setting.key}
           setting={setting}
-          choices={choices?.[setting.key]}
+          // A passing test that offered nothing for a setting still unlocks it, empty.
+          choices={choices && (choices[setting.key]?.choices ?? [])}
           error={errors[setting.key]}
         />
       ))}
@@ -73,7 +74,7 @@ function SettingInput({
   error,
 }: {
   setting: Setting;
-  choices: SettingChoices | undefined;
+  choices: Choice[] | undefined;
   error: string | undefined;
 }) {
   if (setting.kind === SettingKind.BOOL) return <BoolInput setting={setting} />;

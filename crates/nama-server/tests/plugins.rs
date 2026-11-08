@@ -12,7 +12,8 @@ use nama_plugin_api::{
     PluginId, Priority, Registrar, Verdict,
     settings::{SettingField, SettingKind, SettingValue, Settings, SettingsSchema},
 };
-use nama_server::plugins::{CheckError, EnableError, Outcome, Registry, test_choices};
+use nama_plugin_test_choices as test_choices;
+use nama_server::plugins::{CheckError, EnableError, Outcome, Registry};
 use tokio::sync::mpsc::{self, error::TryRecvError};
 
 const WAIT: Duration = Duration::from_secs(5);
@@ -813,10 +814,10 @@ async fn a_settings_check_that_runs_past_its_timeout_has_failed_and_harms_nothin
         .check_settings(&id, settings(Some(test_choices::HANG)))
         .await;
 
-    let Err(CheckError::Failed(message)) = hung else {
-        panic!("expected the check to fail, got {hung:?}");
+    let Err(CheckError::TimedOut(timed_out)) = hung else {
+        panic!("expected the check to time out, got {hung:?}");
     };
-    assert!(message.contains("didn't finish"), "{message}");
+    assert_eq!(timed_out, id);
     let checked = registry.check_settings(&id, settings(None)).await;
     assert!(checked.is_ok(), "{checked:?}");
 }

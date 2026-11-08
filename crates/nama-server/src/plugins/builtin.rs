@@ -17,7 +17,7 @@ fn all() -> Vec<fn() -> Arc<dyn Plugin>> {
             Arc::new(Tmdb::new())
         }];
     #[cfg(feature = "testing")]
-    all.push(|| Arc::new(super::test_choices::TestChoices));
+    all.push(|| Arc::new(nama_plugin_test_choices::TestChoices));
     all
 }
 

@@ -1,5 +1,5 @@
-//! A Built-in Plugin used only in tests (the `testing` feature): its settings check offers choices,
-//! and its settings can tell it to fail.
+//! A Built-in Plugin used only in tests (the Server's `testing` feature): its settings check offers
+//! choices, and its settings can tell it to fail.
 
 use std::future;
 

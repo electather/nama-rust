@@ -15,6 +15,7 @@ use connectrpc::{ConnectError, ErrorCode, client::HttpClient};
 use nama_plugin_api::{
     PluginId, auth::Authenticator, metadata::MetadataProvider, settings::SettingValue,
 };
+use nama_plugin_test_choices as test_choices;
 use nama_proto::nama::v1::{
     DisablePluginRequest, EnablePluginRequest, ListPluginsRequest, ListPluginsResponse, Plugin,
     PluginKind, PluginServiceClient, RefusalReason, Setting, SettingKind,
@@ -25,7 +26,7 @@ use nama_server::{
     config::{Config, PluginConfig},
     db::Database,
     plugin_settings,
-    plugins::{Registry, test_choices},
+    plugins::{Registry, SETTINGS_CHECK_TIMEOUT},
 };
 use refused::assert_refused;
 use server::TestServer;
@@ -741,29 +742,35 @@ async fn only_a_plugin_with_a_check_says_so_and_testing_one_without_is_refused()
 }
 
 #[tokio::test]
-async fn a_plugin_whose_check_would_fail_is_enabled_without_running_it() {
+async fn a_plugin_whose_check_would_hang_starts_and_is_enabled_without_running_it() {
     let mut settings = test_choices_with_key(test_choices::API_KEY);
     if let Some(config) = settings.get_mut(test_choices::ID) {
         config.settings.extend([
             (
                 "fail_with".to_owned(),
-                SettingValue::Text(test_choices::PANIC.to_owned()),
+                SettingValue::Text(test_choices::HANG.to_owned()),
             ),
             ("profile".to_owned(), SettingValue::Text("1".to_owned())),
         ]);
     }
 
-    let started = Started::with(&settings).await;
-    started
-        .client()
-        .disable_plugin(disable(test_choices::ID))
-        .await
-        .unwrap();
-    started
-        .client()
-        .enable_plugin(enable(test_choices::ID))
-        .await
-        .unwrap();
+    // Shorter than the Kernel's timeout for a check, so running the check would fail the test.
+    let deadline = SETTINGS_CHECK_TIMEOUT / 2;
+    let started = tokio::time::timeout(deadline, async {
+        let started = Started::with(&settings).await;
+        let client = started.client();
+        client
+            .disable_plugin(disable(test_choices::ID))
+            .await
+            .unwrap();
+        client
+            .enable_plugin(enable(test_choices::ID))
+            .await
+            .unwrap();
+        started
+    })
+    .await
+    .expect("starting and enabling ran the settings check");
 
     assert!(
         started

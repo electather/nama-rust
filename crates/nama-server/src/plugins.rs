@@ -3,8 +3,6 @@
 
 mod builtin;
 pub mod installed;
-#[cfg(feature = "testing")]
-pub mod test_choices;
 
 use std::{
     any::Any,
@@ -171,10 +169,16 @@ pub enum CheckError {
     /// The settings don't fit the Plugin's schema.
     #[error("the settings don't fit the plugin: {0}")]
     InvalidSettings(SettingsError),
-    /// The check failed, ran past [`SETTINGS_CHECK_TIMEOUT`] or panicked, or the Plugin has none.
-    /// The message is in plain words for an admin, with no secret setting's value in it.
+    /// The check failed or panicked, or the Plugin has none. The message is in plain words for an
+    /// admin, with no secret setting's value in it.
     #[error("{0}")]
     Failed(String),
+    /// The check ran past [`SETTINGS_CHECK_TIMEOUT`].
+    #[error(
+        "{0} didn't finish checking its settings within {seconds} seconds",
+        seconds = SETTINGS_CHECK_TIMEOUT.as_secs()
+    )]
+    TimedOut(PluginId),
 }
 
 impl Registry {
@@ -380,19 +384,28 @@ impl Registry {
     ///
     /// # Errors
     ///
-    /// If no Built-in Plugin has the id, the settings don't fit, or the check fails. A check that
-    /// panics or runs past [`SETTINGS_CHECK_TIMEOUT`] fails without harming the Server.
+    /// If no Built-in Plugin has the id, it has no check, the settings don't fit, or the check
+    /// fails. A check that panics or runs past [`SETTINGS_CHECK_TIMEOUT`] fails without harming the
+    /// Server.
     pub async fn check_settings(
         &self,
         id: &PluginId,
         settings: Settings,
     ) -> Result<Choices, CheckError> {
-        let (make, schema) = self
+        let (make, schema, checks_settings) = self
             .read(|state| {
                 let builtin = state.builtins.get(id)?;
-                Some((builtin.make, builtin.settings_schema.clone()))
+                Some((
+                    builtin.make,
+                    builtin.settings_schema.clone(),
+                    builtin.checks_settings,
+                ))
             })
             .ok_or_else(|| CheckError::Unknown(id.clone()))?;
+        let no_check = || CheckError::Failed(format!("{id} has no settings check"));
+        if !checks_settings {
+            return Err(no_check());
+        }
         let settings = settings
             .resolve(&with_optional_choices(schema.clone()))
             .map_err(CheckError::InvalidSettings)?;
@@ -404,20 +417,18 @@ impl Registry {
         };
         let plugin = contain_sync(make).map_err(panicked)?;
         // The timeout is inside `contain`, so dropping a check it gave up on (Plugin code) is
-        // contained too.
+        // contained too, as are formatting and dropping the Plugin's error.
         let check = contain(|| async {
-            let Some(check) = plugin.settings_check() else {
-                return Ok(Err(format!("{id} has no settings check").into()));
-            };
-            tokio::time::timeout(SETTINGS_CHECK_TIMEOUT, check.check(&settings)).await
+            let check = plugin.settings_check()?;
+            let checked =
+                tokio::time::timeout(SETTINGS_CHECK_TIMEOUT, check.check(&settings)).await;
+            Some(checked.map(|checked| checked.map_err(|error| error.to_string())))
         });
         let checked = match check.await {
-            Ok(Ok(Ok(choices))) => Ok(choices),
-            Ok(Ok(Err(error))) => Err(CheckError::Failed(scrubbed(error.to_string()))),
-            Ok(Err(_elapsed)) => Err(CheckError::Failed(format!(
-                "{id} didn't finish checking its settings within {} seconds",
-                SETTINGS_CHECK_TIMEOUT.as_secs()
-            ))),
+            Ok(Some(Ok(Ok(choices)))) => Ok(choices),
+            Ok(Some(Ok(Err(message)))) => Err(CheckError::Failed(scrubbed(message))),
+            Ok(Some(Err(_elapsed))) => Err(CheckError::TimedOut(id.clone())),
+            Ok(None) => Err(no_check()),
             Err(message) => Err(panicked(message)),
         };
         if let Err(message) = contain_sync(|| drop(plugin)) {

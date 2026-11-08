@@ -393,7 +393,8 @@ export const RefusalReason = {
   /**
    * `failed_precondition`: a Plugin's settings check failed, ran too long or crashed, or the Plugin
    * has none. The message says why in plain words: the Plugin's own for a failed check, which can't
-   * be translated, or else the Server's. Params: `pluginId`.
+   * be translated, or else the Server's. Params: `pluginId`, and `timeoutSeconds` for a check that ran
+   * too long.
    *
    * @generated from enum value: REFUSAL_REASON_SETTINGS_CHECK_FAILED = 45;
    */

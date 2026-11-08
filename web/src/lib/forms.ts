@@ -80,7 +80,9 @@ function unexplained(code: Code, attempt: string) {
 /** The Server's own message for `error`, as a sentence. */
 export function serverMessage(error: unknown) {
   const { rawMessage } = ConnectError.from(error);
-  return `${rawMessage.charAt(0).toUpperCase()}${rawMessage.slice(1)}.`;
+  const sentence = `${rawMessage.charAt(0).toUpperCase()}${rawMessage.slice(1)}`;
+  // A Plugin's own message may already end its sentence.
+  return /[.!?]$/u.test(sentence) ? sentence : `${sentence}.`;
 }
 
 /**

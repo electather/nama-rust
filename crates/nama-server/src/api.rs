@@ -72,7 +72,7 @@ use crate::{
     libraries::{self, FolderProblem, Kind, Libraries, Library},
     matching::{ManualError, Matcher},
     plugin_settings,
-    plugins::{Builtin, CheckError, EnableError, Registry},
+    plugins::{Builtin, CheckError, EnableError, Registry, SETTINGS_CHECK_TIMEOUT},
     rate_limits::{Blocked, SignInCodeLimits, SignInLimits},
     requests::{self, Found, Requests},
     scanner::Scanner,
@@ -1996,9 +1996,16 @@ impl PluginService for PluginServiceHandler {
         let request = request.to_owned_message();
         let id = PluginId::from(request.id);
         let plugin = self.builtin(&id)?;
-        let sent = settings_from_proto(&request.settings);
         let stored = self.stored(&id).await?;
-        let settings = with_stored_secrets(&plugin.settings_schema, sent, &stored.settings);
+        let settings = with_stored_secrets(
+            &plugin.settings_schema,
+            settings_from_proto(&request.settings),
+            &stored.settings,
+        );
+        let check_failed = |message: String| {
+            refuse(RefusalReason::REFUSAL_REASON_SETTINGS_CHECK_FAILED, message)
+                .param("pluginId", &id)
+        };
         let choices = self
             .plugins
             .check_settings(&id, Settings::new(settings))
@@ -2006,11 +2013,10 @@ impl PluginService for PluginServiceHandler {
             .map_err(|err| match err {
                 CheckError::Unknown(unknown) => plugin_not_found(&unknown),
                 CheckError::InvalidSettings(error) => settings_refused(error),
-                CheckError::Failed(message) => {
-                    refuse(RefusalReason::REFUSAL_REASON_SETTINGS_CHECK_FAILED, message)
-                        .param("pluginId", &id)
-                        .into()
-                }
+                CheckError::Failed(message) => check_failed(message).into(),
+                CheckError::TimedOut(_) => check_failed(err.to_string())
+                    .param("timeoutSeconds", &SETTINGS_CHECK_TIMEOUT.as_secs())
+                    .into(),
             })?;
         let choices = choices
             .into_iter()

@@ -97,7 +97,8 @@ test("a picked choice is saved, and an untested one is saved as it was", async (
 test("a failed test shows the Plugin’s error and leaves the choice locked", async () => {
   openPlugins({
     testPluginSettings: () => {
-      throw refused(Code.FailedPrecondition, "the service refused the API key", {
+      // A Plugin's message may end its own sentence.
+      throw refused(Code.FailedPrecondition, "the service refused the API key.", {
         reason: RefusalReason.SETTINGS_CHECK_FAILED,
         params: { pluginId: "test-choices" },
       });
@@ -110,4 +111,15 @@ test("a failed test shows the Plugin’s error and leaves the choice locked", as
     await (await plugin("test-choices")).findByText("The service refused the API key."),
   ).toBeDefined();
   expect((await profile()).disabled).toBe(true);
+});
+
+test("a passing test that offers nothing for a choice unlocks it with nothing to pick", async () => {
+  openPlugins({ testPluginSettings: () => ({ choices: {} }) });
+
+  await pressTest();
+
+  await waitFor(async () => {
+    expect((await profile()).disabled).toBe(false);
+  });
+  expect([...(await profile()).options].map((option) => option.text)).toEqual(["Pick one"]);
 });

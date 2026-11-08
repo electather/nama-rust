@@ -4,6 +4,7 @@ import { useState } from "react";
 import { FormSelect } from "@/components/form-field";
 import { Button } from "@/components/ui/button";
 import {
+  type Choice,
   type Plugin,
   PluginService,
   type Setting,
@@ -69,7 +70,7 @@ export function ChoiceInput({
   error,
 }: {
   setting: Setting;
-  choices: SettingChoices | undefined;
+  choices: Choice[] | undefined;
   error: string | undefined;
 }) {
   const stored = setting.value?.value.case === "textValue" ? setting.value.value.value : "";
@@ -103,7 +104,7 @@ export function ChoiceInput({
       error={error}
     >
       <option value="">Pick one</option>
-      {choices.choices.map(({ value, label }) => (
+      {choices.map(({ value, label }) => (
         <option key={value} value={value}>
           {label}
         </option>
