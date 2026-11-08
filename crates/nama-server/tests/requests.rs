@@ -13,7 +13,7 @@ mod server;
 use std::{collections::BTreeMap, fs, sync::Arc, time::Duration};
 
 use connectrpc::{
-    ErrorCode,
+    ConnectError, ErrorCode,
     client::{ClientConfig, HttpClient, ServerStream},
 };
 use http::fetch;
@@ -30,7 +30,7 @@ use nama_proto::nama::v1::{
     ListShowsRequest, LookUpMovieRequest, Permission, RefusalReason, Request, RequestServiceClient,
     RequestState, ScanLibraryRequest, SearchMoviesRequest, SessionDelivery, SetPermissionsRequest,
     SignInRequest, SignInServiceClient, SubscribeRequest, SubscribeResponse, UserServiceClient,
-    event, subscribe_response,
+    WithdrawRequestRequest, event, subscribe_response,
 };
 use nama_server::{config::Config, plugins::Registry};
 use refused::assert_refused;
@@ -120,7 +120,8 @@ impl Fixture {
     }
 
     /// Creates a Movies Library holding Alien, scans it, and waits until Alien is Matched.
-    async fn library_with_alien(&self) -> tempfile::TempDir {
+    /// Returns the folder and the Library's ID.
+    async fn library_with_alien(&self) -> (tempfile::TempDir, i64) {
         self.library_with(
             LibraryKind::LIBRARY_KIND_MOVIES,
             &["Alien (1979)/Alien (1979).mkv"],
@@ -129,7 +130,8 @@ impl Fixture {
     }
 
     /// Creates a Library of `kind` holding `files`, scans it, and waits until a title is Matched.
-    async fn library_with(&self, kind: LibraryKind, files: &[&str]) -> tempfile::TempDir {
+    /// Returns the folder and the Library's ID.
+    async fn library_with(&self, kind: LibraryKind, files: &[&str]) -> (tempfile::TempDir, i64) {
         let media = tempfile::tempdir().unwrap();
         let folder = media.path().canonicalize().unwrap();
         for file in files {
@@ -137,23 +139,30 @@ impl Fixture {
             fs::create_dir_all(file.parent().unwrap()).unwrap();
             fs::write(file, b"video").unwrap();
         }
+        let library =
+            LibraryServiceClient::new(HttpClient::plaintext(), self.server.client_config())
+                .create_library(CreateLibraryRequest {
+                    name: "Media".to_owned(),
+                    kind: kind.into(),
+                    folders: vec![folder.to_str().unwrap().to_owned()],
+                    ..Default::default()
+                })
+                .await
+                .unwrap()
+                .into_owned()
+                .library
+                .into_option()
+                .unwrap()
+                .id;
+        self.scan_until(library, kind, true).await;
+        (media, library)
+    }
+
+    /// Scans the Library `library` of `kind`, and waits until it lists a title if `has_titles`, or
+    /// none.
+    async fn scan_until(&self, library: i64, kind: LibraryKind, has_titles: bool) {
         let config = self.server.client_config();
-        let libraries = LibraryServiceClient::new(HttpClient::plaintext(), config.clone());
-        let library = libraries
-            .create_library(CreateLibraryRequest {
-                name: "Media".to_owned(),
-                kind: kind.into(),
-                folders: vec![folder.to_str().unwrap().to_owned()],
-                ..Default::default()
-            })
-            .await
-            .unwrap()
-            .into_owned()
-            .library
-            .into_option()
-            .unwrap()
-            .id;
-        libraries
+        LibraryServiceClient::new(HttpClient::plaintext(), config.clone())
             .scan_library(ScanLibraryRequest {
                 id: library,
                 ..Default::default()
@@ -161,23 +170,23 @@ impl Fixture {
             .await
             .unwrap();
         let browse = BrowseServiceClient::new(HttpClient::plaintext(), config);
-        tokio::time::timeout(WAIT, until_a_title_is_matched(&browse, library, kind))
+        tokio::time::timeout(WAIT, until_listed(&browse, library, kind, has_titles))
             .await
             .unwrap();
-        media
     }
 }
 
-/// Waits until the Library `library` of `kind` lists a Movie or a Show. Matching stores a Show's
-/// Episodes together, so they are all Matched by then.
+/// Waits until the Library `library` of `kind` lists a Movie or a Show if `has_titles`, or none.
+/// Matching stores a Show's Episodes together, so they are all Matched once it lists the Show.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
-async fn until_a_title_is_matched(
+async fn until_listed(
     browse: &BrowseServiceClient<HttpClient>,
     library: i64,
     kind: LibraryKind,
+    has_titles: bool,
 ) {
     loop {
         let listed = if kind == LibraryKind::LIBRARY_KIND_MOVIES {
@@ -205,7 +214,7 @@ async fn until_a_title_is_matched(
                 .shows
                 .len()
         };
-        if listed > 0 {
+        if (listed > 0) == has_titles {
             return;
         }
         tokio::time::sleep(Duration::from_millis(10)).await;
@@ -371,7 +380,7 @@ async fn a_user_without_request_movie_is_refused_naming_the_permission() {
 #[tokio::test]
 async fn requesting_a_movie_matched_in_a_library_is_refused() {
     let fixture = Fixture::start().await;
-    let _media = fixture.library_with_alien().await;
+    let (_media, _) = fixture.library_with_alien().await;
     let (_, as_grace) = fixture.user("Grace", &NEW_USER).await;
 
     let refused = requests(as_grace)
@@ -513,6 +522,82 @@ async fn an_admin_approves_a_members_pending_request_and_the_member_sees_it_live
         panic!("not the approval: {event:?}");
     };
     assert_eq!(changed.request.as_option(), Some(&approved));
+}
+
+#[tokio::test]
+async fn an_approved_request_becomes_available_once_a_scan_matches_its_movie_and_the_member_sees_it_live()
+ {
+    let fixture = Fixture::start().await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let ada = requests(as_ada.clone());
+    let pending = ask(&ada, ALIEN).await;
+    requests(fixture.server.client_config())
+        .approve_request(ApproveRequestRequest {
+            id: pending.id,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let mut adas_events = subscribe_to_requests(as_ada).await;
+
+    let _media = fixture.library_with_alien().await;
+    let event = next_event(&mut adas_events).await;
+
+    let event::Event::RequestStateChanged(changed) = event else {
+        panic!("not the Request becoming Available: {event:?}");
+    };
+    assert_eq!(changed.request.state, RequestState::Available);
+    assert_eq!(list(&ada).await, [changed.request.into_option().unwrap()]);
+}
+
+#[tokio::test]
+async fn a_scan_makes_a_pending_request_available_and_leaves_a_declined_one_declined() {
+    let fixture = Fixture::start().await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let ada = requests(as_ada);
+    let declined = decline(&fixture, ask(&ada, ALIEN).await.id, "").await;
+    let pending = ask(&ada, ALIEN).await;
+
+    let _media = fixture.library_with_alien().await;
+
+    assert_eq!(
+        states(&list(&ada).await),
+        [
+            (pending.id, RequestState::Available),
+            (declined.id, RequestState::Declined)
+        ]
+    );
+}
+
+#[tokio::test]
+async fn an_available_request_stays_available_after_its_movie_leaves_the_library_and_can_be_requested_again()
+ {
+    let fixture = Fixture::start().await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let ada = requests(as_ada);
+    let first = ask(&ada, ALIEN).await;
+    let (media, library) = fixture.library_with_alien().await;
+
+    fs::remove_dir_all(media.path().join("Alien (1979)")).unwrap();
+    fixture
+        .scan_until(library, LibraryKind::LIBRARY_KIND_MOVIES, false)
+        .await;
+    let again = ask(&ada, ALIEN).await;
+
+    assert_eq!(
+        states(&list(&ada).await),
+        [
+            (again.id, RequestState::Pending),
+            (first.id, RequestState::Available)
+        ]
+    );
+}
+
+fn states(requests: &[Request]) -> Vec<(i64, RequestState)> {
+    requests
+        .iter()
+        .map(|request| (request.id, request.state.as_known().unwrap_or_default()))
+        .collect()
 }
 
 #[tokio::test]
@@ -660,6 +745,125 @@ async fn a_user_without_manage_requests_is_refused_each_action_naming_the_permis
     assert_eq!(list(&ada).await[0].state, RequestState::Pending);
 }
 
+#[tokio::test]
+async fn one_of_two_requesters_withdraws_and_the_request_stays_with_the_other() {
+    let fixture = Fixture::start().await;
+    let (ada, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let (grace, as_grace) = fixture.user("Grace", &NEW_USER).await;
+    let asked = ask(&requests(as_ada.clone()), HEAT).await;
+    ask(&requests(as_grace.clone()), HEAT).await;
+    let mut adas_events = subscribe_to_requests(as_ada.clone()).await;
+    let mut graces_events = subscribe_to_requests(as_grace.clone()).await;
+
+    withdraw(&requests(as_ada), asked.id).await.unwrap();
+
+    for event in [
+        next_event(&mut adas_events).await,
+        next_event(&mut graces_events).await,
+    ] {
+        let event::Event::RequesterRemoved(removed) = event else {
+            panic!("not the withdrawal: {event:?}");
+        };
+        assert_eq!(removed.user_id, ada);
+    }
+    let remaining = list(&requests(as_grace)).await;
+    assert_eq!(remaining.len(), 1);
+    assert_eq!(remaining[0].id, asked.id);
+    assert_eq!(requester_ids(&remaining[0]), [grace]);
+}
+
+#[tokio::test]
+async fn the_last_requester_withdrawing_removes_the_request_and_the_movie_can_be_requested_again() {
+    let fixture = Fixture::start().await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let ada = requests(as_ada.clone());
+    let asked = ask(&ada, HEAT).await;
+    let mut adas_events = subscribe_to_requests(as_ada).await;
+
+    withdraw(&ada, asked.id).await.unwrap();
+    let event = next_event(&mut adas_events).await;
+    let gone = list(&ada).await;
+    let again = ask(&ada, HEAT).await;
+
+    let event::Event::RequestWithdrawn(withdrawn) = event else {
+        panic!("not the withdrawal: {event:?}");
+    };
+    assert_eq!(withdrawn.request.as_option(), Some(&asked));
+    assert_eq!(gone, []);
+    assert_ne!(again.id, asked.id);
+    assert_eq!(again.state, RequestState::Pending);
+}
+
+#[tokio::test]
+async fn withdrawing_from_an_approved_request_is_refused() {
+    let fixture = Fixture::start().await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let ada = requests(as_ada);
+    let asked = ask(&ada, HEAT).await;
+    requests(fixture.server.client_config())
+        .approve_request(ApproveRequestRequest {
+            id: asked.id,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    let refused = withdraw(&ada, asked.id).await;
+
+    let refusal = assert_refused(
+        refused,
+        ErrorCode::FailedPrecondition,
+        RefusalReason::REFUSAL_REASON_REQUEST_NOT_PENDING,
+    );
+    assert_eq!(refusal.field, "id");
+    assert_eq!(list(&ada).await[0].state, RequestState::Approved);
+}
+
+#[tokio::test]
+async fn withdrawing_from_a_request_the_user_isnt_a_requester_of_is_refused() {
+    let fixture = Fixture::start().await;
+    let (ada, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let (_, as_grace) = fixture.user("Grace", &NEW_USER).await;
+    let asked = ask(&requests(as_ada.clone()), HEAT).await;
+
+    let refused = withdraw(&requests(as_grace), asked.id).await;
+
+    let refusal = assert_refused(
+        refused,
+        ErrorCode::FailedPrecondition,
+        RefusalReason::REFUSAL_REASON_NOT_A_REQUESTER,
+    );
+    assert_eq!(refusal.field, "id");
+    assert_eq!(requester_ids(&list(&requests(as_ada)).await[0]), [ada]);
+}
+
+#[tokio::test]
+async fn without_view_requests_withdrawing_from_someone_elses_request_is_refused_as_not_found() {
+    let fixture = Fixture::start().await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let (_, as_grace) = fixture.user("Grace", &[Permission::Request]).await;
+    let asked = ask(&requests(as_ada), HEAT).await;
+
+    let refused = withdraw(&requests(as_grace), asked.id).await;
+
+    assert_refused(
+        refused,
+        ErrorCode::NotFound,
+        RefusalReason::REFUSAL_REASON_REQUEST_NOT_FOUND,
+    );
+}
+
+/// Withdraws the caller of `client` from the Request `id`.
+async fn withdraw(client: &RequestServiceClient<HttpClient>, id: i64) -> Result<(), ConnectError> {
+    client
+        .withdraw_request(WithdrawRequestRequest {
+            id,
+            ..Default::default()
+        })
+        .await
+        .map(drop)
+}
+
 /// Declines the Request `id` as the Admin, giving `reason`.
 #[expect(
     clippy::unwrap_used,
@@ -694,6 +898,8 @@ async fn subscribe_to_requests(config: ClientConfig) -> Subscription {
             EventType::EVENT_TYPE_REQUESTER_ADDED.into(),
             EventType::EVENT_TYPE_REQUEST_STATE_CHANGED.into(),
             EventType::EVENT_TYPE_REQUEST_CANCELLED.into(),
+            EventType::EVENT_TYPE_REQUESTER_REMOVED.into(),
+            EventType::EVENT_TYPE_REQUEST_WITHDRAWN.into(),
         ],
         ..Default::default()
     };
@@ -746,7 +952,7 @@ async fn a_search_finds_movies_with_their_year_and_poster_and_no_library_or_requ
 #[tokio::test]
 async fn a_search_shows_a_movie_matched_in_a_library_as_in_it() {
     let fixture = Fixture::start().await;
-    let _media = fixture.library_with_alien().await;
+    let (_media, _) = fixture.library_with_alien().await;
     let (_, as_grace) = fixture.user("Grace", &NEW_USER).await;
 
     let found = search_alien(as_grace).await;

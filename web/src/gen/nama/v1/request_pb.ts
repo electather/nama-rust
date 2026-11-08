@@ -10,7 +10,7 @@ import type { Message, UnknownEnum } from "@bufbuild/protobuf";
  * Describes the file nama/v1/request.proto.
  */
 export const file_nama_v1_request: GenFile = /*@__PURE__*/
-  fileDesc("ChVuYW1hL3YxL3JlcXVlc3QucHJvdG8SB25hbWEudjEi+QEKB1JlcXVlc3QSCgoCaWQYASABKAMSJgoFbW92aWUYAiABKAsyFy5uYW1hLnYxLlJlcXVlc3RlZE1vdmllEiQKBXN0YXRlGAMgASgOMhUubmFtYS52MS5SZXF1ZXN0U3RhdGUSJgoKcmVxdWVzdGVycxgEIAMoCzISLm5hbWEudjEuUmVxdWVzdGVyEhIKCmNyZWF0ZWRfYXQYBSABKAMSGwoOZGVjbGluZV9yZWFzb24YBiABKAlIAIgBARIoCgZzZWFzb24YByABKAsyGC5uYW1hLnYxLlJlcXVlc3RlZFNlYXNvbkIRCg9fZGVjbGluZV9yZWFzb24iXAoOUmVxdWVzdGVkTW92aWUSDwoHdG1kYl9pZBgBIAEoAxINCgV0aXRsZRgCIAEoCRIZCgxyZWxlYXNlX2RhdGUYAyABKAlIAIgBAUIPCg1fcmVsZWFzZV9kYXRlInYKD1JlcXVlc3RlZFNlYXNvbhIUCgxzaG93X3RtZGJfaWQYASABKAMSFQoNc2Vhc29uX251bWJlchgCIAEoDRISCgpzaG93X3RpdGxlGAMgASgJEhUKCGFpcl9kYXRlGAQgASgJSACIAQFCCwoJX2Fpcl9kYXRlIkAKCVJlcXVlc3RlchIPCgd1c2VyX2lkGAEgASgDEgwKBG5hbWUYAiABKAkSFAoMcmVxdWVzdGVkX2F0GAMgASgDIi0KFENyZWF0ZVJlcXVlc3RSZXF1ZXN0EhUKDW1vdmllX3RtZGJfaWQYASABKAMiOgoVQ3JlYXRlUmVxdWVzdFJlc3BvbnNlEiEKB3JlcXVlc3QYASABKAsyEC5uYW1hLnYxLlJlcXVlc3QiSwobQ3JlYXRlU2Vhc29uUmVxdWVzdHNSZXF1ZXN0EhQKDHNob3dfdG1kYl9pZBgBIAEoAxIWCg5zZWFzb25fbnVtYmVycxgCIAMoDSJCChxDcmVhdGVTZWFzb25SZXF1ZXN0c1Jlc3BvbnNlEiIKCHJlcXVlc3RzGAEgAygLMhAubmFtYS52MS5SZXF1ZXN0IhUKE0xpc3RSZXF1ZXN0c1JlcXVlc3QiOgoUTGlzdFJlcXVlc3RzUmVzcG9uc2USIgoIcmVxdWVzdHMYASADKAsyEC5uYW1hLnYxLlJlcXVlc3QiHwoRR2V0UmVxdWVzdFJlcXVlc3QSCgoCaWQYASABKAMiNwoSR2V0UmVxdWVzdFJlc3BvbnNlEiEKB3JlcXVlc3QYASABKAsyEC5uYW1hLnYxLlJlcXVlc3QiIwoVQXBwcm92ZVJlcXVlc3RSZXF1ZXN0EgoKAmlkGAEgASgDIjsKFkFwcHJvdmVSZXF1ZXN0UmVzcG9uc2USIQoHcmVxdWVzdBgBIAEoCzIQLm5hbWEudjEuUmVxdWVzdCIzChVEZWNsaW5lUmVxdWVzdFJlcXVlc3QSCgoCaWQYASABKAMSDgoGcmVhc29uGAIgASgJIjsKFkRlY2xpbmVSZXF1ZXN0UmVzcG9uc2USIQoHcmVxdWVzdBgBIAEoCzIQLm5hbWEudjEuUmVxdWVzdCIiChRDYW5jZWxSZXF1ZXN0UmVxdWVzdBIKCgJpZBgBIAEoAyIXChVDYW5jZWxSZXF1ZXN0UmVzcG9uc2UivQIKCkZvdW5kTW92aWUSDwoHdG1kYl9pZBgBIAEoAxINCgV0aXRsZRgCIAEoCRIRCgR5ZWFyGAMgASgFSACIAQESFQoIb3ZlcnZpZXcYBCABKAlIAYgBARIcCg9ydW50aW1lX21pbnV0ZXMYBSABKA1IAogBARIXCgpwb3N0ZXJfdXJsGAYgASgJSAOIAQESGQoMYmFja2Ryb3BfdXJsGAcgASgJSASIAQESFwoKbGlicmFyeV9pZBgIIAEoA0gFiAEBEiEKB3JlcXVlc3QYCSABKAsyEC5uYW1hLnYxLlJlcXVlc3RCBwoFX3llYXJCCwoJX292ZXJ2aWV3QhIKEF9ydW50aW1lX21pbnV0ZXNCDQoLX3Bvc3Rlcl91cmxCDwoNX2JhY2tkcm9wX3VybEINCgtfbGlicmFyeV9pZCIkChNTZWFyY2hNb3ZpZXNSZXF1ZXN0Eg0KBXRpdGxlGAEgASgJIjsKFFNlYXJjaE1vdmllc1Jlc3BvbnNlEiMKBm1vdmllcxgBIAMoCzITLm5hbWEudjEuRm91bmRNb3ZpZSIrChJMb29rVXBNb3ZpZVJlcXVlc3QSFQoNbW92aWVfdG1kYl9pZBgBIAEoAyI5ChNMb29rVXBNb3ZpZVJlc3BvbnNlEiIKBW1vdmllGAEgASgLMhMubmFtYS52MS5Gb3VuZE1vdmllKvwBCgxSZXF1ZXN0U3RhdGUSHQoZUkVRVUVTVF9TVEFURV9VTlNQRUNJRklFRBAAEhkKFVJFUVVFU1RfU1RBVEVfUEVORElORxABEhoKFlJFUVVFU1RfU1RBVEVfQVBQUk9WRUQQAhIaChZSRVFVRVNUX1NUQVRFX0RFQ0xJTkVEEAMSHAoYUkVRVUVTVF9TVEFURV9QUk9DRVNTSU5HEAQSJQohUkVRVUVTVF9TVEFURV9QQVJUSUFMTFlfQVZBSUxBQkxFEAUSGwoXUkVRVUVTVF9TVEFURV9BVkFJTEFCTEUQBhIYChRSRVFVRVNUX1NUQVRFX0ZBSUxFRBAHMvoFCg5SZXF1ZXN0U2VydmljZRJOCg1DcmVhdGVSZXF1ZXN0Eh0ubmFtYS52MS5DcmVhdGVSZXF1ZXN0UmVxdWVzdBoeLm5hbWEudjEuQ3JlYXRlUmVxdWVzdFJlc3BvbnNlEmMKFENyZWF0ZVNlYXNvblJlcXVlc3RzEiQubmFtYS52MS5DcmVhdGVTZWFzb25SZXF1ZXN0c1JlcXVlc3QaJS5uYW1hLnYxLkNyZWF0ZVNlYXNvblJlcXVlc3RzUmVzcG9uc2USUAoMTGlzdFJlcXVlc3RzEhwubmFtYS52MS5MaXN0UmVxdWVzdHNSZXF1ZXN0Gh0ubmFtYS52MS5MaXN0UmVxdWVzdHNSZXNwb25zZSIDkAIBEkoKCkdldFJlcXVlc3QSGi5uYW1hLnYxLkdldFJlcXVlc3RSZXF1ZXN0GhsubmFtYS52MS5HZXRSZXF1ZXN0UmVzcG9uc2UiA5ACARJQCgxTZWFyY2hNb3ZpZXMSHC5uYW1hLnYxLlNlYXJjaE1vdmllc1JlcXVlc3QaHS5uYW1hLnYxLlNlYXJjaE1vdmllc1Jlc3BvbnNlIgOQAgESTQoLTG9va1VwTW92aWUSGy5uYW1hLnYxLkxvb2tVcE1vdmllUmVxdWVzdBocLm5hbWEudjEuTG9va1VwTW92aWVSZXNwb25zZSIDkAIBElEKDkFwcHJvdmVSZXF1ZXN0Eh4ubmFtYS52MS5BcHByb3ZlUmVxdWVzdFJlcXVlc3QaHy5uYW1hLnYxLkFwcHJvdmVSZXF1ZXN0UmVzcG9uc2USUQoORGVjbGluZVJlcXVlc3QSHi5uYW1hLnYxLkRlY2xpbmVSZXF1ZXN0UmVxdWVzdBofLm5hbWEudjEuRGVjbGluZVJlcXVlc3RSZXNwb25zZRJOCg1DYW5jZWxSZXF1ZXN0Eh0ubmFtYS52MS5DYW5jZWxSZXF1ZXN0UmVxdWVzdBoeLm5hbWEudjEuQ2FuY2VsUmVxdWVzdFJlc3BvbnNlYgZwcm90bzM");
+  fileDesc("ChVuYW1hL3YxL3JlcXVlc3QucHJvdG8SB25hbWEudjEi+QEKB1JlcXVlc3QSCgoCaWQYASABKAMSJgoFbW92aWUYAiABKAsyFy5uYW1hLnYxLlJlcXVlc3RlZE1vdmllEiQKBXN0YXRlGAMgASgOMhUubmFtYS52MS5SZXF1ZXN0U3RhdGUSJgoKcmVxdWVzdGVycxgEIAMoCzISLm5hbWEudjEuUmVxdWVzdGVyEhIKCmNyZWF0ZWRfYXQYBSABKAMSGwoOZGVjbGluZV9yZWFzb24YBiABKAlIAIgBARIoCgZzZWFzb24YByABKAsyGC5uYW1hLnYxLlJlcXVlc3RlZFNlYXNvbkIRCg9fZGVjbGluZV9yZWFzb24iXAoOUmVxdWVzdGVkTW92aWUSDwoHdG1kYl9pZBgBIAEoAxINCgV0aXRsZRgCIAEoCRIZCgxyZWxlYXNlX2RhdGUYAyABKAlIAIgBAUIPCg1fcmVsZWFzZV9kYXRlInYKD1JlcXVlc3RlZFNlYXNvbhIUCgxzaG93X3RtZGJfaWQYASABKAMSFQoNc2Vhc29uX251bWJlchgCIAEoDRISCgpzaG93X3RpdGxlGAMgASgJEhUKCGFpcl9kYXRlGAQgASgJSACIAQFCCwoJX2Fpcl9kYXRlIkAKCVJlcXVlc3RlchIPCgd1c2VyX2lkGAEgASgDEgwKBG5hbWUYAiABKAkSFAoMcmVxdWVzdGVkX2F0GAMgASgDIi0KFENyZWF0ZVJlcXVlc3RSZXF1ZXN0EhUKDW1vdmllX3RtZGJfaWQYASABKAMiOgoVQ3JlYXRlUmVxdWVzdFJlc3BvbnNlEiEKB3JlcXVlc3QYASABKAsyEC5uYW1hLnYxLlJlcXVlc3QiSwobQ3JlYXRlU2Vhc29uUmVxdWVzdHNSZXF1ZXN0EhQKDHNob3dfdG1kYl9pZBgBIAEoAxIWCg5zZWFzb25fbnVtYmVycxgCIAMoDSJCChxDcmVhdGVTZWFzb25SZXF1ZXN0c1Jlc3BvbnNlEiIKCHJlcXVlc3RzGAEgAygLMhAubmFtYS52MS5SZXF1ZXN0IhUKE0xpc3RSZXF1ZXN0c1JlcXVlc3QiOgoUTGlzdFJlcXVlc3RzUmVzcG9uc2USIgoIcmVxdWVzdHMYASADKAsyEC5uYW1hLnYxLlJlcXVlc3QiHwoRR2V0UmVxdWVzdFJlcXVlc3QSCgoCaWQYASABKAMiNwoSR2V0UmVxdWVzdFJlc3BvbnNlEiEKB3JlcXVlc3QYASABKAsyEC5uYW1hLnYxLlJlcXVlc3QiIwoVQXBwcm92ZVJlcXVlc3RSZXF1ZXN0EgoKAmlkGAEgASgDIjsKFkFwcHJvdmVSZXF1ZXN0UmVzcG9uc2USIQoHcmVxdWVzdBgBIAEoCzIQLm5hbWEudjEuUmVxdWVzdCIzChVEZWNsaW5lUmVxdWVzdFJlcXVlc3QSCgoCaWQYASABKAMSDgoGcmVhc29uGAIgASgJIjsKFkRlY2xpbmVSZXF1ZXN0UmVzcG9uc2USIQoHcmVxdWVzdBgBIAEoCzIQLm5hbWEudjEuUmVxdWVzdCIiChRDYW5jZWxSZXF1ZXN0UmVxdWVzdBIKCgJpZBgBIAEoAyIXChVDYW5jZWxSZXF1ZXN0UmVzcG9uc2UiJAoWV2l0aGRyYXdSZXF1ZXN0UmVxdWVzdBIKCgJpZBgBIAEoAyIZChdXaXRoZHJhd1JlcXVlc3RSZXNwb25zZSK9AgoKRm91bmRNb3ZpZRIPCgd0bWRiX2lkGAEgASgDEg0KBXRpdGxlGAIgASgJEhEKBHllYXIYAyABKAVIAIgBARIVCghvdmVydmlldxgEIAEoCUgBiAEBEhwKD3J1bnRpbWVfbWludXRlcxgFIAEoDUgCiAEBEhcKCnBvc3Rlcl91cmwYBiABKAlIA4gBARIZCgxiYWNrZHJvcF91cmwYByABKAlIBIgBARIXCgpsaWJyYXJ5X2lkGAggASgDSAWIAQESIQoHcmVxdWVzdBgJIAEoCzIQLm5hbWEudjEuUmVxdWVzdEIHCgVfeWVhckILCglfb3ZlcnZpZXdCEgoQX3J1bnRpbWVfbWludXRlc0INCgtfcG9zdGVyX3VybEIPCg1fYmFja2Ryb3BfdXJsQg0KC19saWJyYXJ5X2lkIiQKE1NlYXJjaE1vdmllc1JlcXVlc3QSDQoFdGl0bGUYASABKAkiOwoUU2VhcmNoTW92aWVzUmVzcG9uc2USIwoGbW92aWVzGAEgAygLMhMubmFtYS52MS5Gb3VuZE1vdmllIisKEkxvb2tVcE1vdmllUmVxdWVzdBIVCg1tb3ZpZV90bWRiX2lkGAEgASgDIjkKE0xvb2tVcE1vdmllUmVzcG9uc2USIgoFbW92aWUYASABKAsyEy5uYW1hLnYxLkZvdW5kTW92aWUq/AEKDFJlcXVlc3RTdGF0ZRIdChlSRVFVRVNUX1NUQVRFX1VOU1BFQ0lGSUVEEAASGQoVUkVRVUVTVF9TVEFURV9QRU5ESU5HEAESGgoWUkVRVUVTVF9TVEFURV9BUFBST1ZFRBACEhoKFlJFUVVFU1RfU1RBVEVfREVDTElORUQQAxIcChhSRVFVRVNUX1NUQVRFX1BST0NFU1NJTkcQBBIlCiFSRVFVRVNUX1NUQVRFX1BBUlRJQUxMWV9BVkFJTEFCTEUQBRIbChdSRVFVRVNUX1NUQVRFX0FWQUlMQUJMRRAGEhgKFFJFUVVFU1RfU1RBVEVfRkFJTEVEEAcy0AYKDlJlcXVlc3RTZXJ2aWNlEk4KDUNyZWF0ZVJlcXVlc3QSHS5uYW1hLnYxLkNyZWF0ZVJlcXVlc3RSZXF1ZXN0Gh4ubmFtYS52MS5DcmVhdGVSZXF1ZXN0UmVzcG9uc2USYwoUQ3JlYXRlU2Vhc29uUmVxdWVzdHMSJC5uYW1hLnYxLkNyZWF0ZVNlYXNvblJlcXVlc3RzUmVxdWVzdBolLm5hbWEudjEuQ3JlYXRlU2Vhc29uUmVxdWVzdHNSZXNwb25zZRJQCgxMaXN0UmVxdWVzdHMSHC5uYW1hLnYxLkxpc3RSZXF1ZXN0c1JlcXVlc3QaHS5uYW1hLnYxLkxpc3RSZXF1ZXN0c1Jlc3BvbnNlIgOQAgESSgoKR2V0UmVxdWVzdBIaLm5hbWEudjEuR2V0UmVxdWVzdFJlcXVlc3QaGy5uYW1hLnYxLkdldFJlcXVlc3RSZXNwb25zZSIDkAIBElAKDFNlYXJjaE1vdmllcxIcLm5hbWEudjEuU2VhcmNoTW92aWVzUmVxdWVzdBodLm5hbWEudjEuU2VhcmNoTW92aWVzUmVzcG9uc2UiA5ACARJNCgtMb29rVXBNb3ZpZRIbLm5hbWEudjEuTG9va1VwTW92aWVSZXF1ZXN0GhwubmFtYS52MS5Mb29rVXBNb3ZpZVJlc3BvbnNlIgOQAgESUQoOQXBwcm92ZVJlcXVlc3QSHi5uYW1hLnYxLkFwcHJvdmVSZXF1ZXN0UmVxdWVzdBofLm5hbWEudjEuQXBwcm92ZVJlcXVlc3RSZXNwb25zZRJRCg5EZWNsaW5lUmVxdWVzdBIeLm5hbWEudjEuRGVjbGluZVJlcXVlc3RSZXF1ZXN0Gh8ubmFtYS52MS5EZWNsaW5lUmVxdWVzdFJlc3BvbnNlEk4KDUNhbmNlbFJlcXVlc3QSHS5uYW1hLnYxLkNhbmNlbFJlcXVlc3RSZXF1ZXN0Gh4ubmFtYS52MS5DYW5jZWxSZXF1ZXN0UmVzcG9uc2USVAoPV2l0aGRyYXdSZXF1ZXN0Eh8ubmFtYS52MS5XaXRoZHJhd1JlcXVlc3RSZXF1ZXN0GiAubmFtYS52MS5XaXRoZHJhd1JlcXVlc3RSZXNwb25zZWIGcHJvdG8z");
 
 /**
  * Users asking for one Movie, or one Season of a Show. Each has at most one open Request: one that
@@ -450,6 +450,38 @@ export const CancelRequestResponseSchema: GenMessage<CancelRequestResponse> = /*
   messageDesc(file_nama_v1_request, 17);
 
 /**
+ * @generated from message nama.v1.WithdrawRequestRequest
+ */
+export type WithdrawRequestRequest = Message<"nama.v1.WithdrawRequestRequest"> & {
+  /**
+   * The ID of the Request.
+   *
+   * @generated from field: int64 id = 1;
+   */
+  id: bigint;
+};
+
+/**
+ * Describes the message nama.v1.WithdrawRequestRequest.
+ * Use `create(WithdrawRequestRequestSchema)` to create a new message.
+ */
+export const WithdrawRequestRequestSchema: GenMessage<WithdrawRequestRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_request, 18);
+
+/**
+ * @generated from message nama.v1.WithdrawRequestResponse
+ */
+export type WithdrawRequestResponse = Message<"nama.v1.WithdrawRequestResponse"> & {
+};
+
+/**
+ * Describes the message nama.v1.WithdrawRequestResponse.
+ * Use `create(WithdrawRequestResponseSchema)` to create a new message.
+ */
+export const WithdrawRequestResponseSchema: GenMessage<WithdrawRequestResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_request, 19);
+
+/**
  * A Movie in the metadata source, and how close it is to being on the Server: in a Library, asked
  * for in a Request, or neither, in which case `CreateRequest` asks for it.
  *
@@ -526,7 +558,7 @@ export type FoundMovie = Message<"nama.v1.FoundMovie"> & {
  * Use `create(FoundMovieSchema)` to create a new message.
  */
 export const FoundMovieSchema: GenMessage<FoundMovie> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 18);
+  messageDesc(file_nama_v1_request, 20);
 
 /**
  * @generated from message nama.v1.SearchMoviesRequest
@@ -545,7 +577,7 @@ export type SearchMoviesRequest = Message<"nama.v1.SearchMoviesRequest"> & {
  * Use `create(SearchMoviesRequestSchema)` to create a new message.
  */
 export const SearchMoviesRequestSchema: GenMessage<SearchMoviesRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 19);
+  messageDesc(file_nama_v1_request, 21);
 
 /**
  * @generated from message nama.v1.SearchMoviesResponse
@@ -562,7 +594,7 @@ export type SearchMoviesResponse = Message<"nama.v1.SearchMoviesResponse"> & {
  * Use `create(SearchMoviesResponseSchema)` to create a new message.
  */
 export const SearchMoviesResponseSchema: GenMessage<SearchMoviesResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 20);
+  messageDesc(file_nama_v1_request, 22);
 
 /**
  * @generated from message nama.v1.LookUpMovieRequest
@@ -581,7 +613,7 @@ export type LookUpMovieRequest = Message<"nama.v1.LookUpMovieRequest"> & {
  * Use `create(LookUpMovieRequestSchema)` to create a new message.
  */
 export const LookUpMovieRequestSchema: GenMessage<LookUpMovieRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 21);
+  messageDesc(file_nama_v1_request, 23);
 
 /**
  * @generated from message nama.v1.LookUpMovieResponse
@@ -598,7 +630,7 @@ export type LookUpMovieResponse = Message<"nama.v1.LookUpMovieResponse"> & {
  * Use `create(LookUpMovieResponseSchema)` to create a new message.
  */
 export const LookUpMovieResponseSchema: GenMessage<LookUpMovieResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 22);
+  messageDesc(file_nama_v1_request, 24);
 
 /**
  * Where a Request is on its way to the Library (ADR 0012).
@@ -792,6 +824,18 @@ export const RequestService: GenService<{
     methodKind: "unary";
     input: typeof CancelRequestRequestSchema;
     output: typeof CancelRequestResponseSchema;
+  },
+  /**
+   * Takes the caller off a Pending Request's Requesters, which removes the Request once nobody is
+   * left on it. Fails with `not_found` if there is no Request with the ID, or none the caller may
+   * see, and `failed_precondition` if the caller isn't one of its Requesters or it isn't Pending.
+   *
+   * @generated from rpc nama.v1.RequestService.WithdrawRequest
+   */
+  withdrawRequest: {
+    methodKind: "unary";
+    input: typeof WithdrawRequestRequestSchema;
+    output: typeof WithdrawRequestResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_nama_v1_request, 0);

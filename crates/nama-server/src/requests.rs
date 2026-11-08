@@ -1,7 +1,7 @@
 //! Requests: Users asking for a Movie, or a Season of a Show, that isn't on the Server to be added
 //! to it (ADR 0012).
 //!
-//! [`Requests`] is the only code that reads or writes `requests` and `requesters`. It hands
+//! This module is the only code that reads or writes `requests` and `requesters`. It hands
 //! Requests out as their proto messages, since those are also what its events carry.
 
 use std::{
@@ -15,7 +15,8 @@ use nama_plugin_api::{
 };
 use nama_proto::nama::v1::{
     Event, Permission, Request, RequestCancelled, RequestCreated, RequestState,
-    RequestStateChanged, RequestedMovie, RequestedSeason, Requester, RequesterAdded,
+    RequestStateChanged, RequestWithdrawn, RequestedMovie, RequestedSeason, Requester,
+    RequesterAdded, RequesterRemoved,
 };
 use sqlx::SqliteConnection;
 
@@ -46,6 +47,8 @@ pub(crate) enum Error {
     NoSuchRequest(i64),
     #[error("the Request {0} isn't Pending")]
     NotPending(i64),
+    #[error("you aren't a Requester of the Request {0}")]
+    NotARequester(i64),
     #[error("a Library already has the Movie tmdb-{0}")]
     InLibrary(i64),
     #[error("every aired Episode of Season {season} of the Show tmdb-{show} is in a Library")]
@@ -235,6 +238,19 @@ impl Requests {
             request: request.into(),
             ..Default::default()
         })]);
+        Ok(())
+    }
+
+    /// Takes `requester` off the Pending Request `id`, removing it once nobody is left on it, and
+    /// publishes which of the two happened.
+    pub(crate) async fn withdraw(&self, requester: &User, id: i64) -> Result<(), Error> {
+        let user = requester.id;
+        let visible = visible_to(requester);
+        let happened = self
+            .db
+            .write(move |tx| Box::pin(withdraw(tx, user, visible, id)))
+            .await?;
+        self.events.publish(vec![happened]);
         Ok(())
     }
 
@@ -444,15 +460,7 @@ async fn ask(
 ) -> Result<(Request, Option<Event>), sqlx::Error> {
     let now = now();
     let state = stored(state);
-    // Open as `one_open_request_per_movie_or_season` has it.
-    let open = sqlx::query_scalar!(
-        "SELECT id FROM requests
-         WHERE tmdb_id = ? AND season IS ? AND state NOT IN ('declined', 'available')",
-        wanted.tmdb_id,
-        wanted.season
-    )
-    .fetch_optional(&mut *conn)
-    .await?;
+    let open = open_request(conn, wanted.tmdb_id, wanted.season).await?;
     let opened = open.is_none();
     let id = match open {
         Some(id) => id,
@@ -501,6 +509,52 @@ async fn ask(
     Ok((request, happened))
 }
 
+/// Makes Available the open Request for each of the Movies `tmdb_ids` that a Library now has,
+/// and returns an event for each (ADR 0012). Declined Requests are closed, so they stay as they
+/// are.
+pub(crate) async fn make_available(
+    conn: &mut SqliteConnection,
+    tmdb_ids: Vec<i64>,
+) -> Result<Vec<Event>, sqlx::Error> {
+    let mut happened = Vec::new();
+    for tmdb_id in tmdb_ids {
+        let Some(id) = open_request(conn, tmdb_id, None).await? else {
+            continue;
+        };
+        // Not every Matched id is a Movie in a Library: the Match isn't stored if its Item went
+        // since it was decided about, and an Episode's TMDB id can equal an unrelated Movie's.
+        if contents::library_with_movie(conn, tmdb_id).await?.is_none() {
+            continue;
+        }
+        sqlx::query!("UPDATE requests SET state = 'available' WHERE id = ?", id)
+            .execute(&mut *conn)
+            .await?;
+        let request = load_one(conn, id).await?.ok_or(sqlx::Error::RowNotFound)?;
+        happened.push(event(RequestStateChanged {
+            request: request.into(),
+            ..Default::default()
+        }));
+    }
+    Ok(happened)
+}
+
+/// The open Request for the Movie `tmdb_id`, or for its Season `season` if `tmdb_id` is a Show's.
+async fn open_request(
+    conn: &mut SqliteConnection,
+    tmdb_id: i64,
+    season: Option<u32>,
+) -> Result<Option<i64>, sqlx::Error> {
+    // Open as `one_open_request_per_movie_or_season` has it.
+    sqlx::query_scalar!(
+        "SELECT id FROM requests
+         WHERE tmdb_id = ? AND season IS ? AND state NOT IN ('declined', 'available')",
+        tmdb_id,
+        season
+    )
+    .fetch_optional(&mut *conn)
+    .await
+}
+
 /// Moves the Pending Request `id` to `state` with `reason`, and returns it as it is now.
 async fn decide(
     conn: &mut SqliteConnection,
@@ -533,6 +587,48 @@ async fn cancel(conn: &mut SqliteConnection, id: i64) -> Result<Request, Error> 
         .execute(&mut *conn)
         .await?;
     Ok(request)
+}
+
+/// Takes `user` off the Pending Request `id`, among those `visible` lets them see, removing the
+/// Request if they were its last Requester. Returns the event for what changed.
+async fn withdraw(
+    conn: &mut SqliteConnection,
+    user: i64,
+    visible: Option<i64>,
+    id: i64,
+) -> Result<Event, Error> {
+    let request = load(conn, Some(id), visible)
+        .await?
+        .into_iter()
+        .next()
+        .ok_or(Error::NoSuchRequest(id))?;
+    if !request.requesters.iter().any(|r| r.user_id == user) {
+        return Err(Error::NotARequester(id));
+    }
+    if request.state != RequestState::Pending {
+        return Err(Error::NotPending(id));
+    }
+    if request.requesters.len() == 1 {
+        sqlx::query!("DELETE FROM requests WHERE id = ?", id)
+            .execute(&mut *conn)
+            .await?;
+        return Ok(event(RequestWithdrawn {
+            request: request.into(),
+            ..Default::default()
+        }));
+    }
+    sqlx::query!(
+        "DELETE FROM requesters WHERE request_id = ? AND user_id = ?",
+        id,
+        user
+    )
+    .execute(&mut *conn)
+    .await?;
+    Ok(event(RequesterRemoved {
+        request: request.into(),
+        user_id: user,
+        ..Default::default()
+    }))
 }
 
 async fn load_one(conn: &mut SqliteConnection, id: i64) -> Result<Option<Request>, sqlx::Error> {

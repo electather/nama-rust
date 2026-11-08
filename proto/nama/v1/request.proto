@@ -53,6 +53,10 @@ service RequestService {
   // Removes a Request, whatever its state. Needs `PERMISSION_MANAGE_REQUESTS`. Fails with
   // `not_found` if there is no Request with the ID.
   rpc CancelRequest(CancelRequestRequest) returns (CancelRequestResponse);
+  // Takes the caller off a Pending Request's Requesters, which removes the Request once nobody is
+  // left on it. Fails with `not_found` if there is no Request with the ID, or none the caller may
+  // see, and `failed_precondition` if the caller isn't one of its Requesters or it isn't Pending.
+  rpc WithdrawRequest(WithdrawRequestRequest) returns (WithdrawRequestResponse);
 }
 
 // Where a Request is on its way to the Library (ADR 0012).
@@ -190,6 +194,13 @@ message CancelRequestRequest {
 }
 
 message CancelRequestResponse {}
+
+message WithdrawRequestRequest {
+  // The ID of the Request.
+  int64 id = 1;
+}
+
+message WithdrawRequestResponse {}
 
 // A Movie in the metadata source, and how close it is to being on the Server: in a Library, asked
 // for in a Request, or neither, in which case `CreateRequest` asks for it.

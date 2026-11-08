@@ -2,6 +2,7 @@
 //! Matching decided about each Item, and the Matches an admin pinned.
 //!
 //! [`Contents`] owns the tables (see the crate's `AGENTS.md`); each method is one read or one write.
+//! A write that stores Matches also makes the Matched Movies' Requests Available (ADR 0012).
 
 use std::{
     borrow::Cow,
@@ -19,6 +20,7 @@ use sqlx::SqliteConnection;
 use crate::{
     db::{Database, now},
     events::event,
+    requests,
 };
 
 /// Reads and writes the contents of Libraries.
@@ -319,7 +321,11 @@ impl Contents {
     }
 
     /// Stores what was `decided` about each Item, as of now, skipping Items that no longer exist.
-    pub(crate) async fn record(&self, decided: Vec<(i64, Decided)>) -> Result<(), sqlx::Error> {
+    /// Returns the events for the Requests the Matches make Available.
+    pub(crate) async fn record(
+        &self,
+        decided: Vec<(i64, Decided)>,
+    ) -> Result<Vec<Event>, sqlx::Error> {
         let now = now();
         self.db
             .write(move |tx| Box::pin(insert_decisions(tx, decided, now)))
@@ -656,15 +662,16 @@ impl Contents {
         Ok(shows)
     }
 
-    /// Replaces any pin the Items called `name` had, in one write with `decided`. Returns `false`,
-    /// having stored nothing, if the Library is gone.
+    /// Replaces any pin the Items called `name` had, in one write with `decided`. Returns the
+    /// events for the Requests the Matches make Available, or `None`, having stored nothing, if
+    /// the Library is gone.
     pub(crate) async fn pin(
         &self,
         library: i64,
         name: Name,
         pin: Pin,
         decided: Vec<(i64, Decided)>,
-    ) -> Result<bool, sqlx::Error> {
+    ) -> Result<Option<Vec<Event>>, sqlx::Error> {
         self.db
             .write(move |tx| Box::pin(store_pin(tx, library, name, pin, decided)))
             .await
@@ -873,13 +880,12 @@ async fn store_pin(
     name: Name,
     pin: Pin,
     decided: Vec<(i64, Decided)>,
-) -> Result<bool, sqlx::Error> {
+) -> Result<Option<Vec<Event>>, sqlx::Error> {
     let now = now();
     if !insert_pin(conn, library, &name, &pin, now).await? {
-        return Ok(false);
+        return Ok(None);
     }
-    insert_decisions(conn, decided, now).await?;
-    Ok(true)
+    insert_decisions(conn, decided, now).await.map(Some)
 }
 
 /// Returns whether it was stored: it isn't if the Library is gone.
@@ -913,12 +919,18 @@ async fn insert_pin(
     Ok(inserted.rows_affected() > 0)
 }
 
+/// Returns the events for the Requests the Matches make Available, made in the same write so no
+/// Request stays open for a Movie a Library has.
 async fn insert_decisions(
     conn: &mut SqliteConnection,
     decided: Vec<(i64, Decided)>,
     now: i64,
-) -> Result<(), sqlx::Error> {
+) -> Result<Vec<Event>, sqlx::Error> {
+    let mut tmdb_ids = Vec::new();
     for (item, decision) in decided {
+        if let Decided::Matched(metadata) = &decision {
+            tmdb_ids.extend(metadata.ids.tmdb);
+        }
         let row = MatchRow::from(&decision);
         sqlx::query!(
             "INSERT OR REPLACE INTO item_matches (
@@ -950,7 +962,7 @@ async fn insert_decisions(
         .execute(&mut *conn)
         .await?;
     }
-    Ok(())
+    requests::make_available(conn, tmdb_ids).await
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, sqlx::Type)]
@@ -1378,7 +1390,7 @@ mod tests {
             .record(read.iter().map(|&id| (id, Decided::Unmatched)).collect())
             .await;
 
-        assert!(matches!(recorded, Ok(())), "{recorded:?}");
+        assert!(recorded.is_ok(), "{recorded:?}");
         assert_ne!(read, [replacement]);
         // The decision about the deleted Item didn't land on its replacement.
         assert_eq!(fx.undecided().await, [replacement]);
@@ -1452,7 +1464,7 @@ mod tests {
             )
             .await;
 
-        assert!(matches!(pinned, Ok(false)), "{pinned:?}");
+        assert!(matches!(pinned, Ok(None)), "{pinned:?}");
         let undecided: Vec<i64> = fx
             .contents
             .undecided(other)

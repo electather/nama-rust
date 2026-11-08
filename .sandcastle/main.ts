@@ -36,7 +36,8 @@ const ok = (cmd: string, ...args: string[]) =>
 const cacheRoot = `${homedir()}/.cache/nama-sandcastle`;
 const cargoCache = `${cacheRoot}/cargo-registry`;
 const pnpmStore = `${cacheRoot}/pnpm-store`;
-for (const dir of [cargoCache, pnpmStore]) mkdirSync(dir, { recursive: true });
+const sccacheDir = `${cacheRoot}/sccache`;
+for (const dir of [cargoCache, pnpmStore, sccacheDir]) mkdirSync(dir, { recursive: true });
 
 // One factory per machine: they'd share the caches above and race on the same local branches.
 const PID_FILE = `${cacheRoot}/factory.pid`;
@@ -130,8 +131,9 @@ const onPodman = /podman/i.test(spawnSync("docker", ["--version"], { encoding: "
 const sandbox = () =>
   (onPodman ? podman : docker)({
     mounts: [
-      // ponytail: shared registry only; per-worktree target/ rebuilds from scratch. Add sccache if builds drag.
+      // Each worktree's target/ starts empty; sccache (see Dockerfile) reuses dependency builds across sandboxes.
       { hostPath: cargoCache, sandboxPath: "~/.cargo/registry" },
+      { hostPath: sccacheDir, sandboxPath: "~/.cache/sccache" },
       { hostPath: pnpmStore, sandboxPath: "~/.local/share/pnpm/store" },
       // The other skills are committed under .claude/skills, so the worktree (cut from origin/main) brings them.
       // ponytail is still a host skill; drop this mount once it's installed at project level.

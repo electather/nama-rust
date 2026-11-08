@@ -36,6 +36,13 @@ Run from the repo root:
     npm --prefix .sandcastle run factory                  # drain the queue (at most 60 issues), then exit
     MAX_ISSUES=1 npm --prefix .sandcastle run factory     # one issue, then stop
 
+Unattended, retrying hourly after an infra failure such as the Claude usage limit (one supervisor per machine, `flock`):
+
+    systemd-run --user --unit nama-factory --setenv=MAX_PARALLEL=3 -p WorkingDirectory=$PWD \
+      -p StandardOutput=append:$PWD/.sandcastle/logs/supervisor.log -p StandardError=inherit .sandcastle/supervise.sh
+
+`systemctl --user status nama-factory` shows it; `touch .sandcastle/STOP` ends it after the running issues finish.
+
 Logs, all in `.sandcastle/logs/`:
 
 - `status.md`: what is in flight (stage, PR, CI run), what is waiting and why (blocked, a parent, claimed by another factory), and the last 20 finished issues. It's rewritten on every change and covers this machine's factory only.

@@ -37,8 +37,16 @@ ENV CARGO_BUILD_JOBS=4 \
   CARGO_PROFILE_DEV_DEBUG=line-tables-only \
   CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUSTFLAGS="-C link-arg=-fuse-ld=mold" \
   CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS="-C link-arg=-fuse-ld=mold"
+# sccache shares compiled crates across sandboxes through a host-mounted dir; each worktree's target/ starts
+# empty. It skips incremental (workspace) crates, so the win is dependencies. Keep the version in step by hand.
+ARG SCCACHE_VERSION=v0.19.0
+RUN curl -fsSL "https://github.com/mozilla/sccache/releases/download/${SCCACHE_VERSION}/sccache-${SCCACHE_VERSION}-$(uname -m)-unknown-linux-musl.tar.gz" \
+  | tar -xz --strip-components=1 -C /home/agent/.cargo/bin "sccache-${SCCACHE_VERSION}-$(uname -m)-unknown-linux-musl/sccache"
+ENV RUSTC_WRAPPER=sccache \
+  SCCACHE_DIR=/home/agent/.cache/sccache \
+  SCCACHE_CACHE_SIZE=20G
 # Cache dirs exist up front so the host cache mounts land on agent-owned dirs
-RUN mkdir -p /home/agent/.cargo/registry /home/agent/.local/share/pnpm/store /home/agent/.claude
+RUN mkdir -p /home/agent/.cargo/registry /home/agent/.local/share/pnpm/store /home/agent/.claude /home/agent/.cache/sccache
 
 RUN curl -fsSL https://claude.ai/install.sh | bash
 

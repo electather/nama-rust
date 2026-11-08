@@ -50,6 +50,8 @@ const types = [
   EventType.REQUESTER_ADDED,
   EventType.REQUEST_STATE_CHANGED,
   EventType.REQUEST_CANCELLED,
+  EventType.REQUESTER_REMOVED,
+  EventType.REQUEST_WITHDRAWN,
 ];
 
 // How long to wait before subscribing again after the stream ends or fails.
@@ -168,9 +170,11 @@ const requestEvents = new Set<Event["event"]["case"]>([
   "requesterAdded",
   "requestStateChanged",
   "requestCancelled",
+  "requesterRemoved",
+  "requestWithdrawn",
 ]);
 
-/** Refetches the Requests when one opens, gains a Requester, changes state or is cancelled. */
+/** Refetches the Requests when one opens, gains or loses a Requester, changes state or goes. */
 function refreshRequests({ event }: Event, queryClient: QueryClient) {
   if (requestEvents.has(event.case)) {
     void queryClient.invalidateQueries({ queryKey: requestsKey });

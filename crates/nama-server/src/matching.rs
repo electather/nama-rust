@@ -563,9 +563,9 @@ impl Matcher {
         if decided.is_empty() {
             return Ok(());
         }
-        let matched = matched_events(library, &decided);
-        self.contents.record(decided).await?;
-        self.events.publish(matched);
+        let mut happened = matched_events(library, &decided);
+        happened.extend(self.contents.record(decided).await?);
+        self.events.publish(happened);
         Ok(())
     }
 
@@ -586,16 +586,15 @@ impl Matcher {
             ?summary,
             "fixing a Match by hand"
         );
-        let matched = matched_events(named.library, &decided);
+        let mut happened = matched_events(named.library, &decided);
         // The Library may have been deleted since its items were read.
-        if !self
+        let made_available = self
             .contents
             .pin(named.library, named.name, pin, decided)
             .await?
-        {
-            return Err(ManualError::NoSuchItem(item));
-        }
-        self.events.publish(matched);
+            .ok_or(ManualError::NoSuchItem(item))?;
+        happened.extend(made_available);
+        self.events.publish(happened);
         Ok(summary)
     }
 }
