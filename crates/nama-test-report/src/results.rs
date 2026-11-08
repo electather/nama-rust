@@ -89,14 +89,16 @@ pub(crate) fn parse_nextest_junit(xml: &str) -> anyhow::Result<Vec<TestResult>> 
 }
 
 fn nextest_outcome(case: roxmltree::Node<'_, '_>) -> Outcome {
-    let last_failure = case
+    // nextest writes the last attempt as `failure` or `error`, and the attempts before it as
+    // `rerunFailure`/`rerunError` (it failed in the end) or `flakyFailure`/`flakyError` (it passed).
+    let final_failure = case
         .children()
         .find(|node| node.has_tag_name("failure") || node.has_tag_name("error"));
-    match last_failure {
+    match final_failure {
         // nextest's type for a test killed by `slow-timeout`'s `terminate-after`.
         Some(failure) if failure.attribute("type") == Some("test timeout") => Outcome::Hung,
         Some(_) => Outcome::Fail,
-        None if has_child(case, "flakyFailure") => Outcome::Flaky,
+        None if has_child(case, "flakyFailure") || has_child(case, "flakyError") => Outcome::Flaky,
         None => Outcome::Pass,
     }
 }

@@ -70,10 +70,10 @@ jobs:
             git -C history checkout -q --orphan test-history
             git -C history rm -rfq --ignore-unmatch .
           fi
-          # The tool needs the last 30 days: this month's file and, unless it's the same, the one
-          # 30 days back.
-          for month in $(printf '%s\n' "$(date -u -d "${RUN_STARTED_AT:0:10} -30 days" +%Y-%m)" \
-              "${RUN_STARTED_AT:0:7}" | sort -u); do
+          # The tool needs the last 30 days: every month they touch, three when they span February.
+          for month in $(for days in $(seq 30 -1 0); do
+              date -u -d "${RUN_STARTED_AT:0:10} -$days days" +%Y-%m
+            done | uniq); do
             cat "history/$month.jsonl" 2> /dev/null || true
           done > "$RUNNER_TEMP/recent.jsonl"
           gh issue list --app github-actions --state all --limit 1000 \
@@ -87,8 +87,10 @@ jobs:
           printf '%s' "$RUN" > "$RUNNER_TEMP/run.json"
           mkdir "$RUNNER_TEMP/out"
           mapfile -d '' reports < <(find "$RUNNER_TEMP/reports" -type f \( -name '*.xml' -o -name '*.json' \) -print0)
+          # Every job tested the same tree; the tool refuses anything but one object name.
+          tree=$(find "$RUNNER_TEMP/reports" -type f -name tree -exec cat {} + | sort -u)
           cargo run --release --locked -p nama-test-report -- \
-            --run "$RUNNER_TEMP/run.json" --history "$RUNNER_TEMP/recent.jsonl" \
+            --run "$RUNNER_TEMP/run.json" --history "$RUNNER_TEMP/recent.jsonl" --tree "$tree" \
             --issues "$RUNNER_TEMP/issues.json" --out "$RUNNER_TEMP/out" "${reports[@]}"
           cat "$RUNNER_TEMP/out/summary.md" >> "$GITHUB_STEP_SUMMARY"
       - name: Append to the history
@@ -98,9 +100,8 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           month="${RUN_STARTED_AT:0:7}.jsonl"
-          # A re-run of this workflow mustn't record the same CI run twice.
-          if grep -qF "\"run_id\":$RUN_ID,\"run_attempt\":$RUN_ATTEMPT," "$RUNNER_TEMP/recent.jsonl" \
-              || [ ! -s "$RUNNER_TEMP/out/history.jsonl" ]; then
+          # Empty when this CI run is already recorded (a re-run of this workflow) or ran no tests.
+          if [ ! -s "$RUNNER_TEMP/out/history.jsonl" ]; then
             exit 0
           fi
           for attempt in 1 2 3 4 5; do

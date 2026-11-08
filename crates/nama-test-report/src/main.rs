@@ -13,7 +13,7 @@ use anyhow::Context as _;
 use clap::Parser;
 use serde::Serialize;
 
-use crate::report::{HistoryLine, Issue};
+use crate::report::{HistoryLine, Issue, Run};
 
 /// Reads the inputs, writes `history.jsonl`, `summary.md` and `issue-actions.jsonl` to `--out`.
 #[derive(Debug, Parser)]
@@ -24,6 +24,9 @@ struct Args {
     /// History lines from the 30 days before the run, as JSON Lines.
     #[arg(long)]
     history: PathBuf,
+    /// The tree of the commit CI tested, as its jobs wrote it next to their reports.
+    #[arg(long, value_parser = object_name)]
+    tree: String,
     /// The flaky-test issues: `gh issue list --json number,state,title,body` output.
     #[arg(long)]
     issues: PathBuf,
@@ -52,7 +55,10 @@ fn main() -> anyhow::Result<()> {
         .map(serde_json::from_str)
         .collect::<Result<_, _>>()
         .context("reading the history")?;
-    let run = serde_json::from_str(&read(&args.run)?).context("reading the run")?;
+    let run = Run {
+        tree: args.tree,
+        ..serde_json::from_str(&read(&args.run)?).context("reading the run")?
+    };
     let issues: Vec<Issue> =
         serde_json::from_str(&read(&args.issues)?).context("reading the issues")?;
 
@@ -65,6 +71,19 @@ fn main() -> anyhow::Result<()> {
         json_lines(&report.actions)?,
     )?;
     Ok(())
+}
+
+/// A Git object name: 40 (SHA-1) or 64 (SHA-256) lowercase hex digits. It's read from a PR's
+/// reports, so nothing else gets into the history.
+fn object_name(text: &str) -> Result<String, String> {
+    let hex = text
+        .bytes()
+        .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte));
+    if hex && matches!(text.len(), 40 | 64) {
+        Ok(text.to_owned())
+    } else {
+        Err(format!("{text:?} isn't one Git object name"))
+    }
 }
 
 fn read(path: &Path) -> anyhow::Result<String> {

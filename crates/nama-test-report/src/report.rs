@@ -1,7 +1,10 @@
 //! The tool's pure core: one CI run's results plus the recent history in; history lines, a
 //! summary and flaky-test issue actions out.
 
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::{
+    collections::{HashMap, HashSet},
+    fmt::Display,
+};
 
 use anyhow::Context as _;
 use serde::{Deserialize, Serialize};
@@ -20,6 +23,10 @@ pub(crate) struct Run {
     #[serde(rename = "run_started_at")]
     pub(crate) started_at: String,
     pub(crate) html_url: String,
+    /// The tree of the commit CI tested, which the webhook doesn't carry. It's the code that
+    /// flakes are told apart by (ADR 0022).
+    #[serde(skip)]
+    pub(crate) tree: String,
 }
 
 /// One test's result in one run, as kept in the history.
@@ -30,6 +37,8 @@ pub(crate) struct HistoryLine {
     pub(crate) outcome: Outcome,
     pub(crate) seconds: f64,
     pub(crate) commit: String,
+    /// As [`Run::tree`].
+    pub(crate) tree: String,
     pub(crate) branch: String,
     pub(crate) run_id: u64,
     pub(crate) run_attempt: u32,
@@ -86,8 +95,9 @@ pub(crate) struct Report {
     pub(crate) actions: Vec<IssueAction>,
 }
 
-/// Reports one run's results against the history. `history` needs the 30 days before the run;
-/// older lines are ignored.
+/// Reports one run's results against the history. `history` needs the 30 days before the run,
+/// in the order it was recorded; older lines are ignored. If `history` already holds this run,
+/// as when `test-report` is re-run, the summary is the same and nothing is recorded or acted on.
 ///
 /// # Errors
 ///
@@ -100,6 +110,9 @@ pub(crate) fn report(
 ) -> anyhow::Result<Report> {
     let now = unix_seconds(&run.started_at)
         .with_context(|| format!("run_started_at {:?}", run.started_at))?;
+    let (recorded, history): (Vec<&HistoryLine>, Vec<&HistoryLine>) = history
+        .iter()
+        .partition(|line| line.run_id == run.id && line.run_attempt == run.attempt);
     let lines: Vec<HistoryLine> = results
         .into_iter()
         .map(|result| HistoryLine {
@@ -107,6 +120,7 @@ pub(crate) fn report(
             outcome: result.outcome,
             seconds: result.seconds,
             commit: run.head_sha.clone(),
+            tree: run.tree.clone(),
             branch: run.head_branch.clone(),
             run_id: run.id,
             run_attempt: run.attempt,
@@ -115,12 +129,19 @@ pub(crate) fn report(
         .collect();
     let earlier = by_test(
         history
-            .iter()
+            .into_iter()
             .filter(|line| unix_seconds(&line.time).is_some_and(|time| now - time <= LOOKBACK)),
     );
     let flakes = flakes(&lines, &earlier);
     let slowdowns = slowdowns(&lines, &earlier, now);
     let summary = summary(&lines, &flakes, &slowdowns);
+    if !recorded.is_empty() {
+        return Ok(Report {
+            lines: Vec::new(),
+            summary,
+            actions: Vec::new(),
+        });
+    }
     let actions = issue_actions(&flakes, run, issues)?;
     Ok(Report {
         lines,
@@ -136,8 +157,8 @@ const LOOKBACK: i64 = 30 * DAY;
 /// A test that flaked in this run.
 struct Flake<'a> {
     line: &'a HistoryLine,
-    /// How many commits it flaked on in the last 30 days, this run's included.
-    commit_count: usize,
+    /// How many times it flaked in the last 30 days, this run included.
+    count: usize,
 }
 
 fn by_test<'a>(
@@ -157,42 +178,47 @@ fn history_of<'a, 'b>(
     earlier.get(test).map(Vec::as_slice).unwrap_or_default()
 }
 
-/// This run's results that make a flake: a pass on retry, or the first time a commit's results
-/// hold both a pass and a failure. Later runs on that commit don't flake it again (ADR 0022).
+/// The tests that flaked in this run, each once: a report can name a test twice, and each test
+/// has one issue.
 fn flakes<'a>(
     lines: &'a [HistoryLine],
-    earlier: &HashMap<&TestId, Vec<&HistoryLine>>,
+    earlier: &HashMap<&TestId, Vec<&'a HistoryLine>>,
 ) -> Vec<Flake<'a>> {
+    let this_run = by_test(lines.iter());
+    let mut seen = HashSet::new();
     lines
         .iter()
+        .filter(|line| seen.insert(&line.test))
         .filter_map(|line| {
             let before = history_of(earlier, &line.test);
-            let flaky_before = flaky_commits(before.iter().copied());
-            let flaky_now = flaky_commits(before.iter().copied().chain([line]));
-            let commit = line.commit.as_str();
-            let new = line.outcome == Outcome::Flaky
-                || (flaky_now.contains(commit) && !flaky_before.contains(commit));
-            new.then_some(Flake {
-                line,
-                commit_count: flaky_now.len(),
+            let now = history_of(&this_run, &line.test);
+            let flaked = flake_results(before.iter().chain(now).copied());
+            // Results are judged in order, so the history's flakes come first.
+            let first_new = flaked.get(flake_results(before.iter().copied()).len())?;
+            Some(Flake {
+                line: first_new,
+                count: flaked.len(),
             })
         })
         .collect()
 }
 
-/// The commits on which one test's `lines` both passed and failed.
-fn flaky_commits<'a>(lines: impl Iterator<Item = &'a HistoryLine>) -> BTreeSet<&'a str> {
-    let mut by_commit: BTreeMap<&str, (bool, bool)> = BTreeMap::new();
+/// The results among one test's `lines`, in order, that were a flake: a pass on retry, or the
+/// first result that gave a tree both a pass and a failure. Later results on that tree don't flake
+/// it again (ADR 0022).
+fn flake_results<'a>(lines: impl Iterator<Item = &'a HistoryLine>) -> Vec<&'a HistoryLine> {
+    let mut by_tree: HashMap<&str, (bool, bool)> = HashMap::new();
+    let mut flaked = Vec::new();
     for line in lines {
-        let (passed, failed) = by_commit.entry(&line.commit).or_default();
+        let (passed, failed) = by_tree.entry(&line.tree).or_default();
+        let was_flaky = *passed && *failed;
         *passed |= line.outcome.passed();
         *failed |= line.outcome.failed();
+        if line.outcome == Outcome::Flaky || (!was_flaky && *passed && *failed) {
+            flaked.push(line);
+        }
     }
-    by_commit
-        .into_iter()
-        .filter(|(_, (passed, failed))| *passed && *failed)
-        .map(|(commit, _)| commit)
-        .collect()
+    flaked
 }
 
 /// A week of timings to compare against the rest of the 30 days: long enough to take a median
@@ -256,20 +282,20 @@ fn issue_actions(
     let mut actions = Vec::new();
     for flake in flakes {
         let test = &flake.line.test;
-        // Found by this line, not by title, which the count changes and a person may edit.
-        let marker = format!("<!-- flaky-test {} -->", serde_json::to_string(test)?);
-        let title = format!(
-            "Flaky: {test} ({}× / {}d)",
-            flake.commit_count,
-            LOOKBACK / DAY
+        // Found by this line, not by title, which the count changes and a person may edit. `>`
+        // is escaped so a test name holding `-->` can't end the comment and render the rest.
+        let marker = format!(
+            "<!-- flaky-test {} -->",
+            serde_json::to_string(test)?.replace('>', "\\u003e")
         );
+        let title = format!("Flaky: {test} ({}× / {}d)", flake.count, LOOKBACK / DAY);
         let note = format!(
-            "Flaked in [run {id}, attempt {attempt}]({url}/attempts/{attempt}) on `{commit}` (`{branch}`).",
+            "Flaked in [run {id}, attempt {attempt}]({url}/attempts/{attempt}) on `{commit}` ({branch}).",
             id = run.id,
             attempt = run.attempt,
             url = run.html_url,
             commit = run.head_sha,
-            branch = run.head_branch,
+            branch = code(&run.head_branch),
         );
         let Some(issue) = issues
             .iter()
@@ -305,6 +331,8 @@ fn issue_actions(
 
 /// A test slower than this is slow (nextest's `slow-timeout` in `.config/nextest.toml`).
 const SLOW_SECONDS: f64 = 10.0;
+/// nextest kills a test as hung after this long (`terminate-after` in `.config/nextest.toml`).
+const HUNG_SECONDS: f64 = 60.0;
 /// How many tests a summary lists as the run's slowest.
 const SLOWEST_SHOWN: usize = 10;
 
@@ -366,7 +394,7 @@ fn summary(lines: &[HistoryLine], flakes: &[Flake<'_>], slowdowns: &[Slowdown<'_
     [
         Some(headline),
         section("Flaky", &flaky),
-        section("Hung, killed at 60 s", &hung),
+        section(&format!("Hung, killed at {HUNG_SECONDS} s"), &hung),
         section(&format!("Slow, over {SLOW_SECONDS} s"), &slow),
         section("Slowing down", &slowing),
         section(&format!("{SLOWEST_SHOWN} slowest"), &slowest),
@@ -386,10 +414,10 @@ fn timed(test: &TestId, seconds: f64) -> String {
     format!("{}: {seconds:.1} s", code(test))
 }
 
-/// `test` as Markdown code. Test names come from a PR's reports, so a backtick in one must not
-/// end the code span and let the rest of the name through as Markdown, such as an @mention.
-fn code(test: &TestId) -> String {
-    format!("`{}`", test.to_string().replace('`', "'"))
+/// `text` as Markdown code. Test and branch names come from a PR, so a backtick in one must not
+/// end the code span and let the rest through as Markdown, such as an @mention.
+fn code(text: impl Display) -> String {
+    format!("`{}`", text.to_string().replace('`', "'"))
 }
 
 /// Seconds since the Unix epoch of a UTC `YYYY-MM-DDTHH:MM:SSZ` time, as GitHub writes them.
@@ -422,6 +450,8 @@ mod tests {
     use crate::results::{Outcome, TestId, Tool, parse_nextest_junit, parse_vitest_json};
 
     const COMMIT: &str = "c0ffee";
+    /// The tree this run tested.
+    const TREE: &str = "7ee";
     const NOW: &str = "2026-11-08T12:00:00Z";
 
     fn run() -> Run {
@@ -432,6 +462,7 @@ mod tests {
             attempt: 1,
             started_at: NOW.to_owned(),
             html_url: "https://github.com/o/r/actions/runs/7".to_owned(),
+            tree: TREE.to_owned(),
         }
     }
 
@@ -457,20 +488,22 @@ mod tests {
         }
     }
 
-    /// An earlier result of `name` on `commit`, `days_ago` (up to 38) days before this run.
+    /// An earlier result of `name` from a PR run that tested `tree`, `days_ago` (up to 38) days
+    /// before this run.
     fn earlier(
         name: &str,
         outcome: Outcome,
         seconds: f64,
-        commit: &str,
+        tree: &str,
         days_ago: u32,
     ) -> HistoryLine {
         HistoryLine {
             test: test(name),
             outcome,
             seconds,
-            commit: commit.to_owned(),
-            branch: "main".to_owned(),
+            commit: "pr-head".to_owned(),
+            tree: tree.to_owned(),
+            branch: "feature".to_owned(),
             run_id: 1,
             run_attempt: 1,
             time: if days_ago < 8 {
@@ -498,6 +531,7 @@ mod tests {
                     outcome: Outcome::Pass,
                     seconds: 0.5,
                     commit: COMMIT.to_owned(),
+                    tree: TREE.to_owned(),
                     branch: "main".to_owned(),
                     run_id: 7,
                     run_attempt: 1,
@@ -549,8 +583,8 @@ mod tests {
     const FAILURE: &str = r#"<failure type="test failure with exit code 101">panicked</failure>"#;
 
     #[test]
-    fn a_test_that_fails_after_passing_on_the_same_commit_is_flaky() {
-        let history = [earlier("a", Outcome::Pass, 0.5, COMMIT, 1)];
+    fn a_failure_on_main_after_a_pass_on_its_pr_with_the_same_tree_is_flaky() {
+        let history = [earlier("a", Outcome::Pass, 0.5, TREE, 1)];
 
         let report = report_junit(&case("a", 0.5, FAILURE), &history, &[]);
 
@@ -564,7 +598,7 @@ mod tests {
     }
 
     #[test]
-    fn a_test_that_failed_on_another_commit_is_not_flaky() {
+    fn a_test_that_failed_on_another_tree_is_not_flaky() {
         let history = [earlier("a", Outcome::Fail, 0.5, "broken", 1)];
 
         let report = report_junit(&case("a", 0.5, ""), &history, &[]);
@@ -575,7 +609,7 @@ mod tests {
 
     #[test]
     fn a_pass_older_than_30_days_does_not_make_a_failure_flaky() {
-        let history = [earlier("a", Outcome::Pass, 0.5, COMMIT, 31)];
+        let history = [earlier("a", Outcome::Pass, 0.5, TREE, 31)];
 
         let report = report_junit(&case("a", 0.5, FAILURE), &history, &[]);
 
@@ -583,10 +617,10 @@ mod tests {
     }
 
     #[test]
-    fn a_commit_already_flaky_does_not_flake_again_when_it_passes() {
+    fn a_tree_already_flaky_does_not_flake_again_when_it_passes() {
         let history = [
-            earlier("a", Outcome::Pass, 0.5, COMMIT, 1),
-            earlier("a", Outcome::Fail, 0.5, COMMIT, 1),
+            earlier("a", Outcome::Pass, 0.5, TREE, 1),
+            earlier("a", Outcome::Fail, 0.5, TREE, 1),
         ];
 
         let report = report_junit(&case("a", 0.5, ""), &history, &[]);
@@ -625,7 +659,7 @@ mod tests {
         assert!(
             report
                 .summary
-                .contains("### Slow, over 10 s\n\n- `nama-server s`: 12.0 s\n")
+                .contains("### Slow, over 10 s\n\n- `nama-server s`: 12.0 s\n\n###")
         );
     }
 
@@ -738,10 +772,10 @@ mod tests {
                  "duration": 5, "failureMessages": ["Error: no"]},
                 {"ancestorTitles": [], "title": "later", "status": "skipped", "failureMessages": []}
             ]}]}"#;
-        let mut results = parse_vitest_json(vitest).unwrap();
-        results.extend(parse_nextest_junit(&junit(&case("a", 0.5, ""))).unwrap());
+        let mut results = parse_vitest_json(vitest).expect("a vitest report");
+        results.extend(parse_nextest_junit(&junit(&case("a", 0.5, ""))).expect("valid JUnit"));
 
-        let report = report(results, &run(), &[], &[]).unwrap();
+        let report = report(results, &run(), &[], &[]).expect("a valid run");
 
         let web = |name: &str| TestId {
             tool: Tool::Vitest,
@@ -773,5 +807,80 @@ mod tests {
                 .summary
                 .contains("- `nama-server a' @someone 'b`: passed on retry\n")
         );
+    }
+
+    #[test]
+    fn a_test_that_errored_then_passed_on_retry_is_flaky() {
+        let report = report_junit(
+            &case("a", 0.5, r#"<flakyError type="test abort"/>"#),
+            &[],
+            &[],
+        );
+
+        assert_eq!(report.lines[0].outcome, Outcome::Flaky);
+    }
+
+    #[test]
+    fn the_issue_title_counts_each_flake_not_each_tree() {
+        let history = [
+            earlier("a", Outcome::Flaky, 0.5, TREE, 3),
+            earlier("a", Outcome::Flaky, 0.5, TREE, 2),
+        ];
+
+        let report = report_junit(&case("a", 0.5, FLAKY_FAILURE), &history, &[]);
+
+        assert!(matches!(
+            &report.actions[..],
+            [IssueAction::Open { title, .. }] if title == "Flaky: nama-server a (3× / 30d)"
+        ));
+    }
+
+    #[test]
+    fn a_test_named_twice_in_a_run_gets_one_issue() {
+        let cases = case("a", 0.5, FLAKY_FAILURE) + &case("a", 0.5, FLAKY_FAILURE);
+
+        let report = report_junit(&cases, &[], &[]);
+
+        assert!(matches!(report.actions[..], [IssueAction::Open { .. }]));
+    }
+
+    #[test]
+    fn a_run_already_in_the_history_is_not_recorded_or_acted_on_again() {
+        let first = report_junit(&case("a", 0.5, FLAKY_FAILURE), &[], &[]);
+
+        let again = report_junit(&case("a", 0.5, FLAKY_FAILURE), &first.lines, &[]);
+
+        assert_eq!(again.lines, vec![]);
+        assert_eq!(again.actions, vec![]);
+        assert_eq!(again.summary, first.summary);
+    }
+
+    #[test]
+    fn a_test_name_cannot_end_the_issue_marker() {
+        let report = report_junit(&case("a --&gt; @someone", 0.5, FLAKY_FAILURE), &[], &[]);
+
+        let [IssueAction::Open { body, .. }] = &report.actions[..] else {
+            panic!("expected one issue, got {:?}", report.actions);
+        };
+        assert!(body.starts_with(
+            r#"<!-- flaky-test {"tool":"nextest","suite":"nama-server","name":"a --\u003e @someone"} -->"#
+        ));
+    }
+
+    #[test]
+    fn a_backtick_in_a_branch_name_cannot_end_its_code_span() {
+        let run = Run {
+            head_branch: "x` @someone `y".to_owned(),
+            ..run()
+        };
+        let results =
+            parse_nextest_junit(&junit(&case("a", 0.5, FLAKY_FAILURE))).expect("valid JUnit");
+
+        let report = report(results, &run, &[], &[]).expect("a valid run");
+
+        let [IssueAction::Open { body, .. }] = &report.actions[..] else {
+            panic!("expected one issue, got {:?}", report.actions);
+        };
+        assert!(body.ends_with("(`x' @someone 'y`)."));
     }
 }

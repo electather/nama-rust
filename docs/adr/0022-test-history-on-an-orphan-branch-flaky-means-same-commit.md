@@ -4,6 +4,8 @@ Every CI run's test results go into a history that's kept forever, so flaky and 
 
 A test is flaky when its results on one commit hold both a pass and a failure: through a retry within a run, a rerun of the job, or the PR run and the `main` run of the same commit.
 
+"One commit" means one tree: the code CI tested. A PR's run tests the PR merged into `main`, not its head, and a squash or rebase merge gives `main` a new commit, so the PR run and the `main` run share a tree but never a commit. A PR run started after `main` moved tests other code on the same head, so keying on the head would count a fix on `main` as a flake. CI writes the tree next to its test reports. A PR controls that file, but it controls its reports too, so it can't fake more than it already could.
+
 ## Considered Options
 
 - **Actions artifacts as the history**: rejected. They expire, and collecting months of them means one download per run.
