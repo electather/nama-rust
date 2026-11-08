@@ -188,6 +188,7 @@ function readyIssues(): { ready: Issue[]; waiting: Waiting[] } {
   const ready: Issue[] = [];
   const waiting: Waiting[] = [];
   for (const i of issues.sort((a, b) => a.number - b.number)) {
+    if (process.env.ONLY_ISSUE && i.number !== Number(process.env.ONLY_ISSUE)) continue; // ONLY_ISSUE=N → build just #N
     const s = i.subIssuesSummary;
     const blockers = i.blockedBy.nodes.filter((b) => b.state === "OPEN").map((b) => `#${b.number}`);
     if (s.total > 0) waiting.push({ issue: i.number, why: `parent: waits for ${s.total - s.completed} of ${s.total} sub-issues` });
