@@ -28,7 +28,7 @@ use connectrpc::{
 use http::fetch;
 use nama_plugin_api::{
     BoxFuture, Plugin, PluginError, PluginId, Priority, Registrar,
-    fulfiller::{Download, Fulfiller, Movies},
+    fulfiller::{Download, Fulfiller, Movies, Shows},
     settings::{SettingValue, Settings},
 };
 use nama_plugin_test_choices as test_choices;
@@ -64,6 +64,8 @@ const DUNE: i64 = 438_631;
 
 /// A Show the fake TMDB knows, whose Season 1 has three aired Episodes and Season 2 one.
 const DARK: i64 = 70523;
+/// Dark's TVDB id, as the fake TMDB gives it.
+const DARK_TVDB: i64 = 334_824;
 const DARK_S01E01: &str = "Dark {tmdb-70523}/Season 01/Dark - S01E01.mkv";
 const DARK_S01E02: &str = "Dark {tmdb-70523}/Season 01/Dark - S01E02.mkv";
 const DARK_S01E03: &str = "Dark {tmdb-70523}/Season 01/Dark - S01E03.mkv";
@@ -100,6 +102,15 @@ impl Fixture {
         let plugins = Registry::new();
         plugins
             .enable(Arc::new(FulfillerPlugin(fulfiller.clone())))
+            .unwrap();
+        Self::start_with(plugins).await
+    }
+
+    /// A Fixture whose Fulfiller for Shows is `fulfiller`.
+    async fn with_shows_fulfiller(fulfiller: &FakeFulfiller) -> Self {
+        let plugins = Registry::new();
+        plugins
+            .enable(Arc::new(ShowsFulfillerPlugin(fulfiller.clone())))
             .unwrap();
         Self::start_with(plugins).await
     }
@@ -670,12 +681,17 @@ async fn an_approved_request_becomes_available_once_a_scan_matches_its_movie_and
     assert_eq!(list(&ada).await, [changed.request.into_option().unwrap()]);
 }
 
-/// A Movie Fulfiller that takes every Request it is handed, giving `movie-<TMDB id>` as its
-/// reference, unless it is refusing them all.
+/// A Season handed to a [`FakeFulfiller`]: its Show's TMDB and TVDB ids, and its number.
+type HandedSeason = (i64, Option<i64>, u32);
+
+/// A Fulfiller that takes every Request it is handed, giving `movie-<TMDB id>` or
+/// `show-<TMDB id>-season-<number>` as its reference, unless it is refusing them all.
 #[derive(Clone, Default)]
 struct FakeFulfiller {
     /// The TMDB id of each Movie it was handed, in order.
     handed: Arc<Mutex<Vec<i64>>>,
+    /// Each Season it was handed, in order.
+    handed_seasons: Arc<Mutex<Vec<HandedSeason>>>,
     refuses: Arc<AtomicBool>,
 }
 
@@ -693,6 +709,13 @@ impl FakeFulfiller {
 
     fn handed(&self) -> Vec<i64> {
         self.handed
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
+    }
+
+    fn handed_seasons(&self) -> Vec<HandedSeason> {
+        self.handed_seasons
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .clone()
@@ -720,6 +743,48 @@ impl Fulfiller<Movies> for FakeFulfiller {
         _references: &'a [String],
     ) -> BoxFuture<'a, Result<HashMap<String, Vec<Download>>, PluginError>> {
         Box::pin(async { Ok(HashMap::new()) })
+    }
+}
+
+impl Fulfiller<Shows> for FakeFulfiller {
+    fn fulfill<'a>(&'a self, request: &'a Request) -> BoxFuture<'a, Result<String, PluginError>> {
+        let season = &request.season;
+        let (show, season_number) = (season.show_tmdb_id, season.season_number);
+        self.handed_seasons
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push((show, season.show_tvdb_id, season_number));
+        let refuses = self.refuses.load(Ordering::Relaxed);
+        Box::pin(async move {
+            if refuses {
+                return Err("Sonarr is unreachable".into());
+            }
+            Ok(format!("show-{show}-season-{season_number}"))
+        })
+    }
+
+    fn progress<'a>(
+        &'a self,
+        _references: &'a [String],
+    ) -> BoxFuture<'a, Result<HashMap<String, Vec<Download>>, PluginError>> {
+        Box::pin(async { Ok(HashMap::new()) })
+    }
+}
+
+/// A test Plugin providing a [`FakeFulfiller`] for Shows.
+struct ShowsFulfillerPlugin(FakeFulfiller);
+
+impl Plugin for ShowsFulfillerPlugin {
+    fn id(&self) -> PluginId {
+        PluginId::from_static("fake-shows-fulfiller")
+    }
+
+    fn version(&self) -> &'static str {
+        "0.0.0"
+    }
+
+    fn register(&self, registrar: &mut Registrar) {
+        registrar.provide::<dyn Fulfiller<Shows>>(Priority::DEFAULT, Arc::new(self.0.clone()));
     }
 }
 
@@ -912,6 +977,136 @@ async fn an_approved_season_request_is_not_handed_to_the_movie_fulfiller() {
 
     assert_eq!(approved.state, RequestState::Approved);
     assert_eq!(fulfiller.handed(), Vec::<i64>::new());
+}
+
+#[tokio::test]
+async fn approving_a_pending_season_request_hands_it_to_the_shows_fulfiller_and_the_member_sees_it_processing_live()
+ {
+    let fulfiller = FakeFulfiller::default();
+    let fixture = Fixture::with_shows_fulfiller(&fulfiller).await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let ada = requests(as_ada.clone());
+    let pending = ask_seasons(&ada, DARK, &[2]).await;
+    let mut adas_events = subscribe_to_requests(as_ada).await;
+
+    let approved = fixture.approve(pending[0].id).await;
+    let events = [
+        next_event(&mut adas_events).await,
+        next_event(&mut adas_events).await,
+    ];
+
+    assert_eq!(approved.state, RequestState::Processing);
+    assert_eq!(fulfiller.handed_seasons(), [(DARK, Some(DARK_TVDB), 2)]);
+    assert_eq!(
+        fixture.fulfiller_reference(approved.id).await.as_deref(),
+        Some("show-70523-season-2")
+    );
+    let [_, event::Event::RequestStateChanged(processing)] = events else {
+        panic!("not the approval, then the hand-off: {events:?}");
+    };
+    assert_eq!(processing.request.as_option(), Some(&approved));
+    assert_eq!(list(&ada).await, [approved]);
+}
+
+#[tokio::test]
+async fn a_season_request_opened_approved_goes_to_the_shows_fulfiller() {
+    let fulfiller = FakeFulfiller::default();
+    let fixture = Fixture::with_shows_fulfiller(&fulfiller).await;
+    let (_, as_ada) = fixture
+        .user("Ada", &[Permission::RequestTv, Permission::AutoApproveTv])
+        .await;
+
+    let opened = ask_seasons(&requests(as_ada), DARK, &[1, 3]).await;
+
+    assert_eq!(
+        states(&opened),
+        [
+            (opened[0].id, RequestState::Processing),
+            (opened[1].id, RequestState::Processing)
+        ]
+    );
+    assert_eq!(
+        fulfiller.handed_seasons(),
+        [(DARK, Some(DARK_TVDB), 1), (DARK, Some(DARK_TVDB), 3)]
+    );
+    assert_eq!(
+        fixture.fulfiller_reference(opened[1].id).await.as_deref(),
+        Some("show-70523-season-3")
+    );
+}
+
+#[tokio::test]
+async fn a_season_request_the_shows_fulfiller_refuses_fails_with_its_reason_and_retrying_once_it_recovers_moves_it_to_processing()
+ {
+    let fulfiller = FakeFulfiller::refusing();
+    let fixture = Fixture::with_shows_fulfiller(&fulfiller).await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let pending = ask_seasons(&requests(as_ada), DARK, &[1]).await;
+
+    let failed = fixture.approve(pending[0].id).await;
+    fulfiller.recover();
+    let retried = retry(&fixture, failed.id).await.unwrap();
+
+    assert_eq!(failed.state, RequestState::Failed);
+    assert_eq!(
+        failed.failure_reason.as_deref(),
+        Some("Sonarr is unreachable")
+    );
+    assert_eq!(retried.state, RequestState::Processing);
+    assert_eq!(
+        fulfiller.handed_seasons(),
+        [(DARK, Some(DARK_TVDB), 1), (DARK, Some(DARK_TVDB), 1)]
+    );
+    assert_eq!(
+        fixture.fulfiller_reference(failed.id).await.as_deref(),
+        Some("show-70523-season-1")
+    );
+}
+
+#[tokio::test]
+async fn an_approved_movie_request_is_not_handed_to_the_shows_fulfiller() {
+    let fulfiller = FakeFulfiller::default();
+    let fixture = Fixture::with_shows_fulfiller(&fulfiller).await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let pending = ask(&requests(as_ada), HEAT).await;
+
+    let approved = fixture.approve(pending.id).await;
+
+    assert_eq!(approved.state, RequestState::Approved);
+    assert_eq!(fulfiller.handed_seasons(), []);
+}
+
+#[tokio::test]
+async fn enabling_a_shows_fulfiller_hands_it_the_season_requests_approved_while_there_was_none() {
+    let fixture = Fixture::with_test_choices_disabled(None).await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let ada = requests(as_ada);
+    let pending = ask_seasons(&ada, DARK, &[1, 2]).await;
+    let mut approved = Vec::new();
+    for request in pending {
+        approved.push(fixture.approve(request.id).await);
+    }
+    assert_eq!(
+        states(&approved),
+        [
+            (approved[0].id, RequestState::Approved),
+            (approved[1].id, RequestState::Approved)
+        ]
+    );
+
+    fixture.enable_test_choices().await.unwrap();
+
+    assert_eq!(
+        states(&list(&ada).await),
+        [
+            (approved[1].id, RequestState::Processing),
+            (approved[0].id, RequestState::Processing)
+        ]
+    );
+    assert_eq!(
+        fixture.fulfiller_reference(approved[0].id).await.as_deref(),
+        Some("show-70523-season-1")
+    );
 }
 
 #[tokio::test]

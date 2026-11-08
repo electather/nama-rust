@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id AS \"id!\", tmdb_id, season AS \"season: u32\", title, release_date, state,\n                  created_at, decline_reason, failure_reason\n           FROM requests\n           WHERE (?1 IS NULL OR id = ?1)\n             AND (?2 IS NULL OR EXISTS (SELECT 1 FROM requesters\n                                        WHERE request_id = requests.id AND user_id = ?2))\n           ORDER BY id DESC",
+  "query": "SELECT id AS \"id!\", tmdb_id, season AS \"season: u32\", title, release_date, show_imdb_id,\n                  show_tvdb_id, state, created_at, decline_reason, failure_reason\n           FROM requests\n           WHERE (?1 IS NULL OR id = ?1)\n             AND (?2 IS NULL OR EXISTS (SELECT 1 FROM requesters\n                                        WHERE request_id = requests.id AND user_id = ?2))\n           ORDER BY id DESC",
   "describe": {
     "columns": [
       {
@@ -59,8 +59,30 @@
         }
       },
       {
-        "name": "state",
+        "name": "show_imdb_id",
         "ordinal": 5,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "requests",
+            "name": "show_imdb_id"
+          }
+        }
+      },
+      {
+        "name": "show_tvdb_id",
+        "ordinal": 6,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "requests",
+            "name": "show_tvdb_id"
+          }
+        }
+      },
+      {
+        "name": "state",
+        "ordinal": 7,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -71,7 +93,7 @@
       },
       {
         "name": "created_at",
-        "ordinal": 6,
+        "ordinal": 8,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -82,7 +104,7 @@
       },
       {
         "name": "decline_reason",
-        "ordinal": 7,
+        "ordinal": 9,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -93,7 +115,7 @@
       },
       {
         "name": "failure_reason",
-        "ordinal": 8,
+        "ordinal": 10,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -112,11 +134,13 @@
       true,
       false,
       true,
+      true,
+      true,
       false,
       false,
       true,
       true
     ]
   },
-  "hash": "ea15d11b3c5b6b948e47ea9765dcdad9152704c8b40ab5a6c6b477d763795a94"
+  "hash": "b4da78f89e60a1fd7687abbede3cd8262535647957beb5a3812095c3dfa778d6"
 }
