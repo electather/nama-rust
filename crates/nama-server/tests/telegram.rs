@@ -724,3 +724,55 @@ async fn a_requester_who_did_not_connect_is_skipped_and_the_channel_still_posts(
         ])
     );
 }
+
+#[tokio::test]
+async fn a_user_who_blocked_the_bot_is_disconnected_and_messaged_no_more() {
+    let fixture = Fixture::with_telegram(BOT_TOKEN, Some(CHANNEL)).await;
+    fixture.connect_ada().await;
+    fixture.telegram.block(ADA_CHAT);
+    let alien = fixture.ada_asks_for(ALIEN).await;
+
+    fixture.approve(alien.id).await;
+    fixture
+        .wait_for_ada(PluginConnectionState::PLUGIN_CONNECTION_STATE_NOT_CONNECTED)
+        .await;
+    let _media = fixture.library_with_alien().await;
+    fixture.telegram.wait_for_messages(4).await;
+    // Time for a message to Ada about Alien becoming Available, which would make a fifth.
+    tokio::time::sleep(Duration::from_millis(500)).await;
+
+    assert_eq!(
+        sorted(fixture.telegram.sent()),
+        sorted(vec![
+            to_channel("New Request: Alien (1979), from Ada, is Pending."),
+            to_channel("Alien (1979) is now Approved."),
+            to_ada("Alien (1979) is now Approved."),
+            to_channel("Alien (1979) is now Available."),
+        ])
+    );
+    assert_eq!(fixture.adas_stored_connection().await, None);
+}
+
+#[tokio::test]
+async fn a_message_failing_for_another_reason_leaves_the_user_connected() {
+    let log = Log::global();
+    let failed = [
+        "telegram",
+        "provider failed",
+        "to User",
+        "Telegram didn't answer",
+    ];
+    let failed_before = log.count(&failed);
+    let fixture = Fixture::with_telegram(BOT_TOKEN, None).await;
+    fixture.connect_ada().await;
+    let alien = fixture.ada_asks_for(ALIEN).await;
+    fixture.telegram.go_down();
+
+    fixture.approve(alien.id).await;
+
+    log.wait_for(&failed, failed_before + 1).await;
+    assert_eq!(
+        fixture.adas_stored_connection().await.as_deref(),
+        Some("987654321")
+    );
+}

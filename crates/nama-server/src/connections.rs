@@ -282,6 +282,32 @@ pub(crate) async fn connected(
         .collect())
 }
 
+/// Deletes `user`'s Plugin Connection to `plugin`, as when its Notifier found them gone, unless it
+/// is no longer `connection`: one made again since is theirs.
+pub(crate) async fn forget(
+    db: &Database,
+    user: i64,
+    plugin: &PluginId,
+    connection: String,
+) -> Result<(), sqlx::Error> {
+    let plugin = plugin.as_str().to_owned();
+    db.write(move |tx| {
+        Box::pin(async move {
+            sqlx::query!(
+                "DELETE FROM plugin_connections
+                 WHERE user_id = ? AND plugin_id = ? AND connection = ?",
+                user,
+                plugin,
+                connection
+            )
+            .execute(&mut **tx)
+            .await?;
+            Ok(())
+        })
+    })
+    .await
+}
+
 fn lock(waiting: &Mutex<HashMap<Waiter, String>>) -> MutexGuard<'_, HashMap<Waiter, String>> {
     waiting.lock().unwrap_or_else(PoisonError::into_inner)
 }

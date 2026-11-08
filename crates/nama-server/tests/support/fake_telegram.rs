@@ -35,10 +35,12 @@ pub(crate) struct FakeTelegram {
 /// What the fake bot has been sent and told.
 #[derive(Default)]
 struct Bot {
-    /// The body of each message sent with the right token, in order.
+    /// The body of each message sent with the right token, in order, delivered or not.
     sent: Mutex<Vec<Value>>,
     /// Each press of Start on a deep link: its code, and the chat pressing it.
     started: Mutex<Vec<(String, i64)>>,
+    /// The chats whose User blocked the bot.
+    blocked: Mutex<Vec<i64>>,
 }
 
 #[expect(
@@ -65,6 +67,11 @@ impl FakeTelegram {
         lock(&self.bot.started).push((code.to_owned(), chat_id));
     }
 
+    /// The User in the chat `chat_id` blocks the bot, so messages to it are refused.
+    pub(crate) fn block(&self, chat_id: i64) {
+        lock(&self.bot.blocked).push(chat_id);
+    }
+
     /// Where it serves, as the Bot API URL setting names it.
     pub(crate) fn url(&self) -> &str {
         &self.url
@@ -75,7 +82,7 @@ impl FakeTelegram {
         self.server.abort();
     }
 
-    /// The body of each message sent with the right token so far, in order.
+    /// The body of each message sent with the right token so far, in order, delivered or not.
     pub(crate) fn sent(&self) -> Vec<Value> {
         lock(&self.bot.sent).clone()
     }
@@ -121,9 +128,17 @@ async fn answer(
     }
     match method.as_str() {
         "sendMessage" => {
-            let message = serde_json::from_slice(&body).unwrap_or_default();
+            let message: Value = serde_json::from_slice(&body).unwrap_or_default();
+            let chat_id = message.get("chat_id").and_then(Value::as_str);
+            let blocked = lock(&bot.blocked)
+                .iter()
+                .any(|blocked| chat_id == Some(&blocked.to_string()));
             lock(&bot.sent).push(message);
-            fixture(StatusCode::OK, "sendMessage.json")
+            if blocked {
+                fixture(StatusCode::FORBIDDEN, "forbidden.json")
+            } else {
+                fixture(StatusCode::OK, "sendMessage.json")
+            }
         }
         "getMe" => fixture(StatusCode::OK, "getMe.json"),
         "getUpdates" => updates(&bot),

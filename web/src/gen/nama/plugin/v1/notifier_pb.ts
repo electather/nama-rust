@@ -14,7 +14,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file nama/plugin/v1/notifier.proto.
  */
 export const file_nama_plugin_v1_notifier: GenFile = /*@__PURE__*/
-  fileDesc("Ch1uYW1hL3BsdWdpbi92MS9ub3RpZmllci5wcm90bxIObmFtYS5wbHVnaW4udjEiegoMTm90aWZpY2F0aW9uEh0KBWV2ZW50GAEgASgLMg4ubmFtYS52MS5FdmVudBIhCgdyZXF1ZXN0GAIgASgLMhAubmFtYS52MS5SZXF1ZXN0EhgKC3JlcXVlc3RfdXJsGAMgASgJSACIAQFCDgoMX3JlcXVlc3RfdXJsIo0BCghEZWxpdmVyeRIyCgxub3RpZmljYXRpb24YASABKAsyHC5uYW1hLnBsdWdpbi52MS5Ob3RpZmljYXRpb24SKgoHY2hhbm5lbBgCIAEoCzIXLm5hbWEucGx1Z2luLnYxLkNoYW5uZWxIABIUCgpjb25uZWN0aW9uGAMgASgJSABCCwoJcmVjaXBpZW50IgkKB0NoYW5uZWxiBnByb3RvMw", [file_nama_v1_event, file_nama_v1_request]);
+  fileDesc("Ch1uYW1hL3BsdWdpbi92MS9ub3RpZmllci5wcm90bxIObmFtYS5wbHVnaW4udjEiegoMTm90aWZpY2F0aW9uEh0KBWV2ZW50GAEgASgLMg4ubmFtYS52MS5FdmVudBIhCgdyZXF1ZXN0GAIgASgLMhAubmFtYS52MS5SZXF1ZXN0EhgKC3JlcXVlc3RfdXJsGAMgASgJSACIAQFCDgoMX3JlcXVlc3RfdXJsIo0BCghEZWxpdmVyeRIyCgxub3RpZmljYXRpb24YASABKAsyHC5uYW1hLnBsdWdpbi52MS5Ob3RpZmljYXRpb24SKgoHY2hhbm5lbBgCIAEoCzIXLm5hbWEucGx1Z2luLnYxLkNoYW5uZWxIABIUCgpjb25uZWN0aW9uGAMgASgJSABCCwoJcmVjaXBpZW50IgkKB0NoYW5uZWwiIwoJRGVsaXZlcmVkEhYKDnJlY2lwaWVudF9nb25lGAEgASgIYgZwcm90bzM", [file_nama_v1_event, file_nama_v1_request]);
 
 /**
  * What the Kernel hands a Notifier to deliver: something that happened to a Request. The Notifier
@@ -112,4 +112,26 @@ export type Channel = Message<"nama.plugin.v1.Channel"> & {
  */
 export const ChannelSchema: GenMessage<Channel> = /*@__PURE__*/
   messageDesc(file_nama_plugin_v1_notifier, 2);
+
+/**
+ * What an Installed Plugin's `deliver` export returns once the service answered.
+ *
+ * @generated from message nama.plugin.v1.Delivered
+ */
+export type Delivered = Message<"nama.plugin.v1.Delivered"> & {
+  /**
+   * The service says the recipient is gone, as Telegram does for a User who blocked the bot. The
+   * Server then deletes that Plugin Connection. Never set for the channel.
+   *
+   * @generated from field: bool recipient_gone = 1;
+   */
+  recipientGone: boolean;
+};
+
+/**
+ * Describes the message nama.plugin.v1.Delivered.
+ * Use `create(DeliveredSchema)` to create a new message.
+ */
+export const DeliveredSchema: GenMessage<Delivered> = /*@__PURE__*/
+  messageDesc(file_nama_plugin_v1_notifier, 3);
 
