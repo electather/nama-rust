@@ -157,8 +157,10 @@ impl Connections {
         {
             error!(plugin = %waiter.1, "could not store a Plugin Connection: {err}");
         }
-        if self.is_waiting(&waiter, &code) {
-            self.lock().remove(&waiter);
+        // Under one lock, so a link started again meanwhile keeps its own code.
+        let mut waiting = self.lock();
+        if waiting.get(&waiter) == Some(&code) {
+            waiting.remove(&waiter);
         }
     }
 

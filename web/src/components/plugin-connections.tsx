@@ -150,7 +150,7 @@ function status(state: PluginConnectionState, name: string) {
   return state === PluginConnectionState.CONNECTED ? "Connected" : "Not connected";
 }
 
-// shortcut: a Plugin's id capitalized, which fits Telegram; give Plugins a display name once one
+// ponytail: a Plugin's id capitalized, which fits Telegram; give Plugins a display name once one
 // doesn't read right.
 function pluginName(id: string) {
   return `${id.charAt(0).toUpperCase()}${id.slice(1)}`;
