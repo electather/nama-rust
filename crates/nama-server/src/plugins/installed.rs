@@ -29,7 +29,7 @@ use thiserror::Error;
 use tokio::task;
 use tracing::{error, info, warn};
 
-use super::{Described, Registry, contain_sync, log_not_enabled};
+use super::{Described, Registry, contain_sync, log_not_enabled, secret_values, without_secrets};
 use crate::config::PluginConfig;
 
 /// How long one call into an Installed Plugin may run, so one that never returns can't hold up
@@ -64,6 +64,8 @@ enum Refused {
     UnknownSettingKind { key: String },
     #[error("its setting {key}'s default isn't {kind:?}")]
     DefaultWrongKind { key: String, kind: SettingKind },
+    #[error("its allowed host {0} has a port, and allowed hosts are matched without one")]
+    HostWithPort(String),
     #[error("its id {0} is another Plugin's")]
     IdTaken(PluginId),
 }
@@ -85,6 +87,8 @@ struct Installed {
 struct Running {
     manifest: Arc<Manifest>,
     compiled: Arc<CompiledPlugin>,
+    /// The values of its secret settings, which the failures it logs mustn't show.
+    secrets: Arc<[String]>,
 }
 
 impl Running {
@@ -125,6 +129,7 @@ impl Plugin for Installed {
         let running = Running {
             manifest: Arc::clone(&self.manifest),
             compiled: Arc::new(compiled),
+            secrets: secret_values(&self.settings_schema, settings).into(),
         };
         // An Extension Point this Server doesn't know is one the Plugin can do without, since its
         // nama-api requirement admits this Server.
@@ -151,7 +156,8 @@ impl Observer<Events> for Running {
             match called {
                 Ok(Ok(_)) => {}
                 Ok(Err(err)) => {
-                    warn!(plugin = %self.manifest.id, "observer failed: {}", err.root_cause());
+                    let error = without_secrets(err.root_cause().to_string(), &self.secrets);
+                    warn!(plugin = %self.manifest.id, "observer failed: {error}");
                 }
                 // So the registry disables the Plugin, as it does one whose Rust code panics.
                 Err(err) if err.is_panic() => panic::resume_unwind(err.into_panic()),
@@ -362,6 +368,7 @@ fn load(file: &Path, cache_config: &Path) -> Result<Installed, Refused> {
     .map_err(Refused::Panicked)??;
     let manifest = Manifest::decode_from_slice(&bytes).map_err(Refused::Decode)?;
     check_nama_api(&manifest.nama_api)?;
+    check_allowed_hosts(&manifest.allowed_hosts)?;
     let settings_schema = settings_schema(&manifest)?;
     Ok(Installed {
         manifest: Arc::new(manifest),
@@ -388,7 +395,7 @@ fn compile(
 /// The hosts a Plugin enabled with `settings` may send HTTP requests to: those its Manifest
 /// names, and the host of each of its URL settings (ADR 0006).
 fn allowed_hosts(manifest: &Manifest, schema: &SettingsSchema, settings: &Settings) -> Vec<String> {
-    // shortcut: an IPv6 host such as `[::1]` reads as a glob character class to Extism, so it
+    // ponytail: an IPv6 host such as `[::1]` reads as a glob character class to Extism, so it
     // never matches; escape it if a Plugin must reach one.
     let url_hosts = schema
         .fields
@@ -433,6 +440,14 @@ fn check_nama_api(wants: &str) -> Result<(), Refused> {
         Err(Refused::OutOfRange {
             wants: wants.to_owned(),
         })
+    }
+}
+
+/// Checks that no host in a Manifest's `allowed_hosts` has a port, which Extism would never match.
+fn check_allowed_hosts(hosts: &[String]) -> Result<(), Refused> {
+    match hosts.iter().find(|host| host.contains(':')) {
+        Some(host) => Err(Refused::HostWithPort(host.clone())),
+        None => Ok(()),
     }
 }
 
@@ -488,7 +503,7 @@ mod tests {
     };
     use nama_proto::nama::plugin::v1::{self as wire, Manifest, setting_value};
 
-    use super::{allowed_hosts, config, settings_schema};
+    use super::{allowed_hosts, check_allowed_hosts, config, settings_schema};
 
     fn field(key: &str, kind: SettingKind) -> SettingField {
         SettingField {
@@ -529,6 +544,23 @@ mod tests {
         let hosts = allowed_hosts(&manifest, &schema, &settings);
 
         assert_eq!(hosts, ["*.themoviedb.org", "sonarr.lan"]);
+    }
+
+    #[test]
+    fn an_allowed_host_with_a_port_refuses_the_plugin() {
+        let hosts = ["*.themoviedb.org".to_owned(), "sonarr.lan:8989".to_owned()];
+
+        let refused = check_allowed_hosts(&hosts);
+
+        assert_eq!(
+            refused.err().map(|refused| refused.to_string()),
+            Some(
+                "its allowed host sonarr.lan:8989 has a port, and allowed hosts are matched without one"
+                    .to_owned()
+            )
+        );
+        let without_port = check_allowed_hosts(&["*.themoviedb.org".to_owned()]);
+        assert_eq!(without_port.ok(), Some(()));
     }
 
     #[test]

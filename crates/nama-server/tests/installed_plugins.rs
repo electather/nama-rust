@@ -393,6 +393,11 @@ async fn a_plugin_reaches_a_host_once_a_url_setting_names_it_without_a_restart()
     started.scan(library).await;
     log.wait_for(&[&format!("test-plugin fetched {server}: 204")], 1)
         .await;
+
+    // Without the URL setting, it is refused again.
+    started.save_settings(&[("fetch", &server)]).await.unwrap();
+    started.scan(library).await;
+    log.wait_for(&["observer failed", &refused], 2).await;
 }
 
 #[tokio::test]
