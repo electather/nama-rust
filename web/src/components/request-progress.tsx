@@ -3,7 +3,7 @@ import { CircleArrowDown, Clock, FolderInput, TriangleAlert } from "lucide-react
 import type { Shown } from "@/components/state-label";
 import { Progress } from "@/components/ui/progress";
 import { type Download, DownloadStatus, type Request } from "@/gen/nama/v1/request_pb";
-import { metadataLine, runtimeOf } from "@/lib/browse";
+import { metadataLine, runtimeOf, sizeOf } from "@/lib/browse";
 
 /** Each status in words, with its icon, so it never rests on colour alone. */
 const statuses: Partial<Record<DownloadStatus, Shown>> = {
@@ -12,12 +12,6 @@ const statuses: Partial<Record<DownloadStatus, Shown>> = {
   [DownloadStatus.IMPORTING]: { label: "Importing", Icon: FolderInput },
   [DownloadStatus.NEEDS_ATTENTION]: { label: "Needs attention", Icon: TriangleAlert },
 };
-
-const sizes = new Intl.NumberFormat("en-GB", {
-  style: "unit",
-  unit: "gigabyte",
-  maximumFractionDigits: 1,
-});
 
 /**
  * How far a Processing Request's downloads have got: one bar for them all, then each download.
@@ -33,8 +27,7 @@ export function RequestProgress({ request }: { request: Request | undefined }) {
       <p className="text-sm text-muted-foreground">{overall}% downloaded</p>
       <ul aria-label="Downloads" className="flex flex-col gap-1.5">
         {downloads.map((download, index) => (
-          // A service may name two downloads alike, and the list only changes as a whole.
-          // oxlint-disable-next-line react/no-array-index-key -- see above
+          // oxlint-disable-next-line react/no-array-index-key -- a service may name two downloads alike, and the list only changes as a whole
           <DownloadRow key={index} download={download} />
         ))}
       </ul>
@@ -73,7 +66,7 @@ function DownloadRow({ download }: { download: Download }) {
 function facts({ percent, sizeBytes, etaSeconds }: Download) {
   return [
     `${Math.floor(percent)}%`,
-    sizeBytes === undefined ? undefined : sizes.format(Number(sizeBytes) / 1e9),
+    sizeBytes === undefined ? undefined : sizeOf(sizeBytes),
     etaSeconds === undefined ? undefined : `${runtimeOf(Math.ceil(Number(etaSeconds) / 60))} left`,
   ];
 }

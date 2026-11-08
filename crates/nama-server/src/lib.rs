@@ -93,9 +93,8 @@ pub fn serve(
     async move {
         scanner.start_all().await;
         // In the background, so a slow Fulfiller doesn't hold up serving.
-        let following = requests.clone();
-        let following =
-            tokio::spawn(async move { following.follow_progress(PROGRESS_EVERY).await });
+        let polled = requests.clone();
+        let following = tokio::spawn(async move { polled.follow_progress(PROGRESS_EVERY).await });
         let handing_off = tokio::spawn(async move { requests.hand_off_waiting().await });
         let served = axum::serve(
             listener,

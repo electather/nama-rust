@@ -594,6 +594,8 @@ impl Requests {
         let all = load(&mut *self.db.reader().acquire().await?, None, None).await?;
         let events = all
             .into_iter()
+            // One that left Processing since it was asked about has no progress any more.
+            .filter(|request| request.state == RequestState::Processing)
             .filter_map(|mut request| {
                 request.downloads = changed.remove(&request.id)?;
                 Some(event(RequestProgress {
@@ -623,11 +625,13 @@ impl Requests {
         let answered = self
             .plugins
             .call_provider_blanking_secrets::<dyn Fulfiller<Kind>, _, _>(|fulfiller| async move {
-                // Inside the call, so formatting and dropping the Plugin's error are contained.
-                fulfiller
-                    .progress(references)
-                    .await
-                    .map_err(|error| error.to_string())
+                // Bounded, so a Fulfiller that never answers can't stop every later poll. Inside
+                // the call, so formatting and dropping the Plugin's error are contained.
+                let asked = tokio::time::timeout(PROGRESS_EVERY, fulfiller.progress(references));
+                match asked.await {
+                    Ok(answered) => answered.map_err(|error| error.to_string()),
+                    Err(_) => Err("it didn't answer in time".to_owned()),
+                }
             })
             .await;
         let by_reference = match answered {
@@ -1721,7 +1725,6 @@ struct Processing {
     reference: String,
 }
 
-/// Each Processing Request.
 async fn processing(conn: &mut SqliteConnection) -> Result<Vec<Processing>, sqlx::Error> {
     sqlx::query_as!(
         Processing,
