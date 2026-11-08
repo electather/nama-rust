@@ -877,6 +877,8 @@ async fn enabling_a_second_movie_fulfiller_is_refused_naming_the_first_and_it_st
             .enabled()
             .contains(&PluginId::from_static(test_choices::ID))
     );
+    let stored = plugin_settings::stored(&fixture.db).await.unwrap().unwrap();
+    assert!(!stored[test_choices::ID].enabled);
 }
 
 #[tokio::test]

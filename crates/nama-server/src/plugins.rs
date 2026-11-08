@@ -454,6 +454,14 @@ impl Registry {
         checked
     }
 
+    /// Whether the enabled Plugin `plugin` provides a `T`.
+    #[must_use]
+    pub fn provides<T: ?Sized + 'static>(&self, plugin: &PluginId) -> bool {
+        self.entries(PointKey::provide::<T>())
+            .iter()
+            .any(|entry| entry.plugin == *plugin)
+    }
+
     /// The ids of the enabled Plugins, sorted.
     #[must_use]
     pub fn enabled(&self) -> Vec<PluginId> {

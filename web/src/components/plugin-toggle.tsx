@@ -56,6 +56,7 @@ function refusedChange(error: unknown, plugin: Plugin, verb: string) {
   // The Server names a setting as `settings.<key>`.
   const key = refusalOf(error).field.replace(/^settings\./u, "");
   const label = plugin.settings.find((setting) => setting.key === key)?.label ?? key;
+  const { fulfillerPluginId, titleKind } = refusalOf(error).params;
   return refusal(
     error,
     `${verb} ${plugin.id}`,
@@ -65,6 +66,9 @@ function refusedChange(error: unknown, plugin: Plugin, verb: string) {
         form: "It can’t be disabled while no other enabled Plugin lets Users sign in.",
       },
       [RefusalReason.FIELD_REQUIRED]: { form: `It needs ${label} set before it can be enabled.` },
+      [RefusalReason.FULFILLER_TAKEN]: {
+        form: `It can’t be enabled while ${fulfillerPluginId} is the ${titleKind} Fulfiller. Disable ${fulfillerPluginId} first.`,
+      },
       [RefusalReason.SETTING_WRONG_KIND]: {
         form: `Its ${label} setting isn’t valid, so it can’t be enabled.`,
       },

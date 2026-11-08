@@ -83,6 +83,35 @@ pub(crate) struct Requests {
     handing: Arc<Mutex<HashSet<i64>>>,
 }
 
+/// A hand-off's hold on one Request in [`Requests::handing`], let go however the hand-off ends, a
+/// panic included, so the Request can be handed off again.
+struct Claim {
+    handing: Arc<Mutex<HashSet<i64>>>,
+    id: i64,
+}
+
+impl Claim {
+    /// Claims the Request `id`, unless another hand-off has it.
+    fn take(requests: &Requests, id: i64) -> Option<Self> {
+        let claimed = lock(&requests.handing).insert(id);
+        claimed.then(|| Self {
+            handing: Arc::clone(&requests.handing),
+            id,
+        })
+    }
+}
+
+impl Drop for Claim {
+    fn drop(&mut self) {
+        lock(&self.handing).remove(&self.id);
+    }
+}
+
+// Nothing panics while it is held, so a poisoned set is still whole.
+fn lock(handing: &Mutex<HashSet<i64>>) -> MutexGuard<'_, HashSet<i64>> {
+    handing.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
 /// A Movie the metadata source has, and how close it is to being on the Server.
 #[derive(Debug)]
 pub(crate) struct Found<M> {
@@ -255,15 +284,12 @@ impl Requests {
         }
         let requests = self.clone();
         let handed = tokio::spawn(async move {
-            let id = request.id;
             // An approval and enabling the Fulfiller may hand the same Request off at once, which
             // would hand it to the Fulfiller twice.
-            if !requests.handing().insert(id) {
+            let Some(_claim) = Claim::take(&requests, request.id) else {
                 return Ok(request);
-            }
-            let handed = requests.hand_off_claimed(request).await;
-            requests.handing().remove(&id);
-            handed
+            };
+            requests.hand_off_claimed(request).await
         });
         // The task is never aborted, so it only fails if it panicked.
         handed
@@ -304,19 +330,10 @@ impl Requests {
         Ok(processing)
     }
 
-    fn handing(&self) -> MutexGuard<'_, HashSet<i64>> {
-        self.handing.lock().unwrap_or_else(PoisonError::into_inner)
-    }
-
     /// Hands each Approved Request, oldest first, to the enabled Plugin `plugin`'s Movie Fulfiller,
     /// if it provides one, as [`Self::hand_off_waiting`] does.
     pub(crate) async fn hand_off_waiting_to(&self, plugin: &PluginId) {
-        let fulfils = self
-            .plugins
-            .call_provider_of::<dyn Fulfiller<Movies>, _, _>(plugin, |_| async {})
-            .await
-            .is_some();
-        if fulfils {
+        if self.plugins.provides::<dyn Fulfiller<Movies>>(plugin) {
             self.hand_off_waiting().await;
         }
     }

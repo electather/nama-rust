@@ -42,7 +42,8 @@ use crate::{
 ///
 /// Every Library is scanned, and its items Matched, in the background when serving starts. Scans
 /// still running when `shutdown` resolves are cancelled, and the returned future waits for them
-/// to stop. The Approved Requests waiting for a Fulfiller are handed to it in the background too.
+/// to stop. The Approved Requests waiting for a Fulfiller are handed to it in the background too,
+/// until `shutdown` resolves.
 ///
 /// While the Server has no Users, `Setup` creates the first Admin for whoever gives `setup_code`.
 /// `Setup` and `SignIn` are rate limited by the client's IP address. That is the peer's, unless the
@@ -85,9 +86,7 @@ pub fn serve(
     async move {
         scanner.start_all().await;
         // In the background, so a slow Fulfiller doesn't hold up serving.
-        // shortcut: not waited for at shutdown, so one still running keeps the database open and it
-        // isn't closed cleanly; track it as the scanner tracks its scans if that shows up in logs.
-        tokio::spawn(async move { requests.hand_off_waiting().await });
+        let handing_off = tokio::spawn(async move { requests.hand_off_waiting().await });
         let served = axum::serve(
             listener,
             // The peer's address decides whose rate limit counts and which proxies are trusted.
@@ -100,6 +99,14 @@ pub fn serve(
         })
         .await;
         scanner.shutdown().await;
+        // The Requests not handed off yet stay Approved, so the next start hands them off. The one
+        // being handed off now finishes in a task of its own (`Requests::hand_off`).
+        handing_off.abort();
+        if let Err(err) = handing_off.await
+            && err.is_panic()
+        {
+            tracing::error!("handing the waiting Requests off panicked: {err}");
+        }
         served
     }
 }
