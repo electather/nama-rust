@@ -168,17 +168,19 @@ mod exports {
                 season_folder: true,
                 seasons,
                 add_options: AddOptions {
+                    monitor: "skip",
                     search_for_missing_episodes: true,
                 },
             };
+            // ponytail: Sonarr's refresh after an add reads the Show's Seasons, fetches it from
+            // TVDB, then saves them back, so a hand-off monitoring another Season in between is
+            // dropped. A Plugin can't wait that out (no sleep, 5 s calls); a Kernel retry or
+            // delay for a Fulfiller would close it.
             let response = send(&self.request("POST", "series"), Some(Json(new_show)))?;
-            if is_success(&response) {
-                Ok(true)
-            } else if already_has(&response) {
-                Ok(false)
-            } else {
-                Err(refused(&response))
+            if already_has(&response) {
+                return Ok(false);
             }
+            accepted(response).map(|_| true)
         }
 
         /// Monitors the Season `number` of the Show Sonarr has as `show_id`, and its Episodes,
@@ -196,20 +198,20 @@ mod exports {
                     seasons: [season],
                 }],
             };
-            self.send("POST", "seasonpass", pass)?;
+            self.change("POST", "seasonpass", pass)?;
             let episodes: Vec<Episode> =
                 self.get(&format!("episode?seriesId={show_id}&seasonNumber={number}"))?;
             let monitor = EpisodesMonitored {
                 episode_ids: episodes.into_iter().map(|episode| episode.id).collect(),
                 monitored: true,
             };
-            self.send("PUT", "episode/monitor", monitor)?;
+            self.change("PUT", "episode/monitor", monitor)?;
             let search = SeasonSearch {
                 name: "SeasonSearch",
                 series_id: show_id,
                 season_number: number,
             };
-            self.send("POST", "command", search)
+            self.change("POST", "command", search)
         }
 
         /// A `method` request for the API path `path`, such as `series`.
@@ -223,23 +225,15 @@ mod exports {
 
         /// What Sonarr answers at the API path `path`.
         fn get<T: DeserializeOwned>(&self, path: &str) -> Result<T, Error> {
-            let response = send(&self.request("GET", path), None::<()>)?;
-            if !is_success(&response) {
-                return Err(refused(&response));
-            }
-            response
+            accepted(send(&self.request("GET", path), None::<()>)?)?
                 .json()
                 .map_err(|err| Error::msg(format!("Sonarr's answer made no sense: {err}")))
         }
 
-        /// Sends `body` to the API path `path` with `method`, ignoring what Sonarr answers.
-        fn send(&self, method: &str, path: &str, body: impl Serialize) -> Result<(), Error> {
-            let response = send(&self.request(method, path), Some(Json(body)))?;
-            if is_success(&response) {
-                Ok(())
-            } else {
-                Err(refused(&response))
-            }
+        /// Sends Sonarr the change `body` to the API path `path` with `method`, ignoring what it
+        /// answers once it takes it.
+        fn change(&self, method: &str, path: &str, body: impl Serialize) -> Result<(), Error> {
+            accepted(send(&self.request(method, path), Some(Json(body)))?).map(drop)
         }
     }
 
@@ -254,8 +248,13 @@ mod exports {
         config::get(key)?.ok_or_else(|| Error::msg(format!("the setting {key} isn't set")))
     }
 
-    fn is_success(response: &HttpResponse) -> bool {
-        (200..300).contains(&response.status_code())
+    /// `response`, if Sonarr took the request, or else why it refused.
+    fn accepted(response: HttpResponse) -> Result<HttpResponse, Error> {
+        if (200..300).contains(&response.status_code()) {
+            Ok(response)
+        } else {
+            Err(refused(&response))
+        }
     }
 
     fn already_has(response: &HttpResponse) -> bool {
@@ -309,7 +308,7 @@ mod exports {
     #[derive(Deserialize)]
     #[serde(rename_all = "camelCase")]
     struct Show {
-        /// Sonarr's own id for it, which it has only once added.
+        /// Sonarr's own id for it: 0, or left out, until Sonarr has it.
         #[serde(default)]
         id: i64,
         tvdb_id: i64,
@@ -350,6 +349,9 @@ mod exports {
     #[derive(Serialize)]
     #[serde(rename_all = "camelCase")]
     struct AddOptions {
+        /// `skip` keeps the Seasons' monitoring as sent. Left out, Sonarr rewrites it after its
+        /// first scan, from the Seasons as it read them, and so drops a later hand-off's Season.
+        monitor: &'static str,
         /// Searches the monitored Episodes, which are only the requested Season's.
         search_for_missing_episodes: bool,
     }

@@ -331,6 +331,7 @@ async fn asking_for_seasons_of_a_show_sonarr_lacks_adds_it_with_only_those_seaso
     assert_eq!(dark["qualityProfileId"], 4);
     assert_eq!(dark["rootFolderPath"], "/tv");
     assert_eq!(dark["monitorNewItems"], "none");
+    assert_eq!(dark["addOptions"]["monitor"], "skip");
     assert_eq!(fixture.sonarr.monitored_seasons(DARK_TVDB), [1, 3]);
     assert_eq!(fixture.sonarr.searches(), [(DARK_TVDB, 1), (DARK_TVDB, 3)]);
     assert_eq!(fixture.sonarr.monitored_episodes(), [301, 302]);

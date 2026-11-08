@@ -6,7 +6,10 @@ use std::{
     collections::HashMap,
     net::SocketAddr,
     path::PathBuf,
-    sync::{Arc, Mutex, MutexGuard, PoisonError},
+    sync::{
+        Arc, Mutex, MutexGuard, PoisonError,
+        atomic::{AtomicBool, Ordering},
+    },
 };
 
 use axum::{
@@ -36,8 +39,8 @@ pub(crate) struct FakeSonarr {
 struct Fake {
     /// The Shows it has, each as it was added with its `id` and Seasons' monitoring kept current.
     shows: Mutex<Vec<Value>>,
-    /// How many lookups still answer as if it didn't have the Shows it has.
-    stale_lookups: Mutex<usize>,
+    /// Whether the next lookup answers as if it didn't have the Shows it has.
+    stale_lookup: AtomicBool,
     /// The `(TVDB id, Season number)` of each Season searched for, in order.
     searches: Mutex<Vec<(i64, u64)>>,
     /// The ids of the Episodes monitored one by one, in order.
@@ -82,7 +85,7 @@ impl FakeSonarr {
     /// Makes the next lookup answer as if it didn't have the Shows it has, as when another
     /// hand-off adds the Show between this one's lookup and its add.
     pub(crate) fn answer_next_lookup_stale(&self) {
-        *lock(&self.state.stale_lookups) = 1;
+        self.state.stale_lookup.store(true, Ordering::Relaxed);
     }
 
     /// Each Show it has, as it was added and with its Seasons' monitoring as it is now.
@@ -171,7 +174,7 @@ fn look_up(fake: &Fake, term: &str) -> Response {
     else {
         return json(StatusCode::OK, &json!([]));
     };
-    let stale = std::mem::take(&mut *lock(&fake.stale_lookups)) > 0;
+    let stale = fake.stale_lookup.swap(false, Ordering::Relaxed);
     let shows = lock(&fake.shows);
     match shows.iter().find(|show| show["tvdbId"] == tvdb_id) {
         Some(show) if !stale => json(StatusCode::OK, &json!([show])),
