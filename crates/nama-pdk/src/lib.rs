@@ -15,8 +15,7 @@
 //! ```
 //!
 //! The Plugin reads its settings with [`extism_pdk::config::get`], and sends HTTP requests with
-//! [`extism_pdk::http::request`] to the hosts its Manifest's `allowed_hosts` and its URL settings
-//! name.
+//! [`http_request`] to the hosts its Manifest's `allowed_hosts` and its URL settings name.
 //!
 //! A Plugin with [`SETTING_KIND_CHOICE`](nama_proto::nama::plugin::v1::SettingKind) settings exports `check_settings()`, which
 //! checks its settings against the outside service and offers the choices for each, built with
@@ -53,7 +52,7 @@ pub use nama_proto::{
     },
 };
 
-use extism_pdk::{Error, FromBytesOwned, ToBytes};
+use extism_pdk::{Error, FromBytesOwned, HttpRequest, HttpResponse, ToBytes, ToMemory};
 use nama_proto::nama::v1::{Choice, SettingChoices};
 
 /// Wraps a protobuf message so it crosses an Extism call encoded as protobuf, as an export's
@@ -263,6 +262,26 @@ where
     }
 }
 
+/// Sends `request` with `body`, as [`extism_pdk::http::request`] does. If the Server can't send
+/// it, such as when nothing answers at its host, the call fails with `unreachable` as its error,
+/// in place of the HTTP client's own words.
+///
+/// # Errors
+///
+/// When `request` or `body` can't be passed to the Server.
+pub fn http_request<T: ToMemory>(
+    request: &HttpRequest,
+    body: Option<T>,
+    unreachable: &str,
+) -> Result<HttpResponse, Error> {
+    // The Server ends the call at once when it can't send a request, so the Plugin never sees
+    // that error: the call fails with the one set beforehand.
+    set_error(unreachable);
+    let response = extism_pdk::http::request(request, body);
+    clear_error();
+    response
+}
+
 /// Installs the panic hook. Extism calls a guest's `_initialize` export whenever it instantiates
 /// it, so every instance has the hook before its first call.
 #[cfg(target_arch = "wasm32")]
@@ -280,7 +299,6 @@ pub extern "C" fn _initialize() {
 
 /// Makes `message` the error of the call in progress, as `plugin_fn` does for an `Err`. The trap
 /// that follows a panic keeps it, and the Server reads it as the call's error.
-#[cfg(target_arch = "wasm32")]
 fn set_error(message: &str) {
     let Ok(memory) = extism_pdk::Memory::from_bytes(message) else {
         return;
@@ -292,5 +310,14 @@ fn set_error(message: &str) {
     // SAFETY: `memory` was allocated by Extism and holds the message, as `error_set` requires.
     unsafe {
         extism_pdk::extism::error_set(memory.offset());
+    }
+}
+
+/// Undoes [`set_error`], so the call in progress succeeds unless it returns an `Err`.
+fn clear_error() {
+    #[expect(unsafe_code, reason = "Extism has no safe way to clear the error")]
+    // SAFETY: Extism reads an error offset of 0 as no error.
+    unsafe {
+        extism_pdk::extism::error_set(0);
     }
 }

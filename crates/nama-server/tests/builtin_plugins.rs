@@ -88,9 +88,10 @@ fn a_plugin_that_isnt_running_may_be_disabled_only_while_another_provides_an_aut
 }
 
 /// ADR 0006: Built-in Plugins are separate crates so the compiler keeps them out of Kernel
-/// internals. Of this workspace's crates they may use only the plugin API and the protobuf types.
+/// internals. Of this workspace's crates they may use only the plugin API and the protobuf types,
+/// and an Installed Plugin in `plugins/` only `nama-pdk`.
 #[test]
-fn builtin_plugin_crates_depend_on_no_workspace_crate_but_the_plugin_api_and_proto() {
+fn plugin_crates_depend_on_no_workspace_crate_but_the_plugin_api_and_proto_or_the_pdk() {
     let workspace = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let output = Command::new(env!("CARGO"))
         .args(["metadata", "--format-version=1", "--no-deps", "--offline"])
@@ -115,13 +116,24 @@ fn builtin_plugin_crates_depend_on_no_workspace_crate_but_the_plugin_api_and_pro
             continue;
         }
         checked += 1;
+        let installed = package["targets"].as_array().unwrap().iter().any(|target| {
+            target["crate_types"]
+                .as_array()
+                .unwrap()
+                .contains(&"cdylib".into())
+        });
+        let allowed: &[&str] = if installed {
+            &["nama-pdk"]
+        } else {
+            &["nama-plugin-api", "nama-proto"]
+        };
         for dependency in package["dependencies"].as_array().unwrap() {
             let name = dependency["name"].as_str().unwrap();
             let in_workspace = dependency.get("path").is_some_and(|path| !path.is_null());
             // A crate may depend on itself, to turn on its test helpers in its own tests.
             let itself = package["name"].as_str() == Some(name);
             assert!(
-                !in_workspace || itself || ["nama-plugin-api", "nama-proto"].contains(&name),
+                !in_workspace || itself || allowed.contains(&name),
                 "{} depends on {name}",
                 package["name"]
             );

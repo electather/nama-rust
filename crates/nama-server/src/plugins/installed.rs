@@ -1,6 +1,6 @@
-//! Installed Plugins (ADR 0006): `.wasm` files an admin drops into `<data_dir>/plugins/`, run
-//! through Extism behind the same [`Plugin`] trait as a Built-in Plugin, so the Kernel can't tell
-//! them apart.
+//! Installed Plugins (ADR 0006): `.wasm` files bundled in the Server or that an admin drops into
+//! `<data_dir>/plugins/`, run through Extism behind the same [`Plugin`] trait as a Built-in
+//! Plugin, so the Kernel can't tell them apart.
 
 use std::{
     collections::{BTreeMap, HashMap},
@@ -56,6 +56,10 @@ const CRASHES_BEFORE_DISABLING: u32 = 3;
 
 /// The export that checks a Plugin's settings, if it has one.
 const CHECK_SETTINGS: &str = "check_settings";
+
+/// The Installed Plugins bundled in the Server, each by the name it is listed under if refused.
+/// `build.rs` builds them.
+const BUNDLED: &[(&str, &[u8])] = &[("telegram.wasm", include_bytes!(env!("TELEGRAM_WASM")))];
 
 /// What every binary WASM module starts with.
 const WASM_MAGIC: &[u8] = b"\0asm";
@@ -386,22 +390,23 @@ fn choices(checked: CheckedSettings) -> Choices {
         .collect()
 }
 
-/// The Installed Plugins in `<data_dir>/plugins/`, compiled but not yet listed.
+/// The bundled Installed Plugins and those in `<data_dir>/plugins/`, compiled but not yet listed.
 pub(crate) struct Found(Vec<(PathBuf, Result<Installed, Refused>)>);
 
-/// Reads the Installed Plugins in `<data_dir>/plugins/`, for [`Registry::list_installed`] to list.
+/// Reads the bundled Installed Plugins and those in `<data_dir>/plugins/`, for
+/// [`Registry::list_installed`] to list.
 ///
 /// Blocks while it compiles each Plugin. wasmtime caches what it compiles under
 /// `<data_dir>/wasmtime/`, not in the home directory.
 pub(crate) fn read(data_dir: &Path) -> Found {
-    Found(read_plugins_dir(data_dir))
+    Found(read_plugins(data_dir))
 }
 
 impl Registry {
-    /// Reads and lists the Installed Plugins in `<data_dir>/plugins/` at start, as listing the
-    /// Plugins does: logs each one's id and version, or why the Server refused it, and enables
-    /// those `config` says are enabled. Installed Plugins start disabled, so one `config` doesn't
-    /// name stays disabled.
+    /// Reads and lists the bundled Installed Plugins and those in `<data_dir>/plugins/` at start,
+    /// as listing the Plugins does: logs each one's id and version, or why the Server refused it,
+    /// and enables those `config` says are enabled. Installed Plugins start disabled, so one
+    /// `config` doesn't name stays disabled.
     pub fn load_installed(&self, data_dir: &Path, config: &BTreeMap<String, PluginConfig>) {
         let found = read(data_dir);
         for (file, plugin) in &found.0 {
@@ -500,21 +505,18 @@ fn describe(
     }
 }
 
-/// Each `.wasm` file in `<data_dir>/plugins/`, in name order, with its Plugin or why the Server
-/// refused it. Logs why it read none, if it couldn't.
-fn read_plugins_dir(data_dir: &Path) -> Vec<(PathBuf, Result<Installed, Refused>)> {
+/// The bundled Plugins, then each `.wasm` file in `<data_dir>/plugins/` in name order, each with
+/// its Plugin or why the Server refused it. Bundled Plugins come first, so a file with one's id is
+/// refused. Logs why it read no files, if it couldn't.
+fn read_plugins(data_dir: &Path) -> Vec<(PathBuf, Result<Installed, Refused>)> {
     let dir = data_dir.join("plugins");
-    let files = match wasm_files(&dir) {
-        Ok(files) if files.is_empty() => return Vec::new(),
-        Ok(files) => files,
-        Err(err) => {
-            error!(
-                "could not list the Installed Plugins in {}: {err}",
-                dir.display()
-            );
-            return Vec::new();
-        }
-    };
+    let files = wasm_files(&dir).unwrap_or_else(|err| {
+        error!(
+            "could not list the Installed Plugins in {}: {err}",
+            dir.display()
+        );
+        Vec::new()
+    });
     let cache_config = match write_cache_config(data_dir) {
         Ok(cache_config) => cache_config,
         Err(err) => {
@@ -527,13 +529,17 @@ fn read_plugins_dir(data_dir: &Path) -> Vec<(PathBuf, Result<Installed, Refused>
     };
     // ponytail: one Plugin at a time, each up to CALL_TIMEOUT, at start and on every listing;
     // compile them in parallel, or only changed files, if many Plugins make that slow.
-    files
-        .into_iter()
-        .map(|file| {
-            let plugin = load(&file, &cache_config);
-            (file, plugin)
-        })
-        .collect()
+    let bundled = BUNDLED.iter().map(|&(name, wasm)| {
+        let plugin = load(wasm.to_vec(), &cache_config);
+        (Path::new("<bundled>").join(name), plugin)
+    });
+    let dropped_in = files.into_iter().map(|file| {
+        let plugin = fs::read(&file)
+            .map_err(Refused::Read)
+            .and_then(|wasm| load(wasm, &cache_config));
+        (file, plugin)
+    });
+    bundled.chain(dropped_in).collect()
 }
 
 /// The `.wasm` files in `dir`, sorted by name. A missing `dir` holds none.
@@ -570,9 +576,8 @@ fn write_cache_config(data_dir: &Path) -> io::Result<PathBuf> {
     Ok(file)
 }
 
-/// Compiles the Plugin in `file`, calls its `manifest()` and checks the Manifest it returns.
-fn load(file: &Path, cache_config: &Path) -> Result<Installed, Refused> {
-    let wasm = fs::read(file).map_err(Refused::Read)?;
+/// Compiles the Plugin `wasm`, calls its `manifest()` and checks the Manifest it returns.
+fn load(wasm: Vec<u8>, cache_config: &Path) -> Result<Installed, Refused> {
     // Extism would also take WASM's text format, and its parse errors span many lines.
     if !wasm.starts_with(WASM_MAGIC) {
         return Err(Refused::NotWasm);

@@ -47,6 +47,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
+          # Building the Server, as `cargo doc` and `cargo sqlx prepare` do, builds the Plugins it
+          # bundles for wasm32.
+          targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
         with:
           # CARGO_TARGET_DIR, written relative to the checkout (/_work/jit-runner-<id>/nama-rust/
@@ -193,7 +196,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
-          # The Server's tests build the test Plugin (crates/nama-test-plugin) for wasm32.
+          # The Server bundles Plugins built for wasm32, and its tests build the test Plugin
+          # (crates/nama-test-plugin).
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
         with:
@@ -202,9 +206,9 @@ jobs:
           # ponytail: tied to the checkout's depth; fix the runner's work directory to drop it.
           workspaces: . -> ../../../../home/runner/target
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
-      # The test Plugin for wasm32, as Installed Plugins are built: with nama-pdk, and nama-proto's
-      # messages without its ConnectRPC stubs.
-      - run: cargo clippy --package nama-test-plugin --target wasm32-unknown-unknown --locked -- -D warnings
+      # The test Plugin and the bundled ones for wasm32, as Installed Plugins are built: with
+      # nama-pdk, and nama-proto's messages without its ConnectRPC stubs.
+      - run: cargo clippy --package nama-test-plugin --package nama-plugin-telegram --target wasm32-unknown-unknown --locked -- -D warnings
       - uses: taiki-e/install-action@nextest
       # nextest builds every target it runs, so there's no separate `cargo build`. The `ci` profile
       # (.config/nextest.toml) retries, kills hung tests and writes a JUnit report. The cached
