@@ -3,7 +3,7 @@
 //! them apart.
 
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, HashMap},
     fs, io, panic,
     path::{Path, PathBuf},
     sync::{
@@ -16,7 +16,8 @@ use std::{
 use buffa::Message;
 use extism::{CompiledPlugin, PluginBuilder, Wasm};
 use nama_plugin_api::{
-    BoxFuture, Observer, Plugin, PluginError, PluginId, Registrar,
+    BoxFuture, Observer, Plugin, PluginError, PluginId, Priority, Registrar,
+    fulfiller::{Download, Fulfiller, Movies, Shows},
     points::Events,
     settings::{
         Choice, Choices, SettingField, SettingKind, SettingValue, Settings, SettingsCheck,
@@ -27,9 +28,10 @@ use nama_proto::{
     NAMA_API_VERSION,
     nama::{
         plugin::v1::{
-            self as wire, CheckedSettings, Manifest, ObservePoint, ObservedEvents, setting_value,
+            self as wire, CheckedSettings, Fulfilled, Manifest, ObservePoint, ObservedEvents,
+            Progress, ProgressAsked, ProvidePoint, setting_value,
         },
-        v1::{Event, PluginKind},
+        v1::{Event, PluginKind, Request},
     },
 };
 use semver::{Version, VersionReq};
@@ -109,7 +111,7 @@ struct Running {
     compiled: Arc<CompiledPlugin>,
     /// The values of its secret settings, which the failures it logs mustn't show.
     secrets: Arc<[String]>,
-    /// How many calls in a row crashed.
+    /// How many calls in a row crashed, counted apart for its Observer and its Fulfiller.
     crashes: Arc<AtomicU32>,
 }
 
@@ -120,17 +122,55 @@ impl Running {
         extism::Plugin::new_from_compiled(&self.compiled)?.call(name, input)
     }
 
-    /// Logs why a call failed. If it crashed [`CRASHES_BEFORE_DISABLING`] times in a row, unwinds
-    /// with why, so the registry disables the Plugin as it does one whose Rust code panics.
-    fn failed(&self, err: &extism::Error) {
+    /// [`Self::call`] on a blocking thread. A panic there unwinds here, so the registry disables
+    /// the Plugin as it does one whose Rust code panics.
+    async fn call_blocking(
+        &self,
+        name: &'static str,
+        input: Vec<u8>,
+    ) -> Result<Result<Vec<u8>, extism::Error>, task::JoinError> {
+        let plugin = self.clone();
+        match task::spawn_blocking(move || plugin.call(name, input)).await {
+            Err(err) if err.is_panic() => panic::resume_unwind(err.into_panic()),
+            called => called,
+        }
+    }
+
+    /// [`Self::call_blocking`] for a Provider, whose caller gets why it failed, to log or show
+    /// such as a Request's reason for being Failed: in the Plugin's own words, or that it crashed.
+    /// Counts its crashes as [`Self::count_crash`] does.
+    async fn provide(&self, name: &'static str, input: Vec<u8>) -> Result<Vec<u8>, PluginError> {
+        let err = match self.call_blocking(name, input).await? {
+            Ok(output) => {
+                self.crashes.store(0, Ordering::Relaxed);
+                return Ok(output);
+            }
+            Err(err) => err,
+        };
+        let cause = if is_timeout(&err) {
+            format!("it didn't answer within {CALL_TIMEOUT:?}")
+        } else {
+            err.root_cause().to_string()
+        };
+        self.count_crash(&err, &without_secrets(cause.clone(), &self.secrets));
+        Err(cause.into())
+    }
+
+    /// Logs why a call to its Observer failed, and counts it as [`Self::count_crash`] does.
+    fn observer_failed(&self, err: &extism::Error) {
         let cause = without_secrets(err.root_cause().to_string(), &self.secrets);
+        let failed = if is_crash(err) { "crashed" } else { "failed" };
+        warn!(plugin = %self.manifest.id, "observer {failed}: {cause}");
+        self.count_crash(err, &cause);
+    }
+
+    /// Counts the crashes in a row, `err` among them if it is one. On the
+    /// [`CRASHES_BEFORE_DISABLING`]th, unwinds with why, `cause`, so the registry disables the
+    /// Plugin as it does one whose Rust code panics.
+    fn count_crash(&self, err: &extism::Error, cause: &str) {
         if !is_crash(err) {
             self.crashes.store(0, Ordering::Relaxed);
-            warn!(plugin = %self.manifest.id, "observer failed: {cause}");
-            return;
-        }
-        warn!(plugin = %self.manifest.id, "observer crashed: {cause}");
-        if self.crashes.fetch_add(1, Ordering::Relaxed) + 1 == CRASHES_BEFORE_DISABLING {
+        } else if self.crashes.fetch_add(1, Ordering::Relaxed) + 1 == CRASHES_BEFORE_DISABLING {
             let why =
                 format!("it crashed {CRASHES_BEFORE_DISABLING} times in a row, last with: {cause}");
             panic::resume_unwind(Box::new(why));
@@ -193,8 +233,23 @@ impl Plugin for Installed {
             secrets: secret_values(&self.settings_schema, settings).into(),
             crashes: Arc::default(),
         };
+        // Counting its own crashes, so its Observer working between them doesn't hide them.
+        let fulfiller = Arc::new(Running {
+            crashes: Arc::default(),
+            ..running.clone()
+        });
         // An Extension Point this Server doesn't know is one the Plugin can do without, since its
         // nama-api requirement admits this Server.
+        let providers = &self.manifest.providers;
+        if providers.contains(&ProvidePoint::PROVIDE_POINT_MOVIE_FULFILLER.into()) {
+            registrar.provide::<dyn Fulfiller<Movies>>(
+                Priority::DEFAULT,
+                Arc::<Running>::clone(&fulfiller),
+            );
+        }
+        if providers.contains(&ProvidePoint::PROVIDE_POINT_SHOW_FULFILLER.into()) {
+            registrar.provide::<dyn Fulfiller<Shows>>(Priority::DEFAULT, fulfiller);
+        }
         if self
             .manifest
             .observers
@@ -205,6 +260,36 @@ impl Plugin for Installed {
     }
 }
 
+// One impl for both kinds: the Plugin tells a Movie Request from a Season one by which it holds.
+impl<Kind: 'static> Fulfiller<Kind> for Running {
+    fn fulfill<'a>(&'a self, request: &'a Request) -> BoxFuture<'a, Result<String, PluginError>> {
+        let input = request.encode_to_vec();
+        Box::pin(async move {
+            let output = self.provide("fulfill", input).await?;
+            Ok(Fulfilled::decode_from_slice(&output)?.reference)
+        })
+    }
+
+    fn progress<'a>(
+        &'a self,
+        references: &'a [String],
+    ) -> BoxFuture<'a, Result<HashMap<String, Vec<Download>>, PluginError>> {
+        let input = ProgressAsked {
+            references: references.to_vec(),
+            ..Default::default()
+        }
+        .encode_to_vec();
+        Box::pin(async move {
+            let output = self.provide("progress", input).await?;
+            let downloads = Progress::decode_from_slice(&output)?.downloads;
+            Ok(downloads
+                .into_iter()
+                .map(|(reference, downloads)| (reference, downloads.downloads))
+                .collect())
+        })
+    }
+}
+
 impl Observer<Events> for Running {
     fn observe<'a>(&'a self, event: &'a Vec<Event>) -> BoxFuture<'a, ()> {
         let input = ObservedEvents {
@@ -212,14 +297,10 @@ impl Observer<Events> for Running {
             ..Default::default()
         }
         .encode_to_vec();
-        let plugin = self.clone();
         Box::pin(async move {
-            let called = task::spawn_blocking(move || plugin.call("observe_events", input)).await;
-            match called {
+            match self.call_blocking("observe_events", input).await {
                 Ok(Ok(_)) => self.crashes.store(0, Ordering::Relaxed),
-                Ok(Err(err)) => self.failed(&err),
-                // So the registry disables the Plugin, as it does one whose Rust code panics.
-                Err(err) if err.is_panic() => panic::resume_unwind(err.into_panic()),
+                Ok(Err(err)) => self.observer_failed(&err),
                 Err(err) => warn!(plugin = %self.manifest.id, "observer failed: {err}"),
             }
         })

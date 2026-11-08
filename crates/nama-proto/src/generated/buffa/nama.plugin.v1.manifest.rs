@@ -335,18 +335,30 @@ impl ::buffa::Enumeration for ObservePoint {
         &[Self::OBSERVE_POINT_UNSPECIFIED, Self::OBSERVE_POINT_EVENTS]
     }
 }
-/// A capability an Installed Plugin can register a Provider for. None can yet; the first is the
-/// Fulfiller.
+/// A capability an Installed Plugin can register a Provider for.
 #[allow(non_camel_case_types)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 #[repr(i32)]
 pub enum ProvidePoint {
     PROVIDE_POINT_UNSPECIFIED = 0i32,
+    /// The Fulfiller for Movie Requests. The Plugin's `fulfill` export takes each Request as a
+    /// `nama.v1.Request` and returns `Fulfilled`, and its `progress` export takes `ProgressAsked` and
+    /// returns `Progress`.
+    PROVIDE_POINT_MOVIE_FULFILLER = 1i32,
+    /// The Fulfiller for Season Requests, with the same exports as PROVIDE_POINT_MOVIE_FULFILLER. A
+    /// Plugin providing both tells a Movie Request from a Season one by which it holds.
+    PROVIDE_POINT_SHOW_FULFILLER = 2i32,
 }
 impl ProvidePoint {
     ///Idiomatic alias for [`Self::PROVIDE_POINT_UNSPECIFIED`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const Unspecified: Self = Self::PROVIDE_POINT_UNSPECIFIED;
+    ///Idiomatic alias for [`Self::PROVIDE_POINT_MOVIE_FULFILLER`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const MovieFulfiller: Self = Self::PROVIDE_POINT_MOVIE_FULFILLER;
+    ///Idiomatic alias for [`Self::PROVIDE_POINT_SHOW_FULFILLER`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const ShowFulfiller: Self = Self::PROVIDE_POINT_SHOW_FULFILLER;
 }
 impl ::core::default::Default for ProvidePoint {
     fn default() -> Self {
@@ -443,6 +455,8 @@ impl ::buffa::Enumeration for ProvidePoint {
     fn from_i32(value: i32) -> ::core::option::Option<Self> {
         match value {
             0i32 => ::core::option::Option::Some(Self::PROVIDE_POINT_UNSPECIFIED),
+            1i32 => ::core::option::Option::Some(Self::PROVIDE_POINT_MOVIE_FULFILLER),
+            2i32 => ::core::option::Option::Some(Self::PROVIDE_POINT_SHOW_FULFILLER),
             _ => ::core::option::Option::None,
         }
     }
@@ -452,6 +466,8 @@ impl ::buffa::Enumeration for ProvidePoint {
     fn proto_name(&self) -> &'static str {
         match self {
             Self::PROVIDE_POINT_UNSPECIFIED => "PROVIDE_POINT_UNSPECIFIED",
+            Self::PROVIDE_POINT_MOVIE_FULFILLER => "PROVIDE_POINT_MOVIE_FULFILLER",
+            Self::PROVIDE_POINT_SHOW_FULFILLER => "PROVIDE_POINT_SHOW_FULFILLER",
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -459,11 +475,21 @@ impl ::buffa::Enumeration for ProvidePoint {
             "PROVIDE_POINT_UNSPECIFIED" => {
                 ::core::option::Option::Some(Self::PROVIDE_POINT_UNSPECIFIED)
             }
+            "PROVIDE_POINT_MOVIE_FULFILLER" => {
+                ::core::option::Option::Some(Self::PROVIDE_POINT_MOVIE_FULFILLER)
+            }
+            "PROVIDE_POINT_SHOW_FULFILLER" => {
+                ::core::option::Option::Some(Self::PROVIDE_POINT_SHOW_FULFILLER)
+            }
             _ => ::core::option::Option::None,
         }
     }
     fn values() -> &'static [Self] {
-        &[Self::PROVIDE_POINT_UNSPECIFIED]
+        &[
+            Self::PROVIDE_POINT_UNSPECIFIED,
+            Self::PROVIDE_POINT_MOVIE_FULFILLER,
+            Self::PROVIDE_POINT_SHOW_FULFILLER,
+        ]
     }
 }
 /// What an Installed Plugin is and what it needs from the Server. The Plugin returns it from its

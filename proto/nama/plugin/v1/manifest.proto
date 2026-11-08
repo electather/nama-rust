@@ -96,8 +96,14 @@ enum ObservePoint {
   OBSERVE_POINT_EVENTS = 1;
 }
 
-// A capability an Installed Plugin can register a Provider for. None can yet; the first is the
-// Fulfiller.
+// A capability an Installed Plugin can register a Provider for.
 enum ProvidePoint {
   PROVIDE_POINT_UNSPECIFIED = 0;
+  // The Fulfiller for Movie Requests. The Plugin's `fulfill` export takes each Request as a
+  // `nama.v1.Request` and returns `Fulfilled`, and its `progress` export takes `ProgressAsked` and
+  // returns `Progress`.
+  PROVIDE_POINT_MOVIE_FULFILLER = 1;
+  // The Fulfiller for Season Requests, with the same exports as PROVIDE_POINT_MOVIE_FULFILLER. A
+  // Plugin providing both tells a Movie Request from a Season one by which it holds.
+  PROVIDE_POINT_SHOW_FULFILLER = 2;
 }
