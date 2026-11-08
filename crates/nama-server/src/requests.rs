@@ -6,7 +6,7 @@
 
 use std::{
     collections::{BTreeSet, HashMap, HashSet},
-    sync::Arc,
+    sync::{Arc, Mutex, MutexGuard, PoisonError},
 };
 
 use nama_plugin_api::{
@@ -20,7 +20,7 @@ use nama_proto::nama::v1::{
     RequesterAdded, RequesterRemoved, event::Event as Happened,
 };
 use sqlx::SqliteConnection;
-use tracing::warn;
+use tracing::{error, warn};
 
 use crate::{
     contents::{self, Contents, Metadata},
@@ -79,6 +79,8 @@ pub(crate) struct Requests {
     events: EventBus,
     /// Holds the Movie Fulfiller, if one is enabled.
     plugins: Registry,
+    /// The ids of the Requests being handed to a Fulfiller now.
+    handing: Arc<Mutex<HashSet<i64>>>,
 }
 
 /// A Movie the metadata source has, and how close it is to being on the Server.
@@ -146,6 +148,7 @@ impl Requests {
             matcher,
             events,
             plugins,
+            handing: Arc::default(),
         }
     }
 
@@ -241,7 +244,7 @@ impl Requests {
     /// Hands the Approved `request` to the Movie Fulfiller and moves it to Processing, publishing
     /// that its state changed. Returns the Request as it is now. Without a Movie Fulfiller, or
     /// when it doesn't take the Request, the Request waits in Approved. A Season Request always
-    /// waits in Approved.
+    /// waits in Approved, and one already being handed off is left to that hand-off.
     ///
     /// Runs in a task of its own: once the Fulfiller has taken the Request, its reference must be
     /// stored even if the caller stops waiting.
@@ -252,31 +255,95 @@ impl Requests {
         }
         let requests = self.clone();
         let handed = tokio::spawn(async move {
-            let Some(reference) = requests.fulfill(&request).await else {
-                return Ok(request);
-            };
             let id = request.id;
-            let processing = requests
-                .db
-                .write(move |tx| Box::pin(start_processing(tx, id, reference)))
-                .await?;
-            let Some(processing) = processing else {
-                warn!(
-                    request = id,
-                    "the Movie Fulfiller took a Request that was changed meanwhile, and keeps it"
-                );
+            // An approval and enabling the Fulfiller may hand the same Request off at once, which
+            // would hand it to the Fulfiller twice.
+            if !requests.handing().insert(id) {
                 return Ok(request);
-            };
-            requests.events.publish(vec![event(RequestStateChanged {
-                request: processing.clone().into(),
-                ..Default::default()
-            })]);
-            Ok(processing)
+            }
+            let handed = requests.hand_off_claimed(request).await;
+            requests.handing().remove(&id);
+            handed
         });
         // The task is never aborted, so it only fails if it panicked.
         handed
             .await
             .unwrap_or_else(|_| Err(sqlx::Error::WorkerCrashed.into()))
+    }
+
+    /// [`Self::hand_off`] for `request`, which no other hand-off has, as it is in the database now:
+    /// one that finished since `request` was read has moved it on.
+    async fn hand_off_claimed(&self, request: Request) -> Result<Request, Error> {
+        let id = request.id;
+        let mut conn = self.db.reader().acquire().await?;
+        let current = match load_one(&mut conn, id).await? {
+            Some(current) if current.state == RequestState::Approved => current,
+            Some(moved_on) => return Ok(moved_on),
+            // Cancelled since.
+            None => return Ok(request),
+        };
+        drop(conn);
+        let Some(reference) = self.fulfill(&current).await else {
+            return Ok(current);
+        };
+        let processing = self
+            .db
+            .write(move |tx| Box::pin(start_processing(tx, id, reference)))
+            .await?;
+        let Some(processing) = processing else {
+            warn!(
+                request = id,
+                "the Movie Fulfiller took a Request that was changed meanwhile, and keeps it"
+            );
+            return Ok(current);
+        };
+        self.events.publish(vec![event(RequestStateChanged {
+            request: processing.clone().into(),
+            ..Default::default()
+        })]);
+        Ok(processing)
+    }
+
+    fn handing(&self) -> MutexGuard<'_, HashSet<i64>> {
+        self.handing.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// Hands each Approved Request, oldest first, to the enabled Plugin `plugin`'s Movie Fulfiller,
+    /// if it provides one, as [`Self::hand_off_waiting`] does.
+    pub(crate) async fn hand_off_waiting_to(&self, plugin: &PluginId) {
+        let fulfils = self
+            .plugins
+            .call_provider_of::<dyn Fulfiller<Movies>, _, _>(plugin, |_| async {})
+            .await
+            .is_some();
+        if fulfils {
+            self.hand_off_waiting().await;
+        }
+    }
+
+    /// Hands each Approved Request, oldest first, to the Movie Fulfiller as [`Self::hand_off`]
+    /// does, such as those that waited for one to be enabled. A failure is only logged, and leaves
+    /// the rest waiting.
+    pub(crate) async fn hand_off_waiting(&self) {
+        if let Err(err) = self.try_hand_off_waiting().await {
+            error!("handing the waiting Requests to the Movie Fulfiller failed: {err}");
+        }
+    }
+
+    async fn try_hand_off_waiting(&self) -> Result<(), Error> {
+        let mut conn = self.db.reader().acquire().await?;
+        // ponytail: reads every Request to find the Approved ones; filter in SQL if there get many.
+        let all = load(&mut conn, None, None).await?;
+        drop(conn);
+        let waiting = all
+            .into_iter()
+            .rev()
+            .filter(|request| request.state == RequestState::Approved);
+        // ponytail: one at a time, so a slow Fulfiller takes as long for each.
+        for request in waiting {
+            self.hand_off(request).await?;
+        }
+        Ok(())
     }
 
     /// The reference the Movie Fulfiller gives for `request` once it takes it, if one is enabled
@@ -934,14 +1001,26 @@ fn read_state(stored: &str) -> RequestState {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
+    use std::{
+        collections::{HashMap, HashSet},
+        sync::{
+            Arc,
+            atomic::{AtomicUsize, Ordering},
+        },
+        time::Duration,
+    };
 
-    use nama_plugin_api::metadata::{Episode, ExternalIds};
-    use nama_proto::nama::v1::RequestState;
+    use nama_plugin_api::{
+        BoxFuture, Plugin, PluginError, PluginId, Priority, Registrar,
+        fulfiller::{Download, Fulfiller, Movies},
+        metadata::{Episode, ExternalIds},
+    };
+    use nama_proto::nama::v1::{Request, RequestState};
     use sqlx::SqliteConnection;
+    use tokio::sync::Notify;
 
-    use super::{Wanted, ask, in_library};
-    use crate::db::Database;
+    use super::{Requests, Wanted, ask, in_library};
+    use crate::{db::Database, events::EventBus, matching::Matcher, plugins::Registry};
 
     const TODAY: &str = "2026-11-08";
 
@@ -979,10 +1058,12 @@ mod tests {
         assert!(!in_library(&[], &HashSet::new(), TODAY));
     }
 
-    /// Asks for each of `wanted` in turn as a new User, and returns the Requests' ids.
+    /// Asks for each of `wanted` in turn as a new User, opening Requests in `state`, and returns
+    /// the Requests' ids.
     async fn ask_each(
         conn: &mut SqliteConnection,
         wanted: Vec<Wanted>,
+        state: RequestState,
     ) -> Result<Vec<i64>, sqlx::Error> {
         let user = sqlx::query_scalar(
             "INSERT INTO users (username, display_username, permissions, created_at, updated_at)
@@ -992,7 +1073,7 @@ mod tests {
         .await?;
         let mut ids = Vec::new();
         for one in wanted {
-            let (request, _) = ask(conn, user, one, RequestState::Pending).await?;
+            let (request, _) = ask(conn, user, one, state).await?;
             ids.push(request.id);
         }
         Ok(ids)
@@ -1010,7 +1091,7 @@ mod tests {
         });
 
         let ids = db
-            .write(move |tx| Box::pin(ask_each(tx, wanted.into())))
+            .write(move |tx| Box::pin(ask_each(tx, wanted.into(), RequestState::Pending)))
             .await
             .unwrap();
 
@@ -1020,5 +1101,83 @@ mod tests {
             ids.last(),
             "asking again joins the Movie's Request"
         );
+    }
+
+    /// A Movie Fulfiller that counts the Requests it is handed, and takes each only once `open`
+    /// lets it.
+    #[derive(Default)]
+    struct Gated {
+        handed: AtomicUsize,
+        open: Notify,
+    }
+
+    impl Fulfiller<Movies> for Gated {
+        fn fulfill<'a>(&'a self, _: &'a Request) -> BoxFuture<'a, Result<String, PluginError>> {
+            self.handed.fetch_add(1, Ordering::SeqCst);
+            Box::pin(async {
+                self.open.notified().await;
+                Ok("taken".to_owned())
+            })
+        }
+
+        fn progress<'a>(
+            &'a self,
+            _: &'a [String],
+        ) -> BoxFuture<'a, Result<HashMap<String, Vec<Download>>, PluginError>> {
+            Box::pin(async { Ok(HashMap::new()) })
+        }
+    }
+
+    struct GatedPlugin(Arc<Gated>);
+
+    impl Plugin for GatedPlugin {
+        fn id(&self) -> PluginId {
+            PluginId::from_static("gated")
+        }
+
+        fn version(&self) -> &'static str {
+            "0.0.0"
+        }
+
+        fn register(&self, registrar: &mut Registrar) {
+            let gated: Arc<Gated> = Arc::clone(&self.0);
+            registrar.provide::<dyn Fulfiller<Movies>>(Priority::DEFAULT, gated);
+        }
+    }
+
+    #[tokio::test]
+    async fn a_request_being_handed_off_is_not_handed_to_the_fulfiller_again() {
+        let data = tempfile::tempdir().unwrap();
+        let db = Arc::new(Database::open(data.path()).await.unwrap());
+        let wanted = vec![Wanted {
+            tmdb_id: 949,
+            season: None,
+            title: "Heat".to_owned(),
+            release_date: None,
+        }];
+        db.write(move |tx| Box::pin(ask_each(tx, wanted, RequestState::Approved)))
+            .await
+            .unwrap();
+        let gated = Arc::new(Gated::default());
+        let plugins = Registry::new();
+        plugins
+            .enable(Arc::new(GatedPlugin(Arc::clone(&gated))))
+            .unwrap();
+        let events = EventBus::new(plugins.clone());
+        let matcher = Matcher::new(Arc::clone(&db), plugins.clone(), events.clone());
+        let requests = Requests::new(db, matcher, events, plugins);
+        let handing_first = requests.clone();
+        let first = tokio::spawn(async move { handing_first.hand_off_waiting().await });
+        while gated.handed.load(Ordering::SeqCst) == 0 {
+            tokio::task::yield_now().await;
+        }
+
+        tokio::time::timeout(Duration::from_secs(1), requests.hand_off_waiting())
+            .await
+            .expect("the second hand-off waited on the Fulfiller");
+        gated.open.notify_one();
+        first.await.unwrap();
+
+        assert_eq!(gated.handed.load(Ordering::SeqCst), 1);
     }
 }

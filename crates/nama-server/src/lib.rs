@@ -29,8 +29,8 @@ use std::{future::Future, io, net::SocketAddr, sync::Arc};
 use tokio::net::TcpListener;
 
 use crate::{
-    config::Config, db::Database, events::EventBus, plugins::Registry, scanner::Scanner,
-    users::SetupCode,
+    config::Config, db::Database, events::EventBus, matching::Matcher, plugins::Registry,
+    requests::Requests, scanner::Scanner, users::SetupCode,
 };
 
 /// Serves the Server's API on `listener`, backed by `db` and the Plugins enabled in `plugins`,
@@ -42,7 +42,7 @@ use crate::{
 ///
 /// Every Library is scanned, and its items Matched, in the background when serving starts. Scans
 /// still running when `shutdown` resolves are cancelled, and the returned future waits for them
-/// to stop.
+/// to stop. The Approved Requests waiting for a Fulfiller are handed to it in the background too.
 ///
 /// While the Server has no Users, `Setup` creates the first Admin for whoever gives `setup_code`.
 /// `Setup` and `SignIn` are rate limited by the client's IP address. That is the peer's, unless the
@@ -69,18 +69,25 @@ pub fn serve(
 ) -> impl Future<Output = io::Result<()>> + Send + 'static {
     let events = EventBus::new(plugins.clone());
     let scanner = Scanner::new(Arc::clone(&db), plugins.clone(), events.clone());
+    let matcher = Matcher::new(Arc::clone(&db), plugins.clone(), events.clone());
+    let requests = Requests::new(Arc::clone(&db), matcher, events.clone(), plugins.clone());
     let app = api::router(
         config,
         db,
         plugins,
         scanner.clone(),
         events.clone(),
+        requests.clone(),
         setup_code,
     );
     #[cfg(feature = "web")]
     let app = app.layer(axum::middleware::from_fn(web::serve));
     async move {
         scanner.start_all().await;
+        // In the background, so a slow Fulfiller doesn't hold up serving.
+        // shortcut: not waited for at shutdown, so one still running keeps the database open and it
+        // isn't closed cleanly; track it as the scanner tracks its scans if that shows up in logs.
+        tokio::spawn(async move { requests.hand_off_waiting().await });
         let served = axum::serve(
             listener,
             // The peer's address decides whose rate limit counts and which proxies are trusted.

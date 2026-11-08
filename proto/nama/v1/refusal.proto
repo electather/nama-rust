@@ -146,4 +146,9 @@ enum RefusalReason {
   // be translated, or else the Server's. Params: `pluginId`, and `timeoutSeconds` for a check that ran
   // too long.
   REFUSAL_REASON_SETTINGS_CHECK_FAILED = 45;
+
+  // `failed_precondition`: another enabled Plugin already provides the Fulfiller for a kind of title
+  // the Plugin provides one for, and each kind has at most one. Params: `pluginId`,
+  // `fulfillerPluginId`, the Plugin that has it, and `titleKind`, `Movie` or `Show`.
+  REFUSAL_REASON_FULFILLER_TAKEN = 46;
 }
