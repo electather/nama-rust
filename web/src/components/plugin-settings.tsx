@@ -241,13 +241,17 @@ function refusedSettings(error: unknown, attempt: string): Record<string, string
     );
     return { form };
   }
-  return {
-    [key]:
-      reason === RefusalReason.FIELD_REQUIRED
-        ? "This setting is required."
-        : "This setting can’t take that value.",
-  };
+  // A failed check is in the Plugin's own words.
+  if (reason === RefusalReason.SETTINGS_CHECK_FAILED) return { [key]: serverMessage(error) };
+  return { [key]: settingRefused[reason] ?? "This setting can’t take that value." };
 }
+
+/** Why the Server refused a setting, by its Refusal's reason. */
+const settingRefused: Partial<Record<RefusalReason, string>> = {
+  [RefusalReason.FIELD_REQUIRED]: "This setting is required.",
+  [RefusalReason.CHOICE_NOT_OFFERED]:
+    "The Plugin doesn’t offer this choice now. Test the settings and pick again.",
+};
 
 /** What saving did, by whether `plugin` runs with the new settings now. */
 function saved(plugin: Plugin | undefined) {

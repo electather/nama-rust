@@ -188,6 +188,7 @@ function readyIssues(): { ready: Issue[]; waiting: Waiting[] } {
   const ready: Issue[] = [];
   const waiting: Waiting[] = [];
   for (const i of issues.sort((a, b) => a.number - b.number)) {
+    if (process.env.ONLY_ISSUE && i.number !== Number(process.env.ONLY_ISSUE)) continue; // ONLY_ISSUE=N → build just #N
     const s = i.subIssuesSummary;
     const blockers = i.blockedBy.nodes.filter((b) => b.state === "OPEN").map((b) => `#${b.number}`);
     if (s.total > 0) waiting.push({ issue: i.number, why: `parent: waits for ${s.total - s.completed} of ${s.total} sub-issues` });
@@ -199,11 +200,17 @@ function readyIssues(): { ready: Issue[]; waiting: Waiting[] } {
 
 // GitHub doesn't close a parent when its last sub-issue closes, and issues it blocks would wait forever.
 // A sweep rather than a per-merge check: it also catches children closed by hand or a summary that lagged.
+// Parents carry no ready-for-agent label (docs/agents/triage-labels.md), so they're found through their labelled
+// children; closed children keep the label. ponytail: the newest 1000 labelled issues, so very old parents drop out.
 function closeFinishedParents() {
-  const open: { number: number; subIssuesSummary: { total: number; completed: number } }[] = JSON.parse(
-    gh("issue", "list", "--label", READY, "--state", "open", "--limit", "100", "--json", "number,subIssuesSummary"),
+  const children: { parent: { number: number; state: string } | null }[] = JSON.parse(
+    gh("issue", "list", "--label", READY, "--state", "all", "--limit", "1000", "--json", "parent"),
   );
-  for (const { number, subIssuesSummary: s } of open) {
+  const parents = new Set(children.flatMap(({ parent }) => (parent?.state === "OPEN" ? [parent.number] : [])));
+  for (const number of parents) {
+    const s: { total: number; completed: number } = JSON.parse(
+      gh("issue", "view", String(number), "--json", "subIssuesSummary", "--jq", ".subIssuesSummary"),
+    );
     if (s.total > 0 && s.completed === s.total) closeParent(number, s.total);
   }
 }
@@ -213,15 +220,27 @@ function closeParent(number: number, total: number) {
   log(`✓ parent #${number} closed (${total}/${total} sub-issues done)`);
 }
 
-// The sweep only sees parents labelled ready-for-agent. A parent of something the factory merged is closed
+// The sweep only sees parents of labelled children. A parent of something the factory merged is closed
 // whatever its labels, and so on up: its own parent may have just finished too.
-function closeIfFinished(number: number) {
-  const p: { state: string; subIssuesSummary: { total: number; completed: number }; parent: { number: number } | null } =
-    JSON.parse(gh("issue", "view", String(number), "--json", "state,subIssuesSummary,parent"));
-  const s = p.subIssuesSummary;
-  if (p.state !== "OPEN" || s.total === 0 || s.completed < s.total) return;
-  closeParent(number, s.total);
-  if (p.parent) closeIfFinished(p.parent.number);
+// GitHub updates a parent's subIssuesSummary a few seconds after a child closes, so one short is re-read
+// before giving up: #139 stayed open when its last child's close hadn't landed in the count yet.
+async function closeIfFinished(number: number) {
+  for (let tries = 0; ; tries++) {
+    const p: { state: string; subIssuesSummary: { total: number; completed: number }; parent: { number: number } | null } =
+      JSON.parse(gh("issue", "view", String(number), "--json", "state,subIssuesSummary,parent"));
+    const s = p.subIssuesSummary;
+    if (p.state !== "OPEN" || s.total === 0 || s.completed < s.total - 1) return;
+    if (s.completed === s.total) {
+      closeParent(number, s.total);
+      if (p.parent) await closeIfFinished(p.parent.number);
+      return;
+    }
+    if (tries === 6) {
+      log(`parent #${number} left open: ${s.completed}/${s.total} sub-issues closed after 30s`);
+      return;
+    }
+    await sleep(5_000);
+  }
 }
 
 // `Closes #N` closes the issue a few seconds after the merge, not during it.
@@ -405,7 +424,7 @@ async function afterMerge(issue: Issue) {
   await waitUntilClosed(issue);
   try {
     closeFinishedParents();
-    closeIfFinished(issue.parent);
+    await closeIfFinished(issue.parent);
   } catch (e) {
     log(`#${issue.number} merged, but closing its parent #${issue.parent} failed: ${oneLine(e)}`); // not retried: close it by hand
   }

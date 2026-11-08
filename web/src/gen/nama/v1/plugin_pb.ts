@@ -508,7 +508,10 @@ export const PluginService: GenService<{
   /**
    * Replaces a Plugin's settings and, if it is meant to be enabled, enables it again with them,
    * without a restart. Settings that don't fit its schema are refused with a Refusal naming
-   * `settings.<key>`, and nothing changes. Fails with `not_found` for an unknown Plugin.
+   * `settings.<key>`, and nothing changes. If a choice setting has a value, the Plugin's settings
+   * check runs on the new settings first, and a check that fails, or doesn't offer that value, is
+   * refused with `REFUSAL_REASON_SETTINGS_CHECK_FAILED` or `REFUSAL_REASON_CHOICE_NOT_OFFERED`
+   * naming the setting, and nothing changes. Fails with `not_found` for an unknown Plugin.
    *
    * @generated from rpc nama.v1.PluginService.UpdatePluginSettings
    */

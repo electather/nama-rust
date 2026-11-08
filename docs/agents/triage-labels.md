@@ -11,6 +11,8 @@ The skills speak in terms of five canonical triage roles. This file maps those r
 | `wontfix`                  | `wontfix`            | Will not be actioned                     |
 | —                          | `agent-working`      | The sandcastle factory is building it (set and cleared by `.sandcastle/main.ts`) |
 
+`ready-for-agent` goes on the issues the factory builds, never on a parent. A parent with sub-issues isn't built itself: its children carry the label, and the factory closes the parent once they're all closed.
+
 When a skill mentions a role (e.g. "apply the AFK-ready triage label"), use the corresponding label string from this table.
 
 Edit the "Label in our tracker" column to match whatever vocabulary you actually use.
