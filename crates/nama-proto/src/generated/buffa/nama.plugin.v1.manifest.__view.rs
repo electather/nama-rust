@@ -18,7 +18,9 @@ pub struct ManifestView<'a> {
     ///
     /// Field 3: `nama_api`
     pub nama_api: &'a str,
-    /// The settings the Plugin takes, in the order a form shows them.
+    /// The settings the Plugin takes, in the order a form shows them. The Plugin reads each one's
+    /// value from its Extism config under its key, as text: a bool as "true" or "false", a number in
+    /// decimal.
     ///
     /// Field 4: `settings`
     pub settings: ::buffa::RepeatedView<
@@ -26,7 +28,8 @@ pub struct ManifestView<'a> {
         super::super::__buffa::view::SettingFieldView<'a>,
     >,
     /// Host names the Plugin may send HTTP requests to, such as "api.example.com" or
-    /// "*.example.com". Ports aren't part of the match, so a host allows every port on it.
+    /// "*.example.com". Ports aren't part of the match, so a host allows every port on it, and a
+    /// Server refuses a Plugin naming a host with one.
     ///
     /// Field 5: `allowed_hosts`
     pub allowed_hosts: ::buffa::RepeatedView<'a, &'a str>,
@@ -480,7 +483,9 @@ impl ManifestOwnedView {
     pub fn nama_api(&self) -> &'_ str {
         self.0.reborrow().nama_api
     }
-    /// The settings the Plugin takes, in the order a form shows them.
+    /// The settings the Plugin takes, in the order a form shows them. The Plugin reads each one's
+    /// value from its Extism config under its key, as text: a bool as "true" or "false", a number in
+    /// decimal.
     ///
     /// Field 4: `settings`
     #[must_use]
@@ -490,7 +495,8 @@ impl ManifestOwnedView {
         &self.0.reborrow().settings
     }
     /// Host names the Plugin may send HTTP requests to, such as "api.example.com" or
-    /// "*.example.com". Ports aren't part of the match, so a host allows every port on it.
+    /// "*.example.com". Ports aren't part of the match, so a host allows every port on it, and a
+    /// Server refuses a Plugin naming a host with one.
     ///
     /// Field 5: `allowed_hosts`
     #[must_use]

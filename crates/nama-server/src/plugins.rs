@@ -17,8 +17,8 @@ use std::{
 
 use futures_util::FutureExt;
 use nama_plugin_api::{
-    InterceptPoint, ObservePoint, Observer, OnFailure, Plugin, PluginId, PointKey, Priority,
-    Registrar, Registration, Verdict,
+    InterceptPoint, ObservePoint, Observer, OnFailure, Plugin, PluginError, PluginId, PointKey,
+    Priority, Registrar, Registration, Verdict,
     fulfiller::{Fulfiller, Movies, Shows},
     settings::{Choices, SettingKind, Settings, SettingsError, SettingsSchema},
 };
@@ -706,6 +706,68 @@ impl Registry {
             }
         }
         None
+    }
+
+    /// Calls `call` with every Provider of `T`, each as its own task, without waiting for them.
+    ///
+    /// An error is logged, without the Plugin's secret settings, and not retried. A Provider that
+    /// panics is disabled. Must be called within a Tokio runtime.
+    pub fn call_each_provider<T, F>(&self, call: impl Fn(Arc<T>) -> F + Clone + Send + 'static)
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Future<Output = Result<(), PluginError>> + Send + 'static,
+    {
+        for entry in self.entries(PointKey::provide::<T>()) {
+            if let Some(provider) = entry.registration.provider::<T>() {
+                tokio::spawn(self.clone().call_one(entry, provider, call.clone()));
+            }
+        }
+    }
+
+    /// The task [`Registry::call_each_provider`] runs for one Provider.
+    async fn call_one<T, F>(self, entry: Entry, provider: Arc<T>, call: impl FnOnce(Arc<T>) -> F)
+    where
+        T: ?Sized,
+        F: Future<Output = Result<(), PluginError>>,
+    {
+        self.call_if_current(&entry, Arc::clone(&provider), call)
+            .await;
+        // This task may hold the last handle on a Plugin disabled meanwhile, and its `Drop` is
+        // Plugin code.
+        let plugin = entry.plugin.clone();
+        if let Err(message) = contain_sync(|| drop((provider, entry))) {
+            error!(plugin = %plugin, message, "plugin panicked while being dropped");
+        }
+    }
+
+    /// Calls `call` with `provider`, logging its error, unless `entry`'s Plugin has been disabled
+    /// since [`Registry::call_each_provider`].
+    async fn call_if_current<T, F>(
+        &self,
+        entry: &Entry,
+        provider: Arc<T>,
+        call: impl FnOnce(Arc<T>) -> F,
+    ) where
+        T: ?Sized,
+        F: Future<Output = Result<(), PluginError>>,
+    {
+        if !self.is_current(entry) {
+            return;
+        }
+        let point = entry.registration.point().name();
+        // The error is Plugin code too: its message and its `Drop` stay contained.
+        let called = contain(|| {
+            let answer = call(provider);
+            async move { answer.await.map_err(|error| error.to_string()) }
+        });
+        match called.await {
+            Ok(Ok(())) => {}
+            Ok(Err(error)) => {
+                let error = without_secrets(error, &entry.secrets);
+                warn!(plugin = %entry.plugin, point, error, "provider failed");
+            }
+            Err(message) => self.disable_after_panic(entry, point, &message),
+        }
     }
 
     /// Sets which Plugins' Providers of `T` come first, and in what order, overriding their

@@ -145,6 +145,9 @@ enum SettingKind {
   SETTING_KIND_INTEGER = 4;
   // Text picked from the choices the Plugin's settings check offers (`TestPluginSettings`).
   SETTING_KIND_CHOICE = 5;
+  // An http or https URL, such as a Sonarr address. An Installed Plugin may send HTTP requests
+  // to its host.
+  SETTING_KIND_URL = 6;
 }
 
 // One setting a Plugin takes, as its schema declares it, and its stored value.

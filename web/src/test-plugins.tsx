@@ -10,8 +10,8 @@ const text = (value: string) => ({ value: { case: "textValue" as const, value } 
 
 /**
  * The Built-in Plugins of a fresh Server with a TMDB API key set, settings of every kind, and the
- * test Plugin, whose settings check offers choices, then an Installed Plugin and one the Server
- * refused.
+ * test Plugin, whose settings check offers choices, then an Installed Plugin with a URL setting and
+ * one the Server refused.
  */
 const plugins = [
   { id: "local-auth", version: "0.1.0", kind: PluginKind.BUILT_IN, enabled: true },
@@ -96,7 +96,21 @@ const plugins = [
       },
     ],
   },
-  { id: "test-plugin", version: "0.1.0", kind: PluginKind.INSTALLED, enabled: false },
+  {
+    id: "test-plugin",
+    version: "0.1.0",
+    kind: PluginKind.INSTALLED,
+    enabled: false,
+    settings: [
+      {
+        key: "url",
+        label: "Sonarr URL",
+        description: "Where Sonarr is.",
+        kind: SettingKind.URL,
+        value: text("http://sonarr.lan:8989"),
+      },
+    ],
+  },
   {
     id: "out-of-range.wasm",
     version: "",

@@ -15,6 +15,7 @@
 use std::{collections::BTreeMap, fmt};
 
 use serde::{Deserialize, Serialize};
+use url::Url;
 
 use crate::{BoxFuture, PluginError};
 
@@ -55,6 +56,9 @@ pub enum SettingKind {
     Integer,
     /// Text picked from the choices the Plugin's [`SettingsCheck`] offers.
     Choice,
+    /// An http or https URL with a host, such as a Sonarr address. An Installed Plugin may send
+    /// HTTP requests to its host.
+    Url,
 }
 
 /// A setting's value.
@@ -65,23 +69,24 @@ pub enum SettingValue {
     Bool(bool),
     /// A whole number.
     Integer(i64),
-    /// Text, for [`SettingKind::Text`], [`SettingKind::Secret`] and [`SettingKind::Choice`].
+    /// Text, for [`SettingKind::Text`], [`SettingKind::Secret`], [`SettingKind::Choice`] and
+    /// [`SettingKind::Url`].
     Text(String),
 }
 
 impl SettingValue {
     /// Whether the value is of `kind`.
     #[must_use]
-    pub const fn is(&self, kind: SettingKind) -> bool {
-        matches!(
-            (self, kind),
+    pub fn is(&self, kind: SettingKind) -> bool {
+        match (self, kind) {
+            (Self::Text(text), SettingKind::Url) => web_url(text).is_some(),
             (Self::Bool(_), SettingKind::Bool)
-                | (Self::Integer(_), SettingKind::Integer)
-                | (
-                    Self::Text(_),
-                    SettingKind::Text | SettingKind::Secret | SettingKind::Choice
-                )
-        )
+            | (Self::Integer(_), SettingKind::Integer)
+            | (Self::Text(_), SettingKind::Text | SettingKind::Secret | SettingKind::Choice) => {
+                true
+            }
+            _ => false,
+        }
     }
 }
 
@@ -123,6 +128,13 @@ impl Settings {
         }
     }
 
+    /// The value of `key`, if it is an http or https URL with a host, as a
+    /// [`SettingKind::Url`] setting's is.
+    #[must_use]
+    pub fn url(&self, key: &str) -> Option<Url> {
+        web_url(self.text(key)?)
+    }
+
     /// Checks these settings against `schema` and fills in its defaults.
     ///
     /// # Errors
@@ -149,6 +161,13 @@ impl Settings {
         }
         Ok(self)
     }
+}
+
+/// `text` as a URL, if it is an http or https one with a host: one an HTTP client can reach.
+fn web_url(text: &str) -> Option<Url> {
+    Url::parse(text)
+        .ok()
+        .filter(|url| matches!(url.scheme(), "http" | "https") && url.has_host())
 }
 
 /// Why a Plugin's settings don't fit its schema.
@@ -201,4 +220,39 @@ pub trait SettingsCheck: Send + Sync {
     /// When the settings don't work, such as an API key the service refuses, in plain words an
     /// admin can act on.
     fn check<'a>(&'a self, settings: &'a Settings) -> BoxFuture<'a, Result<Choices, PluginError>>;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{SettingKind, SettingValue, Settings};
+
+    fn text(text: &str) -> SettingValue {
+        SettingValue::Text(text.to_owned())
+    }
+
+    #[test]
+    fn a_url_setting_takes_only_an_http_or_https_url_with_a_host() {
+        assert!(text("http://sonarr.lan:8989/").is(SettingKind::Url));
+        assert!(text("https://sonarr.example.com").is(SettingKind::Url));
+
+        assert!(!text("sonarr.lan:8989").is(SettingKind::Url));
+        assert!(!text("ftp://sonarr.lan/").is(SettingKind::Url));
+        assert!(!text("not a url").is(SettingKind::Url));
+        assert!(!SettingValue::Integer(8989).is(SettingKind::Url));
+    }
+
+    #[test]
+    fn a_url_setting_is_read_as_a_url() {
+        let settings =
+            Settings::new([("sonarr".to_owned(), text("http://sonarr.lan:8989/"))].into());
+
+        let url = settings.url("sonarr");
+
+        assert_eq!(
+            url.and_then(|url| url.host_str().map(str::to_owned))
+                .as_deref(),
+            Some("sonarr.lan")
+        );
+        assert_eq!(settings.url("missing"), None);
+    }
 }

@@ -71,43 +71,52 @@ enum Refused {
     UnknownSettingKind { key: String },
     #[error("its setting {key}'s default isn't {kind:?}")]
     DefaultWrongKind { key: String, kind: SettingKind },
+    #[error("its allowed host {0} has a port, and allowed hosts are matched without one")]
+    HostWithPort(String),
     #[error("its id {0} is another Plugin's")]
     IdTaken(PluginId),
 }
 
-/// An Installed Plugin the Server read, ready to be compiled with the settings it is enabled
-/// with.
+/// An Installed Plugin the Server read and checked, ready to enable.
 #[derive(Clone)]
 struct Installed {
     manifest: Arc<Manifest>,
     settings_schema: SettingsSchema,
-    /// Its module, with every call's timeout.
-    module: Arc<extism::Manifest>,
+    /// The `.wasm` file's contents. Extism fixes the hosts a Plugin may reach and the settings it
+    /// reads when it compiles it, so each enabling compiles them again.
+    wasm: Arc<[u8]>,
     cache_config: Arc<Path>,
 }
 
-/// An enabled Installed Plugin, compiled with its settings. Each call gets a fresh instance,
-/// since one that trapped or timed out may have stopped halfway through changing its own state.
+/// An enabled Installed Plugin, compiled once with its allowed hosts and settings. Each call into
+/// it gets a fresh instance, so one that traps or times out leaves nothing behind for the next.
+#[derive(Clone)]
 struct Running {
-    id: PluginId,
+    manifest: Arc<Manifest>,
     compiled: Arc<CompiledPlugin>,
-    /// The values of the secret settings it was enabled with, which its errors mustn't log.
-    secrets: Vec<String>,
+    /// The values of its secret settings, which the failures it logs mustn't show.
+    secrets: Arc<[String]>,
     /// How many calls in a row crashed.
-    crashes: AtomicU32,
+    crashes: Arc<AtomicU32>,
 }
 
 impl Running {
+    /// Calls the Plugin's export `name` with `input`, a protobuf message, on a fresh instance.
+    /// Blocks while the Plugin runs.
+    fn call(&self, name: &str, input: Vec<u8>) -> Result<Vec<u8>, extism::Error> {
+        extism::Plugin::new_from_compiled(&self.compiled)?.call(name, input)
+    }
+
     /// Logs why a call failed. If it crashed [`CRASHES_BEFORE_DISABLING`] times in a row, unwinds
     /// with why, so the registry disables the Plugin as it does one whose Rust code panics.
     fn failed(&self, err: &extism::Error) {
         let cause = without_secrets(err.root_cause().to_string(), &self.secrets);
         if !is_crash(err) {
             self.crashes.store(0, Ordering::Relaxed);
-            warn!(plugin = %self.id, "observer failed: {cause}");
+            warn!(plugin = %self.manifest.id, "observer failed: {cause}");
             return;
         }
-        warn!(plugin = %self.id, "observer crashed: {cause}");
+        warn!(plugin = %self.manifest.id, "observer crashed: {cause}");
         if self.crashes.fetch_add(1, Ordering::Relaxed) + 1 == CRASHES_BEFORE_DISABLING {
             let why =
                 format!("it crashed {CRASHES_BEFORE_DISABLING} times in a row, last with: {cause}");
@@ -116,24 +125,16 @@ impl Running {
     }
 }
 
-/// Whether a failed call trapped or timed out, rather than the Plugin returning an error.
+/// Whether a failed call trapped or timed out, rather than the Plugin returning an error or a
+/// host function such as an HTTP request refusing it.
 fn is_crash(err: &extism::Error) -> bool {
-    // Extism (1.41) gives a returned error as a bare message, a timeout as a bare "timeout", and
-    // a trap wrapped in its wasm backtrace, with any panic's message as the source.
-    err.source().is_some() || err.to_string() == "timeout"
-}
-
-/// The Extism config value of a setting, which is how a Plugin reads its settings.
-fn config_value(value: &SettingValue) -> String {
-    match value {
-        SettingValue::Bool(on) => on.to_string(),
-        SettingValue::Integer(number) => number.to_string(),
-        SettingValue::Text(text) => text.clone(),
-    }
-}
-
-fn compile(module: extism::Manifest, cache_config: &Path) -> Result<CompiledPlugin, extism::Error> {
-    CompiledPlugin::new(PluginBuilder::new(module).with_cache_config(cache_config))
+    // Extism (1.41) gives a timeout as a bare "timeout", and any other failed call as wasmtime's
+    // own error, which holds a trap (under any panic's message) only if the guest trapped. A host
+    // function's error unwinds the guest too, but holds no trap.
+    err.to_string() == "timeout"
+        || err
+            .downcast_ref::<wasmtime::Error>()
+            .is_some_and(wasmtime::Error::is::<wasmtime::Trap>)
 }
 
 impl Plugin for Installed {
@@ -149,25 +150,25 @@ impl Plugin for Installed {
         self.settings_schema.clone()
     }
 
+    // ponytail: compiles on the calling thread, an async one when an admin enables it; wasmtime's
+    // cache makes that quick, so spawn_blocking only if a Plugin is slow to enable.
     fn register(&self, registrar: &mut Registrar) {
         let settings = registrar.settings();
-        let config = self.settings_schema.fields.iter().filter_map(|field| {
-            let value = settings.get(&field.key)?;
-            Some((field.key.clone(), config_value(value)))
-        });
-        let module = (*self.module).clone().with_config(config);
-        // It compiled when the Server read it, and wasmtime's cache has it, so this failing is the
-        // Server's fault; enabling reports a panic as a failure.
-        // ponytail: compiles on the enabling thread, about 2 ms from the cache (spike #11); move
-        // it off the runtime if Plugins get big.
-        #[expect(clippy::panic, reason = "`register` can't return an error")]
-        let compiled = compile(module, &self.cache_config)
-            .unwrap_or_else(|err| panic!("could not compile it with its settings: {err:#}"));
+        let hosts = allowed_hosts(&self.manifest, &self.settings_schema, settings);
+        let config = extism_config(&self.settings_schema, settings);
+        let compiled = match compile(&self.wasm, &self.cache_config, hosts, config) {
+            Ok(compiled) => compiled,
+            #[expect(
+                clippy::panic,
+                reason = "the registry contains the panic and refuses to enable the Plugin, saying why"
+            )]
+            Err(err) => panic!("could not compile it with its settings: {err:#}"),
+        };
         let running = Running {
-            id: self.id(),
+            manifest: Arc::clone(&self.manifest),
             compiled: Arc::new(compiled),
-            secrets: secret_values(&self.settings_schema, settings),
-            crashes: AtomicU32::new(0),
+            secrets: secret_values(&self.settings_schema, settings).into(),
+            crashes: Arc::default(),
         };
         // An Extension Point this Server doesn't know is one the Plugin can do without, since its
         // nama-api requirement admits this Server.
@@ -188,19 +189,15 @@ impl Observer<Events> for Running {
             ..Default::default()
         }
         .encode_to_vec();
-        let compiled = Arc::clone(&self.compiled);
+        let plugin = self.clone();
         Box::pin(async move {
-            let called = task::spawn_blocking(move || {
-                extism::Plugin::new_from_compiled(&compiled)?
-                    .call::<_, Vec<u8>>("observe_events", input)
-            })
-            .await;
+            let called = task::spawn_blocking(move || plugin.call("observe_events", input)).await;
             match called {
                 Ok(Ok(_)) => self.crashes.store(0, Ordering::Relaxed),
                 Ok(Err(err)) => self.failed(&err),
                 // So the registry disables the Plugin, as it does one whose Rust code panics.
                 Err(err) if err.is_panic() => panic::resume_unwind(err.into_panic()),
-                Err(err) => warn!(plugin = %self.id, "observer failed: {err}"),
+                Err(err) => warn!(plugin = %self.manifest.id, "observer failed: {err}"),
             }
         })
     }
@@ -397,9 +394,9 @@ fn load(file: &Path, cache_config: &Path) -> Result<Installed, Refused> {
     if !wasm.starts_with(WASM_MAGIC) {
         return Err(Refused::NotWasm);
     }
-    let module = extism::Manifest::new([Wasm::data(wasm)]).with_timeout(CALL_TIMEOUT);
     let bytes = contain_sync(|| {
-        let compiled = compile(module.clone(), cache_config).map_err(Refused::Load)?;
+        let compiled =
+            compile(&wasm, cache_config, Vec::new(), Vec::new()).map_err(Refused::Load)?;
         extism::Plugin::new_from_compiled(&compiled)
             .and_then(|mut plugin| plugin.call::<(), Vec<u8>>("manifest", ()))
             .map_err(Refused::Manifest)
@@ -407,13 +404,63 @@ fn load(file: &Path, cache_config: &Path) -> Result<Installed, Refused> {
     .map_err(Refused::Panicked)??;
     let manifest = Manifest::decode_from_slice(&bytes).map_err(Refused::Decode)?;
     check_nama_api(&manifest.nama_api)?;
+    check_allowed_hosts(&manifest.allowed_hosts)?;
     let settings_schema = settings_schema(&manifest)?;
     Ok(Installed {
         manifest: Arc::new(manifest),
         settings_schema,
-        module: Arc::new(module),
+        wasm: wasm.into(),
         cache_config: cache_config.into(),
     })
+}
+
+/// Compiles `wasm`, letting it send HTTP requests to `hosts` and read `config`.
+fn compile(
+    wasm: &[u8],
+    cache_config: &Path,
+    hosts: Vec<String>,
+    config: Vec<(String, String)>,
+) -> Result<CompiledPlugin, extism::Error> {
+    let manifest = extism::Manifest::new([Wasm::data(wasm.to_vec())])
+        .with_timeout(CALL_TIMEOUT)
+        .with_allowed_hosts(hosts.into_iter())
+        .with_config(config.into_iter());
+    CompiledPlugin::new(PluginBuilder::new(manifest).with_cache_config(cache_config))
+}
+
+/// The hosts a Plugin enabled with `settings` may send HTTP requests to: those its Manifest
+/// names, and the host of each of its URL settings (ADR 0006).
+fn allowed_hosts(manifest: &Manifest, schema: &SettingsSchema, settings: &Settings) -> Vec<String> {
+    // Extism reads every allowed host as a glob, and a URL's host may hold `*` or, for IPv6, `[`:
+    // escaped, it names only itself.
+    let url_hosts = schema
+        .fields
+        .iter()
+        .filter(|field| field.kind == SettingKind::Url)
+        .filter_map(|field| Some(glob::Pattern::escape(settings.url(&field.key)?.host_str()?)));
+    manifest
+        .allowed_hosts
+        .iter()
+        .cloned()
+        .chain(url_hosts)
+        .collect()
+}
+
+/// `settings` as the Extism config a Plugin reads them from, each value as text: a bool as
+/// `true` or `false`, a number in decimal.
+fn extism_config(schema: &SettingsSchema, settings: &Settings) -> Vec<(String, String)> {
+    schema
+        .fields
+        .iter()
+        .filter_map(|field| {
+            let text = match settings.get(&field.key)? {
+                SettingValue::Bool(on) => on.to_string(),
+                SettingValue::Integer(number) => number.to_string(),
+                SettingValue::Text(text) => text.clone(),
+            };
+            Some((field.key.clone(), text))
+        })
+        .collect()
 }
 
 /// Checks that this Server's Nama API version meets `wants`, a Plugin's semver requirement.
@@ -432,6 +479,14 @@ fn check_nama_api(wants: &str) -> Result<(), Refused> {
     }
 }
 
+/// Checks that no host in a Manifest's `allowed_hosts` has a port, which Extism would never match.
+fn check_allowed_hosts(hosts: &[String]) -> Result<(), Refused> {
+    match hosts.iter().find(|host| host.contains(':')) {
+        Some(host) => Err(Refused::HostWithPort(host.clone())),
+        None => Ok(()),
+    }
+}
+
 fn settings_schema(manifest: &Manifest) -> Result<SettingsSchema, Refused> {
     let fields = manifest
         .settings
@@ -442,6 +497,7 @@ fn settings_schema(manifest: &Manifest) -> Result<SettingsSchema, Refused> {
                 Some(wire::SettingKind::SETTING_KIND_SECRET) => SettingKind::Secret,
                 Some(wire::SettingKind::SETTING_KIND_BOOL) => SettingKind::Bool,
                 Some(wire::SettingKind::SETTING_KIND_INTEGER) => SettingKind::Integer,
+                Some(wire::SettingKind::SETTING_KIND_URL) => SettingKind::Url,
                 Some(wire::SettingKind::SETTING_KIND_UNSPECIFIED) | None => {
                     return Err(Refused::UnknownSettingKind {
                         key: field.key.clone(),
@@ -478,20 +534,141 @@ fn settings_schema(manifest: &Manifest) -> Result<SettingsSchema, Refused> {
 
 #[cfg(test)]
 mod tests {
-    use nama_plugin_api::settings::{SettingField, SettingKind, SettingValue};
+    use nama_plugin_api::settings::{
+        SettingField, SettingKind, SettingValue, Settings, SettingsSchema,
+    };
     use nama_proto::nama::plugin::v1::{self as wire, Manifest, setting_value};
 
-    use super::{is_crash, settings_schema};
+    use super::{allowed_hosts, check_allowed_hosts, extism_config, is_crash, settings_schema};
 
     // The errors as Extism 1.41 gives them for the test Plugin's Observer.
     #[test]
-    fn a_trap_or_timeout_is_a_crash_and_a_returned_error_is_not() {
-        let panicked = extism::Error::msg("panicked at src/lib.rs:73:30: oops")
+    fn a_trap_or_timeout_is_a_crash_and_a_returned_or_host_error_is_not() {
+        // As Extism builds it: the panic's message, with the trap as context.
+        let trap = wasmtime::Error::new(wasmtime::Trap::UnreachableCodeReached);
+        let panicked = extism::Error::from(
+            wasmtime::Error::msg("panicked at src/lib.rs:73:30: oops").context(trap),
+        );
+        let refused = extism::Error::msg("HTTP request to http://sonarr.lan/ is not allowed")
             .context("error while executing at wasm backtrace");
 
         assert!(is_crash(&panicked));
         assert!(is_crash(&extism::Error::msg("timeout")));
+        assert!(!is_crash(&refused));
         assert!(!is_crash(&extism::Error::msg("the service is down")));
+    }
+
+    fn field(key: &str, kind: SettingKind) -> SettingField {
+        SettingField {
+            key: key.to_owned(),
+            label: String::new(),
+            description: String::new(),
+            kind,
+            required: false,
+            default: None,
+        }
+    }
+
+    fn text(text: &str) -> SettingValue {
+        SettingValue::Text(text.to_owned())
+    }
+
+    #[test]
+    fn a_plugin_may_reach_its_manifests_hosts_and_the_hosts_of_its_url_settings_only() {
+        let manifest = Manifest {
+            allowed_hosts: vec!["*.themoviedb.org".to_owned()],
+            ..Default::default()
+        };
+        let schema = SettingsSchema {
+            fields: vec![
+                field("sonarr", SettingKind::Url),
+                field("radarr", SettingKind::Url),
+                field("note", SettingKind::Text),
+            ],
+        };
+        let settings = Settings::new(
+            [
+                ("sonarr".to_owned(), text("http://sonarr.lan:8989/api")),
+                ("note".to_owned(), text("http://not-a-url-setting.lan/")),
+            ]
+            .into(),
+        );
+
+        let hosts = allowed_hosts(&manifest, &schema, &settings);
+
+        assert_eq!(hosts, ["*.themoviedb.org", "sonarr.lan"]);
+    }
+
+    #[test]
+    fn a_url_settings_host_names_only_itself_not_a_glob() {
+        let schema = SettingsSchema {
+            fields: vec![
+                field("any", SettingKind::Url),
+                field("ipv6", SettingKind::Url),
+            ],
+        };
+        let settings = Settings::new(
+            [
+                ("any".to_owned(), text("http://*/")),
+                ("ipv6".to_owned(), text("http://[::1]:8989/")),
+            ]
+            .into(),
+        );
+
+        let hosts = allowed_hosts(&Manifest::default(), &schema, &settings);
+
+        // Matched as Extism matches them.
+        let reaches = |host: &str| {
+            hosts
+                .iter()
+                .any(|allowed| glob::Pattern::new(allowed).is_ok_and(|glob| glob.matches(host)))
+        };
+        assert!(reaches("*"));
+        assert!(reaches("[::1]"));
+        assert!(!reaches("example.com"));
+    }
+
+    #[test]
+    fn an_allowed_host_with_a_port_refuses_the_plugin() {
+        let hosts = ["*.themoviedb.org".to_owned(), "sonarr.lan:8989".to_owned()];
+
+        let refused = check_allowed_hosts(&hosts);
+
+        assert_eq!(
+            refused.err().map(|refused| refused.to_string()),
+            Some(
+                "its allowed host sonarr.lan:8989 has a port, and allowed hosts are matched without one"
+                    .to_owned()
+            )
+        );
+        let without_port = check_allowed_hosts(&["*.themoviedb.org".to_owned()]);
+        assert_eq!(without_port.ok(), Some(()));
+    }
+
+    #[test]
+    fn a_plugin_reads_each_setting_as_text() {
+        let schema = SettingsSchema {
+            fields: vec![
+                field("on", SettingKind::Bool),
+                field("count", SettingKind::Integer),
+                field("name", SettingKind::Text),
+                field("unset", SettingKind::Text),
+            ],
+        };
+        let settings = Settings::new(
+            [
+                ("on".to_owned(), SettingValue::Bool(true)),
+                ("count".to_owned(), SettingValue::Integer(-3)),
+                ("name".to_owned(), text("Nama")),
+            ]
+            .into(),
+        );
+
+        let config = extism_config(&schema, &settings);
+
+        let expected = [("on", "true"), ("count", "-3"), ("name", "Nama")]
+            .map(|(key, value)| (key.to_owned(), value.to_owned()));
+        assert_eq!(config, expected);
     }
 
     fn manifest(kind: wire::SettingKind) -> Manifest {

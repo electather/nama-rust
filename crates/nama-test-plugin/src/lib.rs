@@ -9,7 +9,8 @@
 )]
 mod exports {
     use nama_pdk::{
-        Buffa, FnResult, Manifest, extism_pdk,
+        Buffa, FnResult, Manifest,
+        extism_pdk::{self, HttpRequest, config, http},
         nama_proto::nama::plugin::v1::{
             ObservePoint, ObservedEvents, SettingField, SettingKind, SettingValue, setting_value,
         },
@@ -19,9 +20,9 @@ mod exports {
     /// The setting that picks what its Observer does: `log`, `loop` or `panic`.
     const OBSERVER: &str = "observer";
 
-    // Says who the Plugin is, that it observes Events, and that its `observer` setting picks how.
-    // With the `out-of-range` feature it wants a Nama API no Server has, and with `panic` it
-    // panics instead.
+    // Says who the Plugin is, that it observes Events, and its settings: a URL whose host it may
+    // reach, one it requests, and how its Observer behaves. With the `out-of-range` feature it
+    // wants a Nama API no Server has, and with `panic` it panics instead.
     #[plugin_fn]
     pub fn manifest() -> FnResult<Buffa<Manifest>> {
         #[expect(
@@ -33,7 +34,11 @@ mod exports {
         } else {
             Manifest {
                 observers: vec![ObservePoint::OBSERVE_POINT_EVENTS.into()],
-                settings: vec![observer_setting()],
+                settings: vec![
+                    setting("url", SettingKind::SETTING_KIND_URL),
+                    setting("fetch", SettingKind::SETTING_KIND_TEXT),
+                    observer_setting(),
+                ],
                 ..nama_pdk::manifest("test-plugin", env!("CARGO_PKG_VERSION"))
             }
         };
@@ -45,26 +50,34 @@ mod exports {
         Ok(Buffa(manifest))
     }
 
+    fn setting(key: &str, kind: SettingKind) -> SettingField {
+        SettingField {
+            key: key.to_owned(),
+            label: key.to_owned(),
+            kind: kind.into(),
+            ..SettingField::default()
+        }
+    }
+
     fn observer_setting() -> SettingField {
         SettingField {
-            key: OBSERVER.to_owned(),
             label: "Observer".to_owned(),
             description: "What it does when told about Events: log, loop or panic.".to_owned(),
-            kind: SettingKind::SETTING_KIND_TEXT.into(),
             default_value: SettingValue {
                 value: Some(setting_value::Value::Text("log".to_owned())),
                 ..Default::default()
             }
             .into(),
-            ..Default::default()
+            ..setting(OBSERVER, SettingKind::SETTING_KIND_TEXT)
         }
     }
 
-    // Logs each Event it is told about, so a test can see them arrive. Its `observer` setting can
+    // Logs each Event it is told about, so a test can see them arrive, then requests its `fetch`
+    // setting's URL, if it has one, and logs the response's status. Its `observer` setting can
     // make it loop forever or panic instead, so a test can see the Server survive that.
     #[plugin_fn]
     pub fn observe_events(Buffa(observed): Buffa<ObservedEvents>) -> FnResult<()> {
-        match extism_pdk::config::get(OBSERVER)?.as_deref() {
+        match config::get(OBSERVER)?.as_deref() {
             #[expect(clippy::infinite_loop, reason = "it loops forever on purpose")]
             Some("loop") => {
                 extism_pdk::info!("test-plugin is looping");
@@ -77,6 +90,10 @@ mod exports {
             _ => {
                 for event in observed.events {
                     extism_pdk::info!("test-plugin observed {event:?}");
+                }
+                if let Some(url) = config::get("fetch")? {
+                    let response = http::request::<()>(&HttpRequest::new(&url), None)?;
+                    extism_pdk::info!("test-plugin fetched {url}: {}", response.status_code());
                 }
                 Ok(())
             }

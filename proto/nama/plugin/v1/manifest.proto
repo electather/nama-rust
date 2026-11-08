@@ -14,10 +14,13 @@ message Manifest {
   // The versions of the Nama API the Plugin works with, as a Cargo-style semver requirement
   // such as "^0.1.0". A Server whose Nama API version doesn't match refuses the Plugin.
   string nama_api = 3;
-  // The settings the Plugin takes, in the order a form shows them.
+  // The settings the Plugin takes, in the order a form shows them. The Plugin reads each one's
+  // value from its Extism config under its key, as text: a bool as "true" or "false", a number in
+  // decimal.
   repeated SettingField settings = 4;
   // Host names the Plugin may send HTTP requests to, such as "api.example.com" or
-  // "*.example.com". Ports aren't part of the match, so a host allows every port on it.
+  // "*.example.com". Ports aren't part of the match, so a host allows every port on it, and a
+  // Server refuses a Plugin naming a host with one.
   repeated string allowed_hosts = 5;
   // The Extension Points the Plugin registers an Observer at.
   repeated ObservePoint observers = 6;
@@ -52,6 +55,9 @@ enum SettingKind {
   SETTING_KIND_BOOL = 3;
   // A whole number.
   SETTING_KIND_INTEGER = 4;
+  // An http or https URL, such as a Sonarr address. The Plugin may send HTTP requests to its
+  // host, as if `allowed_hosts` named it.
+  SETTING_KIND_URL = 5;
 }
 
 // A setting's value.
@@ -61,7 +67,7 @@ message SettingValue {
     bool bool = 1;
     // A whole number.
     int64 integer = 2;
-    // Text, for both SETTING_KIND_TEXT and SETTING_KIND_SECRET.
+    // Text, for SETTING_KIND_TEXT, SETTING_KIND_SECRET and SETTING_KIND_URL.
     string text = 3;
   }
 }

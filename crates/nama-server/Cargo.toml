@@ -16,14 +16,15 @@ web = []
 
 [dependencies]
 axum = { version = "0.8", default-features = false, features = ["http1", "http2", "tokio"] }
-base64 = "0.22"
+base64 = "0.23"
 buffa = "0.9.2"
 clap = { version = "4", features = ["derive", "env"] }
 connectrpc = { version = "0.9.1", features = ["axum"] }
-extism = { version = "1.41.0", default-features = false, features = ["wasmtime-default-features"] }
+extism = { version = "1.41.0", default-features = false, features = ["http", "wasmtime-default-features"] }
 figment = { version = "0.10", features = ["env", "toml"] }
 futures-util = { version = "0.3", default-features = false, features = ["std"] }
 getrandom = "0.4"
+glob = "0.3"
 nama-plugin-api = { version = "0.1.0", path = "../nama-plugin-api" }
 nama-plugin-local-auth = { version = "0.1.0", path = "../../plugins/local-auth" }
 nama-plugin-log-events = { version = "0.1.0", path = "../../plugins/log-events" }
@@ -34,7 +35,7 @@ regex = "1"
 semver = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-sha2 = "0.10"
+sha2 = "0.11"
 sqlx = { version = "0.9", default-features = false, features = ["macros", "migrate", "runtime-tokio", "sqlite-bundled"] }
 thiserror = "2"
 tokio = { version = "1", features = ["fs", "macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
@@ -43,6 +44,8 @@ tower-http = { version = "0.7.1", default-features = false, features = ["fs"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 walkdir = "2"
+# Only to tell a trap from other failed calls; its version must be the one extism uses.
+wasmtime = { version = "49.0.5", default-features = false }
 
 [dev-dependencies]
 connectrpc = { version = "0.9.1", features = ["client"] }

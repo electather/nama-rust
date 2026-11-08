@@ -1,7 +1,9 @@
 //! Installed Plugins on a running Server: listed once their `.wasm` is dropped into
-//! `<data_dir>/plugins/`, enabled and disabled without a restart, shown with why if refused, and
-//! disabled when they keep crashing.
+//! `<data_dir>/plugins/`, enabled and disabled without a restart, shown with why if refused,
+//! reaching only the hosts they are allowed, and disabled when they keep crashing.
 
+#[path = "support/log.rs"]
+mod log;
 #[path = "support/refused.rs"]
 mod refused;
 #[path = "support/server.rs"]
@@ -12,24 +14,29 @@ mod test_plugin;
 
 use std::{
     collections::BTreeMap,
-    io,
     path::Path,
-    sync::{Arc, Mutex, OnceLock, PoisonError},
+    sync::Arc,
     time::{Duration, Instant},
 };
 
-use connectrpc::{ErrorCode, client::HttpClient};
+use connectrpc::{ConnectError, ErrorCode, client::HttpClient};
+use log::Log;
 use nama_plugin_api::PluginId;
 use nama_proto::nama::v1::{
     CreateLibraryRequest, DisablePluginRequest, EnablePluginRequest, LibraryKind,
     LibraryServiceClient, ListPluginsRequest, Plugin, PluginKind, PluginServiceClient,
     RefusalReason, ScanLibraryRequest, SettingValue, UpdatePluginSettingsRequest,
-    setting_value::Value,
+    UpdatePluginSettingsResponse, setting_value::Value,
 };
 use nama_server::{config::Config, db::Database, plugin_settings, plugins::Registry};
 use refused::assert_refused;
 use server::TestServer;
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    net::TcpListener,
+};
 
+/// How long a test waits for the Server to disable a crashing Plugin or save that.
 const WAIT: Duration = Duration::from_secs(10);
 
 /// A running Server with no Installed Plugins yet.
@@ -63,6 +70,43 @@ impl Started {
         let dir = self.server.data_dir().join("plugins");
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(dir.join(file), test_plugin::build(features)).unwrap();
+    }
+
+    /// Saves the test Plugin's settings as the Plugins page does, each one text.
+    async fn save_settings(
+        &self,
+        settings: &[(&str, &str)],
+    ) -> Result<UpdatePluginSettingsResponse, ConnectError> {
+        let settings = settings.iter().map(|(key, text)| {
+            let value = SettingValue {
+                value: Some(Value::TextValue((*text).to_owned())),
+                ..Default::default()
+            };
+            ((*key).to_owned(), value)
+        });
+        let request = UpdatePluginSettingsRequest {
+            id: "test-plugin".to_owned(),
+            settings: settings.collect(),
+            ..Default::default()
+        };
+        let response = self.client().update_plugin_settings(request).await?;
+        Ok(response.into_owned())
+    }
+
+    /// Drops in the test Plugin with its Observer set to `observer` (`log`, `loop` or `panic`),
+    /// enables it, and returns a Library to scan so it is told about Events.
+    async fn observing(&self, observer: &str) -> (i64, tempfile::TempDir) {
+        self.drop_in("test.wasm", "");
+        // Listing is what reads `plugins/`.
+        self.listed("test-plugin").await.unwrap();
+        self.save_settings(&[("observer", observer)]).await.unwrap();
+        self.client()
+            .enable_plugin(enable("test-plugin"))
+            .await
+            .unwrap();
+        let media = tempfile::tempdir().unwrap();
+        std::fs::write(media.path().join("Heat (1995).mkv"), b"video").unwrap();
+        (self.library(media.path()).await, media)
     }
 
     fn client(&self) -> PluginServiceClient<HttpClient> {
@@ -102,33 +146,6 @@ impl Started {
         LibraryServiceClient::new(HttpClient::plaintext(), self.server.client_config())
     }
 
-    /// Drops in the test Plugin with its Observer set to `observer` (`log`, `loop` or `panic`),
-    /// enables it, and returns a Library to scan so it is told about Events.
-    async fn observing(&self, observer: &str) -> (i64, tempfile::TempDir) {
-        self.drop_in("test.wasm", "");
-        // Listing is what reads `plugins/`.
-        self.listed("test-plugin").await.unwrap();
-        let observer = SettingValue {
-            value: Some(Value::TextValue(observer.to_owned())),
-            ..Default::default()
-        };
-        self.client()
-            .update_plugin_settings(UpdatePluginSettingsRequest {
-                id: "test-plugin".to_owned(),
-                settings: std::iter::once(("observer".to_owned(), observer)).collect(),
-                ..Default::default()
-            })
-            .await
-            .unwrap();
-        self.client()
-            .enable_plugin(enable("test-plugin"))
-            .await
-            .unwrap();
-        let media = tempfile::tempdir().unwrap();
-        std::fs::write(media.path().join("Heat (1995).mkv"), b"video").unwrap();
-        (self.library(media.path()).await, media)
-    }
-
     /// The Plugin `id` as the Plugins page lists it.
     async fn listed(&self, id: &str) -> Option<Plugin> {
         let listed = self
@@ -141,76 +158,31 @@ impl Started {
     }
 }
 
+/// Starts an HTTP server on 127.0.0.1 that answers every request `204 No Content`, and returns its
+/// URL.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn http_server() -> String {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}/", listener.local_addr().unwrap());
+    tokio::spawn(async move {
+        while let Ok((mut stream, _)) = listener.accept().await {
+            // A GET's head comes in one read, and its answer doesn't depend on it.
+            let mut head = [0; 4096];
+            let _read = stream.read(&mut head).await;
+            let reply = b"HTTP/1.1 204 No Content\r\nconnection: close\r\n\r\n";
+            let _written = stream.write_all(reply).await;
+        }
+    });
+    url
+}
+
 fn enable(id: &str) -> EnablePluginRequest {
     EnablePluginRequest {
         id: id.to_owned(),
         ..Default::default()
-    }
-}
-
-/// Everything the Server logs, to this test binary's one global subscriber: a thread-local one
-/// wouldn't see what Observers log on the runtime's other threads.
-#[derive(Clone, Default)]
-struct Log(Arc<Mutex<Vec<u8>>>);
-
-impl Log {
-    #[expect(
-        clippy::unwrap_used,
-        reason = "a test helper fails its test by panicking"
-    )]
-    fn global() -> &'static Self {
-        static LOG: OnceLock<Log> = OnceLock::new();
-        LOG.get_or_init(|| {
-            let log = Self::default();
-            let writer = log.clone();
-            let subscriber = tracing_subscriber::fmt()
-                .with_max_level(tracing::Level::INFO)
-                // A test's Server runs on its thread, which is named after it.
-                .with_thread_names(true)
-                .with_writer(move || writer.clone())
-                .finish();
-            tracing::subscriber::set_global_default(subscriber).unwrap();
-            log
-        })
-    }
-
-    fn contents(&self) -> String {
-        String::from_utf8_lossy(&self.0.lock().unwrap_or_else(PoisonError::into_inner)).into_owned()
-    }
-
-    /// How many logged lines contain every one of `needles`.
-    fn count(&self, needles: &[&str]) -> usize {
-        self.contents()
-            .lines()
-            .filter(|line| needles.iter().all(|needle| line.contains(needle)))
-            .count()
-    }
-
-    /// Waits until `times` lines containing every one of `needles` are logged.
-    async fn wait_for(&self, needles: &[&str], times: usize) {
-        let started = Instant::now();
-        while self.count(needles) < times {
-            assert!(
-                started.elapsed() < WAIT,
-                "nothing logged {needles:?}: {}",
-                self.contents()
-            );
-            tokio::time::sleep(Duration::from_millis(20)).await;
-        }
-    }
-}
-
-impl io::Write for Log {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.0
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .extend_from_slice(buf);
-        Ok(buf.len())
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        Ok(())
     }
 }
 
@@ -273,8 +245,9 @@ async fn a_dropped_plugin_is_listed_disabled_observes_scans_only_while_enabled_a
     // enabled again.
     std::fs::write(media.path().join("Alien (1979).mkv"), b"video").unwrap();
     started.scan(library).await;
-    let this_test = std::thread::current().name().unwrap().to_owned();
-    log.wait_for(&["scanned a Library", &this_test], 2).await;
+    // Only this scan finds one file unchanged: other tests here scan too.
+    log.wait_for(&["scanned a Library", "unchanged: 1"], 1)
+        .await;
     started
         .client()
         .enable_plugin(enable("test-plugin"))
@@ -341,6 +314,64 @@ async fn a_second_file_with_a_plugins_id_is_refused() {
     assert_eq!(
         second.refused_reason,
         "its id test-plugin is another Plugin's"
+    );
+}
+
+#[tokio::test]
+async fn a_plugin_reaches_a_host_once_a_url_setting_names_it_without_a_restart() {
+    let log = Log::global();
+    let server = http_server().await;
+    let started = Started::new().await;
+    started.drop_in("test.wasm", "");
+    // Listing the Plugins, as opening the Plugins page does, reads it.
+    assert!(started.listed("test-plugin").await.is_some());
+    let media = tempfile::tempdir().unwrap();
+    let library = started.library(media.path()).await;
+
+    // Neither its Manifest nor a URL setting names the host it requests.
+    started.save_settings(&[("fetch", &server)]).await.unwrap();
+    started
+        .client()
+        .enable_plugin(enable("test-plugin"))
+        .await
+        .unwrap();
+    started.scan(library).await;
+    let refused = format!("HTTP request to {server} is not allowed");
+    log.wait_for(&["observer failed", &refused], 1).await;
+    assert!(started.listed("test-plugin").await.unwrap().enabled);
+
+    // Named on the Plugins page, the host is reachable at once.
+    started
+        .save_settings(&[("url", &server), ("fetch", &server)])
+        .await
+        .unwrap();
+    started.scan(library).await;
+    log.wait_for(&[&format!("test-plugin fetched {server}: 204")], 1)
+        .await;
+
+    // Without the URL setting, it is refused again.
+    started.save_settings(&[("fetch", &server)]).await.unwrap();
+    started.scan(library).await;
+    log.wait_for(&["observer failed", &refused], 2).await;
+}
+
+#[tokio::test]
+async fn a_url_setting_that_isnt_a_url_is_refused_naming_it() {
+    let started = Started::new().await;
+    started.drop_in("test.wasm", "");
+    assert!(started.listed("test-plugin").await.is_some());
+
+    let refusal = assert_refused(
+        started.save_settings(&[("url", "sonarr.lan:8989")]).await,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_SETTING_WRONG_KIND,
+    );
+
+    assert_eq!(refusal.field, "settings.url");
+    assert_eq!(refusal.params["settingKind"], "SETTING_KIND_URL");
+    assert_eq!(
+        plugin_settings::stored(&started.db).await.unwrap(),
+        Some(BTreeMap::new())
     );
 }
 
