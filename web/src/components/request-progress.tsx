@@ -55,7 +55,7 @@ function DownloadRow({ download }: { download: Download }) {
       </p>
       {download.status === DownloadStatus.NEEDS_ATTENTION && (
         <p className="text-pretty text-muted-foreground">
-          It stopped, and whoever runs the Server needs to look at it.
+          It stopped, and whoever runs the Server needs to look at it. {download.attentionReason}
         </p>
       )}
     </li>

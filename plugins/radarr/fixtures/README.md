@@ -13,5 +13,8 @@ re-recording one, trim it the same way.
 | `movie.json` | `POST /api/v3/movie` that adds the Movie: `201 Created` |
 | `movie-exists.json` | `POST /api/v3/movie` for a Movie Radarr already has: `400 Bad Request` |
 | `movie-not-found.json` | `POST /api/v3/movie` for a TMDB id Radarr can't find: `400 Bad Request` |
+| `queue-empty.json` | `GET /api/v3/queue?includeMovie=true` with nothing downloading |
+| `queue.json` | The same, downloading Heat, Alien's import blocked with a warning, and The Matrix queued |
+| `queue-later.json` | The same, with Heat further along |
 
 A request without the right `X-Api-Key` gets Radarr's `401 Unauthorized`, with no body.

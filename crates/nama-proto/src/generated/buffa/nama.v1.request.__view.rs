@@ -680,6 +680,11 @@ pub struct DownloadView<'a> {
     pub eta_seconds: ::core::option::Option<u64>,
     /// Field 5: `status`
     pub status: ::buffa::EnumValue<super::super::DownloadStatus>,
+    /// Why it needs attention, in the Fulfiller's own words, if it says. Only a download that needs
+    /// attention has one.
+    ///
+    /// Field 6: `attention_reason`
+    pub attention_reason: ::core::option::Option<&'a str>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for DownloadView<'a> {
@@ -749,6 +754,13 @@ impl<'a> ::buffa::MessageView<'a> for DownloadView<'a> {
                     ::buffa::types::decode_int32(&mut cur)?,
                 );
             }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.attention_reason = Some(::buffa::types::borrow_str(&mut cur)?);
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -776,6 +788,7 @@ impl<'a> ::buffa::MessageView<'a> for DownloadView<'a> {
             size_bytes: self.size_bytes,
             eta_seconds: self.eta_seconds,
             status: self.status,
+            attention_reason: self.attention_reason.map(|s| s.to_string()),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -805,6 +818,9 @@ impl<'a> ::buffa::ViewEncode<'a> for DownloadView<'a> {
                 size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
             }
         }
+        if let Some(ref v) = self.attention_reason {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -833,6 +849,9 @@ impl<'a> ::buffa::ViewEncode<'a> for DownloadView<'a> {
             if val != 0 {
                 ::buffa::types::put_int32_field(5u32, val, buf);
             }
+        }
+        if let Some(ref v) = self.attention_reason {
+            ::buffa::types::put_string_field(6u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -874,6 +893,9 @@ impl<'__a> ::serde::Serialize for DownloadView<'__a> {
         }
         if !::buffa::json_helpers::skip_if::is_default_enum_value(&self.status) {
             __map.serialize_entry("status", &self.status)?;
+        }
+        if let ::core::option::Option::Some(__v) = self.attention_reason {
+            __map.serialize_entry("attentionReason", __v)?;
         }
         __map.end()
     }
@@ -996,6 +1018,14 @@ impl DownloadOwnedView {
     #[must_use]
     pub fn status(&self) -> ::buffa::EnumValue<super::super::DownloadStatus> {
         self.0.reborrow().status
+    }
+    /// Why it needs attention, in the Fulfiller's own words, if it says. Only a download that needs
+    /// attention has one.
+    ///
+    /// Field 6: `attention_reason`
+    #[must_use]
+    pub fn attention_reason(&self) -> ::core::option::Option<&'_ str> {
+        self.0.reborrow().attention_reason
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<DownloadView<'static>>>

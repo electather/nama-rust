@@ -4,7 +4,10 @@
 use std::{
     net::SocketAddr,
     path::PathBuf,
-    sync::{Arc, Mutex, PoisonError},
+    sync::{
+        Arc, Mutex, PoisonError,
+        atomic::{AtomicUsize, Ordering},
+    },
 };
 
 use axum::{
@@ -34,6 +37,10 @@ struct Fake {
     not_found: Vec<i64>,
     /// The body of each request that added a Movie, in order.
     added: Mutex<Vec<Value>>,
+    /// The fixture its queue answers with.
+    queue: Mutex<&'static str>,
+    /// How many times its queue was asked for.
+    queue_calls: AtomicUsize,
 }
 
 #[expect(
@@ -51,6 +58,8 @@ impl FakeRadarr {
                 existing: existing.to_vec(),
                 not_found: not_found.to_vec(),
                 added: Mutex::default(),
+                queue: Mutex::new("queue-empty.json"),
+                queue_calls: AtomicUsize::default(),
             }),
             server: None,
         };
@@ -85,6 +94,20 @@ impl FakeRadarr {
             .clone()
     }
 
+    /// Makes its queue answer with the fixture `file`, such as `queue.json`.
+    pub(crate) fn set_queue(&self, file: &'static str) {
+        *self
+            .state
+            .queue
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = file;
+    }
+
+    /// How many times its queue was asked for so far.
+    pub(crate) fn queue_calls(&self) -> usize {
+        self.state.queue_calls.load(Ordering::Relaxed)
+    }
+
     fn serve(&mut self, listener: TcpListener) {
         let app = Router::new()
             .fallback(answer)
@@ -116,6 +139,7 @@ async fn answer(
         (Method::GET, "/api/v3/qualityprofile") => fixture(StatusCode::OK, "qualityprofile.json"),
         (Method::GET, "/api/v3/rootfolder") => fixture(StatusCode::OK, "rootfolder.json"),
         (Method::POST, "/api/v3/movie") => add_movie(&fake, &body),
+        (Method::GET, "/api/v3/queue") => queue(&fake, &uri),
         _ => StatusCode::NOT_FOUND.into_response(),
     }
 }
@@ -137,6 +161,19 @@ fn add_movie(fake: &Fake, body: &[u8]) -> Response {
             .push(movie);
         fixture(StatusCode::CREATED, "movie.json")
     }
+}
+
+fn queue(fake: &Fake, uri: &Uri) -> Response {
+    // Without the Movie, a queue entry names it only by Radarr's own id.
+    if !uri
+        .query()
+        .is_some_and(|query| query.contains("includeMovie=true"))
+    {
+        return StatusCode::BAD_REQUEST.into_response();
+    }
+    fake.queue_calls.fetch_add(1, Ordering::Relaxed);
+    let file = *fake.queue.lock().unwrap_or_else(PoisonError::into_inner);
+    fixture(StatusCode::OK, file)
 }
 
 /// The recorded response `file`, with `status`.
