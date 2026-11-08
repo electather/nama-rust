@@ -98,6 +98,7 @@ pub mod __buffa {
         reg.register_json_any(super::__LIST_CONTINUE_WATCHING_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_CONTINUE_WATCHING_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__REQUEST_JSON_ANY);
+        reg.register_json_any(super::__DOWNLOAD_JSON_ANY);
         reg.register_json_any(super::__FOLLOWED_SHOW_JSON_ANY);
         reg.register_json_any(super::__REQUESTED_MOVIE_JSON_ANY);
         reg.register_json_any(super::__REQUESTED_SEASON_JSON_ANY);
@@ -157,6 +158,7 @@ pub mod __buffa {
         reg.register_json_any(super::__REQUEST_CANCELLED_JSON_ANY);
         reg.register_json_any(super::__REQUESTER_REMOVED_JSON_ANY);
         reg.register_json_any(super::__REQUEST_WITHDRAWN_JSON_ANY);
+        reg.register_json_any(super::__REQUEST_PROGRESS_JSON_ANY);
         reg.register_json_any(super::__LIBRARY_JSON_ANY);
         reg.register_json_any(super::__CREATE_LIBRARY_REQUEST_JSON_ANY);
         reg.register_json_any(super::__CREATE_LIBRARY_RESPONSE_JSON_ANY);
@@ -374,6 +376,10 @@ pub use self::__buffa::view::ListContinueWatchingResponseOwnedView;
 pub use self::__buffa::view::RequestView;
 #[doc(inline)]
 pub use self::__buffa::view::RequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::DownloadView;
+#[doc(inline)]
+pub use self::__buffa::view::DownloadOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::FollowedShowView;
 #[doc(inline)]
@@ -610,6 +616,10 @@ pub use self::__buffa::view::RequesterRemovedOwnedView;
 pub use self::__buffa::view::RequestWithdrawnView;
 #[doc(inline)]
 pub use self::__buffa::view::RequestWithdrawnOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::RequestProgressView;
+#[doc(inline)]
+pub use self::__buffa::view::RequestProgressOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::LibraryView;
 #[doc(inline)]

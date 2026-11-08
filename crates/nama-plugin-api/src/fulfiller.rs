@@ -15,6 +15,7 @@
 use std::collections::HashMap;
 
 use nama_proto::nama::v1::Request;
+pub use nama_proto::nama::v1::{Download, DownloadStatus};
 
 use crate::{BoxFuture, PluginError};
 
@@ -40,7 +41,9 @@ pub trait Fulfiller<Kind>: Send + Sync + 'static {
     fn fulfill<'a>(&'a self, request: &'a Request) -> BoxFuture<'a, Result<String, PluginError>>;
 
     /// What the service is downloading for each of `references`, by reference. A reference with
-    /// nothing downloading may be left out.
+    /// nothing downloading may be left out. While any Request is Processing, the Kernel asks this
+    /// every minute, with the references of all this Fulfiller's Processing Requests at once, and
+    /// gives up on an answer that takes longer than that.
     ///
     /// # Errors
     ///
@@ -49,13 +52,4 @@ pub trait Fulfiller<Kind>: Send + Sync + 'static {
         &'a self,
         references: &'a [String],
     ) -> BoxFuture<'a, Result<HashMap<String, Vec<Download>>, PluginError>>;
-}
-
-/// One download a Fulfiller's service is making for a Request.
-#[derive(Debug, Clone, PartialEq)]
-pub struct Download {
-    /// What is downloading, as the service names it.
-    pub title: String,
-    /// How much is done, from 0 to 100.
-    pub percent: f32,
 }

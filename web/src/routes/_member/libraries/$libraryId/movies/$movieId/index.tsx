@@ -7,7 +7,7 @@ import { TitlePage } from "@/components/title-page";
 import { buttonVariants } from "@/components/ui/button";
 import { PlayedButton, WatchedBar } from "@/components/watch-state";
 import { BrowseService, type Version } from "@/gen/nama/v1/browse_pb";
-import { largestVersion, metadataLine, loadMovie, runtimeOf, yearOf } from "@/lib/browse";
+import { largestVersion, metadataLine, loadMovie, runtimeOf, sizeOf, yearOf } from "@/lib/browse";
 import { useSetPlayed } from "@/lib/watch-state";
 
 export const Route = createFileRoute("/_member/libraries/$libraryId/movies/$movieId/")({
@@ -49,12 +49,6 @@ function Movie() {
   );
 }
 
-const gigabytes = new Intl.NumberFormat("en", {
-  style: "unit",
-  unit: "gigabyte",
-  maximumFractionDigits: 1,
-});
-
 /**
  * Play, and a choice of Version when there's more than one, starting on the largest, then
  * `children`.
@@ -87,7 +81,7 @@ function Play({ versions, children }: { versions: Version[]; children: ReactNode
           >
             {versions.map((version) => (
               <option key={String(version.id)} value={String(version.id)}>
-                {version.fileName} ({gigabytes.format(Number(version.size) / 1e9)})
+                {version.fileName} ({sizeOf(version.size)})
               </option>
             ))}
           </select>

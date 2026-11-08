@@ -108,3 +108,17 @@ function refusedField(error: unknown) {
 export function refusalOf(error: unknown) {
   return ConnectError.from(error).findDetails(RefusalSchema)[0] ?? create(RefusalSchema);
 }
+
+/** Why the Server refused the `attempt` to ask for a title, as `byReason` explains it or else by code. */
+export function askRefusal(
+  error: unknown,
+  attempt: string,
+  byReason: Parameters<typeof refusal>[3],
+) {
+  return refusal(
+    error,
+    attempt,
+    { [Code.Unavailable]: { form: "The metadata source didn’t answer. Try again in a moment." } },
+    byReason,
+  ).form;
+}

@@ -33,6 +33,7 @@ enum EventType {
   EVENT_TYPE_REQUEST_CANCELLED = 10;
   EVENT_TYPE_REQUESTER_REMOVED = 11;
   EVENT_TYPE_REQUEST_WITHDRAWN = 12;
+  EVENT_TYPE_REQUEST_PROGRESS = 13;
 }
 
 message SubscribeRequest {
@@ -73,6 +74,7 @@ message Event {
     RequestCancelled request_cancelled = 10;
     RequesterRemoved requester_removed = 11;
     RequestWithdrawn request_withdrawn = 12;
+    RequestProgress request_progress = 13;
   }
 }
 
@@ -164,5 +166,12 @@ message RequesterRemoved {
 // A Pending Request's last Requester withdrew, which removed it.
 message RequestWithdrawn {
   // The Request as it was before it was removed.
+  Request request = 1;
+}
+
+// What a Processing Request's Fulfiller is downloading for it changed, or the Server couldn't ask
+// it, which leaves it with none.
+message RequestProgress {
+  // The Request as it is now, with its `downloads`.
   Request request = 1;
 }

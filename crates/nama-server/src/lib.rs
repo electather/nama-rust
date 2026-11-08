@@ -29,8 +29,14 @@ use std::{future::Future, io, net::SocketAddr, sync::Arc};
 use tokio::net::TcpListener;
 
 use crate::{
-    config::Config, db::Database, events::EventBus, matching::Matcher, plugins::Registry,
-    requests::Requests, scanner::Scanner, users::SetupCode,
+    config::Config,
+    db::Database,
+    events::EventBus,
+    matching::Matcher,
+    plugins::Registry,
+    requests::{PROGRESS_EVERY, Requests},
+    scanner::Scanner,
+    users::SetupCode,
 };
 
 /// Serves the Server's API on `listener`, backed by `db` and the Plugins enabled in `plugins`,
@@ -43,7 +49,8 @@ use crate::{
 /// Every Library is scanned, and its items Matched, in the background when serving starts. Scans
 /// still running when `shutdown` resolves are cancelled, and the returned future waits for them
 /// to stop. The Approved Requests waiting for a Fulfiller are handed to it in the background too,
-/// until `shutdown` resolves.
+/// and the Fulfillers are asked how their Processing Requests are progressing, until `shutdown`
+/// resolves.
 ///
 /// While the Server has no Users, `Setup` creates the first Admin for whoever gives `setup_code`.
 /// `Setup` and `SignIn` are rate limited by the client's IP address. That is the peer's, unless the
@@ -87,6 +94,8 @@ pub fn serve(
         let saving_crashed = tokio::spawn(saving_crashed);
         scanner.start_all().await;
         // In the background, so a slow Fulfiller doesn't hold up serving.
+        let progress = requests.clone();
+        let following = tokio::spawn(async move { progress.follow_progress(PROGRESS_EVERY).await });
         let handing_off = tokio::spawn(async move { requests.hand_off_waiting().await });
         let served = axum::serve(
             listener,
@@ -116,6 +125,13 @@ pub fn serve(
             && err.is_panic()
         {
             tracing::error!("saving the Plugins disabled for crashing panicked: {err}");
+        }
+        // Progress is kept in memory only, so stopping mid-poll loses nothing.
+        following.abort();
+        if let Err(err) = following.await
+            && err.is_panic()
+        {
+            tracing::error!("asking the Fulfillers about progress panicked: {err}");
         }
         served
     }

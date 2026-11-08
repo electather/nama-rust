@@ -140,6 +140,38 @@ message Request {
   optional string failure_reason = 8;
   // The ID of the Followed Show that opened it, while that Followed Show lasts.
   optional int64 followed_show_id = 9;
+  // What its Fulfiller's service is downloading for it, as the Server last heard, which it asks
+  // every minute while any Request is Processing. Only a Processing Request has any. The Server
+  // keeps them in memory only, so after it restarts a Request has none until it asks again, and
+  // `EventService` sends a `RequestProgress` whenever they change.
+  repeated Download downloads = 10;
+}
+
+// One download a Fulfiller's service is making for a Request. A Season may be one download of the
+// whole Season or one per Episode.
+message Download {
+  // What is downloading, as the service names it.
+  string title = 1;
+  // How much is done, from 0 to 100.
+  float percent = 2;
+  // How big it is, in bytes, if the service knows.
+  optional uint64 size_bytes = 3;
+  // How long until it is done, in seconds, if the service knows.
+  optional uint64 eta_seconds = 4;
+  DownloadStatus status = 5;
+}
+
+// Where a download is.
+enum DownloadStatus {
+  DOWNLOAD_STATUS_UNSPECIFIED = 0;
+  // Waiting for its turn to download.
+  DOWNLOAD_STATUS_QUEUED = 1;
+  DOWNLOAD_STATUS_DOWNLOADING = 2;
+  // Downloaded, and being moved into the Library's folder.
+  DOWNLOAD_STATUS_IMPORTING = 3;
+  // Stopped until someone looks at it in the service, such as when it stalled, failed or can't be
+  // imported.
+  DOWNLOAD_STATUS_NEEDS_ATTENTION = 4;
 }
 
 // Users asking for a whole Show: its Seasons now and any that come out later, approved once. A
@@ -184,6 +216,10 @@ message RequestedSeason {
   string show_title = 3;
   // When the Season first aired, as `YYYY-MM-DD`.
   optional string air_date = 4;
+  // The Show's IMDb id, such as `tt5753856`, if the metadata source has one.
+  optional string show_imdb_id = 5;
+  // The Show's TVDB id, if the metadata source has one.
+  optional int64 show_tvdb_id = 6;
 }
 
 // A User who asked for what a Request covers.

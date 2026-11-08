@@ -180,6 +180,10 @@ fn classify(event: &Event) -> Option<(EventType, About<'_>)> {
             T::EVENT_TYPE_REQUEST_WITHDRAWN,
             Request(e.request.as_option()?),
         ),
+        E::RequestProgress(e) => (
+            T::EVENT_TYPE_REQUEST_PROGRESS,
+            Request(e.request.as_option()?),
+        ),
     })
 }
 

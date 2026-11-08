@@ -78,6 +78,9 @@ pub mod event {
         RequestWithdrawn(
             ::buffa::alloc::boxed::Box<super::super::super::RequestWithdrawn>,
         ),
+        RequestProgress(
+            ::buffa::alloc::boxed::Box<super::super::super::RequestProgress>,
+        ),
     }
     impl ::buffa::Oneof for Event {}
     impl From<super::super::super::ScanStarted> for Event {
@@ -202,6 +205,16 @@ pub mod event {
             Self::Some(Event::from(v))
         }
     }
+    impl From<super::super::super::RequestProgress> for Event {
+        fn from(v: super::super::super::RequestProgress) -> Self {
+            Self::RequestProgress(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::RequestProgress> for ::core::option::Option<Event> {
+        fn from(v: super::super::super::RequestProgress) -> Self {
+            Self::Some(Event::from(v))
+        }
+    }
     impl ::serde::Serialize for Event {
         fn serialize<S: ::serde::Serializer>(
             &self,
@@ -245,6 +258,9 @@ pub mod event {
                 }
                 Self::RequestWithdrawn(v) => {
                     map.serialize_entry("requestWithdrawn", &**v)?;
+                }
+                Self::RequestProgress(v) => {
+                    map.serialize_entry("requestProgress", &**v)?;
                 }
             }
             map.end()
