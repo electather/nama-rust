@@ -306,6 +306,8 @@ impl Requests {
         detached(async move {
             // An approval and enabling the Fulfiller may hand the same Request off at once, which
             // would hand it to the Fulfiller twice.
+            // shortcut: an approval that looked for the Fulfiller just before it was enabled leaves
+            // its Request Approved, until the next enable or start; retry under the claim if seen.
             let Some(_claim) = Claim::take(&requests, request.id) else {
                 return Ok(request);
             };
@@ -349,9 +351,16 @@ impl Requests {
 
     /// Hands each Approved Request, oldest first, to the enabled Plugin `plugin`'s Movie Fulfiller,
     /// if it provides one, as [`Self::hand_off_waiting`] does.
+    ///
+    /// Runs in a task of its own, so a caller that stops waiting leaves none of them waiting.
     pub(crate) async fn hand_off_waiting_to(&self, plugin: &PluginId) {
-        if self.plugins.provides::<dyn Fulfiller<Movies>>(plugin) {
-            self.hand_off_waiting().await;
+        if !self.plugins.provides::<dyn Fulfiller<Movies>>(plugin) {
+            return;
+        }
+        let requests = self.clone();
+        let handing_off = tokio::spawn(async move { requests.hand_off_waiting().await });
+        if let Err(err) = handing_off.await {
+            error!("handing the waiting Requests off panicked: {err}");
         }
     }
 
@@ -1279,6 +1288,16 @@ mod tests {
         }
     }
 
+    impl Gated {
+        /// Lets it take each Request it is handed until it has been handed `count`.
+        async fn take_until_handed(&self, count: usize) {
+            while self.handed.load(Ordering::SeqCst) < count {
+                self.open.notify_one();
+                tokio::task::yield_now().await;
+            }
+        }
+    }
+
     struct GatedPlugin(Arc<Gated>);
 
     impl Plugin for GatedPlugin {
@@ -1367,6 +1386,39 @@ mod tests {
         first.await.unwrap();
 
         assert_eq!(gated.handed.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn enabling_a_fulfiller_hands_it_every_waiting_request_even_if_the_admin_stops_waiting() {
+        let data = tempfile::tempdir().unwrap();
+        let db = Arc::new(Database::open(data.path()).await.unwrap());
+        let wanted = [949, 438_631].map(|tmdb_id| Wanted {
+            tmdb_id,
+            season: None,
+            title: format!("Movie {tmdb_id}"),
+            release_date: None,
+        });
+        db.write(move |tx| Box::pin(ask_each(tx, wanted.into(), RequestState::Approved)))
+            .await
+            .unwrap();
+        let gated = Arc::new(Gated::default());
+        let plugins = Registry::new();
+        let id = PluginId::from_static("gated");
+        plugins
+            .enable(Arc::new(GatedPlugin(Arc::clone(&gated))))
+            .unwrap();
+        let events = EventBus::new(plugins.clone());
+        let matcher = Matcher::new(Arc::clone(&db), plugins.clone(), events.clone());
+        let requests = Requests::new(db, matcher, events, plugins);
+        let enabling = tokio::spawn(async move { requests.hand_off_waiting_to(&id).await });
+        while gated.handed.load(Ordering::SeqCst) == 0 {
+            tokio::task::yield_now().await;
+        }
+
+        enabling.abort();
+        tokio::time::timeout(Duration::from_secs(1), gated.take_until_handed(2))
+            .await
+            .expect("the second Request was never handed to the Fulfiller");
     }
 
     #[tokio::test]

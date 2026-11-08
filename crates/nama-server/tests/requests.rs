@@ -943,16 +943,20 @@ async fn enabling_a_movie_fulfiller_hands_it_the_requests_approved_while_there_w
     );
 }
 
-#[tokio::test]
-async fn requests_approved_while_there_was_no_movie_fulfiller_go_to_it_once_a_server_with_one_starts()
- {
+/// Ada's Request for Heat, approved while there was no Movie Fulfiller, once it has left Approved
+/// after the Server is started again with `fulfiller` as the Movie Fulfiller.
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn waiting_request_after_starting_with(fulfiller: &FakeFulfiller) -> Request {
     let fixture = Fixture::start().await;
     let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
     let ada = requests(as_ada);
     let pending = ask(&ada, HEAT).await;
     let approved = fixture.approve(pending.id).await;
     assert_eq!(approved.state, RequestState::Approved);
-    let fulfiller = FakeFulfiller::default();
     let restarted = Registry::new();
     restarted
         .enable(Arc::new(FulfillerPlugin(fulfiller.clone())))
@@ -961,13 +965,34 @@ async fn requests_approved_while_there_was_no_movie_fulfiller_go_to_it_once_a_se
     fixture.serve_again(restarted).await;
 
     tokio::time::timeout(WAIT, async {
-        while states(&list(&ada).await) != [(approved.id, RequestState::Processing)] {
+        loop {
+            let [request] = list(&ada).await.try_into().unwrap();
+            if request.state != RequestState::Approved {
+                return request;
+            }
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
     })
     .await
-    .expect("the waiting Request never went to the Movie Fulfiller");
+    .expect("the waiting Request never went to the Movie Fulfiller")
+}
+
+#[tokio::test]
+async fn requests_approved_while_there_was_no_movie_fulfiller_go_to_it_once_a_server_with_one_starts()
+ {
+    let fulfiller = FakeFulfiller::default();
+
+    let request = waiting_request_after_starting_with(&fulfiller).await;
+
+    assert_eq!(request.state, RequestState::Processing);
     assert_eq!(fulfiller.handed(), [HEAT]);
+}
+
+#[tokio::test]
+async fn a_waiting_request_the_movie_fulfiller_refuses_at_startup_fails() {
+    let request = waiting_request_after_starting_with(&FakeFulfiller::refusing()).await;
+
+    assert_eq!(request.state, RequestState::Failed);
 }
 
 #[tokio::test]

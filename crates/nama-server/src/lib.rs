@@ -100,7 +100,9 @@ pub fn serve(
         .await;
         scanner.shutdown().await;
         // The Requests not handed off yet stay Approved, so the next start hands them off. The one
-        // being handed off now finishes in a task of its own (`Requests::hand_off`).
+        // being handed off now runs on in a task of its own (`Requests::hand_off`), which nothing
+        // waits for: if the runtime stops first, a Request the Fulfiller took stays Approved and
+        // the next start hands it over again, as for an approval in flight.
         handing_off.abort();
         if let Err(err) = handing_off.await
             && err.is_panic()
