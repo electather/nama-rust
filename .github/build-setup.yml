@@ -1,6 +1,6 @@
 # Steps dist runs before each release build (`github-build-setup` in dist-workspace.toml).
 # The `web` feature embeds web/dist, so the web app is built first (ADR 0004).
-# The Server's build.rs builds the Plugins it bundles for wasm32.
+# The Server's build.rs builds the Plugins it bundles for wasm32 (ADR 0003).
 - name: Add the wasm32 target
   run: rustup target add wasm32-unknown-unknown
 - name: Install Vite+

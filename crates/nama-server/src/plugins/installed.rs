@@ -1,6 +1,6 @@
-//! Installed Plugins (ADR 0006): `.wasm` files bundled in the Server or that an admin drops into
-//! `<data_dir>/plugins/`, run through Extism behind the same [`Plugin`] trait as a Built-in
-//! Plugin, so the Kernel can't tell them apart.
+//! Installed Plugins (ADR 0006): `.wasm` files bundled in the Server (ADR 0003) or that an admin
+//! drops into `<data_dir>/plugins/`, run through Extism behind the same [`Plugin`] trait as a
+//! Built-in Plugin, so the Kernel can't tell them apart.
 
 use std::{
     collections::{BTreeMap, HashMap},
@@ -59,7 +59,10 @@ const CHECK_SETTINGS: &str = "check_settings";
 
 /// The Installed Plugins bundled in the Server, each by the name it is listed under if refused.
 /// `build.rs` builds them.
-const BUNDLED: &[(&str, &[u8])] = &[("telegram.wasm", include_bytes!(env!("TELEGRAM_WASM")))];
+const BUNDLED: &[(&str, &[u8])] = &[
+    ("radarr.wasm", include_bytes!(env!("RADARR_WASM"))),
+    ("telegram.wasm", include_bytes!(env!("TELEGRAM_WASM"))),
+];
 
 /// What every binary WASM module starts with.
 const WASM_MAGIC: &[u8] = b"\0asm";

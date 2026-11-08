@@ -1,7 +1,7 @@
 //! Build script for the Server.
 //!
-//! It builds the Installed Plugins the Server bundles (ADR 0006) for wasm32, and sets
-//! `<NAME>_WASM`, such as `TELEGRAM_WASM`, to each one's `.wasm` for
+//! It builds the Installed Plugins the Server bundles (ADR 0003) for wasm32, and sets
+//! `<NAME>_WASM`, such as `RADARR_WASM`, to each one's `.wasm` for
 //! `src/plugins/installed.rs` to embed.
 //!
 //! With the `web` feature, it also embeds the built web app so a release is one binary (ADR 0004).
@@ -20,7 +20,7 @@ use std::{
 
 /// The Installed Plugins the Server bundles, by their folder in `plugins/`. Each is the package
 /// `nama-plugin-<name>`.
-const BUNDLED: &[&str] = &["telegram"];
+const BUNDLED: &[&str] = &["radarr", "telegram"];
 
 fn main() -> Result<(), Box<dyn Error>> {
     // `sqlx::migrate!` embeds migrations/ at compile time; rebuild when it changes.
@@ -95,7 +95,9 @@ fn build_bundled() -> Result<(), Box<dyn Error>> {
     let status = cargo
         .args(["--target", "wasm32-unknown-unknown", "--target-dir"])
         .arg(&target_dir)
-        // The flags and wrapper (such as clippy's) cargo set for the Server's own build.
+        // Cargo sets these for the Server's own host build. Inherited, the host's flags would reach
+        // the wasm32 build, and under `cargo clippy` the Plugins would be linted inside it, where
+        // CI's own clippy run already covers them.
         .env_remove("CARGO_ENCODED_RUSTFLAGS")
         .env_remove("RUSTC_WORKSPACE_WRAPPER")
         // Cargo reads a build script's stdout as instructions.
