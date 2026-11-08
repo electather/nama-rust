@@ -55,7 +55,8 @@ export type Manifest = Message<"nama.plugin.v1.Manifest"> & {
 
   /**
    * Host names the Plugin may send HTTP requests to, such as "api.example.com" or
-   * "*.example.com". Ports aren't part of the match, so a host allows every port on it.
+   * "*.example.com". Ports aren't part of the match, so a host allows every port on it, and a
+   * Server refuses a Plugin naming a host with one.
    *
    * @generated from field: repeated string allowed_hosts = 5;
    */

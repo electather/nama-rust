@@ -28,7 +28,8 @@ pub struct ManifestView<'a> {
         super::super::__buffa::view::SettingFieldView<'a>,
     >,
     /// Host names the Plugin may send HTTP requests to, such as "api.example.com" or
-    /// "*.example.com". Ports aren't part of the match, so a host allows every port on it.
+    /// "*.example.com". Ports aren't part of the match, so a host allows every port on it, and a
+    /// Server refuses a Plugin naming a host with one.
     ///
     /// Field 5: `allowed_hosts`
     pub allowed_hosts: ::buffa::RepeatedView<'a, &'a str>,
@@ -494,7 +495,8 @@ impl ManifestOwnedView {
         &self.0.reborrow().settings
     }
     /// Host names the Plugin may send HTTP requests to, such as "api.example.com" or
-    /// "*.example.com". Ports aren't part of the match, so a host allows every port on it.
+    /// "*.example.com". Ports aren't part of the match, so a host allows every port on it, and a
+    /// Server refuses a Plugin naming a host with one.
     ///
     /// Field 5: `allowed_hosts`
     #[must_use]

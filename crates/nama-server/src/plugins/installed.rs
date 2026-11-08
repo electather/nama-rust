@@ -117,7 +117,7 @@ impl Plugin for Installed {
     fn register(&self, registrar: &mut Registrar) {
         let settings = registrar.settings();
         let hosts = allowed_hosts(&self.manifest, &self.settings_schema, settings);
-        let config = config(&self.settings_schema, settings);
+        let config = extism_config(&self.settings_schema, settings);
         let compiled = match compile(&self.wasm, &self.cache_config, hosts, config) {
             Ok(compiled) => compiled,
             #[expect(
@@ -395,13 +395,13 @@ fn compile(
 /// The hosts a Plugin enabled with `settings` may send HTTP requests to: those its Manifest
 /// names, and the host of each of its URL settings (ADR 0006).
 fn allowed_hosts(manifest: &Manifest, schema: &SettingsSchema, settings: &Settings) -> Vec<String> {
-    // ponytail: an IPv6 host such as `[::1]` reads as a glob character class to Extism, so it
-    // never matches; escape it if a Plugin must reach one.
+    // Extism reads every allowed host as a glob, and a URL's host may hold `*` or, for IPv6, `[`:
+    // escaped, it names only itself.
     let url_hosts = schema
         .fields
         .iter()
         .filter(|field| field.kind == SettingKind::Url)
-        .filter_map(|field| settings.url(&field.key)?.host_str().map(str::to_owned));
+        .filter_map(|field| Some(glob::Pattern::escape(settings.url(&field.key)?.host_str()?)));
     manifest
         .allowed_hosts
         .iter()
@@ -412,7 +412,7 @@ fn allowed_hosts(manifest: &Manifest, schema: &SettingsSchema, settings: &Settin
 
 /// `settings` as the Extism config a Plugin reads them from, each value as text: a bool as
 /// `true` or `false`, a number in decimal.
-fn config(schema: &SettingsSchema, settings: &Settings) -> Vec<(String, String)> {
+fn extism_config(schema: &SettingsSchema, settings: &Settings) -> Vec<(String, String)> {
     schema
         .fields
         .iter()
@@ -503,7 +503,7 @@ mod tests {
     };
     use nama_proto::nama::plugin::v1::{self as wire, Manifest, setting_value};
 
-    use super::{allowed_hosts, check_allowed_hosts, config, settings_schema};
+    use super::{allowed_hosts, check_allowed_hosts, extism_config, settings_schema};
 
     fn field(key: &str, kind: SettingKind) -> SettingField {
         SettingField {
@@ -547,6 +547,35 @@ mod tests {
     }
 
     #[test]
+    fn a_url_settings_host_names_only_itself_not_a_glob() {
+        let schema = SettingsSchema {
+            fields: vec![
+                field("any", SettingKind::Url),
+                field("ipv6", SettingKind::Url),
+            ],
+        };
+        let settings = Settings::new(
+            [
+                ("any".to_owned(), text("http://*/")),
+                ("ipv6".to_owned(), text("http://[::1]:8989/")),
+            ]
+            .into(),
+        );
+
+        let hosts = allowed_hosts(&Manifest::default(), &schema, &settings);
+
+        // Matched as Extism matches them.
+        let reaches = |host: &str| {
+            hosts
+                .iter()
+                .any(|allowed| glob::Pattern::new(allowed).is_ok_and(|glob| glob.matches(host)))
+        };
+        assert!(reaches("*"));
+        assert!(reaches("[::1]"));
+        assert!(!reaches("example.com"));
+    }
+
+    #[test]
     fn an_allowed_host_with_a_port_refuses_the_plugin() {
         let hosts = ["*.themoviedb.org".to_owned(), "sonarr.lan:8989".to_owned()];
 
@@ -582,7 +611,7 @@ mod tests {
             .into(),
         );
 
-        let config = config(&schema, &settings);
+        let config = extism_config(&schema, &settings);
 
         let expected = [("on", "true"), ("count", "-3"), ("name", "Nama")]
             .map(|(key, value)| (key.to_owned(), value.to_owned()));

@@ -19,7 +19,8 @@ message Manifest {
   // decimal.
   repeated SettingField settings = 4;
   // Host names the Plugin may send HTTP requests to, such as "api.example.com" or
-  // "*.example.com". Ports aren't part of the match, so a host allows every port on it.
+  // "*.example.com". Ports aren't part of the match, so a host allows every port on it, and a
+  // Server refuses a Plugin naming a host with one.
   repeated string allowed_hosts = 5;
   // The Extension Points the Plugin registers an Observer at.
   repeated ObservePoint observers = 6;

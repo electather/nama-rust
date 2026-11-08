@@ -1941,6 +1941,7 @@ dependencies = [
  "figment",
  "futures-util",
  "getrandom 0.4.3",
+ "glob",
  "http-body-util",
  "hyper",
  "hyper-util",
