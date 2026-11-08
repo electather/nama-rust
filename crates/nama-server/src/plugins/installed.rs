@@ -18,6 +18,7 @@ use extism::{CompiledPlugin, PluginBuilder, Wasm};
 use nama_plugin_api::{
     BoxFuture, Observer, Plugin, PluginError, PluginId, Priority, Registrar,
     fulfiller::{Download, Fulfiller, Movies, Shows},
+    notifier::{Notification, Notifier, Recipient},
     points::Events,
     settings::{
         Choice, Choices, SettingField, SettingKind, SettingValue, Settings, SettingsCheck,
@@ -28,8 +29,8 @@ use nama_proto::{
     NAMA_API_VERSION,
     nama::{
         plugin::v1::{
-            self as wire, CheckedSettings, Fulfilled, Manifest, ObservePoint, ObservedEvents,
-            Progress, ProgressAsked, ProvidePoint, setting_value,
+            self as wire, Channel, CheckedSettings, Delivery, Fulfilled, Manifest, ObservePoint,
+            ObservedEvents, Progress, ProgressAsked, ProvidePoint, setting_value,
         },
         v1::{Event, PluginKind, Request},
     },
@@ -115,7 +116,8 @@ struct Running {
     compiled: Arc<CompiledPlugin>,
     /// The values of its secret settings, which the failures it logs mustn't show.
     secrets: Arc<[String]>,
-    /// How many calls in a row crashed, counted apart for its Observer and its Fulfiller.
+    /// How many calls in a row crashed, counted apart for its Observer, its Fulfiller and its
+    /// Notifier.
     crashes: Arc<AtomicU32>,
 }
 
@@ -237,11 +239,14 @@ impl Plugin for Installed {
             secrets: secret_values(&self.settings_schema, settings).into(),
             crashes: Arc::default(),
         };
-        // Counting its own crashes, so its Observer working between them doesn't hide them.
-        let fulfiller = Arc::new(Running {
-            crashes: Arc::default(),
-            ..running.clone()
-        });
+        // Each counting its own crashes, so its Observer working between them doesn't hide them.
+        let with_own_crash_count = || {
+            Arc::new(Running {
+                crashes: Arc::default(),
+                ..running.clone()
+            })
+        };
+        let fulfiller = with_own_crash_count();
         // An Extension Point this Server doesn't know is one the Plugin can do without, since its
         // nama-api requirement admits this Server.
         let providers = &self.manifest.providers;
@@ -253,6 +258,9 @@ impl Plugin for Installed {
         }
         if providers.contains(&ProvidePoint::PROVIDE_POINT_SHOW_FULFILLER.into()) {
             registrar.provide::<dyn Fulfiller<Shows>>(Priority::DEFAULT, fulfiller);
+        }
+        if providers.contains(&ProvidePoint::PROVIDE_POINT_NOTIFIER.into()) {
+            registrar.provide::<dyn Notifier>(Priority::DEFAULT, with_own_crash_count());
         }
         if self
             .manifest
@@ -291,6 +299,25 @@ impl<Kind: 'static> Fulfiller<Kind> for Running {
                 .map(|(reference, downloads)| (reference, downloads.downloads))
                 .collect())
         })
+    }
+}
+
+impl Notifier for Running {
+    fn deliver<'a>(
+        &'a self,
+        notification: &'a Notification,
+        recipient: &'a Recipient,
+    ) -> BoxFuture<'a, Result<(), PluginError>> {
+        let recipient = match recipient {
+            Recipient::Channel => wire::delivery::Recipient::from(Channel::default()),
+        };
+        let input = Delivery {
+            notification: notification.clone().into(),
+            recipient: Some(recipient),
+            ..Default::default()
+        }
+        .encode_to_vec();
+        Box::pin(async move { self.provide("deliver", input).await.map(drop) })
     }
 }
 

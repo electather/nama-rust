@@ -13,3 +13,18 @@ message Notification {
   // The Request it happened to, as the event holds it.
   nama.v1.Request request = 2;
 }
+
+// What an Installed Plugin's `deliver` export takes: a notification and whom it is for.
+message Delivery {
+  Notification notification = 1;
+  // Whom it is for. A Plugin that finds none it knows, which a newer Server may send, fails
+  // rather than tell the wrong people.
+  oneof recipient {
+    // The channel set in the Plugin's settings, which hears about every Request event. A Plugin
+    // with no channel set does nothing with these.
+    Channel channel = 2;
+  }
+}
+
+// The Plugin's own channel, set in its settings.
+message Channel {}

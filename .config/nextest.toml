@@ -1,0 +1,19 @@
+# The default profile, for local runs, stops at the first failure and never retries, so a flaky
+# test fails where you'll notice it. CI runs the `ci` profile, whose JUnit report
+# `nama-test-report` reads (ADR 0022).
+
+[profile.ci]
+# A test that passes on a retry is recorded as flaky, not hidden.
+retries = 2
+# Every test runs, so each one gets a result in the history.
+fail-fast = false
+# Slow after 10 s; killed as hung after 6 of those periods, at 60 s.
+slow-timeout = { period = "10s", terminate-after = 6 }
+
+[profile.ci.junit]
+path = "junit.xml"
+
+# The Server's `web` feature test. Its own profile only so its report doesn't overwrite `ci`'s:
+# each profile writes to target/nextest/<profile>/.
+[profile.ci-web]
+inherits = "ci"

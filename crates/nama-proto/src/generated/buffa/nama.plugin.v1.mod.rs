@@ -29,12 +29,14 @@ pub mod __buffa {
             #[allow(unused_imports)]
             use super::*;
             include!("nama.plugin.v1.manifest.__view_oneof.rs");
+            include!("nama.plugin.v1.notifier.__view_oneof.rs");
         }
     }
     pub mod oneof {
         #[allow(unused_imports)]
         use super::*;
         include!("nama.plugin.v1.manifest.__oneof.rs");
+        include!("nama.plugin.v1.notifier.__oneof.rs");
     }
     /// Register this package's `Any` type entries and extension entries.
     pub fn register_types(reg: &mut ::buffa::type_registry::TypeRegistry) {
@@ -48,6 +50,8 @@ pub mod __buffa {
         reg.register_json_any(super::__SETTING_VALUE_JSON_ANY);
         reg.register_json_any(super::__CHECKED_SETTINGS_JSON_ANY);
         reg.register_json_any(super::__NOTIFICATION_JSON_ANY);
+        reg.register_json_any(super::__DELIVERY_JSON_ANY);
+        reg.register_json_any(super::__CHANNEL_JSON_ANY);
     }
 }
 #[doc(inline)]
@@ -90,5 +94,13 @@ pub use self::__buffa::view::CheckedSettingsOwnedView;
 pub use self::__buffa::view::NotificationView;
 #[doc(inline)]
 pub use self::__buffa::view::NotificationOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::DeliveryView;
+#[doc(inline)]
+pub use self::__buffa::view::DeliveryOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ChannelView;
+#[doc(inline)]
+pub use self::__buffa::view::ChannelOwnedView;
 #[doc(inline)]
 pub use self::__buffa::register_types;

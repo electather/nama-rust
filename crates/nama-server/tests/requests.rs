@@ -25,6 +25,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use buffa::Message;
 use connectrpc::{
     ConnectError, ErrorCode,
     client::{ClientConfig, HttpClient, ServerStream},
@@ -65,7 +66,7 @@ use nama_server::{
 };
 use refused::assert_refused;
 use server::{PASSWORD, TestServer};
-use tokio::net::TcpListener;
+use tokio::{net::TcpListener, sync::mpsc};
 
 /// Movies the fake TMDB knows.
 const ALIEN: i64 = 348;
@@ -203,9 +204,9 @@ impl Fixture {
             .map(drop)
     }
 
-    /// A Fixture whose Movie Fulfiller is the test Plugin, Installed and enabled as an Admin would,
-    /// with its `fulfiller` setting `fulfiller`.
-    async fn with_installed_fulfiller(fulfiller: &str) -> Self {
+    /// A Fixture with the test Plugin, a Movie Fulfiller and a Notifier, Installed and enabled as
+    /// an Admin would, with its text `settings`.
+    async fn with_installed_plugin(settings: &[(&str, &str)]) -> Self {
         let fixture = Self::start().await;
         // As on a Server's first start.
         plugin_settings::import(&fixture.db, &BTreeMap::new())
@@ -220,7 +221,7 @@ impl Fixture {
             .list_plugins(ListPluginsRequest::default())
             .await
             .unwrap();
-        fixture.set_installed_fulfiller(fulfiller).await;
+        fixture.set_installed_settings(settings).await;
         plugins
             .enable_plugin(EnablePluginRequest {
                 id: "test-plugin".to_owned(),
@@ -231,16 +232,19 @@ impl Fixture {
         fixture
     }
 
-    /// Sets the Installed test Plugin's `fulfiller` setting to `fulfiller`, as an Admin would.
-    async fn set_installed_fulfiller(&self, fulfiller: &str) {
-        let value = nama_proto::nama::v1::SettingValue {
-            value: Some(setting_value::Value::TextValue(fulfiller.to_owned())),
-            ..Default::default()
+    /// Sets the Installed test Plugin's text `settings`, as an Admin would.
+    async fn set_installed_settings(&self, settings: &[(&str, &str)]) {
+        let text_setting = |(key, text): &(&str, &str)| {
+            let value = nama_proto::nama::v1::SettingValue {
+                value: Some(setting_value::Value::TextValue((*text).to_owned())),
+                ..Default::default()
+            };
+            ((*key).to_owned(), value)
         };
         self.plugin_service()
             .update_plugin_settings(UpdatePluginSettingsRequest {
                 id: "test-plugin".to_owned(),
-                settings: std::iter::once(("fulfiller".to_owned(), value)).collect(),
+                settings: settings.iter().map(text_setting).collect(),
                 ..Default::default()
             })
             .await
@@ -1140,7 +1144,7 @@ async fn retry(fixture: &Fixture, id: i64) -> Result<Request, ConnectError> {
 #[tokio::test]
 async fn approving_a_request_hands_it_to_an_installed_movie_fulfiller_which_says_how_it_is_progressing()
  {
-    let fixture = Fixture::with_installed_fulfiller("take").await;
+    let fixture = Fixture::with_installed_plugin(&[("fulfiller", "take")]).await;
     let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
     let pending = ask(&requests(as_ada.clone()), HEAT).await;
     let mut adas_events = subscribe(as_ada, &[EventType::EVENT_TYPE_REQUEST_PROGRESS]).await;
@@ -1167,12 +1171,14 @@ async fn approving_a_request_hands_it_to_an_installed_movie_fulfiller_which_says
 #[tokio::test]
 async fn a_request_an_installed_fulfiller_refuses_fails_with_its_reason_and_retrying_once_it_takes_it_moves_it_to_processing()
  {
-    let fixture = Fixture::with_installed_fulfiller("error").await;
+    let fixture = Fixture::with_installed_plugin(&[("fulfiller", "error")]).await;
     let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
     let pending = ask(&requests(as_ada), HEAT).await;
 
     let failed = fixture.approve(pending.id).await;
-    fixture.set_installed_fulfiller("take").await;
+    fixture
+        .set_installed_settings(&[("fulfiller", "take")])
+        .await;
     let retried = retry(&fixture, pending.id).await.unwrap();
 
     assert_eq!(failed.state, RequestState::Failed);
@@ -1195,12 +1201,14 @@ async fn a_request_an_installed_fulfiller_loops_forever_or_panics_on_fails_and_t
         ("panic", "the test Plugin's Fulfiller was set to panic"),
     ];
     for (fulfiller, reason) in crashes {
-        let fixture = Fixture::with_installed_fulfiller(fulfiller).await;
+        let fixture = Fixture::with_installed_plugin(&[("fulfiller", fulfiller)]).await;
         let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
         let pending = ask(&requests(as_ada), HEAT).await;
 
         let failed = fixture.approve(pending.id).await;
-        fixture.set_installed_fulfiller("take").await;
+        fixture
+            .set_installed_settings(&[("fulfiller", "take")])
+            .await;
         let retried = retry(&fixture, pending.id).await.unwrap();
 
         assert_eq!(failed.state, RequestState::Failed, "{fulfiller}");
@@ -1213,7 +1221,7 @@ async fn a_request_an_installed_fulfiller_loops_forever_or_panics_on_fails_and_t
 #[tokio::test]
 async fn an_installed_fulfiller_that_crashes_three_times_in_a_row_is_disabled_and_the_third_request_waits_approved()
  {
-    let fixture = Fixture::with_installed_fulfiller("panic").await;
+    let fixture = Fixture::with_installed_plugin(&[("fulfiller", "panic")]).await;
     let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
     let ada = requests(as_ada);
     let mut approved = Vec::new();
@@ -3131,4 +3139,90 @@ async fn a_notifier_that_fails_is_logged_and_neither_it_nor_a_stuck_one_holds_up
     assert_eq!(request.state, RequestState::Pending);
     assert_eq!(working.delivered_soon().await.len(), 1);
     log.wait_for(&["failing", "the service is down"], 1).await;
+}
+
+/// Starts an HTTP server on 127.0.0.1 that answers every request `204 No Content`, and returns its
+/// URL and each request's body as it comes in.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn notification_server() -> (String, mpsc::UnboundedReceiver<axum::body::Bytes>) {
+    let (posted, bodies) = mpsc::unbounded_channel();
+    let app = axum::Router::new().fallback(move |body: axum::body::Bytes| {
+        let _: Result<(), _> = posted.send(body);
+        future::ready(axum::http::StatusCode::NO_CONTENT)
+    });
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}/", listener.local_addr().unwrap());
+    tokio::spawn(async move {
+        let _: Result<(), _> = axum::serve(listener, app).await;
+    });
+    (url, bodies)
+}
+
+#[tokio::test]
+async fn creating_a_movie_request_has_an_installed_notifier_post_it_to_the_url_in_its_settings() {
+    let (url, mut posted) = notification_server().await;
+    let fixture = Fixture::with_installed_plugin(&[("url", &url)]).await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+
+    let request = ask(&requests(as_ada), HEAT).await;
+    let body = tokio::time::timeout(WAIT, posted.recv()).await.unwrap();
+
+    let notification = Notification::decode_from_slice(&body.unwrap()).unwrap();
+    assert_eq!(notification.request.as_option(), Some(&request));
+    let Some(event::Event::RequestCreated(created)) = &notification.event.event else {
+        panic!("not the new Request: {notification:?}");
+    };
+    assert_eq!(created.request.as_option(), Some(&request));
+}
+
+#[tokio::test]
+async fn an_installed_notifiers_error_is_logged_with_its_reason_and_the_request_is_still_made() {
+    let log = Log::global();
+    let fixture = Fixture::with_installed_plugin(&[("notifier", "error")]).await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+
+    let request = ask(&requests(as_ada), HEAT).await;
+
+    assert_eq!(request.state, RequestState::Pending);
+    log.wait_for(
+        &[
+            "test-plugin",
+            "notifier::Notifier",
+            "provider failed",
+            "the test Plugin's Notifier was set to error",
+        ],
+        1,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn an_installed_notifier_that_loops_forever_or_panics_is_logged_and_the_server_carries_on() {
+    let log = Log::global();
+    let crashes = [
+        ("loop", "it didn't answer within 5s"),
+        ("panic", "the test Plugin's Notifier was set to panic"),
+    ];
+    for (notifier, reason) in crashes {
+        let fixture = Fixture::with_installed_plugin(&[("notifier", notifier)]).await;
+        let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+        let ada = requests(as_ada);
+        let failed = [
+            "test-plugin",
+            "notifier::Notifier",
+            "provider failed",
+            reason,
+        ];
+        let logged = log.count(&failed);
+
+        let first = ask(&ada, HEAT).await;
+        log.wait_for(&failed, logged + 1).await;
+        let second = ask(&ada, ALIEN).await;
+
+        assert_eq!(first.state, RequestState::Pending, "{notifier}");
+        assert_eq!(second.state, RequestState::Pending, "{notifier}");
+    }
 }
