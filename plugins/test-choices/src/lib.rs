@@ -1,14 +1,17 @@
-//! A Built-in Plugin used only in tests (the Server's `testing` feature): its settings check offers
-//! choices, and its settings can tell it to fail.
+//! A Built-in Plugin used only in tests (the Server's `testing` feature), standing in for one such as
+//! Radarr: its settings check offers choices, its settings can tell it to fail, and it provides a
+//! Movie Fulfiller.
 
-use std::future;
+use std::{collections::HashMap, future, sync::Arc};
 
 use nama_plugin_api::{
-    BoxFuture, Plugin, PluginError, PluginId, Registrar,
+    BoxFuture, Plugin, PluginError, PluginId, Priority, Registrar,
+    fulfiller::{Download, Fulfiller, Movies},
     settings::{
         Choice, Choices, SettingField, SettingKind, Settings, SettingsCheck, SettingsSchema,
     },
 };
+use nama_proto::nama::v1::Request;
 
 /// The test Plugin's id.
 pub const ID: &str = "test-choices";
@@ -22,7 +25,7 @@ pub const PANIC: &str = "panic";
 /// What `fail_with` is set to for the check never to finish.
 pub const HANG: &str = "hang";
 
-/// The test Plugin. It registers nothing.
+/// The test Plugin. It registers its Movie Fulfiller.
 #[derive(Debug)]
 pub struct TestChoices;
 
@@ -75,7 +78,24 @@ impl Plugin for TestChoices {
         Some(self)
     }
 
-    fn register(&self, _registrar: &mut Registrar) {}
+    fn register(&self, registrar: &mut Registrar) {
+        registrar.provide::<dyn Fulfiller<Movies>>(Priority::DEFAULT, Arc::new(Self));
+    }
+}
+
+/// Takes every Request, giving `movie-<TMDB id>` as its reference.
+impl Fulfiller<Movies> for TestChoices {
+    fn fulfill<'a>(&'a self, request: &'a Request) -> BoxFuture<'a, Result<String, PluginError>> {
+        let reference = format!("movie-{}", request.movie.tmdb_id);
+        Box::pin(future::ready(Ok(reference)))
+    }
+
+    fn progress<'a>(
+        &'a self,
+        _references: &'a [String],
+    ) -> BoxFuture<'a, Result<HashMap<String, Vec<Download>>, PluginError>> {
+        Box::pin(future::ready(Ok(HashMap::new())))
+    }
 }
 
 impl SettingsCheck for TestChoices {

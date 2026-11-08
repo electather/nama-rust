@@ -12,7 +12,7 @@ mod server;
 
 use std::{
     collections::{BTreeMap, HashMap},
-    fs,
+    fs, future,
     path::Path,
     sync::{
         Arc, Mutex, PoisonError,
@@ -31,6 +31,7 @@ use nama_plugin_api::{
     fulfiller::{Download, Fulfiller, Movies},
     settings::{SettingValue, Settings},
 };
+use nama_plugin_test_choices as test_choices;
 use nama_plugin_tmdb::{
     Tmdb,
     testing::{API_KEY, FakeTmdb},
@@ -38,17 +39,23 @@ use nama_plugin_tmdb::{
 use nama_proto::nama::v1::{
     __buffa::view::SubscribeResponseView, ApproveRequestRequest, BrowseServiceClient,
     CancelRequestRequest, CreateLibraryRequest, CreateRequestRequest, CreateSeasonRequestsRequest,
-    CreateUserRequest, DeclineRequestRequest, EventServiceClient, EventType, FoundMovie, FoundShow,
-    GetRequestRequest, LibraryKind, LibraryServiceClient, ListMoviesRequest, ListRequestsRequest,
-    ListShowsRequest, LookUpMovieRequest, LookUpShowRequest, Permission, RefusalReason, Request,
-    RequestServiceClient, RequestState, RetryRequestRequest, ScanLibraryRequest,
-    SearchMoviesRequest, SearchShowsRequest, SessionDelivery, SetPermissionsRequest, SignInRequest,
-    SignInServiceClient, SubscribeRequest, SubscribeResponse, UserServiceClient,
-    WithdrawRequestRequest, event, subscribe_response,
+    CreateUserRequest, DeclineRequestRequest, EnablePluginRequest, EventServiceClient, EventType,
+    FoundMovie, FoundShow, GetRequestRequest, LibraryKind, LibraryServiceClient, ListMoviesRequest,
+    ListRequestsRequest, ListShowsRequest, LookUpMovieRequest, LookUpShowRequest, Permission,
+    PluginServiceClient, RefusalReason, Request, RequestServiceClient, RequestState,
+    RetryRequestRequest, ScanLibraryRequest, SearchMoviesRequest, SearchShowsRequest,
+    SessionDelivery, SetPermissionsRequest, SignInRequest, SignInServiceClient, SubscribeRequest,
+    SubscribeResponse, UserServiceClient, WithdrawRequestRequest, event, subscribe_response,
 };
-use nama_server::{config::Config, db::Database, plugins::Registry};
+use nama_server::{
+    config::{Config, PluginConfig},
+    db::Database,
+    plugin_settings,
+    plugins::Registry,
+};
 use refused::assert_refused;
 use server::{PASSWORD, TestServer};
+use tokio::net::TcpListener;
 
 /// Movies the fake TMDB knows.
 const ALIEN: i64 = 348;
@@ -76,6 +83,7 @@ struct Fixture {
     server: TestServer,
     db: Arc<Database>,
     tmdb: FakeTmdb,
+    plugins: Registry,
 }
 
 #[expect(
@@ -106,8 +114,72 @@ impl Fixture {
         plugins
             .enable_with_settings(Arc::new(Tmdb::with_endpoints(tmdb.endpoints())), settings)
             .unwrap();
-        let (server, db) = TestServer::start_with_db(Config::default(), plugins).await;
-        Self { server, db, tmdb }
+        let (server, db) = TestServer::start_with_db(Config::default(), plugins.clone()).await;
+        Self {
+            server,
+            db,
+            tmdb,
+            plugins,
+        }
+    }
+
+    /// A Fixture with the Built-in Plugins, where the Built-in Movie Fulfiller `test-choices` is
+    /// disabled with the settings it needs stored, and with `fulfiller` as the Movie Fulfiller if
+    /// given.
+    async fn with_test_choices_disabled(fulfiller: Option<&FakeFulfiller>) -> Self {
+        let test_choices = PluginConfig {
+            enabled: false,
+            settings: BTreeMap::from([
+                (
+                    "api_key".to_owned(),
+                    SettingValue::Text(test_choices::API_KEY.to_owned()),
+                ),
+                ("profile".to_owned(), SettingValue::Text("1".to_owned())),
+            ]),
+        };
+        let stored = BTreeMap::from([(test_choices::ID.to_owned(), test_choices)]);
+        let plugins = Registry::with_builtins(&stored);
+        if let Some(fulfiller) = fulfiller {
+            plugins
+                .enable(Arc::new(FulfillerPlugin(fulfiller.clone())))
+                .unwrap();
+        }
+        let fixture = Self::start_with(plugins).await;
+        plugin_settings::import(&fixture.db, &stored).await.unwrap();
+        fixture
+    }
+
+    /// Serves the Fixture's database again with `plugins`, as a Server restarted with them would.
+    async fn serve_again(&self, plugins: Registry) {
+        let data_dir = tempfile::tempdir().unwrap();
+        let config = Config {
+            data_dir: data_dir.path().to_owned(),
+            ..Config::default()
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let served = nama_server::serve(
+            listener,
+            &config,
+            Arc::clone(&self.db),
+            plugins,
+            None,
+            future::pending(),
+        );
+        tokio::spawn(async move {
+            let _data_dir = data_dir;
+            served.await
+        });
+    }
+
+    /// Enables the Built-in Plugin `test-choices`, as the Admin.
+    async fn enable_test_choices(&self) -> Result<(), ConnectError> {
+        PluginServiceClient::new(HttpClient::plaintext(), self.server.client_config())
+            .enable_plugin(EnablePluginRequest {
+                id: test_choices::ID.to_owned(),
+                ..Default::default()
+            })
+            .await
+            .map(drop)
     }
 
     /// The reference the Fulfiller gave for the Request `id`, as the Server stored it.
@@ -840,6 +912,111 @@ async fn an_approved_season_request_is_not_handed_to_the_movie_fulfiller() {
 
     assert_eq!(approved.state, RequestState::Approved);
     assert_eq!(fulfiller.handed(), Vec::<i64>::new());
+}
+
+#[tokio::test]
+async fn enabling_a_movie_fulfiller_hands_it_the_requests_approved_while_there_was_none() {
+    let fixture = Fixture::with_test_choices_disabled(None).await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let ada = requests(as_ada);
+    let mut approved = Vec::new();
+    for movie in [HEAT, DUNE] {
+        let pending = ask(&ada, movie).await;
+        approved.push(fixture.approve(pending.id).await);
+    }
+    assert_eq!(
+        states(&approved),
+        [
+            (approved[0].id, RequestState::Approved),
+            (approved[1].id, RequestState::Approved)
+        ]
+    );
+
+    fixture.enable_test_choices().await.unwrap();
+
+    assert_eq!(
+        states(&list(&ada).await),
+        [
+            (approved[1].id, RequestState::Processing),
+            (approved[0].id, RequestState::Processing)
+        ]
+    );
+}
+
+/// Ada's Request for Heat, approved while there was no Movie Fulfiller, once it has left Approved
+/// after the Server is started again with `fulfiller` as the Movie Fulfiller.
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn waiting_request_after_starting_with(fulfiller: &FakeFulfiller) -> Request {
+    let fixture = Fixture::start().await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let ada = requests(as_ada);
+    let pending = ask(&ada, HEAT).await;
+    let approved = fixture.approve(pending.id).await;
+    assert_eq!(approved.state, RequestState::Approved);
+    let restarted = Registry::new();
+    restarted
+        .enable(Arc::new(FulfillerPlugin(fulfiller.clone())))
+        .unwrap();
+
+    fixture.serve_again(restarted).await;
+
+    tokio::time::timeout(WAIT, async {
+        loop {
+            let [request] = list(&ada).await.try_into().unwrap();
+            if request.state != RequestState::Approved {
+                return request;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("the waiting Request never went to the Movie Fulfiller")
+}
+
+#[tokio::test]
+async fn requests_approved_while_there_was_no_movie_fulfiller_go_to_it_once_a_server_with_one_starts()
+ {
+    let fulfiller = FakeFulfiller::default();
+
+    let request = waiting_request_after_starting_with(&fulfiller).await;
+
+    assert_eq!(request.state, RequestState::Processing);
+    assert_eq!(fulfiller.handed(), [HEAT]);
+}
+
+#[tokio::test]
+async fn a_waiting_request_the_movie_fulfiller_refuses_at_startup_fails() {
+    let request = waiting_request_after_starting_with(&FakeFulfiller::refusing()).await;
+
+    assert_eq!(request.state, RequestState::Failed);
+}
+
+#[tokio::test]
+async fn enabling_a_second_movie_fulfiller_is_refused_naming_the_first_and_it_stays_disabled() {
+    let fixture = Fixture::with_test_choices_disabled(Some(&FakeFulfiller::default())).await;
+
+    let refusal = assert_refused(
+        fixture.enable_test_choices().await,
+        ErrorCode::FailedPrecondition,
+        RefusalReason::REFUSAL_REASON_FULFILLER_TAKEN,
+    );
+
+    assert_eq!(refusal.field, "id");
+    assert_eq!(refusal.params["pluginId"], test_choices::ID);
+    assert_eq!(refusal.params["fulfillerPluginId"], "fake-fulfiller");
+    assert_eq!(refusal.params["titleKind"], "Movie");
+    assert!(
+        !fixture
+            .plugins
+            .enabled()
+            .contains(&PluginId::from_static(test_choices::ID))
+    );
+    let stored = plugin_settings::stored(&fixture.db).await.unwrap().unwrap();
+    assert!(!stored[test_choices::ID].enabled);
 }
 
 #[tokio::test]

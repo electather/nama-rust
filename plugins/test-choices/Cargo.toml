@@ -10,6 +10,7 @@ publish = false
 # Built-in Plugins depend on no workspace crate but nama-plugin-api and nama-proto (ADR 0006).
 [dependencies]
 nama-plugin-api = { version = "0.1.0", path = "../../crates/nama-plugin-api" }
+nama-proto = { version = "0.1.0", path = "../../crates/nama-proto" }
 
 [lints]
 workspace = true

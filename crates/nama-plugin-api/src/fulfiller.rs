@@ -8,8 +8,9 @@
 //! registrar.provide::<dyn Fulfiller<Movies>>(Priority::DEFAULT, Arc::new(my_fulfiller));
 //! ```
 //!
-//! The Kernel uses one Fulfiller per kind: the first in the order
-//! [`Registrar::provide`](crate::Registrar::provide) describes.
+//! Each kind has at most one Fulfiller: the Kernel refuses to enable a Plugin providing one for a
+//! kind another enabled Plugin already provides one for. Once enabled, a Fulfiller is handed every
+//! Approved Request of its kind that was waiting for one.
 
 use std::collections::HashMap;
 
