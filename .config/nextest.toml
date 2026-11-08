@@ -7,8 +7,9 @@
 retries = 2
 # Every test runs, so each one gets a result in the history.
 fail-fast = false
-# Slow after 10 s; killed as hung after 6 of those periods, at 60 s.
-slow-timeout = { period = "10s", terminate-after = 6 }
+# Slow after 10 s; killed as hung after 9 of those periods, at 90 s. The Installed Plugin tests
+# build the test Plugin and compile wasm under full parallel load, which can pass 60 s in CI.
+slow-timeout = { period = "10s", terminate-after = 9 }
 
 [profile.ci.junit]
 path = "junit.xml"
