@@ -100,7 +100,7 @@ const followedDark = {
   requesters: [{ userId: 1n, name: "Sam" }],
 };
 
-test("a Followed Show lists as the Whole Show, above its Show's Season Requests", async () => {
+test("a Followed Show lists above its Show's Season Requests", async () => {
   openApp(
     "/requests",
     server(
@@ -116,7 +116,7 @@ test("a Followed Show lists as the Whole Show, above its Show's Season Requests"
       .getAllByRole("listitem")
       .map((row) => row.textContent),
   ).toEqual([
-    "Whole ShowRequested by youApprovedWithdraw",
+    "Followed ShowRequested by youApprovedWithdraw",
     "Season 12017 · Requested by youApproved",
   ]);
 });

@@ -212,7 +212,9 @@ function followedServer() {
 test("approving a Followed Show once approves it and its Season Requests", async () => {
   openApp("/requests", followedServer());
 
-  fireEvent.click(await screen.findByRole("button", { name: "Approve Dark Whole Show" }));
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Approve the Followed Show for Dark" }),
+  );
 
   await waitFor(() => {
     expect(screen.getAllByText("Approved")).toHaveLength(2);
@@ -223,16 +225,14 @@ test("approving a Followed Show once approves it and its Season Requests", async
 test("cancelling a Followed Show, once confirmed, removes it and leaves its Season Requests", async () => {
   openApp("/requests", followedServer());
 
-  fireEvent.click(
-    await screen.findByRole("button", { name: "Cancel Request for Dark Whole Show" }),
-  );
+  fireEvent.click(await screen.findByRole("button", { name: "Cancel Followed Show for Dark" }));
   const dialog = await screen.findByRole("alertdialog", {
-    name: "Cancel the Request for Dark Whole Show?",
+    name: "Cancel the Followed Show for Dark?",
   });
-  fireEvent.click(within(dialog).getByRole("button", { name: "Cancel Request" }));
+  fireEvent.click(within(dialog).getByRole("button", { name: "Cancel Followed Show" }));
 
   await waitFor(() => {
-    expect(screen.queryByText("Whole Show")).toBeNull();
+    expect(screen.queryByText("Followed Show")).toBeNull();
   });
   expect(screen.getByText("Season 1")).toBeDefined();
 });

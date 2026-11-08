@@ -168,11 +168,11 @@ function RequestRow({ request }: { request: Request | FollowedShow }) {
 }
 
 /**
- * A row's title: a Request's Movie's, or its Season's name, or for a Followed Show "Whole Show",
- * either of which its Show's title is above.
+ * A row's title: a Request's Movie's, or its Season's name, or "Followed Show", either of which
+ * its Show's title is above.
  */
 function titleOf(request: Request | FollowedShow) {
-  if (request.$typeName === "nama.v1.FollowedShow") return "Whole Show";
+  if (request.$typeName === "nama.v1.FollowedShow") return "Followed Show";
   const { movie, season } = request;
   return season ? seasonName(season.seasonNumber) : movie?.title;
 }
