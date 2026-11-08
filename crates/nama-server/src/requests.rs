@@ -79,7 +79,7 @@ pub(crate) struct Requests {
     /// Looks up what a new Request asks for: a Movie, or a Show's Seasons.
     matcher: Matcher,
     events: EventBus,
-    /// Holds the Movie Fulfiller, if one is enabled, and blanks its secrets out of its errors.
+    /// Holds the Movie Fulfiller, if one is enabled.
     plugins: Registry,
 }
 
@@ -283,9 +283,9 @@ impl Requests {
     /// What the Movie Fulfiller says to `request`, if one is enabled: the reference it gives once
     /// it takes it, or why it doesn't, with no secret setting's value in it.
     async fn fulfill(&self, request: &Request) -> Option<Result<String, String>> {
-        let (plugin, fulfilled) = self
+        let fulfilled = self
             .plugins
-            .call_provider_with_id::<dyn Fulfiller<Movies>, _, _>(|fulfiller| async move {
+            .call_provider_blanking_secrets::<dyn Fulfiller<Movies>, _, _>(|fulfiller| async move {
                 // Inside the call, so formatting and dropping the Plugin's error are contained.
                 fulfiller
                     .fulfill(request)
@@ -293,16 +293,11 @@ impl Requests {
                     .map_err(|error| error.to_string())
             })
             .await?;
-        Some(fulfilled.map_err(|error| {
-            let reason = self
-                .plugins
-                .without_secrets(&plugin, error)
-                .unwrap_or_else(|| format!("{plugin} failed, and was disabled since"));
+        Some(fulfilled.inspect_err(|reason| {
             warn!(
                 request = request.id,
                 reason, "the Movie Fulfiller didn't take the Request"
             );
-            reason
         }))
     }
 
@@ -623,9 +618,12 @@ pub(crate) async fn make_available(
         if contents::library_with_movie(conn, tmdb_id).await?.is_none() {
             continue;
         }
-        sqlx::query!("UPDATE requests SET state = 'available' WHERE id = ?", id)
-            .execute(&mut *conn)
-            .await?;
+        sqlx::query!(
+            "UPDATE requests SET state = 'available', failure_reason = NULL WHERE id = ?",
+            id
+        )
+        .execute(&mut *conn)
+        .await?;
         let request = load_one(conn, id).await?.ok_or(sqlx::Error::RowNotFound)?;
         happened.push(state_changed(request));
     }

@@ -64,8 +64,6 @@ struct Enabled {
     /// Tells this enablement apart from earlier ones of the same Plugin, so a call that started
     /// before a disable can't reach or disable the Plugin enabled again since.
     generation: u64,
-    /// The values of its secret settings, which its errors mustn't show.
-    secrets: Vec<String>,
 }
 
 #[derive(Clone)]
@@ -74,6 +72,9 @@ struct Entry {
     generation: u64,
     /// Position among the Plugin's own registrations, which breaks the last tie.
     index: usize,
+    /// The values of the secret settings the Plugin was enabled with, which its errors mustn't
+    /// show.
+    secrets: Arc<[String]>,
     registration: Registration,
 }
 
@@ -266,7 +267,7 @@ impl Registry {
                 plugin: id.clone(),
                 error,
             })?;
-        let secrets = secret_values(&schema, &settings);
+        let secrets: Arc<[String]> = secret_values(&schema, &settings).into();
         let mut registrar = Registrar::with_settings(settings);
         plugin.register(&mut registrar);
         let registrations = registrar.into_registrations();
@@ -285,7 +286,6 @@ impl Registry {
                 Enabled {
                     _plugin: plugin,
                     generation,
-                    secrets,
                 },
             );
             for (index, registration) in registrations.into_iter().enumerate() {
@@ -297,6 +297,7 @@ impl Registry {
                         plugin: id.clone(),
                         generation,
                         index,
+                        secrets: Arc::clone(&secrets),
                         registration,
                     });
             }
@@ -443,17 +444,6 @@ impl Registry {
         checked
     }
 
-    /// `message`, which the enabled Plugin `plugin` gave, with the value of each of its secret
-    /// settings blanked out, for showing to Users. `None` if the Plugin isn't enabled any more, so
-    /// its secrets aren't known.
-    #[must_use]
-    pub fn without_secrets(&self, plugin: &PluginId, message: String) -> Option<String> {
-        self.read(|state| {
-            let enabled = state.plugins.get(plugin)?;
-            Some(without_secrets(message, &enabled.secrets))
-        })
-    }
-
     /// The ids of the enabled Plugins, sorted.
     #[must_use]
     pub fn enabled(&self) -> Vec<PluginId> {
@@ -581,6 +571,20 @@ impl Registry {
             .map(|(_, result)| result)
     }
 
+    /// Like [`Registry::call_provider`], for a call whose error Users may see: an `Err`'s message
+    /// comes back with the value of each secret setting of the Plugin that answered blanked out.
+    pub async fn call_provider_blanking_secrets<T, V, F>(
+        &self,
+        call: impl Fn(Arc<T>) -> F,
+    ) -> Option<Result<V, String>>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Future<Output = Result<V, String>>,
+    {
+        let (entry, result) = self.call_providers(None, call).await?;
+        Some(result.map_err(|message| without_secrets(message, &entry.secrets)))
+    }
+
     /// Like [`Registry::call_provider`], but also says which Plugin's Provider answered, so the
     /// caller can go back to it with [`Registry::call_provider_of`].
     pub async fn call_provider_with_id<T, R, F>(
@@ -591,7 +595,9 @@ impl Registry {
         T: ?Sized + Send + Sync + 'static,
         F: Future<Output = R>,
     {
-        self.call_providers(None, call).await
+        self.call_providers(None, call)
+            .await
+            .map(|(entry, result)| (entry.plugin, result))
     }
 
     /// Calls `call` with the Plugin `plugin`'s Provider of `T`, such as to fetch something that
@@ -612,12 +618,13 @@ impl Registry {
     }
 
     /// Calls `call` with the first Provider of `T` that answers without panicking, in the order
-    /// [`Registry::call_provider`] describes, considering only `only`'s if given.
+    /// [`Registry::call_provider`] describes, considering only `only`'s if given. Returns the
+    /// Provider's entry with its answer.
     async fn call_providers<T, R, F>(
         &self,
         only: Option<&PluginId>,
         call: impl Fn(Arc<T>) -> F,
-    ) -> Option<(PluginId, R)>
+    ) -> Option<(Entry, R)>
     where
         T: ?Sized + Send + Sync + 'static,
         F: Future<Output = R>,
@@ -642,7 +649,7 @@ impl Registry {
                 continue;
             }
             match contain(|| call(provider)).await {
-                Ok(result) => return Some((entry.plugin, result)),
+                Ok(result) => return Some((entry, result)),
                 Err(message) => self.disable_after_panic(&entry, point.name(), &message),
             }
         }

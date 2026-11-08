@@ -826,6 +826,21 @@ async fn a_processing_request_becomes_available_once_a_scan_matches_its_movie() 
 }
 
 #[tokio::test]
+async fn a_failed_request_becomes_available_without_its_reason_once_a_scan_matches_its_movie() {
+    let fixture = Fixture::with_fulfiller(&FakeFulfiller::refusing()).await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let ada = requests(as_ada);
+    let failed = fixture.approve(ask(&ada, ALIEN).await.id).await;
+    assert_eq!(failed.state, RequestState::Failed);
+
+    let _media = fixture.library_with_alien().await;
+
+    let [available] = list(&ada).await.try_into().unwrap();
+    assert_eq!(available.state, RequestState::Available);
+    assert_eq!(available.failure_reason, None);
+}
+
+#[tokio::test]
 async fn a_scan_makes_a_pending_request_available_and_leaves_a_declined_one_declined() {
     let fixture = Fixture::start().await;
     let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
