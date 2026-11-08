@@ -34,11 +34,25 @@ pub trait Fulfiller<Kind>: Send + Sync + 'static {
     /// fulfilled, with a reference the Kernel keeps with the Request and passes back to
     /// [`Fulfiller::progress`]. Only this Fulfiller reads the reference.
     ///
+    /// A Season Request naming a Followed Show in `followed_show_id` also asks it to follow the
+    /// Show: to fetch the Seasons that come out later too, until [`Fulfiller::unfollow`]. The
+    /// Kernel names one only while it is Approved, so a single-Season ask never asks to follow.
+    ///
     /// # Errors
     ///
     /// When the service didn't take the Request, such as when it is unreachable or doesn't know
-    /// the title. The error is the reason.
+    /// the title, or the Fulfiller can't follow a Show it was asked to. The error is the reason.
     fn fulfill<'a>(&'a self, request: &'a Request) -> BoxFuture<'a, Result<String, PluginError>>;
+
+    /// Stops following the Show `request` is a Season of, as a hand-off asked it to, since its
+    /// Followed Show ended. A Fulfiller that never follows, such as one for Movies, leaves it be.
+    ///
+    /// # Errors
+    ///
+    /// When the service couldn't be told. The Kernel only logs it.
+    fn unfollow<'a>(&'a self, _request: &'a Request) -> BoxFuture<'a, Result<(), PluginError>> {
+        Box::pin(async { Ok(()) })
+    }
 
     /// What the service is downloading for each of `references`, by reference. A reference with
     /// nothing downloading may be left out. While any Request is Processing, the Kernel asks this

@@ -116,11 +116,25 @@ pub trait Fulfiller {
     /// [`Fulfiller::progress`]. A Plugin providing both kinds tells a Movie Request from a Season
     /// one by which it holds.
     ///
+    /// A Season Request naming a Followed Show in `followed_show_id` also asks it to follow the
+    /// Show: to fetch the Seasons that come out later too, until [`Fulfiller::unfollow`].
+    ///
     /// # Errors
     ///
     /// When the service didn't take the Request, such as when it is unreachable or doesn't know
-    /// the title. The error's message is the reason the Request shows as Failed.
+    /// the title, or the Plugin can't follow a Show it was asked to. The error's message is the
+    /// reason the Request shows as Failed.
     fn fulfill(request: Request) -> Result<String, Error>;
+
+    /// Stops following the Show `request` is a Season of, as a hand-off asked it to, since its
+    /// Followed Show ended. A Plugin that never follows, such as one for Movies, leaves it be.
+    ///
+    /// # Errors
+    ///
+    /// When the service couldn't be told. The Server logs the error's message.
+    fn unfollow(_request: Request) -> Result<(), Error> {
+        Ok(())
+    }
 
     /// What the service is downloading for each of `references`, by reference. A reference with
     /// nothing downloading may be left out.
@@ -131,8 +145,8 @@ pub trait Fulfiller {
     fn progress(references: Vec<String>) -> Result<HashMap<String, Vec<Download>>, Error>;
 }
 
-/// Exports a [`Fulfiller`] as the Plugin's `fulfill` and `progress`, taking and returning the
-/// `nama.plugin.v1` messages the Server exchanges with them.
+/// Exports a [`Fulfiller`] as the Plugin's `fulfill`, `unfollow` and `progress`, taking and
+/// returning the `nama.plugin.v1` messages the Server exchanges with them.
 #[macro_export]
 macro_rules! fulfiller {
     ($fulfiller:ty) => {
@@ -150,6 +164,11 @@ macro_rules! fulfiller {
                     reference: <$fulfiller as Fulfiller>::fulfill(request)?,
                     ..Fulfilled::default()
                 }))
+            }
+
+            #[plugin_fn]
+            pub fn unfollow(Buffa(request): Buffa<Request>) -> FnResult<()> {
+                Ok(<$fulfiller as Fulfiller>::unfollow(request)?)
             }
 
             #[plugin_fn]

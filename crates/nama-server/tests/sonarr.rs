@@ -22,9 +22,10 @@ use nama_plugin_tmdb::{
     testing::{API_KEY as TMDB_KEY, FakeTmdb},
 };
 use nama_proto::nama::v1::{
-    ApproveRequestRequest, CreateSeasonRequestsRequest, CreateUserRequest, EnablePluginRequest,
-    ListPluginsRequest, PluginServiceClient, RefusalReason, Request, RequestServiceClient,
-    RequestState, RetryRequestRequest, SessionDelivery, SignInRequest, SignInServiceClient,
+    ApproveRequestRequest, CancelFollowedShowRequest, CreateFollowedShowRequest,
+    CreateSeasonRequestsRequest, CreateUserRequest, EnablePluginRequest, ListPluginsRequest,
+    PluginServiceClient, RefusalReason, Request, RequestServiceClient, RequestState,
+    RetryRequestRequest, SessionDelivery, SignInRequest, SignInServiceClient,
     TestPluginSettingsRequest, TestPluginSettingsResponse, UpdatePluginSettingsRequest,
     setting_value::Value,
 };
@@ -144,6 +145,35 @@ impl Fixture {
     /// their hand-offs left them.
     async fn ask_approved(&self, show: i64, seasons: &[u32]) -> Vec<Request> {
         ask(&self.requests(), show, seasons).await
+    }
+
+    /// The whole Show `show`, asked for by the Admin and so Approved at once. Returns the Followed
+    /// Show's id and its Season Requests as their hand-offs left them.
+    async fn follow_approved(&self, show: i64) -> (i64, Vec<Request>) {
+        let followed = self
+            .requests()
+            .create_followed_show(CreateFollowedShowRequest {
+                show_tmdb_id: show,
+                ..Default::default()
+            })
+            .await
+            .unwrap()
+            .into_owned();
+        (
+            followed.followed_show.into_option().unwrap().id,
+            followed.requests,
+        )
+    }
+
+    /// Cancels the Followed Show `id` as the Admin.
+    async fn cancel_followed(&self, id: i64) {
+        self.requests()
+            .cancel_followed_show(CancelFollowedShowRequest {
+                id,
+                ..Default::default()
+            })
+            .await
+            .unwrap();
     }
 
     /// The Season `season` of the Show `show`, asked for by a new User and so Pending.
@@ -432,4 +462,44 @@ async fn a_show_sonarr_cant_find_fails_in_plain_words() {
         failed.failure_reason.as_deref(),
         Some("Sonarr couldn't find the Show by its TVDB id, 73244")
     );
+}
+
+#[tokio::test]
+async fn asking_for_a_whole_show_sonarr_lacks_adds_it_with_new_seasons_monitored() {
+    let fixture = Fixture::with_sonarr_enabled().await;
+
+    let (_, asked) = fixture.follow_approved(DARK).await;
+    fixture.sonarr.finish_refreshes().await;
+
+    assert_eq!(states(&asked), [Some(RequestState::Processing); 3]);
+    let shows = fixture.sonarr.shows();
+    let [dark] = shows.as_slice() else {
+        panic!("Sonarr has {} Shows, not just Dark", shows.len());
+    };
+    assert_eq!(dark["monitorNewItems"], "all");
+    assert_eq!(fixture.sonarr.monitored_seasons(DARK_TVDB), [1, 2, 3]);
+}
+
+#[tokio::test]
+async fn asking_for_a_whole_show_sonarr_has_for_one_season_turns_on_its_new_season_monitoring() {
+    let fixture = Fixture::with_sonarr_enabled().await;
+    fixture.ask_approved(DARK, &[1]).await;
+    fixture.sonarr.finish_refreshes().await;
+
+    fixture.follow_approved(DARK).await;
+
+    assert_eq!(fixture.sonarr.shows()[0]["monitorNewItems"], "all");
+    assert_eq!(fixture.sonarr.monitored_seasons(DARK_TVDB), [1, 2, 3]);
+}
+
+#[tokio::test]
+async fn cancelling_a_followed_show_turns_off_sonarrs_new_season_monitoring() {
+    let fixture = Fixture::with_sonarr_enabled().await;
+    let (followed, _) = fixture.follow_approved(DARK).await;
+    fixture.sonarr.finish_refreshes().await;
+
+    fixture.cancel_followed(followed).await;
+
+    assert_eq!(fixture.sonarr.shows()[0]["monitorNewItems"], "none");
+    assert_eq!(fixture.sonarr.monitored_seasons(DARK_TVDB), [1, 2, 3]);
 }

@@ -431,20 +431,64 @@ impl Requests {
         .await
     }
 
-    /// Removes the Followed Show `id`, whatever its state, leaving the Season Requests it opened.
+    /// Removes the Followed Show `id`, whatever its state, leaving the Season Requests it opened,
+    /// and has the Shows Fulfiller stop following the Show.
     pub(crate) async fn cancel_followed(&self, id: i64) -> Result<(), Error> {
-        self.db
-            .write(move |tx| Box::pin(cancel_followed(tx, id)))
-            .await
+        let this = self.clone();
+        // The Fulfiller too, so a caller that stops waiting leaves it following no Followed Show.
+        detached(async move {
+            let ended = this
+                .db
+                .write(move |tx| Box::pin(cancel_followed(tx, id)))
+                .await?;
+            this.unfollow(ended).await;
+            Ok(())
+        })
+        .await
     }
 
-    /// Takes `requester` off the Followed Show `id`, removing it once nobody is left on it.
+    /// Takes `requester` off the Followed Show `id`, removing it once nobody is left on it, as
+    /// [`Self::cancel_followed`] does.
     pub(crate) async fn withdraw_followed(&self, requester: &User, id: i64) -> Result<(), Error> {
         let user = requester.id;
         let visible = visible_to(requester);
-        self.db
-            .write(move |tx| Box::pin(withdraw_followed(tx, user, visible, id)))
-            .await
+        let this = self.clone();
+        // As in `cancel_followed`.
+        detached(async move {
+            let ended = this
+                .db
+                .write(move |tx| Box::pin(withdraw_followed(tx, user, visible, id)))
+                .await?;
+            this.unfollow(ended).await;
+            Ok(())
+        })
+        .await
+    }
+
+    /// Tells the Shows Fulfiller, if one is enabled, to stop following the Show `season` is a
+    /// Season Request of, if given. A failure is only logged: the Followed Show ended either way.
+    async fn unfollow(&self, season: Option<Request>) {
+        let Some(season) = season else {
+            return;
+        };
+        let unfollowed = self
+            .plugins
+            .call_provider_blanking_secrets::<dyn Fulfiller<Shows>, _, _>(|fulfiller| {
+                let season = &season;
+                async move {
+                    fulfiller
+                        .unfollow(season)
+                        .await
+                        .map_err(|error| error.to_string())
+                }
+            })
+            .await;
+        if let Some(Err(reason)) = unfollowed {
+            warn!(
+                show = season.season.show_tmdb_id,
+                reason, "the Shows Fulfiller didn't stop following the Show"
+            );
+        }
     }
 
     /// Approves the Pending Request `id` and hands it to its Fulfiller, publishing each change of
@@ -510,8 +554,9 @@ impl Requests {
             // Cancelled since.
             None => return Ok(request),
         };
+        let handed = as_handed_off(&mut conn, current.clone()).await?;
         drop(conn);
-        let Some(fulfilled) = self.fulfill(&current).await else {
+        let Some(fulfilled) = self.fulfill(&handed).await else {
             return Ok(current);
         };
         let took = fulfilled.is_ok();
@@ -1596,8 +1641,43 @@ async fn decide_followed(
     Ok((followed, requests))
 }
 
-/// Removes the Followed Show `id`, and its Requesters with it.
-async fn cancel_followed(conn: &mut SqliteConnection, id: i64) -> Result<(), Error> {
+/// `request` as its Fulfiller is handed it: naming its Followed Show only while that is Approved,
+/// which asks the Fulfiller to follow the Show.
+async fn as_handed_off(
+    conn: &mut SqliteConnection,
+    mut request: Request,
+) -> Result<Request, sqlx::Error> {
+    if let Some(id) = request.followed_show_id
+        && !followed_show_approved(conn, id).await?
+    {
+        request.followed_show_id = None;
+    }
+    Ok(request)
+}
+
+async fn followed_show_approved(conn: &mut SqliteConnection, id: i64) -> Result<bool, sqlx::Error> {
+    sqlx::query_scalar!(
+        r#"SELECT EXISTS (SELECT 1 FROM followed_shows WHERE id = ? AND state = 'approved')
+           AS "is!: bool""#,
+        id
+    )
+    .fetch_one(&mut *conn)
+    .await
+}
+
+/// Removes the Followed Show `id`, and its Requesters with it. Returns the first Season Request it
+/// opened, as it is now, if it was Approved, so its Fulfiller was asked to follow the Show.
+async fn cancel_followed(conn: &mut SqliteConnection, id: i64) -> Result<Option<Request>, Error> {
+    let followed_season = if followed_show_approved(conn, id).await? {
+        sqlx::query_scalar!(
+            "SELECT MIN(id) FROM requests WHERE followed_show_id = ?",
+            id
+        )
+        .fetch_one(&mut *conn)
+        .await?
+    } else {
+        None
+    };
     let removed = sqlx::query!("DELETE FROM followed_shows WHERE id = ?", id)
         .execute(&mut *conn)
         .await?
@@ -1605,17 +1685,20 @@ async fn cancel_followed(conn: &mut SqliteConnection, id: i64) -> Result<(), Err
     if removed == 0 {
         return Err(Error::NoSuchFollowedShow(id));
     }
-    Ok(())
+    match followed_season {
+        Some(season) => Ok(load_one(conn, season).await?),
+        None => Ok(None),
+    }
 }
 
-/// Takes `user` off the Followed Show `id`, among those `visible` lets them see, removing it if
-/// they were its last Requester.
+/// Takes `user` off the Followed Show `id`, among those `visible` lets them see, removing it as
+/// [`cancel_followed`] does if they were its last Requester.
 async fn withdraw_followed(
     conn: &mut SqliteConnection,
     user: i64,
     visible: Option<i64>,
     id: i64,
-) -> Result<(), Error> {
+) -> Result<Option<Request>, Error> {
     let followed = load_followed(conn, Some(id), visible).await?.pop();
     let followed = followed.ok_or(Error::NoSuchFollowedShow(id))?;
     if !followed.requesters.iter().any(|r| r.user_id == user) {
@@ -1631,7 +1714,7 @@ async fn withdraw_followed(
     )
     .execute(&mut *conn)
     .await?;
-    Ok(())
+    Ok(None)
 }
 
 /// The Followed Shows, newest first: only the one with the ID `id` if given, and only those the

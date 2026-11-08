@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT EXISTS (SELECT 1 FROM followed_shows WHERE id = ? AND state = 'approved')\n           AS \"is!: bool\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "is!: bool",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "5133ef90ea4b35f0aafd29a5bc91ee5eb5ed8b77a3d1fcd57971bb20e3572ff3"
+}

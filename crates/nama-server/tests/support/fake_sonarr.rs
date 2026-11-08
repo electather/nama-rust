@@ -184,6 +184,7 @@ async fn answer(
         (Method::GET, "/api/v3/series") => find(&fake, param("tvdbId")),
         (Method::GET, "/api/v3/series/lookup") => look_up(param("term")),
         (Method::POST, "/api/v3/series") => add_show(&fake, &body),
+        (Method::PUT, "/api/v3/series/editor") => edit_shows(&fake, &body),
         (Method::POST, "/api/v3/seasonpass") => monitor_seasons(&fake, &body),
         (Method::GET, "/api/v3/episode") => {
             episodes(&fake, param("seriesId"), param("seasonNumber"))
@@ -267,6 +268,22 @@ fn refresh(fake: &Arc<Fake>, id: i64, seasons: Value) {
             fields.insert("status".to_owned(), json!("completed"));
         }
     });
+}
+
+/// As Sonarr's series editor does for `monitorNewItems`, the one field the Plugin edits: sets it on
+/// each Show named.
+fn edit_shows(fake: &Fake, edit: &Value) -> Response {
+    let mut shows = lock(&fake.shows);
+    let ids = edit["seriesIds"].as_array().map_or(&[][..], Vec::as_slice);
+    let edited: Vec<_> = shows
+        .iter_mut()
+        .filter(|show| ids.contains(&show["id"]))
+        .map(|show| {
+            show["monitorNewItems"] = edit["monitorNewItems"].clone();
+            show.clone()
+        })
+        .collect();
+    json(StatusCode::ACCEPTED, &Value::Array(edited))
 }
 
 /// As Sonarr's season pass does: sets the monitoring of only the Seasons named, of each Show.
