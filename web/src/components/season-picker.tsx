@@ -3,8 +3,8 @@ import { Library, Plus } from "lucide-react";
 import { type ReactNode, useId, useState } from "react";
 
 import {
+  RequestProgress,
   RequestStateLabel,
-  askRefusal,
   isRequester,
   useReadBackAsked,
 } from "@/components/request-state";
@@ -18,7 +18,7 @@ import {
   RequestService,
 } from "@/gen/nama/v1/request_pb";
 import { seasonName, yearOf } from "@/lib/browse";
-import { onSubmitted } from "@/lib/forms";
+import { askRefusal, onSubmitted } from "@/lib/forms";
 
 /**
  * `show`'s Seasons, each with where it is on its way to the Server, to pick and Request in one go,
@@ -130,6 +130,7 @@ function SeasonChoices({
       label={seasonName(season.seasonNumber)}
       detail={yearOf(season.airDate)}
       disabled={!pickable(season)}
+      below={<RequestProgress request={season.request} />}
     >
       <SeasonState season={season} />
     </Choice>
@@ -147,6 +148,8 @@ interface ChoiceProps {
   description?: string;
   disabled: boolean;
   onChange?: (checked: boolean) => void;
+  /** What follows its state, such as a Season's downloads, on lines of their own. */
+  below?: ReactNode;
   /** Its state, at the end of the row. */
   children: ReactNode;
 }
@@ -163,6 +166,7 @@ function Choice({
   description,
   disabled,
   onChange,
+  below,
   children,
 }: ChoiceProps) {
   const stateId = useId();
@@ -196,6 +200,8 @@ function Choice({
           {description}
         </p>
       )}
+      {/* Hidden when empty, so a row with nothing below gains no gap. */}
+      <div className="basis-full ps-7 empty:hidden">{below}</div>
     </li>
   );
 }

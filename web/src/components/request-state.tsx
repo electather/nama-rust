@@ -1,4 +1,3 @@
-import { Code } from "@connectrpc/connect";
 import { useMutation } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -14,6 +13,9 @@ import {
   X,
 } from "lucide-react";
 
+import { RequestProgress } from "@/components/request-progress";
+// Where a Request is on its way, so a screen showing its state shows its downloads from here too.
+export { RequestProgress };
 import { type Shown, StateLabel } from "@/components/state-label";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,7 +26,7 @@ import {
 } from "@/gen/nama/v1/request_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { requestsKey } from "@/lib/events";
-import { refusal, refusalOf } from "@/lib/forms";
+import { askRefusal, refusalOf } from "@/lib/forms";
 
 /** Each state in the Glossary's words, with its icon, so it never rests on colour alone. */
 const states: Partial<Record<RequestState, Shown>> = {
@@ -47,8 +49,9 @@ export function RequestStateLabel({ state }: { state: RequestState }) {
 
 /**
  * Where a Movie found in the metadata source is on its way to the Server: in a Library, or its
- * Request's state. Request, while the signed-in User `you` isn't one of its Requesters, which
- * `primary` makes the screen's primary action. The caller lays them out.
+ * Request's state, and its downloads while Processing. Request, while the signed-in User `you`
+ * isn't one of its Requesters, which `primary` makes the screen's primary action. The caller lays
+ * them out.
  */
 export function FoundMovieState({
   movie,
@@ -65,6 +68,7 @@ export function FoundMovieState({
     <>
       {request && <RequestStateLabel state={request.state} />}
       {!isRequester(request, you) && <RequestButton movie={movie} primary={primary} />}
+      <RequestProgress request={request} />
     </>
   );
 }
@@ -127,18 +131,4 @@ function RequestButton({ movie, primary }: { movie: FoundMovie; primary: boolean
       )}
     </>
   );
-}
-
-/** Why the Server refused the `attempt` to ask for a title, as `byReason` explains it or else by code. */
-export function askRefusal(
-  error: unknown,
-  attempt: string,
-  byReason: Parameters<typeof refusal>[3],
-) {
-  return refusal(
-    error,
-    attempt,
-    { [Code.Unavailable]: { form: "The metadata source didn’t answer. Try again in a moment." } },
-    byReason,
-  ).form;
 }

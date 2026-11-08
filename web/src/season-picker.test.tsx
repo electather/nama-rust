@@ -3,6 +3,7 @@ import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/re
 import { afterEach, expect, test } from "vite-plus/test";
 
 import {
+  DownloadStatus,
   FollowedShowSchema,
   FoundSeasonSchema,
   FoundShowSchema,
@@ -130,6 +131,30 @@ test("a Season someone else Requests meanwhile shows its state from the Events s
 
   expect(await within(seasonRow("Season 3")).findByText("Pending")).toBeDefined();
   expect(checkbox("Season 3").disabled).toBe(false);
+});
+
+test("a Processing Season shows how far its downloads have got, under its row", async () => {
+  const request = {
+    id: 7n,
+    state: RequestState.PROCESSING,
+    requesters: [{ userId: 2n, name: "Ada" }],
+    downloads: [
+      { title: "Dark.S02E01", percent: 100, status: DownloadStatus.IMPORTING },
+      { title: "Dark.S02E02", percent: 40, status: DownloadStatus.DOWNLOADING },
+    ],
+  };
+  const { transport } = showServer({
+    ...dark,
+    seasons: [{ seasonNumber: 1 }, { seasonNumber: 2, request }],
+  });
+  openApp("/shows/tmdb-70523", transport);
+  await screen.findByRole("heading", { name: "Dark" });
+
+  const row = seasonRow("Season 2");
+  const bar = within(row).getByRole("progressbar", { name: "Downloaded" });
+  expect(bar.getAttribute("aria-valuenow")).toBe("70");
+  expect(within(row).getByText("Dark.S02E02")).toBeDefined();
+  expect(within(seasonRow("Season 1")).queryByRole("progressbar")).toBeNull();
 });
 
 test("a Season in a Library shows as in it and can't be picked", async () => {

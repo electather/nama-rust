@@ -95,6 +95,17 @@ export function runtimeOf(minutes = 0) {
   return [hours > 0 ? `${hours} h` : "", rest > 0 ? `${rest} min` : ""].filter(Boolean).join(" ");
 }
 
+const gigabytes = new Intl.NumberFormat("en", {
+  style: "unit",
+  unit: "gigabyte",
+  maximumFractionDigits: 1,
+});
+
+/** A file's or download's size, `bytes`, in gigabytes. */
+export function sizeOf(bytes: bigint) {
+  return gigabytes.format(Number(bytes) / 1e9);
+}
+
 /** Facts about a title, such as its year and runtime, joined into one line, skipping unknowns. */
 export function metadataLine(...facts: (string | undefined)[]) {
   return facts.filter(Boolean).join(" · ");
