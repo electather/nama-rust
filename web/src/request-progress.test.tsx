@@ -64,13 +64,18 @@ test("a Processing Request's bar moves without a reload as its download progress
   expect(screen.getByText("65% downloaded")).toBeDefined();
 });
 
-test("a Processing Request lists its downloads with their status in words, and explains needing attention", async () => {
+test("a Processing Request lists its downloads with their status in words, and explains needing attention in the Fulfiller's words", async () => {
   openApp(
     "/requests",
     server(() => [
       duneDownloading([
         { ...duneFile, percent: 100, status: DownloadStatus.IMPORTING },
-        { title: "Dune.2021.Extras", percent: 30, status: DownloadStatus.NEEDS_ATTENTION },
+        {
+          title: "Dune.2021.Extras",
+          percent: 30,
+          status: DownloadStatus.NEEDS_ATTENTION,
+          attentionReason: "Radarr said: Automatic import is not possible.",
+        },
       ]),
     ]),
   );
@@ -82,7 +87,7 @@ test("a Processing Request lists its downloads with their status in words, and e
       .map((row) => row.textContent),
   ).toEqual([
     "Dune.2021.2160pImporting · 100% · 4 GB · 1 h 30 min left",
-    "Dune.2021.ExtrasNeeds attention · 30%It stopped, and whoever runs the Server needs to look at it.",
+    "Dune.2021.ExtrasNeeds attention · 30%It stopped, and whoever runs the Server needs to look at it. Radarr said: Automatic import is not possible.",
   ]);
   // Weighted by size where known, else counted evenly: (100 + 30) / 2.
   expect(screen.getByText("65% downloaded")).toBeDefined();

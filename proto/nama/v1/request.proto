@@ -159,6 +159,9 @@ message Download {
   // How long until it is done, in seconds, if the service knows.
   optional uint64 eta_seconds = 4;
   DownloadStatus status = 5;
+  // Why it needs attention, in the Fulfiller's own words, if it says. Only a download that needs
+  // attention has one.
+  optional string attention_reason = 6;
 }
 
 // Where a download is.

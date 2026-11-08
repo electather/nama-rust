@@ -38,6 +38,23 @@ const cargoCache = `${cacheRoot}/cargo-registry`;
 const pnpmStore = `${cacheRoot}/pnpm-store`;
 const sccacheDir = `${cacheRoot}/sccache`;
 for (const dir of [cargoCache, pnpmStore, sccacheDir]) mkdirSync(dir, { recursive: true });
+// TokenEconomizer learns from every agent session (setup: README). TE=off or no clone skips it.
+const teClone = process.env.TE_CLONE ?? `${homedir()}/Code/TokenEconomizer`;
+// TokenEconomizer serializes its state with flock. Containers in a VM (macOS, Docker Desktop, OrbStack) can't see
+// the host's flocks over the file share, so there the factory keeps its own state; on native Linux the host's
+// sessions and the sandboxes share one kernel and one lock, so they learn together.
+const inVm = process.platform !== "linux" ||
+  /Docker Desktop|OrbStack/i.test(spawnSync("docker", ["info", "--format", "{{.OperatingSystem}}"], { encoding: "utf8" }).stdout ?? "");
+const teState = inVm ? `${cacheRoot}/tokeneconomizer` : `${homedir()}/.tokeneconomizer`;
+const teMounts = process.env.TE !== "off" && existsSync(`${teClone}/plugin/scripts/te-hook`)
+  ? [
+      { hostPath: teClone, sandboxPath: "~/tokeneconomizer", readonly: true }, // whole clone: plugin/lib symlinks into it
+      { hostPath: teState, sandboxPath: "~/.tokeneconomizer" },
+      // claude-settings.json holds the plugin's hooks.json with the mounted path; ${CLAUDE_PLUGIN_ROOT} isn't set here.
+      { hostPath: `${process.cwd()}/.sandcastle/claude-settings.json`, sandboxPath: "~/.claude/settings.json", readonly: true },
+    ]
+  : [];
+if (teMounts.length) mkdirSync(teState, { recursive: true });
 
 // One factory per machine: they'd share the caches above and race on the same local branches.
 const PID_FILE = `${cacheRoot}/factory.pid`;
@@ -138,6 +155,7 @@ const sandbox = () =>
       // The other skills are committed under .claude/skills, so the worktree (cut from origin/main) brings them.
       // ponytail is still a host skill; drop this mount once it's installed at project level.
       { hostPath: "~/.agents/skills/ponytail", sandboxPath: "~/.claude/skills/ponytail", readonly: true },
+      ...teMounts,
     ],
   });
 
