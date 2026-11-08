@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package nama.plugin.v1;
+
+import "nama/v1/event.proto";
+import "nama/v1/request.proto";
+
+// What the Kernel hands a Notifier to deliver: something that happened to a Request. The Notifier
+// formats it for its service.
+message Notification {
+  // What happened: a Request event, as `EventService.Subscribe` streams it.
+  nama.v1.Event event = 1;
+  // The Request it happened to, as the event holds it.
+  nama.v1.Request request = 2;
+}

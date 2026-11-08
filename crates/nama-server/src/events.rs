@@ -1,13 +1,19 @@
 //! The event bus: the Kernel publishes what happens on it, and it hands each event to every
 //! client subscribed through `EventService.Subscribe` and to every Observer at
-//! [`points::Events`].
+//! [`points::Events`], and each Request event to every [`Notifier`].
 //!
 //! Publishing never waits for a subscriber. Each subscriber may fall up to [`BUFFERED`] events
 //! behind; past that its oldest unread events are dropped, and it is sent a `Lagged` in their
 //! place.
 
+use std::sync::Arc;
+
 use futures_util::{Stream, StreamExt, stream};
-use nama_plugin_api::points;
+use nama_plugin_api::{
+    PluginError,
+    notifier::{DELIVER_TIMEOUT, Notification, Notifier, Recipient},
+    points,
+};
 use nama_proto::nama::v1::{
     Event, EventType, Lagged, Request, SubscribeResponse, event, subscribe_response,
 };
@@ -63,7 +69,8 @@ impl EventBus {
         }
     }
 
-    /// Publishes `events`, in order, to each subscriber, and as one batch to each Observer.
+    /// Publishes `events`, in order, to each subscriber, and as one batch to each Observer. Each
+    /// Request event goes to every Notifier too.
     pub(crate) fn publish(&self, events: Vec<Event>) {
         if events.is_empty() {
             return;
@@ -71,8 +78,26 @@ impl EventBus {
         for event in &events {
             // Fails only when nobody is subscribed, which is fine.
             let _: Result<usize, _> = self.sender.send(event.clone());
+            self.tell_notifiers(event);
         }
         self.plugins.notify::<points::Events>(events);
+    }
+
+    /// Hands `event`, if it is a Request event, to every Notifier for its channel. The Kernel picks
+    /// the recipients so that every Notifier shares the rules (ADR 0021).
+    fn tell_notifiers(&self, event: &Event) {
+        let Some((_, About::Request(request))) = classify(event) else {
+            return;
+        };
+        let notification = Arc::new(Notification {
+            event: event.clone().into(),
+            request: request.clone().into(),
+            ..Default::default()
+        });
+        self.plugins
+            .call_each_provider(move |notifier: Arc<dyn Notifier>| {
+                deliver_to_channel(notifier, Arc::clone(&notification))
+            });
     }
 
     /// The events published from now on that `filter` lets through, with a `Lagged` wherever the
@@ -142,6 +167,19 @@ async fn next_message(
             Err(RecvError::Closed) => return None,
         }
     }
+}
+
+/// Hands `notification` to `notifier` for its channel, giving up after [`DELIVER_TIMEOUT`].
+async fn deliver_to_channel(
+    notifier: Arc<dyn Notifier>,
+    notification: Arc<Notification>,
+) -> Result<(), PluginError> {
+    let delivered = notifier.deliver(&notification, &Recipient::Channel);
+    tokio::time::timeout(DELIVER_TIMEOUT, delivered)
+        .await
+        .unwrap_or_else(|elapsed| {
+            Err(format!("timed out after {DELIVER_TIMEOUT:?} ({elapsed})").into())
+        })
 }
 
 /// An event's type and what it is about.
