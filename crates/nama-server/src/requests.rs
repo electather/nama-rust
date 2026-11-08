@@ -344,7 +344,8 @@ pub(crate) async fn make_available(
         let Some(id) = open_request(conn, tmdb_id).await? else {
             continue;
         };
-        // The Match isn't stored if its Item went since it was decided about.
+        // Not every Matched id is a Movie in a Library: the Match isn't stored if its Item went
+        // since it was decided about, and an Episode's TMDB id can equal an unrelated Movie's.
         if contents::library_with_movie(conn, tmdb_id).await?.is_none() {
             continue;
         }
@@ -360,7 +361,6 @@ pub(crate) async fn make_available(
     Ok(happened)
 }
 
-/// The ID of the Movie `tmdb_id`'s open Request, if it has one.
 async fn open_request(
     conn: &mut SqliteConnection,
     tmdb_id: i64,

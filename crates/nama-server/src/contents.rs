@@ -2,6 +2,7 @@
 //! Matching decided about each Item, and the Matches an admin pinned.
 //!
 //! [`Contents`] owns the tables (see the crate's `AGENTS.md`); each method is one read or one write.
+//! A write that stores Matches also makes the Matched Movies' Requests Available (ADR 0012).
 
 use std::{
     borrow::Cow,
