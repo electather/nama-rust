@@ -12,6 +12,7 @@ mod test_plugin;
 use std::{
     collections::BTreeMap,
     io,
+    path::Path,
     sync::{Arc, Mutex, OnceLock, PoisonError},
     time::{Duration, Instant},
 };
@@ -66,6 +67,39 @@ impl Started {
         PluginServiceClient::new(HttpClient::plaintext(), self.server.client_config())
     }
 
+    /// Creates a Movies Library of `folder`, and returns its id.
+    async fn library(&self, folder: &Path) -> i64 {
+        self.libraries()
+            .create_library(CreateLibraryRequest {
+                name: "Movies".to_owned(),
+                kind: LibraryKind::LIBRARY_KIND_MOVIES.into(),
+                folders: vec![folder.to_str().unwrap().to_owned()],
+                ..Default::default()
+            })
+            .await
+            .unwrap()
+            .into_owned()
+            .library
+            .into_option()
+            .unwrap()
+            .id
+    }
+
+    /// Starts a scan of the Library `id`.
+    async fn scan(&self, id: i64) {
+        self.libraries()
+            .scan_library(ScanLibraryRequest {
+                id,
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+    }
+
+    fn libraries(&self) -> LibraryServiceClient<HttpClient> {
+        LibraryServiceClient::new(HttpClient::plaintext(), self.server.client_config())
+    }
+
     /// The Plugin `id` as the Plugins page lists it.
     async fn listed(&self, id: &str) -> Option<Plugin> {
         let listed = self
@@ -113,14 +147,18 @@ impl Log {
         String::from_utf8_lossy(&self.0.lock().unwrap_or_else(PoisonError::into_inner)).into_owned()
     }
 
-    /// Waits until a line containing every one of `needles` is logged.
-    async fn wait_for(&self, needles: &[&str]) {
-        let started = Instant::now();
-        while !self
-            .contents()
+    /// How many logged lines contain every one of `needles`.
+    fn count(&self, needles: &[&str]) -> usize {
+        self.contents()
             .lines()
-            .any(|line| needles.iter().all(|needle| line.contains(needle)))
-        {
+            .filter(|line| needles.iter().all(|needle| line.contains(needle)))
+            .count()
+    }
+
+    /// Waits until `times` lines containing every one of `needles` are logged.
+    async fn wait_for(&self, needles: &[&str], times: usize) {
+        let started = Instant::now();
+        while self.count(needles) < times {
             assert!(
                 started.elapsed() < WAIT,
                 "nothing logged {needles:?}: {}",
@@ -146,7 +184,7 @@ impl io::Write for Log {
 }
 
 #[tokio::test]
-async fn a_dropped_plugin_is_listed_disabled_observes_a_scan_once_enabled_and_stays_enabled() {
+async fn a_dropped_plugin_is_listed_disabled_observes_scans_only_while_enabled_and_stays_enabled() {
     let log = Log::global();
     let started = Started::new().await;
     let test_plugin = PluginId::from_static("test-plugin");
@@ -178,29 +216,9 @@ async fn a_dropped_plugin_is_listed_disabled_observes_a_scan_once_enabled_and_st
     assert!(started.listed("test-plugin").await.unwrap().enabled);
     let media = tempfile::tempdir().unwrap();
     std::fs::write(media.path().join("Heat (1995).mkv"), b"video").unwrap();
-    let libraries =
-        LibraryServiceClient::new(HttpClient::plaintext(), started.server.client_config());
-    let library = libraries
-        .create_library(CreateLibraryRequest {
-            name: "Movies".to_owned(),
-            kind: LibraryKind::LIBRARY_KIND_MOVIES.into(),
-            folders: vec![media.path().to_str().unwrap().to_owned()],
-            ..Default::default()
-        })
-        .await
-        .unwrap()
-        .into_owned()
-        .library
-        .into_option()
-        .unwrap();
-    libraries
-        .scan_library(ScanLibraryRequest {
-            id: library.id,
-            ..Default::default()
-        })
-        .await
-        .unwrap();
-    log.wait_for(&["test-plugin observed", "ScanFinished"])
+    let library = started.library(media.path()).await;
+    started.scan(library).await;
+    log.wait_for(&["test-plugin observed", "ScanFinished"], 1)
         .await;
 
     // A restart enables what the database holds, as `main` does.
@@ -219,6 +237,21 @@ async fn a_dropped_plugin_is_listed_disabled_observes_a_scan_once_enabled_and_st
         .unwrap();
     assert!(!started.plugins.enabled().contains(&test_plugin));
     assert!(!started.listed("test-plugin").await.unwrap().enabled);
+
+    // Disabled, it is told nothing: of the next two scans it observes only the one after it is
+    // enabled again.
+    std::fs::write(media.path().join("Alien (1979).mkv"), b"video").unwrap();
+    started.scan(library).await;
+    log.wait_for(&["scanned a Library"], 2).await;
+    started
+        .client()
+        .enable_plugin(enable("test-plugin"))
+        .await
+        .unwrap();
+    std::fs::write(media.path().join("Brazil (1985).mkv"), b"video").unwrap();
+    started.scan(library).await;
+    log.wait_for(&["test-plugin observed", "Brazil"], 1).await;
+    assert_eq!(log.count(&["test-plugin observed", "Alien"]), 0);
 }
 
 #[tokio::test]
@@ -246,6 +279,7 @@ async fn a_refused_plugin_is_listed_with_why_and_enabling_it_is_refused() {
     );
     assert_eq!(refusal.field, "id");
     assert_eq!(refusal.params["pluginId"], "out-of-range.wasm");
+    assert_eq!(refusal.params["reason"], listed.refused_reason);
     assert!(!started.listed("out-of-range.wasm").await.unwrap().enabled);
     let update = UpdatePluginSettingsRequest {
         id: "out-of-range.wasm".to_owned(),

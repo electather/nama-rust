@@ -186,16 +186,20 @@ fn server_logs_its_config_creates_its_database_serves_the_api_and_exits_cleanly_
 }
 
 #[test]
-fn server_logs_installed_plugins_and_skips_the_ones_it_refuses() {
+fn server_logs_installed_plugins_enables_the_stored_ones_and_skips_the_ones_it_refuses() {
     let dir = std::env::temp_dir().join(format!("nama-server-installed-{}", std::process::id()));
     let plugins_dir = dir.join("data").join("plugins");
     std::fs::create_dir_all(&plugins_dir).unwrap();
     let dir = RemoveOnDrop(dir);
     let data_dir = dir.0.join("data");
     let config_file = dir.0.join("server.toml");
+    // Settings that enable the test Plugin, as a restart finds them stored.
     std::fs::write(
         &config_file,
-        format!("data_dir = \"{}\"\n", data_dir.display()),
+        format!(
+            "data_dir = \"{}\"\n\n[plugins.test-plugin]\n",
+            data_dir.display()
+        ),
     )
     .unwrap();
     std::fs::write(plugins_dir.join("test.wasm"), test_plugin::build("")).unwrap();
@@ -236,6 +240,8 @@ fn server_logs_installed_plugins_and_skips_the_ones_it_refuses() {
     let found = wait_for_line(&lines, "test.wasm");
     assert!(found.contains("id=test-plugin"), "{found}");
     assert!(found.contains("version=0.1.0"), "{found}");
+    let enabled = wait_for_line(&lines, "enabled plugins");
+    assert!(enabled.contains("\"test-plugin\""), "{enabled}");
 
     // The refused files don't stop the Server.
     wait_for_line(&lines, "listening");
