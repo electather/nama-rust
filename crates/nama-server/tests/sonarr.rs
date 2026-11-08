@@ -321,6 +321,7 @@ async fn asking_for_seasons_of_a_show_sonarr_lacks_adds_it_with_only_those_seaso
     let fixture = Fixture::with_sonarr_enabled().await;
 
     let asked = fixture.ask_approved(DARK, &[1, 3]).await;
+    fixture.sonarr.finish_refreshes().await;
 
     assert_eq!(states(&asked), [Some(RequestState::Processing); 2]);
     let shows = fixture.sonarr.shows();
@@ -344,6 +345,7 @@ async fn a_later_season_request_adds_its_season_to_the_monitored_ones_without_ch
     fixture.ask_approved(DARK, &[1, 3]).await;
 
     let asked = fixture.ask_approved(DARK, &[2]).await;
+    fixture.sonarr.finish_refreshes().await;
 
     assert_eq!(states(&asked), [Some(RequestState::Processing)]);
     assert_eq!(fixture.sonarr.monitored_seasons(DARK_TVDB), [1, 2, 3]);
@@ -354,13 +356,34 @@ async fn a_later_season_request_adds_its_season_to_the_monitored_ones_without_ch
 async fn a_show_another_hand_off_added_meanwhile_gets_the_season_monitored_rather_than_failing() {
     let fixture = Fixture::with_sonarr_enabled().await;
     fixture.ask_approved(DARK, &[1]).await;
-    fixture.sonarr.answer_next_lookup_stale();
+    fixture.sonarr.answer_next_find_stale();
 
     let asked = fixture.ask_approved(DARK, &[3]).await;
+    fixture.sonarr.finish_refreshes().await;
 
     assert_eq!(states(&asked), [Some(RequestState::Processing)]);
     assert_eq!(fixture.sonarr.shows().len(), 1);
     assert_eq!(fixture.sonarr.monitored_seasons(DARK_TVDB), [1, 3]);
+}
+
+#[tokio::test]
+async fn a_season_handed_off_while_sonarr_is_still_adding_its_show_fails_in_plain_words() {
+    let fixture = Fixture::with_sonarr_enabled().await;
+    fixture.sonarr.hold_refreshes();
+
+    let asked = fixture.ask_approved(DARK, &[1, 3]).await;
+
+    assert_eq!(
+        states(&asked),
+        [Some(RequestState::Processing), Some(RequestState::Failed)]
+    );
+    assert_eq!(
+        asked[1].failure_reason.as_deref(),
+        Some(
+            "Sonarr was still adding the Show, so it would have forgotten this Season. \
+             Retry in a minute."
+        )
+    );
 }
 
 #[tokio::test]

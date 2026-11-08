@@ -15,7 +15,9 @@ When re-recording one, trim it the same way.
 | `episode.json` | `GET /api/v3/episode?seriesId=1`, Dark's Episodes, trimmed to two per Season |
 | `command.json` | `POST /api/v3/command` that starts a `SeasonSearch`: `201 Created` |
 
-The fake answers the rest from what it was sent: a lookup for a Show it has, or for one it can't
-find (`[]`), the added Show, and `202 Accepted` to `POST /api/v3/seasonpass` and
-`PUT /api/v3/episode/monitor`. A request without the right `X-Api-Key` gets Sonarr's
-`401 Unauthorized`, with no body.
+The fake answers the rest from what it was sent: its Shows by TVDB id (`GET /api/v3/series?tvdbId=`),
+a lookup for a Show it can't find (`[]`), the added Show, its commands (`GET /api/v3/command`), and
+`202 Accepted` to `POST /api/v3/seasonpass` and `PUT /api/v3/episode/monitor`. Adding a Show
+starts a `RefreshSeries` that, as Sonarr's does, saves the Seasons back as it read them when it
+started, and a Show has Episodes only once it finishes. A request without the right `X-Api-Key`
+gets Sonarr's `401 Unauthorized`, with no body.

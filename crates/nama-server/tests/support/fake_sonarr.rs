@@ -1,6 +1,7 @@
 //! A local stand-in for Sonarr serving the responses recorded in `plugins/sonarr/fixtures/`, so
 //! the Sonarr Plugin's tests need no Sonarr. See that folder's `README.md` for which answers what.
-//! It keeps the Shows added to it, and changes their Seasons' monitoring as Sonarr does.
+//! It keeps the Shows added to it, and changes their Seasons' monitoring as Sonarr does,
+//! refresh after an add included.
 
 use std::{
     collections::HashMap,
@@ -10,6 +11,7 @@ use std::{
         Arc, Mutex, MutexGuard, PoisonError,
         atomic::{AtomicBool, Ordering},
     },
+    time::Duration,
 };
 
 use axum::{
@@ -28,6 +30,9 @@ pub(crate) const API_KEY: &str = "test-sonarr-key";
 /// The TVDB id of Dark, the one Show the fake Sonarr can find (`series-lookup.json`).
 pub(crate) const DARK_TVDB: i64 = 334_824;
 
+/// How long the refresh Sonarr starts as it adds a Show takes, as one fetching it from TVDB does.
+const REFRESH: Duration = Duration::from_millis(300);
+
 /// A fake Sonarr serving on a local port while up, until dropped.
 pub(crate) struct FakeSonarr {
     addr: SocketAddr,
@@ -39,8 +44,14 @@ pub(crate) struct FakeSonarr {
 struct Fake {
     /// The Shows it has, each as it was added with its `id` and Seasons' monitoring kept current.
     shows: Mutex<Vec<Value>>,
-    /// Whether the next lookup answers as if it didn't have the Shows it has.
-    stale_lookup: AtomicBool,
+    /// Whether the next list of its Shows by TVDB id answers as if it didn't have them.
+    stale_find: AtomicBool,
+    /// Whether the refreshes it starts as it adds a Show never finish.
+    hold_refreshes: AtomicBool,
+    /// The commands it queued, as `GET /api/v3/command` lists them.
+    commands: Mutex<Vec<Value>>,
+    /// The ids of the Shows whose refresh after their add finished, and so have Episodes.
+    refreshed: Mutex<Vec<i64>>,
     /// The `(TVDB id, Season number)` of each Season searched for, in order.
     searches: Mutex<Vec<(i64, u64)>>,
     /// The ids of the Episodes monitored one by one, in order.
@@ -82,10 +93,25 @@ impl FakeSonarr {
         self.serve(listener);
     }
 
-    /// Makes the next lookup answer as if it didn't have the Shows it has, as when another
-    /// hand-off adds the Show between this one's lookup and its add.
-    pub(crate) fn answer_next_lookup_stale(&self) {
-        self.state.stale_lookup.store(true, Ordering::Relaxed);
+    /// Makes the next list of its Shows by TVDB id answer as if it didn't have them, as when
+    /// another hand-off adds the Show between this one's asking and its add.
+    pub(crate) fn answer_next_find_stale(&self) {
+        self.state.stale_find.store(true, Ordering::Relaxed);
+    }
+
+    /// Makes the refreshes it starts as it adds a Show from now on never finish.
+    pub(crate) fn hold_refreshes(&self) {
+        self.state.hold_refreshes.store(true, Ordering::Relaxed);
+    }
+
+    /// Returns once every refresh it started has finished, as Seasons' monitoring settles.
+    pub(crate) async fn finish_refreshes(&self) {
+        while lock(&self.state.commands)
+            .iter()
+            .any(|command| command["status"] == "started")
+        {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
     }
 
     /// Each Show it has, as it was added and with its Seasons' monitoring as it is now.
@@ -155,35 +181,43 @@ async fn answer(
     match (method, uri.path()) {
         (Method::GET, "/api/v3/qualityprofile") => fixture(StatusCode::OK, "qualityprofile.json"),
         (Method::GET, "/api/v3/rootfolder") => fixture(StatusCode::OK, "rootfolder.json"),
-        (Method::GET, "/api/v3/series/lookup") => look_up(&fake, param("term")),
+        (Method::GET, "/api/v3/series") => find(&fake, param("tvdbId")),
+        (Method::GET, "/api/v3/series/lookup") => look_up(param("term")),
         (Method::POST, "/api/v3/series") => add_show(&fake, &body),
         (Method::POST, "/api/v3/seasonpass") => monitor_seasons(&fake, &body),
-        (Method::GET, "/api/v3/episode") => episodes(param("seasonNumber")),
+        (Method::GET, "/api/v3/episode") => {
+            episodes(&fake, param("seriesId"), param("seasonNumber"))
+        }
         (Method::PUT, "/api/v3/episode/monitor") => monitor_episodes(&fake, &body),
+        (Method::GET, "/api/v3/command") => json(StatusCode::OK, &json!(*lock(&fake.commands))),
         (Method::POST, "/api/v3/command") => command(&fake, &body),
         _ => StatusCode::NOT_FOUND.into_response(),
     }
 }
 
-/// As Sonarr answers a lookup by `term` such as `tvdb:334824`: the Show it has, with its `id`, or
-/// else the Show as TVDB knows it, or `[]` for one it can't find.
-fn look_up(fake: &Fake, term: &str) -> Response {
-    let Some(tvdb_id) = term
-        .strip_prefix("tvdb:")
-        .and_then(|id| id.parse::<i64>().ok())
-    else {
-        return json(StatusCode::OK, &json!([]));
-    };
-    let stale = fake.stale_lookup.swap(false, Ordering::Relaxed);
+/// As Sonarr lists its Shows with the TVDB id `tvdb_id`: the one it has, or `[]`.
+fn find(fake: &Fake, tvdb_id: &str) -> Response {
+    let stale = fake.stale_find.swap(false, Ordering::Relaxed);
     let shows = lock(&fake.shows);
-    match shows.iter().find(|show| show["tvdbId"] == tvdb_id) {
-        Some(show) if !stale => json(StatusCode::OK, &json!([show])),
-        _ if tvdb_id == DARK_TVDB => fixture(StatusCode::OK, "series-lookup.json"),
-        _ => json(StatusCode::OK, &json!([])),
+    let tvdb_id = tvdb_id.parse::<i64>().ok();
+    let had = shows
+        .iter()
+        .filter(|_| !stale)
+        .find(|show| show["tvdbId"].as_i64() == tvdb_id);
+    json(StatusCode::OK, &json!(had.into_iter().collect::<Vec<_>>()))
+}
+
+/// As Sonarr answers a lookup by `term` such as `tvdb:334824`: the Show as TVDB knows it, or `[]`
+/// for one it can't find.
+fn look_up(term: &str) -> Response {
+    if term == format!("tvdb:{DARK_TVDB}") {
+        fixture(StatusCode::OK, "series-lookup.json")
+    } else {
+        json(StatusCode::OK, &json!([]))
     }
 }
 
-fn add_show(fake: &Fake, show: &Value) -> Response {
+fn add_show(fake: &Arc<Fake>, show: &Value) -> Response {
     let mut shows = lock(&fake.shows);
     let tvdb_id = show["tvdbId"].as_i64().unwrap_or_default();
     if shows.iter().any(|had| had["tvdbId"] == tvdb_id) {
@@ -197,12 +231,42 @@ fn add_show(fake: &Fake, show: &Value) -> Response {
                 .filter_map(|season| Some((tvdb_id, season["seasonNumber"].as_u64()?))),
         );
     }
+    let id = i64::try_from(shows.len()).unwrap_or_default() + 1;
     let mut show = show.clone();
     if let Some(fields) = show.as_object_mut() {
-        fields.insert("id".to_owned(), json!(shows.len() + 1));
+        fields.insert("id".to_owned(), json!(id));
     }
     shows.push(show.clone());
+    refresh(fake, id, show.get("seasons").cloned().unwrap_or_default());
     json(StatusCode::CREATED, &show)
+}
+
+/// Starts the refresh Sonarr starts as it adds the Show `id`, whose Seasons are `seasons` as it
+/// reads them. Like Sonarr's, it saves them back as it read them, so it drops a Season monitored
+/// meanwhile, and only then does the Show have Episodes.
+fn refresh(fake: &Arc<Fake>, id: i64, seasons: Value) {
+    let mut commands = lock(&fake.commands);
+    let command = commands.len();
+    commands.push(json!({
+        "name": "RefreshSeries",
+        "status": "started",
+        "body": { "seriesIds": [id], "isNewSeries": true },
+        "id": command + 1,
+    }));
+    if fake.hold_refreshes.load(Ordering::Relaxed) {
+        return;
+    }
+    let fake = Arc::clone(fake);
+    tokio::spawn(async move {
+        tokio::time::sleep(REFRESH).await;
+        if let Some(show) = lock(&fake.shows).iter_mut().find(|show| show["id"] == id) {
+            show["seasons"] = seasons;
+        }
+        lock(&fake.refreshed).push(id);
+        if let Some(Value::Object(fields)) = lock(&fake.commands).get_mut(command) {
+            fields.insert("status".to_owned(), json!("completed"));
+        }
+    });
 }
 
 /// As Sonarr's season pass does: sets the monitoring of only the Seasons named, of each Show.
@@ -229,13 +293,21 @@ fn monitor_seasons(fake: &Fake, pass: &Value) -> Response {
     json(StatusCode::ACCEPTED, &json!({}))
 }
 
-/// Dark's Episodes in the Season `season_number`.
+/// Dark's Episodes in the Season `season_number` once the refresh after adding the Show
+/// `show_id` finished, and none before.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
-fn episodes(season_number: &str) -> Response {
-    let all: Vec<Value> = serde_json::from_slice(&read_fixture("episode.json")).unwrap();
+fn episodes(fake: &Fake, show_id: &str, season_number: &str) -> Response {
+    let refreshed = show_id
+        .parse()
+        .is_ok_and(|id| lock(&fake.refreshed).contains(&id));
+    let all: Vec<Value> = if refreshed {
+        serde_json::from_slice(&read_fixture("episode.json")).unwrap()
+    } else {
+        Vec::new()
+    };
     let season: Vec<_> = all
         .into_iter()
         .filter(|episode| episode["seasonNumber"].as_u64() == season_number.parse().ok())

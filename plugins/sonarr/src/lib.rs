@@ -23,6 +23,12 @@ mod exports {
     const QUALITY_PROFILE: &str = "quality_profile";
     const ROOT_FOLDER: &str = "root_folder";
 
+    /// How long, in seconds by Sonarr's `Date` header, a hand-off waits for Sonarr to finish
+    /// adding its Show. That header counts whole seconds, so the wait lasts between one and two
+    /// seconds, well inside the 5 s a call may take.
+    const ADD_WAIT_SECONDS: i64 = 2;
+    const SECONDS_A_DAY: i64 = 24 * 60 * 60;
+
     /// The code Sonarr gives when it refuses to add a Show because it already has it.
     const SERIES_EXISTS: &str = "SeriesExistsValidator";
 
@@ -97,19 +103,21 @@ mod exports {
             let tvdb_id = request.season.show_tvdb_id.ok_or_else(|| {
                 Error::msg("Sonarr needs the Show's TVDB id, and none is known for it")
             })?;
-            let number = request.season.season_number;
-            let reference = format!("{tvdb_id}/{number}");
+            let season_number = request.season.season_number;
+            let reference = format!("{tvdb_id}/{season_number}");
             let sonarr = Sonarr::from_config()?;
-            let show = sonarr.look_up(tvdb_id)?;
-            let id = match show.id() {
+            let id = match sonarr.find(tvdb_id)? {
                 Some(id) => id,
-                None if sonarr.add(show, number)? => return Ok(reference),
-                // Another hand-off for the Show added it since the lookup.
-                None => sonarr.look_up(tvdb_id)?.id().ok_or_else(|| {
+                None if sonarr.add(sonarr.look_up(tvdb_id)?, season_number)? => {
+                    return Ok(reference);
+                }
+                // Another hand-off for the Show added it since `find`.
+                None => sonarr.find(tvdb_id)?.ok_or_else(|| {
                     Error::msg("Sonarr said it has the Show, then that it doesn't")
                 })?,
             };
-            sonarr.monitor_and_search(id, number)?;
+            sonarr.wait_until_added(id)?;
+            sonarr.monitor_and_search(id, season_number)?;
             Ok(reference)
         }
 
@@ -135,7 +143,13 @@ mod exports {
             })
         }
 
-        /// The Show Sonarr has with the TVDB id `tvdb_id`, or else the one it would add.
+        /// Sonarr's own id for the Show with the TVDB id `tvdb_id`, if Sonarr has it.
+        fn find(&self, tvdb_id: i64) -> Result<Option<i64>, Error> {
+            let had: Vec<Added> = self.get(&format!("series?tvdbId={tvdb_id}"))?;
+            Ok(had.first().map(|show| show.id))
+        }
+
+        /// The Show with the TVDB id `tvdb_id` as Sonarr would add it.
         fn look_up(&self, tvdb_id: i64) -> Result<Show, Error> {
             let found: Vec<Show> = self.get(&format!("series/lookup?term=tvdb:{tvdb_id}"))?;
             found.into_iter().next().ok_or_else(|| {
@@ -145,14 +159,14 @@ mod exports {
             })
         }
 
-        /// Adds `show` with only the Season `number` monitored, and has Sonarr search for it.
-        /// Returns `false` if Sonarr already has the Show.
-        fn add(&self, show: Show, number: u32) -> Result<bool, Error> {
+        /// Adds `show` with only the Season `season_number` monitored, and has Sonarr search for
+        /// it. Returns `false` if Sonarr already has the Show.
+        fn add(&self, show: Show, season_number: u32) -> Result<bool, Error> {
             let seasons = show
                 .seasons
                 .into_iter()
                 .map(|season| Season {
-                    monitored: season.season_number == number,
+                    monitored: season.season_number == season_number,
                     ..season
                 })
                 .collect();
@@ -172,10 +186,6 @@ mod exports {
                     search_for_missing_episodes: true,
                 },
             };
-            // ponytail: Sonarr's refresh after an add reads the Show's Seasons, fetches it from
-            // TVDB, then saves them back, so a hand-off monitoring another Season in between is
-            // dropped. A Plugin can't wait that out (no sleep, 5 s calls); a Kernel retry or
-            // delay for a Fulfiller would close it.
             let response = send(&self.request("POST", "series"), Some(Json(new_show)))?;
             if already_has(&response) {
                 return Ok(false);
@@ -183,24 +193,57 @@ mod exports {
             accepted(response).map(|_| true)
         }
 
-        /// Monitors the Season `number` of the Show Sonarr has as `show_id`, and its Episodes,
-        /// and searches for them. Each request names only that Season or its Episodes, so another
-        /// hand-off changing the Show's other Seasons meanwhile keeps its change.
-        fn monitor_and_search(&self, show_id: i64, number: u32) -> Result<(), Error> {
+        /// Returns once Sonarr has no refresh of the Show `show_id` queued or running, or fails
+        /// after about [`ADD_WAIT_SECONDS`]. A refresh reads the Show's Seasons, fetches it from
+        /// TVDB, then saves the Seasons as it read them, so a Season monitored meanwhile is
+        /// dropped. Sonarr starts one as it adds a Show, so a Season handed off right after
+        /// another one added its Show would be.
+        fn wait_until_added(&self, show_id: i64) -> Result<(), Error> {
+            let Some(first) = self.refreshing_at(show_id)? else {
+                return Ok(());
+            };
+            while let Some(now) = self.refreshing_at(show_id)? {
+                // The day may turn while it waits.
+                let waited = (now - first).rem_euclid(SECONDS_A_DAY);
+                (waited < ADD_WAIT_SECONDS)
+                    .then_some(())
+                    .ok_or_else(still_adding)?;
+            }
+            Ok(())
+        }
+
+        /// The second of the day by Sonarr's clock, if it has a refresh of the Show `show_id`
+        /// queued or running.
+        fn refreshing_at(&self, show_id: i64) -> Result<Option<i64>, Error> {
+            let response = self.get_response("command")?;
+            let commands: Vec<Command> = parsed(&response)?;
+            if !commands.iter().any(|command| command.refreshes(show_id)) {
+                return Ok(None);
+            }
+            // A Plugin has no clock, so a wait is timed by Sonarr's, and can't be without it.
+            second_of_day(&response).map(Some).ok_or_else(still_adding)
+        }
+
+        /// Monitors the Season `season_number` of the Show Sonarr has as `show_id`, and its
+        /// Episodes, and searches for them. Each request names only that Season or its Episodes,
+        /// so another hand-off changing the Show's other Seasons meanwhile keeps its change.
+        fn monitor_and_search(&self, show_id: i64, season_number: u32) -> Result<(), Error> {
             let season = Season {
-                season_number: number,
+                season_number,
                 monitored: true,
             };
             let pass = SeasonPass {
                 series: [ShowSeasons {
                     id: show_id,
+                    // Sonarr searches for nothing of a Show it doesn't monitor.
                     monitored: true,
                     seasons: [season],
                 }],
             };
             self.change("POST", "seasonpass", pass)?;
-            let episodes: Vec<Episode> =
-                self.get(&format!("episode?seriesId={show_id}&seasonNumber={number}"))?;
+            let episodes: Vec<Episode> = self.get(&format!(
+                "episode?seriesId={show_id}&seasonNumber={season_number}"
+            ))?;
             let monitor = EpisodesMonitored {
                 episode_ids: episodes.into_iter().map(|episode| episode.id).collect(),
                 monitored: true,
@@ -209,7 +252,7 @@ mod exports {
             let search = SeasonSearch {
                 name: "SeasonSearch",
                 series_id: show_id,
-                season_number: number,
+                season_number,
             };
             self.change("POST", "command", search)
         }
@@ -225,9 +268,12 @@ mod exports {
 
         /// What Sonarr answers at the API path `path`.
         fn get<T: DeserializeOwned>(&self, path: &str) -> Result<T, Error> {
-            accepted(send(&self.request("GET", path), None::<()>)?)?
-                .json()
-                .map_err(|err| Error::msg(format!("Sonarr's answer made no sense: {err}")))
+            parsed(&self.get_response(path)?)
+        }
+
+        /// Sonarr's response at the API path `path`, if it took the request.
+        fn get_response(&self, path: &str) -> Result<HttpResponse, Error> {
+            accepted(send(&self.request("GET", path), None::<()>)?)
         }
 
         /// Sends Sonarr the change `body` to the API path `path` with `method`, ignoring what it
@@ -246,6 +292,33 @@ mod exports {
     /// that one too unless it is a Choice.
     fn setting(key: &str) -> Result<String, Error> {
         config::get(key)?.ok_or_else(|| Error::msg(format!("the setting {key} isn't set")))
+    }
+
+    /// Why a Season Request fails when Sonarr takes too long adding its Show.
+    fn still_adding() -> Error {
+        Error::msg(
+            "Sonarr was still adding the Show, so it would have forgotten this Season. \
+             Retry in a minute.",
+        )
+    }
+
+    fn parsed<T: DeserializeOwned>(response: &HttpResponse) -> Result<T, Error> {
+        response
+            .json()
+            .map_err(|err| Error::msg(format!("Sonarr's answer made no sense: {err}")))
+    }
+
+    /// The second of the day `response` was sent at, by its `Date` header.
+    fn second_of_day(response: &HttpResponse) -> Option<i64> {
+        // An HTTP date has a fixed shape, such as `Sun, 08 Nov 2026 12:00:03 GMT`.
+        let time = response.header("date")?.get(17..25)?;
+        let mut parts = time.split(':').map(str::parse::<i64>);
+        let (Some(Ok(hours)), Some(Ok(minutes)), Some(Ok(seconds))) =
+            (parts.next(), parts.next(), parts.next())
+        else {
+            return None;
+        };
+        Some((hours * 60 + minutes) * 60 + seconds)
     }
 
     /// `response`, if Sonarr took the request, or else why it refused.
@@ -308,19 +381,16 @@ mod exports {
     #[derive(Deserialize)]
     #[serde(rename_all = "camelCase")]
     struct Show {
-        /// Sonarr's own id for it: 0, or left out, until Sonarr has it.
-        #[serde(default)]
-        id: i64,
         tvdb_id: i64,
         title: String,
         seasons: Vec<Season>,
     }
 
-    impl Show {
-        /// Sonarr's own id for it, if Sonarr has it.
-        fn id(&self) -> Option<i64> {
-            (self.id > 0).then_some(self.id)
-        }
+    /// A Show Sonarr has.
+    #[derive(Deserialize)]
+    struct Added {
+        /// Sonarr's own id for it.
+        id: i64,
     }
 
     #[derive(Serialize, Deserialize)]
@@ -380,6 +450,32 @@ mod exports {
     struct EpisodesMonitored {
         episode_ids: Vec<i64>,
         monitored: bool,
+    }
+
+    /// A command Sonarr has queued, is running or ran lately, as `GET /api/v3/command` lists it.
+    #[derive(Deserialize)]
+    struct Command {
+        name: String,
+        status: String,
+        #[serde(default)]
+        body: CommandBody,
+    }
+
+    impl Command {
+        /// Whether it is a refresh of the Show `show_id` that hasn't finished.
+        fn refreshes(&self, show_id: i64) -> bool {
+            self.name == "RefreshSeries"
+                && matches!(self.status.as_str(), "queued" | "started")
+                && self.body.series_ids.contains(&show_id)
+        }
+    }
+
+    #[derive(Deserialize, Default)]
+    #[serde(rename_all = "camelCase")]
+    struct CommandBody {
+        /// The Shows a `RefreshSeries` refreshes; none for one that refreshes them all.
+        #[serde(default)]
+        series_ids: Vec<i64>,
     }
 
     /// The command that searches for a Season's monitored Episodes.
