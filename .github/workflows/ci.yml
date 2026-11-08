@@ -148,6 +148,20 @@ jobs:
           vp test
           vp build
           vp run fallow
+      # For the test-report workflow (ADR 0022). Missing when the tests never ran. Named per
+      # attempt, so a re-run records only the jobs it re-ran. `tree` names the code tested, which
+      # flakes are keyed on: a PR's run tests it merged into main, so it shares a tree, not a
+      # commit, with main's run once the PR is squashed or rebased in.
+      - if: ${{ !cancelled() && hashFiles('web/test-results/vitest.json') != '' }}
+        run: git rev-parse 'HEAD^{tree}' > web/test-results/tree
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: test-reports-${{ github.run_attempt }}-vitest
+          path: |
+            web/test-results/vitest.json
+            web/test-results/tree
+          if-no-files-found: ignore
       # From the repo root, where impeccable finds .impeccable/config.json (which ignores
       # web/src/gen) and DESIGN.md. From web/ it would read neither.
       - name: Design check
@@ -192,8 +206,12 @@ jobs:
       # messages without its ConnectRPC stubs.
       - run: cargo clippy --package nama-test-plugin --target wasm32-unknown-unknown --locked -- -D warnings
       - uses: taiki-e/install-action@nextest
-      # nextest builds every target it runs, so there's no separate `cargo build`.
-      - run: cargo nextest run --workspace --locked
+      # nextest builds every target it runs, so there's no separate `cargo build`. The `ci` profile
+      # (.config/nextest.toml) retries, kills hung tests and writes a JUnit report. The cached
+      # target directory can hold an earlier run's report, so it starts empty.
+      - run: |
+          rm -rf "$CARGO_TARGET_DIR/nextest"
+          cargo nextest run --workspace --locked --profile ci
       # nextest doesn't run doctests.
       - run: cargo test --workspace --doc --locked
       # The Server with the `web` feature, which embeds the `vp build` output.
@@ -202,4 +220,20 @@ jobs:
           working-directory: web
           cache: true
       - run: vp -C web build
-      - run: cargo test -p nama-server --features web --test web --locked
+      - run: cargo nextest run -p nama-server --features web --test web --locked --profile ci-web
+      # For the test-report workflow (ADR 0022), as the web job's.
+      # ponytail: the history doesn't record the OS; add it before re-enabling macOS or Windows,
+      # or a test failing on one OS only counts as flaky.
+      - if: ${{ !cancelled() }}
+        run: |
+          if compgen -G "$CARGO_TARGET_DIR/nextest/*/junit.xml" > /dev/null; then
+            git rev-parse 'HEAD^{tree}' > "$CARGO_TARGET_DIR/nextest/tree"
+          fi
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: test-reports-${{ github.run_attempt }}-nextest-${{ matrix.os }}
+          path: |
+            ${{ env.CARGO_TARGET_DIR }}/nextest/*/junit.xml
+            ${{ env.CARGO_TARGET_DIR }}/nextest/tree
+          if-no-files-found: ignore
