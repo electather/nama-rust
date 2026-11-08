@@ -20,6 +20,7 @@
 pub mod auth;
 pub mod fulfiller;
 pub mod metadata;
+pub mod notifier;
 pub mod points;
 pub mod settings;
 

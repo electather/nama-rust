@@ -2,6 +2,7 @@
 
 include!("nama.plugin.v1.events.rs");
 include!("nama.plugin.v1.manifest.rs");
+include!("nama.plugin.v1.notifier.rs");
 #[allow(
     non_camel_case_types,
     dead_code,
@@ -21,6 +22,7 @@ pub mod __buffa {
         use super::*;
         include!("nama.plugin.v1.events.__view.rs");
         include!("nama.plugin.v1.manifest.__view.rs");
+        include!("nama.plugin.v1.notifier.__view.rs");
         pub mod oneof {
             #[allow(unused_imports)]
             use super::*;
@@ -38,6 +40,7 @@ pub mod __buffa {
         reg.register_json_any(super::__MANIFEST_JSON_ANY);
         reg.register_json_any(super::__SETTING_FIELD_JSON_ANY);
         reg.register_json_any(super::__SETTING_VALUE_JSON_ANY);
+        reg.register_json_any(super::__NOTIFICATION_JSON_ANY);
     }
 }
 #[doc(inline)]
@@ -56,5 +59,9 @@ pub use self::__buffa::view::SettingFieldOwnedView;
 pub use self::__buffa::view::SettingValueView;
 #[doc(inline)]
 pub use self::__buffa::view::SettingValueOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::NotificationView;
+#[doc(inline)]
+pub use self::__buffa::view::NotificationOwnedView;
 #[doc(inline)]
 pub use self::__buffa::register_types;

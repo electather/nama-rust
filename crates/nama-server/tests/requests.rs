@@ -4,6 +4,8 @@
 #[expect(dead_code, reason = "these tests fetch only whole files")]
 #[path = "support/http.rs"]
 mod http;
+#[path = "support/log.rs"]
+mod log;
 #[path = "support/refused.rs"]
 mod refused;
 #[expect(dead_code, reason = "the harness's plain `start` has no use here")]
@@ -18,7 +20,7 @@ use std::{
         Arc, Mutex, PoisonError,
         atomic::{AtomicBool, Ordering},
     },
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use connectrpc::{
@@ -26,9 +28,11 @@ use connectrpc::{
     client::{ClientConfig, HttpClient, ServerStream},
 };
 use http::fetch;
+use log::Log;
 use nama_plugin_api::{
     BoxFuture, Plugin, PluginError, PluginId, Priority, Registrar,
     fulfiller::{Download, DownloadStatus, Fulfiller, Movies, Shows},
+    notifier::{Notification, Notifier, Recipient},
     settings::{SettingValue, Settings},
 };
 use nama_plugin_test_choices as test_choices;
@@ -2823,4 +2827,156 @@ async fn a_season_request_a_followed_show_opened_isnt_opened_again_once_cancelle
 
     assert_eq!(opened.len(), 1, "{opened:?}");
     assert_eq!(dark_seasons_requested(&ada).await, [1, 2]);
+}
+
+/// What a [`FakeNotifier`] does with a notification.
+#[derive(Clone, Copy)]
+enum Delivery {
+    Keeps,
+    Fails,
+    NeverFinishes,
+}
+
+/// A Notifier that keeps each notification it is handed with its recipient, unless it fails or
+/// never finishes delivering.
+#[derive(Clone)]
+struct FakeNotifier {
+    delivery: Delivery,
+    delivered: Arc<Mutex<Vec<(Notification, Recipient)>>>,
+}
+
+impl FakeNotifier {
+    fn new(delivery: Delivery) -> Self {
+        Self {
+            delivery,
+            delivered: Arc::default(),
+        }
+    }
+
+    fn delivered(&self) -> Vec<(Notification, Recipient)> {
+        self.delivered
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
+    }
+
+    /// What it was handed, once it has been handed something.
+    async fn delivered_soon(&self) -> Vec<(Notification, Recipient)> {
+        let started = Instant::now();
+        while self.delivered().is_empty() && started.elapsed() < WAIT {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        self.delivered()
+    }
+}
+
+impl Notifier for FakeNotifier {
+    fn deliver<'a>(
+        &'a self,
+        notification: &'a Notification,
+        recipient: &'a Recipient,
+    ) -> BoxFuture<'a, Result<(), PluginError>> {
+        Box::pin(async move {
+            match self.delivery {
+                Delivery::Keeps => {}
+                Delivery::Fails => return Err("the service is down".into()),
+                Delivery::NeverFinishes => future::pending().await,
+            }
+            self.delivered
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .push((notification.clone(), recipient.clone()));
+            Ok(())
+        })
+    }
+}
+
+/// A test Plugin providing a [`FakeNotifier`].
+struct NotifierPlugin(&'static str, FakeNotifier);
+
+impl Plugin for NotifierPlugin {
+    fn id(&self) -> PluginId {
+        PluginId::from_static(self.0)
+    }
+
+    fn version(&self) -> &'static str {
+        "0.0.0"
+    }
+
+    fn register(&self, registrar: &mut Registrar) {
+        registrar.provide::<dyn Notifier>(Priority::DEFAULT, Arc::new(self.1.clone()));
+    }
+}
+
+/// A Fixture with each of `notifiers` enabled under its Plugin id.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn with_notifiers(notifiers: &[(&'static str, &FakeNotifier)]) -> Fixture {
+    let plugins = Registry::new();
+    for (id, notifier) in notifiers {
+        plugins
+            .enable(Arc::new(NotifierPlugin(id, (*notifier).clone())))
+            .unwrap();
+    }
+    Fixture::start_with(plugins).await
+}
+
+#[tokio::test]
+async fn creating_a_movie_request_delivers_it_to_each_enabled_notifiers_channel() {
+    let telegram = FakeNotifier::new(Delivery::Keeps);
+    let email = FakeNotifier::new(Delivery::Keeps);
+    let fixture = with_notifiers(&[("telegram", &telegram), ("email", &email)]).await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+
+    let request = ask(&requests(as_ada), HEAT).await;
+
+    for notifier in [telegram, email] {
+        let delivered = notifier.delivered_soon().await;
+        assert_eq!(delivered.len(), 1, "{delivered:?}");
+        let (notification, recipient) = &delivered[0];
+        assert_eq!(*recipient, Recipient::Channel);
+        assert_eq!(notification.request.as_option(), Some(&request));
+        let Some(event::Event::RequestCreated(created)) = &notification.event.event else {
+            panic!("not the new Request: {notification:?}");
+        };
+        assert_eq!(created.request.as_option(), Some(&request));
+    }
+}
+
+#[tokio::test]
+async fn a_disabled_notifier_is_handed_nothing() {
+    let enabled = FakeNotifier::new(Delivery::Keeps);
+    let disabled = FakeNotifier::new(Delivery::Keeps);
+    let fixture = with_notifiers(&[("enabled", &enabled), ("disabled", &disabled)]).await;
+    fixture.plugins.disable(&PluginId::from_static("disabled"));
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+
+    ask(&requests(as_ada), HEAT).await;
+
+    assert_eq!(enabled.delivered_soon().await.len(), 1);
+    assert_eq!(disabled.delivered(), []);
+}
+
+#[tokio::test]
+async fn a_notifier_that_fails_is_logged_and_neither_it_nor_a_stuck_one_holds_up_the_others_or_the_request()
+ {
+    let log = Log::global();
+    let working = FakeNotifier::new(Delivery::Keeps);
+    let failing = FakeNotifier::new(Delivery::Fails);
+    let stuck = FakeNotifier::new(Delivery::NeverFinishes);
+    let fixture = with_notifiers(&[
+        ("working", &working),
+        ("failing", &failing),
+        ("stuck", &stuck),
+    ])
+    .await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+
+    let request = ask(&requests(as_ada), HEAT).await;
+
+    assert_eq!(request.state, RequestState::Pending);
+    assert_eq!(working.delivered_soon().await.len(), 1);
+    log.wait_for(&["failing", "the service is down"], 1).await;
 }
