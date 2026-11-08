@@ -1,5 +1,6 @@
 //! Installed Plugins on a running Server: listed once their `.wasm` is dropped into
-//! `<data_dir>/plugins/`, enabled and disabled without a restart, and shown with why if refused.
+//! `<data_dir>/plugins/`, enabled and disabled without a restart, shown with why if refused, and
+//! disabled when they keep crashing.
 
 #[path = "support/refused.rs"]
 mod refused;
@@ -22,7 +23,8 @@ use nama_plugin_api::PluginId;
 use nama_proto::nama::v1::{
     CreateLibraryRequest, DisablePluginRequest, EnablePluginRequest, LibraryKind,
     LibraryServiceClient, ListPluginsRequest, Plugin, PluginKind, PluginServiceClient,
-    RefusalReason, ScanLibraryRequest, UpdatePluginSettingsRequest,
+    RefusalReason, ScanLibraryRequest, SettingValue, UpdatePluginSettingsRequest,
+    setting_value::Value,
 };
 use nama_server::{config::Config, db::Database, plugin_settings, plugins::Registry};
 use refused::assert_refused;
@@ -100,6 +102,33 @@ impl Started {
         LibraryServiceClient::new(HttpClient::plaintext(), self.server.client_config())
     }
 
+    /// Drops in the test Plugin with its Observer set to `observer` (`log`, `loop` or `panic`),
+    /// enables it, and returns a Library to scan so it is told about Events.
+    async fn observing(&self, observer: &str) -> (i64, tempfile::TempDir) {
+        self.drop_in("test.wasm", "");
+        // Listing is what reads `plugins/`.
+        self.listed("test-plugin").await.unwrap();
+        let observer = SettingValue {
+            value: Some(Value::TextValue(observer.to_owned())),
+            ..Default::default()
+        };
+        self.client()
+            .update_plugin_settings(UpdatePluginSettingsRequest {
+                id: "test-plugin".to_owned(),
+                settings: std::iter::once(("observer".to_owned(), observer)).collect(),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        self.client()
+            .enable_plugin(enable("test-plugin"))
+            .await
+            .unwrap();
+        let media = tempfile::tempdir().unwrap();
+        std::fs::write(media.path().join("Heat (1995).mkv"), b"video").unwrap();
+        (self.library(media.path()).await, media)
+    }
+
     /// The Plugin `id` as the Plugins page lists it.
     async fn listed(&self, id: &str) -> Option<Plugin> {
         let listed = self
@@ -136,6 +165,8 @@ impl Log {
             let writer = log.clone();
             let subscriber = tracing_subscriber::fmt()
                 .with_max_level(tracing::Level::INFO)
+                // A test's Server runs on its thread, which is named after it.
+                .with_thread_names(true)
                 .with_writer(move || writer.clone())
                 .finish();
             tracing::subscriber::set_global_default(subscriber).unwrap();
@@ -242,7 +273,8 @@ async fn a_dropped_plugin_is_listed_disabled_observes_scans_only_while_enabled_a
     // enabled again.
     std::fs::write(media.path().join("Alien (1979).mkv"), b"video").unwrap();
     started.scan(library).await;
-    log.wait_for(&["scanned a Library"], 2).await;
+    let this_test = std::thread::current().name().unwrap().to_owned();
+    log.wait_for(&["scanned a Library", &this_test], 2).await;
     started
         .client()
         .enable_plugin(enable("test-plugin"))
@@ -310,4 +342,62 @@ async fn a_second_file_with_a_plugins_id_is_refused() {
         second.refused_reason,
         "its id test-plugin is another Plugin's"
     );
+}
+
+#[tokio::test]
+async fn an_observer_that_loops_forever_is_stopped_by_the_timeout_and_the_server_carries_on() {
+    let log = Log::global();
+    let started = Started::new().await;
+    let (library, _media) = started.observing("loop").await;
+
+    started.scan(library).await;
+    // Served while its call loops, which the timeout stops only after 5 seconds.
+    assert!(started.listed("test-plugin").await.is_some());
+    assert_eq!(log.count(&["test-plugin", "observer crashed: timeout"]), 0);
+    log.wait_for(&["test-plugin", "observer crashed: timeout"], 1)
+        .await;
+
+    assert!(started.listed("test-plugin").await.is_some());
+    started.scan(library).await;
+}
+
+#[tokio::test]
+async fn a_plugin_that_keeps_panicking_logs_why_is_disabled_and_saved_so_and_can_be_enabled_again()
+{
+    let log = Log::global();
+    let started = Started::new().await;
+    let test_plugin = PluginId::from_static("test-plugin");
+    let (library, _media) = started.observing("panic").await;
+
+    let disabled_at = Instant::now();
+    while started.plugins.enabled().contains(&test_plugin) {
+        assert!(disabled_at.elapsed() < WAIT, "it was never disabled");
+        started.scan(library).await;
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+
+    log.wait_for(
+        &["test-plugin", "the test Plugin's Observer was set to panic"],
+        3,
+    )
+    .await;
+    log.wait_for(
+        &["test-plugin", "crashed 3 times in a row", "disabling it"],
+        1,
+    )
+    .await;
+    // Saved like an admin's disable, which the Server shows and a restart keeps.
+    assert!(!started.listed("test-plugin").await.unwrap().enabled);
+    let saved_at = Instant::now();
+    while plugin_settings::stored(&started.db).await.unwrap().unwrap()["test-plugin"].enabled {
+        assert!(saved_at.elapsed() < WAIT, "its disable was never saved");
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+
+    started
+        .client()
+        .enable_plugin(enable("test-plugin"))
+        .await
+        .unwrap();
+    assert!(started.listed("test-plugin").await.unwrap().enabled);
 }

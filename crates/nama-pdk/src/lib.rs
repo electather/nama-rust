@@ -14,6 +14,9 @@
 //! }
 //! ```
 //!
+//! A Plugin reads the settings it was enabled with, each as text, with
+//! [`extism_pdk::config::get`].
+//!
 //! If the Plugin panics, the Server gets the panic's message with the error of the call that
 //! panicked, not just a bare trap.
 

@@ -95,7 +95,8 @@ use crate::{
 };
 
 /// Routes every RPC the Server answers, its artwork and its Versions, each behind the layers
-/// that identify the caller and refuse calls they may not make.
+/// that identify the caller and refuse calls they may not make. Also returns the task that saves
+/// the Plugins disabled for crashing, for the caller to run while it serves.
 #[expect(
     clippy::too_many_arguments,
     reason = "each is a separate handle the services are built from; a struct bundling them would \
@@ -109,14 +110,21 @@ pub(crate) fn router(
     events: EventBus,
     requests: Requests,
     setup_code: Option<SetupCode>,
-) -> axum::Router {
+) -> (axum::Router, impl Future<Output = ()> + Send + 'static) {
+    let changing = Arc::default();
+    let saving_crashed = save_crashed(
+        plugins.crashed(),
+        plugins.clone(),
+        Arc::clone(&db),
+        Arc::clone(&changing),
+    );
     let users = Users::new(Arc::clone(&db), plugins.clone());
     let contents = Contents::new(Arc::clone(&db));
     let artwork = Artwork::new(&config.data_dir, plugins.clone());
     let artwork_router = artwork::router(artwork.clone(), contents.clone());
     let versions = versions::router(contents);
     let browse = Browse::new(Arc::clone(&db));
-    connectrpc::Router::new()
+    let router = connectrpc::Router::new()
         .add_service(Arc::new(ServerServiceHandler {
             name: config.name.clone(),
             users: users.clone(),
@@ -151,7 +159,7 @@ pub(crate) fn router(
             requests,
             db: Arc::clone(&db),
             data_dir: config.data_dir.clone(),
-            changing: tokio::sync::Mutex::default(),
+            changing,
         }))
         .add_service(Arc::new(LibraryServiceHandler {
             libraries: Libraries::new(db),
@@ -172,7 +180,8 @@ pub(crate) fn router(
         .layer(middleware::from_fn_with_state(
             Arc::from(config.trusted_proxies.as_slice()),
             identify_source,
-        ))
+        ));
+    (router, saving_crashed)
 }
 
 /// Who may call an RPC or fetch media.
@@ -2098,7 +2107,28 @@ struct PluginServiceHandler {
     /// Held while a Plugin's settings change or it is enabled or disabled, and that is saved, so two
     /// changes at once can't leave it running otherwise than the database says.
     // ponytail: one lock for every Plugin; one per Plugin if Admins ever wait on each other.
-    changing: tokio::sync::Mutex<()>,
+    changing: Arc<tokio::sync::Mutex<()>>,
+}
+
+/// Saves each Plugin `plugins` disables for crashing as disabled, as an admin's disable is, so it
+/// stays disabled across a restart until an admin enables it again. Runs until aborted, or until
+/// `plugins` hands a later caller of [`Registry::crashed`] the crashes instead.
+async fn save_crashed(
+    mut crashed: tokio::sync::mpsc::UnboundedReceiver<PluginId>,
+    plugins: Registry,
+    db: Arc<Database>,
+    changing: Arc<tokio::sync::Mutex<()>>,
+) {
+    while let Some(id) = crashed.recv().await {
+        let _changing = changing.lock().await;
+        // An admin may have enabled it again since.
+        if plugins.enabled().contains(&id) {
+            continue;
+        }
+        if let Err(err) = plugin_settings::set_enabled(&db, id.as_str(), false).await {
+            tracing::error!(plugin = %id, "could not save that the crashed plugin is disabled: {err}");
+        }
+    }
 }
 
 #[expect(

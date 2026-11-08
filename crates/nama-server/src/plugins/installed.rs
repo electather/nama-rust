@@ -6,7 +6,10 @@ use std::{
     collections::BTreeMap,
     fs, io, panic,
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicU32, Ordering},
+    },
     time::Duration,
 };
 
@@ -35,6 +38,10 @@ use crate::config::PluginConfig;
 /// How long one call into an Installed Plugin may run, so one that never returns can't hold up
 /// the start or its Observer's task.
 const CALL_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// How many calls in a row may crash before the Plugin is disabled, so one bad input doesn't
+/// cost an admin a Plugin.
+const CRASHES_BEFORE_DISABLING: u32 = 3;
 
 /// What every binary WASM module starts with.
 const WASM_MAGIC: &[u8] = b"\0asm";
@@ -68,21 +75,63 @@ enum Refused {
     IdTaken(PluginId),
 }
 
-/// An Installed Plugin, compiled once. Each call into it gets a fresh instance, so one that traps
-/// or times out leaves nothing behind for the next.
+/// An Installed Plugin the Server read, ready to be compiled with the settings it is enabled
+/// with.
 #[derive(Clone)]
 struct Installed {
     manifest: Arc<Manifest>,
     settings_schema: SettingsSchema,
-    compiled: Arc<CompiledPlugin>,
+    /// Its module, with every call's timeout.
+    module: Arc<extism::Manifest>,
+    cache_config: Arc<Path>,
 }
 
-impl Installed {
-    /// Calls the Plugin's export `name` with `input`, a protobuf message, on a fresh instance.
-    /// Blocks while the Plugin runs.
-    fn call(&self, name: &str, input: Vec<u8>) -> Result<Vec<u8>, extism::Error> {
-        extism::Plugin::new_from_compiled(&self.compiled)?.call(name, input)
+/// An enabled Installed Plugin, compiled with its settings. Each call gets a fresh instance,
+/// since one that trapped or timed out may have stopped halfway through changing its own state.
+struct Running {
+    id: PluginId,
+    compiled: Arc<CompiledPlugin>,
+    /// How many calls in a row crashed.
+    crashes: AtomicU32,
+}
+
+impl Running {
+    /// Logs why a call failed. If it crashed [`CRASHES_BEFORE_DISABLING`] times in a row, unwinds
+    /// with why, so the registry disables the Plugin as it does one whose Rust code panics.
+    fn failed(&self, err: &extism::Error) {
+        let cause = err.root_cause();
+        if !is_crash(err) {
+            self.crashes.store(0, Ordering::Relaxed);
+            warn!(plugin = %self.id, "observer failed: {cause}");
+            return;
+        }
+        warn!(plugin = %self.id, "observer crashed: {cause}");
+        if self.crashes.fetch_add(1, Ordering::Relaxed) + 1 == CRASHES_BEFORE_DISABLING {
+            let why =
+                format!("it crashed {CRASHES_BEFORE_DISABLING} times in a row, last with: {cause}");
+            panic::resume_unwind(Box::new(why));
+        }
     }
+}
+
+/// Whether a failed call trapped or timed out, rather than the Plugin returning an error.
+fn is_crash(err: &extism::Error) -> bool {
+    // Extism (1.41) gives a returned error as a bare message, a timeout as a bare "timeout", and
+    // a trap wrapped in its wasm backtrace, with any panic's message as the source.
+    err.source().is_some() || err.to_string() == "timeout"
+}
+
+/// The Extism config value of a setting, which is how a Plugin reads its settings.
+fn config_value(value: &SettingValue) -> String {
+    match value {
+        SettingValue::Bool(on) => on.to_string(),
+        SettingValue::Integer(number) => number.to_string(),
+        SettingValue::Text(text) => text.clone(),
+    }
+}
+
+fn compile(module: extism::Manifest, cache_config: &Path) -> Result<CompiledPlugin, extism::Error> {
+    CompiledPlugin::new(PluginBuilder::new(module).with_cache_config(cache_config))
 }
 
 impl Plugin for Installed {
@@ -98,8 +147,25 @@ impl Plugin for Installed {
         self.settings_schema.clone()
     }
 
-    // ponytail: the Plugin isn't handed its settings; pass them in once one needs them (#185).
     fn register(&self, registrar: &mut Registrar) {
+        let settings = registrar.settings();
+        let config = self.settings_schema.fields.iter().filter_map(|field| {
+            let value = settings.get(&field.key)?;
+            Some((field.key.clone(), config_value(value)))
+        });
+        let module = (*self.module).clone().with_config(config);
+        // It compiled when the Server read it, and wasmtime's cache has it, so this failing is the
+        // Server's fault; enabling reports a panic as a failure.
+        // ponytail: compiles on the enabling thread, about 2 ms from the cache (spike #11); move
+        // it off the runtime if Plugins get big.
+        #[expect(clippy::panic, reason = "`register` can't return an error")]
+        let compiled = compile(module, &self.cache_config)
+            .unwrap_or_else(|err| panic!("could not compile it with its settings: {err:#}"));
+        let running = Running {
+            id: self.id(),
+            compiled: Arc::new(compiled),
+            crashes: AtomicU32::new(0),
+        };
         // An Extension Point this Server doesn't know is one the Plugin can do without, since its
         // nama-api requirement admits this Server.
         if self
@@ -107,29 +173,31 @@ impl Plugin for Installed {
             .observers
             .contains(&ObservePoint::OBSERVE_POINT_EVENTS.into())
         {
-            registrar.observe::<Events>(self.clone());
+            registrar.observe::<Events>(running);
         }
     }
 }
 
-impl Observer<Events> for Installed {
+impl Observer<Events> for Running {
     fn observe<'a>(&'a self, event: &'a Vec<Event>) -> BoxFuture<'a, ()> {
         let input = ObservedEvents {
             events: event.clone(),
             ..Default::default()
         }
         .encode_to_vec();
-        let plugin = self.clone();
+        let compiled = Arc::clone(&self.compiled);
         Box::pin(async move {
-            let called = task::spawn_blocking(move || plugin.call("observe_events", input)).await;
+            let called = task::spawn_blocking(move || {
+                extism::Plugin::new_from_compiled(&compiled)?
+                    .call::<_, Vec<u8>>("observe_events", input)
+            })
+            .await;
             match called {
-                Ok(Ok(_)) => {}
-                Ok(Err(err)) => {
-                    warn!(plugin = %self.manifest.id, "observer failed: {}", err.root_cause());
-                }
+                Ok(Ok(_)) => self.crashes.store(0, Ordering::Relaxed),
+                Ok(Err(err)) => self.failed(&err),
                 // So the registry disables the Plugin, as it does one whose Rust code panics.
                 Err(err) if err.is_panic() => panic::resume_unwind(err.into_panic()),
-                Err(err) => warn!(plugin = %self.manifest.id, "observer failed: {err}"),
+                Err(err) => warn!(plugin = %self.id, "observer failed: {err}"),
             }
         })
     }
@@ -326,15 +394,12 @@ fn load(file: &Path, cache_config: &Path) -> Result<Installed, Refused> {
     if !wasm.starts_with(WASM_MAGIC) {
         return Err(Refused::NotWasm);
     }
-    let builder =
-        PluginBuilder::new(extism::Manifest::new([Wasm::data(wasm)]).with_timeout(CALL_TIMEOUT))
-            .with_cache_config(cache_config);
-    let (compiled, bytes) = contain_sync(|| {
-        let compiled = CompiledPlugin::new(builder).map_err(Refused::Load)?;
-        let bytes = extism::Plugin::new_from_compiled(&compiled)
+    let module = extism::Manifest::new([Wasm::data(wasm)]).with_timeout(CALL_TIMEOUT);
+    let bytes = contain_sync(|| {
+        let compiled = compile(module.clone(), cache_config).map_err(Refused::Load)?;
+        extism::Plugin::new_from_compiled(&compiled)
             .and_then(|mut plugin| plugin.call::<(), Vec<u8>>("manifest", ()))
-            .map_err(Refused::Manifest)?;
-        Ok((compiled, bytes))
+            .map_err(Refused::Manifest)
     })
     .map_err(Refused::Panicked)??;
     let manifest = Manifest::decode_from_slice(&bytes).map_err(Refused::Decode)?;
@@ -343,7 +408,8 @@ fn load(file: &Path, cache_config: &Path) -> Result<Installed, Refused> {
     Ok(Installed {
         manifest: Arc::new(manifest),
         settings_schema,
-        compiled: Arc::new(compiled),
+        module: Arc::new(module),
+        cache_config: cache_config.into(),
     })
 }
 
@@ -412,7 +478,18 @@ mod tests {
     use nama_plugin_api::settings::{SettingField, SettingKind, SettingValue};
     use nama_proto::nama::plugin::v1::{self as wire, Manifest, setting_value};
 
-    use super::settings_schema;
+    use super::{is_crash, settings_schema};
+
+    // The errors as Extism 1.41 gives them for the test Plugin's Observer.
+    #[test]
+    fn a_trap_or_timeout_is_a_crash_and_a_returned_error_is_not() {
+        let panicked = extism::Error::msg("panicked at src/lib.rs:73:30: oops")
+            .context("error while executing at wasm backtrace");
+
+        assert!(is_crash(&panicked));
+        assert!(is_crash(&extism::Error::msg("timeout")));
+        assert!(!is_crash(&extism::Error::msg("the service is down")));
+    }
 
     fn manifest(kind: wire::SettingKind) -> Manifest {
         let field = wire::SettingField {
