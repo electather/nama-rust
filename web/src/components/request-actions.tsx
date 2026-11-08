@@ -6,6 +6,7 @@ import { FormTextarea } from "@/components/form-field";
 import { Button } from "@/components/ui/button";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { type Request, RequestService, RequestState } from "@/gen/nama/v1/request_pb";
+import { seasonName } from "@/lib/browse";
 import { requestsKey } from "@/lib/events";
 import { formText, refusal } from "@/lib/forms";
 
@@ -22,7 +23,7 @@ export function RequestActions({
   you: bigint | undefined;
   manage: boolean;
 }) {
-  const target = targetOf(request);
+  const target = { id: request.id, title: nameOf(request) };
   return (
     // Pulled back by the buttons' own padding, so the first one's words line up with the title.
     // Hidden when it has no buttons, so it adds no space to the row.
@@ -31,10 +32,6 @@ export function RequestActions({
       {manage && <Manage pending={request.state === RequestState.PENDING} {...target} />}
     </div>
   );
-}
-
-function targetOf(request: Request): Target {
-  return { id: request.id, title: request.movie?.title ?? "this Movie" };
 }
 
 /** Whether `request` is Pending and the User `you` is one of its Requesters. */
@@ -62,8 +59,14 @@ function Manage({ pending, ...target }: Target & { pending: boolean }) {
 
 interface Target {
   id: bigint;
-  /** The Movie's title, which names the Request to the User. */
+  /** What the Request asks for, which names it to the User. */
   title: string;
+}
+
+/** What `request` asks for, in words: a Movie's title, or a Show's with the Season's name. */
+function nameOf({ movie, season }: Request) {
+  if (season) return `${season.showTitle} ${seasonName(season.seasonNumber)}`;
+  return movie?.title ?? "this Movie";
 }
 
 /** Mutation options that refetch the Requests once a change to one is done or refused. */

@@ -99,9 +99,12 @@ pub mod __buffa {
         reg.register_json_any(super::__LIST_CONTINUE_WATCHING_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__REQUEST_JSON_ANY);
         reg.register_json_any(super::__REQUESTED_MOVIE_JSON_ANY);
+        reg.register_json_any(super::__REQUESTED_SEASON_JSON_ANY);
         reg.register_json_any(super::__REQUESTER_JSON_ANY);
         reg.register_json_any(super::__CREATE_REQUEST_REQUEST_JSON_ANY);
         reg.register_json_any(super::__CREATE_REQUEST_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__CREATE_SEASON_REQUESTS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__CREATE_SEASON_REQUESTS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__LIST_REQUESTS_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_REQUESTS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__GET_REQUEST_REQUEST_JSON_ANY);
@@ -357,6 +360,10 @@ pub use self::__buffa::view::RequestedMovieView;
 #[doc(inline)]
 pub use self::__buffa::view::RequestedMovieOwnedView;
 #[doc(inline)]
+pub use self::__buffa::view::RequestedSeasonView;
+#[doc(inline)]
+pub use self::__buffa::view::RequestedSeasonOwnedView;
+#[doc(inline)]
 pub use self::__buffa::view::RequesterView;
 #[doc(inline)]
 pub use self::__buffa::view::RequesterOwnedView;
@@ -368,6 +375,14 @@ pub use self::__buffa::view::CreateRequestRequestOwnedView;
 pub use self::__buffa::view::CreateRequestResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::CreateRequestResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::CreateSeasonRequestsRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::CreateSeasonRequestsRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::CreateSeasonRequestsResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::CreateSeasonRequestsResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::ListRequestsRequestView;
 #[doc(inline)]

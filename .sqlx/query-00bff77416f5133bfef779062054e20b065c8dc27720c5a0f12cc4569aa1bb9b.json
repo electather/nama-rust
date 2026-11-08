@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT date('now') AS \"today!: String\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "today!: String",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "00bff77416f5133bfef779062054e20b065c8dc27720c5a0f12cc4569aa1bb9b"
+}

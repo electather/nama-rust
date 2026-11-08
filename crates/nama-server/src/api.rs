@@ -1,7 +1,13 @@
 //! The Server's ConnectRPC API (ADR 0007), served on axum.
 
 use std::{
-    collections::BTreeMap, ffi::OsStr, future, net::IpAddr, path::Path, sync::Arc, time::Instant,
+    collections::{BTreeMap, BTreeSet},
+    ffi::OsStr,
+    future,
+    net::IpAddr,
+    path::Path,
+    sync::Arc,
+    time::Instant,
 };
 
 use axum::{
@@ -31,33 +37,33 @@ use nama_proto::nama::v1::{
     ApproveSignInCodeResponse, BrowseService, CancelRequestRequest, CancelRequestResponse,
     ChangePasswordRequest, ChangePasswordResponse, ClearMatchRequest, ClearMatchResponse,
     CreateLibraryRequest, CreateLibraryResponse, CreateRequestRequest, CreateRequestResponse,
-    CreateUserRequest, CreateUserResponse, DeclineRequestRequest, DeclineRequestResponse,
-    DeleteLibraryRequest, DeleteLibraryResponse, DeleteUserRequest, DeleteUserResponse,
-    DisablePluginRequest, DisablePluginResponse, EnablePluginRequest, EnablePluginResponse,
-    EventService, EventType, GetDefaultPermissionsRequest, GetDefaultPermissionsResponse,
-    GetLibraryRequest, GetLibraryResponse, GetMovieRequest, GetMovieResponse, GetRequestRequest,
-    GetRequestResponse, GetServerInfoRequest, GetServerInfoResponse, GetShowRequest,
-    GetShowResponse, LibraryKind, LibraryService, ListContinueWatchingRequest,
-    ListContinueWatchingResponse, ListDevicesRequest, ListDevicesResponse, ListEpisodesRequest,
-    ListEpisodesResponse, ListLibrariesRequest, ListLibrariesResponse, ListMoviesRequest,
-    ListMoviesResponse, ListPluginsRequest, ListPluginsResponse, ListRequestsRequest,
-    ListRequestsResponse, ListShowsRequest, ListShowsResponse, ListUnmatchedItemsRequest,
-    ListUnmatchedItemsResponse, ListUsersRequest, ListUsersResponse, LookUpMovieRequest,
-    LookUpMovieResponse, LookUpSignInCodeRequest, LookUpSignInCodeResponse, MatchService,
-    Permission, PluginKind, PluginService, PollSignInCodeRequest, PollSignInCodeResponse,
-    ReauthenticateRequest, ReauthenticateResponse, Refusal, RefusalReason, ReportProgressRequest,
-    ReportProgressResponse, RequestService, ResetPasswordRequest, ResetPasswordResponse,
-    RevokeDeviceRequest, RevokeDeviceResponse, ScanLibraryRequest, ScanLibraryResponse,
-    SearchMetadataRequest, SearchMetadataResponse, SearchMoviesRequest, SearchMoviesResponse,
-    ServerService, SessionDelivery, SetDefaultPermissionsRequest, SetDefaultPermissionsResponse,
-    SetMatchRequest, SetMatchResponse, SetPermissionsRequest, SetPermissionsResponse,
-    SetPlayedRequest, SetPlayedResponse, SetupRequest, SetupResponse, SignInCodeStatus,
-    SignInRequest, SignInResponse, SignInService, SignOutRequest, SignOutResponse,
-    StartSignInCodeRequest, StartSignInCodeResponse, SubscribeRequest, SubscribeResponse,
-    TestPluginSettingsRequest, TestPluginSettingsResponse, UpdateLibraryRequest,
-    UpdateLibraryResponse, UpdatePluginSettingsRequest, UpdatePluginSettingsResponse, UserService,
-    WatchStateService, WhoAmIRequest, WhoAmIResponse, WithdrawRequestRequest,
-    WithdrawRequestResponse, external_id, reauthenticate_request::Proof,
+    CreateSeasonRequestsRequest, CreateSeasonRequestsResponse, CreateUserRequest,
+    CreateUserResponse, DeclineRequestRequest, DeclineRequestResponse, DeleteLibraryRequest,
+    DeleteLibraryResponse, DeleteUserRequest, DeleteUserResponse, DisablePluginRequest,
+    DisablePluginResponse, EnablePluginRequest, EnablePluginResponse, EventService, EventType,
+    GetDefaultPermissionsRequest, GetDefaultPermissionsResponse, GetLibraryRequest,
+    GetLibraryResponse, GetMovieRequest, GetMovieResponse, GetRequestRequest, GetRequestResponse,
+    GetServerInfoRequest, GetServerInfoResponse, GetShowRequest, GetShowResponse, LibraryKind,
+    LibraryService, ListContinueWatchingRequest, ListContinueWatchingResponse, ListDevicesRequest,
+    ListDevicesResponse, ListEpisodesRequest, ListEpisodesResponse, ListLibrariesRequest,
+    ListLibrariesResponse, ListMoviesRequest, ListMoviesResponse, ListPluginsRequest,
+    ListPluginsResponse, ListRequestsRequest, ListRequestsResponse, ListShowsRequest,
+    ListShowsResponse, ListUnmatchedItemsRequest, ListUnmatchedItemsResponse, ListUsersRequest,
+    ListUsersResponse, LookUpMovieRequest, LookUpMovieResponse, LookUpSignInCodeRequest,
+    LookUpSignInCodeResponse, MatchService, Permission, PluginKind, PluginService,
+    PollSignInCodeRequest, PollSignInCodeResponse, ReauthenticateRequest, ReauthenticateResponse,
+    Refusal, RefusalReason, ReportProgressRequest, ReportProgressResponse, RequestService,
+    ResetPasswordRequest, ResetPasswordResponse, RevokeDeviceRequest, RevokeDeviceResponse,
+    ScanLibraryRequest, ScanLibraryResponse, SearchMetadataRequest, SearchMetadataResponse,
+    SearchMoviesRequest, SearchMoviesResponse, ServerService, SessionDelivery,
+    SetDefaultPermissionsRequest, SetDefaultPermissionsResponse, SetMatchRequest, SetMatchResponse,
+    SetPermissionsRequest, SetPermissionsResponse, SetPlayedRequest, SetPlayedResponse,
+    SetupRequest, SetupResponse, SignInCodeStatus, SignInRequest, SignInResponse, SignInService,
+    SignOutRequest, SignOutResponse, StartSignInCodeRequest, StartSignInCodeResponse,
+    SubscribeRequest, SubscribeResponse, TestPluginSettingsRequest, TestPluginSettingsResponse,
+    UpdateLibraryRequest, UpdateLibraryResponse, UpdatePluginSettingsRequest,
+    UpdatePluginSettingsResponse, UserService, WatchStateService, WhoAmIRequest, WhoAmIResponse,
+    WithdrawRequestRequest, WithdrawRequestResponse, external_id, reauthenticate_request::Proof,
     set_played_request::Target, setting_value,
 };
 
@@ -132,7 +138,7 @@ pub(crate) fn router(
             browse,
         }))
         .add_service(Arc::new(RequestServiceHandler {
-            requests: Requests::new(Arc::clone(&db), matcher, events.clone()),
+            requests: Requests::new(Arc::clone(&db), matcher, events.clone(), plugins.clone()),
             artwork,
         }))
         .add_service(Arc::new(PluginServiceHandler {
@@ -186,6 +192,9 @@ const MANAGE_REQUESTS: Access = Access::Needs(Permission::ManageRequests);
 /// Asking for Movies.
 const REQUEST_MOVIE: Access = Access::Needs(Permission::RequestMovie);
 
+/// Asking for Seasons of Shows.
+const REQUEST_TV: Access = Access::Needs(Permission::RequestTv);
+
 /// Who may call each RPC, by path; one missing here is refused to everyone (see AGENTS.md, "New
 /// RPCs start closed"). Media has its own entry, [`MEDIA`].
 // One row per RPC reads as a table; rustfmt would split most rows over four lines.
@@ -231,6 +240,7 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::USER_SERVICE_GET_DEFAULT_PERMISSIONS_SPEC.procedure,  MANAGE_USERS),
     (proto::USER_SERVICE_SET_DEFAULT_PERMISSIONS_SPEC.procedure,  MANAGE_USERS),
     (proto::REQUEST_SERVICE_CREATE_REQUEST_SPEC.procedure,        REQUEST_MOVIE),
+    (proto::REQUEST_SERVICE_CREATE_SEASON_REQUESTS_SPEC.procedure, REQUEST_TV),
     (proto::REQUEST_SERVICE_LIST_REQUESTS_SPEC.procedure,         Access::SignedIn),
     (proto::REQUEST_SERVICE_GET_REQUEST_SPEC.procedure,           Access::SignedIn),
     (proto::REQUEST_SERVICE_SEARCH_MOVIES_SPEC.procedure,         REQUEST_MOVIE),
@@ -1306,6 +1316,31 @@ impl RequestService for RequestServiceHandler {
         let request = self.requests.create(asker, request.movie_tmdb_id).await?;
         Response::ok(CreateRequestResponse {
             request: request.into(),
+            ..Default::default()
+        })
+    }
+
+    async fn create_season_requests(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, CreateSeasonRequestsRequest>,
+    ) -> ServiceResult<CreateSeasonRequestsResponse> {
+        let asker = &caller(&ctx)?.user;
+        let seasons: BTreeSet<u32> = request.season_numbers.iter().copied().collect();
+        if seasons.is_empty() {
+            return Err(refuse(
+                RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
+                "name at least one Season to ask for",
+            )
+            .field("season_numbers")
+            .into());
+        }
+        let requests = self
+            .requests
+            .create_seasons(asker, request.show_tmdb_id, &seasons)
+            .await?;
+        Response::ok(CreateSeasonRequestsResponse {
+            requests,
             ..Default::default()
         })
     }
@@ -2441,8 +2476,8 @@ impl From<requests::Error> for ConnectError {
         use RefusalReason as R;
         let message = err.to_string();
         let refused = match err {
-            // Every RPC naming a Request names it in `id`, and only `CreateRequest` and
-            // `LookUpMovie` name a Movie, both in `movie_tmdb_id`.
+            // Every RPC naming a Request names it in `id`, only `CreateRequest` and `LookUpMovie`
+            // name a Movie, both in `movie_tmdb_id`, and only `CreateSeasonRequests` a Show.
             requests::Error::NoSuchRequest(id) => {
                 refuse(R::REFUSAL_REASON_REQUEST_NOT_FOUND, message)
                     .field("id")
@@ -2461,9 +2496,24 @@ impl From<requests::Error> for ConnectError {
             requests::Error::InLibrary(id) => refuse(R::REFUSAL_REASON_ALREADY_IN_LIBRARY, message)
                 .field("movie_tmdb_id")
                 .param("tmdbId", &id),
+            requests::Error::SeasonInLibrary { show, season } => {
+                refuse(R::REFUSAL_REASON_ALREADY_IN_LIBRARY, message)
+                    .field("season_numbers")
+                    .param("tmdbId", &show)
+                    .param("seasonNumber", &season)
+            }
             requests::Error::NoSuchMovie(id) => refuse(R::REFUSAL_REASON_UNKNOWN_TITLE, message)
                 .field("movie_tmdb_id")
                 .param("titleId", &ExternalId::Tmdb(id)),
+            requests::Error::NoSuchShow(id) => refuse(R::REFUSAL_REASON_UNKNOWN_TITLE, message)
+                .field("show_tmdb_id")
+                .param("titleId", &ExternalId::Tmdb(id)),
+            requests::Error::NoSuchSeason { show, season } => {
+                refuse(R::REFUSAL_REASON_UNKNOWN_TITLE, message)
+                    .field("season_numbers")
+                    .param("titleId", &ExternalId::Tmdb(show))
+                    .param("seasonNumber", &season)
+            }
             requests::Error::Unavailable => refuse(R::REFUSAL_REASON_NO_METADATA_PROVIDER, message),
             requests::Error::Database(err) => return database_failed(err),
         };

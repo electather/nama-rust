@@ -18,6 +18,7 @@
 //! Everything registered there belongs to that Plugin, so disabling the Plugin removes all of it.
 
 pub mod auth;
+pub mod fulfiller;
 pub mod metadata;
 pub mod points;
 pub mod settings;

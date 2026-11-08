@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE requests SET state = 'processing', fulfiller_reference = ?\n         WHERE id = ? AND state = 'approved'",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "04ebca3dd77b0f3925b6ec7e28d2c853d8cef4c9cb9a55c2097c36480bf3b234"
+}
