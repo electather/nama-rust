@@ -1,0 +1,20 @@
+[
+  {
+    "name": "Any",
+    "upgradeAllowed": false,
+    "cutoff": 20,
+    "minFormatScore": 0,
+    "cutoffFormatScore": 0,
+    "language": { "id": 1, "name": "English" },
+    "id": 1
+  },
+  {
+    "name": "HD-1080p",
+    "upgradeAllowed": false,
+    "cutoff": 7,
+    "minFormatScore": 0,
+    "cutoffFormatScore": 0,
+    "language": { "id": 1, "name": "English" },
+    "id": 4
+  }
+]

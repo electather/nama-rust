@@ -1,0 +1,18 @@
+[package]
+name = "nama-plugin-radarr"
+version = "0.1.0"
+description = "Installed Plugin handing Approved Movie Requests to Radarr, bundled in the Server"
+license = "AGPL-3.0-only"
+edition.workspace = true
+repository.workspace = true
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+nama-pdk = { version = "0.1.0", path = "../../crates/nama-pdk" }
+serde = { version = "1", features = ["derive"] }
+
+[lints]
+workspace = true

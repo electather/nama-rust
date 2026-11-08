@@ -12,7 +12,7 @@ A self-hosted media server and request manager, with an optional central Hub for
 | [`crates/nama-pdk`](crates/nama-pdk) | Plugin development kit for Installed Plugins |
 | [`crates/nama-proto`](crates/nama-proto) | Rust types and ConnectRPC stubs generated from `proto/` |
 | [`crates/nama-test-plugin`](crates/nama-test-plugin) | An Installed Plugin used only in the Server's tests |
-| [`plugins/`](plugins) | Built-in Plugins |
+| [`plugins/`](plugins) | Built-in Plugins, and the Installed Plugins the Server bundles |
 | [`web/`](web) | The web app the Server serves |
 | [`proto/`](proto) | The Protobuf API schema |
 | [`spikes/`](spikes) | Throwaway prototypes, not workspace members |
@@ -31,6 +31,10 @@ api_key = "your TMDB API key"
 
 After that it ignores those tables, and logs that it does, so editing them changes nothing.
 
+## Requests to Radarr
+
+Approved Movie Requests go to Radarr through the Radarr Plugin ([`plugins/radarr`](plugins/radarr)), an Installed Plugin bundled in the Server. An Admin enables it on the Plugins page with Radarr's URL and API key, and "Test" offers Radarr's quality profiles and root folders to pick from.
+
 ## Checks
 
 CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs the following, and every warning fails it:
@@ -38,7 +42,7 @@ CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs the following, 
 ```sh
 cargo fmt --all --check
 cargo clippy --workspace --all-targets --locked -- -D warnings
-cargo clippy --package nama-test-plugin --target wasm32-unknown-unknown --locked -- -D warnings
+cargo clippy --package nama-test-plugin --package nama-plugin-radarr --target wasm32-unknown-unknown --locked -- -D warnings
 cargo nextest run --workspace --locked
 cargo test --workspace --doc --locked
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked
@@ -46,7 +50,7 @@ cargo machete
 cargo deny check
 ```
 
-The Server's tests build the test Plugin for wasm32 themselves, so they need the `wasm32-unknown-unknown` target (`rustup target add wasm32-unknown-unknown`).
+Building the Server builds the Plugins it bundles for wasm32 (`crates/nama-server/build.rs`), and its tests build the test Plugin, so both need the `wasm32-unknown-unknown` target (`rustup target add wasm32-unknown-unknown`).
 
 It also checks that the generated code and the sqlx query data are current. If you change `proto/`, see [`crates/nama-proto/README.md`](crates/nama-proto/README.md). If you change a query or a migration, see [`crates/nama-server/README.md`](crates/nama-server/README.md).
 
