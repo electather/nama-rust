@@ -33,14 +33,17 @@ use nama_plugin_api::{
     settings::{self, SettingField, Settings, SettingsError, SettingsSchema},
 };
 use nama_proto::nama::v1::{
-    self as proto, ApproveRequestRequest, ApproveRequestResponse, ApproveSignInCodeRequest,
-    ApproveSignInCodeResponse, BrowseService, CancelRequestRequest, CancelRequestResponse,
-    ChangePasswordRequest, ChangePasswordResponse, ClearMatchRequest, ClearMatchResponse,
+    self as proto, ApproveFollowedShowRequest, ApproveFollowedShowResponse, ApproveRequestRequest,
+    ApproveRequestResponse, ApproveSignInCodeRequest, ApproveSignInCodeResponse, BrowseService,
+    CancelFollowedShowRequest, CancelFollowedShowResponse, CancelRequestRequest,
+    CancelRequestResponse, ChangePasswordRequest, ChangePasswordResponse, ClearMatchRequest,
+    ClearMatchResponse, CreateFollowedShowRequest, CreateFollowedShowResponse,
     CreateLibraryRequest, CreateLibraryResponse, CreateRequestRequest, CreateRequestResponse,
     CreateSeasonRequestsRequest, CreateSeasonRequestsResponse, CreateUserRequest,
-    CreateUserResponse, DeclineRequestRequest, DeclineRequestResponse, DeleteLibraryRequest,
-    DeleteLibraryResponse, DeleteUserRequest, DeleteUserResponse, DisablePluginRequest,
-    DisablePluginResponse, EnablePluginRequest, EnablePluginResponse, EventService, EventType,
+    CreateUserResponse, DeclineFollowedShowRequest, DeclineFollowedShowResponse,
+    DeclineRequestRequest, DeclineRequestResponse, DeleteLibraryRequest, DeleteLibraryResponse,
+    DeleteUserRequest, DeleteUserResponse, DisablePluginRequest, DisablePluginResponse,
+    EnablePluginRequest, EnablePluginResponse, EventService, EventType,
     GetDefaultPermissionsRequest, GetDefaultPermissionsResponse, GetLibraryRequest,
     GetLibraryResponse, GetMovieRequest, GetMovieResponse, GetRequestRequest, GetRequestResponse,
     GetServerInfoRequest, GetServerInfoResponse, GetShowRequest, GetShowResponse, LibraryKind,
@@ -64,9 +67,9 @@ use nama_proto::nama::v1::{
     StartSignInCodeRequest, StartSignInCodeResponse, SubscribeRequest, SubscribeResponse,
     TestPluginSettingsRequest, TestPluginSettingsResponse, UpdateLibraryRequest,
     UpdateLibraryResponse, UpdatePluginSettingsRequest, UpdatePluginSettingsResponse, UserService,
-    WatchStateService, WhoAmIRequest, WhoAmIResponse, WithdrawRequestRequest,
-    WithdrawRequestResponse, external_id, reauthenticate_request::Proof,
-    set_played_request::Target, setting_value,
+    WatchStateService, WhoAmIRequest, WhoAmIResponse, WithdrawFollowedShowRequest,
+    WithdrawFollowedShowResponse, WithdrawRequestRequest, WithdrawRequestResponse, external_id,
+    reauthenticate_request::Proof, set_played_request::Target, setting_value,
 };
 
 use crate::{
@@ -254,6 +257,11 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::REQUEST_SERVICE_CANCEL_REQUEST_SPEC.procedure,        MANAGE_REQUESTS),
     (proto::REQUEST_SERVICE_RETRY_REQUEST_SPEC.procedure,         MANAGE_REQUESTS),
     (proto::REQUEST_SERVICE_WITHDRAW_REQUEST_SPEC.procedure,      Access::SignedIn),
+    (proto::REQUEST_SERVICE_CREATE_FOLLOWED_SHOW_SPEC.procedure,  REQUEST_TV),
+    (proto::REQUEST_SERVICE_APPROVE_FOLLOWED_SHOW_SPEC.procedure, MANAGE_REQUESTS),
+    (proto::REQUEST_SERVICE_DECLINE_FOLLOWED_SHOW_SPEC.procedure, MANAGE_REQUESTS),
+    (proto::REQUEST_SERVICE_CANCEL_FOLLOWED_SHOW_SPEC.procedure,  MANAGE_REQUESTS),
+    (proto::REQUEST_SERVICE_WITHDRAW_FOLLOWED_SHOW_SPEC.procedure, Access::SignedIn),
     (proto::PLUGIN_SERVICE_LIST_PLUGINS_SPEC.procedure,           MANAGE_SETTINGS),
     (proto::PLUGIN_SERVICE_UPDATE_PLUGIN_SETTINGS_SPEC.procedure, MANAGE_SETTINGS),
     (proto::PLUGIN_SERVICE_ENABLE_PLUGIN_SPEC.procedure,          MANAGE_SETTINGS),
@@ -1356,9 +1364,11 @@ impl RequestService for RequestServiceHandler {
         _request: ServiceRequest<'_, ListRequestsRequest>,
     ) -> ServiceResult<ListRequestsResponse> {
         let viewer = &caller(&ctx)?.user;
-        let requests = self.requests.list(viewer).await.map_err(database_failed)?;
+        let (requests, followed_shows) =
+            self.requests.list(viewer).await.map_err(database_failed)?;
         Response::ok(ListRequestsResponse {
             requests,
+            followed_shows,
             ..Default::default()
         })
     }
@@ -1492,6 +1502,68 @@ impl RequestService for RequestServiceHandler {
         self.requests.withdraw(requester, request.id).await?;
         Response::ok(WithdrawRequestResponse::default())
     }
+
+    async fn create_followed_show(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, CreateFollowedShowRequest>,
+    ) -> ServiceResult<CreateFollowedShowResponse> {
+        let asker = &caller(&ctx)?.user;
+        let (followed_show, requests) = self.requests.follow(asker, request.show_tmdb_id).await?;
+        Response::ok(CreateFollowedShowResponse {
+            followed_show: followed_show.into(),
+            requests,
+            ..Default::default()
+        })
+    }
+
+    async fn approve_followed_show(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, ApproveFollowedShowRequest>,
+    ) -> ServiceResult<ApproveFollowedShowResponse> {
+        let approved = self.requests.approve_followed(request.id).await?;
+        Response::ok(ApproveFollowedShowResponse {
+            followed_show: approved.into(),
+            ..Default::default()
+        })
+    }
+
+    async fn decline_followed_show(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, DeclineFollowedShowRequest>,
+    ) -> ServiceResult<DeclineFollowedShowResponse> {
+        let declined = self
+            .requests
+            .decline_followed(request.id, request.reason)
+            .await?;
+        Response::ok(DeclineFollowedShowResponse {
+            followed_show: declined.into(),
+            ..Default::default()
+        })
+    }
+
+    async fn cancel_followed_show(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, CancelFollowedShowRequest>,
+    ) -> ServiceResult<CancelFollowedShowResponse> {
+        self.requests.cancel_followed(request.id).await?;
+        Response::ok(CancelFollowedShowResponse::default())
+    }
+
+    async fn withdraw_followed_show(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, WithdrawFollowedShowRequest>,
+    ) -> ServiceResult<WithdrawFollowedShowResponse> {
+        let requester = &caller(&ctx)?.user;
+        self.requests
+            .withdraw_followed(requester, request.id)
+            .await?;
+        Response::ok(WithdrawFollowedShowResponse::default())
+    }
 }
 
 impl RequestServiceHandler {
@@ -1566,6 +1638,7 @@ impl RequestServiceHandler {
             plugin,
             show,
             seasons,
+            followed_show,
         } = found;
         let offer = |path: String| self.artwork.offer(&plugin, &path);
         proto::FoundShow {
@@ -1576,6 +1649,7 @@ impl RequestServiceHandler {
             poster_url: show.poster.map(offer),
             backdrop_url: show.backdrop.map(offer),
             seasons,
+            followed_show: followed_show.into(),
             ..Default::default()
         }
     }
@@ -2498,6 +2572,8 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_REQUEST_NOT_PENDING
         | R::REFUSAL_REASON_REQUEST_NOT_FAILED
         | R::REFUSAL_REASON_NOT_A_REQUESTER
+        | R::REFUSAL_REASON_FOLLOWED_SHOW_NOT_PENDING
+        | R::REFUSAL_REASON_NOT_A_FOLLOWED_SHOW_REQUESTER
         | R::REFUSAL_REASON_LAST_AUTHENTICATOR
         | R::REFUSAL_REASON_SETTINGS_CHECK_FAILED
         | R::REFUSAL_REASON_CHOICE_NOT_OFFERED => ErrorCode::FailedPrecondition,
@@ -2511,6 +2587,7 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_VERSION_NOT_FOUND
         | R::REFUSAL_REASON_ITEM_NOT_FOUND
         | R::REFUSAL_REASON_REQUEST_NOT_FOUND
+        | R::REFUSAL_REASON_FOLLOWED_SHOW_NOT_FOUND
         | R::REFUSAL_REASON_PLUGIN_NOT_FOUND => ErrorCode::NotFound,
         R::REFUSAL_REASON_USER_NAME_TAKEN | R::REFUSAL_REASON_FOLDER_TAKEN => {
             ErrorCode::AlreadyExists
@@ -2630,9 +2707,10 @@ impl From<requests::Error> for ConnectError {
         use RefusalReason as R;
         let message = err.to_string();
         let refused = match err {
-            // Every RPC naming a Request names it in `id`, only `CreateRequest` and `LookUpMovie`
-            // name a Movie, both in `movie_tmdb_id`, and only `CreateSeasonRequests` and
-            // `LookUpShow` a Show, both in `show_tmdb_id`.
+            // Every RPC naming a Request or Followed Show names it in `id`, only `CreateRequest`
+            // and `LookUpMovie` name a Movie, both in `movie_tmdb_id`, and only
+            // `CreateSeasonRequests`, `CreateFollowedShow` and `LookUpShow` a Show, all in
+            // `show_tmdb_id`.
             requests::Error::NoSuchRequest(id) => {
                 refuse(R::REFUSAL_REASON_REQUEST_NOT_FOUND, message)
                     .field("id")
@@ -2650,6 +2728,21 @@ impl From<requests::Error> for ConnectError {
                 refuse(R::REFUSAL_REASON_NOT_A_REQUESTER, message)
                     .field("id")
                     .param("requestId", &id)
+            }
+            requests::Error::NoSuchFollowedShow(id) => {
+                refuse(R::REFUSAL_REASON_FOLLOWED_SHOW_NOT_FOUND, message)
+                    .field("id")
+                    .param("followedShowId", &id)
+            }
+            requests::Error::FollowedShowNotPending(id) => {
+                refuse(R::REFUSAL_REASON_FOLLOWED_SHOW_NOT_PENDING, message)
+                    .field("id")
+                    .param("followedShowId", &id)
+            }
+            requests::Error::NotAFollowedShowRequester(id) => {
+                refuse(R::REFUSAL_REASON_NOT_A_FOLLOWED_SHOW_REQUESTER, message)
+                    .field("id")
+                    .param("followedShowId", &id)
             }
             requests::Error::InLibrary(id) => refuse(R::REFUSAL_REASON_ALREADY_IN_LIBRARY, message)
                 .field("movie_tmdb_id")

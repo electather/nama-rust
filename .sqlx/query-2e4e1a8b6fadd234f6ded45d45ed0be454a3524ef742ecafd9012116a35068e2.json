@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM followed_show_requesters WHERE followed_show_id = ? AND user_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "2e4e1a8b6fadd234f6ded45d45ed0be454a3524ef742ecafd9012116a35068e2"
+}

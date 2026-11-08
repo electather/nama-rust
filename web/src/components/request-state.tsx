@@ -69,8 +69,11 @@ export function FoundMovieState({
   );
 }
 
-/** Whether the signed-in User `you` is one of `request`'s Requesters. */
-export function isRequester(request: Request | undefined, you: bigint | undefined) {
+/** Whether the signed-in User `you` is one of the Requesters of `request`, or of a Followed Show. */
+export function isRequester(
+  request: Pick<Request, "requesters"> | undefined,
+  you: bigint | undefined,
+) {
   return request?.requesters.some(({ userId }) => userId === you) ?? false;
 }
 
@@ -87,6 +90,13 @@ export function useReadBackAsked() {
     onError: (error: unknown) =>
       refusalOf(error).reason === RefusalReason.ALREADY_IN_LIBRARY ? readBack() : undefined,
   };
+}
+
+/** Mutation options that refetch the Requests once a change to one is done or refused. */
+export function useRefetchRequests() {
+  const queryClient = useQueryClient();
+  // Waits for the Requests to be read back, so the button stays busy until the change shows.
+  return { onSettled: () => queryClient.invalidateQueries({ queryKey: requestsKey }) };
 }
 
 /** Asks for `movie`, then shows its Request once the Server has it. */

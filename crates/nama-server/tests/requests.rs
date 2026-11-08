@@ -36,15 +36,17 @@ use nama_plugin_tmdb::{
     testing::{API_KEY, FakeTmdb},
 };
 use nama_proto::nama::v1::{
-    __buffa::view::SubscribeResponseView, ApproveRequestRequest, BrowseServiceClient,
-    CancelRequestRequest, CreateLibraryRequest, CreateRequestRequest, CreateSeasonRequestsRequest,
-    CreateUserRequest, DeclineRequestRequest, EventServiceClient, EventType, FoundMovie, FoundShow,
+    __buffa::view::SubscribeResponseView, ApproveFollowedShowRequest, ApproveRequestRequest,
+    BrowseServiceClient, CancelFollowedShowRequest, CancelRequestRequest,
+    CreateFollowedShowRequest, CreateLibraryRequest, CreateRequestRequest,
+    CreateSeasonRequestsRequest, CreateUserRequest, DeclineFollowedShowRequest,
+    DeclineRequestRequest, EventServiceClient, EventType, FollowedShow, FoundMovie, FoundShow,
     GetRequestRequest, LibraryKind, LibraryServiceClient, ListMoviesRequest, ListRequestsRequest,
     ListShowsRequest, LookUpMovieRequest, LookUpShowRequest, Permission, RefusalReason, Request,
     RequestServiceClient, RequestState, RetryRequestRequest, ScanLibraryRequest,
     SearchMoviesRequest, SearchShowsRequest, SessionDelivery, SetPermissionsRequest, SignInRequest,
     SignInServiceClient, SubscribeRequest, SubscribeResponse, UserServiceClient,
-    WithdrawRequestRequest, event, subscribe_response,
+    WithdrawFollowedShowRequest, WithdrawRequestRequest, event, subscribe_response,
 };
 use nama_server::{config::Config, db::Database, plugins::Registry};
 use refused::assert_refused;
@@ -1833,4 +1835,384 @@ async fn a_user_without_request_tv_is_refused_looking_up_a_show() {
     );
     let permission = refusal.params.get("permission").map(String::as_str);
     assert_eq!(permission, Some("PERMISSION_REQUEST_TV"));
+}
+
+/// Asks for the whole Show `show` as the caller of `client`, and returns the Followed Show and the
+/// Season Requests.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn follow(
+    client: &RequestServiceClient<HttpClient>,
+    show: i64,
+) -> (FollowedShow, Vec<Request>) {
+    let followed = client
+        .create_followed_show(CreateFollowedShowRequest {
+            show_tmdb_id: show,
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_owned();
+    (
+        followed.followed_show.into_option().unwrap(),
+        followed.requests,
+    )
+}
+
+/// Follows Dark as the caller of `client` as if it had two Seasons then: the fake TMDB has no
+/// Season yet to come out, so Season 3 stands in for one. Its Request is cancelled as the Admin,
+/// and the Followed Show is told Season 2 was the latest. Returns the Followed Show and the Season
+/// 1 and 2 Requests.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn follow_dark_before_season_3(
+    fixture: &Fixture,
+    client: &RequestServiceClient<HttpClient>,
+) -> (FollowedShow, Vec<Request>) {
+    let (followed, mut asked) = follow(client, DARK).await;
+    let season_3 = asked.pop().unwrap();
+    assert_eq!(season_of(&season_3), Some(("Dark", 3)));
+    requests(fixture.server.client_config())
+        .cancel_request(CancelRequestRequest {
+            id: season_3.id,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let id = followed.id;
+    fixture
+        .db
+        .write(move |tx| {
+            Box::pin(
+                sqlx::query("UPDATE followed_shows SET latest_season = 2 WHERE id = ?")
+                    .bind(id)
+                    .execute(&mut **tx),
+            )
+        })
+        .await
+        .unwrap();
+    (followed, asked)
+}
+
+/// Approves the Followed Show `id` as the Admin, and returns it as the approval left it.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn approve_followed(fixture: &Fixture, id: i64) -> Result<FollowedShow, ConnectError> {
+    requests(fixture.server.client_config())
+        .approve_followed_show(ApproveFollowedShowRequest {
+            id,
+            ..Default::default()
+        })
+        .await
+        .map(|approved| approved.into_owned().followed_show.into_option().unwrap())
+}
+
+/// The Followed Shows the caller of `client` may see.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn list_followed(client: &RequestServiceClient<HttpClient>) -> Vec<FollowedShow> {
+    client
+        .list_requests(ListRequestsRequest::default())
+        .await
+        .unwrap()
+        .into_owned()
+        .followed_shows
+}
+
+/// The Seasons of Dark the caller of `client` has Requests for, in Season order.
+async fn dark_seasons_requested(client: &RequestServiceClient<HttpClient>) -> Vec<u32> {
+    let mut seasons: Vec<u32> = list(client)
+        .await
+        .iter()
+        .filter_map(|request| season_of(request).map(|(_, number)| number))
+        .collect();
+    seasons.sort_unstable();
+    seasons
+}
+
+#[tokio::test]
+async fn asking_for_a_whole_show_opens_a_followed_show_and_a_request_per_season_not_in_a_library_and_one_approval_approves_them()
+ {
+    let fixture = Fixture::start().await;
+    // Season 3's one aired Episode, so Season 3 is in a Library.
+    let _media = fixture
+        .library_with(LibraryKind::LIBRARY_KIND_SHOWS, &[DARK_S03E01])
+        .await;
+    let (ada, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let ada_requests = requests(as_ada);
+
+    let (followed, asked) = follow(&ada_requests, DARK).await;
+    let approved = approve_followed(&fixture, followed.id).await.unwrap();
+
+    let seasons: Vec<_> = asked.iter().map(season_of).collect();
+    assert_eq!(seasons, [Some(("Dark", 1)), Some(("Dark", 2))]);
+    assert!(
+        asked
+            .iter()
+            .all(|request| request.state == RequestState::Pending
+                && request.followed_show_id == Some(followed.id)),
+        "{asked:?}"
+    );
+    assert_eq!(followed.state, RequestState::Pending);
+    assert_eq!(followed.requesters[0].user_id, ada);
+    assert_eq!(approved.state, RequestState::Approved);
+    assert_eq!(list_followed(&ada_requests).await, [approved]);
+    assert_eq!(
+        states(&list(&ada_requests).await),
+        [
+            (asked[1].id, RequestState::Approved),
+            (asked[0].id, RequestState::Approved)
+        ]
+    );
+}
+
+#[tokio::test]
+async fn once_a_followed_show_is_approved_a_scan_matching_a_new_seasons_episodes_opens_its_request_for_its_requesters_live()
+ {
+    let fixture = Fixture::start().await;
+    let (ada, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let (grace, as_grace) = fixture.user("Grace", &NEW_USER).await;
+    follow(&requests(as_grace), DARK).await;
+    let (followed, _) = follow_dark_before_season_3(&fixture, &requests(as_ada.clone())).await;
+    approve_followed(&fixture, followed.id).await.unwrap();
+    let mut adas_events = subscribe_to_requests(as_ada).await;
+
+    let _media = fixture
+        .library_with(LibraryKind::LIBRARY_KIND_SHOWS, &[DARK_S03E01])
+        .await;
+    let event = next_event(&mut adas_events).await;
+
+    let event::Event::RequestCreated(created) = event else {
+        panic!("not a new Request: {event:?}");
+    };
+    let request = created.request.into_option().unwrap();
+    assert_eq!(season_of(&request), Some(("Dark", 3)));
+    assert_eq!(request.state, RequestState::Available);
+    assert_eq!(requester_ids(&request), [grace, ada]);
+    assert_eq!(request.followed_show_id, Some(followed.id));
+}
+
+#[tokio::test]
+async fn asking_for_season_1_alone_then_scanning_season_3_opens_no_request() {
+    let fixture = Fixture::start().await;
+    let (_, as_ada) = fixture
+        .user("Ada", &[Permission::RequestTv, Permission::AutoApproveTv])
+        .await;
+    let ada = requests(as_ada);
+    ask_seasons(&ada, DARK, &[1]).await;
+
+    let _media = fixture
+        .library_with(LibraryKind::LIBRARY_KIND_SHOWS, &[DARK_S03E01])
+        .await;
+
+    assert_eq!(dark_seasons_requested(&ada).await, [1]);
+    assert_eq!(list_followed(&ada).await, []);
+}
+
+#[tokio::test]
+async fn a_declined_followed_show_declines_its_season_requests_and_opens_no_request_for_a_new_season()
+ {
+    let fixture = Fixture::start().await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let ada = requests(as_ada);
+    let (followed, asked) = follow_dark_before_season_3(&fixture, &ada).await;
+
+    let declined = requests(fixture.server.client_config())
+        .decline_followed_show(DeclineFollowedShowRequest {
+            id: followed.id,
+            reason: " Not yet ".to_owned(),
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_owned()
+        .followed_show
+        .into_option()
+        .unwrap();
+    let _media = fixture
+        .library_with(LibraryKind::LIBRARY_KIND_SHOWS, &[DARK_S03E01])
+        .await;
+
+    assert_eq!(declined.state, RequestState::Declined);
+    assert_eq!(declined.decline_reason.as_deref(), Some("Not yet"));
+    let listed = list(&ada).await;
+    assert_eq!(
+        states(&listed),
+        [
+            (asked[1].id, RequestState::Declined),
+            (asked[0].id, RequestState::Declined)
+        ]
+    );
+    assert_eq!(listed[0].decline_reason.as_deref(), Some("Not yet"));
+}
+
+#[tokio::test]
+async fn a_cancelled_followed_show_leaves_its_season_requests_and_opens_no_request_for_a_new_season()
+ {
+    let fixture = Fixture::start().await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let ada = requests(as_ada);
+    let (followed, asked) = follow_dark_before_season_3(&fixture, &ada).await;
+    approve_followed(&fixture, followed.id).await.unwrap();
+
+    requests(fixture.server.client_config())
+        .cancel_followed_show(CancelFollowedShowRequest {
+            id: followed.id,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let _media = fixture
+        .library_with(LibraryKind::LIBRARY_KIND_SHOWS, &[DARK_S03E01])
+        .await;
+
+    assert_eq!(list_followed(&ada).await, []);
+    let listed = list(&ada).await;
+    assert_eq!(
+        states(&listed),
+        [
+            (asked[1].id, RequestState::Approved),
+            (asked[0].id, RequestState::Approved)
+        ]
+    );
+    assert!(
+        listed
+            .iter()
+            .all(|request| request.followed_show_id.is_none())
+    );
+}
+
+#[tokio::test]
+async fn a_user_without_request_tv_is_refused_a_whole_show_naming_the_permission() {
+    let fixture = Fixture::start().await;
+    let (_, as_movie_asker) = fixture.user("Ada", &[Permission::RequestMovie]).await;
+
+    let refused = requests(as_movie_asker)
+        .create_followed_show(CreateFollowedShowRequest {
+            show_tmdb_id: DARK,
+            ..Default::default()
+        })
+        .await;
+
+    let refusal = assert_refused(
+        refused,
+        ErrorCode::PermissionDenied,
+        RefusalReason::REFUSAL_REASON_PERMISSION_REQUIRED,
+    );
+    let permission = refusal.params.get("permission").map(String::as_str);
+    assert_eq!(permission, Some("PERMISSION_REQUEST_TV"));
+}
+
+#[tokio::test]
+async fn a_second_user_asking_for_a_whole_show_joins_its_followed_show_and_shows_it_in_the_lookup()
+{
+    let fixture = Fixture::start().await;
+    let (ada, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let (grace, as_grace) = fixture
+        .user("Grace", &[Permission::RequestTv, Permission::AutoApproveTv])
+        .await;
+
+    let (first, _) = follow(&requests(as_ada), DARK).await;
+    let (joined, asked) = follow(&requests(as_grace.clone()), DARK).await;
+
+    assert_eq!(joined.id, first.id);
+    assert_eq!(
+        joined.state,
+        RequestState::Pending,
+        "joining approves nothing"
+    );
+    let followers: Vec<_> = joined.requesters.iter().map(|r| r.user_id).collect();
+    assert_eq!(followers, [ada, grace]);
+    assert!(asked.iter().all(|r| requester_ids(r) == [ada, grace]));
+    assert_eq!(
+        look_up_dark(as_grace).await.followed_show.as_option(),
+        Some(&joined)
+    );
+}
+
+#[tokio::test]
+async fn a_user_who_may_auto_approve_shows_opens_an_approved_followed_show_which_cant_be_approved_again()
+ {
+    let fixture = Fixture::start().await;
+    let (_, as_ada) = fixture
+        .user("Ada", &[Permission::RequestTv, Permission::AutoApproveTv])
+        .await;
+
+    let (followed, asked) = follow(&requests(as_ada), DARK).await;
+    let refused = approve_followed(&fixture, followed.id).await;
+
+    assert_eq!(followed.state, RequestState::Approved);
+    assert!(asked.iter().all(|r| r.state == RequestState::Approved));
+    let refusal = assert_refused(
+        refused,
+        ErrorCode::FailedPrecondition,
+        RefusalReason::REFUSAL_REASON_FOLLOWED_SHOW_NOT_PENDING,
+    );
+    let id = refusal.params.get("followedShowId").map(String::as_str);
+    assert_eq!(id, Some(followed.id.to_string().as_str()));
+}
+
+#[tokio::test]
+async fn the_last_requester_withdrawing_ends_a_followed_show_and_leaves_its_season_requests() {
+    let fixture = Fixture::start().await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let (grace, as_grace) = fixture.user("Grace", &NEW_USER).await;
+    let (ada, grace_requests) = (requests(as_ada), requests(as_grace));
+    let (followed, _) = follow(&ada, DARK).await;
+    follow(&grace_requests, DARK).await;
+    let withdraw = WithdrawFollowedShowRequest {
+        id: followed.id,
+        ..Default::default()
+    };
+
+    ada.withdraw_followed_show(withdraw.clone()).await.unwrap();
+    let left_to_grace = list_followed(&grace_requests).await;
+    grace_requests
+        .withdraw_followed_show(withdraw)
+        .await
+        .unwrap();
+
+    let followers: Vec<_> = left_to_grace[0]
+        .requesters
+        .iter()
+        .map(|r| r.user_id)
+        .collect();
+    assert_eq!(followers, [grace]);
+    assert_eq!(list_followed(&grace_requests).await, []);
+    assert_eq!(dark_seasons_requested(&grace_requests).await, [1, 2, 3]);
+}
+
+#[tokio::test]
+async fn a_scan_matching_more_of_a_season_in_a_library_when_its_show_was_followed_opens_no_request()
+{
+    let fixture = Fixture::start().await;
+    let (media, library) = fixture
+        .library_with(LibraryKind::LIBRARY_KIND_SHOWS, &[DARK_S03E01])
+        .await;
+    let (_, as_ada) = fixture
+        .user("Ada", &[Permission::RequestTv, Permission::AutoApproveTv])
+        .await;
+    let ada = requests(as_ada);
+    follow(&ada, DARK).await;
+    let mut matches = subscribe(
+        fixture.server.client_config(),
+        &[EventType::EVENT_TYPE_ITEM_MATCHED],
+    )
+    .await;
+
+    write_files(media.path(), &[DARK_S03E02]);
+    fixture
+        .scan_until(library, LibraryKind::LIBRARY_KIND_SHOWS, true)
+        .await;
+    next_event(&mut matches).await;
+
+    assert_eq!(dark_seasons_requested(&ada).await, [1, 2]);
 }

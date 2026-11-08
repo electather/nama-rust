@@ -1,10 +1,11 @@
 import { type MessageInitShape, create } from "@bufbuild/protobuf";
 import { Code } from "@connectrpc/connect";
-import { cleanup, fireEvent, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import {
+  FollowedShowSchema,
   type Request,
   RequestSchema,
   RequestService,
@@ -169,4 +170,69 @@ test("retrying a Request that stopped being Failed meanwhile says so", async () 
 
   expect(await screen.findByText("Alien isn’t Failed any more.")).toBeDefined();
   expect(await screen.findByText("Processing")).toBeDefined();
+});
+
+/**
+ * A fake Server holding Ada's Pending Followed Show of Dark, and the Season 1 Request it opened,
+ * signed in as an Admin, that approves and cancels the Followed Show.
+ */
+function followedServer() {
+  const followed = create(FollowedShowSchema, {
+    id: 7n,
+    showTmdbId: 70_523n,
+    showTitle: "Dark",
+    state: RequestState.PENDING,
+    requesters: [{ userId: 2n, name: "Ada" }],
+  });
+  const season1 = create(RequestSchema, {
+    id: 3n,
+    season: { showTmdbId: 70_523n, seasonNumber: 1, showTitle: "Dark" },
+    state: RequestState.PENDING,
+    requesters: [{ userId: 2n, name: "Ada" }],
+    followedShowId: 7n,
+  });
+  let followedShows = [followed];
+  return fakeServer({ signedIn: admin }, {}, {}, (router) => {
+    router.service(RequestService, {
+      listRequests: () => ({ requests: [season1], followedShows }),
+      approveFollowedShow: () => {
+        followed.state = RequestState.APPROVED;
+        season1.state = RequestState.APPROVED;
+        return { followedShow: followed };
+      },
+      cancelFollowedShow: () => {
+        followedShows = [];
+        season1.followedShowId = undefined;
+        return {};
+      },
+    });
+  });
+}
+
+test("approving a Followed Show once approves it and its Season Requests", async () => {
+  openApp("/requests", followedServer());
+
+  fireEvent.click(await screen.findByRole("button", { name: "Approve Dark Whole Show" }));
+
+  await waitFor(() => {
+    expect(screen.getAllByText("Approved")).toHaveLength(2);
+  });
+  expect(screen.queryByRole("button", { name: /^Approve/u })).toBeNull();
+});
+
+test("cancelling a Followed Show, once confirmed, removes it and leaves its Season Requests", async () => {
+  openApp("/requests", followedServer());
+
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Cancel Request for Dark Whole Show" }),
+  );
+  const dialog = await screen.findByRole("alertdialog", {
+    name: "Cancel the Request for Dark Whole Show?",
+  });
+  fireEvent.click(within(dialog).getByRole("button", { name: "Cancel Request" }));
+
+  await waitFor(() => {
+    expect(screen.queryByText("Whole Show")).toBeNull();
+  });
+  expect(screen.getByText("Season 1")).toBeDefined();
 });

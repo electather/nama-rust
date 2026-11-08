@@ -5,7 +5,7 @@ import { FindATitle, type Searchable, TitlesFound } from "@/components/find-a-ti
 import { Page } from "@/components/page";
 import { RequestActions } from "@/components/request-actions";
 import { RequestStateLabel } from "@/components/request-state";
-import { type Request, type RequestedSeason, RequestService } from "@/gen/nama/v1/request_pb";
+import { type FollowedShow, type Request, RequestService } from "@/gen/nama/v1/request_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { metadataLine, seasonName, yearOf } from "@/lib/browse";
 import { may } from "@/lib/permissions";
@@ -63,13 +63,13 @@ function FindOrList({
 
 function RequestList() {
   const { data } = useSuspenseQuery(RequestService.method.listRequests, {});
-  return data.requests.length === 0 ? (
+  return data.requests.length + data.followedShows.length === 0 ? (
     <p className="mt-8 text-muted-foreground">No Requests yet.</p>
   ) : (
     <ul className="mt-8 flex max-w-2xl flex-col">
-      {groupShows(data.requests).map((entry) =>
+      {groupShows(data.requests, data.followedShows).map((entry) =>
         "seasons" in entry ? (
-          <ShowRequests key={`show-${entry.show.showTmdbId}`} {...entry} />
+          <ShowRequests key={`show-${entry.showTmdbId}`} {...entry} />
         ) : (
           <RequestRow key={String(entry.id)} request={entry} />
         ),
@@ -78,29 +78,31 @@ function RequestList() {
   );
 }
 
-/** A Show's Season Requests, listed together under it. */
+/** A Show's Followed Shows and Season Requests, listed together under it. */
 interface ShowGroup {
-  show: RequestedSeason;
+  showTmdbId: bigint;
+  showTitle: string;
+  followed: FollowedShow[];
   seasons: Request[];
 }
 
 /**
- * `requests` in their order, but with each Show's Season Requests together, in Season order,
- * where the Show's first one was.
+ * `requests` and `followedShows`, newest first, but with each Show's together where the Show's
+ * newest one was: its Followed Shows, then its Season Requests in Season order.
  */
-function groupShows(requests: Request[]) {
+function groupShows(requests: Request[], followedShows: FollowedShow[]) {
   const shows = new Map<bigint, ShowGroup>();
-  const grouped = requests.flatMap((request): (Request | ShowGroup)[] => {
-    const { season } = request;
-    if (season === undefined) return [request];
-    const group = shows.get(season.showTmdbId);
-    if (group !== undefined) {
-      group.seasons.push(request);
-      return [];
-    }
-    const first = { show: season, seasons: [request] };
-    shows.set(season.showTmdbId, first);
-    return [first];
+  const newestFirst = [...requests, ...followedShows];
+  // Sorting is stable, so Requests opened in the same second keep the Server's order.
+  newestFirst.sort((a, b) => Number(b.createdAt - a.createdAt));
+  const grouped = newestFirst.flatMap((asked): (Request | FollowedShow | ShowGroup)[] => {
+    const show = showOf(asked);
+    if (show === undefined) return [asked];
+    const known = shows.get(show.showTmdbId);
+    const group = known ?? newGroup(show);
+    addTo(group, asked);
+    shows.set(show.showTmdbId, group);
+    return known ? [] : [group];
   });
   for (const { seasons } of shows.values()) {
     seasons.sort((a, b) => seasonNumber(a) - seasonNumber(b));
@@ -108,15 +110,34 @@ function groupShows(requests: Request[]) {
   return grouped;
 }
 
+type Show = Pick<ShowGroup, "showTmdbId" | "showTitle">;
+
+/** The Show a Followed Show or a Season Request is of; a Movie's Request has none. */
+function showOf(asked: Request | FollowedShow): Show | undefined {
+  return asked.$typeName === "nama.v1.FollowedShow" ? asked : asked.season;
+}
+
+function newGroup({ showTmdbId, showTitle }: Show): ShowGroup {
+  return { showTmdbId, showTitle, followed: [], seasons: [] };
+}
+
+function addTo(group: ShowGroup, asked: Request | FollowedShow) {
+  if (asked.$typeName === "nama.v1.FollowedShow") group.followed.push(asked);
+  else group.seasons.push(asked);
+}
+
 function seasonNumber(request: Request) {
   return request.season?.seasonNumber ?? 0;
 }
 
-function ShowRequests({ show, seasons }: ShowGroup) {
+function ShowRequests({ showTitle, followed, seasons }: ShowGroup) {
   return (
     <li className="border-b pt-3 last:border-b-0">
-      <p className="truncate font-medium">{show.showTitle}</p>
-      <ul aria-label={show.showTitle} className="flex flex-col ps-4">
+      <p className="truncate font-medium">{showTitle}</p>
+      <ul aria-label={showTitle} className="flex flex-col ps-4">
+        {followed.map((followedShow) => (
+          <RequestRow key={`followed-${followedShow.id}`} request={followedShow} />
+        ))}
         {seasons.map((request) => (
           <RequestRow key={String(request.id)} request={request} />
         ))}
@@ -125,7 +146,8 @@ function ShowRequests({ show, seasons }: ShowGroup) {
   );
 }
 
-function RequestRow({ request }: { request: Request }) {
+/** A Request, or a Followed Show, with its state and what the signed-in User may do to it. */
+function RequestRow({ request }: { request: Request | FollowedShow }) {
   const { signedIn } = Route.useRouteContext();
   return (
     // Wraps so the actions get a line of their own, the full width of the row.
@@ -133,7 +155,7 @@ function RequestRow({ request }: { request: Request }) {
       <div className="min-w-0 flex-1">
         <p className="truncate font-medium">{titleOf(request)}</p>
         <p className="text-sm text-muted-foreground">{aboutRequest(request, signedIn.user?.id)}</p>
-        <Reason reason={request.declineReason ?? request.failureReason} />
+        <Reason reason={reasonOf(request)} />
       </div>
       <RequestStateLabel state={request.state} />
       <RequestActions
@@ -145,18 +167,32 @@ function RequestRow({ request }: { request: Request }) {
   );
 }
 
-/** A Request's title: its Movie's, or its Season's name, which its Show's title is above. */
-function titleOf({ movie, season }: Request) {
+/**
+ * A row's title: a Request's Movie's, or its Season's name, or for a Followed Show "Whole Show",
+ * either of which its Show's title is above.
+ */
+function titleOf(request: Request | FollowedShow) {
+  if (request.$typeName === "nama.v1.FollowedShow") return "Whole Show";
+  const { movie, season } = request;
   return season ? seasonName(season.seasonNumber) : movie?.title;
 }
 
-/** What the row says under a Request's title: the year it came out, and who asked for it. */
-function aboutRequest(request: Request, you: bigint | undefined) {
-  const released = request.season?.airDate ?? request.movie?.releaseDate;
+/** What the row says under its title: the year a Request's title came out, and who asked. */
+function aboutRequest(request: Request | FollowedShow, you: bigint | undefined) {
+  const released = request.$typeName === "nama.v1.FollowedShow" ? undefined : releasedOf(request);
   return metadataLine(yearOf(released), requestedBy(request, you));
 }
 
-/** Why a Request was Declined, or why it Failed, in the decliner's or the Fulfiller's words. */
+/** When a Request's Movie came out, or its Season first aired. */
+function releasedOf({ season, movie }: Request) {
+  return season?.airDate ?? movie?.releaseDate;
+}
+
+/** Why it was Declined, or why a Request Failed, in the decliner's or the Fulfiller's words. */
+function reasonOf(request: Request | FollowedShow) {
+  return request.declineReason ?? ("failureReason" in request ? request.failureReason : undefined);
+}
+
 function Reason({ reason }: { reason: string | undefined }) {
   return (
     reason !== undefined && (
@@ -169,7 +205,7 @@ function Reason({ reason }: { reason: string | undefined }) {
 const names = new Intl.ListFormat("en-GB", { type: "conjunction" });
 
 /** Who asked, first asker first, with the signed-in User `you` as "you". */
-function requestedBy({ requesters }: Request, you: bigint | undefined) {
+function requestedBy({ requesters }: Pick<Request, "requesters">, you: bigint | undefined) {
   const who = requesters.map(({ userId, name }) => (userId === you ? "you" : name));
   return `Requested by ${names.format(who)}`;
 }

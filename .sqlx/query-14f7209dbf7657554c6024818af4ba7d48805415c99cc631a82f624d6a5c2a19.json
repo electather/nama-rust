@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO requests\n             (tmdb_id, season, title, release_date, state, created_at, followed_show_id)\n         VALUES (?, ?, ?, ?, ?, ?, ?)\n         RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "requests",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 7
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "14f7209dbf7657554c6024818af4ba7d48805415c99cc631a82f624d6a5c2a19"
+}

@@ -1,29 +1,54 @@
+import type { DescMessage } from "@bufbuild/protobuf";
 import { useMutation } from "@connectrpc/connect-query";
-import { useQueryClient } from "@tanstack/react-query";
 
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { FormTextarea } from "@/components/form-field";
+import { useRefetchRequests } from "@/components/request-state";
 import { Button } from "@/components/ui/button";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
-import { type Request, RequestService, RequestState } from "@/gen/nama/v1/request_pb";
+import {
+  type FollowedShow,
+  type Request,
+  RequestService,
+  RequestState,
+} from "@/gen/nama/v1/request_pb";
 import { seasonName } from "@/lib/browse";
-import { requestsKey } from "@/lib/events";
 import { formText, refusal } from "@/lib/forms";
 
+/** The RPCs that change a Request by its ID, and what cancelling one does. */
+const requestChanges = {
+  approve: RequestService.method.approveRequest,
+  decline: RequestService.method.declineRequest,
+  cancel: RequestService.method.cancelRequest,
+  withdraw: RequestService.method.withdrawRequest,
+  cancelling: "It’s removed for everyone who asked for it. This can’t be undone.",
+};
+
+/** The RPCs that change a Followed Show by its ID, and what cancelling one does. */
+const followedShowChanges = {
+  approve: RequestService.method.approveFollowedShow,
+  decline: RequestService.method.declineFollowedShow,
+  cancel: RequestService.method.cancelFollowedShow,
+  withdraw: RequestService.method.withdrawFollowedShow,
+  cancelling:
+    "It’s removed for everyone who asked for it, and later Seasons won’t be Requested. Its Season Requests stay. This can’t be undone.",
+};
+
 /**
- * What the signed-in User `you` may do to `request`: withdraw from it if it's their own and
- * Pending, and approve, decline, retry or cancel it if they `manage` Requests.
+ * What the signed-in User `you` may do to `request`, a Request or a Followed Show: withdraw from it
+ * if it's their own and Pending, or their own Followed Show, and approve, decline, retry or cancel
+ * it if they `manage` Requests.
  */
 export function RequestActions({
   request,
   you,
   manage,
 }: {
-  request: Request;
+  request: Request | FollowedShow;
   you: bigint | undefined;
   manage: boolean;
 }) {
-  const target = { id: request.id, title: nameOf(request) };
+  const target = targetOf(request);
   return (
     // Pulled back by the buttons' own padding, so the first one's words line up with the title.
     // Hidden when it has no buttons, so it adds no space to the row.
@@ -34,12 +59,14 @@ export function RequestActions({
   );
 }
 
-/** Whether `request` is Pending and the User `you` is one of its Requesters. */
-function canWithdraw(request: Request, you: bigint | undefined) {
-  return (
-    request.state === RequestState.PENDING &&
-    request.requesters.some(({ userId }) => userId === you)
-  );
+/**
+ * Whether the User `you` is one of `request`'s Requesters, and it's Pending or a Followed Show:
+ * withdrawing from an Approved one stops following the Show.
+ */
+function canWithdraw(request: Request | FollowedShow, you: bigint | undefined) {
+  const open =
+    request.$typeName === "nama.v1.FollowedShow" || request.state === RequestState.PENDING;
+  return open && request.requesters.some(({ userId }) => userId === you);
 }
 
 /** Approve and Decline for a Pending Request, Retry for a Failed one, and Cancel for any. */
@@ -62,6 +89,18 @@ interface Target {
   id: bigint;
   /** What the Request asks for, which names it to the User. */
   title: string;
+  /**
+   * Both kinds' RPCs take an `id`, and Decline's a `reason` too, but a union of the two can't be
+   * inferred, so the components call them as taking any message.
+   */
+  changes: typeof requestChanges | typeof followedShowChanges;
+}
+
+function targetOf(request: Request | FollowedShow): Target {
+  const { id } = request;
+  return request.$typeName === "nama.v1.FollowedShow"
+    ? { id, title: `${request.showTitle} Whole Show`, changes: followedShowChanges }
+    : { id, title: nameOf(request), changes: requestChanges };
 }
 
 /** What `request` asks for, in words: a Movie's title, or a Show's with the Season's name. */
@@ -70,15 +109,8 @@ function nameOf({ movie, season }: Request) {
   return movie?.title ?? "this Movie";
 }
 
-/** Mutation options that refetch the Requests once a change to one is done or refused. */
-function useRefetchRequests() {
-  const queryClient = useQueryClient();
-  // Waits for the Requests to be read back, so the button stays busy until the change shows.
-  return { onSettled: () => queryClient.invalidateQueries({ queryKey: requestsKey }) };
-}
-
-function Approve({ id, title }: Target) {
-  const approve = useMutation(RequestService.method.approveRequest, useRefetchRequests());
+function Approve({ id, title, changes }: Target) {
+  const approve = useMutation<DescMessage, DescMessage>(changes.approve, useRefetchRequests());
   return (
     <ChangeButton
       action="Approve"
@@ -105,8 +137,8 @@ function Retry({ id, title }: Target) {
 }
 
 /** Withdrawing can be undone by asking again, so it doesn't ask first. */
-function Withdraw({ id, title }: Target) {
-  const withdraw = useMutation(RequestService.method.withdrawRequest, useRefetchRequests());
+function Withdraw({ id, title, changes }: Target) {
+  const withdraw = useMutation<DescMessage, DescMessage>(changes.withdraw, useRefetchRequests());
   return (
     <ChangeButton
       action="Withdraw"
@@ -156,8 +188,8 @@ function ChangeButton({ action, name, change, id, refusal: whyRefused }: ChangeB
   );
 }
 
-function Decline({ id, title }: Target) {
-  const decline = useMutation(RequestService.method.declineRequest, useRefetchRequests());
+function Decline({ id, title, changes }: Target) {
+  const decline = useMutation<DescMessage, DescMessage>(changes.decline, useRefetchRequests());
   return (
     <ConfirmDialog
       action="Decline"
@@ -172,15 +204,15 @@ function Decline({ id, title }: Target) {
   );
 }
 
-function Cancel({ id, title }: Target) {
-  const cancel = useMutation(RequestService.method.cancelRequest, useRefetchRequests());
+function Cancel({ id, title, changes }: Target) {
+  const cancel = useMutation<DescMessage, DescMessage>(changes.cancel, useRefetchRequests());
   return (
     <ConfirmDialog
       action="Cancel Request"
       dismiss="Keep it"
       name={`Cancel Request for ${title}`}
       title={`Cancel the Request for ${title}?`}
-      description="It’s removed for everyone who asked for it. This can’t be undone."
+      description={changes.cancelling}
       onConfirm={() => cancel.mutateAsync({ id })}
       refusal={(error) => changeRefusal(error, title, "cancel this Request")}
     />
@@ -189,15 +221,22 @@ function Cancel({ id, title }: Target) {
 
 /** Why the Server refused to change the Request for `title`, such as another User changing it first. */
 function changeRefusal(error: unknown, title: string, attempt: string) {
+  // A Followed Show has reasons of its own, which say the same to its Requesters.
+  const decided = { form: `${title} was already approved or declined.` };
+  const gone = { form: `The Request for ${title} is gone.` };
+  const noLongerRequester = { form: `You’re no longer a Requester of ${title}.` };
   return refusal(
     error,
     attempt,
     {},
     {
-      [RefusalReason.REQUEST_NOT_PENDING]: { form: `${title} was already approved or declined.` },
+      [RefusalReason.REQUEST_NOT_PENDING]: decided,
+      [RefusalReason.REQUEST_NOT_FOUND]: gone,
+      [RefusalReason.NOT_A_REQUESTER]: noLongerRequester,
       [RefusalReason.REQUEST_NOT_FAILED]: { form: `${title} isn’t Failed any more.` },
-      [RefusalReason.REQUEST_NOT_FOUND]: { form: `The Request for ${title} is gone.` },
-      [RefusalReason.NOT_A_REQUESTER]: { form: `You’re no longer a Requester of ${title}.` },
+      [RefusalReason.FOLLOWED_SHOW_NOT_PENDING]: decided,
+      [RefusalReason.FOLLOWED_SHOW_NOT_FOUND]: gone,
+      [RefusalReason.NOT_A_FOLLOWED_SHOW_REQUESTER]: noLongerRequester,
     },
   ).form;
 }

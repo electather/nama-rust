@@ -3,7 +3,12 @@ import { cleanup, screen, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import type { SubscribeResponse } from "@/gen/nama/v1/event_pb";
-import { RequestSchema, RequestService, RequestState } from "@/gen/nama/v1/request_pb";
+import {
+  FollowedShowSchema,
+  RequestSchema,
+  RequestService,
+  RequestState,
+} from "@/gen/nama/v1/request_pb";
 
 import { eventFeed, fakeServer, newUser, openApp } from "./test-app";
 
@@ -29,9 +34,12 @@ const dune = {
 function server(
   requests: () => MessageInitShape<typeof RequestSchema>[],
   events = new ReadableStream<SubscribeResponse>(),
+  followedShows: MessageInitShape<typeof FollowedShowSchema>[] = [],
 ) {
   return fakeServer({ signedIn: newUser, events }, {}, {}, (router) => {
-    router.service(RequestService, { listRequests: () => ({ requests: requests() }) });
+    router.service(RequestService, {
+      listRequests: () => ({ requests: requests(), followedShows }),
+    });
   });
 }
 
@@ -81,6 +89,53 @@ test("the Requests page groups a Show's Season Requests, in Season order, with t
   // Each row's title is its first paragraph.
   const titles = screen.getAllByRole("listitem").map((row) => row.querySelector("p")?.textContent);
   expect(titles).toEqual(["Dark", "Season 1", "Season 2", "Heat", "Dune"]);
+});
+
+/** Sam's Followed Show of Dark, Approved. */
+const followedDark = {
+  id: 7n,
+  showTmdbId: 70_523n,
+  showTitle: "Dark",
+  state: RequestState.APPROVED,
+  requesters: [{ userId: 1n, name: "Sam" }],
+};
+
+test("a Followed Show lists as the Whole Show, above its Show's Season Requests", async () => {
+  openApp(
+    "/requests",
+    server(
+      () => [heat, { ...darkSeason(3n, 1, RequestState.APPROVED), followedShowId: 7n }],
+      undefined,
+      [followedDark],
+    ),
+  );
+
+  const dark = await screen.findByRole("list", { name: "Dark" });
+  expect(
+    within(dark)
+      .getAllByRole("listitem")
+      .map((row) => row.textContent),
+  ).toEqual([
+    "Whole ShowRequested by youApprovedWithdraw",
+    "Season 12017 · Requested by youApproved",
+  ]);
+});
+
+test("a Season Request a scan opens for a Followed Show shows up under it without a reload", async () => {
+  const events = eventFeed();
+  let requests: MessageInitShape<typeof RequestSchema>[] = [];
+  openApp(
+    "/requests",
+    server(() => requests, events.stream, [followedDark]),
+  );
+  const dark = await screen.findByRole("list", { name: "Dark" });
+
+  const season3 = { ...darkSeason(9n, 3, RequestState.AVAILABLE), followedShowId: 7n };
+  requests = [season3];
+  events.send({ event: { case: "requestCreated", value: { request: season3 } } });
+
+  expect(await within(dark).findByText("Season 3")).toBeDefined();
+  expect(within(dark).getByText("Available")).toBeDefined();
 });
 
 test("the Requests page says so when there are none", async () => {

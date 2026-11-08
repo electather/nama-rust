@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT EXISTS (SELECT 1 FROM requests\n                          WHERE tmdb_id = ? AND season = ? AND state = 'available') AS \"is!: bool\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "is!: bool",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "794475299efd2d5cac8844ec28f628c57f388bc8941dee3a9d808ce6bece41eb"
+}
