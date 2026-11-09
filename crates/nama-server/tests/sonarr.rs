@@ -28,9 +28,10 @@ use nama_proto::nama::v1::{
     __buffa::view::SubscribeResponseView, ApproveRequestRequest, CancelFollowedShowRequest,
     CreateFollowedShowRequest, CreateSeasonRequestsRequest, CreateUserRequest,
     DeclineRequestRequest, Download, DownloadStatus, EnablePluginRequest, EventServiceClient,
-    EventType, GetRequestRequest, ListPluginsRequest, ListShowQualitiesRequest, LookUpShowRequest,
-    Permission, PluginServiceClient, Quality, RefusalReason, ReplaceQualitiesRequest, Request,
-    RequestServiceClient, RequestState, RequestedQuality, RetryRequestRequest, SessionDelivery,
+    EventType, ExtensionPoint, GetRequestRequest, ListDefaultQualitiesRequest, ListPluginsRequest,
+    ListShowQualitiesRequest, LookUpShowRequest, Permission, PluginServiceClient, Quality,
+    RefusalReason, ReplaceQualitiesRequest, Request, RequestServiceClient, RequestState,
+    RequestedQuality, RetryRequestRequest, SessionDelivery, SetDefaultQualityRequest,
     SetPermissionsRequest, SignInRequest, SignInServiceClient, SubscribeRequest, SubscribeResponse,
     TestPluginSettingsRequest, TestPluginSettingsResponse, UpdatePluginSettingsRequest, event,
     setting_value::Value, subscribe_response,
@@ -213,7 +214,7 @@ impl Fixture {
             .requests()
             .approve_request(ApproveRequestRequest {
                 id,
-                quality,
+                quality_id: quality,
                 ..Default::default()
             })
             .await?;
@@ -903,7 +904,7 @@ async fn once_a_season_was_handed_off_approving_a_later_one_at_another_quality_i
         ErrorCode::InvalidArgument,
         RefusalReason::REFUSAL_REASON_QUALITY_NOT_OFFERED,
     );
-    assert_eq!(refusal.field, "quality");
+    assert_eq!(refusal.field, "quality_id");
     assert_eq!(same.unwrap().state, RequestState::Processing);
 }
 
@@ -928,4 +929,66 @@ async fn a_series_sonarr_already_had_at_another_profile_shows_that_profile() {
         (0, "HD-1080p", HD_1080P)
     );
     assert_eq!(shows.as_ref(), asked.quality_used.as_option());
+}
+
+#[tokio::test]
+async fn once_sonarr_kept_its_profile_for_a_season_the_show_shows_it_over_an_earlier_pending_one() {
+    let fixture = Fixture::with_sonarr_enabled().await;
+    // Added at the setting's profile, HD-1080p, before the Admin offered any Quality.
+    fixture.ask_approved(DARK, &[1]).await;
+    fixture.sonarr.finish_refreshes().await;
+    fixture
+        .replace_qualities(vec![quality(ULTRA_HD, "4K", true)])
+        .await;
+    let member = RequestServiceClient::new(HttpClient::plaintext(), fixture.member().await);
+    let later = ask(&member, DARK, &[2, 3]).await.remove(1);
+
+    let approved = fixture.approve(later.id).await;
+    let shows = fixture.show_quality(DARK).await;
+
+    assert_eq!(approved.quality_used.name, "HD-1080p");
+    assert_eq!(shows.as_ref(), approved.quality_used.as_option());
+}
+
+#[tokio::test]
+async fn a_members_shows_default_lists_in_their_settings_and_a_season_request_takes_it() {
+    let fixture = Fixture::with_sonarr_enabled().await;
+    let offered = fixture.offer_hd_and_4k().await;
+    let chooser = fixture.chooser().await;
+
+    chooser
+        .set_default_quality(SetDefaultQualityRequest {
+            plugin_id: "sonarr".to_owned(),
+            quality: Some(offered[1].id),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let defaults = chooser
+        .list_default_qualities(ListDefaultQualitiesRequest::default())
+        .await
+        .unwrap()
+        .into_owned()
+        .defaults;
+    let listed = chooser
+        .list_show_qualities(ListShowQualitiesRequest::default())
+        .await
+        .unwrap()
+        .into_owned();
+    let asked = ask_one(&chooser, DARK, 1, None).await;
+
+    let fulfillers: Vec<_> = defaults
+        .iter()
+        .map(|default| default.fulfiller.as_known())
+        .collect();
+    assert_eq!(
+        fulfillers,
+        [Some(ExtensionPoint::EXTENSION_POINT_SHOW_FULFILLER)]
+    );
+    assert_eq!(defaults[0].quality, Some(offered[1].id));
+    assert_eq!(listed.personal_default, Some(offered[1].id));
+    assert_eq!(
+        named(asked.quality.as_option()),
+        Some((offered[1].id, "4K"))
+    );
 }

@@ -1,7 +1,7 @@
 //! Qualities (ADR 0025): the service quality profiles an admin offers on each Fulfiller's list,
 //! under friendly names, with one the default a new Request takes.
 //!
-//! This module is the only code that reads or writes `qualities`.
+//! This module is the only code that reads or writes `qualities` and `default_qualities`.
 
 use std::collections::HashSet;
 
@@ -131,19 +131,23 @@ pub(crate) async fn replace(
     .await
 }
 
-/// A copy of the Plugin `plugin`'s Quality `chosen`, or of its default when `chosen` is `None`,
-/// for a new Request. `None` if its list has no such Quality.
+/// A copy of the Plugin `plugin`'s Quality `chosen`, for a new Request. When `chosen` is `None`,
+/// a copy of `preferred`, a User's default, if the list still has it, else of the list's default.
+/// `None` if the list has no such Quality.
 pub(crate) async fn for_request(
     conn: &mut SqliteConnection,
     plugin: &PluginId,
     chosen: Option<i64>,
+    preferred: Option<i64>,
 ) -> Result<Option<RequestedQuality>, sqlx::Error> {
     let plugin = plugin.as_str();
     let row = sqlx::query!(
         r#"SELECT id AS "id!", name, profile_id FROM qualities
-           WHERE plugin_id = ?1 AND (id = ?2 OR (?2 IS NULL AND is_default))"#,
+           WHERE plugin_id = ?1 AND (id = ?2 OR (?2 IS NULL AND (id = ?3 OR is_default)))
+           ORDER BY id IS ?3 DESC LIMIT 1"#,
         plugin,
-        chosen
+        chosen,
+        preferred
     )
     .fetch_optional(&mut *conn)
     .await?;
@@ -153,6 +157,79 @@ pub(crate) async fn for_request(
         profile_id: row.profile_id,
         ..Default::default()
     }))
+}
+
+/// A copy of the Quality with the id `id` on the Plugin `plugin`'s list, for a Request manager
+/// to change a Request to, or `None` if the list hasn't it.
+pub(crate) async fn offered(
+    conn: &mut SqliteConnection,
+    plugin: &PluginId,
+    id: i64,
+) -> Result<Option<RequestedQuality>, sqlx::Error> {
+    let listed = list(conn, plugin).await?;
+    Ok(listed
+        .into_iter()
+        .find(|quality| quality.id == id)
+        .map(|quality| RequestedQuality {
+            id: quality.id,
+            name: quality.name,
+            profile_id: quality.profile_id,
+            ..Default::default()
+        }))
+}
+
+/// The id of the Quality `user` set as their default for the Plugin `plugin`, which its list may
+/// no longer have.
+pub(crate) async fn personal_default(
+    conn: &mut SqliteConnection,
+    user: i64,
+    plugin: &PluginId,
+) -> Result<Option<i64>, sqlx::Error> {
+    let plugin = plugin.as_str();
+    sqlx::query_scalar!(
+        "SELECT quality_id FROM default_qualities WHERE user_id = ? AND plugin_id = ?",
+        user,
+        plugin
+    )
+    .fetch_optional(&mut *conn)
+    .await
+}
+
+/// Sets `user`'s default Quality for the Plugin `plugin` to `quality`, or clears it for `None`.
+/// Returns `false`, changing nothing, if `plugin`'s list has no Quality `quality`.
+pub(crate) async fn set_personal_default(
+    db: &Database,
+    user: i64,
+    plugin: PluginId,
+    quality: Option<i64>,
+) -> Result<bool, sqlx::Error> {
+    db.write(move |tx| {
+        Box::pin(async move {
+            let plugin = plugin.as_str();
+            let Some(quality) = quality else {
+                sqlx::query!(
+                    "DELETE FROM default_qualities WHERE user_id = ? AND plugin_id = ?",
+                    user,
+                    plugin
+                )
+                .execute(&mut **tx)
+                .await?;
+                return Ok(true);
+            };
+            let stored = sqlx::query!(
+                "INSERT INTO default_qualities (user_id, plugin_id, quality_id)
+                 SELECT ?1, ?2, id FROM qualities WHERE plugin_id = ?2 AND id = ?3
+                 ON CONFLICT (user_id, plugin_id) DO UPDATE SET quality_id = excluded.quality_id",
+                user,
+                plugin,
+                quality
+            )
+            .execute(&mut **tx)
+            .await?;
+            Ok(stored.rows_affected() == 1)
+        })
+    })
+    .await
 }
 
 /// A copy of the Quality on the Plugin `plugin`'s list that offers the profile `profile_id`, if

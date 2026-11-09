@@ -36,9 +36,9 @@ mod exports {
 
     // Says who the Plugin is, that it observes Events, fulfills Movie Requests and notifies, and
     // its settings: a URL whose host it may reach, one it requests, how its Observer, Fulfiller
-    // and Notifier behave, a profile its check offers, and how its check fails. With the
-    // `out-of-range` feature it wants a Nama API no Server has, with `unnamed` it gives no name or
-    // description, and with `panic` it panics instead.
+    // and Notifier behave, a profile its check offers, and how its check fails, and its logo. With
+    // the `out-of-range` feature it wants a Nama API no Server has, with `unnamed` it gives no name
+    // or description, and with `panic` it panics instead.
     #[plugin_fn]
     pub fn manifest() -> FnResult<Buffa<Manifest>> {
         #[expect(
@@ -77,6 +77,7 @@ mod exports {
                     setting("profile", SettingKind::SETTING_KIND_CHOICE),
                     setting(FAIL_WITH, SettingKind::SETTING_KIND_TEXT),
                 ],
+                logo_svg: logo(),
                 ..nama_pdk::manifest("test-plugin", env!("CARGO_PKG_VERSION"))
             }
         };
@@ -92,6 +93,27 @@ mod exports {
             ..manifest
         };
         Ok(Buffa(manifest))
+    }
+
+    /// Its logo, or with the `big-logo`, `html-logo` or `doctype-logo` feature one the Server
+    /// drops, or with `logoless` none.
+    fn logo() -> String {
+        if cfg!(feature = "big-logo") {
+            // Well-formed SVG, so only its size gets it dropped.
+            let padding = " ".repeat(16 * 1024);
+            format!(r#"<svg xmlns="http://www.w3.org/2000/svg">{padding}</svg>"#)
+        } else if cfg!(feature = "html-logo") {
+            r#"<html xmlns="http://www.w3.org/1999/xhtml"/>"#.to_owned()
+        } else if cfg!(feature = "doctype-logo") {
+            format!(
+                r#"<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">{}"#,
+                include_str!("../logo.svg")
+            )
+        } else if cfg!(feature = "logoless") {
+            String::new()
+        } else {
+            include_str!("../logo.svg").to_owned()
+        }
     }
 
     fn setting(key: &str, kind: SettingKind) -> SettingField {

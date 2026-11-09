@@ -1,0 +1,57 @@
+name: advisories
+
+# Checks main's dependencies against the RustSec advisory database and opens a `needs-triage`
+# issue per advisory and crate it finds. Daily, since a new advisory lands without any commit;
+# and on a push to main that changes the dependencies. A PR is checked in ci.yml, where it fails
+# only on an advisory it adds itself.
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  push:
+    branches: [main]
+    paths: [Cargo.lock, deny.toml, .github/scripts/advisories.sh, .github/workflows/advisories.yml]
+  workflow_dispatch:
+
+# Two runs at once could both find no issue and open the same one twice.
+concurrency:
+  group: advisories
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+
+env:
+  GH_TOKEN: ${{ github.token }}
+  GH_REPO: ${{ github.repository }}
+
+jobs:
+  advisories:
+    runs-on: [self-hosted, nama-rust]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny
+      - name: Open an issue per advisory
+        run: |
+          .github/scripts/advisories.sh > "$RUNNER_TEMP/found.jsonl"
+          # Every state: a closed issue means someone decided, and reopening it daily would be
+          # noise. To silence one for good, ignore it in deny.toml with a reason.
+          gh issue list --app github-actions --state all --limit 1000 --json title \
+            --jq '.[].title' > "$RUNNER_TEMP/titles.txt"
+          while read -r found; do
+            field() { jq -r ".$1 // empty" <<< "$found"; }
+            title="$(field id) in $(field package): $(field title)"
+            echo "$(field key): $title" >> "$GITHUB_STEP_SUMMARY"
+            if grep -qF "$(field id) in $(field package):" "$RUNNER_TEMP/titles.txt"; then
+              continue
+            fi
+            body="\`cargo deny check advisories\` on main reports $(field id) in \`$(field package)\` $(field version).
+
+          $(field url)
+
+          PRs aren't blocked by it: CI fails a PR only on an advisory it adds. Fix it by updating the crate (\`cargo deny check advisories\` names the fixed versions), or ignore it in \`deny.toml\` with a reason."
+            gh issue create --title "$title" --body "$body" --label needs-triage --label dependencies
+          done < "$RUNNER_TEMP/found.jsonl"

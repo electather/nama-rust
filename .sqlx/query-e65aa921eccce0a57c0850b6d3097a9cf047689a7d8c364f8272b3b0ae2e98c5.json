@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE requests\n         SET quality_id = ?1, quality_name = ?2, quality_profile_id = ?3,\n             quality_changed_by = ?4, quality_changed_from = quality_name, quality_changed_at = ?5\n         WHERE quality_id IS NOT ?1\n           AND (id = ?6\n                OR (tmdb_id = ?7 AND season IS NOT NULL AND state NOT IN ('declined', 'available')))",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 7
+    },
+    "nullable": []
+  },
+  "hash": "e65aa921eccce0a57c0850b6d3097a9cf047689a7d8c364f8272b3b0ae2e98c5"
+}

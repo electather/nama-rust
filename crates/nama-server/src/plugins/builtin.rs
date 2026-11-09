@@ -10,7 +10,7 @@ use tracing::{error, info};
 
 use nama_proto::nama::v1::PluginKind;
 
-use super::{Described, Registry, contain_sync, log_not_enabled};
+use super::{Described, Registry, contain_sync, kept_logo, log_not_enabled};
 use crate::config::PluginConfig;
 
 fn all() -> Vec<fn() -> Arc<dyn Plugin>> {
@@ -69,6 +69,7 @@ impl Registry {
                 settings_schema: manifest.settings,
                 checks_settings,
                 extension_points: manifest.extension_points,
+                logo_svg: manifest.logo_svg.and_then(|logo| kept_logo(&id, logo)),
             };
             registry.write(|state| state.known.insert(id.clone(), described));
             let config = config.get(id.as_str()).cloned().unwrap_or_default();

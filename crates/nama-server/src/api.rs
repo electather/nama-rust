@@ -64,15 +64,15 @@ use nama_proto::nama::v1::{
     LookUpSignInCodeResponse, MatchService, Permission, PluginConnection, PluginConnectionState,
     PluginKind, PluginService, PollSignInCodeRequest, PollSignInCodeResponse,
     ReauthenticateRequest, ReauthenticateResponse, Refusal, RefusalReason, ReportProgressRequest,
-    ReportProgressResponse, RequestService, ResetPasswordRequest, ResetPasswordResponse,
-    RetryRequestRequest, RetryRequestResponse, RevokeDeviceRequest, RevokeDeviceResponse,
-    ScanLibraryRequest, ScanLibraryResponse, SearchMetadataRequest, SearchMetadataResponse,
-    SearchMoviesRequest, SearchMoviesResponse, SearchShowsRequest, SearchShowsResponse,
-    ServerService, ServerSettings, SessionDelivery, SetDefaultPermissionsRequest,
-    SetDefaultPermissionsResponse, SetMatchRequest, SetMatchResponse, SetPermissionsRequest,
-    SetPermissionsResponse, SetPlayedRequest, SetPlayedResponse, SetupRequest, SetupResponse,
-    SignInCodeStatus, SignInRequest, SignInResponse, SignInService, SignOutRequest,
-    SignOutResponse, StartPluginConnectionRequest, StartPluginConnectionResponse,
+    ReportProgressResponse, RequestService, RequestState, ResetPasswordRequest,
+    ResetPasswordResponse, RetryRequestRequest, RetryRequestResponse, RevokeDeviceRequest,
+    RevokeDeviceResponse, ScanLibraryRequest, ScanLibraryResponse, SearchMetadataRequest,
+    SearchMetadataResponse, SearchMoviesRequest, SearchMoviesResponse, SearchShowsRequest,
+    SearchShowsResponse, ServerService, ServerSettings, SessionDelivery,
+    SetDefaultPermissionsRequest, SetDefaultPermissionsResponse, SetMatchRequest, SetMatchResponse,
+    SetPermissionsRequest, SetPermissionsResponse, SetPlayedRequest, SetPlayedResponse,
+    SetupRequest, SetupResponse, SignInCodeStatus, SignInRequest, SignInResponse, SignInService,
+    SignOutRequest, SignOutResponse, StartPluginConnectionRequest, StartPluginConnectionResponse,
     StartSignInCodeRequest, StartSignInCodeResponse, SubscribeRequest, SubscribeResponse,
     TestPluginSettingsRequest, TestPluginSettingsResponse, UpdateLibraryRequest,
     UpdateLibraryResponse, UpdatePluginSettingsRequest, UpdatePluginSettingsResponse,
@@ -286,6 +286,8 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::REQUEST_SERVICE_SEARCH_MOVIES_SPEC.procedure,         REQUEST_MOVIE),
     (proto::REQUEST_SERVICE_LOOK_UP_MOVIE_SPEC.procedure,         REQUEST_MOVIE),
     (proto::REQUEST_SERVICE_LIST_MOVIE_QUALITIES_SPEC.procedure,  REQUEST_MOVIE),
+    (proto::REQUEST_SERVICE_LIST_DEFAULT_QUALITIES_SPEC.procedure, Access::SignedIn),
+    (proto::REQUEST_SERVICE_SET_DEFAULT_QUALITY_SPEC.procedure,   Access::SignedIn),
     (proto::REQUEST_SERVICE_SEARCH_SHOWS_SPEC.procedure,          REQUEST_TV),
     (proto::REQUEST_SERVICE_LIST_SHOW_QUALITIES_SPEC.procedure,   REQUEST_TV),
     (proto::REQUEST_SERVICE_LOOK_UP_SHOW_SPEC.procedure,          REQUEST_TV),
@@ -299,6 +301,7 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::REQUEST_SERVICE_DECLINE_FOLLOWED_SHOW_SPEC.procedure, MANAGE_REQUESTS),
     (proto::REQUEST_SERVICE_CANCEL_FOLLOWED_SHOW_SPEC.procedure,  MANAGE_REQUESTS),
     (proto::REQUEST_SERVICE_WITHDRAW_FOLLOWED_SHOW_SPEC.procedure, Access::SignedIn),
+    (proto::REQUEST_SERVICE_LIST_OFFERED_QUALITIES_SPEC.procedure, MANAGE_REQUESTS),
     (proto::PLUGIN_SERVICE_LIST_PLUGINS_SPEC.procedure,           MANAGE_SETTINGS),
     (proto::PLUGIN_SERVICE_GET_PLUGIN_SPEC.procedure,             MANAGE_SETTINGS),
     (proto::PLUGIN_SERVICE_UPDATE_PLUGIN_SETTINGS_SPEC.procedure, MANAGE_SETTINGS),
@@ -1529,16 +1532,23 @@ impl RequestService for RequestServiceHandler {
     async fn list_requests(
         &self,
         ctx: RequestContext,
-        _request: ServiceRequest<'_, ListRequestsRequest>,
+        request: ServiceRequest<'_, ListRequestsRequest>,
     ) -> ServiceResult<ListRequestsResponse> {
         let viewer = &caller(&ctx)?.user;
-        let (requests, followed_shows) =
-            self.requests.list(viewer).await.map_err(database_failed)?;
-        Response::ok(ListRequestsResponse {
-            requests,
-            followed_shows,
-            ..Default::default()
-        })
+        // Unspecified, or a state this Server doesn't know, lists every state.
+        let state = request
+            .state
+            .as_known()
+            .filter(|&state| state != RequestState::Unspecified);
+        let size = match request.page_size {
+            0 => 50,
+            size => size.min(100),
+        };
+        let page = self
+            .requests
+            .list(viewer, state, size as usize, request.page_token)
+            .await?;
+        Response::ok(page)
     }
 
     async fn get_request(
@@ -1590,34 +1600,64 @@ impl RequestService for RequestServiceHandler {
 
     async fn list_movie_qualities(
         &self,
-        _ctx: RequestContext,
+        ctx: RequestContext,
         _request: ServiceRequest<'_, proto::ListMovieQualitiesRequest>,
     ) -> ServiceResult<proto::ListMovieQualitiesResponse> {
-        let qualities = self
+        let (qualities, personal_default) = self
             .requests
-            .qualities::<Movies>()
+            .qualities::<Movies>(&caller(&ctx)?.user)
             .await
             .map_err(database_failed)?;
         Response::ok(proto::ListMovieQualitiesResponse {
             qualities,
+            personal_default,
+            ..Default::default()
+        })
+    }
+
+    async fn list_default_qualities(
+        &self,
+        ctx: RequestContext,
+        _request: ServiceRequest<'_, proto::ListDefaultQualitiesRequest>,
+    ) -> ServiceResult<proto::ListDefaultQualitiesResponse> {
+        let defaults = self
+            .requests
+            .personal_defaults(caller(&ctx)?.user.id)
+            .await
+            .map_err(database_failed)?;
+        Response::ok(proto::ListDefaultQualitiesResponse {
+            defaults,
             ..Default::default()
         })
     }
 
     async fn list_show_qualities(
         &self,
-        _ctx: RequestContext,
+        ctx: RequestContext,
         _request: ServiceRequest<'_, proto::ListShowQualitiesRequest>,
     ) -> ServiceResult<proto::ListShowQualitiesResponse> {
-        let qualities = self
+        let (qualities, personal_default) = self
             .requests
-            .qualities::<Shows>()
+            .qualities::<Shows>(&caller(&ctx)?.user)
             .await
             .map_err(database_failed)?;
         Response::ok(proto::ListShowQualitiesResponse {
             qualities,
+            personal_default,
             ..Default::default()
         })
+    }
+
+    async fn set_default_quality(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, proto::SetDefaultQualityRequest>,
+    ) -> ServiceResult<proto::SetDefaultQualityResponse> {
+        let plugin = PluginId::from(request.plugin_id.to_owned());
+        self.requests
+            .set_personal_default(caller(&ctx)?.user.id, plugin, request.quality)
+            .await?;
+        Response::ok(proto::SetDefaultQualityResponse::default())
     }
 
     async fn look_up_movie(
@@ -1667,10 +1707,14 @@ impl RequestService for RequestServiceHandler {
 
     async fn approve_request(
         &self,
-        _ctx: RequestContext,
+        ctx: RequestContext,
         request: ServiceRequest<'_, ApproveRequestRequest>,
     ) -> ServiceResult<ApproveRequestResponse> {
-        let approved = self.requests.approve(request.id, request.quality).await?;
+        let manager = &caller(&ctx)?.user;
+        let approved = self
+            .requests
+            .approve(manager, request.id, request.quality_id)
+            .await?;
         Response::ok(ApproveRequestResponse {
             request: approved.into(),
             ..Default::default()
@@ -1700,10 +1744,14 @@ impl RequestService for RequestServiceHandler {
 
     async fn retry_request(
         &self,
-        _ctx: RequestContext,
+        ctx: RequestContext,
         request: ServiceRequest<'_, RetryRequestRequest>,
     ) -> ServiceResult<RetryRequestResponse> {
-        let retried = self.requests.retry(request.id).await?;
+        let manager = &caller(&ctx)?.user;
+        let retried = self
+            .requests
+            .retry(manager, request.id, request.quality_id)
+            .await?;
         Response::ok(RetryRequestResponse {
             request: retried.into(),
             ..Default::default()
@@ -1730,6 +1778,19 @@ impl RequestService for RequestServiceHandler {
         Response::ok(CreateFollowedShowResponse {
             followed_show: followed_show.into(),
             requests,
+            ..Default::default()
+        })
+    }
+
+    async fn list_offered_qualities(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, proto::ListOfferedQualitiesRequest>,
+    ) -> ServiceResult<proto::ListOfferedQualitiesResponse> {
+        let kind = title_kind_from_proto(request.kind)?;
+        let qualities = self.requests.offered_qualities(kind).await?;
+        Response::ok(proto::ListOfferedQualitiesResponse {
+            qualities,
             ..Default::default()
         })
     }
@@ -2816,6 +2877,7 @@ fn plugin_summary_to_proto(
         kind: plugin.kind.into(),
         enabled: plugin.enabled,
         refused_reason: plugin.refused_reason.unwrap_or_default(),
+        logo_svg: plugin.logo_svg.unwrap_or_default(),
         ..Default::default()
     }
 }
@@ -2834,6 +2896,7 @@ fn plugin_to_proto(
         enabled: plugin.enabled,
         checks_settings: plugin.checks_settings,
         extension_points: extension_points_to_proto(&plugin.extension_points),
+        logo_svg: plugin.logo_svg.unwrap_or_default(),
         settings: plugin
             .settings_schema
             .fields
@@ -3012,7 +3075,8 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_NOT_A_URL
         | R::REFUSAL_REASON_QUALITY_REPEATED
         | R::REFUSAL_REASON_DEFAULT_QUALITY_REQUIRED
-        | R::REFUSAL_REASON_QUALITY_NOT_OFFERED => ErrorCode::InvalidArgument,
+        | R::REFUSAL_REASON_QUALITY_NOT_OFFERED
+        | R::REFUSAL_REASON_PAGE_TOKEN_INVALID => ErrorCode::InvalidArgument,
         R::REFUSAL_REASON_SIGN_IN_REQUIRED
         | R::REFUSAL_REASON_WRONG_NAME_OR_PASSWORD
         | R::REFUSAL_REASON_WRONG_PASSWORD
@@ -3209,6 +3273,11 @@ impl From<requests::Error> for ConnectError {
             requests::Error::NotFailed(id) => refuse(R::REFUSAL_REASON_REQUEST_NOT_FAILED, message)
                 .field("id")
                 .param("requestId", &id),
+            requests::Error::NewQualityNotOffered(id) => {
+                refuse(R::REFUSAL_REASON_QUALITY_NOT_OFFERED, message)
+                    .field("quality_id")
+                    .param("qualityId", &id)
+            }
             requests::Error::NotARequester(id) => {
                 refuse(R::REFUSAL_REASON_NOT_A_REQUESTER, message)
                     .field("id")
@@ -3251,14 +3320,19 @@ impl From<requests::Error> for ConnectError {
                     .param("seasonNumber", &season)
             }
             requests::Error::Unavailable => refuse(R::REFUSAL_REASON_NO_METADATA_PROVIDER, message),
-            // Every call that names a Quality names it in `quality`.
+            // Only `CreateRequest` names a Quality the caller may not choose, in `quality`.
             requests::Error::QualityNotAllowed => {
                 refuse(R::REFUSAL_REASON_QUALITY_NOT_ALLOWED, message).field("quality")
             }
+            // `CreateRequest`, `CreateSeasonRequests` and `SetDefaultQuality` all name it in
+            // `quality`.
             requests::Error::QualityNotOffered(id) | requests::Error::NotTheShowsQuality(id) => {
                 refuse(R::REFUSAL_REASON_QUALITY_NOT_OFFERED, message)
                     .field("quality")
                     .param("qualityId", &id)
+            }
+            requests::Error::PageTokenInvalid => {
+                refuse(R::REFUSAL_REASON_PAGE_TOKEN_INVALID, message).field("page_token")
             }
             requests::Error::Database(err) => return database_failed(err),
         };

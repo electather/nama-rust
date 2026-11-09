@@ -121,6 +121,7 @@ pub mod __buffa {
         reg.register_json_any(super::__SETTING_JSON_ANY);
         reg.register_json_any(super::__SETTING_VALUE_JSON_ANY);
         reg.register_json_any(super::__REQUEST_JSON_ANY);
+        reg.register_json_any(super::__QUALITY_CHANGE_JSON_ANY);
         reg.register_json_any(super::__REQUESTED_QUALITY_JSON_ANY);
         reg.register_json_any(super::__DOWNLOAD_JSON_ANY);
         reg.register_json_any(super::__FOLLOWED_SHOW_JSON_ANY);
@@ -139,6 +140,11 @@ pub mod __buffa {
         reg.register_json_any(super::__LIST_MOVIE_QUALITIES_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__LIST_SHOW_QUALITIES_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_SHOW_QUALITIES_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__LIST_DEFAULT_QUALITIES_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_DEFAULT_QUALITIES_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__DEFAULT_QUALITY_JSON_ANY);
+        reg.register_json_any(super::__SET_DEFAULT_QUALITY_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__SET_DEFAULT_QUALITY_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__GET_REQUEST_REQUEST_JSON_ANY);
         reg.register_json_any(super::__GET_REQUEST_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__COUNT_PENDING_REQUESTS_REQUEST_JSON_ANY);
@@ -161,6 +167,8 @@ pub mod __buffa {
         reg.register_json_any(super::__CANCEL_FOLLOWED_SHOW_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__WITHDRAW_FOLLOWED_SHOW_REQUEST_JSON_ANY);
         reg.register_json_any(super::__WITHDRAW_FOLLOWED_SHOW_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__LIST_OFFERED_QUALITIES_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_OFFERED_QUALITIES_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__FOUND_MOVIE_JSON_ANY);
         reg.register_json_any(super::__SEARCH_MOVIES_REQUEST_JSON_ANY);
         reg.register_json_any(super::__SEARCH_MOVIES_RESPONSE_JSON_ANY);
@@ -502,6 +510,10 @@ pub use self::__buffa::view::RequestView;
 #[doc(inline)]
 pub use self::__buffa::view::RequestOwnedView;
 #[doc(inline)]
+pub use self::__buffa::view::QualityChangeView;
+#[doc(inline)]
+pub use self::__buffa::view::QualityChangeOwnedView;
+#[doc(inline)]
 pub use self::__buffa::view::RequestedQualityView;
 #[doc(inline)]
 pub use self::__buffa::view::RequestedQualityOwnedView;
@@ -573,6 +585,26 @@ pub use self::__buffa::view::ListShowQualitiesRequestOwnedView;
 pub use self::__buffa::view::ListShowQualitiesResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::ListShowQualitiesResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListDefaultQualitiesRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListDefaultQualitiesRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListDefaultQualitiesResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListDefaultQualitiesResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::DefaultQualityView;
+#[doc(inline)]
+pub use self::__buffa::view::DefaultQualityOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetDefaultQualityRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::SetDefaultQualityRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetDefaultQualityResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::SetDefaultQualityResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::GetRequestRequestView;
 #[doc(inline)]
@@ -661,6 +693,14 @@ pub use self::__buffa::view::WithdrawFollowedShowRequestOwnedView;
 pub use self::__buffa::view::WithdrawFollowedShowResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::WithdrawFollowedShowResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListOfferedQualitiesRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListOfferedQualitiesRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListOfferedQualitiesResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListOfferedQualitiesResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::FoundMovieView;
 #[doc(inline)]

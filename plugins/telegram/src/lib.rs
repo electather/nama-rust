@@ -45,6 +45,7 @@ mod exports {
             ..SettingField::default()
         };
         Ok(Buffa(Manifest {
+            logo_svg: include_str!("../logo.svg").to_owned(),
             providers: vec![
                 ProvidePoint::PROVIDE_POINT_NOTIFIER.into(),
                 ProvidePoint::PROVIDE_POINT_CONNECTOR.into(),
@@ -302,7 +303,8 @@ fn what_happened(notification: &Notification) -> Option<String> {
                 .as_ref()
                 .or(request.decline_reason.as_ref());
             let reason = reason.map_or_else(String::new, |reason| format!(" Reason: {reason}"));
-            format!("{title} is now {}.{reason}", state(request)?)
+            let quality = approved_at(request);
+            format!("{title} is now {}{quality}.{reason}", state(request)?)
         }
         Event::RequestCancelled(_) => format!("The Request for {title} was cancelled."),
         Event::RequesterRemoved(removed) => format!(
@@ -346,6 +348,26 @@ fn title(request: &Request) -> String {
     }
 }
 
+/// What an Approved `request` is downloaded at, and who last changed that from what, such as
+/// ` at HD, changed from 4K by Sam`, or nothing if it has no Quality or isn't Approved.
+fn approved_at(request: &Request) -> String {
+    let Some(quality) = request.quality.as_option() else {
+        return String::new();
+    };
+    if request.state != RequestState::REQUEST_STATE_APPROVED {
+        return String::new();
+    }
+    let Some(change) = request.quality_change.as_option() else {
+        return format!(" at {}", quality.name);
+    };
+    let from = change
+        .previous_name
+        .as_ref()
+        .map_or_else(String::new, |previous| format!(" from {previous}"));
+    let by = change.changed_by.as_deref().unwrap_or("a Request manager");
+    format!(" at {}, changed{from} by {by}", quality.name)
+}
+
 /// The Glossary's name for `request`'s state.
 fn state(request: &Request) -> Option<&'static str> {
     Some(match request.state.as_known()? {
@@ -365,8 +387,9 @@ mod tests {
     use nama_pdk::{
         Notification,
         nama_proto::nama::v1::{
-            Event, Request, RequestCancelled, RequestProgress, RequestState, RequestStateChanged,
-            RequestedMovie, RequestedSeason, Requester, RequesterAdded, event,
+            Event, QualityChange, Request, RequestCancelled, RequestProgress, RequestState,
+            RequestStateChanged, RequestedMovie, RequestedQuality, RequestedSeason, Requester,
+            RequesterAdded, event,
         },
     };
 
@@ -422,6 +445,58 @@ mod tests {
         );
     }
 
+    /// Dune Approved at `name`.
+    fn dune_approved_at(name: &str) -> Request {
+        Request {
+            quality: RequestedQuality {
+                name: name.to_owned(),
+                ..RequestedQuality::default()
+            }
+            .into(),
+            ..dune(RequestState::REQUEST_STATE_APPROVED)
+        }
+    }
+
+    #[test]
+    fn an_approved_request_names_its_quality_and_who_changed_it_from_what() {
+        let changed = Request {
+            quality_change: QualityChange {
+                changed_by: Some("Sam".to_owned()),
+                previous_name: Some("4K".to_owned()),
+                ..QualityChange::default()
+            }
+            .into(),
+            ..dune_approved_at("HD")
+        };
+
+        let unchanged = notify(RequestStateChanged::default(), dune_approved_at("HD"));
+        let changed = notify(RequestStateChanged::default(), changed);
+
+        assert_eq!(
+            unchanged.as_deref(),
+            Some("Dune (2021) is now Approved at HD.")
+        );
+        assert_eq!(
+            changed.as_deref(),
+            Some("Dune (2021) is now Approved at HD, changed from 4K by Sam.")
+        );
+    }
+
+    #[test]
+    fn a_quality_changed_from_none_by_a_deleted_user_says_a_request_manager_changed_it() {
+        let request = Request {
+            quality_change: QualityChange::default().into(),
+            ..dune_approved_at("HD")
+        };
+
+        let posted = notify(RequestStateChanged::default(), request);
+
+        assert_eq!(
+            posted.as_deref(),
+            Some("Dune (2021) is now Approved at HD, changed by a Request manager.")
+        );
+    }
+
     #[test]
     fn a_season_is_named_by_its_show_and_number() {
         let request = Request {
@@ -465,7 +540,7 @@ mod tests {
             }
             .into(),
             request: dune(RequestState::REQUEST_STATE_PENDING).into(),
-            request_url: Some("https://nama.example.com/requests#request-7".to_owned()),
+            request_url: Some("https://nama.example.com/requests/7".to_owned()),
             ..Notification::default()
         };
 
@@ -475,7 +550,7 @@ mod tests {
             posted.as_deref(),
             Some(
                 "Dune (2021) is now Pending.\n\
-                 https://nama.example.com/requests#request-7"
+                 https://nama.example.com/requests/7"
             )
         );
     }

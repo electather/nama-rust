@@ -26,6 +26,7 @@ impl Plugin for LogEvents {
             version: env!("CARGO_PKG_VERSION").to_owned(),
             settings: SettingsSchema::default(),
             extension_points: vec![PointKey::observe::<ServerStarted>()],
+            logo_svg: Some(include_str!("../logo.svg").to_owned()),
         }
     }
 

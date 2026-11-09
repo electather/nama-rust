@@ -1,0 +1,35 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT COALESCE(quality_used_id, quality_id) AS \"id!: i64\",\n                  COALESCE(quality_used_name, quality_name) AS \"name!: String\",\n                  COALESCE(quality_used_profile_id, quality_profile_id) AS \"profile_id!: String\"\n           FROM requests\n           WHERE tmdb_id = ? AND season IS NOT NULL AND quality_id IS NOT NULL\n             AND (state NOT IN ('declined', 'available') OR fulfiller_reference IS NOT NULL)\n           ORDER BY fulfiller_reference IS NULL, created_at, id\n           LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!: i64",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      },
+      {
+        "name": "name!: String",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "name": "profile_id!: String",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "ab1f8d321602f222661ae3e9b0547ec3ce9fe77b2231e0a511ccca1d020f3c70"
+}

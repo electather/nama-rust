@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO default_qualities (user_id, plugin_id, quality_id)\n                 SELECT ?1, ?2, id FROM qualities WHERE plugin_id = ?2 AND id = ?3\n                 ON CONFLICT (user_id, plugin_id) DO UPDATE SET quality_id = excluded.quality_id",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "099ea1503f31900fe5f9d8723ee84f58729734bba0b6555aec38e3f9989eb607"
+}

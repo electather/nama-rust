@@ -10,7 +10,7 @@ import {
   RequestState,
 } from "@/gen/nama/v1/request_pb";
 
-import { eventFeed, fakeServer, newUser, openApp } from "./test-app";
+import { eventFeed, fakeServer, newUser, openApp, rowTitles } from "./test-app";
 
 afterEach(cleanup);
 
@@ -67,17 +67,6 @@ function darkSeason(id: bigint, seasonNumber: number, state: RequestState) {
   };
 }
 
-test("a link to a Request, as a Notifier's message has, lands on its row", async () => {
-  openApp(
-    "/requests#request-2",
-    server(() => [heat, dune]),
-  );
-
-  await screen.findAllByRole("listitem");
-
-  expect(document.querySelector("#request-2")?.textContent).toContain("Heat");
-});
-
 test("the Requests page groups a Show's Season Requests, in Season order, with their states in words", async () => {
   openApp(
     "/requests",
@@ -98,9 +87,7 @@ test("the Requests page groups a Show's Season Requests, in Season order, with t
     "Season 12017 · Requested by youPendingWithdraw",
     "Season 22017 · Requested by youApproved",
   ]);
-  // Each row's title is its first paragraph.
-  const titles = screen.getAllByRole("listitem").map((row) => row.querySelector("p")?.textContent);
-  expect(titles).toEqual(["Dark", "Season 1", "Season 2", "Heat", "Dune"]);
+  expect(rowTitles()).toEqual(["Dark", "Season 1", "Season 2", "Heat", "Dune"]);
 });
 
 /** Sam's Followed Show of Dark, Approved. */

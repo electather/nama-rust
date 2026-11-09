@@ -24,6 +24,7 @@ export function useQualityPicker(opening: boolean, kind: "movie" | "show") {
   const [openings, setOpenings] = useState(0);
   const qualities = toPick(mayChoose, listed.data?.qualities);
   const picks = qualities.length > 0;
+  const personalDefault = listed.data?.personalDefault;
   return {
     loading: listed.isLoading,
     hasPopup: picks && ("dialog" as const),
@@ -34,7 +35,7 @@ export function useQualityPicker(opening: boolean, kind: "movie" | "show") {
       }
       return picks;
     },
-    dialog: { ref, openings, qualities },
+    dialog: { ref, openings, qualities, personalDefault },
   };
 }
 
@@ -68,8 +69,9 @@ function useMayChooseQuality(opening: boolean) {
 }
 
 /**
- * A dialog that asks which of `qualities` to Request `title` at, then hands its id to `onPick`,
- * which rejects if the Server refuses. Nothing while there are no `qualities`. Open it with
+ * A dialog that asks which of `qualities` to Request `title` at, starting at the User's
+ * `personalDefault` if they have one, else the default, then hands its id to `onPick`, which
+ * rejects if the Server refuses. Nothing while there are no `qualities`. Open it with
  * `showModal()` on `ref`, bumping `openings` first.
  */
 export function QualityPicker({
@@ -77,6 +79,7 @@ export function QualityPicker({
   openings,
   title,
   qualities,
+  personalDefault,
   onPick,
   refusal,
 }: {
@@ -84,6 +87,7 @@ export function QualityPicker({
   openings: number;
   title: string;
   qualities: Quality[];
+  personalDefault: bigint | undefined;
   onPick: (quality: bigint) => Promise<unknown>;
   refusal: (error: unknown) => string | undefined;
 }) {
@@ -103,7 +107,13 @@ export function QualityPicker({
         <legend className="sr-only">Quality</legend>
         <ul className="flex flex-col">
           {qualities.map((quality) => (
-            <QualityChoice key={String(quality.id)} quality={quality} />
+            <QualityChoice
+              key={String(quality.id)}
+              quality={quality}
+              picked={
+                personalDefault === undefined ? quality.isDefault : quality.id === personalDefault
+              }
+            />
           ))}
         </ul>
       </fieldset>
@@ -111,8 +121,8 @@ export function QualityPicker({
   );
 }
 
-/** One Quality as a radio button with its description, picked to start with and marked if it's the default. */
-function QualityChoice({ quality }: { quality: Quality }) {
+/** One Quality as a radio button with its description, marked if it's the default. */
+function QualityChoice({ quality, picked }: { quality: Quality; picked: boolean }) {
   const descriptionId = useId();
   const described = quality.description !== "";
   return (
@@ -122,7 +132,7 @@ function QualityChoice({ quality }: { quality: Quality }) {
           type="radio"
           name="quality"
           value={String(quality.id)}
-          defaultChecked={quality.isDefault}
+          defaultChecked={picked}
           aria-describedby={described ? descriptionId : undefined}
           className="size-4 accent-foreground"
         />

@@ -150,13 +150,16 @@ pub enum RefusalReason {
     REFUSAL_REASON_QUALITY_REPEATED = 54i32,
     /// `invalid_argument`: a Fulfiller's Qualities don't mark exactly one as the default.
     REFUSAL_REASON_DEFAULT_QUALITY_REQUIRED = 55i32,
-    /// `invalid_argument`: the Quality named isn't on the Fulfiller's list, or the Fulfiller has no
-    /// list, or none is enabled, or it isn't the Show's Quality, which its Season Requests all take.
-    /// `field` is `quality`. Params: `qualityId`.
+    /// `invalid_argument`: the Quality named isn't on the list of the Fulfiller the Request goes to,
+    /// that Fulfiller has none or none is enabled, or it isn't the Show's Quality, which its Season
+    /// Requests all take. `field` is `quality` or `quality_id`. Params: `qualityId`.
     REFUSAL_REASON_QUALITY_NOT_OFFERED = 56i32,
     /// `permission_denied`: the caller named a Quality, even the default, without
     /// `PERMISSION_CHOOSE_QUALITY`. `field` is `quality`.
     REFUSAL_REASON_QUALITY_NOT_ALLOWED = 57i32,
+    /// `invalid_argument`: the page token isn't one the Server handed out for the same request, such
+    /// as one listing Requests in another state. `field` is `page_token`.
+    REFUSAL_REASON_PAGE_TOKEN_INVALID = 58i32,
 }
 impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -333,6 +336,9 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_QUALITY_NOT_ALLOWED`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const QualityNotAllowed: Self = Self::REFUSAL_REASON_QUALITY_NOT_ALLOWED;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_PAGE_TOKEN_INVALID`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const PageTokenInvalid: Self = Self::REFUSAL_REASON_PAGE_TOKEN_INVALID;
 }
 impl ::core::default::Default for RefusalReason {
     fn default() -> Self {
@@ -552,6 +558,9 @@ impl ::buffa::Enumeration for RefusalReason {
             57i32 => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_QUALITY_NOT_ALLOWED)
             }
+            58i32 => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_PAGE_TOKEN_INVALID)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -669,6 +678,9 @@ impl ::buffa::Enumeration for RefusalReason {
             }
             Self::REFUSAL_REASON_QUALITY_NOT_ALLOWED => {
                 "REFUSAL_REASON_QUALITY_NOT_ALLOWED"
+            }
+            Self::REFUSAL_REASON_PAGE_TOKEN_INVALID => {
+                "REFUSAL_REASON_PAGE_TOKEN_INVALID"
             }
         }
     }
@@ -862,6 +874,9 @@ impl ::buffa::Enumeration for RefusalReason {
             "REFUSAL_REASON_QUALITY_NOT_ALLOWED" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_QUALITY_NOT_ALLOWED)
             }
+            "REFUSAL_REASON_PAGE_TOKEN_INVALID" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_PAGE_TOKEN_INVALID)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -925,6 +940,7 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_DEFAULT_QUALITY_REQUIRED,
             Self::REFUSAL_REASON_QUALITY_NOT_OFFERED,
             Self::REFUSAL_REASON_QUALITY_NOT_ALLOWED,
+            Self::REFUSAL_REASON_PAGE_TOKEN_INVALID,
         ]
     }
 }
