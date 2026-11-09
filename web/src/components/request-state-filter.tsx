@@ -1,0 +1,76 @@
+import { ChevronDown } from "lucide-react";
+
+import { RequestProgress, RequestStateLabel, requestStateName } from "@/components/request-state";
+// Re-exported so the Requests page, which shows them, stays within the lint's limit on imports.
+export { RequestProgress, RequestStateLabel };
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { RequestState } from "@/gen/nama/v1/request_pb";
+
+/** The Requests page's `state` search parameter values, in the order the filter offers them. */
+const stateFilters = {
+  all: RequestState.UNSPECIFIED,
+  pending: RequestState.PENDING,
+  approved: RequestState.APPROVED,
+  processing: RequestState.PROCESSING,
+  failed: RequestState.FAILED,
+  "partially-available": RequestState.PARTIALLY_AVAILABLE,
+  available: RequestState.AVAILABLE,
+  declined: RequestState.DECLINED,
+};
+
+/** A state to list Requests and Followed Shows in, as the Requests page's URL names it. */
+export type StateFilter = keyof typeof stateFilters;
+
+/** Whether `value` names a state filter, so an unknown one in a URL counts as none. */
+export function isStateFilter(value: unknown): value is StateFilter {
+  return typeof value === "string" && Object.hasOwn(stateFilters, value);
+}
+
+// Every key passes: the filter only narrows `Object.keys`'s `string[]` to the filters' type.
+const filterOrder = Object.keys(stateFilters).filter((key) => isStateFilter(key));
+
+/** `filter` in the Glossary's words. */
+export function filterName(filter: StateFilter) {
+  return filter === "all" ? "All" : requestStateName(stateFilters[filter]);
+}
+
+/** `ListRequests`'s input for `filter`, where no filter means All. */
+export function listedIn(filter: StateFilter | undefined) {
+  return { state: stateFilters[filter ?? "all"] };
+}
+
+/** A "State: …" button whose menu offers each state filter, `chosen` being the one shown. */
+export function StateFilterMenu({
+  chosen,
+  choose,
+}: {
+  chosen: StateFilter;
+  choose: (filter: StateFilter) => void;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger render={<Button variant="ghost" />}>
+        State: {filterName(chosen)}
+        <ChevronDown aria-hidden className="size-4" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start">
+        {filterOrder.map((filter) => (
+          <DropdownMenuItem
+            key={filter}
+            onClick={() => {
+              choose(filter);
+            }}
+          >
+            {filterName(filter)}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}

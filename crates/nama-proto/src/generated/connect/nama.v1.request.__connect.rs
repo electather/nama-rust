@@ -6,6 +6,14 @@ pub type OwnedCreateRequestRequestView = ::buffa::view::OwnedView<
 pub type OwnedCreateRequestResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::CreateRequestResponseView<'static>,
 >;
+///Shorthand for `OwnedView<ListMovieQualitiesRequestView<'static>>`.
+pub type OwnedListMovieQualitiesRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ListMovieQualitiesRequestView<'static>,
+>;
+///Shorthand for `OwnedView<ListMovieQualitiesResponseView<'static>>`.
+pub type OwnedListMovieQualitiesResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ListMovieQualitiesResponseView<'static>,
+>;
 ///Shorthand for `OwnedView<CreateSeasonRequestsRequestView<'static>>`.
 pub type OwnedCreateSeasonRequestsRequestView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::CreateSeasonRequestsRequestView<'static>,
@@ -37,6 +45,14 @@ pub type OwnedGetRequestRequestView = ::buffa::view::OwnedView<
 ///Shorthand for `OwnedView<GetRequestResponseView<'static>>`.
 pub type OwnedGetRequestResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::GetRequestResponseView<'static>,
+>;
+///Shorthand for `OwnedView<CountPendingRequestsRequestView<'static>>`.
+pub type OwnedCountPendingRequestsRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::CountPendingRequestsRequestView<'static>,
+>;
+///Shorthand for `OwnedView<CountPendingRequestsResponseView<'static>>`.
+pub type OwnedCountPendingRequestsResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::CountPendingRequestsResponseView<'static>,
 >;
 ///Shorthand for `OwnedView<SearchMoviesRequestView<'static>>`.
 pub type OwnedSearchMoviesRequestView = ::buffa::view::OwnedView<
@@ -142,6 +158,14 @@ pub type OwnedWithdrawFollowedShowRequestView = ::buffa::view::OwnedView<
 pub type OwnedWithdrawFollowedShowResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::WithdrawFollowedShowResponseView<'static>,
 >;
+///Shorthand for `OwnedView<ListOfferedQualitiesRequestView<'static>>`.
+pub type OwnedListOfferedQualitiesRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ListOfferedQualitiesRequestView<'static>,
+>;
+///Shorthand for `OwnedView<ListOfferedQualitiesResponseView<'static>>`.
+pub type OwnedListOfferedQualitiesResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ListOfferedQualitiesResponseView<'static>,
+>;
 impl ::connectrpc::Encodable<crate::messages::nama::v1::CreateRequestResponse>
 for crate::messages::nama::v1::__buffa::view::CreateRequestResponseView<'_> {
     fn encode(
@@ -154,6 +178,40 @@ for crate::messages::nama::v1::__buffa::view::CreateRequestResponseView<'_> {
 impl ::connectrpc::Encodable<crate::messages::nama::v1::CreateRequestResponse>
 for ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::CreateRequestResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::ListMovieQualitiesResponse>
+for crate::messages::nama::v1::__buffa::view::ListMovieQualitiesResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::ListMovieQualitiesResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ListMovieQualitiesResponseView<'static>,
 > {
     fn encode(
         &self,
@@ -290,6 +348,40 @@ for crate::messages::nama::v1::__buffa::view::GetRequestResponseView<'_> {
 impl ::connectrpc::Encodable<crate::messages::nama::v1::GetRequestResponse>
 for ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::GetRequestResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::CountPendingRequestsResponse>
+for crate::messages::nama::v1::__buffa::view::CountPendingRequestsResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::CountPendingRequestsResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::CountPendingRequestsResponseView<'static>,
 > {
     fn encode(
         &self,
@@ -754,6 +846,40 @@ for ::buffa::view::OwnedView<
         )
     }
 }
+impl ::connectrpc::Encodable<crate::messages::nama::v1::ListOfferedQualitiesResponse>
+for crate::messages::nama::v1::__buffa::view::ListOfferedQualitiesResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::ListOfferedQualitiesResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ListOfferedQualitiesResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
 /// Full service name for this service.
 pub const REQUEST_SERVICE_SERVICE_NAME: &str = "nama.v1.RequestService";
 /// Static [`Spec`](::connectrpc::Spec) for the `CreateRequest` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
@@ -762,6 +888,12 @@ pub const REQUEST_SERVICE_CREATE_REQUEST_SPEC: ::connectrpc::Spec = ::connectrpc
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
+/// Static [`Spec`](::connectrpc::Spec) for the `ListMovieQualities` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const REQUEST_SERVICE_LIST_MOVIE_QUALITIES_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.RequestService/ListMovieQualities",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
 /// Static [`Spec`](::connectrpc::Spec) for the `CreateSeasonRequests` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
 pub const REQUEST_SERVICE_CREATE_SEASON_REQUESTS_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
         "/nama.v1.RequestService/CreateSeasonRequests",
@@ -783,6 +915,12 @@ pub const REQUEST_SERVICE_LIST_REQUESTS_SPEC: ::connectrpc::Spec = ::connectrpc:
 /// Static [`Spec`](::connectrpc::Spec) for the `GetRequest` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
 pub const REQUEST_SERVICE_GET_REQUEST_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
         "/nama.v1.RequestService/GetRequest",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
+/// Static [`Spec`](::connectrpc::Spec) for the `CountPendingRequests` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const REQUEST_SERVICE_COUNT_PENDING_REQUESTS_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.RequestService/CountPendingRequests",
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
@@ -864,6 +1002,12 @@ pub const REQUEST_SERVICE_WITHDRAW_FOLLOWED_SHOW_SPEC: ::connectrpc::Spec = ::co
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
+/// Static [`Spec`](::connectrpc::Spec) for the `ListOfferedQualities` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const REQUEST_SERVICE_LIST_OFFERED_QUALITIES_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.RequestService/ListOfferedQualities",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
 /// Users asking for Movies, and Seasons of Shows, that aren't on the Server to be added to it
 /// (ADR 0012). Without `PERMISSION_VIEW_REQUESTS`, a User sees only the Requests they are a
 /// Requester of, here and in `EventService`.
@@ -922,7 +1066,10 @@ pub trait RequestService: Send + Sync + 'static {
     /// Approved if the caller has `PERMISSION_AUTO_APPROVE_MOVIE`, else Pending. Needs
     /// `PERMISSION_REQUEST_MOVIE`. Fails with `failed_precondition` if a Library already has the
     /// Movie, `invalid_argument` if the metadata source has no Movie with the id, and `unavailable`
-    /// if no metadata Provider is enabled, or it failed.
+    /// if no metadata Provider is enabled, or it failed. A new Request takes the Quality named in
+    /// `quality`, else the Movie Fulfiller's default; joining one keeps its Quality. Naming a Quality
+    /// without `PERMISSION_CHOOSE_QUALITY` is refused with `REFUSAL_REASON_QUALITY_NOT_ALLOWED`, and
+    /// one not on the Movie Fulfiller's list with `REFUSAL_REASON_QUALITY_NOT_OFFERED`.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
@@ -942,6 +1089,31 @@ pub trait RequestService: Send + Sync + 'static {
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
                 crate::messages::nama::v1::CreateRequestResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Returns the enabled Movie Fulfiller's Qualities, in the order an admin listed them, to pick
+    /// one for `CreateRequest`. Empty if no Movie Fulfiller is enabled or it has none. Needs
+    /// `PERMISSION_REQUEST_MOVIE`.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn list_movie_qualities<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::ListMovieQualitiesRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::ListMovieQualitiesResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -1003,7 +1175,9 @@ pub trait RequestService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
-    /// Lists the Requests and Followed Shows the caller may see, newest first.
+    /// Lists the Requests and Followed Shows the caller may see, newest first: only those in `state`
+    /// if one is given. Each is filtered on its own, so a Season Request can be listed without its
+    /// Followed Show.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
@@ -1047,6 +1221,31 @@ pub trait RequestService: Send + Sync + 'static {
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
                 crate::messages::nama::v1::GetRequestResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Counts the Requests and Followed Shows the caller may see that are Pending, for the Requests
+    /// link: as many rows as `ListRequests` lists Pending, so a Pending Followed Show and each of its
+    /// Pending Season Requests count once each. Needs `PERMISSION_MANAGE_REQUESTS`.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn count_pending_requests<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::CountPendingRequestsRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::CountPendingRequestsResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -1152,9 +1351,11 @@ pub trait RequestService: Send + Sync + 'static {
     > + Send;
     /// Approves a Pending Request and hands a Movie Request to the Movie Fulfiller, if one is enabled:
     /// Processing once it takes it, or Failed if it doesn't. Either way it then waits for what it asks
-    /// for to be Matched in a Library. Needs `PERMISSION_MANAGE_REQUESTS`, which manages every User's
-    /// Requests. Fails with `not_found` if there is no Request with the ID, and `failed_precondition`
-    /// if it isn't Pending.
+    /// for to be Matched in a Library. Given a `quality_id`, it first changes the Request's Quality to
+    /// that one, keeping the change in `Request.quality_change`. Needs `PERMISSION_MANAGE_REQUESTS`,
+    /// which manages every User's Requests. Fails with `not_found` if there is no Request with the ID,
+    /// `failed_precondition` if it isn't Pending, and `invalid_argument` if the Quality isn't offered
+    /// for it (`REFUSAL_REASON_QUALITY_NOT_OFFERED`).
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
@@ -1225,9 +1426,10 @@ pub trait RequestService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
-    /// Moves a Failed Request back to Approved and hands it to its Fulfiller again, as
-    /// `ApproveRequest` does. Needs `PERMISSION_MANAGE_REQUESTS`. Fails with `not_found` if there is no
-    /// Request with the ID, and `failed_precondition` if it isn't Failed.
+    /// Moves a Failed Request back to Approved and hands it to its Fulfiller again, changing its
+    /// Quality first as `ApproveRequest` does. Needs `PERMISSION_MANAGE_REQUESTS`. Fails with
+    /// `not_found` if there is no Request with the ID, `failed_precondition` if it isn't Failed, and
+    /// `invalid_argument` if the Quality isn't offered for it.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
@@ -1375,6 +1577,31 @@ pub trait RequestService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
+    /// Returns the Qualities the enabled Fulfiller for a kind of title offers, for a Request manager to
+    /// pick from when approving or retrying a Request. Empty if no such Fulfiller is enabled or it
+    /// offers none. Needs `PERMISSION_MANAGE_REQUESTS`.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn list_offered_qualities<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::ListOfferedQualitiesRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::ListOfferedQualitiesResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
 }
 /// Extension trait for registering a service implementation with a Router.
 ///
@@ -1436,6 +1663,35 @@ impl<S: RequestService> RequestServiceExt for S {
                 },
             )
             .with_spec(REQUEST_SERVICE_CREATE_REQUEST_SPEC)
+            .route_view_idempotent(
+                REQUEST_SERVICE_SERVICE_NAME,
+                "ListMovieQualities",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::ListMovieQualitiesRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::ListMovieQualitiesRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.list_movie_qualities(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::ListMovieQualitiesResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(REQUEST_SERVICE_LIST_MOVIE_QUALITIES_SPEC)
             .route_view(
                 REQUEST_SERVICE_SERVICE_NAME,
                 "CreateSeasonRequests",
@@ -1552,6 +1808,35 @@ impl<S: RequestService> RequestServiceExt for S {
                 },
             )
             .with_spec(REQUEST_SERVICE_GET_REQUEST_SPEC)
+            .route_view_idempotent(
+                REQUEST_SERVICE_SERVICE_NAME,
+                "CountPendingRequests",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::CountPendingRequestsRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::CountPendingRequestsRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.count_pending_requests(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::CountPendingRequestsResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(REQUEST_SERVICE_COUNT_PENDING_REQUESTS_SPEC)
             .route_view_idempotent(
                 REQUEST_SERVICE_SERVICE_NAME,
                 "SearchMovies",
@@ -1929,6 +2214,35 @@ impl<S: RequestService> RequestServiceExt for S {
                 },
             )
             .with_spec(REQUEST_SERVICE_WITHDRAW_FOLLOWED_SHOW_SPEC)
+            .route_view_idempotent(
+                REQUEST_SERVICE_SERVICE_NAME,
+                "ListOfferedQualities",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::ListOfferedQualitiesRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::ListOfferedQualitiesRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.list_offered_qualities(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::ListOfferedQualitiesResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(REQUEST_SERVICE_LIST_OFFERED_QUALITIES_SPEC)
     }
 }
 /// Type-inference marker used by [`Router::add_service`](::connectrpc::Router::add_service).
@@ -1989,6 +2303,12 @@ impl<T: RequestService> ::connectrpc::Dispatcher for RequestServiceServer<T> {
                         .with_spec(REQUEST_SERVICE_CREATE_REQUEST_SPEC),
                 )
             }
+            "ListMovieQualities" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
+                        .with_spec(REQUEST_SERVICE_LIST_MOVIE_QUALITIES_SPEC),
+                )
+            }
             "CreateSeasonRequests" => {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
@@ -2011,6 +2331,12 @@ impl<T: RequestService> ::connectrpc::Dispatcher for RequestServiceServer<T> {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
                         .with_spec(REQUEST_SERVICE_GET_REQUEST_SPEC),
+                )
+            }
+            "CountPendingRequests" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
+                        .with_spec(REQUEST_SERVICE_COUNT_PENDING_REQUESTS_SPEC),
                 )
             }
             "SearchMovies" => {
@@ -2091,6 +2417,12 @@ impl<T: RequestService> ::connectrpc::Dispatcher for RequestServiceServer<T> {
                         .with_spec(REQUEST_SERVICE_WITHDRAW_FOLLOWED_SHOW_SPEC),
                 )
             }
+            "ListOfferedQualities" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
+                        .with_spec(REQUEST_SERVICE_LIST_OFFERED_QUALITIES_SPEC),
+                )
+            }
             _ => None,
         }
     }
@@ -2125,6 +2457,28 @@ impl<T: RequestService> ::connectrpc::Dispatcher for RequestServiceServer<T> {
                         .await?
                         .encode::<
                             crate::messages::nama::v1::CreateRequestResponse,
+                        >(format)
+                })
+            }
+            "ListMovieQualities" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::ListMovieQualitiesRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::ListMovieQualitiesRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::ListMovieQualitiesRequest,
+                    >::from_parts(&req, &body);
+                    svc.list_movie_qualities(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::ListMovieQualitiesResponse,
                         >(format)
                 })
             }
@@ -2212,6 +2566,28 @@ impl<T: RequestService> ::connectrpc::Dispatcher for RequestServiceServer<T> {
                     svc.get_request(ctx, req)
                         .await?
                         .encode::<crate::messages::nama::v1::GetRequestResponse>(format)
+                })
+            }
+            "CountPendingRequests" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::CountPendingRequestsRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::CountPendingRequestsRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::CountPendingRequestsRequest,
+                    >::from_parts(&req, &body);
+                    svc.count_pending_requests(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::CountPendingRequestsResponse,
+                        >(format)
                 })
             }
             "SearchMovies" => {
@@ -2494,6 +2870,28 @@ impl<T: RequestService> ::connectrpc::Dispatcher for RequestServiceServer<T> {
                         >(format)
                 })
             }
+            "ListOfferedQualities" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::ListOfferedQualitiesRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::ListOfferedQualitiesRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::ListOfferedQualitiesRequest,
+                    >::from_parts(&req, &body);
+                    svc.list_offered_qualities(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::ListOfferedQualitiesResponse,
+                        >(format)
+                })
+            }
             _ => ::connectrpc::dispatcher::codegen::unimplemented_unary(path),
         }
     }
@@ -2661,6 +3059,51 @@ where
                 &self.transport,
                 &self.config,
                 REQUEST_SERVICE_CREATE_REQUEST_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the ListMovieQualities RPC. Sends a request to /nama.v1.RequestService/ListMovieQualities.
+    pub async fn list_movie_qualities(
+        &self,
+        request: crate::messages::nama::v1::ListMovieQualitiesRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::ListMovieQualitiesResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.list_movie_qualities_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the ListMovieQualities RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn list_movie_qualities_with_options(
+        &self,
+        request: crate::messages::nama::v1::ListMovieQualitiesRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::ListMovieQualitiesResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                REQUEST_SERVICE_LIST_MOVIE_QUALITIES_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,
@@ -2837,6 +3280,51 @@ where
                 &self.transport,
                 &self.config,
                 REQUEST_SERVICE_GET_REQUEST_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the CountPendingRequests RPC. Sends a request to /nama.v1.RequestService/CountPendingRequests.
+    pub async fn count_pending_requests(
+        &self,
+        request: crate::messages::nama::v1::CountPendingRequestsRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::CountPendingRequestsResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.count_pending_requests_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the CountPendingRequests RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn count_pending_requests_with_options(
+        &self,
+        request: crate::messages::nama::v1::CountPendingRequestsRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::CountPendingRequestsResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                REQUEST_SERVICE_COUNT_PENDING_REQUESTS_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,
@@ -3418,6 +3906,51 @@ where
                 &self.transport,
                 &self.config,
                 REQUEST_SERVICE_WITHDRAW_FOLLOWED_SHOW_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the ListOfferedQualities RPC. Sends a request to /nama.v1.RequestService/ListOfferedQualities.
+    pub async fn list_offered_qualities(
+        &self,
+        request: crate::messages::nama::v1::ListOfferedQualitiesRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::ListOfferedQualitiesResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.list_offered_qualities_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the ListOfferedQualities RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn list_offered_qualities_with_options(
+        &self,
+        request: crate::messages::nama::v1::ListOfferedQualitiesRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::ListOfferedQualitiesResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                REQUEST_SERVICE_LIST_OFFERED_QUALITIES_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,

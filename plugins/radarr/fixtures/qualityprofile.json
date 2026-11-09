@@ -16,5 +16,14 @@
     "cutoffFormatScore": 0,
     "language": { "id": 1, "name": "English" },
     "id": 4
+  },
+  {
+    "name": "Ultra-HD",
+    "upgradeAllowed": false,
+    "cutoff": 19,
+    "minFormatScore": 0,
+    "cutoffFormatScore": 0,
+    "language": { "id": 1, "name": "English" },
+    "id": 5
   }
 ]

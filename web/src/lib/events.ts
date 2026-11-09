@@ -53,6 +53,12 @@ const types = [
   EventType.REQUESTER_REMOVED,
   EventType.REQUEST_WITHDRAWN,
   EventType.REQUEST_PROGRESS,
+  EventType.FOLLOWED_SHOW_CREATED,
+  EventType.FOLLOWED_SHOW_REQUESTER_ADDED,
+  EventType.FOLLOWED_SHOW_STATE_CHANGED,
+  EventType.FOLLOWED_SHOW_CANCELLED,
+  EventType.FOLLOWED_SHOW_REQUESTER_REMOVED,
+  EventType.FOLLOWED_SHOW_WITHDRAWN,
 ];
 
 // How long to wait before subscribing again after the stream ends or fails.
@@ -174,11 +180,17 @@ const requestEvents = new Set<Event["event"]["case"]>([
   "requesterRemoved",
   "requestWithdrawn",
   "requestProgress",
+  "followedShowCreated",
+  "followedShowRequesterAdded",
+  "followedShowStateChanged",
+  "followedShowCancelled",
+  "followedShowRequesterRemoved",
+  "followedShowWithdrawn",
 ]);
 
 /**
- * Refetches the Requests when one opens, gains or loses a Requester, changes state, goes, or its
- * downloads move.
+ * Refetches the Requests when a Request or Followed Show opens, gains or loses a Requester, changes
+ * state or goes, or a Request's downloads move.
  */
 function refreshRequests({ event }: Event, queryClient: QueryClient) {
   if (requestEvents.has(event.case)) {

@@ -312,11 +312,14 @@ fn extension_points(manifest: &Manifest) -> Vec<PointKey> {
 
 // One impl for both kinds: the Plugin tells a Movie Request from a Season one by which it holds.
 impl<Kind: 'static> Fulfiller<Kind> for Running {
-    fn fulfill<'a>(&'a self, request: &'a Request) -> BoxFuture<'a, Result<String, PluginError>> {
+    fn fulfill<'a>(
+        &'a self,
+        request: &'a Request,
+    ) -> BoxFuture<'a, Result<Fulfilled, PluginError>> {
         let input = request.encode_to_vec();
         Box::pin(async move {
             let output = self.provide("fulfill", input).await?;
-            Ok(Fulfilled::decode_from_slice(&output)?.reference)
+            Ok(Fulfilled::decode_from_slice(&output)?)
         })
     }
 

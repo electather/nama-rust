@@ -10,6 +10,16 @@ pub struct FulfilledView<'a> {
     ///
     /// Field 1: `reference`
     pub reference: &'a str,
+    /// The service's quality profile the title is downloaded at, as `nama.v1.Quality.profile_id`:
+    /// the one asked for, or the service's own when it already had the title and kept it. Empty if
+    /// the Fulfiller doesn't say.
+    ///
+    /// Field 2: `profile_id`
+    pub profile_id: &'a str,
+    /// The service's name for that profile, such as Radarr's `HD-1080p`.
+    ///
+    /// Field 3: `profile_name`
+    pub profile_name: &'a str,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for FulfilledView<'a> {
@@ -49,6 +59,20 @@ impl<'a> ::buffa::MessageView<'a> for FulfilledView<'a> {
                 )?;
                 view.reference = ::buffa::types::borrow_str(&mut cur)?;
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.profile_id = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.profile_name = ::buffa::types::borrow_str(&mut cur)?;
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -72,6 +96,8 @@ impl<'a> ::buffa::MessageView<'a> for FulfilledView<'a> {
         let _ = __buffa_src;
         ::core::result::Result::Ok(super::super::Fulfilled {
             reference: self.reference.to_string(),
+            profile_id: self.profile_id.to_string(),
+            profile_name: self.profile_name.to_string(),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -86,6 +112,12 @@ impl<'a> ::buffa::ViewEncode<'a> for FulfilledView<'a> {
         if !self.reference.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.reference) as u64;
         }
+        if !self.profile_id.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.profile_id) as u64;
+        }
+        if !self.profile_name.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.profile_name) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -99,6 +131,12 @@ impl<'a> ::buffa::ViewEncode<'a> for FulfilledView<'a> {
         use ::buffa::Enumeration as _;
         if !self.reference.is_empty() {
             ::buffa::types::put_string_field(1u32, &self.reference, buf);
+        }
+        if !self.profile_id.is_empty() {
+            ::buffa::types::put_string_field(2u32, &self.profile_id, buf);
+        }
+        if !self.profile_name.is_empty() {
+            ::buffa::types::put_string_field(3u32, &self.profile_name, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -123,6 +161,12 @@ impl<'__a> ::serde::Serialize for FulfilledView<'__a> {
         let mut __map = __s.serialize_map(::core::option::Option::None)?;
         if !::buffa::json_helpers::skip_if::is_empty_str(self.reference) {
             __map.serialize_entry("reference", self.reference)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.profile_id) {
+            __map.serialize_entry("profileId", self.profile_id)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.profile_name) {
+            __map.serialize_entry("profileName", self.profile_name)?;
         }
         __map.end()
     }
@@ -221,6 +265,22 @@ impl FulfilledOwnedView {
     #[must_use]
     pub fn reference(&self) -> &'_ str {
         self.0.reborrow().reference
+    }
+    /// The service's quality profile the title is downloaded at, as `nama.v1.Quality.profile_id`:
+    /// the one asked for, or the service's own when it already had the title and kept it. Empty if
+    /// the Fulfiller doesn't say.
+    ///
+    /// Field 2: `profile_id`
+    #[must_use]
+    pub fn profile_id(&self) -> &'_ str {
+        self.0.reborrow().profile_id
+    }
+    /// The service's name for that profile, such as Radarr's `HD-1080p`.
+    ///
+    /// Field 3: `profile_name`
+    #[must_use]
+    pub fn profile_name(&self) -> &'_ str {
+        self.0.reborrow().profile_name
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<FulfilledView<'static>>>

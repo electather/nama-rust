@@ -1,7 +1,7 @@
 import { useSuspenseQuery } from "@connectrpc/connect-query";
 import { createFileRoute, notFound, redirect } from "@tanstack/react-router";
 
-import { FoundMovieState } from "@/components/request-state";
+import { FoundMovieState } from "@/components/found-movie-state";
 import { NotFound } from "@/components/route-error";
 import { TitlePage } from "@/components/title-page";
 import { RequestService } from "@/gen/nama/v1/request_pb";

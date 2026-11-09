@@ -4,8 +4,15 @@
 all-features = true
 
 [advisories]
-# Any RustSec advisory (vulnerable, unmaintained, yanked) fails the build.
+# Any RustSec advisory (vulnerable, unmaintained, yanked) fails a PR that adds it; one already on
+# main becomes an issue instead (.github/workflows/advisories.yml).
 yanked = "deny"
+ignore = [
+  # Bundled SQLite < 3.54 with a crafted db/-wal pair. sqlx 0.9 caps libsqlite3-sys below the
+  # fixed 0.39; drop this once sqlx allows it. The Server opens only its own data dir's files,
+  # and whoever can write those already owns the database.
+  { id = "RUSTSEC-2026-0459", reason = "sqlx 0.9 pins libsqlite3-sys < 0.38; Server opens only its own data dir" },
+]
 
 [licenses]
 # Permissive licenses, plus AGPL for this workspace's own crates. Add more only after checking them.
