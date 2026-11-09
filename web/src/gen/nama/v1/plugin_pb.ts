@@ -10,7 +10,7 @@ import type { Message, UnknownEnum } from "@bufbuild/protobuf";
  * Describes the file nama/v1/plugin.proto.
  */
 export const file_nama_v1_plugin: GenFile = /*@__PURE__*/
-  fileDesc("ChRuYW1hL3YxL3BsdWdpbi5wcm90bxIHbmFtYS52MSIUChJMaXN0UGx1Z2luc1JlcXVlc3QiTwoTTGlzdFBsdWdpbnNSZXNwb25zZRIpCglzdW1tYXJpZXMYAiADKAsyFi5uYW1hLnYxLlBsdWdpblN1bW1hcnlKBAgBEAJSB3BsdWdpbnMiHgoQR2V0UGx1Z2luUmVxdWVzdBIKCgJpZBgBIAEoCSI0ChFHZXRQbHVnaW5SZXNwb25zZRIfCgZwbHVnaW4YASABKAsyDy5uYW1hLnYxLlBsdWdpbiK3AQobVXBkYXRlUGx1Z2luU2V0dGluZ3NSZXF1ZXN0EgoKAmlkGAEgASgJEkQKCHNldHRpbmdzGAIgAygLMjIubmFtYS52MS5VcGRhdGVQbHVnaW5TZXR0aW5nc1JlcXVlc3QuU2V0dGluZ3NFbnRyeRpGCg1TZXR0aW5nc0VudHJ5EgsKA2tleRgBIAEoCRIkCgV2YWx1ZRgCIAEoCzIVLm5hbWEudjEuU2V0dGluZ1ZhbHVlOgI4ASI/ChxVcGRhdGVQbHVnaW5TZXR0aW5nc1Jlc3BvbnNlEh8KBnBsdWdpbhgBIAEoCzIPLm5hbWEudjEuUGx1Z2luIiEKE0VuYWJsZVBsdWdpblJlcXVlc3QSCgoCaWQYASABKAkiFgoURW5hYmxlUGx1Z2luUmVzcG9uc2UiswEKGVRlc3RQbHVnaW5TZXR0aW5nc1JlcXVlc3QSCgoCaWQYASABKAkSQgoIc2V0dGluZ3MYAiADKAsyMC5uYW1hLnYxLlRlc3RQbHVnaW5TZXR0aW5nc1JlcXVlc3QuU2V0dGluZ3NFbnRyeRpGCg1TZXR0aW5nc0VudHJ5EgsKA2tleRgBIAEoCRIkCgV2YWx1ZRgCIAEoCzIVLm5hbWEudjEuU2V0dGluZ1ZhbHVlOgI4ASKoAQoaVGVzdFBsdWdpblNldHRpbmdzUmVzcG9uc2USQQoHY2hvaWNlcxgBIAMoCzIwLm5hbWEudjEuVGVzdFBsdWdpblNldHRpbmdzUmVzcG9uc2UuQ2hvaWNlc0VudHJ5GkcKDENob2ljZXNFbnRyeRILCgNrZXkYASABKAkSJgoFdmFsdWUYAiABKAsyFy5uYW1hLnYxLlNldHRpbmdDaG9pY2VzOgI4ASIyCg5TZXR0aW5nQ2hvaWNlcxIgCgdjaG9pY2VzGAEgAygLMg8ubmFtYS52MS5DaG9pY2UiJgoGQ2hvaWNlEg0KBXZhbHVlGAEgASgJEg0KBWxhYmVsGAIgASgJIiIKFERpc2FibGVQbHVnaW5SZXF1ZXN0EgoKAmlkGAEgASgJIhcKFURpc2FibGVQbHVnaW5SZXNwb25zZSL6AQoNUGx1Z2luU3VtbWFyeRIKCgJpZBgBIAEoCRIPCgd2ZXJzaW9uGAIgASgJEiEKBGtpbmQYAyABKA4yEy5uYW1hLnYxLlBsdWdpbktpbmQSDwoHZW5hYmxlZBgEIAEoCBIWCg5yZWZ1c2VkX3JlYXNvbhgFIAEoCRIYChBzZXR0aW5nc19taXNzaW5nGAYgASgIEgwKBG5hbWUYByABKAkSEwoLZGVzY3JpcHRpb24YCCABKAkSMQoQZXh0ZW5zaW9uX3BvaW50cxgJIAMoDjIXLm5hbWEudjEuRXh0ZW5zaW9uUG9pbnQSEAoIbG9nb19zdmcYCiABKAkilgIKBlBsdWdpbhIKCgJpZBgBIAEoCRIPCgd2ZXJzaW9uGAIgASgJEiEKBGtpbmQYAyABKA4yEy5uYW1hLnYxLlBsdWdpbktpbmQSDwoHZW5hYmxlZBgEIAEoCBIiCghzZXR0aW5ncxgFIAMoCzIQLm5hbWEudjEuU2V0dGluZxIXCg9jaGVja3Nfc2V0dGluZ3MYBiABKAgSFgoOcmVmdXNlZF9yZWFzb24YByABKAkSDAoEbmFtZRgIIAEoCRITCgtkZXNjcmlwdGlvbhgJIAEoCRIxChBleHRlbnNpb25fcG9pbnRzGAogAygOMhcubmFtYS52MS5FeHRlbnNpb25Qb2ludBIQCghsb2dvX3N2ZxgLIAEoCSLYAQoHU2V0dGluZxILCgNrZXkYASABKAkSDQoFbGFiZWwYAiABKAkSEwoLZGVzY3JpcHRpb24YAyABKAkSIgoEa2luZBgEIAEoDjIULm5hbWEudjEuU2V0dGluZ0tpbmQSEAoIcmVxdWlyZWQYBSABKAgSLAoNZGVmYXVsdF92YWx1ZRgGIAEoCzIVLm5hbWEudjEuU2V0dGluZ1ZhbHVlEiQKBXZhbHVlGAcgASgLMhUubmFtYS52MS5TZXR0aW5nVmFsdWUSEgoKc2VjcmV0X3NldBgIIAEoCCJcCgxTZXR0aW5nVmFsdWUSFAoKdGV4dF92YWx1ZRgBIAEoCUgAEhQKCmJvb2xfdmFsdWUYAiABKAhIABIXCg1pbnRlZ2VyX3ZhbHVlGAMgASgDSABCBwoFdmFsdWUqXgoKUGx1Z2luS2luZBIbChdQTFVHSU5fS0lORF9VTlNQRUNJRklFRBAAEhgKFFBMVUdJTl9LSU5EX0JVSUxUX0lOEAESGQoVUExVR0lOX0tJTkRfSU5TVEFMTEVEEAIq0wIKDkV4dGVuc2lvblBvaW50Eh8KG0VYVEVOU0lPTl9QT0lOVF9VTlNQRUNJRklFRBAAEiMKH0VYVEVOU0lPTl9QT0lOVF9NT1ZJRV9GVUxGSUxMRVIQARIiCh5FWFRFTlNJT05fUE9JTlRfU0hPV19GVUxGSUxMRVIQAhIcChhFWFRFTlNJT05fUE9JTlRfTk9USUZJRVIQAxIdChlFWFRFTlNJT05fUE9JTlRfQ09OTkVDVE9SEAQSIQodRVhURU5TSU9OX1BPSU5UX0FVVEhFTlRJQ0FUT1IQBRIlCiFFWFRFTlNJT05fUE9JTlRfTUVUQURBVEFfUFJPVklERVIQBhIjCh9FWFRFTlNJT05fUE9JTlRfRVZFTlRTX09CU0VSVkVSEAcSKwonRVhURU5TSU9OX1BPSU5UX1NFUlZFUl9TVEFSVEVEX09CU0VSVkVSEAgquwEKC1NldHRpbmdLaW5kEhwKGFNFVFRJTkdfS0lORF9VTlNQRUNJRklFRBAAEhUKEVNFVFRJTkdfS0lORF9URVhUEAESFwoTU0VUVElOR19LSU5EX1NFQ1JFVBACEhUKEVNFVFRJTkdfS0lORF9CT09MEAMSGAoUU0VUVElOR19LSU5EX0lOVEVHRVIQBBIXChNTRVRUSU5HX0tJTkRfQ0hPSUNFEAUSFAoQU0VUVElOR19LSU5EX1VSTBAGMpkECg1QbHVnaW5TZXJ2aWNlEk0KC0xpc3RQbHVnaW5zEhsubmFtYS52MS5MaXN0UGx1Z2luc1JlcXVlc3QaHC5uYW1hLnYxLkxpc3RQbHVnaW5zUmVzcG9uc2UiA5ACARJHCglHZXRQbHVnaW4SGS5uYW1hLnYxLkdldFBsdWdpblJlcXVlc3QaGi5uYW1hLnYxLkdldFBsdWdpblJlc3BvbnNlIgOQAgESaAoUVXBkYXRlUGx1Z2luU2V0dGluZ3MSJC5uYW1hLnYxLlVwZGF0ZVBsdWdpblNldHRpbmdzUmVxdWVzdBolLm5hbWEudjEuVXBkYXRlUGx1Z2luU2V0dGluZ3NSZXNwb25zZSIDkAICElAKDEVuYWJsZVBsdWdpbhIcLm5hbWEudjEuRW5hYmxlUGx1Z2luUmVxdWVzdBodLm5hbWEudjEuRW5hYmxlUGx1Z2luUmVzcG9uc2UiA5ACAhJfChJUZXN0UGx1Z2luU2V0dGluZ3MSIi5uYW1hLnYxLlRlc3RQbHVnaW5TZXR0aW5nc1JlcXVlc3QaIy5uYW1hLnYxLlRlc3RQbHVnaW5TZXR0aW5nc1Jlc3BvbnNlIgASUwoNRGlzYWJsZVBsdWdpbhIdLm5hbWEudjEuRGlzYWJsZVBsdWdpblJlcXVlc3QaHi5uYW1hLnYxLkRpc2FibGVQbHVnaW5SZXNwb25zZSIDkAICYgZwcm90bzM");
+  fileDesc("ChRuYW1hL3YxL3BsdWdpbi5wcm90bxIHbmFtYS52MSIUChJMaXN0UGx1Z2luc1JlcXVlc3QiTwoTTGlzdFBsdWdpbnNSZXNwb25zZRIpCglzdW1tYXJpZXMYAiADKAsyFi5uYW1hLnYxLlBsdWdpblN1bW1hcnlKBAgBEAJSB3BsdWdpbnMiHgoQR2V0UGx1Z2luUmVxdWVzdBIKCgJpZBgBIAEoCSI0ChFHZXRQbHVnaW5SZXNwb25zZRIfCgZwbHVnaW4YASABKAsyDy5uYW1hLnYxLlBsdWdpbiK3AQobVXBkYXRlUGx1Z2luU2V0dGluZ3NSZXF1ZXN0EgoKAmlkGAEgASgJEkQKCHNldHRpbmdzGAIgAygLMjIubmFtYS52MS5VcGRhdGVQbHVnaW5TZXR0aW5nc1JlcXVlc3QuU2V0dGluZ3NFbnRyeRpGCg1TZXR0aW5nc0VudHJ5EgsKA2tleRgBIAEoCRIkCgV2YWx1ZRgCIAEoCzIVLm5hbWEudjEuU2V0dGluZ1ZhbHVlOgI4ASI/ChxVcGRhdGVQbHVnaW5TZXR0aW5nc1Jlc3BvbnNlEh8KBnBsdWdpbhgBIAEoCzIPLm5hbWEudjEuUGx1Z2luIiEKE0VuYWJsZVBsdWdpblJlcXVlc3QSCgoCaWQYASABKAkiFgoURW5hYmxlUGx1Z2luUmVzcG9uc2UiswEKGVRlc3RQbHVnaW5TZXR0aW5nc1JlcXVlc3QSCgoCaWQYASABKAkSQgoIc2V0dGluZ3MYAiADKAsyMC5uYW1hLnYxLlRlc3RQbHVnaW5TZXR0aW5nc1JlcXVlc3QuU2V0dGluZ3NFbnRyeRpGCg1TZXR0aW5nc0VudHJ5EgsKA2tleRgBIAEoCRIkCgV2YWx1ZRgCIAEoCzIVLm5hbWEudjEuU2V0dGluZ1ZhbHVlOgI4ASKoAQoaVGVzdFBsdWdpblNldHRpbmdzUmVzcG9uc2USQQoHY2hvaWNlcxgBIAMoCzIwLm5hbWEudjEuVGVzdFBsdWdpblNldHRpbmdzUmVzcG9uc2UuQ2hvaWNlc0VudHJ5GkcKDENob2ljZXNFbnRyeRILCgNrZXkYASABKAkSJgoFdmFsdWUYAiABKAsyFy5uYW1hLnYxLlNldHRpbmdDaG9pY2VzOgI4ASIyCg5TZXR0aW5nQ2hvaWNlcxIgCgdjaG9pY2VzGAEgAygLMg8ubmFtYS52MS5DaG9pY2UiJgoGQ2hvaWNlEg0KBXZhbHVlGAEgASgJEg0KBWxhYmVsGAIgASgJIiIKFERpc2FibGVQbHVnaW5SZXF1ZXN0EgoKAmlkGAEgASgJIhcKFURpc2FibGVQbHVnaW5SZXNwb25zZSJgCgdRdWFsaXR5EgoKAmlkGAEgASgDEhIKCnByb2ZpbGVfaWQYAiABKAkSDAoEbmFtZRgDIAEoCRITCgtkZXNjcmlwdGlvbhgEIAEoCRISCgppc19kZWZhdWx0GAUgASgIIiIKFExpc3RRdWFsaXRpZXNSZXF1ZXN0EgoKAmlkGAEgASgJIjwKFUxpc3RRdWFsaXRpZXNSZXNwb25zZRIjCglxdWFsaXRpZXMYASADKAsyEC5uYW1hLnYxLlF1YWxpdHkiSgoXUmVwbGFjZVF1YWxpdGllc1JlcXVlc3QSCgoCaWQYASABKAkSIwoJcXVhbGl0aWVzGAIgAygLMhAubmFtYS52MS5RdWFsaXR5Ij8KGFJlcGxhY2VRdWFsaXRpZXNSZXNwb25zZRIjCglxdWFsaXRpZXMYASADKAsyEC5uYW1hLnYxLlF1YWxpdHki+gEKDVBsdWdpblN1bW1hcnkSCgoCaWQYASABKAkSDwoHdmVyc2lvbhgCIAEoCRIhCgRraW5kGAMgASgOMhMubmFtYS52MS5QbHVnaW5LaW5kEg8KB2VuYWJsZWQYBCABKAgSFgoOcmVmdXNlZF9yZWFzb24YBSABKAkSGAoQc2V0dGluZ3NfbWlzc2luZxgGIAEoCBIMCgRuYW1lGAcgASgJEhMKC2Rlc2NyaXB0aW9uGAggASgJEjEKEGV4dGVuc2lvbl9wb2ludHMYCSADKA4yFy5uYW1hLnYxLkV4dGVuc2lvblBvaW50EhAKCGxvZ29fc3ZnGAogASgJIpYCCgZQbHVnaW4SCgoCaWQYASABKAkSDwoHdmVyc2lvbhgCIAEoCRIhCgRraW5kGAMgASgOMhMubmFtYS52MS5QbHVnaW5LaW5kEg8KB2VuYWJsZWQYBCABKAgSIgoIc2V0dGluZ3MYBSADKAsyEC5uYW1hLnYxLlNldHRpbmcSFwoPY2hlY2tzX3NldHRpbmdzGAYgASgIEhYKDnJlZnVzZWRfcmVhc29uGAcgASgJEgwKBG5hbWUYCCABKAkSEwoLZGVzY3JpcHRpb24YCSABKAkSMQoQZXh0ZW5zaW9uX3BvaW50cxgKIAMoDjIXLm5hbWEudjEuRXh0ZW5zaW9uUG9pbnQSEAoIbG9nb19zdmcYCyABKAki2AEKB1NldHRpbmcSCwoDa2V5GAEgASgJEg0KBWxhYmVsGAIgASgJEhMKC2Rlc2NyaXB0aW9uGAMgASgJEiIKBGtpbmQYBCABKA4yFC5uYW1hLnYxLlNldHRpbmdLaW5kEhAKCHJlcXVpcmVkGAUgASgIEiwKDWRlZmF1bHRfdmFsdWUYBiABKAsyFS5uYW1hLnYxLlNldHRpbmdWYWx1ZRIkCgV2YWx1ZRgHIAEoCzIVLm5hbWEudjEuU2V0dGluZ1ZhbHVlEhIKCnNlY3JldF9zZXQYCCABKAgiXAoMU2V0dGluZ1ZhbHVlEhQKCnRleHRfdmFsdWUYASABKAlIABIUCgpib29sX3ZhbHVlGAIgASgISAASFwoNaW50ZWdlcl92YWx1ZRgDIAEoA0gAQgcKBXZhbHVlKl4KClBsdWdpbktpbmQSGwoXUExVR0lOX0tJTkRfVU5TUEVDSUZJRUQQABIYChRQTFVHSU5fS0lORF9CVUlMVF9JThABEhkKFVBMVUdJTl9LSU5EX0lOU1RBTExFRBACKtMCCg5FeHRlbnNpb25Qb2ludBIfChtFWFRFTlNJT05fUE9JTlRfVU5TUEVDSUZJRUQQABIjCh9FWFRFTlNJT05fUE9JTlRfTU9WSUVfRlVMRklMTEVSEAESIgoeRVhURU5TSU9OX1BPSU5UX1NIT1dfRlVMRklMTEVSEAISHAoYRVhURU5TSU9OX1BPSU5UX05PVElGSUVSEAMSHQoZRVhURU5TSU9OX1BPSU5UX0NPTk5FQ1RPUhAEEiEKHUVYVEVOU0lPTl9QT0lOVF9BVVRIRU5USUNBVE9SEAUSJQohRVhURU5TSU9OX1BPSU5UX01FVEFEQVRBX1BST1ZJREVSEAYSIwofRVhURU5TSU9OX1BPSU5UX0VWRU5UU19PQlNFUlZFUhAHEisKJ0VYVEVOU0lPTl9QT0lOVF9TRVJWRVJfU1RBUlRFRF9PQlNFUlZFUhAIKrsBCgtTZXR0aW5nS2luZBIcChhTRVRUSU5HX0tJTkRfVU5TUEVDSUZJRUQQABIVChFTRVRUSU5HX0tJTkRfVEVYVBABEhcKE1NFVFRJTkdfS0lORF9TRUNSRVQQAhIVChFTRVRUSU5HX0tJTkRfQk9PTBADEhgKFFNFVFRJTkdfS0lORF9JTlRFR0VSEAQSFwoTU0VUVElOR19LSU5EX0NIT0lDRRAFEhQKEFNFVFRJTkdfS0lORF9VUkwQBjLMBQoNUGx1Z2luU2VydmljZRJNCgtMaXN0UGx1Z2lucxIbLm5hbWEudjEuTGlzdFBsdWdpbnNSZXF1ZXN0GhwubmFtYS52MS5MaXN0UGx1Z2luc1Jlc3BvbnNlIgOQAgESRwoJR2V0UGx1Z2luEhkubmFtYS52MS5HZXRQbHVnaW5SZXF1ZXN0GhoubmFtYS52MS5HZXRQbHVnaW5SZXNwb25zZSIDkAIBEmgKFFVwZGF0ZVBsdWdpblNldHRpbmdzEiQubmFtYS52MS5VcGRhdGVQbHVnaW5TZXR0aW5nc1JlcXVlc3QaJS5uYW1hLnYxLlVwZGF0ZVBsdWdpblNldHRpbmdzUmVzcG9uc2UiA5ACAhJQCgxFbmFibGVQbHVnaW4SHC5uYW1hLnYxLkVuYWJsZVBsdWdpblJlcXVlc3QaHS5uYW1hLnYxLkVuYWJsZVBsdWdpblJlc3BvbnNlIgOQAgISXwoSVGVzdFBsdWdpblNldHRpbmdzEiIubmFtYS52MS5UZXN0UGx1Z2luU2V0dGluZ3NSZXF1ZXN0GiMubmFtYS52MS5UZXN0UGx1Z2luU2V0dGluZ3NSZXNwb25zZSIAElMKDURpc2FibGVQbHVnaW4SHS5uYW1hLnYxLkRpc2FibGVQbHVnaW5SZXF1ZXN0Gh4ubmFtYS52MS5EaXNhYmxlUGx1Z2luUmVzcG9uc2UiA5ACAhJTCg1MaXN0UXVhbGl0aWVzEh0ubmFtYS52MS5MaXN0UXVhbGl0aWVzUmVxdWVzdBoeLm5hbWEudjEuTGlzdFF1YWxpdGllc1Jlc3BvbnNlIgOQAgESXAoQUmVwbGFjZVF1YWxpdGllcxIgLm5hbWEudjEuUmVwbGFjZVF1YWxpdGllc1JlcXVlc3QaIS5uYW1hLnYxLlJlcGxhY2VRdWFsaXRpZXNSZXNwb25zZSIDkAICYgZwcm90bzM");
 
 /**
  * @generated from message nama.v1.ListPluginsRequest
@@ -282,6 +282,139 @@ export const DisablePluginResponseSchema: GenMessage<DisablePluginResponse> = /*
   messageDesc(file_nama_v1_plugin, 13);
 
 /**
+ * One way a Fulfiller's service may download a title, as an admin offers it to Requesters: one of
+ * the service's quality profiles under a friendly name (ADR 0025).
+ *
+ * @generated from message nama.v1.Quality
+ */
+export type Quality = Message<"nama.v1.Quality"> & {
+  /**
+   * Its stable id. Zero for a new one in `ReplaceQualitiesRequest`, which gives it one.
+   *
+   * @generated from field: int64 id = 1;
+   */
+  id: bigint;
+
+  /**
+   * The service's quality profile, as a choice the Plugin's settings check offers for its
+   * `quality_profile` setting, such as Radarr's profile id.
+   *
+   * @generated from field: string profile_id = 2;
+   */
+  profileId: string;
+
+  /**
+   * What Requesters know it by, such as `HD`. Unique within the list, ignoring case.
+   *
+   * @generated from field: string name = 3;
+   */
+  name: string;
+
+  /**
+   * What choosing it means, such as `About 50 GB per film`. Empty for none.
+   *
+   * @generated from field: string description = 4;
+   */
+  description: string;
+
+  /**
+   * Whether a new Request gets it. Exactly one Quality in a list is the default.
+   *
+   * @generated from field: bool is_default = 5;
+   */
+  isDefault: boolean;
+};
+
+/**
+ * Describes the message nama.v1.Quality.
+ * Use `create(QualitySchema)` to create a new message.
+ */
+export const QualitySchema: GenMessage<Quality> = /*@__PURE__*/
+  messageDesc(file_nama_v1_plugin, 14);
+
+/**
+ * @generated from message nama.v1.ListQualitiesRequest
+ */
+export type ListQualitiesRequest = Message<"nama.v1.ListQualitiesRequest"> & {
+  /**
+   * The Fulfiller's Plugin id, such as `radarr`.
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+};
+
+/**
+ * Describes the message nama.v1.ListQualitiesRequest.
+ * Use `create(ListQualitiesRequestSchema)` to create a new message.
+ */
+export const ListQualitiesRequestSchema: GenMessage<ListQualitiesRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_plugin, 15);
+
+/**
+ * @generated from message nama.v1.ListQualitiesResponse
+ */
+export type ListQualitiesResponse = Message<"nama.v1.ListQualitiesResponse"> & {
+  /**
+   * @generated from field: repeated nama.v1.Quality qualities = 1;
+   */
+  qualities: Quality[];
+};
+
+/**
+ * Describes the message nama.v1.ListQualitiesResponse.
+ * Use `create(ListQualitiesResponseSchema)` to create a new message.
+ */
+export const ListQualitiesResponseSchema: GenMessage<ListQualitiesResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_plugin, 16);
+
+/**
+ * @generated from message nama.v1.ReplaceQualitiesRequest
+ */
+export type ReplaceQualitiesRequest = Message<"nama.v1.ReplaceQualitiesRequest"> & {
+  /**
+   * The Fulfiller's Plugin id, such as `radarr`.
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * The new list, in order. A Quality keeps its `id` if it is on the list now and no earlier
+   * Quality here kept it; any other id gets a new one.
+   *
+   * @generated from field: repeated nama.v1.Quality qualities = 2;
+   */
+  qualities: Quality[];
+};
+
+/**
+ * Describes the message nama.v1.ReplaceQualitiesRequest.
+ * Use `create(ReplaceQualitiesRequestSchema)` to create a new message.
+ */
+export const ReplaceQualitiesRequestSchema: GenMessage<ReplaceQualitiesRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_plugin, 17);
+
+/**
+ * @generated from message nama.v1.ReplaceQualitiesResponse
+ */
+export type ReplaceQualitiesResponse = Message<"nama.v1.ReplaceQualitiesResponse"> & {
+  /**
+   * The list as saved, with each Quality's id.
+   *
+   * @generated from field: repeated nama.v1.Quality qualities = 1;
+   */
+  qualities: Quality[];
+};
+
+/**
+ * Describes the message nama.v1.ReplaceQualitiesResponse.
+ * Use `create(ReplaceQualitiesResponseSchema)` to create a new message.
+ */
+export const ReplaceQualitiesResponseSchema: GenMessage<ReplaceQualitiesResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_plugin, 18);
+
+/**
  * A Plugin as `ListPlugins` lists it: a `Plugin` without its settings.
  *
  * @generated from message nama.v1.PluginSummary
@@ -361,7 +494,7 @@ export type PluginSummary = Message<"nama.v1.PluginSummary"> & {
  * Use `create(PluginSummarySchema)` to create a new message.
  */
 export const PluginSummarySchema: GenMessage<PluginSummary> = /*@__PURE__*/
-  messageDesc(file_nama_v1_plugin, 14);
+  messageDesc(file_nama_v1_plugin, 19);
 
 /**
  * A unit of trusted functionality that plugs into a Server.
@@ -454,7 +587,7 @@ export type Plugin = Message<"nama.v1.Plugin"> & {
  * Use `create(PluginSchema)` to create a new message.
  */
 export const PluginSchema: GenMessage<Plugin> = /*@__PURE__*/
-  messageDesc(file_nama_v1_plugin, 15);
+  messageDesc(file_nama_v1_plugin, 20);
 
 /**
  * One setting a Plugin takes, as its schema declares it, and its stored value.
@@ -522,7 +655,7 @@ export type Setting = Message<"nama.v1.Setting"> & {
  * Use `create(SettingSchema)` to create a new message.
  */
 export const SettingSchema: GenMessage<Setting> = /*@__PURE__*/
-  messageDesc(file_nama_v1_plugin, 16);
+  messageDesc(file_nama_v1_plugin, 21);
 
 /**
  * A setting's value, of the setting's kind.
@@ -559,7 +692,7 @@ export type SettingValue = Message<"nama.v1.SettingValue"> & {
  * Use `create(SettingValueSchema)` to create a new message.
  */
 export const SettingValueSchema: GenMessage<SettingValue> = /*@__PURE__*/
-  messageDesc(file_nama_v1_plugin, 17);
+  messageDesc(file_nama_v1_plugin, 22);
 
 /**
  * Where a Plugin comes from.
@@ -835,6 +968,35 @@ export const PluginService: GenService<{
     methodKind: "unary";
     input: typeof DisablePluginRequestSchema;
     output: typeof DisablePluginResponseSchema;
+  },
+  /**
+   * Returns a Fulfiller's Qualities (ADR 0025), in the order an admin listed them. Empty until an
+   * admin lists some, which leaves the Plugin's own `quality_profile` setting in use. Fails with
+   * `not_found` for an unknown Plugin.
+   *
+   * @generated from rpc nama.v1.PluginService.ListQualities
+   */
+  listQualities: {
+    methodKind: "unary";
+    input: typeof ListQualitiesRequestSchema;
+    output: typeof ListQualitiesResponseSchema;
+  },
+  /**
+   * Replaces a Fulfiller's Qualities. A list with any Qualities needs exactly one default, else
+   * it is refused with `REFUSAL_REASON_DEFAULT_QUALITY_REQUIRED`; a blank name or profile with
+   * `REFUSAL_REASON_FIELD_REQUIRED`; and a profile or name (ignoring case) given twice with
+   * `REFUSAL_REASON_QUALITY_REPEATED`. The Plugin's settings check then runs on its stored
+   * settings: a check that fails is refused with `REFUSAL_REASON_SETTINGS_CHECK_FAILED`, and a
+   * profile it doesn't offer for `quality_profile` with `REFUSAL_REASON_CHOICE_NOT_OFFERED`. Each
+   * refusal names the field, such as `qualities[1].profile_id`, and nothing changes. Clearing the
+   * list runs no check. Fails with `not_found` for an unknown Plugin.
+   *
+   * @generated from rpc nama.v1.PluginService.ReplaceQualities
+   */
+  replaceQualities: {
+    methodKind: "unary";
+    input: typeof ReplaceQualitiesRequestSchema;
+    output: typeof ReplaceQualitiesResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_nama_v1_plugin, 0);

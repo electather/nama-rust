@@ -53,6 +53,11 @@ export const permissionChoices: PermissionChoice[] = [
     parent: Permission.AUTO_APPROVE,
   },
   {
+    permission: Permission.CHOOSE_QUALITY,
+    label: "Choose Quality",
+    about: "Pick the Quality a title is downloaded at when they Request it.",
+  },
+  {
     permission: Permission.VIEW_REQUESTS,
     label: "View Requests",
     about: "See everyone’s Requests, not only their own.",

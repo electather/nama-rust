@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO qualities\n                         (id, plugin_id, position, profile_id, name, description, is_default)\n                     VALUES (?, ?, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 7
+    },
+    "nullable": []
+  },
+  "hash": "94be181594d955e5539fdb8c4254a83c7bef81b04bea920dcd272b7f0cc55150"
+}

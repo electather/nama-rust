@@ -34,7 +34,7 @@ use http::fetch;
 use log::Log;
 use nama_plugin_api::{
     BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
-    fulfiller::{Download, DownloadStatus, Fulfiller, Movies, Shows},
+    fulfiller::{Download, DownloadStatus, Fulfilled, Fulfiller, Movies, Shows},
     notifier::{Notification, Notifier, Recipient},
     settings::{SettingValue, Settings, SettingsSchema},
 };
@@ -46,17 +46,17 @@ use nama_plugin_tmdb::{
 use nama_proto::nama::v1::{
     __buffa::view::SubscribeResponseView, ApproveFollowedShowRequest, ApproveRequestRequest,
     BrowseServiceClient, CancelFollowedShowRequest, CancelRequestRequest,
-    CreateFollowedShowRequest, CreateLibraryRequest, CreateRequestRequest,
-    CreateSeasonRequestsRequest, CreateUserRequest, DeclineFollowedShowRequest,
-    DeclineRequestRequest, EnablePluginRequest, EventServiceClient, EventType, FollowedShow,
-    FoundMovie, FoundShow, GetRequestRequest, LibraryKind, LibraryServiceClient, ListMoviesRequest,
-    ListPluginsRequest, ListRequestsRequest, ListShowsRequest, LookUpMovieRequest,
-    LookUpShowRequest, Permission, PluginServiceClient, RefusalReason, Request,
-    RequestServiceClient, RequestState, RetryRequestRequest, ScanLibraryRequest,
-    SearchMoviesRequest, SearchShowsRequest, SessionDelivery, SetPermissionsRequest, SignInRequest,
-    SignInServiceClient, SubscribeRequest, SubscribeResponse, UpdatePluginSettingsRequest,
-    UserServiceClient, WithdrawFollowedShowRequest, WithdrawRequestRequest, event, setting_value,
-    subscribe_response,
+    CountPendingRequestsRequest, CreateFollowedShowRequest, CreateLibraryRequest,
+    CreateRequestRequest, CreateSeasonRequestsRequest, CreateUserRequest,
+    DeclineFollowedShowRequest, DeclineRequestRequest, EnablePluginRequest, EventServiceClient,
+    EventType, FollowedShow, FoundMovie, FoundShow, GetRequestRequest, LibraryKind,
+    LibraryServiceClient, ListMoviesRequest, ListPluginsRequest, ListRequestsRequest,
+    ListShowsRequest, LookUpMovieRequest, LookUpShowRequest, Permission, PluginServiceClient,
+    RefusalReason, Request, RequestServiceClient, RequestState, RetryRequestRequest,
+    ScanLibraryRequest, SearchMoviesRequest, SearchShowsRequest, SessionDelivery,
+    SetPermissionsRequest, SignInRequest, SignInServiceClient, SubscribeRequest, SubscribeResponse,
+    UpdatePluginSettingsRequest, UserServiceClient, WithdrawFollowedShowRequest,
+    WithdrawRequestRequest, event, setting_value, subscribe_response,
 };
 use nama_server::{
     config::{Config, PluginConfig},
@@ -551,6 +551,7 @@ async fn two_users_asking_for_the_same_movie_share_one_request_with_both_as_requ
     let again = ask(&requests(as_grace.clone()), HEAT).await;
 
     assert_eq!(second.id, first.id);
+    assert_eq!(second.state, RequestState::Pending);
     assert_eq!(requester_ids(&second), [ada, grace]);
     assert_eq!(again, second, "asking twice changes nothing");
     let movie = second.movie.as_option().map(|movie| movie.title.as_str());
@@ -835,7 +836,10 @@ impl FakeFulfiller {
 }
 
 impl Fulfiller<Movies> for FakeFulfiller {
-    fn fulfill<'a>(&'a self, request: &'a Request) -> BoxFuture<'a, Result<String, PluginError>> {
+    fn fulfill<'a>(
+        &'a self,
+        request: &'a Request,
+    ) -> BoxFuture<'a, Result<Fulfilled, PluginError>> {
         let tmdb_id = request.movie.tmdb_id;
         self.handed
             .lock()
@@ -846,7 +850,10 @@ impl Fulfiller<Movies> for FakeFulfiller {
             if refuses {
                 return Err("Radarr is unreachable".into());
             }
-            Ok(format!("movie-{tmdb_id}"))
+            Ok(Fulfilled {
+                reference: format!("movie-{tmdb_id}"),
+                ..Fulfilled::default()
+            })
         })
     }
 
@@ -870,7 +877,10 @@ impl Fulfiller<Movies> for FakeFulfiller {
 }
 
 impl Fulfiller<Shows> for FakeFulfiller {
-    fn fulfill<'a>(&'a self, request: &'a Request) -> BoxFuture<'a, Result<String, PluginError>> {
+    fn fulfill<'a>(
+        &'a self,
+        request: &'a Request,
+    ) -> BoxFuture<'a, Result<Fulfilled, PluginError>> {
         let season = &request.season;
         let (show, season_number) = (season.show_tmdb_id, season.season_number);
         let follow = request.followed_show_id.is_some();
@@ -887,7 +897,10 @@ impl Fulfiller<Shows> for FakeFulfiller {
             if refuses_to_follow {
                 return Err("Sonarr can't follow this Show".into());
             }
-            Ok(format!("show-{show}-season-{season_number}"))
+            Ok(Fulfilled {
+                reference: format!("show-{show}-season-{season_number}"),
+                ..Fulfilled::default()
+            })
         })
     }
 
@@ -1072,6 +1085,83 @@ async fn a_request_opened_approved_goes_to_the_movie_fulfiller_and_joining_it_do
         fixture.fulfiller_reference(opened.id).await.as_deref(),
         Some("movie-949")
     );
+}
+
+#[tokio::test]
+async fn a_user_who_may_auto_approve_movies_joining_a_pending_request_approves_it_hands_it_off_and_tells_its_requesters()
+ {
+    let fulfiller = FakeFulfiller::default();
+    let fixture = Fixture::with_fulfiller(&fulfiller).await;
+    let (ada, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let (grace, as_grace) = fixture
+        .user(
+            "Grace",
+            &[Permission::Request, Permission::AutoApproveMovie],
+        )
+        .await;
+    let pending = ask(&requests(as_ada.clone()), HEAT).await;
+    let mut adas_events = subscribe_to_requests(as_ada).await;
+
+    let joined = ask(&requests(as_grace), HEAT).await;
+    let events = [
+        next_event(&mut adas_events).await,
+        next_event(&mut adas_events).await,
+        next_event(&mut adas_events).await,
+    ];
+
+    assert_eq!(joined.id, pending.id);
+    assert_eq!(joined.state, RequestState::Processing);
+    assert_eq!(requester_ids(&joined), [ada, grace]);
+    assert_eq!(fulfiller.handed(), [HEAT]);
+    let [
+        event::Event::RequesterAdded(_),
+        event::Event::RequestStateChanged(approved),
+        event::Event::RequestStateChanged(processing),
+    ] = events
+    else {
+        panic!("not the join, the approval, then the hand-off: {events:?}");
+    };
+    assert_eq!(approved.request.state, RequestState::Approved);
+    assert_eq!(requester_ids(&approved.request), [ada, grace]);
+    assert_eq!(processing.request.as_option(), Some(&joined));
+}
+
+#[tokio::test]
+async fn a_user_who_may_auto_approve_movies_joining_an_approved_request_leaves_it_approved() {
+    let fixture = Fixture::start().await;
+    let may_auto_approve = [Permission::Request, Permission::AutoApproveMovie];
+    let (_, as_ada) = fixture.user("Ada", &may_auto_approve).await;
+    let (_, as_grace) = fixture.user("Grace", &may_auto_approve).await;
+    let approved = ask(&requests(as_ada.clone()), HEAT).await;
+    let mut adas_events = subscribe_to_requests(as_ada).await;
+
+    let joined = ask(&requests(as_grace), HEAT).await;
+    let added = next_event(&mut adas_events).await;
+
+    assert_eq!(approved.state, RequestState::Approved);
+    assert_eq!(joined.state, RequestState::Approved);
+    let event::Event::RequesterAdded(added) = added else {
+        panic!("not the join: {added:?}");
+    };
+    assert_eq!(added.request.as_option(), Some(&joined));
+}
+
+#[tokio::test]
+async fn a_user_who_may_auto_approve_movies_joining_a_failed_request_leaves_it_failed_and_does_not_hand_it_off_again()
+ {
+    let fulfiller = FakeFulfiller::refusing();
+    let fixture = Fixture::with_fulfiller(&fulfiller).await;
+    let may_auto_approve = [Permission::Request, Permission::AutoApproveMovie];
+    let (_, as_ada) = fixture.user("Ada", &may_auto_approve).await;
+    let (_, as_grace) = fixture.user("Grace", &may_auto_approve).await;
+    let failed = ask(&requests(as_ada), HEAT).await;
+    fulfiller.recover();
+
+    let joined = ask(&requests(as_grace), HEAT).await;
+
+    assert_eq!(failed.state, RequestState::Failed);
+    assert_eq!(joined.state, RequestState::Failed);
+    assert_eq!(fulfiller.handed(), [HEAT]);
 }
 
 #[tokio::test]
@@ -1358,6 +1448,27 @@ async fn a_season_request_opened_approved_goes_to_the_shows_fulfiller() {
     assert_eq!(
         fixture.fulfiller_reference(opened[1].id).await.as_deref(),
         Some("show-70523-season-3")
+    );
+}
+
+#[tokio::test]
+async fn a_user_who_may_auto_approve_tv_joining_a_pending_season_request_approves_it_and_hands_it_off()
+ {
+    let fulfiller = FakeFulfiller::default();
+    let fixture = Fixture::with_shows_fulfiller(&fulfiller).await;
+    let (ada, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let (grace, as_grace) = fixture
+        .user("Grace", &[Permission::RequestTv, Permission::AutoApproveTv])
+        .await;
+    let pending = ask_seasons(&requests(as_ada), DARK, &[2]).await;
+
+    let joined = ask_seasons(&requests(as_grace), DARK, &[2]).await;
+
+    assert_eq!(states(&joined), [(pending[0].id, RequestState::Processing)]);
+    assert_eq!(requester_ids(&joined[0]), [ada, grace]);
+    assert_eq!(
+        fulfiller.handed_seasons(),
+        [(DARK, Some(DARK_TVDB), 2, false)]
     );
 }
 
@@ -2657,6 +2768,72 @@ async fn list_followed(client: &RequestServiceClient<HttpClient>) -> Vec<Followe
         .followed_shows
 }
 
+/// How many Requests and Followed Shows are Pending, as the caller of `client` is told.
+async fn count_pending(client: &RequestServiceClient<HttpClient>) -> Result<u32, ConnectError> {
+    client
+        .count_pending_requests(CountPendingRequestsRequest::default())
+        .await
+        .map(|counted| counted.into_owned().count)
+}
+
+#[tokio::test]
+async fn a_pending_followed_show_and_each_of_its_pending_season_requests_count_once_each_and_an_approved_request_not_at_all()
+ {
+    let fixture = Fixture::start().await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let ada_requests = requests(as_ada);
+    let heat = ask(&ada_requests, HEAT).await;
+    let as_admin = requests(fixture.server.client_config());
+    assert_eq!(count_pending(&as_admin).await.unwrap(), 1);
+
+    let (_, asked) = follow(&ada_requests, DARK).await;
+    as_admin
+        .approve_request(ApproveRequestRequest {
+            id: heat.id,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    assert_eq!(asked.len(), 3, "{asked:?}");
+    assert_eq!(count_pending(&as_admin).await.unwrap(), 4);
+}
+
+#[tokio::test]
+async fn without_view_requests_a_request_manager_counts_only_the_pending_requests_and_followed_shows_they_are_a_requester_of()
+ {
+    let fixture = Fixture::start().await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let (_, as_grace) = fixture
+        .user("Grace", &[Permission::ManageRequests, Permission::Request])
+        .await;
+    let grace_requests = requests(as_grace);
+    let ada_requests = requests(as_ada);
+    ask(&ada_requests, HEAT).await;
+    follow(&ada_requests, DARK).await;
+    ask(&grace_requests, ALIEN).await;
+
+    assert_eq!(count_pending(&grace_requests).await.unwrap(), 1);
+    let as_admin = requests(fixture.server.client_config());
+    assert_eq!(count_pending(&as_admin).await.unwrap(), 6);
+}
+
+#[tokio::test]
+async fn counting_pending_requests_without_manage_requests_is_refused() {
+    let fixture = Fixture::start().await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+
+    let refused = count_pending(&requests(as_ada)).await;
+
+    let refusal = assert_refused(
+        refused,
+        ErrorCode::PermissionDenied,
+        RefusalReason::REFUSAL_REASON_PERMISSION_REQUIRED,
+    );
+    let permission = refusal.params.get("permission").map(String::as_str);
+    assert_eq!(permission, Some("PERMISSION_MANAGE_REQUESTS"));
+}
+
 /// The Seasons of Dark the caller of `client` has Requests for, in Season order.
 async fn dark_seasons_requested(client: &RequestServiceClient<HttpClient>) -> Vec<u32> {
     let mut seasons: Vec<u32> = list(client)
@@ -2869,6 +3046,50 @@ async fn a_second_user_asking_for_a_whole_show_joins_its_followed_show_and_shows
 }
 
 #[tokio::test]
+async fn a_user_who_may_auto_approve_tv_following_a_show_approves_someone_elses_pending_season_request_and_hands_it_off()
+ {
+    let fulfiller = FakeFulfiller::default();
+    let fixture = Fixture::with_shows_fulfiller(&fulfiller).await;
+    let (ada, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let (grace, as_grace) = fixture
+        .user("Grace", &[Permission::RequestTv, Permission::AutoApproveTv])
+        .await;
+    let season_2 = ask_seasons(&requests(as_ada), DARK, &[2]).await;
+
+    let (_, asked) = follow(&requests(as_grace), DARK).await;
+
+    let joined = asked.iter().find(|r| r.id == season_2[0].id);
+    assert_eq!(
+        joined.map(|r| r.state),
+        Some(RequestState::Processing.into())
+    );
+    assert_eq!(joined.map(requester_ids), Some(vec![ada, grace]));
+    let handed: Vec<u32> = fulfiller
+        .handed_seasons()
+        .iter()
+        .map(|&(_, _, season, _)| season)
+        .collect();
+    assert!(handed.contains(&2), "Season 2 not handed off: {handed:?}");
+}
+
+#[tokio::test]
+async fn following_an_approved_followed_show_without_auto_approve_leaves_someone_elses_pending_season_request_pending()
+ {
+    let fixture = Fixture::start().await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let (_, as_bob) = fixture.user("Bob", &NEW_USER).await;
+    let (_, as_grace) = fixture.user("Grace", &NEW_USER).await;
+    let season_2 = ask_seasons(&requests(as_ada), DARK, &[2]).await;
+    let (followed, _) = follow(&requests(as_bob), DARK).await;
+    approve_followed(&fixture, followed.id).await.unwrap();
+
+    let (_, asked) = follow(&requests(as_grace), DARK).await;
+
+    let joined = asked.iter().find(|r| r.id == season_2[0].id);
+    assert_eq!(joined.map(|r| r.state), Some(RequestState::Pending.into()));
+}
+
+#[tokio::test]
 async fn a_user_who_may_auto_approve_shows_opens_an_approved_followed_show_which_cant_be_approved_again()
  {
     let fixture = Fixture::start().await;
@@ -3074,6 +3295,213 @@ async fn the_last_requester_withdrawing_ends_a_followed_show_and_leaves_its_seas
     assert_eq!(followers, [grace]);
     assert_eq!(list_followed(&grace_requests).await, []);
     assert_eq!(dark_seasons_requested(&grace_requests).await, [1, 2, 3]);
+}
+
+/// Subscribes to Followed Show events, as the User `config` calls as.
+async fn subscribe_to_followed_shows(config: ClientConfig) -> Subscription {
+    subscribe(
+        config,
+        &[
+            EventType::EVENT_TYPE_FOLLOWED_SHOW_CREATED,
+            EventType::EVENT_TYPE_FOLLOWED_SHOW_REQUESTER_ADDED,
+            EventType::EVENT_TYPE_FOLLOWED_SHOW_STATE_CHANGED,
+            EventType::EVENT_TYPE_FOLLOWED_SHOW_CANCELLED,
+            EventType::EVENT_TYPE_FOLLOWED_SHOW_REQUESTER_REMOVED,
+            EventType::EVENT_TYPE_FOLLOWED_SHOW_WITHDRAWN,
+        ],
+    )
+    .await
+}
+
+/// A Followed Show event: what happened, the User who joined or withdrew, and the Followed Show.
+type FollowedShowEvent = (&'static str, Option<i64>, FollowedShow);
+
+/// The next `count` events of `subscription`, each a Followed Show event.
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a test helper fails its test by panicking"
+)]
+#[expect(
+    clippy::wildcard_enum_match_arm,
+    reason = "any event but a Followed Show's fails the test"
+)]
+async fn next_followed_show_events(
+    subscription: &mut Subscription,
+    count: usize,
+) -> Vec<FollowedShowEvent> {
+    use event::Event as E;
+    let mut sent = Vec::with_capacity(count);
+    for _ in 0..count {
+        let (happened, user, followed) = match next_event(subscription).await {
+            E::FollowedShowCreated(e) => ("created", None, e.followed_show),
+            E::FollowedShowRequesterAdded(e) => {
+                ("requester added", Some(e.user_id), e.followed_show)
+            }
+            E::FollowedShowStateChanged(e) => ("state changed", None, e.followed_show),
+            E::FollowedShowCancelled(e) => ("cancelled", None, e.followed_show),
+            E::FollowedShowRequesterRemoved(e) => {
+                ("requester removed", Some(e.user_id), e.followed_show)
+            }
+            E::FollowedShowWithdrawn(e) => ("withdrawn", None, e.followed_show),
+            other => panic!("not a Followed Show event: {other:?}"),
+        };
+        let followed = followed
+            .into_option()
+            .expect("a Followed Show event without one");
+        sent.push((happened, user, followed));
+    }
+    sent
+}
+
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn withdraw_followed(client: &RequestServiceClient<HttpClient>, id: i64) {
+    client
+        .withdraw_followed_show(WithdrawFollowedShowRequest {
+            id,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn each_change_to_a_followed_show_sends_it_as_it_is_after_or_as_it_was_before_its_removal() {
+    let fixture = Fixture::start().await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let (grace, as_grace) = fixture.user("Grace", &NEW_USER).await;
+    let (ada_requests, grace_requests) = (requests(as_ada), requests(as_grace));
+    let mut events = subscribe_to_followed_shows(fixture.server.client_config()).await;
+
+    let (opened, _) = follow(&ada_requests, DARK).await;
+    let (joined, _) = follow(&grace_requests, DARK).await;
+    withdraw_followed(&grace_requests, opened.id).await;
+    let approved = approve_followed(&fixture, opened.id).await.unwrap();
+    requests(fixture.server.client_config())
+        .cancel_followed_show(CancelFollowedShowRequest {
+            id: opened.id,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let (office, _) = follow(&ada_requests, THE_OFFICE).await;
+    withdraw_followed(&ada_requests, office.id).await;
+
+    assert_eq!(
+        next_followed_show_events(&mut events, 7).await,
+        [
+            ("created", None, opened),
+            ("requester added", Some(grace), joined.clone()),
+            ("requester removed", Some(grace), joined),
+            ("state changed", None, approved.clone()),
+            ("cancelled", None, approved),
+            ("created", None, office.clone()),
+            ("withdrawn", None, office),
+        ]
+    );
+}
+
+#[tokio::test]
+async fn a_followed_show_event_reaches_its_requesters_and_view_requests_subscribers_and_no_other_user()
+ {
+    let fixture = Fixture::start().await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let (_, as_grace) = fixture.user("Grace", &[Permission::RequestTv]).await;
+    let (_, as_hopper) = fixture.user("Hopper", &[Permission::RequestTv]).await;
+    let mut adas_events = subscribe_to_followed_shows(as_ada).await;
+    let mut graces_events = subscribe_to_followed_shows(as_grace.clone()).await;
+    let mut hoppers_events = subscribe_to_followed_shows(as_hopper.clone()).await;
+
+    let (graces_requests, hoppers_requests) = (requests(as_grace), requests(as_hopper));
+
+    let (office, _) = follow(&hoppers_requests, THE_OFFICE).await;
+    let (dark, _) = follow(&graces_requests, DARK).await;
+    withdraw_followed(&hoppers_requests, office.id).await;
+    approve_followed(&fixture, dark.id).await.unwrap();
+    requests(fixture.server.client_config())
+        .cancel_followed_show(CancelFollowedShowRequest {
+            id: dark.id,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    // Both end on this second Followed Show, so an event that wrongly reached either shows up
+    // before what they expect next.
+    let (office_again, _) = follow(&hoppers_requests, THE_OFFICE).await;
+    follow(&graces_requests, THE_OFFICE).await;
+    withdraw_followed(&graces_requests, office_again.id).await;
+
+    let kinds_and_ids = |sent: Vec<FollowedShowEvent>| -> Vec<(&str, i64)> {
+        sent.into_iter()
+            .map(|(happened, _, followed)| (happened, followed.id))
+            .collect()
+    };
+    assert_eq!(
+        kinds_and_ids(next_followed_show_events(&mut adas_events, 8).await),
+        [
+            ("created", office.id),
+            ("created", dark.id),
+            ("withdrawn", office.id),
+            ("state changed", dark.id),
+            ("cancelled", dark.id),
+            ("created", office_again.id),
+            ("requester added", office_again.id),
+            ("requester removed", office_again.id),
+        ]
+    );
+    assert_eq!(
+        kinds_and_ids(next_followed_show_events(&mut graces_events, 5).await),
+        [
+            ("created", dark.id),
+            ("state changed", dark.id),
+            ("cancelled", dark.id),
+            ("requester added", office_again.id),
+            ("requester removed", office_again.id),
+        ],
+        "Hopper's Followed Show reached Grace"
+    );
+    assert_eq!(
+        kinds_and_ids(next_followed_show_events(&mut hoppers_events, 5).await),
+        [
+            ("created", office.id),
+            ("withdrawn", office.id),
+            ("created", office_again.id),
+            ("requester added", office_again.id),
+            ("requester removed", office_again.id),
+        ],
+        "Grace's Followed Show reached Hopper"
+    );
+}
+
+#[tokio::test]
+async fn opening_a_followed_show_for_a_show_whose_seasons_are_all_in_a_library_sends_its_creation()
+{
+    let fixture = Fixture::start().await;
+    let _media = fixture
+        .library_with(
+            LibraryKind::LIBRARY_KIND_SHOWS,
+            &[
+                DARK_S01E01,
+                DARK_S01E02,
+                DARK_S01E03,
+                DARK_S02E01,
+                DARK_S03E01,
+            ],
+        )
+        .await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let mut adas_events = subscribe_to_followed_shows(as_ada.clone()).await;
+
+    let (followed, asked) = follow(&requests(as_ada), DARK).await;
+
+    assert_eq!(asked, []);
+    assert_eq!(
+        next_followed_show_events(&mut adas_events, 1).await,
+        [("created", None, followed)]
+    );
 }
 
 #[tokio::test]

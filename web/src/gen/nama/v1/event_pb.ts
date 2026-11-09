@@ -4,7 +4,7 @@
 
 import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
-import type { Request } from "./request_pb";
+import type { FollowedShow, Request } from "./request_pb";
 import { file_nama_v1_request } from "./request_pb";
 import type { Message, UnknownEnum } from "@bufbuild/protobuf";
 
@@ -12,7 +12,7 @@ import type { Message, UnknownEnum } from "@bufbuild/protobuf";
  * Describes the file nama/v1/event.proto.
  */
 export const file_nama_v1_event: GenFile = /*@__PURE__*/
-  fileDesc("ChNuYW1hL3YxL2V2ZW50LnByb3RvEgduYW1hLnYxIkoKEFN1YnNjcmliZVJlcXVlc3QSIQoFdHlwZXMYASADKA4yEi5uYW1hLnYxLkV2ZW50VHlwZRITCgtsaWJyYXJ5X2lkcxgCIAMoAyJiChFTdWJzY3JpYmVSZXNwb25zZRIfCgVldmVudBgBIAEoCzIOLm5hbWEudjEuRXZlbnRIABIhCgZsYWdnZWQYAiABKAsyDy5uYW1hLnYxLkxhZ2dlZEgAQgkKB21lc3NhZ2UiGQoGTGFnZ2VkEg8KB2Ryb3BwZWQYASABKAQixwUKBUV2ZW50EiwKDHNjYW5fc3RhcnRlZBgBIAEoCzIULm5hbWEudjEuU2NhblN0YXJ0ZWRIABIuCg1zY2FuX3Byb2dyZXNzGAIgASgLMhUubmFtYS52MS5TY2FuUHJvZ3Jlc3NIABIuCg1zY2FuX2ZpbmlzaGVkGAMgASgLMhUubmFtYS52MS5TY2FuRmluaXNoZWRIABI3ChJsaWJyYXJ5X2l0ZW1fYWRkZWQYBCABKAsyGS5uYW1hLnYxLkxpYnJhcnlJdGVtQWRkZWRIABI7ChRsaWJyYXJ5X2l0ZW1fcmVtb3ZlZBgFIAEoCzIbLm5hbWEudjEuTGlicmFyeUl0ZW1SZW1vdmVkSAASLAoMaXRlbV9tYXRjaGVkGAYgASgLMhQubmFtYS52MS5JdGVtTWF0Y2hlZEgAEjIKD3JlcXVlc3RfY3JlYXRlZBgHIAEoCzIXLm5hbWEudjEuUmVxdWVzdENyZWF0ZWRIABIyCg9yZXF1ZXN0ZXJfYWRkZWQYCCABKAsyFy5uYW1hLnYxLlJlcXVlc3RlckFkZGVkSAASPQoVcmVxdWVzdF9zdGF0ZV9jaGFuZ2VkGAkgASgLMhwubmFtYS52MS5SZXF1ZXN0U3RhdGVDaGFuZ2VkSAASNgoRcmVxdWVzdF9jYW5jZWxsZWQYCiABKAsyGS5uYW1hLnYxLlJlcXVlc3RDYW5jZWxsZWRIABI2ChFyZXF1ZXN0ZXJfcmVtb3ZlZBgLIAEoCzIZLm5hbWEudjEuUmVxdWVzdGVyUmVtb3ZlZEgAEjYKEXJlcXVlc3Rfd2l0aGRyYXduGAwgASgLMhkubmFtYS52MS5SZXF1ZXN0V2l0aGRyYXduSAASNAoQcmVxdWVzdF9wcm9ncmVzcxgNIAEoCzIYLm5hbWEudjEuUmVxdWVzdFByb2dyZXNzSABCBwoFZXZlbnQiIQoLU2NhblN0YXJ0ZWQSEgoKbGlicmFyeV9pZBgBIAEoAyJLCgxTY2FuUHJvZ3Jlc3MSEgoKbGlicmFyeV9pZBgBIAEoAxISCgpmaWxlc19kb25lGAIgASgEEhMKC2ZpbGVzX3RvdGFsGAMgASgEImYKDFNjYW5GaW5pc2hlZBISCgpsaWJyYXJ5X2lkGAEgASgDEg0KBWFkZGVkGAIgASgEEg8KB3VwZGF0ZWQYAyABKAQSDwoHcmVtb3ZlZBgEIAEoBBIRCgl1bmNoYW5nZWQYBSABKAQiRQoQTGlicmFyeUl0ZW1BZGRlZBISCgpsaWJyYXJ5X2lkGAEgASgDEg8KB2l0ZW1faWQYAiABKAMSDAoEcGF0aBgDIAEoCSI5ChJMaWJyYXJ5SXRlbVJlbW92ZWQSEgoKbGlicmFyeV9pZBgBIAEoAxIPCgdpdGVtX2lkGAIgASgDIkEKC0l0ZW1NYXRjaGVkEhIKCmxpYnJhcnlfaWQYASABKAMSDwoHaXRlbV9pZBgCIAEoAxINCgV0aXRsZRgDIAEoCSIzCg5SZXF1ZXN0Q3JlYXRlZBIhCgdyZXF1ZXN0GAEgASgLMhAubmFtYS52MS5SZXF1ZXN0IkQKDlJlcXVlc3RlckFkZGVkEiEKB3JlcXVlc3QYASABKAsyEC5uYW1hLnYxLlJlcXVlc3QSDwoHdXNlcl9pZBgCIAEoAyI4ChNSZXF1ZXN0U3RhdGVDaGFuZ2VkEiEKB3JlcXVlc3QYASABKAsyEC5uYW1hLnYxLlJlcXVlc3QiNQoQUmVxdWVzdENhbmNlbGxlZBIhCgdyZXF1ZXN0GAEgASgLMhAubmFtYS52MS5SZXF1ZXN0IkYKEFJlcXVlc3RlclJlbW92ZWQSIQoHcmVxdWVzdBgBIAEoCzIQLm5hbWEudjEuUmVxdWVzdBIPCgd1c2VyX2lkGAIgASgDIjUKEFJlcXVlc3RXaXRoZHJhd24SIQoHcmVxdWVzdBgBIAEoCzIQLm5hbWEudjEuUmVxdWVzdCI0Cg9SZXF1ZXN0UHJvZ3Jlc3MSIQoHcmVxdWVzdBgBIAEoCzIQLm5hbWEudjEuUmVxdWVzdCrSAwoJRXZlbnRUeXBlEhoKFkVWRU5UX1RZUEVfVU5TUEVDSUZJRUQQABIbChdFVkVOVF9UWVBFX1NDQU5fU1RBUlRFRBABEhwKGEVWRU5UX1RZUEVfU0NBTl9QUk9HUkVTUxACEhwKGEVWRU5UX1RZUEVfU0NBTl9GSU5JU0hFRBADEiEKHUVWRU5UX1RZUEVfTElCUkFSWV9JVEVNX0FEREVEEAQSIwofRVZFTlRfVFlQRV9MSUJSQVJZX0lURU1fUkVNT1ZFRBAFEhsKF0VWRU5UX1RZUEVfSVRFTV9NQVRDSEVEEAYSHgoaRVZFTlRfVFlQRV9SRVFVRVNUX0NSRUFURUQQBxIeChpFVkVOVF9UWVBFX1JFUVVFU1RFUl9BRERFRBAIEiQKIEVWRU5UX1RZUEVfUkVRVUVTVF9TVEFURV9DSEFOR0VEEAkSIAocRVZFTlRfVFlQRV9SRVFVRVNUX0NBTkNFTExFRBAKEiAKHEVWRU5UX1RZUEVfUkVRVUVTVEVSX1JFTU9WRUQQCxIgChxFVkVOVF9UWVBFX1JFUVVFU1RfV0lUSERSQVdOEAwSHwobRVZFTlRfVFlQRV9SRVFVRVNUX1BST0dSRVNTEA0yWQoMRXZlbnRTZXJ2aWNlEkkKCVN1YnNjcmliZRIZLm5hbWEudjEuU3Vic2NyaWJlUmVxdWVzdBoaLm5hbWEudjEuU3Vic2NyaWJlUmVzcG9uc2UiA5ACATABYgZwcm90bzM", [file_nama_v1_request]);
+  fileDesc("ChNuYW1hL3YxL2V2ZW50LnByb3RvEgduYW1hLnYxIkoKEFN1YnNjcmliZVJlcXVlc3QSIQoFdHlwZXMYASADKA4yEi5uYW1hLnYxLkV2ZW50VHlwZRITCgtsaWJyYXJ5X2lkcxgCIAMoAyJiChFTdWJzY3JpYmVSZXNwb25zZRIfCgVldmVudBgBIAEoCzIOLm5hbWEudjEuRXZlbnRIABIhCgZsYWdnZWQYAiABKAsyDy5uYW1hLnYxLkxhZ2dlZEgAQgkKB21lc3NhZ2UiGQoGTGFnZ2VkEg8KB2Ryb3BwZWQYASABKAQi9ggKBUV2ZW50EiwKDHNjYW5fc3RhcnRlZBgBIAEoCzIULm5hbWEudjEuU2NhblN0YXJ0ZWRIABIuCg1zY2FuX3Byb2dyZXNzGAIgASgLMhUubmFtYS52MS5TY2FuUHJvZ3Jlc3NIABIuCg1zY2FuX2ZpbmlzaGVkGAMgASgLMhUubmFtYS52MS5TY2FuRmluaXNoZWRIABI3ChJsaWJyYXJ5X2l0ZW1fYWRkZWQYBCABKAsyGS5uYW1hLnYxLkxpYnJhcnlJdGVtQWRkZWRIABI7ChRsaWJyYXJ5X2l0ZW1fcmVtb3ZlZBgFIAEoCzIbLm5hbWEudjEuTGlicmFyeUl0ZW1SZW1vdmVkSAASLAoMaXRlbV9tYXRjaGVkGAYgASgLMhQubmFtYS52MS5JdGVtTWF0Y2hlZEgAEjIKD3JlcXVlc3RfY3JlYXRlZBgHIAEoCzIXLm5hbWEudjEuUmVxdWVzdENyZWF0ZWRIABIyCg9yZXF1ZXN0ZXJfYWRkZWQYCCABKAsyFy5uYW1hLnYxLlJlcXVlc3RlckFkZGVkSAASPQoVcmVxdWVzdF9zdGF0ZV9jaGFuZ2VkGAkgASgLMhwubmFtYS52MS5SZXF1ZXN0U3RhdGVDaGFuZ2VkSAASNgoRcmVxdWVzdF9jYW5jZWxsZWQYCiABKAsyGS5uYW1hLnYxLlJlcXVlc3RDYW5jZWxsZWRIABI2ChFyZXF1ZXN0ZXJfcmVtb3ZlZBgLIAEoCzIZLm5hbWEudjEuUmVxdWVzdGVyUmVtb3ZlZEgAEjYKEXJlcXVlc3Rfd2l0aGRyYXduGAwgASgLMhkubmFtYS52MS5SZXF1ZXN0V2l0aGRyYXduSAASNAoQcmVxdWVzdF9wcm9ncmVzcxgNIAEoCzIYLm5hbWEudjEuUmVxdWVzdFByb2dyZXNzSAASPQoVZm9sbG93ZWRfc2hvd19jcmVhdGVkGA4gASgLMhwubmFtYS52MS5Gb2xsb3dlZFNob3dDcmVhdGVkSAASTAodZm9sbG93ZWRfc2hvd19yZXF1ZXN0ZXJfYWRkZWQYDyABKAsyIy5uYW1hLnYxLkZvbGxvd2VkU2hvd1JlcXVlc3RlckFkZGVkSAASSAobZm9sbG93ZWRfc2hvd19zdGF0ZV9jaGFuZ2VkGBAgASgLMiEubmFtYS52MS5Gb2xsb3dlZFNob3dTdGF0ZUNoYW5nZWRIABJBChdmb2xsb3dlZF9zaG93X2NhbmNlbGxlZBgRIAEoCzIeLm5hbWEudjEuRm9sbG93ZWRTaG93Q2FuY2VsbGVkSAASUAofZm9sbG93ZWRfc2hvd19yZXF1ZXN0ZXJfcmVtb3ZlZBgSIAEoCzIlLm5hbWEudjEuRm9sbG93ZWRTaG93UmVxdWVzdGVyUmVtb3ZlZEgAEkEKF2ZvbGxvd2VkX3Nob3dfd2l0aGRyYXduGBMgASgLMh4ubmFtYS52MS5Gb2xsb3dlZFNob3dXaXRoZHJhd25IAEIHCgVldmVudCIhCgtTY2FuU3RhcnRlZBISCgpsaWJyYXJ5X2lkGAEgASgDIksKDFNjYW5Qcm9ncmVzcxISCgpsaWJyYXJ5X2lkGAEgASgDEhIKCmZpbGVzX2RvbmUYAiABKAQSEwoLZmlsZXNfdG90YWwYAyABKAQiZgoMU2NhbkZpbmlzaGVkEhIKCmxpYnJhcnlfaWQYASABKAMSDQoFYWRkZWQYAiABKAQSDwoHdXBkYXRlZBgDIAEoBBIPCgdyZW1vdmVkGAQgASgEEhEKCXVuY2hhbmdlZBgFIAEoBCJFChBMaWJyYXJ5SXRlbUFkZGVkEhIKCmxpYnJhcnlfaWQYASABKAMSDwoHaXRlbV9pZBgCIAEoAxIMCgRwYXRoGAMgASgJIjkKEkxpYnJhcnlJdGVtUmVtb3ZlZBISCgpsaWJyYXJ5X2lkGAEgASgDEg8KB2l0ZW1faWQYAiABKAMiQQoLSXRlbU1hdGNoZWQSEgoKbGlicmFyeV9pZBgBIAEoAxIPCgdpdGVtX2lkGAIgASgDEg0KBXRpdGxlGAMgASgJIjMKDlJlcXVlc3RDcmVhdGVkEiEKB3JlcXVlc3QYASABKAsyEC5uYW1hLnYxLlJlcXVlc3QiRAoOUmVxdWVzdGVyQWRkZWQSIQoHcmVxdWVzdBgBIAEoCzIQLm5hbWEudjEuUmVxdWVzdBIPCgd1c2VyX2lkGAIgASgDIjgKE1JlcXVlc3RTdGF0ZUNoYW5nZWQSIQoHcmVxdWVzdBgBIAEoCzIQLm5hbWEudjEuUmVxdWVzdCI1ChBSZXF1ZXN0Q2FuY2VsbGVkEiEKB3JlcXVlc3QYASABKAsyEC5uYW1hLnYxLlJlcXVlc3QiRgoQUmVxdWVzdGVyUmVtb3ZlZBIhCgdyZXF1ZXN0GAEgASgLMhAubmFtYS52MS5SZXF1ZXN0Eg8KB3VzZXJfaWQYAiABKAMiNQoQUmVxdWVzdFdpdGhkcmF3bhIhCgdyZXF1ZXN0GAEgASgLMhAubmFtYS52MS5SZXF1ZXN0IjQKD1JlcXVlc3RQcm9ncmVzcxIhCgdyZXF1ZXN0GAEgASgLMhAubmFtYS52MS5SZXF1ZXN0IkMKE0ZvbGxvd2VkU2hvd0NyZWF0ZWQSLAoNZm9sbG93ZWRfc2hvdxgBIAEoCzIVLm5hbWEudjEuRm9sbG93ZWRTaG93IlsKGkZvbGxvd2VkU2hvd1JlcXVlc3RlckFkZGVkEiwKDWZvbGxvd2VkX3Nob3cYASABKAsyFS5uYW1hLnYxLkZvbGxvd2VkU2hvdxIPCgd1c2VyX2lkGAIgASgDIkgKGEZvbGxvd2VkU2hvd1N0YXRlQ2hhbmdlZBIsCg1mb2xsb3dlZF9zaG93GAEgASgLMhUubmFtYS52MS5Gb2xsb3dlZFNob3ciRQoVRm9sbG93ZWRTaG93Q2FuY2VsbGVkEiwKDWZvbGxvd2VkX3Nob3cYASABKAsyFS5uYW1hLnYxLkZvbGxvd2VkU2hvdyJdChxGb2xsb3dlZFNob3dSZXF1ZXN0ZXJSZW1vdmVkEiwKDWZvbGxvd2VkX3Nob3cYASABKAsyFS5uYW1hLnYxLkZvbGxvd2VkU2hvdxIPCgd1c2VyX2lkGAIgASgDIkUKFUZvbGxvd2VkU2hvd1dpdGhkcmF3bhIsCg1mb2xsb3dlZF9zaG93GAEgASgLMhUubmFtYS52MS5Gb2xsb3dlZFNob3cq0gUKCUV2ZW50VHlwZRIaChZFVkVOVF9UWVBFX1VOU1BFQ0lGSUVEEAASGwoXRVZFTlRfVFlQRV9TQ0FOX1NUQVJURUQQARIcChhFVkVOVF9UWVBFX1NDQU5fUFJPR1JFU1MQAhIcChhFVkVOVF9UWVBFX1NDQU5fRklOSVNIRUQQAxIhCh1FVkVOVF9UWVBFX0xJQlJBUllfSVRFTV9BRERFRBAEEiMKH0VWRU5UX1RZUEVfTElCUkFSWV9JVEVNX1JFTU9WRUQQBRIbChdFVkVOVF9UWVBFX0lURU1fTUFUQ0hFRBAGEh4KGkVWRU5UX1RZUEVfUkVRVUVTVF9DUkVBVEVEEAcSHgoaRVZFTlRfVFlQRV9SRVFVRVNURVJfQURERUQQCBIkCiBFVkVOVF9UWVBFX1JFUVVFU1RfU1RBVEVfQ0hBTkdFRBAJEiAKHEVWRU5UX1RZUEVfUkVRVUVTVF9DQU5DRUxMRUQQChIgChxFVkVOVF9UWVBFX1JFUVVFU1RFUl9SRU1PVkVEEAsSIAocRVZFTlRfVFlQRV9SRVFVRVNUX1dJVEhEUkFXThAMEh8KG0VWRU5UX1RZUEVfUkVRVUVTVF9QUk9HUkVTUxANEiQKIEVWRU5UX1RZUEVfRk9MTE9XRURfU0hPV19DUkVBVEVEEA4SLAooRVZFTlRfVFlQRV9GT0xMT1dFRF9TSE9XX1JFUVVFU1RFUl9BRERFRBAPEioKJkVWRU5UX1RZUEVfRk9MTE9XRURfU0hPV19TVEFURV9DSEFOR0VEEBASJgoiRVZFTlRfVFlQRV9GT0xMT1dFRF9TSE9XX0NBTkNFTExFRBAREi4KKkVWRU5UX1RZUEVfRk9MTE9XRURfU0hPV19SRVFVRVNURVJfUkVNT1ZFRBASEiYKIkVWRU5UX1RZUEVfRk9MTE9XRURfU0hPV19XSVRIRFJBV04QEzJZCgxFdmVudFNlcnZpY2USSQoJU3Vic2NyaWJlEhkubmFtYS52MS5TdWJzY3JpYmVSZXF1ZXN0GhoubmFtYS52MS5TdWJzY3JpYmVSZXNwb25zZSIDkAIBMAFiBnByb3RvMw", [file_nama_v1_request]);
 
 /**
  * @generated from message nama.v1.SubscribeRequest
@@ -182,6 +182,42 @@ export type Event = Message<"nama.v1.Event"> & {
      */
     value: RequestProgress;
     case: "requestProgress";
+  } | {
+    /**
+     * @generated from field: nama.v1.FollowedShowCreated followed_show_created = 14;
+     */
+    value: FollowedShowCreated;
+    case: "followedShowCreated";
+  } | {
+    /**
+     * @generated from field: nama.v1.FollowedShowRequesterAdded followed_show_requester_added = 15;
+     */
+    value: FollowedShowRequesterAdded;
+    case: "followedShowRequesterAdded";
+  } | {
+    /**
+     * @generated from field: nama.v1.FollowedShowStateChanged followed_show_state_changed = 16;
+     */
+    value: FollowedShowStateChanged;
+    case: "followedShowStateChanged";
+  } | {
+    /**
+     * @generated from field: nama.v1.FollowedShowCancelled followed_show_cancelled = 17;
+     */
+    value: FollowedShowCancelled;
+    case: "followedShowCancelled";
+  } | {
+    /**
+     * @generated from field: nama.v1.FollowedShowRequesterRemoved followed_show_requester_removed = 18;
+     */
+    value: FollowedShowRequesterRemoved;
+    case: "followedShowRequesterRemoved";
+  } | {
+    /**
+     * @generated from field: nama.v1.FollowedShowWithdrawn followed_show_withdrawn = 19;
+     */
+    value: FollowedShowWithdrawn;
+    case: "followedShowWithdrawn";
   } | { case: undefined; value?: undefined };
 };
 
@@ -542,6 +578,146 @@ export const RequestProgressSchema: GenMessage<RequestProgress> = /*@__PURE__*/
   messageDesc(file_nama_v1_event, 16);
 
 /**
+ * A User asked for a whole Show that had no open Followed Show, which opened this one. Followed
+ * Show events reach whom Request events reach: its Requesters, and subscribers with
+ * `PERMISSION_VIEW_REQUESTS`.
+ *
+ * @generated from message nama.v1.FollowedShowCreated
+ */
+export type FollowedShowCreated = Message<"nama.v1.FollowedShowCreated"> & {
+  /**
+   * @generated from field: nama.v1.FollowedShow followed_show = 1;
+   */
+  followedShow?: FollowedShow | undefined;
+};
+
+/**
+ * Describes the message nama.v1.FollowedShowCreated.
+ * Use `create(FollowedShowCreatedSchema)` to create a new message.
+ */
+export const FollowedShowCreatedSchema: GenMessage<FollowedShowCreated> = /*@__PURE__*/
+  messageDesc(file_nama_v1_event, 17);
+
+/**
+ * A User joined a Followed Show as a Requester.
+ *
+ * @generated from message nama.v1.FollowedShowRequesterAdded
+ */
+export type FollowedShowRequesterAdded = Message<"nama.v1.FollowedShowRequesterAdded"> & {
+  /**
+   * The Followed Show as it is now, with them among its Requesters.
+   *
+   * @generated from field: nama.v1.FollowedShow followed_show = 1;
+   */
+  followedShow?: FollowedShow | undefined;
+
+  /**
+   * The User who joined.
+   *
+   * @generated from field: int64 user_id = 2;
+   */
+  userId: bigint;
+};
+
+/**
+ * Describes the message nama.v1.FollowedShowRequesterAdded.
+ * Use `create(FollowedShowRequesterAddedSchema)` to create a new message.
+ */
+export const FollowedShowRequesterAddedSchema: GenMessage<FollowedShowRequesterAdded> = /*@__PURE__*/
+  messageDesc(file_nama_v1_event, 18);
+
+/**
+ * A Followed Show was approved or declined.
+ *
+ * @generated from message nama.v1.FollowedShowStateChanged
+ */
+export type FollowedShowStateChanged = Message<"nama.v1.FollowedShowStateChanged"> & {
+  /**
+   * The Followed Show as it is now, in its new state.
+   *
+   * @generated from field: nama.v1.FollowedShow followed_show = 1;
+   */
+  followedShow?: FollowedShow | undefined;
+};
+
+/**
+ * Describes the message nama.v1.FollowedShowStateChanged.
+ * Use `create(FollowedShowStateChangedSchema)` to create a new message.
+ */
+export const FollowedShowStateChangedSchema: GenMessage<FollowedShowStateChanged> = /*@__PURE__*/
+  messageDesc(file_nama_v1_event, 19);
+
+/**
+ * A User with `PERMISSION_MANAGE_REQUESTS` cancelled a Followed Show, which removed it.
+ *
+ * @generated from message nama.v1.FollowedShowCancelled
+ */
+export type FollowedShowCancelled = Message<"nama.v1.FollowedShowCancelled"> & {
+  /**
+   * The Followed Show as it was before it was removed.
+   *
+   * @generated from field: nama.v1.FollowedShow followed_show = 1;
+   */
+  followedShow?: FollowedShow | undefined;
+};
+
+/**
+ * Describes the message nama.v1.FollowedShowCancelled.
+ * Use `create(FollowedShowCancelledSchema)` to create a new message.
+ */
+export const FollowedShowCancelledSchema: GenMessage<FollowedShowCancelled> = /*@__PURE__*/
+  messageDesc(file_nama_v1_event, 20);
+
+/**
+ * A Requester withdrew from a Followed Show that others are still on.
+ *
+ * @generated from message nama.v1.FollowedShowRequesterRemoved
+ */
+export type FollowedShowRequesterRemoved = Message<"nama.v1.FollowedShowRequesterRemoved"> & {
+  /**
+   * The Followed Show as it was, with them still among its Requesters, so they get the event too.
+   *
+   * @generated from field: nama.v1.FollowedShow followed_show = 1;
+   */
+  followedShow?: FollowedShow | undefined;
+
+  /**
+   * The User who withdrew.
+   *
+   * @generated from field: int64 user_id = 2;
+   */
+  userId: bigint;
+};
+
+/**
+ * Describes the message nama.v1.FollowedShowRequesterRemoved.
+ * Use `create(FollowedShowRequesterRemovedSchema)` to create a new message.
+ */
+export const FollowedShowRequesterRemovedSchema: GenMessage<FollowedShowRequesterRemoved> = /*@__PURE__*/
+  messageDesc(file_nama_v1_event, 21);
+
+/**
+ * A Followed Show's last Requester withdrew, which removed it.
+ *
+ * @generated from message nama.v1.FollowedShowWithdrawn
+ */
+export type FollowedShowWithdrawn = Message<"nama.v1.FollowedShowWithdrawn"> & {
+  /**
+   * The Followed Show as it was before it was removed.
+   *
+   * @generated from field: nama.v1.FollowedShow followed_show = 1;
+   */
+  followedShow?: FollowedShow | undefined;
+};
+
+/**
+ * Describes the message nama.v1.FollowedShowWithdrawn.
+ * Use `create(FollowedShowWithdrawnSchema)` to create a new message.
+ */
+export const FollowedShowWithdrawnSchema: GenMessage<FollowedShowWithdrawn> = /*@__PURE__*/
+  messageDesc(file_nama_v1_event, 22);
+
+/**
  * The kinds of `Event`, one per field of its `event`.
  *
  * @generated from enum nama.v1.EventType
@@ -616,6 +792,36 @@ export const EventType = {
    * @generated from enum value: EVENT_TYPE_REQUEST_PROGRESS = 13;
    */
   REQUEST_PROGRESS: 13,
+
+  /**
+   * @generated from enum value: EVENT_TYPE_FOLLOWED_SHOW_CREATED = 14;
+   */
+  FOLLOWED_SHOW_CREATED: 14,
+
+  /**
+   * @generated from enum value: EVENT_TYPE_FOLLOWED_SHOW_REQUESTER_ADDED = 15;
+   */
+  FOLLOWED_SHOW_REQUESTER_ADDED: 15,
+
+  /**
+   * @generated from enum value: EVENT_TYPE_FOLLOWED_SHOW_STATE_CHANGED = 16;
+   */
+  FOLLOWED_SHOW_STATE_CHANGED: 16,
+
+  /**
+   * @generated from enum value: EVENT_TYPE_FOLLOWED_SHOW_CANCELLED = 17;
+   */
+  FOLLOWED_SHOW_CANCELLED: 17,
+
+  /**
+   * @generated from enum value: EVENT_TYPE_FOLLOWED_SHOW_REQUESTER_REMOVED = 18;
+   */
+  FOLLOWED_SHOW_REQUESTER_REMOVED: 18,
+
+  /**
+   * @generated from enum value: EVENT_TYPE_FOLLOWED_SHOW_WITHDRAWN = 19;
+   */
+  FOLLOWED_SHOW_WITHDRAWN: 19,
 } as const;
 
 /**

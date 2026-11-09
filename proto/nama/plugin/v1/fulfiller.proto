@@ -10,6 +10,12 @@ import "nama/v1/request.proto";
 message Fulfilled {
   // An opaque reference the Kernel keeps with the Request and passes back to `progress`.
   string reference = 1;
+  // The service's quality profile the title is downloaded at, as `nama.v1.Quality.profile_id`:
+  // the one asked for, or the service's own when it already had the title and kept it. Empty if
+  // the Fulfiller doesn't say.
+  string profile_id = 2;
+  // The service's name for that profile, such as Radarr's `HD-1080p`.
+  string profile_name = 3;
 }
 
 // What an Installed Plugin's `progress` export is asked about: the references its Fulfiller gave

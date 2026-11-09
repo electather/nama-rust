@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "INSERT INTO followed_shows (tmdb_id, title, state, latest_season, created_at)\n                 VALUES (?, ?, ?, ?, ?)\n                 RETURNING id",
+  "query": "INSERT INTO followed_shows (tmdb_id, title, state, latest_season, created_at)\n         VALUES (?, ?, ?, ?, ?)\n         RETURNING id",
   "describe": {
     "columns": [
       {
@@ -22,5 +22,5 @@
       false
     ]
   },
-  "hash": "87311900a0fa45c3775db1351675004498d97b754852f15513bf0df1fd1e2976"
+  "hash": "56af550ea2117e23a4df2b9ad27ebfc648cdb3d22e043c6c0638949758d999cd"
 }

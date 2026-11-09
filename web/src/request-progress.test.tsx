@@ -37,6 +37,22 @@ function server(
   });
 }
 
+test("a handed-off Request shows the Quality its service used, else the profile it kept", async () => {
+  const asked4k = { ...duneDownloading([]), quality: { id: 7n, name: "4K", profileId: "5" } };
+  const usedHd = { ...asked4k, qualityUsed: { id: 6n, name: "HD", profileId: "4" } };
+  const keptItsOwn = { ...asked4k, id: 2n, qualityUsed: { name: "Ultra-HD", profileId: "9" } };
+  openApp(
+    "/requests",
+    server(() => [usedHd, keptItsOwn]),
+  );
+
+  const rows = await screen.findAllByRole("listitem");
+  expect(rows.map((row) => row.textContent)).toEqual([
+    "DuneHD · Requested by GraceProcessing",
+    "DuneUltra-HD (set in the service) · Requested by GraceProcessing",
+  ]);
+});
+
 const duneFile = {
   title: "Dune.2021.2160p",
   sizeBytes: 4_000_000_000n,

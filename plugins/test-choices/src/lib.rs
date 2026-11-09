@@ -6,7 +6,7 @@ use std::{collections::HashMap, future, sync::Arc};
 
 use nama_plugin_api::{
     BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
-    fulfiller::{Download, Fulfiller, Movies, Shows},
+    fulfiller::{Download, Fulfilled, Fulfiller, Movies, Shows},
     settings::{
         Choice, Choices, SettingField, SettingKind, Settings, SettingsCheck, SettingsSchema,
     },
@@ -92,9 +92,15 @@ impl Plugin for TestChoices {
 
 /// Takes every Request, giving `movie-<TMDB id>` as its reference.
 impl Fulfiller<Movies> for TestChoices {
-    fn fulfill<'a>(&'a self, request: &'a Request) -> BoxFuture<'a, Result<String, PluginError>> {
+    fn fulfill<'a>(
+        &'a self,
+        request: &'a Request,
+    ) -> BoxFuture<'a, Result<Fulfilled, PluginError>> {
         let reference = format!("movie-{}", request.movie.tmdb_id);
-        Box::pin(future::ready(Ok(reference)))
+        Box::pin(future::ready(Ok(Fulfilled {
+            reference,
+            ..Fulfilled::default()
+        })))
     }
 
     fn progress<'a>(
@@ -107,13 +113,19 @@ impl Fulfiller<Movies> for TestChoices {
 
 /// Takes every Request, giving `show-<TMDB id>-season-<number>` as its reference.
 impl Fulfiller<Shows> for TestChoices {
-    fn fulfill<'a>(&'a self, request: &'a Request) -> BoxFuture<'a, Result<String, PluginError>> {
+    fn fulfill<'a>(
+        &'a self,
+        request: &'a Request,
+    ) -> BoxFuture<'a, Result<Fulfilled, PluginError>> {
         let season = &request.season;
         let reference = format!(
             "show-{}-season-{}",
             season.show_tmdb_id, season.season_number
         );
-        Box::pin(future::ready(Ok(reference)))
+        Box::pin(future::ready(Ok(Fulfilled {
+            reference,
+            ..Fulfilled::default()
+        })))
     }
 
     fn progress<'a>(

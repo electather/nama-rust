@@ -145,6 +145,18 @@ pub enum RefusalReason {
     /// `invalid_argument`: the field isn't an http or https URL with a host, or has a query or fragment
     /// where links are added to its end.
     REFUSAL_REASON_NOT_A_URL = 53i32,
+    /// `invalid_argument`: a Fulfiller's Qualities name the same profile twice, or two Qualities
+    /// share a name, ignoring case. `field` names the second, such as `qualities[1].name`.
+    REFUSAL_REASON_QUALITY_REPEATED = 54i32,
+    /// `invalid_argument`: a Fulfiller's Qualities don't mark exactly one as the default.
+    REFUSAL_REASON_DEFAULT_QUALITY_REQUIRED = 55i32,
+    /// `invalid_argument`: the Quality named isn't on the list of the Fulfiller the Request goes to,
+    /// that Fulfiller has none or none is enabled, or the Request can't take one yet (a Season
+    /// Request). `field` is `quality` or `quality_id`. Params: `qualityId`.
+    REFUSAL_REASON_QUALITY_NOT_OFFERED = 56i32,
+    /// `permission_denied`: the caller named a Quality, even the default, without
+    /// `PERMISSION_CHOOSE_QUALITY`. `field` is `quality`.
+    REFUSAL_REASON_QUALITY_NOT_ALLOWED = 57i32,
 }
 impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -309,6 +321,18 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_NOT_A_URL`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const NotAUrl: Self = Self::REFUSAL_REASON_NOT_A_URL;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_QUALITY_REPEATED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const QualityRepeated: Self = Self::REFUSAL_REASON_QUALITY_REPEATED;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_DEFAULT_QUALITY_REQUIRED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const DefaultQualityRequired: Self = Self::REFUSAL_REASON_DEFAULT_QUALITY_REQUIRED;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_QUALITY_NOT_OFFERED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const QualityNotOffered: Self = Self::REFUSAL_REASON_QUALITY_NOT_OFFERED;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_QUALITY_NOT_ALLOWED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const QualityNotAllowed: Self = Self::REFUSAL_REASON_QUALITY_NOT_ALLOWED;
 }
 impl ::core::default::Default for RefusalReason {
     fn default() -> Self {
@@ -516,6 +540,18 @@ impl ::buffa::Enumeration for RefusalReason {
             }
             52i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_PLUGIN_REFUSED),
             53i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_NOT_A_URL),
+            54i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_QUALITY_REPEATED),
+            55i32 => {
+                ::core::option::Option::Some(
+                    Self::REFUSAL_REASON_DEFAULT_QUALITY_REQUIRED,
+                )
+            }
+            56i32 => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_QUALITY_NOT_OFFERED)
+            }
+            57i32 => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_QUALITY_NOT_ALLOWED)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -624,6 +660,16 @@ impl ::buffa::Enumeration for RefusalReason {
             }
             Self::REFUSAL_REASON_PLUGIN_REFUSED => "REFUSAL_REASON_PLUGIN_REFUSED",
             Self::REFUSAL_REASON_NOT_A_URL => "REFUSAL_REASON_NOT_A_URL",
+            Self::REFUSAL_REASON_QUALITY_REPEATED => "REFUSAL_REASON_QUALITY_REPEATED",
+            Self::REFUSAL_REASON_DEFAULT_QUALITY_REQUIRED => {
+                "REFUSAL_REASON_DEFAULT_QUALITY_REQUIRED"
+            }
+            Self::REFUSAL_REASON_QUALITY_NOT_OFFERED => {
+                "REFUSAL_REASON_QUALITY_NOT_OFFERED"
+            }
+            Self::REFUSAL_REASON_QUALITY_NOT_ALLOWED => {
+                "REFUSAL_REASON_QUALITY_NOT_ALLOWED"
+            }
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -802,6 +848,20 @@ impl ::buffa::Enumeration for RefusalReason {
             "REFUSAL_REASON_NOT_A_URL" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_NOT_A_URL)
             }
+            "REFUSAL_REASON_QUALITY_REPEATED" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_QUALITY_REPEATED)
+            }
+            "REFUSAL_REASON_DEFAULT_QUALITY_REQUIRED" => {
+                ::core::option::Option::Some(
+                    Self::REFUSAL_REASON_DEFAULT_QUALITY_REQUIRED,
+                )
+            }
+            "REFUSAL_REASON_QUALITY_NOT_OFFERED" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_QUALITY_NOT_OFFERED)
+            }
+            "REFUSAL_REASON_QUALITY_NOT_ALLOWED" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_QUALITY_NOT_ALLOWED)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -861,6 +921,10 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_NOT_A_FOLLOWED_SHOW_REQUESTER,
             Self::REFUSAL_REASON_PLUGIN_REFUSED,
             Self::REFUSAL_REASON_NOT_A_URL,
+            Self::REFUSAL_REASON_QUALITY_REPEATED,
+            Self::REFUSAL_REASON_DEFAULT_QUALITY_REQUIRED,
+            Self::REFUSAL_REASON_QUALITY_NOT_OFFERED,
+            Self::REFUSAL_REASON_QUALITY_NOT_ALLOWED,
         ]
     }
 }

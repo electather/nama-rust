@@ -191,6 +191,9 @@ pub enum Permission {
     PERMISSION_AUTO_APPROVE_TV = 11i32,
     /// Sees every User's Requests, not only their own.
     PERMISSION_VIEW_REQUESTS = 12i32,
+    /// Picks the Quality a title is downloaded at when Requesting it, from its Fulfiller's list
+    /// (ADR 0025). About quality alone: never folders, tags or servers.
+    PERMISSION_CHOOSE_QUALITY = 13i32,
 }
 impl Permission {
     ///Idiomatic alias for [`Self::PERMISSION_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -232,6 +235,9 @@ impl Permission {
     ///Idiomatic alias for [`Self::PERMISSION_VIEW_REQUESTS`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const ViewRequests: Self = Self::PERMISSION_VIEW_REQUESTS;
+    ///Idiomatic alias for [`Self::PERMISSION_CHOOSE_QUALITY`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const ChooseQuality: Self = Self::PERMISSION_CHOOSE_QUALITY;
 }
 impl ::core::default::Default for Permission {
     fn default() -> Self {
@@ -340,6 +346,7 @@ impl ::buffa::Enumeration for Permission {
             10i32 => ::core::option::Option::Some(Self::PERMISSION_AUTO_APPROVE_MOVIE),
             11i32 => ::core::option::Option::Some(Self::PERMISSION_AUTO_APPROVE_TV),
             12i32 => ::core::option::Option::Some(Self::PERMISSION_VIEW_REQUESTS),
+            13i32 => ::core::option::Option::Some(Self::PERMISSION_CHOOSE_QUALITY),
             _ => ::core::option::Option::None,
         }
     }
@@ -361,6 +368,7 @@ impl ::buffa::Enumeration for Permission {
             Self::PERMISSION_AUTO_APPROVE_MOVIE => "PERMISSION_AUTO_APPROVE_MOVIE",
             Self::PERMISSION_AUTO_APPROVE_TV => "PERMISSION_AUTO_APPROVE_TV",
             Self::PERMISSION_VIEW_REQUESTS => "PERMISSION_VIEW_REQUESTS",
+            Self::PERMISSION_CHOOSE_QUALITY => "PERMISSION_CHOOSE_QUALITY",
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -402,6 +410,9 @@ impl ::buffa::Enumeration for Permission {
             "PERMISSION_VIEW_REQUESTS" => {
                 ::core::option::Option::Some(Self::PERMISSION_VIEW_REQUESTS)
             }
+            "PERMISSION_CHOOSE_QUALITY" => {
+                ::core::option::Option::Some(Self::PERMISSION_CHOOSE_QUALITY)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -420,6 +431,7 @@ impl ::buffa::Enumeration for Permission {
             Self::PERMISSION_AUTO_APPROVE_MOVIE,
             Self::PERMISSION_AUTO_APPROVE_TV,
             Self::PERMISSION_VIEW_REQUESTS,
+            Self::PERMISSION_CHOOSE_QUALITY,
         ]
     }
 }
