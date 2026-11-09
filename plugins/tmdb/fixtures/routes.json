@@ -22,5 +22,8 @@
   "/3/search/movie?query=Alien&year=1980": "search-empty.json",
   "/3/search/movie?query=Alien": "search-movie-alien-1979.json",
   "/3/search/movie?query=Home Movies": "search-empty.json",
-  "/3/search/movie?query=Lost Reel": "search-empty.json"
+  "/3/search/movie?query=Lost Reel": "search-empty.json",
+  "/3/search/tv?query=Euphoria": "search-tv-euphoria.json",
+  "/3/tv/85552?append_to_response=external_ids": "tv-85552.json",
+  "/3/tv/85552/season/1?append_to_response=external_ids": "tv-85552-season-1.json"
 }

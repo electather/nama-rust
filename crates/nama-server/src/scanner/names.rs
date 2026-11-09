@@ -8,6 +8,8 @@
 //!   specials in Season 0 (`S00E01`).
 //! - Extras (`Featurettes/`, `-trailer` and the like) are recognised so they can be left out.
 //! - ID hints anywhere in a Movie's or Show's name: `{tmdb-123}` or `[tmdbid-123]`.
+//! - A country tag ending a Show's name, as Sonarr names same-name Shows apart: `The Office (US)`.
+//!   It stays in the stored name, so pins keep their key; Matching reads it with [`country_tag`].
 //!
 //! Only paths are read here. The scanner never opens `.nfo` files or any other sidecar.
 
@@ -35,6 +37,22 @@ static TAG: LazyLock<Regex> = LazyLock::new(|| regex(r"\{[^}]*\}|\[[^\]]*\]"));
 /// A name ending (before any trailing tags or ` - suffix`) in a year in brackets.
 static TITLE_YEAR: LazyLock<Regex> =
     LazyLock::new(|| regex(r"^(?P<title>.*?)\s*\((?P<year>\d{4})\)"));
+
+/// A name ending in a bracket of two capital letters, which may be a country tag.
+static COUNTRY_TAG: LazyLock<Regex> =
+    LazyLock::new(|| regex(r"^(?P<title>.+?)\s*\((?P<code>[A-Z]{2})\)$"));
+
+/// Every ISO 3166-1 alpha-2 code, so a bracket such as `(II)` stays part of the title.
+const COUNTRY_CODES: &str = "\
+    AD AE AF AG AI AL AM AO AQ AR AS AT AU AW AX AZ BA BB BD BE BF BG BH BI BJ BL BM BN BO BQ \
+    BR BS BT BV BW BY BZ CA CC CD CF CG CH CI CK CL CM CN CO CR CU CV CW CX CY CZ DE DJ DK DM \
+    DO DZ EC EE EG EH ER ES ET FI FJ FK FM FO FR GA GB GD GE GF GG GH GI GL GM GN GP GQ GR GS \
+    GT GU GW GY HK HM HN HR HT HU ID IE IL IM IN IO IQ IR IS IT JE JM JO JP KE KG KH KI KM KN \
+    KP KR KW KY KZ LA LB LC LI LK LR LS LT LU LV LY MA MC MD ME MF MG MH MK ML MM MN MO MP MQ \
+    MR MS MT MU MV MW MX MY MZ NA NC NE NF NG NI NL NO NP NR NU NZ OM PA PE PF PG PH PK PL PM \
+    PN PR PS PT PW PY QA RE RO RS RU RW SA SB SC SD SE SG SH SI SJ SK SL SM SN SO SR SS ST SV \
+    SX SY SZ TC TD TF TG TH TJ TK TL TM TN TO TR TT TV TW TZ UA UG UM US UY UZ VA VC VE VG VI \
+    VN VU WF WS YE YT ZA ZM ZW";
 
 /// `S01E01`, `s1e1`, or a multi-episode `S01E01-E02`, `S01E01E02`, `S01E01-S01E02` or
 /// `S01E01-02`, not glued to a word before it.
@@ -257,6 +275,22 @@ fn title_and_year(name: &str) -> Option<Named> {
         year,
         tmdb_id,
     })
+}
+
+/// The title in a Show's name and the country its country tag names, as TMDB codes it: `The
+/// Office (UK)` is `("The Office", "GB")`. `None` for a name with no country tag.
+pub(crate) fn country_tag(show: &str) -> Option<(&str, &str)> {
+    let captures = COUNTRY_TAG.captures(show)?;
+    let title = captures.name("title")?.as_str();
+    let code = match captures.name("code")?.as_str() {
+        // Sonarr's titles, from TheTVDB, say UK where ISO and TMDB say GB.
+        "UK" => "GB",
+        code => code,
+    };
+    COUNTRY_CODES
+        .split_whitespace()
+        .any(|known| known == code)
+        .then_some((title, code))
 }
 
 fn tmdb_hint(name: &str) -> Option<i64> {

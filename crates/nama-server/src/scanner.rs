@@ -18,7 +18,7 @@
 
 mod names;
 
-pub(crate) use names::PARSER_VERSION;
+pub(crate) use names::{PARSER_VERSION, country_tag};
 
 use std::{
     collections::{HashMap, HashSet},
