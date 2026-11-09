@@ -595,17 +595,16 @@ impl Requests {
         let Some(fulfilled) = self.fulfill(&handed).await else {
             return Ok(current);
         };
-        let fulfilled = match fulfilled {
-            Ok(fulfilled) => Ok(Taken {
-                quality_used: self.quality_used(&current, &fulfilled).await?,
-                reference: fulfilled.reference,
-            }),
-            Err(reason) => Err(reason),
-        };
         let took = fulfilled.is_ok();
+        let asked = current.quality.as_option().cloned();
+        let plugin = if current.movie.is_unset() {
+            self.fulfiller::<Shows>()
+        } else {
+            self.fulfiller::<Movies>()
+        };
         let settled = self
             .db
-            .write(move |tx| Box::pin(settle(tx, id, fulfilled)))
+            .write(move |tx| Box::pin(settle(tx, id, fulfilled, asked, plugin)))
             .await?;
         if took && settled.is_none() {
             warn!(
@@ -662,48 +661,6 @@ impl Requests {
             self.hand_off(request).await?;
         }
         Ok(())
-    }
-
-    /// The Quality `request`'s service downloads it at, as its Fulfiller reported in `fulfilled`:
-    /// `request`'s own Quality if it has that profile, else the Quality on the Fulfiller's list
-    /// that has it, else the service's own profile, with no Quality id. `None` if `request` took
-    /// no Quality, so the Plugin's own setting applied, or the Fulfiller didn't say.
-    async fn quality_used(
-        &self,
-        request: &Request,
-        fulfilled: &Fulfilled,
-    ) -> Result<Option<RequestedQuality>, sqlx::Error> {
-        let Fulfilled {
-            profile_id,
-            profile_name,
-            ..
-        } = fulfilled;
-        let Some(asked) = request.quality.as_option() else {
-            return Ok(None);
-        };
-        if profile_id.is_empty() {
-            return Ok(None);
-        }
-        if asked.profile_id == *profile_id {
-            return Ok(Some(asked.clone()));
-        }
-        let plugin = if request.movie.is_unset() {
-            self.fulfiller::<Shows>()
-        } else {
-            self.fulfiller::<Movies>()
-        };
-        let listed = match plugin {
-            Some(plugin) => {
-                let mut conn = self.db.reader().acquire().await?;
-                qualities::with_profile(&mut conn, &plugin, profile_id).await?
-            }
-            None => None,
-        };
-        Ok(Some(listed.unwrap_or_else(|| RequestedQuality {
-            name: profile_name.clone(),
-            profile_id: profile_id.clone(),
-            ..Default::default()
-        })))
     }
 
     /// What the Fulfiller for `request`'s kind says to it, if one is enabled: what it reports once
@@ -1277,12 +1234,7 @@ async fn insert_request(
     state: &str,
     now: i64,
 ) -> Result<i64, sqlx::Error> {
-    let quality = wanted.quality.as_ref();
-    let (quality_id, quality_name, quality_profile_id) = (
-        quality.map(|quality| quality.id),
-        quality.map(|quality| &quality.name),
-        quality.map(|quality| &quality.profile_id),
-    );
+    let (quality_id, quality_name, quality_profile_id) = quality_columns(wanted.quality.as_ref());
     sqlx::query_scalar!(
         "INSERT INTO requests (tmdb_id, season, title, release_date, show_imdb_id, show_tvdb_id,
                                state, created_at, followed_show_id, quality_id, quality_name,
@@ -1537,31 +1489,31 @@ async fn decide(
     Ok(request)
 }
 
-/// What a Fulfiller that took a Request said, as the Request keeps it.
-struct Taken {
-    reference: String,
-    quality_used: Option<RequestedQuality>,
-}
-
-/// Moves the Approved Request `id` on as its Fulfiller said: to Processing, keeping what it said,
-/// or to Failed, keeping why. Returns it as it is now, or `None` if it isn't Approved any more.
+/// Moves the Approved Request `id`, asked at the Quality `asked`, on as its Fulfiller, from the
+/// Plugin `plugin`, said: to Processing, keeping its reference and the Quality used, or to Failed,
+/// keeping why. Returns it as it is now, or `None` if it isn't Approved any more.
 async fn settle(
     conn: &mut SqliteConnection,
     id: i64,
-    fulfilled: Result<Taken, String>,
+    fulfilled: Result<Fulfilled, String>,
+    asked: Option<RequestedQuality>,
+    plugin: Option<PluginId>,
 ) -> Result<Option<Request>, sqlx::Error> {
-    let (state, taken, reason) = match fulfilled {
-        Ok(taken) => (RequestState::Processing, Some(taken), None),
-        Err(reason) => (RequestState::Failed, None, Some(reason)),
+    // In the same write as the reference, so a failed read can't lose a Request the Fulfiller took.
+    let (state, reference, used, reason) = match fulfilled {
+        Ok(fulfilled) => {
+            let used = quality_used(conn, asked.as_ref(), plugin.as_ref(), &fulfilled).await?;
+            (
+                RequestState::Processing,
+                Some(fulfilled.reference),
+                used,
+                None,
+            )
+        }
+        Err(reason) => (RequestState::Failed, None, None, Some(reason)),
     };
     let state = stored(state);
-    let reference = taken.as_ref().map(|taken| &taken.reference);
-    let used = taken.as_ref().and_then(|taken| taken.quality_used.as_ref());
-    let (used_id, used_name, used_profile_id) = (
-        used.map(|used| used.id),
-        used.map(|used| &used.name),
-        used.map(|used| &used.profile_id),
-    );
+    let (used_id, used_name, used_profile_id) = quality_columns(used.as_ref());
     let settled = sqlx::query!(
         "UPDATE requests SET state = ?, fulfiller_reference = ?, failure_reason = ?,
                              quality_used_id = ?, quality_used_name = ?, quality_used_profile_id = ?
@@ -1582,6 +1534,41 @@ async fn settle(
         return Ok(None);
     }
     load_one(conn, id).await
+}
+
+/// The Quality the service downloads a Request asked at `asked` at, as its Fulfiller, from the
+/// Plugin `plugin`, reported in `fulfilled`: `asked` if it has that profile, else the Quality on the
+/// Plugin's list that has it, else the service's own profile, with no Quality id. `None` if the
+/// Request took no Quality, so the Plugin's own setting applied, or the Fulfiller didn't say.
+async fn quality_used(
+    conn: &mut SqliteConnection,
+    asked: Option<&RequestedQuality>,
+    plugin: Option<&PluginId>,
+    fulfilled: &Fulfilled,
+) -> Result<Option<RequestedQuality>, sqlx::Error> {
+    let Fulfilled {
+        profile_id,
+        profile_name,
+        ..
+    } = fulfilled;
+    let Some(asked) = asked else {
+        return Ok(None);
+    };
+    if profile_id.is_empty() {
+        return Ok(None);
+    }
+    if asked.profile_id == *profile_id {
+        return Ok(Some(asked.clone()));
+    }
+    let listed = match plugin {
+        Some(plugin) => qualities::with_profile(conn, plugin, profile_id).await?,
+        None => None,
+    };
+    Ok(Some(listed.unwrap_or_else(|| RequestedQuality {
+        name: profile_name.clone(),
+        profile_id: profile_id.clone(),
+        ..Default::default()
+    })))
 }
 
 /// Moves the Failed Request `id` back to Approved, forgetting why it failed, and returns it as it
@@ -2086,8 +2073,19 @@ async fn requesters_by_request(
     Ok(requesters)
 }
 
-/// A Quality a Request stored, if it has one: [`insert_request`] and [`settle`] set all three or
-/// none.
+/// The three columns a Request stores `quality` in, all set or all `NULL`, as [`stored_quality`]
+/// reads them back.
+fn quality_columns(
+    quality: Option<&RequestedQuality>,
+) -> (Option<i64>, Option<&str>, Option<&str>) {
+    (
+        quality.map(|quality| quality.id),
+        quality.map(|quality| quality.name.as_str()),
+        quality.map(|quality| quality.profile_id.as_str()),
+    )
+}
+
+/// A Quality a Request stored, if it has one, from the columns [`quality_columns`] gives.
 fn stored_quality(
     id: Option<i64>,
     name: Option<String>,

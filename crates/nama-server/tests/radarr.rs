@@ -342,6 +342,20 @@ async fn testing_radarrs_settings_offers_its_quality_profiles_and_root_folders()
     );
 }
 
+// The Plugin page flags a Quality whose profile this check stops offering.
+#[tokio::test]
+async fn testing_radarrs_settings_stops_offering_a_profile_removed_from_radarr() {
+    let fixture = Fixture::start().await;
+    fixture.radarr.remove_profile(4);
+
+    let tested = fixture.test_settings(RADARR_KEY).await.unwrap();
+
+    assert_eq!(
+        choices(&tested, "quality_profile"),
+        [("1", "Any"), ("5", "Ultra-HD")]
+    );
+}
+
 #[tokio::test]
 async fn testing_radarrs_settings_with_a_wrong_key_or_radarr_down_fails_in_plain_words() {
     let mut fixture = Fixture::start().await;
