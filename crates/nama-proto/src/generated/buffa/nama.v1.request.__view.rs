@@ -6700,8 +6700,8 @@ impl ::serde::Serialize for ListDefaultQualitiesRequestOwnedView {
 }
 #[derive(Clone, Debug, Default)]
 pub struct ListDefaultQualitiesResponseView<'a> {
-    /// One per enabled Fulfiller whose list has more than one Quality, or has one left after an
-    /// admin removed the User's default, Movies first.
+    /// One for the enabled Movie Fulfiller if its list has more than one Quality, or has one left
+    /// after an admin removed the User's default; none otherwise.
     ///
     /// Field 1: `defaults`
     pub defaults: ::buffa::RepeatedView<
@@ -6950,8 +6950,8 @@ impl ListDefaultQualitiesResponseOwnedView {
     pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
         self.0.into_bytes()
     }
-    /// One per enabled Fulfiller whose list has more than one Quality, or has one left after an
-    /// admin removed the User's default, Movies first.
+    /// One for the enabled Movie Fulfiller if its list has more than one Quality, or has one left
+    /// after an admin removed the User's default; none otherwise.
     ///
     /// Field 1: `defaults`
     #[must_use]

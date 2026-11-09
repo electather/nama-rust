@@ -326,19 +326,13 @@ impl Requests {
         asker: &User,
         chosen: Option<i64>,
     ) -> Result<Option<RequestedQuality>, Error> {
-        let may_choose = asker.permissions.allow(Permission::ChooseQuality);
-        if chosen.is_some() && !may_choose {
+        if chosen.is_some() && !asker.permissions.allow(Permission::ChooseQuality) {
             return Err(Error::QualityNotAllowed);
         }
         let quality = match self.fulfiller::<Movies>() {
             Some(fulfiller) => {
                 let mut conn = self.db.reader().acquire().await?;
-                let preferred = match chosen {
-                    None if may_choose => {
-                        qualities::personal_default(&mut conn, asker.id, &fulfiller).await?
-                    }
-                    _ => None,
-                };
+                let preferred = usable_default(&mut conn, asker, &fulfiller).await?;
                 qualities::for_request(&mut conn, &fulfiller, chosen, preferred).await?
             }
             None => None,
@@ -361,13 +355,9 @@ impl Requests {
         };
         let mut conn = self.db.reader().acquire().await?;
         let qualities = qualities::list(&mut conn, &fulfiller).await?;
-        let personal_default = if asker.permissions.allow(Permission::ChooseQuality) {
-            qualities::personal_default(&mut conn, asker.id, &fulfiller)
-                .await?
-                .filter(|id| qualities.iter().any(|quality| quality.id == *id))
-        } else {
-            None
-        };
+        let personal_default = usable_default(&mut conn, asker, &fulfiller)
+            .await?
+            .filter(|id| qualities.iter().any(|quality| quality.id == *id));
         Ok(ListMovieQualitiesResponse {
             qualities,
             personal_default,
@@ -375,40 +365,32 @@ impl Requests {
         })
     }
 
-    /// `user`'s default Quality for each enabled Fulfiller whose list has more than one, Movies
-    /// first, and for one left with a single Quality after an admin removed `user`'s, to flag it.
+    /// `user`'s default Quality for the enabled Movie Fulfiller if its list has more than one, or
+    /// has one left after an admin removed `user`'s, to flag it.
     pub(crate) async fn personal_defaults(
         &self,
         user: i64,
     ) -> Result<Vec<DefaultQuality>, sqlx::Error> {
-        let fulfillers = [
-            (
-                self.fulfiller::<Movies>(),
-                ExtensionPoint::EXTENSION_POINT_MOVIE_FULFILLER,
-            ),
-            (
-                self.fulfiller::<Shows>(),
-                ExtensionPoint::EXTENSION_POINT_SHOW_FULFILLER,
-            ),
-        ];
+        // ponytail: Movies only, as a Season Request takes no Quality yet, so a Shows default would
+        // change nothing; list the Shows Fulfiller's too once it does (#283).
+        let Some(plugin) = self.fulfiller::<Movies>() else {
+            return Ok(Vec::new());
+        };
         let mut conn = self.db.reader().acquire().await?;
-        let mut defaults = Vec::new();
-        for (plugin, fulfiller) in fulfillers {
-            let Some(plugin) = plugin else { continue };
-            let qualities = qualities::list(&mut conn, &plugin).await?;
-            let quality = qualities::personal_default(&mut conn, user, &plugin).await?;
-            let removed = quality.is_some_and(|id| qualities.iter().all(|listed| listed.id != id));
-            if qualities.len() > 1 || (removed && !qualities.is_empty()) {
-                defaults.push(DefaultQuality {
-                    quality,
-                    plugin_id: plugin.to_string(),
-                    fulfiller: fulfiller.into(),
-                    qualities,
-                    ..Default::default()
-                });
-            }
+        let qualities = qualities::list(&mut conn, &plugin).await?;
+        let quality = qualities::personal_default(&mut conn, user, &plugin).await?;
+        let removed = quality.is_some_and(|id| qualities.iter().all(|listed| listed.id != id));
+        let to_pick_or_flag = qualities.len() > 1 || (removed && !qualities.is_empty());
+        if !to_pick_or_flag {
+            return Ok(Vec::new());
         }
-        Ok(defaults)
+        Ok(vec![DefaultQuality {
+            quality,
+            plugin_id: plugin.to_string(),
+            fulfiller: ExtensionPoint::EXTENSION_POINT_MOVIE_FULFILLER.into(),
+            qualities,
+            ..Default::default()
+        }])
     }
 
     /// Sets `user`'s default Quality for the Fulfiller from the Plugin `plugin` to `quality`, or
@@ -2534,6 +2516,19 @@ fn read_state(stored: &str) -> RequestState {
         .iter()
         .find(|&&(_, name)| name == stored)
         .map_or(RequestState::REQUEST_STATE_UNSPECIFIED, |&(state, _)| state)
+}
+
+/// The id of `asker`'s default Quality for the Plugin `plugin`, which its list may no longer have,
+/// or `None` while they may not choose a Quality, so it isn't used.
+async fn usable_default(
+    conn: &mut SqliteConnection,
+    asker: &User,
+    plugin: &PluginId,
+) -> Result<Option<i64>, sqlx::Error> {
+    if !asker.permissions.allow(Permission::ChooseQuality) {
+        return Ok(None);
+    }
+    qualities::personal_default(conn, asker.id, plugin).await
 }
 
 #[cfg(test)]

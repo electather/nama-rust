@@ -1215,10 +1215,10 @@ pub trait RequestService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
-    /// Returns the caller's default Quality for each enabled Fulfiller whose list has more than one
-    /// Quality, or has one left after an admin removed the caller's, for their settings. Any
-    /// signed-in User may read their own, and only their own. The Server uses them only while the
-    /// User has `PERMISSION_CHOOSE_QUALITY`.
+    /// Returns the caller's default Quality for the enabled Movie Fulfiller if its list has more than
+    /// one Quality, or has one left after an admin removed the caller's, for their settings. Shows
+    /// have none until a Season Request takes a Quality. Any signed-in User may read their own, and
+    /// only their own. The Server uses them only while the User has `PERMISSION_CHOOSE_QUALITY`.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
