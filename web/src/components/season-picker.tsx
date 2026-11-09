@@ -1,97 +1,95 @@
-import { useMutation } from "@connectrpc/connect-query";
 import { Library, Plus } from "lucide-react";
-import { type ReactNode, useId, useState } from "react";
+import { type ReactNode, useId } from "react";
 
-import {
-  RequestProgress,
-  RequestStateLabel,
-  isRequester,
-  useReadBackAsked,
-} from "@/components/request-state";
+import { seasonsRefusal, useAskForShow } from "@/components/ask-for-show";
+import { QualityPicker } from "@/components/quality-picker";
+import { qualityName } from "@/components/request-row";
+import { RequestProgress, RequestStateLabel, isRequester } from "@/components/request-state";
 import { StateLabel } from "@/components/state-label";
 import { Button } from "@/components/ui/button";
-import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
-import {
-  type FollowedShow,
-  type FoundSeason,
-  type FoundShow,
-  RequestService,
-} from "@/gen/nama/v1/request_pb";
+import type { FollowedShow, FoundSeason, FoundShow } from "@/gen/nama/v1/request_pb";
 import { seasonName, yearOf } from "@/lib/browse";
-import { askRefusal, onSubmitted } from "@/lib/forms";
 
 /**
  * `show`'s Seasons, each with where it is on its way to the Server, to pick and Request in one go,
  * or the Whole Show, which covers them and later ones too. The signed-in User `you` may pick a
  * Season that's neither in a Library nor already theirs, or the Whole Show unless they follow it:
- * picking one someone else Requested joins its Request.
+ * picking one someone else Requested joins its Request. Seasons download at the Show's Quality
+ * once it has one; until then, Requesting them asks which, when the User may choose.
  */
 export function SeasonPicker({ show, you }: { show: FoundShow; you: bigint | undefined }) {
-  const { whole, setWhole, asking, submit } = useAskForShow(show);
+  const { whole, setWhole, asking, busy, submit, picker } = useAskForShow(show);
   const pickable = (season: FoundSeason) => !season.inLibrary && !isRequester(season.request, you);
   const wholePickable = !isRequester(show.followedShow, you);
   return (
-    <form className="mt-10 max-w-xl" onSubmit={submit}>
-      <fieldset>
-        <legend className="font-medium">Seasons</legend>
-        <ul className="mt-3 flex flex-col">
-          <WholeShowChoice
-            followedShow={show.followedShow}
-            disabled={!wholePickable}
-            onChange={setWhole}
-          />
-          <SeasonChoices show={show} pickable={(season) => !whole && pickable(season)} />
-        </ul>
-      </fieldset>
-      {(wholePickable || show.seasons.some(pickable)) && (
-        <RequestButton title={show.title} busy={asking.isPending} />
-      )}
-      {asking.isError && (
-        <p role="alert" className="mt-3 text-sm text-destructive">
-          {seasonsRefusal(asking.error, show.title)}
-        </p>
-      )}
-    </form>
+    <>
+      <form className="mt-10 max-w-xl" onSubmit={submit}>
+        <fieldset>
+          <legend className="font-medium">Seasons</legend>
+          <ul className="mt-3 flex flex-col">
+            <WholeShowChoice
+              followedShow={show.followedShow}
+              disabled={!wholePickable}
+              onChange={setWhole}
+            />
+            <SeasonChoices show={show} pickable={(season) => !whole && pickable(season)} />
+          </ul>
+        </fieldset>
+        <ShowQuality show={show} />
+        {(wholePickable || show.seasons.some(pickable)) && (
+          <RequestButton title={show.title} busy={busy} hasPopup={picker.hasPopup} />
+        )}
+        {asking.isError && (
+          <p role="alert" className="mt-3 text-sm text-destructive">
+            {seasonsRefusal(asking.error, show.title)}
+          </p>
+        )}
+      </form>
+      {/* Outside the form above, since the dialog holds a form of its own. */}
+      <QualityPicker
+        {...picker.dialog}
+        title={`Seasons of ${show.title}`}
+        onPick={picker.onPick}
+        refusal={(error) => seasonsRefusal(error, show.title)}
+      />
+    </>
+  );
+}
+
+/** The Quality `show`'s Seasons download at, once it has one. */
+function ShowQuality({ show }: { show: FoundShow }) {
+  return (
+    show.quality && (
+      <p className="mt-3 text-sm text-muted-foreground">
+        Every Season downloads at {qualityName(show.quality)}, the Show’s Quality.
+      </p>
+    )
   );
 }
 
 /** The form's submit button, which Requests what's picked of the Show titled `title`. */
-function RequestButton({ title, busy }: { title: string; busy: boolean }) {
+function RequestButton({
+  title,
+  busy,
+  hasPopup,
+}: {
+  title: string;
+  busy: boolean;
+  hasPopup: false | "dialog";
+}) {
   return (
     <div className="mt-6">
-      <Button type="submit" aria-label={`Request Seasons of ${title}`} disabled={busy}>
+      <Button
+        type="submit"
+        aria-label={`Request Seasons of ${title}`}
+        aria-haspopup={hasPopup}
+        disabled={busy}
+      >
         <Plus aria-hidden className="size-4" />
         Request
       </Button>
     </div>
   );
-}
-
-/** Asking for the Seasons of `show` picked in a form, or for the Whole Show while `whole`. */
-function useAskForShow(show: FoundShow) {
-  const readBack = useReadBackAsked();
-  const ask = useMutation(RequestService.method.createSeasonRequests, readBack);
-  const follow = useMutation(RequestService.method.createFollowedShow, readBack);
-  const [whole, setWhole] = useState(false);
-  const submit = onSubmitted((picked, form) => {
-    const showTmdbId = show.tmdbId;
-    const onSuccess = () => {
-      form.reset();
-      setWhole(false);
-    };
-    if (whole) follow.mutate({ showTmdbId }, { onSuccess });
-    else
-      ask.mutate({ showTmdbId, seasonNumbers: picked.getAll("season").map(Number) }, { onSuccess });
-  });
-  return { whole, setWhole, asking: whole ? follow : ask, submit };
-}
-
-function seasonsRefusal(error: unknown, title: string) {
-  return askRefusal(error, `Request Seasons of ${title}`, {
-    [RefusalReason.FIELD_REQUIRED]: { form: "Pick at least one Season." },
-    // A scan Matched one since the page was opened, which reading the Seasons back shows.
-    [RefusalReason.ALREADY_IN_LIBRARY]: { form: "One of those Seasons is already in a Library." },
-  });
 }
 
 /** The Whole Show as a Choice, with the state of its open Followed Show, if it has one. */

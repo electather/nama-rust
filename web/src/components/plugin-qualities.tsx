@@ -21,13 +21,13 @@ import { pluginName } from "@/lib/plugins";
 /** The choice setting whose choices a Fulfiller's Qualities offer (`qualities.rs` on the Server). */
 const qualityProfile = "quality_profile";
 
-/**
- * Whether `plugin` takes Qualities: a Movie Fulfiller with the `quality_profile` choice setting.
- * Shows have none yet.
- */
+/** Whether `plugin` takes Qualities: a Fulfiller with the `quality_profile` choice setting. */
 function takesQualities(plugin: Plugin) {
   return (
-    plugin.extensionPoints.includes(ExtensionPoint.MOVIE_FULFILLER) &&
+    plugin.extensionPoints.some(
+      (point) =>
+        point === ExtensionPoint.MOVIE_FULFILLER || point === ExtensionPoint.SHOW_FULFILLER,
+    ) &&
     plugin.settings.some(({ key, kind }) => key === qualityProfile && kind === SettingKind.CHOICE)
   );
 }

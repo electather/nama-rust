@@ -38,6 +38,14 @@ pub type OwnedCreateSeasonRequestsRequestView = ::buffa::view::OwnedView<
 pub type OwnedCreateSeasonRequestsResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::CreateSeasonRequestsResponseView<'static>,
 >;
+///Shorthand for `OwnedView<ListShowQualitiesRequestView<'static>>`.
+pub type OwnedListShowQualitiesRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ListShowQualitiesRequestView<'static>,
+>;
+///Shorthand for `OwnedView<ListShowQualitiesResponseView<'static>>`.
+pub type OwnedListShowQualitiesResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ListShowQualitiesResponseView<'static>,
+>;
 ///Shorthand for `OwnedView<CreateFollowedShowRequestView<'static>>`.
 pub type OwnedCreateFollowedShowRequestView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::CreateFollowedShowRequestView<'static>,
@@ -330,6 +338,40 @@ for crate::messages::nama::v1::__buffa::view::CreateSeasonRequestsResponseView<'
 impl ::connectrpc::Encodable<crate::messages::nama::v1::CreateSeasonRequestsResponse>
 for ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::CreateSeasonRequestsResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::ListShowQualitiesResponse>
+for crate::messages::nama::v1::__buffa::view::ListShowQualitiesResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::ListShowQualitiesResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ListShowQualitiesResponseView<'static>,
 > {
     fn encode(
         &self,
@@ -996,6 +1038,12 @@ pub const REQUEST_SERVICE_CREATE_SEASON_REQUESTS_SPEC: ::connectrpc::Spec = ::co
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
+/// Static [`Spec`](::connectrpc::Spec) for the `ListShowQualities` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const REQUEST_SERVICE_LIST_SHOW_QUALITIES_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.RequestService/ListShowQualities",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
 /// Static [`Spec`](::connectrpc::Spec) for the `CreateFollowedShow` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
 pub const REQUEST_SERVICE_CREATE_FOLLOWED_SHOW_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
         "/nama.v1.RequestService/CreateFollowedShow",
@@ -1215,10 +1263,10 @@ pub trait RequestService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
-    /// Returns the caller's default Quality for the enabled Movie Fulfiller if its list has more than
-    /// one Quality, or has one left after an admin removed the caller's, for their settings. Shows
-    /// have none until a Season Request takes a Quality. Any signed-in User may read their own, and
-    /// only their own. The Server uses them only while the User has `PERMISSION_CHOOSE_QUALITY`.
+    /// Returns the caller's default Quality for each enabled Fulfiller, Movies first, whose list has
+    /// more than one Quality, or has one left after an admin removed the caller's, for their
+    /// settings. Any signed-in User may read their own, and only their own. The Server uses them only
+    /// while the User has `PERMISSION_CHOOSE_QUALITY`.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
@@ -1273,7 +1321,9 @@ pub trait RequestService: Send + Sync + 'static {
     /// Episodes is Matched, and asking for such a Season fails with `failed_precondition`. Fails with
     /// `invalid_argument` if no Season is named or the metadata source has no such Show or Season,
     /// and `unavailable` if no metadata Provider is enabled, or it failed. A failure changes no
-    /// Request.
+    /// Request. A new Request takes the Show's Quality (`FoundShow.quality`) if it has one, else one
+    /// picked as `CreateRequest` picks a Movie's, refusing a Quality as `CreateRequest` does, and one
+    /// other than the Show's with `REFUSAL_REASON_QUALITY_NOT_OFFERED`.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
@@ -1293,6 +1343,30 @@ pub trait RequestService: Send + Sync + 'static {
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
                 crate::messages::nama::v1::CreateSeasonRequestsResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Returns the enabled Shows Fulfiller's Qualities, as `ListMovieQualities` does the Movie
+    /// Fulfiller's, to pick one for `CreateSeasonRequests`. Needs `PERMISSION_REQUEST_TV`.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn list_show_qualities<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::ListShowQualitiesRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::ListShowQualitiesResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -1503,10 +1577,12 @@ pub trait RequestService: Send + Sync + 'static {
     /// Approves a Pending Request and hands a Movie Request to the Movie Fulfiller, if one is enabled:
     /// Processing once it takes it, or Failed if it doesn't. Either way it then waits for what it asks
     /// for to be Matched in a Library. Given a `quality_id`, it first changes the Request's Quality to
-    /// that one, keeping the change in `Request.quality_change`. Needs `PERMISSION_MANAGE_REQUESTS`,
-    /// which manages every User's Requests. Fails with `not_found` if there is no Request with the ID,
+    /// that one, keeping the change in `Request.quality_change`, and for a Season Request that of
+    /// every open Season Request of its Show. Needs `PERMISSION_MANAGE_REQUESTS`, which manages every
+    /// User's Requests. Fails with `not_found` if there is no Request with the ID,
     /// `failed_precondition` if it isn't Pending, and `invalid_argument` if the Quality isn't offered
-    /// for it (`REFUSAL_REASON_QUALITY_NOT_OFFERED`).
+    /// for it (`REFUSAL_REASON_QUALITY_NOT_OFFERED`): not on its Fulfiller's list, or not the Show's
+    /// once another Season of the Show was handed off, which fixes the Show's Quality.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
@@ -1930,6 +2006,35 @@ impl<S: RequestService> RequestServiceExt for S {
                 },
             )
             .with_spec(REQUEST_SERVICE_CREATE_SEASON_REQUESTS_SPEC)
+            .route_view_idempotent(
+                REQUEST_SERVICE_SERVICE_NAME,
+                "ListShowQualities",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::ListShowQualitiesRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::ListShowQualitiesRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.list_show_qualities(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::ListShowQualitiesResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(REQUEST_SERVICE_LIST_SHOW_QUALITIES_SPEC)
             .route_view(
                 REQUEST_SERVICE_SERVICE_NAME,
                 "CreateFollowedShow",
@@ -2536,6 +2641,12 @@ impl<T: RequestService> ::connectrpc::Dispatcher for RequestServiceServer<T> {
                         .with_spec(REQUEST_SERVICE_CREATE_SEASON_REQUESTS_SPEC),
                 )
             }
+            "ListShowQualities" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
+                        .with_spec(REQUEST_SERVICE_LIST_SHOW_QUALITIES_SPEC),
+                )
+            }
             "CreateFollowedShow" => {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
@@ -2766,6 +2877,28 @@ impl<T: RequestService> ::connectrpc::Dispatcher for RequestServiceServer<T> {
                         .await?
                         .encode::<
                             crate::messages::nama::v1::CreateSeasonRequestsResponse,
+                        >(format)
+                })
+            }
+            "ListShowQualities" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::ListShowQualitiesRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::ListShowQualitiesRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::ListShowQualitiesRequest,
+                    >::from_parts(&req, &body);
+                    svc.list_show_qualities(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::ListShowQualitiesResponse,
                         >(format)
                 })
             }
@@ -3504,6 +3637,51 @@ where
                 &self.transport,
                 &self.config,
                 REQUEST_SERVICE_CREATE_SEASON_REQUESTS_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the ListShowQualities RPC. Sends a request to /nama.v1.RequestService/ListShowQualities.
+    pub async fn list_show_qualities(
+        &self,
+        request: crate::messages::nama::v1::ListShowQualitiesRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::ListShowQualitiesResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.list_show_qualities_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the ListShowQualities RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn list_show_qualities_with_options(
+        &self,
+        request: crate::messages::nama::v1::ListShowQualitiesRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::ListShowQualitiesResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                REQUEST_SERVICE_LIST_SHOW_QUALITIES_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,

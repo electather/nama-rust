@@ -1,0 +1,67 @@
+import { useMutation } from "@connectrpc/connect-query";
+import { useState } from "react";
+
+import { useQualityPicker } from "@/components/quality-picker";
+import { useReadBackAsked } from "@/components/request-state";
+import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
+import { type FoundShow, RequestService } from "@/gen/nama/v1/request_pb";
+import { askRefusal, onSubmitted } from "@/lib/forms";
+
+/**
+ * Asking for the Seasons of `show` picked in a form, or for the Whole Show while `whole`. Seasons
+ * of a Show with no Quality yet are asked for once the picker, if it opens, gives one.
+ */
+export function useAskForShow(show: FoundShow) {
+  const readBack = useReadBackAsked();
+  const ask = useMutation(RequestService.method.createSeasonRequests, readBack);
+  const follow = useMutation(RequestService.method.createFollowedShow, readBack);
+  const [whole, setWhole] = useState(false);
+  const picker = useQualityPicker(show.quality === undefined, "show");
+  // The Seasons picked when the picker opened, and how to clear the form once they're asked for.
+  const [awaitingQuality, setAwaitingQuality] = useState({
+    seasonNumbers: [] as number[],
+    onSuccess: () => {},
+  });
+  const showTmdbId = show.tmdbId;
+  const submit = onSubmitted((picked, form) => {
+    const onSuccess = () => {
+      form.reset();
+      setWhole(false);
+    };
+    if (whole) {
+      follow.mutate({ showTmdbId }, { onSuccess });
+      return;
+    }
+    const seasonNumbers = picked.getAll("season").map(Number);
+    setAwaitingQuality({ seasonNumbers, onSuccess });
+    // With none picked, the Server's refusal says to pick one, so there's no Quality to ask.
+    if (seasonNumbers.length === 0 || !picker.open())
+      ask.mutate({ showTmdbId, seasonNumbers }, { onSuccess });
+  });
+  const onPick = (quality: bigint) => {
+    const { seasonNumbers, onSuccess } = awaitingQuality;
+    return ask.mutateAsync({ showTmdbId, seasonNumbers, quality }).then(onSuccess);
+  };
+  const asking = whole ? follow : ask;
+  return {
+    whole,
+    setWhole,
+    asking,
+    busy: asking.isPending || picker.loading,
+    submit,
+    picker: { ...picker, onPick },
+  };
+}
+
+/** What to tell the User when Requesting Seasons of the Show titled `title` was refused with `error`. */
+export function seasonsRefusal(error: unknown, title: string) {
+  return askRefusal(error, `Request Seasons of ${title}`, {
+    [RefusalReason.FIELD_REQUIRED]: { form: "Pick at least one Season." },
+    // A scan Matched one since the page was opened, which reading the Seasons back shows.
+    [RefusalReason.ALREADY_IN_LIBRARY]: { form: "One of those Seasons is already in a Library." },
+    // Removed from the list, or another Season gave the Show its Quality, since the page opened.
+    [RefusalReason.QUALITY_NOT_OFFERED]: {
+      form: "That Quality isn’t offered any more. Reload the page and pick another.",
+    },
+  });
+}

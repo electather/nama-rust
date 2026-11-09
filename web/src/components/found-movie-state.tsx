@@ -58,7 +58,7 @@ function RequestStateAndQuality({ request }: { request: Request }) {
  */
 function RequestButton({ movie, primary }: { movie: FoundMovie; primary: boolean }) {
   const ask = useMutation(RequestService.method.createRequest, useReadBackAsked());
-  const picker = useQualityPicker(movie.request === undefined);
+  const picker = useQualityPicker(movie.request === undefined, "movie");
   const whyRefused = (error: unknown) =>
     askRefusal(error, `Request ${movie.title}`, {
       [RefusalReason.ALREADY_IN_LIBRARY]: { form: `${movie.title} is already in a Library.` },

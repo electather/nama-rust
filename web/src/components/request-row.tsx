@@ -86,11 +86,11 @@ function aboutRequest(request: Request | FollowedShow, you: bigint | undefined) 
 function qualityOf({ quality, qualityUsed, qualityChange }: Request) {
   const shown = qualityUsed ?? quality;
   if (shown === undefined) return shown;
-  return qualityChange ? `${nameOf(shown)}, ${changeText(qualityChange)}` : nameOf(shown);
+  return qualityChange ? `${qualityName(shown)}, ${changeText(qualityChange)}` : qualityName(shown);
 }
 
-/** A Quality's name, or the service's own profile's when no Quality offers it. */
-function nameOf({ id, name }: RequestedQuality) {
+/** A Quality's name, or the service's own profile's, marked so, when no Quality offers it. */
+export function qualityName({ id, name }: RequestedQuality) {
   return id === 0n ? `${name} (set in the service)` : name;
 }
 

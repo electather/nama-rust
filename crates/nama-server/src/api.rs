@@ -289,6 +289,7 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::REQUEST_SERVICE_LIST_DEFAULT_QUALITIES_SPEC.procedure, Access::SignedIn),
     (proto::REQUEST_SERVICE_SET_DEFAULT_QUALITY_SPEC.procedure,   Access::SignedIn),
     (proto::REQUEST_SERVICE_SEARCH_SHOWS_SPEC.procedure,          REQUEST_TV),
+    (proto::REQUEST_SERVICE_LIST_SHOW_QUALITIES_SPEC.procedure,   REQUEST_TV),
     (proto::REQUEST_SERVICE_LOOK_UP_SHOW_SPEC.procedure,          REQUEST_TV),
     (proto::REQUEST_SERVICE_APPROVE_REQUEST_SPEC.procedure,       MANAGE_REQUESTS),
     (proto::REQUEST_SERVICE_DECLINE_REQUEST_SPEC.procedure,       MANAGE_REQUESTS),
@@ -1520,7 +1521,7 @@ impl RequestService for RequestServiceHandler {
         }
         let requests = self
             .requests
-            .create_seasons(asker, request.show_tmdb_id, &seasons)
+            .create_seasons(asker, request.show_tmdb_id, &seasons, request.quality)
             .await?;
         Response::ok(CreateSeasonRequestsResponse {
             requests,
@@ -1602,12 +1603,16 @@ impl RequestService for RequestServiceHandler {
         ctx: RequestContext,
         _request: ServiceRequest<'_, proto::ListMovieQualitiesRequest>,
     ) -> ServiceResult<proto::ListMovieQualitiesResponse> {
-        let listed = self
+        let (qualities, personal_default) = self
             .requests
-            .movie_qualities(&caller(&ctx)?.user)
+            .qualities::<Movies>(&caller(&ctx)?.user)
             .await
             .map_err(database_failed)?;
-        Response::ok(listed)
+        Response::ok(proto::ListMovieQualitiesResponse {
+            qualities,
+            personal_default,
+            ..Default::default()
+        })
     }
 
     async fn list_default_qualities(
@@ -1622,6 +1627,23 @@ impl RequestService for RequestServiceHandler {
             .map_err(database_failed)?;
         Response::ok(proto::ListDefaultQualitiesResponse {
             defaults,
+            ..Default::default()
+        })
+    }
+
+    async fn list_show_qualities(
+        &self,
+        ctx: RequestContext,
+        _request: ServiceRequest<'_, proto::ListShowQualitiesRequest>,
+    ) -> ServiceResult<proto::ListShowQualitiesResponse> {
+        let (qualities, personal_default) = self
+            .requests
+            .qualities::<Shows>(&caller(&ctx)?.user)
+            .await
+            .map_err(database_failed)?;
+        Response::ok(proto::ListShowQualitiesResponse {
+            qualities,
+            personal_default,
             ..Default::default()
         })
     }
@@ -1895,6 +1917,7 @@ impl RequestServiceHandler {
             show,
             seasons,
             followed_show,
+            quality,
         } = found;
         let offer = |path: String| self.artwork.offer(&plugin, &path);
         proto::FoundShow {
@@ -1906,6 +1929,7 @@ impl RequestServiceHandler {
             backdrop_url: show.backdrop.map(offer),
             seasons,
             followed_show: followed_show.into(),
+            quality: quality.into(),
             ..Default::default()
         }
     }
@@ -3300,8 +3324,9 @@ impl From<requests::Error> for ConnectError {
             requests::Error::QualityNotAllowed => {
                 refuse(R::REFUSAL_REASON_QUALITY_NOT_ALLOWED, message).field("quality")
             }
-            // `CreateRequest` and `SetDefaultQuality` both name it in `quality`.
-            requests::Error::QualityNotOffered(id) => {
+            // `CreateRequest`, `CreateSeasonRequests` and `SetDefaultQuality` all name it in
+            // `quality`.
+            requests::Error::QualityNotOffered(id) | requests::Error::NotTheShowsQuality(id) => {
                 refuse(R::REFUSAL_REASON_QUALITY_NOT_OFFERED, message)
                     .field("quality")
                     .param("qualityId", &id)

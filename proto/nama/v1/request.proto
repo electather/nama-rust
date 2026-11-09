@@ -27,10 +27,10 @@ service RequestService {
   rpc ListMovieQualities(ListMovieQualitiesRequest) returns (ListMovieQualitiesResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
-  // Returns the caller's default Quality for the enabled Movie Fulfiller if its list has more than
-  // one Quality, or has one left after an admin removed the caller's, for their settings. Shows
-  // have none until a Season Request takes a Quality. Any signed-in User may read their own, and
-  // only their own. The Server uses them only while the User has `PERMISSION_CHOOSE_QUALITY`.
+  // Returns the caller's default Quality for each enabled Fulfiller, Movies first, whose list has
+  // more than one Quality, or has one left after an admin removed the caller's, for their
+  // settings. Any signed-in User may read their own, and only their own. The Server uses them only
+  // while the User has `PERMISSION_CHOOSE_QUALITY`.
   rpc ListDefaultQualities(ListDefaultQualitiesRequest) returns (ListDefaultQualitiesResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
@@ -47,8 +47,15 @@ service RequestService {
   // Episodes is Matched, and asking for such a Season fails with `failed_precondition`. Fails with
   // `invalid_argument` if no Season is named or the metadata source has no such Show or Season,
   // and `unavailable` if no metadata Provider is enabled, or it failed. A failure changes no
-  // Request.
+  // Request. A new Request takes the Show's Quality (`FoundShow.quality`) if it has one, else one
+  // picked as `CreateRequest` picks a Movie's, refusing a Quality as `CreateRequest` does, and one
+  // other than the Show's with `REFUSAL_REASON_QUALITY_NOT_OFFERED`.
   rpc CreateSeasonRequests(CreateSeasonRequestsRequest) returns (CreateSeasonRequestsResponse);
+  // Returns the enabled Shows Fulfiller's Qualities, as `ListMovieQualities` does the Movie
+  // Fulfiller's, to pick one for `CreateSeasonRequests`. Needs `PERMISSION_REQUEST_TV`.
+  rpc ListShowQualities(ListShowQualitiesRequest) returns (ListShowQualitiesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
   // Asks for a whole Show for the caller: its Seasons now and any that come out later. Asks for
   // each current Season not in a Library as `CreateSeasonRequests` does, skipping those in one,
   // and joins the Show's open Followed Show or opens one: Approved if the caller has
@@ -102,10 +109,12 @@ service RequestService {
   // Approves a Pending Request and hands a Movie Request to the Movie Fulfiller, if one is enabled:
   // Processing once it takes it, or Failed if it doesn't. Either way it then waits for what it asks
   // for to be Matched in a Library. Given a `quality_id`, it first changes the Request's Quality to
-  // that one, keeping the change in `Request.quality_change`. Needs `PERMISSION_MANAGE_REQUESTS`,
-  // which manages every User's Requests. Fails with `not_found` if there is no Request with the ID,
+  // that one, keeping the change in `Request.quality_change`, and for a Season Request that of
+  // every open Season Request of its Show. Needs `PERMISSION_MANAGE_REQUESTS`, which manages every
+  // User's Requests. Fails with `not_found` if there is no Request with the ID,
   // `failed_precondition` if it isn't Pending, and `invalid_argument` if the Quality isn't offered
-  // for it (`REFUSAL_REASON_QUALITY_NOT_OFFERED`).
+  // for it (`REFUSAL_REASON_QUALITY_NOT_OFFERED`): not on its Fulfiller's list, or not the Show's
+  // once another Season of the Show was handed off, which fixes the Show's Quality.
   rpc ApproveRequest(ApproveRequestRequest) returns (ApproveRequestResponse);
   // Declines a Pending Request, which closes it: asking for the Movie again opens a new one. Needs
   // `PERMISSION_MANAGE_REQUESTS`. Fails as `ApproveRequest` does.
@@ -193,7 +202,8 @@ message Request {
   repeated Download downloads = 10;
   // The Quality it is downloaded at, as its first Requester picked it or else as its Fulfiller's
   // default was when it opened (ADR 0025). Unset if no Fulfiller was enabled or it had no
-  // Qualities then, when the Plugin's own `quality_profile` applies. A Season Request has none yet.
+  // Qualities then, when the Plugin's own `quality_profile` applies. A Season Request takes its
+  // Show's (`FoundShow.quality`).
   RequestedQuality quality = 11;
   // The Quality its service is downloading it at, as the hand-off reported it, which differs from
   // `quality` when the service already had the title and kept its own profile. Unset until it is
@@ -329,6 +339,9 @@ message CreateSeasonRequestsRequest {
   int64 show_tmdb_id = 1;
   // The numbers of the Seasons to ask for: at least one. A number given twice counts once.
   repeated uint32 season_numbers = 2;
+  // The id of the Quality to download them at, from `ListShowQualities`. Unset for the Show's, or
+  // else the default.
+  optional int64 quality = 3;
 }
 
 message CreateSeasonRequestsResponse {
@@ -381,11 +394,19 @@ message ListMovieQualitiesResponse {
   optional int64 personal_default = 2;
 }
 
+message ListShowQualitiesRequest {}
+
+message ListShowQualitiesResponse {
+  repeated Quality qualities = 1;
+  // The id of the caller's default among `qualities`, as `ListMovieQualitiesResponse` has it.
+  optional int64 personal_default = 2;
+}
+
 message ListDefaultQualitiesRequest {}
 
 message ListDefaultQualitiesResponse {
-  // One for the enabled Movie Fulfiller if its list has more than one Quality, or has one left
-  // after an admin removed the User's default; none otherwise.
+  // One for each enabled Fulfiller, Movies first, whose list has more than one Quality, or has
+  // one left after an admin removed the User's default.
   repeated DefaultQuality defaults = 1;
 }
 
@@ -430,8 +451,7 @@ message CountPendingRequestsResponse {
 message ApproveRequestRequest {
   // The ID of the Request.
   int64 id = 1;
-  // The id of the Quality to change it to, from its Fulfiller's list; a Season Request takes none
-  // yet. Unset keeps its Quality.
+  // The id of the Quality to change it to, from its Fulfiller's list. Unset keeps its Quality.
   optional int64 quality_id = 2;
 }
 
@@ -462,8 +482,7 @@ message CancelRequestResponse {}
 message RetryRequestRequest {
   // The ID of the Request.
   int64 id = 1;
-  // The id of the Quality to change it to, from its Fulfiller's list; a Season Request takes none
-  // yet. Unset keeps its Quality.
+  // The id of the Quality to change it to, from its Fulfiller's list. Unset keeps its Quality.
   optional int64 quality_id = 2;
 }
 
@@ -586,6 +605,10 @@ message FoundShow {
   repeated FoundSeason seasons = 7;
   // The Show's open Followed Show, if it has one the caller may see. Only `LookUpShow` gives it.
   FollowedShow followed_show = 8;
+  // The Show's Quality, which each of its Season Requests takes, as Sonarr keeps one profile per
+  // series (ADR 0025): that of its earliest Season Request that has one and is open or was handed
+  // off. Unset if it has none, so a new Season Request may pick one. Only `LookUpShow` gives it.
+  RequestedQuality quality = 9;
 }
 
 // A Season of a Show in the metadata source, and how close it is to being on the Server: in a

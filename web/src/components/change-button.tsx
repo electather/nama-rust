@@ -19,11 +19,11 @@ export interface QualityTarget {
 }
 
 /**
- * What approving or retrying `request` can change its Quality to, if anything: a Movie Request's
- * Fulfiller's other Qualities. A Season Request has no Quality yet.
+ * What approving or retrying `request` can change its Quality to: its Fulfiller's other Qualities.
+ * The Server refuses another for a Season Request once a Season of its Show was handed off.
  */
-export function qualityTargetOf({ movie, quality }: Request): QualityTarget | undefined {
-  return movie && { kind: TitleKind.MOVIE, id: quality?.id };
+export function qualityTargetOf({ movie, quality }: Request): QualityTarget {
+  return { kind: movie ? TitleKind.MOVIE : TitleKind.SHOW, id: quality?.id };
 }
 
 /** What a {@link ChangeButton} changes, and how it says the Server refused. */
