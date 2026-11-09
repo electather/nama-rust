@@ -4388,7 +4388,8 @@ pub const __LIST_DEFAULT_QUALITIES_REQUEST_JSON_ANY: ::buffa::type_registry::Jso
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct ListDefaultQualitiesResponse {
-    /// One per enabled Fulfiller whose list has more than one Quality, Movies first.
+    /// One per enabled Fulfiller whose list has more than one Quality, or has one left after an
+    /// admin removed the User's default, Movies first.
     ///
     /// Field 1: `defaults`
     #[serde(

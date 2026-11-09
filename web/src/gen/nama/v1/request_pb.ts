@@ -707,7 +707,8 @@ export const ListDefaultQualitiesRequestSchema: GenMessage<ListDefaultQualitiesR
  */
 export type ListDefaultQualitiesResponse = Message<"nama.v1.ListDefaultQualitiesResponse"> & {
   /**
-   * One per enabled Fulfiller whose list has more than one Quality, Movies first.
+   * One per enabled Fulfiller whose list has more than one Quality, or has one left after an
+   * admin removed the User's default, Movies first.
    *
    * @generated from field: repeated nama.v1.DefaultQuality defaults = 1;
    */
@@ -1764,8 +1765,9 @@ export const RequestService: GenService<{
   },
   /**
    * Returns the caller's default Quality for each enabled Fulfiller whose list has more than one
-   * Quality, for their settings. Any signed-in User may read their own, and only their own. The
-   * Server uses them only while the User has `PERMISSION_CHOOSE_QUALITY`.
+   * Quality, or has one left after an admin removed the caller's, for their settings. Any
+   * signed-in User may read their own, and only their own. The Server uses them only while the
+   * User has `PERMISSION_CHOOSE_QUALITY`.
    *
    * @generated from rpc nama.v1.RequestService.ListDefaultQualities
    */
