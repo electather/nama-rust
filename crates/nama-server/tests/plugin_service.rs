@@ -77,6 +77,19 @@ impl Started {
             .map(connectrpc::UnaryResponse::into_owned)
     }
 
+    /// Every Plugin, as the Plugins list gets them as the Admin.
+    #[expect(
+        clippy::unwrap_used,
+        reason = "a test helper fails its test by panicking"
+    )]
+    async fn list(&self) -> ListPluginsResponse {
+        self.client()
+            .list_plugins(ListPluginsRequest::default())
+            .await
+            .unwrap()
+            .into_owned()
+    }
+
     /// The Plugin `id` with its settings, as its details page gets it as the Admin.
     #[expect(
         clippy::expect_used,
@@ -135,18 +148,8 @@ impl Started {
 
 /// Starts a Server whose Built-in Plugins have `settings`, stored as an upgrade imports them, and
 /// lists its Plugins as the Admin.
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
 async fn list_plugins_with(settings: BTreeMap<String, PluginConfig>) -> ListPluginsResponse {
-    Started::with(&settings)
-        .await
-        .client()
-        .list_plugins(ListPluginsRequest::default())
-        .await
-        .unwrap()
-        .into_owned()
+    Started::with(&settings).await.list().await
 }
 
 /// Starts a Server whose Built-in Plugins have `settings`, stored as an upgrade imports them, and
@@ -298,6 +301,20 @@ async fn plugins_are_listed_without_their_settings() {
             .any(|bytes| bytes == b"api_key"),
         "{listed:?}"
     );
+}
+
+#[tokio::test]
+async fn a_plugin_is_listed_as_missing_settings_until_its_required_secret_is_stored() {
+    let started = Started::with(&BTreeMap::new()).await;
+    assert!(plugin(&started.list().await, "tmdb").settings_missing);
+    assert!(!plugin(&started.list().await, "local-auth").settings_missing);
+
+    started
+        .update("tmdb", [("api_key", text(TMDB_KEY))])
+        .await
+        .unwrap();
+
+    assert!(!plugin(&started.list().await, "tmdb").settings_missing);
 }
 
 #[tokio::test]

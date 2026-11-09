@@ -4068,13 +4068,19 @@ pub struct PluginSummaryView<'a> {
     ///
     /// Field 5: `refused_reason`
     pub refused_reason: &'a str,
+    /// Whether a required setting has no value, no default and no stored secret, so `EnablePlugin`
+    /// would refuse it with `REFUSAL_REASON_FIELD_REQUIRED`. An enabled Plugin may have one too, such
+    /// as an Installed Plugin upgraded with a new required setting.
+    ///
+    /// Field 6: `settings_missing`
+    pub settings_missing: bool,
     /// As `Plugin.name`.
     ///
-    /// Field 6: `name`
+    /// Field 7: `name`
     pub name: &'a str,
     /// As `Plugin.description`.
     ///
-    /// Field 7: `description`
+    /// Field 8: `description`
     pub description: &'a str,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
@@ -4148,11 +4154,18 @@ impl<'a> ::buffa::MessageView<'a> for PluginSummaryView<'a> {
             6u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.settings_missing = ::buffa::types::decode_bool(&mut cur)?;
+            }
+            7u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
                     ::buffa::encoding::WireType::LengthDelimited,
                 )?;
                 view.name = ::buffa::types::borrow_str(&mut cur)?;
             }
-            7u32 => {
+            8u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
                     ::buffa::encoding::WireType::LengthDelimited,
@@ -4186,6 +4199,7 @@ impl<'a> ::buffa::MessageView<'a> for PluginSummaryView<'a> {
             kind: self.kind,
             enabled: self.enabled,
             refused_reason: self.refused_reason.to_string(),
+            settings_missing: self.settings_missing,
             name: self.name.to_string(),
             description: self.description.to_string(),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
@@ -4218,6 +4232,9 @@ impl<'a> ::buffa::ViewEncode<'a> for PluginSummaryView<'a> {
             size
                 += 1u64
                     + ::buffa::types::string_encoded_len(&self.refused_reason) as u64;
+        }
+        if self.settings_missing {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
         if !self.name.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.name) as u64;
@@ -4254,11 +4271,14 @@ impl<'a> ::buffa::ViewEncode<'a> for PluginSummaryView<'a> {
         if !self.refused_reason.is_empty() {
             ::buffa::types::put_string_field(5u32, &self.refused_reason, buf);
         }
+        if self.settings_missing {
+            ::buffa::types::put_bool_field(6u32, self.settings_missing, buf);
+        }
         if !self.name.is_empty() {
-            ::buffa::types::put_string_field(6u32, &self.name, buf);
+            ::buffa::types::put_string_field(7u32, &self.name, buf);
         }
         if !self.description.is_empty() {
-            ::buffa::types::put_string_field(7u32, &self.description, buf);
+            ::buffa::types::put_string_field(8u32, &self.description, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -4295,6 +4315,9 @@ impl<'__a> ::serde::Serialize for PluginSummaryView<'__a> {
         }
         if !::buffa::json_helpers::skip_if::is_empty_str(self.refused_reason) {
             __map.serialize_entry("refusedReason", self.refused_reason)?;
+        }
+        if self.settings_missing {
+            __map.serialize_entry("settingsMissing", &self.settings_missing)?;
         }
         if !::buffa::json_helpers::skip_if::is_empty_str(self.name) {
             __map.serialize_entry("name", self.name)?;
@@ -4424,16 +4447,25 @@ impl PluginSummaryOwnedView {
     pub fn refused_reason(&self) -> &'_ str {
         self.0.reborrow().refused_reason
     }
+    /// Whether a required setting has no value, no default and no stored secret, so `EnablePlugin`
+    /// would refuse it with `REFUSAL_REASON_FIELD_REQUIRED`. An enabled Plugin may have one too, such
+    /// as an Installed Plugin upgraded with a new required setting.
+    ///
+    /// Field 6: `settings_missing`
+    #[must_use]
+    pub fn settings_missing(&self) -> bool {
+        self.0.reborrow().settings_missing
+    }
     /// As `Plugin.name`.
     ///
-    /// Field 6: `name`
+    /// Field 7: `name`
     #[must_use]
     pub fn name(&self) -> &'_ str {
         self.0.reborrow().name
     }
     /// As `Plugin.description`.
     ///
-    /// Field 7: `description`
+    /// Field 8: `description`
     #[must_use]
     pub fn description(&self) -> &'_ str {
         self.0.reborrow().description
