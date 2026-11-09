@@ -678,7 +678,7 @@ mod tests {
 
     use super::{ManualError, Matcher, Summary};
     use crate::{
-        contents::{Contents, FileItem, Item, Recorded},
+        contents::{Contents, Decided, FileItem, Item, Recorded},
         db::Database,
         events::{EventBus, Filter, event},
         libraries::{Kind, Libraries},
@@ -899,7 +899,7 @@ mod tests {
         movies.write("Dune (2021)/Dune (2021).mkv");
         // An ID hint is used directly: there is no recorded search for Heat.
         movies.write("Heat (1995) {tmdb-949}/Heat (1995).mkv");
-        // Two films called Hamlet came out in 2000, neither far better known.
+        // Two films called Hamlet came out in 2000; one has over ten times the other's votes.
         movies.write("Hamlet (2000)/Hamlet (2000).mkv");
         // TMDB finds nothing.
         movies.write("Home Movies (2019)/Home Movies (2019).mkv");
@@ -926,7 +926,7 @@ mod tests {
                 (
                     "Hamlet (2000)/Hamlet (2000).mkv".to_owned(),
                     None,
-                    Outcome::Unmatched
+                    matched(10_688, "Hamlet")
                 ),
                 (
                     "Heat (1995) {tmdb-949}/Heat (1995).mkv".to_owned(),
@@ -1105,7 +1105,9 @@ mod tests {
     async fn a_rescan_does_not_look_up_items_already_decided() {
         let media = Fixture::new().await;
         media.movies.write("Alien (1979)/Alien (1979).mkv");
-        media.movies.write("Hamlet (2000)/Hamlet (2000).mkv");
+        media
+            .movies
+            .write("Home Movies (2019)/Home Movies (2019).mkv");
         media.scan(&media.movies).await;
         let looked_up = media.tmdb.requests().len();
 
@@ -1127,7 +1129,9 @@ mod tests {
     async fn a_newer_name_parser_retries_unmatched_items_and_keeps_automatic_matches() {
         let media = Fixture::new().await;
         media.movies.write("Alien (1979)/Alien (1979).mkv");
-        media.movies.write("Hamlet (2000)/Hamlet (2000).mkv");
+        media
+            .movies
+            .write("Home Movies (2019)/Home Movies (2019).mkv");
         media.scan(&media.movies).await;
         let alien = media
             .item(&media.movies, "Alien (1979)/Alien (1979).mkv")
@@ -1137,8 +1141,8 @@ mod tests {
         media.contents.read_by_older_parser(media.movies.id).await;
         media.scan(&media.movies).await;
 
-        // Only Hamlet, left Unmatched, was searched for again.
-        assert_eq!(media.searches(), searches + 1);
+        // Only Home Movies, left Unmatched, was searched for again: with its year, then without.
+        assert_eq!(media.searches(), searches + 2);
         assert_eq!(
             media.outcomes(&media.movies).await,
             [matched(348, "Alien"), Outcome::Unmatched]
@@ -1149,6 +1153,27 @@ mod tests {
                 .await,
             alien
         );
+    }
+
+    #[tokio::test]
+    async fn a_newer_name_parser_matches_an_item_an_older_one_left_ambiguous() {
+        let media = Fixture::new().await;
+        let movies = &media.movies;
+        let hamlet = "Hamlet (2000)/Hamlet (2000).mkv";
+        movies.write(hamlet);
+        media.scan(movies).await;
+        // Before votes broke a tie, the two Hamlets of 2000 left this file Unmatched.
+        let item = media.item(movies, hamlet).await;
+        media
+            .contents
+            .record(vec![(item, Decided::Unmatched)])
+            .await
+            .unwrap();
+
+        media.contents.read_by_older_parser(movies.id).await;
+        media.scan(movies).await;
+
+        assert_eq!(media.outcomes(movies).await, [matched(10_688, "Hamlet")]);
     }
 
     #[tokio::test]
