@@ -168,8 +168,8 @@ message ListQualitiesResponse {
 message ReplaceQualitiesRequest {
   // The Fulfiller's Plugin id, such as `radarr`.
   string id = 1;
-  // The new list, in order. A Quality keeps its `id` if it is on the list now; any other id gets
-  // a new one.
+  // The new list, in order. A Quality keeps its `id` if it is on the list now and no earlier
+  // Quality here kept it; any other id gets a new one.
   repeated Quality qualities = 2;
 }
 

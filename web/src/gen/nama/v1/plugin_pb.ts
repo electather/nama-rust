@@ -380,8 +380,8 @@ export type ReplaceQualitiesRequest = Message<"nama.v1.ReplaceQualitiesRequest">
   id: string;
 
   /**
-   * The new list, in order. A Quality keeps its `id` if it is on the list now; any other id gets
-   * a new one.
+   * The new list, in order. A Quality keeps its `id` if it is on the list now and no earlier
+   * Quality here kept it; any other id gets a new one.
    *
    * @generated from field: repeated nama.v1.Quality qualities = 2;
    */

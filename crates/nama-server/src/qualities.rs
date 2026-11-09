@@ -3,7 +3,7 @@
 //!
 //! This module is the only code that reads or writes `qualities`.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use nama_plugin_api::PluginId;
 use nama_proto::nama::v1::{Quality, RequestedQuality};
@@ -86,7 +86,8 @@ pub(crate) async fn list(
 }
 
 /// Replaces the Plugin `plugin`'s Qualities with `qualities`, which [`check`] passed, and returns
-/// them as saved. A Quality keeps its id if `plugin`'s list has it; any other gets a new one.
+/// them as saved. A Quality keeps its id if `plugin`'s list has it and no earlier Quality in
+/// `qualities` kept it; any other gets a new one.
 pub(crate) async fn replace(
     db: &Database,
     plugin: PluginId,
@@ -95,10 +96,10 @@ pub(crate) async fn replace(
     db.write(move |tx| {
         Box::pin(async move {
             let id = plugin.as_str();
-            let listed: HashMap<i64, Quality> = list(tx, &plugin)
+            let mut listed: HashSet<i64> = list(tx, &plugin)
                 .await?
                 .into_iter()
-                .map(|quality| (quality.id, quality))
+                .map(|quality| quality.id)
                 .collect();
             // Deleted first, so a name or profile moving between Qualities can't trip the UNIQUE
             // constraints halfway.
@@ -106,7 +107,7 @@ pub(crate) async fn replace(
                 .execute(&mut **tx)
                 .await?;
             for (position, quality) in (0_i64..).zip(&qualities) {
-                let kept_id = listed.contains_key(&quality.id).then_some(quality.id);
+                let kept_id = listed.remove(&quality.id).then_some(quality.id);
                 let name = quality.name.trim();
                 let description = quality.description.trim();
                 sqlx::query!(

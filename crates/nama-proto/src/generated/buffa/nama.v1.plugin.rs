@@ -2957,8 +2957,8 @@ pub struct ReplaceQualitiesRequest {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub id: ::buffa::alloc::string::String,
-    /// The new list, in order. A Quality keeps its `id` if it is on the list now; any other id gets
-    /// a new one.
+    /// The new list, in order. A Quality keeps its `id` if it is on the list now and no earlier
+    /// Quality here kept it; any other id gets a new one.
     ///
     /// Field 2: `qualities`
     #[serde(

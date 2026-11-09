@@ -639,3 +639,17 @@ async fn repeated_profiles_or_names_and_lists_without_one_default_are_refused() 
     }
     assert_eq!(fixture.qualities().await, []);
 }
+
+#[tokio::test]
+async fn a_quality_id_given_twice_is_kept_once_and_the_other_quality_gets_a_new_one() {
+    let fixture = Fixture::with_radarr_enabled().await;
+    let offered = fixture.replace_qualities(hd_and_4k()).await.unwrap();
+    let mut twice = hd_and_4k();
+    twice[0].id = offered[0].id;
+    twice[1].id = offered[0].id;
+
+    let saved = fixture.replace_qualities(twice).await.unwrap();
+
+    assert_eq!(saved[0].id, offered[0].id);
+    assert_ne!(saved[1].id, offered[0].id);
+}

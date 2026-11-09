@@ -4962,8 +4962,8 @@ pub struct ReplaceQualitiesRequestView<'a> {
     ///
     /// Field 1: `id`
     pub id: &'a str,
-    /// The new list, in order. A Quality keeps its `id` if it is on the list now; any other id gets
-    /// a new one.
+    /// The new list, in order. A Quality keeps its `id` if it is on the list now and no earlier
+    /// Quality here kept it; any other id gets a new one.
     ///
     /// Field 2: `qualities`
     pub qualities: ::buffa::RepeatedView<
@@ -5234,8 +5234,8 @@ impl ReplaceQualitiesRequestOwnedView {
     pub fn id(&self) -> &'_ str {
         self.0.reborrow().id
     }
-    /// The new list, in order. A Quality keeps its `id` if it is on the list now; any other id gets
-    /// a new one.
+    /// The new list, in order. A Quality keeps its `id` if it is on the list now and no earlier
+    /// Quality here kept it; any other id gets a new one.
     ///
     /// Field 2: `qualities`
     #[must_use]
