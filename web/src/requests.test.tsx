@@ -29,6 +29,7 @@ const dune = {
   movie: { tmdbId: 438_631n, title: "Dune" },
   state: RequestState.APPROVED,
   requesters: [{ userId: 3n, name: "Grace" }],
+  quality: { id: 7n, name: "4K", profileId: "5" },
 };
 
 function server(
@@ -43,7 +44,7 @@ function server(
   });
 }
 
-test("the Requests page shows each Request's Movie, its state in words and its Requesters", async () => {
+test("the Requests page shows each Request's Movie, its Quality, its state in words and its Requesters", async () => {
   openApp(
     "/requests",
     server(() => [heat, dune]),
@@ -52,7 +53,7 @@ test("the Requests page shows each Request's Movie, its state in words and its R
   const rows = await screen.findAllByRole("listitem");
   expect(rows.map((row) => row.textContent)).toEqual([
     "Heat1995 · Requested by you and AdaPendingWithdraw",
-    "DuneRequested by GraceApproved",
+    "Dune4K · Requested by GraceApproved",
   ]);
 });
 

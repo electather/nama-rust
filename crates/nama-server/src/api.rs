@@ -94,6 +94,7 @@ use crate::{
     matching::{ManualError, Matcher},
     plugin_settings,
     plugins::{CheckError, EnableError, Listed, Registry, installed},
+    qualities,
     rate_limits::{Blocked, SignInCodeLimits, SignInLimits},
     requests::{self, Found, FoundShow, Requests},
     scanner::Scanner,
@@ -300,6 +301,8 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::PLUGIN_SERVICE_ENABLE_PLUGIN_SPEC.procedure,          MANAGE_SETTINGS),
     (proto::PLUGIN_SERVICE_DISABLE_PLUGIN_SPEC.procedure,         MANAGE_SETTINGS),
     (proto::PLUGIN_SERVICE_TEST_PLUGIN_SETTINGS_SPEC.procedure,   MANAGE_SETTINGS),
+    (proto::PLUGIN_SERVICE_LIST_QUALITIES_SPEC.procedure,         MANAGE_SETTINGS),
+    (proto::PLUGIN_SERVICE_REPLACE_QUALITIES_SPEC.procedure,      MANAGE_SETTINGS),
 ];
 
 /// Who may fetch media: every path under this prefix, which the media routes share.
@@ -2468,6 +2471,42 @@ impl PluginService for PluginServiceHandler {
             .map_err(database_failed)?;
         Response::ok(DisablePluginResponse::default())
     }
+
+    async fn list_qualities(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, proto::ListQualitiesRequest>,
+    ) -> ServiceResult<proto::ListQualitiesResponse> {
+        let plugin = self.listed(&PluginId::from(request.id.to_owned()))?;
+        let mut conn = self.db.reader().acquire().await.map_err(database_failed)?;
+        let qualities = qualities::list(&mut conn, &plugin.id)
+            .await
+            .map_err(database_failed)?;
+        Response::ok(proto::ListQualitiesResponse {
+            qualities,
+            ..Default::default()
+        })
+    }
+
+    async fn replace_qualities(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, proto::ReplaceQualitiesRequest>,
+    ) -> ServiceResult<proto::ReplaceQualitiesResponse> {
+        let request = request.to_owned_message();
+        let plugin = self.listed(&PluginId::from(request.id))?;
+        qualities::check(&request.qualities)?;
+        if !request.qualities.is_empty() {
+            self.check_profiles(&plugin, &request.qualities).await?;
+        }
+        let qualities = qualities::replace(&self.db, plugin.id, request.qualities)
+            .await
+            .map_err(database_failed)?;
+        Response::ok(proto::ReplaceQualitiesResponse {
+            qualities,
+            ..Default::default()
+        })
+    }
 }
 
 impl PluginServiceHandler {
@@ -2532,6 +2571,43 @@ impl PluginServiceHandler {
             }
         }
         Ok(())
+    }
+
+    /// Refuses `qualities` unless `plugin`'s settings check, run on its stored settings, offers
+    /// each one's profile for its `quality_profile` setting.
+    async fn check_profiles(
+        &self,
+        plugin: &Listed,
+        qualities: &[proto::Quality],
+    ) -> Result<(), ConnectError> {
+        let stored = self.stored(plugin).await?;
+        let offered = self
+            .plugins
+            .check_settings(&plugin.id, Settings::new(stored.settings))
+            .await
+            .map_err(|err| check_refused(&plugin.id, err, None))?;
+        let profiles = offered
+            .get(qualities::QUALITY_PROFILE)
+            .map(Vec::as_slice)
+            .unwrap_or_default();
+        let not_offered = qualities.iter().enumerate().find(|(_, quality)| {
+            !profiles
+                .iter()
+                .any(|profile| profile.value == quality.profile_id)
+        });
+        let Some((index, quality)) = not_offered else {
+            return Ok(());
+        };
+        let profile = &quality.profile_id;
+        let message = format!("{} doesn't offer the quality profile {profile}", plugin.id);
+        Err(
+            refuse(RefusalReason::REFUSAL_REASON_CHOICE_NOT_OFFERED, message)
+                .field(&format!("qualities[{index}].{}", qualities::PROFILE))
+                .param("pluginId", &plugin.id)
+                .param("settingKey", &qualities::QUALITY_PROFILE)
+                .param("settingValue", profile)
+                .into(),
+        )
     }
 
     /// What is stored for `plugin`. For one never stored, no settings, and enabled only if it is
@@ -2875,7 +2951,9 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_FOLDER_NOT_UTF8
         | R::REFUSAL_REASON_FOLDER_REPEATED
         | R::REFUSAL_REASON_SETTING_WRONG_KIND
-        | R::REFUSAL_REASON_NOT_A_URL => ErrorCode::InvalidArgument,
+        | R::REFUSAL_REASON_NOT_A_URL
+        | R::REFUSAL_REASON_QUALITY_REPEATED
+        | R::REFUSAL_REASON_DEFAULT_QUALITY_REQUIRED => ErrorCode::InvalidArgument,
         R::REFUSAL_REASON_SIGN_IN_REQUIRED
         | R::REFUSAL_REASON_WRONG_NAME_OR_PASSWORD
         | R::REFUSAL_REASON_WRONG_PASSWORD
@@ -2977,6 +3055,29 @@ fn unknown_enum_value(field: &str, message: &str) -> ConnectError {
 fn database_failed(err: sqlx::Error) -> ConnectError {
     tracing::error!("a request failed: {err}");
     ConnectError::internal("the Server's database failed")
+}
+
+/// The refusal of a list of Qualities that breaks a list rule, naming the field at fault.
+impl From<qualities::Invalid> for ConnectError {
+    fn from(err: qualities::Invalid) -> Self {
+        use RefusalReason as R;
+        let message = err.to_string();
+        let (reason, field) = match err {
+            qualities::Invalid::Blank(index, part) => (
+                R::REFUSAL_REASON_FIELD_REQUIRED,
+                format!("qualities[{index}].{part}"),
+            ),
+            qualities::Invalid::Repeated(index, part) => (
+                R::REFUSAL_REASON_QUALITY_REPEATED,
+                format!("qualities[{index}].{part}"),
+            ),
+            qualities::Invalid::NotOneDefault => (
+                R::REFUSAL_REASON_DEFAULT_QUALITY_REQUIRED,
+                "qualities".to_owned(),
+            ),
+        };
+        refuse(reason, message).field(&field).into()
+    }
 }
 
 /// The Connect error a client gets for a change to the Users that failed. Server-side failures

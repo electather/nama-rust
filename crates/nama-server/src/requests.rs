@@ -24,8 +24,8 @@ use nama_proto::nama::v1::{
     Event, FollowedShow, FollowedShowCancelled, FollowedShowCreated, FollowedShowRequesterAdded,
     FollowedShowRequesterRemoved, FollowedShowStateChanged, FollowedShowWithdrawn, FoundSeason,
     Permission, Request, RequestCancelled, RequestCreated, RequestProgress, RequestState,
-    RequestStateChanged, RequestWithdrawn, RequestedMovie, RequestedSeason, Requester,
-    RequesterAdded, RequesterRemoved, event::Event as Happened,
+    RequestStateChanged, RequestWithdrawn, RequestedMovie, RequestedQuality, RequestedSeason,
+    Requester, RequesterAdded, RequesterRemoved, event::Event as Happened,
 };
 use sqlx::{Sqlite, SqliteConnection, Transaction};
 use tokio::{sync::Notify, time::error::Elapsed};
@@ -37,6 +37,7 @@ use crate::{
     events::{EventBus, event},
     matching::{ManualError, Matcher},
     plugins::Registry,
+    qualities,
     users::User,
 };
 
@@ -209,6 +210,8 @@ struct Wanted {
     show_ids: ExternalIds,
     /// The Followed Show a new Request for it is opened for, if any.
     followed_show: Option<i64>,
+    /// The Quality a new Request for it takes, if its Fulfiller has any. Only a Movie's, for now.
+    quality: Option<RequestedQuality>,
 }
 
 /// Seasons of a Show to ask for, as the metadata source gave them.
@@ -266,6 +269,7 @@ impl Requests {
             release_date: movie.release_date,
             show_ids: ExternalIds::default(),
             followed_show: None,
+            quality: self.default_quality().await?,
         };
         let state = opening_state(asker, Permission::AutoApproveMovie);
         let user = asker.id;
@@ -281,6 +285,20 @@ impl Requests {
             return self.hand_off(request).await;
         }
         Ok(request)
+    }
+
+    /// A copy of the enabled Movie Fulfiller's default Quality, if it has one.
+    async fn default_quality(&self) -> Result<Option<RequestedQuality>, sqlx::Error> {
+        let fulfiller = self
+            .plugins
+            .enabled()
+            .into_iter()
+            .find(|plugin| self.plugins.provides::<dyn Fulfiller<Movies>>(plugin));
+        let Some(fulfiller) = fulfiller else {
+            return Ok(None);
+        };
+        let mut conn = self.db.reader().acquire().await?;
+        qualities::default_of(&mut conn, &fulfiller).await
     }
 
     /// Asks for the Seasons `numbers` of the Show with the TMDB id `tmdb_id` for `asker`, one
@@ -1142,6 +1160,7 @@ async fn ask_seasons(
             release_date: season.air_date,
             show_ids: show_ids.clone(),
             followed_show: None,
+            quality: None,
         };
         let (request, events) = ask_approving(conn, user, wanted, state).await?;
         requests.push(request);
@@ -1203,10 +1222,17 @@ async fn insert_request(
     state: &str,
     now: i64,
 ) -> Result<i64, sqlx::Error> {
+    let quality = wanted.quality.as_ref();
+    let (quality_id, quality_name, quality_profile_id) = (
+        quality.map(|quality| quality.id),
+        quality.map(|quality| &quality.name),
+        quality.map(|quality| &quality.profile_id),
+    );
     sqlx::query_scalar!(
         "INSERT INTO requests (tmdb_id, season, title, release_date, show_imdb_id, show_tvdb_id,
-                               state, created_at, followed_show_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                               state, created_at, followed_show_id, quality_id, quality_name,
+                               quality_profile_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          RETURNING id",
         wanted.tmdb_id,
         wanted.season,
@@ -1216,7 +1242,10 @@ async fn insert_request(
         wanted.show_ids.tvdb,
         state,
         now,
-        wanted.followed_show
+        wanted.followed_show,
+        quality_id,
+        quality_name,
+        quality_profile_id
     )
     .fetch_one(&mut *conn)
     .await
@@ -1358,6 +1387,7 @@ async fn open_followed_season(
         // ponytail: a Followed Show stores no Show ids, and this Season opens already in a Library.
         show_ids: ExternalIds::default(),
         followed_show: Some(followed.id),
+        quality: None,
     };
     let id = insert_request(conn, &wanted, stored(state), now()).await?;
     sqlx::query!(
@@ -1563,31 +1593,19 @@ async fn follow(
     show: WantedSeasons,
     state: RequestState,
 ) -> Result<(FollowedShow, Vec<Request>, Vec<Event>), Error> {
+    let now = now();
+    let already_open = open_followed_show(conn, show.show_tmdb_id).await?;
+    let id = if let Some(id) = already_open {
+        id
+    } else {
+        open_followed(conn, &show, state, now).await?
+    };
     let WantedSeasons {
         show_tmdb_id,
         show_ids,
         show_title,
         seasons,
     } = show;
-    let now = now();
-    let already_open = open_followed_show(conn, show_tmdb_id).await?;
-    let id = match already_open {
-        Some(id) => id,
-        None => {
-            sqlx::query_scalar!(
-                "INSERT INTO followed_shows (tmdb_id, title, state, latest_season, created_at)
-                 VALUES (?, ?, ?, ?, ?)
-                 RETURNING id",
-                show_tmdb_id,
-                show_title,
-                stored(state),
-                seasons.iter().map(|season| season.number).max(),
-                now
-            )
-            .fetch_one(&mut *conn)
-            .await?
-        }
-    };
     let joined = sqlx::query!(
         "INSERT INTO followed_show_requesters (followed_show_id, user_id, requested_at) VALUES (?, ?, ?)
          ON CONFLICT DO NOTHING",
@@ -1631,6 +1649,7 @@ async fn follow(
             release_date: season.air_date,
             show_ids: show_ids.clone(),
             followed_show: Some(id),
+            quality: None,
         };
         // Only `user`'s own auto-approve approves someone else's Pending Season Request: joining an
         // Approved Followed Show doesn't.
@@ -1644,6 +1663,27 @@ async fn follow(
         happened.extend(events);
     }
     Ok((followed, requests, happened))
+}
+
+/// Opens a Followed Show of `show` in `state`, returning its id.
+async fn open_followed(
+    conn: &mut SqliteConnection,
+    show: &WantedSeasons,
+    state: RequestState,
+    now: i64,
+) -> Result<i64, sqlx::Error> {
+    sqlx::query_scalar!(
+        "INSERT INTO followed_shows (tmdb_id, title, state, latest_season, created_at)
+         VALUES (?, ?, ?, ?, ?)
+         RETURNING id",
+        show.show_tmdb_id,
+        show.show_title,
+        stored(state),
+        show.seasons.iter().map(|season| season.number).max(),
+        now
+    )
+    .fetch_one(&mut *conn)
+    .await
 }
 
 /// The open Followed Show of the Show `tmdb_id`.
@@ -1878,7 +1918,8 @@ async fn load(
 ) -> Result<Vec<Request>, sqlx::Error> {
     let rows = sqlx::query!(
         r#"SELECT id AS "id!", tmdb_id, season AS "season: u32", title, release_date, show_imdb_id,
-                  show_tvdb_id, state, created_at, decline_reason, failure_reason, followed_show_id
+                  show_tvdb_id, state, created_at, decline_reason, failure_reason, followed_show_id,
+                  quality_id, quality_name, quality_profile_id
            FROM requests
            WHERE (?1 IS NULL OR id = ?1)
              AND (?2 IS NULL OR EXISTS (SELECT 1 FROM requesters
@@ -1925,6 +1966,8 @@ async fn load(
                 decline_reason: row.decline_reason,
                 failure_reason: row.failure_reason,
                 followed_show_id: row.followed_show_id,
+                quality: stored_quality(row.quality_id, row.quality_name, row.quality_profile_id)
+                    .into(),
                 ..Default::default()
             };
             match row.season {
@@ -1953,6 +1996,20 @@ async fn load(
             request
         })
         .collect())
+}
+
+/// The Quality a Request stored, if it took one: [`insert_request`] sets all three or none.
+fn stored_quality(
+    id: Option<i64>,
+    name: Option<String>,
+    profile_id: Option<String>,
+) -> Option<RequestedQuality> {
+    Some(RequestedQuality {
+        id: id?,
+        name: name?,
+        profile_id: profile_id?,
+        ..Default::default()
+    })
 }
 
 /// A Processing Request, as [`Requests::poll_progress`] asks its Fulfiller about it.
@@ -2132,6 +2189,7 @@ mod tests {
             release_date: None,
             show_ids: ExternalIds::default(),
             followed_show: None,
+            quality: None,
         });
 
         let ids = db
@@ -2301,6 +2359,7 @@ mod tests {
                 release_date: None,
                 show_ids: ExternalIds::default(),
                 followed_show: None,
+                quality: None,
             })
             .collect();
         db.write(move |tx| Box::pin(ask_each(tx, wanted, RequestState::Approved)))
@@ -2468,6 +2527,7 @@ mod tests {
             release_date: None,
             show_ids: ExternalIds::default(),
             followed_show: None,
+            quality: None,
         };
         let request = db
             .write(move |tx| Box::pin(ask_each(tx, vec![wanted], RequestState::Pending)))

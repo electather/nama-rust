@@ -27,16 +27,21 @@ use nama_plugin_tmdb::{
 use nama_proto::nama::v1::{
     __buffa::view::SubscribeResponseView, ApproveRequestRequest, CreateRequestRequest,
     CreateUserRequest, Download, DownloadStatus, EnablePluginRequest, EventServiceClient,
-    EventType, ListPluginsRequest, PluginServiceClient, RefusalReason, Request,
-    RequestServiceClient, RequestState, RetryRequestRequest, SessionDelivery, SignInRequest,
-    SignInServiceClient, SubscribeRequest, SubscribeResponse, TestPluginSettingsRequest,
-    TestPluginSettingsResponse, UpdatePluginSettingsRequest, event, setting_value::Value,
-    subscribe_response,
+    EventType, ListPluginsRequest, ListQualitiesRequest, PluginServiceClient, Quality,
+    RefusalReason, ReplaceQualitiesRequest, Request, RequestServiceClient, RequestState,
+    RetryRequestRequest, SessionDelivery, SignInRequest, SignInServiceClient, SubscribeRequest,
+    SubscribeResponse, TestPluginSettingsRequest, TestPluginSettingsResponse,
+    UpdatePluginSettingsRequest, event, setting_value::Value, subscribe_response,
 };
 use nama_server::{config::Config, plugin_settings, plugins::Registry};
 use refused::assert_refused;
 use serde_json::json;
 use server::{PASSWORD, TestServer};
+
+/// Quality profiles the fake Radarr offers, by id.
+const ANY: &str = "1";
+const HD_1080P: &str = "4";
+const ULTRA_HD: &str = "5";
 
 /// Movies the fake TMDB knows.
 const ALIEN: i64 = 348;
@@ -96,9 +101,14 @@ impl Fixture {
     /// A Fixture where an Admin set Radarr up with the profile HD-1080p and the root folder
     /// `/movies`, and enabled it.
     async fn with_radarr_enabled() -> Self {
+        Self::with_radarr_enabled_at(HD_1080P).await
+    }
+
+    /// [`Self::with_radarr_enabled`], with the Radarr quality profile `profile` as its setting.
+    async fn with_radarr_enabled_at(profile: &str) -> Self {
         let fixture = Self::start().await;
         let mut settings = fixture.radarr_settings(RADARR_KEY);
-        settings.extend([("quality_profile", "4"), ("root_folder", "/movies")].map(text));
+        settings.extend([("quality_profile", profile), ("root_folder", "/movies")].map(text));
         fixture
             .plugins()
             .update_plugin_settings(UpdatePluginSettingsRequest {
@@ -179,6 +189,35 @@ impl Fixture {
         approved.into_owned().request.into_option().unwrap()
     }
 
+    /// Replaces Radarr's Qualities with `qualities` as the Admin, returning them as saved.
+    async fn replace_qualities(
+        &self,
+        qualities: Vec<Quality>,
+    ) -> Result<Vec<Quality>, ConnectError> {
+        let replaced = self
+            .plugins()
+            .replace_qualities(ReplaceQualitiesRequest {
+                id: "radarr".to_owned(),
+                qualities,
+                ..Default::default()
+            })
+            .await?;
+        Ok(replaced.into_owned().qualities)
+    }
+
+    /// Radarr's Qualities, as the Admin reads them.
+    async fn qualities(&self) -> Vec<Quality> {
+        self.plugins()
+            .list_qualities(ListQualitiesRequest {
+                id: "radarr".to_owned(),
+                ..Default::default()
+            })
+            .await
+            .unwrap()
+            .into_owned()
+            .qualities
+    }
+
     /// Retries the Request `id` as the Admin, and returns it as the retry left it.
     async fn retry(&self, id: i64) -> Request {
         let retried = self
@@ -249,6 +288,24 @@ impl Fixture {
     }
 }
 
+/// A new Quality offering the Radarr profile `profile_id` as `name`.
+fn quality(profile_id: &str, name: &str, is_default: bool) -> Quality {
+    Quality {
+        profile_id: profile_id.to_owned(),
+        name: name.to_owned(),
+        is_default,
+        ..Default::default()
+    }
+}
+
+/// "HD" (HD-1080p, the default) and "4K" (Ultra-HD), as an Admin offers them.
+fn hd_and_4k() -> Vec<Quality> {
+    vec![
+        quality(HD_1080P, "HD", true),
+        quality(ULTRA_HD, "4K", false),
+    ]
+}
+
 /// `(key, value)` as the Plugins page sends a text setting.
 fn text((key, value): (&str, &str)) -> (String, nama_proto::nama::v1::SettingValue) {
     let value = nama_proto::nama::v1::SettingValue {
@@ -277,7 +334,7 @@ async fn testing_radarrs_settings_offers_its_quality_profiles_and_root_folders()
 
     assert_eq!(
         choices(&tested, "quality_profile"),
-        [("1", "Any"), ("4", "HD-1080p")]
+        [("1", "Any"), ("4", "HD-1080p"), ("5", "Ultra-HD")]
     );
     assert_eq!(
         choices(&tested, "root_folder"),
@@ -315,6 +372,7 @@ async fn approving_a_movie_request_adds_it_to_radarr_with_the_chosen_profile_and
     let approved = fixture.approve_movie(&fixture.member().await, HEAT).await;
 
     assert_eq!(approved.state, RequestState::Processing);
+    assert!(approved.quality.is_unset());
     let added = json!({
         "tmdbId": HEAT,
         "title": "Heat",
@@ -460,4 +518,138 @@ async fn with_radarr_refusing_the_key_or_down_progress_fails_in_plain_words() {
     assert_eq!(answered, Ok(vec![HEAT.to_string()]));
     assert_eq!(refused, Err("Radarr refused the API key".to_owned()));
     assert_eq!(down, Err("Radarr didn't answer".to_owned()));
+}
+
+#[tokio::test]
+async fn a_movie_request_goes_to_radarr_at_the_default_quality_an_admin_offers() {
+    let fixture = Fixture::with_radarr_enabled_at(ANY).await;
+    let offered = fixture.replace_qualities(hd_and_4k()).await.unwrap();
+
+    let approved = fixture.approve_movie(&fixture.member().await, HEAT).await;
+
+    assert_eq!(fixture.qualities().await, offered);
+    let hd = &offered[0];
+    assert_eq!(
+        (approved.quality.id, approved.quality.name.as_str()),
+        (hd.id, "HD")
+    );
+    assert_eq!(approved.quality.profile_id, HD_1080P);
+    let added = fixture.radarr.added();
+    assert_eq!(added.len(), 1);
+    assert_eq!(added[0]["qualityProfileId"], json!(4));
+}
+
+#[tokio::test]
+async fn a_request_keeps_its_quality_and_retries_with_its_profile_after_it_is_renamed_and_removed()
+{
+    let mut fixture = Fixture::with_radarr_enabled_at(ANY).await;
+    let offered = fixture.replace_qualities(hd_and_4k()).await.unwrap();
+    fixture.radarr.go_down();
+    let failed = fixture.approve_movie(&fixture.member().await, HEAT).await;
+    fixture.radarr.come_back().await;
+
+    let mut renamed = offered.clone();
+    renamed[0].name = "Full HD".to_owned();
+    fixture.replace_qualities(renamed).await.unwrap();
+    let mut only_4k = offered[1].clone();
+    only_4k.is_default = true;
+    let kept = fixture
+        .replace_qualities(vec![only_4k.clone()])
+        .await
+        .unwrap();
+    let retried = fixture.retry(failed.id).await;
+
+    assert_eq!(kept, [only_4k]);
+    assert_eq!(retried.state, RequestState::Processing);
+    assert_eq!(retried.quality.name, "HD");
+    assert_eq!(fixture.radarr.added()[0]["qualityProfileId"], json!(4));
+}
+
+#[tokio::test]
+async fn saving_a_quality_whose_profile_radarr_doesnt_offer_is_refused_naming_it() {
+    let fixture = Fixture::with_radarr_enabled().await;
+
+    let refused = fixture
+        .replace_qualities(vec![quality(ANY, "Any", true), quality("99", "8K", false)])
+        .await;
+
+    let refusal = assert_refused(
+        refused,
+        ErrorCode::FailedPrecondition,
+        RefusalReason::REFUSAL_REASON_CHOICE_NOT_OFFERED,
+    );
+    assert_eq!(refusal.field, "qualities[1].profile_id");
+    assert_eq!(fixture.qualities().await, []);
+}
+
+#[tokio::test]
+async fn saving_qualities_while_radarr_is_down_is_refused() {
+    let mut fixture = Fixture::with_radarr_enabled().await;
+    fixture.radarr.go_down();
+
+    let refused = fixture.replace_qualities(hd_and_4k()).await;
+
+    assert_refused(
+        refused,
+        ErrorCode::FailedPrecondition,
+        RefusalReason::REFUSAL_REASON_SETTINGS_CHECK_FAILED,
+    );
+}
+
+#[tokio::test]
+async fn repeated_profiles_or_names_and_lists_without_one_default_are_refused() {
+    let fixture = Fixture::with_radarr_enabled().await;
+    let cases = [
+        (
+            vec![
+                quality(HD_1080P, "HD", true),
+                quality(HD_1080P, "Full HD", false),
+            ],
+            RefusalReason::REFUSAL_REASON_QUALITY_REPEATED,
+            "qualities[1].profile_id",
+        ),
+        (
+            vec![
+                quality(HD_1080P, "HD", true),
+                quality(ULTRA_HD, "hd", false),
+            ],
+            RefusalReason::REFUSAL_REASON_QUALITY_REPEATED,
+            "qualities[1].name",
+        ),
+        (
+            vec![
+                quality(HD_1080P, "HD", false),
+                quality(ULTRA_HD, "4K", false),
+            ],
+            RefusalReason::REFUSAL_REASON_DEFAULT_QUALITY_REQUIRED,
+            "qualities",
+        ),
+        (
+            vec![quality(HD_1080P, "HD", true), quality(ULTRA_HD, "4K", true)],
+            RefusalReason::REFUSAL_REASON_DEFAULT_QUALITY_REQUIRED,
+            "qualities",
+        ),
+    ];
+
+    for (qualities, reason, field) in cases {
+        let refused = fixture.replace_qualities(qualities).await;
+
+        let refusal = assert_refused(refused, ErrorCode::InvalidArgument, reason);
+        assert_eq!(refusal.field, field);
+    }
+    assert_eq!(fixture.qualities().await, []);
+}
+
+#[tokio::test]
+async fn a_quality_id_given_twice_is_kept_once_and_the_other_quality_gets_a_new_one() {
+    let fixture = Fixture::with_radarr_enabled().await;
+    let offered = fixture.replace_qualities(hd_and_4k()).await.unwrap();
+    let mut twice = hd_and_4k();
+    twice[0].id = offered[0].id;
+    twice[1].id = offered[0].id;
+
+    let saved = fixture.replace_qualities(twice).await.unwrap();
+
+    assert_eq!(saved[0].id, offered[0].id);
+    assert_ne!(saved[1].id, offered[0].id);
 }
