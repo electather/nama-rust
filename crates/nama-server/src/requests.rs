@@ -2133,6 +2133,8 @@ mod tests {
         fn manifest(&self) -> Manifest {
             Manifest {
                 id: PluginId::from_static("gated"),
+                name: String::new(),
+                description: String::new(),
                 version: "0.0.0".to_owned(),
                 settings: SettingsSchema::default(),
             }

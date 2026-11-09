@@ -66,6 +66,10 @@ impl Plugin for TestChoices {
         };
         Manifest {
             id: PluginId::from_static(ID),
+            name: "Test choices".to_owned(),
+            description:
+                "Stands in for a Fulfiller in tests, offering choices when its settings are tested."
+                    .to_owned(),
             version: "0.0.0".to_owned(),
             settings,
         }

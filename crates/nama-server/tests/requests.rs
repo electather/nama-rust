@@ -914,6 +914,8 @@ impl Plugin for ShowsFulfillerPlugin {
     fn manifest(&self) -> Manifest {
         Manifest {
             id: PluginId::from_static("fake-shows-fulfiller"),
+            name: String::new(),
+            description: String::new(),
             version: "0.0.0".to_owned(),
             settings: SettingsSchema::default(),
         }
@@ -931,6 +933,8 @@ impl Plugin for FulfillerPlugin {
     fn manifest(&self) -> Manifest {
         Manifest {
             id: PluginId::from_static("fake-fulfiller"),
+            name: String::new(),
+            description: String::new(),
             version: "0.0.0".to_owned(),
             settings: SettingsSchema::default(),
         }
@@ -3202,6 +3206,8 @@ impl Plugin for NotifierPlugin {
     fn manifest(&self) -> Manifest {
         Manifest {
             id: PluginId::from_static(self.0),
+            name: String::new(),
+            description: String::new(),
             version: "0.0.0".to_owned(),
             settings: SettingsSchema::default(),
         }

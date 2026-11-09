@@ -599,6 +599,24 @@ pub struct Manifest {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec"
     )]
     pub providers: ::buffa::alloc::vec::Vec<::buffa::EnumValue<ProvidePoint>>,
+    /// What admins know the Plugin by, such as "Sonarr". Optional: its `id` stands in.
+    ///
+    /// Field 8: `name`
+    #[serde(
+        rename = "name",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub name: ::buffa::alloc::string::String,
+    /// What the Plugin does, in one sentence. Optional.
+    ///
+    /// Field 9: `description`
+    #[serde(
+        rename = "description",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub description: ::buffa::alloc::string::String,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -613,6 +631,8 @@ impl ::core::fmt::Debug for Manifest {
             .field("allowed_hosts", &self.allowed_hosts)
             .field("observers", &self.observers)
             .field("providers", &self.providers)
+            .field("name", &self.name)
+            .field("description", &self.description)
             .finish()
     }
 }
@@ -679,6 +699,12 @@ impl ::buffa::Message for Manifest {
                 .sum::<u64>();
             size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
         }
+        if !self.name.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.name) as u64;
+        }
+        if !self.description.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.description) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -730,6 +756,12 @@ impl ::buffa::Message for Manifest {
             for v in &self.providers {
                 ::buffa::types::encode_int32(v.to_i32(), buf);
             }
+        }
+        if !self.name.is_empty() {
+            ::buffa::types::put_string_field(8u32, &self.name, buf);
+        }
+        if !self.description.is_empty() {
+            ::buffa::types::put_string_field(9u32, &self.description, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -864,6 +896,20 @@ impl ::buffa::Message for Manifest {
                     );
                 }
             }
+            8u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.name, buf)?;
+            }
+            9u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.description, buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -879,6 +925,8 @@ impl ::buffa::Message for Manifest {
         self.allowed_hosts.clear();
         self.observers.clear();
         self.providers.clear();
+        self.name.clear();
+        self.description.clear();
         self.__buffa_unknown_fields.clear();
     }
 }

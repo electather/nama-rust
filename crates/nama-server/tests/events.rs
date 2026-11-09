@@ -189,6 +189,8 @@ impl Plugin for Forward {
     fn manifest(&self) -> Manifest {
         Manifest {
             id: PluginId::from_static("forward"),
+            name: String::new(),
+            description: String::new(),
             version: "0.0.0".to_owned(),
             settings: SettingsSchema::default(),
         }

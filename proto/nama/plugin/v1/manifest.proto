@@ -34,6 +34,10 @@ message Manifest {
   repeated ObservePoint observers = 6;
   // The capabilities the Plugin registers a Provider for.
   repeated ProvidePoint providers = 7;
+  // What admins know the Plugin by, such as "Sonarr". Optional: its `id` stands in.
+  string name = 8;
+  // What the Plugin does, in one sentence. Optional.
+  string description = 9;
 }
 
 // One setting an Installed Plugin takes.

@@ -85,6 +85,10 @@ mod exports {
                     )
                 },
             ],
+            name: "Telegram".to_owned(),
+            description:
+                "Posts Requests to a Telegram channel and tells Users about theirs in a chat."
+                    .to_owned(),
             ..nama_pdk::manifest("telegram", env!("CARGO_PKG_VERSION"))
         }))
     }
