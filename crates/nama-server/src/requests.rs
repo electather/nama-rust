@@ -23,9 +23,9 @@ use nama_plugin_api::{
 use nama_proto::nama::v1::{
     Event, FollowedShow, FollowedShowCancelled, FollowedShowCreated, FollowedShowRequesterAdded,
     FollowedShowRequesterRemoved, FollowedShowStateChanged, FollowedShowWithdrawn, FoundSeason,
-    Permission, Quality, Request, RequestCancelled, RequestCreated, RequestProgress, RequestState,
-    RequestStateChanged, RequestWithdrawn, RequestedMovie, RequestedQuality, RequestedSeason,
-    Requester, RequesterAdded, RequesterRemoved, event::Event as Happened,
+    Permission, Quality, QualityChange, Request, RequestCancelled, RequestCreated, RequestProgress,
+    RequestState, RequestStateChanged, RequestWithdrawn, RequestedMovie, RequestedQuality,
+    RequestedSeason, Requester, RequesterAdded, RequesterRemoved, event::Event as Happened,
 };
 use sqlx::{Sqlite, SqliteConnection, Transaction};
 use tokio::{sync::Notify, time::error::Elapsed};
@@ -66,6 +66,8 @@ pub(crate) enum Error {
     NotPending(i64),
     #[error("the Request {0} isn't Failed")]
     NotFailed(i64),
+    #[error("the Quality {0} isn't offered for the Request")]
+    NewQualityNotOffered(i64),
     #[error("you aren't a Requester of the Request {0}")]
     NotARequester(i64),
     #[error("a Library already has the Movie tmdb-{0}")]
@@ -218,6 +220,14 @@ struct Wanted {
     quality: Option<RequestedQuality>,
 }
 
+/// A Request manager changing a Request's Quality, as they approve or retry it.
+#[derive(Debug)]
+struct NewQuality {
+    quality: RequestedQuality,
+    /// The Request manager's User id.
+    by: i64,
+}
+
 /// Seasons of a Show to ask for, as the metadata source gave them.
 #[derive(Debug)]
 struct WantedSeasons {
@@ -340,6 +350,53 @@ impl Requests {
             .enabled()
             .into_iter()
             .find(|plugin| self.plugins.provides::<dyn Fulfiller<Kind>>(plugin))
+    }
+
+    /// The Qualities the enabled Fulfiller for titles of `kind` offers, none if there is no such
+    /// Fulfiller.
+    pub(crate) async fn offered_qualities(&self, kind: TitleKind) -> Result<Vec<Quality>, Error> {
+        let fulfiller = match kind {
+            TitleKind::Movie => self.fulfiller::<Movies>(),
+            TitleKind::Show => self.fulfiller::<Shows>(),
+        };
+        let Some(fulfiller) = fulfiller else {
+            return Ok(Vec::new());
+        };
+        let mut conn = self.db.reader().acquire().await?;
+        Ok(qualities::list(&mut conn, &fulfiller).await?)
+    }
+
+    /// `manager` changing the Request `id`'s Quality to the one with the id `quality`, if given,
+    /// which must be on the list of the Fulfiller the Request goes to. A Season Request has none
+    /// to change yet.
+    async fn new_quality(
+        &self,
+        manager: &User,
+        id: i64,
+        quality: Option<i64>,
+    ) -> Result<Option<NewQuality>, Error> {
+        let Some(quality_id) = quality else {
+            return Ok(None);
+        };
+        let mut conn = self.db.reader().acquire().await?;
+        let request = load_one(&mut conn, id)
+            .await?
+            .ok_or(Error::NoSuchRequest(id))?;
+        // ponytail: a Season Request offers no Quality to change to, so any is refused, until a
+        // Show has one and Sonarr adds the series with it (#283).
+        let fulfiller = if request.movie.is_unset() {
+            None
+        } else {
+            self.fulfiller::<Movies>()
+        };
+        let offered = match fulfiller {
+            Some(fulfiller) => qualities::offered(&mut conn, &fulfiller, quality_id).await?,
+            None => None,
+        };
+        Ok(Some(NewQuality {
+            quality: offered.ok_or(Error::NewQualityNotOffered(quality_id))?,
+            by: manager.id,
+        }))
     }
 
     /// Asks for the Seasons `numbers` of the Show with the TMDB id `tmdb_id` for `asker`, one
@@ -565,23 +622,42 @@ impl Requests {
         }
     }
 
-    /// Approves the Pending Request `id` and hands it to its Fulfiller, publishing each change of
-    /// its state.
-    pub(crate) async fn approve(&self, id: i64) -> Result<Request, Error> {
+    /// Approves the Pending Request `id` as `manager`, first changing its Quality to the one with
+    /// the id `quality` if given, and hands it to its Fulfiller, publishing each change of its
+    /// state.
+    pub(crate) async fn approve(
+        &self,
+        manager: &User,
+        id: i64,
+        quality: Option<i64>,
+    ) -> Result<Request, Error> {
+        let new_quality = self.new_quality(manager, id, quality).await?;
         let requests = self.clone();
         detached(async move {
-            let approved = requests.decide(id, RequestState::Approved, None).await?;
+            let approved = requests
+                .decide(id, RequestState::Approved, None, new_quality)
+                .await?;
             requests.hand_off(approved).await
         })
         .await
     }
 
-    /// Moves the Failed Request `id` back to Approved and hands it to its Fulfiller again,
-    /// publishing each change of its state.
-    pub(crate) async fn retry(&self, id: i64) -> Result<Request, Error> {
+    /// Moves the Failed Request `id` back to Approved as `manager`, changing its Quality as
+    /// [`Self::approve`] does, and hands it to its Fulfiller again, publishing each change of its
+    /// state.
+    pub(crate) async fn retry(
+        &self,
+        manager: &User,
+        id: i64,
+        quality: Option<i64>,
+    ) -> Result<Request, Error> {
+        let new_quality = self.new_quality(manager, id, quality).await?;
         let requests = self.clone();
         detached(async move {
-            let approved = requests.db.write(move |tx| Box::pin(retry(tx, id))).await?;
+            let approved = requests
+                .db
+                .write(move |tx| Box::pin(retry(tx, id, new_quality)))
+                .await?;
             requests
                 .events
                 .publish(vec![state_changed(approved.clone())]);
@@ -865,7 +941,7 @@ impl Requests {
     /// Declines the Pending Request `id`, giving its Requesters `reason`, trimmed, unless it is
     /// blank, and publishes that its state changed.
     pub(crate) async fn decline(&self, id: i64, reason: &str) -> Result<Request, Error> {
-        self.decide(id, RequestState::Declined, given_reason(reason))
+        self.decide(id, RequestState::Declined, given_reason(reason), None)
             .await
     }
 
@@ -874,10 +950,17 @@ impl Requests {
         id: i64,
         state: RequestState,
         reason: Option<String>,
+        new_quality: Option<NewQuality>,
     ) -> Result<Request, Error> {
         let request = self
             .db
-            .write(move |tx| Box::pin(decide(tx, id, state, reason)))
+            .write(move |tx| {
+                Box::pin(async move {
+                    // Undone with the rest if the Request can't be decided.
+                    change_quality(tx, id, new_quality).await?;
+                    decide(tx, id, state, reason).await
+                })
+            })
             .await?;
         self.events.publish(vec![state_changed(request.clone())]);
         Ok(request)
@@ -1525,6 +1608,35 @@ async fn open_request(
     .await
 }
 
+/// Changes the Request `id`'s Quality to `new_quality`, if given and not the one it has, keeping
+/// that change as its latest in place of any earlier one.
+async fn change_quality(
+    conn: &mut SqliteConnection,
+    id: i64,
+    new_quality: Option<NewQuality>,
+) -> Result<(), sqlx::Error> {
+    let Some(NewQuality { quality, by }) = new_quality else {
+        return Ok(());
+    };
+    let at = now();
+    // SQLite reads `quality_name` on the right as it was before this UPDATE.
+    sqlx::query!(
+        "UPDATE requests
+         SET quality_id = ?1, quality_name = ?2, quality_profile_id = ?3,
+             quality_changed_by = ?4, quality_changed_from = quality_name, quality_changed_at = ?5
+         WHERE id = ?6 AND quality_id IS NOT ?1",
+        quality.id,
+        quality.name,
+        quality.profile_id,
+        by,
+        at,
+        id
+    )
+    .execute(&mut *conn)
+    .await?;
+    Ok(())
+}
+
 /// Moves the Pending Request `id` to `state` with `reason`, and returns it as it is now.
 async fn decide(
     conn: &mut SqliteConnection,
@@ -1632,9 +1744,15 @@ async fn quality_used(
     })))
 }
 
-/// Moves the Failed Request `id` back to Approved, forgetting why it failed, and returns it as it
-/// is now.
-async fn retry(conn: &mut SqliteConnection, id: i64) -> Result<Request, Error> {
+/// Moves the Failed Request `id` back to Approved at `new_quality`, if given, forgetting why it
+/// failed, and returns it as it is now.
+async fn retry(
+    conn: &mut SqliteConnection,
+    id: i64,
+    new_quality: Option<NewQuality>,
+) -> Result<Request, Error> {
+    // Undone with the rest if the Request isn't Failed.
+    change_quality(conn, id, new_quality).await?;
     let retried = sqlx::query!(
         "UPDATE requests SET state = 'approved', failure_reason = NULL
          WHERE id = ? AND state = 'failed'",
@@ -2038,8 +2156,11 @@ async fn load(
     let rows = sqlx::query!(
         r#"SELECT id AS "id!", tmdb_id, season AS "season: u32", title, release_date, show_imdb_id,
                   show_tvdb_id, state, created_at, decline_reason, failure_reason, followed_show_id,
-                  quality_id, quality_name, quality_profile_id, quality_used_id,
-                  quality_used_name, quality_used_profile_id
+                  quality_id, quality_name, quality_profile_id, quality_changed_from,
+                  quality_changed_at, quality_used_id, quality_used_name,
+                  quality_used_profile_id,
+                  (SELECT display_username FROM users WHERE id = quality_changed_by)
+                      AS quality_changed_by
            FROM requests
            WHERE (?1 IS NULL OR id = ?1)
              AND (?2 IS NULL OR EXISTS (SELECT 1 FROM requesters
@@ -2063,6 +2184,15 @@ async fn load(
                 failure_reason: row.failure_reason,
                 followed_show_id: row.followed_show_id,
                 quality: stored_quality(row.quality_id, row.quality_name, row.quality_profile_id)
+                    .into(),
+                quality_change: row
+                    .quality_changed_at
+                    .map(|changed_at| QualityChange {
+                        changed_by: row.quality_changed_by,
+                        previous_name: row.quality_changed_from,
+                        changed_at,
+                        ..Default::default()
+                    })
                     .into(),
                 quality_used: stored_quality(
                     row.quality_used_id,

@@ -6,6 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import type { Device, User } from "@/gen/nama/v1/sign_in_pb";
 import { UserService } from "@/gen/nama/v1/user_pb";
+import { dayOf } from "@/lib/browse";
 import { isCode } from "@/lib/connect-errors";
 import { refusal } from "@/lib/forms";
 import { devicesKey, noLongerHere } from "@/lib/users";
@@ -67,8 +68,8 @@ function DeviceRow({ device, whose }: { device: Device; whose: Whose }) {
         <p className="truncate font-medium">{device.name}</p>
         <p className="text-sm text-muted-foreground">
           {/* Each phrase stays whole when the line wraps. */}
-          <span className="whitespace-nowrap">Signed in {day(device.createdAt)}</span> ·{" "}
-          <span className="whitespace-nowrap">Last seen {day(device.lastSeenAt)}</span>
+          <span className="whitespace-nowrap">Signed in {dayOf(device.createdAt)}</span> ·{" "}
+          <span className="whitespace-nowrap">Last seen {dayOf(device.lastSeenAt)}</span>
         </p>
       </div>
       {device.isCurrent ? (
@@ -87,9 +88,4 @@ function DeviceRow({ device, whose }: { device: Device; whose: Whose }) {
       )}
     </li>
   );
-}
-
-/** The day `seconds` since the Unix epoch falls on, as this browser writes dates. */
-function day(seconds: bigint) {
-  return new Date(Number(seconds) * 1000).toLocaleDateString(undefined, { dateStyle: "medium" });
 }

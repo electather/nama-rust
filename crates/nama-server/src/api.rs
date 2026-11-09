@@ -298,6 +298,7 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::REQUEST_SERVICE_DECLINE_FOLLOWED_SHOW_SPEC.procedure, MANAGE_REQUESTS),
     (proto::REQUEST_SERVICE_CANCEL_FOLLOWED_SHOW_SPEC.procedure,  MANAGE_REQUESTS),
     (proto::REQUEST_SERVICE_WITHDRAW_FOLLOWED_SHOW_SPEC.procedure, Access::SignedIn),
+    (proto::REQUEST_SERVICE_LIST_OFFERED_QUALITIES_SPEC.procedure, MANAGE_REQUESTS),
     (proto::PLUGIN_SERVICE_LIST_PLUGINS_SPEC.procedure,           MANAGE_SETTINGS),
     (proto::PLUGIN_SERVICE_GET_PLUGIN_SPEC.procedure,             MANAGE_SETTINGS),
     (proto::PLUGIN_SERVICE_UPDATE_PLUGIN_SETTINGS_SPEC.procedure, MANAGE_SETTINGS),
@@ -1650,10 +1651,14 @@ impl RequestService for RequestServiceHandler {
 
     async fn approve_request(
         &self,
-        _ctx: RequestContext,
+        ctx: RequestContext,
         request: ServiceRequest<'_, ApproveRequestRequest>,
     ) -> ServiceResult<ApproveRequestResponse> {
-        let approved = self.requests.approve(request.id).await?;
+        let manager = &caller(&ctx)?.user;
+        let approved = self
+            .requests
+            .approve(manager, request.id, request.quality_id)
+            .await?;
         Response::ok(ApproveRequestResponse {
             request: approved.into(),
             ..Default::default()
@@ -1683,10 +1688,14 @@ impl RequestService for RequestServiceHandler {
 
     async fn retry_request(
         &self,
-        _ctx: RequestContext,
+        ctx: RequestContext,
         request: ServiceRequest<'_, RetryRequestRequest>,
     ) -> ServiceResult<RetryRequestResponse> {
-        let retried = self.requests.retry(request.id).await?;
+        let manager = &caller(&ctx)?.user;
+        let retried = self
+            .requests
+            .retry(manager, request.id, request.quality_id)
+            .await?;
         Response::ok(RetryRequestResponse {
             request: retried.into(),
             ..Default::default()
@@ -1713,6 +1722,19 @@ impl RequestService for RequestServiceHandler {
         Response::ok(CreateFollowedShowResponse {
             followed_show: followed_show.into(),
             requests,
+            ..Default::default()
+        })
+    }
+
+    async fn list_offered_qualities(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, proto::ListOfferedQualitiesRequest>,
+    ) -> ServiceResult<proto::ListOfferedQualitiesResponse> {
+        let kind = title_kind_from_proto(request.kind)?;
+        let qualities = self.requests.offered_qualities(kind).await?;
+        Response::ok(proto::ListOfferedQualitiesResponse {
+            qualities,
             ..Default::default()
         })
     }
@@ -3190,6 +3212,11 @@ impl From<requests::Error> for ConnectError {
             requests::Error::NotFailed(id) => refuse(R::REFUSAL_REASON_REQUEST_NOT_FAILED, message)
                 .field("id")
                 .param("requestId", &id),
+            requests::Error::NewQualityNotOffered(id) => {
+                refuse(R::REFUSAL_REASON_QUALITY_NOT_OFFERED, message)
+                    .field("quality_id")
+                    .param("qualityId", &id)
+            }
             requests::Error::NotARequester(id) => {
                 refuse(R::REFUSAL_REASON_NOT_A_REQUESTER, message)
                     .field("id")
@@ -3232,7 +3259,8 @@ impl From<requests::Error> for ConnectError {
                     .param("seasonNumber", &season)
             }
             requests::Error::Unavailable => refuse(R::REFUSAL_REASON_NO_METADATA_PROVIDER, message),
-            // Only `CreateRequest` names a Quality, in `quality`.
+            // `CreateRequest` names a Quality in `quality`; `ApproveRequest` and `RetryRequest` in
+            // `quality_id`, refused as `NewQualityNotOffered`.
             requests::Error::QualityNotAllowed => {
                 refuse(R::REFUSAL_REASON_QUALITY_NOT_ALLOWED, message).field("quality")
             }

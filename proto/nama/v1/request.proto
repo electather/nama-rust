@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package nama.v1;
 
+import "nama/v1/match.proto";
 import "nama/v1/plugin.proto";
 
 // Users asking for Movies, and Seasons of Shows, that aren't on the Server to be added to it
@@ -81,9 +82,11 @@ service RequestService {
   }
   // Approves a Pending Request and hands a Movie Request to the Movie Fulfiller, if one is enabled:
   // Processing once it takes it, or Failed if it doesn't. Either way it then waits for what it asks
-  // for to be Matched in a Library. Needs `PERMISSION_MANAGE_REQUESTS`, which manages every User's
-  // Requests. Fails with `not_found` if there is no Request with the ID, and `failed_precondition`
-  // if it isn't Pending.
+  // for to be Matched in a Library. Given a `quality_id`, it first changes the Request's Quality to
+  // that one, keeping the change in `Request.quality_change`. Needs `PERMISSION_MANAGE_REQUESTS`,
+  // which manages every User's Requests. Fails with `not_found` if there is no Request with the ID,
+  // `failed_precondition` if it isn't Pending, and `invalid_argument` if the Quality isn't offered
+  // for it (`REFUSAL_REASON_QUALITY_NOT_OFFERED`).
   rpc ApproveRequest(ApproveRequestRequest) returns (ApproveRequestResponse);
   // Declines a Pending Request, which closes it: asking for the Movie again opens a new one. Needs
   // `PERMISSION_MANAGE_REQUESTS`. Fails as `ApproveRequest` does.
@@ -91,9 +94,10 @@ service RequestService {
   // Removes a Request, whatever its state. Needs `PERMISSION_MANAGE_REQUESTS`. Fails with
   // `not_found` if there is no Request with the ID.
   rpc CancelRequest(CancelRequestRequest) returns (CancelRequestResponse);
-  // Moves a Failed Request back to Approved and hands it to its Fulfiller again, as
-  // `ApproveRequest` does. Needs `PERMISSION_MANAGE_REQUESTS`. Fails with `not_found` if there is no
-  // Request with the ID, and `failed_precondition` if it isn't Failed.
+  // Moves a Failed Request back to Approved and hands it to its Fulfiller again, changing its
+  // Quality first as `ApproveRequest` does. Needs `PERMISSION_MANAGE_REQUESTS`. Fails with
+  // `not_found` if there is no Request with the ID, `failed_precondition` if it isn't Failed, and
+  // `invalid_argument` if the Quality isn't offered for it.
   rpc RetryRequest(RetryRequestRequest) returns (RetryRequestResponse);
   // Takes the caller off a Pending Request's Requesters, which removes the Request once nobody is
   // left on it. Fails with `not_found` if there is no Request with the ID, or none the caller may
@@ -115,6 +119,12 @@ service RequestService {
   // Followed Show with the ID, or none the caller may see, and `failed_precondition` if the caller
   // isn't one of its Requesters.
   rpc WithdrawFollowedShow(WithdrawFollowedShowRequest) returns (WithdrawFollowedShowResponse);
+  // Returns the Qualities the enabled Fulfiller for a kind of title offers, for a Request manager to
+  // pick from when approving or retrying a Request. Empty if no such Fulfiller is enabled or it
+  // offers none. Needs `PERMISSION_MANAGE_REQUESTS`.
+  rpc ListOfferedQualities(ListOfferedQualitiesRequest) returns (ListOfferedQualitiesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
 }
 
 // Where a Request is on its way to the Library (ADR 0012).
@@ -171,6 +181,18 @@ message Request {
   // handed off, if it has no `quality`, or if the Fulfiller didn't say. With no Quality on the
   // list for that profile, `id` is 0 and `name` is the service's own: set in the service.
   RequestedQuality quality_used = 12;
+  // The latest change a Request manager made to its Quality, if any. Only the latest is kept.
+  QualityChange quality_change = 13;
+}
+
+// A Request manager changing a Request's Quality, as `Request.quality` now has it.
+message QualityChange {
+  // The Request manager's name, unset once that User is deleted.
+  optional string changed_by = 1;
+  // The friendly name of the Quality it had before, unset if it had none.
+  optional string previous_name = 2;
+  // When, in seconds since the Unix epoch.
+  int64 changed_at = 3;
 }
 
 // A copy of the Quality a Request took, kept as it was so renaming or removing the Quality changes
@@ -341,6 +363,9 @@ message CountPendingRequestsResponse {
 message ApproveRequestRequest {
   // The ID of the Request.
   int64 id = 1;
+  // The id of the Quality to change it to, from its Fulfiller's list; a Season Request takes none
+  // yet. Unset keeps its Quality.
+  optional int64 quality_id = 2;
 }
 
 message ApproveRequestResponse {
@@ -370,6 +395,9 @@ message CancelRequestResponse {}
 message RetryRequestRequest {
   // The ID of the Request.
   int64 id = 1;
+  // The id of the Quality to change it to, from its Fulfiller's list; a Season Request takes none
+  // yet. Unset keeps its Quality.
+  optional int64 quality_id = 2;
 }
 
 message RetryRequestResponse {
@@ -420,6 +448,16 @@ message WithdrawFollowedShowRequest {
 }
 
 message WithdrawFollowedShowResponse {}
+
+message ListOfferedQualitiesRequest {
+  // `TITLE_KIND_MOVIE` for the Movie Fulfiller's, or `TITLE_KIND_SHOW` for the Show Fulfiller's.
+  TitleKind kind = 1;
+}
+
+message ListOfferedQualitiesResponse {
+  // In the order an admin listed them.
+  repeated Quality qualities = 1;
+}
 
 // A Movie in the metadata source, and how close it is to being on the Server: in a Library, asked
 // for in a Request, or neither, in which case `CreateRequest` asks for it.

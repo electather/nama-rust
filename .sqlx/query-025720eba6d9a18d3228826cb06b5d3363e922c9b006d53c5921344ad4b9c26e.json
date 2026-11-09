@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id AS \"id!\", tmdb_id, season AS \"season: u32\", title, release_date, show_imdb_id,\n                  show_tvdb_id, state, created_at, decline_reason, failure_reason, followed_show_id,\n                  quality_id, quality_name, quality_profile_id, quality_used_id,\n                  quality_used_name, quality_used_profile_id\n           FROM requests\n           WHERE (?1 IS NULL OR id = ?1)\n             AND (?2 IS NULL OR EXISTS (SELECT 1 FROM requesters\n                                        WHERE request_id = requests.id AND user_id = ?2))\n           ORDER BY id DESC",
+  "query": "SELECT id AS \"id!\", tmdb_id, season AS \"season: u32\", title, release_date, show_imdb_id,\n                  show_tvdb_id, state, created_at, decline_reason, failure_reason, followed_show_id,\n                  quality_id, quality_name, quality_profile_id, quality_changed_from,\n                  quality_changed_at, quality_used_id, quality_used_name,\n                  quality_used_profile_id,\n                  (SELECT display_username FROM users WHERE id = quality_changed_by)\n                      AS quality_changed_by\n           FROM requests\n           WHERE (?1 IS NULL OR id = ?1)\n             AND (?2 IS NULL OR EXISTS (SELECT 1 FROM requesters\n                                        WHERE request_id = requests.id AND user_id = ?2))\n           ORDER BY id DESC",
   "describe": {
     "columns": [
       {
@@ -169,8 +169,30 @@
         }
       },
       {
-        "name": "quality_used_id",
+        "name": "quality_changed_from",
         "ordinal": 15,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "requests",
+            "name": "quality_changed_from"
+          }
+        }
+      },
+      {
+        "name": "quality_changed_at",
+        "ordinal": 16,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "requests",
+            "name": "quality_changed_at"
+          }
+        }
+      },
+      {
+        "name": "quality_used_id",
+        "ordinal": 17,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -181,7 +203,7 @@
       },
       {
         "name": "quality_used_name",
-        "ordinal": 16,
+        "ordinal": 18,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -192,12 +214,23 @@
       },
       {
         "name": "quality_used_profile_id",
-        "ordinal": 17,
+        "ordinal": 19,
         "type_info": "Text",
         "origin": {
           "Table": {
             "table": "requests",
             "name": "quality_used_profile_id"
+          }
+        }
+      },
+      {
+        "name": "quality_changed_by",
+        "ordinal": 20,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "display_username"
           }
         }
       }
@@ -223,8 +256,11 @@
       true,
       true,
       true,
+      true,
+      true,
+      true,
       true
     ]
   },
-  "hash": "4c7e51a51a6a6e8b4de08e5a5e668fc1d3b3406fe08d438cb3be5960175f0727"
+  "hash": "025720eba6d9a18d3228826cb06b5d3363e922c9b006d53c5921344ad4b9c26e"
 }

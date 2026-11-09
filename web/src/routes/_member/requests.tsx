@@ -5,9 +5,15 @@ import { FindATitle, type Searchable, TitlesFound } from "@/components/find-a-ti
 import { Page } from "@/components/page";
 import { RequestActions } from "@/components/request-actions";
 import { RequestProgress, RequestStateLabel } from "@/components/request-state";
-import { type FollowedShow, type Request, RequestService } from "@/gen/nama/v1/request_pb";
+import {
+  type FollowedShow,
+  type QualityChange,
+  type Request,
+  RequestService,
+  type RequestedQuality,
+} from "@/gen/nama/v1/request_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { metadataLine, seasonName, yearOf } from "@/lib/browse";
+import { dayOf, metadataLine, seasonName, yearOf } from "@/lib/browse";
 import { may } from "@/lib/permissions";
 
 export const Route = createFileRoute("/_member/requests")({
@@ -197,11 +203,24 @@ function aboutRequest(request: Request | FollowedShow, you: bigint | undefined) 
 
 /**
  * The Quality a Request is downloaded at: the one its service used once handed off, else the one
- * asked for. A profile no Quality offers is the service's own.
+ * asked for, a profile no Quality offers being the service's own. Then who last changed it from
+ * what, and when: "HD, changed from 4K by Sam on 9 Nov 2026".
  */
-function qualityOf({ quality, qualityUsed }: Request) {
+function qualityOf({ quality, qualityUsed, qualityChange }: Request) {
   const shown = qualityUsed ?? quality;
-  return shown && (shown.id === 0n ? `${shown.name} (set in the service)` : shown.name);
+  if (shown === undefined) return shown;
+  return qualityChange ? `${nameOf(shown)}, ${changeText(qualityChange)}` : nameOf(shown);
+}
+
+/** A Quality's name, or the service's own profile's when no Quality offers it. */
+function nameOf({ id, name }: RequestedQuality) {
+  return id === 0n ? `${name} (set in the service)` : name;
+}
+
+/** Who changed a Quality from what, and when, in words: "changed from 4K by Sam on 9 Nov 2026". */
+function changeText({ previousName, changedBy = "a Request manager", changedAt }: QualityChange) {
+  const from = previousName === undefined ? "" : ` from ${previousName}`;
+  return `changed${from} by ${changedBy} on ${dayOf(changedAt)}`;
 }
 
 /** When a Request's Movie came out, or its Season first aired. */
