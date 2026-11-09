@@ -34,11 +34,11 @@ const dune = {
 function server(
   requests: () => MessageInitShape<typeof RequestSchema>[],
   events = new ReadableStream<SubscribeResponse>(),
-  followedShows: MessageInitShape<typeof FollowedShowSchema>[] = [],
+  followedShows: () => MessageInitShape<typeof FollowedShowSchema>[] = () => [],
 ) {
   return fakeServer({ signedIn: newUser, events }, {}, {}, (router) => {
     router.service(RequestService, {
-      listRequests: () => ({ requests: requests(), followedShows }),
+      listRequests: () => ({ requests: requests(), followedShows: followedShows() }),
     });
   });
 }
@@ -117,7 +117,7 @@ test("a Followed Show lists above its Show's Season Requests", async () => {
     server(
       () => [heat, { ...darkSeason(3n, 1, RequestState.APPROVED), followedShowId: 7n }],
       undefined,
-      [followedDark],
+      () => [followedDark],
     ),
   );
 
@@ -137,7 +137,11 @@ test("a Season Request a scan opens for a Followed Show shows up under it withou
   let requests: MessageInitShape<typeof RequestSchema>[] = [];
   openApp(
     "/requests",
-    server(() => requests, events.stream, [followedDark]),
+    server(
+      () => requests,
+      events.stream,
+      () => [followedDark],
+    ),
   );
   const dark = await screen.findByRole("list", { name: "Dark" });
 
@@ -147,6 +151,28 @@ test("a Season Request a scan opens for a Followed Show shows up under it withou
 
   expect(await within(dark).findByText("Season 3")).toBeDefined();
   expect(within(dark).getByText("Available")).toBeDefined();
+});
+
+test("a Pending Followed Show approved elsewhere shows as Approved without a reload", async () => {
+  const events = eventFeed();
+  let followed: MessageInitShape<typeof FollowedShowSchema> = {
+    ...followedDark,
+    state: RequestState.PENDING,
+  };
+  openApp(
+    "/requests",
+    server(
+      () => [],
+      events.stream,
+      () => [followed],
+    ),
+  );
+  await screen.findByText("Pending");
+
+  followed = followedDark;
+  events.send({ event: { case: "followedShowStateChanged", value: { followedShow: followed } } });
+
+  expect(await screen.findByText("Approved")).toBeDefined();
 });
 
 test("the Requests page says so when there are none", async () => {
@@ -243,32 +269,20 @@ test("a Season Request shows as Partially Available, then Available, as a scan M
   ]);
 });
 
-test("a Request cancelled elsewhere goes without a reload", async () => {
+test.each([
+  { how: "cancelled", request: dune, removal: "requestCancelled" },
+  { how: "withdrawn from", request: heat, removal: "requestWithdrawn" },
+] as const)("a Request $how elsewhere goes without a reload", async ({ request, removal }) => {
   const events = eventFeed();
-  let requests = [dune];
+  let requests = [request];
   openApp(
     "/requests",
     server(() => requests, events.stream),
   );
-  await screen.findByText("Dune");
+  await screen.findByText(request.movie.title);
 
   requests = [];
-  events.send({ event: { case: "requestCancelled", value: { request: dune } } });
-
-  expect(await screen.findByText("No Requests yet.")).toBeDefined();
-});
-
-test("a Request withdrawn from elsewhere goes without a reload", async () => {
-  const events = eventFeed();
-  let requests = [heat];
-  openApp(
-    "/requests",
-    server(() => requests, events.stream),
-  );
-  await screen.findByText("Heat");
-
-  requests = [];
-  events.send({ event: { case: "requestWithdrawn", value: { request: heat } } });
+  events.send({ event: { case: removal, value: { request } } });
 
   expect(await screen.findByText("No Requests yet.")).toBeDefined();
 });

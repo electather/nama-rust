@@ -34,6 +34,12 @@ enum EventType {
   EVENT_TYPE_REQUESTER_REMOVED = 11;
   EVENT_TYPE_REQUEST_WITHDRAWN = 12;
   EVENT_TYPE_REQUEST_PROGRESS = 13;
+  EVENT_TYPE_FOLLOWED_SHOW_CREATED = 14;
+  EVENT_TYPE_FOLLOWED_SHOW_REQUESTER_ADDED = 15;
+  EVENT_TYPE_FOLLOWED_SHOW_STATE_CHANGED = 16;
+  EVENT_TYPE_FOLLOWED_SHOW_CANCELLED = 17;
+  EVENT_TYPE_FOLLOWED_SHOW_REQUESTER_REMOVED = 18;
+  EVENT_TYPE_FOLLOWED_SHOW_WITHDRAWN = 19;
 }
 
 message SubscribeRequest {
@@ -75,6 +81,12 @@ message Event {
     RequesterRemoved requester_removed = 11;
     RequestWithdrawn request_withdrawn = 12;
     RequestProgress request_progress = 13;
+    FollowedShowCreated followed_show_created = 14;
+    FollowedShowRequesterAdded followed_show_requester_added = 15;
+    FollowedShowStateChanged followed_show_state_changed = 16;
+    FollowedShowCancelled followed_show_cancelled = 17;
+    FollowedShowRequesterRemoved followed_show_requester_removed = 18;
+    FollowedShowWithdrawn followed_show_withdrawn = 19;
   }
 }
 
@@ -175,4 +187,45 @@ message RequestWithdrawn {
 message RequestProgress {
   // The Request as it is now, with its `downloads`.
   Request request = 1;
+}
+
+// A User asked for a whole Show that had no open Followed Show, which opened this one. Followed
+// Show events reach whom Request events reach: its Requesters, and subscribers with
+// `PERMISSION_VIEW_REQUESTS`.
+message FollowedShowCreated {
+  FollowedShow followed_show = 1;
+}
+
+// A User joined a Followed Show as a Requester.
+message FollowedShowRequesterAdded {
+  // The Followed Show as it is now, with them among its Requesters.
+  FollowedShow followed_show = 1;
+  // The User who joined.
+  int64 user_id = 2;
+}
+
+// A Followed Show was approved or declined.
+message FollowedShowStateChanged {
+  // The Followed Show as it is now, in its new state.
+  FollowedShow followed_show = 1;
+}
+
+// A User with `PERMISSION_MANAGE_REQUESTS` cancelled a Followed Show, which removed it.
+message FollowedShowCancelled {
+  // The Followed Show as it was before it was removed.
+  FollowedShow followed_show = 1;
+}
+
+// A Requester withdrew from a Followed Show that others are still on.
+message FollowedShowRequesterRemoved {
+  // The Followed Show as it was, with them still among its Requesters, so they get the event too.
+  FollowedShow followed_show = 1;
+  // The User who withdrew.
+  int64 user_id = 2;
+}
+
+// A Followed Show's last Requester withdrew, which removed it.
+message FollowedShowWithdrawn {
+  // The Followed Show as it was before it was removed.
+  FollowedShow followed_show = 1;
 }

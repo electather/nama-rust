@@ -3074,6 +3074,181 @@ async fn the_last_requester_withdrawing_ends_a_followed_show_and_leaves_its_seas
     assert_eq!(dark_seasons_requested(&grace_requests).await, [1, 2, 3]);
 }
 
+/// Subscribes to Followed Show events, as the User `config` calls as.
+async fn subscribe_to_followed_shows(config: ClientConfig) -> Subscription {
+    subscribe(
+        config,
+        &[
+            EventType::EVENT_TYPE_FOLLOWED_SHOW_CREATED,
+            EventType::EVENT_TYPE_FOLLOWED_SHOW_REQUESTER_ADDED,
+            EventType::EVENT_TYPE_FOLLOWED_SHOW_STATE_CHANGED,
+            EventType::EVENT_TYPE_FOLLOWED_SHOW_CANCELLED,
+            EventType::EVENT_TYPE_FOLLOWED_SHOW_REQUESTER_REMOVED,
+            EventType::EVENT_TYPE_FOLLOWED_SHOW_WITHDRAWN,
+        ],
+    )
+    .await
+}
+
+/// A Followed Show event: what happened, the User who joined or withdrew, and the Followed Show.
+type FollowedShowEvent = (&'static str, Option<i64>, FollowedShow);
+
+/// The next `count` events of `subscription`, each a Followed Show event.
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a test helper fails its test by panicking"
+)]
+#[expect(
+    clippy::wildcard_enum_match_arm,
+    reason = "any event but a Followed Show's fails the test"
+)]
+async fn next_followed_show_events(
+    subscription: &mut Subscription,
+    count: usize,
+) -> Vec<FollowedShowEvent> {
+    use event::Event as E;
+    let mut sent = Vec::with_capacity(count);
+    for _ in 0..count {
+        let (happened, user, followed) = match next_event(subscription).await {
+            E::FollowedShowCreated(e) => ("created", None, e.followed_show),
+            E::FollowedShowRequesterAdded(e) => {
+                ("requester added", Some(e.user_id), e.followed_show)
+            }
+            E::FollowedShowStateChanged(e) => ("state changed", None, e.followed_show),
+            E::FollowedShowCancelled(e) => ("cancelled", None, e.followed_show),
+            E::FollowedShowRequesterRemoved(e) => {
+                ("requester removed", Some(e.user_id), e.followed_show)
+            }
+            E::FollowedShowWithdrawn(e) => ("withdrawn", None, e.followed_show),
+            other => panic!("not a Followed Show event: {other:?}"),
+        };
+        let followed = followed
+            .into_option()
+            .expect("a Followed Show event without one");
+        sent.push((happened, user, followed));
+    }
+    sent
+}
+
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn withdraw_followed(client: &RequestServiceClient<HttpClient>, id: i64) {
+    client
+        .withdraw_followed_show(WithdrawFollowedShowRequest {
+            id,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn each_change_to_a_followed_show_sends_it_as_it_is_after_or_as_it_was_before_its_removal() {
+    let fixture = Fixture::start().await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let (grace, as_grace) = fixture.user("Grace", &NEW_USER).await;
+    let (ada_requests, grace_requests) = (requests(as_ada), requests(as_grace));
+    let mut events = subscribe_to_followed_shows(fixture.server.client_config()).await;
+
+    let (opened, _) = follow(&ada_requests, DARK).await;
+    let (joined, _) = follow(&grace_requests, DARK).await;
+    withdraw_followed(&grace_requests, opened.id).await;
+    let approved = approve_followed(&fixture, opened.id).await.unwrap();
+    requests(fixture.server.client_config())
+        .cancel_followed_show(CancelFollowedShowRequest {
+            id: opened.id,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let (office, _) = follow(&ada_requests, THE_OFFICE).await;
+    withdraw_followed(&ada_requests, office.id).await;
+
+    assert_eq!(
+        next_followed_show_events(&mut events, 7).await,
+        [
+            ("created", None, opened),
+            ("requester added", Some(grace), joined.clone()),
+            ("requester removed", Some(grace), joined),
+            ("state changed", None, approved.clone()),
+            ("cancelled", None, approved),
+            ("created", None, office.clone()),
+            ("withdrawn", None, office),
+        ]
+    );
+}
+
+#[tokio::test]
+async fn a_followed_show_event_reaches_its_requesters_and_view_requests_subscribers_and_no_other_member()
+ {
+    let fixture = Fixture::start().await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let (_, as_grace) = fixture.user("Grace", &[Permission::RequestTv]).await;
+    let (_, as_hopper) = fixture.user("Hopper", &[Permission::RequestTv]).await;
+    let mut adas_events = subscribe_to_followed_shows(as_ada).await;
+    let mut graces_events = subscribe_to_followed_shows(as_grace.clone()).await;
+    let mut hoppers_events = subscribe_to_followed_shows(as_hopper.clone()).await;
+
+    let (office, _) = follow(&requests(as_hopper.clone()), THE_OFFICE).await;
+    let (dark, _) = follow(&requests(as_grace), DARK).await;
+    withdraw_followed(&requests(as_hopper), office.id).await;
+
+    let shows = |sent: Vec<FollowedShowEvent>| -> Vec<(&str, i64)> {
+        sent.into_iter()
+            .map(|(happened, _, followed)| (happened, followed.id))
+            .collect()
+    };
+    assert_eq!(
+        shows(next_followed_show_events(&mut adas_events, 3).await),
+        [
+            ("created", office.id),
+            ("created", dark.id),
+            ("withdrawn", office.id)
+        ]
+    );
+    assert_eq!(
+        shows(next_followed_show_events(&mut graces_events, 1).await),
+        [("created", dark.id)],
+        "Hopper's Followed Show reached Grace"
+    );
+    assert_eq!(
+        shows(next_followed_show_events(&mut hoppers_events, 2).await),
+        [("created", office.id), ("withdrawn", office.id)],
+        "Grace's Followed Show reached Hopper"
+    );
+}
+
+#[tokio::test]
+async fn opening_a_followed_show_for_a_show_whose_seasons_are_all_in_a_library_sends_its_creation()
+{
+    let fixture = Fixture::start().await;
+    let _media = fixture
+        .library_with(
+            LibraryKind::LIBRARY_KIND_SHOWS,
+            &[
+                DARK_S01E01,
+                DARK_S01E02,
+                DARK_S01E03,
+                DARK_S02E01,
+                DARK_S03E01,
+            ],
+        )
+        .await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let mut adas_events = subscribe_to_followed_shows(as_ada.clone()).await;
+
+    let (followed, asked) = follow(&requests(as_ada), DARK).await;
+
+    assert_eq!(asked, []);
+    assert_eq!(
+        next_followed_show_events(&mut adas_events, 1).await,
+        [("created", None, followed)]
+    );
+}
+
 #[tokio::test]
 async fn a_scan_matching_more_of_a_season_in_a_library_when_its_show_was_followed_opens_no_request()
 {
