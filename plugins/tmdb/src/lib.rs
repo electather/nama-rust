@@ -99,6 +99,9 @@ impl Plugin for Tmdb {
         };
         Manifest {
             id: Self::ID,
+            name: "TMDB".to_owned(),
+            description: "Finds the details and artwork of Movies and Shows on The Movie Database."
+                .to_owned(),
             version: env!("CARGO_PKG_VERSION").to_owned(),
             settings,
             extension_points: vec![PointKey::provide::<dyn MetadataProvider>()],

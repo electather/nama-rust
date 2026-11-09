@@ -4074,9 +4074,17 @@ pub struct PluginSummaryView<'a> {
     ///
     /// Field 6: `settings_missing`
     pub settings_missing: bool,
+    /// As `Plugin.name`.
+    ///
+    /// Field 7: `name`
+    pub name: &'a str,
+    /// As `Plugin.description`.
+    ///
+    /// Field 8: `description`
+    pub description: &'a str,
     /// As `Plugin.extension_points`.
     ///
-    /// Field 7: `extension_points`
+    /// Field 9: `extension_points`
     pub extension_points: ::buffa::RepeatedView<
         'a,
         ::buffa::EnumValue<super::super::ExtensionPoint>,
@@ -4158,6 +4166,20 @@ impl<'a> ::buffa::MessageView<'a> for PluginSummaryView<'a> {
                 view.settings_missing = ::buffa::types::decode_bool(&mut cur)?;
             }
             7u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.name = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            8u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.description = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            9u32 => {
                 if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
                     let payload = ::buffa::types::borrow_bytes(&mut cur)?;
                     view.extension_points
@@ -4215,6 +4237,8 @@ impl<'a> ::buffa::MessageView<'a> for PluginSummaryView<'a> {
             enabled: self.enabled,
             refused_reason: self.refused_reason.to_string(),
             settings_missing: self.settings_missing,
+            name: self.name.to_string(),
+            description: self.description.to_string(),
             extension_points: self.extension_points.to_vec(),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
@@ -4249,6 +4273,12 @@ impl<'a> ::buffa::ViewEncode<'a> for PluginSummaryView<'a> {
         }
         if self.settings_missing {
             size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
+        if !self.name.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.name) as u64;
+        }
+        if !self.description.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.description) as u64;
         }
         if !self.extension_points.is_empty() {
             let payload: u64 = self
@@ -4290,13 +4320,19 @@ impl<'a> ::buffa::ViewEncode<'a> for PluginSummaryView<'a> {
         if self.settings_missing {
             ::buffa::types::put_bool_field(6u32, self.settings_missing, buf);
         }
+        if !self.name.is_empty() {
+            ::buffa::types::put_string_field(7u32, &self.name, buf);
+        }
+        if !self.description.is_empty() {
+            ::buffa::types::put_string_field(8u32, &self.description, buf);
+        }
         if !self.extension_points.is_empty() {
             let payload: u64 = self
                 .extension_points
                 .iter()
                 .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
                 .sum::<u64>();
-            ::buffa::types::put_len_delimited_header(7u32, payload, buf);
+            ::buffa::types::put_len_delimited_header(9u32, payload, buf);
             for v in &self.extension_points {
                 ::buffa::types::encode_int32(v.to_i32(), buf);
             }
@@ -4339,6 +4375,12 @@ impl<'__a> ::serde::Serialize for PluginSummaryView<'__a> {
         }
         if self.settings_missing {
             __map.serialize_entry("settingsMissing", &self.settings_missing)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.name) {
+            __map.serialize_entry("name", self.name)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.description) {
+            __map.serialize_entry("description", self.description)?;
         }
         if !self.extension_points.is_empty() {
             __map
@@ -4478,9 +4520,23 @@ impl PluginSummaryOwnedView {
     pub fn settings_missing(&self) -> bool {
         self.0.reborrow().settings_missing
     }
+    /// As `Plugin.name`.
+    ///
+    /// Field 7: `name`
+    #[must_use]
+    pub fn name(&self) -> &'_ str {
+        self.0.reborrow().name
+    }
+    /// As `Plugin.description`.
+    ///
+    /// Field 8: `description`
+    #[must_use]
+    pub fn description(&self) -> &'_ str {
+        self.0.reborrow().description
+    }
     /// As `Plugin.extension_points`.
     ///
-    /// Field 7: `extension_points`
+    /// Field 9: `extension_points`
     #[must_use]
     pub fn extension_points(
         &self,
@@ -4551,10 +4607,18 @@ pub struct PluginView<'a> {
     ///
     /// Field 7: `refused_reason`
     pub refused_reason: &'a str,
+    /// What admins know it by, such as "TMDB". Empty if it gives none, when `id` stands in.
+    ///
+    /// Field 8: `name`
+    pub name: &'a str,
+    /// What it does, in one sentence its author wrote. Empty if it gives none.
+    ///
+    /// Field 9: `description`
+    pub description: &'a str,
     /// The Extension Points it takes part at, as its Manifest names them, whether it is enabled or
     /// not. Empty for a refused Plugin.
     ///
-    /// Field 8: `extension_points`
+    /// Field 10: `extension_points`
     pub extension_points: ::buffa::RepeatedView<
         'a,
         ::buffa::EnumValue<super::super::ExtensionPoint>,
@@ -4635,6 +4699,20 @@ impl<'a> ::buffa::MessageView<'a> for PluginView<'a> {
                 )?;
                 view.refused_reason = ::buffa::types::borrow_str(&mut cur)?;
             }
+            8u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.name = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            9u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.description = ::buffa::types::borrow_str(&mut cur)?;
+            }
             5u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -4653,7 +4731,7 @@ impl<'a> ::buffa::MessageView<'a> for PluginView<'a> {
                         )?,
                     );
             }
-            8u32 => {
+            10u32 => {
                 if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
                     let payload = ::buffa::types::borrow_bytes(&mut cur)?;
                     view.extension_points
@@ -4716,6 +4794,8 @@ impl<'a> ::buffa::MessageView<'a> for PluginView<'a> {
                 .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
             checks_settings: self.checks_settings,
             refused_reason: self.refused_reason.to_string(),
+            name: self.name.to_string(),
+            description: self.description.to_string(),
             extension_points: self.extension_points.to_vec(),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
@@ -4758,6 +4838,12 @@ impl<'a> ::buffa::ViewEncode<'a> for PluginView<'a> {
             size
                 += 1u64
                     + ::buffa::types::string_encoded_len(&self.refused_reason) as u64;
+        }
+        if !self.name.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.name) as u64;
+        }
+        if !self.description.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.description) as u64;
         }
         if !self.extension_points.is_empty() {
             let payload: u64 = self
@@ -4807,13 +4893,19 @@ impl<'a> ::buffa::ViewEncode<'a> for PluginView<'a> {
         if !self.refused_reason.is_empty() {
             ::buffa::types::put_string_field(7u32, &self.refused_reason, buf);
         }
+        if !self.name.is_empty() {
+            ::buffa::types::put_string_field(8u32, &self.name, buf);
+        }
+        if !self.description.is_empty() {
+            ::buffa::types::put_string_field(9u32, &self.description, buf);
+        }
         if !self.extension_points.is_empty() {
             let payload: u64 = self
                 .extension_points
                 .iter()
                 .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
                 .sum::<u64>();
-            ::buffa::types::put_len_delimited_header(8u32, payload, buf);
+            ::buffa::types::put_len_delimited_header(10u32, payload, buf);
             for v in &self.extension_points {
                 ::buffa::types::encode_int32(v.to_i32(), buf);
             }
@@ -4859,6 +4951,12 @@ impl<'__a> ::serde::Serialize for PluginView<'__a> {
         }
         if !::buffa::json_helpers::skip_if::is_empty_str(self.refused_reason) {
             __map.serialize_entry("refusedReason", self.refused_reason)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.name) {
+            __map.serialize_entry("name", self.name)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.description) {
+            __map.serialize_entry("description", self.description)?;
         }
         if !self.extension_points.is_empty() {
             __map
@@ -5004,10 +5102,24 @@ impl PluginOwnedView {
     pub fn refused_reason(&self) -> &'_ str {
         self.0.reborrow().refused_reason
     }
+    /// What admins know it by, such as "TMDB". Empty if it gives none, when `id` stands in.
+    ///
+    /// Field 8: `name`
+    #[must_use]
+    pub fn name(&self) -> &'_ str {
+        self.0.reborrow().name
+    }
+    /// What it does, in one sentence its author wrote. Empty if it gives none.
+    ///
+    /// Field 9: `description`
+    #[must_use]
+    pub fn description(&self) -> &'_ str {
+        self.0.reborrow().description
+    }
     /// The Extension Points it takes part at, as its Manifest names them, whether it is enabled or
     /// not. Empty for a refused Plugin.
     ///
-    /// Field 8: `extension_points`
+    /// Field 10: `extension_points`
     #[must_use]
     pub fn extension_points(
         &self,

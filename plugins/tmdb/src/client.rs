@@ -23,7 +23,8 @@ use url::Url;
 use crate::{
     Endpoints,
     wire::{
-        EpisodeDetails, MovieDetails, MovieResult, Page, SeasonDetails, ShowDetails, ShowResult,
+        EpisodeDetails, Found, MovieDetails, MovieResult, Page, SeasonDetails, ShowDetails,
+        ShowResult,
     },
 };
 
@@ -75,6 +76,28 @@ impl Client {
         serde_json::from_slice(&body).map_err(|err| failed(format!("TMDB sent {path}: {err}")))
     }
 
+    /// The TMDB id of the `kind` of title `id` names, found with `/find` if it's another source's.
+    async fn find(&self, kind: TitleKind, id: &ExternalId) -> Result<i64, MetadataError> {
+        let (source, id) = match id {
+            ExternalId::Tmdb(id) => return Ok(*id),
+            ExternalId::Tvdb(id) => ("tvdb_id", id.to_string()),
+            // The id goes in the path, so only an IMDb id's own shape is sent.
+            ExternalId::Imdb(id) if is_imdb_id(id) => ("imdb_id", id.clone()),
+            ExternalId::Imdb(_) => return Err(MetadataError::NotFound),
+        };
+        let found: Found = self
+            .api(&format!("/find/{id}"), &[("external_source", source)])
+            .await?;
+        let results = match kind {
+            TitleKind::Movie => found.movie_results,
+            TitleKind::Show => found.tv_results,
+        };
+        results
+            .first()
+            .map(|title| title.id)
+            .ok_or(MetadataError::NotFound)
+    }
+
     async fn details<T: DeserializeOwned>(&self, path: &str) -> Result<T, MetadataError> {
         self.api(path, &[("append_to_response", "external_ids")])
             .await
@@ -120,7 +143,13 @@ impl Client {
     }
 }
 
-/// The TMDB id in `id`, the only kind TMDB looks titles up by.
+/// `tt` and digits, as IMDb's title ids are.
+fn is_imdb_id(id: &str) -> bool {
+    id.strip_prefix("tt")
+        .is_some_and(|digits| !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit()))
+}
+
+/// The TMDB id in `id`, the only kind TMDB looks Seasons and Episodes up by.
 fn tmdb_id(id: &ExternalId) -> Result<i64, MetadataError> {
     match *id {
         ExternalId::Tmdb(id) => Ok(id),
@@ -161,7 +190,7 @@ impl MetadataProvider for Client {
 
     fn movie<'a>(&'a self, id: &'a ExternalId) -> BoxFuture<'a, Result<Movie, MetadataError>> {
         Box::pin(async move {
-            let id = tmdb_id(id)?;
+            let id = self.find(TitleKind::Movie, id).await?;
             let movie: MovieDetails = self.details(&format!("/movie/{id}")).await?;
             Ok(movie.into())
         })
@@ -169,7 +198,7 @@ impl MetadataProvider for Client {
 
     fn show<'a>(&'a self, id: &'a ExternalId) -> BoxFuture<'a, Result<Show, MetadataError>> {
         Box::pin(async move {
-            let id = tmdb_id(id)?;
+            let id = self.find(TitleKind::Show, id).await?;
             let show: ShowDetails = self.details(&format!("/tv/{id}")).await?;
             Ok(show.into())
         })

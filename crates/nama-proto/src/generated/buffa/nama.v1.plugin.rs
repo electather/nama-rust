@@ -2507,9 +2507,27 @@ pub struct PluginSummary {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
     )]
     pub settings_missing: bool,
+    /// As `Plugin.name`.
+    ///
+    /// Field 7: `name`
+    #[serde(
+        rename = "name",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub name: ::buffa::alloc::string::String,
+    /// As `Plugin.description`.
+    ///
+    /// Field 8: `description`
+    #[serde(
+        rename = "description",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub description: ::buffa::alloc::string::String,
     /// As `Plugin.extension_points`.
     ///
-    /// Field 7: `extension_points`
+    /// Field 9: `extension_points`
     #[serde(
         rename = "extensionPoints",
         alias = "extension_points",
@@ -2530,6 +2548,8 @@ impl ::core::fmt::Debug for PluginSummary {
             .field("enabled", &self.enabled)
             .field("refused_reason", &self.refused_reason)
             .field("settings_missing", &self.settings_missing)
+            .field("name", &self.name)
+            .field("description", &self.description)
             .field("extension_points", &self.extension_points)
             .finish()
     }
@@ -2584,6 +2604,12 @@ impl ::buffa::Message for PluginSummary {
         if self.settings_missing {
             size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
+        if !self.name.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.name) as u64;
+        }
+        if !self.description.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.description) as u64;
+        }
         if !self.extension_points.is_empty() {
             let payload: u64 = self
                 .extension_points
@@ -2623,13 +2649,19 @@ impl ::buffa::Message for PluginSummary {
         if self.settings_missing {
             ::buffa::types::put_bool_field(6u32, self.settings_missing, buf);
         }
+        if !self.name.is_empty() {
+            ::buffa::types::put_string_field(7u32, &self.name, buf);
+        }
+        if !self.description.is_empty() {
+            ::buffa::types::put_string_field(8u32, &self.description, buf);
+        }
         if !self.extension_points.is_empty() {
             let payload: u64 = self
                 .extension_points
                 .iter()
                 .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
                 .sum::<u64>();
-            ::buffa::types::put_len_delimited_header(7u32, payload, buf);
+            ::buffa::types::put_len_delimited_header(9u32, payload, buf);
             for v in &self.extension_points {
                 ::buffa::types::encode_int32(v.to_i32(), buf);
             }
@@ -2690,6 +2722,20 @@ impl ::buffa::Message for PluginSummary {
                 self.settings_missing = ::buffa::types::decode_bool(buf)?;
             }
             7u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.name, buf)?;
+            }
+            8u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.description, buf)?;
+            }
+            9u32 => {
                 if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
                     let len = ::buffa::encoding::decode_varint(buf)?;
                     let len = usize::try_from(len)
@@ -2741,6 +2787,8 @@ impl ::buffa::Message for PluginSummary {
         self.enabled = false;
         self.refused_reason.clear();
         self.settings_missing = false;
+        self.name.clear();
+        self.description.clear();
         self.extension_points.clear();
         self.__buffa_unknown_fields.clear();
     }
@@ -2843,10 +2891,28 @@ pub struct Plugin {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub refused_reason: ::buffa::alloc::string::String,
+    /// What admins know it by, such as "TMDB". Empty if it gives none, when `id` stands in.
+    ///
+    /// Field 8: `name`
+    #[serde(
+        rename = "name",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub name: ::buffa::alloc::string::String,
+    /// What it does, in one sentence its author wrote. Empty if it gives none.
+    ///
+    /// Field 9: `description`
+    #[serde(
+        rename = "description",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub description: ::buffa::alloc::string::String,
     /// The Extension Points it takes part at, as its Manifest names them, whether it is enabled or
     /// not. Empty for a refused Plugin.
     ///
-    /// Field 8: `extension_points`
+    /// Field 10: `extension_points`
     #[serde(
         rename = "extensionPoints",
         alias = "extension_points",
@@ -2868,6 +2934,8 @@ impl ::core::fmt::Debug for Plugin {
             .field("settings", &self.settings)
             .field("checks_settings", &self.checks_settings)
             .field("refused_reason", &self.refused_reason)
+            .field("name", &self.name)
+            .field("description", &self.description)
             .field("extension_points", &self.extension_points)
             .finish()
     }
@@ -2930,6 +2998,12 @@ impl ::buffa::Message for Plugin {
                 += 1u64
                     + ::buffa::types::string_encoded_len(&self.refused_reason) as u64;
         }
+        if !self.name.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.name) as u64;
+        }
+        if !self.description.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.description) as u64;
+        }
         if !self.extension_points.is_empty() {
             let payload: u64 = self
                 .extension_points
@@ -2977,13 +3051,19 @@ impl ::buffa::Message for Plugin {
         if !self.refused_reason.is_empty() {
             ::buffa::types::put_string_field(7u32, &self.refused_reason, buf);
         }
+        if !self.name.is_empty() {
+            ::buffa::types::put_string_field(8u32, &self.name, buf);
+        }
+        if !self.description.is_empty() {
+            ::buffa::types::put_string_field(9u32, &self.description, buf);
+        }
         if !self.extension_points.is_empty() {
             let payload: u64 = self
                 .extension_points
                 .iter()
                 .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
                 .sum::<u64>();
-            ::buffa::types::put_len_delimited_header(8u32, payload, buf);
+            ::buffa::types::put_len_delimited_header(10u32, payload, buf);
             for v in &self.extension_points {
                 ::buffa::types::encode_int32(v.to_i32(), buf);
             }
@@ -3056,6 +3136,20 @@ impl ::buffa::Message for Plugin {
                 ::buffa::types::merge_string(&mut self.refused_reason, buf)?;
             }
             8u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.name, buf)?;
+            }
+            9u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.description, buf)?;
+            }
+            10u32 => {
                 if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
                     let len = ::buffa::encoding::decode_varint(buf)?;
                     let len = usize::try_from(len)
@@ -3108,6 +3202,8 @@ impl ::buffa::Message for Plugin {
         self.settings.clear();
         self.checks_settings = false;
         self.refused_reason.clear();
+        self.name.clear();
+        self.description.clear();
         self.extension_points.clear();
         self.__buffa_unknown_fields.clear();
     }

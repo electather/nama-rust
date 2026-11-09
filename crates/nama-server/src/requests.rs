@@ -1946,7 +1946,7 @@ mod tests {
     use nama_plugin_api::{
         BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
         fulfiller::{Download, Fulfiller, Movies},
-        metadata::{Episode, ExternalIds, Season},
+        metadata::{Episode, ExternalId, ExternalIds, Season},
         settings::SettingsSchema,
     };
     use nama_proto::nama::v1::{Request, RequestState};
@@ -2133,6 +2133,8 @@ mod tests {
         fn manifest(&self) -> Manifest {
             Manifest {
                 id: PluginId::from_static("gated"),
+                name: String::new(),
+                description: String::new(),
                 version: "0.0.0".to_owned(),
                 settings: SettingsSchema::default(),
                 extension_points: vec![PointKey::provide::<dyn Fulfiller<Movies>>()],
@@ -2355,7 +2357,7 @@ mod tests {
         let pilot = Item::Episode {
             show: "Dark".to_owned(),
             year: None,
-            tmdb_id: Some(DARK),
+            hint: Some(ExternalId::Tmdb(DARK)),
             season: 1,
             episode: 1,
         };

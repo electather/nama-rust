@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE library_items SET kind = ?, title = ?, year = ?, hint = ?, season = ?,\n                                  episode = ?\n         WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 7
+    },
+    "nullable": []
+  },
+  "hash": "8505f387331bae1803c3619facb872e4d9e0489deba2090cfca813f5c6f4f2c5"
+}

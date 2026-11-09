@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { type Plugin, PluginService, type PluginSummary } from "@/gen/nama/v1/plugin_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { refusal, refusalOf } from "@/lib/forms";
-import { pluginsKey } from "@/lib/plugins";
+import { pluginName, pluginsKey } from "@/lib/plugins";
 
 /**
  * Whether `plugin` is enabled, a button to change that, and why the Server refused to, for a
@@ -34,7 +34,7 @@ function EnableOrDisable({ plugin }: { plugin: PluginSummary | Plugin }) {
         <StateLabel {...state} />
         <Button
           variant="ghost"
-          aria-label={`${action} ${plugin.id}`}
+          aria-label={`${action} ${pluginName(plugin)}`}
           disabled={change.isPending}
           onClick={() => {
             change.mutate({ id: plugin.id });
@@ -63,7 +63,7 @@ function refusedChange(error: unknown, plugin: PluginSummary | Plugin, verb: str
   const { fulfillerPluginId, titleKind } = params;
   return refusal(
     error,
-    `${verb} ${plugin.id}`,
+    `${verb} ${pluginName(plugin)}`,
     {},
     {
       [RefusalReason.LAST_AUTHENTICATOR]: {

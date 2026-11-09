@@ -43,6 +43,8 @@ const plugins = [
   },
   {
     id: "tmdb",
+    name: "TMDB",
+    description: "Finds Movies and Shows on TMDB.",
     version: "0.1.0",
     kind: PluginKind.BUILT_IN,
     enabled: true,
@@ -133,6 +135,8 @@ function pluginServer(changes: Partial<ServiceImpl<typeof PluginService>>) {
         summaries: plugins.map(
           ({
             id,
+            name = "",
+            description = "",
             version,
             kind,
             enabled,
@@ -141,6 +145,8 @@ function pluginServer(changes: Partial<ServiceImpl<typeof PluginService>>) {
             extensionPoints = [],
           }) => ({
             id,
+            name,
+            description,
             version,
             kind,
             enabled,
@@ -170,20 +176,20 @@ export function openPlugin(id: string, changes: Partial<ServiceImpl<typeof Plugi
   openApp(`/admin/plugins/${id}`, pluginServer(changes));
 }
 
-/** The Plugins list's row for the Plugin `id`. */
-export async function row(id: string) {
-  const listed = (await screen.findByRole("link", { name: id })).closest("li");
-  if (listed === null) throw new Error(`${id} has no row`);
+/** The Plugins list's row for the Plugin shown as `name`: its name, or its id without one. */
+export async function row(name: string) {
+  const listed = (await screen.findByRole("link", { name })).closest("li");
+  if (listed === null) throw new Error(`${name} has no row`);
   return within(listed);
 }
 
-/** The details page of the Plugin `id`, once it shows. */
-export async function plugin(id: string) {
-  await screen.findByRole("heading", { level: 1, name: id });
+/** The details page of the Plugin shown as `name`, as `row` finds it, once it shows. */
+export async function plugin(name: string) {
+  await screen.findByRole("heading", { level: 1, name });
   return within(screen.getByRole("main"));
 }
 
-/** The input for the setting labelled `label` on the Plugin `id`'s details page. */
-export async function input(id: string, label: string) {
-  return (await plugin(id)).getByLabelText<HTMLInputElement>(label);
+/** The input for the setting labelled `label` on the details page of the Plugin shown as `name`. */
+export async function input(name: string, label: string) {
+  return (await plugin(name)).getByLabelText<HTMLInputElement>(label);
 }

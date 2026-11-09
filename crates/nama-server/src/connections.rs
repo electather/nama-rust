@@ -330,6 +330,8 @@ mod tests {
         fn manifest(&self) -> Manifest {
             Manifest {
                 id: PluginId::from_static("chat"),
+                name: String::new(),
+                description: String::new(),
                 version: "1.0.0".to_owned(),
                 settings: SettingsSchema::default(),
                 extension_points: vec![PointKey::provide::<dyn Connector>()],

@@ -21,6 +21,8 @@ impl Plugin for LogEvents {
     fn manifest(&self) -> Manifest {
         Manifest {
             id: Self::ID,
+            name: "Event log".to_owned(),
+            description: "Writes everything that happens on the Server to its log.".to_owned(),
             version: env!("CARGO_PKG_VERSION").to_owned(),
             settings: SettingsSchema::default(),
             extension_points: vec![PointKey::observe::<ServerStarted>()],

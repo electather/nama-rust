@@ -914,6 +914,8 @@ impl Plugin for ShowsFulfillerPlugin {
     fn manifest(&self) -> Manifest {
         Manifest {
             id: PluginId::from_static("fake-shows-fulfiller"),
+            name: String::new(),
+            description: String::new(),
             version: "0.0.0".to_owned(),
             settings: SettingsSchema::default(),
             extension_points: vec![PointKey::provide::<dyn Fulfiller<Shows>>()],
@@ -932,6 +934,8 @@ impl Plugin for FulfillerPlugin {
     fn manifest(&self) -> Manifest {
         Manifest {
             id: PluginId::from_static("fake-fulfiller"),
+            name: String::new(),
+            description: String::new(),
             version: "0.0.0".to_owned(),
             settings: SettingsSchema::default(),
             extension_points: vec![PointKey::provide::<dyn Fulfiller<Movies>>()],
@@ -3204,6 +3208,8 @@ impl Plugin for NotifierPlugin {
     fn manifest(&self) -> Manifest {
         Manifest {
             id: PluginId::from_static(self.0),
+            name: String::new(),
+            description: String::new(),
             version: "0.0.0".to_owned(),
             settings: SettingsSchema::default(),
             extension_points: vec![PointKey::provide::<dyn Notifier>()],

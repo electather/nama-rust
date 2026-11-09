@@ -62,6 +62,8 @@ struct Described {
     /// instance instead would hold it past disabling, so its `Drop` would run uncontained when the
     /// registry goes.
     make: Result<Make, String>,
+    name: String,
+    description: String,
     version: String,
     settings_schema: SettingsSchema,
     checks_settings: bool,
@@ -103,6 +105,10 @@ pub struct Listed {
     pub kind: PluginKind,
     /// Why the Server refused it, if it did, in which case it can't be enabled.
     pub refused_reason: Option<String>,
+    /// What admins know it by. Empty if it gives none.
+    pub name: String,
+    /// What it does, in one sentence. Empty if it gives none.
+    pub description: String,
     /// Its version.
     pub version: String,
     /// The settings it takes.
@@ -539,6 +545,8 @@ impl Registry {
                     id: id.clone(),
                     kind: described.kind,
                     refused_reason: described.make.as_ref().err().cloned(),
+                    name: described.name.clone(),
+                    description: described.description.clone(),
                     version: described.version.clone(),
                     settings_schema: described.settings_schema.clone(),
                     checks_settings: described.checks_settings,

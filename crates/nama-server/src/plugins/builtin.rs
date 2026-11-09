@@ -63,6 +63,8 @@ impl Registry {
             let described = Described {
                 kind: PluginKind::PLUGIN_KIND_BUILT_IN,
                 make: Ok(Arc::new(make)),
+                name: manifest.name,
+                description: manifest.description,
                 version: manifest.version,
                 settings_schema: manifest.settings,
                 checks_settings,

@@ -2676,6 +2676,8 @@ fn plugin_summary_to_proto(
         settings_missing,
         extension_points: extension_points_to_proto(&plugin.extension_points),
         id: plugin.id.to_string(),
+        name: plugin.name,
+        description: plugin.description,
         version: plugin.version,
         kind: plugin.kind.into(),
         enabled: plugin.enabled,
@@ -2690,6 +2692,8 @@ fn plugin_to_proto(
 ) -> proto::Plugin {
     proto::Plugin {
         id: plugin.id.to_string(),
+        name: plugin.name,
+        description: plugin.description,
         version: plugin.version,
         kind: plugin.kind.into(),
         refused_reason: plugin.refused_reason.unwrap_or_default(),

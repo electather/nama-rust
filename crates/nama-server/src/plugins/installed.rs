@@ -218,6 +218,8 @@ impl Plugin for Installed {
     fn manifest(&self) -> nama_plugin_api::Manifest {
         nama_plugin_api::Manifest {
             id: self.id(),
+            name: self.manifest.name.clone(),
+            description: self.manifest.description.clone(),
             version: self.manifest.version.clone(),
             settings: self.settings_schema.clone(),
             extension_points: extension_points(&self.manifest),
@@ -566,6 +568,8 @@ fn describe(
             let id = plugin.id();
             let described = Described {
                 kind: PluginKind::PLUGIN_KIND_INSTALLED,
+                name: plugin.manifest.name.clone(),
+                description: plugin.manifest.description.clone(),
                 version: plugin.manifest.version.clone(),
                 settings_schema: plugin.settings_schema.clone(),
                 checks_settings: plugin.checks_settings,
@@ -578,6 +582,8 @@ fn describe(
             let name = file.file_name().unwrap_or_default().to_string_lossy();
             let described = Described {
                 kind: PluginKind::PLUGIN_KIND_INSTALLED,
+                name: String::new(),
+                description: String::new(),
                 version: String::new(),
                 settings_schema: SettingsSchema::default(),
                 checks_settings: false,

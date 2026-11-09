@@ -29,6 +29,8 @@ impl<F: Fn(&mut Registrar) + Send + Sync + 'static> Plugin for TestPlugin<F> {
     fn manifest(&self) -> Manifest {
         Manifest {
             id: PluginId::from_static(self.id),
+            name: String::new(),
+            description: String::new(),
             version: "0.0.0".to_owned(),
             settings: SettingsSchema::default(),
             extension_points: self.extension_points.clone(),
@@ -765,6 +767,8 @@ impl Plugin for Configurable {
         };
         Manifest {
             id: PluginId::from_static("configurable"),
+            name: String::new(),
+            description: String::new(),
             version: "0.0.0".to_owned(),
             settings,
             extension_points: vec![PointKey::provide::<dyn Fetcher>()],

@@ -1,0 +1,9 @@
+{
+  "movie_results": [],
+  "person_results": [],
+  "tv_results": [
+    {"adult": false, "backdrop_path": "/3lBDg3i6nn5R2NKFCJ6oKyUo2j5.jpg", "first_air_date": "2017-12-01", "genre_ids": [80, 18, 9648, 10765], "id": 70523, "media_type": "tv", "name": "Dark", "origin_country": ["DE"], "original_language": "de", "original_name": "Dark", "overview": "A missing child causes four families to help each other for answers.", "popularity": 60.5, "poster_path": "/apbrbWs8M9lyOpJYU5WXrpFbk1Z.jpg", "vote_average": 8.4, "vote_count": 6900}
+  ],
+  "tv_episode_results": [],
+  "tv_season_results": []
+}

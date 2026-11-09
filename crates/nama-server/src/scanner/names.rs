@@ -7,7 +7,8 @@
 //!   grouping folders, with multi-episode files (`S01E01-E02`, `S01E01E02`, `S01E01-02`) and
 //!   specials in Season 0 (`S00E01`).
 //! - Extras (`Featurettes/`, `-trailer` and the like) are recognised so they can be left out.
-//! - ID hints anywhere in a Movie's or Show's name: `{tmdb-123}` or `[tmdbid-123]`.
+//! - ID Hints anywhere in a Movie's or Show's name: `{tmdb-123}`, `[tvdbid-123]`,
+//!   `(imdb=tt0083658)` and the like, or a bare `tt0083658`.
 //! - A country tag ending a Show's name, as Sonarr names same-name Shows apart: `The Office (US)`.
 //!   It stays in the stored name, so pins keep their key; Matching reads it with [`country_tag`].
 //!
@@ -15,23 +16,27 @@
 
 use std::{path::Path, sync::LazyLock};
 
+use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 use regex::Regex;
 
 use crate::{contents::Item, libraries::Kind};
 
 /// The version of this parser, stored with each file it reads. See the crate's `AGENTS.md` for
 /// when to bump it.
-pub(crate) const PARSER_VERSION: i64 = 2;
+pub(crate) const PARSER_VERSION: i64 = 3;
 
 /// The most Episodes one file can hold, so a typo like `S01E01-E900` isn't 900 Episodes.
 const MAX_EPISODES_PER_FILE: i64 = 20;
 
-/// An ID hint: `{tmdb-123}` (Plex) or `[tmdbid-123]` (Jellyfin), plus the spellings each also
-/// accepts.
-static TMDB_HINT: LazyLock<Regex> =
-    LazyLock::new(|| regex(r"(?i)[\[{]\s*tmdb(?:id)?\s*[-=]\s*(\d+)\s*[\]}]"));
+/// An ID Hint in any bracket, as Plex (`{tmdb-123}`), Jellyfin (`[tvdbid-123]`), Sonarr and
+/// Radarr write them, or a bare IMDb id.
+static ID_HINT: LazyLock<Regex> = LazyLock::new(|| {
+    regex(
+        r"(?i)[\[{(]\s*(?P<source>tmdb|tvdb|imdb)(?:id)?\s*[-=]\s*(?P<id>tt\d+|\d+)\s*[\]})]|(?:\b|_)(?P<bare>tt\d{7,})(?:\b|_)",
+    )
+});
 
-/// Any `{…}` or `[…]` tag, such as an ID hint, an edition or a quality.
+/// Any `{…}` or `[…]` tag, such as an ID Hint, an edition or a quality.
 static TAG: LazyLock<Regex> = LazyLock::new(|| regex(r"\{[^}]*\}|\[[^\]]*\]"));
 
 /// A name ending (before any trailing tags or ` - suffix`) in a year in brackets.
@@ -159,24 +164,30 @@ pub(crate) fn parse(kind: Kind, relative: &Path) -> Option<Vec<Item>> {
     }
 }
 
-/// A Movie, named by the file if its name gives a year or an ID hint, or else by the nearest
+/// A Movie, named by the file if its name gives a year or an ID Hint, or else by the nearest
 /// folder that does.
 ///
-/// A file that names its Movie takes the ID hint of the folder it's in only if the folder names
-/// the same Movie, so a hint on a grouping folder isn't pinned on everything in it.
+/// A file that names its Movie takes the ID Hints of the folder it's in only if the folder names
+/// the same Movie, so a hint on a grouping folder isn't pinned on everything in it. Of each kind
+/// of hint, the file's wins.
 fn parse_movie(folders: &[String], stem: &str) -> Option<Item> {
     let named = match title_and_year(stem) {
         Some(file) => {
-            let folder_hint = folders
+            let folder_hints = folders
                 .last()
                 .and_then(|folder| title_and_year(folder))
                 .filter(|folder| {
                     folder.year == file.year
                         && folder.title.to_lowercase() == file.title.to_lowercase()
                 })
-                .and_then(|folder| folder.tmdb_id);
+                .map(|folder| folder.hints)
+                .unwrap_or_default();
             Named {
-                tmdb_id: file.tmdb_id.or(folder_hint),
+                hints: ExternalIds {
+                    tmdb: file.hints.tmdb.or(folder_hints.tmdb),
+                    imdb: file.hints.imdb.clone().or(folder_hints.imdb),
+                    tvdb: file.hints.tvdb.or(folder_hints.tvdb),
+                },
                 ..file
             }
         }
@@ -186,14 +197,14 @@ fn parse_movie(folders: &[String], stem: &str) -> Option<Item> {
             .find_map(|folder| title_and_year(folder))?,
     };
     Some(Item::Movie {
+        hint: named.hint(),
         title: named.title,
         year: named.year,
-        tmdb_id: named.tmdb_id,
     })
 }
 
 /// The Episodes in a file, in the Show named by the folder holding the file's Season folder, or
-/// by the folder holding the file if it isn't in a Season folder. An ID hint on an Episode's file
+/// by the folder holding the file if it isn't in a Season folder. An ID Hint on an Episode's file
 /// names the Episode, not the Show, so it isn't used.
 fn parse_episodes(folders: &[String], stem: &str) -> Option<Vec<Item>> {
     let (parent, above) = folders.split_last()?;
@@ -210,9 +221,10 @@ fn parse_episodes(folders: &[String], stem: &str) -> Option<Vec<Item>> {
         (!title.is_empty()).then_some(Named {
             title,
             year: None,
-            tmdb_id: None,
+            hints: ExternalIds::default(),
         })
     })?;
+    let hint = show.hint();
     let (season, episodes) = episode_numbers(stem)?;
     Some(
         episodes
@@ -220,7 +232,7 @@ fn parse_episodes(folders: &[String], stem: &str) -> Option<Vec<Item>> {
             .map(|episode| Item::Episode {
                 show: show.title.clone(),
                 year: show.year,
-                tmdb_id: show.tmdb_id,
+                hint: hint.clone(),
                 season,
                 episode,
             })
@@ -246,14 +258,29 @@ fn episode_numbers(stem: &str) -> Option<(i64, Vec<i64>)> {
 struct Named {
     title: String,
     year: Option<i64>,
-    tmdb_id: Option<i64>,
+    /// Every ID Hint in the name, of each kind the first.
+    hints: ExternalIds,
 }
 
-/// The title in a name like `Title (Year)`, or any name with an ID hint. `None` for a name with
+impl Named {
+    /// The ID Hint Matching goes by: TMDB's, which the metadata source is, or else TVDB's, which
+    /// Sonarr writes, or else IMDb's.
+    fn hint(&self) -> Option<ExternalId> {
+        let hints = &self.hints;
+        hints
+            .tmdb
+            .map(ExternalId::Tmdb)
+            .or_else(|| hints.tvdb.map(ExternalId::Tvdb))
+            .or_else(|| hints.imdb.clone().map(ExternalId::Imdb))
+    }
+}
+
+/// The title in a name like `Title (Year)`, or any name with an ID Hint. `None` for a name with
 /// neither, which is too little to go on.
 fn title_and_year(name: &str) -> Option<Named> {
-    let tmdb_id = tmdb_hint(name);
-    let untagged = TAG.replace_all(name, "");
+    let hints = id_hints(name);
+    let unhinted = ID_HINT.replace_all(name, "");
+    let untagged = TAG.replace_all(&unhinted, "");
     let (title, year) = match TITLE_YEAR.captures(&untagged) {
         Some(captures) => (
             captures.name("title")?.as_str(),
@@ -267,14 +294,33 @@ fn title_and_year(name: &str) -> Option<Named> {
         None => (&*untagged, None),
     };
     let title = clean_title(title);
-    if title.is_empty() || (year.is_none() && tmdb_id.is_none()) {
+    if title.is_empty() || (year.is_none() && hints == ExternalIds::default()) {
         return None;
     }
-    Some(Named {
-        title,
-        year,
-        tmdb_id,
-    })
+    Some(Named { title, year, hints })
+}
+
+fn id_hints(name: &str) -> ExternalIds {
+    let mut hints = ExternalIds::default();
+    for captures in ID_HINT.captures_iter(name) {
+        // A bare id has no source, and is always IMDb's.
+        let source = captures
+            .name("source")
+            .map(|source| source.as_str().to_ascii_lowercase());
+        let Some(id) = captures.name("id").or_else(|| captures.name("bare")) else {
+            continue;
+        };
+        let id = id.as_str().to_ascii_lowercase();
+        match source.as_deref() {
+            Some("tmdb") => hints.tmdb = hints.tmdb.or_else(|| id.parse().ok()),
+            Some("tvdb") => hints.tvdb = hints.tvdb.or_else(|| id.parse().ok()),
+            Some("imdb") | None if id.starts_with("tt") => {
+                hints.imdb.get_or_insert(id);
+            }
+            _ => {}
+        }
+    }
+    hints
 }
 
 /// The title in a Show's name and the country its country tag names, as TMDB codes it: `The
@@ -293,10 +339,6 @@ pub(crate) fn country_tag(show: &str) -> Option<(&str, &str)> {
         .then_some((title, code))
 }
 
-fn tmdb_hint(name: &str) -> Option<i64> {
-    TMDB_HINT.captures(name)?.get(1)?.as_str().parse().ok()
-}
-
 fn clean_title(title: &str) -> String {
     title
         .split_whitespace()
@@ -310,18 +352,36 @@ fn clean_title(title: &str) -> String {
 mod tests {
     use std::path::Path;
 
+    use nama_plugin_api::metadata::ExternalId;
+
     use super::{is_extra, parse};
     use crate::{contents::Item, libraries::Kind};
+
+    const fn tmdb(id: i64) -> ExternalId {
+        ExternalId::Tmdb(id)
+    }
+
+    const fn tvdb(id: i64) -> ExternalId {
+        ExternalId::Tvdb(id)
+    }
+
+    fn imdb(id: &str) -> ExternalId {
+        ExternalId::Imdb(id.to_owned())
+    }
 
     #[expect(
         clippy::unnecessary_wraps,
         reason = "a table row's expected value is an `Option`, `None` where the path doesn't parse"
     )]
-    fn movie(title: &str, year: Option<i64>, tmdb_id: Option<i64>) -> Option<Vec<Item>> {
+    fn movie(
+        title: &str,
+        year: Option<i64>,
+        hint: impl Into<Option<ExternalId>>,
+    ) -> Option<Vec<Item>> {
         Some(vec![Item::Movie {
             title: title.to_owned(),
             year,
-            tmdb_id,
+            hint: hint.into(),
         }])
     }
 
@@ -332,17 +392,18 @@ mod tests {
     fn episodes(
         show: &str,
         year: Option<i64>,
-        tmdb_id: Option<i64>,
+        hint: impl Into<Option<ExternalId>>,
         season: i64,
         numbers: &[i64],
     ) -> Option<Vec<Item>> {
+        let hint = hint.into();
         Some(
             numbers
                 .iter()
                 .map(|&episode| Item::Episode {
                     show: show.to_owned(),
                     year,
-                    tmdb_id,
+                    hint: hint.clone(),
                     season,
                     episode,
                 })
@@ -413,25 +474,65 @@ mod tests {
             // ID hints, in Plex's and Jellyfin's spellings, on the folder or the file.
             (
                 "Blade Runner (1982) {tmdb-78}/Blade Runner (1982).mkv",
-                movie("Blade Runner", Some(1982), Some(78)),
+                movie("Blade Runner", Some(1982), tmdb(78)),
             ),
             (
                 "Blade Runner (1982) [tmdbid-78]/Blade Runner (1982).mkv",
-                movie("Blade Runner", Some(1982), Some(78)),
+                movie("Blade Runner", Some(1982), tmdb(78)),
             ),
             (
                 "Blade Runner (1982)/Blade Runner (1982) {tmdb-78}.mkv",
-                movie("Blade Runner", Some(1982), Some(78)),
+                movie("Blade Runner", Some(1982), tmdb(78)),
             ),
             (
                 "Blade Runner {TMDB-78}/movie.mkv",
-                movie("Blade Runner", None, Some(78)),
+                movie("Blade Runner", None, tmdb(78)),
             ),
-            // Other ID hints are tags like any other.
+            // TVDB and IMDb ID Hints in every bracket, with `-` or `=`, and a bare IMDb id.
             (
                 "Blade Runner (1982) {imdb-tt0083658}/Blade Runner (1982).mkv",
+                movie("Blade Runner", Some(1982), imdb("tt0083658")),
+            ),
+            (
+                "Blade Runner (imdbid=tt0083658)/movie.mkv",
+                movie("Blade Runner", None, imdb("tt0083658")),
+            ),
+            (
+                "Blade Runner (1982) tt0083658/movie.mkv",
+                movie("Blade Runner", Some(1982), imdb("tt0083658")),
+            ),
+            (
+                "Blade Runner (1982)/Blade Runner (1982)_tt0083658.mkv",
+                movie("Blade Runner", Some(1982), imdb("tt0083658")),
+            ),
+            (
+                "Blade Runner [tvdbid-1234]/movie.mkv",
+                movie("Blade Runner", None, tvdb(1234)),
+            ),
+            (
+                "Blade Runner {TVDB=1234}/movie.mkv",
+                movie("Blade Runner", None, tvdb(1234)),
+            ),
+            // TMDB wins, then TVDB, then IMDb, wherever each is.
+            (
+                "Blade Runner (1982) {imdb-tt0083658} {tvdb-1234}/Blade Runner (1982) {tmdb-78}.mkv",
+                movie("Blade Runner", Some(1982), tmdb(78)),
+            ),
+            (
+                "Blade Runner (1982) {tvdb-1234}/Blade Runner (1982) tt0083658.mkv",
+                movie("Blade Runner", Some(1982), tvdb(1234)),
+            ),
+            // Within a kind, the file's hint wins over the folder's.
+            (
+                "Blade Runner (1982) {tmdb-1}/Blade Runner (1982) {tmdb-78}.mkv",
+                movie("Blade Runner", Some(1982), tmdb(78)),
+            ),
+            // Letters glued to an IMDb id make it a word, and a TMDB hint holds no `tt`.
+            (
+                "Blade Runner (1982)/Blade Runner (1982) xtt0083658.mkv",
                 movie("Blade Runner", Some(1982), None),
             ),
+            ("Blade Runner {tmdb-tt0083658}/movie.mkv", None),
             // A file that names a Movie wins over a grouping folder that looks like one, and
             // takes a folder's ID hint only if the folder names the same Movie.
             (
@@ -444,7 +545,7 @@ mod tests {
             ),
             (
                 "Alien (1979) {tmdb-348}/alien (1979) - 1080p.mkv",
-                movie("alien", Some(1979), Some(348)),
+                movie("alien", Some(1979), tmdb(348)),
             ),
             // Too little to go on: no year and no ID hint, or only a year.
             ("Blade Runner/Blade Runner.mkv", None),
@@ -564,11 +665,20 @@ mod tests {
             // ID hints on the Show's folder.
             (
                 "Dark (2017) {tmdb-70523}/Season 01/Dark - S01E01.mkv",
-                episodes("Dark", Some(2017), Some(70523), 1, &[1]),
+                episodes("Dark", Some(2017), tmdb(70523), 1, &[1]),
             ),
             (
                 "Dark (2017) [tmdbid-70523]/Season 01/Dark - S01E01.mkv",
-                episodes("Dark", Some(2017), Some(70523), 1, &[1]),
+                episodes("Dark", Some(2017), tmdb(70523), 1, &[1]),
+            ),
+            // Sonarr's folders: no year, and a TVDB id. An Episode's IMDb id isn't its Show's.
+            (
+                "Dark [tvdbid-334824]/Season 01/Dark - S01E01 tt5753856.mkv",
+                episodes("Dark", None, tvdb(334_824), 1, &[1]),
+            ),
+            (
+                "Dark (tvdb=334824)/Season 01/Dark - S01E01.mkv",
+                episodes("Dark", None, tvdb(334_824), 1, &[1]),
             ),
             // No Episode number, a word that only looks like one, or no Show folder.
             ("Dark (2017)/Season 01/Dark - Pilot.mkv", None),
