@@ -96,6 +96,10 @@ pub struct Manifest {
     /// before it is enabled. The Kernel refuses to enable a Plugin whose
     /// [`Plugin::register`] registers at one it doesn't name.
     pub extension_points: Vec<PointKey>,
+    /// The Plugin's logo, an SVG document's text such as `include_str!("../logo.svg")`. The
+    /// Kernel drops one over 16 KiB, with a DOCTYPE, or that isn't SVG, logging why; the Plugin
+    /// is otherwise as it would be.
+    pub logo_svg: Option<String>,
 }
 
 /// A unit of trusted functionality that plugs into a Server through Extension Points.

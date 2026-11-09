@@ -195,6 +195,7 @@ impl Plugin for Forward {
             version: "0.0.0".to_owned(),
             settings: SettingsSchema::default(),
             extension_points: vec![PointKey::observe::<points::Events>()],
+            logo_svg: None,
         }
     }
 

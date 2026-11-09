@@ -335,6 +335,7 @@ mod tests {
                 version: "1.0.0".to_owned(),
                 settings: SettingsSchema::default(),
                 extension_points: vec![PointKey::provide::<dyn Connector>()],
+                logo_svg: None,
             }
         }
 

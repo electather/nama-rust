@@ -27,6 +27,9 @@ use thiserror::Error;
 use tokio::sync::mpsc;
 use tracing::{error, info, warn};
 
+/// The most a Plugin's logo may take, in bytes, since every list of Plugins carries it inline.
+const MAX_LOGO_BYTES: usize = 16 * 1024;
+
 /// How long a Plugin's settings check may take before it counts as failed.
 pub const SETTINGS_CHECK_TIMEOUT: Duration = Duration::from_secs(10);
 
@@ -68,6 +71,7 @@ struct Described {
     settings_schema: SettingsSchema,
     checks_settings: bool,
     extension_points: Vec<PointKey>,
+    logo_svg: Option<String>,
 }
 
 struct Enabled {
@@ -119,6 +123,8 @@ pub struct Listed {
     pub enabled: bool,
     /// The Extension Points its Manifest names.
     pub extension_points: Vec<PointKey>,
+    /// Its logo, an SVG document's text, unless it had none or the Server dropped it.
+    pub logo_svg: Option<String>,
 }
 
 /// Why a Plugin wasn't disabled: no other enabled Plugin provides a capability it may provide.
@@ -552,6 +558,7 @@ impl Registry {
                     checks_settings: described.checks_settings,
                     enabled: state.plugins.contains_key(id),
                     extension_points: described.extension_points.clone(),
+                    logo_svg: described.logo_svg.clone(),
                 })
                 .collect()
         })
@@ -965,6 +972,39 @@ fn log_not_enabled(id: &PluginId, err: &EnableError) {
         warn!(plugin = %id, "plugin not enabled: {err}");
     } else {
         error!(plugin = %id, "could not enable plugin: {err}");
+    }
+}
+
+/// The Plugin's `logo` if the Server keeps it: at most [`MAX_LOGO_BYTES`] and an SVG document.
+/// Logs why it drops one, which leaves the Plugin without a logo but otherwise as it was. An empty
+/// one, as protobuf sends no logo, is none.
+fn kept_logo(plugin: &PluginId, logo: String) -> Option<String> {
+    if logo.is_empty() {
+        return None;
+    }
+    let why = if logo.len() > MAX_LOGO_BYTES {
+        format!("it is over {MAX_LOGO_BYTES} bytes")
+    } else if let Some(why) = why_not_svg(&logo) {
+        format!("it isn't SVG: {why}")
+    } else {
+        return Some(logo);
+    };
+    warn!(plugin = %plugin, "dropped its logo: {why}");
+    None
+}
+
+/// Why `text` isn't an XML document whose root is SVG's `<svg>`, as a browser needs to show it as
+/// an `image/svg+xml` image. roxmltree refuses a DTD, so entities can't blow it up; the reason
+/// names the DOCTYPE for an author whose editor wrote one.
+fn why_not_svg(text: &str) -> Option<String> {
+    match roxmltree::Document::parse(text) {
+        Err(err) => Some(err.to_string()),
+        Ok(document) => {
+            let root = document.root_element().tag_name();
+            let svg =
+                root.name() == "svg" && root.namespace() == Some("http://www.w3.org/2000/svg");
+            (!svg).then(|| format!("its root is <{}>", root.name()))
+        }
     }
 }
 

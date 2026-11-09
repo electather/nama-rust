@@ -1984,6 +1984,7 @@ dependencies = [
  "nama-proto",
  "nama-server",
  "regex",
+ "roxmltree",
  "semver",
  "serde",
  "serde_json",

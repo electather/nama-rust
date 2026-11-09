@@ -1078,6 +1078,7 @@ impl Plugin for ShowsFulfillerPlugin {
             version: "0.0.0".to_owned(),
             settings: SettingsSchema::default(),
             extension_points: vec![PointKey::provide::<dyn Fulfiller<Shows>>()],
+            logo_svg: None,
         }
     }
 
@@ -1098,6 +1099,7 @@ impl Plugin for FulfillerPlugin {
             version: "0.0.0".to_owned(),
             settings: SettingsSchema::default(),
             extension_points: vec![PointKey::provide::<dyn Fulfiller<Movies>>()],
+            logo_svg: None,
         }
     }
 
@@ -3778,6 +3780,7 @@ impl Plugin for NotifierPlugin {
             version: "0.0.0".to_owned(),
             settings: SettingsSchema::default(),
             extension_points: vec![PointKey::provide::<dyn Notifier>()],
+            logo_svg: None,
         }
     }
 

@@ -105,6 +105,7 @@ impl Plugin for Tmdb {
             version: env!("CARGO_PKG_VERSION").to_owned(),
             settings,
             extension_points: vec![PointKey::provide::<dyn MetadataProvider>()],
+            logo_svg: Some(include_str!("../logo.svg").to_owned()),
         }
     }
 

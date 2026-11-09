@@ -1,7 +1,7 @@
 import { useSuspenseQuery } from "@connectrpc/connect-query";
 import { createFileRoute, notFound } from "@tanstack/react-router";
 
-import { ExtensionPoints } from "@/components/extension-points";
+import { ExtensionPoints, PluginLogo } from "@/components/plugin-at-a-glance";
 import { Page } from "@/components/page";
 import { PluginQualities } from "@/components/plugin-qualities";
 import { PluginSettings } from "@/components/plugin-settings";
@@ -25,9 +25,12 @@ function PluginPage() {
   if (!plugin) throw notFound();
   return (
     <Page heading={pluginName(plugin)}>
-      <p className="mt-1 text-sm text-muted-foreground">
-        <span>{plugin.id}</span> · <span>{kindAndVersion(plugin)}</span>
-      </p>
+      <div className="mt-3 flex items-center gap-3">
+        <PluginLogo plugin={plugin} />
+        <p className="text-sm text-muted-foreground">
+          <span>{plugin.id}</span> · <span>{kindAndVersion(plugin)}</span>
+        </p>
+      </div>
       {plugin.description !== "" && (
         <p className="mt-3 max-w-prose text-pretty">{plugin.description}</p>
       )}

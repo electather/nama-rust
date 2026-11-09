@@ -266,6 +266,16 @@ async fn every_builtin_and_bundled_plugin_is_listed_with_whether_it_is_enabled()
     assert!(!plugin(&listed, "telegram").enabled);
 }
 
+// `plugins/AGENTS.md`: every Plugin ships a logo.
+#[tokio::test]
+async fn every_builtin_and_bundled_plugin_has_a_logo_the_server_keeps() {
+    let listed = list_plugins_with(BTreeMap::new()).await;
+
+    for plugin in &listed.summaries {
+        assert!(plugin.logo_svg.starts_with("<svg"), "{plugin:?}");
+    }
+}
+
 #[tokio::test]
 async fn every_plugin_is_listed_with_its_extension_points_enabled_or_not() {
     use ExtensionPoint::*;

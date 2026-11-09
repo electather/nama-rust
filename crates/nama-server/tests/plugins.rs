@@ -34,6 +34,7 @@ impl<F: Fn(&mut Registrar) + Send + Sync + 'static> Plugin for TestPlugin<F> {
             version: "0.0.0".to_owned(),
             settings: SettingsSchema::default(),
             extension_points: self.extension_points.clone(),
+            logo_svg: None,
         }
     }
 
@@ -772,6 +773,7 @@ impl Plugin for Configurable {
             version: "0.0.0".to_owned(),
             settings,
             extension_points: vec![PointKey::provide::<dyn Fetcher>()],
+            logo_svg: None,
         }
     }
 

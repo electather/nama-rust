@@ -208,6 +208,8 @@ message PluginSummary {
   string description = 8;
   // As `Plugin.extension_points`.
   repeated ExtensionPoint extension_points = 9;
+  // As `Plugin.logo_svg`.
+  string logo_svg = 10;
 }
 
 // A unit of trusted functionality that plugs into a Server.
@@ -234,6 +236,10 @@ message Plugin {
   // The Extension Points it takes part at, as its Manifest names them, whether it is enabled or
   // not. Empty for a refused Plugin.
   repeated ExtensionPoint extension_points = 10;
+  // Its logo, an SVG document's text, or empty if it has none. An Installed Plugin's author wrote
+  // it, so show it only as an image, such as from a `data:image/svg+xml` URL, never inline in a
+  // page, where its scripts would run.
+  string logo_svg = 11;
 }
 
 // A place in the Server a Plugin takes part at. Unlike the Plugin-facing `ProvidePoint` and

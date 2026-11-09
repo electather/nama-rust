@@ -3342,6 +3342,16 @@ pub struct PluginSummary {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec"
     )]
     pub extension_points: ::buffa::alloc::vec::Vec<::buffa::EnumValue<ExtensionPoint>>,
+    /// As `Plugin.logo_svg`.
+    ///
+    /// Field 10: `logo_svg`
+    #[serde(
+        rename = "logoSvg",
+        alias = "logo_svg",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub logo_svg: ::buffa::alloc::string::String,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -3358,6 +3368,7 @@ impl ::core::fmt::Debug for PluginSummary {
             .field("name", &self.name)
             .field("description", &self.description)
             .field("extension_points", &self.extension_points)
+            .field("logo_svg", &self.logo_svg)
             .finish()
     }
 }
@@ -3425,6 +3436,9 @@ impl ::buffa::Message for PluginSummary {
                 .sum::<u64>();
             size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
         }
+        if !self.logo_svg.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.logo_svg) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -3472,6 +3486,9 @@ impl ::buffa::Message for PluginSummary {
             for v in &self.extension_points {
                 ::buffa::types::encode_int32(v.to_i32(), buf);
             }
+        }
+        if !self.logo_svg.is_empty() {
+            ::buffa::types::put_string_field(10u32, &self.logo_svg, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -3580,6 +3597,13 @@ impl ::buffa::Message for PluginSummary {
                     );
                 }
             }
+            10u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.logo_svg, buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -3597,6 +3621,7 @@ impl ::buffa::Message for PluginSummary {
         self.name.clear();
         self.description.clear();
         self.extension_points.clear();
+        self.logo_svg.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -3727,6 +3752,18 @@ pub struct Plugin {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec"
     )]
     pub extension_points: ::buffa::alloc::vec::Vec<::buffa::EnumValue<ExtensionPoint>>,
+    /// Its logo, an SVG document's text, or empty if it has none. An Installed Plugin's author wrote
+    /// it, so show it only as an image, such as from a `data:image/svg+xml` URL, never inline in a
+    /// page, where its scripts would run.
+    ///
+    /// Field 11: `logo_svg`
+    #[serde(
+        rename = "logoSvg",
+        alias = "logo_svg",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub logo_svg: ::buffa::alloc::string::String,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -3744,6 +3781,7 @@ impl ::core::fmt::Debug for Plugin {
             .field("name", &self.name)
             .field("description", &self.description)
             .field("extension_points", &self.extension_points)
+            .field("logo_svg", &self.logo_svg)
             .finish()
     }
 }
@@ -3819,6 +3857,9 @@ impl ::buffa::Message for Plugin {
                 .sum::<u64>();
             size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
         }
+        if !self.logo_svg.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.logo_svg) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -3874,6 +3915,9 @@ impl ::buffa::Message for Plugin {
             for v in &self.extension_points {
                 ::buffa::types::encode_int32(v.to_i32(), buf);
             }
+        }
+        if !self.logo_svg.is_empty() {
+            ::buffa::types::put_string_field(11u32, &self.logo_svg, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -3994,6 +4038,13 @@ impl ::buffa::Message for Plugin {
                     );
                 }
             }
+            11u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.logo_svg, buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -4012,6 +4063,7 @@ impl ::buffa::Message for Plugin {
         self.name.clear();
         self.description.clear();
         self.extension_points.clear();
+        self.logo_svg.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
