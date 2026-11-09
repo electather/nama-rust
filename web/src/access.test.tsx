@@ -193,7 +193,7 @@ test.each([
   },
 );
 
-test.each(["/admin/users", "/admin/plugins"])(
+test.each(["/admin/users", "/admin/plugins", "/admin/plugins/tmdb"])(
   "a User with only Manage Libraries opening %s is told they can't",
   async (path) => {
     openApp(path, fakeServer({ signedIn: [Permission.MANAGE_LIBRARIES] }));

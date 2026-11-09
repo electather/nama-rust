@@ -1,25 +1,26 @@
-import { createConnectQueryKey, useMutation } from "@connectrpc/connect-query";
+import { useMutation } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
-import { Power, PowerOff } from "lucide-react";
+import { Ban, Power, PowerOff } from "lucide-react";
 
 import { StateLabel } from "@/components/state-label";
 import { Button } from "@/components/ui/button";
-import { type Plugin, PluginService } from "@/gen/nama/v1/plugin_pb";
+import { type Plugin, PluginService, type PluginSummary } from "@/gen/nama/v1/plugin_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { refusal, refusalOf } from "@/lib/forms";
-
-const pluginsKey = createConnectQueryKey({
-  schema: PluginService.method.listPlugins,
-  cardinality: "finite",
-});
+import { pluginsKey } from "@/lib/plugins";
 
 /**
  * Whether `plugin` is enabled, a button to change that, and why the Server refused to, for a
- * wrapping flex row.
+ * wrapping flex row. A Plugin the Server refused only says so.
  */
-export function PluginToggle({ plugin }: { plugin: Plugin }) {
+export function PluginToggle({ plugin }: { plugin: PluginSummary | Plugin }) {
+  if (plugin.refusedReason !== "") return <StateLabel label="Refused" Icon={Ban} />;
+  return <EnableOrDisable plugin={plugin} />;
+}
+
+function EnableOrDisable({ plugin }: { plugin: PluginSummary | Plugin }) {
   const queryClient = useQueryClient();
-  // Refused or not, the list may be out of date.
+  // Refused or not, the list and the details page may be out of date.
   const onSettled = () => queryClient.invalidateQueries({ queryKey: pluginsKey });
   const enable = useMutation(PluginService.method.enablePlugin, { onSettled });
   const disable = useMutation(PluginService.method.disablePlugin, { onSettled });
@@ -52,11 +53,13 @@ export function PluginToggle({ plugin }: { plugin: Plugin }) {
 }
 
 /** Why `plugin` couldn't be enabled or disabled, by its Refusal (web/AGENTS.md). */
-function refusedChange(error: unknown, plugin: Plugin, verb: string) {
+function refusedChange(error: unknown, plugin: PluginSummary | Plugin, verb: string) {
   const { field, params } = refusalOf(error);
   // The Server names a setting as `settings.<key>`.
   const key = field.replace(/^settings\./u, "");
-  const label = plugin.settings.find((setting) => setting.key === key)?.label ?? key;
+  // The list doesn't have the settings, so names the setting by its key.
+  const settings = "settings" in plugin ? plugin.settings : [];
+  const label = settings.find((setting) => setting.key === key)?.label ?? key;
   const { fulfillerPluginId, titleKind } = params;
   return refusal(
     error,

@@ -4,11 +4,16 @@ package nama.v1;
 
 // The Server's Plugins and their settings. Needs `PERMISSION_MANAGE_SETTINGS`, and fails with
 // `permission_denied` without it. A secret setting's value never leaves the Server. Every call
-// naming a Plugin the Server refused (see `Plugin.refused_reason`) fails with
+// but `GetPlugin` naming a Plugin the Server refused (see `Plugin.refused_reason`) fails with
 // `REFUSAL_REASON_PLUGIN_REFUSED`.
 service PluginService {
-  // Lists every Plugin on the Server, by id.
+  // Lists every Plugin on the Server, by id, without its settings.
   rpc ListPlugins(ListPluginsRequest) returns (ListPluginsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Returns one Plugin with its settings. A refused Plugin comes with its `refused_reason` and no
+  // settings. Fails with `not_found` for an unknown Plugin.
+  rpc GetPlugin(GetPluginRequest) returns (GetPluginResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
   // Replaces a Plugin's settings and, if it is meant to be enabled, enables it again with them,
@@ -50,7 +55,19 @@ service PluginService {
 message ListPluginsRequest {}
 
 message ListPluginsResponse {
-  repeated Plugin plugins = 1;
+  // Held every Plugin with its settings, which `GetPlugin` now returns.
+  reserved 1;
+  reserved "plugins";
+  repeated PluginSummary summaries = 2;
+}
+
+message GetPluginRequest {
+  // The Plugin's id, such as `tmdb`.
+  string id = 1;
+}
+
+message GetPluginResponse {
+  Plugin plugin = 1;
 }
 
 message UpdatePluginSettingsRequest {
@@ -114,6 +131,18 @@ enum PluginKind {
   // Loaded from a `.wasm` file in the Server's `<data_dir>/plugins/`, which the Server reads again
   // each time it lists its Plugins.
   PLUGIN_KIND_INSTALLED = 2;
+}
+
+// A Plugin as `ListPlugins` lists it: a `Plugin` without its settings.
+message PluginSummary {
+  // As `Plugin.id`.
+  string id = 1;
+  string version = 2;
+  PluginKind kind = 3;
+  // As `Plugin.enabled`.
+  bool enabled = 4;
+  // As `Plugin.refused_reason`.
+  string refused_reason = 5;
 }
 
 // A unit of trusted functionality that plugs into a Server.

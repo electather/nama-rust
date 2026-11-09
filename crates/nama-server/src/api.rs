@@ -46,27 +46,28 @@ use nama_proto::nama::v1::{
     DeleteUserResponse, DisablePluginRequest, DisablePluginResponse, EnablePluginRequest,
     EnablePluginResponse, EventService, EventType, GetDefaultPermissionsRequest,
     GetDefaultPermissionsResponse, GetLibraryRequest, GetLibraryResponse, GetMovieRequest,
-    GetMovieResponse, GetRequestRequest, GetRequestResponse, GetServerInfoRequest,
-    GetServerInfoResponse, GetServerSettingsRequest, GetServerSettingsResponse, GetShowRequest,
-    GetShowResponse, LibraryKind, LibraryService, ListContinueWatchingRequest,
-    ListContinueWatchingResponse, ListDevicesRequest, ListDevicesResponse, ListEpisodesRequest,
-    ListEpisodesResponse, ListLibrariesRequest, ListLibrariesResponse, ListMoviesRequest,
-    ListMoviesResponse, ListPluginConnectionsRequest, ListPluginConnectionsResponse,
-    ListPluginsRequest, ListPluginsResponse, ListRequestsRequest, ListRequestsResponse,
-    ListShowsRequest, ListShowsResponse, ListUnmatchedItemsRequest, ListUnmatchedItemsResponse,
-    ListUsersRequest, ListUsersResponse, LookUpMovieRequest, LookUpMovieResponse,
-    LookUpShowRequest, LookUpShowResponse, LookUpSignInCodeRequest, LookUpSignInCodeResponse,
-    MatchService, Permission, PluginConnection, PluginConnectionState, PluginKind, PluginService,
-    PollSignInCodeRequest, PollSignInCodeResponse, ReauthenticateRequest, ReauthenticateResponse,
-    Refusal, RefusalReason, ReportProgressRequest, ReportProgressResponse, RequestService,
-    ResetPasswordRequest, ResetPasswordResponse, RetryRequestRequest, RetryRequestResponse,
-    RevokeDeviceRequest, RevokeDeviceResponse, ScanLibraryRequest, ScanLibraryResponse,
-    SearchMetadataRequest, SearchMetadataResponse, SearchMoviesRequest, SearchMoviesResponse,
-    SearchShowsRequest, SearchShowsResponse, ServerService, ServerSettings, SessionDelivery,
-    SetDefaultPermissionsRequest, SetDefaultPermissionsResponse, SetMatchRequest, SetMatchResponse,
-    SetPermissionsRequest, SetPermissionsResponse, SetPlayedRequest, SetPlayedResponse,
-    SetupRequest, SetupResponse, SignInCodeStatus, SignInRequest, SignInResponse, SignInService,
-    SignOutRequest, SignOutResponse, StartPluginConnectionRequest, StartPluginConnectionResponse,
+    GetMovieResponse, GetPluginRequest, GetPluginResponse, GetRequestRequest, GetRequestResponse,
+    GetServerInfoRequest, GetServerInfoResponse, GetServerSettingsRequest,
+    GetServerSettingsResponse, GetShowRequest, GetShowResponse, LibraryKind, LibraryService,
+    ListContinueWatchingRequest, ListContinueWatchingResponse, ListDevicesRequest,
+    ListDevicesResponse, ListEpisodesRequest, ListEpisodesResponse, ListLibrariesRequest,
+    ListLibrariesResponse, ListMoviesRequest, ListMoviesResponse, ListPluginConnectionsRequest,
+    ListPluginConnectionsResponse, ListPluginsRequest, ListPluginsResponse, ListRequestsRequest,
+    ListRequestsResponse, ListShowsRequest, ListShowsResponse, ListUnmatchedItemsRequest,
+    ListUnmatchedItemsResponse, ListUsersRequest, ListUsersResponse, LookUpMovieRequest,
+    LookUpMovieResponse, LookUpShowRequest, LookUpShowResponse, LookUpSignInCodeRequest,
+    LookUpSignInCodeResponse, MatchService, Permission, PluginConnection, PluginConnectionState,
+    PluginKind, PluginService, PollSignInCodeRequest, PollSignInCodeResponse,
+    ReauthenticateRequest, ReauthenticateResponse, Refusal, RefusalReason, ReportProgressRequest,
+    ReportProgressResponse, RequestService, ResetPasswordRequest, ResetPasswordResponse,
+    RetryRequestRequest, RetryRequestResponse, RevokeDeviceRequest, RevokeDeviceResponse,
+    ScanLibraryRequest, ScanLibraryResponse, SearchMetadataRequest, SearchMetadataResponse,
+    SearchMoviesRequest, SearchMoviesResponse, SearchShowsRequest, SearchShowsResponse,
+    ServerService, ServerSettings, SessionDelivery, SetDefaultPermissionsRequest,
+    SetDefaultPermissionsResponse, SetMatchRequest, SetMatchResponse, SetPermissionsRequest,
+    SetPermissionsResponse, SetPlayedRequest, SetPlayedResponse, SetupRequest, SetupResponse,
+    SignInCodeStatus, SignInRequest, SignInResponse, SignInService, SignOutRequest,
+    SignOutResponse, StartPluginConnectionRequest, StartPluginConnectionResponse,
     StartSignInCodeRequest, StartSignInCodeResponse, SubscribeRequest, SubscribeResponse,
     TestPluginSettingsRequest, TestPluginSettingsResponse, UpdateLibraryRequest,
     UpdateLibraryResponse, UpdatePluginSettingsRequest, UpdatePluginSettingsResponse,
@@ -290,6 +291,7 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::REQUEST_SERVICE_CANCEL_FOLLOWED_SHOW_SPEC.procedure,  MANAGE_REQUESTS),
     (proto::REQUEST_SERVICE_WITHDRAW_FOLLOWED_SHOW_SPEC.procedure, Access::SignedIn),
     (proto::PLUGIN_SERVICE_LIST_PLUGINS_SPEC.procedure,           MANAGE_SETTINGS),
+    (proto::PLUGIN_SERVICE_GET_PLUGIN_SPEC.procedure,             MANAGE_SETTINGS),
     (proto::PLUGIN_SERVICE_UPDATE_PLUGIN_SETTINGS_SPEC.procedure, MANAGE_SETTINGS),
     (proto::PLUGIN_SERVICE_ENABLE_PLUGIN_SPEC.procedure,          MANAGE_SETTINGS),
     (proto::PLUGIN_SERVICE_DISABLE_PLUGIN_SPEC.procedure,         MANAGE_SETTINGS),
@@ -2295,23 +2297,29 @@ impl PluginService for PluginServiceHandler {
         let changing = self.changing.lock().await;
         self.plugins.list_installed(found);
         drop(changing);
-        let stored = plugin_settings::stored(&self.db)
-            .await
-            .map_err(database_failed)?
-            .unwrap_or_default();
-        let plugins = self
+        let summaries = self
             .plugins
             .plugins()
             .into_iter()
-            .map(|plugin| {
-                let settings = stored
-                    .get(plugin.id.as_str())
-                    .map(|config| &config.settings);
-                plugin_to_proto(plugin, settings.unwrap_or(&BTreeMap::new()))
-            })
+            .map(plugin_summary_to_proto)
             .collect();
         Response::ok(ListPluginsResponse {
-            plugins,
+            summaries,
+            ..Default::default()
+        })
+    }
+
+    async fn get_plugin(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, GetPluginRequest>,
+    ) -> ServiceResult<GetPluginResponse> {
+        // Doesn't read `plugins/` again as listing does: the details page opens from the list.
+        let plugin = self.known(&PluginId::from(request.id.to_owned()))?;
+        // A refused Plugin has no settings schema, so it comes with none.
+        let stored = self.stored(&plugin).await?;
+        Response::ok(GetPluginResponse {
+            plugin: plugin_to_proto(plugin, &stored.settings).into(),
             ..Default::default()
         })
     }
@@ -2455,12 +2463,7 @@ impl PluginServiceHandler {
     /// The Plugin `id`, or the refusal of a call naming one no Plugin has or one the Server
     /// refused.
     fn listed(&self, id: &PluginId) -> Result<Listed, ConnectError> {
-        let plugin = self
-            .plugins
-            .plugins()
-            .into_iter()
-            .find(|plugin| plugin.id == *id)
-            .ok_or_else(|| plugin_not_found(id))?;
+        let plugin = self.known(id)?;
         match plugin.refused_reason {
             Some(reason) => Err(EnableError::Refused {
                 plugin: plugin.id,
@@ -2469,6 +2472,15 @@ impl PluginServiceHandler {
             .into()),
             None => Ok(plugin),
         }
+    }
+
+    /// The Plugin `id`, refused or not, or the refusal of a call naming one no Plugin has.
+    fn known(&self, id: &PluginId) -> Result<Listed, ConnectError> {
+        self.plugins
+            .plugins()
+            .into_iter()
+            .find(|plugin| plugin.id == *id)
+            .ok_or_else(|| plugin_not_found(id))
     }
 
     /// Refuses `settings` for `plugin` unless its settings check passes on them and offers each
@@ -2637,6 +2649,17 @@ fn settings_refused(err: SettingsError) -> ConnectError {
         }
     };
     refused.into()
+}
+
+fn plugin_summary_to_proto(plugin: Listed) -> proto::PluginSummary {
+    proto::PluginSummary {
+        id: plugin.id.to_string(),
+        version: plugin.version,
+        kind: plugin.kind.into(),
+        enabled: plugin.enabled,
+        refused_reason: plugin.refused_reason.unwrap_or_default(),
+        ..Default::default()
+    }
 }
 
 fn plugin_to_proto(

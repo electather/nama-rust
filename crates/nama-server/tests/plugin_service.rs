@@ -1,6 +1,6 @@
-//! Listing the Server's Plugins and their settings, without ever sending a secret's value, and
-//! changing those settings and enabling and disabling them without a restart, over a real socket
-//! and against a real SQLite database.
+//! Listing the Server's Plugins, getting one with its settings without ever sending a secret's
+//! value, and changing a Plugin's settings and enabling and disabling it without a restart, over a
+//! real socket and against a real SQLite database.
 
 #[path = "support/refused.rs"]
 mod refused;
@@ -17,10 +17,10 @@ use nama_plugin_api::{
 };
 use nama_plugin_test_choices as test_choices;
 use nama_proto::nama::v1::{
-    DisablePluginRequest, EnablePluginRequest, ListPluginsRequest, ListPluginsResponse, Plugin,
-    PluginKind, PluginServiceClient, RefusalReason, Setting, SettingKind,
-    TestPluginSettingsRequest, TestPluginSettingsResponse, UpdatePluginSettingsRequest,
-    UpdatePluginSettingsResponse, setting_value::Value,
+    DisablePluginRequest, EnablePluginRequest, GetPluginRequest, ListPluginsRequest,
+    ListPluginsResponse, Plugin, PluginKind, PluginServiceClient, PluginSummary, RefusalReason,
+    Setting, SettingKind, TestPluginSettingsRequest, TestPluginSettingsResponse,
+    UpdatePluginSettingsRequest, UpdatePluginSettingsResponse, setting_value::Value,
 };
 use nama_server::{
     config::{Config, PluginConfig},
@@ -75,6 +75,23 @@ impl Started {
             .update_plugin_settings(request)
             .await
             .map(connectrpc::UnaryResponse::into_owned)
+    }
+
+    /// The Plugin `id` with its settings, as its details page gets it as the Admin.
+    #[expect(
+        clippy::expect_used,
+        reason = "a test helper fails its test by panicking"
+    )]
+    async fn get(&self, id: &str) -> Result<Plugin, ConnectError> {
+        let request = GetPluginRequest {
+            id: id.to_owned(),
+            ..Default::default()
+        };
+        let got = self.client().get_plugin(request).await?.into_owned();
+        Ok(got
+            .plugin
+            .into_option()
+            .expect("GetPlugin returns the Plugin"))
     }
 
     /// Runs the Plugin `id`'s settings check on `settings`, as the Admin.
@@ -132,6 +149,16 @@ async fn list_plugins_with(settings: BTreeMap<String, PluginConfig>) -> ListPlug
         .into_owned()
 }
 
+/// Starts a Server whose Built-in Plugins have `settings`, stored as an upgrade imports them, and
+/// gets the Plugin `id` with its settings as the Admin.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn get_plugin_with(settings: BTreeMap<String, PluginConfig>, id: &str) -> Plugin {
+    Started::with(&settings).await.get(id).await.unwrap()
+}
+
 fn enable(id: &str) -> EnablePluginRequest {
     EnablePluginRequest {
         id: id.to_owned(),
@@ -181,9 +208,9 @@ fn tmdb_with_key() -> BTreeMap<String, PluginConfig> {
     clippy::expect_used,
     reason = "a test helper fails its test by panicking"
 )]
-fn plugin<'a>(listed: &'a ListPluginsResponse, id: &str) -> &'a Plugin {
+fn plugin<'a>(listed: &'a ListPluginsResponse, id: &str) -> &'a PluginSummary {
     listed
-        .plugins
+        .summaries
         .iter()
         .find(|plugin| plugin.id == id)
         .expect("the Plugin is listed")
@@ -206,7 +233,7 @@ async fn every_builtin_and_bundled_plugin_is_listed_with_whether_it_is_enabled()
     let listed = list_plugins_with(BTreeMap::new()).await;
 
     let kinds: Vec<_> = listed
-        .plugins
+        .summaries
         .iter()
         .map(|plugin| (plugin.id.as_str(), plugin.kind.as_known()))
         .collect();
@@ -224,7 +251,7 @@ async fn every_builtin_and_bundled_plugin_is_listed_with_whether_it_is_enabled()
             ("tmdb", built_in)
         ]
     );
-    for plugin in &listed.plugins {
+    for plugin in &listed.summaries {
         assert!(!plugin.version.is_empty(), "{plugin:?}");
     }
     assert!(plugin(&listed, "local-auth").enabled);
@@ -233,6 +260,34 @@ async fn every_builtin_and_bundled_plugin_is_listed_with_whether_it_is_enabled()
     assert!(!plugin(&listed, "radarr").enabled);
     assert!(!plugin(&listed, "sonarr").enabled);
     assert!(!plugin(&listed, "telegram").enabled);
+}
+
+#[tokio::test]
+async fn plugins_are_listed_without_their_settings() {
+    let listed = list_plugins_with(tmdb_with_key()).await;
+
+    // Encoded again, the response holds everything the Server sent, fields this client doesn't
+    // know included.
+    let sent = listed.encode_to_vec();
+    assert!(
+        !sent
+            .windows(b"api_key".len())
+            .any(|bytes| bytes == b"api_key"),
+        "{listed:?}"
+    );
+}
+
+#[tokio::test]
+async fn getting_an_unknown_plugin_is_refused() {
+    let started = Started::with(&BTreeMap::new()).await;
+
+    let refusal = assert_refused(
+        started.get("no-such-plugin").await,
+        ErrorCode::NotFound,
+        RefusalReason::REFUSAL_REASON_PLUGIN_NOT_FOUND,
+    );
+    assert_eq!(refusal.field, "id");
+    assert_eq!(refusal.params["pluginId"], "no-such-plugin");
 }
 
 #[tokio::test]
@@ -245,16 +300,15 @@ async fn a_plugins_settings_come_with_their_schema_and_stored_values() {
         );
     }
 
-    let listed = list_plugins_with(settings).await;
+    let tmdb = get_plugin_with(settings, "tmdb").await;
 
-    let tmdb = plugin(&listed, "tmdb");
     assert!(tmdb.enabled);
-    let api_key = setting(tmdb, "api_key");
+    let api_key = setting(&tmdb, "api_key");
     assert_eq!(api_key.kind, SettingKind::SETTING_KIND_SECRET);
     assert!(api_key.required);
     assert_eq!(api_key.label, "API key");
     assert!(api_key.secret_set);
-    let language = setting(tmdb, "language");
+    let language = setting(&tmdb, "language");
     assert_eq!(language.kind, SettingKind::SETTING_KIND_TEXT);
     assert!(!language.secret_set);
     assert_eq!(
@@ -272,27 +326,27 @@ async fn a_plugins_settings_come_with_their_schema_and_stored_values() {
 
 #[tokio::test]
 async fn a_secret_set_is_only_said_to_be_set() {
-    let listed = list_plugins_with(tmdb_with_key()).await;
+    let tmdb = get_plugin_with(tmdb_with_key(), "tmdb").await;
 
-    // Encoded again, the response holds everything the Server sent, fields this client doesn't
-    // know included.
-    let sent = listed.encode_to_vec();
+    // Encoded again, the Plugin holds everything the Server sent, fields this client doesn't know
+    // included.
+    let sent = tmdb.encode_to_vec();
     assert!(
         !sent
             .windows(TMDB_KEY.len())
             .any(|bytes| bytes == TMDB_KEY.as_bytes()),
-        "{listed:?}"
+        "{tmdb:?}"
     );
-    let api_key = setting(plugin(&listed, "tmdb"), "api_key");
+    let api_key = setting(&tmdb, "api_key");
     assert!(api_key.secret_set);
     assert!(api_key.value.is_unset(), "{api_key:?}");
 }
 
 #[tokio::test]
 async fn a_secret_not_set_is_said_to_be_not_set() {
-    let listed = list_plugins_with(BTreeMap::new()).await;
+    let tmdb = get_plugin_with(BTreeMap::new(), "tmdb").await;
 
-    let api_key = setting(plugin(&listed, "tmdb"), "api_key");
+    let api_key = setting(&tmdb, "api_key");
     assert!(!api_key.secret_set);
 }
 
@@ -739,16 +793,12 @@ async fn neither_a_test_nor_its_failure_sends_a_secrets_value() {
 async fn only_a_plugin_with_a_check_says_so_and_testing_one_without_is_refused() {
     let started = Started::with(&tmdb_with_key()).await;
 
-    let listed = started
-        .client()
-        .list_plugins(ListPluginsRequest::default())
-        .await
-        .unwrap()
-        .into_owned();
+    let test_choices = started.get(test_choices::ID).await.unwrap();
+    let tmdb = started.get("tmdb").await.unwrap();
     let tested = started.test("tmdb", []).await;
 
-    assert!(plugin(&listed, test_choices::ID).checks_settings);
-    assert!(!plugin(&listed, "tmdb").checks_settings);
+    assert!(test_choices.checks_settings);
+    assert!(!tmdb.checks_settings);
     assert_refused(
         tested,
         ErrorCode::FailedPrecondition,

@@ -1,4 +1,4 @@
-import { createConnectQueryKey, useMutation } from "@connectrpc/connect-query";
+import { useMutation } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
 import { useId, useState } from "react";
 
@@ -15,8 +15,7 @@ import {
 } from "@/gen/nama/v1/plugin_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { formText, onSubmitted, refusal, refusalOf, serverMessage } from "@/lib/forms";
-
-const pluginsKey = createConnectQueryKey({ schema: PluginService, cardinality: "finite" });
+import { pluginsKey } from "@/lib/plugins";
 
 /**
  * The form an Admin changes `plugin`'s settings with, checked against its schema as they type. A
