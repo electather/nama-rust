@@ -27,9 +27,13 @@ use connectrpc::{
 };
 use futures_util::StreamExt;
 use nama_plugin_api::{
-    PluginId,
+    PluginId, PointKey,
     auth::Authenticator,
-    metadata::{Candidate, ExternalId, SearchQuery, TitleKind},
+    connector::Connector,
+    fulfiller::{Fulfiller, Movies, Shows},
+    metadata::{Candidate, ExternalId, MetadataProvider, SearchQuery, TitleKind},
+    notifier::Notifier,
+    points::{Events, ServerStarted},
     settings::{self, SettingField, Settings, SettingsError, SettingsSchema},
 };
 use nama_proto::nama::v1::{
@@ -2670,6 +2674,7 @@ fn plugin_summary_to_proto(
     );
     proto::PluginSummary {
         settings_missing,
+        extension_points: extension_points_to_proto(&plugin.extension_points),
         id: plugin.id.to_string(),
         name: plugin.name,
         description: plugin.description,
@@ -2695,6 +2700,7 @@ fn plugin_to_proto(
         refused_reason: plugin.refused_reason.unwrap_or_default(),
         enabled: plugin.enabled,
         checks_settings: plugin.checks_settings,
+        extension_points: extension_points_to_proto(&plugin.extension_points),
         logo_svg: plugin.logo_svg.unwrap_or_default(),
         settings: plugin
             .settings_schema
@@ -2704,6 +2710,51 @@ fn plugin_to_proto(
             .collect(),
         ..Default::default()
     }
+}
+
+/// The Extension Points an admin is shown for `points`, leaving out any this API doesn't name,
+/// such as a test's own.
+fn extension_points_to_proto(points: &[PointKey]) -> Vec<EnumValue<proto::ExtensionPoint>> {
+    use proto::ExtensionPoint as Public;
+    let public = [
+        (
+            PointKey::provide::<dyn Fulfiller<Movies>>(),
+            Public::EXTENSION_POINT_MOVIE_FULFILLER,
+        ),
+        (
+            PointKey::provide::<dyn Fulfiller<Shows>>(),
+            Public::EXTENSION_POINT_SHOW_FULFILLER,
+        ),
+        (
+            PointKey::provide::<dyn Notifier>(),
+            Public::EXTENSION_POINT_NOTIFIER,
+        ),
+        (
+            PointKey::provide::<dyn Connector>(),
+            Public::EXTENSION_POINT_CONNECTOR,
+        ),
+        (
+            PointKey::provide::<dyn Authenticator>(),
+            Public::EXTENSION_POINT_AUTHENTICATOR,
+        ),
+        (
+            PointKey::provide::<dyn MetadataProvider>(),
+            Public::EXTENSION_POINT_METADATA_PROVIDER,
+        ),
+        (
+            PointKey::observe::<Events>(),
+            Public::EXTENSION_POINT_EVENTS_OBSERVER,
+        ),
+        (
+            PointKey::observe::<ServerStarted>(),
+            Public::EXTENSION_POINT_SERVER_STARTED_OBSERVER,
+        ),
+    ];
+    points
+        .iter()
+        .filter_map(|point| public.iter().find(|(key, _)| key == point))
+        .map(|&(_, public)| public.into())
+        .collect()
 }
 
 /// A setting with its `stored` value, as a client may see it: a secret's value, stored or

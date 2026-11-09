@@ -66,6 +66,30 @@ test("a Plugin's details page shows its logo as an image, or a generic one witho
   expect(generic.getAttribute("src")).toBeNull();
 });
 
+test("a Plugin providing Fulfillers for Movies and Shows shows both on the list and its page", async () => {
+  openPlugins();
+
+  const listed = await row("test-choices");
+  expect(listed.getByText("Fulfiller for Movies")).toBeDefined();
+  expect(listed.getByText("Fulfiller for Shows")).toBeDefined();
+  expect(listed.queryByText("Notifier")).toBeNull();
+
+  fireEvent.click(screen.getByRole("link", { name: "test-choices" }));
+
+  const page = await plugin("test-choices");
+  expect(page.getByText("Fulfiller for Movies")).toBeDefined();
+  expect(page.getByText("Fulfiller for Shows")).toBeDefined();
+});
+
+test("a disabled Plugin shows the Extension Points it would take part at", async () => {
+  openPlugins();
+
+  const listed = await row("test-plugin");
+  expect(listed.getByText("Disabled")).toBeDefined();
+  expect(listed.getByText("Notifier")).toBeDefined();
+  expect(listed.getByText("Observes Events")).toBeDefined();
+});
+
 test("a refused Plugin is listed as Refused, with no way to enable it", async () => {
   openPlugins();
 

@@ -68,6 +68,7 @@ impl Registry {
                 version: manifest.version,
                 settings_schema: manifest.settings,
                 checks_settings,
+                extension_points: manifest.extension_points,
                 logo_svg: manifest.logo_svg.and_then(|logo| kept_logo(&id, logo)),
             };
             registry.write(|state| state.known.insert(id.clone(), described));

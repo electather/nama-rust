@@ -317,7 +317,7 @@ mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     use nama_plugin_api::{
-        BoxFuture, Manifest, Plugin, PluginError, Priority, Registrar,
+        BoxFuture, Manifest, Plugin, PluginError, PointKey, Priority, Registrar,
         connector::ConnectionStarted, settings::SettingsSchema,
     };
 
@@ -334,6 +334,7 @@ mod tests {
                 description: String::new(),
                 version: "1.0.0".to_owned(),
                 settings: SettingsSchema::default(),
+                extension_points: vec![PointKey::provide::<dyn Connector>()],
                 logo_svg: None,
             }
         }

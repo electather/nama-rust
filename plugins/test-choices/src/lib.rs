@@ -5,7 +5,7 @@
 use std::{collections::HashMap, future, sync::Arc};
 
 use nama_plugin_api::{
-    BoxFuture, Manifest, Plugin, PluginError, PluginId, Priority, Registrar,
+    BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
     fulfiller::{Download, Fulfiller, Movies, Shows},
     settings::{
         Choice, Choices, SettingField, SettingKind, Settings, SettingsCheck, SettingsSchema,
@@ -72,6 +72,10 @@ impl Plugin for TestChoices {
                     .to_owned(),
             version: "0.0.0".to_owned(),
             settings,
+            extension_points: vec![
+                PointKey::provide::<dyn Fulfiller<Movies>>(),
+                PointKey::provide::<dyn Fulfiller<Shows>>(),
+            ],
             logo_svg: Some(include_str!("../logo.svg").to_owned()),
         }
     }

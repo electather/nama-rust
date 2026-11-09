@@ -16,7 +16,7 @@ mod wire;
 use std::sync::Arc;
 
 use nama_plugin_api::{
-    Manifest, Plugin, PluginId, Priority, Registrar,
+    Manifest, Plugin, PluginId, PointKey, Priority, Registrar,
     metadata::MetadataProvider,
     settings::{SettingField, SettingKind, SettingValue, SettingsSchema},
 };
@@ -104,6 +104,7 @@ impl Plugin for Tmdb {
                 .to_owned(),
             version: env!("CARGO_PKG_VERSION").to_owned(),
             settings,
+            extension_points: vec![PointKey::provide::<dyn MetadataProvider>()],
             logo_svg: Some(include_str!("../logo.svg").to_owned()),
         }
     }

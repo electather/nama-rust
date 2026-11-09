@@ -17,10 +17,11 @@ use nama_plugin_api::{
 };
 use nama_plugin_test_choices as test_choices;
 use nama_proto::nama::v1::{
-    DisablePluginRequest, EnablePluginRequest, GetPluginRequest, ListPluginsRequest,
-    ListPluginsResponse, Plugin, PluginKind, PluginServiceClient, PluginSummary, RefusalReason,
-    Setting, SettingKind, TestPluginSettingsRequest, TestPluginSettingsResponse,
-    UpdatePluginSettingsRequest, UpdatePluginSettingsResponse, setting_value::Value,
+    DisablePluginRequest, EnablePluginRequest, ExtensionPoint, GetPluginRequest,
+    ListPluginsRequest, ListPluginsResponse, Plugin, PluginKind, PluginServiceClient,
+    PluginSummary, RefusalReason, Setting, SettingKind, TestPluginSettingsRequest,
+    TestPluginSettingsResponse, UpdatePluginSettingsRequest, UpdatePluginSettingsResponse,
+    setting_value::Value,
 };
 use nama_server::{
     config::{Config, PluginConfig},
@@ -273,6 +274,44 @@ async fn every_builtin_and_bundled_plugin_has_a_logo_the_server_keeps() {
     for plugin in &listed.summaries {
         assert!(plugin.logo_svg.starts_with("<svg"), "{plugin:?}");
     }
+}
+
+#[tokio::test]
+async fn every_plugin_is_listed_with_its_extension_points_enabled_or_not() {
+    use ExtensionPoint::*;
+
+    let listed = list_plugins_with(BTreeMap::new()).await;
+
+    let points = |id| &plugin(&listed, id).extension_points[..];
+    assert_eq!(points("local-auth"), [EXTENSION_POINT_AUTHENTICATOR]);
+    assert_eq!(
+        points("log-events"),
+        [EXTENSION_POINT_SERVER_STARTED_OBSERVER]
+    );
+    assert_eq!(points("radarr"), [EXTENSION_POINT_MOVIE_FULFILLER]);
+    assert_eq!(points("sonarr"), [EXTENSION_POINT_SHOW_FULFILLER]);
+    assert_eq!(
+        points("telegram"),
+        [EXTENSION_POINT_NOTIFIER, EXTENSION_POINT_CONNECTOR]
+    );
+    assert_eq!(
+        points(test_choices::ID),
+        [
+            EXTENSION_POINT_MOVIE_FULFILLER,
+            EXTENSION_POINT_SHOW_FULFILLER
+        ]
+    );
+    assert_eq!(points("tmdb"), [EXTENSION_POINT_METADATA_PROVIDER]);
+}
+
+#[tokio::test]
+async fn a_plugins_extension_points_come_with_it() {
+    let tmdb = get_plugin_with(BTreeMap::new(), "tmdb").await;
+
+    assert_eq!(
+        tmdb.extension_points,
+        [ExtensionPoint::EXTENSION_POINT_METADATA_PROVIDER]
+    );
 }
 
 #[tokio::test]

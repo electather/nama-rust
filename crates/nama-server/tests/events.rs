@@ -13,7 +13,8 @@ use connectrpc::{
     client::{HttpClient, ServerStream},
 };
 use nama_plugin_api::{
-    BoxFuture, Manifest, Observer, Plugin, PluginId, Registrar, points, settings::SettingsSchema,
+    BoxFuture, Manifest, Observer, Plugin, PluginId, PointKey, Registrar, points,
+    settings::SettingsSchema,
 };
 use nama_proto::nama::v1::{
     __buffa::view::SubscribeResponseView, CreateLibraryRequest, Event, EventServiceClient,
@@ -193,6 +194,7 @@ impl Plugin for Forward {
             description: String::new(),
             version: "0.0.0".to_owned(),
             settings: SettingsSchema::default(),
+            extension_points: vec![PointKey::observe::<points::Events>()],
             logo_svg: None,
         }
     }
