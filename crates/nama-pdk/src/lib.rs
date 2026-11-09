@@ -51,7 +51,8 @@ pub use nama_proto::{
     self,
     nama::{
         plugin::v1::{
-            CheckedSettings, ConnectionStarted, Manifest, Notification, delivery::Recipient,
+            CheckedSettings, ConnectionStarted, Fulfilled, Manifest, Notification,
+            delivery::Recipient,
         },
         v1::{Download, Request},
     },
@@ -99,13 +100,16 @@ pub fn manifest(id: &str, version: &str) -> Manifest {
 /// ```
 /// use std::collections::HashMap;
 ///
-/// use nama_pdk::{Download, Fulfiller, Request, extism_pdk::Error};
+/// use nama_pdk::{Download, Fulfilled, Fulfiller, Request, extism_pdk::Error};
 ///
 /// struct Radarr;
 ///
 /// impl Fulfiller for Radarr {
-///     fn fulfill(request: Request) -> Result<String, Error> {
-///         Ok(format!("radarr-{}", request.movie.tmdb_id))
+///     fn fulfill(request: Request) -> Result<Fulfilled, Error> {
+///         Ok(Fulfilled {
+///             reference: format!("radarr-{}", request.movie.tmdb_id),
+///             ..Fulfilled::default()
+///         })
 ///     }
 ///
 ///     fn progress(_references: Vec<String>) -> Result<HashMap<String, Vec<Download>>, Error> {
@@ -118,8 +122,8 @@ pub fn manifest(id: &str, version: &str) -> Manifest {
 pub trait Fulfiller {
     /// Hands `request` to the service and returns at once, without waiting for it to be
     /// fulfilled, with a reference the Server keeps with the Request and passes back to
-    /// [`Fulfiller::progress`]. A Plugin providing both kinds tells a Movie Request from a Season
-    /// one by which it holds.
+    /// [`Fulfiller::progress`], and the quality profile the service used. A Plugin providing both
+    /// kinds tells a Movie Request from a Season one by which it holds.
     ///
     /// A Season Request naming a Followed Show in `followed_show_id` also asks it to follow the
     /// Show: to fetch the Seasons that come out later too, until [`Fulfiller::unfollow`].
@@ -127,9 +131,9 @@ pub trait Fulfiller {
     /// # Errors
     ///
     /// When the service didn't take the Request, such as when it is unreachable or doesn't know
-    /// the title, or the Plugin can't follow a Show it was asked to. The error's message is the
-    /// reason the Request shows as Failed.
-    fn fulfill(request: Request) -> Result<String, Error>;
+    /// the title or the quality profile `request` names, or the Plugin can't follow a Show it was
+    /// asked to. The error's message is the reason the Request shows as Failed.
+    fn fulfill(request: Request) -> Result<Fulfilled, Error>;
 
     /// Stops following the Show `request` is a Season of, as a hand-off asked it to, since its
     /// Followed Show ended. A Plugin that never follows, such as one for Movies, leaves it be.
@@ -165,10 +169,7 @@ macro_rules! fulfiller {
 
             #[plugin_fn]
             pub fn fulfill(Buffa(request): Buffa<Request>) -> FnResult<Buffa<Fulfilled>> {
-                Ok(Buffa(Fulfilled {
-                    reference: <$fulfiller as Fulfiller>::fulfill(request)?,
-                    ..Fulfilled::default()
-                }))
+                Ok(Buffa(<$fulfiller as Fulfiller>::fulfill(request)?))
             }
 
             #[plugin_fn]

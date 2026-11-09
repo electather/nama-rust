@@ -1,0 +1,20 @@
+[
+  {
+    "title": "Alien",
+    "originalTitle": "Alien",
+    "sortTitle": "alien",
+    "status": "released",
+    "year": 1979,
+    "path": "/movies/Alien (1979)",
+    "qualityProfileId": 5,
+    "monitored": true,
+    "minimumAvailability": "released",
+    "runtime": 117,
+    "tmdbId": 348,
+    "imdbId": "tt0078748",
+    "hasFile": true,
+    "rootFolderPath": "/movies",
+    "added": "2026-10-01T12:00:00Z",
+    "id": 2
+  }
+]
