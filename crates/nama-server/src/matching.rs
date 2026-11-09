@@ -1152,6 +1152,24 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn a_newer_name_parser_keeps_a_pinned_match() {
+        let media = Fixture::new().await;
+        let movies = &media.movies;
+        let home_movies = "Home Movies (2019)/Home Movies (2019).mkv";
+        movies.write(home_movies);
+        media.scan(movies).await;
+        let item = media.item(movies, home_movies).await;
+        media.set_match(item, &ExternalId::Tmdb(949)).await.unwrap();
+        let looked_up = media.tmdb.requests().len();
+
+        media.contents.read_by_older_parser(movies.id).await;
+        media.scan(movies).await;
+
+        assert_eq!(media.outcomes(movies).await, [matched(949, "Heat")]);
+        assert_eq!(media.tmdb.requests().len(), looked_up);
+    }
+
+    #[tokio::test]
     async fn items_stay_undecided_until_a_metadata_provider_can_match_them() {
         let media = Fixture::without_tmdb().await;
         media.movies.write("Alien (1979)/Alien (1979).mkv");

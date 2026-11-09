@@ -2382,7 +2382,7 @@ pub const __SCAN_FINISHED_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buf
     from_json: ::buffa::type_registry::any_from_json::<ScanFinished>,
     is_wkt: false,
 };
-/// A scan stored an Item, for a new file or one that changed.
+/// A scan stored an Item, for a new file, one that changed or one a newer name parser read.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
@@ -2557,7 +2557,7 @@ pub const __LIBRARY_ITEM_ADDED_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = 
     from_json: ::buffa::type_registry::any_from_json::<LibraryItemAdded>,
     is_wkt: false,
 };
-/// An Item is gone, because its file is gone or changed.
+/// An Item is gone, because its file is gone or changed, or a newer name parser read it.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]

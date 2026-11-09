@@ -19,7 +19,7 @@
 
 mod names;
 
-pub(crate) use names::VERSION as PARSER_VERSION;
+pub(crate) use names::PARSER_VERSION;
 
 use std::{
     collections::{HashMap, HashSet},

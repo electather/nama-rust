@@ -846,7 +846,7 @@ async fn apply(
                 );
             }
             Change::Reparse { file, path, items } => {
-                events.extend(reparse(conn, library, file, path, items).await?);
+                events.extend(reparse(conn, library, file, &path, &items).await?);
             }
             Change::Remove(file) => {
                 let removed = remove_items(conn, file).await?;
@@ -860,14 +860,14 @@ async fn apply(
     Ok(events)
 }
 
-/// Pairs the file's stored Items with `items` in order, as both were parsed, so an Item keeps its
-/// id and Match; the unpaired are removed or added.
+/// Pairs each of `items` with the stored Item of the file it was parsed as before, by Season and
+/// Episode number, so it keeps its id and Match; the unpaired are removed or added.
 async fn reparse(
     conn: &mut SqliteConnection,
     library: i64,
     file: i64,
-    path: String,
-    items: Vec<Item>,
+    path: &str,
+    items: &[Item],
 ) -> Result<Vec<Event>, sqlx::Error> {
     sqlx::query!(
         "UPDATE library_files SET parser_version = ? WHERE id = ?",
@@ -876,63 +876,45 @@ async fn reparse(
     )
     .execute(&mut *conn)
     .await?;
-    let stored = sqlx::query!(
-        r#"SELECT id AS "id!", kind AS "kind: ItemKind", title, year, tmdb_id
+    let mut stored = sqlx::query!(
+        r#"SELECT id AS "id!", kind AS "kind: ItemKind", title, year, tmdb_id, season, episode
            FROM library_items WHERE file_id = ? ORDER BY id"#,
         file
     )
     .fetch_all(&mut *conn)
     .await?;
-    let mut events = Vec::new();
-    for (old, item) in stored.iter().zip(&items) {
+    let mut unpaired = Vec::new();
+    for item in items {
         let new = ItemRow::from(item);
-        sqlx::query!(
-            "UPDATE library_items SET kind = ?, title = ?, year = ?, tmdb_id = ?, season = ?,
-                                      episode = ?
-             WHERE id = ?",
-            new.kind,
-            new.title,
-            new.year,
-            new.tmdb_id,
-            new.season,
-            new.episode,
-            old.id,
-        )
-        .execute(&mut *conn)
-        .await?;
-        // A pin is keyed by name, so a new name would lose it. The old pin stays for any Item
-        // still named the old way; a name that is already pinned keeps its own pin.
-        sqlx::query!(
-            "INSERT OR IGNORE INTO match_pins (
-                 library_id, kind, title, year, tmdb_id,
-                 pinned_tmdb_id, pinned_imdb_id, pinned_tvdb_id, pinned_at)
-             SELECT library_id, kind, ?, ?, ?,
-                    pinned_tmdb_id, pinned_imdb_id, pinned_tvdb_id, pinned_at
-             FROM match_pins
-             WHERE library_id = ? AND kind = ? AND title = ? AND year IS ? AND tmdb_id IS ?",
-            new.title,
-            new.year,
-            new.tmdb_id,
-            library,
-            old.kind,
-            old.title,
-            old.year,
-            old.tmdb_id,
-        )
-        .execute(&mut *conn)
-        .await?;
+        let paired = stored
+            .iter()
+            .position(|old| (old.season, old.episode) == (new.season, new.episode));
+        let Some(old) = paired.map(|at| stored.swap_remove(at)) else {
+            unpaired.push(item.clone());
+            continue;
+        };
+        let old_row = ItemRow {
+            kind: old.kind,
+            title: Cow::Owned(old.title),
+            year: old.year,
+            tmdb_id: old.tmdb_id,
+            season: old.season,
+            episode: old.episode,
+        };
+        rename_item(conn, library, old.id, &old_row, &new).await?;
     }
-    for gone in stored.iter().skip(items.len()) {
+    let mut events = Vec::new();
+    for gone in stored {
         sqlx::query!("DELETE FROM library_items WHERE id = ?", gone.id)
             .execute(&mut *conn)
             .await?;
         events.push(item_removed(library, gone.id));
     }
-    let added = insert_items(conn, file, items.get(stored.len()..).unwrap_or_default()).await?;
+    let added = insert_items(conn, file, &unpaired).await?;
     events.extend(
         added
             .into_iter()
-            .map(|item| item_added(library, item, path.clone())),
+            .map(|item| item_added(library, item, path.to_owned())),
     );
     sqlx::query!(
         "DELETE FROM item_matches
@@ -943,6 +925,52 @@ async fn reparse(
     .execute(&mut *conn)
     .await?;
     Ok(events)
+}
+
+/// Stores `new` as what the Item `id` holds, and gives its name any pin `old`'s name had.
+async fn rename_item(
+    conn: &mut SqliteConnection,
+    library: i64,
+    id: i64,
+    old: &ItemRow<'_>,
+    new: &ItemRow<'_>,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        "UPDATE library_items SET kind = ?, title = ?, year = ?, tmdb_id = ?, season = ?,
+                                  episode = ?
+         WHERE id = ?",
+        new.kind,
+        new.title,
+        new.year,
+        new.tmdb_id,
+        new.season,
+        new.episode,
+        id,
+    )
+    .execute(&mut *conn)
+    .await?;
+    // A pin is keyed by name, so a new name would lose it. The old pin stays for any Item
+    // still named the old way; a name that is already pinned keeps its own pin.
+    sqlx::query!(
+        "INSERT OR IGNORE INTO match_pins (
+             library_id, kind, title, year, tmdb_id,
+             pinned_tmdb_id, pinned_imdb_id, pinned_tvdb_id, pinned_at)
+         SELECT library_id, kind, ?, ?, ?,
+                pinned_tmdb_id, pinned_imdb_id, pinned_tvdb_id, pinned_at
+         FROM match_pins
+         WHERE library_id = ? AND kind = ? AND title = ? AND year IS ? AND tmdb_id IS ?",
+        new.title,
+        new.year,
+        new.tmdb_id,
+        library,
+        old.kind,
+        old.title,
+        old.year,
+        old.tmdb_id,
+    )
+    .execute(conn)
+    .await?;
+    Ok(())
 }
 
 fn item_added(library: i64, item: i64, path: String) -> Event {
@@ -1596,7 +1624,7 @@ mod tests {
                 .unwrap();
         }
 
-        // A newer parser reads an ID hint the old one missed.
+        // A newer parser reads an ID Hint the old one missed.
         let hinted = |title: &str, year, tmdb_id| Item::Movie {
             title: title.to_owned(),
             year: Some(year),
@@ -1658,6 +1686,35 @@ mod tests {
             [&movie("Alien", 1979), &movie("Aliens", 1986)]
         );
         assert_eq!(fx.items(heat).await, []);
+    }
+
+    #[tokio::test]
+    async fn a_reparse_keeps_each_episode_on_the_item_with_its_numbers() {
+        let fx = Fixture::new().await;
+        let dark = "/media/Dark (2017)/Season 01/Dark (2017) - S01E01-E02.mkv";
+        let episode = |number| Item::Episode {
+            show: "Dark".to_owned(),
+            year: Some(2017),
+            tmdb_id: None,
+            season: 1,
+            episode: number,
+        };
+        // The older parser read only the second Episode.
+        fx.store(dark, 10, episode(2)).await;
+        let second = fx.item(dark).await;
+
+        let file = fx.contents.stored(fx.library).await.unwrap()[dark].id;
+        let reparse = Change::Reparse {
+            file,
+            path: dark.to_owned(),
+            items: vec![episode(1), episode(2)],
+        };
+        fx.contents.apply(fx.library, vec![reparse]).await.unwrap();
+
+        let items = fx.items(dark).await;
+        let second_now = items.iter().find(|stored| stored.item == episode(2));
+        assert_eq!(second_now.map(|stored| stored.id), Some(second));
+        assert_eq!(items.len(), 2);
     }
 
     #[tokio::test]

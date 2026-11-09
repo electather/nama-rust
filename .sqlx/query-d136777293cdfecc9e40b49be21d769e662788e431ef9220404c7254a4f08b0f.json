@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id AS \"id!\", kind AS \"kind: ItemKind\", title, year, tmdb_id\n           FROM library_items WHERE file_id = ? ORDER BY id",
+  "query": "SELECT id AS \"id!\", kind AS \"kind: ItemKind\", title, year, tmdb_id, season, episode\n           FROM library_items WHERE file_id = ? ORDER BY id",
   "describe": {
     "columns": [
       {
@@ -57,6 +57,28 @@
             "name": "tmdb_id"
           }
         }
+      },
+      {
+        "name": "season",
+        "ordinal": 5,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_items",
+            "name": "season"
+          }
+        }
+      },
+      {
+        "name": "episode",
+        "ordinal": 6,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_items",
+            "name": "episode"
+          }
+        }
       }
     ],
     "parameters": {
@@ -67,8 +89,10 @@
       false,
       false,
       true,
+      true,
+      true,
       true
     ]
   },
-  "hash": "b2c7674fdb8762d5523daeb526ad788bc347b14e29b6b2db928511e6f10dc4c9"
+  "hash": "d136777293cdfecc9e40b49be21d769e662788e431ef9220404c7254a4f08b0f"
 }
