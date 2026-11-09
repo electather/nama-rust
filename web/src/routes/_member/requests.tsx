@@ -186,10 +186,17 @@ function titleOf(request: Request | FollowedShow) {
   return season ? seasonName(season.seasonNumber) : movie?.title;
 }
 
-/** What the row says under its title: the year a Request's title came out, and who asked. */
+/**
+ * What the row says under its title: the year a Request's title came out, its Quality, and who
+ * asked.
+ */
 function aboutRequest(request: Request | FollowedShow, you: bigint | undefined) {
-  const released = request.$typeName === "nama.v1.FollowedShow" ? undefined : releasedOf(request);
-  return metadataLine(yearOf(released), requestedBy(request, you));
+  if (request.$typeName === "nama.v1.FollowedShow") return requestedBy(request, you);
+  return metadataLine(
+    yearOf(releasedOf(request)),
+    request.quality?.name,
+    requestedBy(request, you),
+  );
 }
 
 /** When a Request's Movie came out, or its Season first aired. */

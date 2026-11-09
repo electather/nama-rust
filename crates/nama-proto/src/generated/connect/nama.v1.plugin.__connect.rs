@@ -46,6 +46,22 @@ pub type OwnedDisablePluginRequestView = ::buffa::view::OwnedView<
 pub type OwnedDisablePluginResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::DisablePluginResponseView<'static>,
 >;
+///Shorthand for `OwnedView<ListQualitiesRequestView<'static>>`.
+pub type OwnedListQualitiesRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ListQualitiesRequestView<'static>,
+>;
+///Shorthand for `OwnedView<ListQualitiesResponseView<'static>>`.
+pub type OwnedListQualitiesResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ListQualitiesResponseView<'static>,
+>;
+///Shorthand for `OwnedView<ReplaceQualitiesRequestView<'static>>`.
+pub type OwnedReplaceQualitiesRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ReplaceQualitiesRequestView<'static>,
+>;
+///Shorthand for `OwnedView<ReplaceQualitiesResponseView<'static>>`.
+pub type OwnedReplaceQualitiesResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ReplaceQualitiesResponseView<'static>,
+>;
 impl ::connectrpc::Encodable<crate::messages::nama::v1::ListPluginsResponse>
 for crate::messages::nama::v1::__buffa::view::ListPluginsResponseView<'_> {
     fn encode(
@@ -250,6 +266,74 @@ for ::buffa::view::OwnedView<
         )
     }
 }
+impl ::connectrpc::Encodable<crate::messages::nama::v1::ListQualitiesResponse>
+for crate::messages::nama::v1::__buffa::view::ListQualitiesResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::ListQualitiesResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ListQualitiesResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::ReplaceQualitiesResponse>
+for crate::messages::nama::v1::__buffa::view::ReplaceQualitiesResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::ReplaceQualitiesResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ReplaceQualitiesResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
 /// Full service name for this service.
 pub const PLUGIN_SERVICE_SERVICE_NAME: &str = "nama.v1.PluginService";
 /// Static [`Spec`](::connectrpc::Spec) for the `ListPlugins` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
@@ -285,6 +369,18 @@ pub const PLUGIN_SERVICE_TEST_PLUGIN_SETTINGS_SPEC: ::connectrpc::Spec = ::conne
 /// Static [`Spec`](::connectrpc::Spec) for the `DisablePlugin` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
 pub const PLUGIN_SERVICE_DISABLE_PLUGIN_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
         "/nama.v1.PluginService/DisablePlugin",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
+/// Static [`Spec`](::connectrpc::Spec) for the `ListQualities` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const PLUGIN_SERVICE_LIST_QUALITIES_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.PluginService/ListQualities",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
+/// Static [`Spec`](::connectrpc::Spec) for the `ReplaceQualities` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const PLUGIN_SERVICE_REPLACE_QUALITIES_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.PluginService/ReplaceQualities",
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
@@ -498,6 +594,61 @@ pub trait PluginService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
+    /// Returns a Fulfiller's Qualities (ADR 0025), in the order an admin listed them. Empty until an
+    /// admin lists some, which leaves the Plugin's own `quality_profile` setting in use. Fails with
+    /// `not_found` for an unknown Plugin.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn list_qualities<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::ListQualitiesRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::ListQualitiesResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Replaces a Fulfiller's Qualities. A list with any Qualities needs exactly one default, else
+    /// it is refused with `REFUSAL_REASON_DEFAULT_QUALITY_REQUIRED`; a blank name or profile with
+    /// `REFUSAL_REASON_FIELD_REQUIRED`; and a profile or name (ignoring case) given twice with
+    /// `REFUSAL_REASON_QUALITY_REPEATED`. The Plugin's settings check then runs on its stored
+    /// settings: a check that fails is refused with `REFUSAL_REASON_SETTINGS_CHECK_FAILED`, and a
+    /// profile it doesn't offer for `quality_profile` with `REFUSAL_REASON_CHOICE_NOT_OFFERED`. Each
+    /// refusal names the field, such as `qualities[1].profile_id`, and nothing changes. Clearing the
+    /// list runs no check. Fails with `not_found` for an unknown Plugin.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn replace_qualities<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::ReplaceQualitiesRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::ReplaceQualitiesResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
 }
 /// Extension trait for registering a service implementation with a Router.
 ///
@@ -704,6 +855,64 @@ impl<S: PluginService> PluginServiceExt for S {
                 },
             )
             .with_spec(PLUGIN_SERVICE_DISABLE_PLUGIN_SPEC)
+            .route_view_idempotent(
+                PLUGIN_SERVICE_SERVICE_NAME,
+                "ListQualities",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::ListQualitiesRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::ListQualitiesRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.list_qualities(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::ListQualitiesResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(PLUGIN_SERVICE_LIST_QUALITIES_SPEC)
+            .route_view(
+                PLUGIN_SERVICE_SERVICE_NAME,
+                "ReplaceQualities",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::ReplaceQualitiesRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::ReplaceQualitiesRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.replace_qualities(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::ReplaceQualitiesResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(PLUGIN_SERVICE_REPLACE_QUALITIES_SPEC)
     }
 }
 /// Type-inference marker used by [`Router::add_service`](::connectrpc::Router::add_service).
@@ -792,6 +1001,18 @@ impl<T: PluginService> ::connectrpc::Dispatcher for PluginServiceServer<T> {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
                         .with_spec(PLUGIN_SERVICE_DISABLE_PLUGIN_SPEC),
+                )
+            }
+            "ListQualities" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
+                        .with_spec(PLUGIN_SERVICE_LIST_QUALITIES_SPEC),
+                )
+            }
+            "ReplaceQualities" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(PLUGIN_SERVICE_REPLACE_QUALITIES_SPEC),
                 )
             }
             _ => None,
@@ -934,6 +1155,50 @@ impl<T: PluginService> ::connectrpc::Dispatcher for PluginServiceServer<T> {
                         .await?
                         .encode::<
                             crate::messages::nama::v1::DisablePluginResponse,
+                        >(format)
+                })
+            }
+            "ListQualities" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::ListQualitiesRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::ListQualitiesRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::ListQualitiesRequest,
+                    >::from_parts(&req, &body);
+                    svc.list_qualities(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::ListQualitiesResponse,
+                        >(format)
+                })
+            }
+            "ReplaceQualities" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::ReplaceQualitiesRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::ReplaceQualitiesRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::ReplaceQualitiesRequest,
+                    >::from_parts(&req, &body);
+                    svc.replace_qualities(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::ReplaceQualitiesResponse,
                         >(format)
                 })
             }
@@ -1325,6 +1590,96 @@ where
                 &self.transport,
                 &self.config,
                 PLUGIN_SERVICE_DISABLE_PLUGIN_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the ListQualities RPC. Sends a request to /nama.v1.PluginService/ListQualities.
+    pub async fn list_qualities(
+        &self,
+        request: crate::messages::nama::v1::ListQualitiesRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::ListQualitiesResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.list_qualities_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the ListQualities RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn list_qualities_with_options(
+        &self,
+        request: crate::messages::nama::v1::ListQualitiesRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::ListQualitiesResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                PLUGIN_SERVICE_LIST_QUALITIES_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the ReplaceQualities RPC. Sends a request to /nama.v1.PluginService/ReplaceQualities.
+    pub async fn replace_qualities(
+        &self,
+        request: crate::messages::nama::v1::ReplaceQualitiesRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::ReplaceQualitiesResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.replace_qualities_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the ReplaceQualities RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn replace_qualities_with_options(
+        &self,
+        request: crate::messages::nama::v1::ReplaceQualitiesRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::ReplaceQualitiesResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                PLUGIN_SERVICE_REPLACE_QUALITIES_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,

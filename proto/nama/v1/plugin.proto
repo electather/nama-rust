@@ -50,6 +50,23 @@ service PluginService {
   rpc DisablePlugin(DisablePluginRequest) returns (DisablePluginResponse) {
     option idempotency_level = IDEMPOTENT;
   }
+  // Returns a Fulfiller's Qualities (ADR 0025), in the order an admin listed them. Empty until an
+  // admin lists some, which leaves the Plugin's own `quality_profile` setting in use. Fails with
+  // `not_found` for an unknown Plugin.
+  rpc ListQualities(ListQualitiesRequest) returns (ListQualitiesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Replaces a Fulfiller's Qualities. A list with any Qualities needs exactly one default, else
+  // it is refused with `REFUSAL_REASON_DEFAULT_QUALITY_REQUIRED`; a blank name or profile with
+  // `REFUSAL_REASON_FIELD_REQUIRED`; and a profile or name (ignoring case) given twice with
+  // `REFUSAL_REASON_QUALITY_REPEATED`. The Plugin's settings check then runs on its stored
+  // settings: a check that fails is refused with `REFUSAL_REASON_SETTINGS_CHECK_FAILED`, and a
+  // profile it doesn't offer for `quality_profile` with `REFUSAL_REASON_CHOICE_NOT_OFFERED`. Each
+  // refusal names the field, such as `qualities[1].profile_id`, and nothing changes. Clearing the
+  // list runs no check. Fails with `not_found` for an unknown Plugin.
+  rpc ReplaceQualities(ReplaceQualitiesRequest) returns (ReplaceQualitiesResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
 }
 
 message ListPluginsRequest {}
@@ -122,6 +139,44 @@ message DisablePluginRequest {
 }
 
 message DisablePluginResponse {}
+
+// One way a Fulfiller's service may download a title, as an admin offers it to Requesters: one of
+// the service's quality profiles under a friendly name (ADR 0025).
+message Quality {
+  // Its stable id. Zero for a new one in `ReplaceQualitiesRequest`, which gives it one.
+  int64 id = 1;
+  // The service's quality profile, as a choice the Plugin's settings check offers for its
+  // `quality_profile` setting, such as Radarr's profile id.
+  string profile_id = 2;
+  // What Requesters know it by, such as `HD`. Unique within the list, ignoring case.
+  string name = 3;
+  // What choosing it means, such as `About 50 GB per film`. Empty for none.
+  string description = 4;
+  // Whether a new Request gets it. Exactly one Quality in a list is the default.
+  bool is_default = 5;
+}
+
+message ListQualitiesRequest {
+  // The Fulfiller's Plugin id, such as `radarr`.
+  string id = 1;
+}
+
+message ListQualitiesResponse {
+  repeated Quality qualities = 1;
+}
+
+message ReplaceQualitiesRequest {
+  // The Fulfiller's Plugin id, such as `radarr`.
+  string id = 1;
+  // The new list, in order. A Quality keeps its `id` if it is on the list now; any other id gets
+  // a new one.
+  repeated Quality qualities = 2;
+}
+
+message ReplaceQualitiesResponse {
+  // The list as saved, with each Quality's id.
+  repeated Quality qualities = 1;
+}
 
 // Where a Plugin comes from.
 enum PluginKind {

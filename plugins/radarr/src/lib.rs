@@ -103,9 +103,7 @@ mod exports {
             let movie = NewMovie {
                 tmdb_id: request.movie.tmdb_id,
                 title: request.movie.title.clone(),
-                quality_profile_id: setting(QUALITY_PROFILE)?
-                    .parse()
-                    .map_err(|err| Error::msg(format!("the quality profile isn't an id: {err}")))?,
+                quality_profile_id: quality_profile(&request)?,
                 root_folder_path: setting(ROOT_FOLDER)?,
                 monitored: true,
                 minimum_availability: "released",
@@ -182,6 +180,17 @@ mod exports {
     fn send<T: ToMemory>(request: &HttpRequest, body: Option<T>) -> Result<HttpResponse, Error> {
         // Not naming the URL: a Request's reason reaches every Requester.
         nama_pdk::http_request(request, body, "Radarr didn't answer")
+    }
+
+    /// The Radarr profile id `request` is to be added with: its Quality's, else the setting's.
+    fn quality_profile(request: &Request) -> Result<i64, Error> {
+        let profile = match request.quality.as_option() {
+            Some(quality) => quality.profile_id.clone(),
+            None => setting(QUALITY_PROFILE)?,
+        };
+        profile
+            .parse()
+            .map_err(|err| Error::msg(format!("the quality profile isn't an id: {err}")))
     }
 
     /// The setting `key`, which the Server sets before every call but a settings check, and for
