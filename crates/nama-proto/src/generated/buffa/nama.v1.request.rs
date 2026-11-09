@@ -2738,13 +2738,22 @@ pub const __CREATE_SEASON_REQUESTS_RESPONSE_JSON_ANY: ::buffa::type_registry::Js
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct ListRequestsRequest {
+    /// The state to list Requests and Followed Shows in. Unspecified lists every state.
+    ///
+    /// Field 1: `state`
+    #[serde(
+        rename = "state",
+        with = "::buffa::json_helpers::proto_enum",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_default_enum_value"
+    )]
+    pub state: ::buffa::EnumValue<RequestState>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
 impl ::core::fmt::Debug for ListRequestsRequest {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("ListRequestsRequest").finish()
+        f.debug_struct("ListRequestsRequest").field("state", &self.state).finish()
     }
 }
 impl ListRequestsRequest {
@@ -2774,6 +2783,12 @@ impl ::buffa::Message for ListRequestsRequest {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
+        {
+            let val = self.state.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -2784,6 +2799,12 @@ impl ::buffa::Message for ListRequestsRequest {
     ) {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
+        {
+            let val = self.state.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(1u32, val, buf);
+            }
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
     fn merge_field(
@@ -2797,6 +2818,15 @@ impl ::buffa::Message for ListRequestsRequest {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.state = ::buffa::EnumValue::from(
+                    ::buffa::types::decode_int32(buf)?,
+                );
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -2805,6 +2835,7 @@ impl ::buffa::Message for ListRequestsRequest {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
+        self.state = ::buffa::EnumValue::from(0);
         self.__buffa_unknown_fields.clear();
     }
 }

@@ -59,15 +59,15 @@ use nama_proto::nama::v1::{
     LookUpSignInCodeResponse, MatchService, Permission, PluginConnection, PluginConnectionState,
     PluginKind, PluginService, PollSignInCodeRequest, PollSignInCodeResponse,
     ReauthenticateRequest, ReauthenticateResponse, Refusal, RefusalReason, ReportProgressRequest,
-    ReportProgressResponse, RequestService, ResetPasswordRequest, ResetPasswordResponse,
-    RetryRequestRequest, RetryRequestResponse, RevokeDeviceRequest, RevokeDeviceResponse,
-    ScanLibraryRequest, ScanLibraryResponse, SearchMetadataRequest, SearchMetadataResponse,
-    SearchMoviesRequest, SearchMoviesResponse, SearchShowsRequest, SearchShowsResponse,
-    ServerService, ServerSettings, SessionDelivery, SetDefaultPermissionsRequest,
-    SetDefaultPermissionsResponse, SetMatchRequest, SetMatchResponse, SetPermissionsRequest,
-    SetPermissionsResponse, SetPlayedRequest, SetPlayedResponse, SetupRequest, SetupResponse,
-    SignInCodeStatus, SignInRequest, SignInResponse, SignInService, SignOutRequest,
-    SignOutResponse, StartPluginConnectionRequest, StartPluginConnectionResponse,
+    ReportProgressResponse, RequestService, RequestState, ResetPasswordRequest,
+    ResetPasswordResponse, RetryRequestRequest, RetryRequestResponse, RevokeDeviceRequest,
+    RevokeDeviceResponse, ScanLibraryRequest, ScanLibraryResponse, SearchMetadataRequest,
+    SearchMetadataResponse, SearchMoviesRequest, SearchMoviesResponse, SearchShowsRequest,
+    SearchShowsResponse, ServerService, ServerSettings, SessionDelivery,
+    SetDefaultPermissionsRequest, SetDefaultPermissionsResponse, SetMatchRequest, SetMatchResponse,
+    SetPermissionsRequest, SetPermissionsResponse, SetPlayedRequest, SetPlayedResponse,
+    SetupRequest, SetupResponse, SignInCodeStatus, SignInRequest, SignInResponse, SignInService,
+    SignOutRequest, SignOutResponse, StartPluginConnectionRequest, StartPluginConnectionResponse,
     StartSignInCodeRequest, StartSignInCodeResponse, SubscribeRequest, SubscribeResponse,
     TestPluginSettingsRequest, TestPluginSettingsResponse, UpdateLibraryRequest,
     UpdateLibraryResponse, UpdatePluginSettingsRequest, UpdatePluginSettingsResponse,
@@ -1515,11 +1515,19 @@ impl RequestService for RequestServiceHandler {
     async fn list_requests(
         &self,
         ctx: RequestContext,
-        _request: ServiceRequest<'_, ListRequestsRequest>,
+        request: ServiceRequest<'_, ListRequestsRequest>,
     ) -> ServiceResult<ListRequestsResponse> {
         let viewer = &caller(&ctx)?.user;
-        let (requests, followed_shows) =
-            self.requests.list(viewer).await.map_err(database_failed)?;
+        // Unspecified, or a state this Server doesn't know, lists every state.
+        let state = request
+            .state
+            .as_known()
+            .filter(|&state| state != RequestState::Unspecified);
+        let (requests, followed_shows) = self
+            .requests
+            .list(viewer, state)
+            .await
+            .map_err(database_failed)?;
         Response::ok(ListRequestsResponse {
             requests,
             followed_shows,

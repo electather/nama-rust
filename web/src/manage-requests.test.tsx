@@ -59,7 +59,11 @@ function managedServer(permissions: Permission[], ...requests: Request[]) {
   };
   return fakeServer({ signedIn: permissions }, {}, {}, (router) => {
     router.service(RequestService, {
-      listRequests: () => ({ requests: [...held.values()] }),
+      listRequests: ({ state }) => ({
+        requests: [...held.values()].filter(
+          (request) => state === RequestState.UNSPECIFIED || request.state === state,
+        ),
+      }),
       approveRequest: ({ id }) => decide(id, RequestState.APPROVED),
       declineRequest: ({ id, reason }) => decide(id, RequestState.DECLINED, reason),
       cancelRequest: ({ id }) => {
@@ -98,6 +102,18 @@ test("approving a Pending Request shows it Approved", async () => {
 
   expect(await screen.findByText("Approved")).toBeDefined();
   expect(screen.queryByRole("button", { name: "Approve Heat" })).toBeNull();
+});
+
+test("approving a Request while showing Pending ones takes it off the list", async () => {
+  openApp(
+    "/requests?state=pending",
+    managedServer(admin, create(RequestSchema, heat), create(RequestSchema, dune)),
+  );
+
+  fireEvent.click(await screen.findByRole("button", { name: "Approve Heat" }));
+
+  expect(await screen.findByText("No Pending Requests.")).toBeDefined();
+  expect(screen.queryByText("Dune")).toBeNull();
 });
 
 test("a Season Request's actions name its Show and Season", async () => {

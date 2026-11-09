@@ -1003,7 +1003,9 @@ pub trait RequestService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
-    /// Lists the Requests and Followed Shows the caller may see, newest first.
+    /// Lists the Requests and Followed Shows the caller may see, newest first: only those in `state`
+    /// if one is given. Each is filtered on its own, so a Season Request can be listed without its
+    /// Followed Show.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///

@@ -821,14 +821,22 @@ impl Requests {
         Ok(())
     }
 
-    /// The Requests and Followed Shows `viewer` may see, each newest first.
+    /// The Requests and Followed Shows `viewer` may see, each newest first: only those in `state`
+    /// if given, each matched on its own.
     pub(crate) async fn list(
         &self,
         viewer: &User,
+        state: Option<RequestState>,
     ) -> Result<(Vec<Request>, Vec<FollowedShow>), sqlx::Error> {
         let mut conn = self.db.reader().acquire().await?;
-        let requests = load(&mut conn, None, visible_to(viewer)).await?;
-        let followed = load_followed(&mut conn, None, visible_to(viewer)).await?;
+        let mut requests = load(&mut conn, None, visible_to(viewer)).await?;
+        let mut followed = load_followed(&mut conn, None, visible_to(viewer)).await?;
+        if let Some(state) = state {
+            // ponytail: filters after loading every row, as `load` already does; move it into the
+            // queries when the list is paged.
+            requests.retain(|request| request.state == state);
+            followed.retain(|followed| followed.state == state);
+        }
         let requests = requests
             .into_iter()
             .map(|request| self.with_progress(request))

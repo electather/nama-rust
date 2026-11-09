@@ -484,17 +484,8 @@ fn season_of(request: &Request) -> Option<(&str, u32)> {
     Some((season.show_title.as_str(), season.season_number))
 }
 
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
 async fn list(client: &RequestServiceClient<HttpClient>) -> Vec<Request> {
-    client
-        .list_requests(ListRequestsRequest::default())
-        .await
-        .unwrap()
-        .into_owned()
-        .requests
+    list_in(client, RequestState::Unspecified).await.0
 }
 
 #[expect(
@@ -683,6 +674,148 @@ async fn without_view_requests_a_user_lists_and_gets_only_their_own_requests() {
         [shared, adas],
         "newest first"
     );
+}
+
+/// Every state a Request or Followed Show can be listed in.
+const STATES: [RequestState; 7] = [
+    RequestState::Pending,
+    RequestState::Approved,
+    RequestState::Declined,
+    RequestState::Processing,
+    RequestState::PartiallyAvailable,
+    RequestState::Available,
+    RequestState::Failed,
+];
+
+/// The Requests and Followed Shows in `state` the caller of `client` may see, or all of them for
+/// `RequestState::Unspecified`.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn list_in(
+    client: &RequestServiceClient<HttpClient>,
+    state: RequestState,
+) -> (Vec<Request>, Vec<FollowedShow>) {
+    let listed = client
+        .list_requests(ListRequestsRequest {
+            state: state.into(),
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_owned();
+    (listed.requests, listed.followed_shows)
+}
+
+#[tokio::test]
+async fn listing_by_a_state_gives_only_the_requests_and_followed_shows_in_it_and_no_state_gives_all()
+ {
+    let fulfiller = FakeFulfiller::refusing();
+    let fixture = Fixture::with_fulfiller(&fulfiller).await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let ada = requests(as_ada);
+    ask(&ada, ALIEN).await;
+    let _media = fixture.library_with_alien().await;
+    fixture.approve(ask(&ada, DUNE).await.id).await;
+    decline(&fixture, ask(&ada, HEAT).await.id, "").await;
+    let (_, seasons) = follow(&ada, DARK).await;
+    fixture.approve(seasons[0].id).await;
+
+    let (all_requests, all_followed) = list_in(&ada, RequestState::Unspecified).await;
+    let mut by_state = Vec::new();
+    for state in STATES {
+        by_state.push((state, list_in(&ada, state).await));
+    }
+
+    assert_eq!(all_requests, list(&ada).await, "no state lists everything");
+    assert_eq!(all_followed.len(), 1);
+    for (state, (requests, followed)) in by_state {
+        let in_state = |row_state| row_state == state;
+        let want: Vec<_> = all_requests
+            .iter()
+            .filter(|r| in_state(r.state.as_known().unwrap_or_default()))
+            .cloned()
+            .collect();
+        let want_followed: Vec<_> = all_followed
+            .iter()
+            .filter(|f| in_state(f.state.as_known().unwrap_or_default()))
+            .cloned()
+            .collect();
+        assert_eq!(requests, want, "Requests {state:?}");
+        assert_eq!(followed, want_followed, "Followed Shows {state:?}");
+    }
+    let mut seen: Vec<_> = states(&all_requests).into_iter().map(|(_, s)| s).collect();
+    seen.dedup();
+    assert_eq!(
+        seen,
+        [
+            RequestState::Pending,
+            RequestState::Approved,
+            RequestState::Declined,
+            RequestState::Failed,
+            RequestState::Available
+        ],
+        "newest first, in several states"
+    );
+}
+
+#[tokio::test]
+async fn without_view_requests_a_user_lists_only_their_own_requests_in_every_state() {
+    let fixture = Fixture::start().await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let (_, as_grace) = fixture
+        .user("Grace", &[Permission::RequestMovie, Permission::RequestTv])
+        .await;
+    let ada = requests(as_ada);
+    let grace = requests(as_grace);
+    ask(&ada, HEAT).await;
+    follow(&ada, DARK).await;
+    let graces = ask(&grace, DUNE).await;
+    let graces_declined = decline(&fixture, ask(&grace, ALIEN).await.id, "").await;
+
+    let mut listed = Vec::new();
+    for state in STATES {
+        listed.push((state, list_in(&grace, state).await));
+    }
+
+    for (state, (requests, followed)) in listed {
+        let want = if state == RequestState::Pending {
+            std::slice::from_ref(&graces)
+        } else if state == RequestState::Declined {
+            std::slice::from_ref(&graces_declined)
+        } else {
+            &[]
+        };
+        assert_eq!(requests, want, "{state:?}");
+        assert_eq!(followed, [], "{state:?}");
+    }
+}
+
+#[tokio::test]
+async fn a_failed_season_request_lists_under_failed_without_its_approved_followed_show() {
+    let fulfiller = FakeFulfiller::refusing();
+    let fixture = Fixture::with_shows_fulfiller(&fulfiller).await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let ada = requests(as_ada);
+    let (followed, asked) = follow(&ada, DARK).await;
+    let approved = approve_followed(&fixture, followed.id).await.unwrap();
+
+    let (failed, followed_failed) = list_in(&ada, RequestState::Failed).await;
+    let (_, followed_approved) = list_in(&ada, RequestState::Approved).await;
+
+    let newest_first = asked.iter().rev();
+    let every_season_failed: Vec<_> = newest_first
+        .map(|request| (request.id, RequestState::Failed))
+        .collect();
+    assert_eq!(states(&failed), every_season_failed);
+    assert!(
+        failed
+            .iter()
+            .all(|request| request.followed_show_id == Some(followed.id))
+    );
+    assert_eq!(followed_failed, []);
+    assert_eq!(followed_approved, [approved]);
 }
 
 #[tokio::test]
@@ -2640,17 +2773,8 @@ async fn approve_followed(fixture: &Fixture, id: i64) -> Result<FollowedShow, Co
 }
 
 /// The Followed Shows the caller of `client` may see.
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
 async fn list_followed(client: &RequestServiceClient<HttpClient>) -> Vec<FollowedShow> {
-    client
-        .list_requests(ListRequestsRequest::default())
-        .await
-        .unwrap()
-        .into_owned()
-        .followed_shows
+    list_in(client, RequestState::Unspecified).await.1
 }
 
 /// The Seasons of Dark the caller of `client` has Requests for, in Season order.

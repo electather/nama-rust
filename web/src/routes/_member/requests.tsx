@@ -4,18 +4,34 @@ import { createFileRoute } from "@tanstack/react-router";
 import { FindATitle, type Searchable, TitlesFound } from "@/components/find-a-title";
 import { Page } from "@/components/page";
 import { RequestActions } from "@/components/request-actions";
-import { RequestProgress, RequestStateLabel } from "@/components/request-state";
+import {
+  RequestProgress,
+  RequestStateLabel,
+  type StateFilter,
+  StateFilterMenu,
+  filterName,
+  isStateFilter,
+  listedIn,
+} from "@/components/request-state-filter";
 import { type FollowedShow, type Request, RequestService } from "@/gen/nama/v1/request_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { metadataLine, seasonName, yearOf } from "@/lib/browse";
 import { may } from "@/lib/permissions";
 
 export const Route = createFileRoute("/_member/requests")({
-  validateSearch: (search: Record<string, unknown>): { title?: string } =>
-    typeof search["title"] === "string" && search["title"] !== "" ? { title: search["title"] } : {},
-  loader: ({ context: { queryClient, transport } }) =>
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { title?: string; state?: StateFilter | undefined } => ({
+    ...(typeof search["title"] === "string" && search["title"] !== ""
+      ? { title: search["title"] }
+      : {}),
+    // Set even when unknown: the router keeps the raw value under any key this leaves out.
+    state: isStateFilter(search["state"]) ? search["state"] : undefined,
+  }),
+  loaderDeps: ({ search: { state } }) => ({ state }),
+  loader: ({ context: { queryClient, transport }, deps: { state } }) =>
     queryClient.query({
-      ...createQueryOptions(RequestService.method.listRequests, {}, { transport }),
+      ...createQueryOptions(RequestService.method.listRequests, listedIn(state), { transport }),
       staleTime: "static",
     }),
   component: Requests,
@@ -61,20 +77,34 @@ function FindOrList({
   );
 }
 
+/** The Requests and Followed Shows in the state the URL names, under the filter that chooses it. */
 function RequestList() {
-  const { data } = useSuspenseQuery(RequestService.method.listRequests, {});
-  return data.requests.length + data.followedShows.length === 0 ? (
-    <p className="mt-8 text-muted-foreground">No Requests yet.</p>
-  ) : (
-    <ul className="mt-8 flex max-w-2xl flex-col">
-      {groupShows(data.requests, data.followedShows).map((entry) =>
-        "seasons" in entry ? (
-          <ShowRequests key={`show-${entry.showTmdbId}`} {...entry} />
-        ) : (
-          <RequestRow key={String(entry.id)} request={entry} />
-        ),
+  const { state: filter = "all" } = Route.useSearch();
+  const { data } = useSuspenseQuery(RequestService.method.listRequests, listedIn(filter));
+  const navigate = Route.useNavigate();
+  const choose = (state: StateFilter) =>
+    void navigate({ search: (search) => ({ ...search, state }) });
+  return (
+    <>
+      <div className="mt-8 -ms-4">
+        <StateFilterMenu chosen={filter} choose={choose} />
+      </div>
+      {data.requests.length + data.followedShows.length === 0 ? (
+        <p className="mt-4 text-muted-foreground">
+          {filter === "all" ? "No Requests yet." : `No ${filterName(filter)} Requests.`}
+        </p>
+      ) : (
+        <ul className="mt-4 flex max-w-2xl flex-col">
+          {groupShows(data.requests, data.followedShows).map((entry) =>
+            "seasons" in entry ? (
+              <ShowRequests key={`show-${entry.showTmdbId}`} {...entry} />
+            ) : (
+              <RequestRow key={String(entry.id)} request={entry} />
+            ),
+          )}
+        </ul>
       )}
-    </ul>
+    </>
   );
 }
 
