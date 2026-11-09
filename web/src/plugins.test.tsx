@@ -33,6 +33,12 @@ test("a Plugin's details page shows its name, its id and what it does", async ()
   expect(page.getByText("Finds Movies and Shows on TMDB.")).toBeDefined();
 });
 
+test("a Plugin's details page without a name is headed by its id", async () => {
+  openPlugin("local-auth");
+
+  expect((await plugin("local-auth")).getByText("Built-in, version 0.1.0")).toBeDefined();
+});
+
 test("each Plugin says whether it is Built-in or Installed", async () => {
   openPlugins();
 

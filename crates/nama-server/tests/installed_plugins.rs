@@ -333,6 +333,8 @@ async fn a_plugin_whose_manifest_has_no_name_or_description_still_loads_and_enab
         (listed.name.as_str(), listed.description.as_str()),
         ("", "")
     );
+    let got = started.got("test-plugin").await;
+    assert_eq!((got.name.as_str(), got.description.as_str()), ("", ""));
     started
         .client()
         .enable_plugin(enable("test-plugin"))
