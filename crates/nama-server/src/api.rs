@@ -285,6 +285,7 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::REQUEST_SERVICE_COUNT_PENDING_REQUESTS_SPEC.procedure, MANAGE_REQUESTS),
     (proto::REQUEST_SERVICE_SEARCH_MOVIES_SPEC.procedure,         REQUEST_MOVIE),
     (proto::REQUEST_SERVICE_LOOK_UP_MOVIE_SPEC.procedure,         REQUEST_MOVIE),
+    (proto::REQUEST_SERVICE_LIST_MOVIE_QUALITIES_SPEC.procedure,  REQUEST_MOVIE),
     (proto::REQUEST_SERVICE_SEARCH_SHOWS_SPEC.procedure,          REQUEST_TV),
     (proto::REQUEST_SERVICE_LOOK_UP_SHOW_SPEC.procedure,          REQUEST_TV),
     (proto::REQUEST_SERVICE_APPROVE_REQUEST_SPEC.procedure,       MANAGE_REQUESTS),
@@ -1489,7 +1490,10 @@ impl RequestService for RequestServiceHandler {
         request: ServiceRequest<'_, CreateRequestRequest>,
     ) -> ServiceResult<CreateRequestResponse> {
         let asker = &caller(&ctx)?.user;
-        let request = self.requests.create(asker, request.movie_tmdb_id).await?;
+        let request = self
+            .requests
+            .create(asker, request.movie_tmdb_id, request.quality)
+            .await?;
         Response::ok(CreateRequestResponse {
             request: request.into(),
             ..Default::default()
@@ -1579,6 +1583,22 @@ impl RequestService for RequestServiceHandler {
                 .into_iter()
                 .map(|found| self.searched_to_proto(found))
                 .collect(),
+            ..Default::default()
+        })
+    }
+
+    async fn list_movie_qualities(
+        &self,
+        _ctx: RequestContext,
+        _request: ServiceRequest<'_, proto::ListMovieQualitiesRequest>,
+    ) -> ServiceResult<proto::ListMovieQualitiesResponse> {
+        let qualities = self
+            .requests
+            .movie_qualities()
+            .await
+            .map_err(database_failed)?;
+        Response::ok(proto::ListMovieQualitiesResponse {
+            qualities,
             ..Default::default()
         })
     }
@@ -2972,14 +2992,15 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_SETTING_WRONG_KIND
         | R::REFUSAL_REASON_NOT_A_URL
         | R::REFUSAL_REASON_QUALITY_REPEATED
-        | R::REFUSAL_REASON_DEFAULT_QUALITY_REQUIRED => ErrorCode::InvalidArgument,
+        | R::REFUSAL_REASON_DEFAULT_QUALITY_REQUIRED
+        | R::REFUSAL_REASON_QUALITY_NOT_OFFERED => ErrorCode::InvalidArgument,
         R::REFUSAL_REASON_SIGN_IN_REQUIRED
         | R::REFUSAL_REASON_WRONG_NAME_OR_PASSWORD
         | R::REFUSAL_REASON_WRONG_PASSWORD
         | R::REFUSAL_REASON_SIGNED_OUT => ErrorCode::Unauthenticated,
-        R::REFUSAL_REASON_PERMISSION_REQUIRED | R::REFUSAL_REASON_WRONG_SETUP_CODE => {
-            ErrorCode::PermissionDenied
-        }
+        R::REFUSAL_REASON_PERMISSION_REQUIRED
+        | R::REFUSAL_REASON_WRONG_SETUP_CODE
+        | R::REFUSAL_REASON_QUALITY_NOT_ALLOWED => ErrorCode::PermissionDenied,
         R::REFUSAL_REASON_TOO_MANY_ATTEMPTS | R::REFUSAL_REASON_TOO_MANY_PENDING_SIGN_INS => {
             ErrorCode::ResourceExhausted
         }
@@ -3211,6 +3232,15 @@ impl From<requests::Error> for ConnectError {
                     .param("seasonNumber", &season)
             }
             requests::Error::Unavailable => refuse(R::REFUSAL_REASON_NO_METADATA_PROVIDER, message),
+            // Only `CreateRequest` names a Quality, in `quality`.
+            requests::Error::QualityNotAllowed => {
+                refuse(R::REFUSAL_REASON_QUALITY_NOT_ALLOWED, message).field("quality")
+            }
+            requests::Error::QualityNotOffered(id) => {
+                refuse(R::REFUSAL_REASON_QUALITY_NOT_OFFERED, message)
+                    .field("quality")
+                    .param("qualityId", &id)
+            }
             requests::Error::Database(err) => return database_failed(err),
         };
         refused.into()

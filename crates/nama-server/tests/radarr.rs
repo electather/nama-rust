@@ -27,11 +27,12 @@ use nama_plugin_tmdb::{
 use nama_proto::nama::v1::{
     __buffa::view::SubscribeResponseView, ApproveRequestRequest, CreateRequestRequest,
     CreateUserRequest, Download, DownloadStatus, EnablePluginRequest, EventServiceClient,
-    EventType, ListPluginsRequest, ListQualitiesRequest, PluginServiceClient, Quality,
-    RefusalReason, ReplaceQualitiesRequest, Request, RequestServiceClient, RequestState,
-    RetryRequestRequest, SessionDelivery, SignInRequest, SignInServiceClient, SubscribeRequest,
-    SubscribeResponse, TestPluginSettingsRequest, TestPluginSettingsResponse,
-    UpdatePluginSettingsRequest, event, setting_value::Value, subscribe_response,
+    EventType, ListMovieQualitiesRequest, ListPluginsRequest, ListQualitiesRequest, Permission,
+    PluginServiceClient, Quality, RefusalReason, ReplaceQualitiesRequest, Request,
+    RequestServiceClient, RequestState, RetryRequestRequest, SessionDelivery,
+    SetPermissionsRequest, SignInRequest, SignInServiceClient, SubscribeRequest, SubscribeResponse,
+    TestPluginSettingsRequest, TestPluginSettingsResponse, UpdatePluginSettingsRequest, event,
+    setting_value::Value, subscribe_response,
 };
 use nama_server::{config::Config, plugin_settings, plugins::Registry};
 use refused::assert_refused;
@@ -166,17 +167,12 @@ impl Fixture {
     /// The Movie `tmdb_id`, asked for by the new User `member` and so Pending, then Approved by
     /// the Admin, as the approval left it.
     async fn approve_movie(&self, member: &ClientConfig, tmdb_id: i64) -> Request {
-        let asked = RequestServiceClient::new(HttpClient::plaintext(), member.clone())
-            .create_request(CreateRequestRequest {
-                movie_tmdb_id: tmdb_id,
-                ..Default::default()
-            })
-            .await
-            .unwrap()
-            .into_owned()
-            .request
-            .into_option()
-            .unwrap();
+        let asked = ask(member, tmdb_id, None).await.unwrap();
+        self.approve(asked).await
+    }
+
+    /// Approves the Pending Request `asked` as the Admin, and returns it as the approval left it.
+    async fn approve(&self, asked: Request) -> Request {
         assert_eq!(asked.state, RequestState::Pending);
         let approved = self
             .requests()
@@ -259,11 +255,16 @@ impl Fixture {
     /// Creates a User with the Permissions a new User gets, signs them in, and returns client
     /// settings that call as them.
     async fn member(&self) -> ClientConfig {
+        self.member_with(None).await
+    }
+
+    /// [`Self::member`], with `permissions` the Admin gives them in place of a new User's, if any.
+    async fn member_with(&self, permissions: Option<&[Permission]>) -> ClientConfig {
         let users = nama_proto::nama::v1::UserServiceClient::new(
             HttpClient::plaintext(),
             self.server.client_config(),
         );
-        users
+        let created = users
             .create_user(CreateUserRequest {
                 name: "Ada".to_owned(),
                 password: PASSWORD.to_owned(),
@@ -271,6 +272,16 @@ impl Fixture {
             })
             .await
             .unwrap();
+        if let Some(permissions) = permissions {
+            users
+                .set_permissions(SetPermissionsRequest {
+                    user_id: created.into_owned().id,
+                    permissions: permissions.iter().map(|&p| p.into()).collect(),
+                    ..Default::default()
+                })
+                .await
+                .unwrap();
+        }
         let signed_in = SignInServiceClient::new(
             HttpClient::plaintext(),
             self.server.anonymous_client_config(),
@@ -286,6 +297,26 @@ impl Fixture {
         .unwrap();
         self.server.client_config_as(&signed_in.into_owned().token)
     }
+}
+
+/// Asks for the Movie `tmdb_id` as `member`, at the Quality `quality` if given.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn ask(
+    member: &ClientConfig,
+    tmdb_id: i64,
+    quality: Option<i64>,
+) -> Result<Request, ConnectError> {
+    let asked = RequestServiceClient::new(HttpClient::plaintext(), member.clone())
+        .create_request(CreateRequestRequest {
+            movie_tmdb_id: tmdb_id,
+            quality,
+            ..Default::default()
+        })
+        .await?;
+    Ok(asked.into_owned().request.into_option().unwrap())
 }
 
 /// A new Quality offering the Radarr profile `profile_id` as `name`.
@@ -730,4 +761,61 @@ async fn a_quality_id_given_twice_is_kept_once_and_the_other_quality_gets_a_new_
 
     assert_eq!(saved[0].id, offered[0].id);
     assert_ne!(saved[1].id, offered[0].id);
+}
+
+#[tokio::test]
+async fn a_member_given_choose_quality_picks_4k_and_radarr_adds_the_movie_at_its_profile() {
+    let fixture = Fixture::with_radarr_enabled_at(ANY).await;
+    let offered = fixture.replace_qualities(hd_and_4k()).await.unwrap();
+    let chooser = fixture
+        .member_with(Some(&[Permission::Request, Permission::ChooseQuality]))
+        .await;
+
+    let listed = RequestServiceClient::new(HttpClient::plaintext(), chooser.clone())
+        .list_movie_qualities(ListMovieQualitiesRequest::default())
+        .await
+        .unwrap();
+    let asked = ask(&chooser, HEAT, Some(offered[1].id)).await.unwrap();
+    let approved = fixture.approve(asked).await;
+
+    assert_eq!(listed.into_owned().qualities, offered);
+    assert_eq!(approved.quality.name, "4K");
+    assert_eq!(fixture.radarr.added()[0]["qualityProfileId"], json!(5));
+}
+
+#[tokio::test]
+async fn a_quality_not_on_the_list_or_with_no_list_is_refused_naming_it() {
+    let fixture = Fixture::with_radarr_enabled().await;
+    let chooser = fixture
+        .member_with(Some(&[Permission::Request, Permission::ChooseQuality]))
+        .await;
+    let without_a_list = ask(&chooser, HEAT, Some(1)).await;
+    let offered = fixture.replace_qualities(hd_and_4k()).await.unwrap();
+    let not_offered = offered.iter().map(|quality| quality.id).max().unwrap() + 1;
+
+    let off_the_list = ask(&chooser, HEAT, Some(not_offered)).await;
+
+    for refused in [without_a_list, off_the_list] {
+        let refusal = assert_refused(
+            refused,
+            ErrorCode::InvalidArgument,
+            RefusalReason::REFUSAL_REASON_QUALITY_NOT_OFFERED,
+        );
+        assert_eq!(refusal.field, "quality");
+    }
+}
+
+#[tokio::test]
+async fn a_member_without_choose_quality_naming_even_the_default_is_refused() {
+    let fixture = Fixture::with_radarr_enabled().await;
+    let offered = fixture.replace_qualities(hd_and_4k()).await.unwrap();
+
+    let refused = ask(&fixture.member().await, HEAT, Some(offered[0].id)).await;
+
+    let refusal = assert_refused(
+        refused,
+        ErrorCode::PermissionDenied,
+        RefusalReason::REFUSAL_REASON_QUALITY_NOT_ALLOWED,
+    );
+    assert_eq!(refusal.field, "quality");
 }

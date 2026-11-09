@@ -182,4 +182,10 @@ enum RefusalReason {
   REFUSAL_REASON_QUALITY_REPEATED = 54;
   // `invalid_argument`: a Fulfiller's Qualities don't mark exactly one as the default.
   REFUSAL_REASON_DEFAULT_QUALITY_REQUIRED = 55;
+  // `invalid_argument`: the Quality named isn't on the Fulfiller's list, or the Fulfiller has no
+  // list, or none is enabled. `field` is `quality`. Params: `qualityId`.
+  REFUSAL_REASON_QUALITY_NOT_OFFERED = 56;
+  // `permission_denied`: the caller named a Quality, even the default, without
+  // `PERMISSION_CHOOSE_QUALITY`. `field` is `quality`.
+  REFUSAL_REASON_QUALITY_NOT_ALLOWED = 57;
 }
