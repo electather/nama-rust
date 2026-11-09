@@ -595,7 +595,7 @@ impl Requests {
             seasons: self.seasons(tmdb_id, &show).await?,
             show_ids: show.ids,
             show_title: show.title,
-            // ponytail: a Followed Show's Seasons take no Quality yet.
+            // ponytail: a Followed Show's Seasons take no Quality until a Followed Show has one.
             quality: None,
             quality_chosen: false,
             chosen: None,
@@ -1855,8 +1855,9 @@ async fn decide(
 
 /// Changes the Request `id`'s Quality to `new_quality`, if given and not the one it has, keeping
 /// that change as its latest in place of any earlier one. For a Season Request it changes every
-/// open Season Request of its Show, so the Show keeps one Quality (ADR 0025). Once a Season was
-/// handed off, Sonarr keeps the profile it added the series with, so another Quality is refused.
+/// open Season Request of its Show not yet handed off, so the Show keeps one Quality (ADR 0025),
+/// while a handed-off one keeps what it was asked at. Once a Season was handed off, Sonarr keeps
+/// the profile it added the series with, so another Quality is refused.
 async fn change_quality(
     conn: &mut SqliteConnection,
     id: i64,
@@ -1886,7 +1887,8 @@ async fn change_quality(
              quality_changed_by = ?4, quality_changed_from = quality_name, quality_changed_at = ?5
          WHERE quality_id IS NOT ?1
            AND (id = ?6
-                OR (tmdb_id = ?7 AND season IS NOT NULL AND state NOT IN ('declined', 'available')))",
+                OR (tmdb_id = ?7 AND season IS NOT NULL AND fulfiller_reference IS NULL
+                    AND state NOT IN ('declined', 'available')))",
         quality.id,
         quality.name,
         quality.profile_id,

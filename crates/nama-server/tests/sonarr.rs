@@ -951,6 +951,33 @@ async fn once_sonarr_kept_its_profile_for_a_season_the_show_shows_it_over_an_ear
 }
 
 #[tokio::test]
+async fn approving_a_season_at_the_quality_sonarr_kept_leaves_handed_off_seasons_as_asked() {
+    let fixture = Fixture::with_sonarr_enabled().await;
+    // Added at the setting's profile, HD-1080p, before the Admin offered any Quality.
+    fixture.ask_approved(DARK, &[1]).await;
+    fixture.sonarr.finish_refreshes().await;
+    let offered = fixture
+        .replace_qualities(vec![
+            quality(HD_1080P, "HD", false),
+            quality(ULTRA_HD, "4K", true),
+        ])
+        .await;
+    let member = RequestServiceClient::new(HttpClient::plaintext(), fixture.member().await);
+    let asked = ask(&member, DARK, &[2, 3]).await;
+    let handed_off = fixture.approve(asked[0].id).await;
+
+    fixture
+        .approve_at(asked[1].id, Some(offered[0].id))
+        .await
+        .unwrap();
+    let handed_off_now = fixture.request(handed_off.id).await;
+
+    assert_eq!(handed_off.quality_used.name, "HD");
+    assert_eq!(handed_off_now.quality, handed_off.quality);
+    assert_eq!(handed_off_now.quality_change, handed_off.quality_change);
+}
+
+#[tokio::test]
 async fn a_members_shows_default_lists_in_their_settings_and_a_season_request_takes_it() {
     let fixture = Fixture::with_sonarr_enabled().await;
     let offered = fixture.offer_hd_and_4k().await;
