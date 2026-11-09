@@ -41,7 +41,9 @@ service RequestService {
   // a Request for its Requesters. Fails with `invalid_argument` if the metadata source has no Show
   // with the id, and `unavailable` if no metadata Provider is enabled, or it failed.
   rpc CreateFollowedShow(CreateFollowedShowRequest) returns (CreateFollowedShowResponse);
-  // Lists the Requests and Followed Shows the caller may see, newest first.
+  // Lists the Requests and Followed Shows the caller may see, newest first: only those in `state`
+  // if one is given. Each is filtered on its own, so a Season Request can be listed without its
+  // Followed Show.
   rpc ListRequests(ListRequestsRequest) returns (ListRequestsResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
@@ -317,7 +319,10 @@ message CreateSeasonRequestsResponse {
   repeated Request requests = 1;
 }
 
-message ListRequestsRequest {}
+message ListRequestsRequest {
+  // The state to list Requests and Followed Shows in. Unspecified lists every state.
+  RequestState state = 1;
+}
 
 message CreateFollowedShowRequest {
   // The TMDB id of the Show.

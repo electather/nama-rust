@@ -4581,6 +4581,10 @@ impl ::serde::Serialize for CreateSeasonRequestsResponseOwnedView {
 }
 #[derive(Clone, Debug, Default)]
 pub struct ListRequestsRequestView<'a> {
+    /// The state to list Requests and Followed Shows in. Unspecified lists every state.
+    ///
+    /// Field 1: `state`
+    pub state: ::buffa::EnumValue<super::super::RequestState>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for ListRequestsRequestView<'a> {
@@ -4613,6 +4617,15 @@ impl<'a> ::buffa::MessageView<'a> for ListRequestsRequestView<'a> {
         let view = self;
         let mut cur = cur;
         match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.state = ::buffa::EnumValue::from(
+                    ::buffa::types::decode_int32(&mut cur)?,
+                );
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -4641,6 +4654,7 @@ impl<'a> ::buffa::MessageView<'a> for ListRequestsRequestView<'a> {
         use ::buffa::alloc::string::ToString as _;
         let _ = __buffa_src;
         ::core::result::Result::Ok(super::super::ListRequestsRequest {
+            state: self.state,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -4652,6 +4666,12 @@ impl<'a> ::buffa::ViewEncode<'a> for ListRequestsRequestView<'a> {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
+        {
+            let val = self.state.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -4663,6 +4683,12 @@ impl<'a> ::buffa::ViewEncode<'a> for ListRequestsRequestView<'a> {
     ) {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
+        {
+            let val = self.state.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(1u32, val, buf);
+            }
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
 }
@@ -4684,6 +4710,9 @@ impl<'__a> ::serde::Serialize for ListRequestsRequestView<'__a> {
     ) -> ::core::result::Result<__S::Ok, __S::Error> {
         use ::serde::ser::SerializeMap as _;
         let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_default_enum_value(&self.state) {
+            __map.serialize_entry("state", &self.state)?;
+        }
         __map.end()
     }
 }
@@ -4778,6 +4807,13 @@ impl ListRequestsRequestOwnedView {
     #[must_use]
     pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
         self.0.into_bytes()
+    }
+    /// The state to list Requests and Followed Shows in. Unspecified lists every state.
+    ///
+    /// Field 1: `state`
+    #[must_use]
+    pub fn state(&self) -> ::buffa::EnumValue<super::super::RequestState> {
+        self.0.reborrow().state
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<ListRequestsRequestView<'static>>>

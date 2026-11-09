@@ -100,6 +100,13 @@ test("a Movie someone else Requested shows its state, and Requesting it joins", 
   expect(within(results).getByText("Approved")).toBeDefined();
 });
 
+test("the state filter isn't shown while a search's results are", async () => {
+  openApp("/requests?title=Dune", searchableServer([notOnTheServer]));
+
+  await screen.findByText("Dune");
+  expect(screen.queryByRole("button", { name: /^State:/u })).toBeNull();
+});
+
 test("a User who may not Request Movies isn't offered the search", async () => {
   openApp("/requests?title=Dune", searchableServer([notOnTheServer], [Permission.VIEW_REQUESTS]));
 
