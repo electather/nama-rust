@@ -542,13 +542,21 @@ function pickNext(): Issue | "wait" | "done" {
 }
 
 // Past USAGE_PAUSE of the Claude 5-hour limit, start nothing new until it resets: in-flight issues get the rest,
-// fewer runs crash on the limit, and the subscription stays usable meanwhile. The API has no usage endpoint for a
-// setup-token, but every reply carries the unified rate-limit headers, so a 1-token Haiku call reads them.
-// The OAuth token is only accepted with Claude Code's system prompt.
+// fewer runs crash on the limit, and the subscription stays usable meanwhile. Past WEEKLY_STOP of the 7-day limit,
+// likewise until the week resets: what's left of the week is the user's.
+// The API has no usage endpoint for a setup-token, but every reply carries the unified rate-limit headers, so a
+// 1-token Haiku call reads them. The OAuth token is only accepted with Claude Code's system prompt.
 const USAGE_PAUSE = Number(process.env.USAGE_PAUSE ?? 0.75);
+const WEEKLY_STOP = Number(process.env.WEEKLY_STOP ?? 0.92);
+// Nearer the limits, fewer issues at once: past SLOW_5H of the 5-hour or SLOW_WEEKLY of the weekly limit, a new
+// issue starts only while fewer than SLOW_PARALLEL run.
+const SLOW_5H = Number(process.env.SLOW_5H ?? 0.6);
+const SLOW_WEEKLY = Number(process.env.SLOW_WEEKLY ?? 0.85);
+const SLOW_PARALLEL = Number(process.env.SLOW_PARALLEL ?? 1);
 const OAUTH_TOKEN = parseEnv(readFileSync(".sandcastle/.env", "utf8")).CLAUDE_CODE_OAUTH_TOKEN;
-let usage: { used: number; resetsAt: number; readAt: number } | undefined;
-async function readUsage() {
+type Usage = { used: number; resetsAt: number; weekly: number; weeklyResetsAt: number; readAt: number };
+let usage: Usage | undefined;
+async function readUsage(): Promise<Usage> {
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -565,31 +573,57 @@ async function readUsage() {
     }),
   });
   // A 429 from the limit itself still carries the headers.
-  const used = Number(res.headers.get("anthropic-ratelimit-unified-5h-utilization"));
-  const resetsAt = Number(res.headers.get("anthropic-ratelimit-unified-5h-reset")) * 1000;
-  if (!res.headers.has("anthropic-ratelimit-unified-5h-utilization") || !resetsAt) throw new Error(`HTTP ${res.status}, no usage headers`);
-  return { used, resetsAt, readAt: Date.now() };
+  const header = (name: string) => {
+    const v = res.headers.get(`anthropic-ratelimit-unified-${name}`);
+    if (v === null) throw new Error(`HTTP ${res.status}, no ${name} header`);
+    return Number(v);
+  };
+  return {
+    used: header("5h-utilization"),
+    resetsAt: header("5h-reset") * 1000,
+    weekly: header("7d-utilization"),
+    weeklyResetsAt: header("7d-reset") * 1000,
+    readAt: Date.now(),
+  };
 }
-// True (after a minute's sleep) while over USAGE_PAUSE. A failed read lets work start: the limit, if hit, still
-// ends the run as an infra crash. Read at most once a minute, and not at all before a known reset.
+const overWeekly = (u: Usage) => u.weekly >= WEEKLY_STOP;
+const pausedUntil = (u: Usage) => overWeekly(u) ? u.weeklyResetsAt : u.used >= USAGE_PAUSE ? u.resetsAt : 0;
+const paused = () => !!usage && Date.now() < pausedUntil(usage);
+const pct = (x: number) => `${Math.round(x * 100)}%`;
+const when = (ms: number) => new Date(ms).toString().slice(0, 21); // the weekly reset can be days away
+// Read at most once a minute, and not at all before a known reset. A failed read lets work start: the limit,
+// if hit, still ends the run as an infra crash.
 let usageRead: Promise<void> | undefined;
+async function refreshUsage() {
+  if (usage && (paused() || Date.now() - usage.readAt < 60_000)) return;
+  usageRead ??= readUsage()
+    .then((u) => {
+      const was = paused();
+      usage = u;
+      if (paused() && !was) {
+        log(overWeekly(u)
+          ? `⏸ Claude weekly usage at ${pct(u.weekly)}: starting nothing new until ${when(u.weeklyResetsAt)}`
+          : `⏸ Claude 5h usage at ${pct(u.used)}: starting nothing new until ${when(u.resetsAt)}`);
+      } else if (!paused() && was) {
+        log(`▶ Claude usage at ${pct(u.used)} (5h), ${pct(u.weekly)} (week): picking issues again`);
+      }
+    })
+    .catch((e) => log(`couldn't read Claude usage, carrying on: ${oneLine(e)}`))
+    .finally(() => { usageRead = undefined; });
+  await usageRead;
+}
+const slowed = () => !!usage && (usage.used >= SLOW_5H || usage.weekly >= SLOW_WEEKLY);
+// True (after a minute's sleep) while paused.
+let wasSlowed = false;
 async function overUsage(): Promise<boolean> {
-  const now = Date.now();
-  const fresh = usage && (usage.used >= USAGE_PAUSE ? now < usage.resetsAt : now - usage.readAt < 60_000);
-  if (!fresh) {
-    usageRead ??= readUsage()
-      .then((u) => {
-        const was = usage && usage.used >= USAGE_PAUSE && Date.now() < usage.resetsAt;
-        usage = u;
-        const pct = `${Math.round(u.used * 100)}%`;
-        if (u.used >= USAGE_PAUSE && !was) log(`⏸ Claude 5h usage at ${pct}: starting nothing new until ${new Date(u.resetsAt).toTimeString().slice(0, 5)}`);
-        if (u.used < USAGE_PAUSE && was) log(`▶ Claude 5h usage at ${pct}: picking issues again`);
-      })
-      .catch((e) => log(`couldn't read Claude usage, carrying on: ${oneLine(e)}`))
-      .finally(() => { usageRead = undefined; });
-    await usageRead;
+  await refreshUsage();
+  if (slowed() !== wasSlowed) {
+    wasSlowed = slowed();
+    log(wasSlowed
+      ? `🐢 Claude usage at ${pct(usage!.used)} (5h), ${pct(usage!.weekly)} (week): at most ${SLOW_PARALLEL} issue(s) at once`
+      : `🐇 Claude usage back under the slow-down: ${MAX_PARALLEL} issues at once`);
   }
-  if (!usage || usage.used < USAGE_PAUSE || Date.now() >= usage.resetsAt) return false;
+  if (!paused()) return false;
   await sleep(60_000);
   return true;
 }
@@ -598,6 +632,11 @@ async function overUsage(): Promise<boolean> {
 async function worker() {
   while (!crashed && taken.size < MAX_ISSUES && !existsSync(STOP_FILE)) {
     if (await overUsage()) continue;
+    // Checked here, with no await before inFlight.add, so two idle workers can't both slip under SLOW_PARALLEL.
+    if (slowed() && inFlight.size >= SLOW_PARALLEL) {
+      await sleep(60_000);
+      continue;
+    }
     let issue: Issue | "wait" | "done";
     try {
       issue = pickNext();
