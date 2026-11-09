@@ -6,6 +6,13 @@ all-features = true
 [advisories]
 # Any RustSec advisory (vulnerable, unmaintained, yanked) fails the build.
 yanked = "deny"
+ignore = [
+  # SQLite's stale-memory read needs a database and `-wal` pair written by someone less trusted.
+  # The Server only opens the one it creates in its own data dir, and whoever can write there can
+  # rewrite the database anyway. The fix is libsqlite3-sys 0.39, which sqlx-sqlite 0.9.0 (newest)
+  # caps below; drop this once an sqlx release allows it.
+  { id = "RUSTSEC-2026-0459", reason = "Server opens only its own database; no sqlx release takes the fix yet" },
+]
 
 [licenses]
 # Permissive licenses, plus AGPL for this workspace's own crates. Add more only after checking them.
