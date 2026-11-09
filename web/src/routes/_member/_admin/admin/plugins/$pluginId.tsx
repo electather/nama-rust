@@ -8,7 +8,7 @@ import { PluginToggle } from "@/components/plugin-toggle";
 import { NotFound } from "@/components/route-error";
 import { type Plugin, PluginService } from "@/gen/nama/v1/plugin_pb";
 import { queryOrNotFound } from "@/lib/browse";
-import { kindAndVersion } from "@/lib/plugins";
+import { kindAndVersion, pluginName } from "@/lib/plugins";
 
 export const Route = createFileRoute("/_member/_admin/admin/plugins/$pluginId")({
   loader: ({ context, params }) =>
@@ -22,11 +22,16 @@ function PluginPage() {
   const { plugin } = useSuspenseQuery(PluginService.method.getPlugin, { id: pluginId }).data;
   if (!plugin) throw notFound();
   return (
-    <Page heading={plugin.id}>
+    <Page heading={pluginName(plugin)}>
       <div className="mt-3 flex items-center gap-3">
         <PluginLogo plugin={plugin} />
-        <p className="text-sm text-muted-foreground">{kindAndVersion(plugin)}</p>
+        <p className="text-sm text-muted-foreground">
+          <span>{plugin.id}</span> · <span>{kindAndVersion(plugin)}</span>
+        </p>
       </div>
+      {plugin.description !== "" && (
+        <p className="mt-3 max-w-prose text-pretty">{plugin.description}</p>
+      )}
       <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2">
         <PluginToggle plugin={plugin} />
       </div>

@@ -82,6 +82,10 @@ impl fmt::Display for PluginId {
 pub struct Manifest {
     /// The Plugin's unique id.
     pub id: PluginId,
+    /// What admins know the Plugin by, such as `TMDB`. Empty if it gives none: its id stands in.
+    pub name: String,
+    /// What the Plugin does, in one sentence. Empty if it gives none.
+    pub description: String,
     /// The Plugin's version, for the log and the admin.
     pub version: String,
     /// The settings the Plugin takes, so an admin UI can render a form for them. The Kernel

@@ -147,8 +147,12 @@ message PluginSummary {
   // would refuse it with `REFUSAL_REASON_FIELD_REQUIRED`. An enabled Plugin may have one too, such
   // as an Installed Plugin upgraded with a new required setting.
   bool settings_missing = 6;
+  // As `Plugin.name`.
+  string name = 7;
+  // As `Plugin.description`.
+  string description = 8;
   // As `Plugin.logo_svg`.
-  string logo_svg = 7;
+  string logo_svg = 9;
 }
 
 // A unit of trusted functionality that plugs into a Server.
@@ -168,10 +172,14 @@ message Plugin {
   // API version. Empty unless it was refused. A refused Plugin can't be enabled, and its `id` is
   // its file's name, since the Server may not have learnt the id it gives itself.
   string refused_reason = 7;
+  // What admins know it by, such as "TMDB". Empty if it gives none, when `id` stands in.
+  string name = 8;
+  // What it does, in one sentence its author wrote. Empty if it gives none.
+  string description = 9;
   // Its logo, an SVG document's text, or empty if it has none. An Installed Plugin's author wrote
   // it, so show it only as an image, such as from a `data:image/svg+xml` URL, never inline in a
   // page, where its scripts would run.
-  string logo_svg = 8;
+  string logo_svg = 10;
 }
 
 // What kind of value a setting takes.

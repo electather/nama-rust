@@ -25,21 +25,21 @@ function openToSave(id: string) {
   });
   return {
     sent,
-    submit: async () => fireEvent.click((await plugin(id)).getByRole("button", { name: "Save" })),
+    submit: async () => fireEvent.click(await screen.findByRole("button", { name: "Save" })),
   };
 }
 
 test("a Plugin's settings fill its form, with defaults as hints and a set secret only as set", async () => {
   openPlugin("tmdb");
 
-  expect((await input("tmdb", "Language")).value).toBe("de-DE");
-  expect((await input("tmdb", "Region")).value).toBe("");
+  expect((await input("TMDB", "Language")).value).toBe("de-DE");
+  expect((await input("TMDB", "Region")).value).toBe("");
   expect(
-    (await plugin("tmdb")).getByText("Where release dates are for. Blank uses US."),
+    (await plugin("TMDB")).getByText("Where release dates are for. Blank uses US."),
   ).toBeDefined();
-  expect((await plugin("tmdb")).getByText("Set")).toBeDefined();
-  expect((await plugin("tmdb")).queryByLabelText("API key")).toBeNull();
-  expect((await input("tmdb", "Token")).type).toBe("password");
+  expect((await plugin("TMDB")).getByText("Set")).toBeDefined();
+  expect((await plugin("TMDB")).queryByLabelText("API key")).toBeNull();
+  expect((await input("TMDB", "Token")).type).toBe("password");
 });
 
 test("the form checks the schema: a required setting is required and a number is whole", async () => {
@@ -60,7 +60,7 @@ test("the form checks the schema: a setting with a default isn't required and a 
 
 test("saving sends what was typed, leaving out blanks and a set secret", async () => {
   const { sent, submit } = openToSave("tmdb");
-  fireEvent.change(await input("tmdb", "Language"), { target: { value: "fr-FR" } });
+  fireEvent.change(await input("TMDB", "Language"), { target: { value: "fr-FR" } });
 
   await submit();
 
@@ -73,8 +73,8 @@ test("saving sends what was typed, leaving out blanks and a set secret", async (
 
 test("Replace lets a set secret be typed again, and sends it", async () => {
   const { sent, submit } = openToSave("tmdb");
-  fireEvent.click((await plugin("tmdb")).getByRole("button", { name: "Replace API key" }));
-  fireEvent.change(await input("tmdb", "API key"), { target: { value: "new-key" } });
+  fireEvent.click((await plugin("TMDB")).getByRole("button", { name: "Replace API key" }));
+  fireEvent.change(await input("TMDB", "API key"), { target: { value: "new-key" } });
 
   await submit();
 
@@ -120,7 +120,7 @@ test("a refusal naming a secret that is set opens its input to show under", asyn
     },
   });
 
-  fireEvent.click((await plugin("tmdb")).getByRole("button", { name: "Save" }));
+  fireEvent.click((await plugin("TMDB")).getByRole("button", { name: "Save" }));
 
   await expectUnderField("API key", "This setting can’t take that value.");
 });
@@ -135,7 +135,7 @@ test("a Plugin no longer on the Server says so for the form", async () => {
     },
   });
 
-  fireEvent.click((await plugin("tmdb")).getByRole("button", { name: "Save" }));
+  fireEvent.click((await plugin("TMDB")).getByRole("button", { name: "Save" }));
 
   expect(await screen.findByText("This Plugin isn’t on the Server any more.")).toBeDefined();
 });

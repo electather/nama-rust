@@ -276,6 +276,29 @@ async fn every_builtin_and_bundled_plugin_has_a_logo_the_server_keeps() {
 }
 
 #[tokio::test]
+async fn every_builtin_and_bundled_plugin_says_its_name_and_what_it_does() {
+    let started = Started::with(&BTreeMap::new()).await;
+    let listed = started
+        .client()
+        .list_plugins(ListPluginsRequest::default())
+        .await
+        .unwrap()
+        .into_owned();
+
+    for summary in &listed.summaries {
+        assert!(!summary.name.is_empty(), "{summary:?}");
+        assert!(!summary.description.is_empty(), "{summary:?}");
+        let got = started.get(&summary.id).await.unwrap();
+        assert_eq!(
+            (got.name, got.description),
+            (summary.name.clone(), summary.description.clone())
+        );
+    }
+    assert_eq!(plugin(&listed, "tmdb").name, "TMDB");
+    assert_eq!(plugin(&listed, "radarr").name, "Radarr");
+}
+
+#[tokio::test]
 async fn plugins_are_listed_without_their_settings() {
     let listed = list_plugins_with(tmdb_with_key()).await;
 

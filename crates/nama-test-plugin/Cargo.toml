@@ -22,6 +22,8 @@ html-logo = []
 doctype-logo = []
 # Builds the Plugin without a logo, as a Manifest from before logos has none.
 logoless = []
+# Builds the Plugin with a Manifest from before Plugins had a name and a description.
+unnamed = []
 
 [dependencies]
 nama-pdk = { version = "0.1.0", path = "../nama-pdk" }

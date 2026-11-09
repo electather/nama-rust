@@ -34,11 +34,15 @@ message Manifest {
   repeated ObservePoint observers = 6;
   // The capabilities the Plugin registers a Provider for.
   repeated ProvidePoint providers = 7;
+  // What admins know the Plugin by, such as "Sonarr". Optional: its `id` stands in.
+  string name = 8;
+  // What the Plugin does, in one sentence. Optional.
+  string description = 9;
   // The Plugin's logo: an SVG document's text, not base64, such as "<svg xmlns=...>...</svg>".
   // A Server drops one over 16 KiB, with a DOCTYPE, or that isn't SVG, logging why, and still loads
   // the Plugin.
   // Admins see it as an image on a neutral tile in either colour scheme, so it should read on both.
-  string logo_svg = 8;
+  string logo_svg = 10;
 }
 
 // One setting an Installed Plugin takes.

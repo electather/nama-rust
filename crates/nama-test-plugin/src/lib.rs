@@ -37,8 +37,8 @@ mod exports {
     // Says who the Plugin is, that it observes Events, fulfills Movie Requests and notifies, and
     // its settings: a URL whose host it may reach, one it requests, how its Observer, Fulfiller
     // and Notifier behave, a profile its check offers, and how its check fails, and its logo. With
-    // the `out-of-range` feature it wants a Nama API no Server has, and with `panic` it panics
-    // instead.
+    // the `out-of-range` feature it wants a Nama API no Server has, with `unnamed` it gives no name
+    // or description, and with `panic` it panics instead.
     #[plugin_fn]
     pub fn manifest() -> FnResult<Buffa<Manifest>> {
         #[expect(
@@ -49,6 +49,8 @@ mod exports {
             panic!("the test Plugin was built to panic")
         } else {
             Manifest {
+                name: "Test Plugin".to_owned(),
+                description: "Stands in for an Installed Plugin in the Server's tests.".to_owned(),
                 observers: vec![ObservePoint::OBSERVE_POINT_EVENTS.into()],
                 providers: vec![
                     ProvidePoint::PROVIDE_POINT_MOVIE_FULFILLER.into(),
@@ -82,6 +84,12 @@ mod exports {
         #[cfg(feature = "out-of-range")]
         let manifest = Manifest {
             nama_api: "<0.1".to_owned(),
+            ..manifest
+        };
+        #[cfg(feature = "unnamed")]
+        let manifest = Manifest {
+            name: String::new(),
+            description: String::new(),
             ..manifest
         };
         Ok(Buffa(manifest))

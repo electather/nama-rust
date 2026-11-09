@@ -2274,9 +2274,27 @@ pub struct PluginSummary {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
     )]
     pub settings_missing: bool,
+    /// As `Plugin.name`.
+    ///
+    /// Field 7: `name`
+    #[serde(
+        rename = "name",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub name: ::buffa::alloc::string::String,
+    /// As `Plugin.description`.
+    ///
+    /// Field 8: `description`
+    #[serde(
+        rename = "description",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub description: ::buffa::alloc::string::String,
     /// As `Plugin.logo_svg`.
     ///
-    /// Field 7: `logo_svg`
+    /// Field 9: `logo_svg`
     #[serde(
         rename = "logoSvg",
         alias = "logo_svg",
@@ -2297,6 +2315,8 @@ impl ::core::fmt::Debug for PluginSummary {
             .field("enabled", &self.enabled)
             .field("refused_reason", &self.refused_reason)
             .field("settings_missing", &self.settings_missing)
+            .field("name", &self.name)
+            .field("description", &self.description)
             .field("logo_svg", &self.logo_svg)
             .finish()
     }
@@ -2351,6 +2371,12 @@ impl ::buffa::Message for PluginSummary {
         if self.settings_missing {
             size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
+        if !self.name.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.name) as u64;
+        }
+        if !self.description.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.description) as u64;
+        }
         if !self.logo_svg.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.logo_svg) as u64;
         }
@@ -2385,8 +2411,14 @@ impl ::buffa::Message for PluginSummary {
         if self.settings_missing {
             ::buffa::types::put_bool_field(6u32, self.settings_missing, buf);
         }
+        if !self.name.is_empty() {
+            ::buffa::types::put_string_field(7u32, &self.name, buf);
+        }
+        if !self.description.is_empty() {
+            ::buffa::types::put_string_field(8u32, &self.description, buf);
+        }
         if !self.logo_svg.is_empty() {
-            ::buffa::types::put_string_field(7u32, &self.logo_svg, buf);
+            ::buffa::types::put_string_field(9u32, &self.logo_svg, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2448,6 +2480,20 @@ impl ::buffa::Message for PluginSummary {
                     tag,
                     ::buffa::encoding::WireType::LengthDelimited,
                 )?;
+                ::buffa::types::merge_string(&mut self.name, buf)?;
+            }
+            8u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.description, buf)?;
+            }
+            9u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
                 ::buffa::types::merge_string(&mut self.logo_svg, buf)?;
             }
             _ => {
@@ -2464,6 +2510,8 @@ impl ::buffa::Message for PluginSummary {
         self.enabled = false;
         self.refused_reason.clear();
         self.settings_missing = false;
+        self.name.clear();
+        self.description.clear();
         self.logo_svg.clear();
         self.__buffa_unknown_fields.clear();
     }
@@ -2566,11 +2614,29 @@ pub struct Plugin {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub refused_reason: ::buffa::alloc::string::String,
+    /// What admins know it by, such as "TMDB". Empty if it gives none, when `id` stands in.
+    ///
+    /// Field 8: `name`
+    #[serde(
+        rename = "name",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub name: ::buffa::alloc::string::String,
+    /// What it does, in one sentence its author wrote. Empty if it gives none.
+    ///
+    /// Field 9: `description`
+    #[serde(
+        rename = "description",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub description: ::buffa::alloc::string::String,
     /// Its logo, an SVG document's text, or empty if it has none. An Installed Plugin's author wrote
     /// it, so show it only as an image, such as from a `data:image/svg+xml` URL, never inline in a
     /// page, where its scripts would run.
     ///
-    /// Field 8: `logo_svg`
+    /// Field 10: `logo_svg`
     #[serde(
         rename = "logoSvg",
         alias = "logo_svg",
@@ -2592,6 +2658,8 @@ impl ::core::fmt::Debug for Plugin {
             .field("settings", &self.settings)
             .field("checks_settings", &self.checks_settings)
             .field("refused_reason", &self.refused_reason)
+            .field("name", &self.name)
+            .field("description", &self.description)
             .field("logo_svg", &self.logo_svg)
             .finish()
     }
@@ -2654,6 +2722,12 @@ impl ::buffa::Message for Plugin {
                 += 1u64
                     + ::buffa::types::string_encoded_len(&self.refused_reason) as u64;
         }
+        if !self.name.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.name) as u64;
+        }
+        if !self.description.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.description) as u64;
+        }
         if !self.logo_svg.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.logo_svg) as u64;
         }
@@ -2696,8 +2770,14 @@ impl ::buffa::Message for Plugin {
         if !self.refused_reason.is_empty() {
             ::buffa::types::put_string_field(7u32, &self.refused_reason, buf);
         }
+        if !self.name.is_empty() {
+            ::buffa::types::put_string_field(8u32, &self.name, buf);
+        }
+        if !self.description.is_empty() {
+            ::buffa::types::put_string_field(9u32, &self.description, buf);
+        }
         if !self.logo_svg.is_empty() {
-            ::buffa::types::put_string_field(8u32, &self.logo_svg, buf);
+            ::buffa::types::put_string_field(10u32, &self.logo_svg, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2771,6 +2851,20 @@ impl ::buffa::Message for Plugin {
                     tag,
                     ::buffa::encoding::WireType::LengthDelimited,
                 )?;
+                ::buffa::types::merge_string(&mut self.name, buf)?;
+            }
+            9u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.description, buf)?;
+            }
+            10u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
                 ::buffa::types::merge_string(&mut self.logo_svg, buf)?;
             }
             _ => {
@@ -2788,6 +2882,8 @@ impl ::buffa::Message for Plugin {
         self.settings.clear();
         self.checks_settings = false;
         self.refused_reason.clear();
+        self.name.clear();
+        self.description.clear();
         self.logo_svg.clear();
         self.__buffa_unknown_fields.clear();
     }

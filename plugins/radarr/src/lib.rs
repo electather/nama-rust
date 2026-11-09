@@ -68,6 +68,8 @@ mod exports {
                     SettingKind::SETTING_KIND_CHOICE,
                 ),
             ],
+            name: "Radarr".to_owned(),
+            description: "Sends Approved Movie Requests to Radarr to download.".to_owned(),
             ..nama_pdk::manifest("radarr", env!("CARGO_PKG_VERSION"))
         }))
     }

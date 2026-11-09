@@ -74,6 +74,8 @@ mod exports {
                     SettingKind::SETTING_KIND_CHOICE,
                 ),
             ],
+            name: "Sonarr".to_owned(),
+            description: "Sends Approved Season Requests to Sonarr to download.".to_owned(),
             ..nama_pdk::manifest("sonarr", env!("CARGO_PKG_VERSION"))
         }))
     }

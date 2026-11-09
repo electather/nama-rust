@@ -14,21 +14,42 @@ test("the Plugins list shows every Plugin with whether it is enabled, without it
 
   expect((await row("local-auth")).getByText("Enabled")).toBeDefined();
   expect((await row("log-events")).getByText("Disabled")).toBeDefined();
-  expect((await row("tmdb")).getByText("Enabled")).toBeDefined();
+  expect((await row("TMDB")).getByText("Enabled")).toBeDefined();
   expect(screen.queryByLabelText("Language")).toBeNull();
+});
+
+test("each Plugin on the list shows its name, or its id without one, and what it does", async () => {
+  openPlugins();
+
+  expect((await row("TMDB")).getByText("Finds Movies and Shows on TMDB.")).toBeDefined();
+  expect((await row("local-auth")).getByText("Built-in, version 0.1.0")).toBeDefined();
+});
+
+test("a Plugin's details page shows its name, its id and what it does", async () => {
+  openPlugin("tmdb");
+
+  const page = await plugin("TMDB");
+  expect(page.getByText("tmdb")).toBeDefined();
+  expect(page.getByText("Finds Movies and Shows on TMDB.")).toBeDefined();
+});
+
+test("a Plugin's details page without a name is headed by its id", async () => {
+  openPlugin("local-auth");
+
+  expect((await plugin("local-auth")).getByText("Built-in, version 0.1.0")).toBeDefined();
 });
 
 test("each Plugin says whether it is Built-in or Installed", async () => {
   openPlugins();
 
-  expect((await row("tmdb")).getByText("Built-in, version 0.1.0")).toBeDefined();
+  expect((await row("TMDB")).getByText("Built-in, version 0.1.0")).toBeDefined();
   expect((await row("test-plugin")).getByText("Installed, version 0.1.0")).toBeDefined();
 });
 
 test("each Plugin on the list shows its logo as an image, or a generic one without", async () => {
   openPlugins();
 
-  const logo = (await row("tmdb")).getByRole<HTMLImageElement>("img", { name: "tmdb logo" });
+  const logo = (await row("TMDB")).getByRole<HTMLImageElement>("img", { name: "TMDB logo" });
   expect(logo.src).toBe(`data:image/svg+xml,${encodeURIComponent(tmdbLogo)}`);
   const generic = (await row("local-auth")).getByRole("img", { name: "local-auth logo" });
   expect(generic.getAttribute("src")).toBeNull();
@@ -37,7 +58,7 @@ test("each Plugin on the list shows its logo as an image, or a generic one witho
 test("a Plugin's details page shows its logo as an image, or a generic one without", async () => {
   openPlugin("tmdb");
 
-  const logo = (await plugin("tmdb")).getByRole<HTMLImageElement>("img", { name: "tmdb logo" });
+  const logo = (await plugin("TMDB")).getByRole<HTMLImageElement>("img", { name: "TMDB logo" });
   expect(logo.src).toBe(`data:image/svg+xml,${encodeURIComponent(tmdbLogo)}`);
   cleanup();
   openPlugin("local-auth");
@@ -56,11 +77,11 @@ test("a refused Plugin is listed as Refused, with no way to enable it", async ()
 test("each Plugin on the list opens its details page with its settings", async () => {
   openPlugins();
 
-  fireEvent.click(await screen.findByRole("link", { name: "tmdb" }));
+  fireEvent.click(await screen.findByRole("link", { name: "TMDB" }));
 
-  expect((await input("tmdb", "Language")).value).toBe("de-DE");
-  expect((await plugin("tmdb")).getByText("Built-in, version 0.1.0")).toBeDefined();
-  expect((await plugin("tmdb")).getByText("Enabled")).toBeDefined();
+  expect((await input("TMDB", "Language")).value).toBe("de-DE");
+  expect((await plugin("TMDB")).getByText("Built-in, version 0.1.0")).toBeDefined();
+  expect((await plugin("TMDB")).getByText("Enabled")).toBeDefined();
 });
 
 test("a refused Plugin's details page shows its file name and why, and no settings", async () => {
@@ -95,7 +116,7 @@ test("disabling an enabled Plugin on its details page asks the Server to", async
       return {};
     },
   });
-  fireEvent.click((await plugin("tmdb")).getByRole("button", { name: "Disable tmdb" }));
+  fireEvent.click((await plugin("TMDB")).getByRole("button", { name: "Disable TMDB" }));
 
   await waitFor(() => {
     expect(disabled).toStrictEqual(["tmdb"]);

@@ -38,6 +38,8 @@ impl Plugin for LocalAuth {
     fn manifest(&self) -> Manifest {
         Manifest {
             id: Self::ID,
+            name: "Passwords".to_owned(),
+            description: "Lets Users sign in with a password.".to_owned(),
             version: env!("CARGO_PKG_VERSION").to_owned(),
             settings: SettingsSchema::default(),
             logo_svg: Some(include_str!("../logo.svg").to_owned()),
