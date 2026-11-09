@@ -23,9 +23,9 @@ use connectrpc::{ConnectError, ErrorCode, client::HttpClient};
 use log::Log;
 use nama_plugin_api::PluginId;
 use nama_proto::nama::v1::{
-    CreateLibraryRequest, DisablePluginRequest, EnablePluginRequest, LibraryKind,
+    CreateLibraryRequest, DisablePluginRequest, EnablePluginRequest, GetPluginRequest, LibraryKind,
     LibraryServiceClient, ListPluginsRequest, Plugin, PluginKind, PluginServiceClient,
-    RefusalReason, ScanLibraryRequest, SettingValue, TestPluginSettingsRequest,
+    PluginSummary, RefusalReason, ScanLibraryRequest, SettingValue, TestPluginSettingsRequest,
     TestPluginSettingsResponse, UpdatePluginSettingsRequest, UpdatePluginSettingsResponse,
     setting_value::Value,
 };
@@ -155,14 +155,24 @@ impl Started {
     }
 
     /// The Plugin `id` as the Plugins page lists it.
-    async fn listed(&self, id: &str) -> Option<Plugin> {
+    async fn listed(&self, id: &str) -> Option<PluginSummary> {
         let listed = self
             .client()
             .list_plugins(ListPluginsRequest::default())
             .await
             .unwrap()
             .into_owned();
-        listed.plugins.into_iter().find(|plugin| plugin.id == id)
+        listed.summaries.into_iter().find(|plugin| plugin.id == id)
+    }
+
+    /// The Plugin `id` with its settings, as its details page gets it.
+    async fn got(&self, id: &str) -> Plugin {
+        let request = GetPluginRequest {
+            id: id.to_owned(),
+            ..Default::default()
+        };
+        let got = self.client().get_plugin(request).await.unwrap();
+        got.into_owned().plugin.into_option().unwrap()
     }
 }
 
@@ -293,7 +303,7 @@ async fn a_dropped_plugin_is_listed_disabled_observes_scans_only_while_enabled_a
 }
 
 #[tokio::test]
-async fn a_refused_plugin_is_listed_with_why_and_enabling_it_is_refused() {
+async fn a_refused_plugin_is_listed_and_got_with_why_and_enabling_it_is_refused() {
     let started = Started::new().await;
 
     started.drop_in("out-of-range.wasm", "out-of-range");
@@ -318,6 +328,9 @@ async fn a_refused_plugin_is_listed_with_why_and_enabling_it_is_refused() {
     assert_eq!(refusal.field, "id");
     assert_eq!(refusal.params["pluginId"], "out-of-range.wasm");
     assert_eq!(refusal.params["reason"], listed.refused_reason);
+    let got = started.got("out-of-range.wasm").await;
+    assert_eq!(got.refused_reason, listed.refused_reason);
+    assert!(got.settings.is_empty(), "{got:?}");
     assert!(!started.listed("out-of-range.wasm").await.unwrap().enabled);
     let update = UpdatePluginSettingsRequest {
         id: "out-of-range.wasm".to_owned(),
@@ -471,7 +484,9 @@ async fn a_plugin_that_keeps_panicking_logs_why_is_disabled_and_saved_so_and_can
 async fn testing_offers_the_checks_choices_and_only_an_offered_one_is_saved() {
     let started = Started::new().await;
     started.drop_in("test.wasm", "");
-    assert!(started.listed("test-plugin").await.unwrap().checks_settings);
+    // Opening the Plugins page, which lists them, reads it.
+    assert!(started.listed("test-plugin").await.is_some());
+    assert!(started.got("test-plugin").await.checks_settings);
 
     let tested = started.test_settings(&[]).await.unwrap();
 

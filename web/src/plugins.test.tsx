@@ -2,171 +2,74 @@ import { Code } from "@connectrpc/connect";
 import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
-import type { UpdatePluginSettingsRequest } from "@/gen/nama/v1/plugin_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 
-import { input, openPlugins, plugin } from "./test-plugins";
-import { expectUnderField, refused } from "./test-refusal";
+import { input, openPlugin, openPlugins, plugin, row } from "./test-plugins";
+import { refused } from "./test-refusal";
 
 afterEach(cleanup);
 
-/**
- * Opens the Plugins page to save the Plugin `id`'s settings: `submit` saves them, and `sent` is
- * the request the Server got.
- */
-function openToSave(id: string) {
-  const sent = new Promise<UpdatePluginSettingsRequest>((resolve) => {
-    openPlugins({
-      updatePluginSettings: (request) => {
-        resolve(request);
-        return { plugin: { id, enabled: true } };
-      },
-    });
-  });
-  return {
-    sent,
-    submit: async () => fireEvent.click((await plugin(id)).getByRole("button", { name: "Save" })),
-  };
-}
-
-test("the Plugins page lists every Plugin with whether it is enabled", async () => {
+test("the Plugins list shows every Plugin with whether it is enabled, without its settings", async () => {
   openPlugins();
 
-  expect((await plugin("local-auth")).getByText("Enabled")).toBeDefined();
-  expect((await plugin("log-events")).getByText("Disabled")).toBeDefined();
-  expect((await plugin("tmdb")).getByText("Enabled")).toBeDefined();
+  expect((await row("local-auth")).getByText("Enabled")).toBeDefined();
+  expect((await row("log-events")).getByText("Disabled")).toBeDefined();
+  expect((await row("tmdb")).getByText("Enabled")).toBeDefined();
+  expect(screen.queryByLabelText("Language")).toBeNull();
 });
 
 test("each Plugin says whether it is Built-in or Installed", async () => {
   openPlugins();
 
-  expect((await plugin("tmdb")).getByText("Built-in, version 0.1.0")).toBeDefined();
-  expect((await plugin("test-plugin")).getByText("Installed, version 0.1.0")).toBeDefined();
+  expect((await row("tmdb")).getByText("Built-in, version 0.1.0")).toBeDefined();
+  expect((await row("test-plugin")).getByText("Installed, version 0.1.0")).toBeDefined();
 });
 
-test("a refused Plugin says why and offers no way to enable it", async () => {
+test("a refused Plugin is listed as Refused, with no way to enable it", async () => {
   openPlugins();
 
-  const section = await plugin("out-of-range.wasm");
-  expect(section.getByText("Refused")).toBeDefined();
-  expect(
-    section.getByText(
-      "The Server can’t run it: it wants nama-api <0.1, and this Server has 0.1.0.",
-    ),
-  ).toBeDefined();
-  expect(section.queryByRole("button")).toBeNull();
+  const refusedRow = await row("out-of-range.wasm");
+  expect(refusedRow.getByText("Refused")).toBeDefined();
+  expect(refusedRow.queryByRole("button")).toBeNull();
 });
 
-test("a Plugin's settings fill its form, with defaults as hints and a set secret only as set", async () => {
+test("each Plugin on the list opens its details page with its settings", async () => {
   openPlugins();
+
+  fireEvent.click(await screen.findByRole("link", { name: "tmdb" }));
 
   expect((await input("tmdb", "Language")).value).toBe("de-DE");
-  expect((await input("tmdb", "Region")).value).toBe("");
+  expect((await plugin("tmdb")).getByText("Built-in, version 0.1.0")).toBeDefined();
+  expect((await plugin("tmdb")).getByText("Enabled")).toBeDefined();
+});
+
+test("a refused Plugin's details page shows its file name and why, and no settings", async () => {
+  openPlugin("out-of-range.wasm");
+
+  const page = await plugin("out-of-range.wasm");
+  expect(page.getByText("Refused")).toBeDefined();
   expect(
-    (await plugin("tmdb")).getByText("Where release dates are for. Blank uses US."),
+    page.getByText("The Server can’t run it: it wants nama-api <0.1, and this Server has 0.1.0."),
   ).toBeDefined();
-  expect((await plugin("tmdb")).getByText("Set")).toBeDefined();
-  expect((await plugin("tmdb")).queryByLabelText("API key")).toBeNull();
-  expect((await input("tmdb", "Token")).type).toBe("password");
+  expect(page.queryByRole("heading", { name: "Settings" })).toBeNull();
+  expect(page.queryByRole("button")).toBeNull();
 });
 
-test("the form checks the schema: a required setting is required, a number is whole and a URL is a URL", async () => {
-  openPlugins();
+test("a Plugin without settings says so on its details page", async () => {
+  openPlugin("local-auth");
 
-  expect((await input("log-events", "Path")).required).toBe(true);
-  expect((await input("tmdb", "Language")).required).toBe(false);
-  const days = await input("log-events", "Keep for days");
-  expect([days.type, days.step]).toEqual(["number", "1"]);
-  expect((await input("log-events", "Verbose")).checked).toBe(true);
-  const url = await input("test-plugin", "Sonarr URL");
-  expect([url.type, url.value]).toEqual(["url", "http://sonarr.lan:8989"]);
+  expect((await plugin("local-auth")).getByText("No settings.")).toBeDefined();
 });
 
-test("saving sends what was typed, leaving out blanks and a set secret", async () => {
-  const { sent, submit } = openToSave("tmdb");
-  fireEvent.change(await input("tmdb", "Language"), { target: { value: "fr-FR" } });
+test("the details page of a Plugin the Server doesn't have says it isn't found", async () => {
+  openPlugin("no-such-plugin");
 
-  await submit();
-
-  const { id, settings } = await sent;
-  expect(id).toBe("tmdb");
-  expect(Object.keys(settings)).toEqual(["language"]);
-  expect(settings["language"]?.value).toEqual({ case: "textValue", value: "fr-FR" });
-  expect(await screen.findByText("Saved, and in use now.")).toBeDefined();
+  expect(await screen.findByRole("heading", { name: "Page not found" })).toBeDefined();
 });
 
-test("Replace lets a set secret be typed again, and sends it", async () => {
-  const { sent, submit } = openToSave("tmdb");
-  fireEvent.click((await plugin("tmdb")).getByRole("button", { name: "Replace API key" }));
-  fireEvent.change(await input("tmdb", "API key"), { target: { value: "new-key" } });
-
-  await submit();
-
-  expect((await sent).settings["api_key"]?.value).toEqual({ case: "textValue", value: "new-key" });
-});
-
-test("a bool and a number, however it is written, are sent as their kind", async () => {
-  const { sent, submit } = openToSave("log-events");
-  fireEvent.click(await input("log-events", "Verbose"));
-  fireEvent.change(await input("log-events", "Keep for days"), { target: { value: "7.0" } });
-  fireEvent.change(await input("log-events", "Path"), { target: { value: "/var/log" } });
-
-  await submit();
-
-  const { settings } = await sent;
-  expect(settings["verbose"]?.value).toEqual({ case: "boolValue", value: false });
-  expect(settings["keep_days"]?.value).toEqual({ case: "integerValue", value: 7n });
-});
-
-test("a refusal shows under the setting it names", async () => {
-  openPlugins({
-    updatePluginSettings: () => {
-      throw refused(Code.InvalidArgument, "the setting path is required", {
-        reason: RefusalReason.FIELD_REQUIRED,
-        field: "settings.path",
-      });
-    },
-  });
-  fireEvent.change(await input("log-events", "Path"), { target: { value: "x" } });
-
-  fireEvent.click((await plugin("log-events")).getByRole("button", { name: "Save" }));
-
-  await expectUnderField("Path", "This setting is required.");
-});
-
-test("a refusal naming a secret that is set opens its input to show under", async () => {
-  openPlugins({
-    updatePluginSettings: () => {
-      throw refused(Code.InvalidArgument, "the setting api_key must be Secret", {
-        reason: RefusalReason.SETTING_WRONG_KIND,
-        field: "settings.api_key",
-      });
-    },
-  });
-
-  fireEvent.click((await plugin("tmdb")).getByRole("button", { name: "Save" }));
-
-  await expectUnderField("API key", "This setting can’t take that value.");
-});
-
-test("a Plugin no longer on the Server says so for the form", async () => {
-  openPlugins({
-    updatePluginSettings: () => {
-      throw refused(Code.NotFound, "there is no Plugin tmdb", {
-        reason: RefusalReason.PLUGIN_NOT_FOUND,
-        field: "id",
-      });
-    },
-  });
-
-  fireEvent.click((await plugin("tmdb")).getByRole("button", { name: "Save" }));
-
-  expect(await screen.findByText("This Plugin isn’t on the Server any more.")).toBeDefined();
-});
-
-test("disabling an enabled Plugin asks the Server to", async () => {
+test("disabling an enabled Plugin on its details page asks the Server to", async () => {
   const disabled: string[] = [];
-  openPlugins({
+  openPlugin("tmdb", {
     disablePlugin: ({ id }) => {
       disabled.push(id);
       return {};
@@ -179,7 +82,7 @@ test("disabling an enabled Plugin asks the Server to", async () => {
   });
 });
 
-test("enabling a disabled Plugin asks the Server to", async () => {
+test("enabling a disabled Plugin on the list asks the Server to", async () => {
   const enabled: string[] = [];
   openPlugins({
     enablePlugin: ({ id }) => {
@@ -187,7 +90,7 @@ test("enabling a disabled Plugin asks the Server to", async () => {
       return {};
     },
   });
-  fireEvent.click((await plugin("log-events")).getByRole("button", { name: "Enable log-events" }));
+  fireEvent.click((await row("log-events")).getByRole("button", { name: "Enable log-events" }));
 
   await waitFor(() => {
     expect(enabled).toStrictEqual(["log-events"]);
@@ -207,7 +110,7 @@ test("disabling the only Plugin Users sign in with says why it can’t be", asyn
       );
     },
   });
-  const localAuth = await plugin("local-auth");
+  const localAuth = await row("local-auth");
   fireEvent.click(localAuth.getByRole("button", { name: "Disable local-auth" }));
 
   expect((await localAuth.findByRole("alert")).textContent).toBe(
@@ -216,7 +119,7 @@ test("disabling the only Plugin Users sign in with says why it can’t be", asyn
 });
 
 test("enabling a Plugin missing a required setting names the setting", async () => {
-  openPlugins({
+  openPlugin("log-events", {
     enablePlugin: () => {
       throw refused(Code.InvalidArgument, "the setting path is required", {
         reason: RefusalReason.FIELD_REQUIRED,
@@ -246,11 +149,32 @@ test("enabling a second Movie Fulfiller names the Plugin that is the Fulfiller",
       );
     },
   });
-  const logEvents = await plugin("log-events");
+  const logEvents = await row("log-events");
   fireEvent.click(logEvents.getByRole("button", { name: "Enable log-events" }));
 
   const alert = await logEvents.findByText(
     "It can’t be enabled while radarr is the Movie Fulfiller. Disable radarr first.",
   );
   expect(alert.getAttribute("role")).toBe("alert");
+});
+
+test("enabling a Plugin on its details page shows it enabled there and on the list", async () => {
+  let enabled = false;
+  const logEvents = () => ({ id: "log-events", version: "0.1.0", enabled });
+  openPlugins({
+    listPlugins: () => ({ summaries: [logEvents()] }),
+    getPlugin: () => ({ plugin: logEvents() }),
+    enablePlugin: () => {
+      enabled = true;
+      return {};
+    },
+  });
+  fireEvent.click(await screen.findByRole("link", { name: "log-events" }));
+  const page = await plugin("log-events");
+
+  fireEvent.click(page.getByRole("button", { name: "Enable log-events" }));
+
+  expect(await page.findByText("Enabled")).toBeDefined();
+  fireEvent.click(screen.getByRole("link", { name: "Plugins" }));
+  expect(await (await row("log-events")).findByText("Enabled")).toBeDefined();
 });

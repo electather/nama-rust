@@ -174,6 +174,8 @@ pub mod __buffa {
         reg.register_json_any(super::__SCAN_LIBRARY_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__LIST_PLUGINS_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_PLUGINS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__GET_PLUGIN_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__GET_PLUGIN_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__UPDATE_PLUGIN_SETTINGS_REQUEST_JSON_ANY);
         reg.register_json_any(super::__UPDATE_PLUGIN_SETTINGS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__ENABLE_PLUGIN_REQUEST_JSON_ANY);
@@ -184,6 +186,7 @@ pub mod __buffa {
         reg.register_json_any(super::__CHOICE_JSON_ANY);
         reg.register_json_any(super::__DISABLE_PLUGIN_REQUEST_JSON_ANY);
         reg.register_json_any(super::__DISABLE_PLUGIN_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__PLUGIN_SUMMARY_JSON_ANY);
         reg.register_json_any(super::__PLUGIN_JSON_ANY);
         reg.register_json_any(super::__SETTING_JSON_ANY);
         reg.register_json_any(super::__SETTING_VALUE_JSON_ANY);
@@ -693,6 +696,14 @@ pub use self::__buffa::view::ListPluginsResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::ListPluginsResponseOwnedView;
 #[doc(inline)]
+pub use self::__buffa::view::GetPluginRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::GetPluginRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetPluginResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::GetPluginResponseOwnedView;
+#[doc(inline)]
 pub use self::__buffa::view::UpdatePluginSettingsRequestView;
 #[doc(inline)]
 pub use self::__buffa::view::UpdatePluginSettingsRequestOwnedView;
@@ -732,6 +743,10 @@ pub use self::__buffa::view::DisablePluginRequestOwnedView;
 pub use self::__buffa::view::DisablePluginResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::DisablePluginResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PluginSummaryView;
+#[doc(inline)]
+pub use self::__buffa::view::PluginSummaryOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::PluginView;
 #[doc(inline)]

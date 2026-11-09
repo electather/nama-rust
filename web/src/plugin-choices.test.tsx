@@ -8,7 +8,7 @@ import type {
 } from "@/gen/nama/v1/plugin_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 
-import { input, openPlugins, plugin } from "./test-plugins";
+import { input, openPlugin, plugin } from "./test-plugins";
 import { expectUnderField, refused } from "./test-refusal";
 
 afterEach(cleanup);
@@ -38,16 +38,21 @@ async function pressTest() {
   fireEvent.click((await plugin("test-choices")).getByRole("button", { name: "Test" }));
 }
 
-test("only a Plugin with a settings check has a Test button", async () => {
-  openPlugins();
+test("a Plugin with a settings check has a Test button", async () => {
+  openPlugin("test-choices");
 
   expect((await plugin("test-choices")).getByRole("button", { name: "Test" })).toBeDefined();
+});
+
+test("a Plugin without a settings check has no Test button", async () => {
+  openPlugin("tmdb");
+
   expect((await plugin("tmdb")).queryByRole("button", { name: "Test" })).toBeNull();
 });
 
 test("a choice can’t be picked before a test, and a passing test fills its dropdown", async () => {
   const tested = new Promise<TestPluginSettingsRequest>((resolve) => {
-    openPlugins({
+    openPlugin("test-choices", {
       testPluginSettings: (request) => {
         resolve(request);
         return profiles;
@@ -74,7 +79,7 @@ test("a choice can’t be picked before a test, and a passing test fills its dro
 
 test("a picked choice is saved, and an untested one is saved as it was", async () => {
   const sent: UpdatePluginSettingsRequest[] = [];
-  openPlugins({
+  openPlugin("test-choices", {
     testPluginSettings: () => profiles,
     updatePluginSettings: (request) => {
       sent.push(request);
@@ -95,7 +100,7 @@ test("a picked choice is saved, and an untested one is saved as it was", async (
 });
 
 test("a failed test shows the Plugin’s error and leaves the choice locked", async () => {
-  openPlugins({
+  openPlugin("test-choices", {
     testPluginSettings: () => {
       // A Plugin's message may end its own sentence.
       throw refused(Code.FailedPrecondition, "the service refused the API key.", {
@@ -114,7 +119,7 @@ test("a failed test shows the Plugin’s error and leaves the choice locked", as
 });
 
 test("a passing test that offers nothing for a choice unlocks it with nothing to pick", async () => {
-  openPlugins({ testPluginSettings: () => ({ choices: {} }) });
+  openPlugin("test-choices", { testPluginSettings: () => ({ choices: {} }) });
 
   await pressTest();
 
@@ -126,7 +131,7 @@ test("a passing test that offers nothing for a choice unlocks it with nothing to
 
 /** Saves the test Plugin's settings, refused for `reason` with `message`, naming its Profile. */
 async function saveRefusedOnProfile(reason: RefusalReason, message: string) {
-  openPlugins({
+  openPlugin("test-choices", {
     updatePluginSettings: () => {
       throw refused(Code.FailedPrecondition, message, {
         reason,

@@ -23,12 +23,12 @@ use nama_plugin_tmdb::{
 use nama_proto::nama::v1::{
     ApproveRequestRequest, CancelRequestRequest, CreateLibraryRequest, CreateRequestRequest,
     CreateUserRequest, DeletePluginConnectionRequest, DeleteUserRequest, EnablePluginRequest,
-    GetRequestRequest, LibraryKind, LibraryServiceClient, ListPluginConnectionsRequest,
-    ListPluginsRequest, Permission, Plugin, PluginConnectionState, PluginServiceClient, Request,
-    RequestServiceClient, RequestState, ScanLibraryRequest, ServerServiceClient, ServerSettings,
-    SessionDelivery, SetPermissionsRequest, SignInRequest, SignInServiceClient,
-    StartPluginConnectionRequest, UpdatePluginSettingsRequest, UpdateServerSettingsRequest,
-    UserServiceClient, setting_value::Value,
+    GetPluginRequest, GetRequestRequest, LibraryKind, LibraryServiceClient,
+    ListPluginConnectionsRequest, ListPluginsRequest, Permission, Plugin, PluginConnectionState,
+    PluginServiceClient, Request, RequestServiceClient, RequestState, ScanLibraryRequest,
+    ServerServiceClient, ServerSettings, SessionDelivery, SetPermissionsRequest, SignInRequest,
+    SignInServiceClient, StartPluginConnectionRequest, UpdatePluginSettingsRequest,
+    UpdateServerSettingsRequest, UserServiceClient, setting_value::Value,
 };
 use nama_server::{config::Config, db::Database, plugin_settings, plugins::Registry};
 use serde_json::{Value as Json, json};
@@ -88,7 +88,11 @@ impl Fixture {
             _tmdb: tmdb,
         };
         // Listing is what reads the Installed Plugins, bundled ones too.
-        fixture.listed().await;
+        fixture
+            .plugins()
+            .list_plugins(ListPluginsRequest::default())
+            .await
+            .unwrap();
         fixture
     }
 
@@ -140,18 +144,14 @@ impl Fixture {
             .unwrap();
     }
 
-    /// The Telegram Plugin as the Plugins page lists it.
-    async fn listed(&self) -> Option<Plugin> {
-        let listed = self
-            .plugins()
-            .list_plugins(ListPluginsRequest::default())
-            .await
-            .unwrap()
-            .into_owned();
-        listed
-            .plugins
-            .into_iter()
-            .find(|plugin| plugin.id == "telegram")
+    /// The Telegram Plugin as its details page gets it.
+    async fn got(&self) -> Plugin {
+        let request = GetPluginRequest {
+            id: "telegram".to_owned(),
+            ..Default::default()
+        };
+        let got = self.plugins().get_plugin(request).await.unwrap();
+        got.into_owned().plugin.into_option().unwrap()
     }
 
     fn ada_users(&self) -> UserServiceClient<HttpClient> {
@@ -526,11 +526,11 @@ async fn an_unreachable_telegram_is_logged_in_plain_words() {
 }
 
 #[tokio::test]
-async fn the_plugins_page_lists_telegrams_three_settings_without_the_bot_token() {
+async fn telegrams_details_page_gets_its_three_settings_without_the_bot_token() {
     let fixture = Fixture::start().await;
     fixture.set_up_telegram(BOT_TOKEN, Some(CHANNEL)).await;
 
-    let listed = fixture.listed().await.expect("Telegram is listed");
+    let listed = fixture.got().await;
 
     let settings: Vec<_> = listed
         .settings
