@@ -147,6 +147,8 @@ message PluginSummary {
   // would refuse it with `REFUSAL_REASON_FIELD_REQUIRED`. An enabled Plugin may have one too, such
   // as an Installed Plugin upgraded with a new required setting.
   bool settings_missing = 6;
+  // As `Plugin.extension_points`.
+  repeated ExtensionPoint extension_points = 7;
 }
 
 // A unit of trusted functionality that plugs into a Server.
@@ -166,6 +168,31 @@ message Plugin {
   // API version. Empty unless it was refused. A refused Plugin can't be enabled, and its `id` is
   // its file's name, since the Server may not have learnt the id it gives itself.
   string refused_reason = 7;
+  // The Extension Points it takes part at, as its Manifest names them, whether it is enabled or
+  // not. Empty for a refused Plugin.
+  repeated ExtensionPoint extension_points = 8;
+}
+
+// A place in the Server a Plugin takes part at. Unlike the Plugin-facing `ProvidePoint` and
+// `ObservePoint` in `nama.plugin.v1`, this is what an admin is shown.
+enum ExtensionPoint {
+  EXTENSION_POINT_UNSPECIFIED = 0;
+  // Hands Approved Movie Requests to an outside service, such as Radarr.
+  EXTENSION_POINT_MOVIE_FULFILLER = 1;
+  // Hands Approved Season Requests to an outside service, such as Sonarr.
+  EXTENSION_POINT_SHOW_FULFILLER = 2;
+  // Delivers notifications about Requests through an outside service.
+  EXTENSION_POINT_NOTIFIER = 3;
+  // Connects Users to an outside service.
+  EXTENSION_POINT_CONNECTOR = 4;
+  // Checks the credentials people sign in with.
+  EXTENSION_POINT_AUTHENTICATOR = 5;
+  // Finds metadata for Movies and Shows, such as TMDB.
+  EXTENSION_POINT_METADATA_PROVIDER = 6;
+  // Observes the Server's Events.
+  EXTENSION_POINT_EVENTS_OBSERVER = 7;
+  // Observes the Server starting.
+  EXTENSION_POINT_SERVER_STARTED_OBSERVER = 8;
 }
 
 // What kind of value a setting takes.

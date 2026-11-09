@@ -10,7 +10,7 @@ import type { Message, UnknownEnum } from "@bufbuild/protobuf";
  * Describes the file nama/v1/plugin.proto.
  */
 export const file_nama_v1_plugin: GenFile = /*@__PURE__*/
-  fileDesc("ChRuYW1hL3YxL3BsdWdpbi5wcm90bxIHbmFtYS52MSIUChJMaXN0UGx1Z2luc1JlcXVlc3QiTwoTTGlzdFBsdWdpbnNSZXNwb25zZRIpCglzdW1tYXJpZXMYAiADKAsyFi5uYW1hLnYxLlBsdWdpblN1bW1hcnlKBAgBEAJSB3BsdWdpbnMiHgoQR2V0UGx1Z2luUmVxdWVzdBIKCgJpZBgBIAEoCSI0ChFHZXRQbHVnaW5SZXNwb25zZRIfCgZwbHVnaW4YASABKAsyDy5uYW1hLnYxLlBsdWdpbiK3AQobVXBkYXRlUGx1Z2luU2V0dGluZ3NSZXF1ZXN0EgoKAmlkGAEgASgJEkQKCHNldHRpbmdzGAIgAygLMjIubmFtYS52MS5VcGRhdGVQbHVnaW5TZXR0aW5nc1JlcXVlc3QuU2V0dGluZ3NFbnRyeRpGCg1TZXR0aW5nc0VudHJ5EgsKA2tleRgBIAEoCRIkCgV2YWx1ZRgCIAEoCzIVLm5hbWEudjEuU2V0dGluZ1ZhbHVlOgI4ASI/ChxVcGRhdGVQbHVnaW5TZXR0aW5nc1Jlc3BvbnNlEh8KBnBsdWdpbhgBIAEoCzIPLm5hbWEudjEuUGx1Z2luIiEKE0VuYWJsZVBsdWdpblJlcXVlc3QSCgoCaWQYASABKAkiFgoURW5hYmxlUGx1Z2luUmVzcG9uc2UiswEKGVRlc3RQbHVnaW5TZXR0aW5nc1JlcXVlc3QSCgoCaWQYASABKAkSQgoIc2V0dGluZ3MYAiADKAsyMC5uYW1hLnYxLlRlc3RQbHVnaW5TZXR0aW5nc1JlcXVlc3QuU2V0dGluZ3NFbnRyeRpGCg1TZXR0aW5nc0VudHJ5EgsKA2tleRgBIAEoCRIkCgV2YWx1ZRgCIAEoCzIVLm5hbWEudjEuU2V0dGluZ1ZhbHVlOgI4ASKoAQoaVGVzdFBsdWdpblNldHRpbmdzUmVzcG9uc2USQQoHY2hvaWNlcxgBIAMoCzIwLm5hbWEudjEuVGVzdFBsdWdpblNldHRpbmdzUmVzcG9uc2UuQ2hvaWNlc0VudHJ5GkcKDENob2ljZXNFbnRyeRILCgNrZXkYASABKAkSJgoFdmFsdWUYAiABKAsyFy5uYW1hLnYxLlNldHRpbmdDaG9pY2VzOgI4ASIyCg5TZXR0aW5nQ2hvaWNlcxIgCgdjaG9pY2VzGAEgAygLMg8ubmFtYS52MS5DaG9pY2UiJgoGQ2hvaWNlEg0KBXZhbHVlGAEgASgJEg0KBWxhYmVsGAIgASgJIiIKFERpc2FibGVQbHVnaW5SZXF1ZXN0EgoKAmlkGAEgASgJIhcKFURpc2FibGVQbHVnaW5SZXNwb25zZSKSAQoNUGx1Z2luU3VtbWFyeRIKCgJpZBgBIAEoCRIPCgd2ZXJzaW9uGAIgASgJEiEKBGtpbmQYAyABKA4yEy5uYW1hLnYxLlBsdWdpbktpbmQSDwoHZW5hYmxlZBgEIAEoCBIWCg5yZWZ1c2VkX3JlYXNvbhgFIAEoCRIYChBzZXR0aW5nc19taXNzaW5nGAYgASgIIq4BCgZQbHVnaW4SCgoCaWQYASABKAkSDwoHdmVyc2lvbhgCIAEoCRIhCgRraW5kGAMgASgOMhMubmFtYS52MS5QbHVnaW5LaW5kEg8KB2VuYWJsZWQYBCABKAgSIgoIc2V0dGluZ3MYBSADKAsyEC5uYW1hLnYxLlNldHRpbmcSFwoPY2hlY2tzX3NldHRpbmdzGAYgASgIEhYKDnJlZnVzZWRfcmVhc29uGAcgASgJItgBCgdTZXR0aW5nEgsKA2tleRgBIAEoCRINCgVsYWJlbBgCIAEoCRITCgtkZXNjcmlwdGlvbhgDIAEoCRIiCgRraW5kGAQgASgOMhQubmFtYS52MS5TZXR0aW5nS2luZBIQCghyZXF1aXJlZBgFIAEoCBIsCg1kZWZhdWx0X3ZhbHVlGAYgASgLMhUubmFtYS52MS5TZXR0aW5nVmFsdWUSJAoFdmFsdWUYByABKAsyFS5uYW1hLnYxLlNldHRpbmdWYWx1ZRISCgpzZWNyZXRfc2V0GAggASgIIlwKDFNldHRpbmdWYWx1ZRIUCgp0ZXh0X3ZhbHVlGAEgASgJSAASFAoKYm9vbF92YWx1ZRgCIAEoCEgAEhcKDWludGVnZXJfdmFsdWUYAyABKANIAEIHCgV2YWx1ZSpeCgpQbHVnaW5LaW5kEhsKF1BMVUdJTl9LSU5EX1VOU1BFQ0lGSUVEEAASGAoUUExVR0lOX0tJTkRfQlVJTFRfSU4QARIZChVQTFVHSU5fS0lORF9JTlNUQUxMRUQQAiq7AQoLU2V0dGluZ0tpbmQSHAoYU0VUVElOR19LSU5EX1VOU1BFQ0lGSUVEEAASFQoRU0VUVElOR19LSU5EX1RFWFQQARIXChNTRVRUSU5HX0tJTkRfU0VDUkVUEAISFQoRU0VUVElOR19LSU5EX0JPT0wQAxIYChRTRVRUSU5HX0tJTkRfSU5URUdFUhAEEhcKE1NFVFRJTkdfS0lORF9DSE9JQ0UQBRIUChBTRVRUSU5HX0tJTkRfVVJMEAYymQQKDVBsdWdpblNlcnZpY2USTQoLTGlzdFBsdWdpbnMSGy5uYW1hLnYxLkxpc3RQbHVnaW5zUmVxdWVzdBocLm5hbWEudjEuTGlzdFBsdWdpbnNSZXNwb25zZSIDkAIBEkcKCUdldFBsdWdpbhIZLm5hbWEudjEuR2V0UGx1Z2luUmVxdWVzdBoaLm5hbWEudjEuR2V0UGx1Z2luUmVzcG9uc2UiA5ACARJoChRVcGRhdGVQbHVnaW5TZXR0aW5ncxIkLm5hbWEudjEuVXBkYXRlUGx1Z2luU2V0dGluZ3NSZXF1ZXN0GiUubmFtYS52MS5VcGRhdGVQbHVnaW5TZXR0aW5nc1Jlc3BvbnNlIgOQAgISUAoMRW5hYmxlUGx1Z2luEhwubmFtYS52MS5FbmFibGVQbHVnaW5SZXF1ZXN0Gh0ubmFtYS52MS5FbmFibGVQbHVnaW5SZXNwb25zZSIDkAICEl8KElRlc3RQbHVnaW5TZXR0aW5ncxIiLm5hbWEudjEuVGVzdFBsdWdpblNldHRpbmdzUmVxdWVzdBojLm5hbWEudjEuVGVzdFBsdWdpblNldHRpbmdzUmVzcG9uc2UiABJTCg1EaXNhYmxlUGx1Z2luEh0ubmFtYS52MS5EaXNhYmxlUGx1Z2luUmVxdWVzdBoeLm5hbWEudjEuRGlzYWJsZVBsdWdpblJlc3BvbnNlIgOQAgJiBnByb3RvMw");
+  fileDesc("ChRuYW1hL3YxL3BsdWdpbi5wcm90bxIHbmFtYS52MSIUChJMaXN0UGx1Z2luc1JlcXVlc3QiTwoTTGlzdFBsdWdpbnNSZXNwb25zZRIpCglzdW1tYXJpZXMYAiADKAsyFi5uYW1hLnYxLlBsdWdpblN1bW1hcnlKBAgBEAJSB3BsdWdpbnMiHgoQR2V0UGx1Z2luUmVxdWVzdBIKCgJpZBgBIAEoCSI0ChFHZXRQbHVnaW5SZXNwb25zZRIfCgZwbHVnaW4YASABKAsyDy5uYW1hLnYxLlBsdWdpbiK3AQobVXBkYXRlUGx1Z2luU2V0dGluZ3NSZXF1ZXN0EgoKAmlkGAEgASgJEkQKCHNldHRpbmdzGAIgAygLMjIubmFtYS52MS5VcGRhdGVQbHVnaW5TZXR0aW5nc1JlcXVlc3QuU2V0dGluZ3NFbnRyeRpGCg1TZXR0aW5nc0VudHJ5EgsKA2tleRgBIAEoCRIkCgV2YWx1ZRgCIAEoCzIVLm5hbWEudjEuU2V0dGluZ1ZhbHVlOgI4ASI/ChxVcGRhdGVQbHVnaW5TZXR0aW5nc1Jlc3BvbnNlEh8KBnBsdWdpbhgBIAEoCzIPLm5hbWEudjEuUGx1Z2luIiEKE0VuYWJsZVBsdWdpblJlcXVlc3QSCgoCaWQYASABKAkiFgoURW5hYmxlUGx1Z2luUmVzcG9uc2UiswEKGVRlc3RQbHVnaW5TZXR0aW5nc1JlcXVlc3QSCgoCaWQYASABKAkSQgoIc2V0dGluZ3MYAiADKAsyMC5uYW1hLnYxLlRlc3RQbHVnaW5TZXR0aW5nc1JlcXVlc3QuU2V0dGluZ3NFbnRyeRpGCg1TZXR0aW5nc0VudHJ5EgsKA2tleRgBIAEoCRIkCgV2YWx1ZRgCIAEoCzIVLm5hbWEudjEuU2V0dGluZ1ZhbHVlOgI4ASKoAQoaVGVzdFBsdWdpblNldHRpbmdzUmVzcG9uc2USQQoHY2hvaWNlcxgBIAMoCzIwLm5hbWEudjEuVGVzdFBsdWdpblNldHRpbmdzUmVzcG9uc2UuQ2hvaWNlc0VudHJ5GkcKDENob2ljZXNFbnRyeRILCgNrZXkYASABKAkSJgoFdmFsdWUYAiABKAsyFy5uYW1hLnYxLlNldHRpbmdDaG9pY2VzOgI4ASIyCg5TZXR0aW5nQ2hvaWNlcxIgCgdjaG9pY2VzGAEgAygLMg8ubmFtYS52MS5DaG9pY2UiJgoGQ2hvaWNlEg0KBXZhbHVlGAEgASgJEg0KBWxhYmVsGAIgASgJIiIKFERpc2FibGVQbHVnaW5SZXF1ZXN0EgoKAmlkGAEgASgJIhcKFURpc2FibGVQbHVnaW5SZXNwb25zZSLFAQoNUGx1Z2luU3VtbWFyeRIKCgJpZBgBIAEoCRIPCgd2ZXJzaW9uGAIgASgJEiEKBGtpbmQYAyABKA4yEy5uYW1hLnYxLlBsdWdpbktpbmQSDwoHZW5hYmxlZBgEIAEoCBIWCg5yZWZ1c2VkX3JlYXNvbhgFIAEoCRIYChBzZXR0aW5nc19taXNzaW5nGAYgASgIEjEKEGV4dGVuc2lvbl9wb2ludHMYByADKA4yFy5uYW1hLnYxLkV4dGVuc2lvblBvaW50IuEBCgZQbHVnaW4SCgoCaWQYASABKAkSDwoHdmVyc2lvbhgCIAEoCRIhCgRraW5kGAMgASgOMhMubmFtYS52MS5QbHVnaW5LaW5kEg8KB2VuYWJsZWQYBCABKAgSIgoIc2V0dGluZ3MYBSADKAsyEC5uYW1hLnYxLlNldHRpbmcSFwoPY2hlY2tzX3NldHRpbmdzGAYgASgIEhYKDnJlZnVzZWRfcmVhc29uGAcgASgJEjEKEGV4dGVuc2lvbl9wb2ludHMYCCADKA4yFy5uYW1hLnYxLkV4dGVuc2lvblBvaW50ItgBCgdTZXR0aW5nEgsKA2tleRgBIAEoCRINCgVsYWJlbBgCIAEoCRITCgtkZXNjcmlwdGlvbhgDIAEoCRIiCgRraW5kGAQgASgOMhQubmFtYS52MS5TZXR0aW5nS2luZBIQCghyZXF1aXJlZBgFIAEoCBIsCg1kZWZhdWx0X3ZhbHVlGAYgASgLMhUubmFtYS52MS5TZXR0aW5nVmFsdWUSJAoFdmFsdWUYByABKAsyFS5uYW1hLnYxLlNldHRpbmdWYWx1ZRISCgpzZWNyZXRfc2V0GAggASgIIlwKDFNldHRpbmdWYWx1ZRIUCgp0ZXh0X3ZhbHVlGAEgASgJSAASFAoKYm9vbF92YWx1ZRgCIAEoCEgAEhcKDWludGVnZXJfdmFsdWUYAyABKANIAEIHCgV2YWx1ZSpeCgpQbHVnaW5LaW5kEhsKF1BMVUdJTl9LSU5EX1VOU1BFQ0lGSUVEEAASGAoUUExVR0lOX0tJTkRfQlVJTFRfSU4QARIZChVQTFVHSU5fS0lORF9JTlNUQUxMRUQQAirTAgoORXh0ZW5zaW9uUG9pbnQSHwobRVhURU5TSU9OX1BPSU5UX1VOU1BFQ0lGSUVEEAASIwofRVhURU5TSU9OX1BPSU5UX01PVklFX0ZVTEZJTExFUhABEiIKHkVYVEVOU0lPTl9QT0lOVF9TSE9XX0ZVTEZJTExFUhACEhwKGEVYVEVOU0lPTl9QT0lOVF9OT1RJRklFUhADEh0KGUVYVEVOU0lPTl9QT0lOVF9DT05ORUNUT1IQBBIhCh1FWFRFTlNJT05fUE9JTlRfQVVUSEVOVElDQVRPUhAFEiUKIUVYVEVOU0lPTl9QT0lOVF9NRVRBREFUQV9QUk9WSURFUhAGEiMKH0VYVEVOU0lPTl9QT0lOVF9FVkVOVFNfT0JTRVJWRVIQBxIrCidFWFRFTlNJT05fUE9JTlRfU0VSVkVSX1NUQVJURURfT0JTRVJWRVIQCCq7AQoLU2V0dGluZ0tpbmQSHAoYU0VUVElOR19LSU5EX1VOU1BFQ0lGSUVEEAASFQoRU0VUVElOR19LSU5EX1RFWFQQARIXChNTRVRUSU5HX0tJTkRfU0VDUkVUEAISFQoRU0VUVElOR19LSU5EX0JPT0wQAxIYChRTRVRUSU5HX0tJTkRfSU5URUdFUhAEEhcKE1NFVFRJTkdfS0lORF9DSE9JQ0UQBRIUChBTRVRUSU5HX0tJTkRfVVJMEAYymQQKDVBsdWdpblNlcnZpY2USTQoLTGlzdFBsdWdpbnMSGy5uYW1hLnYxLkxpc3RQbHVnaW5zUmVxdWVzdBocLm5hbWEudjEuTGlzdFBsdWdpbnNSZXNwb25zZSIDkAIBEkcKCUdldFBsdWdpbhIZLm5hbWEudjEuR2V0UGx1Z2luUmVxdWVzdBoaLm5hbWEudjEuR2V0UGx1Z2luUmVzcG9uc2UiA5ACARJoChRVcGRhdGVQbHVnaW5TZXR0aW5ncxIkLm5hbWEudjEuVXBkYXRlUGx1Z2luU2V0dGluZ3NSZXF1ZXN0GiUubmFtYS52MS5VcGRhdGVQbHVnaW5TZXR0aW5nc1Jlc3BvbnNlIgOQAgISUAoMRW5hYmxlUGx1Z2luEhwubmFtYS52MS5FbmFibGVQbHVnaW5SZXF1ZXN0Gh0ubmFtYS52MS5FbmFibGVQbHVnaW5SZXNwb25zZSIDkAICEl8KElRlc3RQbHVnaW5TZXR0aW5ncxIiLm5hbWEudjEuVGVzdFBsdWdpblNldHRpbmdzUmVxdWVzdBojLm5hbWEudjEuVGVzdFBsdWdpblNldHRpbmdzUmVzcG9uc2UiABJTCg1EaXNhYmxlUGx1Z2luEh0ubmFtYS52MS5EaXNhYmxlUGx1Z2luUmVxdWVzdBoeLm5hbWEudjEuRGlzYWJsZVBsdWdpblJlc3BvbnNlIgOQAgJiBnByb3RvMw");
 
 /**
  * @generated from message nama.v1.ListPluginsRequest
@@ -326,6 +326,13 @@ export type PluginSummary = Message<"nama.v1.PluginSummary"> & {
    * @generated from field: bool settings_missing = 6;
    */
   settingsMissing: boolean;
+
+  /**
+   * As `Plugin.extension_points`.
+   *
+   * @generated from field: repeated nama.v1.ExtensionPoint extension_points = 7;
+   */
+  extensionPoints: ExtensionPoint[];
 };
 
 /**
@@ -388,6 +395,14 @@ export type Plugin = Message<"nama.v1.Plugin"> & {
    * @generated from field: string refused_reason = 7;
    */
   refusedReason: string;
+
+  /**
+   * The Extension Points it takes part at, as its Manifest names them, whether it is enabled or
+   * not. Empty for a refused Plugin.
+   *
+   * @generated from field: repeated nama.v1.ExtensionPoint extension_points = 8;
+   */
+  extensionPoints: ExtensionPoint[];
 };
 
 /**
@@ -543,6 +558,89 @@ export const PluginKindSchema: GenEnum<PluginKind> = /*@__PURE__*/
   enumDesc(file_nama_v1_plugin, 0);
 
 /**
+ * A place in the Server a Plugin takes part at. Unlike the Plugin-facing `ProvidePoint` and
+ * `ObservePoint` in `nama.plugin.v1`, this is what an admin is shown.
+ *
+ * @generated from enum nama.v1.ExtensionPoint
+ */
+export const ExtensionPoint = {
+  /**
+   * @generated from enum value: EXTENSION_POINT_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED: 0,
+
+  /**
+   * Hands Approved Movie Requests to an outside service, such as Radarr.
+   *
+   * @generated from enum value: EXTENSION_POINT_MOVIE_FULFILLER = 1;
+   */
+  MOVIE_FULFILLER: 1,
+
+  /**
+   * Hands Approved Season Requests to an outside service, such as Sonarr.
+   *
+   * @generated from enum value: EXTENSION_POINT_SHOW_FULFILLER = 2;
+   */
+  SHOW_FULFILLER: 2,
+
+  /**
+   * Delivers notifications about Requests through an outside service.
+   *
+   * @generated from enum value: EXTENSION_POINT_NOTIFIER = 3;
+   */
+  NOTIFIER: 3,
+
+  /**
+   * Connects Users to an outside service.
+   *
+   * @generated from enum value: EXTENSION_POINT_CONNECTOR = 4;
+   */
+  CONNECTOR: 4,
+
+  /**
+   * Checks the credentials people sign in with.
+   *
+   * @generated from enum value: EXTENSION_POINT_AUTHENTICATOR = 5;
+   */
+  AUTHENTICATOR: 5,
+
+  /**
+   * Finds metadata for Movies and Shows, such as TMDB.
+   *
+   * @generated from enum value: EXTENSION_POINT_METADATA_PROVIDER = 6;
+   */
+  METADATA_PROVIDER: 6,
+
+  /**
+   * Observes the Server's Events.
+   *
+   * @generated from enum value: EXTENSION_POINT_EVENTS_OBSERVER = 7;
+   */
+  EVENTS_OBSERVER: 7,
+
+  /**
+   * Observes the Server starting.
+   *
+   * @generated from enum value: EXTENSION_POINT_SERVER_STARTED_OBSERVER = 8;
+   */
+  SERVER_STARTED_OBSERVER: 8,
+} as const;
+
+/**
+ * A place in the Server a Plugin takes part at. Unlike the Plugin-facing `ProvidePoint` and
+ * `ObservePoint` in `nama.plugin.v1`, this is what an admin is shown.
+ *
+ * @generated from enum nama.v1.ExtensionPoint
+ */
+export type ExtensionPoint = (typeof ExtensionPoint)[keyof typeof ExtensionPoint] | UnknownEnum;
+
+/**
+ * Describes the enum nama.v1.ExtensionPoint.
+ */
+export const ExtensionPointSchema: GenEnum<ExtensionPoint> = /*@__PURE__*/
+  enumDesc(file_nama_v1_plugin, 1);
+
+/**
  * What kind of value a setting takes.
  *
  * @generated from enum nama.v1.SettingKind
@@ -602,7 +700,7 @@ export type SettingKind = (typeof SettingKind)[keyof typeof SettingKind] | Unkno
  * Describes the enum nama.v1.SettingKind.
  */
 export const SettingKindSchema: GenEnum<SettingKind> = /*@__PURE__*/
-  enumDesc(file_nama_v1_plugin, 1);
+  enumDesc(file_nama_v1_plugin, 2);
 
 /**
  * The Server's Plugins and their settings. Needs `PERMISSION_MANAGE_SETTINGS`, and fails with

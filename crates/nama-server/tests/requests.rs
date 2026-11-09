@@ -33,7 +33,7 @@ use connectrpc::{
 use http::fetch;
 use log::Log;
 use nama_plugin_api::{
-    BoxFuture, Manifest, Plugin, PluginError, PluginId, Priority, Registrar,
+    BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
     fulfiller::{Download, DownloadStatus, Fulfiller, Movies, Shows},
     notifier::{Notification, Notifier, Recipient},
     settings::{SettingValue, Settings, SettingsSchema},
@@ -916,6 +916,7 @@ impl Plugin for ShowsFulfillerPlugin {
             id: PluginId::from_static("fake-shows-fulfiller"),
             version: "0.0.0".to_owned(),
             settings: SettingsSchema::default(),
+            extension_points: vec![PointKey::provide::<dyn Fulfiller<Shows>>()],
         }
     }
 
@@ -933,6 +934,7 @@ impl Plugin for FulfillerPlugin {
             id: PluginId::from_static("fake-fulfiller"),
             version: "0.0.0".to_owned(),
             settings: SettingsSchema::default(),
+            extension_points: vec![PointKey::provide::<dyn Fulfiller<Movies>>()],
         }
     }
 
@@ -3204,6 +3206,7 @@ impl Plugin for NotifierPlugin {
             id: PluginId::from_static(self.0),
             version: "0.0.0".to_owned(),
             settings: SettingsSchema::default(),
+            extension_points: vec![PointKey::provide::<dyn Notifier>()],
         }
     }
 

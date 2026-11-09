@@ -2,6 +2,7 @@ import { createQueryOptions, useSuspenseQuery } from "@connectrpc/connect-query"
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { PowerOff, TriangleAlert } from "lucide-react";
 
+import { ExtensionPoints } from "@/components/extension-points";
 import { Page } from "@/components/page";
 import { PluginToggle } from "@/components/plugin-toggle";
 import { StateLabel } from "@/components/state-label";
@@ -48,6 +49,7 @@ function PluginRow({ plugin }: { plugin: PluginSummary }) {
         </Link>
         <span className="text-sm text-muted-foreground">{kindAndVersion(plugin)}</span>
         {plugin.enabled && plugin.settingsMissing && <NeedsAttention />}
+        <ExtensionPoints extensionPoints={plugin.extensionPoints} />
       </div>
       <EnableOrSetUp plugin={plugin} />
     </li>

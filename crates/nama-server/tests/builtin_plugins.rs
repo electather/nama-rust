@@ -1,9 +1,17 @@
 //! The Built-in Plugins: which ship in the Server, how config turns them on and off, and what
 //! they may depend on.
 
-use std::{collections::BTreeMap, path::Path, process::Command};
+use std::{collections::BTreeMap, path::Path, process::Command, sync::Arc};
 
-use nama_plugin_api::{PluginId, auth::Authenticator, settings::SettingValue};
+use nama_plugin_api::{
+    Plugin, PluginId, Registrar, Registration,
+    auth::Authenticator,
+    settings::{SettingValue, Settings},
+};
+use nama_plugin_local_auth::LocalAuth;
+use nama_plugin_log_events::LogEvents;
+use nama_plugin_test_choices::TestChoices;
+use nama_plugin_tmdb::Tmdb;
 use nama_server::{config::PluginConfig, plugins::Registry};
 
 #[test]
@@ -85,6 +93,41 @@ fn a_plugin_that_isnt_running_may_be_disabled_only_while_another_provides_an_aut
 
     assert!(refused.is_err(), "{refused:?}");
     assert!(matches!(allowed, Ok(false)), "{allowed:?}");
+}
+
+#[test]
+fn each_builtin_plugin_registers_at_exactly_the_extension_points_its_manifest_names() {
+    let plugins: [Arc<dyn Plugin>; 4] = [
+        Arc::new(LocalAuth),
+        Arc::new(LogEvents),
+        Arc::new(TestChoices),
+        Arc::new(Tmdb::new()),
+    ];
+    // So a Built-in Plugin added later can't miss this test.
+    let builtins: Vec<_> = Registry::with_builtins(&BTreeMap::new())
+        .plugins()
+        .into_iter()
+        .map(|plugin| plugin.id)
+        .collect();
+    let ids: Vec<_> = plugins.iter().map(|plugin| plugin.manifest().id).collect();
+    assert_eq!(ids, builtins);
+
+    for plugin in plugins {
+        let manifest = plugin.manifest();
+        let api_key = BTreeMap::from([(
+            "api_key".to_owned(),
+            SettingValue::Text(nama_plugin_test_choices::API_KEY.to_owned()),
+        )]);
+        let mut registrar = Registrar::with_settings(Settings::new(api_key));
+        plugin.register(&mut registrar);
+
+        let registered: Vec<_> = registrar
+            .into_registrations()
+            .iter()
+            .map(Registration::point)
+            .collect();
+        assert_eq!(registered, manifest.extension_points, "{}", manifest.id);
+    }
 }
 
 /// ADR 0006: Built-in Plugins are separate crates so the compiler keeps them out of Kernel

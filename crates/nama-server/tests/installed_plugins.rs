@@ -23,11 +23,11 @@ use connectrpc::{ConnectError, ErrorCode, client::HttpClient};
 use log::Log;
 use nama_plugin_api::PluginId;
 use nama_proto::nama::v1::{
-    CreateLibraryRequest, DisablePluginRequest, EnablePluginRequest, GetPluginRequest, LibraryKind,
-    LibraryServiceClient, ListPluginsRequest, Plugin, PluginKind, PluginServiceClient,
-    PluginSummary, RefusalReason, ScanLibraryRequest, SettingValue, TestPluginSettingsRequest,
-    TestPluginSettingsResponse, UpdatePluginSettingsRequest, UpdatePluginSettingsResponse,
-    setting_value::Value,
+    CreateLibraryRequest, DisablePluginRequest, EnablePluginRequest, ExtensionPoint,
+    GetPluginRequest, LibraryKind, LibraryServiceClient, ListPluginsRequest, Plugin, PluginKind,
+    PluginServiceClient, PluginSummary, RefusalReason, ScanLibraryRequest, SettingValue,
+    TestPluginSettingsRequest, TestPluginSettingsResponse, UpdatePluginSettingsRequest,
+    UpdatePluginSettingsResponse, setting_value::Value,
 };
 use nama_server::{config::Config, db::Database, plugin_settings, plugins::Registry};
 use refused::assert_refused;
@@ -244,6 +244,15 @@ async fn a_dropped_plugin_is_listed_disabled_observes_scans_only_while_enabled_a
     assert_eq!(listed.refused_reason, "");
     // Its required settings each have a default.
     assert!(!listed.settings_missing);
+    // As its Manifest's `providers`, then `observers`, name them, though it isn't enabled.
+    assert_eq!(
+        listed.extension_points,
+        [
+            ExtensionPoint::EXTENSION_POINT_MOVIE_FULFILLER,
+            ExtensionPoint::EXTENSION_POINT_NOTIFIER,
+            ExtensionPoint::EXTENSION_POINT_EVENTS_OBSERVER
+        ]
+    );
     // Saving its settings doesn't enable it either.
     let updated = started
         .client()

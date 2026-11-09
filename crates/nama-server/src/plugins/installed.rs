@@ -16,7 +16,7 @@ use std::{
 use buffa::Message;
 use extism::{CompiledPlugin, PluginBuilder, Wasm};
 use nama_plugin_api::{
-    BoxFuture, Observer, Plugin, PluginError, PluginId, Priority, Registrar,
+    BoxFuture, Observer, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
     connector::{ConnectionStarted, Connector},
     fulfiller::{Download, Fulfiller, Movies, Shows},
     notifier::{Notification, Notifier, Recipient, RecipientGone},
@@ -220,6 +220,7 @@ impl Plugin for Installed {
             id: self.id(),
             version: self.manifest.version.clone(),
             settings: self.settings_schema.clone(),
+            extension_points: extension_points(&self.manifest),
         }
     }
 
@@ -281,6 +282,32 @@ impl Plugin for Installed {
             registrar.observe::<Events>(running);
         }
     }
+}
+
+/// The Extension Points `manifest` names, which [`Installed::register`] registers at. One this
+/// Server doesn't know is left out, as `register` leaves it out.
+fn extension_points(manifest: &Manifest) -> Vec<PointKey> {
+    let providers = manifest.providers.iter().filter_map(|point| {
+        Some(match point.as_known()? {
+            ProvidePoint::PROVIDE_POINT_MOVIE_FULFILLER => {
+                PointKey::provide::<dyn Fulfiller<Movies>>()
+            }
+            ProvidePoint::PROVIDE_POINT_SHOW_FULFILLER => {
+                PointKey::provide::<dyn Fulfiller<Shows>>()
+            }
+            ProvidePoint::PROVIDE_POINT_NOTIFIER => PointKey::provide::<dyn Notifier>(),
+            ProvidePoint::PROVIDE_POINT_CONNECTOR => PointKey::provide::<dyn Connector>(),
+            ProvidePoint::PROVIDE_POINT_UNSPECIFIED => return None,
+        })
+    });
+    let observers = manifest
+        .observers
+        .iter()
+        .filter_map(|point| match point.as_known()? {
+            ObservePoint::OBSERVE_POINT_EVENTS => Some(PointKey::observe::<Events>()),
+            ObservePoint::OBSERVE_POINT_UNSPECIFIED => None,
+        });
+    providers.chain(observers).collect()
 }
 
 // One impl for both kinds: the Plugin tells a Movie Request from a Season one by which it holds.
@@ -544,6 +571,7 @@ fn describe(
                 version: plugin.manifest.version.clone(),
                 settings_schema: plugin.settings_schema.clone(),
                 checks_settings: plugin.checks_settings,
+                extension_points: extension_points(&plugin.manifest),
                 make: Ok(Arc::new(move || Arc::new(plugin.clone()))),
             };
             (id, described)
@@ -555,6 +583,7 @@ fn describe(
                 version: String::new(),
                 settings_schema: SettingsSchema::default(),
                 checks_settings: false,
+                extension_points: Vec::new(),
                 make: Err(refused.to_string()),
             };
             (PluginId::from(name.into_owned()), described)

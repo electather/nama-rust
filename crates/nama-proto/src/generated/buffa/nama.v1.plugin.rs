@@ -156,6 +156,239 @@ impl ::buffa::Enumeration for PluginKind {
         ]
     }
 }
+/// A place in the Server a Plugin takes part at. Unlike the Plugin-facing `ProvidePoint` and
+/// `ObservePoint` in `nama.plugin.v1`, this is what an admin is shown.
+#[allow(non_camel_case_types)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[repr(i32)]
+pub enum ExtensionPoint {
+    EXTENSION_POINT_UNSPECIFIED = 0i32,
+    /// Hands Approved Movie Requests to an outside service, such as Radarr.
+    EXTENSION_POINT_MOVIE_FULFILLER = 1i32,
+    /// Hands Approved Season Requests to an outside service, such as Sonarr.
+    EXTENSION_POINT_SHOW_FULFILLER = 2i32,
+    /// Delivers notifications about Requests through an outside service.
+    EXTENSION_POINT_NOTIFIER = 3i32,
+    /// Connects Users to an outside service.
+    EXTENSION_POINT_CONNECTOR = 4i32,
+    /// Checks the credentials people sign in with.
+    EXTENSION_POINT_AUTHENTICATOR = 5i32,
+    /// Finds metadata for Movies and Shows, such as TMDB.
+    EXTENSION_POINT_METADATA_PROVIDER = 6i32,
+    /// Observes the Server's Events.
+    EXTENSION_POINT_EVENTS_OBSERVER = 7i32,
+    /// Observes the Server starting.
+    EXTENSION_POINT_SERVER_STARTED_OBSERVER = 8i32,
+}
+impl ExtensionPoint {
+    ///Idiomatic alias for [`Self::EXTENSION_POINT_UNSPECIFIED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Unspecified: Self = Self::EXTENSION_POINT_UNSPECIFIED;
+    ///Idiomatic alias for [`Self::EXTENSION_POINT_MOVIE_FULFILLER`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const MovieFulfiller: Self = Self::EXTENSION_POINT_MOVIE_FULFILLER;
+    ///Idiomatic alias for [`Self::EXTENSION_POINT_SHOW_FULFILLER`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const ShowFulfiller: Self = Self::EXTENSION_POINT_SHOW_FULFILLER;
+    ///Idiomatic alias for [`Self::EXTENSION_POINT_NOTIFIER`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Notifier: Self = Self::EXTENSION_POINT_NOTIFIER;
+    ///Idiomatic alias for [`Self::EXTENSION_POINT_CONNECTOR`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Connector: Self = Self::EXTENSION_POINT_CONNECTOR;
+    ///Idiomatic alias for [`Self::EXTENSION_POINT_AUTHENTICATOR`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Authenticator: Self = Self::EXTENSION_POINT_AUTHENTICATOR;
+    ///Idiomatic alias for [`Self::EXTENSION_POINT_METADATA_PROVIDER`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const MetadataProvider: Self = Self::EXTENSION_POINT_METADATA_PROVIDER;
+    ///Idiomatic alias for [`Self::EXTENSION_POINT_EVENTS_OBSERVER`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const EventsObserver: Self = Self::EXTENSION_POINT_EVENTS_OBSERVER;
+    ///Idiomatic alias for [`Self::EXTENSION_POINT_SERVER_STARTED_OBSERVER`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const ServerStartedObserver: Self = Self::EXTENSION_POINT_SERVER_STARTED_OBSERVER;
+}
+impl ::core::default::Default for ExtensionPoint {
+    fn default() -> Self {
+        Self::EXTENSION_POINT_UNSPECIFIED
+    }
+}
+impl ::serde::Serialize for ExtensionPoint {
+    fn serialize<S: ::serde::Serializer>(
+        &self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        s.serialize_str(::buffa::Enumeration::proto_name(self))
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for ExtensionPoint {
+    fn deserialize<D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        struct _V;
+        impl ::serde::de::Visitor<'_> for _V {
+            type Value = ExtensionPoint;
+            fn expecting(
+                &self,
+                f: &mut ::core::fmt::Formatter<'_>,
+            ) -> ::core::fmt::Result {
+                f.write_str(
+                    concat!(
+                        "a string, integer, or null for ", stringify!(ExtensionPoint)
+                    ),
+                )
+            }
+            fn visit_str<E: ::serde::de::Error>(
+                self,
+                v: &str,
+            ) -> ::core::result::Result<ExtensionPoint, E> {
+                <ExtensionPoint as ::buffa::Enumeration>::from_proto_name(v)
+                    .ok_or_else(|| { ::serde::de::Error::unknown_variant(v, &[]) })
+            }
+            fn visit_i64<E: ::serde::de::Error>(
+                self,
+                v: i64,
+            ) -> ::core::result::Result<ExtensionPoint, E> {
+                let v32 = i32::try_from(v)
+                    .map_err(|_| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("enum value {v} out of i32 range"),
+                        )
+                    })?;
+                <ExtensionPoint as ::buffa::Enumeration>::from_i32(v32)
+                    .ok_or_else(|| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("unknown enum value {v32}"),
+                        )
+                    })
+            }
+            fn visit_u64<E: ::serde::de::Error>(
+                self,
+                v: u64,
+            ) -> ::core::result::Result<ExtensionPoint, E> {
+                let v32 = i32::try_from(v)
+                    .map_err(|_| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("enum value {v} out of i32 range"),
+                        )
+                    })?;
+                <ExtensionPoint as ::buffa::Enumeration>::from_i32(v32)
+                    .ok_or_else(|| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("unknown enum value {v32}"),
+                        )
+                    })
+            }
+            fn visit_unit<E: ::serde::de::Error>(
+                self,
+            ) -> ::core::result::Result<ExtensionPoint, E> {
+                ::core::result::Result::Ok(::core::default::Default::default())
+            }
+        }
+        d.deserialize_any(_V)
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for ExtensionPoint {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+impl ::buffa::Enumeration for ExtensionPoint {
+    fn from_i32(value: i32) -> ::core::option::Option<Self> {
+        match value {
+            0i32 => ::core::option::Option::Some(Self::EXTENSION_POINT_UNSPECIFIED),
+            1i32 => ::core::option::Option::Some(Self::EXTENSION_POINT_MOVIE_FULFILLER),
+            2i32 => ::core::option::Option::Some(Self::EXTENSION_POINT_SHOW_FULFILLER),
+            3i32 => ::core::option::Option::Some(Self::EXTENSION_POINT_NOTIFIER),
+            4i32 => ::core::option::Option::Some(Self::EXTENSION_POINT_CONNECTOR),
+            5i32 => ::core::option::Option::Some(Self::EXTENSION_POINT_AUTHENTICATOR),
+            6i32 => ::core::option::Option::Some(Self::EXTENSION_POINT_METADATA_PROVIDER),
+            7i32 => ::core::option::Option::Some(Self::EXTENSION_POINT_EVENTS_OBSERVER),
+            8i32 => {
+                ::core::option::Option::Some(
+                    Self::EXTENSION_POINT_SERVER_STARTED_OBSERVER,
+                )
+            }
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn to_i32(&self) -> i32 {
+        *self as i32
+    }
+    fn proto_name(&self) -> &'static str {
+        match self {
+            Self::EXTENSION_POINT_UNSPECIFIED => "EXTENSION_POINT_UNSPECIFIED",
+            Self::EXTENSION_POINT_MOVIE_FULFILLER => "EXTENSION_POINT_MOVIE_FULFILLER",
+            Self::EXTENSION_POINT_SHOW_FULFILLER => "EXTENSION_POINT_SHOW_FULFILLER",
+            Self::EXTENSION_POINT_NOTIFIER => "EXTENSION_POINT_NOTIFIER",
+            Self::EXTENSION_POINT_CONNECTOR => "EXTENSION_POINT_CONNECTOR",
+            Self::EXTENSION_POINT_AUTHENTICATOR => "EXTENSION_POINT_AUTHENTICATOR",
+            Self::EXTENSION_POINT_METADATA_PROVIDER => {
+                "EXTENSION_POINT_METADATA_PROVIDER"
+            }
+            Self::EXTENSION_POINT_EVENTS_OBSERVER => "EXTENSION_POINT_EVENTS_OBSERVER",
+            Self::EXTENSION_POINT_SERVER_STARTED_OBSERVER => {
+                "EXTENSION_POINT_SERVER_STARTED_OBSERVER"
+            }
+        }
+    }
+    fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
+        match name {
+            "EXTENSION_POINT_UNSPECIFIED" => {
+                ::core::option::Option::Some(Self::EXTENSION_POINT_UNSPECIFIED)
+            }
+            "EXTENSION_POINT_MOVIE_FULFILLER" => {
+                ::core::option::Option::Some(Self::EXTENSION_POINT_MOVIE_FULFILLER)
+            }
+            "EXTENSION_POINT_SHOW_FULFILLER" => {
+                ::core::option::Option::Some(Self::EXTENSION_POINT_SHOW_FULFILLER)
+            }
+            "EXTENSION_POINT_NOTIFIER" => {
+                ::core::option::Option::Some(Self::EXTENSION_POINT_NOTIFIER)
+            }
+            "EXTENSION_POINT_CONNECTOR" => {
+                ::core::option::Option::Some(Self::EXTENSION_POINT_CONNECTOR)
+            }
+            "EXTENSION_POINT_AUTHENTICATOR" => {
+                ::core::option::Option::Some(Self::EXTENSION_POINT_AUTHENTICATOR)
+            }
+            "EXTENSION_POINT_METADATA_PROVIDER" => {
+                ::core::option::Option::Some(Self::EXTENSION_POINT_METADATA_PROVIDER)
+            }
+            "EXTENSION_POINT_EVENTS_OBSERVER" => {
+                ::core::option::Option::Some(Self::EXTENSION_POINT_EVENTS_OBSERVER)
+            }
+            "EXTENSION_POINT_SERVER_STARTED_OBSERVER" => {
+                ::core::option::Option::Some(
+                    Self::EXTENSION_POINT_SERVER_STARTED_OBSERVER,
+                )
+            }
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn values() -> &'static [Self] {
+        &[
+            Self::EXTENSION_POINT_UNSPECIFIED,
+            Self::EXTENSION_POINT_MOVIE_FULFILLER,
+            Self::EXTENSION_POINT_SHOW_FULFILLER,
+            Self::EXTENSION_POINT_NOTIFIER,
+            Self::EXTENSION_POINT_CONNECTOR,
+            Self::EXTENSION_POINT_AUTHENTICATOR,
+            Self::EXTENSION_POINT_METADATA_PROVIDER,
+            Self::EXTENSION_POINT_EVENTS_OBSERVER,
+            Self::EXTENSION_POINT_SERVER_STARTED_OBSERVER,
+        ]
+    }
+}
 /// What kind of value a setting takes.
 #[allow(non_camel_case_types)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -2274,6 +2507,16 @@ pub struct PluginSummary {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
     )]
     pub settings_missing: bool,
+    /// As `Plugin.extension_points`.
+    ///
+    /// Field 7: `extension_points`
+    #[serde(
+        rename = "extensionPoints",
+        alias = "extension_points",
+        with = "::buffa::json_helpers::repeated_enum",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec"
+    )]
+    pub extension_points: ::buffa::alloc::vec::Vec<::buffa::EnumValue<ExtensionPoint>>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -2287,6 +2530,7 @@ impl ::core::fmt::Debug for PluginSummary {
             .field("enabled", &self.enabled)
             .field("refused_reason", &self.refused_reason)
             .field("settings_missing", &self.settings_missing)
+            .field("extension_points", &self.extension_points)
             .finish()
     }
 }
@@ -2340,6 +2584,14 @@ impl ::buffa::Message for PluginSummary {
         if self.settings_missing {
             size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
+        if !self.extension_points.is_empty() {
+            let payload: u64 = self
+                .extension_points
+                .iter()
+                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                .sum::<u64>();
+            size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -2370,6 +2622,17 @@ impl ::buffa::Message for PluginSummary {
         }
         if self.settings_missing {
             ::buffa::types::put_bool_field(6u32, self.settings_missing, buf);
+        }
+        if !self.extension_points.is_empty() {
+            let payload: u64 = self
+                .extension_points
+                .iter()
+                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                .sum::<u64>();
+            ::buffa::types::put_len_delimited_header(7u32, payload, buf);
+            for v in &self.extension_points {
+                ::buffa::types::encode_int32(v.to_i32(), buf);
+            }
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2426,6 +2689,44 @@ impl ::buffa::Message for PluginSummary {
                 )?;
                 self.settings_missing = ::buffa::types::decode_bool(buf)?;
             }
+            7u32 => {
+                if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
+                    let len = ::buffa::encoding::decode_varint(buf)?;
+                    let len = usize::try_from(len)
+                        .map_err(|_| ::buffa::DecodeError::MessageTooLarge)?;
+                    if buf.remaining() < len {
+                        return ::core::result::Result::Err(
+                            ::buffa::DecodeError::UnexpectedEof,
+                        );
+                    }
+                    self.extension_points.reserve(len);
+                    let mut limited = buf.take(len);
+                    while limited.has_remaining() {
+                        self.extension_points
+                            .push(
+                                ::buffa::EnumValue::from(
+                                    ::buffa::types::decode_int32_packed(&mut limited)?,
+                                ),
+                            );
+                    }
+                    let leftover = limited.remaining();
+                    if leftover > 0 {
+                        limited.advance(leftover);
+                    }
+                } else if tag.wire_type() == ::buffa::encoding::WireType::Varint {
+                    self.extension_points
+                        .push(
+                            ::buffa::EnumValue::from(::buffa::types::decode_int32(buf)?),
+                        );
+                } else {
+                    return ::core::result::Result::Err(
+                        ::buffa::encoding::wire_type_mismatch(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        ),
+                    );
+                }
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -2440,6 +2741,7 @@ impl ::buffa::Message for PluginSummary {
         self.enabled = false;
         self.refused_reason.clear();
         self.settings_missing = false;
+        self.extension_points.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -2541,6 +2843,17 @@ pub struct Plugin {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub refused_reason: ::buffa::alloc::string::String,
+    /// The Extension Points it takes part at, as its Manifest names them, whether it is enabled or
+    /// not. Empty for a refused Plugin.
+    ///
+    /// Field 8: `extension_points`
+    #[serde(
+        rename = "extensionPoints",
+        alias = "extension_points",
+        with = "::buffa::json_helpers::repeated_enum",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec"
+    )]
+    pub extension_points: ::buffa::alloc::vec::Vec<::buffa::EnumValue<ExtensionPoint>>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -2555,6 +2868,7 @@ impl ::core::fmt::Debug for Plugin {
             .field("settings", &self.settings)
             .field("checks_settings", &self.checks_settings)
             .field("refused_reason", &self.refused_reason)
+            .field("extension_points", &self.extension_points)
             .finish()
     }
 }
@@ -2616,6 +2930,14 @@ impl ::buffa::Message for Plugin {
                 += 1u64
                     + ::buffa::types::string_encoded_len(&self.refused_reason) as u64;
         }
+        if !self.extension_points.is_empty() {
+            let payload: u64 = self
+                .extension_points
+                .iter()
+                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                .sum::<u64>();
+            size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -2654,6 +2976,17 @@ impl ::buffa::Message for Plugin {
         }
         if !self.refused_reason.is_empty() {
             ::buffa::types::put_string_field(7u32, &self.refused_reason, buf);
+        }
+        if !self.extension_points.is_empty() {
+            let payload: u64 = self
+                .extension_points
+                .iter()
+                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                .sum::<u64>();
+            ::buffa::types::put_len_delimited_header(8u32, payload, buf);
+            for v in &self.extension_points {
+                ::buffa::types::encode_int32(v.to_i32(), buf);
+            }
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2722,6 +3055,44 @@ impl ::buffa::Message for Plugin {
                 )?;
                 ::buffa::types::merge_string(&mut self.refused_reason, buf)?;
             }
+            8u32 => {
+                if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
+                    let len = ::buffa::encoding::decode_varint(buf)?;
+                    let len = usize::try_from(len)
+                        .map_err(|_| ::buffa::DecodeError::MessageTooLarge)?;
+                    if buf.remaining() < len {
+                        return ::core::result::Result::Err(
+                            ::buffa::DecodeError::UnexpectedEof,
+                        );
+                    }
+                    self.extension_points.reserve(len);
+                    let mut limited = buf.take(len);
+                    while limited.has_remaining() {
+                        self.extension_points
+                            .push(
+                                ::buffa::EnumValue::from(
+                                    ::buffa::types::decode_int32_packed(&mut limited)?,
+                                ),
+                            );
+                    }
+                    let leftover = limited.remaining();
+                    if leftover > 0 {
+                        limited.advance(leftover);
+                    }
+                } else if tag.wire_type() == ::buffa::encoding::WireType::Varint {
+                    self.extension_points
+                        .push(
+                            ::buffa::EnumValue::from(::buffa::types::decode_int32(buf)?),
+                        );
+                } else {
+                    return ::core::result::Result::Err(
+                        ::buffa::encoding::wire_type_mismatch(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        ),
+                    );
+                }
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -2737,6 +3108,7 @@ impl ::buffa::Message for Plugin {
         self.settings.clear();
         self.checks_settings = false;
         self.refused_reason.clear();
+        self.extension_points.clear();
         self.__buffa_unknown_fields.clear();
     }
 }

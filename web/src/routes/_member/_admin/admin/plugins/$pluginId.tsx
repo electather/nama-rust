@@ -1,6 +1,7 @@
 import { useSuspenseQuery } from "@connectrpc/connect-query";
 import { createFileRoute, notFound } from "@tanstack/react-router";
 
+import { ExtensionPoints } from "@/components/extension-points";
 import { Page } from "@/components/page";
 import { PluginSettings } from "@/components/plugin-settings";
 import { PluginToggle } from "@/components/plugin-toggle";
@@ -23,6 +24,7 @@ function PluginPage() {
   return (
     <Page heading={plugin.id}>
       <p className="mt-1 text-sm text-muted-foreground">{kindAndVersion(plugin)}</p>
+      <ExtensionPoints extensionPoints={plugin.extensionPoints} />
       <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2">
         <PluginToggle plugin={plugin} />
       </div>

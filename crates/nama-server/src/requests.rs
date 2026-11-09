@@ -1944,7 +1944,7 @@ mod tests {
     };
 
     use nama_plugin_api::{
-        BoxFuture, Manifest, Plugin, PluginError, PluginId, Priority, Registrar,
+        BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
         fulfiller::{Download, Fulfiller, Movies},
         metadata::{Episode, ExternalIds, Season},
         settings::SettingsSchema,
@@ -2135,6 +2135,7 @@ mod tests {
                 id: PluginId::from_static("gated"),
                 version: "0.0.0".to_owned(),
                 settings: SettingsSchema::default(),
+                extension_points: vec![PointKey::provide::<dyn Fulfiller<Movies>>()],
             }
         }
 

@@ -2,7 +2,7 @@
 //! that the wiring from the Kernel to a Plugin works.
 
 use nama_plugin_api::{
-    BoxFuture, Manifest, Observer, Plugin, PluginId, Registrar,
+    BoxFuture, Manifest, Observer, Plugin, PluginId, PointKey, Registrar,
     points::{ServerStarted, ServerStartedEvent},
     settings::SettingsSchema,
 };
@@ -23,6 +23,7 @@ impl Plugin for LogEvents {
             id: Self::ID,
             version: env!("CARGO_PKG_VERSION").to_owned(),
             settings: SettingsSchema::default(),
+            extension_points: vec![PointKey::observe::<ServerStarted>()],
         }
     }
 
