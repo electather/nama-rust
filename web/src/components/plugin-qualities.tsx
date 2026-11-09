@@ -6,6 +6,7 @@ import { useState } from "react";
 import { FormEnd } from "@/components/form-field";
 import { AddQuality, QualityFields } from "@/components/quality-fields";
 import {
+  type Choice,
   ExtensionPoint,
   type Plugin,
   PluginService,
@@ -83,8 +84,8 @@ function QualitiesForm({ plugin, saved }: { plugin: Plugin; saved: Quality[] }) 
       await queryClient.invalidateQueries();
     },
   });
-  const { profiles, unoffered } = useProfiles(plugin);
-  const errors = replace.error ? qualityErrors(replace.error, rows, plugin) : {};
+  const { profiles, unoffered, gone } = useProfiles(plugin, rows);
+  const errors = replace.error ? qualityErrors(replace.error, rows, plugin) : gone;
   return (
     <form
       className="mt-4 flex max-w-md flex-col gap-5"
@@ -126,10 +127,11 @@ function QualitiesForm({ plugin, saved }: { plugin: Plugin; saved: Quality[] }) 
 }
 
 /**
- * The profiles `plugin`'s settings check offers on its stored settings, and why there are none
- * when it failed. A secret isn't sent, so the Server uses the stored one.
+ * The profiles `plugin`'s settings check offers on its stored settings, why there are none when it
+ * failed, and a flag under each of `rows` whose profile it doesn't offer. A secret isn't sent, so
+ * the Server uses the stored one.
  */
-function useProfiles(plugin: Plugin) {
+function useProfiles(plugin: Plugin, rows: Row[]) {
   const stored = Object.fromEntries(
     plugin.settings.flatMap(({ key, value }) => (value ? [[key, value]] : [])),
   );
@@ -137,12 +139,24 @@ function useProfiles(plugin: Plugin) {
     id: plugin.id,
     settings: stored,
   });
+  const profiles = offered.data?.choices[qualityProfile]?.choices;
   return {
-    profiles: offered.data?.choices[qualityProfile]?.choices ?? [],
+    profiles: profiles ?? [],
+    gone: profilesGone(rows, profiles, plugin),
     unoffered:
       offered.error &&
       `Couldn’t get ${pluginName(plugin)}’s quality profiles: ${serverMessage(offered.error)}`,
   };
+}
+
+/** A flag under each of `rows` whose saved profile `plugin` doesn't offer now, as `profiles` says. */
+function profilesGone(rows: Row[], profiles: Choice[] | undefined, plugin: Plugin) {
+  if (profiles === undefined) return {};
+  const gone = rows.filter(
+    ({ quality: { profileId } }) =>
+      profileId !== "" && !profiles.some(({ value }) => value === profileId),
+  );
+  return Object.fromEntries(gone.map(({ key }) => [`profile-${key}`, notOffered(plugin)]));
 }
 
 /** The Qualities typed in `typed`, one per row, in order. */
@@ -198,7 +212,11 @@ function inputRefused(
     name: { [RefusalReason.QUALITY_REPEATED]: "Another Quality has this name." },
     profile: {
       [RefusalReason.QUALITY_REPEATED]: "Another Quality offers this profile.",
-      [RefusalReason.CHOICE_NOT_OFFERED]: `${pluginName(plugin)} doesn’t offer this profile now.`,
+      [RefusalReason.CHOICE_NOT_OFFERED]: notOffered(plugin),
     },
   };
+}
+
+function notOffered(plugin: Plugin) {
+  return `${pluginName(plugin)} doesn’t offer this profile now.`;
 }

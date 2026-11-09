@@ -11,8 +11,8 @@ mod exports {
     use std::collections::HashMap;
 
     use nama_pdk::{
-        Buffa, CheckedSettings, Download, FnResult, Fulfiller, Manifest, Notification, Notifier,
-        Recipient, Request,
+        Buffa, CheckedSettings, Download, FnResult, Fulfilled, Fulfiller, Manifest, Notification,
+        Notifier, Recipient, Request,
         extism_pdk::{self, Error, HttpRequest, config, http},
         nama_proto::nama::plugin::v1::{
             ObservePoint, ObservedEvents, ProvidePoint, SettingField, SettingKind, SettingValue,
@@ -153,13 +153,16 @@ mod exports {
     struct TestFulfiller;
 
     impl Fulfiller for TestFulfiller {
-        fn fulfill(request: Request) -> Result<String, Error> {
+        fn fulfill(request: Request) -> Result<Fulfilled, Error> {
             match config::get(FULFILLER)?.as_deref() {
                 Some("error") => Err(Error::msg("the test Plugin's Fulfiller was set to error")),
                 Some("loop") => loop_forever(),
                 #[expect(clippy::panic, reason = "it panics on purpose")]
                 Some("panic") => panic!("the test Plugin's Fulfiller was set to panic"),
-                _ => Ok(format!("test-{}", request.movie.tmdb_id)),
+                _ => Ok(Fulfilled {
+                    reference: format!("test-{}", request.movie.tmdb_id),
+                    ..Fulfilled::default()
+                }),
             }
         }
 

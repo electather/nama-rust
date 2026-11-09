@@ -192,11 +192,16 @@ function titleOf(request: Request | FollowedShow) {
  */
 function aboutRequest(request: Request | FollowedShow, you: bigint | undefined) {
   if (request.$typeName === "nama.v1.FollowedShow") return requestedBy(request, you);
-  return metadataLine(
-    yearOf(releasedOf(request)),
-    request.quality?.name,
-    requestedBy(request, you),
-  );
+  return metadataLine(yearOf(releasedOf(request)), qualityOf(request), requestedBy(request, you));
+}
+
+/**
+ * The Quality a Request is downloaded at: the one its service used once handed off, else the one
+ * asked for. A profile no Quality offers is the service's own.
+ */
+function qualityOf({ quality, qualityUsed }: Request) {
+  const shown = qualityUsed ?? quality;
+  return shown && (shown.id === 0n ? `${shown.name} (set in the service)` : shown.name);
 }
 
 /** When a Request's Movie came out, or its Season first aired. */

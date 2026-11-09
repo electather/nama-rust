@@ -11,7 +11,7 @@ mod exports {
     use std::collections::HashMap;
 
     use nama_pdk::{
-        Buffa, CheckedSettings, Download, FnResult, Fulfiller, Manifest, Request,
+        Buffa, CheckedSettings, Download, FnResult, Fulfilled, Fulfiller, Manifest, Request,
         extism_pdk::{self, Error, HttpRequest, HttpResponse, Json, ToMemory, config},
         nama_proto::nama::{
             plugin::v1::{ProvidePoint, SettingField, SettingKind},
@@ -94,16 +94,25 @@ mod exports {
     }
 
     /// Adds each Movie to Radarr, which starts a search for it. Its reference is the Movie's TMDB
-    /// id, which Radarr also knows it by.
+    /// id, which Radarr also knows it by. A Movie Radarr already has keeps its own profile.
     struct RadarrFulfiller;
 
     impl Fulfiller for RadarrFulfiller {
-        fn fulfill(request: Request) -> Result<String, Error> {
+        fn fulfill(request: Request) -> Result<Fulfilled, Error> {
             let radarr = Radarr::from_config()?;
+            let tmdb_id = request.movie.tmdb_id;
+            let asked = quality_profile(&request)?;
+            // Checked first, as Radarr may add a Movie with a profile it no longer has.
+            let profiles: Vec<QualityProfile> = radarr.get("qualityprofile")?;
+            if !profiles.iter().any(|profile| profile.id == asked) {
+                return Err(Error::msg(format!(
+                    "Radarr has no quality profile with the id {asked}"
+                )));
+            }
             let movie = NewMovie {
-                tmdb_id: request.movie.tmdb_id,
+                tmdb_id,
                 title: request.movie.title.clone(),
-                quality_profile_id: quality_profile(&request)?,
+                quality_profile_id: asked,
                 root_folder_path: setting(ROOT_FOLDER)?,
                 monitored: true,
                 minimum_availability: "released",
@@ -112,11 +121,25 @@ mod exports {
                 },
             };
             let response = send(&radarr.request("POST", "movie"), Some(Json(movie)))?;
-            if is_success(&response) || already_has(&response) {
-                Ok(request.movie.tmdb_id.to_string())
+            let used = if is_success(&response) {
+                Some(asked)
+            } else if already_has(&response) {
+                radarr.profile_of(tmdb_id)?
             } else {
-                Err(refused(&response))
-            }
+                return Err(refused(&response));
+            };
+            let used = profiles
+                .into_iter()
+                .find(|profile| Some(profile.id) == used);
+            Ok(Fulfilled {
+                reference: tmdb_id.to_string(),
+                profile_id: used
+                    .as_ref()
+                    .map(|used| used.id.to_string())
+                    .unwrap_or_default(),
+                profile_name: used.map(|used| used.name).unwrap_or_default(),
+                ..Fulfilled::default()
+            })
         }
 
         /// Reads Radarr's whole queue in one call, whatever the number of `references`. A Movie
@@ -163,6 +186,12 @@ mod exports {
                 .with_method(method)
                 .with_header("X-Api-Key", &self.api_key)
                 .with_header("Content-Type", "application/json")
+        }
+
+        /// The id of the quality profile Radarr has the Movie `tmdb_id` at, if it has the Movie.
+        fn profile_of(&self, tmdb_id: i64) -> Result<Option<i64>, Error> {
+            let movies: Vec<AddedMovie> = self.get(&format!("movie?tmdbId={tmdb_id}"))?;
+            Ok(movies.first().map(|movie| movie.quality_profile_id))
         }
 
         /// What Radarr answers at the API path `path`.
@@ -390,6 +419,13 @@ mod exports {
     struct ValidationFailure {
         error_message: String,
         error_code: Option<String>,
+    }
+
+    /// A Movie Radarr has, as `GET /api/v3/movie` gives it.
+    #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct AddedMovie {
+        quality_profile_id: i64,
     }
 
     /// What `POST /api/v3/movie` takes to add a Movie.

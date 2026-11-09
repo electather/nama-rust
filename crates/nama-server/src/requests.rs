@@ -17,7 +17,7 @@ use std::{
 
 use nama_plugin_api::{
     PluginId,
-    fulfiller::{Download, Fulfiller, Movies, Shows},
+    fulfiller::{Download, Fulfilled, Fulfiller, Movies, Shows},
     metadata::{Candidate, Episode, ExternalId, ExternalIds, SearchQuery, Season, Show, TitleKind},
 };
 use nama_proto::nama::v1::{
@@ -289,16 +289,19 @@ impl Requests {
 
     /// A copy of the enabled Movie Fulfiller's default Quality, if it has one.
     async fn default_quality(&self) -> Result<Option<RequestedQuality>, sqlx::Error> {
-        let fulfiller = self
-            .plugins
-            .enabled()
-            .into_iter()
-            .find(|plugin| self.plugins.provides::<dyn Fulfiller<Movies>>(plugin));
-        let Some(fulfiller) = fulfiller else {
+        let Some(fulfiller) = self.fulfiller::<Movies>() else {
             return Ok(None);
         };
         let mut conn = self.db.reader().acquire().await?;
         qualities::default_of(&mut conn, &fulfiller).await
+    }
+
+    /// The enabled Plugin providing the Fulfiller of `Kind`, if any.
+    fn fulfiller<Kind: 'static>(&self) -> Option<PluginId> {
+        self.plugins
+            .enabled()
+            .into_iter()
+            .find(|plugin| self.plugins.provides::<dyn Fulfiller<Kind>>(plugin))
     }
 
     /// Asks for the Seasons `numbers` of the Show with the TMDB id `tmdb_id` for `asker`, one
@@ -592,6 +595,13 @@ impl Requests {
         let Some(fulfilled) = self.fulfill(&handed).await else {
             return Ok(current);
         };
+        let fulfilled = match fulfilled {
+            Ok(fulfilled) => Ok(Taken {
+                quality_used: self.quality_used(&current, &fulfilled).await?,
+                reference: fulfilled.reference,
+            }),
+            Err(reason) => Err(reason),
+        };
         let took = fulfilled.is_ok();
         let settled = self
             .db
@@ -654,9 +664,51 @@ impl Requests {
         Ok(())
     }
 
-    /// What the Fulfiller for `request`'s kind says to it, if one is enabled: the reference it
-    /// gives once it takes it, or why it doesn't, with no secret setting's value in it.
-    async fn fulfill(&self, request: &Request) -> Option<Result<String, String>> {
+    /// The Quality `request`'s service downloads it at, as its Fulfiller reported in `fulfilled`:
+    /// `request`'s own Quality if it has that profile, else the Quality on the Fulfiller's list
+    /// that has it, else the service's own profile, with no Quality id. `None` if `request` took
+    /// no Quality, so the Plugin's own setting applied, or the Fulfiller didn't say.
+    async fn quality_used(
+        &self,
+        request: &Request,
+        fulfilled: &Fulfilled,
+    ) -> Result<Option<RequestedQuality>, sqlx::Error> {
+        let Fulfilled {
+            profile_id,
+            profile_name,
+            ..
+        } = fulfilled;
+        let Some(asked) = request.quality.as_option() else {
+            return Ok(None);
+        };
+        if profile_id.is_empty() {
+            return Ok(None);
+        }
+        if asked.profile_id == *profile_id {
+            return Ok(Some(asked.clone()));
+        }
+        let plugin = if request.movie.is_unset() {
+            self.fulfiller::<Shows>()
+        } else {
+            self.fulfiller::<Movies>()
+        };
+        let listed = match plugin {
+            Some(plugin) => {
+                let mut conn = self.db.reader().acquire().await?;
+                qualities::with_profile(&mut conn, &plugin, profile_id).await?
+            }
+            None => None,
+        };
+        Ok(Some(listed.unwrap_or_else(|| RequestedQuality {
+            name: profile_name.clone(),
+            profile_id: profile_id.clone(),
+            ..Default::default()
+        })))
+    }
+
+    /// What the Fulfiller for `request`'s kind says to it, if one is enabled: what it reports once
+    /// it takes it, or why it doesn't, with no secret setting's value in it.
+    async fn fulfill(&self, request: &Request) -> Option<Result<Fulfilled, String>> {
         let fulfilled = if request.movie.is_unset() {
             self.fulfill_as::<Shows>(request).await
         } else {
@@ -671,7 +723,10 @@ impl Requests {
     }
 
     /// [`Self::fulfill`] by the Fulfiller of `Kind`.
-    async fn fulfill_as<Kind: 'static>(&self, request: &Request) -> Option<Result<String, String>> {
+    async fn fulfill_as<Kind: 'static>(
+        &self,
+        request: &Request,
+    ) -> Option<Result<Fulfilled, String>> {
         self.plugins
             .call_provider_blanking_secrets::<dyn Fulfiller<Kind>, _, _>(|fulfiller| async move {
                 // Inside the call, so formatting and dropping the Plugin's error are contained.
@@ -1482,25 +1537,41 @@ async fn decide(
     Ok(request)
 }
 
-/// Moves the Approved Request `id` on as its Fulfiller said: to Processing, keeping the reference
-/// it gave, or to Failed, keeping why. Returns it as it is now, or `None` if it isn't Approved any
-/// more.
+/// What a Fulfiller that took a Request said, as the Request keeps it.
+struct Taken {
+    reference: String,
+    quality_used: Option<RequestedQuality>,
+}
+
+/// Moves the Approved Request `id` on as its Fulfiller said: to Processing, keeping what it said,
+/// or to Failed, keeping why. Returns it as it is now, or `None` if it isn't Approved any more.
 async fn settle(
     conn: &mut SqliteConnection,
     id: i64,
-    fulfilled: Result<String, String>,
+    fulfilled: Result<Taken, String>,
 ) -> Result<Option<Request>, sqlx::Error> {
-    let (state, reference, reason) = match fulfilled {
-        Ok(reference) => (RequestState::Processing, Some(reference), None),
+    let (state, taken, reason) = match fulfilled {
+        Ok(taken) => (RequestState::Processing, Some(taken), None),
         Err(reason) => (RequestState::Failed, None, Some(reason)),
     };
     let state = stored(state);
+    let reference = taken.as_ref().map(|taken| &taken.reference);
+    let used = taken.as_ref().and_then(|taken| taken.quality_used.as_ref());
+    let (used_id, used_name, used_profile_id) = (
+        used.map(|used| used.id),
+        used.map(|used| &used.name),
+        used.map(|used| &used.profile_id),
+    );
     let settled = sqlx::query!(
-        "UPDATE requests SET state = ?, fulfiller_reference = ?, failure_reason = ?
+        "UPDATE requests SET state = ?, fulfiller_reference = ?, failure_reason = ?,
+                             quality_used_id = ?, quality_used_name = ?, quality_used_profile_id = ?
          WHERE id = ? AND state = 'approved'",
         state,
         reference,
         reason,
+        used_id,
+        used_name,
+        used_profile_id,
         id
     )
     .execute(&mut *conn)
@@ -1919,7 +1990,8 @@ async fn load(
     let rows = sqlx::query!(
         r#"SELECT id AS "id!", tmdb_id, season AS "season: u32", title, release_date, show_imdb_id,
                   show_tvdb_id, state, created_at, decline_reason, failure_reason, followed_show_id,
-                  quality_id, quality_name, quality_profile_id
+                  quality_id, quality_name, quality_profile_id, quality_used_id,
+                  quality_used_name, quality_used_profile_id
            FROM requests
            WHERE (?1 IS NULL OR id = ?1)
              AND (?2 IS NULL OR EXISTS (SELECT 1 FROM requesters
@@ -1930,31 +2002,7 @@ async fn load(
     )
     .fetch_all(&mut *conn)
     .await?;
-    // ponytail: every Request's Requesters, even for one User's Requests; filter by them in SQL if
-    // the list gets big.
-    let mut requesters: HashMap<i64, Vec<Requester>> = HashMap::new();
-    let requester_rows = sqlx::query!(
-        "SELECT requesters.request_id, requesters.user_id, users.display_username,
-                requesters.requested_at
-         FROM requesters
-         JOIN users ON users.id = requesters.user_id
-         WHERE ?1 IS NULL OR requesters.request_id = ?1
-         ORDER BY requesters.requested_at, requesters.rowid",
-        id
-    )
-    .fetch_all(&mut *conn)
-    .await?;
-    for row in requester_rows {
-        requesters
-            .entry(row.request_id)
-            .or_default()
-            .push(Requester {
-                user_id: row.user_id,
-                name: row.display_username,
-                requested_at: row.requested_at,
-                ..Default::default()
-            });
-    }
+    let mut requesters = requesters_by_request(conn, id).await?;
     Ok(rows
         .into_iter()
         .map(|row| {
@@ -1968,6 +2016,12 @@ async fn load(
                 followed_show_id: row.followed_show_id,
                 quality: stored_quality(row.quality_id, row.quality_name, row.quality_profile_id)
                     .into(),
+                quality_used: stored_quality(
+                    row.quality_used_id,
+                    row.quality_used_name,
+                    row.quality_used_profile_id,
+                )
+                .into(),
                 ..Default::default()
             };
             match row.season {
@@ -1998,7 +2052,42 @@ async fn load(
         .collect())
 }
 
-/// The Quality a Request stored, if it took one: [`insert_request`] sets all three or none.
+/// The Requesters of the Request `id`, or of every Request if `None`, by Request id, first asker
+/// first.
+async fn requesters_by_request(
+    conn: &mut SqliteConnection,
+    id: Option<i64>,
+) -> Result<HashMap<i64, Vec<Requester>>, sqlx::Error> {
+    // ponytail: every Request's Requesters, even for one User's Requests; filter by them in SQL if
+    // the list gets big.
+    let mut requesters: HashMap<i64, Vec<Requester>> = HashMap::new();
+    let requester_rows = sqlx::query!(
+        "SELECT requesters.request_id, requesters.user_id, users.display_username,
+                requesters.requested_at
+         FROM requesters
+         JOIN users ON users.id = requesters.user_id
+         WHERE ?1 IS NULL OR requesters.request_id = ?1
+         ORDER BY requesters.requested_at, requesters.rowid",
+        id
+    )
+    .fetch_all(&mut *conn)
+    .await?;
+    for row in requester_rows {
+        requesters
+            .entry(row.request_id)
+            .or_default()
+            .push(Requester {
+                user_id: row.user_id,
+                name: row.display_username,
+                requested_at: row.requested_at,
+                ..Default::default()
+            });
+    }
+    Ok(requesters)
+}
+
+/// A Quality a Request stored, if it has one: [`insert_request`] and [`settle`] set all three or
+/// none.
 fn stored_quality(
     id: Option<i64>,
     name: Option<String>,
@@ -2094,7 +2183,7 @@ mod tests {
 
     use nama_plugin_api::{
         BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
-        fulfiller::{Download, Fulfiller, Movies},
+        fulfiller::{Download, Fulfilled, Fulfiller, Movies},
         metadata::{Episode, ExternalId, ExternalIds, Season},
         settings::SettingsSchema,
     };
@@ -2214,11 +2303,14 @@ mod tests {
     }
 
     impl Fulfiller<Movies> for Gated {
-        fn fulfill<'a>(&'a self, _: &'a Request) -> BoxFuture<'a, Result<String, PluginError>> {
+        fn fulfill<'a>(&'a self, _: &'a Request) -> BoxFuture<'a, Result<Fulfilled, PluginError>> {
             self.handed.fetch_add(1, Ordering::SeqCst);
             Box::pin(async {
                 self.open.notified().await;
-                Ok("taken".to_owned())
+                Ok(Fulfilled {
+                    reference: "taken".to_owned(),
+                    ..Fulfilled::default()
+                })
             })
         }
 
@@ -2249,9 +2341,14 @@ mod tests {
         fn fulfill<'a>(
             &'a self,
             request: &'a Request,
-        ) -> BoxFuture<'a, Result<String, PluginError>> {
+        ) -> BoxFuture<'a, Result<Fulfilled, PluginError>> {
             let reference = request.movie.tmdb_id.to_string();
-            Box::pin(async { Ok(reference) })
+            Box::pin(async {
+                Ok(Fulfilled {
+                    reference,
+                    ..Fulfilled::default()
+                })
+            })
         }
 
         fn progress<'a>(

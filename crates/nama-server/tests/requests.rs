@@ -34,7 +34,7 @@ use http::fetch;
 use log::Log;
 use nama_plugin_api::{
     BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
-    fulfiller::{Download, DownloadStatus, Fulfiller, Movies, Shows},
+    fulfiller::{Download, DownloadStatus, Fulfilled, Fulfiller, Movies, Shows},
     notifier::{Notification, Notifier, Recipient},
     settings::{SettingValue, Settings, SettingsSchema},
 };
@@ -836,7 +836,10 @@ impl FakeFulfiller {
 }
 
 impl Fulfiller<Movies> for FakeFulfiller {
-    fn fulfill<'a>(&'a self, request: &'a Request) -> BoxFuture<'a, Result<String, PluginError>> {
+    fn fulfill<'a>(
+        &'a self,
+        request: &'a Request,
+    ) -> BoxFuture<'a, Result<Fulfilled, PluginError>> {
         let tmdb_id = request.movie.tmdb_id;
         self.handed
             .lock()
@@ -847,7 +850,10 @@ impl Fulfiller<Movies> for FakeFulfiller {
             if refuses {
                 return Err("Radarr is unreachable".into());
             }
-            Ok(format!("movie-{tmdb_id}"))
+            Ok(Fulfilled {
+                reference: format!("movie-{tmdb_id}"),
+                ..Fulfilled::default()
+            })
         })
     }
 
@@ -871,7 +877,10 @@ impl Fulfiller<Movies> for FakeFulfiller {
 }
 
 impl Fulfiller<Shows> for FakeFulfiller {
-    fn fulfill<'a>(&'a self, request: &'a Request) -> BoxFuture<'a, Result<String, PluginError>> {
+    fn fulfill<'a>(
+        &'a self,
+        request: &'a Request,
+    ) -> BoxFuture<'a, Result<Fulfilled, PluginError>> {
         let season = &request.season;
         let (show, season_number) = (season.show_tmdb_id, season.season_number);
         let follow = request.followed_show_id.is_some();
@@ -888,7 +897,10 @@ impl Fulfiller<Shows> for FakeFulfiller {
             if refuses_to_follow {
                 return Err("Sonarr can't follow this Show".into());
             }
-            Ok(format!("show-{show}-season-{season_number}"))
+            Ok(Fulfilled {
+                reference: format!("show-{show}-season-{season_number}"),
+                ..Fulfilled::default()
+            })
         })
     }
 
