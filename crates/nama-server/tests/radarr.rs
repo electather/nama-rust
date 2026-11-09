@@ -26,13 +26,15 @@ use nama_plugin_tmdb::{
 };
 use nama_proto::nama::v1::{
     __buffa::view::SubscribeResponseView, ApproveRequestRequest, CreateRequestRequest,
-    CreateUserRequest, Download, DownloadStatus, EnablePluginRequest, EventServiceClient,
-    EventType, ListMovieQualitiesRequest, ListOfferedQualitiesRequest, ListPluginsRequest,
+    CreateUserRequest, DefaultQuality, Download, DownloadStatus, EnablePluginRequest,
+    EventServiceClient, EventType, ExtensionPoint, ListDefaultQualitiesRequest,
+    ListMovieQualitiesRequest, ListOfferedQualitiesRequest, ListPluginsRequest,
     ListQualitiesRequest, Permission, PluginServiceClient, Quality, RefusalReason,
     ReplaceQualitiesRequest, Request, RequestServiceClient, RequestState, RetryRequestRequest,
-    SessionDelivery, SetPermissionsRequest, SignInRequest, SignInServiceClient, SubscribeRequest,
-    SubscribeResponse, TestPluginSettingsRequest, TestPluginSettingsResponse, TitleKind,
-    UpdatePluginSettingsRequest, event, setting_value::Value, subscribe_response,
+    SessionDelivery, SetDefaultQualityRequest, SetPermissionsRequest, SignInRequest,
+    SignInServiceClient, SubscribeRequest, SubscribeResponse, TestPluginSettingsRequest,
+    TestPluginSettingsResponse, TitleKind, UpdatePluginSettingsRequest, event,
+    setting_value::Value, subscribe_response,
 };
 use nama_server::{config::Config, plugin_settings, plugins::Registry};
 use refused::assert_refused;
@@ -325,6 +327,46 @@ async fn ask(
         })
         .await?;
     Ok(asked.into_owned().request.into_option().unwrap())
+}
+
+/// Sets `member`'s default Quality for Radarr to `quality`, or clears it.
+async fn set_default(member: &ClientConfig, quality: Option<i64>) -> Result<(), ConnectError> {
+    RequestServiceClient::new(HttpClient::plaintext(), member.clone())
+        .set_default_quality(SetDefaultQualityRequest {
+            plugin_id: "radarr".to_owned(),
+            quality,
+            ..Default::default()
+        })
+        .await?;
+    Ok(())
+}
+
+/// `member`'s default Qualities, as their settings read them.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn defaults(member: &ClientConfig) -> Vec<DefaultQuality> {
+    RequestServiceClient::new(HttpClient::plaintext(), member.clone())
+        .list_default_qualities(ListDefaultQualitiesRequest::default())
+        .await
+        .unwrap()
+        .into_owned()
+        .defaults
+}
+
+/// The id of `member`'s default Quality for Movies, as the Request dialog reads it.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn personal_default(member: &ClientConfig) -> Option<i64> {
+    RequestServiceClient::new(HttpClient::plaintext(), member.clone())
+        .list_movie_qualities(ListMovieQualitiesRequest::default())
+        .await
+        .unwrap()
+        .into_owned()
+        .personal_default
 }
 
 /// A new Quality offering the Radarr profile `profile_id` as `name`.
@@ -960,4 +1002,97 @@ async fn a_member_without_choose_quality_naming_even_the_default_is_refused() {
         RefusalReason::REFUSAL_REASON_QUALITY_NOT_ALLOWED,
     );
     assert_eq!(refusal.field, "quality");
+}
+
+#[tokio::test]
+async fn a_member_whose_default_is_4k_gets_it_without_picking_and_picking_hd_overrides_it() {
+    let fixture = Fixture::with_radarr_enabled_at(ANY).await;
+    let offered = fixture.replace_qualities(hd_and_4k()).await.unwrap();
+    let chooser = fixture
+        .member_with(Some(&[Permission::Request, Permission::ChooseQuality]))
+        .await;
+    let (hd, four_k) = (offered[0].id, offered[1].id);
+
+    set_default(&chooser, Some(four_k)).await.unwrap();
+    let defaulted = fixture
+        .approve(ask(&chooser, HEAT, None).await.unwrap().id, None)
+        .await
+        .unwrap();
+    let picked = ask(&chooser, ALIEN, Some(hd)).await.unwrap();
+
+    assert_eq!(personal_default(&chooser).await, Some(four_k));
+    assert_eq!(defaulted.quality.name, "4K");
+    assert_eq!(fixture.radarr.added()[0]["qualityProfileId"], json!(5));
+    assert_eq!(picked.quality.name, "HD");
+}
+
+#[tokio::test]
+async fn after_the_admin_removes_a_members_default_they_get_the_fulfillers_and_settings_flag_it() {
+    let fixture = Fixture::with_radarr_enabled_at(ANY).await;
+    let offered = fixture.replace_qualities(hd_and_4k()).await.unwrap();
+    let chooser = fixture
+        .member_with(Some(&[Permission::Request, Permission::ChooseQuality]))
+        .await;
+    set_default(&chooser, Some(offered[1].id)).await.unwrap();
+
+    let without_4k = vec![offered[0].clone(), quality(ANY, "Any", false)];
+    let kept = fixture.replace_qualities(without_4k).await.unwrap();
+    let approved = fixture
+        .approve(ask(&chooser, HEAT, None).await.unwrap().id, None)
+        .await
+        .unwrap();
+
+    assert_eq!(approved.quality.name, "HD");
+    assert_eq!(fixture.radarr.added()[0]["qualityProfileId"], json!(4));
+    assert_eq!(personal_default(&chooser).await, None);
+    let defaults = defaults(&chooser).await;
+    assert_eq!(defaults.len(), 1);
+    assert_eq!(defaults[0].plugin_id, "radarr");
+    assert_eq!(
+        defaults[0].fulfiller,
+        ExtensionPoint::EXTENSION_POINT_MOVIE_FULFILLER
+    );
+    assert_eq!(defaults[0].qualities, kept);
+    let stale = defaults[0].quality;
+    assert_eq!(stale, Some(offered[1].id));
+    assert!(!kept.iter().any(|quality| Some(quality.id) == stale));
+}
+
+#[tokio::test]
+async fn a_member_without_choose_quality_gets_the_fulfillers_default_whatever_theirs_is() {
+    let fixture = Fixture::with_radarr_enabled_at(ANY).await;
+    let offered = fixture.replace_qualities(hd_and_4k()).await.unwrap();
+    let member = fixture.member().await;
+
+    set_default(&member, Some(offered[1].id)).await.unwrap();
+    let approved = fixture
+        .approve(ask(&member, HEAT, None).await.unwrap().id, None)
+        .await
+        .unwrap();
+
+    assert_eq!(personal_default(&member).await, None);
+    assert_eq!(approved.quality.name, "HD");
+    assert_eq!(fixture.radarr.added()[0]["qualityProfileId"], json!(4));
+}
+
+#[tokio::test]
+async fn a_default_not_on_the_list_is_refused_naming_it_and_a_cleared_one_is_unset() {
+    let fixture = Fixture::with_radarr_enabled().await;
+    let offered = fixture.replace_qualities(hd_and_4k()).await.unwrap();
+    let chooser = fixture
+        .member_with(Some(&[Permission::Request, Permission::ChooseQuality]))
+        .await;
+    let not_offered = offered.iter().map(|quality| quality.id).max().unwrap() + 1;
+
+    let refused = set_default(&chooser, Some(not_offered)).await;
+    set_default(&chooser, Some(offered[1].id)).await.unwrap();
+    set_default(&chooser, None).await.unwrap();
+
+    let refusal = assert_refused(
+        refused,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_QUALITY_NOT_OFFERED,
+    );
+    assert_eq!(refusal.field, "quality");
+    assert_eq!(defaults(&chooser).await[0].quality, None);
 }

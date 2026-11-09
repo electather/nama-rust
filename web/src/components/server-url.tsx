@@ -1,5 +1,10 @@
-import type { ConnectError } from "@connectrpc/connect";
-import { createConnectQueryKey, useMutation, useSuspenseQuery } from "@connectrpc/connect-query";
+import type { ConnectError, Transport } from "@connectrpc/connect";
+import {
+  createConnectQueryKey,
+  createQueryOptions,
+  useMutation,
+  useSuspenseQuery,
+} from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { FormEnd, FormField } from "@/components/form-field";
@@ -11,6 +16,14 @@ const serverSettingsKey = createConnectQueryKey({
   schema: ServerService.method.getServerSettings,
   cardinality: "finite",
 });
+
+/** The Server's settings, for Settings to load before it shows the form. */
+export function serverSettingsQuery(transport: Transport) {
+  return {
+    ...createQueryOptions(ServerService.method.getServerSettings, {}, { transport }),
+    staleTime: "static" as const,
+  };
+}
 
 /** The form a User who manages settings sets the Server URL with, which Requests are linked at. */
 export function ServerUrl() {

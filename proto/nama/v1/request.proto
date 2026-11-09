@@ -15,15 +15,30 @@ service RequestService {
   // `PERMISSION_REQUEST_MOVIE`. Fails with `failed_precondition` if a Library already has the
   // Movie, `invalid_argument` if the metadata source has no Movie with the id, and `unavailable`
   // if no metadata Provider is enabled, or it failed. A new Request takes the Quality named in
-  // `quality`, else the Movie Fulfiller's default; joining one keeps its Quality. Naming a Quality
-  // without `PERMISSION_CHOOSE_QUALITY` is refused with `REFUSAL_REASON_QUALITY_NOT_ALLOWED`, and
-  // one not on the Movie Fulfiller's list with `REFUSAL_REASON_QUALITY_NOT_OFFERED`.
+  // `quality`, else the caller's default from `SetDefaultQuality` if they have
+  // `PERMISSION_CHOOSE_QUALITY` and the list still has it, else the Movie Fulfiller's default;
+  // joining one keeps its Quality. Naming a Quality without `PERMISSION_CHOOSE_QUALITY` is refused
+  // with `REFUSAL_REASON_QUALITY_NOT_ALLOWED`, and one not on the Movie Fulfiller's list with
+  // `REFUSAL_REASON_QUALITY_NOT_OFFERED`.
   rpc CreateRequest(CreateRequestRequest) returns (CreateRequestResponse);
   // Returns the enabled Movie Fulfiller's Qualities, in the order an admin listed them, to pick
   // one for `CreateRequest`. Empty if no Movie Fulfiller is enabled or it has none. Needs
   // `PERMISSION_REQUEST_MOVIE`.
   rpc ListMovieQualities(ListMovieQualitiesRequest) returns (ListMovieQualitiesResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Returns the caller's default Quality for each enabled Fulfiller whose list has more than one
+  // Quality, for their settings. Any signed-in User may read their own, and only their own. The
+  // Server uses them only while the User has `PERMISSION_CHOOSE_QUALITY`.
+  rpc ListDefaultQualities(ListDefaultQualitiesRequest) returns (ListDefaultQualitiesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Sets the caller's default Quality for a Fulfiller, which a new Request they open takes when
+  // they name none, or clears it so the Fulfiller's default applies. Any signed-in User may set
+  // their own. Refused with `REFUSAL_REASON_QUALITY_NOT_OFFERED` if the Quality isn't on the
+  // Fulfiller's list.
+  rpc SetDefaultQuality(SetDefaultQualityRequest) returns (SetDefaultQualityResponse) {
+    option idempotency_level = IDEMPOTENT;
   }
   // Asks for Seasons of a Show for the caller, one Request per Season, each as `CreateRequest`
   // asks for a Movie: Approved if the caller has `PERMISSION_AUTO_APPROVE_TV`, else Pending. Needs
@@ -359,7 +374,40 @@ message ListMovieQualitiesRequest {}
 
 message ListMovieQualitiesResponse {
   repeated Quality qualities = 1;
+  // The id of the caller's default among `qualities`, which `CreateRequest` takes when they name
+  // none. Unset if they have none, it is no longer on the list, or they lack
+  // `PERMISSION_CHOOSE_QUALITY`.
+  optional int64 personal_default = 2;
 }
+
+message ListDefaultQualitiesRequest {}
+
+message ListDefaultQualitiesResponse {
+  // One per enabled Fulfiller whose list has more than one Quality, Movies first.
+  repeated DefaultQuality defaults = 1;
+}
+
+// A User's default Quality for one Fulfiller (ADR 0025).
+message DefaultQuality {
+  // The Fulfiller's Plugin id, such as `radarr`.
+  string plugin_id = 1;
+  // What it fulfils: `EXTENSION_POINT_MOVIE_FULFILLER` or `EXTENSION_POINT_SHOW_FULFILLER`.
+  ExtensionPoint fulfiller = 2;
+  // The Fulfiller's Qualities, in the order an admin listed them.
+  repeated Quality qualities = 3;
+  // The id of the User's default. Unset for none, when the Fulfiller's default applies. If an
+  // admin has since removed it, `qualities` doesn't have it, and the Fulfiller's default applies.
+  optional int64 quality = 4;
+}
+
+message SetDefaultQualityRequest {
+  // The Fulfiller's Plugin id, such as `radarr`.
+  string plugin_id = 1;
+  // The id of the Quality on its list. Unset to clear the default.
+  optional int64 quality = 2;
+}
+
+message SetDefaultQualityResponse {}
 
 message GetRequestRequest {
   // The ID of the Request.

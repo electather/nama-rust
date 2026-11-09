@@ -25,20 +25,21 @@ const dune = { tmdbId: 438_631n, title: "Dune", year: 2021 };
 
 /**
  * A fake Server for Dune's page, where `dune` is as given, the Movie Fulfiller offers `qualities`,
- * and each ask for it is put in `asked`.
+ * the User's own default is `personalDefault`, and each ask for it is put in `asked`.
  */
 function server(
   permissions: Permission[],
   qualities: MessageInitShape<typeof QualitySchema>[],
   asked: CreateRequestRequest[],
   movie: MessageInitShape<typeof FoundMovieSchema> = dune,
+  personalDefault?: bigint,
 ) {
   const found = create(FoundMovieSchema, movie);
   return fakeServer({ signedIn: permissions }, {}, {}, (router) => {
     router.service(RequestService, {
       listRequests: () => ({}),
       lookUpMovie: () => ({ movie: found }),
-      listMovieQualities: () => ({ qualities }),
+      listMovieQualities: () => ({ qualities, personalDefault }),
       createRequest: (request) => {
         asked.push(request);
         found.request = create(RequestSchema, { state: RequestState.PENDING });
@@ -73,6 +74,19 @@ test("a User who may choose picks a Quality, the default picked and marked, each
   await waitFor(() => {
     expect(asked.map(({ quality }) => quality)).toEqual([2n]);
   });
+});
+
+test("the picker starts at the User's own default, the Movie Fulfiller's still marked", async () => {
+  const asked: CreateRequestRequest[] = [];
+  openApp("/movies/tmdb-438631", server(mayChoose, [hd, fourK], asked, dune, 2n));
+
+  await clickRequest();
+  const dialog = await screen.findByRole("alertdialog", { name: "Request Dune" });
+
+  expect(within(dialog).getByRole<HTMLInputElement>("radio", { name: "4K" }).checked).toBe(true);
+  expect(
+    within(dialog).getByRole<HTMLInputElement>("radio", { name: "HD (Default)" }).checked,
+  ).toBe(false);
 });
 
 test.each([

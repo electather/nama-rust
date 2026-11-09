@@ -286,6 +286,8 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::REQUEST_SERVICE_SEARCH_MOVIES_SPEC.procedure,         REQUEST_MOVIE),
     (proto::REQUEST_SERVICE_LOOK_UP_MOVIE_SPEC.procedure,         REQUEST_MOVIE),
     (proto::REQUEST_SERVICE_LIST_MOVIE_QUALITIES_SPEC.procedure,  REQUEST_MOVIE),
+    (proto::REQUEST_SERVICE_LIST_DEFAULT_QUALITIES_SPEC.procedure, Access::SignedIn),
+    (proto::REQUEST_SERVICE_SET_DEFAULT_QUALITY_SPEC.procedure,   Access::SignedIn),
     (proto::REQUEST_SERVICE_SEARCH_SHOWS_SPEC.procedure,          REQUEST_TV),
     (proto::REQUEST_SERVICE_LOOK_UP_SHOW_SPEC.procedure,          REQUEST_TV),
     (proto::REQUEST_SERVICE_APPROVE_REQUEST_SPEC.procedure,       MANAGE_REQUESTS),
@@ -1597,18 +1599,43 @@ impl RequestService for RequestServiceHandler {
 
     async fn list_movie_qualities(
         &self,
-        _ctx: RequestContext,
+        ctx: RequestContext,
         _request: ServiceRequest<'_, proto::ListMovieQualitiesRequest>,
     ) -> ServiceResult<proto::ListMovieQualitiesResponse> {
-        let qualities = self
+        let listed = self
             .requests
-            .movie_qualities()
+            .movie_qualities(&caller(&ctx)?.user)
             .await
             .map_err(database_failed)?;
-        Response::ok(proto::ListMovieQualitiesResponse {
-            qualities,
+        Response::ok(listed)
+    }
+
+    async fn list_default_qualities(
+        &self,
+        ctx: RequestContext,
+        _request: ServiceRequest<'_, proto::ListDefaultQualitiesRequest>,
+    ) -> ServiceResult<proto::ListDefaultQualitiesResponse> {
+        let defaults = self
+            .requests
+            .personal_defaults(caller(&ctx)?.user.id)
+            .await
+            .map_err(database_failed)?;
+        Response::ok(proto::ListDefaultQualitiesResponse {
+            defaults,
             ..Default::default()
         })
+    }
+
+    async fn set_default_quality(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, proto::SetDefaultQualityRequest>,
+    ) -> ServiceResult<proto::SetDefaultQualityResponse> {
+        let plugin = PluginId::from(request.plugin_id.to_owned());
+        self.requests
+            .set_personal_default(caller(&ctx)?.user.id, plugin, request.quality)
+            .await?;
+        Response::ok(proto::SetDefaultQualityResponse::default())
     }
 
     async fn look_up_movie(
@@ -3269,8 +3296,8 @@ impl From<requests::Error> for ConnectError {
                     .param("seasonNumber", &season)
             }
             requests::Error::Unavailable => refuse(R::REFUSAL_REASON_NO_METADATA_PROVIDER, message),
-            // `CreateRequest` names a Quality in `quality`; `ApproveRequest` and `RetryRequest` in
-            // `quality_id`, refused as `NewQualityNotOffered`.
+            // `CreateRequest` and `SetDefaultQuality` name a Quality in `quality`; `ApproveRequest`
+            // and `RetryRequest` in `quality_id`, refused as `NewQualityNotOffered`.
             requests::Error::QualityNotAllowed => {
                 refuse(R::REFUSAL_REASON_QUALITY_NOT_ALLOWED, message).field("quality")
             }
