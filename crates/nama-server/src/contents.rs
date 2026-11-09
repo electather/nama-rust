@@ -1693,6 +1693,18 @@ mod tests {
         );
     }
 
+    #[test]
+    fn a_stored_id_hint_reads_back_as_the_id_it_was() {
+        let hints = [
+            ExternalId::Tmdb(78),
+            ExternalId::Tvdb(433_631),
+            ExternalId::Imdb("tt0083658".to_owned()),
+        ];
+        for hint in hints {
+            assert_eq!(super::parse_hint(&hint.to_string()), Some(hint));
+        }
+    }
+
     #[tokio::test]
     async fn a_reparse_adds_and_removes_items_when_their_number_changes() {
         let fx = Fixture::new().await;

@@ -30,11 +30,11 @@ const MAX_EPISODES_PER_FILE: i64 = 20;
 /// Radarr write them, or a bare IMDb id.
 static ID_HINT: LazyLock<Regex> = LazyLock::new(|| {
     regex(
-        r"(?i)[\[{(]\s*(?P<source>tmdb|tvdb|imdb)(?:id)?\s*[-=]\s*(?P<id>tt\d+|\d+)\s*[\]})]|\b(?P<bare>tt\d{7,})\b",
+        r"(?i)[\[{(]\s*(?P<source>tmdb|tvdb|imdb)(?:id)?\s*[-=]\s*(?P<id>tt\d+|\d+)\s*[\]})]|(?:\b|_)(?P<bare>tt\d{7,})(?:\b|_)",
     )
 });
 
-/// Any `{…}` or `[…]` tag, such as an ID hint, an edition or a quality.
+/// Any `{…}` or `[…]` tag, such as an ID Hint, an edition or a quality.
 static TAG: LazyLock<Regex> = LazyLock::new(|| regex(r"\{[^}]*\}|\[[^\]]*\]"));
 
 /// A name ending (before any trailing tags or ` - suffix`) in a year in brackets.
@@ -248,10 +248,12 @@ impl Named {
     /// The ID Hint Matching goes by: TMDB's, which the metadata source is, or else TVDB's, which
     /// Sonarr writes, or else IMDb's.
     fn hint(&self) -> Option<ExternalId> {
-        let ExternalIds { tmdb, imdb, tvdb } = self.hints.clone();
-        tmdb.map(ExternalId::Tmdb)
-            .or_else(|| tvdb.map(ExternalId::Tvdb))
-            .or_else(|| imdb.map(ExternalId::Imdb))
+        let hints = &self.hints;
+        hints
+            .tmdb
+            .map(ExternalId::Tmdb)
+            .or_else(|| hints.tvdb.map(ExternalId::Tvdb))
+            .or_else(|| hints.imdb.clone().map(ExternalId::Imdb))
     }
 }
 
@@ -452,7 +454,7 @@ mod tests {
                 "Blade Runner {TMDB-78}/movie.mkv",
                 movie("Blade Runner", None, tmdb(78)),
             ),
-            // TVDB and IMDb ID hints in every bracket, with `-` or `=`, and a bare IMDb id.
+            // TVDB and IMDb ID Hints in every bracket, with `-` or `=`, and a bare IMDb id.
             (
                 "Blade Runner (1982) {imdb-tt0083658}/Blade Runner (1982).mkv",
                 movie("Blade Runner", Some(1982), imdb("tt0083658")),
@@ -463,6 +465,10 @@ mod tests {
             ),
             (
                 "Blade Runner (1982) tt0083658/movie.mkv",
+                movie("Blade Runner", Some(1982), imdb("tt0083658")),
+            ),
+            (
+                "Blade Runner (1982)/Blade Runner (1982)_tt0083658.mkv",
                 movie("Blade Runner", Some(1982), imdb("tt0083658")),
             ),
             (
