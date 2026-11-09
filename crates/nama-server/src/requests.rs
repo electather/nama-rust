@@ -10,6 +10,7 @@
 
 use std::{
     collections::{BTreeSet, HashMap, HashSet, hash_map::Entry},
+    iter,
     sync::{Arc, Mutex, MutexGuard, PoisonError},
     time::Duration,
 };
@@ -20,9 +21,11 @@ use nama_plugin_api::{
     metadata::{Candidate, Episode, ExternalId, ExternalIds, SearchQuery, Season, Show, TitleKind},
 };
 use nama_proto::nama::v1::{
-    Event, FollowedShow, FoundSeason, Permission, Request, RequestCancelled, RequestCreated,
-    RequestProgress, RequestState, RequestStateChanged, RequestWithdrawn, RequestedMovie,
-    RequestedSeason, Requester, RequesterAdded, RequesterRemoved, event::Event as Happened,
+    Event, FollowedShow, FollowedShowCancelled, FollowedShowCreated, FollowedShowRequesterAdded,
+    FollowedShowRequesterRemoved, FollowedShowStateChanged, FollowedShowWithdrawn, FoundSeason,
+    Permission, Request, RequestCancelled, RequestCreated, RequestProgress, RequestState,
+    RequestStateChanged, RequestWithdrawn, RequestedMovie, RequestedSeason, Requester,
+    RequesterAdded, RequesterRemoved, event::Event as Happened,
 };
 use sqlx::{Sqlite, SqliteConnection, Transaction};
 use tokio::{sync::Notify, time::error::Elapsed};
@@ -395,7 +398,8 @@ impl Requests {
     }
 
     /// Approves the Pending Followed Show `id`, and each Pending Season Request it opened, handing
-    /// those to the Shows Fulfiller, publishing each Request's change of state.
+    /// those to the Shows Fulfiller, publishing the Followed Show's change of state, then each
+    /// Request's.
     pub(crate) async fn approve_followed(&self, id: i64) -> Result<FollowedShow, Error> {
         self.decide_followed(id, RequestState::Approved, None).await
     }
@@ -424,8 +428,16 @@ impl Requests {
                 .db
                 .write(move |tx| Box::pin(decide_followed(tx, id, state, reason)))
                 .await?;
-            this.events
-                .publish(decided.iter().cloned().map(state_changed).collect());
+            let followed_changed = event(FollowedShowStateChanged {
+                followed_show: followed.clone().into(),
+                ..Default::default()
+            });
+            let seasons_changed = decided.iter().cloned().map(state_changed);
+            this.events.publish(
+                iter::once(followed_changed)
+                    .chain(seasons_changed)
+                    .collect(),
+            );
             let ids: HashSet<i64> = decided.iter().map(|request| request.id).collect();
             this.hand_off_these(decided, &ids).await?;
             Ok(followed)
@@ -434,14 +446,14 @@ impl Requests {
     }
 
     /// Removes the Followed Show `id`, whatever its state, leaving the Season Requests it opened,
-    /// and has the Shows Fulfiller stop following the Show.
+    /// publishes that it was cancelled, and has the Shows Fulfiller stop following the Show.
     pub(crate) async fn cancel_followed(&self, id: i64) -> Result<(), Error> {
         self.end_followed(move |tx| Box::pin(cancel_followed(tx, id)))
             .await
     }
 
     /// Takes `requester` off the Followed Show `id`, removing it once nobody is left on it, as
-    /// [`Self::cancel_followed`] does.
+    /// [`Self::cancel_followed`] does, and publishes which of the two happened.
     pub(crate) async fn withdraw_followed(&self, requester: &User, id: i64) -> Result<(), Error> {
         let user = requester.id;
         let visible = visible_to(requester);
@@ -449,9 +461,10 @@ impl Requests {
             .await
     }
 
-    /// Writes `end`, then, if it returns the Season Request of a Followed Show it ended, tells the
-    /// Shows Fulfiller, if one is enabled, to stop following that Show. A failure to tell it is
-    /// only logged: the Followed Show ended either way.
+    /// Writes `end`, publishes the event it returns, then, if it also returns the Season Request
+    /// of a Followed Show it ended, tells the Shows Fulfiller, if one is enabled, to stop
+    /// following that Show. A failure to tell it is only logged: the Followed Show ended either
+    /// way.
     ///
     /// Runs in a task of its own, so a caller that stops waiting leaves the Fulfiller following no
     /// ended Followed Show.
@@ -459,13 +472,15 @@ impl Requests {
     where
         F: for<'t> FnOnce(
                 &'t mut Transaction<'_, Sqlite>,
-            ) -> BoxFuture<'t, Result<Option<Request>, Error>>
+            ) -> BoxFuture<'t, Result<(Event, Option<Request>), Error>>
             + Send
             + 'static,
     {
         let this = self.clone();
         detached(async move {
-            if let Some(followed_season) = this.db.write(end).await? {
+            let (happened, followed_season) = this.db.write(end).await?;
+            this.events.publish(vec![happened]);
+            if let Some(followed_season) = followed_season {
                 this.unfollow(&followed_season).await;
             }
             Ok(())
@@ -1540,8 +1555,8 @@ async fn withdraw(
 
 /// Adds `user` as a Requester of the open Followed Show for `show`, opening one in `state` if there
 /// is none, then [`ask`]s for each of its Seasons not in a Library, opening missing ones for the
-/// Followed Show in its state, and [`ask_approving`]s instead if `user` may auto-approve. Returns the Followed Show, the Season Requests and the events for
-/// what changed.
+/// Followed Show in its state, and [`ask_approving`]s instead if `user` may auto-approve. Returns
+/// the Followed Show, the Season Requests and the events for what changed, the Followed Show's first.
 async fn follow(
     conn: &mut SqliteConnection,
     user: i64,
@@ -1555,7 +1570,8 @@ async fn follow(
         seasons,
     } = show;
     let now = now();
-    let id = match open_followed_show(conn, show_tmdb_id).await? {
+    let already_open = open_followed_show(conn, show_tmdb_id).await?;
+    let id = match already_open {
         Some(id) => id,
         None => {
             sqlx::query_scalar!(
@@ -1572,7 +1588,7 @@ async fn follow(
             .await?
         }
     };
-    sqlx::query!(
+    let joined = sqlx::query!(
         "INSERT INTO followed_show_requesters (followed_show_id, user_id, requested_at) VALUES (?, ?, ?)
          ON CONFLICT DO NOTHING",
         id,
@@ -1580,15 +1596,29 @@ async fn follow(
         now
     )
     .execute(&mut *conn)
-    .await?;
+    .await?
+    .rows_affected()
+        > 0;
     let followed = load_followed(conn, Some(id), None).await?.pop();
     let followed = followed.ok_or(sqlx::Error::RowNotFound)?;
+    let mut happened = Vec::new();
+    if already_open.is_none() {
+        happened.push(event(FollowedShowCreated {
+            followed_show: followed.clone().into(),
+            ..Default::default()
+        }));
+    } else if joined {
+        happened.push(event(FollowedShowRequesterAdded {
+            followed_show: followed.clone().into(),
+            user_id: user,
+            ..Default::default()
+        }));
+    }
     let may_auto_approve = state == RequestState::Approved;
     // An Approved Followed Show was approved once for every Season, so needs no approving again.
     let state = followed.state.as_known().unwrap_or(state);
     let today = today(conn).await?;
     let mut requests = Vec::with_capacity(seasons.len());
-    let mut happened = Vec::new();
     for season in seasons {
         let matched = contents::matched_episodes(conn, show_tmdb_id, season.number.into()).await?;
         if availability(&season.episodes, &matched, &today) == Some(RequestState::Available) {
@@ -1694,9 +1724,30 @@ async fn followed_show_approved(conn: &mut SqliteConnection, id: i64) -> Result<
     .await
 }
 
+/// Removes the Followed Show `id` as [`remove_followed`] does. Returns the event that says so,
+/// and what [`remove_followed`] returns.
+async fn cancel_followed(
+    conn: &mut SqliteConnection,
+    id: i64,
+) -> Result<(Event, Option<Request>), Error> {
+    let followed = load_followed(conn, Some(id), None).await?.pop();
+    let followed = followed.ok_or(Error::NoSuchFollowedShow(id))?;
+    let followed_season = remove_followed(conn, id).await?;
+    let cancelled = event(FollowedShowCancelled {
+        followed_show: followed.into(),
+        ..Default::default()
+    });
+    Ok((cancelled, followed_season))
+}
+
 /// Removes the Followed Show `id`, and its Requesters with it. Returns the first Season Request it
 /// opened, as it was, if it was Approved, so its Fulfiller was asked to follow the Show.
-async fn cancel_followed(conn: &mut SqliteConnection, id: i64) -> Result<Option<Request>, Error> {
+///
+/// Doesn't check that `id` exists: callers load the Followed Show first, for its event.
+async fn remove_followed(
+    conn: &mut SqliteConnection,
+    id: i64,
+) -> Result<Option<Request>, sqlx::Error> {
     let followed_season = if followed_show_approved(conn, id).await? {
         // ponytail: a Followed Show stores no Show ids, so once every Season Request it opened is
         // cancelled its Fulfiller isn't told to stop; store them if that bites.
@@ -1713,31 +1764,33 @@ async fn cancel_followed(conn: &mut SqliteConnection, id: i64) -> Result<Option<
     } else {
         None
     };
-    let removed = sqlx::query!("DELETE FROM followed_shows WHERE id = ?", id)
+    sqlx::query!("DELETE FROM followed_shows WHERE id = ?", id)
         .execute(&mut *conn)
-        .await?
-        .rows_affected();
-    if removed == 0 {
-        return Err(Error::NoSuchFollowedShow(id));
-    }
+        .await?;
     Ok(followed_season)
 }
 
 /// Takes `user` off the Followed Show `id`, among those `visible` lets them see, removing it as
-/// [`cancel_followed`] does if they were its last Requester.
+/// [`remove_followed`] does if they were its last Requester. Returns the event for what changed,
+/// and what [`remove_followed`] returns.
 async fn withdraw_followed(
     conn: &mut SqliteConnection,
     user: i64,
     visible: Option<i64>,
     id: i64,
-) -> Result<Option<Request>, Error> {
+) -> Result<(Event, Option<Request>), Error> {
     let followed = load_followed(conn, Some(id), visible).await?.pop();
     let followed = followed.ok_or(Error::NoSuchFollowedShow(id))?;
     if !followed.requesters.iter().any(|r| r.user_id == user) {
         return Err(Error::NotAFollowedShowRequester(id));
     }
     if followed.requesters.len() == 1 {
-        return cancel_followed(conn, id).await;
+        let followed_season = remove_followed(conn, id).await?;
+        let withdrawn = event(FollowedShowWithdrawn {
+            followed_show: followed.into(),
+            ..Default::default()
+        });
+        return Ok((withdrawn, followed_season));
     }
     sqlx::query!(
         "DELETE FROM followed_show_requesters WHERE followed_show_id = ? AND user_id = ?",
@@ -1746,7 +1799,12 @@ async fn withdraw_followed(
     )
     .execute(&mut *conn)
     .await?;
-    Ok(None)
+    let removed = event(FollowedShowRequesterRemoved {
+        followed_show: followed.into(),
+        user_id: user,
+        ..Default::default()
+    });
+    Ok((removed, None))
 }
 
 /// The Followed Shows, newest first: only the one with the ID `id` if given, and only those the

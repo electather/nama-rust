@@ -316,7 +316,13 @@ fn what_happened(notification: &Notification) -> Option<String> {
         | Event::ScanFinished(_)
         | Event::LibraryItemAdded(_)
         | Event::LibraryItemRemoved(_)
-        | Event::ItemMatched(_) => return None,
+        | Event::ItemMatched(_)
+        | Event::FollowedShowCreated(_)
+        | Event::FollowedShowRequesterAdded(_)
+        | Event::FollowedShowStateChanged(_)
+        | Event::FollowedShowCancelled(_)
+        | Event::FollowedShowRequesterRemoved(_)
+        | Event::FollowedShowWithdrawn(_) => return None,
     })
 }
 
