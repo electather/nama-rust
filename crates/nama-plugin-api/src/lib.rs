@@ -91,6 +91,11 @@ pub struct Manifest {
     /// The settings the Plugin takes, so an admin UI can render a form for them. The Kernel
     /// enables the Plugin only with settings that fit it.
     pub settings: SettingsSchema,
+    /// The Extension Points the Plugin takes part at, such as
+    /// [`PointKey::provide::<dyn Notifier>()`](notifier::Notifier), so an admin sees what it does
+    /// before it is enabled. The Kernel refuses to enable a Plugin whose
+    /// [`Plugin::register`] registers at one it doesn't name.
+    pub extension_points: Vec<PointKey>,
 }
 
 /// A unit of trusted functionality that plugs into a Server through Extension Points.

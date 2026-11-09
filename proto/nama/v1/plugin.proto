@@ -151,6 +151,8 @@ message PluginSummary {
   string name = 7;
   // As `Plugin.description`.
   string description = 8;
+  // As `Plugin.extension_points`.
+  repeated ExtensionPoint extension_points = 9;
 }
 
 // A unit of trusted functionality that plugs into a Server.
@@ -174,6 +176,31 @@ message Plugin {
   string name = 8;
   // What it does, in one sentence its author wrote. Empty if it gives none.
   string description = 9;
+  // The Extension Points it takes part at, as its Manifest names them, whether it is enabled or
+  // not. Empty for a refused Plugin.
+  repeated ExtensionPoint extension_points = 10;
+}
+
+// A place in the Server a Plugin takes part at. Unlike the Plugin-facing `ProvidePoint` and
+// `ObservePoint` in `nama.plugin.v1`, this is what an admin is shown.
+enum ExtensionPoint {
+  EXTENSION_POINT_UNSPECIFIED = 0;
+  // Hands Approved Movie Requests to an outside service, such as Radarr.
+  EXTENSION_POINT_MOVIE_FULFILLER = 1;
+  // Hands Approved Season Requests to an outside service, such as Sonarr.
+  EXTENSION_POINT_SHOW_FULFILLER = 2;
+  // Delivers notifications about Requests through an outside service.
+  EXTENSION_POINT_NOTIFIER = 3;
+  // Connects Users to an outside service.
+  EXTENSION_POINT_CONNECTOR = 4;
+  // Checks the credentials people sign in with.
+  EXTENSION_POINT_AUTHENTICATOR = 5;
+  // Finds metadata for Movies and Shows, such as TMDB.
+  EXTENSION_POINT_METADATA_PROVIDER = 6;
+  // Observes the Server's Events.
+  EXTENSION_POINT_EVENTS_OBSERVER = 7;
+  // Observes the Server starting.
+  EXTENSION_POINT_SERVER_STARTED_OBSERVER = 8;
 }
 
 // What kind of value a setting takes.

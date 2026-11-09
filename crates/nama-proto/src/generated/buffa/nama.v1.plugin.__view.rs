@@ -4082,6 +4082,13 @@ pub struct PluginSummaryView<'a> {
     ///
     /// Field 8: `description`
     pub description: &'a str,
+    /// As `Plugin.extension_points`.
+    ///
+    /// Field 9: `extension_points`
+    pub extension_points: ::buffa::RepeatedView<
+        'a,
+        ::buffa::EnumValue<super::super::ExtensionPoint>,
+    >,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for PluginSummaryView<'a> {
@@ -4172,6 +4179,36 @@ impl<'a> ::buffa::MessageView<'a> for PluginSummaryView<'a> {
                 )?;
                 view.description = ::buffa::types::borrow_str(&mut cur)?;
             }
+            9u32 => {
+                if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
+                    let payload = ::buffa::types::borrow_bytes(&mut cur)?;
+                    view.extension_points
+                        .reserve(::buffa::encoding::count_varints(payload));
+                    let mut pcur: &[u8] = payload;
+                    while !pcur.is_empty() {
+                        view.extension_points
+                            .push(
+                                ::buffa::EnumValue::from(
+                                    ::buffa::types::decode_int32_packed(&mut pcur)?,
+                                ),
+                            );
+                    }
+                } else if tag.wire_type() == ::buffa::encoding::WireType::Varint {
+                    view.extension_points
+                        .push(
+                            ::buffa::EnumValue::from(
+                                ::buffa::types::decode_int32(&mut cur)?,
+                            ),
+                        );
+                } else {
+                    return Err(
+                        ::buffa::encoding::wire_type_mismatch(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        ),
+                    );
+                }
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -4202,6 +4239,7 @@ impl<'a> ::buffa::MessageView<'a> for PluginSummaryView<'a> {
             settings_missing: self.settings_missing,
             name: self.name.to_string(),
             description: self.description.to_string(),
+            extension_points: self.extension_points.to_vec(),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -4242,6 +4280,14 @@ impl<'a> ::buffa::ViewEncode<'a> for PluginSummaryView<'a> {
         if !self.description.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.description) as u64;
         }
+        if !self.extension_points.is_empty() {
+            let payload: u64 = self
+                .extension_points
+                .iter()
+                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                .sum::<u64>();
+            size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -4279,6 +4325,17 @@ impl<'a> ::buffa::ViewEncode<'a> for PluginSummaryView<'a> {
         }
         if !self.description.is_empty() {
             ::buffa::types::put_string_field(8u32, &self.description, buf);
+        }
+        if !self.extension_points.is_empty() {
+            let payload: u64 = self
+                .extension_points
+                .iter()
+                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                .sum::<u64>();
+            ::buffa::types::put_len_delimited_header(9u32, payload, buf);
+            for v in &self.extension_points {
+                ::buffa::types::encode_int32(v.to_i32(), buf);
+            }
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -4324,6 +4381,13 @@ impl<'__a> ::serde::Serialize for PluginSummaryView<'__a> {
         }
         if !::buffa::json_helpers::skip_if::is_empty_str(self.description) {
             __map.serialize_entry("description", self.description)?;
+        }
+        if !self.extension_points.is_empty() {
+            __map
+                .serialize_entry(
+                    "extensionPoints",
+                    &::buffa::json_helpers::EnumSeqJson(&self.extension_points),
+                )?;
         }
         __map.end()
     }
@@ -4470,6 +4534,15 @@ impl PluginSummaryOwnedView {
     pub fn description(&self) -> &'_ str {
         self.0.reborrow().description
     }
+    /// As `Plugin.extension_points`.
+    ///
+    /// Field 9: `extension_points`
+    #[must_use]
+    pub fn extension_points(
+        &self,
+    ) -> &::buffa::RepeatedView<'_, ::buffa::EnumValue<super::super::ExtensionPoint>> {
+        &self.0.reborrow().extension_points
+    }
 }
 impl ::core::convert::From<::buffa::OwnedView<PluginSummaryView<'static>>>
 for PluginSummaryOwnedView {
@@ -4542,6 +4615,14 @@ pub struct PluginView<'a> {
     ///
     /// Field 9: `description`
     pub description: &'a str,
+    /// The Extension Points it takes part at, as its Manifest names them, whether it is enabled or
+    /// not. Empty for a refused Plugin.
+    ///
+    /// Field 10: `extension_points`
+    pub extension_points: ::buffa::RepeatedView<
+        'a,
+        ::buffa::EnumValue<super::super::ExtensionPoint>,
+    >,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for PluginView<'a> {
@@ -4650,6 +4731,36 @@ impl<'a> ::buffa::MessageView<'a> for PluginView<'a> {
                         )?,
                     );
             }
+            10u32 => {
+                if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
+                    let payload = ::buffa::types::borrow_bytes(&mut cur)?;
+                    view.extension_points
+                        .reserve(::buffa::encoding::count_varints(payload));
+                    let mut pcur: &[u8] = payload;
+                    while !pcur.is_empty() {
+                        view.extension_points
+                            .push(
+                                ::buffa::EnumValue::from(
+                                    ::buffa::types::decode_int32_packed(&mut pcur)?,
+                                ),
+                            );
+                    }
+                } else if tag.wire_type() == ::buffa::encoding::WireType::Varint {
+                    view.extension_points
+                        .push(
+                            ::buffa::EnumValue::from(
+                                ::buffa::types::decode_int32(&mut cur)?,
+                            ),
+                        );
+                } else {
+                    return Err(
+                        ::buffa::encoding::wire_type_mismatch(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        ),
+                    );
+                }
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -4685,6 +4796,7 @@ impl<'a> ::buffa::MessageView<'a> for PluginView<'a> {
             refused_reason: self.refused_reason.to_string(),
             name: self.name.to_string(),
             description: self.description.to_string(),
+            extension_points: self.extension_points.to_vec(),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -4733,6 +4845,14 @@ impl<'a> ::buffa::ViewEncode<'a> for PluginView<'a> {
         if !self.description.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.description) as u64;
         }
+        if !self.extension_points.is_empty() {
+            let payload: u64 = self
+                .extension_points
+                .iter()
+                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                .sum::<u64>();
+            size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -4778,6 +4898,17 @@ impl<'a> ::buffa::ViewEncode<'a> for PluginView<'a> {
         }
         if !self.description.is_empty() {
             ::buffa::types::put_string_field(9u32, &self.description, buf);
+        }
+        if !self.extension_points.is_empty() {
+            let payload: u64 = self
+                .extension_points
+                .iter()
+                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                .sum::<u64>();
+            ::buffa::types::put_len_delimited_header(10u32, payload, buf);
+            for v in &self.extension_points {
+                ::buffa::types::encode_int32(v.to_i32(), buf);
+            }
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -4826,6 +4957,13 @@ impl<'__a> ::serde::Serialize for PluginView<'__a> {
         }
         if !::buffa::json_helpers::skip_if::is_empty_str(self.description) {
             __map.serialize_entry("description", self.description)?;
+        }
+        if !self.extension_points.is_empty() {
+            __map
+                .serialize_entry(
+                    "extensionPoints",
+                    &::buffa::json_helpers::EnumSeqJson(&self.extension_points),
+                )?;
         }
         __map.end()
     }
@@ -4977,6 +5115,16 @@ impl PluginOwnedView {
     #[must_use]
     pub fn description(&self) -> &'_ str {
         self.0.reborrow().description
+    }
+    /// The Extension Points it takes part at, as its Manifest names them, whether it is enabled or
+    /// not. Empty for a refused Plugin.
+    ///
+    /// Field 10: `extension_points`
+    #[must_use]
+    pub fn extension_points(
+        &self,
+    ) -> &::buffa::RepeatedView<'_, ::buffa::EnumValue<super::super::ExtensionPoint>> {
+        &self.0.reborrow().extension_points
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<PluginView<'static>>> for PluginOwnedView {

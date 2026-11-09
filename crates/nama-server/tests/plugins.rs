@@ -9,7 +9,7 @@ use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
 use nama_plugin_api::{
     BoxFuture, InterceptPoint, Interceptor, Manifest, ObservePoint, Observer, OnFailure, Plugin,
-    PluginError, PluginId, Priority, Registrar, Verdict,
+    PluginError, PluginId, PointKey, Priority, Registrar, Verdict,
     settings::{SettingField, SettingKind, SettingValue, Settings, SettingsSchema},
 };
 use nama_plugin_test_choices as test_choices;
@@ -21,6 +21,7 @@ const WAIT: Duration = Duration::from_secs(5);
 /// A test Plugin whose `register` is the given closure.
 struct TestPlugin<F> {
     id: &'static str,
+    extension_points: Vec<PointKey>,
     register: F,
 }
 
@@ -32,6 +33,7 @@ impl<F: Fn(&mut Registrar) + Send + Sync + 'static> Plugin for TestPlugin<F> {
             description: String::new(),
             version: "0.0.0".to_owned(),
             settings: SettingsSchema::default(),
+            extension_points: self.extension_points.clone(),
         }
     }
 
@@ -40,11 +42,17 @@ impl<F: Fn(&mut Registrar) + Send + Sync + 'static> Plugin for TestPlugin<F> {
     }
 }
 
+/// A test Plugin whose Manifest names `extension_points` and whose `register` is `register`.
 fn plugin(
     id: &'static str,
+    extension_points: &[PointKey],
     register: impl Fn(&mut Registrar) + Send + Sync + 'static,
 ) -> Arc<dyn Plugin> {
-    Arc::new(TestPlugin { id, register })
+    Arc::new(TestPlugin {
+        id,
+        extension_points: extension_points.to_vec(),
+        register,
+    })
 }
 
 /// Observe: a number happened.
@@ -80,7 +88,7 @@ async fn observers_are_told_events_until_their_plugin_is_disabled() {
     let registry = Registry::new();
     let forward_a = Forward("a", tx.clone());
     registry
-        .enable(plugin("a", move |r| {
+        .enable(plugin("a", &[PointKey::observe::<Numbers>()], move |r| {
             r.observe::<Numbers>(forward_a.clone());
         }))
         .unwrap();
@@ -95,7 +103,7 @@ async fn observers_are_told_events_until_their_plugin_is_disabled() {
     // A second, still enabled Plugin shows notify has run by the time its event arrives.
     let forward_b = Forward("b", tx);
     registry
-        .enable(plugin("b", move |r| {
+        .enable(plugin("b", &[PointKey::observe::<Numbers>()], move |r| {
             r.observe::<Numbers>(forward_b.clone());
         }))
         .unwrap();
@@ -138,7 +146,9 @@ fn interceptor<P: InterceptPoint>(
     priority: Priority,
     decide: fn(&P::Action) -> Decision<P>,
 ) -> Arc<dyn Plugin> {
-    plugin(id, move |r| r.intercept::<P>(priority, Decide::<P>(decide)))
+    plugin(id, &[PointKey::intercept::<P>()], move |r| {
+        r.intercept::<P>(priority, Decide::<P>(decide));
+    })
 }
 
 /// Appends `word` to the action.
@@ -303,12 +313,12 @@ async fn at_a_fail_closed_point_a_failing_interceptor_blocks_the_action() {
 async fn an_interceptor_that_takes_longer_than_the_points_timeout_has_failed() {
     let registry = Registry::new();
     registry
-        .enable(plugin("slow", |r| {
+        .enable(plugin("slow", &[PointKey::intercept::<Deletes>()], |r| {
             r.intercept::<Deletes>(Priority::DEFAULT, Hang);
         }))
         .unwrap();
     registry
-        .enable(plugin("slow-too", |r| {
+        .enable(plugin("slow-too", &[PointKey::intercept::<Words>()], |r| {
             r.intercept::<Words>(Priority::DEFAULT, Hang);
         }))
         .unwrap();
@@ -367,18 +377,29 @@ async fn a_panicking_interceptor_is_disabled_and_the_action_carries_on_without_i
         .unwrap();
     let forward_buggy = Forward("buggy", tx.clone());
     registry
-        .enable(plugin("buggy", move |r| {
-            r.intercept::<Deletes>(
-                Priority::DEFAULT,
-                Decide::<Deletes>(|_| panic!("interceptor bug")),
-            );
-            r.observe::<Numbers>(forward_buggy.clone());
-        }))
+        .enable(plugin(
+            "buggy",
+            &[
+                PointKey::intercept::<Deletes>(),
+                PointKey::observe::<Numbers>(),
+            ],
+            move |r| {
+                r.intercept::<Deletes>(
+                    Priority::DEFAULT,
+                    Decide::<Deletes>(|_| panic!("interceptor bug")),
+                );
+                r.observe::<Numbers>(forward_buggy.clone());
+            },
+        ))
         .unwrap();
     registry
-        .enable(plugin("buggy-at-once", |r| {
-            r.intercept::<Deletes>(Priority::DEFAULT, PanicAtOnce);
-        }))
+        .enable(plugin(
+            "buggy-at-once",
+            &[PointKey::intercept::<Deletes>()],
+            |r| {
+                r.intercept::<Deletes>(Priority::DEFAULT, PanicAtOnce);
+            },
+        ))
         .unwrap();
     registry
         .enable(interceptor::<Deletes>("after", Priority::LATE, |a| {
@@ -401,9 +422,13 @@ async fn a_panicking_interceptor_is_disabled_and_the_action_carries_on_without_i
     // Disabling removed the panicking Plugin's other registrations too.
     let forward_witness = Forward("witness", tx);
     registry
-        .enable(plugin("witness", move |r| {
-            r.observe::<Numbers>(forward_witness.clone());
-        }))
+        .enable(plugin(
+            "witness",
+            &[PointKey::observe::<Numbers>()],
+            move |r| {
+                r.observe::<Numbers>(forward_witness.clone());
+            },
+        ))
         .unwrap();
     registry.notify::<Numbers>(7);
     assert_eq!(next(&mut rx).await, ("witness", 7));
@@ -415,13 +440,19 @@ async fn a_panicking_observer_is_disabled_and_other_observers_still_hear_the_eve
     let (tx, mut rx) = mpsc::unbounded_channel();
     let registry = Registry::new();
     registry
-        .enable(plugin("buggy", |r| r.observe::<Numbers>(PanicOnEvent)))
+        .enable(plugin("buggy", &[PointKey::observe::<Numbers>()], |r| {
+            r.observe::<Numbers>(PanicOnEvent);
+        }))
         .unwrap();
     let forward = Forward("fine", tx);
     registry
-        .enable(plugin("fine", move |r| {
-            r.observe::<Numbers>(forward.clone());
-        }))
+        .enable(plugin(
+            "fine",
+            &[PointKey::observe::<Numbers>()],
+            move |r| {
+                r.observe::<Numbers>(forward.clone());
+            },
+        ))
         .unwrap();
 
     registry.notify::<Numbers>(1);
@@ -435,7 +466,7 @@ async fn a_panicking_observer_is_disabled_and_other_observers_still_hear_the_eve
 async fn a_plugin_that_panics_while_registering_is_not_enabled() {
     let registry = Registry::new();
 
-    let result = registry.enable(plugin("buggy", |r| {
+    let result = registry.enable(plugin("buggy", &[PointKey::intercept::<Words>()], |r| {
         r.intercept::<Words>(
             Priority::DEFAULT,
             Decide::<Words>(|_| Ok(Verdict::Veto("half registered".to_owned()))),
@@ -496,7 +527,7 @@ impl Drop for PanicOnDrop {
 fn a_plugin_that_panics_while_being_dropped_on_disable_is_still_disabled() {
     let registry = Registry::new();
     registry
-        .enable(plugin("buggy", |r| {
+        .enable(plugin("buggy", &[PointKey::intercept::<Words>()], |r| {
             r.intercept::<Words>(Priority::DEFAULT, PanicOnDrop);
         }))
         .unwrap();
@@ -508,9 +539,9 @@ fn a_plugin_that_panics_while_being_dropped_on_disable_is_still_disabled() {
 #[tokio::test]
 async fn a_plugin_id_can_only_be_enabled_once() {
     let registry = Registry::new();
-    registry.enable(plugin("twice", |_| {})).unwrap();
+    registry.enable(plugin("twice", &[], |_| {})).unwrap();
 
-    let result = registry.enable(plugin("twice", |_| {}));
+    let result = registry.enable(plugin("twice", &[], |_| {}));
 
     assert!(
         matches!(result, Err(EnableError::AlreadyEnabled(_))),
@@ -546,7 +577,7 @@ fn greeter(
     greeter: impl Greeter + 'static,
 ) -> Arc<dyn Plugin> {
     let greeter: Arc<dyn Greeter> = Arc::new(greeter);
-    plugin(id, move |r| {
+    plugin(id, &[PointKey::provide::<dyn Greeter>()], move |r| {
         r.provide::<dyn Greeter>(priority, Arc::clone(&greeter));
     })
 }
@@ -555,6 +586,24 @@ async fn greet(registry: &Registry) -> Option<&'static str> {
     registry
         .call_provider::<dyn Greeter, _, _>(|greeter| async move { greeter.greet() })
         .await
+}
+
+#[tokio::test]
+async fn a_plugin_registering_at_an_extension_point_its_manifest_does_not_name_is_not_enabled() {
+    let registry = Registry::new();
+
+    let result = registry.enable(plugin(
+        "undeclared",
+        &[PointKey::observe::<Numbers>()],
+        |r| r.provide::<dyn Greeter>(Priority::DEFAULT, Arc::new(Greeting("hello"))),
+    ));
+
+    let Err(EnableError::Refused { reason, .. }) = result else {
+        panic!("{result:?}");
+    };
+    assert!(reason.contains("Greeter"), "{reason}");
+    assert_eq!(registry.enabled(), []);
+    assert_eq!(greet(&registry).await, None);
 }
 
 #[tokio::test]
@@ -610,9 +659,13 @@ async fn an_observer_whose_plugin_is_disabled_before_the_event_reaches_it_is_not
     let registry = Registry::new();
     let forward_gone = Forward("gone", tx.clone());
     registry
-        .enable(plugin("gone", move |r| {
-            r.observe::<Numbers>(forward_gone.clone());
-        }))
+        .enable(plugin(
+            "gone",
+            &[PointKey::observe::<Numbers>()],
+            move |r| {
+                r.observe::<Numbers>(forward_gone.clone());
+            },
+        ))
         .unwrap();
 
     // The test runtime has one thread, so the delivery task can't run before the disable.
@@ -621,9 +674,13 @@ async fn an_observer_whose_plugin_is_disabled_before_the_event_reaches_it_is_not
 
     let forward_witness = Forward("witness", tx);
     registry
-        .enable(plugin("witness", move |r| {
-            r.observe::<Numbers>(forward_witness.clone());
-        }))
+        .enable(plugin(
+            "witness",
+            &[PointKey::observe::<Numbers>()],
+            move |r| {
+                r.observe::<Numbers>(forward_witness.clone());
+            },
+        ))
         .unwrap();
     registry.notify::<Numbers>(2);
     assert_eq!(next(&mut rx).await, ("witness", 2));
@@ -650,9 +707,13 @@ async fn a_panic_from_a_stale_call_does_not_disable_the_plugin_enabled_since() {
     let registry = Registry::new();
     let handle = registry.clone();
     registry
-        .enable(plugin("flaky", move |r| {
-            r.intercept::<Words>(Priority::DEFAULT, ReenableThenPanic(handle.clone()));
-        }))
+        .enable(plugin(
+            "flaky",
+            &[PointKey::intercept::<Words>()],
+            move |r| {
+                r.intercept::<Words>(Priority::DEFAULT, ReenableThenPanic(handle.clone()));
+            },
+        ))
         .unwrap();
 
     let outcome = registry.intercept::<Words>(vec![]).await;
@@ -710,6 +771,7 @@ impl Plugin for Configurable {
             description: String::new(),
             version: "0.0.0".to_owned(),
             settings,
+            extension_points: vec![PointKey::provide::<dyn Fetcher>()],
         }
     }
 
