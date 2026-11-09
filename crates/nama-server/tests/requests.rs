@@ -3182,7 +3182,7 @@ async fn each_change_to_a_followed_show_sends_it_as_it_is_after_or_as_it_was_bef
 }
 
 #[tokio::test]
-async fn a_followed_show_event_reaches_its_requesters_and_view_requests_subscribers_and_no_other_member()
+async fn a_followed_show_event_reaches_its_requesters_and_view_requests_subscribers_and_no_other_user()
  {
     let fixture = Fixture::start().await;
     let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
@@ -3192,33 +3192,63 @@ async fn a_followed_show_event_reaches_its_requesters_and_view_requests_subscrib
     let mut graces_events = subscribe_to_followed_shows(as_grace.clone()).await;
     let mut hoppers_events = subscribe_to_followed_shows(as_hopper.clone()).await;
 
-    let (office, _) = follow(&requests(as_hopper.clone()), THE_OFFICE).await;
-    let (dark, _) = follow(&requests(as_grace), DARK).await;
-    withdraw_followed(&requests(as_hopper), office.id).await;
-    approve_followed(&fixture, dark.id).await.unwrap();
+    let (graces_requests, hoppers_requests) = (requests(as_grace), requests(as_hopper));
 
-    let shows = |sent: Vec<FollowedShowEvent>| -> Vec<(&str, i64)> {
+    let (office, _) = follow(&hoppers_requests, THE_OFFICE).await;
+    let (dark, _) = follow(&graces_requests, DARK).await;
+    withdraw_followed(&hoppers_requests, office.id).await;
+    approve_followed(&fixture, dark.id).await.unwrap();
+    requests(fixture.server.client_config())
+        .cancel_followed_show(CancelFollowedShowRequest {
+            id: dark.id,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    // Both end on this second Followed Show, so an event that wrongly reached either shows up
+    // before what they expect next.
+    let (office_again, _) = follow(&hoppers_requests, THE_OFFICE).await;
+    follow(&graces_requests, THE_OFFICE).await;
+    withdraw_followed(&graces_requests, office_again.id).await;
+
+    let kinds_and_ids = |sent: Vec<FollowedShowEvent>| -> Vec<(&str, i64)> {
         sent.into_iter()
             .map(|(happened, _, followed)| (happened, followed.id))
             .collect()
     };
     assert_eq!(
-        shows(next_followed_show_events(&mut adas_events, 4).await),
+        kinds_and_ids(next_followed_show_events(&mut adas_events, 8).await),
         [
             ("created", office.id),
             ("created", dark.id),
             ("withdrawn", office.id),
-            ("state changed", dark.id)
+            ("state changed", dark.id),
+            ("cancelled", dark.id),
+            ("created", office_again.id),
+            ("requester added", office_again.id),
+            ("requester removed", office_again.id),
         ]
     );
     assert_eq!(
-        shows(next_followed_show_events(&mut graces_events, 2).await),
-        [("created", dark.id), ("state changed", dark.id)],
+        kinds_and_ids(next_followed_show_events(&mut graces_events, 5).await),
+        [
+            ("created", dark.id),
+            ("state changed", dark.id),
+            ("cancelled", dark.id),
+            ("requester added", office_again.id),
+            ("requester removed", office_again.id),
+        ],
         "Hopper's Followed Show reached Grace"
     );
     assert_eq!(
-        shows(next_followed_show_events(&mut hoppers_events, 2).await),
-        [("created", office.id), ("withdrawn", office.id)],
+        kinds_and_ids(next_followed_show_events(&mut hoppers_events, 5).await),
+        [
+            ("created", office.id),
+            ("withdrawn", office.id),
+            ("created", office_again.id),
+            ("requester added", office_again.id),
+            ("requester removed", office_again.id),
+        ],
         "Grace's Followed Show reached Hopper"
     );
 }

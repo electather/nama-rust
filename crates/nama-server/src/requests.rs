@@ -396,7 +396,8 @@ impl Requests {
     }
 
     /// Approves the Pending Followed Show `id`, and each Pending Season Request it opened, handing
-    /// those to the Shows Fulfiller, publishing each Request's change of state.
+    /// those to the Shows Fulfiller, publishing the Followed Show's change of state, then each
+    /// Request's.
     pub(crate) async fn approve_followed(&self, id: i64) -> Result<FollowedShow, Error> {
         self.decide_followed(id, RequestState::Approved, None).await
     }
@@ -1713,6 +1714,8 @@ async fn cancel_followed(
 
 /// Removes the Followed Show `id`, and its Requesters with it. Returns the first Season Request it
 /// opened, as it was, if it was Approved, so its Fulfiller was asked to follow the Show.
+///
+/// Doesn't check that `id` exists: callers load the Followed Show first, for its event.
 async fn remove_followed(
     conn: &mut SqliteConnection,
     id: i64,
