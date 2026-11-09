@@ -37,8 +37,8 @@ function isIn(row: { state?: RequestState }, state: RequestState) {
 }
 
 /**
- * A fake Server holding `requests` and `followedShows`, which lists those in the state asked for
- * and approves a Request in `requests`, signed in with `signedIn`.
+ * A fake Server holding `requests` and `followedShows`, which lists and counts those in the state
+ * asked for and approves a Request in `requests`, signed in with `signedIn`.
  */
 function filteringServer(
   requests: MessageInitShape<typeof RequestSchema>[],
@@ -51,6 +51,10 @@ function filteringServer(
       listRequests: ({ state }) => ({
         requests: requests.filter((row) => isIn(row, state)),
         followedShows: followedShows.filter((row) => isIn(row, state)),
+      }),
+      countPendingRequests: () => ({
+        count: [...requests, ...followedShows].filter((row) => row.state === RequestState.PENDING)
+          .length,
       }),
       approveRequest: ({ id }) => {
         const index = requests.findIndex((row) => row.id === id);
@@ -162,4 +166,50 @@ test("approving a Request while showing Pending ones takes it off the list", asy
   await waitFor(() => {
     expect(rowTitles()).toEqual(["Dune"]);
   });
+});
+
+test.each([
+  {
+    who: "a Request manager with a Pending Request",
+    signedIn: admin,
+    lands: "pending",
+    requests: [pendingHeat, failedDune],
+  },
+  {
+    who: "a Request manager with nothing Pending",
+    signedIn: admin,
+    lands: "all",
+    requests: [failedDune],
+  },
+  {
+    who: "a Member without Manage Requests",
+    signedIn: newUser,
+    lands: "all",
+    requests: [pendingHeat, failedDune],
+  },
+])("the Requests page opens $who on $lands", async ({ signedIn, lands, requests }) => {
+  openApp("/requests", filteringServer(requests, [], undefined, signedIn));
+
+  await waitFor(() => {
+    expect(new URLSearchParams(window.location.search).get("state")).toBe(lands);
+  });
+});
+
+test("approving the last Pending Request leaves the page on Pending", async () => {
+  openApp("/requests", filteringServer([pendingHeat, failedDune], [], undefined, admin));
+
+  fireEvent.click(await screen.findByRole("button", { name: "Approve Heat" }));
+
+  expect(await screen.findByText("No Pending Requests.")).toBeDefined();
+  expect(screen.getByRole("button", { name: "State: Pending" })).toBeDefined();
+});
+
+test("Back from the Requests page leaves it, past the default it chose", async () => {
+  const router = openApp("/settings", filteringServer([pendingHeat], [], undefined, admin));
+
+  fireEvent.click(await screen.findByRole("link", { name: "Requests, 1 Pending" }));
+  await screen.findByRole("button", { name: "State: Pending" });
+  router.history.back();
+
+  expect(await screen.findByRole("heading", { name: "Settings" })).toBeDefined();
 });
