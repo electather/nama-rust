@@ -366,7 +366,7 @@ async fn a_second_file_with_a_plugins_id_is_refused() {
 }
 
 #[tokio::test]
-async fn a_plugins_logo_from_its_manifest_is_listed_and_got() {
+async fn a_plugins_logo_from_its_manifest_comes_through_list_and_get_plugin() {
     let started = Started::new().await;
 
     started.drop_in("test.wasm", "");
@@ -377,11 +377,24 @@ async fn a_plugins_logo_from_its_manifest_is_listed_and_got() {
 }
 
 #[tokio::test]
+async fn a_plugin_without_a_logo_loads_without_one() {
+    let started = Started::new().await;
+
+    started.drop_in("test.wasm", "logoless");
+
+    let listed = started.listed("test-plugin").await.unwrap();
+    assert_eq!(listed.logo_svg, "", "{listed:?}");
+    assert!(listed.refused_reason.is_empty(), "{listed:?}");
+    assert_eq!(started.got("test-plugin").await.logo_svg, "");
+}
+
+#[tokio::test]
 async fn a_logo_over_16_kib_or_not_svg_is_dropped_with_a_warning_and_the_plugin_still_loads() {
     let log = Log::global();
     for (features, why) in [
         ("big-logo", "it is over 16384 bytes"),
-        ("html-logo", "it isn't SVG"),
+        ("html-logo", "it isn't SVG: its root is <html>"),
+        ("doctype-logo", "it isn't SVG: XML with DTD detected"),
     ] {
         let started = Started::new().await;
 

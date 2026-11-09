@@ -265,6 +265,7 @@ async fn every_builtin_and_bundled_plugin_is_listed_with_whether_it_is_enabled()
     assert!(!plugin(&listed, "telegram").enabled);
 }
 
+// `plugins/AGENTS.md`: every Plugin ships a logo.
 #[tokio::test]
 async fn every_builtin_and_bundled_plugin_has_a_logo_the_server_keeps() {
     let listed = list_plugins_with(BTreeMap::new()).await;

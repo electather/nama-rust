@@ -168,8 +168,9 @@ message Plugin {
   // API version. Empty unless it was refused. A refused Plugin can't be enabled, and its `id` is
   // its file's name, since the Server may not have learnt the id it gives itself.
   string refused_reason = 7;
-  // Its logo, an SVG document's text, or empty if it has none. Untrusted: show it only as an
-  // image, such as from a `data:image/svg+xml` URL, never inline in a page.
+  // Its logo, an SVG document's text, or empty if it has none. An Installed Plugin's author wrote
+  // it, so show it only as an image, such as from a `data:image/svg+xml` URL, never inline in a
+  // page, where its scripts would run.
   string logo_svg = 8;
 }
 

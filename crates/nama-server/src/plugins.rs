@@ -958,8 +958,8 @@ fn kept_logo(plugin: &PluginId, logo: String) -> Option<String> {
     }
     let why = if logo.len() > MAX_LOGO_BYTES {
         format!("it is over {MAX_LOGO_BYTES} bytes")
-    } else if !is_svg(&logo) {
-        "it isn't SVG".to_owned()
+    } else if let Some(why) = why_not_svg(&logo) {
+        format!("it isn't SVG: {why}")
     } else {
         return Some(logo);
     };
@@ -967,13 +967,19 @@ fn kept_logo(plugin: &PluginId, logo: String) -> Option<String> {
     None
 }
 
-/// Whether `text` is an XML document whose root is SVG's `<svg>`, as a browser needs to show it
-/// as an `image/svg+xml` image. roxmltree refuses a DTD, so entities can't blow it up.
-fn is_svg(text: &str) -> bool {
-    roxmltree::Document::parse(text).is_ok_and(|document| {
-        let root = document.root_element().tag_name();
-        root.name() == "svg" && root.namespace() == Some("http://www.w3.org/2000/svg")
-    })
+/// Why `text` isn't an XML document whose root is SVG's `<svg>`, as a browser needs to show it as
+/// an `image/svg+xml` image. roxmltree refuses a DTD, so entities can't blow it up; the reason
+/// names the DOCTYPE for an author whose editor wrote one.
+fn why_not_svg(text: &str) -> Option<String> {
+    match roxmltree::Document::parse(text) {
+        Err(err) => Some(err.to_string()),
+        Ok(document) => {
+            let root = document.root_element().tag_name();
+            let svg =
+                root.name() == "svg" && root.namespace() == Some("http://www.w3.org/2000/svg");
+            (!svg).then(|| format!("its root is <{}>", root.name()))
+        }
+    }
 }
 
 pub(crate) fn contain_sync<T>(call: impl FnOnce() -> T) -> Result<T, String> {

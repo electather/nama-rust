@@ -35,7 +35,8 @@ message Manifest {
   // The capabilities the Plugin registers a Provider for.
   repeated ProvidePoint providers = 7;
   // The Plugin's logo: an SVG document's text, not base64, such as "<svg xmlns=...>...</svg>".
-  // A Server drops one over 16 KiB or that isn't SVG, logging why, and still loads the Plugin.
+  // A Server drops one over 16 KiB, with a DOCTYPE, or that isn't SVG, logging why, and still loads
+  // the Plugin.
   // Admins see it as an image on a neutral tile in either colour scheme, so it should read on both.
   string logo_svg = 8;
 }

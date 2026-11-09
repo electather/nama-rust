@@ -1,9 +1,8 @@
 import { Puzzle } from "lucide-react";
 
 /**
- * A Plugin's logo on a neutral tile, or a generic puzzle piece when it has none. The logo is the
- * Plugin's own untrusted SVG, so it is only ever an image from a data URL: SVG shown as an image
- * runs no script and loads nothing, which it would inline in the page.
+ * A Plugin's logo on a neutral tile, or a generic puzzle piece when it has none. Only ever an image
+ * from a data URL (`web/AGENTS.md`): as an image, SVG runs no script and loads nothing.
  */
 export function PluginLogo({ plugin }: { plugin: { id: string; logoSvg: string } }) {
   const label = `${plugin.id} logo`;

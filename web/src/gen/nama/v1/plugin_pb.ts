@@ -397,8 +397,9 @@ export type Plugin = Message<"nama.v1.Plugin"> & {
   refusedReason: string;
 
   /**
-   * Its logo, an SVG document's text, or empty if it has none. Untrusted: show it only as an
-   * image, such as from a `data:image/svg+xml` URL, never inline in a page.
+   * Its logo, an SVG document's text, or empty if it has none. An Installed Plugin's author wrote
+   * it, so show it only as an image, such as from a `data:image/svg+xml` URL, never inline in a
+   * page, where its scripts would run.
    *
    * @generated from field: string logo_svg = 8;
    */

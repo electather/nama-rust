@@ -2566,8 +2566,9 @@ pub struct Plugin {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub refused_reason: ::buffa::alloc::string::String,
-    /// Its logo, an SVG document's text, or empty if it has none. Untrusted: show it only as an
-    /// image, such as from a `data:image/svg+xml` URL, never inline in a page.
+    /// Its logo, an SVG document's text, or empty if it has none. An Installed Plugin's author wrote
+    /// it, so show it only as an image, such as from a `data:image/svg+xml` URL, never inline in a
+    /// page, where its scripts would run.
     ///
     /// Field 8: `logo_svg`
     #[serde(

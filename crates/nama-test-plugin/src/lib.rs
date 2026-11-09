@@ -87,7 +87,8 @@ mod exports {
         Ok(Buffa(manifest))
     }
 
-    /// Its logo, or with the `big-logo` or `html-logo` feature, one the Server drops.
+    /// Its logo, or with the `big-logo`, `html-logo` or `doctype-logo` feature one the Server
+    /// drops, or with `logoless` none.
     fn logo() -> String {
         if cfg!(feature = "big-logo") {
             // Well-formed SVG, so only its size gets it dropped.
@@ -95,6 +96,13 @@ mod exports {
             format!(r#"<svg xmlns="http://www.w3.org/2000/svg">{padding}</svg>"#)
         } else if cfg!(feature = "html-logo") {
             r#"<html xmlns="http://www.w3.org/1999/xhtml"/>"#.to_owned()
+        } else if cfg!(feature = "doctype-logo") {
+            format!(
+                r#"<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">{}"#,
+                include_str!("../logo.svg")
+            )
+        } else if cfg!(feature = "logoless") {
+            String::new()
         } else {
             include_str!("../logo.svg").to_owned()
         }

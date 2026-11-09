@@ -88,7 +88,8 @@ pub struct Manifest {
     /// enables the Plugin only with settings that fit it.
     pub settings: SettingsSchema,
     /// The Plugin's logo, an SVG document's text such as `include_str!("../logo.svg")`. The
-    /// Kernel drops one over 16 KiB or that isn't SVG, logging why, and still enables the Plugin.
+    /// Kernel drops one over 16 KiB, with a DOCTYPE, or that isn't SVG, logging why; the Plugin
+    /// is otherwise as it would be.
     pub logo_svg: Option<String>,
 }
 

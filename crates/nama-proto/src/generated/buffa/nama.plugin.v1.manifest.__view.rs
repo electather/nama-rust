@@ -54,7 +54,8 @@ pub struct ManifestView<'a> {
         ::buffa::EnumValue<super::super::ProvidePoint>,
     >,
     /// The Plugin's logo: an SVG document's text, not base64, such as "\<svg xmlns=...\>...\</svg\>".
-    /// A Server drops one over 16 KiB or that isn't SVG, logging why, and still loads the Plugin.
+    /// A Server drops one over 16 KiB, with a DOCTYPE, or that isn't SVG, logging why, and still loads
+    /// the Plugin.
     /// Admins see it as an image on a neutral tile in either colour scheme, so it should read on both.
     ///
     /// Field 8: `logo_svg`
@@ -551,7 +552,8 @@ impl ManifestOwnedView {
         &self.0.reborrow().providers
     }
     /// The Plugin's logo: an SVG document's text, not base64, such as "\<svg xmlns=...\>...\</svg\>".
-    /// A Server drops one over 16 KiB or that isn't SVG, logging why, and still loads the Plugin.
+    /// A Server drops one over 16 KiB, with a DOCTYPE, or that isn't SVG, logging why, and still loads
+    /// the Plugin.
     /// Admins see it as an image on a neutral tile in either colour scheme, so it should read on both.
     ///
     /// Field 8: `logo_svg`

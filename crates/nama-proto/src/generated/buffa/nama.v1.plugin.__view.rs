@@ -4506,8 +4506,9 @@ pub struct PluginView<'a> {
     ///
     /// Field 7: `refused_reason`
     pub refused_reason: &'a str,
-    /// Its logo, an SVG document's text, or empty if it has none. Untrusted: show it only as an
-    /// image, such as from a `data:image/svg+xml` URL, never inline in a page.
+    /// Its logo, an SVG document's text, or empty if it has none. An Installed Plugin's author wrote
+    /// it, so show it only as an image, such as from a `data:image/svg+xml` URL, never inline in a
+    /// page, where its scripts would run.
     ///
     /// Field 8: `logo_svg`
     pub logo_svg: &'a str,
@@ -4916,8 +4917,9 @@ impl PluginOwnedView {
     pub fn refused_reason(&self) -> &'_ str {
         self.0.reborrow().refused_reason
     }
-    /// Its logo, an SVG document's text, or empty if it has none. Untrusted: show it only as an
-    /// image, such as from a `data:image/svg+xml` URL, never inline in a page.
+    /// Its logo, an SVG document's text, or empty if it has none. An Installed Plugin's author wrote
+    /// it, so show it only as an image, such as from a `data:image/svg+xml` URL, never inline in a
+    /// page, where its scripts would run.
     ///
     /// Field 8: `logo_svg`
     #[must_use]
