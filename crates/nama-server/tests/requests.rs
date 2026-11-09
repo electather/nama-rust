@@ -3195,6 +3195,7 @@ async fn a_followed_show_event_reaches_its_requesters_and_view_requests_subscrib
     let (office, _) = follow(&requests(as_hopper.clone()), THE_OFFICE).await;
     let (dark, _) = follow(&requests(as_grace), DARK).await;
     withdraw_followed(&requests(as_hopper), office.id).await;
+    approve_followed(&fixture, dark.id).await.unwrap();
 
     let shows = |sent: Vec<FollowedShowEvent>| -> Vec<(&str, i64)> {
         sent.into_iter()
@@ -3202,16 +3203,17 @@ async fn a_followed_show_event_reaches_its_requesters_and_view_requests_subscrib
             .collect()
     };
     assert_eq!(
-        shows(next_followed_show_events(&mut adas_events, 3).await),
+        shows(next_followed_show_events(&mut adas_events, 4).await),
         [
             ("created", office.id),
             ("created", dark.id),
-            ("withdrawn", office.id)
+            ("withdrawn", office.id),
+            ("state changed", dark.id)
         ]
     );
     assert_eq!(
-        shows(next_followed_show_events(&mut graces_events, 1).await),
-        [("created", dark.id)],
+        shows(next_followed_show_events(&mut graces_events, 2).await),
+        [("created", dark.id), ("state changed", dark.id)],
         "Hopper's Followed Show reached Grace"
     );
     assert_eq!(

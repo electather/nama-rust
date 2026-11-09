@@ -1549,8 +1549,8 @@ async fn follow(
         seasons,
     } = show;
     let now = now();
-    let open = open_followed_show(conn, show_tmdb_id).await?;
-    let id = match open {
+    let already_open = open_followed_show(conn, show_tmdb_id).await?;
+    let id = match already_open {
         Some(id) => id,
         None => {
             sqlx::query_scalar!(
@@ -1581,7 +1581,7 @@ async fn follow(
     let followed = load_followed(conn, Some(id), None).await?.pop();
     let followed = followed.ok_or(sqlx::Error::RowNotFound)?;
     let mut happened = Vec::new();
-    if open.is_none() {
+    if already_open.is_none() {
         happened.push(event(FollowedShowCreated {
             followed_show: followed.clone().into(),
             ..Default::default()
