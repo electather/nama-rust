@@ -714,13 +714,22 @@ async fn listing_by_a_state_gives_only_the_requests_and_followed_shows_in_it_and
     let fulfiller = FakeFulfiller::refusing();
     let fixture = Fixture::with_fulfiller(&fulfiller).await;
     let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
-    let ada = requests(as_ada);
-    ask(&ada, ALIEN).await;
-    let _media = fixture.library_with_alien().await;
-    fixture.approve(ask(&ada, DUNE).await.id).await;
-    decline(&fixture, ask(&ada, HEAT).await.id, "").await;
-    let (_, seasons) = follow(&ada, DARK).await;
-    fixture.approve(seasons[0].id).await;
+    let ada = requests(as_ada.clone());
+    let alien = ask(&ada, ALIEN).await;
+    let failed = fixture.approve(ask(&ada, DUNE).await.id).await;
+    fulfiller.recover();
+    let processing = fixture.approve(ask(&ada, HEAT).await.id).await;
+    let (followed, dark) = follow(&ada, DARK).await;
+    let approved = fixture.approve(dark[1].id).await;
+    let declined = decline(&fixture, dark[2].id, "").await;
+    let pending = ask_seasons(&ada, THE_OFFICE, &[1]).await;
+    let mut adas_events = subscribe_to_requests(as_ada).await;
+    let _movies = fixture.library_with_alien().await;
+    let available = state_changed(next_event(&mut adas_events).await);
+    let _shows = fixture
+        .library_with(LibraryKind::LIBRARY_KIND_SHOWS, &[DARK_S01E01])
+        .await;
+    let partially_available = state_changed(next_event(&mut adas_events).await);
 
     let (all_requests, all_followed) = list_in(&ada, RequestState::Unspecified).await;
     let mut by_state = Vec::new();
@@ -728,36 +737,40 @@ async fn listing_by_a_state_gives_only_the_requests_and_followed_shows_in_it_and
         by_state.push((state, list_in(&ada, state).await));
     }
 
-    assert_eq!(all_requests, list(&ada).await, "no state lists everything");
-    assert_eq!(all_followed.len(), 1);
-    for (state, (requests, followed)) in by_state {
-        let in_state = |row_state| row_state == state;
+    let newest_first = [
+        (pending[0].id, RequestState::Pending),
+        (declined.id, RequestState::Declined),
+        (approved.id, RequestState::Approved),
+        (dark[0].id, RequestState::PartiallyAvailable),
+        (processing.id, RequestState::Processing),
+        (failed.id, RequestState::Failed),
+        (alien.id, RequestState::Available),
+    ];
+    assert_eq!(available, (alien.id, RequestState::Available));
+    assert_eq!(
+        partially_available,
+        (dark[0].id, RequestState::PartiallyAvailable)
+    );
+    assert_eq!(states(&all_requests), newest_first, "no state lists all");
+    assert_eq!(
+        all_followed,
+        [followed],
+        "no state lists the Pending Followed Show"
+    );
+    for (state, (requests, followed_shows)) in by_state {
         let want: Vec<_> = all_requests
             .iter()
-            .filter(|r| in_state(r.state.as_known().unwrap_or_default()))
+            .filter(|request| request.state == state)
             .cloned()
             .collect();
         let want_followed: Vec<_> = all_followed
             .iter()
-            .filter(|f| in_state(f.state.as_known().unwrap_or_default()))
+            .filter(|show| show.state == state)
             .cloned()
             .collect();
         assert_eq!(requests, want, "Requests {state:?}");
-        assert_eq!(followed, want_followed, "Followed Shows {state:?}");
+        assert_eq!(followed_shows, want_followed, "Followed Shows {state:?}");
     }
-    let mut seen: Vec<_> = states(&all_requests).into_iter().map(|(_, s)| s).collect();
-    seen.dedup();
-    assert_eq!(
-        seen,
-        [
-            RequestState::Pending,
-            RequestState::Approved,
-            RequestState::Declined,
-            RequestState::Failed,
-            RequestState::Available
-        ],
-        "newest first, in several states"
-    );
 }
 
 #[tokio::test]
