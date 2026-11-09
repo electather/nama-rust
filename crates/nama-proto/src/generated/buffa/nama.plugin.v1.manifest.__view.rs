@@ -53,6 +53,14 @@ pub struct ManifestView<'a> {
         'a,
         ::buffa::EnumValue<super::super::ProvidePoint>,
     >,
+    /// What admins know the Plugin by, such as "Sonarr". Optional: its `id` stands in.
+    ///
+    /// Field 8: `name`
+    pub name: &'a str,
+    /// What the Plugin does, in one sentence. Optional.
+    ///
+    /// Field 9: `description`
+    pub description: &'a str,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for ManifestView<'a> {
@@ -105,6 +113,20 @@ impl<'a> ::buffa::MessageView<'a> for ManifestView<'a> {
                     ::buffa::encoding::WireType::LengthDelimited,
                 )?;
                 view.nama_api = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            8u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.name = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            9u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.description = ::buffa::types::borrow_str(&mut cur)?;
             }
             4u32 => {
                 ::buffa::encoding::check_wire_type(
@@ -228,6 +250,8 @@ impl<'a> ::buffa::MessageView<'a> for ManifestView<'a> {
             allowed_hosts: self.allowed_hosts.iter().map(|s| s.to_string()).collect(),
             observers: self.observers.to_vec(),
             providers: self.providers.to_vec(),
+            name: self.name.to_string(),
+            description: self.description.to_string(),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -274,6 +298,12 @@ impl<'a> ::buffa::ViewEncode<'a> for ManifestView<'a> {
                 .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
                 .sum::<u64>();
             size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
+        }
+        if !self.name.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.name) as u64;
+        }
+        if !self.description.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.description) as u64;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
@@ -328,6 +358,12 @@ impl<'a> ::buffa::ViewEncode<'a> for ManifestView<'a> {
                 ::buffa::types::encode_int32(v.to_i32(), buf);
             }
         }
+        if !self.name.is_empty() {
+            ::buffa::types::put_string_field(8u32, &self.name, buf);
+        }
+        if !self.description.is_empty() {
+            ::buffa::types::put_string_field(9u32, &self.description, buf);
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
 }
@@ -377,6 +413,12 @@ impl<'__a> ::serde::Serialize for ManifestView<'__a> {
                     "providers",
                     &::buffa::json_helpers::EnumSeqJson(&self.providers),
                 )?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.name) {
+            __map.serialize_entry("name", self.name)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.description) {
+            __map.serialize_entry("description", self.description)?;
         }
         __map.end()
     }
@@ -526,6 +568,20 @@ impl ManifestOwnedView {
         &self,
     ) -> &::buffa::RepeatedView<'_, ::buffa::EnumValue<super::super::ProvidePoint>> {
         &self.0.reborrow().providers
+    }
+    /// What admins know the Plugin by, such as "Sonarr". Optional: its `id` stands in.
+    ///
+    /// Field 8: `name`
+    #[must_use]
+    pub fn name(&self) -> &'_ str {
+        self.0.reborrow().name
+    }
+    /// What the Plugin does, in one sentence. Optional.
+    ///
+    /// Field 9: `description`
+    #[must_use]
+    pub fn description(&self) -> &'_ str {
+        self.0.reborrow().description
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<ManifestView<'static>>>

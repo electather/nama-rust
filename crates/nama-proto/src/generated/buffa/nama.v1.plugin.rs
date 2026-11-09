@@ -2262,6 +2262,24 @@ pub struct PluginSummary {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub refused_reason: ::buffa::alloc::string::String,
+    /// As `Plugin.name`.
+    ///
+    /// Field 6: `name`
+    #[serde(
+        rename = "name",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub name: ::buffa::alloc::string::String,
+    /// As `Plugin.description`.
+    ///
+    /// Field 7: `description`
+    #[serde(
+        rename = "description",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub description: ::buffa::alloc::string::String,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -2274,6 +2292,8 @@ impl ::core::fmt::Debug for PluginSummary {
             .field("kind", &self.kind)
             .field("enabled", &self.enabled)
             .field("refused_reason", &self.refused_reason)
+            .field("name", &self.name)
+            .field("description", &self.description)
             .finish()
     }
 }
@@ -2324,6 +2344,12 @@ impl ::buffa::Message for PluginSummary {
                 += 1u64
                     + ::buffa::types::string_encoded_len(&self.refused_reason) as u64;
         }
+        if !self.name.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.name) as u64;
+        }
+        if !self.description.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.description) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -2351,6 +2377,12 @@ impl ::buffa::Message for PluginSummary {
         }
         if !self.refused_reason.is_empty() {
             ::buffa::types::put_string_field(5u32, &self.refused_reason, buf);
+        }
+        if !self.name.is_empty() {
+            ::buffa::types::put_string_field(6u32, &self.name, buf);
+        }
+        if !self.description.is_empty() {
+            ::buffa::types::put_string_field(7u32, &self.description, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2400,6 +2432,20 @@ impl ::buffa::Message for PluginSummary {
                 )?;
                 ::buffa::types::merge_string(&mut self.refused_reason, buf)?;
             }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.name, buf)?;
+            }
+            7u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.description, buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -2413,6 +2459,8 @@ impl ::buffa::Message for PluginSummary {
         self.kind = ::buffa::EnumValue::from(0);
         self.enabled = false;
         self.refused_reason.clear();
+        self.name.clear();
+        self.description.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -2514,6 +2562,24 @@ pub struct Plugin {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub refused_reason: ::buffa::alloc::string::String,
+    /// What admins know it by, such as "TMDB". Empty if it gives none, when `id` stands in.
+    ///
+    /// Field 8: `name`
+    #[serde(
+        rename = "name",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub name: ::buffa::alloc::string::String,
+    /// What it does, in one sentence its author wrote. Empty if it gives none.
+    ///
+    /// Field 9: `description`
+    #[serde(
+        rename = "description",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub description: ::buffa::alloc::string::String,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -2528,6 +2594,8 @@ impl ::core::fmt::Debug for Plugin {
             .field("settings", &self.settings)
             .field("checks_settings", &self.checks_settings)
             .field("refused_reason", &self.refused_reason)
+            .field("name", &self.name)
+            .field("description", &self.description)
             .finish()
     }
 }
@@ -2589,6 +2657,12 @@ impl ::buffa::Message for Plugin {
                 += 1u64
                     + ::buffa::types::string_encoded_len(&self.refused_reason) as u64;
         }
+        if !self.name.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.name) as u64;
+        }
+        if !self.description.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.description) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -2627,6 +2701,12 @@ impl ::buffa::Message for Plugin {
         }
         if !self.refused_reason.is_empty() {
             ::buffa::types::put_string_field(7u32, &self.refused_reason, buf);
+        }
+        if !self.name.is_empty() {
+            ::buffa::types::put_string_field(8u32, &self.name, buf);
+        }
+        if !self.description.is_empty() {
+            ::buffa::types::put_string_field(9u32, &self.description, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2695,6 +2775,20 @@ impl ::buffa::Message for Plugin {
                 )?;
                 ::buffa::types::merge_string(&mut self.refused_reason, buf)?;
             }
+            8u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.name, buf)?;
+            }
+            9u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.description, buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -2710,6 +2804,8 @@ impl ::buffa::Message for Plugin {
         self.settings.clear();
         self.checks_settings = false;
         self.refused_reason.clear();
+        self.name.clear();
+        self.description.clear();
         self.__buffa_unknown_fields.clear();
     }
 }

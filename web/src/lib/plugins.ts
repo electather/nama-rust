@@ -10,3 +10,8 @@ export function kindAndVersion({ kind, version }: { kind: PluginKind; version: s
   const kindName = kind === PluginKind.BUILT_IN ? "Built-in" : "Installed";
   return version === "" ? kindName : `${kindName}, version ${version}`;
 }
+
+/** What admins know a Plugin by: its name, or its id when it gives none. */
+export function pluginName({ id, name }: { id: string; name: string }) {
+  return name === "" ? id : name;
+}

@@ -15,6 +15,8 @@ crate-type = ["cdylib"]
 out-of-range = []
 # Builds the Plugin so its `manifest()` panics, to show the Server gets the panic's message.
 panic = []
+# Builds the Plugin with a Manifest from before Plugins had a name and a description.
+unnamed = []
 
 [dependencies]
 nama-pdk = { version = "0.1.0", path = "../nama-pdk" }

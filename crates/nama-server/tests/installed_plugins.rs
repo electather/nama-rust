@@ -303,6 +303,45 @@ async fn a_dropped_plugin_is_listed_disabled_observes_scans_only_while_enabled_a
 }
 
 #[tokio::test]
+async fn a_plugins_name_and_description_come_from_its_manifest() {
+    let started = Started::new().await;
+
+    started.drop_in("test.wasm", "");
+
+    let listed = started.listed("test-plugin").await.unwrap();
+    assert_eq!(listed.name, "Test Plugin");
+    assert_eq!(
+        listed.description,
+        "Stands in for an Installed Plugin in the Server's tests."
+    );
+    let got = started.got("test-plugin").await;
+    assert_eq!(
+        (got.name, got.description),
+        (listed.name, listed.description)
+    );
+}
+
+#[tokio::test]
+async fn a_plugin_whose_manifest_has_no_name_or_description_still_loads_and_enables() {
+    let started = Started::new().await;
+
+    started.drop_in("unnamed.wasm", "unnamed");
+
+    let listed = started.listed("test-plugin").await.unwrap();
+    assert_eq!(listed.refused_reason, "");
+    assert_eq!(
+        (listed.name.as_str(), listed.description.as_str()),
+        ("", "")
+    );
+    started
+        .client()
+        .enable_plugin(enable("test-plugin"))
+        .await
+        .unwrap();
+    assert!(started.listed("test-plugin").await.unwrap().enabled);
+}
+
+#[tokio::test]
 async fn a_refused_plugin_is_listed_and_shown_with_why_and_enabling_it_is_refused() {
     let started = Started::new().await;
 

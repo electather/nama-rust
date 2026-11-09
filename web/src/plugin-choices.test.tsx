@@ -47,7 +47,7 @@ test("a Plugin with a settings check has a Test button", async () => {
 test("a Plugin without a settings check has no Test button", async () => {
   openPlugin("tmdb");
 
-  expect((await plugin("tmdb")).queryByRole("button", { name: "Test" })).toBeNull();
+  expect((await plugin("TMDB")).queryByRole("button", { name: "Test" })).toBeNull();
 });
 
 test("a choice can’t be picked before a test, and a passing test fills its dropdown", async () => {
