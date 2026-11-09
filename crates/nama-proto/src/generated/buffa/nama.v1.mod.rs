@@ -160,6 +160,12 @@ pub mod __buffa {
         reg.register_json_any(super::__REQUESTER_REMOVED_JSON_ANY);
         reg.register_json_any(super::__REQUEST_WITHDRAWN_JSON_ANY);
         reg.register_json_any(super::__REQUEST_PROGRESS_JSON_ANY);
+        reg.register_json_any(super::__FOLLOWED_SHOW_CREATED_JSON_ANY);
+        reg.register_json_any(super::__FOLLOWED_SHOW_REQUESTER_ADDED_JSON_ANY);
+        reg.register_json_any(super::__FOLLOWED_SHOW_STATE_CHANGED_JSON_ANY);
+        reg.register_json_any(super::__FOLLOWED_SHOW_CANCELLED_JSON_ANY);
+        reg.register_json_any(super::__FOLLOWED_SHOW_REQUESTER_REMOVED_JSON_ANY);
+        reg.register_json_any(super::__FOLLOWED_SHOW_WITHDRAWN_JSON_ANY);
         reg.register_json_any(super::__LIBRARY_JSON_ANY);
         reg.register_json_any(super::__CREATE_LIBRARY_REQUEST_JSON_ANY);
         reg.register_json_any(super::__CREATE_LIBRARY_RESPONSE_JSON_ANY);
@@ -645,6 +651,30 @@ pub use self::__buffa::view::RequestWithdrawnOwnedView;
 pub use self::__buffa::view::RequestProgressView;
 #[doc(inline)]
 pub use self::__buffa::view::RequestProgressOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::FollowedShowCreatedView;
+#[doc(inline)]
+pub use self::__buffa::view::FollowedShowCreatedOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::FollowedShowRequesterAddedView;
+#[doc(inline)]
+pub use self::__buffa::view::FollowedShowRequesterAddedOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::FollowedShowStateChangedView;
+#[doc(inline)]
+pub use self::__buffa::view::FollowedShowStateChangedOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::FollowedShowCancelledView;
+#[doc(inline)]
+pub use self::__buffa::view::FollowedShowCancelledOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::FollowedShowRequesterRemovedView;
+#[doc(inline)]
+pub use self::__buffa::view::FollowedShowRequesterRemovedOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::FollowedShowWithdrawnView;
+#[doc(inline)]
+pub use self::__buffa::view::FollowedShowWithdrawnOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::LibraryView;
 #[doc(inline)]

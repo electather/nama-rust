@@ -81,6 +81,24 @@ pub mod event {
         RequestProgress(
             ::buffa::alloc::boxed::Box<super::super::super::RequestProgress>,
         ),
+        FollowedShowCreated(
+            ::buffa::alloc::boxed::Box<super::super::super::FollowedShowCreated>,
+        ),
+        FollowedShowRequesterAdded(
+            ::buffa::alloc::boxed::Box<super::super::super::FollowedShowRequesterAdded>,
+        ),
+        FollowedShowStateChanged(
+            ::buffa::alloc::boxed::Box<super::super::super::FollowedShowStateChanged>,
+        ),
+        FollowedShowCancelled(
+            ::buffa::alloc::boxed::Box<super::super::super::FollowedShowCancelled>,
+        ),
+        FollowedShowRequesterRemoved(
+            ::buffa::alloc::boxed::Box<super::super::super::FollowedShowRequesterRemoved>,
+        ),
+        FollowedShowWithdrawn(
+            ::buffa::alloc::boxed::Box<super::super::super::FollowedShowWithdrawn>,
+        ),
     }
     impl ::buffa::Oneof for Event {}
     impl From<super::super::super::ScanStarted> for Event {
@@ -215,6 +233,72 @@ pub mod event {
             Self::Some(Event::from(v))
         }
     }
+    impl From<super::super::super::FollowedShowCreated> for Event {
+        fn from(v: super::super::super::FollowedShowCreated) -> Self {
+            Self::FollowedShowCreated(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::FollowedShowCreated>
+    for ::core::option::Option<Event> {
+        fn from(v: super::super::super::FollowedShowCreated) -> Self {
+            Self::Some(Event::from(v))
+        }
+    }
+    impl From<super::super::super::FollowedShowRequesterAdded> for Event {
+        fn from(v: super::super::super::FollowedShowRequesterAdded) -> Self {
+            Self::FollowedShowRequesterAdded(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::FollowedShowRequesterAdded>
+    for ::core::option::Option<Event> {
+        fn from(v: super::super::super::FollowedShowRequesterAdded) -> Self {
+            Self::Some(Event::from(v))
+        }
+    }
+    impl From<super::super::super::FollowedShowStateChanged> for Event {
+        fn from(v: super::super::super::FollowedShowStateChanged) -> Self {
+            Self::FollowedShowStateChanged(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::FollowedShowStateChanged>
+    for ::core::option::Option<Event> {
+        fn from(v: super::super::super::FollowedShowStateChanged) -> Self {
+            Self::Some(Event::from(v))
+        }
+    }
+    impl From<super::super::super::FollowedShowCancelled> for Event {
+        fn from(v: super::super::super::FollowedShowCancelled) -> Self {
+            Self::FollowedShowCancelled(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::FollowedShowCancelled>
+    for ::core::option::Option<Event> {
+        fn from(v: super::super::super::FollowedShowCancelled) -> Self {
+            Self::Some(Event::from(v))
+        }
+    }
+    impl From<super::super::super::FollowedShowRequesterRemoved> for Event {
+        fn from(v: super::super::super::FollowedShowRequesterRemoved) -> Self {
+            Self::FollowedShowRequesterRemoved(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::FollowedShowRequesterRemoved>
+    for ::core::option::Option<Event> {
+        fn from(v: super::super::super::FollowedShowRequesterRemoved) -> Self {
+            Self::Some(Event::from(v))
+        }
+    }
+    impl From<super::super::super::FollowedShowWithdrawn> for Event {
+        fn from(v: super::super::super::FollowedShowWithdrawn) -> Self {
+            Self::FollowedShowWithdrawn(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::FollowedShowWithdrawn>
+    for ::core::option::Option<Event> {
+        fn from(v: super::super::super::FollowedShowWithdrawn) -> Self {
+            Self::Some(Event::from(v))
+        }
+    }
     impl ::serde::Serialize for Event {
         fn serialize<S: ::serde::Serializer>(
             &self,
@@ -261,6 +345,24 @@ pub mod event {
                 }
                 Self::RequestProgress(v) => {
                     map.serialize_entry("requestProgress", &**v)?;
+                }
+                Self::FollowedShowCreated(v) => {
+                    map.serialize_entry("followedShowCreated", &**v)?;
+                }
+                Self::FollowedShowRequesterAdded(v) => {
+                    map.serialize_entry("followedShowRequesterAdded", &**v)?;
+                }
+                Self::FollowedShowStateChanged(v) => {
+                    map.serialize_entry("followedShowStateChanged", &**v)?;
+                }
+                Self::FollowedShowCancelled(v) => {
+                    map.serialize_entry("followedShowCancelled", &**v)?;
+                }
+                Self::FollowedShowRequesterRemoved(v) => {
+                    map.serialize_entry("followedShowRequesterRemoved", &**v)?;
+                }
+                Self::FollowedShowWithdrawn(v) => {
+                    map.serialize_entry("followedShowWithdrawn", &**v)?;
                 }
             }
             map.end()
