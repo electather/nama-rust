@@ -180,6 +180,14 @@ _Avoid_: ticket, order, wish
 A User who asked for what a Request covers. A Request can have several.
 _Avoid_: owner, submitter
 
+**Quality**:
+One choice an admin offers on a Fulfiller's list for how a Movie or Show is downloaded, such as "HD" or "4K", with a friendly name and one marked as the default. A Request has one. Users allowed to choose pick it; everyone else gets the default. A Show has one Quality for all its Seasons, set by its first Season Request.
+_Avoid_: quality profile, profile, resolution, tier
+
+**Request manager**:
+A User with the Manage Requests Permission, who approves, declines, retries and cancels everyone's Requests.
+_Avoid_: approver, admin, moderator
+
 **Followed Show**:
 Users asking for a whole Show, approved once, so its Seasons, including ones that come out later, are Requested without asking again. A Season Request appears for a new Season when its Fulfiller fetches it and a Library scan Matches its Episodes.
 _Avoid_: monitored show, subscription, series request

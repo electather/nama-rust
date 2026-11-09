@@ -11,9 +11,9 @@
     },
     {
       "name": "web",
-      "runtimeExecutable": "vp",
+      "runtimeExecutable": "mise",
       "cwd": "web",
-      "runtimeArgs": ["dev", "--port", "5173", "--strictPort"],
+      "runtimeArgs": ["exec", "--", "vp", "dev","--port", "5173", "--strictPort"],
       "port": 5173,
       "autoPort": false
     }
