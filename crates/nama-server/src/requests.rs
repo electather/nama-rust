@@ -271,7 +271,7 @@ impl Requests {
     }
 
     /// Asks for the Movie with the TMDB id `tmdb_id` for `asker`, who joins its open Request, or
-    /// opens one at the Quality `chosen`, else the Movie Fulfiller's default: Approved, and handed
+    /// opens one at the Quality `chosen`, else as [`Self::movie_quality`] picks: Approved, and handed
     /// to the Fulfiller for Movies, if `asker` may have Movies approved as they ask, else Pending.
     /// Such an `asker` joining a Pending Request approves it and hands it off the same way.
     /// Publishes what changed, if anything did.
@@ -376,7 +376,7 @@ impl Requests {
     }
 
     /// `user`'s default Quality for each enabled Fulfiller whose list has more than one, Movies
-    /// first, including a default the list no longer has.
+    /// first, and for one left with a single Quality after an admin removed `user`'s, to flag it.
     pub(crate) async fn personal_defaults(
         &self,
         user: i64,
@@ -396,9 +396,11 @@ impl Requests {
         for (plugin, fulfiller) in fulfillers {
             let Some(plugin) = plugin else { continue };
             let qualities = qualities::list(&mut conn, &plugin).await?;
-            if qualities.len() > 1 {
+            let quality = qualities::personal_default(&mut conn, user, &plugin).await?;
+            let removed = quality.is_some_and(|id| qualities.iter().all(|listed| listed.id != id));
+            if qualities.len() > 1 || (removed && !qualities.is_empty()) {
                 defaults.push(DefaultQuality {
-                    quality: qualities::personal_default(&mut conn, user, &plugin).await?,
+                    quality,
                     plugin_id: plugin.to_string(),
                     fulfiller: fulfiller.into(),
                     qualities,

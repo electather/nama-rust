@@ -14,7 +14,6 @@ const mayChoose = [...newUser, Permission.CHOOSE_QUALITY];
 
 const hd = { id: 1n, profileId: "4", name: "HD", isDefault: true };
 const fourK = { id: 2n, profileId: "5", name: "4K" };
-const any = { id: 3n, profileId: "1", name: "Any" };
 
 /** A fake Server whose Movie Fulfiller is Radarr, where the signed-in User's default is `movies`. */
 function server(
@@ -54,7 +53,7 @@ test("a User who may choose sets their default Quality for Movies, the default p
 });
 
 test("a default an admin has since removed is flagged, with the default picked", async () => {
-  openApp("/settings", server(mayChoose, { qualities: [hd, any], quality: 2n }));
+  openApp("/settings", server(mayChoose, { qualities: [hd], quality: 2n }));
 
   const movies = await screen.findByLabelText<HTMLSelectElement>("Movies");
   expect(movies.value).toBe("1");
@@ -69,7 +68,7 @@ test("a User who may not choose a Quality sees no default Quality on Settings", 
 
   await screen.findByRole("heading", { name: "Devices" });
   await waitFor(() => {
-    expect(screen.queryByRole("heading", { name: "Default Quality" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Your default Quality" })).toBeNull();
   });
   expect(screen.queryByLabelText("Movies")).toBeNull();
 });

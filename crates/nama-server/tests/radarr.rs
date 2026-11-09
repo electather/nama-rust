@@ -1035,8 +1035,10 @@ async fn after_the_admin_removes_a_members_default_they_get_the_fulfillers_and_s
         .await;
     set_default(&chooser, Some(offered[1].id)).await.unwrap();
 
-    let without_4k = vec![offered[0].clone(), quality(ANY, "Any", false)];
-    let kept = fixture.replace_qualities(without_4k).await.unwrap();
+    let kept = fixture
+        .replace_qualities(vec![offered[0].clone()])
+        .await
+        .unwrap();
     let approved = fixture
         .approve(ask(&chooser, HEAT, None).await.unwrap().id, None)
         .await

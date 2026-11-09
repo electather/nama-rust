@@ -16,8 +16,8 @@ const movieQualitiesKey = createConnectQueryKey({
   cardinality: "finite",
 });
 
-/** What each Fulfiller fetches, as its field is labelled. */
-const fetches: Partial<Record<ExtensionPoint, string>> = {
+/** Each Fulfiller's field label: what it fetches. */
+const fulfillerLabels: Partial<Record<ExtensionPoint, string>> = {
   [ExtensionPoint.MOVIE_FULFILLER]: "Movies",
   [ExtensionPoint.SHOW_FULFILLER]: "Shows",
 };
@@ -25,7 +25,7 @@ const fetches: Partial<Record<ExtensionPoint, string>> = {
 /**
  * The signed-in User's own default Quality for each Fulfiller with more than one, which their
  * Requests get when they don't pick. For a User who may choose a Quality; nothing while no
- * Fulfiller has more than one.
+ * Fulfiller has anything to pick or flag.
  */
 export function DefaultQualities() {
   const { data } = useQuery(RequestService.method.listDefaultQualities, {});
@@ -33,7 +33,7 @@ export function DefaultQualities() {
   return (
     <section aria-labelledby="default-quality" className="mt-12 max-w-sm">
       <h2 id="default-quality" className="font-medium">
-        Default Quality
+        Your default Quality
       </h2>
       <p className="mt-1 text-sm text-muted-foreground">
         What your Requests are downloaded at when you don’t pick a Quality.
@@ -48,7 +48,7 @@ export function DefaultQualities() {
 /** The form a User sets their default from one Fulfiller's Qualities with. */
 function DefaultQualityForm({ fulfiller }: { fulfiller: DefaultQuality }) {
   const { pluginId } = fulfiller;
-  const kind = fetches[fulfiller.fulfiller] ?? pluginId;
+  const kind = fulfillerLabels[fulfiller.fulfiller] ?? pluginId;
   const save = useSaveDefault();
   return (
     <form

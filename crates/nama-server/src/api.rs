@@ -3296,11 +3296,11 @@ impl From<requests::Error> for ConnectError {
                     .param("seasonNumber", &season)
             }
             requests::Error::Unavailable => refuse(R::REFUSAL_REASON_NO_METADATA_PROVIDER, message),
-            // `CreateRequest` and `SetDefaultQuality` name a Quality in `quality`; `ApproveRequest`
-            // and `RetryRequest` in `quality_id`, refused as `NewQualityNotOffered`.
+            // Only `CreateRequest` names a Quality the caller may not choose, in `quality`.
             requests::Error::QualityNotAllowed => {
                 refuse(R::REFUSAL_REASON_QUALITY_NOT_ALLOWED, message).field("quality")
             }
+            // `CreateRequest` and `SetDefaultQuality` both name it in `quality`.
             requests::Error::QualityNotOffered(id) => {
                 refuse(R::REFUSAL_REASON_QUALITY_NOT_OFFERED, message)
                     .field("quality")
