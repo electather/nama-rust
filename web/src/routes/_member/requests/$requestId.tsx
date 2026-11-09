@@ -32,12 +32,7 @@ function RequestPage() {
     <RequestLayout>
       <ul className="mt-8 flex max-w-2xl flex-col">
         {request.season ? (
-          <ShowRequests
-            showTmdbId={request.season.showTmdbId}
-            showTitle={request.season.showTitle}
-            followed={[]}
-            seasons={[request]}
-          />
+          <ShowRequests showTitle={request.season.showTitle} followed={[]} seasons={[request]} />
         ) : (
           <RequestRow request={request} />
         )}

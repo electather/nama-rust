@@ -16,7 +16,7 @@ export interface ShowGroup {
 }
 
 /** A Show's title, with its Followed Shows and Season Requests listed under it. */
-export function ShowRequests({ showTitle, followed, seasons }: ShowGroup) {
+export function ShowRequests({ showTitle, followed, seasons }: Omit<ShowGroup, "showTmdbId">) {
   return (
     <li className="border-b pt-3 last:border-b-0">
       <p className="truncate font-medium">{showTitle}</p>
