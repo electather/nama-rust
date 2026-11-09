@@ -225,6 +225,9 @@ struct Wanted {
     followed_show: Option<i64>,
     /// The Quality a new Request for it takes, if its Fulfiller has any. Only a Movie's, for now.
     quality: Option<RequestedQuality>,
+    /// Whether the asker chose `quality`, by picking it or as their personal default, so it
+    /// replaces a Pending Request's when their ask approves it.
+    quality_chosen: bool,
 }
 
 /// A Request manager changing a Request's Quality, as they approve or retry it.
@@ -289,7 +292,7 @@ impl Requests {
         if self.contents.library_with_movie(tmdb_id).await?.is_some() {
             return Err(Error::InLibrary(tmdb_id));
         }
-        let quality = self.movie_quality(asker, chosen).await?;
+        let (quality, quality_chosen) = self.movie_quality(asker, chosen).await?;
         // ponytail: looked up even to join an open Request, so the write has it if that Request
         // closes meanwhile. Look up only when opening one if TMDB's rate limit starts to bite.
         let movie = self.fetch(tmdb_id).await?;
@@ -301,6 +304,7 @@ impl Requests {
             show_ids: ExternalIds::default(),
             followed_show: None,
             quality,
+            quality_chosen,
         };
         let state = opening_state(asker, Permission::AutoApproveMovie);
         let user = asker.id;
@@ -320,27 +324,33 @@ impl Requests {
 
     /// A copy of the Quality `chosen` by `asker`, else of their personal default if they may
     /// choose and it is still offered, else of the default, on the enabled Movie Fulfiller's list,
-    /// or `None` if it has no list or none is enabled.
+    /// or `None` if it has no list or none is enabled; and whether it was `asker`'s own choice,
+    /// either of the first two.
     async fn movie_quality(
         &self,
         asker: &User,
         chosen: Option<i64>,
-    ) -> Result<Option<RequestedQuality>, Error> {
+    ) -> Result<(Option<RequestedQuality>, bool), Error> {
         if chosen.is_some() && !asker.permissions.allow(Permission::ChooseQuality) {
             return Err(Error::QualityNotAllowed);
         }
-        let quality = match self.fulfiller::<Movies>() {
+        let (quality, preferred) = match self.fulfiller::<Movies>() {
             Some(fulfiller) => {
                 let mut conn = self.db.reader().acquire().await?;
                 let preferred = usable_default(&mut conn, asker, &fulfiller).await?;
-                qualities::for_request(&mut conn, &fulfiller, chosen, preferred).await?
+                let quality =
+                    qualities::for_request(&mut conn, &fulfiller, chosen, preferred).await?;
+                (quality, preferred)
             }
-            None => None,
+            None => (None, None),
         };
-        match chosen {
-            Some(id) if quality.is_none() => Err(Error::QualityNotOffered(id)),
-            _ => Ok(quality),
+        if let (Some(id), None) = (chosen, &quality) {
+            return Err(Error::QualityNotOffered(id));
         }
+        let own_choice = quality
+            .as_ref()
+            .is_some_and(|quality| chosen.or(preferred) == Some(quality.id));
+        Ok((quality, own_choice))
     }
 
     /// The enabled Movie Fulfiller's Qualities, in the order an admin listed them, with `asker`'s
@@ -1476,6 +1486,7 @@ async fn ask_seasons(
             show_ids: show_ids.clone(),
             followed_show: None,
             quality: None,
+            quality_chosen: false,
         };
         let (request, events) = ask_approving(conn, user, wanted, state).await?;
         requests.push(request);
@@ -1485,18 +1496,25 @@ async fn ask_seasons(
 }
 
 /// [`ask`]s for `wanted`, then approves the open Request `user` joined if it is Pending and `state`
-/// is Approved, since their ask would have opened it Approved.
+/// is Approved, since their ask would have opened it Approved: at `user`'s Quality if they chose
+/// it, else at the Request's own, so its earlier Requesters aren't moved to the default.
 async fn ask_approving(
     conn: &mut SqliteConnection,
     user: i64,
     wanted: Wanted,
     state: RequestState,
 ) -> Result<(Request, Vec<Event>), Error> {
+    let new_quality = wanted
+        .quality
+        .clone()
+        .filter(|_| wanted.quality_chosen)
+        .map(|quality| NewQuality { quality, by: user });
     let (request, happened) = ask(conn, user, wanted, state).await?;
     let mut happened = Vec::from_iter(happened);
     if state != RequestState::Approved || request.state != RequestState::Pending {
         return Ok((request, happened));
     }
+    change_quality(conn, request.id, new_quality).await?;
     let approved = decide(conn, request.id, RequestState::Approved, None).await?;
     happened.push(state_changed(approved.clone()));
     Ok((approved, happened))
@@ -1698,6 +1716,7 @@ async fn open_followed_season(
         show_ids: ExternalIds::default(),
         followed_show: Some(followed.id),
         quality: None,
+        quality_chosen: false,
     };
     let id = insert_request(conn, &wanted, stored(state), now()).await?;
     sqlx::query!(
@@ -2046,6 +2065,7 @@ async fn follow(
             show_ids: show_ids.clone(),
             followed_show: Some(id),
             quality: None,
+            quality_chosen: false,
         };
         // Only `user`'s own auto-approve approves someone else's Pending Season Request: joining an
         // Approved Followed Show doesn't.
@@ -2640,6 +2660,7 @@ mod tests {
             show_ids: ExternalIds::default(),
             followed_show: None,
             quality: None,
+            quality_chosen: false,
         });
 
         let ids = db
@@ -2819,6 +2840,7 @@ mod tests {
                 show_ids: ExternalIds::default(),
                 followed_show: None,
                 quality: None,
+                quality_chosen: false,
             })
             .collect();
         db.write(move |tx| Box::pin(ask_each(tx, wanted, RequestState::Approved)))
@@ -2987,6 +3009,7 @@ mod tests {
             show_ids: ExternalIds::default(),
             followed_show: None,
             quality: None,
+            quality_chosen: false,
         };
         let request = db
             .write(move |tx| Box::pin(ask_each(tx, vec![wanted], RequestState::Pending)))
