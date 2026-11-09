@@ -1123,6 +1123,23 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn a_country_tag_in_a_movies_name_stays_in_its_title() {
+        let media = Fixture::new().await;
+        let movies = &media.movies;
+        movies.write("Euphoria (US) (2019)/Euphoria (US) (2019).mkv");
+
+        media.scan(movies).await;
+
+        let requests = media.tmdb.requests();
+        assert!(
+            requests
+                .iter()
+                .any(|r| r.starts_with("/3/search/movie?") && r.contains("query=Euphoria+%28US%29")),
+            "{requests:?}"
+        );
+    }
+
+    #[tokio::test]
     async fn a_pin_on_a_show_named_with_a_country_tag_still_applies_after_a_newer_parser() {
         let media = Fixture::new().await;
         let shows = &media.shows;
