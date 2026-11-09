@@ -11,7 +11,7 @@ import {
 } from "@/gen/nama/v1/request_pb";
 import type { Permission } from "@/gen/nama/v1/sign_in_pb";
 
-import { admin, eventFeed, fakeServer, newUser, openApp } from "./test-app";
+import { admin, eventFeed, fakeServer, newUser, openApp, rowTitles } from "./test-app";
 
 afterEach(cleanup);
 
@@ -59,11 +59,6 @@ function filteringServer(
       },
     });
   });
-}
-
-/** The title of each row, Show titles included, top to bottom. */
-function rowTitles() {
-  return screen.getAllByRole("listitem").map((row) => row.querySelector("p")?.textContent);
 }
 
 test("choosing Failed shows only the Failed Requests and keeps the choice in the URL", async () => {

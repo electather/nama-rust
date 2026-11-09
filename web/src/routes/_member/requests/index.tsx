@@ -138,7 +138,7 @@ function RequestList() {
           )}
         </ul>
       )}
-      {hasNextPage && <ShowMore load={fetchNextPage} />}
+      {hasNextPage && <ShowMore load={fetchNextPage} loaded={data.pages.length} />}
     </>
   );
 }

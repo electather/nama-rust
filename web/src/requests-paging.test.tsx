@@ -9,7 +9,7 @@ import {
   RequestState,
 } from "@/gen/nama/v1/request_pb";
 
-import { fakeServer, newUser, openApp } from "./test-app";
+import { fakeServer, newUser, openApp, rowTitles } from "./test-app";
 
 afterEach(() => {
   cleanup();
@@ -47,11 +47,6 @@ function pagingServer(
   });
 }
 
-/** The title of each row, Show titles included, top to bottom. */
-function rowTitles() {
-  return screen.getAllByRole("listitem").map((row) => row.querySelector("p")?.textContent);
-}
-
 test("Show more lists the next page below the first, and goes after the last", async () => {
   openApp("/requests", pagingServer([[movie(3n, "Heat")], [movie(2n, "Dune")]]));
 
@@ -62,26 +57,47 @@ test("Show more lists the next page below the first, and goes after the last", a
   expect(screen.queryByRole("button", { name: "Show more" })).toBeNull();
 });
 
-test("scrolling to the end of the list loads the next page", async () => {
-  let seeEnd: ((entries: { isIntersecting: boolean }[]) => void) | undefined;
+/**
+ * Stands in for the browser's `IntersectionObserver`, with the end of the list in view from the
+ * start if `inView`. Returns what brings it into view later.
+ */
+function stubObserver(inView: boolean) {
+  let seen: ((entries: { isIntersecting: boolean }[]) => void) | undefined;
   vi.stubGlobal(
     "IntersectionObserver",
     class {
-      constructor(seen: typeof seeEnd) {
-        seeEnd = seen;
+      constructor(callback: typeof seen) {
+        seen = callback;
       }
-      observe() {}
+      observe() {
+        if (inView) seen?.([{ isIntersecting: true }]);
+      }
       disconnect() {}
     },
   );
+  return () => seen?.([{ isIntersecting: true }]);
+}
+
+test("scrolling to the end of the list loads the next page", async () => {
+  const scrollToEnd = stubObserver(false);
   openApp("/requests", pagingServer([[movie(3n, "Heat")], [movie(2n, "Dune")]]));
   await screen.findByText("Heat");
 
-  act(() => {
-    seeEnd?.([{ isIntersecting: true }]);
-  });
+  act(scrollToEnd);
 
   expect(await screen.findByText("Dune")).toBeDefined();
+});
+
+test("a page that leaves the end of the list in view loads the next one too", async () => {
+  stubObserver(true);
+
+  openApp(
+    "/requests",
+    pagingServer([[movie(3n, "Heat")], [movie(2n, "Dune")], [movie(1n, "Alien")]]),
+  );
+
+  await screen.findByText("Alien");
+  expect(rowTitles()).toEqual(["Heat", "Dune", "Alien"]);
 });
 
 test("a Show's older Season Request joins its group when a later page loads", async () => {

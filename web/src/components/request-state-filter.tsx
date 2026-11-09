@@ -38,7 +38,7 @@ export function filterName(filter: StateFilter) {
   return filter === "all" ? "All" : requestStateName(stateFilters[filter]);
 }
 
-/** `ListRequests`'s input for `filter`, where no filter means All. */
+/** `ListRequests`'s state for `filter`, where no filter means All. */
 export function listedIn(filter: StateFilter | undefined) {
   return { state: stateFilters[filter ?? "all"] };
 }

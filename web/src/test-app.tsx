@@ -90,6 +90,12 @@ export function fakeServer(
   });
 }
 
+/** The title of each row on the page, Show titles included, top to bottom. */
+export function rowTitles() {
+  // Each row's title is its first paragraph.
+  return screen.getAllByRole("listitem").map((row) => row.querySelector("p")?.textContent);
+}
+
 /** Opens the app at `path`, talking to the fake Server behind `transport`. */
 export function openApp(path: string, transport: ReturnType<typeof createRouterTransport>) {
   window.history.replaceState(null, "", path);
