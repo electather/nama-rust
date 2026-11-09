@@ -596,6 +596,8 @@ impl Requests {
     /// through the Show's open Followed Show, which `asker` joins or opens at that Quality, in the
     /// state their Season Requests open in. Returns the Followed Show and the Season Requests in
     /// Season order.
+    ///
+    /// Refuses a `chosen` Quality as [`Self::create_seasons`] does.
     pub(crate) async fn follow(
         &self,
         asker: &User,

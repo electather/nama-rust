@@ -175,7 +175,11 @@ impl Fixture {
 
     /// Approves the Followed Show `id` as the Admin, changing the Show's Quality to `quality` if
     /// given, and returns it as the approval left it.
-    async fn approve_followed_at(&self, id: i64, quality: Option<i64>) -> FollowedShow {
+    async fn approve_followed_at(
+        &self,
+        id: i64,
+        quality: Option<i64>,
+    ) -> Result<FollowedShow, ConnectError> {
         let approved = self
             .requests()
             .approve_followed_show(ApproveFollowedShowRequest {
@@ -183,9 +187,8 @@ impl Fixture {
                 quality_id: quality,
                 ..Default::default()
             })
-            .await
-            .unwrap();
-        approved.into_owned().followed_show.into_option().unwrap()
+            .await?;
+        Ok(approved.into_owned().followed_show.into_option().unwrap())
     }
 
     /// Cancels the Followed Show `id` as the Admin.
@@ -1078,7 +1081,8 @@ async fn a_request_manager_approving_a_followed_show_as_hd_has_its_season_reques
 
     let approved = fixture
         .approve_followed_at(followed.id, Some(offered[0].id))
-        .await;
+        .await
+        .unwrap();
     let season_1 = fixture.request(asked[0].id).await;
 
     let hd = Some((offered[0].id, "HD"));
@@ -1108,4 +1112,29 @@ async fn following_a_show_with_a_quality_takes_it_and_refuses_another() {
         named(followed.quality.as_option()),
         Some((offered[1].id, "4K"))
     );
+}
+
+#[tokio::test]
+async fn once_a_season_was_handed_off_approving_a_followed_show_at_another_quality_is_refused() {
+    let fixture = Fixture::with_sonarr_enabled().await;
+    let offered = fixture.offer_hd_and_4k().await;
+    let chooser = fixture.chooser().await;
+    let first = ask_one(&chooser, DARK, 1, Some(offered[1].id)).await;
+    fixture.approve(first.id).await;
+    let (followed, _) = follow(&chooser, DARK, None).await.unwrap();
+
+    let refused = fixture
+        .approve_followed_at(followed.id, Some(offered[0].id))
+        .await;
+    let same = fixture
+        .approve_followed_at(followed.id, Some(offered[1].id))
+        .await;
+
+    let refusal = assert_refused(
+        refused,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_QUALITY_NOT_OFFERED,
+    );
+    assert_eq!(refusal.field, "quality_id");
+    assert_eq!(same.unwrap().state, RequestState::Approved);
 }
