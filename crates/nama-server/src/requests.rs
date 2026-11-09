@@ -853,12 +853,22 @@ impl Requests {
         Ok((requests, followed))
     }
 
-    /// How many Requests and Followed Shows are Pending, counting a Followed Show apart from its
-    /// Season Requests.
-    pub(crate) async fn count_pending(&self) -> Result<u32, sqlx::Error> {
+    /// How many of the Requests and Followed Shows `viewer` may see are Pending, as many as
+    /// [`Self::list`] shows them, counting a Followed Show apart from its Season Requests.
+    pub(crate) async fn count_pending(&self, viewer: &User) -> Result<u32, sqlx::Error> {
+        let requester = visible_to(viewer);
         sqlx::query_scalar!(
-            r#"SELECT (SELECT COUNT(*) FROM requests WHERE state = 'pending')
-                + (SELECT COUNT(*) FROM followed_shows WHERE state = 'pending') AS "count!: u32""#
+            r#"SELECT (SELECT COUNT(*) FROM requests
+                       WHERE state = 'pending'
+                         AND (?1 IS NULL OR EXISTS (SELECT 1 FROM requesters
+                                                    WHERE request_id = requests.id
+                                                      AND user_id = ?1)))
+                + (SELECT COUNT(*) FROM followed_shows
+                   WHERE state = 'pending'
+                     AND (?1 IS NULL OR EXISTS (SELECT 1 FROM followed_show_requesters
+                                                WHERE followed_show_id = followed_shows.id
+                                                  AND user_id = ?1))) AS "count!: u32""#,
+            requester
         )
         .fetch_one(self.db.reader())
         .await

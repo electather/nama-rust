@@ -1548,12 +1548,13 @@ impl RequestService for RequestServiceHandler {
 
     async fn count_pending_requests(
         &self,
-        _ctx: RequestContext,
+        ctx: RequestContext,
         _request: ServiceRequest<'_, CountPendingRequestsRequest>,
     ) -> ServiceResult<CountPendingRequestsResponse> {
+        let viewer = &caller(&ctx)?.user;
         let count = self
             .requests
-            .count_pending()
+            .count_pending(viewer)
             .await
             .map_err(database_failed)?;
         Response::ok(CountPendingRequestsResponse {

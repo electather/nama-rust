@@ -1098,9 +1098,9 @@ pub trait RequestService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
-    /// Counts the Requests and Followed Shows that are Pending, for the Requests link. A Pending
-    /// Followed Show and each of its Pending Season Requests count once each. Needs
-    /// `PERMISSION_MANAGE_REQUESTS`.
+    /// Counts the Requests and Followed Shows the caller may see that are Pending, for the Requests
+    /// link: as many rows as `ListRequests` lists Pending, so a Pending Followed Show and each of its
+    /// Pending Season Requests count once each. Needs `PERMISSION_MANAGE_REQUESTS`.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///

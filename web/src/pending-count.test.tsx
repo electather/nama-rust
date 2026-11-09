@@ -70,7 +70,7 @@ test("the Requests link reads 99+ above 99 Pending, and its name gives the count
   expect(link.textContent).toBe("Requests99+");
 });
 
-test("a Member without Manage Requests sees no Pending count and never asks for one", async () => {
+test("a User without Manage Requests sees no Pending count and never asks for one", async () => {
   let asked = false;
   openApp(
     "/settings",
