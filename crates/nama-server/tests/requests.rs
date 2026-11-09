@@ -1113,7 +1113,7 @@ async fn a_user_who_may_auto_approve_movies_joining_a_pending_request_approves_i
 }
 
 #[tokio::test]
-async fn a_user_who_may_auto_approve_joining_an_approved_request_leaves_it_approved() {
+async fn a_user_who_may_auto_approve_movies_joining_an_approved_request_leaves_it_approved() {
     let fixture = Fixture::start().await;
     let may_auto_approve = [Permission::Request, Permission::AutoApproveMovie];
     let (_, as_ada) = fixture.user("Ada", &may_auto_approve).await;
@@ -1133,7 +1133,7 @@ async fn a_user_who_may_auto_approve_joining_an_approved_request_leaves_it_appro
 }
 
 #[tokio::test]
-async fn a_user_who_may_auto_approve_joining_a_failed_request_leaves_it_failed_and_does_not_hand_it_off_again()
+async fn a_user_who_may_auto_approve_movies_joining_a_failed_request_leaves_it_failed_and_does_not_hand_it_off_again()
  {
     let fulfiller = FakeFulfiller::refusing();
     let fixture = Fixture::with_fulfiller(&fulfiller).await;
@@ -2963,6 +2963,33 @@ async fn a_second_user_asking_for_a_whole_show_joins_its_followed_show_and_shows
         look_up_dark(as_grace).await.followed_show.as_option(),
         Some(&joined)
     );
+}
+
+#[tokio::test]
+async fn a_user_who_may_auto_approve_tv_following_a_show_approves_someone_elses_pending_season_request_and_hands_it_off()
+ {
+    let fulfiller = FakeFulfiller::default();
+    let fixture = Fixture::with_shows_fulfiller(&fulfiller).await;
+    let (ada, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let (grace, as_grace) = fixture
+        .user("Grace", &[Permission::RequestTv, Permission::AutoApproveTv])
+        .await;
+    let season_2 = ask_seasons(&requests(as_ada), DARK, &[2]).await;
+
+    let (_, asked) = follow(&requests(as_grace), DARK).await;
+
+    let joined = asked.iter().find(|r| r.id == season_2[0].id);
+    assert_eq!(
+        joined.map(|r| r.state),
+        Some(RequestState::Processing.into())
+    );
+    assert_eq!(joined.map(requester_ids), Some(vec![ada, grace]));
+    let handed: Vec<u32> = fulfiller
+        .handed_seasons()
+        .iter()
+        .map(|&(_, _, season, _)| season)
+        .collect();
+    assert!(handed.contains(&2), "Season 2 not handed off: {handed:?}");
 }
 
 #[tokio::test]
