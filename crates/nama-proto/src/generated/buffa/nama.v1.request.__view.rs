@@ -6716,7 +6716,8 @@ pub struct ApproveRequestRequestView<'a> {
     ///
     /// Field 1: `id`
     pub id: i64,
-    /// The id of the Quality to change it to, from its Fulfiller's list. Unset keeps its Quality.
+    /// The id of the Quality to change it to, from its Fulfiller's list; a Season Request takes none
+    /// yet. Unset keeps its Quality.
     ///
     /// Field 2: `quality_id`
     pub quality_id: ::core::option::Option<i64>,
@@ -6959,7 +6960,8 @@ impl ApproveRequestRequestOwnedView {
     pub fn id(&self) -> i64 {
         self.0.reborrow().id
     }
-    /// The id of the Quality to change it to, from its Fulfiller's list. Unset keeps its Quality.
+    /// The id of the Quality to change it to, from its Fulfiller's list; a Season Request takes none
+    /// yet. Unset keeps its Quality.
     ///
     /// Field 2: `quality_id`
     #[must_use]
@@ -8370,7 +8372,8 @@ pub struct RetryRequestRequestView<'a> {
     ///
     /// Field 1: `id`
     pub id: i64,
-    /// The id of the Quality to change it to, from its Fulfiller's list. Unset keeps its Quality.
+    /// The id of the Quality to change it to, from its Fulfiller's list; a Season Request takes none
+    /// yet. Unset keeps its Quality.
     ///
     /// Field 2: `quality_id`
     pub quality_id: ::core::option::Option<i64>,
@@ -8613,7 +8616,8 @@ impl RetryRequestRequestOwnedView {
     pub fn id(&self) -> i64 {
         self.0.reborrow().id
     }
-    /// The id of the Quality to change it to, from its Fulfiller's list. Unset keeps its Quality.
+    /// The id of the Quality to change it to, from its Fulfiller's list; a Season Request takes none
+    /// yet. Unset keeps its Quality.
     ///
     /// Field 2: `quality_id`
     #[must_use]

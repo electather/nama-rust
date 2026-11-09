@@ -66,7 +66,7 @@ pub(crate) enum Error {
     NotPending(i64),
     #[error("the Request {0} isn't Failed")]
     NotFailed(i64),
-    #[error("the Quality {0} isn't on the list of the Fulfiller the Request goes to")]
+    #[error("the Quality {0} isn't offered for the Request")]
     QualityNotOffered(i64),
     #[error("you aren't a Requester of the Request {0}")]
     NotARequester(i64),
@@ -343,7 +343,8 @@ impl Requests {
         let request = load_one(&mut conn, id)
             .await?
             .ok_or(Error::NoSuchRequest(id))?;
-        // shortcut: only a Movie Request has a Quality to change, until a Show has one (#283).
+        // ponytail: a Season Request offers no Quality to change to, so any is refused, until a
+        // Show has one and Sonarr adds the series with it (#283).
         let fulfiller = if request.movie.is_unset() {
             None
         } else {

@@ -680,7 +680,8 @@ export type ApproveRequestRequest = Message<"nama.v1.ApproveRequestRequest"> & {
   id: bigint;
 
   /**
-   * The id of the Quality to change it to, from its Fulfiller's list. Unset keeps its Quality.
+   * The id of the Quality to change it to, from its Fulfiller's list; a Season Request takes none
+   * yet. Unset keeps its Quality.
    *
    * @generated from field: optional int64 quality_id = 2;
    */
@@ -802,7 +803,8 @@ export type RetryRequestRequest = Message<"nama.v1.RetryRequestRequest"> & {
   id: bigint;
 
   /**
-   * The id of the Quality to change it to, from its Fulfiller's list. Unset keeps its Quality.
+   * The id of the Quality to change it to, from its Fulfiller's list; a Season Request takes none
+   * yet. Unset keeps its Quality.
    *
    * @generated from field: optional int64 quality_id = 2;
    */
@@ -1659,7 +1661,7 @@ export const RequestService: GenService<{
    * for to be Matched in a Library. Given a `quality_id`, it first changes the Request's Quality to
    * that one, keeping the change in `Request.quality_change`. Needs `PERMISSION_MANAGE_REQUESTS`,
    * which manages every User's Requests. Fails with `not_found` if there is no Request with the ID,
-   * and `failed_precondition` if it isn't Pending or the Quality isn't on its Fulfiller's list
+   * and `failed_precondition` if it isn't Pending or the Quality isn't offered for it
    * (`REFUSAL_REASON_QUALITY_NOT_OFFERED`).
    *
    * @generated from rpc nama.v1.RequestService.ApproveRequest
@@ -1695,7 +1697,7 @@ export const RequestService: GenService<{
    * Moves a Failed Request back to Approved and hands it to its Fulfiller again, changing its
    * Quality first as `ApproveRequest` does. Needs `PERMISSION_MANAGE_REQUESTS`. Fails with
    * `not_found` if there is no Request with the ID, and `failed_precondition` if it isn't Failed or
-   * the Quality isn't on its Fulfiller's list.
+   * the Quality isn't offered for it.
    *
    * @generated from rpc nama.v1.RequestService.RetryRequest
    */

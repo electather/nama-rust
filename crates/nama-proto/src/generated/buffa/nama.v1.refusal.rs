@@ -150,8 +150,8 @@ pub enum RefusalReason {
     REFUSAL_REASON_QUALITY_REPEATED = 54i32,
     /// `invalid_argument`: a Fulfiller's Qualities don't mark exactly one as the default.
     REFUSAL_REASON_DEFAULT_QUALITY_REQUIRED = 55i32,
-    /// `failed_precondition`: the Quality isn't on the list of the Fulfiller the Request goes to, or
-    /// that Fulfiller has none. Params: `qualityId`.
+    /// `failed_precondition`: the Quality isn't on the list of the Fulfiller the Request goes to, that
+    /// Fulfiller has none, or the Request can't take one yet (a Season Request). Params: `qualityId`.
     REFUSAL_REASON_QUALITY_NOT_OFFERED = 56i32,
 }
 impl RefusalReason {

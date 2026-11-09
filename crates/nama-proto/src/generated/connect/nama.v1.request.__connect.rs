@@ -1276,7 +1276,7 @@ pub trait RequestService: Send + Sync + 'static {
     /// for to be Matched in a Library. Given a `quality_id`, it first changes the Request's Quality to
     /// that one, keeping the change in `Request.quality_change`. Needs `PERMISSION_MANAGE_REQUESTS`,
     /// which manages every User's Requests. Fails with `not_found` if there is no Request with the ID,
-    /// and `failed_precondition` if it isn't Pending or the Quality isn't on its Fulfiller's list
+    /// and `failed_precondition` if it isn't Pending or the Quality isn't offered for it
     /// (`REFUSAL_REASON_QUALITY_NOT_OFFERED`).
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
@@ -1351,7 +1351,7 @@ pub trait RequestService: Send + Sync + 'static {
     /// Moves a Failed Request back to Approved and hands it to its Fulfiller again, changing its
     /// Quality first as `ApproveRequest` does. Needs `PERMISSION_MANAGE_REQUESTS`. Fails with
     /// `not_found` if there is no Request with the ID, and `failed_precondition` if it isn't Failed or
-    /// the Quality isn't on its Fulfiller's list.
+    /// the Quality isn't offered for it.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///

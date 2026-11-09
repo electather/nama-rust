@@ -28,6 +28,7 @@ export function qualityTargetOf({ movie, quality }: Request): QualityTarget | un
 
 /** What a {@link ChangeButton} changes, and how it says the Server refused. */
 export interface ChangeButtonProps {
+  /** What the change is called, such as "Approve", which the button says. */
   action: string;
   /** The button's accessible name, which says which Request it changes. */
   name: string;
@@ -38,7 +39,9 @@ export interface ChangeButtonProps {
     isError: boolean;
     error: unknown;
   };
+  /** The ID of the Request it changes. */
   id: bigint;
+  /** Why the Server refused the change, in words, from its error. */
   refusal: (error: unknown) => string | undefined;
   /** The Request's Quality, if making the change can also change it. */
   quality?: QualityTarget | undefined;

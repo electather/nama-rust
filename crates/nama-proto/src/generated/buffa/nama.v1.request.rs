@@ -4311,7 +4311,8 @@ pub struct ApproveRequestRequest {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i64"
     )]
     pub id: i64,
-    /// The id of the Quality to change it to, from its Fulfiller's list. Unset keeps its Quality.
+    /// The id of the Quality to change it to, from its Fulfiller's list; a Season Request takes none
+    /// yet. Unset keeps its Quality.
     ///
     /// Field 2: `quality_id`
     #[serde(
@@ -5134,7 +5135,8 @@ pub struct RetryRequestRequest {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i64"
     )]
     pub id: i64,
-    /// The id of the Quality to change it to, from its Fulfiller's list. Unset keeps its Quality.
+    /// The id of the Quality to change it to, from its Fulfiller's list; a Season Request takes none
+    /// yet. Unset keeps its Quality.
     ///
     /// Field 2: `quality_id`
     #[serde(
