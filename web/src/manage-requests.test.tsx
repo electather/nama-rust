@@ -89,6 +89,7 @@ function managedServer(permissions: Permission[], ...requests: Request[]) {
   return fakeServer({ signedIn: permissions }, {}, {}, (router) => {
     router.service(RequestService, {
       listRequests: () => ({ requests: [...held.values()] }),
+      countPendingRequests: () => ({}),
       listOfferedQualities: () => ({ qualities: hdAnd4k }),
       approveRequest: ({ id, qualityId }) => {
         const request = held.get(id);
@@ -255,6 +256,7 @@ function followedServer() {
   return fakeServer({ signedIn: admin }, {}, {}, (router) => {
     router.service(RequestService, {
       listRequests: () => ({ requests: [season1], followedShows }),
+      countPendingRequests: () => ({}),
       approveFollowedShow: () => {
         followed.state = RequestState.APPROVED;
         season1.state = RequestState.APPROVED;

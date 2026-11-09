@@ -1,3 +1,4 @@
+import { createQueryOptions } from "@connectrpc/connect-query";
 import { ChevronDown } from "lucide-react";
 
 import { requestStateName } from "@/components/request-state";
@@ -8,7 +9,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { RequestState } from "@/gen/nama/v1/request_pb";
+import { RequestService, RequestState } from "@/gen/nama/v1/request_pb";
+import { Permission, type User } from "@/gen/nama/v1/sign_in_pb";
+import type { RouterContext } from "@/lib/access";
+import { may } from "@/lib/permissions";
 
 /** The Requests page's `state` search parameter values, in the order the filter offers them. */
 const stateFilters = {
@@ -36,6 +40,20 @@ const filterOrder = Object.keys(stateFilters).filter((key) => isStateFilter(key)
 /** `filter` in the Glossary's words. */
 export function filterName(filter: StateFilter) {
   return filter === "all" ? "All" : requestStateName(stateFilters[filter]);
+}
+
+/** The filter the Requests page opens on: Pending for a Request manager while anything is, else All. */
+export async function defaultFilter(
+  { queryClient, transport }: RouterContext,
+  user: User | undefined,
+): Promise<StateFilter> {
+  if (!may(user, Permission.MANAGE_REQUESTS)) return "all";
+  // Not `staleTime: "static"` like other route queries: a count cached from earlier could be out of
+  // date and open the page on the wrong filter.
+  const { count } = await queryClient.query(
+    createQueryOptions(RequestService.method.countPendingRequests, {}, { transport }),
+  );
+  return count > 0 ? "pending" : "all";
 }
 
 /** `ListRequests`'s state for `filter`, where no filter means All. */

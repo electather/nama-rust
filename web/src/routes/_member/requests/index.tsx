@@ -8,6 +8,7 @@ import { ShowMore } from "@/components/show-more";
 import {
   type StateFilter,
   StateFilterMenu,
+  defaultFilter,
   filterName,
   isStateFilter,
   listedIn,
@@ -22,12 +23,18 @@ import { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { may } from "@/lib/permissions";
 
 export const Route = createFileRoute("/_member/requests/")({
-  beforeLoad: ({ location }) => {
+  beforeLoad: async ({ context, location, search }) => {
     // Links Telegram sent before Requests had pages of their own; the fragment never reaches the
     // Server, so only the app can send them on.
     const requestId = /^request-(\d+)$/u.exec(location.hash)?.[1];
     if (requestId !== undefined) {
       throw redirect({ to: "/requests/$requestId", params: { requestId }, replace: true });
+    }
+    // The default goes into the URL, replacing it, so it stays put once the page is open (approving
+    // the last Pending Request leaves the page on Pending) and Back leaves the page.
+    if (search.state === undefined) {
+      const state = await defaultFilter(context, context.signedIn.user);
+      throw redirect({ to: "/requests", search: { ...search, state }, replace: true });
     }
   },
   validateSearch: (
