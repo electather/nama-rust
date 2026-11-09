@@ -170,6 +170,32 @@ _Avoid_: watched status, play state, progress
 A User's Movies and Episodes whose Watch State says they've started and not played, most recent first.
 _Avoid_: on deck, in progress, resume list
 
+## Playback
+
+**Track**:
+One video, audio or subtitle stream inside a Version, such as its English audio or its French subtitles.
+_Avoid_: stream, channel
+
+**Direct Play**:
+Playing a Version's file exactly as it is.
+_Avoid_: direct stream, original
+
+**Remux**:
+Playing a Version with its video copied untouched into a container the client can play, with its audio converted when the client can't play it.
+_Avoid_: direct stream, repackage
+
+**Transcode**:
+Playing a Version with its video re-encoded, such as when the client can't decode it, a Playback Limit asks for less, or subtitles are burned in.
+_Avoid_: convert, encode
+
+**Playback Plan**:
+How the Server will play one Version on one Device: by Direct Play, Remux or Transcode, with which Tracks, and the reasons for each choice. A new one is made whenever what it was based on changes.
+_Avoid_: decision, profile, stream info
+
+**Playback Limit**:
+The most a User asks playback to send, such as "Original", "1080p" or "720p". A limit below the Version's own makes it Transcode.
+_Avoid_: quality, bitrate, resolution
+
 ## Requests
 
 **Request**:
