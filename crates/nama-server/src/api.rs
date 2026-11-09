@@ -2662,7 +2662,8 @@ fn plugin_summary_to_proto(
     plugin: Listed,
     stored: BTreeMap<String, settings::SettingValue>,
 ) -> proto::PluginSummary {
-    // The check `EnablePlugin` refuses with, so the list never offers Enable where it would fail.
+    // `EnablePlugin`'s own check, so the list offers Set up exactly where enabling would be refused
+    // for a missing setting.
     let settings_missing = matches!(
         Settings::new(stored).resolve(&plugin.settings_schema),
         Err(SettingsError::Missing(_))
