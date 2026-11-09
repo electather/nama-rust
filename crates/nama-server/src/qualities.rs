@@ -131,16 +131,19 @@ pub(crate) async fn replace(
     .await
 }
 
-/// A copy of the Plugin `plugin`'s default Quality, for a new Request, or `None` if its list is
-/// empty.
-pub(crate) async fn default_of(
+/// A copy of the Plugin `plugin`'s Quality `chosen`, or of its default when `chosen` is `None`,
+/// for a new Request. `None` if its list has no such Quality.
+pub(crate) async fn for_request(
     conn: &mut SqliteConnection,
     plugin: &PluginId,
+    chosen: Option<i64>,
 ) -> Result<Option<RequestedQuality>, sqlx::Error> {
     let plugin = plugin.as_str();
     let row = sqlx::query!(
-        r#"SELECT id AS "id!", name, profile_id FROM qualities WHERE plugin_id = ? AND is_default"#,
-        plugin
+        r#"SELECT id AS "id!", name, profile_id FROM qualities
+           WHERE plugin_id = ?1 AND (id = ?2 OR (?2 IS NULL AND is_default))"#,
+        plugin,
+        chosen
     )
     .fetch_optional(&mut *conn)
     .await?;

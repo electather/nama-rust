@@ -136,6 +136,8 @@ pub mod __buffa {
         reg.register_json_any(super::__CREATE_FOLLOWED_SHOW_REQUEST_JSON_ANY);
         reg.register_json_any(super::__CREATE_FOLLOWED_SHOW_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__LIST_REQUESTS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__LIST_MOVIE_QUALITIES_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_MOVIE_QUALITIES_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__GET_REQUEST_REQUEST_JSON_ANY);
         reg.register_json_any(super::__GET_REQUEST_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__COUNT_PENDING_REQUESTS_REQUEST_JSON_ANY);
@@ -560,6 +562,14 @@ pub use self::__buffa::view::CreateFollowedShowResponseOwnedView;
 pub use self::__buffa::view::ListRequestsResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::ListRequestsResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListMovieQualitiesRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListMovieQualitiesRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListMovieQualitiesResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListMovieQualitiesResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::GetRequestRequestView;
 #[doc(inline)]

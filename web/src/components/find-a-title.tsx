@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 
 import { FormField } from "@/components/form-field";
 import { Poster, PosterGrid, posterLink } from "@/components/poster";
-import { FoundMovieState } from "@/components/request-state";
+import { FoundMovieState } from "@/components/found-movie-state";
 import { Button } from "@/components/ui/button";
 import { type FoundMovie, type FoundShow, RequestService } from "@/gen/nama/v1/request_pb";
 import { formText, onSubmitted } from "@/lib/forms";

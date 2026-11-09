@@ -378,7 +378,7 @@ async fn a_season_request_has_no_quality_to_change_even_if_sonarr_offers_some() 
 
     assert_refused(
         approving,
-        ErrorCode::FailedPrecondition,
+        ErrorCode::InvalidArgument,
         RefusalReason::REFUSAL_REASON_QUALITY_NOT_OFFERED,
     );
 }
