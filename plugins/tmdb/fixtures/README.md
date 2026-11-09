@@ -12,3 +12,6 @@ plugin had no TMDB API key. When re-recording one, keep its route and trim it th
 
 `tv-70523-season-3.json` departs from TMDB on purpose: its second Episode airs in 2099, so tests
 have a Season still airing.
+
+`search-tv-euphoria.json` departs from TMDB on purpose too: its second Euphoria, with no
+`origin_country`, is made up, so tests have a Show a country tag drops.

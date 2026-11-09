@@ -148,6 +148,7 @@ mod tests {
             original_title: None,
             year,
             poster: None,
+            origin_country: Vec::new(),
         }
     }
 

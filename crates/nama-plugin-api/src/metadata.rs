@@ -110,6 +110,9 @@ pub struct Candidate {
     pub year: Option<i32>,
     /// The poster's path, to pass to [`MetadataProvider::image`].
     pub poster: Option<String>,
+    /// The ISO 3166-1 alpha-2 codes of the countries a Show comes from. Empty where unknown, as
+    /// for Movies.
+    pub origin_country: Vec<String>,
 }
 
 /// A Movie's details.

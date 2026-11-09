@@ -25,6 +25,7 @@ impl From<MovieResult> for Candidate {
             title: movie.title,
             original_title: present(movie.original_title),
             poster: present(movie.poster_path),
+            origin_country: Vec::new(),
         }
     }
 }
@@ -36,6 +37,8 @@ pub(crate) struct ShowResult {
     original_name: Option<String>,
     first_air_date: Option<String>,
     poster_path: Option<String>,
+    #[serde(default)]
+    origin_country: Vec<String>,
 }
 
 impl From<ShowResult> for Candidate {
@@ -46,6 +49,7 @@ impl From<ShowResult> for Candidate {
             title: show.name,
             original_title: present(show.original_name),
             poster: present(show.poster_path),
+            origin_country: show.origin_country,
         }
     }
 }
