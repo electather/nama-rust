@@ -182,7 +182,7 @@ test.each([
     requests: [failedDune],
   },
   {
-    who: "a Member without Manage Requests",
+    who: "a User without Manage Requests",
     signedIn: newUser,
     lands: "all",
     requests: [pendingHeat, failedDune],
