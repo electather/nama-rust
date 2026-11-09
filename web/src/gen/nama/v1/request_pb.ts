@@ -1819,7 +1819,8 @@ export const RequestService: GenService<{
   /**
    * Returns the caller's default Quality for each enabled Fulfiller, Movies first, whose list has
    * more than one Quality, or has one left after an admin removed the caller's, for their
-   * settings. Any signed-in User may read their own, and only their own. The Server uses them only while the User has `PERMISSION_CHOOSE_QUALITY`.
+   * settings. Any signed-in User may read their own, and only their own. The Server uses them only
+   * while the User has `PERMISSION_CHOOSE_QUALITY`.
    *
    * @generated from rpc nama.v1.RequestService.ListDefaultQualities
    */

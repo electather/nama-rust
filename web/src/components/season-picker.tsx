@@ -3,6 +3,7 @@ import { type ReactNode, useId } from "react";
 
 import { seasonsRefusal, useAskForShow } from "@/components/ask-for-show";
 import { QualityPicker } from "@/components/quality-picker";
+import { qualityName } from "@/components/request-row";
 import { RequestProgress, RequestStateLabel, isRequester } from "@/components/request-state";
 import { StateLabel } from "@/components/state-label";
 import { Button } from "@/components/ui/button";
@@ -60,7 +61,7 @@ function ShowQuality({ show }: { show: FoundShow }) {
   return (
     show.quality && (
       <p className="mt-3 text-sm text-muted-foreground">
-        Every Season downloads at {show.quality.name}, the Show’s Quality.
+        Every Season downloads at {qualityName(show.quality)}, the Show’s Quality.
       </p>
     )
   );

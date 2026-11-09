@@ -195,3 +195,10 @@ test("a Show with a Quality shows it, and its later Seasons are Requested withou
   });
   expect(screen.queryByRole("alertdialog")).toBeNull();
 });
+
+test("a Show whose Quality Sonarr kept and no Quality offers says it is set in the service", async () => {
+  const kept = { ...dark, quality: { id: 0n, name: "HD-1080p", profileId: "4" } };
+  openApp("/shows/tmdb-70523", showServer([hd, fourK], [], kept));
+
+  expect(await screen.findByText(/downloads at HD-1080p \(set in the service\)/u)).toBeDefined();
+});
