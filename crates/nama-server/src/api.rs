@@ -2297,11 +2297,18 @@ impl PluginService for PluginServiceHandler {
         let changing = self.changing.lock().await;
         self.plugins.list_installed(found);
         drop(changing);
+        let mut stored = plugin_settings::stored(&self.db)
+            .await
+            .map_err(database_failed)?
+            .unwrap_or_default();
         let summaries = self
             .plugins
             .plugins()
             .into_iter()
-            .map(plugin_summary_to_proto)
+            .map(|plugin| {
+                let settings = stored.remove(plugin.id.as_str()).unwrap_or_default();
+                plugin_summary_to_proto(plugin, settings.settings)
+            })
             .collect();
         Response::ok(ListPluginsResponse {
             summaries,
@@ -2651,8 +2658,18 @@ fn settings_refused(err: SettingsError) -> ConnectError {
     refused.into()
 }
 
-fn plugin_summary_to_proto(plugin: Listed) -> proto::PluginSummary {
+fn plugin_summary_to_proto(
+    plugin: Listed,
+    stored: BTreeMap<String, settings::SettingValue>,
+) -> proto::PluginSummary {
+    // `EnablePlugin`'s own check, so the list offers Set up exactly where enabling would be refused
+    // for a missing setting.
+    let settings_missing = matches!(
+        Settings::new(stored).resolve(&plugin.settings_schema),
+        Err(SettingsError::Missing(_))
+    );
     proto::PluginSummary {
+        settings_missing,
         id: plugin.id.to_string(),
         version: plugin.version,
         kind: plugin.kind.into(),

@@ -1,8 +1,11 @@
 import { createQueryOptions, useSuspenseQuery } from "@connectrpc/connect-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
+import { PowerOff, TriangleAlert } from "lucide-react";
 
 import { Page } from "@/components/page";
 import { PluginToggle } from "@/components/plugin-toggle";
+import { StateLabel } from "@/components/state-label";
+import { buttonVariants } from "@/components/ui/button";
 import { type PluginSummary, PluginService } from "@/gen/nama/v1/plugin_pb";
 import { kindAndVersion } from "@/lib/plugins";
 
@@ -35,7 +38,7 @@ function Plugins() {
 function PluginRow({ plugin }: { plugin: PluginSummary }) {
   return (
     <li className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b px-3 py-3 last:border-b-0">
-      <div className="me-auto flex min-w-0 flex-col">
+      <div className="me-auto flex min-w-0 flex-col items-start">
         <Link
           to="/admin/plugins/$pluginId"
           params={{ pluginId: plugin.id }}
@@ -44,8 +47,40 @@ function PluginRow({ plugin }: { plugin: PluginSummary }) {
           {plugin.id}
         </Link>
         <span className="text-sm text-muted-foreground">{kindAndVersion(plugin)}</span>
+        {plugin.enabled && plugin.settingsMissing && <NeedsAttention />}
       </div>
-      <PluginToggle plugin={plugin} />
+      <EnableOrSetUp plugin={plugin} />
     </li>
+  );
+}
+
+/** Marks an enabled Plugin missing a required setting, such as one an upgrade added. */
+function NeedsAttention() {
+  return (
+    <div className="mt-1.5">
+      <StateLabel label="Needs attention" Icon={TriangleAlert} />
+    </div>
+  );
+}
+
+function EnableOrSetUp({ plugin }: { plugin: PluginSummary }) {
+  // Enabling it would only be refused, so it goes to its settings form instead.
+  if (!plugin.enabled && plugin.settingsMissing) return <SetUp plugin={plugin} />;
+  return <PluginToggle plugin={plugin} />;
+}
+
+function SetUp({ plugin }: { plugin: PluginSummary }) {
+  return (
+    <div className="flex items-center gap-2">
+      <StateLabel label="Disabled" Icon={PowerOff} />
+      <Link
+        to="/admin/plugins/$pluginId"
+        params={{ pluginId: plugin.id }}
+        aria-label={`Set up ${plugin.id}`}
+        className={buttonVariants({ variant: "ghost" })}
+      >
+        Set up
+      </Link>
+    </div>
   );
 }

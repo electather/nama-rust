@@ -143,6 +143,10 @@ message PluginSummary {
   bool enabled = 4;
   // As `Plugin.refused_reason`.
   string refused_reason = 5;
+  // Whether a required setting has no value, no default and no stored secret, so `EnablePlugin`
+  // would refuse it with `REFUSAL_REASON_FIELD_REQUIRED`. An enabled Plugin may have one too, such
+  // as an Installed Plugin upgraded with a new required setting.
+  bool settings_missing = 6;
 }
 
 // A unit of trusted functionality that plugs into a Server.
