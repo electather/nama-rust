@@ -3778,6 +3778,59 @@ async fn a_season_request_a_followed_show_opened_isnt_opened_again_once_cancelle
     assert_eq!(dark_seasons_requested(&ada).await, [1, 2]);
 }
 
+/// Has the fake Fulfiller for Shows offer one Quality, named `name` and so the default, in place of
+/// any it offered. Written straight to the database, since the fake has no settings check for an
+/// Admin's list to be checked against.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn offer_only_show_quality(fixture: &Fixture, name: &'static str) {
+    fixture
+        .db
+        .write(move |tx| {
+            Box::pin(async move {
+                sqlx::query("DELETE FROM qualities")
+                    .execute(&mut **tx)
+                    .await?;
+                sqlx::query(
+                    "INSERT INTO qualities (plugin_id, position, profile_id, name, description,
+                                            is_default)
+                     VALUES ('fake-shows-fulfiller', 0, ?, ?, '', 1)",
+                )
+                .bind(name)
+                .bind(name)
+                .execute(&mut **tx)
+                .await
+            })
+        })
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn a_season_that_comes_out_later_opens_its_request_at_the_followed_shows_quality() {
+    let fixture = Fixture::with_shows_fulfiller(&FakeFulfiller::default()).await;
+    offer_only_show_quality(&fixture, "4K").await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let (followed, _) = follow_dark_before_season_3(&fixture, &requests(as_ada.clone())).await;
+    approve_followed(&fixture, followed.id).await.unwrap();
+    offer_only_show_quality(&fixture, "HD").await;
+    let mut adas_events = subscribe_to_requests(as_ada).await;
+
+    let _media = fixture
+        .library_with(LibraryKind::LIBRARY_KIND_SHOWS, &[DARK_S03E01])
+        .await;
+    let event = next_event(&mut adas_events).await;
+
+    let event::Event::RequestCreated(created) = event else {
+        panic!("not a new Request: {event:?}");
+    };
+    assert_eq!(season_of(&created.request), Some(("Dark", 3)));
+    assert_eq!(followed.quality.name, "4K");
+    assert_eq!(created.request.quality.name, "4K");
+}
+
 /// What a [`FakeNotifier`] does with a notification.
 #[derive(Clone, Copy)]
 enum Delivery {

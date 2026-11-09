@@ -8,9 +8,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { TitleKind } from "@/gen/nama/v1/match_pb";
-import { type Request, RequestService } from "@/gen/nama/v1/request_pb";
+import { type FollowedShow, type Request, RequestService } from "@/gen/nama/v1/request_pb";
 
-/** A Request's Quality, which approving or retrying it can change. */
+/** A Request's or a Followed Show's Quality, which approving it, or retrying a Request, can change. */
 export interface QualityTarget {
   /** Whose Fulfiller's Qualities it can change to: a Movie's or a Show's. */
   kind: TitleKind;
@@ -19,11 +19,13 @@ export interface QualityTarget {
 }
 
 /**
- * What approving or retrying `request` can change its Quality to: its Fulfiller's other Qualities.
- * The Server refuses another for a Season Request once a Season of its Show was handed off.
+ * What approving or retrying `request`, a Request or a Followed Show, can change its Quality to:
+ * its Fulfiller's other Qualities. The Server refuses another for a Show once a Season of it was
+ * handed off.
  */
-export function qualityTargetOf({ movie, quality }: Request): QualityTarget {
-  return { kind: movie ? TitleKind.MOVIE : TitleKind.SHOW, id: quality?.id };
+export function qualityTargetOf(request: Request | FollowedShow): QualityTarget {
+  const isMovie = request.$typeName === "nama.v1.Request" && request.movie !== undefined;
+  return { kind: isMovie ? TitleKind.MOVIE : TitleKind.SHOW, id: request.quality?.id };
 }
 
 /** What a {@link ChangeButton} changes, and how it says the Server refused. */

@@ -1926,6 +1926,15 @@ pub struct FollowedShowView<'a> {
     ///
     /// Field 7: `decline_reason`
     pub decline_reason: ::core::option::Option<&'a str>,
+    /// The Quality it was opened at, or a Request manager last changed the Show's to. Each Season
+    /// Request it opens, now or when a later Season comes out, takes the Show's (`FoundShow.quality`),
+    /// which is this one unless Sonarr kept another for a series it already had. Unset if the Shows
+    /// Fulfiller had no Qualities when it opened.
+    ///
+    /// Field 8: `quality`
+    pub quality: ::buffa::MessageFieldView<
+        super::super::__buffa::view::RequestedQualityView<'a>,
+    >,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for FollowedShowView<'a> {
@@ -2002,6 +2011,27 @@ impl<'a> ::buffa::MessageView<'a> for FollowedShowView<'a> {
                 )?;
                 view.decline_reason = Some(::buffa::types::borrow_str(&mut cur)?);
             }
+            8u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                match view.quality.as_mut() {
+                    Some(existing) => {
+                        ::buffa::MessageView::merge_into_view(existing, sub, __sub_ctx)?
+                    }
+                    None => {
+                        view.quality = ::buffa::MessageFieldView::set(
+                            <super::super::__buffa::view::RequestedQualityView as ::buffa::MessageView>::decode_view_ctx(
+                                sub,
+                                __sub_ctx,
+                            )?,
+                        );
+                    }
+                }
+            }
             5u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -2053,6 +2083,15 @@ impl<'a> ::buffa::MessageView<'a> for FollowedShowView<'a> {
                 .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
             created_at: self.created_at,
             decline_reason: self.decline_reason.map(|s| s.to_string()),
+            quality: match self.quality.as_option() {
+                Some(v) => {
+                    ::buffa::MessageField::<
+                        super::super::RequestedQuality,
+                        ::buffa::Inline<super::super::RequestedQuality>,
+                    >::some(v.to_owned_from_source(__buffa_src)?)
+                }
+                None => ::buffa::MessageField::none(),
+            },
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -2093,6 +2132,14 @@ impl<'a> ::buffa::ViewEncode<'a> for FollowedShowView<'a> {
         if let Some(ref v) = self.decline_reason {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
+        if self.quality.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.quality.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -2132,6 +2179,14 @@ impl<'a> ::buffa::ViewEncode<'a> for FollowedShowView<'a> {
         }
         if let Some(ref v) = self.decline_reason {
             ::buffa::types::put_string_field(7u32, v, buf);
+        }
+        if self.quality.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                8u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.quality.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2182,6 +2237,11 @@ impl<'__a> ::serde::Serialize for FollowedShowView<'__a> {
         }
         if let ::core::option::Option::Some(__v) = self.decline_reason {
             __map.serialize_entry("declineReason", __v)?;
+        }
+        {
+            if let ::core::option::Option::Some(__v) = self.quality.as_option() {
+                __map.serialize_entry("quality", __v)?;
+            }
         }
         __map.end()
     }
@@ -2324,6 +2384,20 @@ impl FollowedShowOwnedView {
     #[must_use]
     pub fn decline_reason(&self) -> ::core::option::Option<&'_ str> {
         self.0.reborrow().decline_reason
+    }
+    /// The Quality it was opened at, or a Request manager last changed the Show's to. Each Season
+    /// Request it opens, now or when a later Season comes out, takes the Show's (`FoundShow.quality`),
+    /// which is this one unless Sonarr kept another for a series it already had. Unset if the Shows
+    /// Fulfiller had no Qualities when it opened.
+    ///
+    /// Field 8: `quality`
+    #[must_use]
+    pub fn quality(
+        &self,
+    ) -> &::buffa::MessageFieldView<
+        super::super::__buffa::view::RequestedQualityView<'_>,
+    > {
+        &self.0.reborrow().quality
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<FollowedShowView<'static>>>
@@ -4950,6 +5024,11 @@ pub struct CreateFollowedShowRequestView<'a> {
     ///
     /// Field 1: `show_tmdb_id`
     pub show_tmdb_id: i64,
+    /// The id of the Quality to download its Seasons at, from `ListShowQualities`. Unset for the
+    /// Show's, or else the default.
+    ///
+    /// Field 2: `quality`
+    pub quality: ::core::option::Option<i64>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for CreateFollowedShowRequestView<'a> {
@@ -4989,6 +5068,13 @@ impl<'a> ::buffa::MessageView<'a> for CreateFollowedShowRequestView<'a> {
                 )?;
                 view.show_tmdb_id = ::buffa::types::decode_int64(&mut cur)?;
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.quality = Some(::buffa::types::decode_int64(&mut cur)?);
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -5018,6 +5104,7 @@ impl<'a> ::buffa::MessageView<'a> for CreateFollowedShowRequestView<'a> {
         let _ = __buffa_src;
         ::core::result::Result::Ok(super::super::CreateFollowedShowRequest {
             show_tmdb_id: self.show_tmdb_id,
+            quality: self.quality,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -5032,6 +5119,9 @@ impl<'a> ::buffa::ViewEncode<'a> for CreateFollowedShowRequestView<'a> {
         if self.show_tmdb_id != 0i64 {
             size += 1u64 + ::buffa::types::int64_encoded_len(self.show_tmdb_id) as u64;
         }
+        if let Some(v) = self.quality {
+            size += 1u64 + ::buffa::types::int64_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -5045,6 +5135,9 @@ impl<'a> ::buffa::ViewEncode<'a> for CreateFollowedShowRequestView<'a> {
         use ::buffa::Enumeration as _;
         if self.show_tmdb_id != 0i64 {
             ::buffa::types::put_int64_field(1u32, self.show_tmdb_id, buf);
+        }
+        if let Some(v) = self.quality {
+            ::buffa::types::put_int64_field(2u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -5073,6 +5166,9 @@ impl<'__a> ::serde::Serialize for CreateFollowedShowRequestView<'__a> {
                     "showTmdbId",
                     &::buffa::json_helpers::ProtoJson(&self.show_tmdb_id),
                 )?;
+        }
+        if let ::core::option::Option::Some(__v) = self.quality {
+            __map.serialize_entry("quality", &::buffa::json_helpers::ProtoJson(&__v))?;
         }
         __map.end()
     }
@@ -5175,6 +5271,14 @@ impl CreateFollowedShowRequestOwnedView {
     #[must_use]
     pub fn show_tmdb_id(&self) -> i64 {
         self.0.reborrow().show_tmdb_id
+    }
+    /// The id of the Quality to download its Seasons at, from `ListShowQualities`. Unset for the
+    /// Show's, or else the default.
+    ///
+    /// Field 2: `quality`
+    #[must_use]
+    pub fn quality(&self) -> ::core::option::Option<i64> {
+        self.0.reborrow().quality
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<CreateFollowedShowRequestView<'static>>>
@@ -12242,6 +12346,10 @@ pub struct ApproveFollowedShowRequestView<'a> {
     ///
     /// Field 1: `id`
     pub id: i64,
+    /// The id of the Quality to change the Show's to, from the Shows Fulfiller's list. Unset keeps it.
+    ///
+    /// Field 2: `quality_id`
+    pub quality_id: ::core::option::Option<i64>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for ApproveFollowedShowRequestView<'a> {
@@ -12281,6 +12389,13 @@ impl<'a> ::buffa::MessageView<'a> for ApproveFollowedShowRequestView<'a> {
                 )?;
                 view.id = ::buffa::types::decode_int64(&mut cur)?;
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.quality_id = Some(::buffa::types::decode_int64(&mut cur)?);
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -12310,6 +12425,7 @@ impl<'a> ::buffa::MessageView<'a> for ApproveFollowedShowRequestView<'a> {
         let _ = __buffa_src;
         ::core::result::Result::Ok(super::super::ApproveFollowedShowRequest {
             id: self.id,
+            quality_id: self.quality_id,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -12324,6 +12440,9 @@ impl<'a> ::buffa::ViewEncode<'a> for ApproveFollowedShowRequestView<'a> {
         if self.id != 0i64 {
             size += 1u64 + ::buffa::types::int64_encoded_len(self.id) as u64;
         }
+        if let Some(v) = self.quality_id {
+            size += 1u64 + ::buffa::types::int64_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -12337,6 +12456,9 @@ impl<'a> ::buffa::ViewEncode<'a> for ApproveFollowedShowRequestView<'a> {
         use ::buffa::Enumeration as _;
         if self.id != 0i64 {
             ::buffa::types::put_int64_field(1u32, self.id, buf);
+        }
+        if let Some(v) = self.quality_id {
+            ::buffa::types::put_int64_field(2u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -12361,6 +12483,9 @@ impl<'__a> ::serde::Serialize for ApproveFollowedShowRequestView<'__a> {
         let mut __map = __s.serialize_map(::core::option::Option::None)?;
         if !::buffa::json_helpers::skip_if::is_zero_i64(&self.id) {
             __map.serialize_entry("id", &::buffa::json_helpers::ProtoJson(&self.id))?;
+        }
+        if let ::core::option::Option::Some(__v) = self.quality_id {
+            __map.serialize_entry("qualityId", &::buffa::json_helpers::ProtoJson(&__v))?;
         }
         __map.end()
     }
@@ -12463,6 +12588,13 @@ impl ApproveFollowedShowRequestOwnedView {
     #[must_use]
     pub fn id(&self) -> i64 {
         self.0.reborrow().id
+    }
+    /// The id of the Quality to change the Show's to, from the Shows Fulfiller's list. Unset keeps it.
+    ///
+    /// Field 2: `quality_id`
+    #[must_use]
+    pub fn quality_id(&self) -> ::core::option::Option<i64> {
+        self.0.reborrow().quality_id
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<ApproveFollowedShowRequestView<'static>>>
@@ -16583,7 +16715,8 @@ pub struct FoundShowView<'a> {
     >,
     /// The Show's Quality, which each of its Season Requests takes, as Sonarr keeps one profile per
     /// series (ADR 0025): that of its earliest Season Request that has one and is open or was handed
-    /// off. Unset if it has none, so a new Season Request may pick one. Only `LookUpShow` gives it.
+    /// off, else that of its open Followed Show. Unset if it has none, so a new Season Request or
+    /// Followed Show may pick one. Only `LookUpShow` gives it.
     ///
     /// Field 9: `quality`
     pub quality: ::buffa::MessageFieldView<
@@ -17091,7 +17224,8 @@ impl FoundShowOwnedView {
     }
     /// The Show's Quality, which each of its Season Requests takes, as Sonarr keeps one profile per
     /// series (ADR 0025): that of its earliest Season Request that has one and is open or was handed
-    /// off. Unset if it has none, so a new Season Request may pick one. Only `LookUpShow` gives it.
+    /// off, else that of its open Followed Show. Unset if it has none, so a new Season Request or
+    /// Followed Show may pick one. Only `LookUpShow` gives it.
     ///
     /// Field 9: `quality`
     #[must_use]

@@ -25,16 +25,16 @@ use nama_plugin_tmdb::{
     testing::{API_KEY as TMDB_KEY, FakeTmdb},
 };
 use nama_proto::nama::v1::{
-    __buffa::view::SubscribeResponseView, ApproveRequestRequest, CancelFollowedShowRequest,
-    CreateFollowedShowRequest, CreateSeasonRequestsRequest, CreateUserRequest,
-    DeclineRequestRequest, Download, DownloadStatus, EnablePluginRequest, EventServiceClient,
-    EventType, ExtensionPoint, GetRequestRequest, ListDefaultQualitiesRequest, ListPluginsRequest,
-    ListShowQualitiesRequest, LookUpShowRequest, Permission, PluginServiceClient, Quality,
-    RefusalReason, ReplaceQualitiesRequest, Request, RequestServiceClient, RequestState,
-    RequestedQuality, RetryRequestRequest, SessionDelivery, SetDefaultQualityRequest,
-    SetPermissionsRequest, SignInRequest, SignInServiceClient, SubscribeRequest, SubscribeResponse,
-    TestPluginSettingsRequest, TestPluginSettingsResponse, UpdatePluginSettingsRequest, event,
-    setting_value::Value, subscribe_response,
+    __buffa::view::SubscribeResponseView, ApproveFollowedShowRequest, ApproveRequestRequest,
+    CancelFollowedShowRequest, CreateFollowedShowRequest, CreateSeasonRequestsRequest,
+    CreateUserRequest, DeclineRequestRequest, Download, DownloadStatus, EnablePluginRequest,
+    EventServiceClient, EventType, ExtensionPoint, FollowedShow, GetRequestRequest,
+    ListDefaultQualitiesRequest, ListPluginsRequest, ListShowQualitiesRequest, LookUpShowRequest,
+    Permission, PluginServiceClient, Quality, RefusalReason, ReplaceQualitiesRequest, Request,
+    RequestServiceClient, RequestState, RequestedQuality, RetryRequestRequest, SessionDelivery,
+    SetDefaultQualityRequest, SetPermissionsRequest, SignInRequest, SignInServiceClient,
+    SubscribeRequest, SubscribeResponse, TestPluginSettingsRequest, TestPluginSettingsResponse,
+    UpdatePluginSettingsRequest, event, setting_value::Value, subscribe_response,
 };
 use nama_server::{config::Config, db::Database, plugin_settings, plugins::Registry};
 use refused::assert_refused;
@@ -169,19 +169,26 @@ impl Fixture {
     /// The whole Show `show`, asked for by the Admin and so Approved at once. Returns the Followed
     /// Show's id and its Season Requests as their hand-offs left them.
     async fn follow_approved(&self, show: i64) -> (i64, Vec<Request>) {
-        let followed = self
+        let (followed, requests) = follow(&self.requests(), show, None).await.unwrap();
+        (followed.id, requests)
+    }
+
+    /// Approves the Followed Show `id` as the Admin, changing the Show's Quality to `quality` if
+    /// given, and returns it as the approval left it.
+    async fn approve_followed_at(
+        &self,
+        id: i64,
+        quality: Option<i64>,
+    ) -> Result<FollowedShow, ConnectError> {
+        let approved = self
             .requests()
-            .create_followed_show(CreateFollowedShowRequest {
-                show_tmdb_id: show,
+            .approve_followed_show(ApproveFollowedShowRequest {
+                id,
+                quality_id: quality,
                 ..Default::default()
             })
-            .await
-            .unwrap()
-            .into_owned();
-        (
-            followed.followed_show.into_option().unwrap().id,
-            followed.requests,
-        )
+            .await?;
+        Ok(approved.into_owned().followed_show.into_option().unwrap())
     }
 
     /// Cancels the Followed Show `id` as the Admin.
@@ -422,6 +429,31 @@ async fn ask_at(
         })
         .await?;
     Ok(asked.into_owned().requests)
+}
+
+/// Asks for the whole Show `show` as `client`'s User, at the Quality `quality` if given, and
+/// returns the Followed Show and its Season Requests as asking left them.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn follow(
+    client: &RequestServiceClient<HttpClient>,
+    show: i64,
+    quality: Option<i64>,
+) -> Result<(FollowedShow, Vec<Request>), ConnectError> {
+    let followed = client
+        .create_followed_show(CreateFollowedShowRequest {
+            show_tmdb_id: show,
+            quality,
+            ..Default::default()
+        })
+        .await?
+        .into_owned();
+    Ok((
+        followed.followed_show.into_option().unwrap(),
+        followed.requests,
+    ))
 }
 
 /// The one Season Request asking for the Season `season` of the Show `show` as `client`'s User
@@ -1018,4 +1050,107 @@ async fn a_members_shows_default_lists_in_their_settings_and_a_season_request_ta
         named(asked.quality.as_option()),
         Some((offered[1].id, "4K"))
     );
+}
+
+#[tokio::test]
+async fn following_a_show_at_4k_opens_its_season_requests_at_4k_and_sonarr_adds_the_series_at_4k() {
+    let fixture = Fixture::with_sonarr_enabled().await;
+    let offered = fixture.offer_hd_and_4k().await;
+
+    let (followed, asked) = follow(&fixture.requests(), DARK, Some(offered[1].id))
+        .await
+        .unwrap();
+
+    let four_k = Some((offered[1].id, "4K"));
+    assert_eq!(named(followed.quality.as_option()), four_k);
+    let asked_at: Vec<_> = asked
+        .iter()
+        .map(|request| named(request.quality.as_option()))
+        .collect();
+    assert_eq!(asked_at, [four_k; 3]);
+    assert_eq!(states(&asked), [Some(RequestState::Processing); 3]);
+    assert_eq!(fixture.sonarr.shows()[0]["qualityProfileId"], 5);
+}
+
+#[tokio::test]
+async fn a_member_without_choose_quality_following_a_show_at_a_quality_is_refused() {
+    let fixture = Fixture::with_sonarr_enabled().await;
+    let offered = fixture.offer_hd_and_4k().await;
+    let member = RequestServiceClient::new(HttpClient::plaintext(), fixture.member().await);
+
+    let refused = follow(&member, DARK, Some(offered[0].id)).await;
+
+    let refusal = assert_refused(
+        refused,
+        ErrorCode::PermissionDenied,
+        RefusalReason::REFUSAL_REASON_QUALITY_NOT_ALLOWED,
+    );
+    assert_eq!(refusal.field, "quality");
+}
+
+#[tokio::test]
+async fn a_request_manager_approving_a_followed_show_as_hd_has_its_season_requests_use_hd() {
+    let fixture = Fixture::with_sonarr_enabled().await;
+    let offered = fixture.offer_hd_and_4k().await;
+    let chooser = fixture.chooser().await;
+    let (followed, asked) = follow(&chooser, DARK, Some(offered[1].id)).await.unwrap();
+
+    let approved = fixture
+        .approve_followed_at(followed.id, Some(offered[0].id))
+        .await
+        .unwrap();
+    let season_1 = fixture.request(asked[0].id).await;
+
+    let hd = Some((offered[0].id, "HD"));
+    assert_eq!(named(approved.quality.as_option()), hd);
+    assert_eq!(season_1.state, RequestState::Processing);
+    assert_eq!(named(season_1.quality.as_option()), hd);
+    assert_eq!(fixture.sonarr.shows()[0]["qualityProfileId"], 4);
+}
+
+#[tokio::test]
+async fn following_a_show_with_a_quality_takes_it_and_refuses_another() {
+    let fixture = Fixture::with_sonarr_enabled().await;
+    let offered = fixture.offer_hd_and_4k().await;
+    let chooser = fixture.chooser().await;
+    ask_one(&chooser, DARK, 1, Some(offered[1].id)).await;
+
+    let other = follow(&chooser, DARK, Some(offered[0].id)).await;
+    let (followed, _) = follow(&chooser, DARK, None).await.unwrap();
+
+    let refusal = assert_refused(
+        other,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_QUALITY_NOT_OFFERED,
+    );
+    assert_eq!(refusal.field, "quality");
+    assert_eq!(
+        named(followed.quality.as_option()),
+        Some((offered[1].id, "4K"))
+    );
+}
+
+#[tokio::test]
+async fn once_a_season_was_handed_off_approving_a_followed_show_at_another_quality_is_refused() {
+    let fixture = Fixture::with_sonarr_enabled().await;
+    let offered = fixture.offer_hd_and_4k().await;
+    let chooser = fixture.chooser().await;
+    let first = ask_one(&chooser, DARK, 1, Some(offered[1].id)).await;
+    fixture.approve(first.id).await;
+    let (followed, _) = follow(&chooser, DARK, None).await.unwrap();
+
+    let refused = fixture
+        .approve_followed_at(followed.id, Some(offered[0].id))
+        .await;
+    let same = fixture
+        .approve_followed_at(followed.id, Some(offered[1].id))
+        .await;
+
+    let refusal = assert_refused(
+        refused,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_QUALITY_NOT_OFFERED,
+    );
+    assert_eq!(refusal.field, "quality_id");
+    assert_eq!(same.unwrap().state, RequestState::Approved);
 }

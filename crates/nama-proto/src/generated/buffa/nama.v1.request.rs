@@ -1727,6 +1727,20 @@ pub struct FollowedShow {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub decline_reason: ::core::option::Option<::buffa::alloc::string::String>,
+    /// The Quality it was opened at, or a Request manager last changed the Show's to. Each Season
+    /// Request it opens, now or when a later Season comes out, takes the Show's (`FoundShow.quality`),
+    /// which is this one unless Sonarr kept another for a series it already had. Unset if the Shows
+    /// Fulfiller had no Qualities when it opened.
+    ///
+    /// Field 8: `quality`
+    #[serde(
+        rename = "quality",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
+    )]
+    pub quality: ::buffa::MessageField<
+        RequestedQuality,
+        ::buffa::Inline<RequestedQuality>,
+    >,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -1741,6 +1755,7 @@ impl ::core::fmt::Debug for FollowedShow {
             .field("requesters", &self.requesters)
             .field("created_at", &self.created_at)
             .field("decline_reason", &self.decline_reason)
+            .field("quality", &self.quality)
             .finish()
     }
 }
@@ -1812,6 +1827,14 @@ impl ::buffa::Message for FollowedShow {
         if let Some(ref v) = self.decline_reason {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
+        if self.quality.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.quality.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -1850,6 +1873,14 @@ impl ::buffa::Message for FollowedShow {
         }
         if let Some(ref v) = self.decline_reason {
             ::buffa::types::put_string_field(7u32, v, buf);
+        }
+        if self.quality.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                8u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.quality.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -1925,6 +1956,17 @@ impl ::buffa::Message for FollowedShow {
                     buf,
                 )?;
             }
+            8u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.quality.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -1940,6 +1982,7 @@ impl ::buffa::Message for FollowedShow {
         self.requesters.clear();
         self.created_at = 0i64;
         self.decline_reason = ::core::option::Option::None;
+        self.quality = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -3525,6 +3568,16 @@ pub struct CreateFollowedShowRequest {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i64"
     )]
     pub show_tmdb_id: i64,
+    /// The id of the Quality to download its Seasons at, from `ListShowQualities`. Unset for the
+    /// Show's, or else the default.
+    ///
+    /// Field 2: `quality`
+    #[serde(
+        rename = "quality",
+        with = "::buffa::json_helpers::opt_int64",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub quality: ::core::option::Option<i64>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -3533,6 +3586,7 @@ impl ::core::fmt::Debug for CreateFollowedShowRequest {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
         f.debug_struct("CreateFollowedShowRequest")
             .field("show_tmdb_id", &self.show_tmdb_id)
+            .field("quality", &self.quality)
             .finish()
     }
 }
@@ -3542,6 +3596,15 @@ impl CreateFollowedShowRequest {
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
     pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.CreateFollowedShowRequest";
+}
+impl CreateFollowedShowRequest {
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::quality`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_quality(mut self, value: i64) -> Self {
+        self.quality = Some(value);
+        self
+    }
 }
 ::buffa::impl_default_instance!(CreateFollowedShowRequest);
 impl ::buffa::MessageName for CreateFollowedShowRequest {
@@ -3566,6 +3629,9 @@ impl ::buffa::Message for CreateFollowedShowRequest {
         if self.show_tmdb_id != 0i64 {
             size += 1u64 + ::buffa::types::int64_encoded_len(self.show_tmdb_id) as u64;
         }
+        if let Some(v) = self.quality {
+            size += 1u64 + ::buffa::types::int64_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -3578,6 +3644,9 @@ impl ::buffa::Message for CreateFollowedShowRequest {
         use ::buffa::Enumeration as _;
         if self.show_tmdb_id != 0i64 {
             ::buffa::types::put_int64_field(1u32, self.show_tmdb_id, buf);
+        }
+        if let Some(v) = self.quality {
+            ::buffa::types::put_int64_field(2u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -3599,6 +3668,15 @@ impl ::buffa::Message for CreateFollowedShowRequest {
                 )?;
                 self.show_tmdb_id = ::buffa::types::decode_int64(buf)?;
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.quality = ::core::option::Option::Some(
+                    ::buffa::types::decode_int64(buf)?,
+                );
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -3608,6 +3686,7 @@ impl ::buffa::Message for CreateFollowedShowRequest {
     }
     fn clear(&mut self) {
         self.show_tmdb_id = 0i64;
+        self.quality = ::core::option::Option::None;
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -7212,13 +7291,26 @@ pub struct ApproveFollowedShowRequest {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i64"
     )]
     pub id: i64,
+    /// The id of the Quality to change the Show's to, from the Shows Fulfiller's list. Unset keeps it.
+    ///
+    /// Field 2: `quality_id`
+    #[serde(
+        rename = "qualityId",
+        alias = "quality_id",
+        with = "::buffa::json_helpers::opt_int64",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub quality_id: ::core::option::Option<i64>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
 impl ::core::fmt::Debug for ApproveFollowedShowRequest {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("ApproveFollowedShowRequest").field("id", &self.id).finish()
+        f.debug_struct("ApproveFollowedShowRequest")
+            .field("id", &self.id)
+            .field("quality_id", &self.quality_id)
+            .finish()
     }
 }
 impl ApproveFollowedShowRequest {
@@ -7227,6 +7319,15 @@ impl ApproveFollowedShowRequest {
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
     pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.ApproveFollowedShowRequest";
+}
+impl ApproveFollowedShowRequest {
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::quality_id`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_quality_id(mut self, value: i64) -> Self {
+        self.quality_id = Some(value);
+        self
+    }
 }
 ::buffa::impl_default_instance!(ApproveFollowedShowRequest);
 impl ::buffa::MessageName for ApproveFollowedShowRequest {
@@ -7251,6 +7352,9 @@ impl ::buffa::Message for ApproveFollowedShowRequest {
         if self.id != 0i64 {
             size += 1u64 + ::buffa::types::int64_encoded_len(self.id) as u64;
         }
+        if let Some(v) = self.quality_id {
+            size += 1u64 + ::buffa::types::int64_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -7263,6 +7367,9 @@ impl ::buffa::Message for ApproveFollowedShowRequest {
         use ::buffa::Enumeration as _;
         if self.id != 0i64 {
             ::buffa::types::put_int64_field(1u32, self.id, buf);
+        }
+        if let Some(v) = self.quality_id {
+            ::buffa::types::put_int64_field(2u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -7284,6 +7391,15 @@ impl ::buffa::Message for ApproveFollowedShowRequest {
                 )?;
                 self.id = ::buffa::types::decode_int64(buf)?;
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.quality_id = ::core::option::Option::Some(
+                    ::buffa::types::decode_int64(buf)?,
+                );
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -7293,6 +7409,7 @@ impl ::buffa::Message for ApproveFollowedShowRequest {
     }
     fn clear(&mut self) {
         self.id = 0i64;
+        self.quality_id = ::core::option::Option::None;
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -9525,7 +9642,8 @@ pub struct FoundShow {
     >,
     /// The Show's Quality, which each of its Season Requests takes, as Sonarr keeps one profile per
     /// series (ADR 0025): that of its earliest Season Request that has one and is open or was handed
-    /// off. Unset if it has none, so a new Season Request may pick one. Only `LookUpShow` gives it.
+    /// off, else that of its open Followed Show. Unset if it has none, so a new Season Request or
+    /// Followed Show may pick one. Only `LookUpShow` gives it.
     ///
     /// Field 9: `quality`
     #[serde(

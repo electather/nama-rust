@@ -1774,7 +1774,10 @@ impl RequestService for RequestServiceHandler {
         request: ServiceRequest<'_, CreateFollowedShowRequest>,
     ) -> ServiceResult<CreateFollowedShowResponse> {
         let asker = &caller(&ctx)?.user;
-        let (followed_show, requests) = self.requests.follow(asker, request.show_tmdb_id).await?;
+        let (followed_show, requests) = self
+            .requests
+            .follow(asker, request.show_tmdb_id, request.quality)
+            .await?;
         Response::ok(CreateFollowedShowResponse {
             followed_show: followed_show.into(),
             requests,
@@ -1797,10 +1800,14 @@ impl RequestService for RequestServiceHandler {
 
     async fn approve_followed_show(
         &self,
-        _ctx: RequestContext,
+        ctx: RequestContext,
         request: ServiceRequest<'_, ApproveFollowedShowRequest>,
     ) -> ServiceResult<ApproveFollowedShowResponse> {
-        let approved = self.requests.approve_followed(request.id).await?;
+        let manager = &caller(&ctx)?.user;
+        let approved = self
+            .requests
+            .approve_followed(manager, request.id, request.quality_id)
+            .await?;
         Response::ok(ApproveFollowedShowResponse {
             followed_show: approved.into(),
             ..Default::default()
@@ -3320,12 +3327,12 @@ impl From<requests::Error> for ConnectError {
                     .param("seasonNumber", &season)
             }
             requests::Error::Unavailable => refuse(R::REFUSAL_REASON_NO_METADATA_PROVIDER, message),
-            // Only `CreateRequest` names a Quality the caller may not choose, in `quality`.
+            // Each RPC that opens a Request names a Quality the caller may not choose in `quality`.
             requests::Error::QualityNotAllowed => {
                 refuse(R::REFUSAL_REASON_QUALITY_NOT_ALLOWED, message).field("quality")
             }
-            // `CreateRequest`, `CreateSeasonRequests` and `SetDefaultQuality` all name it in
-            // `quality`.
+            // `CreateRequest`, `CreateSeasonRequests`, `CreateFollowedShow` and `SetDefaultQuality`
+            // all name it in `quality`.
             requests::Error::QualityNotOffered(id) | requests::Error::NotTheShowsQuality(id) => {
                 refuse(R::REFUSAL_REASON_QUALITY_NOT_OFFERED, message)
                     .field("quality")

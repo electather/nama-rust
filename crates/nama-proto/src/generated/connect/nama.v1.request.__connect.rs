@@ -1375,7 +1375,9 @@ pub trait RequestService: Send + Sync + 'static {
     /// and joins the Show's open Followed Show or opens one: Approved if the caller has
     /// `PERMISSION_AUTO_APPROVE_TV`, else Pending. Needs `PERMISSION_REQUEST_TV`. While the Followed
     /// Show is Approved, a scan Matching Episodes of a Season that came out after it was opened opens
-    /// a Request for its Requesters. Fails with `invalid_argument` if the metadata source has no Show
+    /// a Request for its Requesters at the Show's Quality. A new Followed Show takes the Show's Quality
+    /// if it has one, else one picked and refused as `CreateSeasonRequests` picks and refuses one;
+    /// joining one keeps its Quality. Fails with `invalid_argument` if the metadata source has no Show
     /// with the id, and `unavailable` if no metadata Provider is enabled, or it failed.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
@@ -1704,9 +1706,11 @@ pub trait RequestService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
-    /// Approves a Pending Followed Show, and with it each Pending Season Request it opened. Needs
-    /// `PERMISSION_MANAGE_REQUESTS`. Fails with `not_found` if there is no Followed Show with the ID,
-    /// and `failed_precondition` if it isn't Pending.
+    /// Approves a Pending Followed Show, and with it each Pending Season Request it opened. Given a
+    /// `quality_id`, it first changes the Show's Quality to that one, as `ApproveRequest` changes a
+    /// Season Request's. Needs `PERMISSION_MANAGE_REQUESTS`. Fails with `not_found` if there is no
+    /// Followed Show with the ID, `failed_precondition` if it isn't Pending, and `invalid_argument` if
+    /// the Quality isn't offered for the Show, as `ApproveRequest` says.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
