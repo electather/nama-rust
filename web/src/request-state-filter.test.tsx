@@ -195,6 +195,14 @@ test.each([
   });
 });
 
+test("a state the app doesn't know opens a Request manager on Pending", async () => {
+  openApp("/requests?state=lost", filteringServer([pendingHeat, failedDune], [], undefined, admin));
+
+  await waitFor(() => {
+    expect(new URLSearchParams(window.location.search).get("state")).toBe("pending");
+  });
+});
+
 test("approving the last Pending Request leaves the page on Pending", async () => {
   openApp("/requests", filteringServer([pendingHeat, failedDune], [], undefined, admin));
 
