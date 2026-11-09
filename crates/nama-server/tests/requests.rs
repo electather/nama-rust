@@ -2786,7 +2786,7 @@ async fn a_pending_followed_show_and_each_of_its_pending_season_requests_count_o
 }
 
 #[tokio::test]
-async fn without_view_requests_a_request_manager_counts_only_the_pending_requests_they_are_a_requester_of()
+async fn without_view_requests_a_request_manager_counts_only_the_pending_requests_and_followed_shows_they_are_a_requester_of()
  {
     let fixture = Fixture::start().await;
     let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
@@ -2794,12 +2794,14 @@ async fn without_view_requests_a_request_manager_counts_only_the_pending_request
         .user("Grace", &[Permission::ManageRequests, Permission::Request])
         .await;
     let grace_requests = requests(as_grace);
-    ask(&requests(as_ada), HEAT).await;
+    let ada_requests = requests(as_ada);
+    ask(&ada_requests, HEAT).await;
+    follow(&ada_requests, DARK).await;
     ask(&grace_requests, ALIEN).await;
 
     assert_eq!(count_pending(&grace_requests).await.unwrap(), 1);
     let as_admin = requests(fixture.server.client_config());
-    assert_eq!(count_pending(&as_admin).await.unwrap(), 2);
+    assert_eq!(count_pending(&as_admin).await.unwrap(), 6);
 }
 
 #[tokio::test]

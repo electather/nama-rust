@@ -857,6 +857,8 @@ impl Requests {
     /// [`Self::list`] shows them, counting a Followed Show apart from its Season Requests.
     pub(crate) async fn count_pending(&self, viewer: &User) -> Result<u32, sqlx::Error> {
         let requester = visible_to(viewer);
+        // Keep the visibility checks in step with `load` and `load_followed`, or the count and the
+        // Pending filter disagree.
         sqlx::query_scalar!(
             r#"SELECT (SELECT COUNT(*) FROM requests
                        WHERE state = 'pending'
