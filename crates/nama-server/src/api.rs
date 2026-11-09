@@ -2588,7 +2588,7 @@ impl From<EnableError> for ConnectError {
             .param("titleKind", &kind)
             .into(),
             EnableError::AlreadyEnabled(_)
-            | EnableError::IdPanicked { .. }
+            | EnableError::ManifestPanicked { .. }
             | EnableError::Panicked { .. } => {
                 tracing::error!("enabling a plugin failed: {err}");
                 Self::internal("the Server failed")

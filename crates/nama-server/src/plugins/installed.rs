@@ -208,17 +208,19 @@ fn is_timeout(err: &extism::Error) -> bool {
     err.to_string() == "timeout"
 }
 
-impl Plugin for Installed {
+impl Installed {
     fn id(&self) -> PluginId {
         PluginId::from(self.manifest.id.clone())
     }
+}
 
-    fn version(&self) -> &str {
-        &self.manifest.version
-    }
-
-    fn settings_schema(&self) -> SettingsSchema {
-        self.settings_schema.clone()
+impl Plugin for Installed {
+    fn manifest(&self) -> nama_plugin_api::Manifest {
+        nama_plugin_api::Manifest {
+            id: self.id(),
+            version: self.manifest.version.clone(),
+            settings: self.settings_schema.clone(),
+        }
     }
 
     fn settings_check(&self) -> Option<&dyn SettingsCheck> {

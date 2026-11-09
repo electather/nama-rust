@@ -17,8 +17,8 @@ use std::{
 
 use futures_util::FutureExt;
 use nama_plugin_api::{
-    InterceptPoint, ObservePoint, Observer, OnFailure, Plugin, PluginError, PluginId, PointKey,
-    Priority, Registrar, Registration, Verdict,
+    InterceptPoint, Manifest, ObservePoint, Observer, OnFailure, Plugin, PluginError, PluginId,
+    PointKey, Priority, Registrar, Registration, Verdict,
     fulfiller::{Fulfiller, Movies, Shows},
     settings::{Choices, SettingKind, Settings, SettingsError, SettingsSchema},
 };
@@ -160,9 +160,9 @@ pub enum EnableError {
     /// A Plugin with the same id is already enabled.
     #[error("plugin {0} is already enabled")]
     AlreadyEnabled(PluginId),
-    /// The Plugin panicked in [`Plugin::id`], so it has no id to report.
-    #[error("a plugin panicked while giving its id: {message}")]
-    IdPanicked {
+    /// The Plugin panicked in [`Plugin::manifest`], so it has no id to report.
+    #[error("a plugin panicked while giving its manifest: {message}")]
+    ManifestPanicked {
         /// The panic's message.
         message: String,
     },
@@ -242,7 +242,7 @@ impl Registry {
     }
 
     /// Enables `plugin` with `settings`, once they are checked against its
-    /// [`Plugin::settings_schema`] and its defaults are filled in.
+    /// [`Manifest::settings`] and its defaults are filled in.
     ///
     /// # Errors
     ///
@@ -253,19 +253,19 @@ impl Registry {
         plugin: Arc<dyn Plugin>,
         settings: Settings,
     ) -> Result<(), EnableError> {
-        // Everything a Plugin does here (its `id`, `version`, `register` and `Drop`) is Plugin
-        // code, so a panic in any of it is contained.
-        let id = match contain_sync(|| plugin.id()) {
-            Ok(id) => id,
+        // Everything a Plugin does here (its `manifest`, `register` and `Drop`) is Plugin code, so
+        // a panic in any of it is contained.
+        let manifest = match contain_sync(|| plugin.manifest()) {
+            Ok(manifest) => manifest,
             Err(message) => {
                 // A panic dropping it is moot: the Plugin is already refused.
                 let _dropped = contain_sync(|| drop(plugin));
-                return Err(EnableError::IdPanicked { message });
+                return Err(EnableError::ManifestPanicked { message });
             }
         };
-        contain_sync(|| self.enable_as(&id, plugin, settings)).unwrap_or_else(|message| {
+        contain_sync(|| self.enable_as(&manifest, plugin, settings)).unwrap_or_else(|message| {
             Err(EnableError::Panicked {
-                plugin: id,
+                plugin: manifest.id,
                 message,
             })
         })
@@ -293,30 +293,30 @@ impl Registry {
         self.enable_with_settings(plugin, settings)
     }
 
-    /// Enables `plugin`, whose id is `id`. Plugin code runs here, so only call it from within
-    /// [`contain_sync`].
+    /// Enables `plugin`, whose Manifest is `manifest`. Plugin code runs here, so only call it from
+    /// within [`contain_sync`].
     fn enable_as(
         &self,
-        id: &PluginId,
+        manifest: &Manifest,
         plugin: Arc<dyn Plugin>,
         settings: Settings,
     ) -> Result<(), EnableError> {
+        let id = &manifest.id;
         if self.read(|state| state.plugins.contains_key(id)) {
             return Err(EnableError::AlreadyEnabled(id.clone()));
         }
-        let schema = plugin.settings_schema();
+        let schema = &manifest.settings;
         let settings = settings
-            .resolve(&schema)
+            .resolve(schema)
             .map_err(|error| EnableError::InvalidSettings {
                 plugin: id.clone(),
                 error,
             })?;
-        let secrets: Arc<[String]> = secret_values(&schema, &settings).into();
+        let secrets: Arc<[String]> = secret_values(schema, &settings).into();
         let mut registrar = Registrar::with_settings(settings);
         plugin.register(&mut registrar);
         let registrations = registrar.into_registrations();
         let count = registrations.len();
-        let version = plugin.version().to_owned();
         // Plugin values the lock refuses are dropped after it is released, since a Plugin's `Drop`
         // is Plugin code.
         let refused = self.write(|state| {
@@ -360,7 +360,7 @@ impl Registry {
         if let Some((refusal, ..)) = refused {
             return Err(refusal);
         }
-        info!(plugin = %id, %version, registrations = count, "enabled plugin");
+        info!(plugin = %id, version = %manifest.version, registrations = count, "enabled plugin");
         Ok(())
     }
 

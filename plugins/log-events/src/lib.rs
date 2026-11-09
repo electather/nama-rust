@@ -2,8 +2,9 @@
 //! that the wiring from the Kernel to a Plugin works.
 
 use nama_plugin_api::{
-    BoxFuture, Observer, Plugin, PluginId, Registrar,
+    BoxFuture, Manifest, Observer, Plugin, PluginId, Registrar,
     points::{ServerStarted, ServerStartedEvent},
+    settings::SettingsSchema,
 };
 use tracing::info;
 
@@ -17,12 +18,12 @@ impl LogEvents {
 }
 
 impl Plugin for LogEvents {
-    fn id(&self) -> PluginId {
-        Self::ID
-    }
-
-    fn version(&self) -> &'static str {
-        env!("CARGO_PKG_VERSION")
+    fn manifest(&self) -> Manifest {
+        Manifest {
+            id: Self::ID,
+            version: env!("CARGO_PKG_VERSION").to_owned(),
+            settings: SettingsSchema::default(),
+        }
     }
 
     fn register(&self, registrar: &mut Registrar) {

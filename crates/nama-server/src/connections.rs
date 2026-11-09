@@ -317,7 +317,8 @@ mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     use nama_plugin_api::{
-        BoxFuture, Plugin, PluginError, Priority, Registrar, connector::ConnectionStarted,
+        BoxFuture, Manifest, Plugin, PluginError, Priority, Registrar,
+        connector::ConnectionStarted, settings::SettingsSchema,
     };
 
     use super::*;
@@ -326,12 +327,12 @@ mod tests {
     struct NeverConnected(Arc<AtomicUsize>);
 
     impl Plugin for NeverConnected {
-        fn id(&self) -> PluginId {
-            PluginId::from_static("chat")
-        }
-
-        fn version(&self) -> &'static str {
-            "1.0.0"
+        fn manifest(&self) -> Manifest {
+            Manifest {
+                id: PluginId::from_static("chat"),
+                version: "1.0.0".to_owned(),
+                settings: SettingsSchema::default(),
+            }
         }
 
         fn register(&self, registrar: &mut Registrar) {

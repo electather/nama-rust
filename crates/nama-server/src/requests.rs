@@ -1944,9 +1944,10 @@ mod tests {
     };
 
     use nama_plugin_api::{
-        BoxFuture, Plugin, PluginError, PluginId, Priority, Registrar,
+        BoxFuture, Manifest, Plugin, PluginError, PluginId, Priority, Registrar,
         fulfiller::{Download, Fulfiller, Movies},
         metadata::{Episode, ExternalIds, Season},
+        settings::SettingsSchema,
     };
     use nama_proto::nama::v1::{Request, RequestState};
     use sqlx::SqliteConnection;
@@ -2129,12 +2130,12 @@ mod tests {
     struct FulfillerPlugin(Arc<dyn Fulfiller<Movies>>);
 
     impl Plugin for FulfillerPlugin {
-        fn id(&self) -> PluginId {
-            PluginId::from_static("gated")
-        }
-
-        fn version(&self) -> &'static str {
-            "0.0.0"
+        fn manifest(&self) -> Manifest {
+            Manifest {
+                id: PluginId::from_static("gated"),
+                version: "0.0.0".to_owned(),
+                settings: SettingsSchema::default(),
+            }
         }
 
         fn register(&self, registrar: &mut Registrar) {

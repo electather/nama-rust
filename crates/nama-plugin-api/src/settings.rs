@@ -1,6 +1,6 @@
 //! A Plugin's settings, and the schema it declares for them so an admin UI can render a form.
 //!
-//! The Kernel checks the settings the admin gave against [`Plugin::settings_schema`] before it
+//! The Kernel checks the settings the admin gave against [`Manifest::settings`] before it
 //! enables the Plugin, fills in defaults, and hands the result to [`Plugin::register`] through
 //! [`Registrar::settings`]. Changing settings means enabling the Plugin again.
 //!
@@ -8,7 +8,7 @@
 //! as a quality profile only the outside service knows. The Kernel runs the check only when an
 //! admin asks, never to enable the Plugin, so the outside service being down can't stop it.
 //!
-//! [`Plugin::settings_schema`]: crate::Plugin::settings_schema
+//! [`Manifest::settings`]: crate::Manifest::settings
 //! [`Plugin::register`]: crate::Plugin::register
 //! [`Registrar::settings`]: crate::Registrar::settings
 

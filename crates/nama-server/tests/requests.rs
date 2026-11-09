@@ -33,10 +33,10 @@ use connectrpc::{
 use http::fetch;
 use log::Log;
 use nama_plugin_api::{
-    BoxFuture, Plugin, PluginError, PluginId, Priority, Registrar,
+    BoxFuture, Manifest, Plugin, PluginError, PluginId, Priority, Registrar,
     fulfiller::{Download, DownloadStatus, Fulfiller, Movies, Shows},
     notifier::{Notification, Notifier, Recipient},
-    settings::{SettingValue, Settings},
+    settings::{SettingValue, Settings, SettingsSchema},
 };
 use nama_plugin_test_choices as test_choices;
 use nama_plugin_tmdb::{
@@ -911,12 +911,12 @@ impl Fulfiller<Shows> for FakeFulfiller {
 struct ShowsFulfillerPlugin(FakeFulfiller);
 
 impl Plugin for ShowsFulfillerPlugin {
-    fn id(&self) -> PluginId {
-        PluginId::from_static("fake-shows-fulfiller")
-    }
-
-    fn version(&self) -> &'static str {
-        "0.0.0"
+    fn manifest(&self) -> Manifest {
+        Manifest {
+            id: PluginId::from_static("fake-shows-fulfiller"),
+            version: "0.0.0".to_owned(),
+            settings: SettingsSchema::default(),
+        }
     }
 
     fn register(&self, registrar: &mut Registrar) {
@@ -928,12 +928,12 @@ impl Plugin for ShowsFulfillerPlugin {
 struct FulfillerPlugin(FakeFulfiller);
 
 impl Plugin for FulfillerPlugin {
-    fn id(&self) -> PluginId {
-        PluginId::from_static("fake-fulfiller")
-    }
-
-    fn version(&self) -> &'static str {
-        "0.0.0"
+    fn manifest(&self) -> Manifest {
+        Manifest {
+            id: PluginId::from_static("fake-fulfiller"),
+            version: "0.0.0".to_owned(),
+            settings: SettingsSchema::default(),
+        }
     }
 
     fn register(&self, registrar: &mut Registrar) {
@@ -3199,12 +3199,12 @@ impl Notifier for FakeNotifier {
 struct NotifierPlugin(&'static str, FakeNotifier);
 
 impl Plugin for NotifierPlugin {
-    fn id(&self) -> PluginId {
-        PluginId::from_static(self.0)
-    }
-
-    fn version(&self) -> &'static str {
-        "0.0.0"
+    fn manifest(&self) -> Manifest {
+        Manifest {
+            id: PluginId::from_static(self.0),
+            version: "0.0.0".to_owned(),
+            settings: SettingsSchema::default(),
+        }
     }
 
     fn register(&self, registrar: &mut Registrar) {
