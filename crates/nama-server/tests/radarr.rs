@@ -252,14 +252,7 @@ impl Fixture {
 
     /// Subscribes as the Admin to the events of type `only` about every Request.
     async fn subscribe_to(&self, only: EventType) -> Subscription {
-        let only = SubscribeRequest {
-            types: vec![only.into()],
-            ..Default::default()
-        };
-        EventServiceClient::new(HttpClient::plaintext(), self.server.client_config())
-            .subscribe(only)
-            .await
-            .unwrap()
+        subscribe(self.server.client_config(), only).await
     }
 
     /// Creates a User with the Permissions a new User gets, signs them in, and returns client
@@ -312,6 +305,22 @@ impl Fixture {
         .unwrap();
         self.server.client_config_as(&signed_in.into_owned().token)
     }
+}
+
+/// Subscribes as `member` to the events of type `only` they may see.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn subscribe(member: ClientConfig, only: EventType) -> Subscription {
+    let only = SubscribeRequest {
+        types: vec![only.into()],
+        ..Default::default()
+    };
+    EventServiceClient::new(HttpClient::plaintext(), member)
+        .subscribe(only)
+        .await
+        .unwrap()
 }
 
 /// Asks for the Movie `tmdb_id` as `member`, at the Quality `quality` if given.
@@ -1104,13 +1113,14 @@ async fn a_default_not_on_the_list_is_refused_naming_it_and_a_cleared_one_is_uns
     assert_eq!(defaults(&chooser).await[0].quality, None);
 }
 
-/// "HD" (the default) and "4K", and the Request Alice, who may choose, opened for Heat at 4K, Pending.
+/// "HD" (the default) and "4K", and Alice, who may choose and opened a Pending Request for Heat at
+/// 4K.
 #[expect(
     clippy::unwrap_used,
     clippy::indexing_slicing,
     reason = "a test helper fails its test by panicking"
 )]
-async fn alices_pending_4k_request(fixture: &Fixture) -> (Vec<Quality>, Request) {
+async fn alices_pending_4k_request(fixture: &Fixture) -> (Vec<Quality>, ClientConfig) {
     let offered = fixture.replace_qualities(hd_and_4k()).await.unwrap();
     let alice = fixture
         .member_named(
@@ -1120,14 +1130,14 @@ async fn alices_pending_4k_request(fixture: &Fixture) -> (Vec<Quality>, Request)
         .await;
     let asked = ask(&alice, HEAT, Some(offered[1].id)).await.unwrap();
     assert_eq!(asked.state, RequestState::Pending);
-    (offered, asked)
+    (offered, alice)
 }
 
 #[tokio::test]
 async fn an_auto_approved_joiner_picking_hd_approves_a_pending_4k_request_at_hd_and_alice_is_told()
 {
     let fixture = Fixture::with_radarr_enabled_at(ANY).await;
-    let (offered, _) = alices_pending_4k_request(&fixture).await;
+    let (offered, alice) = alices_pending_4k_request(&fixture).await;
     let bob = fixture
         .member_named(
             "Bob",
@@ -1138,9 +1148,7 @@ async fn an_auto_approved_joiner_picking_hd_approves_a_pending_4k_request_at_hd_
             ]),
         )
         .await;
-    let mut approvals = fixture
-        .subscribe_to(EventType::EVENT_TYPE_REQUEST_STATE_CHANGED)
-        .await;
+    let mut approvals = subscribe(alice, EventType::EVENT_TYPE_REQUEST_STATE_CHANGED).await;
 
     ask(&bob, HEAT, Some(offered[0].id)).await.unwrap();
 
