@@ -285,18 +285,18 @@ fn title_and_year(name: &str) -> Option<Named> {
 fn id_hints(name: &str) -> ExternalIds {
     let mut hints = ExternalIds::default();
     for captures in ID_HINT.captures_iter(name) {
-        let source = captures.name("source").map_or_else(
-            || "imdb".to_owned(),
-            |source| source.as_str().to_lowercase(),
-        );
+        // A bare id has no source, and is always IMDb's.
+        let source = captures
+            .name("source")
+            .map(|source| source.as_str().to_ascii_lowercase());
         let Some(id) = captures.name("id").or_else(|| captures.name("bare")) else {
             continue;
         };
-        let id = id.as_str().to_lowercase();
-        match source.as_str() {
-            "tmdb" => hints.tmdb = hints.tmdb.or_else(|| id.parse().ok()),
-            "tvdb" => hints.tvdb = hints.tvdb.or_else(|| id.parse().ok()),
-            _ if id.starts_with("tt") => {
+        let id = id.as_str().to_ascii_lowercase();
+        match source.as_deref() {
+            Some("tmdb") => hints.tmdb = hints.tmdb.or_else(|| id.parse().ok()),
+            Some("tvdb") => hints.tvdb = hints.tvdb.or_else(|| id.parse().ok()),
+            Some("imdb") | None if id.starts_with("tt") => {
                 hints.imdb.get_or_insert(id);
             }
             _ => {}
