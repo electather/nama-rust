@@ -88,6 +88,11 @@ export function dateOf(date: string | undefined) {
   return date === undefined ? undefined : dates.format(new Date(date));
 }
 
+/** The day `seconds` since the Unix epoch falls on, as this browser writes dates. */
+export function dayOf(seconds: bigint) {
+  return new Date(Number(seconds) * 1000).toLocaleDateString(undefined, { dateStyle: "medium" });
+}
+
 /** A runtime in plain words, such as "2 h 16 min", or nothing when it isn't known. */
 export function runtimeOf(minutes = 0) {
   const hours = Math.floor(minutes / 60);

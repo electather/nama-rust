@@ -53,12 +53,16 @@ function requested(name: string, id: bigint) {
   return create(RequestedQualitySchema, { id, name, profileId: String(id) });
 }
 
+/** When Sam changes a Quality: midday, so the day is 9 Nov 2026 in any time zone. */
+const changedAt = BigInt(Date.UTC(2026, 10, 9, 12) / 1000);
+
 /** Changes `request`'s Quality to the offered one with the id `qualityId`, as Sam, if given. */
 function changeQuality(request: Request, qualityId: bigint | undefined) {
   const quality = hdAnd4k.find(({ id }) => id === qualityId);
   if (!quality) return;
   request.qualityChange = create(QualityChangeSchema, {
     changedBy: "Sam",
+    changedAt,
     ...(request.quality && { previousName: request.quality.name }),
   });
   request.quality = requested(quality.name, quality.id);
@@ -203,7 +207,7 @@ test("retrying a Request that stopped being Failed meanwhile says so", async () 
   expect(await screen.findByText("Processing")).toBeDefined();
 });
 
-test("a Request manager approves a 4K Request at the other Quality, HD, and it says who changed it", async () => {
+test("a Request manager approves a 4K Request at the other Quality, HD, and it says who changed it when", async () => {
   const heat4k = create(RequestSchema, { ...heat, quality: requested("4K", 2n) });
   openApp("/requests", managedServer(admin, heat4k));
 
@@ -213,7 +217,7 @@ test("a Request manager approves a 4K Request at the other Quality, HD, and it s
 
   expect(others.map((item) => item.textContent)).toStrictEqual(["HD"]);
   expect(await screen.findByText("Approved")).toBeDefined();
-  expect(screen.getByText(/HD, changed from 4K by Sam/u)).toBeDefined();
+  expect(screen.getByText(/HD, changed from 4K by Sam on .*9.*2026/u)).toBeDefined();
   expect(screen.queryByRole("button", { name: /^Approve Heat/u })).toBeNull();
 });
 
@@ -225,7 +229,7 @@ test("a Request manager retries a Failed Request at another Quality", async () =
   fireEvent.click(await screen.findByRole("menuitem", { name: "4K" }));
 
   expect(await screen.findByText("Processing")).toBeDefined();
-  expect(screen.getByText(/4K, changed from HD by Sam/u)).toBeDefined();
+  expect(screen.getByText(/4K, changed from HD by Sam on .*9.*2026/u)).toBeDefined();
 });
 
 /**

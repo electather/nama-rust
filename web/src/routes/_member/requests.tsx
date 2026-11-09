@@ -12,7 +12,7 @@ import {
   RequestService,
 } from "@/gen/nama/v1/request_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { metadataLine, seasonName, yearOf } from "@/lib/browse";
+import { dayOf, metadataLine, seasonName, yearOf } from "@/lib/browse";
 import { may } from "@/lib/permissions";
 
 export const Route = createFileRoute("/_member/requests")({
@@ -200,16 +200,19 @@ function aboutRequest(request: Request | FollowedShow, you: bigint | undefined) 
   return metadataLine(yearOf(releasedOf(request)), qualityOf(request), requestedBy(request, you));
 }
 
-/** A Request's Quality, and who last changed it from what: "HD, changed from 4K by Sam". */
+/**
+ * A Request's Quality, and who last changed it from what, and when: "HD, changed from 4K by Sam on
+ * 9 Nov 2026".
+ */
 function qualityOf({ quality, qualityChange }: Request) {
   if (!quality || !qualityChange) return quality?.name;
   return `${quality.name}, ${changeText(qualityChange)}`;
 }
 
-/** Who changed a Quality from what, in words: "changed from 4K by Sam". */
-function changeText({ previousName, changedBy = "a Request manager" }: QualityChange) {
+/** Who changed a Quality from what, and when, in words: "changed from 4K by Sam on 9 Nov 2026". */
+function changeText({ previousName, changedBy = "a Request manager", changedAt }: QualityChange) {
   const from = previousName === undefined ? "" : ` from ${previousName}`;
-  return `changed${from} by ${changedBy}`;
+  return `changed${from} by ${changedBy} on ${dayOf(changedAt)}`;
 }
 
 /** When a Request's Movie came out, or its Season first aired. */
