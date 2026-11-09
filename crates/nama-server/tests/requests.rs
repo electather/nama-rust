@@ -46,17 +46,17 @@ use nama_plugin_tmdb::{
 use nama_proto::nama::v1::{
     __buffa::view::SubscribeResponseView, ApproveFollowedShowRequest, ApproveRequestRequest,
     BrowseServiceClient, CancelFollowedShowRequest, CancelRequestRequest,
-    CreateFollowedShowRequest, CreateLibraryRequest, CreateRequestRequest,
-    CreateSeasonRequestsRequest, CreateUserRequest, DeclineFollowedShowRequest,
-    DeclineRequestRequest, EnablePluginRequest, EventServiceClient, EventType, FollowedShow,
-    FoundMovie, FoundShow, GetRequestRequest, LibraryKind, LibraryServiceClient, ListMoviesRequest,
-    ListPluginsRequest, ListRequestsRequest, ListShowsRequest, LookUpMovieRequest,
-    LookUpShowRequest, Permission, PluginServiceClient, RefusalReason, Request,
-    RequestServiceClient, RequestState, RetryRequestRequest, ScanLibraryRequest,
-    SearchMoviesRequest, SearchShowsRequest, SessionDelivery, SetPermissionsRequest, SignInRequest,
-    SignInServiceClient, SubscribeRequest, SubscribeResponse, UpdatePluginSettingsRequest,
-    UserServiceClient, WithdrawFollowedShowRequest, WithdrawRequestRequest, event, setting_value,
-    subscribe_response,
+    CountPendingRequestsRequest, CreateFollowedShowRequest, CreateLibraryRequest,
+    CreateRequestRequest, CreateSeasonRequestsRequest, CreateUserRequest,
+    DeclineFollowedShowRequest, DeclineRequestRequest, EnablePluginRequest, EventServiceClient,
+    EventType, FollowedShow, FoundMovie, FoundShow, GetRequestRequest, LibraryKind,
+    LibraryServiceClient, ListMoviesRequest, ListPluginsRequest, ListRequestsRequest,
+    ListShowsRequest, LookUpMovieRequest, LookUpShowRequest, Permission, PluginServiceClient,
+    RefusalReason, Request, RequestServiceClient, RequestState, RetryRequestRequest,
+    ScanLibraryRequest, SearchMoviesRequest, SearchShowsRequest, SessionDelivery,
+    SetPermissionsRequest, SignInRequest, SignInServiceClient, SubscribeRequest, SubscribeResponse,
+    UpdatePluginSettingsRequest, UserServiceClient, WithdrawFollowedShowRequest,
+    WithdrawRequestRequest, event, setting_value, subscribe_response,
 };
 use nama_server::{
     config::{Config, PluginConfig},
@@ -2764,6 +2764,72 @@ async fn list_followed(client: &RequestServiceClient<HttpClient>) -> Vec<Followe
         .unwrap()
         .into_owned()
         .followed_shows
+}
+
+/// How many Requests and Followed Shows are Pending, as the caller of `client` is told.
+async fn count_pending(client: &RequestServiceClient<HttpClient>) -> Result<u32, ConnectError> {
+    client
+        .count_pending_requests(CountPendingRequestsRequest::default())
+        .await
+        .map(|counted| counted.into_owned().count)
+}
+
+#[tokio::test]
+async fn a_pending_followed_show_and_each_of_its_pending_season_requests_count_once_each_and_an_approved_request_not_at_all()
+ {
+    let fixture = Fixture::start().await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let ada_requests = requests(as_ada);
+    let heat = ask(&ada_requests, HEAT).await;
+    let as_admin = requests(fixture.server.client_config());
+    assert_eq!(count_pending(&as_admin).await.unwrap(), 1);
+
+    let (_, asked) = follow(&ada_requests, DARK).await;
+    as_admin
+        .approve_request(ApproveRequestRequest {
+            id: heat.id,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    assert_eq!(asked.len(), 3, "{asked:?}");
+    assert_eq!(count_pending(&as_admin).await.unwrap(), 4);
+}
+
+#[tokio::test]
+async fn without_view_requests_a_request_manager_counts_only_the_pending_requests_and_followed_shows_they_are_a_requester_of()
+ {
+    let fixture = Fixture::start().await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let (_, as_grace) = fixture
+        .user("Grace", &[Permission::ManageRequests, Permission::Request])
+        .await;
+    let grace_requests = requests(as_grace);
+    let ada_requests = requests(as_ada);
+    ask(&ada_requests, HEAT).await;
+    follow(&ada_requests, DARK).await;
+    ask(&grace_requests, ALIEN).await;
+
+    assert_eq!(count_pending(&grace_requests).await.unwrap(), 1);
+    let as_admin = requests(fixture.server.client_config());
+    assert_eq!(count_pending(&as_admin).await.unwrap(), 6);
+}
+
+#[tokio::test]
+async fn counting_pending_requests_without_manage_requests_is_refused() {
+    let fixture = Fixture::start().await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+
+    let refused = count_pending(&requests(as_ada)).await;
+
+    let refusal = assert_refused(
+        refused,
+        ErrorCode::PermissionDenied,
+        RefusalReason::REFUSAL_REASON_PERMISSION_REQUIRED,
+    );
+    let permission = refusal.params.get("permission").map(String::as_str);
+    assert_eq!(permission, Some("PERMISSION_MANAGE_REQUESTS"));
 }
 
 /// The Seasons of Dark the caller of `client` has Requests for, in Season order.

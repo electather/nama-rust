@@ -114,6 +114,8 @@ pub mod __buffa {
         reg.register_json_any(super::__LIST_REQUESTS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__GET_REQUEST_REQUEST_JSON_ANY);
         reg.register_json_any(super::__GET_REQUEST_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__COUNT_PENDING_REQUESTS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__COUNT_PENDING_REQUESTS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__APPROVE_REQUEST_REQUEST_JSON_ANY);
         reg.register_json_any(super::__APPROVE_REQUEST_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__DECLINE_REQUEST_REQUEST_JSON_ANY);
@@ -467,6 +469,14 @@ pub use self::__buffa::view::GetRequestRequestOwnedView;
 pub use self::__buffa::view::GetRequestResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::GetRequestResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::CountPendingRequestsRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::CountPendingRequestsRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::CountPendingRequestsResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::CountPendingRequestsResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::ApproveRequestRequestView;
 #[doc(inline)]
