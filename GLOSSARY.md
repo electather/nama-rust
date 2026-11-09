@@ -85,7 +85,7 @@ A Plugin loaded into a running Server from a package, whether bundled with a rel
 _Avoid_: third-party plugin, external plugin, WASM plugin
 
 **Manifest**:
-What an Installed Plugin says about itself: its id and version, the Nama API versions it works with, its settings, the hosts it may reach, and its Observers and Providers. A Server outside those Nama API versions refuses the Plugin.
+What a Plugin says about itself before it is enabled: its id, name, version, description and logo, the Nama API versions it works with, its settings, the hosts it may reach, and its Extension Points. A Built-in Plugin's comes from its code, an Installed Plugin's from its package. A Server outside those Nama API versions refuses the Plugin, and a Plugin may take part only at the Extension Points it names.
 _Avoid_: descriptor, plugin.json, metadata
 
 **Extension Point**:
@@ -157,6 +157,10 @@ _Avoid_: identification, lookup
 **Pinned Match**:
 A Match an admin set or cleared by hand. Automatic Matching follows it instead of searching, so it isn't overwritten.
 _Avoid_: locked match, override, manual lock
+
+**ID Hint**:
+A title's id at a metadata source, written in a file or folder name, such as `{tmdb-78}` or `[tvdbid-433631]`. An Item with one is Matched by that id without a search.
+_Avoid_: id tag, provider id
 
 **Watch State**:
 A User's progress through a Movie or Episode: whether it's been played, how far in, and when.
