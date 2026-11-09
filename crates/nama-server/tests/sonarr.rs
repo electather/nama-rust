@@ -26,12 +26,14 @@ use nama_plugin_tmdb::{
 };
 use nama_proto::nama::v1::{
     __buffa::view::SubscribeResponseView, ApproveRequestRequest, CancelFollowedShowRequest,
-    CreateFollowedShowRequest, CreateSeasonRequestsRequest, CreateUserRequest, Download,
-    DownloadStatus, EnablePluginRequest, EventServiceClient, EventType, ListPluginsRequest,
-    PluginServiceClient, RefusalReason, Request, RequestServiceClient, RequestState,
-    RetryRequestRequest, SessionDelivery, SignInRequest, SignInServiceClient, SubscribeRequest,
-    SubscribeResponse, TestPluginSettingsRequest, TestPluginSettingsResponse,
-    UpdatePluginSettingsRequest, event, setting_value::Value, subscribe_response,
+    CreateFollowedShowRequest, CreateSeasonRequestsRequest, CreateUserRequest,
+    DeclineRequestRequest, Download, DownloadStatus, EnablePluginRequest, EventServiceClient,
+    EventType, GetRequestRequest, ListPluginsRequest, ListShowQualitiesRequest, LookUpShowRequest,
+    Permission, PluginServiceClient, Quality, RefusalReason, ReplaceQualitiesRequest, Request,
+    RequestServiceClient, RequestState, RequestedQuality, RetryRequestRequest, SessionDelivery,
+    SetPermissionsRequest, SignInRequest, SignInServiceClient, SubscribeRequest, SubscribeResponse,
+    TestPluginSettingsRequest, TestPluginSettingsResponse, UpdatePluginSettingsRequest, event,
+    setting_value::Value, subscribe_response,
 };
 use nama_server::{config::Config, db::Database, plugin_settings, plugins::Registry};
 use refused::assert_refused;
@@ -40,6 +42,10 @@ use server::{PASSWORD, TestServer};
 /// Shows the fake TMDB knows, by TMDB id. Sonarr can find Dark, but not The Office.
 const DARK: i64 = 70_523;
 const THE_OFFICE: i64 = 2316;
+
+/// Quality profiles the fake Sonarr offers, by id.
+const HD_1080P: &str = "4";
+const ULTRA_HD: &str = "5";
 
 /// How long to wait for the Server to tell of progress.
 const WAIT: Duration = Duration::from_secs(10);
@@ -198,15 +204,82 @@ impl Fixture {
 
     /// Approves the Request `id` as the Admin, and returns it as the approval left it.
     async fn approve(&self, id: i64) -> Request {
+        self.approve_at(id, None).await.unwrap()
+    }
+
+    /// [`Self::approve`], changing its Quality to `quality` if given.
+    async fn approve_at(&self, id: i64, quality: Option<i64>) -> Result<Request, ConnectError> {
         let approved = self
             .requests()
             .approve_request(ApproveRequestRequest {
+                id,
+                quality,
+                ..Default::default()
+            })
+            .await?;
+        Ok(approved.into_owned().request.into_option().unwrap())
+    }
+
+    /// Declines the Request `id` as the Admin.
+    async fn decline(&self, id: i64) {
+        self.requests()
+            .decline_request(DeclineRequestRequest {
                 id,
                 ..Default::default()
             })
             .await
             .unwrap();
-        approved.into_owned().request.into_option().unwrap()
+    }
+
+    /// The Request `id`, as the Admin sees it.
+    async fn request(&self, id: i64) -> Request {
+        let got = self
+            .requests()
+            .get_request(GetRequestRequest {
+                id,
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        got.into_owned().request.into_option().unwrap()
+    }
+
+    /// The Quality of the Show `show`, as its page reads it.
+    async fn show_quality(&self, show: i64) -> Option<RequestedQuality> {
+        let looked_up = self
+            .requests()
+            .look_up_show(LookUpShowRequest {
+                show_tmdb_id: show,
+                ..Default::default()
+            })
+            .await
+            .unwrap()
+            .into_owned();
+        looked_up.show.into_option().unwrap().quality.into_option()
+    }
+
+    /// Offers Sonarr's profiles HD-1080p as "HD", the default, and Ultra-HD as "4K", as the Admin,
+    /// returning them as saved.
+    async fn offer_hd_and_4k(&self) -> Vec<Quality> {
+        self.replace_qualities(vec![
+            quality(HD_1080P, "HD", true),
+            quality(ULTRA_HD, "4K", false),
+        ])
+        .await
+    }
+
+    /// Replaces Sonarr's Qualities with `qualities` as the Admin, returning them as saved.
+    async fn replace_qualities(&self, qualities: Vec<Quality>) -> Vec<Quality> {
+        self.plugins()
+            .replace_qualities(ReplaceQualitiesRequest {
+                id: "sonarr".to_owned(),
+                qualities,
+                ..Default::default()
+            })
+            .await
+            .unwrap()
+            .into_owned()
+            .qualities
     }
 
     /// Retries the Request `id` as the Admin, and returns it as the retry left it.
@@ -265,11 +338,25 @@ impl Fixture {
     /// Creates a User with the Permissions a new User gets, signs them in, and returns client
     /// settings that call as them.
     async fn member(&self) -> ClientConfig {
+        self.member_with(None).await
+    }
+
+    /// A new User who may choose a Quality, as a client calling as them.
+    async fn chooser(&self) -> RequestServiceClient<HttpClient> {
+        let permissions = [Permission::Request, Permission::ChooseQuality];
+        RequestServiceClient::new(
+            HttpClient::plaintext(),
+            self.member_with(Some(&permissions)).await,
+        )
+    }
+
+    /// [`Self::member`], with `permissions` the Admin gives them in place of a new User's, if any.
+    async fn member_with(&self, permissions: Option<&[Permission]>) -> ClientConfig {
         let users = nama_proto::nama::v1::UserServiceClient::new(
             HttpClient::plaintext(),
             self.server.client_config(),
         );
-        users
+        let created = users
             .create_user(CreateUserRequest {
                 name: "Ada".to_owned(),
                 password: PASSWORD.to_owned(),
@@ -277,6 +364,16 @@ impl Fixture {
             })
             .await
             .unwrap();
+        if let Some(permissions) = permissions {
+            users
+                .set_permissions(SetPermissionsRequest {
+                    user_id: created.into_owned().id,
+                    permissions: permissions.iter().map(|&p| p.into()).collect(),
+                    ..Default::default()
+                })
+                .await
+                .unwrap();
+        }
         let signed_in = SignInServiceClient::new(
             HttpClient::plaintext(),
             self.server.anonymous_client_config(),
@@ -305,16 +402,58 @@ async fn ask(
     show: i64,
     seasons: &[u32],
 ) -> Vec<Request> {
-    client
+    ask_at(client, show, seasons, None).await.unwrap()
+}
+
+/// [`ask`], at the Quality `quality` if given.
+async fn ask_at(
+    client: &RequestServiceClient<HttpClient>,
+    show: i64,
+    seasons: &[u32],
+    quality: Option<i64>,
+) -> Result<Vec<Request>, ConnectError> {
+    let asked = client
         .create_season_requests(CreateSeasonRequestsRequest {
             show_tmdb_id: show,
             season_numbers: seasons.to_vec(),
+            quality,
             ..Default::default()
         })
+        .await?;
+    Ok(asked.into_owned().requests)
+}
+
+/// The one Season Request asking for the Season `season` of the Show `show` as `client`'s User
+/// opens or joins, at the Quality `quality` if given.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn ask_one(
+    client: &RequestServiceClient<HttpClient>,
+    show: i64,
+    season: u32,
+    quality: Option<i64>,
+) -> Request {
+    ask_at(client, show, &[season], quality)
         .await
         .unwrap()
-        .into_owned()
-        .requests
+        .remove(0)
+}
+
+/// A new Quality offering the Sonarr profile `profile_id` as `name`.
+fn quality(profile_id: &str, name: &str, is_default: bool) -> Quality {
+    Quality {
+        profile_id: profile_id.to_owned(),
+        name: name.to_owned(),
+        is_default,
+        ..Default::default()
+    }
+}
+
+/// The id and name of `quality`, if a Request or Show has one.
+fn named(quality: Option<&RequestedQuality>) -> Option<(i64, &str)> {
+    quality.map(|quality| (quality.id, quality.name.as_str()))
 }
 
 /// `(key, value)` as the Plugins page sends a text setting.
@@ -352,7 +491,7 @@ async fn testing_sonarrs_settings_offers_its_quality_profiles_and_root_folders()
 
     assert_eq!(
         choices(&tested, "quality_profile"),
-        [("1", "Any"), ("4", "HD-1080p")]
+        [("1", "Any"), ("4", "HD-1080p"), ("5", "Ultra-HD")]
     );
     assert_eq!(
         choices(&tested, "root_folder"),
@@ -641,4 +780,150 @@ async fn cancelling_a_followed_show_turns_off_sonarrs_new_season_monitoring() {
 
     assert_eq!(fixture.sonarr.shows()[0]["monitorNewItems"], "none");
     assert_eq!(fixture.sonarr.monitored_seasons(DARK_TVDB), [1, 2, 3]);
+}
+
+#[tokio::test]
+async fn a_first_season_request_at_4k_has_sonarr_add_the_series_at_its_profile() {
+    let fixture = Fixture::with_sonarr_enabled().await;
+    let offered = fixture.offer_hd_and_4k().await;
+    let chooser = fixture.chooser().await;
+
+    let listed = chooser
+        .list_show_qualities(ListShowQualitiesRequest::default())
+        .await
+        .unwrap();
+    let asked = ask_one(&chooser, DARK, 1, Some(offered[1].id)).await;
+    let approved = fixture.approve(asked.id).await;
+
+    assert_eq!(listed.into_owned().qualities, offered);
+    assert_eq!(approved.state, RequestState::Processing);
+    assert_eq!(
+        named(approved.quality.as_option()),
+        Some((offered[1].id, "4K"))
+    );
+    assert_eq!(approved.quality_used, approved.quality);
+    assert_eq!(fixture.sonarr.shows()[0]["qualityProfileId"], 5);
+}
+
+#[tokio::test]
+async fn a_later_season_request_takes_the_shows_quality_and_refuses_another() {
+    let fixture = Fixture::with_sonarr_enabled().await;
+    let offered = fixture.offer_hd_and_4k().await;
+    let chooser = fixture.chooser().await;
+    let first = ask_one(&chooser, DARK, 1, Some(offered[1].id)).await;
+    fixture.approve(first.id).await;
+
+    let shows = fixture.show_quality(DARK).await;
+    let later = ask_one(&chooser, DARK, 2, None).await;
+    let other = ask_at(&chooser, DARK, &[3], Some(offered[0].id)).await;
+
+    assert_eq!(named(shows.as_ref()), Some((offered[1].id, "4K")));
+    assert_eq!(
+        named(later.quality.as_option()),
+        Some((offered[1].id, "4K"))
+    );
+    let refusal = assert_refused(
+        other,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_QUALITY_NOT_OFFERED,
+    );
+    assert_eq!(refusal.field, "quality");
+}
+
+#[tokio::test]
+async fn seasons_asked_for_before_either_is_approved_share_the_first_ones_quality() {
+    let fixture = Fixture::with_sonarr_enabled().await;
+    let offered = fixture.offer_hd_and_4k().await;
+    let chooser = fixture.chooser().await;
+
+    ask_one(&chooser, DARK, 1, Some(offered[1].id)).await;
+    let second = ask_one(&chooser, DARK, 2, None).await;
+
+    assert_eq!(second.state, RequestState::Pending);
+    assert_eq!(
+        named(second.quality.as_option()),
+        Some((offered[1].id, "4K"))
+    );
+}
+
+#[tokio::test]
+async fn once_every_earlier_season_request_is_declined_the_show_has_no_quality_and_takes_another() {
+    let fixture = Fixture::with_sonarr_enabled().await;
+    let offered = fixture.offer_hd_and_4k().await;
+    let chooser = fixture.chooser().await;
+    let first = ask_one(&chooser, DARK, 1, Some(offered[1].id)).await;
+
+    fixture.decline(first.id).await;
+    let shows = fixture.show_quality(DARK).await;
+    let after = ask_one(&chooser, DARK, 2, Some(offered[0].id)).await;
+
+    assert_eq!(shows, None);
+    assert_eq!(
+        named(after.quality.as_option()),
+        Some((offered[0].id, "HD"))
+    );
+}
+
+#[tokio::test]
+async fn before_any_season_is_handed_off_approving_one_at_another_quality_changes_the_shows() {
+    let fixture = Fixture::with_sonarr_enabled().await;
+    let offered = fixture.offer_hd_and_4k().await;
+    let chooser = fixture.chooser().await;
+    let first = ask_one(&chooser, DARK, 1, Some(offered[1].id)).await;
+    let second = ask_one(&chooser, DARK, 2, None).await;
+
+    let approved = fixture
+        .approve_at(second.id, Some(offered[0].id))
+        .await
+        .unwrap();
+
+    assert_eq!(approved.state, RequestState::Processing);
+    assert_eq!(fixture.sonarr.shows()[0]["qualityProfileId"], 4);
+    let first = fixture.request(first.id).await;
+    assert_eq!(
+        named(first.quality.as_option()),
+        Some((offered[0].id, "HD"))
+    );
+}
+
+#[tokio::test]
+async fn once_a_season_was_handed_off_approving_a_later_one_at_another_quality_is_refused() {
+    let fixture = Fixture::with_sonarr_enabled().await;
+    let offered = fixture.offer_hd_and_4k().await;
+    let chooser = fixture.chooser().await;
+    let first = ask_one(&chooser, DARK, 1, Some(offered[1].id)).await;
+    fixture.approve(first.id).await;
+    let later = ask_one(&chooser, DARK, 2, None).await;
+
+    let refused = fixture.approve_at(later.id, Some(offered[0].id)).await;
+    let same = fixture.approve_at(later.id, Some(offered[1].id)).await;
+
+    let refusal = assert_refused(
+        refused,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_QUALITY_NOT_OFFERED,
+    );
+    assert_eq!(refusal.field, "quality");
+    assert_eq!(same.unwrap().state, RequestState::Processing);
+}
+
+#[tokio::test]
+async fn a_series_sonarr_already_had_at_another_profile_shows_that_profile() {
+    let fixture = Fixture::with_sonarr_enabled().await;
+    // Added at the setting's profile, HD-1080p, before the Admin offered any Quality.
+    fixture.ask_approved(DARK, &[1]).await;
+    fixture.sonarr.finish_refreshes().await;
+    fixture
+        .replace_qualities(vec![quality(ULTRA_HD, "4K", true)])
+        .await;
+
+    let asked = fixture.ask_approved(DARK, &[2]).await.remove(0);
+
+    assert_eq!(asked.state, RequestState::Processing);
+    assert_eq!(asked.quality.name, "4K");
+    let used = &asked.quality_used;
+    assert_eq!(
+        (used.id, used.name.as_str(), used.profile_id.as_str()),
+        (0, "HD-1080p", HD_1080P)
+    );
 }

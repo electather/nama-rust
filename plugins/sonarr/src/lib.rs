@@ -101,51 +101,42 @@ mod exports {
 
     /// Has Sonarr monitor and search for each Season, adding its Show first if Sonarr doesn't have
     /// it, and follows a Show by having Sonarr monitor its new Seasons. Its reference is
-    /// `<the Show's TVDB id>/<the Season number>`.
+    /// `<the Show's TVDB id>/<the Season number>`. A Show Sonarr already has keeps its own
+    /// profile, as Sonarr keeps one per series.
     struct SonarrFulfiller;
 
     impl Fulfiller for SonarrFulfiller {
-        // ponytail: says nothing of the profile used; report the series' once Season Requests
-        // have a Quality.
         fn fulfill(request: Request) -> Result<Fulfilled, Error> {
             let tvdb_id = show_tvdb_id(&request)?;
             let season_number = request.season.season_number;
-            let follow = request.followed_show_id.is_some();
-            let reference = season_reference(tvdb_id, season_number);
+            let asked = quality_profile(&request)?;
             let sonarr = Sonarr::from_config()?;
-            let id = match sonarr.find(tvdb_id)? {
-                Some(id) => id,
-                None if sonarr.add(sonarr.look_up(tvdb_id)?, season_number, follow)? => {
-                    return Ok(Fulfilled {
-                        reference,
-                        ..Fulfilled::default()
-                    });
-                }
-                // Another hand-off for the Show added it since `find`.
-                None => sonarr.find(tvdb_id)?.ok_or_else(|| {
-                    Error::msg("Sonarr said it has the Show, then that it doesn't")
-                })?,
+            let profiles: Vec<QualityProfile> = sonarr.get("qualityprofile")?;
+            let had = match sonarr.find(tvdb_id)? {
+                None => sonarr.add_asked(&request, asked, &profiles)?,
+                had => had,
             };
-            sonarr.wait_until_added(id)?;
-            if follow {
-                sonarr.monitor_new_seasons(id, true)?;
+            let Some(show) = had else {
+                return Ok(fulfilled(tvdb_id, season_number, asked, profiles));
+            };
+            sonarr.wait_until_added(show.id)?;
+            if request.followed_show_id.is_some() {
+                sonarr.monitor_new_seasons(show.id, true)?;
             }
-            sonarr.monitor_and_search(id, season_number)?;
-            Ok(Fulfilled {
-                reference,
-                ..Fulfilled::default()
-            })
+            sonarr.monitor_and_search(show.id, season_number)?;
+            let kept = show.quality_profile_id;
+            Ok(fulfilled(tvdb_id, season_number, kept, profiles))
         }
 
         fn unfollow(request: Request) -> Result<(), Error> {
             let sonarr = Sonarr::from_config()?;
             // A Show Sonarr doesn't have, it isn't following.
-            let Some(id) = sonarr.find(show_tvdb_id(&request)?)? else {
+            let Some(show) = sonarr.find(show_tvdb_id(&request)?)? else {
                 return Ok(());
             };
             // A refresh saves the whole Show as it read it, so would undo the change too.
-            sonarr.wait_until_added(id)?;
-            sonarr.monitor_new_seasons(id, false)
+            sonarr.wait_until_added(show.id)?;
+            sonarr.monitor_new_seasons(show.id, false)
         }
 
         /// Reads Sonarr's whole queue in one call, whatever the number of `references`. A Season
@@ -191,10 +182,10 @@ mod exports {
             })
         }
 
-        /// Sonarr's own id for the Show with the TVDB id `tvdb_id`, if Sonarr has it.
-        fn find(&self, tvdb_id: i64) -> Result<Option<i64>, Error> {
+        /// The Show with the TVDB id `tvdb_id`, if Sonarr has it.
+        fn find(&self, tvdb_id: i64) -> Result<Option<Added>, Error> {
             let had: Vec<Added> = self.get(&format!("series?tvdbId={tvdb_id}"))?;
-            Ok(had.first().map(|show| show.id))
+            Ok(had.into_iter().next())
         }
 
         /// The Show with the TVDB id `tvdb_id` as Sonarr would add it.
@@ -207,9 +198,41 @@ mod exports {
             })
         }
 
-        /// Adds `show` with only the Season `season_number` monitored, and its new Seasons too if
-        /// `follow`, and has Sonarr search for it. Returns `false` if Sonarr already has the Show.
-        fn add(&self, show: Show, season_number: u32, follow: bool) -> Result<bool, Error> {
+        /// Adds the Show `request` asks for at the quality profile `asked`, one of `profiles`, as
+        /// [`Self::add`] does. Returns `None` once it is added, or the Show as another hand-off
+        /// added it meanwhile.
+        fn add_asked(
+            &self,
+            request: &Request,
+            asked: i64,
+            profiles: &[QualityProfile],
+        ) -> Result<Option<Added>, Error> {
+            // Checked first, as Sonarr may add a Show with a profile it no longer has.
+            if !profiles.iter().any(|profile| profile.id == asked) {
+                return Err(no_such_profile(request, asked));
+            }
+            let tvdb_id = show_tvdb_id(request)?;
+            let follow = request.followed_show_id.is_some();
+            let show = self.look_up(tvdb_id)?;
+            if self.add(show, request.season.season_number, follow, asked)? {
+                return Ok(None);
+            }
+            // Another hand-off for the Show added it since `find`.
+            self.find(tvdb_id)?
+                .ok_or_else(|| Error::msg("Sonarr said it has the Show, then that it doesn't"))
+                .map(Some)
+        }
+
+        /// Adds `show` at the quality profile `profile` with only the Season `season_number`
+        /// monitored, and its new Seasons too if `follow`, and has Sonarr search for it. Returns
+        /// `false` if Sonarr already has the Show.
+        fn add(
+            &self,
+            show: Show,
+            season_number: u32,
+            follow: bool,
+            profile: i64,
+        ) -> Result<bool, Error> {
             let seasons = show
                 .seasons
                 .into_iter()
@@ -221,9 +244,7 @@ mod exports {
             let new_show = NewShow {
                 tvdb_id: show.tvdb_id,
                 title: show.title,
-                quality_profile_id: setting(QUALITY_PROFILE)?
-                    .parse()
-                    .map_err(|err| Error::msg(format!("the quality profile isn't an id: {err}")))?,
+                quality_profile_id: profile,
                 root_folder_path: setting(ROOT_FOLDER)?,
                 monitored: true,
                 monitor_new_items: new_items(follow),
@@ -338,6 +359,45 @@ mod exports {
         fn change(&self, method: &str, path: &str, body: impl Serialize) -> Result<(), Error> {
             accepted(send(&self.request(method, path), Some(Json(body)))?).map(drop)
         }
+    }
+
+    /// What a hand-off of the Season `season_number` of the Show `tvdb_id` reports: its reference,
+    /// and the profile `profile_id` Sonarr has the Show at, named as in `profiles`.
+    fn fulfilled(
+        tvdb_id: i64,
+        season_number: u32,
+        profile_id: i64,
+        profiles: Vec<QualityProfile>,
+    ) -> Fulfilled {
+        let used = profiles
+            .into_iter()
+            .find(|profile| profile.id == profile_id);
+        Fulfilled {
+            reference: season_reference(tvdb_id, season_number),
+            profile_id: profile_id.to_string(),
+            profile_name: used.map(|used| used.name).unwrap_or_default(),
+            ..Fulfilled::default()
+        }
+    }
+
+    /// The quality profile `request` asks for: its Quality's, else the setting's.
+    fn quality_profile(request: &Request) -> Result<i64, Error> {
+        let profile = match request.quality.as_option() {
+            Some(quality) => quality.profile_id.clone(),
+            None => setting(QUALITY_PROFILE)?,
+        };
+        profile
+            .parse()
+            .map_err(|err| Error::msg(format!("the quality profile isn't an id: {err}")))
+    }
+
+    /// Why `request` can't go to Sonarr, which has no quality profile `id`.
+    fn no_such_profile(request: &Request, id: i64) -> Error {
+        let reason = format!("Sonarr has no quality profile with the id {id}");
+        Error::msg(match request.quality.as_option() {
+            Some(quality) => format!("{reason}, which {} uses", quality.name),
+            None => reason,
+        })
     }
 
     fn show_tvdb_id(request: &Request) -> Result<i64, Error> {
@@ -611,9 +671,11 @@ mod exports {
 
     /// A Show Sonarr has.
     #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase")]
     struct Added {
         /// Sonarr's own id for it.
         id: i64,
+        quality_profile_id: i64,
     }
 
     #[derive(Serialize, Deserialize)]

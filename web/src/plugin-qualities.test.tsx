@@ -135,3 +135,21 @@ test("a Plugin without a Quality profile setting has no Qualities", async () => 
 
   expect(screen.queryByRole("heading", { name: "Qualities" })).toBeNull();
 });
+
+test("a Show Fulfiller has Qualities too", async () => {
+  const sonarr = {
+    ...radarr,
+    id: "sonarr",
+    name: "Sonarr",
+    extensionPoints: [ExtensionPoint.SHOW_FULFILLER],
+  };
+  openPlugin("sonarr", {
+    getPlugin: () => ({ plugin: sonarr }),
+    listQualities: () => ({}),
+    testPluginSettings: () => ({}),
+  });
+
+  await plugin("Sonarr");
+
+  expect(await screen.findByRole("heading", { name: "Qualities" })).toBeDefined();
+});

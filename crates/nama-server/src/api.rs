@@ -287,6 +287,7 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::REQUEST_SERVICE_LOOK_UP_MOVIE_SPEC.procedure,         REQUEST_MOVIE),
     (proto::REQUEST_SERVICE_LIST_MOVIE_QUALITIES_SPEC.procedure,  REQUEST_MOVIE),
     (proto::REQUEST_SERVICE_SEARCH_SHOWS_SPEC.procedure,          REQUEST_TV),
+    (proto::REQUEST_SERVICE_LIST_SHOW_QUALITIES_SPEC.procedure,   REQUEST_TV),
     (proto::REQUEST_SERVICE_LOOK_UP_SHOW_SPEC.procedure,          REQUEST_TV),
     (proto::REQUEST_SERVICE_APPROVE_REQUEST_SPEC.procedure,       MANAGE_REQUESTS),
     (proto::REQUEST_SERVICE_DECLINE_REQUEST_SPEC.procedure,       MANAGE_REQUESTS),
@@ -1517,7 +1518,7 @@ impl RequestService for RequestServiceHandler {
         }
         let requests = self
             .requests
-            .create_seasons(asker, request.show_tmdb_id, &seasons)
+            .create_seasons(asker, request.show_tmdb_id, &seasons, request.quality)
             .await?;
         Response::ok(CreateSeasonRequestsResponse {
             requests,
@@ -1594,10 +1595,26 @@ impl RequestService for RequestServiceHandler {
     ) -> ServiceResult<proto::ListMovieQualitiesResponse> {
         let qualities = self
             .requests
-            .movie_qualities()
+            .qualities::<Movies>()
             .await
             .map_err(database_failed)?;
         Response::ok(proto::ListMovieQualitiesResponse {
+            qualities,
+            ..Default::default()
+        })
+    }
+
+    async fn list_show_qualities(
+        &self,
+        _ctx: RequestContext,
+        _request: ServiceRequest<'_, proto::ListShowQualitiesRequest>,
+    ) -> ServiceResult<proto::ListShowQualitiesResponse> {
+        let qualities = self
+            .requests
+            .qualities::<Shows>()
+            .await
+            .map_err(database_failed)?;
+        Response::ok(proto::ListShowQualitiesResponse {
             qualities,
             ..Default::default()
         })
@@ -1653,7 +1670,7 @@ impl RequestService for RequestServiceHandler {
         _ctx: RequestContext,
         request: ServiceRequest<'_, ApproveRequestRequest>,
     ) -> ServiceResult<ApproveRequestResponse> {
-        let approved = self.requests.approve(request.id).await?;
+        let approved = self.requests.approve(request.id, request.quality).await?;
         Response::ok(ApproveRequestResponse {
             request: approved.into(),
             ..Default::default()
@@ -1839,6 +1856,7 @@ impl RequestServiceHandler {
             show,
             seasons,
             followed_show,
+            quality,
         } = found;
         let offer = |path: String| self.artwork.offer(&plugin, &path);
         proto::FoundShow {
@@ -1850,6 +1868,7 @@ impl RequestServiceHandler {
             backdrop_url: show.backdrop.map(offer),
             seasons,
             followed_show: followed_show.into(),
+            quality: quality.into(),
             ..Default::default()
         }
     }
@@ -3232,11 +3251,11 @@ impl From<requests::Error> for ConnectError {
                     .param("seasonNumber", &season)
             }
             requests::Error::Unavailable => refuse(R::REFUSAL_REASON_NO_METADATA_PROVIDER, message),
-            // Only `CreateRequest` names a Quality, in `quality`.
+            // Every call that names a Quality names it in `quality`.
             requests::Error::QualityNotAllowed => {
                 refuse(R::REFUSAL_REASON_QUALITY_NOT_ALLOWED, message).field("quality")
             }
-            requests::Error::QualityNotOffered(id) => {
+            requests::Error::QualityNotOffered(id) | requests::Error::NotTheShowsQuality(id) => {
                 refuse(R::REFUSAL_REASON_QUALITY_NOT_OFFERED, message)
                     .field("quality")
                     .param("qualityId", &id)

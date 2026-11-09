@@ -14,5 +14,13 @@
     "minFormatScore": 0,
     "cutoffFormatScore": 0,
     "id": 4
+  },
+  {
+    "name": "Ultra-HD",
+    "upgradeAllowed": false,
+    "cutoff": 19,
+    "minFormatScore": 0,
+    "cutoffFormatScore": 0,
+    "id": 5
   }
 ]

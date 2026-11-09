@@ -151,7 +151,8 @@ pub enum RefusalReason {
     /// `invalid_argument`: a Fulfiller's Qualities don't mark exactly one as the default.
     REFUSAL_REASON_DEFAULT_QUALITY_REQUIRED = 55i32,
     /// `invalid_argument`: the Quality named isn't on the Fulfiller's list, or the Fulfiller has no
-    /// list, or none is enabled. `field` is `quality`. Params: `qualityId`.
+    /// list, or none is enabled, or it isn't the Show's Quality, which its Season Requests all take.
+    /// `field` is `quality`. Params: `qualityId`.
     REFUSAL_REASON_QUALITY_NOT_OFFERED = 56i32,
     /// `permission_denied`: the caller named a Quality, even the default, without
     /// `PERMISSION_CHOOSE_QUALITY`. `field` is `quality`.

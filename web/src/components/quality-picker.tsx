@@ -11,18 +11,15 @@ import { formText } from "@/lib/forms";
 import { may } from "@/lib/permissions";
 
 /**
- * The Quality picker for Requesting a Movie, which `open` opens when the signed-in User is
- * `opening` a Request, may choose a Quality, and has more than one to choose from: joining a
- * Request keeps its Quality. `open` says whether it opened. `loading` while the Qualities are
- * read, so a Request isn't sent before the User could pick.
+ * The Quality picker for Requesting a Movie or a Show's Seasons, as `kind` says, which `open`
+ * opens when the signed-in User is `opening` a Request, may choose a Quality, and has more than
+ * one to choose from: joining a Request keeps its Quality, as a Show's Seasons keep the Show's.
+ * `open` says whether it opened. `loading` while the Qualities are read, so a Request isn't sent
+ * before the User could pick.
  */
-export function useQualityPicker(opening: boolean) {
+export function useQualityPicker(opening: boolean, kind: "movie" | "show") {
   const mayChoose = useMayChooseQuality(opening);
-  const listed = useConnectQuery(
-    RequestService.method.listMovieQualities,
-    {},
-    { enabled: mayChoose },
-  );
+  const listed = useListedQualities(kind, mayChoose);
   const ref = useRef<HTMLDialogElement>(null);
   const [openings, setOpenings] = useState(0);
   const qualities = toPick(mayChoose, listed.data?.qualities);
@@ -39,6 +36,21 @@ export function useQualityPicker(opening: boolean) {
     },
     dialog: { ref, openings, qualities },
   };
+}
+
+/** The Qualities of the Fulfiller for `kind`, read only while `enabled`. */
+function useListedQualities(kind: "movie" | "show", enabled: boolean) {
+  const movies = useConnectQuery(
+    RequestService.method.listMovieQualities,
+    {},
+    { enabled: enabled && kind === "movie" },
+  );
+  const shows = useConnectQuery(
+    RequestService.method.listShowQualities,
+    {},
+    { enabled: enabled && kind === "show" },
+  );
+  return kind === "movie" ? movies : shows;
 }
 
 /**
@@ -82,7 +94,7 @@ export function QualityPicker({
       openings={openings}
       action="Request"
       title={`Request ${title}`}
-      description="Pick the Quality it’s downloaded at."
+      description="Pick the Quality to download at."
       onConfirm={(typed) => onPick(BigInt(formText(typed, "quality")))}
       refusal={refusal}
     >

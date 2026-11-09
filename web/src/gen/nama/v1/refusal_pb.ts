@@ -484,7 +484,8 @@ export const RefusalReason = {
 
   /**
    * `invalid_argument`: the Quality named isn't on the Fulfiller's list, or the Fulfiller has no
-   * list, or none is enabled. `field` is `quality`. Params: `qualityId`.
+   * list, or none is enabled, or it isn't the Show's Quality, which its Season Requests all take.
+   * `field` is `quality`. Params: `qualityId`.
    *
    * @generated from enum value: REFUSAL_REASON_QUALITY_NOT_OFFERED = 56;
    */

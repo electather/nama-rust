@@ -5,7 +5,9 @@ import { afterEach, expect, test } from "vite-plus/test";
 import type { QualitySchema } from "@/gen/nama/v1/plugin_pb";
 import {
   type CreateRequestRequest,
+  type CreateSeasonRequestsRequest,
   FoundMovieSchema,
+  FoundShowSchema,
   RequestSchema,
   RequestService,
   RequestState,
@@ -104,6 +106,75 @@ test("a Movie's page shows its open Request's Quality, and joining it shows no p
 
   expect(await screen.findByText("4K")).toBeDefined();
   await clickRequest();
+
+  await waitFor(() => {
+    expect(asked.map(({ quality }) => quality)).toEqual([undefined]);
+  });
+  expect(screen.queryByRole("alertdialog")).toBeNull();
+});
+
+const dark = {
+  tmdbId: 70_523n,
+  title: "Dark",
+  seasons: [{ seasonNumber: 1 }, { seasonNumber: 2 }],
+};
+
+/**
+ * A fake Server for Dark's page, where `show` is as given, the Shows Fulfiller offers `qualities`,
+ * and each ask for its Seasons is put in `asked`.
+ */
+function showServer(
+  qualities: MessageInitShape<typeof QualitySchema>[],
+  asked: CreateSeasonRequestsRequest[],
+  show: MessageInitShape<typeof FoundShowSchema> = dark,
+) {
+  const found = create(FoundShowSchema, show);
+  return fakeServer({ signedIn: mayChoose }, {}, {}, (router) => {
+    router.service(RequestService, {
+      listRequests: () => ({}),
+      lookUpShow: () => ({ show: found }),
+      listShowQualities: () => ({ qualities }),
+      createSeasonRequests: (request) => {
+        asked.push(request);
+        return {};
+      },
+    });
+  });
+}
+
+/** Picks Season 2 of Dark and Requests it, once the Qualities are read. */
+async function requestSeason2() {
+  fireEvent.click(await screen.findByRole("checkbox", { name: "Season 2" }));
+  const button = screen.getByRole<HTMLButtonElement>("button", { name: "Request Seasons of Dark" });
+  await waitFor(() => {
+    expect(button.disabled).toBe(false);
+  });
+  fireEvent.click(button);
+}
+
+test("a User who may choose picks the Quality of a Show's first Seasons", async () => {
+  const asked: CreateSeasonRequestsRequest[] = [];
+  openApp("/shows/tmdb-70523", showServer([hd, fourK], asked));
+
+  await requestSeason2();
+  const dialog = await screen.findByRole("alertdialog", { name: "Request Seasons of Dark" });
+  fireEvent.click(within(dialog).getByRole("radio", { name: "4K" }));
+  fireEvent.click(within(dialog).getByRole("button", { name: "Request" }));
+
+  await waitFor(() => {
+    expect(asked.map(({ seasonNumbers, quality }) => [seasonNumbers, quality])).toEqual([
+      [[2], 2n],
+    ]);
+  });
+});
+
+test("a Show with a Quality shows it, and its later Seasons are Requested without a picker", async () => {
+  const asked: CreateSeasonRequestsRequest[] = [];
+  const withQuality = { ...dark, quality: { id: 2n, name: "4K", profileId: "5" } };
+  openApp("/shows/tmdb-70523", showServer([hd, fourK], asked, withQuality));
+
+  expect(await screen.findByText(/downloads at 4K/u)).toBeDefined();
+  await requestSeason2();
 
   await waitFor(() => {
     expect(asked.map(({ quality }) => quality)).toEqual([undefined]);
