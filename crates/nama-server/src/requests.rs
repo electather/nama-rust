@@ -9,12 +9,14 @@
 //! also what its events carry.
 
 use std::{
+    cmp::Reverse,
     collections::{BTreeSet, HashMap, HashSet, hash_map::Entry},
     iter,
     sync::{Arc, Mutex, MutexGuard, PoisonError},
     time::Duration,
 };
 
+use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use nama_plugin_api::{
     PluginId,
     fulfiller::{Download, Fulfilled, Fulfiller, Movies, Shows},
@@ -23,10 +25,12 @@ use nama_plugin_api::{
 use nama_proto::nama::v1::{
     Event, FollowedShow, FollowedShowCancelled, FollowedShowCreated, FollowedShowRequesterAdded,
     FollowedShowRequesterRemoved, FollowedShowStateChanged, FollowedShowWithdrawn, FoundSeason,
-    Permission, Quality, QualityChange, Request, RequestCancelled, RequestCreated, RequestProgress,
-    RequestState, RequestStateChanged, RequestWithdrawn, RequestedMovie, RequestedQuality,
-    RequestedSeason, Requester, RequesterAdded, RequesterRemoved, event::Event as Happened,
+    ListRequestsResponse, Permission, Quality, QualityChange, Request, RequestCancelled,
+    RequestCreated, RequestProgress, RequestState, RequestStateChanged, RequestWithdrawn,
+    RequestedMovie, RequestedQuality, RequestedSeason, Requester, RequesterAdded, RequesterRemoved,
+    event::Event as Happened,
 };
+use serde::{Deserialize, Serialize};
 use sqlx::{Sqlite, SqliteConnection, Transaction};
 use tokio::{sync::Notify, time::error::Elapsed};
 use tracing::{error, warn};
@@ -94,6 +98,9 @@ pub(crate) enum Error {
     QualityNotAllowed,
     #[error("the Movie Fulfiller doesn't offer the Quality {0}")]
     QualityNotOffered(i64),
+    /// The page token isn't one listing in the same state handed out.
+    #[error("the page token isn't one listing Requests in this state handed out")]
+    PageTokenInvalid,
     #[error("database error: {0}")]
     Database(#[from] sqlx::Error),
 }
@@ -989,27 +996,47 @@ impl Requests {
         Ok(())
     }
 
-    /// The Requests and Followed Shows `viewer` may see, each newest first: only those in `state`
-    /// if given, each matched on its own.
+    /// A page of at most `size` of the Requests and Followed Shows `viewer` may see, newest first:
+    /// only those in `state` if given, each matched on its own. `token` is the page before's
+    /// `next_page_token`, or empty for the first page.
     pub(crate) async fn list(
         &self,
         viewer: &User,
         state: Option<RequestState>,
-    ) -> Result<(Vec<Request>, Vec<FollowedShow>), sqlx::Error> {
+        size: usize,
+        token: &str,
+    ) -> Result<ListRequestsResponse, Error> {
+        let after = read_page_token(token, state)?;
         let mut conn = self.db.reader().acquire().await?;
-        let mut requests = load(&mut conn, None, visible_to(viewer)).await?;
-        let mut followed = load_followed(&mut conn, None, visible_to(viewer)).await?;
-        if let Some(state) = state {
-            // ponytail: filters after loading every row, as `load` already does; move it into the
-            // queries when the list is paged.
-            requests.retain(|request| request.state == state);
-            followed.retain(|followed| followed.state == state);
-        }
-        let requests = requests
+        // ponytail: reads every row `viewer` may see to list one page; page in the queries once a
+        // Server's Requests number in the thousands.
+        let requests = load(&mut conn, None, visible_to(viewer)).await?;
+        let followed = load_followed(&mut conn, None, visible_to(viewer)).await?;
+        let mut rows: Vec<Listed> = requests
             .into_iter()
-            .map(|request| self.with_progress(request))
+            .map(Listed::Request)
+            .chain(followed.into_iter().map(Listed::Followed))
+            .filter(|row| state.is_none_or(|state| row.state() == state))
+            .filter(|row| after.is_none_or(|after| row.place() < after))
             .collect();
-        Ok((requests, followed))
+        rows.sort_unstable_by_key(|row| Reverse(row.place()));
+        let more = rows.len() > size;
+        rows.truncate(size);
+        let next_page_token = match rows.last() {
+            Some(last) if more => page_token(state, last.place()),
+            _ => String::new(),
+        };
+        let mut page = ListRequestsResponse {
+            next_page_token,
+            ..Default::default()
+        };
+        for row in rows {
+            match row {
+                Listed::Request(request) => page.requests.push(self.with_progress(request)),
+                Listed::Followed(show) => page.followed_shows.push(show),
+            }
+        }
+        Ok(page)
     }
 
     /// How many of the Requests and Followed Shows `viewer` may see are Pending, as many as
@@ -1183,6 +1210,73 @@ impl Requests {
 }
 
 /// `err` from looking a title up, which is `missing` if the metadata source doesn't have it.
+/// A row of [`Requests::list`].
+#[expect(
+    clippy::large_enum_variant,
+    reason = "most rows are Requests, so boxing them would save nothing"
+)]
+enum Listed {
+    Request(Request),
+    Followed(FollowedShow),
+}
+
+impl Listed {
+    fn state(&self) -> RequestState {
+        match self {
+            Self::Request(request) => request.state,
+            Self::Followed(followed) => followed.state,
+        }
+        .as_known()
+        .unwrap_or_default()
+    }
+
+    fn place(&self) -> Place {
+        match self {
+            Self::Request(request) => Place {
+                created_at: request.created_at,
+                is_request: true,
+                id: request.id,
+            },
+            Self::Followed(followed) => Place {
+                created_at: followed.created_at,
+                is_request: false,
+                id: followed.id,
+            },
+        }
+    }
+}
+
+/// Where a row sits in [`Requests::list`]'s order, newer sorting greater. A Request sorts as
+/// newer than a Followed Show opened in the same second, so it lists first.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+struct Place {
+    created_at: i64,
+    is_request: bool,
+    id: i64,
+}
+
+/// The token for the page after the one ending at `last`, tied to the filter `state`. Encoded so
+/// clients treat it as opaque and don't build their own.
+#[expect(
+    clippy::expect_used,
+    reason = "a string and plain numbers always serialize to JSON"
+)]
+fn page_token(state: Option<RequestState>, last: Place) -> String {
+    URL_SAFE_NO_PAD.encode(serde_json::to_vec(&(state.map(stored), last)).expect("serializes"))
+}
+
+/// Where the page `token` continues from, or `None` for the first page.
+fn read_page_token(token: &str, state: Option<RequestState>) -> Result<Option<Place>, Error> {
+    if token.is_empty() {
+        return Ok(None);
+    }
+    let json = URL_SAFE_NO_PAD.decode(token).unwrap_or_default();
+    match serde_json::from_slice::<(Option<String>, Place)>(&json) {
+        Ok((filter, last)) if filter.as_deref() == state.map(stored) => Ok(Some(last)),
+        _ => Err(Error::PageTokenInvalid),
+    }
+}
+
 fn looking_up(err: ManualError, missing: Error) -> Error {
     match err {
         // A look-up names no item, so its only refusal is the title's.

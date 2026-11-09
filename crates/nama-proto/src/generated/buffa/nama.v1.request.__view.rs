@@ -4585,6 +4585,17 @@ pub struct ListRequestsRequestView<'a> {
     ///
     /// Field 1: `state`
     pub state: ::buffa::EnumValue<super::super::RequestState>,
+    /// How many Requests and Followed Shows, together, to list at most. 0 lists 50, and more than 100
+    /// lists 100.
+    ///
+    /// Field 2: `page_size`
+    pub page_size: u32,
+    /// The `next_page_token` of the page before, to list the page after it, or empty for the first.
+    /// Pages follow the newest-first order as it was, so Requests opened while paging don't shift
+    /// later pages.
+    ///
+    /// Field 3: `page_token`
+    pub page_token: &'a str,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for ListRequestsRequestView<'a> {
@@ -4626,6 +4637,20 @@ impl<'a> ::buffa::MessageView<'a> for ListRequestsRequestView<'a> {
                     ::buffa::types::decode_int32(&mut cur)?,
                 );
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.page_size = ::buffa::types::decode_uint32(&mut cur)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.page_token = ::buffa::types::borrow_str(&mut cur)?;
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -4655,6 +4680,8 @@ impl<'a> ::buffa::MessageView<'a> for ListRequestsRequestView<'a> {
         let _ = __buffa_src;
         ::core::result::Result::Ok(super::super::ListRequestsRequest {
             state: self.state,
+            page_size: self.page_size,
+            page_token: self.page_token.to_string(),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -4672,6 +4699,12 @@ impl<'a> ::buffa::ViewEncode<'a> for ListRequestsRequestView<'a> {
                 size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
             }
         }
+        if self.page_size != 0u32 {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(self.page_size) as u64;
+        }
+        if !self.page_token.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.page_token) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -4688,6 +4721,12 @@ impl<'a> ::buffa::ViewEncode<'a> for ListRequestsRequestView<'a> {
             if val != 0 {
                 ::buffa::types::put_int32_field(1u32, val, buf);
             }
+        }
+        if self.page_size != 0u32 {
+            ::buffa::types::put_uint32_field(2u32, self.page_size, buf);
+        }
+        if !self.page_token.is_empty() {
+            ::buffa::types::put_string_field(3u32, &self.page_token, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -4712,6 +4751,16 @@ impl<'__a> ::serde::Serialize for ListRequestsRequestView<'__a> {
         let mut __map = __s.serialize_map(::core::option::Option::None)?;
         if !::buffa::json_helpers::skip_if::is_default_enum_value(&self.state) {
             __map.serialize_entry("state", &self.state)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_zero_u32(&self.page_size) {
+            __map
+                .serialize_entry(
+                    "pageSize",
+                    &::buffa::json_helpers::ProtoJson(&self.page_size),
+                )?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.page_token) {
+            __map.serialize_entry("pageToken", self.page_token)?;
         }
         __map.end()
     }
@@ -4814,6 +4863,23 @@ impl ListRequestsRequestOwnedView {
     #[must_use]
     pub fn state(&self) -> ::buffa::EnumValue<super::super::RequestState> {
         self.0.reborrow().state
+    }
+    /// How many Requests and Followed Shows, together, to list at most. 0 lists 50, and more than 100
+    /// lists 100.
+    ///
+    /// Field 2: `page_size`
+    #[must_use]
+    pub fn page_size(&self) -> u32 {
+        self.0.reborrow().page_size
+    }
+    /// The `next_page_token` of the page before, to list the page after it, or empty for the first.
+    /// Pages follow the newest-first order as it was, so Requests opened while paging don't shift
+    /// later pages.
+    ///
+    /// Field 3: `page_token`
+    #[must_use]
+    pub fn page_token(&self) -> &'_ str {
+        self.0.reborrow().page_token
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<ListRequestsRequestView<'static>>>
@@ -5468,18 +5534,25 @@ impl ::serde::Serialize for CreateFollowedShowResponseOwnedView {
 }
 #[derive(Clone, Debug, Default)]
 pub struct ListRequestsResponseView<'a> {
+    /// The page's Requests, newest first. With `followed_shows`, one page of a single newest-first
+    /// list: by `created_at`, a Request before a Followed Show opened in the same second.
+    ///
     /// Field 1: `requests`
     pub requests: ::buffa::RepeatedView<
         'a,
         super::super::__buffa::view::RequestView<'a>,
     >,
-    /// The Followed Shows the caller may see, newest first.
+    /// The page's Followed Shows, newest first.
     ///
     /// Field 2: `followed_shows`
     pub followed_shows: ::buffa::RepeatedView<
         'a,
         super::super::__buffa::view::FollowedShowView<'a>,
     >,
+    /// The `page_token` that lists the next page, or empty if this is the last.
+    ///
+    /// Field 3: `next_page_token`
+    pub next_page_token: &'a str,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for ListRequestsResponseView<'a> {
@@ -5512,6 +5585,13 @@ impl<'a> ::buffa::MessageView<'a> for ListRequestsResponseView<'a> {
         let view = self;
         let mut cur = cur;
         match tag.field_number() {
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.next_page_token = ::buffa::types::borrow_str(&mut cur)?;
+            }
             1u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -5588,6 +5668,7 @@ impl<'a> ::buffa::MessageView<'a> for ListRequestsResponseView<'a> {
                 .iter()
                 .map(|v| v.to_owned_from_source(__buffa_src))
                 .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
+            next_page_token: self.next_page_token.to_string(),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -5614,6 +5695,11 @@ impl<'a> ::buffa::ViewEncode<'a> for ListRequestsResponseView<'a> {
             size
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
+        }
+        if !self.next_page_token.is_empty() {
+            size
+                += 1u64
+                    + ::buffa::types::string_encoded_len(&self.next_page_token) as u64;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
@@ -5642,6 +5728,9 @@ impl<'a> ::buffa::ViewEncode<'a> for ListRequestsResponseView<'a> {
             );
             v.write_to(__cache, buf);
         }
+        if !self.next_page_token.is_empty() {
+            ::buffa::types::put_string_field(3u32, &self.next_page_token, buf);
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
 }
@@ -5668,6 +5757,9 @@ impl<'__a> ::serde::Serialize for ListRequestsResponseView<'__a> {
         }
         if !self.followed_shows.is_empty() {
             __map.serialize_entry("followedShows", &*self.followed_shows)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.next_page_token) {
+            __map.serialize_entry("nextPageToken", self.next_page_token)?;
         }
         __map.end()
     }
@@ -5764,6 +5856,9 @@ impl ListRequestsResponseOwnedView {
     pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
         self.0.into_bytes()
     }
+    /// The page's Requests, newest first. With `followed_shows`, one page of a single newest-first
+    /// list: by `created_at`, a Request before a Followed Show opened in the same second.
+    ///
     /// Field 1: `requests`
     #[must_use]
     pub fn requests(
@@ -5771,7 +5866,7 @@ impl ListRequestsResponseOwnedView {
     ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::RequestView<'_>> {
         &self.0.reborrow().requests
     }
-    /// The Followed Shows the caller may see, newest first.
+    /// The page's Followed Shows, newest first.
     ///
     /// Field 2: `followed_shows`
     #[must_use]
@@ -5779,6 +5874,13 @@ impl ListRequestsResponseOwnedView {
         &self,
     ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::FollowedShowView<'_>> {
         &self.0.reborrow().followed_shows
+    }
+    /// The `page_token` that lists the next page, or empty if this is the last.
+    ///
+    /// Field 3: `next_page_token`
+    #[must_use]
+    pub fn next_page_token(&self) -> &'_ str {
+        self.0.reborrow().next_page_token
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<ListRequestsResponseView<'static>>>

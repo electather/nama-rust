@@ -51,11 +51,11 @@ use nama_proto::nama::v1::{
     DeclineFollowedShowRequest, DeclineRequestRequest, EnablePluginRequest, EventServiceClient,
     EventType, FollowedShow, FoundMovie, FoundShow, GetRequestRequest, LibraryKind,
     LibraryServiceClient, ListMoviesRequest, ListPluginsRequest, ListRequestsRequest,
-    ListShowsRequest, LookUpMovieRequest, LookUpShowRequest, Permission, PluginServiceClient,
-    RefusalReason, Request, RequestServiceClient, RequestState, RetryRequestRequest,
-    ScanLibraryRequest, SearchMoviesRequest, SearchShowsRequest, SessionDelivery,
-    SetPermissionsRequest, SignInRequest, SignInServiceClient, SubscribeRequest, SubscribeResponse,
-    UpdatePluginSettingsRequest, UserServiceClient, WithdrawFollowedShowRequest,
+    ListRequestsResponse, ListShowsRequest, LookUpMovieRequest, LookUpShowRequest, Permission,
+    PluginServiceClient, RefusalReason, Request, RequestServiceClient, RequestState,
+    RetryRequestRequest, ScanLibraryRequest, SearchMoviesRequest, SearchShowsRequest,
+    SessionDelivery, SetPermissionsRequest, SignInRequest, SignInServiceClient, SubscribeRequest,
+    SubscribeResponse, UpdatePluginSettingsRequest, UserServiceClient, WithdrawFollowedShowRequest,
     WithdrawRequestRequest, event, setting_value, subscribe_response,
 };
 use nama_server::{
@@ -707,6 +707,78 @@ async fn list_in(
         .unwrap()
         .into_owned();
     (listed.requests, listed.followed_shows)
+}
+
+/// The page of at most `size` Requests and Followed Shows in `state` after the one that returned
+/// `token`, or the first for an empty one.
+async fn page(
+    client: &RequestServiceClient<HttpClient>,
+    state: RequestState,
+    size: u32,
+    token: &str,
+) -> Result<ListRequestsResponse, ConnectError> {
+    let listing = ListRequestsRequest {
+        state: state.into(),
+        page_size: size,
+        page_token: token.to_owned(),
+        ..Default::default()
+    };
+    Ok(client.list_requests(listing).await?.into_owned())
+}
+
+#[tokio::test]
+async fn pages_list_every_request_and_followed_show_once_in_order_even_with_one_opened_between_them()
+ {
+    let fixture = Fixture::start().await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let ada = requests(as_ada);
+    let (followed, _) = follow(&ada, DARK).await;
+    ask(&ada, HEAT).await;
+    ask(&ada, DUNE).await;
+    let (all, _) = list_in(&ada, RequestState::Unspecified).await;
+
+    let first = page(&ada, RequestState::Unspecified, 4, "").await.unwrap();
+    ask(&ada, ALIEN).await;
+    let second = page(&ada, RequestState::Unspecified, 4, &first.next_page_token)
+        .await
+        .unwrap();
+
+    assert_eq!(all.len(), 5, "Dune, Heat and Dark's three Seasons");
+    assert_eq!(first.requests, all[..4]);
+    assert_eq!(first.followed_shows, []);
+    assert_eq!(
+        second.requests,
+        all[4..],
+        "no Alien, which opened after the first page"
+    );
+    assert_eq!(
+        second.followed_shows,
+        [followed],
+        "after its Season Requests opened in the same second"
+    );
+    assert_eq!(second.next_page_token, "", "the last page");
+}
+
+#[tokio::test]
+async fn a_page_token_used_with_another_state_or_made_up_is_refused() {
+    let fixture = Fixture::start().await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let ada = requests(as_ada);
+    ask(&ada, HEAT).await;
+    ask(&ada, DUNE).await;
+    let pending = page(&ada, RequestState::Pending, 1, "").await.unwrap();
+
+    let all = page(&ada, RequestState::Unspecified, 1, &pending.next_page_token).await;
+    let made_up = page(&ada, RequestState::Pending, 1, "made up").await;
+
+    for refused in [all, made_up] {
+        let refusal = assert_refused(
+            refused,
+            ErrorCode::InvalidArgument,
+            RefusalReason::REFUSAL_REASON_PAGE_TOKEN_INVALID,
+        );
+        assert_eq!(refusal.field, "page_token");
+    }
 }
 
 #[tokio::test]
