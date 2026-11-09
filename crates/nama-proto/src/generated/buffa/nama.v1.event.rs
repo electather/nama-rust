@@ -20,6 +20,12 @@ pub enum EventType {
     EVENT_TYPE_REQUESTER_REMOVED = 11i32,
     EVENT_TYPE_REQUEST_WITHDRAWN = 12i32,
     EVENT_TYPE_REQUEST_PROGRESS = 13i32,
+    EVENT_TYPE_FOLLOWED_SHOW_CREATED = 14i32,
+    EVENT_TYPE_FOLLOWED_SHOW_REQUESTER_ADDED = 15i32,
+    EVENT_TYPE_FOLLOWED_SHOW_STATE_CHANGED = 16i32,
+    EVENT_TYPE_FOLLOWED_SHOW_CANCELLED = 17i32,
+    EVENT_TYPE_FOLLOWED_SHOW_REQUESTER_REMOVED = 18i32,
+    EVENT_TYPE_FOLLOWED_SHOW_WITHDRAWN = 19i32,
 }
 impl EventType {
     ///Idiomatic alias for [`Self::EVENT_TYPE_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -64,6 +70,24 @@ impl EventType {
     ///Idiomatic alias for [`Self::EVENT_TYPE_REQUEST_PROGRESS`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const RequestProgress: Self = Self::EVENT_TYPE_REQUEST_PROGRESS;
+    ///Idiomatic alias for [`Self::EVENT_TYPE_FOLLOWED_SHOW_CREATED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const FollowedShowCreated: Self = Self::EVENT_TYPE_FOLLOWED_SHOW_CREATED;
+    ///Idiomatic alias for [`Self::EVENT_TYPE_FOLLOWED_SHOW_REQUESTER_ADDED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const FollowedShowRequesterAdded: Self = Self::EVENT_TYPE_FOLLOWED_SHOW_REQUESTER_ADDED;
+    ///Idiomatic alias for [`Self::EVENT_TYPE_FOLLOWED_SHOW_STATE_CHANGED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const FollowedShowStateChanged: Self = Self::EVENT_TYPE_FOLLOWED_SHOW_STATE_CHANGED;
+    ///Idiomatic alias for [`Self::EVENT_TYPE_FOLLOWED_SHOW_CANCELLED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const FollowedShowCancelled: Self = Self::EVENT_TYPE_FOLLOWED_SHOW_CANCELLED;
+    ///Idiomatic alias for [`Self::EVENT_TYPE_FOLLOWED_SHOW_REQUESTER_REMOVED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const FollowedShowRequesterRemoved: Self = Self::EVENT_TYPE_FOLLOWED_SHOW_REQUESTER_REMOVED;
+    ///Idiomatic alias for [`Self::EVENT_TYPE_FOLLOWED_SHOW_WITHDRAWN`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const FollowedShowWithdrawn: Self = Self::EVENT_TYPE_FOLLOWED_SHOW_WITHDRAWN;
 }
 impl ::core::default::Default for EventType {
     fn default() -> Self {
@@ -173,6 +197,28 @@ impl ::buffa::Enumeration for EventType {
             11i32 => ::core::option::Option::Some(Self::EVENT_TYPE_REQUESTER_REMOVED),
             12i32 => ::core::option::Option::Some(Self::EVENT_TYPE_REQUEST_WITHDRAWN),
             13i32 => ::core::option::Option::Some(Self::EVENT_TYPE_REQUEST_PROGRESS),
+            14i32 => ::core::option::Option::Some(Self::EVENT_TYPE_FOLLOWED_SHOW_CREATED),
+            15i32 => {
+                ::core::option::Option::Some(
+                    Self::EVENT_TYPE_FOLLOWED_SHOW_REQUESTER_ADDED,
+                )
+            }
+            16i32 => {
+                ::core::option::Option::Some(
+                    Self::EVENT_TYPE_FOLLOWED_SHOW_STATE_CHANGED,
+                )
+            }
+            17i32 => {
+                ::core::option::Option::Some(Self::EVENT_TYPE_FOLLOWED_SHOW_CANCELLED)
+            }
+            18i32 => {
+                ::core::option::Option::Some(
+                    Self::EVENT_TYPE_FOLLOWED_SHOW_REQUESTER_REMOVED,
+                )
+            }
+            19i32 => {
+                ::core::option::Option::Some(Self::EVENT_TYPE_FOLLOWED_SHOW_WITHDRAWN)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -195,6 +241,22 @@ impl ::buffa::Enumeration for EventType {
             Self::EVENT_TYPE_REQUESTER_REMOVED => "EVENT_TYPE_REQUESTER_REMOVED",
             Self::EVENT_TYPE_REQUEST_WITHDRAWN => "EVENT_TYPE_REQUEST_WITHDRAWN",
             Self::EVENT_TYPE_REQUEST_PROGRESS => "EVENT_TYPE_REQUEST_PROGRESS",
+            Self::EVENT_TYPE_FOLLOWED_SHOW_CREATED => "EVENT_TYPE_FOLLOWED_SHOW_CREATED",
+            Self::EVENT_TYPE_FOLLOWED_SHOW_REQUESTER_ADDED => {
+                "EVENT_TYPE_FOLLOWED_SHOW_REQUESTER_ADDED"
+            }
+            Self::EVENT_TYPE_FOLLOWED_SHOW_STATE_CHANGED => {
+                "EVENT_TYPE_FOLLOWED_SHOW_STATE_CHANGED"
+            }
+            Self::EVENT_TYPE_FOLLOWED_SHOW_CANCELLED => {
+                "EVENT_TYPE_FOLLOWED_SHOW_CANCELLED"
+            }
+            Self::EVENT_TYPE_FOLLOWED_SHOW_REQUESTER_REMOVED => {
+                "EVENT_TYPE_FOLLOWED_SHOW_REQUESTER_REMOVED"
+            }
+            Self::EVENT_TYPE_FOLLOWED_SHOW_WITHDRAWN => {
+                "EVENT_TYPE_FOLLOWED_SHOW_WITHDRAWN"
+            }
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -241,6 +303,30 @@ impl ::buffa::Enumeration for EventType {
             "EVENT_TYPE_REQUEST_PROGRESS" => {
                 ::core::option::Option::Some(Self::EVENT_TYPE_REQUEST_PROGRESS)
             }
+            "EVENT_TYPE_FOLLOWED_SHOW_CREATED" => {
+                ::core::option::Option::Some(Self::EVENT_TYPE_FOLLOWED_SHOW_CREATED)
+            }
+            "EVENT_TYPE_FOLLOWED_SHOW_REQUESTER_ADDED" => {
+                ::core::option::Option::Some(
+                    Self::EVENT_TYPE_FOLLOWED_SHOW_REQUESTER_ADDED,
+                )
+            }
+            "EVENT_TYPE_FOLLOWED_SHOW_STATE_CHANGED" => {
+                ::core::option::Option::Some(
+                    Self::EVENT_TYPE_FOLLOWED_SHOW_STATE_CHANGED,
+                )
+            }
+            "EVENT_TYPE_FOLLOWED_SHOW_CANCELLED" => {
+                ::core::option::Option::Some(Self::EVENT_TYPE_FOLLOWED_SHOW_CANCELLED)
+            }
+            "EVENT_TYPE_FOLLOWED_SHOW_REQUESTER_REMOVED" => {
+                ::core::option::Option::Some(
+                    Self::EVENT_TYPE_FOLLOWED_SHOW_REQUESTER_REMOVED,
+                )
+            }
+            "EVENT_TYPE_FOLLOWED_SHOW_WITHDRAWN" => {
+                ::core::option::Option::Some(Self::EVENT_TYPE_FOLLOWED_SHOW_WITHDRAWN)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -260,6 +346,12 @@ impl ::buffa::Enumeration for EventType {
             Self::EVENT_TYPE_REQUESTER_REMOVED,
             Self::EVENT_TYPE_REQUEST_WITHDRAWN,
             Self::EVENT_TYPE_REQUEST_PROGRESS,
+            Self::EVENT_TYPE_FOLLOWED_SHOW_CREATED,
+            Self::EVENT_TYPE_FOLLOWED_SHOW_REQUESTER_ADDED,
+            Self::EVENT_TYPE_FOLLOWED_SHOW_STATE_CHANGED,
+            Self::EVENT_TYPE_FOLLOWED_SHOW_CANCELLED,
+            Self::EVENT_TYPE_FOLLOWED_SHOW_REQUESTER_REMOVED,
+            Self::EVENT_TYPE_FOLLOWED_SHOW_WITHDRAWN,
         ]
     }
 }
@@ -1061,6 +1153,54 @@ impl ::buffa::Message for Event {
                         += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
                             + inner as u64;
                 }
+                __buffa::oneof::event::Event::FollowedShowCreated(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+                __buffa::oneof::event::Event::FollowedShowRequesterAdded(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+                __buffa::oneof::event::Event::FollowedShowStateChanged(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 2u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+                __buffa::oneof::event::Event::FollowedShowCancelled(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 2u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+                __buffa::oneof::event::Event::FollowedShowRequesterRemoved(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 2u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+                __buffa::oneof::event::Event::FollowedShowWithdrawn(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 2u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
             }
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
@@ -1174,6 +1314,54 @@ impl ::buffa::Message for Event {
                 __buffa::oneof::event::Event::RequestProgress(x) => {
                     ::buffa::types::put_len_delimited_header(
                         13u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                __buffa::oneof::event::Event::FollowedShowCreated(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        14u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                __buffa::oneof::event::Event::FollowedShowRequesterAdded(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        15u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                __buffa::oneof::event::Event::FollowedShowStateChanged(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        16u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                __buffa::oneof::event::Event::FollowedShowCancelled(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        17u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                __buffa::oneof::event::Event::FollowedShowRequesterRemoved(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        18u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                __buffa::oneof::event::Event::FollowedShowWithdrawn(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        19u32,
                         u64::from(__cache.consume_next()),
                         buf,
                     );
@@ -1449,6 +1637,132 @@ impl ::buffa::Message for Event {
                     ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
                     self.event = ::core::option::Option::Some(
                         __buffa::oneof::event::Event::RequestProgress(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
+            }
+            14u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::event::Event::FollowedShowCreated(ref mut existing),
+                ) = self.event
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.event = ::core::option::Option::Some(
+                        __buffa::oneof::event::Event::FollowedShowCreated(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
+            }
+            15u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::event::Event::FollowedShowRequesterAdded(
+                        ref mut existing,
+                    ),
+                ) = self.event
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.event = ::core::option::Option::Some(
+                        __buffa::oneof::event::Event::FollowedShowRequesterAdded(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
+            }
+            16u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::event::Event::FollowedShowStateChanged(
+                        ref mut existing,
+                    ),
+                ) = self.event
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.event = ::core::option::Option::Some(
+                        __buffa::oneof::event::Event::FollowedShowStateChanged(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
+            }
+            17u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::event::Event::FollowedShowCancelled(ref mut existing),
+                ) = self.event
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.event = ::core::option::Option::Some(
+                        __buffa::oneof::event::Event::FollowedShowCancelled(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
+            }
+            18u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::event::Event::FollowedShowRequesterRemoved(
+                        ref mut existing,
+                    ),
+                ) = self.event
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.event = ::core::option::Option::Some(
+                        __buffa::oneof::event::Event::FollowedShowRequesterRemoved(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
+            }
+            19u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::event::Event::FollowedShowWithdrawn(ref mut existing),
+                ) = self.event
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.event = ::core::option::Option::Some(
+                        __buffa::oneof::event::Event::FollowedShowWithdrawn(
                             ::buffa::alloc::boxed::Box::new(val),
                         ),
                     );
@@ -1805,6 +2119,154 @@ impl<'de> ::serde::Deserialize<'de> for Event {
                                 }
                                 __oneof_event = Some(
                                     __buffa::oneof::event::Event::RequestProgress(
+                                        ::buffa::alloc::boxed::Box::new(v),
+                                    ),
+                                );
+                            }
+                        }
+                        "followedShowCreated" | "followed_show_created" => {
+                            let v: ::core::option::Option<FollowedShowCreated> = map
+                                .next_value_seed(
+                                    ::buffa::json_helpers::NullableDeserializeSeed(
+                                        ::buffa::json_helpers::DefaultDeserializeSeed::<
+                                            FollowedShowCreated,
+                                        >::new(),
+                                    ),
+                                )?;
+                            if let Some(v) = v {
+                                if __oneof_event.is_some() {
+                                    return Err(
+                                        ::serde::de::Error::custom(
+                                            "multiple oneof fields set for 'event'",
+                                        ),
+                                    );
+                                }
+                                __oneof_event = Some(
+                                    __buffa::oneof::event::Event::FollowedShowCreated(
+                                        ::buffa::alloc::boxed::Box::new(v),
+                                    ),
+                                );
+                            }
+                        }
+                        "followedShowRequesterAdded"
+                        | "followed_show_requester_added" => {
+                            let v: ::core::option::Option<FollowedShowRequesterAdded> = map
+                                .next_value_seed(
+                                    ::buffa::json_helpers::NullableDeserializeSeed(
+                                        ::buffa::json_helpers::DefaultDeserializeSeed::<
+                                            FollowedShowRequesterAdded,
+                                        >::new(),
+                                    ),
+                                )?;
+                            if let Some(v) = v {
+                                if __oneof_event.is_some() {
+                                    return Err(
+                                        ::serde::de::Error::custom(
+                                            "multiple oneof fields set for 'event'",
+                                        ),
+                                    );
+                                }
+                                __oneof_event = Some(
+                                    __buffa::oneof::event::Event::FollowedShowRequesterAdded(
+                                        ::buffa::alloc::boxed::Box::new(v),
+                                    ),
+                                );
+                            }
+                        }
+                        "followedShowStateChanged" | "followed_show_state_changed" => {
+                            let v: ::core::option::Option<FollowedShowStateChanged> = map
+                                .next_value_seed(
+                                    ::buffa::json_helpers::NullableDeserializeSeed(
+                                        ::buffa::json_helpers::DefaultDeserializeSeed::<
+                                            FollowedShowStateChanged,
+                                        >::new(),
+                                    ),
+                                )?;
+                            if let Some(v) = v {
+                                if __oneof_event.is_some() {
+                                    return Err(
+                                        ::serde::de::Error::custom(
+                                            "multiple oneof fields set for 'event'",
+                                        ),
+                                    );
+                                }
+                                __oneof_event = Some(
+                                    __buffa::oneof::event::Event::FollowedShowStateChanged(
+                                        ::buffa::alloc::boxed::Box::new(v),
+                                    ),
+                                );
+                            }
+                        }
+                        "followedShowCancelled" | "followed_show_cancelled" => {
+                            let v: ::core::option::Option<FollowedShowCancelled> = map
+                                .next_value_seed(
+                                    ::buffa::json_helpers::NullableDeserializeSeed(
+                                        ::buffa::json_helpers::DefaultDeserializeSeed::<
+                                            FollowedShowCancelled,
+                                        >::new(),
+                                    ),
+                                )?;
+                            if let Some(v) = v {
+                                if __oneof_event.is_some() {
+                                    return Err(
+                                        ::serde::de::Error::custom(
+                                            "multiple oneof fields set for 'event'",
+                                        ),
+                                    );
+                                }
+                                __oneof_event = Some(
+                                    __buffa::oneof::event::Event::FollowedShowCancelled(
+                                        ::buffa::alloc::boxed::Box::new(v),
+                                    ),
+                                );
+                            }
+                        }
+                        "followedShowRequesterRemoved"
+                        | "followed_show_requester_removed" => {
+                            let v: ::core::option::Option<
+                                FollowedShowRequesterRemoved,
+                            > = map
+                                .next_value_seed(
+                                    ::buffa::json_helpers::NullableDeserializeSeed(
+                                        ::buffa::json_helpers::DefaultDeserializeSeed::<
+                                            FollowedShowRequesterRemoved,
+                                        >::new(),
+                                    ),
+                                )?;
+                            if let Some(v) = v {
+                                if __oneof_event.is_some() {
+                                    return Err(
+                                        ::serde::de::Error::custom(
+                                            "multiple oneof fields set for 'event'",
+                                        ),
+                                    );
+                                }
+                                __oneof_event = Some(
+                                    __buffa::oneof::event::Event::FollowedShowRequesterRemoved(
+                                        ::buffa::alloc::boxed::Box::new(v),
+                                    ),
+                                );
+                            }
+                        }
+                        "followedShowWithdrawn" | "followed_show_withdrawn" => {
+                            let v: ::core::option::Option<FollowedShowWithdrawn> = map
+                                .next_value_seed(
+                                    ::buffa::json_helpers::NullableDeserializeSeed(
+                                        ::buffa::json_helpers::DefaultDeserializeSeed::<
+                                            FollowedShowWithdrawn,
+                                        >::new(),
+                                    ),
+                                )?;
+                            if let Some(v) = v {
+                                if __oneof_event.is_some() {
+                                    return Err(
+                                        ::serde::de::Error::custom(
+                                            "multiple oneof fields set for 'event'",
+                                        ),
+                                    );
+                                }
+                                __oneof_event = Some(
+                                    __buffa::oneof::event::Event::FollowedShowWithdrawn(
                                         ::buffa::alloc::boxed::Box::new(v),
                                     ),
                                 );
@@ -3915,5 +4377,931 @@ pub const __REQUEST_PROGRESS_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::
     type_url: "type.googleapis.com/nama.v1.RequestProgress",
     to_json: ::buffa::type_registry::any_to_json::<RequestProgress>,
     from_json: ::buffa::type_registry::any_from_json::<RequestProgress>,
+    is_wkt: false,
+};
+/// A User asked for a whole Show that had no open Followed Show, which opened this one. Followed
+/// Show events reach whom Request events reach: its Requesters, and subscribers with
+/// `PERMISSION_VIEW_REQUESTS`.
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct FollowedShowCreated {
+    /// Field 1: `followed_show`
+    #[serde(
+        rename = "followedShow",
+        alias = "followed_show",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
+    )]
+    pub followed_show: ::buffa::MessageField<
+        FollowedShow,
+        ::buffa::Inline<FollowedShow>,
+    >,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for FollowedShowCreated {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("FollowedShowCreated")
+            .field("followed_show", &self.followed_show)
+            .finish()
+    }
+}
+impl FollowedShowCreated {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.FollowedShowCreated";
+}
+::buffa::impl_default_instance!(FollowedShowCreated);
+impl ::buffa::MessageName for FollowedShowCreated {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "FollowedShowCreated";
+    const FULL_NAME: &'static str = "nama.v1.FollowedShowCreated";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.FollowedShowCreated";
+}
+impl ::buffa::Message for FollowedShowCreated {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.followed_show.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.followed_show.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.followed_show.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.followed_show.write_to(__cache, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.followed_show.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.followed_show = ::buffa::MessageField::none();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for FollowedShowCreated {
+    const PROTO_FQN: &'static str = "nama.v1.FollowedShowCreated";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for FollowedShowCreated {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __FOLLOWED_SHOW_CREATED_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.v1.FollowedShowCreated",
+    to_json: ::buffa::type_registry::any_to_json::<FollowedShowCreated>,
+    from_json: ::buffa::type_registry::any_from_json::<FollowedShowCreated>,
+    is_wkt: false,
+};
+/// A User joined a Followed Show as a Requester.
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct FollowedShowRequesterAdded {
+    /// The Followed Show as it is now, with them among its Requesters.
+    ///
+    /// Field 1: `followed_show`
+    #[serde(
+        rename = "followedShow",
+        alias = "followed_show",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
+    )]
+    pub followed_show: ::buffa::MessageField<
+        FollowedShow,
+        ::buffa::Inline<FollowedShow>,
+    >,
+    /// The User who joined.
+    ///
+    /// Field 2: `user_id`
+    #[serde(
+        rename = "userId",
+        alias = "user_id",
+        with = "::buffa::json_helpers::int64",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i64"
+    )]
+    pub user_id: i64,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for FollowedShowRequesterAdded {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("FollowedShowRequesterAdded")
+            .field("followed_show", &self.followed_show)
+            .field("user_id", &self.user_id)
+            .finish()
+    }
+}
+impl FollowedShowRequesterAdded {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.FollowedShowRequesterAdded";
+}
+::buffa::impl_default_instance!(FollowedShowRequesterAdded);
+impl ::buffa::MessageName for FollowedShowRequesterAdded {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "FollowedShowRequesterAdded";
+    const FULL_NAME: &'static str = "nama.v1.FollowedShowRequesterAdded";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.FollowedShowRequesterAdded";
+}
+impl ::buffa::Message for FollowedShowRequesterAdded {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.followed_show.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.followed_show.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        if self.user_id != 0i64 {
+            size += 1u64 + ::buffa::types::int64_encoded_len(self.user_id) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.followed_show.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.followed_show.write_to(__cache, buf);
+        }
+        if self.user_id != 0i64 {
+            ::buffa::types::put_int64_field(2u32, self.user_id, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.followed_show.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.user_id = ::buffa::types::decode_int64(buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.followed_show = ::buffa::MessageField::none();
+        self.user_id = 0i64;
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for FollowedShowRequesterAdded {
+    const PROTO_FQN: &'static str = "nama.v1.FollowedShowRequesterAdded";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for FollowedShowRequesterAdded {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __FOLLOWED_SHOW_REQUESTER_ADDED_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.v1.FollowedShowRequesterAdded",
+    to_json: ::buffa::type_registry::any_to_json::<FollowedShowRequesterAdded>,
+    from_json: ::buffa::type_registry::any_from_json::<FollowedShowRequesterAdded>,
+    is_wkt: false,
+};
+/// A Followed Show was approved or declined.
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct FollowedShowStateChanged {
+    /// The Followed Show as it is now, in its new state.
+    ///
+    /// Field 1: `followed_show`
+    #[serde(
+        rename = "followedShow",
+        alias = "followed_show",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
+    )]
+    pub followed_show: ::buffa::MessageField<
+        FollowedShow,
+        ::buffa::Inline<FollowedShow>,
+    >,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for FollowedShowStateChanged {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("FollowedShowStateChanged")
+            .field("followed_show", &self.followed_show)
+            .finish()
+    }
+}
+impl FollowedShowStateChanged {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.FollowedShowStateChanged";
+}
+::buffa::impl_default_instance!(FollowedShowStateChanged);
+impl ::buffa::MessageName for FollowedShowStateChanged {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "FollowedShowStateChanged";
+    const FULL_NAME: &'static str = "nama.v1.FollowedShowStateChanged";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.FollowedShowStateChanged";
+}
+impl ::buffa::Message for FollowedShowStateChanged {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.followed_show.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.followed_show.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.followed_show.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.followed_show.write_to(__cache, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.followed_show.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.followed_show = ::buffa::MessageField::none();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for FollowedShowStateChanged {
+    const PROTO_FQN: &'static str = "nama.v1.FollowedShowStateChanged";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for FollowedShowStateChanged {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __FOLLOWED_SHOW_STATE_CHANGED_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.v1.FollowedShowStateChanged",
+    to_json: ::buffa::type_registry::any_to_json::<FollowedShowStateChanged>,
+    from_json: ::buffa::type_registry::any_from_json::<FollowedShowStateChanged>,
+    is_wkt: false,
+};
+/// A User with `PERMISSION_MANAGE_REQUESTS` cancelled a Followed Show, which removed it.
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct FollowedShowCancelled {
+    /// The Followed Show as it was before it was removed.
+    ///
+    /// Field 1: `followed_show`
+    #[serde(
+        rename = "followedShow",
+        alias = "followed_show",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
+    )]
+    pub followed_show: ::buffa::MessageField<
+        FollowedShow,
+        ::buffa::Inline<FollowedShow>,
+    >,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for FollowedShowCancelled {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("FollowedShowCancelled")
+            .field("followed_show", &self.followed_show)
+            .finish()
+    }
+}
+impl FollowedShowCancelled {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.FollowedShowCancelled";
+}
+::buffa::impl_default_instance!(FollowedShowCancelled);
+impl ::buffa::MessageName for FollowedShowCancelled {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "FollowedShowCancelled";
+    const FULL_NAME: &'static str = "nama.v1.FollowedShowCancelled";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.FollowedShowCancelled";
+}
+impl ::buffa::Message for FollowedShowCancelled {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.followed_show.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.followed_show.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.followed_show.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.followed_show.write_to(__cache, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.followed_show.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.followed_show = ::buffa::MessageField::none();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for FollowedShowCancelled {
+    const PROTO_FQN: &'static str = "nama.v1.FollowedShowCancelled";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for FollowedShowCancelled {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __FOLLOWED_SHOW_CANCELLED_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.v1.FollowedShowCancelled",
+    to_json: ::buffa::type_registry::any_to_json::<FollowedShowCancelled>,
+    from_json: ::buffa::type_registry::any_from_json::<FollowedShowCancelled>,
+    is_wkt: false,
+};
+/// A Requester withdrew from a Followed Show that others are still on.
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct FollowedShowRequesterRemoved {
+    /// The Followed Show as it was, with them still among its Requesters, so they get the event too.
+    ///
+    /// Field 1: `followed_show`
+    #[serde(
+        rename = "followedShow",
+        alias = "followed_show",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
+    )]
+    pub followed_show: ::buffa::MessageField<
+        FollowedShow,
+        ::buffa::Inline<FollowedShow>,
+    >,
+    /// The User who withdrew.
+    ///
+    /// Field 2: `user_id`
+    #[serde(
+        rename = "userId",
+        alias = "user_id",
+        with = "::buffa::json_helpers::int64",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i64"
+    )]
+    pub user_id: i64,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for FollowedShowRequesterRemoved {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("FollowedShowRequesterRemoved")
+            .field("followed_show", &self.followed_show)
+            .field("user_id", &self.user_id)
+            .finish()
+    }
+}
+impl FollowedShowRequesterRemoved {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.FollowedShowRequesterRemoved";
+}
+::buffa::impl_default_instance!(FollowedShowRequesterRemoved);
+impl ::buffa::MessageName for FollowedShowRequesterRemoved {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "FollowedShowRequesterRemoved";
+    const FULL_NAME: &'static str = "nama.v1.FollowedShowRequesterRemoved";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.FollowedShowRequesterRemoved";
+}
+impl ::buffa::Message for FollowedShowRequesterRemoved {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.followed_show.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.followed_show.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        if self.user_id != 0i64 {
+            size += 1u64 + ::buffa::types::int64_encoded_len(self.user_id) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.followed_show.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.followed_show.write_to(__cache, buf);
+        }
+        if self.user_id != 0i64 {
+            ::buffa::types::put_int64_field(2u32, self.user_id, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.followed_show.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.user_id = ::buffa::types::decode_int64(buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.followed_show = ::buffa::MessageField::none();
+        self.user_id = 0i64;
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for FollowedShowRequesterRemoved {
+    const PROTO_FQN: &'static str = "nama.v1.FollowedShowRequesterRemoved";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for FollowedShowRequesterRemoved {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __FOLLOWED_SHOW_REQUESTER_REMOVED_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.v1.FollowedShowRequesterRemoved",
+    to_json: ::buffa::type_registry::any_to_json::<FollowedShowRequesterRemoved>,
+    from_json: ::buffa::type_registry::any_from_json::<FollowedShowRequesterRemoved>,
+    is_wkt: false,
+};
+/// A Followed Show's last Requester withdrew, which removed it.
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct FollowedShowWithdrawn {
+    /// The Followed Show as it was before it was removed.
+    ///
+    /// Field 1: `followed_show`
+    #[serde(
+        rename = "followedShow",
+        alias = "followed_show",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
+    )]
+    pub followed_show: ::buffa::MessageField<
+        FollowedShow,
+        ::buffa::Inline<FollowedShow>,
+    >,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for FollowedShowWithdrawn {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("FollowedShowWithdrawn")
+            .field("followed_show", &self.followed_show)
+            .finish()
+    }
+}
+impl FollowedShowWithdrawn {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.FollowedShowWithdrawn";
+}
+::buffa::impl_default_instance!(FollowedShowWithdrawn);
+impl ::buffa::MessageName for FollowedShowWithdrawn {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "FollowedShowWithdrawn";
+    const FULL_NAME: &'static str = "nama.v1.FollowedShowWithdrawn";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.FollowedShowWithdrawn";
+}
+impl ::buffa::Message for FollowedShowWithdrawn {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.followed_show.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.followed_show.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.followed_show.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.followed_show.write_to(__cache, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.followed_show.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.followed_show = ::buffa::MessageField::none();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for FollowedShowWithdrawn {
+    const PROTO_FQN: &'static str = "nama.v1.FollowedShowWithdrawn";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for FollowedShowWithdrawn {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __FOLLOWED_SHOW_WITHDRAWN_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.v1.FollowedShowWithdrawn",
+    to_json: ::buffa::type_registry::any_to_json::<FollowedShowWithdrawn>,
+    from_json: ::buffa::type_registry::any_from_json::<FollowedShowWithdrawn>,
     is_wkt: false,
 };

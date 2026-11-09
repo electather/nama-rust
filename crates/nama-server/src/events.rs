@@ -16,8 +16,8 @@ use nama_plugin_api::{
     points,
 };
 use nama_proto::nama::v1::{
-    Event, EventType, Lagged, Permission, Request, RequestState, SubscribeResponse, event,
-    subscribe_response,
+    Event, EventType, FollowedShow, Lagged, Permission, Request, RequestState, Requester,
+    SubscribeResponse, event, subscribe_response,
 };
 use tokio::sync::broadcast::{self, error::RecvError};
 use tokio_util::sync::CancellationToken;
@@ -56,8 +56,8 @@ pub(crate) struct Filter {
     pub(crate) types: Vec<EventType>,
     /// Only about these Libraries; empty means every Library, and events about none.
     pub(crate) libraries: Vec<i64>,
-    /// Only Request events about Requests this User is a Requester of; `None` means every
-    /// Request's.
+    /// Only Request and Followed Show events about those this User is a Requester of; `None` means
+    /// every one's.
     pub(crate) requester: Option<i64>,
 }
 
@@ -65,6 +65,7 @@ pub(crate) struct Filter {
 enum About<'a> {
     Library(i64),
     Request(&'a Request),
+    FollowedShow(&'a FollowedShow),
 }
 
 impl EventBus {
@@ -166,17 +167,18 @@ impl Filter {
             About::Library(library) => {
                 self.libraries.is_empty() || self.libraries.contains(&library)
             }
-            About::Request(request) => {
-                self.libraries.is_empty()
-                    && self.requester.is_none_or(|user| {
-                        request
-                            .requesters
-                            .iter()
-                            .any(|requester| requester.user_id == user)
-                    })
-            }
+            About::Request(request) => self.lets_through_requesters(&request.requesters),
+            About::FollowedShow(followed) => self.lets_through_requesters(&followed.requesters),
         };
         (self.types.is_empty() || self.types.contains(&kind)) && wanted
+    }
+
+    /// Whether an event about something with `requesters`, and no Library, gets through.
+    fn lets_through_requesters(&self, requesters: &[Requester]) -> bool {
+        self.libraries.is_empty()
+            && self
+                .requester
+                .is_none_or(|user| requesters.iter().any(|requester| requester.user_id == user))
     }
 }
 
@@ -291,7 +293,7 @@ async fn deliver_to(
 
 /// An event's type and what it is about.
 fn classify(event: &Event) -> Option<(EventType, About<'_>)> {
-    use About::{Library, Request};
+    use About::{FollowedShow, Library, Request};
     use EventType as T;
     use event::Event as E;
     Some(match event.event.as_ref()? {
@@ -328,6 +330,30 @@ fn classify(event: &Event) -> Option<(EventType, About<'_>)> {
         E::RequestProgress(e) => (
             T::EVENT_TYPE_REQUEST_PROGRESS,
             Request(e.request.as_option()?),
+        ),
+        E::FollowedShowCreated(e) => (
+            T::EVENT_TYPE_FOLLOWED_SHOW_CREATED,
+            FollowedShow(e.followed_show.as_option()?),
+        ),
+        E::FollowedShowRequesterAdded(e) => (
+            T::EVENT_TYPE_FOLLOWED_SHOW_REQUESTER_ADDED,
+            FollowedShow(e.followed_show.as_option()?),
+        ),
+        E::FollowedShowStateChanged(e) => (
+            T::EVENT_TYPE_FOLLOWED_SHOW_STATE_CHANGED,
+            FollowedShow(e.followed_show.as_option()?),
+        ),
+        E::FollowedShowCancelled(e) => (
+            T::EVENT_TYPE_FOLLOWED_SHOW_CANCELLED,
+            FollowedShow(e.followed_show.as_option()?),
+        ),
+        E::FollowedShowRequesterRemoved(e) => (
+            T::EVENT_TYPE_FOLLOWED_SHOW_REQUESTER_REMOVED,
+            FollowedShow(e.followed_show.as_option()?),
+        ),
+        E::FollowedShowWithdrawn(e) => (
+            T::EVENT_TYPE_FOLLOWED_SHOW_WITHDRAWN,
+            FollowedShow(e.followed_show.as_option()?),
         ),
     })
 }

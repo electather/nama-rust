@@ -12,7 +12,7 @@ use argon2::{
     password_hash::{self, PasswordHasher, PasswordVerifier, phc::PasswordHash},
 };
 use nama_plugin_api::{
-    Manifest, Plugin, PluginError, PluginId, Priority, Registrar,
+    Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
     auth::{Authenticator, PasswordError},
     settings::SettingsSchema,
 };
@@ -42,6 +42,7 @@ impl Plugin for LocalAuth {
             description: "Lets Users sign in with a password.".to_owned(),
             version: env!("CARGO_PKG_VERSION").to_owned(),
             settings: SettingsSchema::default(),
+            extension_points: vec![PointKey::provide::<dyn Authenticator>()],
         }
     }
 

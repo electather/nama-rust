@@ -110,6 +110,9 @@ enum Permission {
   PERMISSION_AUTO_APPROVE_TV = 11;
   // Sees every User's Requests, not only their own.
   PERMISSION_VIEW_REQUESTS = 12;
+  // Picks the Quality a title is downloaded at when Requesting it, from its Fulfiller's list
+  // (ADR 0025). About quality alone: never folders, tags or servers.
+  PERMISSION_CHOOSE_QUALITY = 13;
 }
 
 // A person's identity on one Server.

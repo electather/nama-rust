@@ -1,0 +1,74 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id AS \"id!\", profile_id, name, description, is_default AS \"is_default: bool\"\n           FROM qualities WHERE plugin_id = ? ORDER BY position",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "qualities",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "profile_id",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "qualities",
+            "name": "profile_id"
+          }
+        }
+      },
+      {
+        "name": "name",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "qualities",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "name": "description",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "qualities",
+            "name": "description"
+          }
+        }
+      },
+      {
+        "name": "is_default: bool",
+        "ordinal": 4,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "qualities",
+            "name": "is_default"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "5c60d934c3a1283904f7d0b9fd2ba72198397026d0e1c4315853c1f7d733deab"
+}

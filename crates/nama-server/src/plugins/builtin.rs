@@ -68,6 +68,7 @@ impl Registry {
                 version: manifest.version,
                 settings_schema: manifest.settings,
                 checks_settings,
+                extension_points: manifest.extension_points,
             };
             registry.write(|state| state.known.insert(id.clone(), described));
             let config = config.get(id.as_str()).cloned().unwrap_or_default();

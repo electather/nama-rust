@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id AS \"id!\", name, profile_id FROM qualities\n           WHERE plugin_id = ?1 AND (id = ?2 OR (?2 IS NULL AND is_default))",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "qualities",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "name",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "qualities",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "name": "profile_id",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "qualities",
+            "name": "profile_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "194cda9f626175d6eb4869ce178811f56bca2039a8c1c6dec4da9dc118ffe5b2"
+}

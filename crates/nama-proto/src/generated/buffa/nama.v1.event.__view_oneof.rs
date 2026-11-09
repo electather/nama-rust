@@ -88,5 +88,41 @@ pub mod event {
                 super::super::super::super::__buffa::view::RequestProgressView<'a>,
             >,
         ),
+        FollowedShowCreated(
+            ::buffa::alloc::boxed::Box<
+                super::super::super::super::__buffa::view::FollowedShowCreatedView<'a>,
+            >,
+        ),
+        FollowedShowRequesterAdded(
+            ::buffa::alloc::boxed::Box<
+                super::super::super::super::__buffa::view::FollowedShowRequesterAddedView<
+                    'a,
+                >,
+            >,
+        ),
+        FollowedShowStateChanged(
+            ::buffa::alloc::boxed::Box<
+                super::super::super::super::__buffa::view::FollowedShowStateChangedView<
+                    'a,
+                >,
+            >,
+        ),
+        FollowedShowCancelled(
+            ::buffa::alloc::boxed::Box<
+                super::super::super::super::__buffa::view::FollowedShowCancelledView<'a>,
+            >,
+        ),
+        FollowedShowRequesterRemoved(
+            ::buffa::alloc::boxed::Box<
+                super::super::super::super::__buffa::view::FollowedShowRequesterRemovedView<
+                    'a,
+                >,
+            >,
+        ),
+        FollowedShowWithdrawn(
+            ::buffa::alloc::boxed::Box<
+                super::super::super::super::__buffa::view::FollowedShowWithdrawnView<'a>,
+            >,
+        ),
     }
 }

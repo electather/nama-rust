@@ -50,6 +50,23 @@ service PluginService {
   rpc DisablePlugin(DisablePluginRequest) returns (DisablePluginResponse) {
     option idempotency_level = IDEMPOTENT;
   }
+  // Returns a Fulfiller's Qualities (ADR 0025), in the order an admin listed them. Empty until an
+  // admin lists some, which leaves the Plugin's own `quality_profile` setting in use. Fails with
+  // `not_found` for an unknown Plugin.
+  rpc ListQualities(ListQualitiesRequest) returns (ListQualitiesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Replaces a Fulfiller's Qualities. A list with any Qualities needs exactly one default, else
+  // it is refused with `REFUSAL_REASON_DEFAULT_QUALITY_REQUIRED`; a blank name or profile with
+  // `REFUSAL_REASON_FIELD_REQUIRED`; and a profile or name (ignoring case) given twice with
+  // `REFUSAL_REASON_QUALITY_REPEATED`. The Plugin's settings check then runs on its stored
+  // settings: a check that fails is refused with `REFUSAL_REASON_SETTINGS_CHECK_FAILED`, and a
+  // profile it doesn't offer for `quality_profile` with `REFUSAL_REASON_CHOICE_NOT_OFFERED`. Each
+  // refusal names the field, such as `qualities[1].profile_id`, and nothing changes. Clearing the
+  // list runs no check. Fails with `not_found` for an unknown Plugin.
+  rpc ReplaceQualities(ReplaceQualitiesRequest) returns (ReplaceQualitiesResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
 }
 
 message ListPluginsRequest {}
@@ -123,6 +140,44 @@ message DisablePluginRequest {
 
 message DisablePluginResponse {}
 
+// One way a Fulfiller's service may download a title, as an admin offers it to Requesters: one of
+// the service's quality profiles under a friendly name (ADR 0025).
+message Quality {
+  // Its stable id. Zero for a new one in `ReplaceQualitiesRequest`, which gives it one.
+  int64 id = 1;
+  // The service's quality profile, as a choice the Plugin's settings check offers for its
+  // `quality_profile` setting, such as Radarr's profile id.
+  string profile_id = 2;
+  // What Requesters know it by, such as `HD`. Unique within the list, ignoring case.
+  string name = 3;
+  // What choosing it means, such as `About 50 GB per film`. Empty for none.
+  string description = 4;
+  // Whether a new Request gets it. Exactly one Quality in a list is the default.
+  bool is_default = 5;
+}
+
+message ListQualitiesRequest {
+  // The Fulfiller's Plugin id, such as `radarr`.
+  string id = 1;
+}
+
+message ListQualitiesResponse {
+  repeated Quality qualities = 1;
+}
+
+message ReplaceQualitiesRequest {
+  // The Fulfiller's Plugin id, such as `radarr`.
+  string id = 1;
+  // The new list, in order. A Quality keeps its `id` if it is on the list now and no earlier
+  // Quality here kept it; any other id gets a new one.
+  repeated Quality qualities = 2;
+}
+
+message ReplaceQualitiesResponse {
+  // The list as saved, with each Quality's id.
+  repeated Quality qualities = 1;
+}
+
 // Where a Plugin comes from.
 enum PluginKind {
   PLUGIN_KIND_UNSPECIFIED = 0;
@@ -151,6 +206,8 @@ message PluginSummary {
   string name = 7;
   // As `Plugin.description`.
   string description = 8;
+  // As `Plugin.extension_points`.
+  repeated ExtensionPoint extension_points = 9;
 }
 
 // A unit of trusted functionality that plugs into a Server.
@@ -174,6 +231,31 @@ message Plugin {
   string name = 8;
   // What it does, in one sentence its author wrote. Empty if it gives none.
   string description = 9;
+  // The Extension Points it takes part at, as its Manifest names them, whether it is enabled or
+  // not. Empty for a refused Plugin.
+  repeated ExtensionPoint extension_points = 10;
+}
+
+// A place in the Server a Plugin takes part at. Unlike the Plugin-facing `ProvidePoint` and
+// `ObservePoint` in `nama.plugin.v1`, this is what an admin is shown.
+enum ExtensionPoint {
+  EXTENSION_POINT_UNSPECIFIED = 0;
+  // Hands Approved Movie Requests to an outside service, such as Radarr.
+  EXTENSION_POINT_MOVIE_FULFILLER = 1;
+  // Hands Approved Season Requests to an outside service, such as Sonarr.
+  EXTENSION_POINT_SHOW_FULFILLER = 2;
+  // Delivers notifications about Requests through an outside service.
+  EXTENSION_POINT_NOTIFIER = 3;
+  // Connects Users to an outside service.
+  EXTENSION_POINT_CONNECTOR = 4;
+  // Checks the credentials people sign in with.
+  EXTENSION_POINT_AUTHENTICATOR = 5;
+  // Finds metadata for Movies and Shows, such as TMDB.
+  EXTENSION_POINT_METADATA_PROVIDER = 6;
+  // Observes the Server's Events.
+  EXTENSION_POINT_EVENTS_OBSERVER = 7;
+  // Observes the Server starting.
+  EXTENSION_POINT_SERVER_STARTED_OBSERVER = 8;
 }
 
 // What kind of value a setting takes.

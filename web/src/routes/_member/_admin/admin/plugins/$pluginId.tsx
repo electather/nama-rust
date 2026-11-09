@@ -1,12 +1,15 @@
 import { useSuspenseQuery } from "@connectrpc/connect-query";
 import { createFileRoute, notFound } from "@tanstack/react-router";
 
+import { ExtensionPoints } from "@/components/extension-points";
 import { Page } from "@/components/page";
+import { PluginQualities } from "@/components/plugin-qualities";
 import { PluginSettings } from "@/components/plugin-settings";
 import { PluginToggle } from "@/components/plugin-toggle";
 import { NotFound } from "@/components/route-error";
 import { type Plugin, PluginService } from "@/gen/nama/v1/plugin_pb";
 import { queryOrNotFound } from "@/lib/browse";
+// oxlint-disable-next-line import/max-dependencies -- the page puts together a section per part of a Plugin's setup: settings, Qualities
 import { kindAndVersion, pluginName } from "@/lib/plugins";
 
 export const Route = createFileRoute("/_member/_admin/admin/plugins/$pluginId")({
@@ -28,11 +31,15 @@ function PluginPage() {
       {plugin.description !== "" && (
         <p className="mt-3 max-w-prose text-pretty">{plugin.description}</p>
       )}
+      <ExtensionPoints extensionPoints={plugin.extensionPoints} />
       <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2">
         <PluginToggle plugin={plugin} />
       </div>
       {plugin.refusedReason === "" ? (
-        <Settings plugin={plugin} />
+        <>
+          <Settings plugin={plugin} />
+          <PluginQualities plugin={plugin} />
+        </>
       ) : (
         <p className="mt-6 max-w-prose text-sm text-pretty text-muted-foreground">
           The Server can’t run it: {plugin.refusedReason}.

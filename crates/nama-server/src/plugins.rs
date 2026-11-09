@@ -67,6 +67,7 @@ struct Described {
     version: String,
     settings_schema: SettingsSchema,
     checks_settings: bool,
+    extension_points: Vec<PointKey>,
 }
 
 struct Enabled {
@@ -116,6 +117,8 @@ pub struct Listed {
     pub checks_settings: bool,
     /// Whether it is enabled now.
     pub enabled: bool,
+    /// The Extension Points its Manifest names.
+    pub extension_points: Vec<PointKey>,
 }
 
 /// Why a Plugin wasn't disabled: no other enabled Plugin provides a capability it may provide.
@@ -322,6 +325,20 @@ impl Registry {
         let mut registrar = Registrar::with_settings(settings);
         plugin.register(&mut registrar);
         let registrations = registrar.into_registrations();
+        let declared = &manifest.extension_points;
+        if let Some(point) = registrations
+            .iter()
+            .map(Registration::point)
+            .find(|point| !declared.contains(point))
+        {
+            return Err(EnableError::Refused {
+                plugin: id.clone(),
+                reason: format!(
+                    "it registers at {}, which its Manifest doesn't name",
+                    point.name()
+                ),
+            });
+        }
         let count = registrations.len();
         // Plugin values the lock refuses are dropped after it is released, since a Plugin's `Drop`
         // is Plugin code.
@@ -534,6 +551,7 @@ impl Registry {
                     settings_schema: described.settings_schema.clone(),
                     checks_settings: described.checks_settings,
                     enabled: state.plugins.contains_key(id),
+                    extension_points: described.extension_points.clone(),
                 })
                 .collect()
         })

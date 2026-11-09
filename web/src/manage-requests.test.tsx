@@ -6,7 +6,9 @@ import { afterEach, expect, test } from "vite-plus/test";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import {
   FollowedShowSchema,
+  QualityChangeSchema,
   type Request,
+  RequestedQualitySchema,
   RequestSchema,
   RequestService,
   RequestState,
@@ -40,10 +42,37 @@ const alien: MessageInitShape<typeof RequestSchema> = {
   requesters: [{ userId: 2n, name: "Ada" }],
 };
 
+/** The Movie Fulfiller's Qualities, as an admin offered them. */
+const hdAnd4k = [
+  { id: 1n, name: "HD", isDefault: true },
+  { id: 2n, name: "4K" },
+];
+
+/** The offered Quality `name`, with the id `id`, as a Request copies it. */
+function requested(name: string, id: bigint) {
+  return create(RequestedQualitySchema, { id, name, profileId: String(id) });
+}
+
+/** When Sam changes a Quality: midday, so the day is 9 Nov 2026 in any time zone. */
+const changedAt = BigInt(Date.UTC(2026, 10, 9, 12) / 1000);
+
+/** Changes `request`'s Quality to the offered one with the id `qualityId`, as Sam, if given. */
+function changeQuality(request: Request, qualityId: bigint | undefined) {
+  const quality = hdAnd4k.find(({ id }) => id === qualityId);
+  if (!quality) return;
+  request.qualityChange = create(QualityChangeSchema, {
+    changedBy: "Sam",
+    changedAt,
+    ...(request.quality && { previousName: request.quality.name }),
+  });
+  request.quality = requested(quality.name, quality.id);
+}
+
 /**
  * A fake Server holding `requests`, signed in with `permissions`, that approves, declines,
- * cancels and retries them, the Fulfiller taking a retried one. It changes the messages given, so
- * a test can change them too, as someone else would.
+ * cancels and retries them, at another of {@link hdAnd4k} if asked, the Fulfiller taking a
+ * retried one. It changes the messages given, so a test can change them too, as someone else
+ * would.
  */
 function managedServer(permissions: Permission[], ...requests: Request[]) {
   const held = new Map(requests.map((request) => [request.id, request]));
@@ -59,24 +88,26 @@ function managedServer(permissions: Permission[], ...requests: Request[]) {
   };
   return fakeServer({ signedIn: permissions }, {}, {}, (router) => {
     router.service(RequestService, {
-      listRequests: ({ state }) => ({
-        requests: [...held.values()].filter(
-          (request) => state === RequestState.UNSPECIFIED || request.state === state,
-        ),
-      }),
-      approveRequest: ({ id }) => decide(id, RequestState.APPROVED),
+      listRequests: () => ({ requests: [...held.values()] }),
+      listOfferedQualities: () => ({ qualities: hdAnd4k }),
+      approveRequest: ({ id, qualityId }) => {
+        const request = held.get(id);
+        if (request?.state === RequestState.PENDING) changeQuality(request, qualityId);
+        return decide(id, RequestState.APPROVED);
+      },
       declineRequest: ({ id, reason }) => decide(id, RequestState.DECLINED, reason),
       cancelRequest: ({ id }) => {
         held.delete(id);
         return {};
       },
-      retryRequest: ({ id }) => {
+      retryRequest: ({ id, qualityId }) => {
         const request = held.get(id) ?? create(RequestSchema);
         if (request.state !== RequestState.FAILED) {
           throw refused(Code.FailedPrecondition, "it isn't Failed", {
             reason: RefusalReason.REQUEST_NOT_FAILED,
           });
         }
+        changeQuality(request, qualityId);
         Object.assign(request, { state: RequestState.PROCESSING, failureReason: undefined });
         return { request };
       },
@@ -102,18 +133,6 @@ test("approving a Pending Request shows it Approved", async () => {
 
   expect(await screen.findByText("Approved")).toBeDefined();
   expect(screen.queryByRole("button", { name: "Approve Heat" })).toBeNull();
-});
-
-test("approving a Request while showing Pending ones takes it off the list", async () => {
-  openApp(
-    "/requests?state=pending",
-    managedServer(admin, create(RequestSchema, heat), create(RequestSchema, dune)),
-  );
-
-  fireEvent.click(await screen.findByRole("button", { name: "Approve Heat" }));
-
-  expect(await screen.findByText("No Pending Requests.")).toBeDefined();
-  expect(screen.queryByText("Dune")).toBeNull();
 });
 
 test("a Season Request's actions name its Show and Season", async () => {
@@ -186,6 +205,31 @@ test("retrying a Request that stopped being Failed meanwhile says so", async () 
 
   expect(await screen.findByText("Alien isn’t Failed any more.")).toBeDefined();
   expect(await screen.findByText("Processing")).toBeDefined();
+});
+
+test("a Request manager approves a 4K Request at the other Quality, HD, and it says who changed it when", async () => {
+  const heat4k = create(RequestSchema, { ...heat, quality: requested("4K", 2n) });
+  openApp("/requests", managedServer(admin, heat4k));
+
+  fireEvent.click(await screen.findByRole("button", { name: "Approve Heat at another Quality" }));
+  const others = await screen.findAllByRole("menuitem");
+  fireEvent.click(await screen.findByRole("menuitem", { name: "HD" }));
+
+  expect(others.map((item) => item.textContent)).toStrictEqual(["HD"]);
+  expect(await screen.findByText("Approved")).toBeDefined();
+  expect(screen.getByText(/HD, changed from 4K by Sam on .*9.*2026/u)).toBeDefined();
+  expect(screen.queryByRole("button", { name: /^Approve Heat/u })).toBeNull();
+});
+
+test("a Request manager retries a Failed Request at another Quality", async () => {
+  const alienHd = create(RequestSchema, { ...alien, quality: requested("HD", 1n) });
+  openApp("/requests", managedServer(admin, alienHd));
+
+  fireEvent.click(await screen.findByRole("button", { name: "Retry Alien at another Quality" }));
+  fireEvent.click(await screen.findByRole("menuitem", { name: "4K" }));
+
+  expect(await screen.findByText("Processing")).toBeDefined();
+  expect(screen.getByText(/4K, changed from HD by Sam on .*9.*2026/u)).toBeDefined();
 });
 
 /**

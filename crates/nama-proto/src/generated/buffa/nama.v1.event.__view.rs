@@ -1429,6 +1429,192 @@ impl<'a> ::buffa::MessageView<'a> for EventView<'a> {
                     );
                 }
             }
+            14u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                if let Some(
+                    super::super::__buffa::view::oneof::event::Event::FollowedShowCreated(
+                        ref mut existing,
+                    ),
+                ) = view.event
+                {
+                    ::buffa::MessageView::merge_into_view(
+                        &mut **existing,
+                        sub,
+                        __sub_ctx,
+                    )?;
+                } else {
+                    view.event = Some(
+                        super::super::__buffa::view::oneof::event::Event::FollowedShowCreated(
+                            ::buffa::alloc::boxed::Box::new(
+                                <super::super::__buffa::view::FollowedShowCreatedView as ::buffa::MessageView>::decode_view_ctx(
+                                    sub,
+                                    __sub_ctx,
+                                )?,
+                            ),
+                        ),
+                    );
+                }
+            }
+            15u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                if let Some(
+                    super::super::__buffa::view::oneof::event::Event::FollowedShowRequesterAdded(
+                        ref mut existing,
+                    ),
+                ) = view.event
+                {
+                    ::buffa::MessageView::merge_into_view(
+                        &mut **existing,
+                        sub,
+                        __sub_ctx,
+                    )?;
+                } else {
+                    view.event = Some(
+                        super::super::__buffa::view::oneof::event::Event::FollowedShowRequesterAdded(
+                            ::buffa::alloc::boxed::Box::new(
+                                <super::super::__buffa::view::FollowedShowRequesterAddedView as ::buffa::MessageView>::decode_view_ctx(
+                                    sub,
+                                    __sub_ctx,
+                                )?,
+                            ),
+                        ),
+                    );
+                }
+            }
+            16u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                if let Some(
+                    super::super::__buffa::view::oneof::event::Event::FollowedShowStateChanged(
+                        ref mut existing,
+                    ),
+                ) = view.event
+                {
+                    ::buffa::MessageView::merge_into_view(
+                        &mut **existing,
+                        sub,
+                        __sub_ctx,
+                    )?;
+                } else {
+                    view.event = Some(
+                        super::super::__buffa::view::oneof::event::Event::FollowedShowStateChanged(
+                            ::buffa::alloc::boxed::Box::new(
+                                <super::super::__buffa::view::FollowedShowStateChangedView as ::buffa::MessageView>::decode_view_ctx(
+                                    sub,
+                                    __sub_ctx,
+                                )?,
+                            ),
+                        ),
+                    );
+                }
+            }
+            17u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                if let Some(
+                    super::super::__buffa::view::oneof::event::Event::FollowedShowCancelled(
+                        ref mut existing,
+                    ),
+                ) = view.event
+                {
+                    ::buffa::MessageView::merge_into_view(
+                        &mut **existing,
+                        sub,
+                        __sub_ctx,
+                    )?;
+                } else {
+                    view.event = Some(
+                        super::super::__buffa::view::oneof::event::Event::FollowedShowCancelled(
+                            ::buffa::alloc::boxed::Box::new(
+                                <super::super::__buffa::view::FollowedShowCancelledView as ::buffa::MessageView>::decode_view_ctx(
+                                    sub,
+                                    __sub_ctx,
+                                )?,
+                            ),
+                        ),
+                    );
+                }
+            }
+            18u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                if let Some(
+                    super::super::__buffa::view::oneof::event::Event::FollowedShowRequesterRemoved(
+                        ref mut existing,
+                    ),
+                ) = view.event
+                {
+                    ::buffa::MessageView::merge_into_view(
+                        &mut **existing,
+                        sub,
+                        __sub_ctx,
+                    )?;
+                } else {
+                    view.event = Some(
+                        super::super::__buffa::view::oneof::event::Event::FollowedShowRequesterRemoved(
+                            ::buffa::alloc::boxed::Box::new(
+                                <super::super::__buffa::view::FollowedShowRequesterRemovedView as ::buffa::MessageView>::decode_view_ctx(
+                                    sub,
+                                    __sub_ctx,
+                                )?,
+                            ),
+                        ),
+                    );
+                }
+            }
+            19u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                if let Some(
+                    super::super::__buffa::view::oneof::event::Event::FollowedShowWithdrawn(
+                        ref mut existing,
+                    ),
+                ) = view.event
+                {
+                    ::buffa::MessageView::merge_into_view(
+                        &mut **existing,
+                        sub,
+                        __sub_ctx,
+                    )?;
+                } else {
+                    view.event = Some(
+                        super::super::__buffa::view::oneof::event::Event::FollowedShowWithdrawn(
+                            ::buffa::alloc::boxed::Box::new(
+                                <super::super::__buffa::view::FollowedShowWithdrawnView as ::buffa::MessageView>::decode_view_ctx(
+                                    sub,
+                                    __sub_ctx,
+                                )?,
+                            ),
+                        ),
+                    );
+                }
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -1572,6 +1758,60 @@ impl<'a> ::buffa::MessageView<'a> for EventView<'a> {
                                     ),
                                 )
                             }
+                            super::super::__buffa::view::oneof::event::Event::FollowedShowCreated(
+                                v,
+                            ) => {
+                                super::super::__buffa::oneof::event::Event::FollowedShowCreated(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        v.to_owned_from_source(__buffa_src)?,
+                                    ),
+                                )
+                            }
+                            super::super::__buffa::view::oneof::event::Event::FollowedShowRequesterAdded(
+                                v,
+                            ) => {
+                                super::super::__buffa::oneof::event::Event::FollowedShowRequesterAdded(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        v.to_owned_from_source(__buffa_src)?,
+                                    ),
+                                )
+                            }
+                            super::super::__buffa::view::oneof::event::Event::FollowedShowStateChanged(
+                                v,
+                            ) => {
+                                super::super::__buffa::oneof::event::Event::FollowedShowStateChanged(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        v.to_owned_from_source(__buffa_src)?,
+                                    ),
+                                )
+                            }
+                            super::super::__buffa::view::oneof::event::Event::FollowedShowCancelled(
+                                v,
+                            ) => {
+                                super::super::__buffa::oneof::event::Event::FollowedShowCancelled(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        v.to_owned_from_source(__buffa_src)?,
+                                    ),
+                                )
+                            }
+                            super::super::__buffa::view::oneof::event::Event::FollowedShowRequesterRemoved(
+                                v,
+                            ) => {
+                                super::super::__buffa::oneof::event::Event::FollowedShowRequesterRemoved(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        v.to_owned_from_source(__buffa_src)?,
+                                    ),
+                                )
+                            }
+                            super::super::__buffa::view::oneof::event::Event::FollowedShowWithdrawn(
+                                v,
+                            ) => {
+                                super::super::__buffa::oneof::event::Event::FollowedShowWithdrawn(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        v.to_owned_from_source(__buffa_src)?,
+                                    ),
+                                )
+                            }
                         },
                     )
                 }
@@ -1706,6 +1946,66 @@ impl<'a> ::buffa::ViewEncode<'a> for EventView<'a> {
                         += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
                             + inner as u64;
                 }
+                super::super::__buffa::view::oneof::event::Event::FollowedShowCreated(
+                    x,
+                ) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+                super::super::__buffa::view::oneof::event::Event::FollowedShowRequesterAdded(
+                    x,
+                ) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+                super::super::__buffa::view::oneof::event::Event::FollowedShowStateChanged(
+                    x,
+                ) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 2u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+                super::super::__buffa::view::oneof::event::Event::FollowedShowCancelled(
+                    x,
+                ) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 2u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+                super::super::__buffa::view::oneof::event::Event::FollowedShowRequesterRemoved(
+                    x,
+                ) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 2u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+                super::super::__buffa::view::oneof::event::Event::FollowedShowWithdrawn(
+                    x,
+                ) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 2u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
             }
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
@@ -1837,6 +2137,66 @@ impl<'a> ::buffa::ViewEncode<'a> for EventView<'a> {
                     );
                     x.write_to(__cache, buf);
                 }
+                super::super::__buffa::view::oneof::event::Event::FollowedShowCreated(
+                    x,
+                ) => {
+                    ::buffa::types::put_len_delimited_header(
+                        14u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                super::super::__buffa::view::oneof::event::Event::FollowedShowRequesterAdded(
+                    x,
+                ) => {
+                    ::buffa::types::put_len_delimited_header(
+                        15u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                super::super::__buffa::view::oneof::event::Event::FollowedShowStateChanged(
+                    x,
+                ) => {
+                    ::buffa::types::put_len_delimited_header(
+                        16u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                super::super::__buffa::view::oneof::event::Event::FollowedShowCancelled(
+                    x,
+                ) => {
+                    ::buffa::types::put_len_delimited_header(
+                        17u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                super::super::__buffa::view::oneof::event::Event::FollowedShowRequesterRemoved(
+                    x,
+                ) => {
+                    ::buffa::types::put_len_delimited_header(
+                        18u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                super::super::__buffa::view::oneof::event::Event::FollowedShowWithdrawn(
+                    x,
+                ) => {
+                    ::buffa::types::put_len_delimited_header(
+                        19u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
             }
         }
         self.__buffa_unknown_fields.write_to(buf);
@@ -1912,6 +2272,36 @@ impl<'__a> ::serde::Serialize for EventView<'__a> {
                 }
                 super::super::__buffa::view::oneof::event::Event::RequestProgress(v) => {
                     __map.serialize_entry("requestProgress", v)?;
+                }
+                super::super::__buffa::view::oneof::event::Event::FollowedShowCreated(
+                    v,
+                ) => {
+                    __map.serialize_entry("followedShowCreated", v)?;
+                }
+                super::super::__buffa::view::oneof::event::Event::FollowedShowRequesterAdded(
+                    v,
+                ) => {
+                    __map.serialize_entry("followedShowRequesterAdded", v)?;
+                }
+                super::super::__buffa::view::oneof::event::Event::FollowedShowStateChanged(
+                    v,
+                ) => {
+                    __map.serialize_entry("followedShowStateChanged", v)?;
+                }
+                super::super::__buffa::view::oneof::event::Event::FollowedShowCancelled(
+                    v,
+                ) => {
+                    __map.serialize_entry("followedShowCancelled", v)?;
+                }
+                super::super::__buffa::view::oneof::event::Event::FollowedShowRequesterRemoved(
+                    v,
+                ) => {
+                    __map.serialize_entry("followedShowRequesterRemoved", v)?;
+                }
+                super::super::__buffa::view::oneof::event::Event::FollowedShowWithdrawn(
+                    v,
+                ) => {
+                    __map.serialize_entry("followedShowWithdrawn", v)?;
                 }
             }
         }
@@ -5958,6 +6348,1859 @@ impl ::buffa::HasMessageView for super::super::RequestProgress {
     type ViewHandle = RequestProgressOwnedView;
 }
 impl ::serde::Serialize for RequestProgressOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+/// A User asked for a whole Show that had no open Followed Show, which opened this one. Followed
+/// Show events reach whom Request events reach: its Requesters, and subscribers with
+/// `PERMISSION_VIEW_REQUESTS`.
+#[derive(Clone, Debug, Default)]
+pub struct FollowedShowCreatedView<'a> {
+    /// Field 1: `followed_show`
+    pub followed_show: ::buffa::MessageFieldView<
+        super::super::__buffa::view::FollowedShowView<'a>,
+    >,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for FollowedShowCreatedView<'a> {
+    type Owned = super::super::FollowedShowCreated;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                match view.followed_show.as_mut() {
+                    Some(existing) => {
+                        ::buffa::MessageView::merge_into_view(existing, sub, __sub_ctx)?
+                    }
+                    None => {
+                        view.followed_show = ::buffa::MessageFieldView::set(
+                            <super::super::__buffa::view::FollowedShowView as ::buffa::MessageView>::decode_view_ctx(
+                                sub,
+                                __sub_ctx,
+                            )?,
+                        );
+                    }
+                }
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<
+        super::super::FollowedShowCreated,
+        ::buffa::DecodeError,
+    > {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<
+        super::super::FollowedShowCreated,
+        ::buffa::DecodeError,
+    > {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::FollowedShowCreated {
+            followed_show: match self.followed_show.as_option() {
+                Some(v) => {
+                    ::buffa::MessageField::<
+                        super::super::FollowedShow,
+                        ::buffa::Inline<super::super::FollowedShow>,
+                    >::some(v.to_owned_from_source(__buffa_src)?)
+                }
+                None => ::buffa::MessageField::none(),
+            },
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for FollowedShowCreatedView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.followed_show.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.followed_show.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.followed_show.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.followed_show.write_to(__cache, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for FollowedShowCreatedView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        {
+            if let ::core::option::Option::Some(__v) = self.followed_show.as_option() {
+                __map.serialize_entry("followedShow", __v)?;
+            }
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for FollowedShowCreatedView<'a> {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "FollowedShowCreated";
+    const FULL_NAME: &'static str = "nama.v1.FollowedShowCreated";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.FollowedShowCreated";
+}
+::buffa::impl_default_view_instance!(FollowedShowCreatedView);
+::buffa::impl_view_reborrow!(FollowedShowCreatedView);
+/** Self-contained, `'static` owned view of a `FollowedShowCreated` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`FollowedShowCreatedView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`FollowedShowCreatedView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct FollowedShowCreatedOwnedView(
+    ::buffa::OwnedView<FollowedShowCreatedView<'static>>,
+);
+impl FollowedShowCreatedOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            FollowedShowCreatedOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            FollowedShowCreatedOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::FollowedShowCreated,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            FollowedShowCreatedOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`FollowedShowCreatedView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &FollowedShowCreatedView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::FollowedShowCreated {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// Field 1: `followed_show`
+    #[must_use]
+    pub fn followed_show(
+        &self,
+    ) -> &::buffa::MessageFieldView<super::super::__buffa::view::FollowedShowView<'_>> {
+        &self.0.reborrow().followed_show
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<FollowedShowCreatedView<'static>>>
+for FollowedShowCreatedOwnedView {
+    fn from(inner: ::buffa::OwnedView<FollowedShowCreatedView<'static>>) -> Self {
+        FollowedShowCreatedOwnedView(inner)
+    }
+}
+impl ::core::convert::From<FollowedShowCreatedOwnedView>
+for ::buffa::OwnedView<FollowedShowCreatedView<'static>> {
+    fn from(wrapper: FollowedShowCreatedOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<FollowedShowCreatedView<'static>>>
+for FollowedShowCreatedOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<FollowedShowCreatedView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::FollowedShowCreated {
+    type View<'a> = FollowedShowCreatedView<'a>;
+    type ViewHandle = FollowedShowCreatedOwnedView;
+}
+impl ::serde::Serialize for FollowedShowCreatedOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+/// A User joined a Followed Show as a Requester.
+#[derive(Clone, Debug, Default)]
+pub struct FollowedShowRequesterAddedView<'a> {
+    /// The Followed Show as it is now, with them among its Requesters.
+    ///
+    /// Field 1: `followed_show`
+    pub followed_show: ::buffa::MessageFieldView<
+        super::super::__buffa::view::FollowedShowView<'a>,
+    >,
+    /// The User who joined.
+    ///
+    /// Field 2: `user_id`
+    pub user_id: i64,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for FollowedShowRequesterAddedView<'a> {
+    type Owned = super::super::FollowedShowRequesterAdded;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                match view.followed_show.as_mut() {
+                    Some(existing) => {
+                        ::buffa::MessageView::merge_into_view(existing, sub, __sub_ctx)?
+                    }
+                    None => {
+                        view.followed_show = ::buffa::MessageFieldView::set(
+                            <super::super::__buffa::view::FollowedShowView as ::buffa::MessageView>::decode_view_ctx(
+                                sub,
+                                __sub_ctx,
+                            )?,
+                        );
+                    }
+                }
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.user_id = ::buffa::types::decode_int64(&mut cur)?;
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<
+        super::super::FollowedShowRequesterAdded,
+        ::buffa::DecodeError,
+    > {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<
+        super::super::FollowedShowRequesterAdded,
+        ::buffa::DecodeError,
+    > {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::FollowedShowRequesterAdded {
+            followed_show: match self.followed_show.as_option() {
+                Some(v) => {
+                    ::buffa::MessageField::<
+                        super::super::FollowedShow,
+                        ::buffa::Inline<super::super::FollowedShow>,
+                    >::some(v.to_owned_from_source(__buffa_src)?)
+                }
+                None => ::buffa::MessageField::none(),
+            },
+            user_id: self.user_id,
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for FollowedShowRequesterAddedView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.followed_show.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.followed_show.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        if self.user_id != 0i64 {
+            size += 1u64 + ::buffa::types::int64_encoded_len(self.user_id) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.followed_show.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.followed_show.write_to(__cache, buf);
+        }
+        if self.user_id != 0i64 {
+            ::buffa::types::put_int64_field(2u32, self.user_id, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for FollowedShowRequesterAddedView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        {
+            if let ::core::option::Option::Some(__v) = self.followed_show.as_option() {
+                __map.serialize_entry("followedShow", __v)?;
+            }
+        }
+        if !::buffa::json_helpers::skip_if::is_zero_i64(&self.user_id) {
+            __map
+                .serialize_entry(
+                    "userId",
+                    &::buffa::json_helpers::ProtoJson(&self.user_id),
+                )?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for FollowedShowRequesterAddedView<'a> {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "FollowedShowRequesterAdded";
+    const FULL_NAME: &'static str = "nama.v1.FollowedShowRequesterAdded";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.FollowedShowRequesterAdded";
+}
+::buffa::impl_default_view_instance!(FollowedShowRequesterAddedView);
+::buffa::impl_view_reborrow!(FollowedShowRequesterAddedView);
+/** Self-contained, `'static` owned view of a `FollowedShowRequesterAdded` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`FollowedShowRequesterAddedView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`FollowedShowRequesterAddedView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct FollowedShowRequesterAddedOwnedView(
+    ::buffa::OwnedView<FollowedShowRequesterAddedView<'static>>,
+);
+impl FollowedShowRequesterAddedOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            FollowedShowRequesterAddedOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            FollowedShowRequesterAddedOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::FollowedShowRequesterAdded,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            FollowedShowRequesterAddedOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`FollowedShowRequesterAddedView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &FollowedShowRequesterAddedView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::FollowedShowRequesterAdded {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// The Followed Show as it is now, with them among its Requesters.
+    ///
+    /// Field 1: `followed_show`
+    #[must_use]
+    pub fn followed_show(
+        &self,
+    ) -> &::buffa::MessageFieldView<super::super::__buffa::view::FollowedShowView<'_>> {
+        &self.0.reborrow().followed_show
+    }
+    /// The User who joined.
+    ///
+    /// Field 2: `user_id`
+    #[must_use]
+    pub fn user_id(&self) -> i64 {
+        self.0.reborrow().user_id
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<FollowedShowRequesterAddedView<'static>>>
+for FollowedShowRequesterAddedOwnedView {
+    fn from(inner: ::buffa::OwnedView<FollowedShowRequesterAddedView<'static>>) -> Self {
+        FollowedShowRequesterAddedOwnedView(inner)
+    }
+}
+impl ::core::convert::From<FollowedShowRequesterAddedOwnedView>
+for ::buffa::OwnedView<FollowedShowRequesterAddedView<'static>> {
+    fn from(wrapper: FollowedShowRequesterAddedOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<FollowedShowRequesterAddedView<'static>>>
+for FollowedShowRequesterAddedOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<FollowedShowRequesterAddedView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::FollowedShowRequesterAdded {
+    type View<'a> = FollowedShowRequesterAddedView<'a>;
+    type ViewHandle = FollowedShowRequesterAddedOwnedView;
+}
+impl ::serde::Serialize for FollowedShowRequesterAddedOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+/// A Followed Show was approved or declined.
+#[derive(Clone, Debug, Default)]
+pub struct FollowedShowStateChangedView<'a> {
+    /// The Followed Show as it is now, in its new state.
+    ///
+    /// Field 1: `followed_show`
+    pub followed_show: ::buffa::MessageFieldView<
+        super::super::__buffa::view::FollowedShowView<'a>,
+    >,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for FollowedShowStateChangedView<'a> {
+    type Owned = super::super::FollowedShowStateChanged;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                match view.followed_show.as_mut() {
+                    Some(existing) => {
+                        ::buffa::MessageView::merge_into_view(existing, sub, __sub_ctx)?
+                    }
+                    None => {
+                        view.followed_show = ::buffa::MessageFieldView::set(
+                            <super::super::__buffa::view::FollowedShowView as ::buffa::MessageView>::decode_view_ctx(
+                                sub,
+                                __sub_ctx,
+                            )?,
+                        );
+                    }
+                }
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<
+        super::super::FollowedShowStateChanged,
+        ::buffa::DecodeError,
+    > {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<
+        super::super::FollowedShowStateChanged,
+        ::buffa::DecodeError,
+    > {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::FollowedShowStateChanged {
+            followed_show: match self.followed_show.as_option() {
+                Some(v) => {
+                    ::buffa::MessageField::<
+                        super::super::FollowedShow,
+                        ::buffa::Inline<super::super::FollowedShow>,
+                    >::some(v.to_owned_from_source(__buffa_src)?)
+                }
+                None => ::buffa::MessageField::none(),
+            },
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for FollowedShowStateChangedView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.followed_show.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.followed_show.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.followed_show.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.followed_show.write_to(__cache, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for FollowedShowStateChangedView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        {
+            if let ::core::option::Option::Some(__v) = self.followed_show.as_option() {
+                __map.serialize_entry("followedShow", __v)?;
+            }
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for FollowedShowStateChangedView<'a> {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "FollowedShowStateChanged";
+    const FULL_NAME: &'static str = "nama.v1.FollowedShowStateChanged";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.FollowedShowStateChanged";
+}
+::buffa::impl_default_view_instance!(FollowedShowStateChangedView);
+::buffa::impl_view_reborrow!(FollowedShowStateChangedView);
+/** Self-contained, `'static` owned view of a `FollowedShowStateChanged` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`FollowedShowStateChangedView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`FollowedShowStateChangedView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct FollowedShowStateChangedOwnedView(
+    ::buffa::OwnedView<FollowedShowStateChangedView<'static>>,
+);
+impl FollowedShowStateChangedOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            FollowedShowStateChangedOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            FollowedShowStateChangedOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::FollowedShowStateChanged,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            FollowedShowStateChangedOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`FollowedShowStateChangedView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &FollowedShowStateChangedView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::FollowedShowStateChanged {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// The Followed Show as it is now, in its new state.
+    ///
+    /// Field 1: `followed_show`
+    #[must_use]
+    pub fn followed_show(
+        &self,
+    ) -> &::buffa::MessageFieldView<super::super::__buffa::view::FollowedShowView<'_>> {
+        &self.0.reborrow().followed_show
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<FollowedShowStateChangedView<'static>>>
+for FollowedShowStateChangedOwnedView {
+    fn from(inner: ::buffa::OwnedView<FollowedShowStateChangedView<'static>>) -> Self {
+        FollowedShowStateChangedOwnedView(inner)
+    }
+}
+impl ::core::convert::From<FollowedShowStateChangedOwnedView>
+for ::buffa::OwnedView<FollowedShowStateChangedView<'static>> {
+    fn from(wrapper: FollowedShowStateChangedOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<FollowedShowStateChangedView<'static>>>
+for FollowedShowStateChangedOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<FollowedShowStateChangedView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::FollowedShowStateChanged {
+    type View<'a> = FollowedShowStateChangedView<'a>;
+    type ViewHandle = FollowedShowStateChangedOwnedView;
+}
+impl ::serde::Serialize for FollowedShowStateChangedOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+/// A User with `PERMISSION_MANAGE_REQUESTS` cancelled a Followed Show, which removed it.
+#[derive(Clone, Debug, Default)]
+pub struct FollowedShowCancelledView<'a> {
+    /// The Followed Show as it was before it was removed.
+    ///
+    /// Field 1: `followed_show`
+    pub followed_show: ::buffa::MessageFieldView<
+        super::super::__buffa::view::FollowedShowView<'a>,
+    >,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for FollowedShowCancelledView<'a> {
+    type Owned = super::super::FollowedShowCancelled;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                match view.followed_show.as_mut() {
+                    Some(existing) => {
+                        ::buffa::MessageView::merge_into_view(existing, sub, __sub_ctx)?
+                    }
+                    None => {
+                        view.followed_show = ::buffa::MessageFieldView::set(
+                            <super::super::__buffa::view::FollowedShowView as ::buffa::MessageView>::decode_view_ctx(
+                                sub,
+                                __sub_ctx,
+                            )?,
+                        );
+                    }
+                }
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<
+        super::super::FollowedShowCancelled,
+        ::buffa::DecodeError,
+    > {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<
+        super::super::FollowedShowCancelled,
+        ::buffa::DecodeError,
+    > {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::FollowedShowCancelled {
+            followed_show: match self.followed_show.as_option() {
+                Some(v) => {
+                    ::buffa::MessageField::<
+                        super::super::FollowedShow,
+                        ::buffa::Inline<super::super::FollowedShow>,
+                    >::some(v.to_owned_from_source(__buffa_src)?)
+                }
+                None => ::buffa::MessageField::none(),
+            },
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for FollowedShowCancelledView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.followed_show.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.followed_show.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.followed_show.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.followed_show.write_to(__cache, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for FollowedShowCancelledView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        {
+            if let ::core::option::Option::Some(__v) = self.followed_show.as_option() {
+                __map.serialize_entry("followedShow", __v)?;
+            }
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for FollowedShowCancelledView<'a> {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "FollowedShowCancelled";
+    const FULL_NAME: &'static str = "nama.v1.FollowedShowCancelled";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.FollowedShowCancelled";
+}
+::buffa::impl_default_view_instance!(FollowedShowCancelledView);
+::buffa::impl_view_reborrow!(FollowedShowCancelledView);
+/** Self-contained, `'static` owned view of a `FollowedShowCancelled` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`FollowedShowCancelledView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`FollowedShowCancelledView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct FollowedShowCancelledOwnedView(
+    ::buffa::OwnedView<FollowedShowCancelledView<'static>>,
+);
+impl FollowedShowCancelledOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            FollowedShowCancelledOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            FollowedShowCancelledOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::FollowedShowCancelled,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            FollowedShowCancelledOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`FollowedShowCancelledView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &FollowedShowCancelledView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::FollowedShowCancelled {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// The Followed Show as it was before it was removed.
+    ///
+    /// Field 1: `followed_show`
+    #[must_use]
+    pub fn followed_show(
+        &self,
+    ) -> &::buffa::MessageFieldView<super::super::__buffa::view::FollowedShowView<'_>> {
+        &self.0.reborrow().followed_show
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<FollowedShowCancelledView<'static>>>
+for FollowedShowCancelledOwnedView {
+    fn from(inner: ::buffa::OwnedView<FollowedShowCancelledView<'static>>) -> Self {
+        FollowedShowCancelledOwnedView(inner)
+    }
+}
+impl ::core::convert::From<FollowedShowCancelledOwnedView>
+for ::buffa::OwnedView<FollowedShowCancelledView<'static>> {
+    fn from(wrapper: FollowedShowCancelledOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<FollowedShowCancelledView<'static>>>
+for FollowedShowCancelledOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<FollowedShowCancelledView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::FollowedShowCancelled {
+    type View<'a> = FollowedShowCancelledView<'a>;
+    type ViewHandle = FollowedShowCancelledOwnedView;
+}
+impl ::serde::Serialize for FollowedShowCancelledOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+/// A Requester withdrew from a Followed Show that others are still on.
+#[derive(Clone, Debug, Default)]
+pub struct FollowedShowRequesterRemovedView<'a> {
+    /// The Followed Show as it was, with them still among its Requesters, so they get the event too.
+    ///
+    /// Field 1: `followed_show`
+    pub followed_show: ::buffa::MessageFieldView<
+        super::super::__buffa::view::FollowedShowView<'a>,
+    >,
+    /// The User who withdrew.
+    ///
+    /// Field 2: `user_id`
+    pub user_id: i64,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for FollowedShowRequesterRemovedView<'a> {
+    type Owned = super::super::FollowedShowRequesterRemoved;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                match view.followed_show.as_mut() {
+                    Some(existing) => {
+                        ::buffa::MessageView::merge_into_view(existing, sub, __sub_ctx)?
+                    }
+                    None => {
+                        view.followed_show = ::buffa::MessageFieldView::set(
+                            <super::super::__buffa::view::FollowedShowView as ::buffa::MessageView>::decode_view_ctx(
+                                sub,
+                                __sub_ctx,
+                            )?,
+                        );
+                    }
+                }
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.user_id = ::buffa::types::decode_int64(&mut cur)?;
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<
+        super::super::FollowedShowRequesterRemoved,
+        ::buffa::DecodeError,
+    > {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<
+        super::super::FollowedShowRequesterRemoved,
+        ::buffa::DecodeError,
+    > {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::FollowedShowRequesterRemoved {
+            followed_show: match self.followed_show.as_option() {
+                Some(v) => {
+                    ::buffa::MessageField::<
+                        super::super::FollowedShow,
+                        ::buffa::Inline<super::super::FollowedShow>,
+                    >::some(v.to_owned_from_source(__buffa_src)?)
+                }
+                None => ::buffa::MessageField::none(),
+            },
+            user_id: self.user_id,
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for FollowedShowRequesterRemovedView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.followed_show.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.followed_show.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        if self.user_id != 0i64 {
+            size += 1u64 + ::buffa::types::int64_encoded_len(self.user_id) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.followed_show.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.followed_show.write_to(__cache, buf);
+        }
+        if self.user_id != 0i64 {
+            ::buffa::types::put_int64_field(2u32, self.user_id, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for FollowedShowRequesterRemovedView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        {
+            if let ::core::option::Option::Some(__v) = self.followed_show.as_option() {
+                __map.serialize_entry("followedShow", __v)?;
+            }
+        }
+        if !::buffa::json_helpers::skip_if::is_zero_i64(&self.user_id) {
+            __map
+                .serialize_entry(
+                    "userId",
+                    &::buffa::json_helpers::ProtoJson(&self.user_id),
+                )?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for FollowedShowRequesterRemovedView<'a> {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "FollowedShowRequesterRemoved";
+    const FULL_NAME: &'static str = "nama.v1.FollowedShowRequesterRemoved";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.FollowedShowRequesterRemoved";
+}
+::buffa::impl_default_view_instance!(FollowedShowRequesterRemovedView);
+::buffa::impl_view_reborrow!(FollowedShowRequesterRemovedView);
+/** Self-contained, `'static` owned view of a `FollowedShowRequesterRemoved` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`FollowedShowRequesterRemovedView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`FollowedShowRequesterRemovedView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct FollowedShowRequesterRemovedOwnedView(
+    ::buffa::OwnedView<FollowedShowRequesterRemovedView<'static>>,
+);
+impl FollowedShowRequesterRemovedOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            FollowedShowRequesterRemovedOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            FollowedShowRequesterRemovedOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::FollowedShowRequesterRemoved,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            FollowedShowRequesterRemovedOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`FollowedShowRequesterRemovedView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &FollowedShowRequesterRemovedView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::FollowedShowRequesterRemoved {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// The Followed Show as it was, with them still among its Requesters, so they get the event too.
+    ///
+    /// Field 1: `followed_show`
+    #[must_use]
+    pub fn followed_show(
+        &self,
+    ) -> &::buffa::MessageFieldView<super::super::__buffa::view::FollowedShowView<'_>> {
+        &self.0.reborrow().followed_show
+    }
+    /// The User who withdrew.
+    ///
+    /// Field 2: `user_id`
+    #[must_use]
+    pub fn user_id(&self) -> i64 {
+        self.0.reborrow().user_id
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<FollowedShowRequesterRemovedView<'static>>>
+for FollowedShowRequesterRemovedOwnedView {
+    fn from(
+        inner: ::buffa::OwnedView<FollowedShowRequesterRemovedView<'static>>,
+    ) -> Self {
+        FollowedShowRequesterRemovedOwnedView(inner)
+    }
+}
+impl ::core::convert::From<FollowedShowRequesterRemovedOwnedView>
+for ::buffa::OwnedView<FollowedShowRequesterRemovedView<'static>> {
+    fn from(wrapper: FollowedShowRequesterRemovedOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<
+    ::buffa::OwnedView<FollowedShowRequesterRemovedView<'static>>,
+> for FollowedShowRequesterRemovedOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<FollowedShowRequesterRemovedView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::FollowedShowRequesterRemoved {
+    type View<'a> = FollowedShowRequesterRemovedView<'a>;
+    type ViewHandle = FollowedShowRequesterRemovedOwnedView;
+}
+impl ::serde::Serialize for FollowedShowRequesterRemovedOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+/// A Followed Show's last Requester withdrew, which removed it.
+#[derive(Clone, Debug, Default)]
+pub struct FollowedShowWithdrawnView<'a> {
+    /// The Followed Show as it was before it was removed.
+    ///
+    /// Field 1: `followed_show`
+    pub followed_show: ::buffa::MessageFieldView<
+        super::super::__buffa::view::FollowedShowView<'a>,
+    >,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for FollowedShowWithdrawnView<'a> {
+    type Owned = super::super::FollowedShowWithdrawn;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                match view.followed_show.as_mut() {
+                    Some(existing) => {
+                        ::buffa::MessageView::merge_into_view(existing, sub, __sub_ctx)?
+                    }
+                    None => {
+                        view.followed_show = ::buffa::MessageFieldView::set(
+                            <super::super::__buffa::view::FollowedShowView as ::buffa::MessageView>::decode_view_ctx(
+                                sub,
+                                __sub_ctx,
+                            )?,
+                        );
+                    }
+                }
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<
+        super::super::FollowedShowWithdrawn,
+        ::buffa::DecodeError,
+    > {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<
+        super::super::FollowedShowWithdrawn,
+        ::buffa::DecodeError,
+    > {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::FollowedShowWithdrawn {
+            followed_show: match self.followed_show.as_option() {
+                Some(v) => {
+                    ::buffa::MessageField::<
+                        super::super::FollowedShow,
+                        ::buffa::Inline<super::super::FollowedShow>,
+                    >::some(v.to_owned_from_source(__buffa_src)?)
+                }
+                None => ::buffa::MessageField::none(),
+            },
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for FollowedShowWithdrawnView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.followed_show.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.followed_show.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.followed_show.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.followed_show.write_to(__cache, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for FollowedShowWithdrawnView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        {
+            if let ::core::option::Option::Some(__v) = self.followed_show.as_option() {
+                __map.serialize_entry("followedShow", __v)?;
+            }
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for FollowedShowWithdrawnView<'a> {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "FollowedShowWithdrawn";
+    const FULL_NAME: &'static str = "nama.v1.FollowedShowWithdrawn";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.FollowedShowWithdrawn";
+}
+::buffa::impl_default_view_instance!(FollowedShowWithdrawnView);
+::buffa::impl_view_reborrow!(FollowedShowWithdrawnView);
+/** Self-contained, `'static` owned view of a `FollowedShowWithdrawn` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`FollowedShowWithdrawnView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`FollowedShowWithdrawnView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct FollowedShowWithdrawnOwnedView(
+    ::buffa::OwnedView<FollowedShowWithdrawnView<'static>>,
+);
+impl FollowedShowWithdrawnOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            FollowedShowWithdrawnOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            FollowedShowWithdrawnOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::FollowedShowWithdrawn,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            FollowedShowWithdrawnOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`FollowedShowWithdrawnView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &FollowedShowWithdrawnView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::FollowedShowWithdrawn {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// The Followed Show as it was before it was removed.
+    ///
+    /// Field 1: `followed_show`
+    #[must_use]
+    pub fn followed_show(
+        &self,
+    ) -> &::buffa::MessageFieldView<super::super::__buffa::view::FollowedShowView<'_>> {
+        &self.0.reborrow().followed_show
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<FollowedShowWithdrawnView<'static>>>
+for FollowedShowWithdrawnOwnedView {
+    fn from(inner: ::buffa::OwnedView<FollowedShowWithdrawnView<'static>>) -> Self {
+        FollowedShowWithdrawnOwnedView(inner)
+    }
+}
+impl ::core::convert::From<FollowedShowWithdrawnOwnedView>
+for ::buffa::OwnedView<FollowedShowWithdrawnView<'static>> {
+    fn from(wrapper: FollowedShowWithdrawnOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<FollowedShowWithdrawnView<'static>>>
+for FollowedShowWithdrawnOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<FollowedShowWithdrawnView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::FollowedShowWithdrawn {
+    type View<'a> = FollowedShowWithdrawnView<'a>;
+    type ViewHandle = FollowedShowWithdrawnOwnedView;
+}
+impl ::serde::Serialize for FollowedShowWithdrawnOwnedView {
     fn serialize<__S: ::serde::Serializer>(
         &self,
         __s: __S,

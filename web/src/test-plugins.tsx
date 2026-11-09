@@ -1,7 +1,7 @@
 import { Code, ConnectError, type ServiceImpl } from "@connectrpc/connect";
 import { screen, within } from "@testing-library/react";
 
-import { PluginKind, PluginService, SettingKind } from "@/gen/nama/v1/plugin_pb";
+import { ExtensionPoint, PluginKind, PluginService, SettingKind } from "@/gen/nama/v1/plugin_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
 
 import { fakeServer, openApp } from "./test-app";
@@ -11,7 +11,8 @@ const text = (value: string) => ({ value: { case: "textValue" as const, value } 
 /**
  * The Built-in Plugins of a fresh Server with a TMDB API key set, settings of every kind (log-events
  * missing its required Path), and the test Plugin, whose settings check offers choices, then an
- * Installed Plugin with a URL setting and one the Server refused.
+ * Installed Plugin with a URL setting and one the Server refused. TMDB, the test Plugin and the
+ * Installed Plugin name their Extension Points.
  */
 const plugins = [
   { id: "local-auth", version: "0.1.0", kind: PluginKind.BUILT_IN, enabled: true },
@@ -47,6 +48,7 @@ const plugins = [
     version: "0.1.0",
     kind: PluginKind.BUILT_IN,
     enabled: true,
+    extensionPoints: [ExtensionPoint.METADATA_PROVIDER],
     settings: [
       {
         key: "api_key",
@@ -79,6 +81,7 @@ const plugins = [
     version: "0.0.0",
     kind: PluginKind.BUILT_IN,
     enabled: true,
+    extensionPoints: [ExtensionPoint.MOVIE_FULFILLER, ExtensionPoint.SHOW_FULFILLER],
     checksSettings: true,
     settings: [
       {
@@ -104,6 +107,7 @@ const plugins = [
     version: "0.1.0",
     kind: PluginKind.INSTALLED,
     enabled: false,
+    extensionPoints: [ExtensionPoint.NOTIFIER, ExtensionPoint.EVENTS_OBSERVER],
     settings: [
       {
         key: "url",
@@ -138,6 +142,7 @@ function pluginServer(changes: Partial<ServiceImpl<typeof PluginService>>) {
             enabled,
             refusedReason = "",
             settingsMissing = false,
+            extensionPoints = [],
           }) => ({
             id,
             name,
@@ -147,6 +152,7 @@ function pluginServer(changes: Partial<ServiceImpl<typeof PluginService>>) {
             enabled,
             refusedReason,
             settingsMissing,
+            extensionPoints,
           }),
         ),
       }),

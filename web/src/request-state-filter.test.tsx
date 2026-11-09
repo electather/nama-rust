@@ -9,8 +9,9 @@ import {
   RequestService,
   RequestState,
 } from "@/gen/nama/v1/request_pb";
+import type { Permission } from "@/gen/nama/v1/sign_in_pb";
 
-import { eventFeed, fakeServer, newUser, openApp } from "./test-app";
+import { admin, eventFeed, fakeServer, newUser, openApp } from "./test-app";
 
 afterEach(cleanup);
 
@@ -35,18 +36,27 @@ function isIn(row: { state?: RequestState }, state: RequestState) {
   return state === RequestState.UNSPECIFIED || row.state === state;
 }
 
-/** A fake Server holding `requests` and `followedShows`, which lists those in the state asked for. */
+/**
+ * A fake Server holding `requests` and `followedShows`, which lists those in the state asked for
+ * and approves a Request in `requests`, signed in with `signedIn`.
+ */
 function filteringServer(
   requests: MessageInitShape<typeof RequestSchema>[],
   followedShows: MessageInitShape<typeof FollowedShowSchema>[] = [],
   events = new ReadableStream<SubscribeResponse>(),
+  signedIn: Permission[] = newUser,
 ) {
-  return fakeServer({ signedIn: newUser, events }, {}, {}, (router) => {
+  return fakeServer({ signedIn, events }, {}, {}, (router) => {
     router.service(RequestService, {
       listRequests: ({ state }) => ({
         requests: requests.filter((row) => isIn(row, state)),
         followedShows: followedShows.filter((row) => isIn(row, state)),
       }),
+      approveRequest: ({ id }) => {
+        const index = requests.findIndex((row) => row.id === id);
+        requests[index] = { ...requests[index], state: RequestState.APPROVED };
+        return { request: requests[index] };
+      },
     });
   });
 }
@@ -143,4 +153,18 @@ test("a Request retried elsewhere leaves the Failed ones without a reload", asyn
   events.send({ event: { case: "requestStateChanged", value: { request: requests[0] } } });
 
   expect(await screen.findByText("No Failed Requests.")).toBeDefined();
+});
+
+test("approving a Request while showing Pending ones takes it off the list", async () => {
+  const pendingDune = { ...failedDune, state: RequestState.PENDING };
+  openApp(
+    "/requests?state=pending",
+    filteringServer([pendingHeat, pendingDune], [], undefined, admin),
+  );
+
+  fireEvent.click(await screen.findByRole("button", { name: "Approve Heat" }));
+
+  await waitFor(() => {
+    expect(rowTitles()).toEqual(["Dune"]);
+  });
 });

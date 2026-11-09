@@ -27,16 +27,22 @@ use nama_plugin_tmdb::{
 use nama_proto::nama::v1::{
     __buffa::view::SubscribeResponseView, ApproveRequestRequest, CreateRequestRequest,
     CreateUserRequest, Download, DownloadStatus, EnablePluginRequest, EventServiceClient,
-    EventType, ListPluginsRequest, PluginServiceClient, RefusalReason, Request,
-    RequestServiceClient, RequestState, RetryRequestRequest, SessionDelivery, SignInRequest,
-    SignInServiceClient, SubscribeRequest, SubscribeResponse, TestPluginSettingsRequest,
-    TestPluginSettingsResponse, UpdatePluginSettingsRequest, event, setting_value::Value,
-    subscribe_response,
+    EventType, ListMovieQualitiesRequest, ListOfferedQualitiesRequest, ListPluginsRequest,
+    ListQualitiesRequest, Permission, PluginServiceClient, Quality, RefusalReason,
+    ReplaceQualitiesRequest, Request, RequestServiceClient, RequestState, RetryRequestRequest,
+    SessionDelivery, SetPermissionsRequest, SignInRequest, SignInServiceClient, SubscribeRequest,
+    SubscribeResponse, TestPluginSettingsRequest, TestPluginSettingsResponse, TitleKind,
+    UpdatePluginSettingsRequest, event, setting_value::Value, subscribe_response,
 };
 use nama_server::{config::Config, plugin_settings, plugins::Registry};
 use refused::assert_refused;
 use serde_json::json;
 use server::{PASSWORD, TestServer};
+
+/// Quality profiles the fake Radarr offers, by id.
+const ANY: &str = "1";
+const HD_1080P: &str = "4";
+const ULTRA_HD: &str = "5";
 
 /// Movies the fake TMDB knows.
 const ALIEN: i64 = 348;
@@ -96,9 +102,14 @@ impl Fixture {
     /// A Fixture where an Admin set Radarr up with the profile HD-1080p and the root folder
     /// `/movies`, and enabled it.
     async fn with_radarr_enabled() -> Self {
+        Self::with_radarr_enabled_at(HD_1080P).await
+    }
+
+    /// [`Self::with_radarr_enabled`], with the Radarr quality profile `profile` as its setting.
+    async fn with_radarr_enabled_at(profile: &str) -> Self {
         let fixture = Self::start().await;
         let mut settings = fixture.radarr_settings(RADARR_KEY);
-        settings.extend([("quality_profile", "4"), ("root_folder", "/movies")].map(text));
+        settings.extend([("quality_profile", profile), ("root_folder", "/movies")].map(text));
         fixture
             .plugins()
             .update_plugin_settings(UpdatePluginSettingsRequest {
@@ -156,40 +167,66 @@ impl Fixture {
     /// The Movie `tmdb_id`, asked for by the new User `member` and so Pending, then Approved by
     /// the Admin, as the approval left it.
     async fn approve_movie(&self, member: &ClientConfig, tmdb_id: i64) -> Request {
-        let asked = RequestServiceClient::new(HttpClient::plaintext(), member.clone())
-            .create_request(CreateRequestRequest {
-                movie_tmdb_id: tmdb_id,
+        let asked = ask(member, tmdb_id, None).await.unwrap();
+        assert_eq!(asked.state, RequestState::Pending);
+        self.approve(asked.id, None).await.unwrap()
+    }
+
+    /// Approves the Request `id` as the Admin, at the Quality `quality_id` if given, and returns
+    /// it as the approval left it.
+    async fn approve(&self, id: i64, quality_id: Option<i64>) -> Result<Request, ConnectError> {
+        let approved = self
+            .requests()
+            .approve_request(ApproveRequestRequest {
+                id,
+                quality_id,
+                ..Default::default()
+            })
+            .await?;
+        Ok(approved.into_owned().request.into_option().unwrap())
+    }
+
+    /// Replaces Radarr's Qualities with `qualities` as the Admin, returning them as saved.
+    async fn replace_qualities(
+        &self,
+        qualities: Vec<Quality>,
+    ) -> Result<Vec<Quality>, ConnectError> {
+        let replaced = self
+            .plugins()
+            .replace_qualities(ReplaceQualitiesRequest {
+                id: "radarr".to_owned(),
+                qualities,
+                ..Default::default()
+            })
+            .await?;
+        Ok(replaced.into_owned().qualities)
+    }
+
+    /// Radarr's Qualities, as the Admin reads them.
+    async fn qualities(&self) -> Vec<Quality> {
+        self.plugins()
+            .list_qualities(ListQualitiesRequest {
+                id: "radarr".to_owned(),
                 ..Default::default()
             })
             .await
             .unwrap()
             .into_owned()
-            .request
-            .into_option()
-            .unwrap();
-        assert_eq!(asked.state, RequestState::Pending);
-        let approved = self
-            .requests()
-            .approve_request(ApproveRequestRequest {
-                id: asked.id,
-                ..Default::default()
-            })
-            .await
-            .unwrap();
-        approved.into_owned().request.into_option().unwrap()
+            .qualities
     }
 
-    /// Retries the Request `id` as the Admin, and returns it as the retry left it.
-    async fn retry(&self, id: i64) -> Request {
+    /// Retries the Request `id` as the Admin, at the Quality `quality_id` if given, and returns
+    /// it as the retry left it.
+    async fn retry(&self, id: i64, quality_id: Option<i64>) -> Result<Request, ConnectError> {
         let retried = self
             .requests()
             .retry_request(RetryRequestRequest {
                 id,
+                quality_id,
                 ..Default::default()
             })
-            .await
-            .unwrap();
-        retried.into_owned().request.into_option().unwrap()
+            .await?;
+        Ok(retried.into_owned().request.into_option().unwrap())
     }
 
     /// Asks the Movie Fulfiller, Radarr, what it is downloading for `references`, with its error
@@ -207,8 +244,14 @@ impl Fixture {
 
     /// Subscribes as the Admin to the progress of every Request.
     async fn subscribe_to_progress(&self) -> Subscription {
+        self.subscribe_to(EventType::EVENT_TYPE_REQUEST_PROGRESS)
+            .await
+    }
+
+    /// Subscribes as the Admin to the events of type `only` about every Request.
+    async fn subscribe_to(&self, only: EventType) -> Subscription {
         let only = SubscribeRequest {
-            types: vec![EventType::EVENT_TYPE_REQUEST_PROGRESS.into()],
+            types: vec![only.into()],
             ..Default::default()
         };
         EventServiceClient::new(HttpClient::plaintext(), self.server.client_config())
@@ -220,11 +263,16 @@ impl Fixture {
     /// Creates a User with the Permissions a new User gets, signs them in, and returns client
     /// settings that call as them.
     async fn member(&self) -> ClientConfig {
+        self.member_with(None).await
+    }
+
+    /// [`Self::member`], with `permissions` the Admin gives them in place of a new User's, if any.
+    async fn member_with(&self, permissions: Option<&[Permission]>) -> ClientConfig {
         let users = nama_proto::nama::v1::UserServiceClient::new(
             HttpClient::plaintext(),
             self.server.client_config(),
         );
-        users
+        let created = users
             .create_user(CreateUserRequest {
                 name: "Ada".to_owned(),
                 password: PASSWORD.to_owned(),
@@ -232,6 +280,16 @@ impl Fixture {
             })
             .await
             .unwrap();
+        if let Some(permissions) = permissions {
+            users
+                .set_permissions(SetPermissionsRequest {
+                    user_id: created.into_owned().id,
+                    permissions: permissions.iter().map(|&p| p.into()).collect(),
+                    ..Default::default()
+                })
+                .await
+                .unwrap();
+        }
         let signed_in = SignInServiceClient::new(
             HttpClient::plaintext(),
             self.server.anonymous_client_config(),
@@ -247,6 +305,44 @@ impl Fixture {
         .unwrap();
         self.server.client_config_as(&signed_in.into_owned().token)
     }
+}
+
+/// Asks for the Movie `tmdb_id` as `member`, at the Quality `quality` if given.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn ask(
+    member: &ClientConfig,
+    tmdb_id: i64,
+    quality: Option<i64>,
+) -> Result<Request, ConnectError> {
+    let asked = RequestServiceClient::new(HttpClient::plaintext(), member.clone())
+        .create_request(CreateRequestRequest {
+            movie_tmdb_id: tmdb_id,
+            quality,
+            ..Default::default()
+        })
+        .await?;
+    Ok(asked.into_owned().request.into_option().unwrap())
+}
+
+/// A new Quality offering the Radarr profile `profile_id` as `name`.
+fn quality(profile_id: &str, name: &str, is_default: bool) -> Quality {
+    Quality {
+        profile_id: profile_id.to_owned(),
+        name: name.to_owned(),
+        is_default,
+        ..Default::default()
+    }
+}
+
+/// "HD" (HD-1080p, the default) and "4K" (Ultra-HD), as an Admin offers them.
+fn hd_and_4k() -> Vec<Quality> {
+    vec![
+        quality(HD_1080P, "HD", true),
+        quality(ULTRA_HD, "4K", false),
+    ]
 }
 
 /// `(key, value)` as the Plugins page sends a text setting.
@@ -277,11 +373,25 @@ async fn testing_radarrs_settings_offers_its_quality_profiles_and_root_folders()
 
     assert_eq!(
         choices(&tested, "quality_profile"),
-        [("1", "Any"), ("4", "HD-1080p")]
+        [("1", "Any"), ("4", "HD-1080p"), ("5", "Ultra-HD")]
     );
     assert_eq!(
         choices(&tested, "root_folder"),
         [("/movies", "/movies"), ("/movies-4k", "/movies-4k")]
+    );
+}
+
+// The Plugin page flags a Quality whose profile this check stops offering.
+#[tokio::test]
+async fn testing_radarrs_settings_stops_offering_a_profile_removed_from_radarr() {
+    let fixture = Fixture::start().await;
+    fixture.radarr.remove_profile(4);
+
+    let tested = fixture.test_settings(RADARR_KEY).await.unwrap();
+
+    assert_eq!(
+        choices(&tested, "quality_profile"),
+        [("1", "Any"), ("5", "Ultra-HD")]
     );
 }
 
@@ -315,6 +425,8 @@ async fn approving_a_movie_request_adds_it_to_radarr_with_the_chosen_profile_and
     let approved = fixture.approve_movie(&fixture.member().await, HEAT).await;
 
     assert_eq!(approved.state, RequestState::Processing);
+    assert!(approved.quality.is_unset());
+    assert!(approved.quality_used.is_unset());
     let added = json!({
         "tmdbId": HEAT,
         "title": "Heat",
@@ -335,7 +447,7 @@ async fn with_radarr_down_a_request_fails_in_plain_words_and_retrying_once_it_is
 
     let failed = fixture.approve_movie(&fixture.member().await, HEAT).await;
     fixture.radarr.come_back().await;
-    let retried = fixture.retry(failed.id).await;
+    let retried = fixture.retry(failed.id, None).await.unwrap();
 
     assert_eq!(failed.state, RequestState::Failed);
     assert_eq!(
@@ -368,17 +480,17 @@ async fn a_movie_radarr_cant_find_fails_with_radarrs_reason() {
     );
 }
 
-/// The Request and its downloads in the next progress event on `subscription`.
+/// The next event on `subscription`.
 #[expect(
     clippy::expect_used,
     clippy::unwrap_used,
     clippy::panic,
     reason = "a test helper fails its test by panicking"
 )]
-async fn next_progress(subscription: &mut Subscription) -> (i64, Vec<Download>) {
+async fn next_event(subscription: &mut Subscription) -> event::Event {
     let next = tokio::time::timeout(WAIT, subscription.message::<SubscribeResponse>())
         .await
-        .expect("timed out waiting for progress")
+        .expect("timed out waiting for an event")
         .unwrap()
         .expect("the stream ended")
         .to_owned_message()
@@ -386,14 +498,40 @@ async fn next_progress(subscription: &mut Subscription) -> (i64, Vec<Download>) 
     let Some(subscribe_response::Message::Event(event)) = next else {
         panic!("not an event: {next:?}");
     };
-    let Some(event::Event::RequestProgress(progress)) = event.event else {
-        panic!("not progress: {event:?}");
+    event.event.expect("an event of no kind")
+}
+
+/// The Request and its downloads in the next progress event on `subscription`.
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn next_progress(subscription: &mut Subscription) -> (i64, Vec<Download>) {
+    let event::Event::RequestProgress(progress) = next_event(subscription).await else {
+        panic!("not progress");
     };
     let request = progress
         .request
         .into_option()
         .expect("progress of no Request");
     (request.id, request.downloads)
+}
+
+/// The Request as the next state change event on `subscription` has it.
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn next_state_change(subscription: &mut Subscription) -> Request {
+    let event::Event::RequestStateChanged(changed) = next_event(subscription).await else {
+        panic!("not a state change");
+    };
+    changed
+        .request
+        .into_option()
+        .expect("a change of no Request")
 }
 
 #[tokio::test]
@@ -460,4 +598,366 @@ async fn with_radarr_refusing_the_key_or_down_progress_fails_in_plain_words() {
     assert_eq!(answered, Ok(vec![HEAT.to_string()]));
     assert_eq!(refused, Err("Radarr refused the API key".to_owned()));
     assert_eq!(down, Err("Radarr didn't answer".to_owned()));
+}
+
+#[tokio::test]
+async fn a_movie_request_goes_to_radarr_at_the_default_quality_an_admin_offers() {
+    let fixture = Fixture::with_radarr_enabled_at(ANY).await;
+    let offered = fixture.replace_qualities(hd_and_4k()).await.unwrap();
+
+    let approved = fixture.approve_movie(&fixture.member().await, HEAT).await;
+
+    assert_eq!(fixture.qualities().await, offered);
+    let hd = &offered[0];
+    assert_eq!(
+        (approved.quality.id, approved.quality.name.as_str()),
+        (hd.id, "HD")
+    );
+    assert_eq!(approved.quality.profile_id, HD_1080P);
+    assert!(approved.quality_change.is_unset());
+    assert_eq!(approved.quality_used, approved.quality);
+    let added = fixture.radarr.added();
+    assert_eq!(added.len(), 1);
+    assert_eq!(added[0]["qualityProfileId"], json!(4));
+}
+
+#[tokio::test]
+async fn a_request_keeps_its_quality_and_retries_with_its_profile_after_it_is_renamed_and_removed()
+{
+    let mut fixture = Fixture::with_radarr_enabled_at(ANY).await;
+    let offered = fixture.replace_qualities(hd_and_4k()).await.unwrap();
+    fixture.radarr.go_down();
+    let failed = fixture.approve_movie(&fixture.member().await, HEAT).await;
+    fixture.radarr.come_back().await;
+
+    let mut renamed = offered.clone();
+    renamed[0].name = "Full HD".to_owned();
+    fixture.replace_qualities(renamed).await.unwrap();
+    let mut only_4k = offered[1].clone();
+    only_4k.is_default = true;
+    let kept = fixture
+        .replace_qualities(vec![only_4k.clone()])
+        .await
+        .unwrap();
+    let retried = fixture.retry(failed.id, None).await.unwrap();
+
+    assert_eq!(kept, [only_4k]);
+    assert_eq!(retried.state, RequestState::Processing);
+    assert_eq!(retried.quality.name, "HD");
+    assert!(retried.quality_change.is_unset());
+    assert_eq!(fixture.radarr.added()[0]["qualityProfileId"], json!(4));
+}
+
+/// "HD" and "4K" as [`hd_and_4k`] offers them, but with 4K the default.
+fn hd_and_default_4k() -> Vec<Quality> {
+    vec![
+        quality(HD_1080P, "HD", false),
+        quality(ULTRA_HD, "4K", true),
+    ]
+}
+
+#[tokio::test]
+async fn a_request_manager_approving_a_4k_request_as_hd_has_radarr_asked_for_hd() {
+    let fixture = Fixture::with_radarr_enabled_at(ANY).await;
+    let offered = fixture
+        .replace_qualities(hd_and_default_4k())
+        .await
+        .unwrap();
+    let asked = ask(&fixture.member().await, HEAT, None).await.unwrap();
+    let mut approvals = fixture
+        .subscribe_to(EventType::EVENT_TYPE_REQUEST_STATE_CHANGED)
+        .await;
+
+    let offered_to_managers = fixture
+        .requests()
+        .list_offered_qualities(ListOfferedQualitiesRequest {
+            kind: TitleKind::TITLE_KIND_MOVIE.into(),
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_owned()
+        .qualities;
+    let approved = fixture
+        .approve(asked.id, Some(offered[0].id))
+        .await
+        .unwrap();
+
+    assert_eq!(offered_to_managers, offered);
+    assert_eq!(asked.quality.name, "4K");
+    assert_eq!(
+        (
+            approved.quality.name.as_str(),
+            approved.quality.profile_id.as_str()
+        ),
+        ("HD", HD_1080P)
+    );
+    let change = &approved.quality_change;
+    assert_eq!(change.changed_by.as_deref(), Some("Admin"));
+    assert_eq!(change.previous_name.as_deref(), Some("4K"));
+    assert!(change.changed_at > 0);
+    assert_eq!(fixture.radarr.added()[0]["qualityProfileId"], json!(4));
+    let told = next_state_change(&mut approvals).await;
+    assert_eq!(told.state, RequestState::Approved);
+    assert_eq!(told.quality_change, approved.quality_change);
+}
+
+#[tokio::test]
+async fn retrying_a_failed_request_at_another_quality_hands_it_off_at_that_one_keeping_only_that_change()
+ {
+    let mut fixture = Fixture::with_radarr_enabled_at(ANY).await;
+    let offered = fixture.replace_qualities(hd_and_4k()).await.unwrap();
+    let asked = ask(&fixture.member().await, HEAT, None).await.unwrap();
+    fixture.radarr.go_down();
+    let failed = fixture
+        .approve(asked.id, Some(offered[1].id))
+        .await
+        .unwrap();
+    fixture.radarr.come_back().await;
+
+    let retried = fixture.retry(failed.id, Some(offered[0].id)).await.unwrap();
+
+    assert_eq!(failed.state, RequestState::Failed);
+    assert_eq!(failed.quality_change.previous_name.as_deref(), Some("HD"));
+    assert_eq!(retried.state, RequestState::Processing);
+    assert_eq!(retried.quality.name, "HD");
+    assert_eq!(retried.quality_change.previous_name.as_deref(), Some("4K"));
+    assert_eq!(fixture.radarr.added()[0]["qualityProfileId"], json!(4));
+}
+
+#[tokio::test]
+async fn approving_or_retrying_at_a_quality_not_on_the_list_is_refused() {
+    let mut fixture = Fixture::with_radarr_enabled_at(ANY).await;
+    fixture.replace_qualities(hd_and_4k()).await.unwrap();
+    let member = fixture.member().await;
+    let pending = ask(&member, HEAT, None).await.unwrap();
+    fixture.radarr.go_down();
+    let failed = fixture.approve_movie(&member, ALIEN).await;
+    let unknown = Some(999);
+
+    let approving = fixture.approve(pending.id, unknown).await;
+    let retrying = fixture.retry(failed.id, unknown).await;
+
+    for refused in [approving, retrying] {
+        let refusal = assert_refused(
+            refused,
+            ErrorCode::InvalidArgument,
+            RefusalReason::REFUSAL_REASON_QUALITY_NOT_OFFERED,
+        );
+        assert_eq!(refusal.field, "quality_id");
+        assert_eq!(
+            refusal.params.get("qualityId").map(String::as_str),
+            Some("999")
+        );
+    }
+    let still = fixture.approve(pending.id, None).await.unwrap();
+    assert_eq!(still.quality.name, "HD");
+}
+
+#[tokio::test]
+async fn a_request_whose_profile_was_removed_from_radarr_fails_naming_it() {
+    let fixture = Fixture::with_radarr_enabled_at(ANY).await;
+    fixture.replace_qualities(hd_and_4k()).await.unwrap();
+    fixture.radarr.remove_profile(4);
+
+    let failed = fixture.approve_movie(&fixture.member().await, HEAT).await;
+
+    assert_eq!(failed.state, RequestState::Failed);
+    assert_eq!(
+        failed.failure_reason.as_deref(),
+        Some("Radarr has no quality profile with the id 4, which HD uses")
+    );
+    assert_eq!(fixture.radarr.added(), Vec::<serde_json::Value>::new());
+}
+
+#[tokio::test]
+async fn a_movie_radarr_already_had_at_another_quality_shows_that_quality() {
+    let fixture = Fixture::with_radarr_enabled_at(ANY).await;
+    let offered = fixture.replace_qualities(hd_and_4k()).await.unwrap();
+
+    let approved = fixture.approve_movie(&fixture.member().await, ALIEN).await;
+
+    assert_eq!(approved.state, RequestState::Processing);
+    assert_eq!(approved.quality.name, "HD");
+    let used = &approved.quality_used;
+    assert_eq!(
+        (used.id, used.name.as_str(), used.profile_id.as_str()),
+        (offered[1].id, "4K", ULTRA_HD)
+    );
+}
+
+#[tokio::test]
+async fn a_movie_radarr_already_had_goes_to_processing_at_its_own_profile_though_the_asked_one_was_removed()
+ {
+    let fixture = Fixture::with_radarr_enabled_at(ANY).await;
+    fixture.replace_qualities(hd_and_4k()).await.unwrap();
+    fixture.radarr.remove_profile(4);
+
+    let approved = fixture.approve_movie(&fixture.member().await, ALIEN).await;
+
+    assert_eq!(approved.state, RequestState::Processing);
+    assert_eq!(approved.quality_used.name, "4K");
+}
+
+#[tokio::test]
+async fn a_movie_radarr_already_had_at_a_profile_no_quality_offers_shows_radarrs_name_for_it() {
+    let fixture = Fixture::with_radarr_enabled_at(ANY).await;
+    fixture
+        .replace_qualities(vec![quality(HD_1080P, "HD", true)])
+        .await
+        .unwrap();
+
+    let approved = fixture.approve_movie(&fixture.member().await, ALIEN).await;
+
+    let used = &approved.quality_used;
+    assert_eq!(
+        (used.id, used.name.as_str(), used.profile_id.as_str()),
+        (0, "Ultra-HD", ULTRA_HD)
+    );
+}
+
+#[tokio::test]
+async fn saving_a_quality_whose_profile_radarr_doesnt_offer_is_refused_naming_it() {
+    let fixture = Fixture::with_radarr_enabled().await;
+
+    let refused = fixture
+        .replace_qualities(vec![quality(ANY, "Any", true), quality("99", "8K", false)])
+        .await;
+
+    let refusal = assert_refused(
+        refused,
+        ErrorCode::FailedPrecondition,
+        RefusalReason::REFUSAL_REASON_CHOICE_NOT_OFFERED,
+    );
+    assert_eq!(refusal.field, "qualities[1].profile_id");
+    assert_eq!(fixture.qualities().await, []);
+}
+
+#[tokio::test]
+async fn saving_qualities_while_radarr_is_down_is_refused() {
+    let mut fixture = Fixture::with_radarr_enabled().await;
+    fixture.radarr.go_down();
+
+    let refused = fixture.replace_qualities(hd_and_4k()).await;
+
+    assert_refused(
+        refused,
+        ErrorCode::FailedPrecondition,
+        RefusalReason::REFUSAL_REASON_SETTINGS_CHECK_FAILED,
+    );
+}
+
+#[tokio::test]
+async fn repeated_profiles_or_names_and_lists_without_one_default_are_refused() {
+    let fixture = Fixture::with_radarr_enabled().await;
+    let cases = [
+        (
+            vec![
+                quality(HD_1080P, "HD", true),
+                quality(HD_1080P, "Full HD", false),
+            ],
+            RefusalReason::REFUSAL_REASON_QUALITY_REPEATED,
+            "qualities[1].profile_id",
+        ),
+        (
+            vec![
+                quality(HD_1080P, "HD", true),
+                quality(ULTRA_HD, "hd", false),
+            ],
+            RefusalReason::REFUSAL_REASON_QUALITY_REPEATED,
+            "qualities[1].name",
+        ),
+        (
+            vec![
+                quality(HD_1080P, "HD", false),
+                quality(ULTRA_HD, "4K", false),
+            ],
+            RefusalReason::REFUSAL_REASON_DEFAULT_QUALITY_REQUIRED,
+            "qualities",
+        ),
+        (
+            vec![quality(HD_1080P, "HD", true), quality(ULTRA_HD, "4K", true)],
+            RefusalReason::REFUSAL_REASON_DEFAULT_QUALITY_REQUIRED,
+            "qualities",
+        ),
+    ];
+
+    for (qualities, reason, field) in cases {
+        let refused = fixture.replace_qualities(qualities).await;
+
+        let refusal = assert_refused(refused, ErrorCode::InvalidArgument, reason);
+        assert_eq!(refusal.field, field);
+    }
+    assert_eq!(fixture.qualities().await, []);
+}
+
+#[tokio::test]
+async fn a_quality_id_given_twice_is_kept_once_and_the_other_quality_gets_a_new_one() {
+    let fixture = Fixture::with_radarr_enabled().await;
+    let offered = fixture.replace_qualities(hd_and_4k()).await.unwrap();
+    let mut twice = hd_and_4k();
+    twice[0].id = offered[0].id;
+    twice[1].id = offered[0].id;
+
+    let saved = fixture.replace_qualities(twice).await.unwrap();
+
+    assert_eq!(saved[0].id, offered[0].id);
+    assert_ne!(saved[1].id, offered[0].id);
+}
+
+#[tokio::test]
+async fn a_member_given_choose_quality_picks_4k_and_radarr_adds_the_movie_at_its_profile() {
+    let fixture = Fixture::with_radarr_enabled_at(ANY).await;
+    let offered = fixture.replace_qualities(hd_and_4k()).await.unwrap();
+    let chooser = fixture
+        .member_with(Some(&[Permission::Request, Permission::ChooseQuality]))
+        .await;
+
+    let listed = RequestServiceClient::new(HttpClient::plaintext(), chooser.clone())
+        .list_movie_qualities(ListMovieQualitiesRequest::default())
+        .await
+        .unwrap();
+    let asked = ask(&chooser, HEAT, Some(offered[1].id)).await.unwrap();
+    let approved = fixture.approve(asked.id, None).await.unwrap();
+
+    assert_eq!(listed.into_owned().qualities, offered);
+    assert_eq!(approved.quality.name, "4K");
+    assert_eq!(fixture.radarr.added()[0]["qualityProfileId"], json!(5));
+}
+
+#[tokio::test]
+async fn a_quality_not_on_the_list_or_with_no_list_is_refused_naming_it() {
+    let fixture = Fixture::with_radarr_enabled().await;
+    let chooser = fixture
+        .member_with(Some(&[Permission::Request, Permission::ChooseQuality]))
+        .await;
+    let without_a_list = ask(&chooser, HEAT, Some(1)).await;
+    let offered = fixture.replace_qualities(hd_and_4k()).await.unwrap();
+    let not_offered = offered.iter().map(|quality| quality.id).max().unwrap() + 1;
+
+    let off_the_list = ask(&chooser, HEAT, Some(not_offered)).await;
+
+    for refused in [without_a_list, off_the_list] {
+        let refusal = assert_refused(
+            refused,
+            ErrorCode::InvalidArgument,
+            RefusalReason::REFUSAL_REASON_QUALITY_NOT_OFFERED,
+        );
+        assert_eq!(refusal.field, "quality");
+    }
+}
+
+#[tokio::test]
+async fn a_member_without_choose_quality_naming_even_the_default_is_refused() {
+    let fixture = Fixture::with_radarr_enabled().await;
+    let offered = fixture.replace_qualities(hd_and_4k()).await.unwrap();
+
+    let refused = ask(&fixture.member().await, HEAT, Some(offered[0].id)).await;
+
+    let refusal = assert_refused(
+        refused,
+        ErrorCode::PermissionDenied,
+        RefusalReason::REFUSAL_REASON_QUALITY_NOT_ALLOWED,
+    );
+    assert_eq!(refusal.field, "quality");
 }
