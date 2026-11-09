@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT (SELECT COUNT(*) FROM requests\n                       WHERE state = 'pending'\n                         AND (?1 IS NULL OR EXISTS (SELECT 1 FROM requesters\n                                                    WHERE request_id = requests.id\n                                                      AND user_id = ?1)))\n                + (SELECT COUNT(*) FROM followed_shows\n                   WHERE state = 'pending'\n                     AND (?1 IS NULL OR EXISTS (SELECT 1 FROM followed_show_requesters\n                                                WHERE followed_show_id = followed_shows.id\n                                                  AND user_id = ?1))) AS \"count!: u32\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "count!: u32",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "c06d79d25cdf6980e95435d4fec33b36e1405fb47171dfda6ef6c6c86c47a132"
+}

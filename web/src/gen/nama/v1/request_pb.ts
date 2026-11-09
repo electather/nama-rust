@@ -12,7 +12,7 @@ import type { Message, UnknownEnum } from "@bufbuild/protobuf";
  * Describes the file nama/v1/request.proto.
  */
 export const file_nama_v1_request: GenFile = /*@__PURE__*/
-  fileDesc("ChVuYW1hL3YxL3JlcXVlc3QucHJvdG8SB25hbWEudjEirwMKB1JlcXVlc3QSCgoCaWQYASABKAMSJgoFbW92aWUYAiABKAsyFy5uYW1hLnYxLlJlcXVlc3RlZE1vdmllEiQKBXN0YXRlGAMgASgOMhUubmFtYS52MS5SZXF1ZXN0U3RhdGUSJgoKcmVxdWVzdGVycxgEIAMoCzISLm5hbWEudjEuUmVxdWVzdGVyEhIKCmNyZWF0ZWRfYXQYBSABKAMSGwoOZGVjbGluZV9yZWFzb24YBiABKAlIAIgBARIoCgZzZWFzb24YByABKAsyGC5uYW1hLnYxLlJlcXVlc3RlZFNlYXNvbhIbCg5mYWlsdXJlX3JlYXNvbhgIIAEoCUgBiAEBEh0KEGZvbGxvd2VkX3Nob3dfaWQYCSABKANIAogBARIkCglkb3dubG9hZHMYCiADKAsyES5uYW1hLnYxLkRvd25sb2FkEioKB3F1YWxpdHkYCyABKAsyGS5uYW1hLnYxLlJlcXVlc3RlZFF1YWxpdHlCEQoPX2RlY2xpbmVfcmVhc29uQhEKD19mYWlsdXJlX3JlYXNvbkITChFfZm9sbG93ZWRfc2hvd19pZCJAChBSZXF1ZXN0ZWRRdWFsaXR5EgoKAmlkGAEgASgDEgwKBG5hbWUYAiABKAkSEgoKcHJvZmlsZV9pZBgDIAEoCSLZAQoIRG93bmxvYWQSDQoFdGl0bGUYASABKAkSDwoHcGVyY2VudBgCIAEoAhIXCgpzaXplX2J5dGVzGAMgASgESACIAQESGAoLZXRhX3NlY29uZHMYBCABKARIAYgBARInCgZzdGF0dXMYBSABKA4yFy5uYW1hLnYxLkRvd25sb2FkU3RhdHVzEh0KEGF0dGVudGlvbl9yZWFzb24YBiABKAlIAogBAUINCgtfc2l6ZV9ieXRlc0IOCgxfZXRhX3NlY29uZHNCEwoRX2F0dGVudGlvbl9yZWFzb24i1gEKDEZvbGxvd2VkU2hvdxIKCgJpZBgBIAEoAxIUCgxzaG93X3RtZGJfaWQYAiABKAMSEgoKc2hvd190aXRsZRgDIAEoCRIkCgVzdGF0ZRgEIAEoDjIVLm5hbWEudjEuUmVxdWVzdFN0YXRlEiYKCnJlcXVlc3RlcnMYBSADKAsyEi5uYW1hLnYxLlJlcXVlc3RlchISCgpjcmVhdGVkX2F0GAYgASgDEhsKDmRlY2xpbmVfcmVhc29uGAcgASgJSACIAQFCEQoPX2RlY2xpbmVfcmVhc29uIlwKDlJlcXVlc3RlZE1vdmllEg8KB3RtZGJfaWQYASABKAMSDQoFdGl0bGUYAiABKAkSGQoMcmVsZWFzZV9kYXRlGAMgASgJSACIAQFCDwoNX3JlbGVhc2VfZGF0ZSLOAQoPUmVxdWVzdGVkU2Vhc29uEhQKDHNob3dfdG1kYl9pZBgBIAEoAxIVCg1zZWFzb25fbnVtYmVyGAIgASgNEhIKCnNob3dfdGl0bGUYAyABKAkSFQoIYWlyX2RhdGUYBCABKAlIAIgBARIZCgxzaG93X2ltZGJfaWQYBSABKAlIAYgBARIZCgxzaG93X3R2ZGJfaWQYBiABKANIAogBAUILCglfYWlyX2RhdGVCDwoNX3Nob3dfaW1kYl9pZEIPCg1fc2hvd190dmRiX2lkIkAKCVJlcXVlc3RlchIPCgd1c2VyX2lkGAEgASgDEgwKBG5hbWUYAiABKAkSFAoMcmVxdWVzdGVkX2F0GAMgASgDIk8KFENyZWF0ZVJlcXVlc3RSZXF1ZXN0EhUKDW1vdmllX3RtZGJfaWQYASABKAMSFAoHcXVhbGl0eRgCIAEoA0gAiAEBQgoKCF9xdWFsaXR5IjoKFUNyZWF0ZVJlcXVlc3RSZXNwb25zZRIhCgdyZXF1ZXN0GAEgASgLMhAubmFtYS52MS5SZXF1ZXN0IksKG0NyZWF0ZVNlYXNvblJlcXVlc3RzUmVxdWVzdBIUCgxzaG93X3RtZGJfaWQYASABKAMSFgoOc2Vhc29uX251bWJlcnMYAiADKA0iQgocQ3JlYXRlU2Vhc29uUmVxdWVzdHNSZXNwb25zZRIiCghyZXF1ZXN0cxgBIAMoCzIQLm5hbWEudjEuUmVxdWVzdCIVChNMaXN0UmVxdWVzdHNSZXF1ZXN0IjEKGUNyZWF0ZUZvbGxvd2VkU2hvd1JlcXVlc3QSFAoMc2hvd190bWRiX2lkGAEgASgDIm4KGkNyZWF0ZUZvbGxvd2VkU2hvd1Jlc3BvbnNlEiwKDWZvbGxvd2VkX3Nob3cYASABKAsyFS5uYW1hLnYxLkZvbGxvd2VkU2hvdxIiCghyZXF1ZXN0cxgCIAMoCzIQLm5hbWEudjEuUmVxdWVzdCJpChRMaXN0UmVxdWVzdHNSZXNwb25zZRIiCghyZXF1ZXN0cxgBIAMoCzIQLm5hbWEudjEuUmVxdWVzdBItCg5mb2xsb3dlZF9zaG93cxgCIAMoCzIVLm5hbWEudjEuRm9sbG93ZWRTaG93IhsKGUxpc3RNb3ZpZVF1YWxpdGllc1JlcXVlc3QiQQoaTGlzdE1vdmllUXVhbGl0aWVzUmVzcG9uc2USIwoJcXVhbGl0aWVzGAEgAygLMhAubmFtYS52MS5RdWFsaXR5Ih8KEUdldFJlcXVlc3RSZXF1ZXN0EgoKAmlkGAEgASgDIjcKEkdldFJlcXVlc3RSZXNwb25zZRIhCgdyZXF1ZXN0GAEgASgLMhAubmFtYS52MS5SZXF1ZXN0IiMKFUFwcHJvdmVSZXF1ZXN0UmVxdWVzdBIKCgJpZBgBIAEoAyI7ChZBcHByb3ZlUmVxdWVzdFJlc3BvbnNlEiEKB3JlcXVlc3QYASABKAsyEC5uYW1hLnYxLlJlcXVlc3QiMwoVRGVjbGluZVJlcXVlc3RSZXF1ZXN0EgoKAmlkGAEgASgDEg4KBnJlYXNvbhgCIAEoCSI7ChZEZWNsaW5lUmVxdWVzdFJlc3BvbnNlEiEKB3JlcXVlc3QYASABKAsyEC5uYW1hLnYxLlJlcXVlc3QiIgoUQ2FuY2VsUmVxdWVzdFJlcXVlc3QSCgoCaWQYASABKAMiFwoVQ2FuY2VsUmVxdWVzdFJlc3BvbnNlIiEKE1JldHJ5UmVxdWVzdFJlcXVlc3QSCgoCaWQYASABKAMiOQoUUmV0cnlSZXF1ZXN0UmVzcG9uc2USIQoHcmVxdWVzdBgBIAEoCzIQLm5hbWEudjEuUmVxdWVzdCIkChZXaXRoZHJhd1JlcXVlc3RSZXF1ZXN0EgoKAmlkGAEgASgDIhkKF1dpdGhkcmF3UmVxdWVzdFJlc3BvbnNlIigKGkFwcHJvdmVGb2xsb3dlZFNob3dSZXF1ZXN0EgoKAmlkGAEgASgDIksKG0FwcHJvdmVGb2xsb3dlZFNob3dSZXNwb25zZRIsCg1mb2xsb3dlZF9zaG93GAEgASgLMhUubmFtYS52MS5Gb2xsb3dlZFNob3ciOAoaRGVjbGluZUZvbGxvd2VkU2hvd1JlcXVlc3QSCgoCaWQYASABKAMSDgoGcmVhc29uGAIgASgJIksKG0RlY2xpbmVGb2xsb3dlZFNob3dSZXNwb25zZRIsCg1mb2xsb3dlZF9zaG93GAEgASgLMhUubmFtYS52MS5Gb2xsb3dlZFNob3ciJwoZQ2FuY2VsRm9sbG93ZWRTaG93UmVxdWVzdBIKCgJpZBgBIAEoAyIcChpDYW5jZWxGb2xsb3dlZFNob3dSZXNwb25zZSIpChtXaXRoZHJhd0ZvbGxvd2VkU2hvd1JlcXVlc3QSCgoCaWQYASABKAMiHgocV2l0aGRyYXdGb2xsb3dlZFNob3dSZXNwb25zZSK9AgoKRm91bmRNb3ZpZRIPCgd0bWRiX2lkGAEgASgDEg0KBXRpdGxlGAIgASgJEhEKBHllYXIYAyABKAVIAIgBARIVCghvdmVydmlldxgEIAEoCUgBiAEBEhwKD3J1bnRpbWVfbWludXRlcxgFIAEoDUgCiAEBEhcKCnBvc3Rlcl91cmwYBiABKAlIA4gBARIZCgxiYWNrZHJvcF91cmwYByABKAlIBIgBARIXCgpsaWJyYXJ5X2lkGAggASgDSAWIAQESIQoHcmVxdWVzdBgJIAEoCzIQLm5hbWEudjEuUmVxdWVzdEIHCgVfeWVhckILCglfb3ZlcnZpZXdCEgoQX3J1bnRpbWVfbWludXRlc0INCgtfcG9zdGVyX3VybEIPCg1fYmFja2Ryb3BfdXJsQg0KC19saWJyYXJ5X2lkIiQKE1NlYXJjaE1vdmllc1JlcXVlc3QSDQoFdGl0bGUYASABKAkiOwoUU2VhcmNoTW92aWVzUmVzcG9uc2USIwoGbW92aWVzGAEgAygLMhMubmFtYS52MS5Gb3VuZE1vdmllIisKEkxvb2tVcE1vdmllUmVxdWVzdBIVCg1tb3ZpZV90bWRiX2lkGAEgASgDIjkKE0xvb2tVcE1vdmllUmVzcG9uc2USIgoFbW92aWUYASABKAsyEy5uYW1hLnYxLkZvdW5kTW92aWUilAIKCUZvdW5kU2hvdxIPCgd0bWRiX2lkGAEgASgDEg0KBXRpdGxlGAIgASgJEhEKBHllYXIYAyABKAVIAIgBARIVCghvdmVydmlldxgEIAEoCUgBiAEBEhcKCnBvc3Rlcl91cmwYBSABKAlIAogBARIZCgxiYWNrZHJvcF91cmwYBiABKAlIA4gBARIlCgdzZWFzb25zGAcgAygLMhQubmFtYS52MS5Gb3VuZFNlYXNvbhIsCg1mb2xsb3dlZF9zaG93GAggASgLMhUubmFtYS52MS5Gb2xsb3dlZFNob3dCBwoFX3llYXJCCwoJX292ZXJ2aWV3Qg0KC19wb3N0ZXJfdXJsQg8KDV9iYWNrZHJvcF91cmwifwoLRm91bmRTZWFzb24SFQoNc2Vhc29uX251bWJlchgBIAEoDRIVCghhaXJfZGF0ZRgCIAEoCUgAiAEBEhIKCmluX2xpYnJhcnkYAyABKAgSIQoHcmVxdWVzdBgEIAEoCzIQLm5hbWEudjEuUmVxdWVzdEILCglfYWlyX2RhdGUiIwoSU2VhcmNoU2hvd3NSZXF1ZXN0Eg0KBXRpdGxlGAEgASgJIjgKE1NlYXJjaFNob3dzUmVzcG9uc2USIQoFc2hvd3MYASADKAsyEi5uYW1hLnYxLkZvdW5kU2hvdyIpChFMb29rVXBTaG93UmVxdWVzdBIUCgxzaG93X3RtZGJfaWQYASABKAMiNgoSTG9va1VwU2hvd1Jlc3BvbnNlEiAKBHNob3cYASABKAsyEi5uYW1hLnYxLkZvdW5kU2hvdyr8AQoMUmVxdWVzdFN0YXRlEh0KGVJFUVVFU1RfU1RBVEVfVU5TUEVDSUZJRUQQABIZChVSRVFVRVNUX1NUQVRFX1BFTkRJTkcQARIaChZSRVFVRVNUX1NUQVRFX0FQUFJPVkVEEAISGgoWUkVRVUVTVF9TVEFURV9ERUNMSU5FRBADEhwKGFJFUVVFU1RfU1RBVEVfUFJPQ0VTU0lORxAEEiUKIVJFUVVFU1RfU1RBVEVfUEFSVElBTExZX0FWQUlMQUJMRRAFEhsKF1JFUVVFU1RfU1RBVEVfQVZBSUxBQkxFEAYSGAoUUkVRVUVTVF9TVEFURV9GQUlMRUQQByqyAQoORG93bmxvYWRTdGF0dXMSHwobRE9XTkxPQURfU1RBVFVTX1VOU1BFQ0lGSUVEEAASGgoWRE9XTkxPQURfU1RBVFVTX1FVRVVFRBABEh8KG0RPV05MT0FEX1NUQVRVU19ET1dOTE9BRElORxACEh0KGURPV05MT0FEX1NUQVRVU19JTVBPUlRJTkcQAxIjCh9ET1dOTE9BRF9TVEFUVVNfTkVFRFNfQVRURU5USU9OEAQygw0KDlJlcXVlc3RTZXJ2aWNlEk4KDUNyZWF0ZVJlcXVlc3QSHS5uYW1hLnYxLkNyZWF0ZVJlcXVlc3RSZXF1ZXN0Gh4ubmFtYS52MS5DcmVhdGVSZXF1ZXN0UmVzcG9uc2USYgoSTGlzdE1vdmllUXVhbGl0aWVzEiIubmFtYS52MS5MaXN0TW92aWVRdWFsaXRpZXNSZXF1ZXN0GiMubmFtYS52MS5MaXN0TW92aWVRdWFsaXRpZXNSZXNwb25zZSIDkAIBEmMKFENyZWF0ZVNlYXNvblJlcXVlc3RzEiQubmFtYS52MS5DcmVhdGVTZWFzb25SZXF1ZXN0c1JlcXVlc3QaJS5uYW1hLnYxLkNyZWF0ZVNlYXNvblJlcXVlc3RzUmVzcG9uc2USXQoSQ3JlYXRlRm9sbG93ZWRTaG93EiIubmFtYS52MS5DcmVhdGVGb2xsb3dlZFNob3dSZXF1ZXN0GiMubmFtYS52MS5DcmVhdGVGb2xsb3dlZFNob3dSZXNwb25zZRJQCgxMaXN0UmVxdWVzdHMSHC5uYW1hLnYxLkxpc3RSZXF1ZXN0c1JlcXVlc3QaHS5uYW1hLnYxLkxpc3RSZXF1ZXN0c1Jlc3BvbnNlIgOQAgESSgoKR2V0UmVxdWVzdBIaLm5hbWEudjEuR2V0UmVxdWVzdFJlcXVlc3QaGy5uYW1hLnYxLkdldFJlcXVlc3RSZXNwb25zZSIDkAIBElAKDFNlYXJjaE1vdmllcxIcLm5hbWEudjEuU2VhcmNoTW92aWVzUmVxdWVzdBodLm5hbWEudjEuU2VhcmNoTW92aWVzUmVzcG9uc2UiA5ACARJNCgtMb29rVXBNb3ZpZRIbLm5hbWEudjEuTG9va1VwTW92aWVSZXF1ZXN0GhwubmFtYS52MS5Mb29rVXBNb3ZpZVJlc3BvbnNlIgOQAgESTQoLU2VhcmNoU2hvd3MSGy5uYW1hLnYxLlNlYXJjaFNob3dzUmVxdWVzdBocLm5hbWEudjEuU2VhcmNoU2hvd3NSZXNwb25zZSIDkAIBEkoKCkxvb2tVcFNob3cSGi5uYW1hLnYxLkxvb2tVcFNob3dSZXF1ZXN0GhsubmFtYS52MS5Mb29rVXBTaG93UmVzcG9uc2UiA5ACARJRCg5BcHByb3ZlUmVxdWVzdBIeLm5hbWEudjEuQXBwcm92ZVJlcXVlc3RSZXF1ZXN0Gh8ubmFtYS52MS5BcHByb3ZlUmVxdWVzdFJlc3BvbnNlElEKDkRlY2xpbmVSZXF1ZXN0Eh4ubmFtYS52MS5EZWNsaW5lUmVxdWVzdFJlcXVlc3QaHy5uYW1hLnYxLkRlY2xpbmVSZXF1ZXN0UmVzcG9uc2USTgoNQ2FuY2VsUmVxdWVzdBIdLm5hbWEudjEuQ2FuY2VsUmVxdWVzdFJlcXVlc3QaHi5uYW1hLnYxLkNhbmNlbFJlcXVlc3RSZXNwb25zZRJLCgxSZXRyeVJlcXVlc3QSHC5uYW1hLnYxLlJldHJ5UmVxdWVzdFJlcXVlc3QaHS5uYW1hLnYxLlJldHJ5UmVxdWVzdFJlc3BvbnNlElQKD1dpdGhkcmF3UmVxdWVzdBIfLm5hbWEudjEuV2l0aGRyYXdSZXF1ZXN0UmVxdWVzdBogLm5hbWEudjEuV2l0aGRyYXdSZXF1ZXN0UmVzcG9uc2USYAoTQXBwcm92ZUZvbGxvd2VkU2hvdxIjLm5hbWEudjEuQXBwcm92ZUZvbGxvd2VkU2hvd1JlcXVlc3QaJC5uYW1hLnYxLkFwcHJvdmVGb2xsb3dlZFNob3dSZXNwb25zZRJgChNEZWNsaW5lRm9sbG93ZWRTaG93EiMubmFtYS52MS5EZWNsaW5lRm9sbG93ZWRTaG93UmVxdWVzdBokLm5hbWEudjEuRGVjbGluZUZvbGxvd2VkU2hvd1Jlc3BvbnNlEl0KEkNhbmNlbEZvbGxvd2VkU2hvdxIiLm5hbWEudjEuQ2FuY2VsRm9sbG93ZWRTaG93UmVxdWVzdBojLm5hbWEudjEuQ2FuY2VsRm9sbG93ZWRTaG93UmVzcG9uc2USYwoUV2l0aGRyYXdGb2xsb3dlZFNob3cSJC5uYW1hLnYxLldpdGhkcmF3Rm9sbG93ZWRTaG93UmVxdWVzdBolLm5hbWEudjEuV2l0aGRyYXdGb2xsb3dlZFNob3dSZXNwb25zZWIGcHJvdG8z", [file_nama_v1_plugin]);
+  fileDesc("ChVuYW1hL3YxL3JlcXVlc3QucHJvdG8SB25hbWEudjEirwMKB1JlcXVlc3QSCgoCaWQYASABKAMSJgoFbW92aWUYAiABKAsyFy5uYW1hLnYxLlJlcXVlc3RlZE1vdmllEiQKBXN0YXRlGAMgASgOMhUubmFtYS52MS5SZXF1ZXN0U3RhdGUSJgoKcmVxdWVzdGVycxgEIAMoCzISLm5hbWEudjEuUmVxdWVzdGVyEhIKCmNyZWF0ZWRfYXQYBSABKAMSGwoOZGVjbGluZV9yZWFzb24YBiABKAlIAIgBARIoCgZzZWFzb24YByABKAsyGC5uYW1hLnYxLlJlcXVlc3RlZFNlYXNvbhIbCg5mYWlsdXJlX3JlYXNvbhgIIAEoCUgBiAEBEh0KEGZvbGxvd2VkX3Nob3dfaWQYCSABKANIAogBARIkCglkb3dubG9hZHMYCiADKAsyES5uYW1hLnYxLkRvd25sb2FkEioKB3F1YWxpdHkYCyABKAsyGS5uYW1hLnYxLlJlcXVlc3RlZFF1YWxpdHlCEQoPX2RlY2xpbmVfcmVhc29uQhEKD19mYWlsdXJlX3JlYXNvbkITChFfZm9sbG93ZWRfc2hvd19pZCJAChBSZXF1ZXN0ZWRRdWFsaXR5EgoKAmlkGAEgASgDEgwKBG5hbWUYAiABKAkSEgoKcHJvZmlsZV9pZBgDIAEoCSLZAQoIRG93bmxvYWQSDQoFdGl0bGUYASABKAkSDwoHcGVyY2VudBgCIAEoAhIXCgpzaXplX2J5dGVzGAMgASgESACIAQESGAoLZXRhX3NlY29uZHMYBCABKARIAYgBARInCgZzdGF0dXMYBSABKA4yFy5uYW1hLnYxLkRvd25sb2FkU3RhdHVzEh0KEGF0dGVudGlvbl9yZWFzb24YBiABKAlIAogBAUINCgtfc2l6ZV9ieXRlc0IOCgxfZXRhX3NlY29uZHNCEwoRX2F0dGVudGlvbl9yZWFzb24i1gEKDEZvbGxvd2VkU2hvdxIKCgJpZBgBIAEoAxIUCgxzaG93X3RtZGJfaWQYAiABKAMSEgoKc2hvd190aXRsZRgDIAEoCRIkCgVzdGF0ZRgEIAEoDjIVLm5hbWEudjEuUmVxdWVzdFN0YXRlEiYKCnJlcXVlc3RlcnMYBSADKAsyEi5uYW1hLnYxLlJlcXVlc3RlchISCgpjcmVhdGVkX2F0GAYgASgDEhsKDmRlY2xpbmVfcmVhc29uGAcgASgJSACIAQFCEQoPX2RlY2xpbmVfcmVhc29uIlwKDlJlcXVlc3RlZE1vdmllEg8KB3RtZGJfaWQYASABKAMSDQoFdGl0bGUYAiABKAkSGQoMcmVsZWFzZV9kYXRlGAMgASgJSACIAQFCDwoNX3JlbGVhc2VfZGF0ZSLOAQoPUmVxdWVzdGVkU2Vhc29uEhQKDHNob3dfdG1kYl9pZBgBIAEoAxIVCg1zZWFzb25fbnVtYmVyGAIgASgNEhIKCnNob3dfdGl0bGUYAyABKAkSFQoIYWlyX2RhdGUYBCABKAlIAIgBARIZCgxzaG93X2ltZGJfaWQYBSABKAlIAYgBARIZCgxzaG93X3R2ZGJfaWQYBiABKANIAogBAUILCglfYWlyX2RhdGVCDwoNX3Nob3dfaW1kYl9pZEIPCg1fc2hvd190dmRiX2lkIkAKCVJlcXVlc3RlchIPCgd1c2VyX2lkGAEgASgDEgwKBG5hbWUYAiABKAkSFAoMcmVxdWVzdGVkX2F0GAMgASgDIk8KFENyZWF0ZVJlcXVlc3RSZXF1ZXN0EhUKDW1vdmllX3RtZGJfaWQYASABKAMSFAoHcXVhbGl0eRgCIAEoA0gAiAEBQgoKCF9xdWFsaXR5IjoKFUNyZWF0ZVJlcXVlc3RSZXNwb25zZRIhCgdyZXF1ZXN0GAEgASgLMhAubmFtYS52MS5SZXF1ZXN0IksKG0NyZWF0ZVNlYXNvblJlcXVlc3RzUmVxdWVzdBIUCgxzaG93X3RtZGJfaWQYASABKAMSFgoOc2Vhc29uX251bWJlcnMYAiADKA0iQgocQ3JlYXRlU2Vhc29uUmVxdWVzdHNSZXNwb25zZRIiCghyZXF1ZXN0cxgBIAMoCzIQLm5hbWEudjEuUmVxdWVzdCIVChNMaXN0UmVxdWVzdHNSZXF1ZXN0IjEKGUNyZWF0ZUZvbGxvd2VkU2hvd1JlcXVlc3QSFAoMc2hvd190bWRiX2lkGAEgASgDIm4KGkNyZWF0ZUZvbGxvd2VkU2hvd1Jlc3BvbnNlEiwKDWZvbGxvd2VkX3Nob3cYASABKAsyFS5uYW1hLnYxLkZvbGxvd2VkU2hvdxIiCghyZXF1ZXN0cxgCIAMoCzIQLm5hbWEudjEuUmVxdWVzdCJpChRMaXN0UmVxdWVzdHNSZXNwb25zZRIiCghyZXF1ZXN0cxgBIAMoCzIQLm5hbWEudjEuUmVxdWVzdBItCg5mb2xsb3dlZF9zaG93cxgCIAMoCzIVLm5hbWEudjEuRm9sbG93ZWRTaG93IhsKGUxpc3RNb3ZpZVF1YWxpdGllc1JlcXVlc3QiQQoaTGlzdE1vdmllUXVhbGl0aWVzUmVzcG9uc2USIwoJcXVhbGl0aWVzGAEgAygLMhAubmFtYS52MS5RdWFsaXR5Ih8KEUdldFJlcXVlc3RSZXF1ZXN0EgoKAmlkGAEgASgDIjcKEkdldFJlcXVlc3RSZXNwb25zZRIhCgdyZXF1ZXN0GAEgASgLMhAubmFtYS52MS5SZXF1ZXN0Ih0KG0NvdW50UGVuZGluZ1JlcXVlc3RzUmVxdWVzdCItChxDb3VudFBlbmRpbmdSZXF1ZXN0c1Jlc3BvbnNlEg0KBWNvdW50GAEgASgNIiMKFUFwcHJvdmVSZXF1ZXN0UmVxdWVzdBIKCgJpZBgBIAEoAyI7ChZBcHByb3ZlUmVxdWVzdFJlc3BvbnNlEiEKB3JlcXVlc3QYASABKAsyEC5uYW1hLnYxLlJlcXVlc3QiMwoVRGVjbGluZVJlcXVlc3RSZXF1ZXN0EgoKAmlkGAEgASgDEg4KBnJlYXNvbhgCIAEoCSI7ChZEZWNsaW5lUmVxdWVzdFJlc3BvbnNlEiEKB3JlcXVlc3QYASABKAsyEC5uYW1hLnYxLlJlcXVlc3QiIgoUQ2FuY2VsUmVxdWVzdFJlcXVlc3QSCgoCaWQYASABKAMiFwoVQ2FuY2VsUmVxdWVzdFJlc3BvbnNlIiEKE1JldHJ5UmVxdWVzdFJlcXVlc3QSCgoCaWQYASABKAMiOQoUUmV0cnlSZXF1ZXN0UmVzcG9uc2USIQoHcmVxdWVzdBgBIAEoCzIQLm5hbWEudjEuUmVxdWVzdCIkChZXaXRoZHJhd1JlcXVlc3RSZXF1ZXN0EgoKAmlkGAEgASgDIhkKF1dpdGhkcmF3UmVxdWVzdFJlc3BvbnNlIigKGkFwcHJvdmVGb2xsb3dlZFNob3dSZXF1ZXN0EgoKAmlkGAEgASgDIksKG0FwcHJvdmVGb2xsb3dlZFNob3dSZXNwb25zZRIsCg1mb2xsb3dlZF9zaG93GAEgASgLMhUubmFtYS52MS5Gb2xsb3dlZFNob3ciOAoaRGVjbGluZUZvbGxvd2VkU2hvd1JlcXVlc3QSCgoCaWQYASABKAMSDgoGcmVhc29uGAIgASgJIksKG0RlY2xpbmVGb2xsb3dlZFNob3dSZXNwb25zZRIsCg1mb2xsb3dlZF9zaG93GAEgASgLMhUubmFtYS52MS5Gb2xsb3dlZFNob3ciJwoZQ2FuY2VsRm9sbG93ZWRTaG93UmVxdWVzdBIKCgJpZBgBIAEoAyIcChpDYW5jZWxGb2xsb3dlZFNob3dSZXNwb25zZSIpChtXaXRoZHJhd0ZvbGxvd2VkU2hvd1JlcXVlc3QSCgoCaWQYASABKAMiHgocV2l0aGRyYXdGb2xsb3dlZFNob3dSZXNwb25zZSK9AgoKRm91bmRNb3ZpZRIPCgd0bWRiX2lkGAEgASgDEg0KBXRpdGxlGAIgASgJEhEKBHllYXIYAyABKAVIAIgBARIVCghvdmVydmlldxgEIAEoCUgBiAEBEhwKD3J1bnRpbWVfbWludXRlcxgFIAEoDUgCiAEBEhcKCnBvc3Rlcl91cmwYBiABKAlIA4gBARIZCgxiYWNrZHJvcF91cmwYByABKAlIBIgBARIXCgpsaWJyYXJ5X2lkGAggASgDSAWIAQESIQoHcmVxdWVzdBgJIAEoCzIQLm5hbWEudjEuUmVxdWVzdEIHCgVfeWVhckILCglfb3ZlcnZpZXdCEgoQX3J1bnRpbWVfbWludXRlc0INCgtfcG9zdGVyX3VybEIPCg1fYmFja2Ryb3BfdXJsQg0KC19saWJyYXJ5X2lkIiQKE1NlYXJjaE1vdmllc1JlcXVlc3QSDQoFdGl0bGUYASABKAkiOwoUU2VhcmNoTW92aWVzUmVzcG9uc2USIwoGbW92aWVzGAEgAygLMhMubmFtYS52MS5Gb3VuZE1vdmllIisKEkxvb2tVcE1vdmllUmVxdWVzdBIVCg1tb3ZpZV90bWRiX2lkGAEgASgDIjkKE0xvb2tVcE1vdmllUmVzcG9uc2USIgoFbW92aWUYASABKAsyEy5uYW1hLnYxLkZvdW5kTW92aWUilAIKCUZvdW5kU2hvdxIPCgd0bWRiX2lkGAEgASgDEg0KBXRpdGxlGAIgASgJEhEKBHllYXIYAyABKAVIAIgBARIVCghvdmVydmlldxgEIAEoCUgBiAEBEhcKCnBvc3Rlcl91cmwYBSABKAlIAogBARIZCgxiYWNrZHJvcF91cmwYBiABKAlIA4gBARIlCgdzZWFzb25zGAcgAygLMhQubmFtYS52MS5Gb3VuZFNlYXNvbhIsCg1mb2xsb3dlZF9zaG93GAggASgLMhUubmFtYS52MS5Gb2xsb3dlZFNob3dCBwoFX3llYXJCCwoJX292ZXJ2aWV3Qg0KC19wb3N0ZXJfdXJsQg8KDV9iYWNrZHJvcF91cmwifwoLRm91bmRTZWFzb24SFQoNc2Vhc29uX251bWJlchgBIAEoDRIVCghhaXJfZGF0ZRgCIAEoCUgAiAEBEhIKCmluX2xpYnJhcnkYAyABKAgSIQoHcmVxdWVzdBgEIAEoCzIQLm5hbWEudjEuUmVxdWVzdEILCglfYWlyX2RhdGUiIwoSU2VhcmNoU2hvd3NSZXF1ZXN0Eg0KBXRpdGxlGAEgASgJIjgKE1NlYXJjaFNob3dzUmVzcG9uc2USIQoFc2hvd3MYASADKAsyEi5uYW1hLnYxLkZvdW5kU2hvdyIpChFMb29rVXBTaG93UmVxdWVzdBIUCgxzaG93X3RtZGJfaWQYASABKAMiNgoSTG9va1VwU2hvd1Jlc3BvbnNlEiAKBHNob3cYASABKAsyEi5uYW1hLnYxLkZvdW5kU2hvdyr8AQoMUmVxdWVzdFN0YXRlEh0KGVJFUVVFU1RfU1RBVEVfVU5TUEVDSUZJRUQQABIZChVSRVFVRVNUX1NUQVRFX1BFTkRJTkcQARIaChZSRVFVRVNUX1NUQVRFX0FQUFJPVkVEEAISGgoWUkVRVUVTVF9TVEFURV9ERUNMSU5FRBADEhwKGFJFUVVFU1RfU1RBVEVfUFJPQ0VTU0lORxAEEiUKIVJFUVVFU1RfU1RBVEVfUEFSVElBTExZX0FWQUlMQUJMRRAFEhsKF1JFUVVFU1RfU1RBVEVfQVZBSUxBQkxFEAYSGAoUUkVRVUVTVF9TVEFURV9GQUlMRUQQByqyAQoORG93bmxvYWRTdGF0dXMSHwobRE9XTkxPQURfU1RBVFVTX1VOU1BFQ0lGSUVEEAASGgoWRE9XTkxPQURfU1RBVFVTX1FVRVVFRBABEh8KG0RPV05MT0FEX1NUQVRVU19ET1dOTE9BRElORxACEh0KGURPV05MT0FEX1NUQVRVU19JTVBPUlRJTkcQAxIjCh9ET1dOTE9BRF9TVEFUVVNfTkVFRFNfQVRURU5USU9OEAQy7Q0KDlJlcXVlc3RTZXJ2aWNlEk4KDUNyZWF0ZVJlcXVlc3QSHS5uYW1hLnYxLkNyZWF0ZVJlcXVlc3RSZXF1ZXN0Gh4ubmFtYS52MS5DcmVhdGVSZXF1ZXN0UmVzcG9uc2USYgoSTGlzdE1vdmllUXVhbGl0aWVzEiIubmFtYS52MS5MaXN0TW92aWVRdWFsaXRpZXNSZXF1ZXN0GiMubmFtYS52MS5MaXN0TW92aWVRdWFsaXRpZXNSZXNwb25zZSIDkAIBEmMKFENyZWF0ZVNlYXNvblJlcXVlc3RzEiQubmFtYS52MS5DcmVhdGVTZWFzb25SZXF1ZXN0c1JlcXVlc3QaJS5uYW1hLnYxLkNyZWF0ZVNlYXNvblJlcXVlc3RzUmVzcG9uc2USXQoSQ3JlYXRlRm9sbG93ZWRTaG93EiIubmFtYS52MS5DcmVhdGVGb2xsb3dlZFNob3dSZXF1ZXN0GiMubmFtYS52MS5DcmVhdGVGb2xsb3dlZFNob3dSZXNwb25zZRJQCgxMaXN0UmVxdWVzdHMSHC5uYW1hLnYxLkxpc3RSZXF1ZXN0c1JlcXVlc3QaHS5uYW1hLnYxLkxpc3RSZXF1ZXN0c1Jlc3BvbnNlIgOQAgESSgoKR2V0UmVxdWVzdBIaLm5hbWEudjEuR2V0UmVxdWVzdFJlcXVlc3QaGy5uYW1hLnYxLkdldFJlcXVlc3RSZXNwb25zZSIDkAIBEmgKFENvdW50UGVuZGluZ1JlcXVlc3RzEiQubmFtYS52MS5Db3VudFBlbmRpbmdSZXF1ZXN0c1JlcXVlc3QaJS5uYW1hLnYxLkNvdW50UGVuZGluZ1JlcXVlc3RzUmVzcG9uc2UiA5ACARJQCgxTZWFyY2hNb3ZpZXMSHC5uYW1hLnYxLlNlYXJjaE1vdmllc1JlcXVlc3QaHS5uYW1hLnYxLlNlYXJjaE1vdmllc1Jlc3BvbnNlIgOQAgESTQoLTG9va1VwTW92aWUSGy5uYW1hLnYxLkxvb2tVcE1vdmllUmVxdWVzdBocLm5hbWEudjEuTG9va1VwTW92aWVSZXNwb25zZSIDkAIBEk0KC1NlYXJjaFNob3dzEhsubmFtYS52MS5TZWFyY2hTaG93c1JlcXVlc3QaHC5uYW1hLnYxLlNlYXJjaFNob3dzUmVzcG9uc2UiA5ACARJKCgpMb29rVXBTaG93EhoubmFtYS52MS5Mb29rVXBTaG93UmVxdWVzdBobLm5hbWEudjEuTG9va1VwU2hvd1Jlc3BvbnNlIgOQAgESUQoOQXBwcm92ZVJlcXVlc3QSHi5uYW1hLnYxLkFwcHJvdmVSZXF1ZXN0UmVxdWVzdBofLm5hbWEudjEuQXBwcm92ZVJlcXVlc3RSZXNwb25zZRJRCg5EZWNsaW5lUmVxdWVzdBIeLm5hbWEudjEuRGVjbGluZVJlcXVlc3RSZXF1ZXN0Gh8ubmFtYS52MS5EZWNsaW5lUmVxdWVzdFJlc3BvbnNlEk4KDUNhbmNlbFJlcXVlc3QSHS5uYW1hLnYxLkNhbmNlbFJlcXVlc3RSZXF1ZXN0Gh4ubmFtYS52MS5DYW5jZWxSZXF1ZXN0UmVzcG9uc2USSwoMUmV0cnlSZXF1ZXN0EhwubmFtYS52MS5SZXRyeVJlcXVlc3RSZXF1ZXN0Gh0ubmFtYS52MS5SZXRyeVJlcXVlc3RSZXNwb25zZRJUCg9XaXRoZHJhd1JlcXVlc3QSHy5uYW1hLnYxLldpdGhkcmF3UmVxdWVzdFJlcXVlc3QaIC5uYW1hLnYxLldpdGhkcmF3UmVxdWVzdFJlc3BvbnNlEmAKE0FwcHJvdmVGb2xsb3dlZFNob3cSIy5uYW1hLnYxLkFwcHJvdmVGb2xsb3dlZFNob3dSZXF1ZXN0GiQubmFtYS52MS5BcHByb3ZlRm9sbG93ZWRTaG93UmVzcG9uc2USYAoTRGVjbGluZUZvbGxvd2VkU2hvdxIjLm5hbWEudjEuRGVjbGluZUZvbGxvd2VkU2hvd1JlcXVlc3QaJC5uYW1hLnYxLkRlY2xpbmVGb2xsb3dlZFNob3dSZXNwb25zZRJdChJDYW5jZWxGb2xsb3dlZFNob3cSIi5uYW1hLnYxLkNhbmNlbEZvbGxvd2VkU2hvd1JlcXVlc3QaIy5uYW1hLnYxLkNhbmNlbEZvbGxvd2VkU2hvd1Jlc3BvbnNlEmMKFFdpdGhkcmF3Rm9sbG93ZWRTaG93EiQubmFtYS52MS5XaXRoZHJhd0ZvbGxvd2VkU2hvd1JlcXVlc3QaJS5uYW1hLnYxLldpdGhkcmF3Rm9sbG93ZWRTaG93UmVzcG9uc2ViBnByb3RvMw", [file_nama_v1_plugin]);
 
 /**
  * Users asking for one Movie, or one Season of a Show. Each has at most one open Request: one that
@@ -630,6 +630,38 @@ export const GetRequestResponseSchema: GenMessage<GetRequestResponse> = /*@__PUR
   messageDesc(file_nama_v1_request, 18);
 
 /**
+ * @generated from message nama.v1.CountPendingRequestsRequest
+ */
+export type CountPendingRequestsRequest = Message<"nama.v1.CountPendingRequestsRequest"> & {
+};
+
+/**
+ * Describes the message nama.v1.CountPendingRequestsRequest.
+ * Use `create(CountPendingRequestsRequestSchema)` to create a new message.
+ */
+export const CountPendingRequestsRequestSchema: GenMessage<CountPendingRequestsRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_request, 19);
+
+/**
+ * @generated from message nama.v1.CountPendingRequestsResponse
+ */
+export type CountPendingRequestsResponse = Message<"nama.v1.CountPendingRequestsResponse"> & {
+  /**
+   * How many Requests and Followed Shows are Pending.
+   *
+   * @generated from field: uint32 count = 1;
+   */
+  count: number;
+};
+
+/**
+ * Describes the message nama.v1.CountPendingRequestsResponse.
+ * Use `create(CountPendingRequestsResponseSchema)` to create a new message.
+ */
+export const CountPendingRequestsResponseSchema: GenMessage<CountPendingRequestsResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_request, 20);
+
+/**
  * @generated from message nama.v1.ApproveRequestRequest
  */
 export type ApproveRequestRequest = Message<"nama.v1.ApproveRequestRequest"> & {
@@ -646,7 +678,7 @@ export type ApproveRequestRequest = Message<"nama.v1.ApproveRequestRequest"> & {
  * Use `create(ApproveRequestRequestSchema)` to create a new message.
  */
 export const ApproveRequestRequestSchema: GenMessage<ApproveRequestRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 19);
+  messageDesc(file_nama_v1_request, 21);
 
 /**
  * @generated from message nama.v1.ApproveRequestResponse
@@ -665,7 +697,7 @@ export type ApproveRequestResponse = Message<"nama.v1.ApproveRequestResponse"> &
  * Use `create(ApproveRequestResponseSchema)` to create a new message.
  */
 export const ApproveRequestResponseSchema: GenMessage<ApproveRequestResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 20);
+  messageDesc(file_nama_v1_request, 22);
 
 /**
  * @generated from message nama.v1.DeclineRequestRequest
@@ -691,7 +723,7 @@ export type DeclineRequestRequest = Message<"nama.v1.DeclineRequestRequest"> & {
  * Use `create(DeclineRequestRequestSchema)` to create a new message.
  */
 export const DeclineRequestRequestSchema: GenMessage<DeclineRequestRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 21);
+  messageDesc(file_nama_v1_request, 23);
 
 /**
  * @generated from message nama.v1.DeclineRequestResponse
@@ -710,7 +742,7 @@ export type DeclineRequestResponse = Message<"nama.v1.DeclineRequestResponse"> &
  * Use `create(DeclineRequestResponseSchema)` to create a new message.
  */
 export const DeclineRequestResponseSchema: GenMessage<DeclineRequestResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 22);
+  messageDesc(file_nama_v1_request, 24);
 
 /**
  * @generated from message nama.v1.CancelRequestRequest
@@ -729,7 +761,7 @@ export type CancelRequestRequest = Message<"nama.v1.CancelRequestRequest"> & {
  * Use `create(CancelRequestRequestSchema)` to create a new message.
  */
 export const CancelRequestRequestSchema: GenMessage<CancelRequestRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 23);
+  messageDesc(file_nama_v1_request, 25);
 
 /**
  * @generated from message nama.v1.CancelRequestResponse
@@ -742,7 +774,7 @@ export type CancelRequestResponse = Message<"nama.v1.CancelRequestResponse"> & {
  * Use `create(CancelRequestResponseSchema)` to create a new message.
  */
 export const CancelRequestResponseSchema: GenMessage<CancelRequestResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 24);
+  messageDesc(file_nama_v1_request, 26);
 
 /**
  * @generated from message nama.v1.RetryRequestRequest
@@ -761,7 +793,7 @@ export type RetryRequestRequest = Message<"nama.v1.RetryRequestRequest"> & {
  * Use `create(RetryRequestRequestSchema)` to create a new message.
  */
 export const RetryRequestRequestSchema: GenMessage<RetryRequestRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 25);
+  messageDesc(file_nama_v1_request, 27);
 
 /**
  * @generated from message nama.v1.RetryRequestResponse
@@ -781,7 +813,7 @@ export type RetryRequestResponse = Message<"nama.v1.RetryRequestResponse"> & {
  * Use `create(RetryRequestResponseSchema)` to create a new message.
  */
 export const RetryRequestResponseSchema: GenMessage<RetryRequestResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 26);
+  messageDesc(file_nama_v1_request, 28);
 
 /**
  * @generated from message nama.v1.WithdrawRequestRequest
@@ -800,7 +832,7 @@ export type WithdrawRequestRequest = Message<"nama.v1.WithdrawRequestRequest"> &
  * Use `create(WithdrawRequestRequestSchema)` to create a new message.
  */
 export const WithdrawRequestRequestSchema: GenMessage<WithdrawRequestRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 27);
+  messageDesc(file_nama_v1_request, 29);
 
 /**
  * @generated from message nama.v1.WithdrawRequestResponse
@@ -813,7 +845,7 @@ export type WithdrawRequestResponse = Message<"nama.v1.WithdrawRequestResponse">
  * Use `create(WithdrawRequestResponseSchema)` to create a new message.
  */
 export const WithdrawRequestResponseSchema: GenMessage<WithdrawRequestResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 28);
+  messageDesc(file_nama_v1_request, 30);
 
 /**
  * @generated from message nama.v1.ApproveFollowedShowRequest
@@ -832,7 +864,7 @@ export type ApproveFollowedShowRequest = Message<"nama.v1.ApproveFollowedShowReq
  * Use `create(ApproveFollowedShowRequestSchema)` to create a new message.
  */
 export const ApproveFollowedShowRequestSchema: GenMessage<ApproveFollowedShowRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 29);
+  messageDesc(file_nama_v1_request, 31);
 
 /**
  * @generated from message nama.v1.ApproveFollowedShowResponse
@@ -851,7 +883,7 @@ export type ApproveFollowedShowResponse = Message<"nama.v1.ApproveFollowedShowRe
  * Use `create(ApproveFollowedShowResponseSchema)` to create a new message.
  */
 export const ApproveFollowedShowResponseSchema: GenMessage<ApproveFollowedShowResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 30);
+  messageDesc(file_nama_v1_request, 32);
 
 /**
  * @generated from message nama.v1.DeclineFollowedShowRequest
@@ -877,7 +909,7 @@ export type DeclineFollowedShowRequest = Message<"nama.v1.DeclineFollowedShowReq
  * Use `create(DeclineFollowedShowRequestSchema)` to create a new message.
  */
 export const DeclineFollowedShowRequestSchema: GenMessage<DeclineFollowedShowRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 31);
+  messageDesc(file_nama_v1_request, 33);
 
 /**
  * @generated from message nama.v1.DeclineFollowedShowResponse
@@ -896,7 +928,7 @@ export type DeclineFollowedShowResponse = Message<"nama.v1.DeclineFollowedShowRe
  * Use `create(DeclineFollowedShowResponseSchema)` to create a new message.
  */
 export const DeclineFollowedShowResponseSchema: GenMessage<DeclineFollowedShowResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 32);
+  messageDesc(file_nama_v1_request, 34);
 
 /**
  * @generated from message nama.v1.CancelFollowedShowRequest
@@ -915,7 +947,7 @@ export type CancelFollowedShowRequest = Message<"nama.v1.CancelFollowedShowReque
  * Use `create(CancelFollowedShowRequestSchema)` to create a new message.
  */
 export const CancelFollowedShowRequestSchema: GenMessage<CancelFollowedShowRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 33);
+  messageDesc(file_nama_v1_request, 35);
 
 /**
  * @generated from message nama.v1.CancelFollowedShowResponse
@@ -928,7 +960,7 @@ export type CancelFollowedShowResponse = Message<"nama.v1.CancelFollowedShowResp
  * Use `create(CancelFollowedShowResponseSchema)` to create a new message.
  */
 export const CancelFollowedShowResponseSchema: GenMessage<CancelFollowedShowResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 34);
+  messageDesc(file_nama_v1_request, 36);
 
 /**
  * @generated from message nama.v1.WithdrawFollowedShowRequest
@@ -947,7 +979,7 @@ export type WithdrawFollowedShowRequest = Message<"nama.v1.WithdrawFollowedShowR
  * Use `create(WithdrawFollowedShowRequestSchema)` to create a new message.
  */
 export const WithdrawFollowedShowRequestSchema: GenMessage<WithdrawFollowedShowRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 35);
+  messageDesc(file_nama_v1_request, 37);
 
 /**
  * @generated from message nama.v1.WithdrawFollowedShowResponse
@@ -960,7 +992,7 @@ export type WithdrawFollowedShowResponse = Message<"nama.v1.WithdrawFollowedShow
  * Use `create(WithdrawFollowedShowResponseSchema)` to create a new message.
  */
 export const WithdrawFollowedShowResponseSchema: GenMessage<WithdrawFollowedShowResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 36);
+  messageDesc(file_nama_v1_request, 38);
 
 /**
  * A Movie in the metadata source, and how close it is to being on the Server: in a Library, asked
@@ -1039,7 +1071,7 @@ export type FoundMovie = Message<"nama.v1.FoundMovie"> & {
  * Use `create(FoundMovieSchema)` to create a new message.
  */
 export const FoundMovieSchema: GenMessage<FoundMovie> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 37);
+  messageDesc(file_nama_v1_request, 39);
 
 /**
  * @generated from message nama.v1.SearchMoviesRequest
@@ -1058,7 +1090,7 @@ export type SearchMoviesRequest = Message<"nama.v1.SearchMoviesRequest"> & {
  * Use `create(SearchMoviesRequestSchema)` to create a new message.
  */
 export const SearchMoviesRequestSchema: GenMessage<SearchMoviesRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 38);
+  messageDesc(file_nama_v1_request, 40);
 
 /**
  * @generated from message nama.v1.SearchMoviesResponse
@@ -1075,7 +1107,7 @@ export type SearchMoviesResponse = Message<"nama.v1.SearchMoviesResponse"> & {
  * Use `create(SearchMoviesResponseSchema)` to create a new message.
  */
 export const SearchMoviesResponseSchema: GenMessage<SearchMoviesResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 39);
+  messageDesc(file_nama_v1_request, 41);
 
 /**
  * @generated from message nama.v1.LookUpMovieRequest
@@ -1094,7 +1126,7 @@ export type LookUpMovieRequest = Message<"nama.v1.LookUpMovieRequest"> & {
  * Use `create(LookUpMovieRequestSchema)` to create a new message.
  */
 export const LookUpMovieRequestSchema: GenMessage<LookUpMovieRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 40);
+  messageDesc(file_nama_v1_request, 42);
 
 /**
  * @generated from message nama.v1.LookUpMovieResponse
@@ -1111,7 +1143,7 @@ export type LookUpMovieResponse = Message<"nama.v1.LookUpMovieResponse"> & {
  * Use `create(LookUpMovieResponseSchema)` to create a new message.
  */
 export const LookUpMovieResponseSchema: GenMessage<LookUpMovieResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 41);
+  messageDesc(file_nama_v1_request, 43);
 
 /**
  * A Show in the metadata source, whose Seasons `CreateSeasonRequests` asks for.
@@ -1181,7 +1213,7 @@ export type FoundShow = Message<"nama.v1.FoundShow"> & {
  * Use `create(FoundShowSchema)` to create a new message.
  */
 export const FoundShowSchema: GenMessage<FoundShow> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 42);
+  messageDesc(file_nama_v1_request, 44);
 
 /**
  * A Season of a Show in the metadata source, and how close it is to being on the Server: in a
@@ -1225,7 +1257,7 @@ export type FoundSeason = Message<"nama.v1.FoundSeason"> & {
  * Use `create(FoundSeasonSchema)` to create a new message.
  */
 export const FoundSeasonSchema: GenMessage<FoundSeason> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 43);
+  messageDesc(file_nama_v1_request, 45);
 
 /**
  * @generated from message nama.v1.SearchShowsRequest
@@ -1244,7 +1276,7 @@ export type SearchShowsRequest = Message<"nama.v1.SearchShowsRequest"> & {
  * Use `create(SearchShowsRequestSchema)` to create a new message.
  */
 export const SearchShowsRequestSchema: GenMessage<SearchShowsRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 44);
+  messageDesc(file_nama_v1_request, 46);
 
 /**
  * @generated from message nama.v1.SearchShowsResponse
@@ -1261,7 +1293,7 @@ export type SearchShowsResponse = Message<"nama.v1.SearchShowsResponse"> & {
  * Use `create(SearchShowsResponseSchema)` to create a new message.
  */
 export const SearchShowsResponseSchema: GenMessage<SearchShowsResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 45);
+  messageDesc(file_nama_v1_request, 47);
 
 /**
  * @generated from message nama.v1.LookUpShowRequest
@@ -1280,7 +1312,7 @@ export type LookUpShowRequest = Message<"nama.v1.LookUpShowRequest"> & {
  * Use `create(LookUpShowRequestSchema)` to create a new message.
  */
 export const LookUpShowRequestSchema: GenMessage<LookUpShowRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 46);
+  messageDesc(file_nama_v1_request, 48);
 
 /**
  * @generated from message nama.v1.LookUpShowResponse
@@ -1297,7 +1329,7 @@ export type LookUpShowResponse = Message<"nama.v1.LookUpShowResponse"> & {
  * Use `create(LookUpShowResponseSchema)` to create a new message.
  */
 export const LookUpShowResponseSchema: GenMessage<LookUpShowResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_request, 47);
+  messageDesc(file_nama_v1_request, 49);
 
 /**
  * Where a Request is on its way to the Library (ADR 0012).
@@ -1516,6 +1548,18 @@ export const RequestService: GenService<{
     methodKind: "unary";
     input: typeof GetRequestRequestSchema;
     output: typeof GetRequestResponseSchema;
+  },
+  /**
+   * Counts the Requests and Followed Shows the caller may see that are Pending, for the Requests
+   * link: as many rows as `ListRequests` lists Pending, so a Pending Followed Show and each of its
+   * Pending Season Requests count once each. Needs `PERMISSION_MANAGE_REQUESTS`.
+   *
+   * @generated from rpc nama.v1.RequestService.CountPendingRequests
+   */
+  countPendingRequests: {
+    methodKind: "unary";
+    input: typeof CountPendingRequestsRequestSchema;
+    output: typeof CountPendingRequestsResponseSchema;
   },
   /**
    * Searches the metadata source for Movies to ask for, best fit first. Unlike

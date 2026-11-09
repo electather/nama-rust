@@ -912,6 +912,29 @@ impl Requests {
         Ok((requests, followed))
     }
 
+    /// How many of the Requests and Followed Shows `viewer` may see are Pending, as many as
+    /// [`Self::list`] shows them, counting a Followed Show apart from its Season Requests.
+    pub(crate) async fn count_pending(&self, viewer: &User) -> Result<u32, sqlx::Error> {
+        let requester = visible_to(viewer);
+        // Keep the visibility checks in step with `load` and `load_followed`, or the count and the
+        // Pending filter disagree.
+        sqlx::query_scalar!(
+            r#"SELECT (SELECT COUNT(*) FROM requests
+                       WHERE state = 'pending'
+                         AND (?1 IS NULL OR EXISTS (SELECT 1 FROM requesters
+                                                    WHERE request_id = requests.id
+                                                      AND user_id = ?1)))
+                + (SELECT COUNT(*) FROM followed_shows
+                   WHERE state = 'pending'
+                     AND (?1 IS NULL OR EXISTS (SELECT 1 FROM followed_show_requesters
+                                                WHERE followed_show_id = followed_shows.id
+                                                  AND user_id = ?1))) AS "count!: u32""#,
+            requester
+        )
+        .fetch_one(self.db.reader())
+        .await
+    }
+
     /// The Movies the metadata source finds titled like `title`, best fit first, as `viewer`
     /// sees them.
     pub(crate) async fn search(
