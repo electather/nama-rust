@@ -61,7 +61,9 @@ service RequestService {
   // and joins the Show's open Followed Show or opens one: Approved if the caller has
   // `PERMISSION_AUTO_APPROVE_TV`, else Pending. Needs `PERMISSION_REQUEST_TV`. While the Followed
   // Show is Approved, a scan Matching Episodes of a Season that came out after it was opened opens
-  // a Request for its Requesters. Fails with `invalid_argument` if the metadata source has no Show
+  // a Request for its Requesters at the Show's Quality. A new Followed Show takes the Show's Quality
+  // if it has one, else one picked and refused as `CreateSeasonRequests` picks and refuses one;
+  // joining one keeps its Quality. Fails with `invalid_argument` if the metadata source has no Show
   // with the id, and `unavailable` if no metadata Provider is enabled, or it failed.
   rpc CreateFollowedShow(CreateFollowedShowRequest) returns (CreateFollowedShowResponse);
   // Lists a page of the Requests and Followed Shows the caller may see, newest first: only those in
@@ -131,9 +133,11 @@ service RequestService {
   // left on it. Fails with `not_found` if there is no Request with the ID, or none the caller may
   // see, and `failed_precondition` if the caller isn't one of its Requesters or it isn't Pending.
   rpc WithdrawRequest(WithdrawRequestRequest) returns (WithdrawRequestResponse);
-  // Approves a Pending Followed Show, and with it each Pending Season Request it opened. Needs
-  // `PERMISSION_MANAGE_REQUESTS`. Fails with `not_found` if there is no Followed Show with the ID,
-  // and `failed_precondition` if it isn't Pending.
+  // Approves a Pending Followed Show, and with it each Pending Season Request it opened. Given a
+  // `quality_id`, it first changes the Show's Quality to that one, as `ApproveRequest` changes a
+  // Season Request's. Needs `PERMISSION_MANAGE_REQUESTS`. Fails with `not_found` if there is no
+  // Followed Show with the ID, `failed_precondition` if it isn't Pending, and `invalid_argument` if
+  // the Quality isn't offered for the Show, as `ApproveRequest` says.
   rpc ApproveFollowedShow(ApproveFollowedShowRequest) returns (ApproveFollowedShowResponse);
   // Declines a Pending Followed Show, and with it each Pending Season Request it opened, which ends
   // it. Needs `PERMISSION_MANAGE_REQUESTS`. Fails as `ApproveFollowedShow` does.
@@ -283,6 +287,9 @@ message FollowedShow {
   // Why it was declined, for its Requesters to read. Only a Declined Followed Show has one, and
   // only if the decliner gave one.
   optional string decline_reason = 7;
+  // The Quality each Season Request it opens takes, now or when a later Season comes out: the
+  // Show's (`FoundShow.quality`). Unset if the Shows Fulfiller had no Qualities when it opened.
+  RequestedQuality quality = 8;
 }
 
 // A Movie a Request asks for, with its metadata as the metadata source gave it when the Request
@@ -364,6 +371,9 @@ message ListRequestsRequest {
 message CreateFollowedShowRequest {
   // The TMDB id of the Show.
   int64 show_tmdb_id = 1;
+  // The id of the Quality to download its Seasons at, from `ListShowQualities`. Unset for the
+  // Show's, or else the default.
+  optional int64 quality = 2;
 }
 
 message CreateFollowedShowResponse {
@@ -502,6 +512,8 @@ message WithdrawRequestResponse {}
 message ApproveFollowedShowRequest {
   // The ID of the Followed Show.
   int64 id = 1;
+  // The id of the Quality to change the Show's to, from the Shows Fulfiller's list. Unset keeps it.
+  optional int64 quality_id = 2;
 }
 
 message ApproveFollowedShowResponse {
@@ -607,7 +619,8 @@ message FoundShow {
   FollowedShow followed_show = 8;
   // The Show's Quality, which each of its Season Requests takes, as Sonarr keeps one profile per
   // series (ADR 0025): that of its earliest Season Request that has one and is open or was handed
-  // off. Unset if it has none, so a new Season Request may pick one. Only `LookUpShow` gives it.
+  // off, else that of its open Followed Show. Unset if it has none, so a new Season Request or
+  // Followed Show may pick one. Only `LookUpShow` gives it.
   RequestedQuality quality = 9;
 }
 

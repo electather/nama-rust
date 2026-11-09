@@ -8,8 +8,8 @@ import { type FoundShow, RequestService } from "@/gen/nama/v1/request_pb";
 import { askRefusal, onSubmitted } from "@/lib/forms";
 
 /**
- * Asking for the Seasons of `show` picked in a form, or for the Whole Show while `whole`. Seasons
- * of a Show with no Quality yet are asked for once the picker, if it opens, gives one.
+ * Asking for the Seasons of `show` picked in a form, or for the Whole Show while `whole`. Either,
+ * for a Show with no Quality yet, is asked for once the picker, if it opens, gives one.
  */
 export function useAskForShow(show: FoundShow) {
   const readBack = useReadBackAsked();
@@ -23,24 +23,27 @@ export function useAskForShow(show: FoundShow) {
     onSuccess: () => {},
   });
   const showTmdbId = show.tmdbId;
+  const askAtDefault = (seasonNumbers: number[], onSuccess: () => void) => {
+    if (whole) follow.mutate({ showTmdbId }, { onSuccess });
+    else ask.mutate({ showTmdbId, seasonNumbers }, { onSuccess });
+  };
   const submit = onSubmitted((picked, form) => {
     const onSuccess = () => {
       form.reset();
       setWhole(false);
     };
-    if (whole) {
-      follow.mutate({ showTmdbId }, { onSuccess });
-      return;
-    }
     const seasonNumbers = picked.getAll("season").map(Number);
     setAwaitingQuality({ seasonNumbers, onSuccess });
-    // With none picked, the Server's refusal says to pick one, so there's no Quality to ask.
-    if (seasonNumbers.length === 0 || !picker.open())
-      ask.mutate({ showTmdbId, seasonNumbers }, { onSuccess });
+    // With no Season picked, the Server's refusal says to pick one, so there's no Quality to ask.
+    const picking = (whole || seasonNumbers.length > 0) && picker.open();
+    if (!picking) askAtDefault(seasonNumbers, onSuccess);
   });
   const onPick = (quality: bigint) => {
     const { seasonNumbers, onSuccess } = awaitingQuality;
-    return ask.mutateAsync({ showTmdbId, seasonNumbers, quality }).then(onSuccess);
+    const asked = whole
+      ? follow.mutateAsync({ showTmdbId, quality })
+      : ask.mutateAsync({ showTmdbId, seasonNumbers, quality });
+    return asked.then(onSuccess);
   };
   const asking = whole ? follow : ask;
   return {

@@ -4,6 +4,7 @@ import { afterEach, expect, test } from "vite-plus/test";
 
 import type { QualitySchema } from "@/gen/nama/v1/plugin_pb";
 import {
+  type CreateFollowedShowRequest,
   type CreateRequestRequest,
   type CreateSeasonRequestsRequest,
   FoundMovieSchema,
@@ -135,12 +136,13 @@ const dark = {
 
 /**
  * A fake Server for Dark's page, where `show` is as given, the Shows Fulfiller offers `qualities`,
- * and each ask for its Seasons is put in `asked`.
+ * each ask for its Seasons is put in `asked`, and each ask for the Whole Show in `followed`.
  */
 function showServer(
   qualities: MessageInitShape<typeof QualitySchema>[],
   asked: CreateSeasonRequestsRequest[],
   show: MessageInitShape<typeof FoundShowSchema> = dark,
+  followed: CreateFollowedShowRequest[] = [],
 ) {
   const found = create(FoundShowSchema, show);
   return fakeServer({ signedIn: mayChoose }, {}, {}, (router) => {
@@ -152,13 +154,27 @@ function showServer(
         asked.push(request);
         return {};
       },
+      createFollowedShow: (request) => {
+        followed.push(request);
+        return {};
+      },
     });
   });
 }
 
 /** Picks Season 2 of Dark and Requests it, once the Qualities are read. */
 async function requestSeason2() {
-  fireEvent.click(await screen.findByRole("checkbox", { name: "Season 2" }));
+  await requestPicking("Season 2");
+}
+
+/** Picks the Whole Show of Dark and Requests it, once the Qualities are read. */
+async function requestWholeShow() {
+  await requestPicking("Whole Show");
+}
+
+/** Picks the choice `name` on Dark's page and Requests it, once the Qualities are read. */
+async function requestPicking(name: string) {
+  fireEvent.click(await screen.findByRole("checkbox", { name }));
   const button = screen.getByRole<HTMLButtonElement>("button", { name: "Request Seasons of Dark" });
   await waitFor(() => {
     expect(button.disabled).toBe(false);
@@ -201,4 +217,32 @@ test("a Show whose Quality Sonarr kept and no Quality offers says it is set in t
   openApp("/shows/tmdb-70523", showServer([hd, fourK], [], kept));
 
   expect(await screen.findByText(/downloads at HD-1080p \(set in the service\)/u)).toBeDefined();
+});
+
+test("a User who may choose picks the Quality of a Whole Show they follow", async () => {
+  const followed: CreateFollowedShowRequest[] = [];
+  openApp("/shows/tmdb-70523", showServer([hd, fourK], [], dark, followed));
+
+  await requestWholeShow();
+  const dialog = await screen.findByRole("alertdialog", { name: "Request the Whole Show of Dark" });
+  fireEvent.click(within(dialog).getByRole("radio", { name: "4K" }));
+  fireEvent.click(within(dialog).getByRole("button", { name: "Request" }));
+
+  await waitFor(() => {
+    expect(followed.map(({ quality }) => quality)).toEqual([2n]);
+  });
+});
+
+test("a Show whose Quality is fixed shows it, and its Whole Show is followed without a picker", async () => {
+  const followed: CreateFollowedShowRequest[] = [];
+  const withQuality = { ...dark, quality: { id: 2n, name: "4K", profileId: "5" } };
+  openApp("/shows/tmdb-70523", showServer([hd, fourK], [], withQuality, followed));
+
+  expect(await screen.findByText(/downloads at 4K/u)).toBeDefined();
+  await requestWholeShow();
+
+  await waitFor(() => {
+    expect(followed.map(({ quality }) => quality)).toEqual([undefined]);
+  });
+  expect(screen.queryByRole("alertdialog")).toBeNull();
 });

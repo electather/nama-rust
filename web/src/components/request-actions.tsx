@@ -98,7 +98,7 @@ interface Target {
    * inferred, so the components call them as taking any message.
    */
   changes: typeof requestChanges | typeof followedShowChanges;
-  /** A Request's Quality, which approving or retrying it can change; a Followed Show has none. */
+  /** Its Quality, which approving it, or retrying a Request, can change. */
   quality?: QualityTarget | undefined;
 }
 
@@ -110,6 +110,7 @@ function targetOf(request: Request | FollowedShow): Target {
       title: request.showTitle,
       label: `the Followed Show for ${request.showTitle}`,
       changes: followedShowChanges,
+      quality: qualityTargetOf(request),
     };
   }
   const quality = qualityTargetOf(request);

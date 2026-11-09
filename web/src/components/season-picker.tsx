@@ -15,7 +15,8 @@ import { seasonName, yearOf } from "@/lib/browse";
  * or the Whole Show, which covers them and later ones too. The signed-in User `you` may pick a
  * Season that's neither in a Library nor already theirs, or the Whole Show unless they follow it:
  * picking one someone else Requested joins its Request. Seasons download at the Show's Quality
- * once it has one; until then, Requesting them asks which, when the User may choose.
+ * once it has one; until then, Requesting them or the Whole Show asks which, when the User may
+ * choose.
  */
 export function SeasonPicker({ show, you }: { show: FoundShow; you: bigint | undefined }) {
   const { whole, setWhole, asking, busy, submit, picker } = useAskForShow(show);
@@ -48,12 +49,17 @@ export function SeasonPicker({ show, you }: { show: FoundShow; you: bigint | und
       {/* Outside the form above, since the dialog holds a form of its own. */}
       <QualityPicker
         {...picker.dialog}
-        title={`Seasons of ${show.title}`}
+        title={askedFor(show.title, whole)}
         onPick={picker.onPick}
         refusal={(error) => seasonsRefusal(error, show.title)}
       />
     </>
   );
+}
+
+/** What Requesting the Show titled `title` asks for, the Whole Show or Seasons, in words. */
+function askedFor(title: string, whole: boolean) {
+  return whole ? `the Whole Show of ${title}` : `Seasons of ${title}`;
 }
 
 /** The Quality `show`'s Seasons download at, once it has one. */

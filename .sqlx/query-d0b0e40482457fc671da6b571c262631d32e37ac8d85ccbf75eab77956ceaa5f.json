@@ -1,26 +1,26 @@
 {
   "db_name": "SQLite",
-  "query": "INSERT INTO followed_shows (tmdb_id, title, state, latest_season, created_at)\n         VALUES (?, ?, ?, ?, ?)\n         RETURNING id",
+  "query": "SELECT tmdb_id FROM followed_shows WHERE id = ?",
   "describe": {
     "columns": [
       {
-        "name": "id",
+        "name": "tmdb_id",
         "ordinal": 0,
         "type_info": "Integer",
         "origin": {
           "Table": {
             "table": "followed_shows",
-            "name": "id"
+            "name": "tmdb_id"
           }
         }
       }
     ],
     "parameters": {
-      "Right": 5
+      "Right": 1
     },
     "nullable": [
       false
     ]
   },
-  "hash": "56af550ea2117e23a4df2b9ad27ebfc648cdb3d22e043c6c0638949758d999cd"
+  "hash": "d0b0e40482457fc671da6b571c262631d32e37ac8d85ccbf75eab77956ceaa5f"
 }

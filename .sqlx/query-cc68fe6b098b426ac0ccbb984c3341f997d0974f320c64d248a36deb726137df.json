@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id AS \"id!: i64\", name AS \"name!: String\", profile_id AS \"profile_id!: String\"\n           FROM (SELECT COALESCE(quality_used_id, quality_id) AS id,\n                        COALESCE(quality_used_name, quality_name) AS name,\n                        COALESCE(quality_used_profile_id, quality_profile_id) AS profile_id,\n                        fulfiller_reference IS NULL AS waiting, 0 AS followed, created_at,\n                        id AS row_id\n                 FROM requests\n                 WHERE tmdb_id = ?1 AND season IS NOT NULL AND quality_id IS NOT NULL\n                   AND (state NOT IN ('declined', 'available') OR fulfiller_reference IS NOT NULL)\n                 UNION ALL\n                 SELECT quality_id, quality_name, quality_profile_id, 1, 1, created_at, id\n                 FROM followed_shows\n                 WHERE tmdb_id = ?1 AND state != 'declined' AND quality_id IS NOT NULL)\n           ORDER BY waiting, followed, created_at, row_id\n           LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!: i64",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "followed_shows",
+            "name": "quality_id"
+          }
+        }
+      },
+      {
+        "name": "name!: String",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "followed_shows",
+            "name": "quality_name"
+          }
+        }
+      },
+      {
+        "name": "profile_id!: String",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "followed_shows",
+            "name": "quality_profile_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "cc68fe6b098b426ac0ccbb984c3341f997d0974f320c64d248a36deb726137df"
+}

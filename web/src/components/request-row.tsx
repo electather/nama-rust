@@ -70,11 +70,14 @@ function titleOf(request: Request | FollowedShow) {
 }
 
 /**
- * What the row says under its title: the year a Request's title came out, its Quality, and who
- * asked.
+ * What the row says under its title: the year a Request's title came out, its or a Followed
+ * Show's Quality, and who asked.
  */
 function aboutRequest(request: Request | FollowedShow, you: bigint | undefined) {
-  if (request.$typeName === "nama.v1.FollowedShow") return requestedBy(request, you);
+  if (request.$typeName === "nama.v1.FollowedShow") {
+    const { quality } = request;
+    return metadataLine(quality && qualityName(quality), requestedBy(request, you));
+  }
   return metadataLine(yearOf(releasedOf(request)), qualityOf(request), requestedBy(request, you));
 }
 
