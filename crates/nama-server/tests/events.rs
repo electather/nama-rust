@@ -12,7 +12,9 @@ use connectrpc::{
     ErrorCode,
     client::{HttpClient, ServerStream},
 };
-use nama_plugin_api::{BoxFuture, Observer, Plugin, PluginId, Registrar, points};
+use nama_plugin_api::{
+    BoxFuture, Manifest, Observer, Plugin, PluginId, Registrar, points, settings::SettingsSchema,
+};
 use nama_proto::nama::v1::{
     __buffa::view::SubscribeResponseView, CreateLibraryRequest, Event, EventServiceClient,
     EventType, LibraryItemAdded, LibraryKind, LibraryServiceClient, RefusalReason, ScanFinished,
@@ -184,12 +186,12 @@ async fn a_subscriber_receives_a_scans_start_progress_added_items_and_finish_in_
 struct Forward(mpsc::UnboundedSender<Vec<Event>>);
 
 impl Plugin for Forward {
-    fn id(&self) -> PluginId {
-        PluginId::from_static("forward")
-    }
-
-    fn version(&self) -> &'static str {
-        "0.0.0"
+    fn manifest(&self) -> Manifest {
+        Manifest {
+            id: PluginId::from_static("forward"),
+            version: "0.0.0".to_owned(),
+            settings: SettingsSchema::default(),
+        }
     }
 
     fn register(&self, registrar: &mut Registrar) {

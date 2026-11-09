@@ -5,7 +5,7 @@
 use std::{collections::HashMap, future, sync::Arc};
 
 use nama_plugin_api::{
-    BoxFuture, Plugin, PluginError, PluginId, Priority, Registrar,
+    BoxFuture, Manifest, Plugin, PluginError, PluginId, Priority, Registrar,
     fulfiller::{Download, Fulfiller, Movies, Shows},
     settings::{
         Choice, Choices, SettingField, SettingKind, Settings, SettingsCheck, SettingsSchema,
@@ -30,15 +30,7 @@ pub const HANG: &str = "hang";
 pub struct TestChoices;
 
 impl Plugin for TestChoices {
-    fn id(&self) -> PluginId {
-        PluginId::from_static(ID)
-    }
-
-    fn version(&self) -> &'static str {
-        "0.0.0"
-    }
-
-    fn settings_schema(&self) -> SettingsSchema {
+    fn manifest(&self) -> Manifest {
         let field = |key: &str, label: &str, description: &str, kind, required| SettingField {
             key: key.to_owned(),
             label: label.to_owned(),
@@ -47,7 +39,7 @@ impl Plugin for TestChoices {
             required,
             default: None,
         };
-        SettingsSchema {
+        let settings = SettingsSchema {
             fields: vec![
                 field(
                     "api_key",
@@ -71,6 +63,11 @@ impl Plugin for TestChoices {
                     true,
                 ),
             ],
+        };
+        Manifest {
+            id: PluginId::from_static(ID),
+            version: "0.0.0".to_owned(),
+            settings,
         }
     }
 

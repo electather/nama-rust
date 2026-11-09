@@ -8,8 +8,8 @@
 use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
 use nama_plugin_api::{
-    BoxFuture, InterceptPoint, Interceptor, ObservePoint, Observer, OnFailure, Plugin, PluginError,
-    PluginId, Priority, Registrar, Verdict,
+    BoxFuture, InterceptPoint, Interceptor, Manifest, ObservePoint, Observer, OnFailure, Plugin,
+    PluginError, PluginId, Priority, Registrar, Verdict,
     settings::{SettingField, SettingKind, SettingValue, Settings, SettingsSchema},
 };
 use nama_plugin_test_choices as test_choices;
@@ -25,12 +25,12 @@ struct TestPlugin<F> {
 }
 
 impl<F: Fn(&mut Registrar) + Send + Sync + 'static> Plugin for TestPlugin<F> {
-    fn id(&self) -> PluginId {
-        PluginId::from_static(self.id)
-    }
-
-    fn version(&self) -> &'static str {
-        "0.0.0"
+    fn manifest(&self) -> Manifest {
+        Manifest {
+            id: PluginId::from_static(self.id),
+            version: "0.0.0".to_owned(),
+            settings: SettingsSchema::default(),
+        }
     }
 
     fn register(&self, registrar: &mut Registrar) {
@@ -452,33 +452,25 @@ async fn a_plugin_that_panics_while_registering_is_not_enabled() {
     );
 }
 
-/// A Plugin whose `id` or `version` panics, as chosen.
-struct PanicsIn(&'static str);
+struct PanicsInManifest;
 
-impl Plugin for PanicsIn {
-    fn id(&self) -> PluginId {
-        assert!(self.0 != "id", "id bug");
-        PluginId::from_static("buggy")
-    }
-
-    fn version(&self) -> &'static str {
-        panic!("version bug")
+impl Plugin for PanicsInManifest {
+    fn manifest(&self) -> Manifest {
+        panic!("manifest bug")
     }
 
     fn register(&self, _registrar: &mut Registrar) {}
 }
 
 #[tokio::test]
-async fn a_plugin_that_panics_giving_its_id_or_version_is_not_enabled() {
+async fn a_plugin_that_panics_giving_its_manifest_is_not_enabled() {
     let registry = Registry::new();
 
-    let id = registry.enable(Arc::new(PanicsIn("id")));
-    let version = registry.enable(Arc::new(PanicsIn("version")));
+    let result = registry.enable(Arc::new(PanicsInManifest));
 
-    assert!(matches!(id, Err(EnableError::IdPanicked { .. })), "{id:?}");
     assert!(
-        matches!(version, Err(EnableError::Panicked { .. })),
-        "{version:?}"
+        matches!(result, Err(EnableError::ManifestPanicked { .. })),
+        "{result:?}"
     );
     assert_eq!(registry.enabled(), Vec::<PluginId>::new());
 }
@@ -690,15 +682,7 @@ impl Fetcher for QuotesItsUrl {
 struct Configurable(mpsc::UnboundedSender<Settings>);
 
 impl Plugin for Configurable {
-    fn id(&self) -> PluginId {
-        PluginId::from_static("configurable")
-    }
-
-    fn version(&self) -> &'static str {
-        "0.0.0"
-    }
-
-    fn settings_schema(&self) -> SettingsSchema {
+    fn manifest(&self) -> Manifest {
         let field = |key: &str, kind, required, default| SettingField {
             key: key.to_owned(),
             label: key.to_owned(),
@@ -707,7 +691,7 @@ impl Plugin for Configurable {
             required,
             default,
         };
-        SettingsSchema {
+        let settings = SettingsSchema {
             fields: vec![
                 field("api_key", SettingKind::Secret, true, None),
                 field(
@@ -717,6 +701,11 @@ impl Plugin for Configurable {
                     Some(SettingValue::Text("en".to_owned())),
                 ),
             ],
+        };
+        Manifest {
+            id: PluginId::from_static("configurable"),
+            version: "0.0.0".to_owned(),
+            settings,
         }
     }
 

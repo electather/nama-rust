@@ -12,8 +12,9 @@ use argon2::{
     password_hash::{self, PasswordHasher, PasswordVerifier, phc::PasswordHash},
 };
 use nama_plugin_api::{
-    Plugin, PluginError, PluginId, Priority, Registrar,
+    Manifest, Plugin, PluginError, PluginId, Priority, Registrar,
     auth::{Authenticator, PasswordError},
+    settings::SettingsSchema,
 };
 
 const PASSWORD_LENGTH: RangeInclusive<usize> = 8..=1024;
@@ -34,12 +35,12 @@ impl LocalAuth {
 }
 
 impl Plugin for LocalAuth {
-    fn id(&self) -> PluginId {
-        Self::ID
-    }
-
-    fn version(&self) -> &'static str {
-        env!("CARGO_PKG_VERSION")
+    fn manifest(&self) -> Manifest {
+        Manifest {
+            id: Self::ID,
+            version: env!("CARGO_PKG_VERSION").to_owned(),
+            settings: SettingsSchema::default(),
+        }
     }
 
     fn register(&self, registrar: &mut Registrar) {

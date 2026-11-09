@@ -27,7 +27,7 @@ fn provider(fake: &FakeTmdb, api_key: &str) -> Arc<dyn MetadataProvider> {
         "api_key".to_owned(),
         SettingValue::Text(api_key.to_owned()),
     )]))
-    .resolve(&plugin.settings_schema())
+    .resolve(&plugin.manifest().settings)
     .unwrap();
     let mut registrar = Registrar::with_settings(settings);
     plugin.register(&mut registrar);
@@ -48,7 +48,7 @@ fn query(kind: TitleKind, title: &str, year: Option<i32>) -> SearchQuery {
 
 #[test]
 fn the_api_key_is_a_required_secret_setting() {
-    let schema = Tmdb::new().settings_schema();
+    let schema = Tmdb::new().manifest().settings;
 
     let api_key = schema
         .fields

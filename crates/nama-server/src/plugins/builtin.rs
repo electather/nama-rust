@@ -40,38 +40,34 @@ impl Registry {
                     continue;
                 }
             };
-            // A Plugin's `id` is Plugin code, so a panic in it is contained.
-            let id = match contain_sync(|| plugin.id()) {
-                Ok(id) => id,
+            // A Plugin's `manifest` and `settings_check` are Plugin code, so a panic in them is
+            // contained.
+            let manifest = match contain_sync(|| plugin.manifest()) {
+                Ok(manifest) => manifest,
                 Err(message) => {
-                    error!(message, "a built-in plugin panicked while giving its id");
+                    error!(
+                        message,
+                        "a built-in plugin panicked while giving its manifest"
+                    );
                     continue;
                 }
             };
-            let describe = || {
-                let checks_settings = plugin.settings_check().is_some();
-                (
-                    plugin.version().to_owned(),
-                    plugin.settings_schema(),
-                    checks_settings,
-                )
-            };
-            match contain_sync(describe) {
-                Ok((version, settings_schema, checks_settings)) => {
-                    let described = Described {
-                        kind: PluginKind::PLUGIN_KIND_BUILT_IN,
-                        make: Ok(Arc::new(make)),
-                        version,
-                        settings_schema,
-                        checks_settings,
-                    };
-                    registry.write(|state| state.known.insert(id.clone(), described));
-                }
+            let id = manifest.id;
+            let checks_settings = match contain_sync(|| plugin.settings_check().is_some()) {
+                Ok(checks_settings) => checks_settings,
                 Err(message) => {
                     error!(plugin = %id, message, "a built-in plugin panicked while describing itself");
                     continue;
                 }
-            }
+            };
+            let described = Described {
+                kind: PluginKind::PLUGIN_KIND_BUILT_IN,
+                make: Ok(Arc::new(make)),
+                version: manifest.version,
+                settings_schema: manifest.settings,
+                checks_settings,
+            };
+            registry.write(|state| state.known.insert(id.clone(), described));
             let config = config.get(id.as_str()).cloned().unwrap_or_default();
             if !config.enabled {
                 info!(plugin = %id, "plugin disabled in its settings");

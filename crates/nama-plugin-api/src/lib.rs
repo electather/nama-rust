@@ -77,23 +77,27 @@ impl fmt::Display for PluginId {
     }
 }
 
+/// What a Plugin says about itself before it is enabled, as an Installed Plugin's package does.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Manifest {
+    /// The Plugin's unique id.
+    pub id: PluginId,
+    /// The Plugin's version, for the log and the admin.
+    pub version: String,
+    /// The settings the Plugin takes, so an admin UI can render a form for them. The Kernel
+    /// enables the Plugin only with settings that fit it.
+    pub settings: SettingsSchema,
+}
+
 /// A unit of trusted functionality that plugs into a Server through Extension Points.
 ///
 /// The Kernel contains a panic in any of these methods or in a handler: it logs it and disables
 /// the Plugin. A Plugin and its handlers must not panic when dropped, because the last reference
 /// to a handler may be dropped wherever the Kernel was using it.
 pub trait Plugin: Send + Sync + 'static {
-    /// The Plugin's unique id. It must not change while the Plugin is enabled.
-    fn id(&self) -> PluginId;
-
-    /// The Plugin's version, for the log and the admin.
-    fn version(&self) -> &str;
-
-    /// The settings the Plugin takes, so an admin UI can render a form for them. The Kernel
-    /// enables the Plugin only with settings that fit it.
-    fn settings_schema(&self) -> SettingsSchema {
-        SettingsSchema::default()
-    }
+    /// What the Plugin says about itself, which the Kernel reads before enabling it. Its id must
+    /// not change while the Plugin is enabled.
+    fn manifest(&self) -> Manifest;
 
     /// The Plugin's check of its settings, if it has one, which offers the choices for its
     /// [`SettingKind::Choice`](settings::SettingKind::Choice) settings. The Kernel runs it on a
@@ -347,7 +351,7 @@ impl Registrar {
     }
 
     /// The settings the Plugin is being enabled with, checked against its
-    /// [`Plugin::settings_schema`] and with its defaults filled in.
+    /// [`Manifest::settings`] and with its defaults filled in.
     #[must_use]
     pub const fn settings(&self) -> &Settings {
         &self.settings

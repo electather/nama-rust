@@ -16,7 +16,7 @@ mod wire;
 use std::sync::Arc;
 
 use nama_plugin_api::{
-    Plugin, PluginId, Priority, Registrar,
+    Manifest, Plugin, PluginId, Priority, Registrar,
     metadata::MetadataProvider,
     settings::{SettingField, SettingKind, SettingValue, SettingsSchema},
 };
@@ -72,16 +72,8 @@ impl Tmdb {
 }
 
 impl Plugin for Tmdb {
-    fn id(&self) -> PluginId {
-        Self::ID
-    }
-
-    fn version(&self) -> &'static str {
-        env!("CARGO_PKG_VERSION")
-    }
-
-    fn settings_schema(&self) -> SettingsSchema {
-        SettingsSchema {
+    fn manifest(&self) -> Manifest {
+        let settings = SettingsSchema {
             fields: vec![
                 SettingField {
                     key: API_KEY.to_owned(),
@@ -104,6 +96,11 @@ impl Plugin for Tmdb {
                     default: Some(SettingValue::Text(DEFAULT_LANGUAGE.to_owned())),
                 },
             ],
+        };
+        Manifest {
+            id: Self::ID,
+            version: env!("CARGO_PKG_VERSION").to_owned(),
+            settings,
         }
     }
 
