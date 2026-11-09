@@ -22,6 +22,7 @@ use crate::{
     db::{Database, now},
     events::event,
     requests,
+    scanner::PARSER_VERSION,
 };
 
 /// Reads and writes the contents of Libraries.
@@ -97,6 +98,8 @@ pub(crate) struct Stored {
     pub(crate) id: i64,
     pub(crate) size: i64,
     pub(crate) modified_ns: i64,
+    /// The version of the name parser that read it.
+    pub(crate) parser_version: i64,
 }
 
 /// A change to a Library's stored files.
@@ -107,6 +110,14 @@ pub(crate) enum Change {
         path: String,
         size: i64,
         modified_ns: i64,
+        items: Vec<Item>,
+    },
+    /// Store what an unchanged file holds as the current name parser reads it. Its Items keep
+    /// their ids and Matches, but not their automatic Unmatched decisions, so Matching tries them
+    /// again (ADR 0023). A pin on an Item's old name also applies to its new one.
+    Reparse {
+        file: i64,
+        path: String,
         items: Vec<Item>,
     },
     Remove(i64),
@@ -260,7 +271,7 @@ impl Contents {
         library: i64,
     ) -> Result<HashMap<String, Stored>, sqlx::Error> {
         Ok(sqlx::query!(
-            r#"SELECT id AS "id!", path, size, modified_ns FROM library_files
+            r#"SELECT id AS "id!", path, size, modified_ns, parser_version FROM library_files
                WHERE library_id = ?"#,
             library
         )
@@ -272,6 +283,7 @@ impl Contents {
                 id: row.id,
                 size: row.size,
                 modified_ns: row.modified_ns,
+                parser_version: row.parser_version,
             };
             (row.path, stored)
         })
@@ -810,15 +822,17 @@ async fn apply(
                 items,
             } => {
                 let file = sqlx::query_scalar!(
-                    r#"INSERT INTO library_files (library_id, path, size, modified_ns)
-                       VALUES (?, ?, ?, ?)
+                    r#"INSERT INTO library_files (library_id, path, size, modified_ns, parser_version)
+                       VALUES (?, ?, ?, ?, ?)
                        ON CONFLICT (library_id, path)
-                       DO UPDATE SET size = excluded.size, modified_ns = excluded.modified_ns
+                       DO UPDATE SET size = excluded.size, modified_ns = excluded.modified_ns,
+                                     parser_version = excluded.parser_version
                        RETURNING id AS "id!""#,
                     library,
                     path,
                     size,
                     modified_ns,
+                    PARSER_VERSION,
                 )
                 .fetch_one(&mut *conn)
                 .await?;
@@ -831,6 +845,9 @@ async fn apply(
                         .map(|item| item_added(library, item, path.clone())),
                 );
             }
+            Change::Reparse { file, path, items } => {
+                events.extend(reparse(conn, library, file, &path, &items).await?);
+            }
             Change::Remove(file) => {
                 let removed = remove_items(conn, file).await?;
                 sqlx::query!("DELETE FROM library_files WHERE id = ?", file)
@@ -841,6 +858,117 @@ async fn apply(
         }
     }
     Ok(events)
+}
+
+/// Pairs each of `items` with the stored Item of the file it was parsed as before, by Season and
+/// Episode number, so it keeps its id and Match; the unpaired are removed or added.
+async fn reparse(
+    conn: &mut SqliteConnection,
+    library: i64,
+    file: i64,
+    path: &str,
+    items: &[Item],
+) -> Result<Vec<Event>, sqlx::Error> {
+    sqlx::query!(
+        "UPDATE library_files SET parser_version = ? WHERE id = ?",
+        PARSER_VERSION,
+        file
+    )
+    .execute(&mut *conn)
+    .await?;
+    let mut stored = sqlx::query!(
+        r#"SELECT id AS "id!", kind AS "kind: ItemKind", title, year, tmdb_id, season, episode
+           FROM library_items WHERE file_id = ? ORDER BY id"#,
+        file
+    )
+    .fetch_all(&mut *conn)
+    .await?;
+    let mut unpaired = Vec::new();
+    for item in items {
+        let new = ItemRow::from(item);
+        let paired = stored
+            .iter()
+            .position(|old| (old.season, old.episode) == (new.season, new.episode));
+        let Some(old) = paired.map(|at| stored.swap_remove(at)) else {
+            unpaired.push(item.clone());
+            continue;
+        };
+        let old_name = Name {
+            kind: old.kind,
+            title: old.title,
+            year: old.year,
+            tmdb_id: old.tmdb_id,
+        };
+        rename_item(conn, library, old.id, &old_name, &new).await?;
+    }
+    let mut events = Vec::new();
+    for gone in stored {
+        sqlx::query!("DELETE FROM library_items WHERE id = ?", gone.id)
+            .execute(&mut *conn)
+            .await?;
+        events.push(item_removed(library, gone.id));
+    }
+    let added = insert_items(conn, file, &unpaired).await?;
+    events.extend(
+        added
+            .into_iter()
+            .map(|item| item_added(library, item, path.to_owned())),
+    );
+    sqlx::query!(
+        "DELETE FROM item_matches
+         WHERE state = 'unmatched'
+           AND item_id IN (SELECT id FROM library_items WHERE file_id = ?)",
+        file
+    )
+    .execute(&mut *conn)
+    .await?;
+    Ok(events)
+}
+
+/// Stores `new` as what the Item `id` holds, and gives its name any pin on `old`.
+async fn rename_item(
+    conn: &mut SqliteConnection,
+    library: i64,
+    id: i64,
+    old: &Name,
+    new: &ItemRow<'_>,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        "UPDATE library_items SET kind = ?, title = ?, year = ?, tmdb_id = ?, season = ?,
+                                  episode = ?
+         WHERE id = ?",
+        new.kind,
+        new.title,
+        new.year,
+        new.tmdb_id,
+        new.season,
+        new.episode,
+        id,
+    )
+    .execute(&mut *conn)
+    .await?;
+    // A pin is keyed by name, so a new name would lose it. The old pin stays for any Item
+    // still named the old way; a name that is already pinned keeps its own pin.
+    sqlx::query!(
+        "INSERT OR IGNORE INTO match_pins (
+             library_id, kind, title, year, tmdb_id,
+             pinned_tmdb_id, pinned_imdb_id, pinned_tvdb_id, pinned_at)
+         SELECT library_id, kind, ?, ?, ?,
+                pinned_tmdb_id, pinned_imdb_id, pinned_tvdb_id, pinned_at
+         FROM match_pins
+         WHERE library_id = ? AND kind = ? AND title = ? AND year IS ? AND tmdb_id IS ?",
+        new.title,
+        new.year,
+        new.tmdb_id,
+        library,
+        old.kind,
+        old.title,
+        old.year,
+        old.tmdb_id,
+    )
+    .execute(conn)
+    .await?;
+    Ok(())
 }
 
 fn item_added(library: i64, item: i64, path: String) -> Event {
@@ -1247,6 +1375,28 @@ impl Contents {
 }
 
 #[cfg(test)]
+impl Contents {
+    /// Marks the files of the Library `library` as read by the name parser before the current
+    /// one, as after a version bump.
+    pub(crate) async fn read_by_older_parser(&self, library: i64) {
+        self.db
+            .write(move |tx| {
+                Box::pin(async move {
+                    sqlx::query!(
+                        "UPDATE library_files SET parser_version = ? - 1 WHERE library_id = ?",
+                        PARSER_VERSION,
+                        library
+                    )
+                    .execute(&mut **tx)
+                    .await
+                })
+            })
+            .await
+            .unwrap();
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use std::sync::Arc;
 
@@ -1450,6 +1600,132 @@ mod tests {
                 .collect::<Vec<_>>(),
             [Some(pin)]
         );
+    }
+
+    #[tokio::test]
+    async fn a_pin_still_applies_after_a_reparse_gives_its_items_a_new_name() {
+        let fx = Fixture::new().await;
+        let heat = "/media/Heat (1995) {tmdb-949}/Heat (1995).mkv";
+        let dark = "/media/Dark (2017) {tmdb-70523}/Season 01/Dark (2017) - S01E01.mkv";
+        let dark_pilot = |tmdb_id| Item::Episode {
+            show: "Dark".to_owned(),
+            year: Some(2017),
+            tmdb_id,
+            season: 1,
+            episode: 1,
+        };
+        fx.store(ALIEN, 10, movie("Alien", 1979)).await;
+        fx.store(heat, 10, movie("Heat", 1995)).await;
+        fx.store(dark, 10, dark_pilot(None)).await;
+        let (alien_item, heat_item) = (fx.item(ALIEN).await, fx.item(heat).await);
+        let dark_item = fx.item(dark).await;
+        let pins = [
+            (alien_item, Pin::Title(ExternalId::Tmdb(348))),
+            (heat_item, Pin::Unmatched),
+            (dark_item, Pin::Title(ExternalId::Tmdb(70523))),
+        ];
+        for (item, pin) in pins.clone() {
+            let named = fx.contents.named_like(item).await.unwrap().unwrap();
+            let decided = vec![(item, Decided::Unmatched)];
+            fx.contents
+                .pin(named.library, named.name, pin, decided)
+                .await
+                .unwrap();
+        }
+
+        // A newer parser reads an ID Hint the old one missed.
+        let hinted = |title: &str, year, tmdb_id| Item::Movie {
+            title: title.to_owned(),
+            year: Some(year),
+            tmdb_id: Some(tmdb_id),
+        };
+        let stored = fx.contents.stored(fx.library).await.unwrap();
+        let reparse = |path: &str, item| Change::Reparse {
+            file: stored[path].id,
+            path: path.to_owned(),
+            items: vec![item],
+        };
+        let changes = vec![
+            reparse(ALIEN, hinted("Alien", 1979, 348)),
+            reparse(heat, hinted("Heat", 1995, 949)),
+            reparse(dark, dark_pilot(Some(70523))),
+        ];
+        fx.contents.apply(fx.library, changes).await.unwrap();
+
+        let undecided = fx.contents.undecided(fx.library).await.unwrap();
+        assert_eq!(
+            undecided
+                .into_iter()
+                .map(|(id, item, pin)| (id, item.name().tmdb_id, pin))
+                .collect::<Vec<_>>(),
+            [
+                (alien_item, Some(348), Some(pins[0].1.clone())),
+                (heat_item, Some(949), Some(Pin::Unmatched)),
+                (dark_item, Some(70523), Some(pins[2].1.clone())),
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn a_reparse_adds_and_removes_items_when_their_number_changes() {
+        let fx = Fixture::new().await;
+        let heat = "/media/Heat (1995).mkv";
+        fx.store(ALIEN, 10, movie("Alien", 1979)).await;
+        fx.store(heat, 10, movie("Heat", 1995)).await;
+        let stored = fx.contents.stored(fx.library).await.unwrap();
+
+        let changes = vec![
+            Change::Reparse {
+                file: stored[ALIEN].id,
+                path: ALIEN.to_owned(),
+                items: vec![movie("Alien", 1979), movie("Aliens", 1986)],
+            },
+            Change::Reparse {
+                file: stored[heat].id,
+                path: heat.to_owned(),
+                items: vec![],
+            },
+        ];
+        fx.contents.apply(fx.library, changes).await.unwrap();
+
+        let items = fx.items(ALIEN).await;
+        assert_eq!(
+            items
+                .iter()
+                .map(|file_item| &file_item.item)
+                .collect::<Vec<_>>(),
+            [&movie("Alien", 1979), &movie("Aliens", 1986)]
+        );
+        assert_eq!(fx.items(heat).await, []);
+    }
+
+    #[tokio::test]
+    async fn a_reparse_keeps_each_episode_on_the_item_with_its_numbers() {
+        let fx = Fixture::new().await;
+        let dark = "/media/Dark (2017)/Season 01/Dark (2017) - S01E01-E02.mkv";
+        let episode = |number| Item::Episode {
+            show: "Dark".to_owned(),
+            year: Some(2017),
+            tmdb_id: None,
+            season: 1,
+            episode: number,
+        };
+        // The older parser read only the second Episode.
+        fx.store(dark, 10, episode(2)).await;
+        let second = fx.item(dark).await;
+
+        let file = fx.contents.stored(fx.library).await.unwrap()[dark].id;
+        let reparse = Change::Reparse {
+            file,
+            path: dark.to_owned(),
+            items: vec![episode(1), episode(2)],
+        };
+        fx.contents.apply(fx.library, vec![reparse]).await.unwrap();
+
+        let items = fx.items(dark).await;
+        let second_now = items.iter().find(|stored| stored.item == episode(2));
+        assert_eq!(second_now.map(|stored| stored.id), Some(second));
+        assert_eq!(items.len(), 2);
     }
 
     #[tokio::test]

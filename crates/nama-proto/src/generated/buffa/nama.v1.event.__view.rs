@@ -2612,7 +2612,8 @@ pub struct ScanFinishedView<'a> {
     ///
     /// Field 2: `added`
     pub added: u64,
-    /// Stored files whose size or modified time changed.
+    /// Stored files parsed again: those whose size or modified time changed, or that an older name
+    /// parser read.
     ///
     /// Field 3: `updated`
     pub updated: u64,
@@ -2929,7 +2930,8 @@ impl ScanFinishedOwnedView {
     pub fn added(&self) -> u64 {
         self.0.reborrow().added
     }
-    /// Stored files whose size or modified time changed.
+    /// Stored files parsed again: those whose size or modified time changed, or that an older name
+    /// parser read.
     ///
     /// Field 3: `updated`
     #[must_use]
@@ -2981,7 +2983,7 @@ impl ::serde::Serialize for ScanFinishedOwnedView {
         ::serde::Serialize::serialize(&self.0, __s)
     }
 }
-/// A scan stored an Item, for a new file or one that changed.
+/// A scan stored an Item, for a new file, one that changed or one a newer name parser read.
 #[derive(Clone, Debug, Default)]
 pub struct LibraryItemAddedView<'a> {
     /// Field 1: `library_id`
@@ -3289,7 +3291,7 @@ impl ::serde::Serialize for LibraryItemAddedOwnedView {
         ::serde::Serialize::serialize(&self.0, __s)
     }
 }
-/// An Item is gone, because its file is gone or changed.
+/// An Item is gone, because its file is gone or changed, or a newer name parser read it.
 #[derive(Clone, Debug, Default)]
 pub struct LibraryItemRemovedView<'a> {
     /// Field 1: `library_id`

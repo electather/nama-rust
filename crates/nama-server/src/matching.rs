@@ -19,7 +19,8 @@
 //! name that still says the same title, year and ID hint, and a new Episode of a pinned Show
 //! Matches the pinned Show. A rename that changes any of those is a new name, which isn't pinned.
 //!
-//! A Matched or Unmatched item stays so on later scans until its file changes. An item Matching
+//! A Matched or Unmatched item stays so on later scans until its file changes, or, if it was left
+//! Unmatched automatically, a newer name parser reads its file (ADR 0023). An item Matching
 //! couldn't decide, because no metadata Provider is enabled or the Provider failed (such as when
 //! TMDB is unreachable or rejects the API key), has no Match and so is Unmatched too, but nothing
 //! is stored for it: it is undecided, and the next scan tries it again. Once the Provider fails,
@@ -1120,6 +1121,52 @@ mod tests {
                 .collect::<Vec<_>>(),
             [matched(348, "Alien"), Outcome::Unmatched]
         );
+    }
+
+    #[tokio::test]
+    async fn a_newer_name_parser_retries_unmatched_items_and_keeps_automatic_matches() {
+        let media = Fixture::new().await;
+        media.movies.write("Alien (1979)/Alien (1979).mkv");
+        media.movies.write("Hamlet (2000)/Hamlet (2000).mkv");
+        media.scan(&media.movies).await;
+        let alien = media
+            .item(&media.movies, "Alien (1979)/Alien (1979).mkv")
+            .await;
+        let searches = media.searches();
+
+        media.contents.read_by_older_parser(media.movies.id).await;
+        media.scan(&media.movies).await;
+
+        // Only Hamlet, left Unmatched, was searched for again.
+        assert_eq!(media.searches(), searches + 1);
+        assert_eq!(
+            media.outcomes(&media.movies).await,
+            [matched(348, "Alien"), Outcome::Unmatched]
+        );
+        assert_eq!(
+            media
+                .item(&media.movies, "Alien (1979)/Alien (1979).mkv")
+                .await,
+            alien
+        );
+    }
+
+    #[tokio::test]
+    async fn a_newer_name_parser_keeps_a_pinned_match() {
+        let media = Fixture::new().await;
+        let movies = &media.movies;
+        let home_movies = "Home Movies (2019)/Home Movies (2019).mkv";
+        movies.write(home_movies);
+        media.scan(movies).await;
+        let item = media.item(movies, home_movies).await;
+        media.set_match(item, &ExternalId::Tmdb(949)).await.unwrap();
+        let looked_up = media.tmdb.requests().len();
+
+        media.contents.read_by_older_parser(movies.id).await;
+        media.scan(movies).await;
+
+        assert_eq!(media.outcomes(movies).await, [matched(949, "Heat")]);
+        assert_eq!(media.tmdb.requests().len(), looked_up);
     }
 
     #[tokio::test]

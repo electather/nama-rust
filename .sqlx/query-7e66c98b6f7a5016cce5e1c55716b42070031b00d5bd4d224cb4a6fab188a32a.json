@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM item_matches\n         WHERE state = 'unmatched'\n           AND item_id IN (SELECT id FROM library_items WHERE file_id = ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "7e66c98b6f7a5016cce5e1c55716b42070031b00d5bd4d224cb4a6fab188a32a"
+}

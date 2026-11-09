@@ -99,7 +99,8 @@ message ScanFinished {
   int64 library_id = 1;
   // Files found that weren't stored before.
   uint64 added = 2;
-  // Stored files whose size or modified time changed.
+  // Stored files parsed again: those whose size or modified time changed, or that an older name
+  // parser read.
   uint64 updated = 3;
   // Stored files that are gone.
   uint64 removed = 4;
@@ -107,7 +108,7 @@ message ScanFinished {
   uint64 unchanged = 5;
 }
 
-// A scan stored an Item, for a new file or one that changed.
+// A scan stored an Item, for a new file, one that changed or one a newer name parser read.
 message LibraryItemAdded {
   int64 library_id = 1;
   int64 item_id = 2;
@@ -115,7 +116,7 @@ message LibraryItemAdded {
   string path = 3;
 }
 
-// An Item is gone, because its file is gone or changed.
+// An Item is gone, because its file is gone or changed, or a newer name parser read it.
 message LibraryItemRemoved {
   int64 library_id = 1;
   int64 item_id = 2;

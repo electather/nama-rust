@@ -5,6 +5,7 @@
 - **One database writer.** Every write goes through `Database::write` in `src/db.rs`, on the one writable SQLite connection. Long jobs such as a scan write in small batches.
 - **One owner for a Library's contents.** Only `src/contents.rs` reads or writes `library_files`, `library_items`, `item_matches` and `match_pins`, tests included. Everything else goes through `Contents`.
 - **Query data.** After changing a `sqlx::query!` or anything in `migrations/`, regenerate `.sqlx/` at the workspace root and commit it (commands in `README.md`).
+- **Name parser version.** A change to how names are parsed or how Matching decides that could turn an Unmatched Item into a Match bumps `PARSER_VERSION` in `src/scanner/names.rs`, so the next scan parses stored files again and retries their automatic Unmatched decisions (ADR 0023).
 - **Whole-Library reads.** Browse reads a Library's whole contents even to find one title. Each such read is marked `// ponytail: whole-Library read`; query by id there once Libraries get big.
 
 ### Security

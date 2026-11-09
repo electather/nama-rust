@@ -265,7 +265,8 @@ export type ScanFinished = Message<"nama.v1.ScanFinished"> & {
   added: bigint;
 
   /**
-   * Stored files whose size or modified time changed.
+   * Stored files parsed again: those whose size or modified time changed, or that an older name
+   * parser read.
    *
    * @generated from field: uint64 updated = 3;
    */
@@ -294,7 +295,7 @@ export const ScanFinishedSchema: GenMessage<ScanFinished> = /*@__PURE__*/
   messageDesc(file_nama_v1_event, 6);
 
 /**
- * A scan stored an Item, for a new file or one that changed.
+ * A scan stored an Item, for a new file, one that changed or one a newer name parser read.
  *
  * @generated from message nama.v1.LibraryItemAdded
  */
@@ -325,7 +326,7 @@ export const LibraryItemAddedSchema: GenMessage<LibraryItemAdded> = /*@__PURE__*
   messageDesc(file_nama_v1_event, 7);
 
 /**
- * An Item is gone, because its file is gone or changed.
+ * An Item is gone, because its file is gone or changed, or a newer name parser read it.
  *
  * @generated from message nama.v1.LibraryItemRemoved
  */
