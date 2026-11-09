@@ -422,7 +422,7 @@ async fn with_a_server_url_set_a_message_links_to_the_request_in_the_web_app() {
     let dune = fixture.ada_asks_for(DUNE).await;
 
     let sent = fixture.telegram.wait_for_messages(1).await;
-    let link = format!("https://nama.example.com/requests#request-{}", dune.id);
+    let link = format!("https://nama.example.com/requests/{}", dune.id);
     assert_eq!(
         sent,
         [to_channel(&format!(
@@ -677,7 +677,7 @@ async fn a_requester_who_connected_is_messaged_with_the_link_when_their_request_
     let _media = fixture.library_with_alien().await;
 
     let sent = fixture.telegram.wait_for_messages(2).await;
-    let link = format!("https://nama.example.com/requests#request-{}", alien.id);
+    let link = format!("https://nama.example.com/requests/{}", alien.id);
     assert_eq!(
         sorted(sent),
         sorted(vec![

@@ -1,0 +1,129 @@
+import { createQueryOptions, useSuspenseQuery } from "@connectrpc/connect-query";
+import { createFileRoute, redirect } from "@tanstack/react-router";
+
+import { FindATitle, type Searchable, TitlesFound } from "@/components/find-a-title";
+import { Page } from "@/components/page";
+import { RequestRow, type ShowGroup, ShowRequests } from "@/components/request-row";
+import { type FollowedShow, type Request, RequestService } from "@/gen/nama/v1/request_pb";
+import { Permission } from "@/gen/nama/v1/sign_in_pb";
+import { may } from "@/lib/permissions";
+
+export const Route = createFileRoute("/_member/requests/")({
+  beforeLoad: ({ location }) => {
+    // Links Telegram sent before Requests had pages of their own; the fragment never reaches the
+    // Server, so only the app can send them on.
+    const requestId = /^request-(\d+)$/u.exec(location.hash)?.[1];
+    if (requestId !== undefined) {
+      throw redirect({ to: "/requests/$requestId", params: { requestId }, replace: true });
+    }
+  },
+  validateSearch: (search: Record<string, unknown>): { title?: string } =>
+    typeof search["title"] === "string" && search["title"] !== "" ? { title: search["title"] } : {},
+  loader: ({ context: { queryClient, transport } }) =>
+    queryClient.query({
+      ...createQueryOptions(RequestService.method.listRequests, {}, { transport }),
+      staleTime: "static",
+    }),
+  component: Requests,
+});
+
+function Requests() {
+  const { signedIn } = Route.useRouteContext();
+  const { title } = Route.useSearch();
+  const kinds = {
+    movies: may(signedIn.user, Permission.REQUEST_MOVIE),
+    shows: may(signedIn.user, Permission.REQUEST_TV),
+  };
+  return (
+    <Page heading="Requests">
+      {kinds.movies || kinds.shows ? (
+        <FindOrList title={title} kinds={kinds} you={signedIn.user?.id} />
+      ) : (
+        <RequestList />
+      )}
+    </Page>
+  );
+}
+
+/** The search, then what it found for `title`, or the Requests before anything is searched for. */
+function FindOrList({
+  title,
+  kinds,
+  you,
+}: {
+  title: string | undefined;
+  kinds: Searchable;
+  you: bigint | undefined;
+}) {
+  return (
+    <>
+      <FindATitle title={title} kinds={kinds} />
+      {title === undefined ? (
+        <RequestList />
+      ) : (
+        <TitlesFound title={title} kinds={kinds} you={you} />
+      )}
+    </>
+  );
+}
+
+function RequestList() {
+  const { data } = useSuspenseQuery(RequestService.method.listRequests, {});
+  return data.requests.length + data.followedShows.length === 0 ? (
+    <p className="mt-8 text-muted-foreground">No Requests yet.</p>
+  ) : (
+    <ul className="mt-8 flex max-w-2xl flex-col">
+      {groupShows(data.requests, data.followedShows).map((entry) =>
+        "seasons" in entry ? (
+          <ShowRequests key={`show-${entry.showTmdbId}`} {...entry} />
+        ) : (
+          <RequestRow key={String(entry.id)} request={entry} />
+        ),
+      )}
+    </ul>
+  );
+}
+
+/**
+ * `requests` and `followedShows`, newest first, but with each Show's together where the Show's
+ * newest one was: its Followed Shows, then its Season Requests in Season order.
+ */
+function groupShows(requests: Request[], followedShows: FollowedShow[]) {
+  const shows = new Map<bigint, ShowGroup>();
+  const newestFirst = [...requests, ...followedShows];
+  // Sorting is stable, so Requests opened in the same second keep the Server's order.
+  newestFirst.sort((a, b) => Number(b.createdAt - a.createdAt));
+  const grouped = newestFirst.flatMap((asked): (Request | FollowedShow | ShowGroup)[] => {
+    const show = showOf(asked);
+    if (show === undefined) return [asked];
+    const known = shows.get(show.showTmdbId);
+    const group = known ?? newGroup(show);
+    addTo(group, asked);
+    shows.set(show.showTmdbId, group);
+    return known ? [] : [group];
+  });
+  for (const { seasons } of shows.values()) {
+    seasons.sort((a, b) => seasonNumber(a) - seasonNumber(b));
+  }
+  return grouped;
+}
+
+type Show = Pick<ShowGroup, "showTmdbId" | "showTitle">;
+
+/** The Show a Followed Show or a Season Request is of; a Movie's Request has none. */
+function showOf(asked: Request | FollowedShow): Show | undefined {
+  return asked.$typeName === "nama.v1.FollowedShow" ? asked : asked.season;
+}
+
+function newGroup({ showTmdbId, showTitle }: Show): ShowGroup {
+  return { showTmdbId, showTitle, followed: [], seasons: [] };
+}
+
+function addTo(group: ShowGroup, asked: Request | FollowedShow) {
+  if (asked.$typeName === "nama.v1.FollowedShow") group.followed.push(asked);
+  else group.seasons.push(asked);
+}
+
+function seasonNumber(request: Request) {
+  return request.season?.seasonNumber ?? 0;
+}

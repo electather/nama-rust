@@ -459,7 +459,7 @@ mod tests {
             }
             .into(),
             request: dune(RequestState::REQUEST_STATE_PENDING).into(),
-            request_url: Some("https://nama.example.com/requests#request-7".to_owned()),
+            request_url: Some("https://nama.example.com/requests/7".to_owned()),
             ..Notification::default()
         };
 
@@ -469,7 +469,7 @@ mod tests {
             posted.as_deref(),
             Some(
                 "Dune (2021) is now Pending.\n\
-                 https://nama.example.com/requests#request-7"
+                 https://nama.example.com/requests/7"
             )
         );
     }
