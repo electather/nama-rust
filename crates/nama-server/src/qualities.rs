@@ -152,6 +152,25 @@ pub(crate) async fn default_of(
     }))
 }
 
+/// A copy of the Quality with the id `id` on the Plugin `plugin`'s list, for a Request manager
+/// to change a Request to, or `None` if the list hasn't it.
+pub(crate) async fn offered(
+    conn: &mut SqliteConnection,
+    plugin: &PluginId,
+    id: i64,
+) -> Result<Option<RequestedQuality>, sqlx::Error> {
+    let listed = list(conn, plugin).await?;
+    Ok(listed
+        .into_iter()
+        .find(|quality| quality.id == id)
+        .map(|quality| RequestedQuality {
+            id: quality.id,
+            name: quality.name,
+            profile_id: quality.profile_id,
+            ..Default::default()
+        }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

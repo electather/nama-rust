@@ -5,7 +5,12 @@ import { FindATitle, type Searchable, TitlesFound } from "@/components/find-a-ti
 import { Page } from "@/components/page";
 import { RequestActions } from "@/components/request-actions";
 import { RequestProgress, RequestStateLabel } from "@/components/request-state";
-import { type FollowedShow, type Request, RequestService } from "@/gen/nama/v1/request_pb";
+import {
+  type FollowedShow,
+  type QualityChange,
+  type Request,
+  RequestService,
+} from "@/gen/nama/v1/request_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { metadataLine, seasonName, yearOf } from "@/lib/browse";
 import { may } from "@/lib/permissions";
@@ -192,11 +197,18 @@ function titleOf(request: Request | FollowedShow) {
  */
 function aboutRequest(request: Request | FollowedShow, you: bigint | undefined) {
   if (request.$typeName === "nama.v1.FollowedShow") return requestedBy(request, you);
-  return metadataLine(
-    yearOf(releasedOf(request)),
-    request.quality?.name,
-    requestedBy(request, you),
-  );
+  return metadataLine(yearOf(releasedOf(request)), qualityOf(request), requestedBy(request, you));
+}
+
+/** A Request's Quality, and who last changed it from what: "HD, changed from 4K by Sam". */
+function qualityOf({ quality, qualityChange }: Request) {
+  if (!quality || !qualityChange) return quality?.name;
+  return `${quality.name}, ${changed(qualityChange)}`;
+}
+
+function changed({ previousName, changedBy = "a Request manager" }: QualityChange) {
+  const from = previousName === undefined ? "" : ` from ${previousName}`;
+  return `changed${from} by ${changedBy}`;
 }
 
 /** When a Request's Movie came out, or its Season first aired. */

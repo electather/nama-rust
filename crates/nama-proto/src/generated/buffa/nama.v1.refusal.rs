@@ -150,6 +150,9 @@ pub enum RefusalReason {
     REFUSAL_REASON_QUALITY_REPEATED = 54i32,
     /// `invalid_argument`: a Fulfiller's Qualities don't mark exactly one as the default.
     REFUSAL_REASON_DEFAULT_QUALITY_REQUIRED = 55i32,
+    /// `failed_precondition`: the Quality isn't on the list of the Fulfiller the Request goes to, or
+    /// that Fulfiller has none. Params: `qualityId`.
+    REFUSAL_REASON_QUALITY_NOT_OFFERED = 56i32,
 }
 impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -320,6 +323,9 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_DEFAULT_QUALITY_REQUIRED`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const DefaultQualityRequired: Self = Self::REFUSAL_REASON_DEFAULT_QUALITY_REQUIRED;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_QUALITY_NOT_OFFERED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const QualityNotOffered: Self = Self::REFUSAL_REASON_QUALITY_NOT_OFFERED;
 }
 impl ::core::default::Default for RefusalReason {
     fn default() -> Self {
@@ -533,6 +539,9 @@ impl ::buffa::Enumeration for RefusalReason {
                     Self::REFUSAL_REASON_DEFAULT_QUALITY_REQUIRED,
                 )
             }
+            56i32 => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_QUALITY_NOT_OFFERED)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -644,6 +653,9 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_QUALITY_REPEATED => "REFUSAL_REASON_QUALITY_REPEATED",
             Self::REFUSAL_REASON_DEFAULT_QUALITY_REQUIRED => {
                 "REFUSAL_REASON_DEFAULT_QUALITY_REQUIRED"
+            }
+            Self::REFUSAL_REASON_QUALITY_NOT_OFFERED => {
+                "REFUSAL_REASON_QUALITY_NOT_OFFERED"
             }
         }
     }
@@ -831,6 +843,9 @@ impl ::buffa::Enumeration for RefusalReason {
                     Self::REFUSAL_REASON_DEFAULT_QUALITY_REQUIRED,
                 )
             }
+            "REFUSAL_REASON_QUALITY_NOT_OFFERED" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_QUALITY_NOT_OFFERED)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -892,6 +907,7 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_NOT_A_URL,
             Self::REFUSAL_REASON_QUALITY_REPEATED,
             Self::REFUSAL_REASON_DEFAULT_QUALITY_REQUIRED,
+            Self::REFUSAL_REASON_QUALITY_NOT_OFFERED,
         ]
     }
 }

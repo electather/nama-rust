@@ -4,7 +4,7 @@ import { useMutation } from "@connectrpc/connect-query";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { FormTextarea } from "@/components/form-field";
 import { useRefetchRequests } from "@/components/request-state";
-import { Button } from "@/components/ui/button";
+import { ChangeButton, type QualityTarget, qualityTargetOf } from "@/components/change-button";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import {
   type FollowedShow,
@@ -98,18 +98,22 @@ interface Target {
    * inferred, so the components call them as taking any message.
    */
   changes: typeof requestChanges | typeof followedShowChanges;
+  /** A Request's Quality, which approving or retrying it can change; a Followed Show has none. */
+  quality?: QualityTarget;
 }
 
 function targetOf(request: Request | FollowedShow): Target {
   const { id } = request;
-  return request.$typeName === "nama.v1.FollowedShow"
-    ? {
-        id,
-        title: request.showTitle,
-        label: `the Followed Show for ${request.showTitle}`,
-        changes: followedShowChanges,
-      }
-    : { id, title: nameOf(request), label: nameOf(request), changes: requestChanges };
+  if (request.$typeName === "nama.v1.FollowedShow") {
+    return {
+      id,
+      title: request.showTitle,
+      label: `the Followed Show for ${request.showTitle}`,
+      changes: followedShowChanges,
+    };
+  }
+  const quality = qualityTargetOf(request);
+  return { id, title: nameOf(request), label: nameOf(request), changes: requestChanges, quality };
 }
 
 /** What `request` asks for, in words: a Movie's title, or a Show's with the Season's name. */
@@ -130,6 +134,7 @@ function Approve({ id, ...target }: Target) {
       change={approve}
       id={id}
       refusal={(error) => changeRefusal(error, target, "approve")}
+      quality={target.quality}
     />
   );
 }
@@ -144,6 +149,7 @@ function Retry({ id, ...target }: Target) {
       change={retry}
       id={id}
       refusal={(error) => changeRefusal(error, target, "retry")}
+      quality={target.quality}
     />
   );
 }
@@ -162,44 +168,6 @@ function Withdraw({ id, ...target }: Target) {
       id={id}
       refusal={(error) => changeRefusal(error, target, "withdraw from")}
     />
-  );
-}
-
-interface ChangeButtonProps {
-  action: string;
-  /** The button's accessible name, which says which Request it changes. */
-  name: string;
-  /** The mutation the button calls with the Request's ID. */
-  change: {
-    mutate: (input: { id: bigint }) => void;
-    isPending: boolean;
-    isError: boolean;
-    error: unknown;
-  };
-  id: bigint;
-  refusal: (error: unknown) => string | undefined;
-}
-
-/** A button that changes a Request at once, and says why if the Server refuses. */
-function ChangeButton({ action, name, change, id, refusal: whyRefused }: ChangeButtonProps) {
-  return (
-    <>
-      <Button
-        variant="ghost"
-        aria-label={name}
-        disabled={change.isPending}
-        onClick={() => {
-          change.mutate({ id });
-        }}
-      >
-        {action}
-      </Button>
-      {change.isError && (
-        <p role="alert" className="w-full ps-4 text-sm text-destructive">
-          {whyRefused(change.error)}
-        </p>
-      )}
-    </>
   );
 }
 
@@ -261,6 +229,7 @@ function changeRefusal(
       [RefusalReason.REQUEST_NOT_FOUND]: gone,
       [RefusalReason.NOT_A_REQUESTER]: noLongerRequester,
       [RefusalReason.REQUEST_NOT_FAILED]: { form: `${label} isn’t Failed any more.` },
+      [RefusalReason.QUALITY_NOT_OFFERED]: { form: "That Quality isn’t offered any more." },
       [RefusalReason.FOLLOWED_SHOW_NOT_PENDING]: decided,
       [RefusalReason.FOLLOWED_SHOW_NOT_FOUND]: gone,
       [RefusalReason.NOT_A_FOLLOWED_SHOW_REQUESTER]: noLongerRequester,

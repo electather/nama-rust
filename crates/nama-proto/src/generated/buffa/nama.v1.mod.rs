@@ -3,10 +3,10 @@
 include!("nama.v1.match.rs");
 include!("nama.v1.watch_state.rs");
 include!("nama.v1.browse.rs");
+include!("nama.v1.plugin.rs");
 include!("nama.v1.request.rs");
 include!("nama.v1.event.rs");
 include!("nama.v1.library.rs");
-include!("nama.v1.plugin.rs");
 include!("nama.v1.refusal.rs");
 include!("nama.v1.server.rs");
 include!("nama.v1.sign_in.rs");
@@ -31,10 +31,10 @@ pub mod __buffa {
         include!("nama.v1.match.__view.rs");
         include!("nama.v1.watch_state.__view.rs");
         include!("nama.v1.browse.__view.rs");
+        include!("nama.v1.plugin.__view.rs");
         include!("nama.v1.request.__view.rs");
         include!("nama.v1.event.__view.rs");
         include!("nama.v1.library.__view.rs");
-        include!("nama.v1.plugin.__view.rs");
         include!("nama.v1.refusal.__view.rs");
         include!("nama.v1.server.__view.rs");
         include!("nama.v1.sign_in.__view.rs");
@@ -45,8 +45,8 @@ pub mod __buffa {
             include!("nama.v1.match.__view_oneof.rs");
             include!("nama.v1.watch_state.__view_oneof.rs");
             include!("nama.v1.browse.__view_oneof.rs");
-            include!("nama.v1.event.__view_oneof.rs");
             include!("nama.v1.plugin.__view_oneof.rs");
+            include!("nama.v1.event.__view_oneof.rs");
             include!("nama.v1.sign_in.__view_oneof.rs");
         }
     }
@@ -56,8 +56,8 @@ pub mod __buffa {
         include!("nama.v1.match.__oneof.rs");
         include!("nama.v1.watch_state.__oneof.rs");
         include!("nama.v1.browse.__oneof.rs");
-        include!("nama.v1.event.__oneof.rs");
         include!("nama.v1.plugin.__oneof.rs");
+        include!("nama.v1.event.__oneof.rs");
         include!("nama.v1.sign_in.__oneof.rs");
     }
     /// Register this package's `Any` type entries and extension entries.
@@ -97,7 +97,31 @@ pub mod __buffa {
         reg.register_json_any(super::__CONTINUE_WATCHING_ENTRY_JSON_ANY);
         reg.register_json_any(super::__LIST_CONTINUE_WATCHING_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_CONTINUE_WATCHING_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__LIST_PLUGINS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_PLUGINS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__GET_PLUGIN_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__GET_PLUGIN_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__UPDATE_PLUGIN_SETTINGS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__UPDATE_PLUGIN_SETTINGS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__ENABLE_PLUGIN_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__ENABLE_PLUGIN_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__TEST_PLUGIN_SETTINGS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__TEST_PLUGIN_SETTINGS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__SETTING_CHOICES_JSON_ANY);
+        reg.register_json_any(super::__CHOICE_JSON_ANY);
+        reg.register_json_any(super::__DISABLE_PLUGIN_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__DISABLE_PLUGIN_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__QUALITY_JSON_ANY);
+        reg.register_json_any(super::__LIST_QUALITIES_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_QUALITIES_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__REPLACE_QUALITIES_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__REPLACE_QUALITIES_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__PLUGIN_SUMMARY_JSON_ANY);
+        reg.register_json_any(super::__PLUGIN_JSON_ANY);
+        reg.register_json_any(super::__SETTING_JSON_ANY);
+        reg.register_json_any(super::__SETTING_VALUE_JSON_ANY);
         reg.register_json_any(super::__REQUEST_JSON_ANY);
+        reg.register_json_any(super::__QUALITY_CHANGE_JSON_ANY);
         reg.register_json_any(super::__REQUESTED_QUALITY_JSON_ANY);
         reg.register_json_any(super::__DOWNLOAD_JSON_ANY);
         reg.register_json_any(super::__FOLLOWED_SHOW_JSON_ANY);
@@ -134,6 +158,8 @@ pub mod __buffa {
         reg.register_json_any(super::__CANCEL_FOLLOWED_SHOW_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__WITHDRAW_FOLLOWED_SHOW_REQUEST_JSON_ANY);
         reg.register_json_any(super::__WITHDRAW_FOLLOWED_SHOW_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__LIST_OFFERED_QUALITIES_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_OFFERED_QUALITIES_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__FOUND_MOVIE_JSON_ANY);
         reg.register_json_any(super::__SEARCH_MOVIES_REQUEST_JSON_ANY);
         reg.register_json_any(super::__SEARCH_MOVIES_RESPONSE_JSON_ANY);
@@ -181,29 +207,6 @@ pub mod __buffa {
         reg.register_json_any(super::__DELETE_LIBRARY_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__SCAN_LIBRARY_REQUEST_JSON_ANY);
         reg.register_json_any(super::__SCAN_LIBRARY_RESPONSE_JSON_ANY);
-        reg.register_json_any(super::__LIST_PLUGINS_REQUEST_JSON_ANY);
-        reg.register_json_any(super::__LIST_PLUGINS_RESPONSE_JSON_ANY);
-        reg.register_json_any(super::__GET_PLUGIN_REQUEST_JSON_ANY);
-        reg.register_json_any(super::__GET_PLUGIN_RESPONSE_JSON_ANY);
-        reg.register_json_any(super::__UPDATE_PLUGIN_SETTINGS_REQUEST_JSON_ANY);
-        reg.register_json_any(super::__UPDATE_PLUGIN_SETTINGS_RESPONSE_JSON_ANY);
-        reg.register_json_any(super::__ENABLE_PLUGIN_REQUEST_JSON_ANY);
-        reg.register_json_any(super::__ENABLE_PLUGIN_RESPONSE_JSON_ANY);
-        reg.register_json_any(super::__TEST_PLUGIN_SETTINGS_REQUEST_JSON_ANY);
-        reg.register_json_any(super::__TEST_PLUGIN_SETTINGS_RESPONSE_JSON_ANY);
-        reg.register_json_any(super::__SETTING_CHOICES_JSON_ANY);
-        reg.register_json_any(super::__CHOICE_JSON_ANY);
-        reg.register_json_any(super::__DISABLE_PLUGIN_REQUEST_JSON_ANY);
-        reg.register_json_any(super::__DISABLE_PLUGIN_RESPONSE_JSON_ANY);
-        reg.register_json_any(super::__QUALITY_JSON_ANY);
-        reg.register_json_any(super::__LIST_QUALITIES_REQUEST_JSON_ANY);
-        reg.register_json_any(super::__LIST_QUALITIES_RESPONSE_JSON_ANY);
-        reg.register_json_any(super::__REPLACE_QUALITIES_REQUEST_JSON_ANY);
-        reg.register_json_any(super::__REPLACE_QUALITIES_RESPONSE_JSON_ANY);
-        reg.register_json_any(super::__PLUGIN_SUMMARY_JSON_ANY);
-        reg.register_json_any(super::__PLUGIN_JSON_ANY);
-        reg.register_json_any(super::__SETTING_JSON_ANY);
-        reg.register_json_any(super::__SETTING_VALUE_JSON_ANY);
         reg.register_json_any(super::__REFUSAL_JSON_ANY);
         reg.register_json_any(super::__GET_SERVER_INFO_REQUEST_JSON_ANY);
         reg.register_json_any(super::__GET_SERVER_INFO_RESPONSE_JSON_ANY);
@@ -402,9 +405,105 @@ pub use self::__buffa::view::ListContinueWatchingResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::ListContinueWatchingResponseOwnedView;
 #[doc(inline)]
+pub use self::__buffa::view::ListPluginsRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListPluginsRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListPluginsResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListPluginsResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetPluginRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::GetPluginRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetPluginResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::GetPluginResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::UpdatePluginSettingsRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::UpdatePluginSettingsRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::UpdatePluginSettingsResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::UpdatePluginSettingsResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::EnablePluginRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::EnablePluginRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::EnablePluginResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::EnablePluginResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::TestPluginSettingsRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::TestPluginSettingsRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::TestPluginSettingsResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::TestPluginSettingsResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SettingChoicesView;
+#[doc(inline)]
+pub use self::__buffa::view::SettingChoicesOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ChoiceView;
+#[doc(inline)]
+pub use self::__buffa::view::ChoiceOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::DisablePluginRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::DisablePluginRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::DisablePluginResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::DisablePluginResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::QualityView;
+#[doc(inline)]
+pub use self::__buffa::view::QualityOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListQualitiesRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListQualitiesRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListQualitiesResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListQualitiesResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ReplaceQualitiesRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ReplaceQualitiesRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ReplaceQualitiesResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ReplaceQualitiesResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PluginSummaryView;
+#[doc(inline)]
+pub use self::__buffa::view::PluginSummaryOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PluginView;
+#[doc(inline)]
+pub use self::__buffa::view::PluginOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SettingView;
+#[doc(inline)]
+pub use self::__buffa::view::SettingOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SettingValueView;
+#[doc(inline)]
+pub use self::__buffa::view::SettingValueOwnedView;
+#[doc(inline)]
 pub use self::__buffa::view::RequestView;
 #[doc(inline)]
 pub use self::__buffa::view::RequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::QualityChangeView;
+#[doc(inline)]
+pub use self::__buffa::view::QualityChangeOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::RequestedQualityView;
 #[doc(inline)]
@@ -549,6 +648,14 @@ pub use self::__buffa::view::WithdrawFollowedShowRequestOwnedView;
 pub use self::__buffa::view::WithdrawFollowedShowResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::WithdrawFollowedShowResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListOfferedQualitiesRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListOfferedQualitiesRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListOfferedQualitiesResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListOfferedQualitiesResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::FoundMovieView;
 #[doc(inline)]
@@ -737,98 +844,6 @@ pub use self::__buffa::view::ScanLibraryRequestOwnedView;
 pub use self::__buffa::view::ScanLibraryResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::ScanLibraryResponseOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::ListPluginsRequestView;
-#[doc(inline)]
-pub use self::__buffa::view::ListPluginsRequestOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::ListPluginsResponseView;
-#[doc(inline)]
-pub use self::__buffa::view::ListPluginsResponseOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::GetPluginRequestView;
-#[doc(inline)]
-pub use self::__buffa::view::GetPluginRequestOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::GetPluginResponseView;
-#[doc(inline)]
-pub use self::__buffa::view::GetPluginResponseOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::UpdatePluginSettingsRequestView;
-#[doc(inline)]
-pub use self::__buffa::view::UpdatePluginSettingsRequestOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::UpdatePluginSettingsResponseView;
-#[doc(inline)]
-pub use self::__buffa::view::UpdatePluginSettingsResponseOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::EnablePluginRequestView;
-#[doc(inline)]
-pub use self::__buffa::view::EnablePluginRequestOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::EnablePluginResponseView;
-#[doc(inline)]
-pub use self::__buffa::view::EnablePluginResponseOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::TestPluginSettingsRequestView;
-#[doc(inline)]
-pub use self::__buffa::view::TestPluginSettingsRequestOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::TestPluginSettingsResponseView;
-#[doc(inline)]
-pub use self::__buffa::view::TestPluginSettingsResponseOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::SettingChoicesView;
-#[doc(inline)]
-pub use self::__buffa::view::SettingChoicesOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::ChoiceView;
-#[doc(inline)]
-pub use self::__buffa::view::ChoiceOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::DisablePluginRequestView;
-#[doc(inline)]
-pub use self::__buffa::view::DisablePluginRequestOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::DisablePluginResponseView;
-#[doc(inline)]
-pub use self::__buffa::view::DisablePluginResponseOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::QualityView;
-#[doc(inline)]
-pub use self::__buffa::view::QualityOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::ListQualitiesRequestView;
-#[doc(inline)]
-pub use self::__buffa::view::ListQualitiesRequestOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::ListQualitiesResponseView;
-#[doc(inline)]
-pub use self::__buffa::view::ListQualitiesResponseOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::ReplaceQualitiesRequestView;
-#[doc(inline)]
-pub use self::__buffa::view::ReplaceQualitiesRequestOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::ReplaceQualitiesResponseView;
-#[doc(inline)]
-pub use self::__buffa::view::ReplaceQualitiesResponseOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::PluginSummaryView;
-#[doc(inline)]
-pub use self::__buffa::view::PluginSummaryOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::PluginView;
-#[doc(inline)]
-pub use self::__buffa::view::PluginOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::SettingView;
-#[doc(inline)]
-pub use self::__buffa::view::SettingOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::SettingValueView;
-#[doc(inline)]
-pub use self::__buffa::view::SettingValueOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::RefusalView;
 #[doc(inline)]
