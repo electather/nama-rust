@@ -68,7 +68,7 @@ test("a Season Request's page shows it under its Show's title", async () => {
   );
 });
 
-test.each(["/requests/9", "/requests/heat"])(
+test.each(["/requests/9", "/requests/heat", "/requests/99999999999999999999"])(
   "%s, a Request that isn't there or isn't yours to see, says so",
   async (path) => {
     openApp(

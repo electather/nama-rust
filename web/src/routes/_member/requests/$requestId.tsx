@@ -1,20 +1,19 @@
 import { Code } from "@connectrpc/connect";
 import { useSuspenseQuery } from "@connectrpc/connect-query";
-import { createFileRoute, Link, notFound } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
 import { Page } from "@/components/page";
 import { RequestRow, ShowRequests } from "@/components/request-row";
 import { buttonVariants } from "@/components/ui/button";
 import { RequestService } from "@/gen/nama/v1/request_pb";
-import { queryOrNotFound } from "@/lib/browse";
+import { queryOrNotFound, wholeNumberFromParam } from "@/lib/browse";
 import { isCode } from "@/lib/connect-errors";
 
 /** One Request, where a Notifier's link to it lands (`ServerUrl::request_link` on the Server). */
 export const Route = createFileRoute("/_member/requests/$requestId")({
   loader: async ({ context, params }) => {
-    if (!/^\d+$/u.test(params.requestId)) throw notFound();
-    const input = { id: BigInt(params.requestId) };
+    const input = { id: BigInt(wholeNumberFromParam(params.requestId)) };
     await queryOrNotFound(context, RequestService.method.getRequest, input);
     return input;
   },
