@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id AS \"id!\", name, profile_id FROM qualities WHERE plugin_id = ? AND is_default",
+  "query": "SELECT id AS \"id!\", name, profile_id FROM qualities\n           WHERE plugin_id = ?1 AND (id = ?2 OR (?2 IS NULL AND is_default))",
   "describe": {
     "columns": [
       {
@@ -38,7 +38,7 @@
       }
     ],
     "parameters": {
-      "Right": 1
+      "Right": 2
     },
     "nullable": [
       false,
@@ -46,5 +46,5 @@
       false
     ]
   },
-  "hash": "77a2d3fb3a850f3b177a8111a9f623b814b4f9f6db5ebf508dbd74005dca030d"
+  "hash": "194cda9f626175d6eb4869ce178811f56bca2039a8c1c6dec4da9dc118ffe5b2"
 }

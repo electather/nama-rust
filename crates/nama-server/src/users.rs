@@ -105,7 +105,8 @@ impl Permissions {
             | Permission::ManageRequests
             | Permission::Request
             | Permission::AutoApprove
-            | Permission::ViewRequests => needed,
+            | Permission::ViewRequests
+            | Permission::ChooseQuality => needed,
         };
         self.0 & (bit(Permission::Admin) | bit(needed) | bit(covering)) != 0
     }

@@ -23,7 +23,7 @@ use nama_plugin_api::{
 use nama_proto::nama::v1::{
     Event, FollowedShow, FollowedShowCancelled, FollowedShowCreated, FollowedShowRequesterAdded,
     FollowedShowRequesterRemoved, FollowedShowStateChanged, FollowedShowWithdrawn, FoundSeason,
-    Permission, Request, RequestCancelled, RequestCreated, RequestProgress, RequestState,
+    Permission, Quality, Request, RequestCancelled, RequestCreated, RequestProgress, RequestState,
     RequestStateChanged, RequestWithdrawn, RequestedMovie, RequestedQuality, RequestedSeason,
     Requester, RequesterAdded, RequesterRemoved, event::Event as Happened,
 };
@@ -88,6 +88,10 @@ pub(crate) enum Error {
     FollowedShowNotPending(i64),
     #[error("you aren't a Requester of the Followed Show {0}")]
     NotAFollowedShowRequester(i64),
+    #[error("choosing a Quality needs PERMISSION_CHOOSE_QUALITY")]
+    QualityNotAllowed,
+    #[error("the Movie Fulfiller doesn't offer the Quality {0}")]
+    QualityNotOffered(i64),
     #[error("database error: {0}")]
     Database(#[from] sqlx::Error),
 }
@@ -250,15 +254,25 @@ impl Requests {
     }
 
     /// Asks for the Movie with the TMDB id `tmdb_id` for `asker`, who joins its open Request, or
-    /// opens one: Approved, and handed to the Fulfiller for Movies, if `asker` may have Movies
-    /// approved as they ask, else Pending. Such an `asker` joining a Pending Request approves it
-    /// and hands it off the same way. Publishes what changed, if anything did.
-    pub(crate) async fn create(&self, asker: &User, tmdb_id: i64) -> Result<Request, Error> {
+    /// opens one at the Quality `chosen`, else the Movie Fulfiller's default: Approved, and handed
+    /// to the Fulfiller for Movies, if `asker` may have Movies approved as they ask, else Pending.
+    /// Such an `asker` joining a Pending Request approves it and hands it off the same way.
+    /// Publishes what changed, if anything did.
+    ///
+    /// Refuses a `chosen` Quality from an `asker` who may not choose one, or that the Movie
+    /// Fulfiller doesn't offer, even when joining.
+    pub(crate) async fn create(
+        &self,
+        asker: &User,
+        tmdb_id: i64,
+        chosen: Option<i64>,
+    ) -> Result<Request, Error> {
         // Refuses before asking TMDB, which may be down or slow; `ask` checks again for a scan
         // that Matched the Movie meanwhile.
         if self.contents.library_with_movie(tmdb_id).await?.is_some() {
             return Err(Error::InLibrary(tmdb_id));
         }
+        let quality = self.movie_quality(asker, chosen).await?;
         // ponytail: looked up even to join an open Request, so the write has it if that Request
         // closes meanwhile. Look up only when opening one if TMDB's rate limit starts to bite.
         let movie = self.fetch(tmdb_id).await?;
@@ -269,7 +283,7 @@ impl Requests {
             release_date: movie.release_date,
             show_ids: ExternalIds::default(),
             followed_show: None,
-            quality: self.default_quality().await?,
+            quality,
         };
         let state = opening_state(asker, Permission::AutoApproveMovie);
         let user = asker.id;
@@ -287,18 +301,45 @@ impl Requests {
         Ok(request)
     }
 
-    /// A copy of the enabled Movie Fulfiller's default Quality, if it has one.
-    async fn default_quality(&self) -> Result<Option<RequestedQuality>, sqlx::Error> {
-        let fulfiller = self
-            .plugins
-            .enabled()
-            .into_iter()
-            .find(|plugin| self.plugins.provides::<dyn Fulfiller<Movies>>(plugin));
-        let Some(fulfiller) = fulfiller else {
-            return Ok(None);
+    /// A copy of the Quality `chosen` by `asker`, else of the default, on the enabled Movie
+    /// Fulfiller's list, or `None` if it has no list or none is enabled.
+    async fn movie_quality(
+        &self,
+        asker: &User,
+        chosen: Option<i64>,
+    ) -> Result<Option<RequestedQuality>, Error> {
+        if chosen.is_some() && !asker.permissions.allow(Permission::ChooseQuality) {
+            return Err(Error::QualityNotAllowed);
+        }
+        let quality = match self.movie_fulfiller() {
+            Some(fulfiller) => {
+                let mut conn = self.db.reader().acquire().await?;
+                qualities::for_request(&mut conn, &fulfiller, chosen).await?
+            }
+            None => None,
+        };
+        match chosen {
+            Some(id) if quality.is_none() => Err(Error::QualityNotOffered(id)),
+            _ => Ok(quality),
+        }
+    }
+
+    /// The enabled Movie Fulfiller's Qualities, in the order an admin listed them, or none if no
+    /// Movie Fulfiller is enabled.
+    pub(crate) async fn movie_qualities(&self) -> Result<Vec<Quality>, sqlx::Error> {
+        let Some(fulfiller) = self.movie_fulfiller() else {
+            return Ok(Vec::new());
         };
         let mut conn = self.db.reader().acquire().await?;
-        qualities::default_of(&mut conn, &fulfiller).await
+        qualities::list(&mut conn, &fulfiller).await
+    }
+
+    /// The enabled Plugin that fulfills Movies, if any.
+    fn movie_fulfiller(&self) -> Option<PluginId> {
+        self.plugins
+            .enabled()
+            .into_iter()
+            .find(|plugin| self.plugins.provides::<dyn Fulfiller<Movies>>(plugin))
     }
 
     /// Asks for the Seasons `numbers` of the Show with the TMDB id `tmdb_id` for `asker`, one
