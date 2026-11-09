@@ -1946,7 +1946,7 @@ mod tests {
     use nama_plugin_api::{
         BoxFuture, Manifest, Plugin, PluginError, PluginId, Priority, Registrar,
         fulfiller::{Download, Fulfiller, Movies},
-        metadata::{Episode, ExternalIds, Season},
+        metadata::{Episode, ExternalId, ExternalIds, Season},
         settings::SettingsSchema,
     };
     use nama_proto::nama::v1::{Request, RequestState};
@@ -2354,7 +2354,7 @@ mod tests {
         let pilot = Item::Episode {
             show: "Dark".to_owned(),
             year: None,
-            tmdb_id: Some(DARK),
+            hint: Some(ExternalId::Tmdb(DARK)),
             season: 1,
             episode: 1,
         };

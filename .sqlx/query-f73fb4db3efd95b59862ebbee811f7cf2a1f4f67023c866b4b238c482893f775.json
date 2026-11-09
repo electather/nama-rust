@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT files.library_id, named.id AS \"id!\", named.kind AS \"kind: ItemKind\",\n                      named.title, named.year, named.tmdb_id, named.season, named.episode\n               FROM library_items AS this\n               JOIN library_files AS this_file ON this_file.id = this.file_id\n               JOIN library_files AS files ON files.library_id = this_file.library_id\n               JOIN library_items AS named ON named.file_id = files.id\n               WHERE this.id = ?\n                 AND named.kind = this.kind\n                 AND named.title = this.title\n                 AND named.year IS this.year\n                 AND named.tmdb_id IS this.tmdb_id\n               ORDER BY named.id",
+  "query": "SELECT files.library_id, named.id AS \"id!\", named.kind AS \"kind: ItemKind\",\n                      named.title, named.year, named.hint, named.season, named.episode\n               FROM library_items AS this\n               JOIN library_files AS this_file ON this_file.id = this.file_id\n               JOIN library_files AS files ON files.library_id = this_file.library_id\n               JOIN library_items AS named ON named.file_id = files.id\n               WHERE this.id = ?\n                 AND named.kind = this.kind\n                 AND named.title = this.title\n                 AND named.year IS this.year\n                 AND named.hint IS this.hint\n               ORDER BY named.id",
   "describe": {
     "columns": [
       {
@@ -59,13 +59,13 @@
         }
       },
       {
-        "name": "tmdb_id",
+        "name": "hint",
         "ordinal": 5,
-        "type_info": "Integer",
+        "type_info": "Text",
         "origin": {
           "Table": {
             "table": "library_items",
-            "name": "tmdb_id"
+            "name": "hint"
           }
         }
       },
@@ -106,5 +106,5 @@
       true
     ]
   },
-  "hash": "ff15321f7284cabe2abbafa3dd6832d95a93347875206fb835a96105b62a1e49"
+  "hash": "f73fb4db3efd95b59862ebbee811f7cf2a1f4f67023c866b4b238c482893f775"
 }

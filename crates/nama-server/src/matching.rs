@@ -441,11 +441,9 @@ impl Matcher {
                 async move { metadata.show(&id).await }
             })
             .await?;
-        Ok(FoundShow {
-            plugin,
-            id: id.clone(),
-            show,
-        })
+        // Seasons are fetched by the Show's TMDB id, which an ID Hint from TVDB or IMDb isn't.
+        let id = show.ids.tmdb.map_or_else(|| id.clone(), ExternalId::Tmdb);
+        Ok(FoundShow { plugin, id, show })
     }
 
     async fn match_in_show(&self, show: &FoundShow, episodes: &[PendingEpisode]) -> Outcomes {
@@ -498,8 +496,8 @@ impl Matcher {
             None => {}
         }
         let name = &key.name;
-        if let Some(id) = name.tmdb_id {
-            return Ok(ExternalId::Tmdb(id));
+        if let Some(id) = &name.hint {
+            return Ok(id.clone());
         }
         let year = name.year.and_then(|year| i32::try_from(year).ok());
         let mut decision = self.search(kind, &name.title, year, year).await?;
@@ -959,6 +957,62 @@ mod tests {
             alien.poster.as_deref(),
             Some("/vfrQk5IPloGg1v9Rzbh2Eg3VGyM.jpg")
         );
+    }
+
+    #[tokio::test]
+    async fn tvdb_and_imdb_id_hints_match_without_a_search() {
+        let media = Fixture::new().await;
+        let (movies, shows) = (&media.movies, &media.shows);
+        movies.write("Alien {imdb-tt0078748}/Alien.mkv");
+        movies.write("Alien (1979) tt0078748/Alien (1979).mkv");
+        // TMDB knows no title with this TVDB id.
+        movies.write("Lost Reel (1950) [tvdbid-1]/Lost Reel (1950).mkv");
+        shows.write("Dark [tvdbid-334824]/Season 01/Dark - S01E01.mkv");
+        shows.write("Dark {tvdb-334824}/Dark - S01E02.mkv");
+        // The IMDb id names a Movie, not a Show.
+        shows.write("Alien (imdb=tt0078748)/Season 01/Alien - S01E01.mkv");
+
+        media.scan(movies).await;
+        media.scan(shows).await;
+
+        assert_eq!(
+            media.outcomes(movies).await,
+            [
+                matched(348, "Alien"),
+                matched(348, "Alien"),
+                Outcome::Unmatched
+            ]
+        );
+        assert_eq!(
+            media.outcomes(shows).await,
+            [
+                Outcome::Unmatched,
+                matched(1_388_538, "Secrets"),
+                matched(1_388_539, "Lies"),
+            ]
+        );
+        assert_eq!(media.searches(), 0, "{:?}", media.tmdb.requests());
+    }
+
+    #[tokio::test]
+    async fn a_newer_name_parser_matches_an_item_by_its_tvdb_id_hint() {
+        let media = Fixture::new().await;
+        let shows = &media.shows;
+        let pilot = "Dark [tvdbid-334824]/Season 01/Dark - S01E01.mkv";
+        shows.write(pilot);
+        media.scan(shows).await;
+        // Before TVDB ids were read, the folder was searched for as a Show with no year.
+        let item = media.item(shows, pilot).await;
+        media
+            .contents
+            .record(vec![(item, Decided::Unmatched)])
+            .await
+            .unwrap();
+
+        media.contents.read_by_older_parser(shows.id).await;
+        media.scan(shows).await;
+
+        assert_eq!(media.outcomes(shows).await, [matched(1_388_538, "Secrets")]);
     }
 
     #[tokio::test]

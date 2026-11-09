@@ -56,6 +56,20 @@ impl From<ShowResult> for Candidate {
     }
 }
 
+/// `/find/{id}`: the titles another source's id names, by kind.
+#[derive(Debug, Deserialize)]
+pub(crate) struct Found {
+    #[serde(default)]
+    pub(crate) movie_results: Vec<FoundTitle>,
+    #[serde(default)]
+    pub(crate) tv_results: Vec<FoundTitle>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct FoundTitle {
+    pub(crate) id: i64,
+}
+
 /// `external_ids`, appended to a details response.
 #[derive(Debug, Default, Deserialize)]
 pub(crate) struct WireIds {

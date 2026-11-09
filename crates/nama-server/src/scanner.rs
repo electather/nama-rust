@@ -415,6 +415,7 @@ mod tests {
     use std::{fs, path::PathBuf, sync::Arc, time::Duration};
 
     use futures_util::StreamExt;
+    use nama_plugin_api::metadata::ExternalId;
     use nama_proto::nama::v1::{Lagged, subscribe_response};
     use tempfile::TempDir;
 
@@ -507,11 +508,11 @@ mod tests {
         }
     }
 
-    fn movie(title: &str, year: i64, tmdb_id: Option<i64>) -> Vec<Item> {
+    fn movie(title: &str, year: i64, hint: Option<ExternalId>) -> Vec<Item> {
         vec![Item::Movie {
             title: title.to_owned(),
             year: Some(year),
-            tmdb_id,
+            hint,
         }]
     }
 
@@ -566,7 +567,7 @@ mod tests {
         let episode = |season, episode| Item::Episode {
             show: "Dark".to_owned(),
             year: Some(2017),
-            tmdb_id: None,
+            hint: None,
             season,
             episode,
         };
@@ -615,7 +616,7 @@ mod tests {
                 ),
                 (
                     "Blade Runner (1982) {tmdb-78}/Blade Runner (1982).mkv".to_owned(),
-                    movie("Blade Runner", 1982, Some(78))
+                    movie("Blade Runner", 1982, Some(ExternalId::Tmdb(78)))
                 ),
                 (
                     "Heat (1995)/Heat (1995).mkv".to_owned(),

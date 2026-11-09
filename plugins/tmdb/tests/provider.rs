@@ -243,15 +243,59 @@ async fn an_unknown_title_is_not_found() {
 }
 
 #[tokio::test]
-async fn only_tmdb_ids_can_be_looked_up() {
+async fn a_movie_is_found_by_its_imdb_id_and_a_show_by_its_tvdb_id() {
     let fake = FakeTmdb::start().await;
     let tmdb = provider(&fake, API_KEY);
-    let imdb = ExternalId::Imdb("tt0078748".to_owned());
 
-    let result = tmdb.movie(&imdb).await;
+    let movie = tmdb
+        .movie(&ExternalId::Imdb("tt0078748".to_owned()))
+        .await
+        .unwrap();
+    let show = tmdb.show(&ExternalId::Tvdb(334_824)).await.unwrap();
+
+    assert_eq!((movie.ids.tmdb, movie.title.as_str()), (Some(348), "Alien"));
+    assert_eq!((show.ids.tmdb, show.title.as_str()), (Some(70523), "Dark"));
+}
+
+#[tokio::test]
+async fn an_id_with_no_title_of_the_asked_kind_on_tmdb_is_not_found() {
+    let fake = FakeTmdb::start().await;
+    let tmdb = provider(&fake, API_KEY);
+
+    let nothing = tmdb.movie(&ExternalId::Tvdb(1)).await;
+    // Alien is a Movie, not a Show.
+    let a_movie = tmdb.show(&ExternalId::Imdb("tt0078748".to_owned())).await;
+    // Not an IMDb id, so it isn't sent.
+    let not_imdb = tmdb
+        .movie(&ExternalId::Imdb("../movie/348".to_owned()))
+        .await;
+
+    for result in [
+        &nothing.map(|_| ()),
+        &a_movie.map(|_| ()),
+        &not_imdb.map(|_| ()),
+    ] {
+        assert!(matches!(result, Err(MetadataError::NotFound)), "{result:?}");
+    }
+    assert!(
+        fake.requests()
+            .iter()
+            .all(|request| !request.contains("..")),
+        "{:?}",
+        fake.requests()
+    );
+}
+
+#[tokio::test]
+async fn seasons_are_looked_up_by_tmdb_ids_only() {
+    let fake = FakeTmdb::start().await;
+    let tmdb = provider(&fake, API_KEY);
+    let dark = ExternalId::Tvdb(334_824);
+
+    let result = tmdb.season(&dark, 1).await;
 
     assert!(
-        matches!(result, Err(MetadataError::UnsupportedId(ref id)) if *id == imdb),
+        matches!(result, Err(MetadataError::UnsupportedId(ref id)) if *id == dark),
         "{result:?}"
     );
     assert_eq!(fake.requests(), Vec::<String>::new());

@@ -22,5 +22,8 @@
   "/3/search/movie?query=Alien&year=1980": "search-empty.json",
   "/3/search/movie?query=Alien": "search-movie-alien-1979.json",
   "/3/search/movie?query=Home Movies": "search-empty.json",
-  "/3/search/movie?query=Lost Reel": "search-empty.json"
+  "/3/search/movie?query=Lost Reel": "search-empty.json",
+  "/3/find/tt0078748?external_source=imdb_id": "find-imdb-tt0078748.json",
+  "/3/find/334824?external_source=tvdb_id": "find-tvdb-334824.json",
+  "/3/find/1?external_source=tvdb_id": "find-empty.json"
 }

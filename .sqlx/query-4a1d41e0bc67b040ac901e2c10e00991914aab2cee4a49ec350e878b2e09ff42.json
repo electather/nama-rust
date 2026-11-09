@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT library_files.path, library_files.size,\n                      library_items.id AS \"item?\", library_items.kind AS \"kind?: ItemKind\",\n                      library_items.title AS \"item_title?\", library_items.year,\n                      library_items.tmdb_id AS \"hint\", library_items.season,\n                      library_items.episode,\n                      item_matches.state AS \"state?: MatchState\", item_matches.plugin,\n                      item_matches.tmdb_id, item_matches.imdb_id, item_matches.tvdb_id,\n                      item_matches.show_tmdb_id, item_matches.show_imdb_id,\n                      item_matches.show_tvdb_id, item_matches.title, item_matches.show_title,\n                      item_matches.poster\n               FROM library_files\n               LEFT JOIN library_items ON library_items.file_id = library_files.id\n               LEFT JOIN item_matches ON item_matches.item_id = library_items.id\n               WHERE library_files.library_id = ?\n               ORDER BY library_files.path, library_items.id",
+  "query": "SELECT library_files.path, library_files.size,\n                      library_items.id AS \"item?\", library_items.kind AS \"kind?: ItemKind\",\n                      library_items.title AS \"item_title?\", library_items.year,\n                      library_items.hint, library_items.season,\n                      library_items.episode,\n                      item_matches.state AS \"state?: MatchState\", item_matches.plugin,\n                      item_matches.tmdb_id, item_matches.imdb_id, item_matches.tvdb_id,\n                      item_matches.show_tmdb_id, item_matches.show_imdb_id,\n                      item_matches.show_tvdb_id, item_matches.title, item_matches.show_title,\n                      item_matches.poster\n               FROM library_files\n               LEFT JOIN library_items ON library_items.file_id = library_files.id\n               LEFT JOIN item_matches ON item_matches.item_id = library_items.id\n               WHERE library_files.library_id = ?\n               ORDER BY library_files.path, library_items.id",
   "describe": {
     "columns": [
       {
@@ -72,11 +72,11 @@
       {
         "name": "hint",
         "ordinal": 6,
-        "type_info": "Integer",
+        "type_info": "Text",
         "origin": {
           "Table": {
             "table": "library_items",
-            "name": "tmdb_id"
+            "name": "hint"
           }
         }
       },
@@ -250,5 +250,5 @@
       true
     ]
   },
-  "hash": "718dfc0c21f5a5e6b8276c8ed2d75c882907f85aba8d8806ccd4b24c514d6512"
+  "hash": "4a1d41e0bc67b040ac901e2c10e00991914aab2cee4a49ec350e878b2e09ff42"
 }
