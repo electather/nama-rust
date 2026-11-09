@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT quality_id FROM default_qualities WHERE user_id = ? AND plugin_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "quality_id",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "default_qualities",
+            "name": "quality_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "38bf69f07476290156dcd13a47ba7fefd9316e5d2cc33e04d2fe3d275f94ea55"
+}

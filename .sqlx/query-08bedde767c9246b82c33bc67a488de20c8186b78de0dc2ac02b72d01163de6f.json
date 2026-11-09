@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM default_qualities WHERE user_id = ? AND plugin_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "08bedde767c9246b82c33bc67a488de20c8186b78de0dc2ac02b72d01163de6f"
+}

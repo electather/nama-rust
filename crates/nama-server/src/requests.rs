@@ -23,8 +23,9 @@ use nama_plugin_api::{
     metadata::{Candidate, Episode, ExternalId, ExternalIds, SearchQuery, Season, Show, TitleKind},
 };
 use nama_proto::nama::v1::{
-    Event, FollowedShow, FollowedShowCancelled, FollowedShowCreated, FollowedShowRequesterAdded,
-    FollowedShowRequesterRemoved, FollowedShowStateChanged, FollowedShowWithdrawn, FoundSeason,
+    DefaultQuality, Event, ExtensionPoint, FollowedShow, FollowedShowCancelled,
+    FollowedShowCreated, FollowedShowRequesterAdded, FollowedShowRequesterRemoved,
+    FollowedShowStateChanged, FollowedShowWithdrawn, FoundSeason, ListMovieQualitiesResponse,
     ListRequestsResponse, Permission, Quality, QualityChange, Request, RequestCancelled,
     RequestCreated, RequestProgress, RequestState, RequestStateChanged, RequestWithdrawn,
     RequestedMovie, RequestedQuality, RequestedSeason, Requester, RequesterAdded, RequesterRemoved,
@@ -96,7 +97,7 @@ pub(crate) enum Error {
     NotAFollowedShowRequester(i64),
     #[error("choosing a Quality needs PERMISSION_CHOOSE_QUALITY")]
     QualityNotAllowed,
-    #[error("the Movie Fulfiller doesn't offer the Quality {0}")]
+    #[error("the Fulfiller doesn't offer the Quality {0}")]
     QualityNotOffered(i64),
     #[error("the page token isn't one this Server gave for listing in this state")]
     PageTokenInvalid,
@@ -270,7 +271,7 @@ impl Requests {
     }
 
     /// Asks for the Movie with the TMDB id `tmdb_id` for `asker`, who joins its open Request, or
-    /// opens one at the Quality `chosen`, else the Movie Fulfiller's default: Approved, and handed
+    /// opens one at the Quality `chosen`, else as [`Self::movie_quality`] picks: Approved, and handed
     /// to the Fulfiller for Movies, if `asker` may have Movies approved as they ask, else Pending.
     /// Such an `asker` joining a Pending Request approves it and hands it off the same way.
     /// Publishes what changed, if anything did.
@@ -317,8 +318,9 @@ impl Requests {
         Ok(request)
     }
 
-    /// A copy of the Quality `chosen` by `asker`, else of the default, on the enabled Movie
-    /// Fulfiller's list, or `None` if it has no list or none is enabled.
+    /// A copy of the Quality `chosen` by `asker`, else of their personal default if they may
+    /// choose and it is still offered, else of the default, on the enabled Movie Fulfiller's list,
+    /// or `None` if it has no list or none is enabled.
     async fn movie_quality(
         &self,
         asker: &User,
@@ -330,7 +332,8 @@ impl Requests {
         let quality = match self.fulfiller::<Movies>() {
             Some(fulfiller) => {
                 let mut conn = self.db.reader().acquire().await?;
-                qualities::for_request(&mut conn, &fulfiller, chosen).await?
+                let preferred = usable_default(&mut conn, asker, &fulfiller).await?;
+                qualities::for_request(&mut conn, &fulfiller, chosen, preferred).await?
             }
             None => None,
         };
@@ -340,14 +343,69 @@ impl Requests {
         }
     }
 
-    /// The enabled Movie Fulfiller's Qualities, in the order an admin listed them, or none if no
-    /// Movie Fulfiller is enabled.
-    pub(crate) async fn movie_qualities(&self) -> Result<Vec<Quality>, sqlx::Error> {
+    /// The enabled Movie Fulfiller's Qualities, in the order an admin listed them, with `asker`'s
+    /// personal default among them if [`Self::create`] would take it. Empty if no Movie Fulfiller
+    /// is enabled.
+    pub(crate) async fn movie_qualities(
+        &self,
+        asker: &User,
+    ) -> Result<ListMovieQualitiesResponse, sqlx::Error> {
         let Some(fulfiller) = self.fulfiller::<Movies>() else {
+            return Ok(ListMovieQualitiesResponse::default());
+        };
+        let mut conn = self.db.reader().acquire().await?;
+        let qualities = qualities::list(&mut conn, &fulfiller).await?;
+        let personal_default = usable_default(&mut conn, asker, &fulfiller)
+            .await?
+            .filter(|id| qualities.iter().any(|quality| quality.id == *id));
+        Ok(ListMovieQualitiesResponse {
+            qualities,
+            personal_default,
+            ..Default::default()
+        })
+    }
+
+    /// `user`'s default Quality for the enabled Movie Fulfiller if its list has more than one, or
+    /// has one left after an admin removed `user`'s, to flag it.
+    pub(crate) async fn personal_defaults(
+        &self,
+        user: i64,
+    ) -> Result<Vec<DefaultQuality>, sqlx::Error> {
+        // ponytail: Movies only, as a Season Request takes no Quality yet, so a Shows default would
+        // change nothing; list the Shows Fulfiller's too once it does (#283).
+        let Some(plugin) = self.fulfiller::<Movies>() else {
             return Ok(Vec::new());
         };
         let mut conn = self.db.reader().acquire().await?;
-        qualities::list(&mut conn, &fulfiller).await
+        let qualities = qualities::list(&mut conn, &plugin).await?;
+        let quality = qualities::personal_default(&mut conn, user, &plugin).await?;
+        let removed = quality.is_some_and(|id| qualities.iter().all(|listed| listed.id != id));
+        let to_pick_or_flag = qualities.len() > 1 || (removed && !qualities.is_empty());
+        if !to_pick_or_flag {
+            return Ok(Vec::new());
+        }
+        Ok(vec![DefaultQuality {
+            quality,
+            plugin_id: plugin.to_string(),
+            fulfiller: ExtensionPoint::EXTENSION_POINT_MOVIE_FULFILLER.into(),
+            qualities,
+            ..Default::default()
+        }])
+    }
+
+    /// Sets `user`'s default Quality for the Fulfiller from the Plugin `plugin` to `quality`, or
+    /// clears it. Refuses a Quality that isn't on its list.
+    pub(crate) async fn set_personal_default(
+        &self,
+        user: i64,
+        plugin: PluginId,
+        quality: Option<i64>,
+    ) -> Result<(), Error> {
+        let set = qualities::set_personal_default(&self.db, user, plugin, quality).await?;
+        match quality {
+            Some(id) if !set => Err(Error::QualityNotOffered(id)),
+            _ => Ok(()),
+        }
     }
 
     /// The enabled Plugin providing the Fulfiller of `Kind`, if any.
@@ -2458,6 +2516,19 @@ fn read_state(stored: &str) -> RequestState {
         .iter()
         .find(|&&(_, name)| name == stored)
         .map_or(RequestState::REQUEST_STATE_UNSPECIFIED, |&(state, _)| state)
+}
+
+/// The id of `asker`'s default Quality for the Plugin `plugin`, which its list may no longer have,
+/// or `None` while they may not choose a Quality, so it isn't used.
+async fn usable_default(
+    conn: &mut SqliteConnection,
+    asker: &User,
+    plugin: &PluginId,
+) -> Result<Option<i64>, sqlx::Error> {
+    if !asker.permissions.allow(Permission::ChooseQuality) {
+        return Ok(None);
+    }
+    qualities::personal_default(conn, asker.id, plugin).await
 }
 
 #[cfg(test)]
