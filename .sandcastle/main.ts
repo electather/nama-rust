@@ -14,7 +14,9 @@ const MAX_ISSUES = Number(process.env.MAX_ISSUES ?? 60); // issues started per r
 const MAX_PARALLEL = Number(process.env.MAX_PARALLEL ?? 2); // issues built at once
 // `touch .sandcastle/STOP`: running issues finish, nothing new starts, later runs exit at once. `rm` it to resume.
 const STOP_FILE = ".sandcastle/STOP";
-const MODEL = "claude-opus-5-5";
+// Opus for implement and review; fix (merge main, mend CI) is narrow enough for Sonnet, with Opus as fallback.
+const OPUS = sandcastle.claudeCode("claude-opus-5-5", { effort: "high" });
+const SONNET = sandcastle.claudeCode("claude-sonnet-5-5", { effort: "medium" });
 const READY = "ready-for-agent";
 const HUMAN = "ready-for-human";
 const WORKING = "agent-working"; // on while the factory has the issue; off when it merges, is handed back or crashes
@@ -160,10 +162,10 @@ const sandbox = () =>
   });
 
 // Run one agent pass; throws Blocked if the agent gave up.
-async function agent(box: Box, issue: Issue, step: string, extra: Record<string, string> = {}) {
+async function agent(box: Box, issue: Issue, step: string, extra: Record<string, string> = {}, model = OPUS) {
   const result = await box.run({
     name: `${step} #${issue.number}`,
-    agent: sandcastle.claudeCode(MODEL, { effort: "high" }),
+    agent: model,
     promptFile: `.sandcastle/${step}-prompt.md`,
     promptArgs: {
       ISSUE_NUMBER: String(issue.number),
@@ -181,6 +183,19 @@ async function agent(box: Box, issue: Issue, step: string, extra: Record<string,
     .find((r) => r !== "one-line reason"); // ignore the prompt's own example
   if (reason) throw new Blocked(`${step}: ${reason}`);
   return result;
+}
+
+// Makes the branch mergeable: Sonnet first, then Opus from the last commit if Sonnet gives up.
+async function fix(box: Box, issue: Issue, problem: string) {
+  try {
+    return await agent(box, issue, "fix", { PROBLEM: problem }, SONNET);
+  } catch (e) {
+    if (!(e instanceof Blocked)) throw e;
+    note(issue, `fix on Opus (${e.message})`);
+    // Sonnet may have left a half-done merge behind.
+    await box.exec("git merge --abort; git reset --hard HEAD");
+    return agent(box, issue, "fix", { PROBLEM: problem });
+  }
 }
 
 // Two fetches at once (a slot picking while another checks for staleness) fail with "cannot lock ref";
@@ -386,7 +401,7 @@ async function syncAndPush(issue: Issue, box: Box) {
   fetchOrigin();
   if (conflicts(branch)) {
     note(issue, "rebase");
-    await agent(box, issue, "fix", { PROBLEM: `It is behind origin/${BASE} (other issues merged first) and may conflict.` });
+    await fix(box, issue, `It is behind origin/${BASE} (other issues merged first) and may conflict.`);
   }
   git("push", "--force-with-lease", "origin", `${branch}:${branch}`);
 }
@@ -405,7 +420,7 @@ async function greenCi(issue: Issue, box: Box, pr: string) {
     }
     if (fixed) throw new Blocked(`CI still failing on PR #${pr} after one fix attempt`);
     note(issue, "CI fix");
-    await agent(box, issue, "fix", { PROBLEM: `CI is failing on PR #${pr}.` });
+    await fix(box, issue, `CI is failing on PR #${pr}.`);
     git("push", "--force-with-lease", "origin", `${branch}:${branch}`);
     fixed = true;
   }
