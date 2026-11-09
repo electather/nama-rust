@@ -950,8 +950,12 @@ fn log_not_enabled(id: &PluginId, err: &EnableError) {
 }
 
 /// The Plugin's `logo` if the Server keeps it: at most [`MAX_LOGO_BYTES`] and an SVG document.
-/// Logs why it drops one, which leaves the Plugin without a logo but otherwise as it was.
+/// Logs why it drops one, which leaves the Plugin without a logo but otherwise as it was. An empty
+/// one, as protobuf sends no logo, is none.
 fn kept_logo(plugin: &PluginId, logo: String) -> Option<String> {
+    if logo.is_empty() {
+        return None;
+    }
     let why = if logo.len() > MAX_LOGO_BYTES {
         format!("it is over {MAX_LOGO_BYTES} bytes")
     } else if !is_svg(&logo) {

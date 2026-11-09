@@ -20,6 +20,6 @@ export function PluginLogo({ plugin }: { plugin: { id: string; logoSvg: string }
 }
 
 /** `svg` as a `data:image/svg+xml` URL, percent-encoded since SVG holds `#` and quotes. */
-export function svgDataUrl(svg: string) {
+function svgDataUrl(svg: string) {
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }

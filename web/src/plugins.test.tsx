@@ -4,8 +4,6 @@ import { afterEach, expect, test } from "vite-plus/test";
 
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 
-import { svgDataUrl } from "@/components/plugin-logo";
-
 import { input, openPlugin, openPlugins, plugin, row, tmdbLogo } from "./test-plugins";
 import { refused } from "./test-refusal";
 
@@ -31,7 +29,7 @@ test("each Plugin on the list shows its logo as an image, or a generic one witho
   openPlugins();
 
   const logo = (await row("tmdb")).getByRole<HTMLImageElement>("img", { name: "tmdb logo" });
-  expect(logo.src).toBe(svgDataUrl(tmdbLogo));
+  expect(logo.src).toBe(`data:image/svg+xml,${encodeURIComponent(tmdbLogo)}`);
   const generic = (await row("local-auth")).getByRole("img", { name: "local-auth logo" });
   expect(generic.getAttribute("src")).toBeNull();
 });
@@ -40,10 +38,11 @@ test("a Plugin's details page shows its logo as an image, or a generic one witho
   openPlugin("tmdb");
 
   const logo = (await plugin("tmdb")).getByRole<HTMLImageElement>("img", { name: "tmdb logo" });
-  expect(logo.src).toBe(svgDataUrl(tmdbLogo));
+  expect(logo.src).toBe(`data:image/svg+xml,${encodeURIComponent(tmdbLogo)}`);
   cleanup();
   openPlugin("local-auth");
-  expect((await plugin("local-auth")).getByRole("img", { name: "local-auth logo" })).toBeDefined();
+  const generic = (await plugin("local-auth")).getByRole("img", { name: "local-auth logo" });
+  expect(generic.getAttribute("src")).toBeNull();
 });
 
 test("a refused Plugin is listed as Refused, with no way to enable it", async () => {

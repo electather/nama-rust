@@ -659,9 +659,8 @@ fn load(wasm: Vec<u8>, cache_config: &Path) -> Result<Installed, Refused> {
     check_allowed_hosts(&manifest.allowed_hosts)?;
     let settings_schema = settings_schema(&manifest)?;
     // Taken out, so the Manifest kept with the Plugin never holds a logo the Server dropped.
-    let logo_svg = Some(mem::take(&mut manifest.logo_svg))
-        .filter(|logo| !logo.is_empty())
-        .and_then(|logo| kept_logo(&PluginId::from(manifest.id.clone()), logo));
+    let logo = mem::take(&mut manifest.logo_svg);
+    let logo_svg = kept_logo(&PluginId::from(manifest.id.clone()), logo);
     Ok(Installed {
         logo_svg,
         manifest: Arc::new(manifest),
