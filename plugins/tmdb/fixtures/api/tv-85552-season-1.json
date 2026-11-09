@@ -1,0 +1,41 @@
+{
+  "air_date": "2019-06-16",
+  "episodes": [
+    {
+      "air_date": "2019-06-16",
+      "episode_number": 1,
+      "episode_type": "standard",
+      "id": 1734395,
+      "name": "Pilot",
+      "overview": "",
+      "runtime": null,
+      "season_number": 1,
+      "show_id": 85552,
+      "still_path": null
+    },
+    {
+      "air_date": "2019-06-16",
+      "episode_number": 2,
+      "episode_type": "standard",
+      "id": 1813306,
+      "name": "Stuntin' Like My Daddy",
+      "overview": "",
+      "runtime": null,
+      "season_number": 1,
+      "show_id": 85552,
+      "still_path": null
+    }
+  ],
+  "name": "Season 1",
+  "overview": "",
+  "id": 113340,
+  "poster_path": null,
+  "season_number": 1,
+  "external_ids": {
+    "tvdb_id": null,
+    "freebase_mid": null,
+    "freebase_id": null,
+    "tvrage_id": null,
+    "wikidata_id": null
+  }
+}

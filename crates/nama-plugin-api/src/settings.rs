@@ -139,9 +139,17 @@ impl Settings {
     ///
     /// # Errors
     ///
-    /// If a required setting is missing, or a setting has a value of the wrong kind. Settings the
-    /// schema doesn't name are kept, so a Plugin's older settings survive an upgrade.
+    /// If a required setting is missing, or else a setting has a value of the wrong kind. Settings
+    /// the schema doesn't name are kept, so a Plugin's older settings survive an upgrade.
     pub fn resolve(mut self, schema: &SettingsSchema) -> Result<Self, SettingsError> {
+        // Missing before wrong kinds, whatever the order of the fields: the Plugins list offers
+        // Set up exactly when this refuses with `Missing`.
+        let missing = schema.fields.iter().find(|field| {
+            field.required && field.default.is_none() && !self.0.contains_key(&field.key)
+        });
+        if let Some(field) = missing {
+            return Err(SettingsError::Missing(field.key.clone()));
+        }
         for field in &schema.fields {
             match (self.0.get(&field.key), &field.default) {
                 (Some(value), _) if !value.is(field.kind) => {
@@ -152,9 +160,6 @@ impl Settings {
                 }
                 (None, Some(default)) => {
                     self.0.insert(field.key.clone(), default.clone());
-                }
-                (None, None) if field.required => {
-                    return Err(SettingsError::Missing(field.key.clone()));
                 }
                 (Some(_) | None, _) => {}
             }
@@ -224,10 +229,37 @@ pub trait SettingsCheck: Send + Sync {
 
 #[cfg(test)]
 mod tests {
-    use super::{SettingKind, SettingValue, Settings};
+    use super::{SettingField, SettingKind, SettingValue, Settings, SettingsError, SettingsSchema};
 
     fn text(text: &str) -> SettingValue {
         SettingValue::Text(text.to_owned())
+    }
+
+    fn required(key: &str, kind: SettingKind) -> SettingField {
+        SettingField {
+            key: key.to_owned(),
+            label: key.to_owned(),
+            description: String::new(),
+            kind,
+            required: true,
+            default: None,
+        }
+    }
+
+    #[test]
+    fn a_missing_setting_is_reported_even_after_one_of_the_wrong_kind() {
+        let schema = SettingsSchema {
+            fields: vec![
+                required("port", SettingKind::Integer),
+                required("api_key", SettingKind::Secret),
+            ],
+        };
+        let settings = Settings::new([("port".to_owned(), text("8989"))].into());
+
+        assert_eq!(
+            settings.resolve(&schema),
+            Err(SettingsError::Missing("api_key".to_owned()))
+        );
     }
 
     #[test]

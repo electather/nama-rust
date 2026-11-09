@@ -6,7 +6,9 @@
 //! - An item whose name has an ID hint is fetched by that id directly. If the metadata source
 //!   has no such title, the item is Unmatched.
 //! - Otherwise its title and year are searched for, and it Matches only a result that fits
-//!   confidently and unambiguously (see [`confidence`]). Anything else is Unmatched.
+//!   confidently and unambiguously (see [`confidence`]). Anything else is Unmatched. A Show's
+//!   country tag, as in `The Office (UK)`, is left out of the search and keeps only Shows from
+//!   that country.
 //! - An Episode Matches once its Show does and the Show's Season lists it. Each Show is looked up
 //!   once per pass, and each of its Seasons fetched once. An Episode keeps its own TMDB id and its
 //!   Show's external ids; Watch State keys Episodes by the Show's ids plus Season and Episode
@@ -45,7 +47,7 @@ use crate::{
     db::Database,
     events::{EventBus, event},
     plugins::Registry,
-    scanner::ScanLock,
+    scanner::{ScanLock, country_tag},
 };
 
 use confidence::Decision;
@@ -500,12 +502,22 @@ impl Matcher {
             return Ok(id.clone());
         }
         let year = name.year.and_then(|year| i32::try_from(year).ok());
-        let mut decision = self.search(kind, &name.title, year, year).await?;
+        let (title, country) = match (kind, country_tag(&name.title)) {
+            (TitleKind::Show, Some((title, country))) => (title, Some(country)),
+            _ => (name.title.as_str(), None),
+        };
+        let mut query = SearchQuery {
+            kind,
+            title: title.to_owned(),
+            year,
+        };
+        let mut decision = confidence::decide(title, year, &self.search(&query, country).await?);
         // A metadata source may only return titles from exactly the year searched for, so a year
         // off by one (release dates differ by country) finds nothing. Search again without it,
         // and let the confidence score weigh the year.
         if decision == Decision::NoMatch && year.is_some() {
-            decision = self.search(kind, &name.title, None, year).await?;
+            query.year = None;
+            decision = confidence::decide(title, year, &self.search(&query, country).await?);
         }
         match decision {
             Decision::Match(id) => Ok(id),
@@ -521,26 +533,22 @@ impl Matcher {
         }
     }
 
-    /// `search_year` is what the Provider is asked for; `year` is what the confidence score weighs.
+    /// What the Provider finds for `query`, keeping only titles from `country` if given.
     async fn search(
         &self,
-        kind: TitleKind,
-        title: &str,
-        search_year: Option<i32>,
-        year: Option<i32>,
-    ) -> Result<Decision, Miss> {
-        let query = SearchQuery {
-            kind,
-            title: title.to_owned(),
-            year: search_year,
-        };
-        let (_, candidates) = self
+        query: &SearchQuery,
+        country: Option<&str>,
+    ) -> Result<Vec<Candidate>, Miss> {
+        let (_, mut candidates) = self
             .ask(|metadata| {
                 let query = query.clone();
                 async move { metadata.search(&query).await }
             })
             .await?;
-        Ok(confidence::decide(title, year, &candidates))
+        if let Some(country) = country {
+            candidates.retain(|candidate| candidate.origin_country.iter().any(|c| c == country));
+        }
+        Ok(candidates)
     }
 
     async fn ask<R, F>(
@@ -1129,6 +1137,107 @@ mod tests {
         let count = |prefix: &str| requests.iter().filter(|r| r.starts_with(prefix)).count();
         assert_eq!(count("/3/tv/70523?"), 1, "{requests:?}");
         assert_eq!(count("/3/tv/70523/season/1?"), 1, "{requests:?}");
+    }
+
+    #[tokio::test]
+    async fn a_country_tag_on_a_show_is_searched_without_and_keeps_shows_from_that_country() {
+        let media = Fixture::new().await;
+        let shows = &media.shows;
+        // TMDB also has a Euphoria with no country, which is dropped.
+        shows.write("Euphoria (US)/Season 01/Euphoria (US) - S01E01.mkv");
+        // TheTVDB's UK is TMDB's GB.
+        shows.write("The Office (UK)/Season 01/The Office (UK) - S01E01.mkv");
+        shows.write("The Office (US)/Season 01/The Office (US) - S01E01.mkv");
+
+        media.scan(shows).await;
+
+        assert_eq!(
+            media.outcomes(shows).await,
+            [
+                matched(1_734_395, "Pilot"),
+                matched(2_996_001, "Downsize"),
+                matched(2_316_001, "Pilot"),
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn a_show_left_unmatched_by_the_parser_before_country_tags_matches_once_rescanned() {
+        let media = Fixture::without_tmdb().await;
+        let shows = &media.shows;
+        let pilot = "Euphoria (US)/Season 01/Euphoria (US) - S01E01.mkv";
+        shows.write(pilot);
+        media.scan(shows).await;
+        let item = media.item(shows, pilot).await;
+        media
+            .contents
+            .record(vec![(item, Decided::Unmatched)])
+            .await
+            .unwrap();
+        media.contents.read_by_older_parser(shows.id).await;
+        media.enable_tmdb();
+
+        media.scan(shows).await;
+
+        assert_eq!(media.outcomes(shows).await, [matched(1_734_395, "Pilot")]);
+    }
+
+    #[tokio::test]
+    async fn a_bracket_that_is_not_a_country_stays_in_the_shows_title() {
+        let media = Fixture::new().await;
+        let shows = &media.shows;
+        shows.write("The Office (II)/Season 01/The Office (II) - S01E01.mkv");
+
+        media.scan(shows).await;
+
+        let requests = media.tmdb.requests();
+        assert!(
+            requests
+                .iter()
+                .any(|r| r.starts_with("/3/search/tv?") && r.contains("query=The+Office+%28II%29")),
+            "{requests:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_country_tag_in_a_movies_name_stays_in_its_title() {
+        let media = Fixture::new().await;
+        let movies = &media.movies;
+        movies.write("Euphoria (US) (2019)/Euphoria (US) (2019).mkv");
+
+        media.scan(movies).await;
+
+        let requests = media.tmdb.requests();
+        assert!(
+            requests
+                .iter()
+                .any(|r| r.starts_with("/3/search/movie?") && r.contains("query=Euphoria+%28US%29")),
+            "{requests:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_pin_on_a_show_named_with_a_country_tag_still_applies_after_a_newer_parser() {
+        let media = Fixture::new().await;
+        let shows = &media.shows;
+        let pilot = "The Office (US)/Season 01/The Office (US) - S01E01.mkv";
+        shows.write(pilot);
+        media.scan(shows).await;
+        let item = media.item(shows, pilot).await;
+        media
+            .set_match(item, &ExternalId::Tmdb(2996))
+            .await
+            .unwrap();
+        let searches = media.searches();
+
+        media.contents.read_by_older_parser(shows.id).await;
+        media.scan(shows).await;
+
+        assert_eq!(
+            media.outcomes(shows).await,
+            [matched(2_996_001, "Downsize")]
+        );
+        assert_eq!(media.searches(), searches);
     }
 
     #[tokio::test]

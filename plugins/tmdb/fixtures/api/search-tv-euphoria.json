@@ -1,0 +1,9 @@
+{
+  "page": 1,
+  "results": [
+    {"adult": false, "backdrop_path": "/9KnIzPCv9XpWA0MqmwiKBZvV1Sj.jpg", "first_air_date": "2019-06-16", "genre_ids": [18], "id": 85552, "name": "Euphoria", "origin_country": ["US"], "original_language": "en", "original_name": "Euphoria", "overview": "A group of high school students navigate love and friendships in a world of drugs, sex, trauma, and social media.", "popularity": 120.4, "poster_path": "/3Q0hd3heuWwDWpwcDkhQOA6TYWI.jpg", "vote_average": 8.3, "vote_count": 10200},
+    {"adult": false, "backdrop_path": null, "first_air_date": "2019-06-16", "genre_ids": [99], "id": 999001, "name": "Euphoria", "origin_country": [], "original_language": "en", "original_name": "Euphoria", "overview": "", "popularity": 0.6, "poster_path": null, "vote_average": 0.0, "vote_count": 0}
+  ],
+  "total_pages": 1,
+  "total_results": 2
+}

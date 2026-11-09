@@ -242,6 +242,8 @@ async fn a_dropped_plugin_is_listed_disabled_observes_scans_only_while_enabled_a
     assert_eq!(listed.version, "0.1.0");
     assert!(!listed.enabled);
     assert_eq!(listed.refused_reason, "");
+    // Its required settings each have a default.
+    assert!(!listed.settings_missing);
     // Saving its settings doesn't enable it either.
     let updated = started
         .client()

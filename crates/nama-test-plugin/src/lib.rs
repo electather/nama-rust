@@ -96,9 +96,11 @@ mod exports {
     }
 
     /// The text setting `key`, `default` unless set, that picks what the Plugin does `when`.
+    /// Required, so a test sees a default fill a required setting.
     fn behaviour_setting(key: &str, default: &str, when: &str) -> SettingField {
         SettingField {
             description: format!("What it does {when}."),
+            required: true,
             default_value: SettingValue {
                 value: Some(setting_value::Value::Text(default.to_owned())),
                 ..Default::default()

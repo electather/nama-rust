@@ -75,6 +75,7 @@ async fn searching_movies_finds_candidates_with_their_years() {
         original_title: Some("Dune".to_owned()),
         year: Some(year),
         poster: Some(poster.to_owned()),
+        origin_country: Vec::new(),
         vote_count,
     };
     assert_eq!(found.len(), 3);
@@ -97,7 +98,7 @@ async fn searching_movies_finds_candidates_with_their_years() {
 }
 
 #[tokio::test]
-async fn searching_shows_uses_their_first_air_year() {
+async fn searching_shows_uses_their_first_air_year_and_has_their_countries() {
     let fake = FakeTmdb::start().await;
     let tmdb = provider(&fake, API_KEY);
 
@@ -114,6 +115,7 @@ async fn searching_shows_uses_their_first_air_year() {
             original_title: Some("Dark".to_owned()),
             year: Some(2017),
             poster: Some("/apbrbWs8M9lyOpJYU5WXrpFbk1Z.jpg".to_owned()),
+            origin_country: vec!["DE".to_owned()],
             vote_count: 6_900,
         }]
     );

@@ -2262,6 +2262,18 @@ pub struct PluginSummary {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub refused_reason: ::buffa::alloc::string::String,
+    /// Whether a required setting has no value, no default and no stored secret, so `EnablePlugin`
+    /// would refuse it with `REFUSAL_REASON_FIELD_REQUIRED`. An enabled Plugin may have one too, such
+    /// as an Installed Plugin upgraded with a new required setting.
+    ///
+    /// Field 6: `settings_missing`
+    #[serde(
+        rename = "settingsMissing",
+        alias = "settings_missing",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub settings_missing: bool,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -2274,6 +2286,7 @@ impl ::core::fmt::Debug for PluginSummary {
             .field("kind", &self.kind)
             .field("enabled", &self.enabled)
             .field("refused_reason", &self.refused_reason)
+            .field("settings_missing", &self.settings_missing)
             .finish()
     }
 }
@@ -2324,6 +2337,9 @@ impl ::buffa::Message for PluginSummary {
                 += 1u64
                     + ::buffa::types::string_encoded_len(&self.refused_reason) as u64;
         }
+        if self.settings_missing {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -2351,6 +2367,9 @@ impl ::buffa::Message for PluginSummary {
         }
         if !self.refused_reason.is_empty() {
             ::buffa::types::put_string_field(5u32, &self.refused_reason, buf);
+        }
+        if self.settings_missing {
+            ::buffa::types::put_bool_field(6u32, self.settings_missing, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2400,6 +2419,13 @@ impl ::buffa::Message for PluginSummary {
                 )?;
                 ::buffa::types::merge_string(&mut self.refused_reason, buf)?;
             }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.settings_missing = ::buffa::types::decode_bool(buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -2413,6 +2439,7 @@ impl ::buffa::Message for PluginSummary {
         self.kind = ::buffa::EnumValue::from(0);
         self.enabled = false;
         self.refused_reason.clear();
+        self.settings_missing = false;
         self.__buffa_unknown_fields.clear();
     }
 }

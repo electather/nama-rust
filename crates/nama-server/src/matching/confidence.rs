@@ -172,6 +172,7 @@ mod tests {
             original_title: None,
             year,
             poster: None,
+            origin_country: Vec::new(),
             vote_count: 0,
         }
     }

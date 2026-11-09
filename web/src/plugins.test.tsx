@@ -90,11 +90,33 @@ test("enabling a disabled Plugin on the list asks the Server to", async () => {
       return {};
     },
   });
-  fireEvent.click((await row("log-events")).getByRole("button", { name: "Enable log-events" }));
+  fireEvent.click((await row("test-plugin")).getByRole("button", { name: "Enable test-plugin" }));
 
   await waitFor(() => {
-    expect(enabled).toStrictEqual(["log-events"]);
+    expect(enabled).toStrictEqual(["test-plugin"]);
   });
+});
+
+test("a disabled Plugin missing a required setting offers Set up, which opens its details page", async () => {
+  openPlugins();
+
+  const logEvents = await row("log-events");
+  expect(logEvents.queryByRole("button", { name: "Enable log-events" })).toBeNull();
+  fireEvent.click(logEvents.getByRole("link", { name: "Set up log-events" }));
+
+  expect((await input("log-events", "Path")).required).toBe(true);
+});
+
+test("an enabled Plugin missing a required setting is marked as needing attention", async () => {
+  openPlugins({
+    listPlugins: () => ({
+      summaries: [{ id: "radarr", version: "0.2.0", enabled: true, settingsMissing: true }],
+    }),
+  });
+
+  const radarr = await row("radarr");
+  expect(radarr.getByText("Needs attention")).toBeDefined();
+  expect(radarr.getByRole("button", { name: "Disable radarr" })).toBeDefined();
 });
 
 test("disabling the only Plugin Users sign in with says why it can’t be", async () => {
@@ -140,19 +162,19 @@ test("enabling a second Movie Fulfiller names the Plugin that is the Fulfiller",
     enablePlugin: () => {
       throw refused(
         Code.FailedPrecondition,
-        "log-events can't be enabled while radarr hands Movie Requests on",
+        "test-plugin can't be enabled while radarr hands Movie Requests on",
         {
           reason: RefusalReason.FULFILLER_TAKEN,
           field: "id",
-          params: { pluginId: "log-events", fulfillerPluginId: "radarr", titleKind: "Movie" },
+          params: { pluginId: "test-plugin", fulfillerPluginId: "radarr", titleKind: "Movie" },
         },
       );
     },
   });
-  const logEvents = await row("log-events");
-  fireEvent.click(logEvents.getByRole("button", { name: "Enable log-events" }));
+  const testPlugin = await row("test-plugin");
+  fireEvent.click(testPlugin.getByRole("button", { name: "Enable test-plugin" }));
 
-  const alert = await logEvents.findByText(
+  const alert = await testPlugin.findByText(
     "It can’t be enabled while radarr is the Movie Fulfiller. Disable radarr first.",
   );
   expect(alert.getAttribute("role")).toBe("alert");
