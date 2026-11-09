@@ -99,7 +99,8 @@ message ScanFinished {
   int64 library_id = 1;
   // Files found that weren't stored before.
   uint64 added = 2;
-  // Stored files whose size or modified time changed.
+  // Stored files parsed again: those whose size or modified time changed, or that an older name
+  // parser read.
   uint64 updated = 3;
   // Stored files that are gone.
   uint64 removed = 4;

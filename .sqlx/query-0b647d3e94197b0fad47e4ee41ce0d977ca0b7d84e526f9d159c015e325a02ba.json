@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id AS \"id!\", path, size, modified_ns FROM library_files\n               WHERE library_id = ?",
+  "query": "SELECT id AS \"id!\", path, size, modified_ns, parser_version FROM library_files\n               WHERE library_id = ?",
   "describe": {
     "columns": [
       {
@@ -46,6 +46,17 @@
             "name": "modified_ns"
           }
         }
+      },
+      {
+        "name": "parser_version",
+        "ordinal": 4,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_files",
+            "name": "parser_version"
+          }
+        }
       }
     ],
     "parameters": {
@@ -55,8 +66,9 @@
       false,
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "0d8e3a6568896aadbdfb551ccca25a3f9cfb7adf45dc31ce2bd98e1b1317871d"
+  "hash": "0b647d3e94197b0fad47e4ee41ce0d977ca0b7d84e526f9d159c015e325a02ba"
 }

@@ -265,7 +265,8 @@ export type ScanFinished = Message<"nama.v1.ScanFinished"> & {
   added: bigint;
 
   /**
-   * Stored files whose size or modified time changed.
+   * Stored files parsed again: those whose size or modified time changed, or that an older name
+   * parser read.
    *
    * @generated from field: uint64 updated = 3;
    */

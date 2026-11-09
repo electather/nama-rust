@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE library_files SET parser_version = ? - 1 WHERE library_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "6f1c4d560ec299194f6f1504e0bf81875a16795321031a86ca7d51749463f740"
+}

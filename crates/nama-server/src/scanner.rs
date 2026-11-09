@@ -1,8 +1,9 @@
 //! The scanner: walks each Library's folders and stores the video files in them, and what their
 //! names say they hold (see [`names`]).
 //!
-//! A rescan is incremental. A file whose size and modified time are what was stored is skipped;
-//! a new or changed file is parsed and stored; a stored file that's gone is removed, except
+//! A rescan is incremental. A file whose size and modified time are what was stored is skipped,
+//! unless an older version of the name parser read it (ADR 0023); a new or changed file is parsed
+//! and stored; a stored file that's gone is removed, except
 //! under a folder that couldn't be read, so a drive that isn't mounted doesn't empty the
 //! Library. A renamed file is a file gone and a file found. Changes are written in batches of
 //! [`BATCH_SIZE`] (see the crate's `AGENTS.md`).
@@ -17,6 +18,8 @@
 //! Library's scan lock, so Matching sees the items the scan stored.
 
 mod names;
+
+pub(crate) use names::VERSION as PARSER_VERSION;
 
 use std::{
     collections::{HashMap, HashSet},
@@ -54,7 +57,8 @@ const BATCH_SIZE: usize = 200;
 pub(crate) struct Summary {
     /// Files found that weren't stored before.
     pub(crate) added: u64,
-    /// Stored files whose size or modified time changed, which were parsed again.
+    /// Stored files parsed again: those whose size or modified time changed, or that an older
+    /// name parser read.
     pub(crate) updated: u64,
     /// Stored files that are gone.
     pub(crate) removed: u64,
@@ -349,20 +353,30 @@ fn plan(kind: Kind, mut stored: HashMap<String, Stored>, found: Walked) -> (Vec<
     let mut summary = Summary::default();
     // A file under two of the Library's folders, one inside the other, is found twice.
     let mut seen = HashSet::new();
+    let parse = |relative: &Path| names::parse(kind, relative).unwrap_or_default();
     for file in found.files {
         if !seen.insert(file.path.clone()) {
             continue;
         }
         match stored.remove(&file.path) {
             Some(old) if old.size == file.size && old.modified_ns == file.modified_ns => {
-                summary.unchanged += 1;
+                if old.parser_version < PARSER_VERSION {
+                    summary.updated += 1;
+                    changes.push(Change::Reparse {
+                        file: old.id,
+                        items: parse(&file.relative),
+                        path: file.path,
+                    });
+                } else {
+                    summary.unchanged += 1;
+                }
                 continue;
             }
             Some(_) => summary.updated += 1,
             None => summary.added += 1,
         }
         changes.push(Change::Store {
-            items: names::parse(kind, &file.relative).unwrap_or_default(),
+            items: parse(&file.relative),
             path: file.path,
             size: file.size,
             modified_ns: file.modified_ns,
@@ -614,6 +628,20 @@ mod tests {
                 ),
             ]
         );
+    }
+
+    #[tokio::test]
+    async fn a_newer_name_parser_parses_unchanged_files_again_once() {
+        let media = Fixture::new(Kind::Movies).await;
+        media.write("Alien (1979)/Alien (1979).mkv", 10);
+        media.write("home video.mkv", 10);
+        media.scan().await;
+
+        media.contents.read_by_older_parser(media.library).await;
+
+        assert_eq!(media.scan().await, summary(0, 2, 0, 0));
+        assert_eq!(media.scan().await, summary(0, 0, 0, 2));
+        assert_eq!(media.files().await[0].1, movie("Alien", 1979, None));
     }
 
     #[tokio::test]

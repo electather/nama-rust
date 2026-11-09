@@ -2612,7 +2612,8 @@ pub struct ScanFinishedView<'a> {
     ///
     /// Field 2: `added`
     pub added: u64,
-    /// Stored files whose size or modified time changed.
+    /// Stored files parsed again: those whose size or modified time changed, or that an older name
+    /// parser read.
     ///
     /// Field 3: `updated`
     pub updated: u64,
@@ -2929,7 +2930,8 @@ impl ScanFinishedOwnedView {
     pub fn added(&self) -> u64 {
         self.0.reborrow().added
     }
-    /// Stored files whose size or modified time changed.
+    /// Stored files parsed again: those whose size or modified time changed, or that an older name
+    /// parser read.
     ///
     /// Field 3: `updated`
     #[must_use]

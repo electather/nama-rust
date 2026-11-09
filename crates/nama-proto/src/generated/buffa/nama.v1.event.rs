@@ -2179,7 +2179,8 @@ pub struct ScanFinished {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u64"
     )]
     pub added: u64,
-    /// Stored files whose size or modified time changed.
+    /// Stored files parsed again: those whose size or modified time changed, or that an older name
+    /// parser read.
     ///
     /// Field 3: `updated`
     #[serde(
