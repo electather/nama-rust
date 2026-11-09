@@ -899,7 +899,7 @@ mod tests {
         movies.write("Dune (2021)/Dune (2021).mkv");
         // An ID hint is used directly: there is no recorded search for Heat.
         movies.write("Heat (1995) {tmdb-949}/Heat (1995).mkv");
-        // Two films called Hamlet came out in 2000.
+        // Two films called Hamlet came out in 2000, neither far better known.
         movies.write("Hamlet (2000)/Hamlet (2000).mkv");
         // TMDB finds nothing.
         movies.write("Home Movies (2019)/Home Movies (2019).mkv");

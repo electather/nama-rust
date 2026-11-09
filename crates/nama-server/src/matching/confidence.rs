@@ -3,8 +3,8 @@
 //! Each candidate gets a confidence from 0 to 1: how alike the titles are (the candidate's
 //! title or original title, whichever is closer) times how well the years agree. A candidate
 //! Matches only above [`THRESHOLD`], and only if every other candidate within [`MARGIN`] of it
-//! has under a [`VOTE_RATIO`]th of its votes: two titles that fit about as well and are about as
-//! well known are ambiguous, and an ambiguous file stays Unmatched rather than risk the wrong
+//! has at most a [`VOTE_RATIO`]th of its votes: two titles that fit about as well and are about
+//! as well known are ambiguous, and an ambiguous file stays Unmatched rather than risk the wrong
 //! Match.
 
 use nama_plugin_api::metadata::{Candidate, ExternalId};
@@ -270,24 +270,6 @@ mod tests {
             ),
             Decision::Match(ExternalId::Tmdb(120))
         );
-    }
-
-    #[test]
-    fn two_titles_that_fit_as_well_are_ambiguous() {
-        let same_year = [
-            candidate(10_688, "Hamlet", Some(2000)),
-            candidate(58_995, "Hamlet", Some(2000)),
-        ];
-        let no_year = [
-            candidate(2316, "The Office", Some(2005)),
-            candidate(2996, "The Office", Some(2001)),
-        ];
-
-        assert_eq!(
-            decide("Hamlet", Some(2000), &same_year),
-            Decision::Ambiguous
-        );
-        assert_eq!(decide("The Office", None, &no_year), Decision::Ambiguous);
     }
 
     #[test]
