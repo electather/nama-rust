@@ -98,8 +98,7 @@ pub(crate) enum Error {
     QualityNotAllowed,
     #[error("the Movie Fulfiller doesn't offer the Quality {0}")]
     QualityNotOffered(i64),
-    /// The page token isn't one listing in the same state handed out.
-    #[error("the page token isn't one listing Requests in this state handed out")]
+    #[error("the page token isn't one this Server gave for listing in this state")]
     PageTokenInvalid,
     #[error("database error: {0}")]
     Database(#[from] sqlx::Error),
@@ -1209,7 +1208,6 @@ impl Requests {
     }
 }
 
-/// `err` from looking a title up, which is `missing` if the metadata source doesn't have it.
 /// A row of [`Requests::list`].
 #[expect(
     clippy::large_enum_variant,
@@ -1277,6 +1275,7 @@ fn read_page_token(token: &str, state: Option<RequestState>) -> Result<Option<Pl
     }
 }
 
+/// `err` from looking a title up, which is `missing` if the metadata source doesn't have it.
 fn looking_up(err: ManualError, missing: Error) -> Error {
     match err {
         // A look-up names no item, so its only refusal is the title's.
