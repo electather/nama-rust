@@ -85,7 +85,7 @@ function QualitiesForm({ plugin, saved }: { plugin: Plugin; saved: Quality[] }) 
     },
   });
   const { profiles, unoffered, gone } = useProfiles(plugin, rows);
-  const errors = replace.error ? qualityErrors(replace.error, rows, plugin) : gone;
+  const errors = { ...gone, ...(replace.error && qualityErrors(replace.error, rows, plugin)) };
   return (
     <form
       className="mt-4 flex max-w-md flex-col gap-5"
