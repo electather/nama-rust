@@ -30,6 +30,7 @@ impl<F: Fn(&mut Registrar) + Send + Sync + 'static> Plugin for TestPlugin<F> {
             id: PluginId::from_static(self.id),
             version: "0.0.0".to_owned(),
             settings: SettingsSchema::default(),
+            logo_svg: None,
         }
     }
 
@@ -706,6 +707,7 @@ impl Plugin for Configurable {
             id: PluginId::from_static("configurable"),
             version: "0.0.0".to_owned(),
             settings,
+            logo_svg: None,
         }
     }
 

@@ -23,6 +23,7 @@ impl Plugin for LogEvents {
             id: Self::ID,
             version: env!("CARGO_PKG_VERSION").to_owned(),
             settings: SettingsSchema::default(),
+            logo_svg: Some(include_str!("../logo.svg").to_owned()),
         }
     }
 

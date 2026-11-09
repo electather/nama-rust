@@ -2,6 +2,7 @@ import { useSuspenseQuery } from "@connectrpc/connect-query";
 import { createFileRoute, notFound } from "@tanstack/react-router";
 
 import { Page } from "@/components/page";
+import { PluginLogo } from "@/components/plugin-logo";
 import { PluginSettings } from "@/components/plugin-settings";
 import { PluginToggle } from "@/components/plugin-toggle";
 import { NotFound } from "@/components/route-error";
@@ -22,7 +23,10 @@ function PluginPage() {
   if (!plugin) throw notFound();
   return (
     <Page heading={plugin.id}>
-      <p className="mt-1 text-sm text-muted-foreground">{kindAndVersion(plugin)}</p>
+      <div className="mt-3 flex items-center gap-3">
+        <PluginLogo plugin={plugin} />
+        <p className="text-sm text-muted-foreground">{kindAndVersion(plugin)}</p>
+      </div>
       <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2">
         <PluginToggle plugin={plugin} />
       </div>

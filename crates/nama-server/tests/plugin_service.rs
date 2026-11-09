@@ -266,6 +266,15 @@ async fn every_builtin_and_bundled_plugin_is_listed_with_whether_it_is_enabled()
 }
 
 #[tokio::test]
+async fn every_builtin_and_bundled_plugin_has_a_logo_the_server_keeps() {
+    let listed = list_plugins_with(BTreeMap::new()).await;
+
+    for plugin in &listed.summaries {
+        assert!(plugin.logo_svg.starts_with("<svg"), "{plugin:?}");
+    }
+}
+
+#[tokio::test]
 async fn plugins_are_listed_without_their_settings() {
     let listed = list_plugins_with(tmdb_with_key()).await;
 

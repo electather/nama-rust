@@ -80,8 +80,8 @@ impl<T: buffa::Message> FromBytesOwned for Buffa<T> {
 }
 
 /// A Manifest for the Plugin `id` at `version`, which works with the Nama API versions this
-/// `nama-pdk` was built against. Fill in its other fields, such as `settings` and `observers`,
-/// with struct update syntax.
+/// `nama-pdk` was built against. Fill in its other fields, such as `settings`, `observers` and
+/// `logo_svg` (`include_str!("../logo.svg")`), with struct update syntax.
 #[must_use]
 pub fn manifest(id: &str, version: &str) -> Manifest {
     Manifest {

@@ -68,6 +68,7 @@ impl Plugin for TestChoices {
             id: PluginId::from_static(ID),
             version: "0.0.0".to_owned(),
             settings,
+            logo_svg: Some(include_str!("../logo.svg").to_owned()),
         }
     }
 

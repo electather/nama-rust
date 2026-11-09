@@ -366,6 +366,42 @@ async fn a_second_file_with_a_plugins_id_is_refused() {
 }
 
 #[tokio::test]
+async fn a_plugins_logo_from_its_manifest_is_listed_and_got() {
+    let started = Started::new().await;
+
+    started.drop_in("test.wasm", "");
+
+    let listed = started.listed("test-plugin").await.unwrap();
+    assert!(listed.logo_svg.starts_with("<svg"), "{listed:?}");
+    assert_eq!(started.got("test-plugin").await.logo_svg, listed.logo_svg);
+}
+
+#[tokio::test]
+async fn a_logo_over_16_kib_or_not_svg_is_dropped_with_a_warning_and_the_plugin_still_loads() {
+    let log = Log::global();
+    for (features, why) in [
+        ("big-logo", "it is over 16384 bytes"),
+        ("html-logo", "it isn't SVG"),
+    ] {
+        let started = Started::new().await;
+
+        started.drop_in("test.wasm", features);
+
+        let listed = started.listed("test-plugin").await.unwrap();
+        assert_eq!(listed.logo_svg, "", "{features}");
+        assert_eq!(started.got("test-plugin").await.logo_svg, "", "{features}");
+        log.wait_for(&["test-plugin", "dropped its logo", why], 1)
+            .await;
+        started
+            .client()
+            .enable_plugin(enable("test-plugin"))
+            .await
+            .unwrap();
+        assert!(started.listed("test-plugin").await.unwrap().enabled);
+    }
+}
+
+#[tokio::test]
 async fn a_plugin_reaches_a_host_once_a_url_setting_names_it_without_a_restart() {
     let log = Log::global();
     let server = http_server().await;

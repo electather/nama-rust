@@ -45,6 +45,7 @@ mod exports {
             ..SettingField::default()
         };
         Ok(Buffa(Manifest {
+            logo_svg: include_str!("../logo.svg").to_owned(),
             providers: vec![
                 ProvidePoint::PROVIDE_POINT_NOTIFIER.into(),
                 ProvidePoint::PROVIDE_POINT_CONNECTOR.into(),

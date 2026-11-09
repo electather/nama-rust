@@ -4,7 +4,7 @@
 
 use std::{
     collections::{BTreeMap, HashMap},
-    fs, io, panic,
+    fs, io, mem, panic,
     path::{Path, PathBuf},
     sync::{
         Arc,
@@ -43,7 +43,7 @@ use tokio::task;
 use tracing::{error, info, warn};
 
 use super::{
-    CheckTimedOut, Described, Registry, contain_sync, log_not_enabled, secret_values,
+    CheckTimedOut, Described, Registry, contain_sync, kept_logo, log_not_enabled, secret_values,
     without_secrets,
 };
 use crate::config::PluginConfig;
@@ -112,6 +112,8 @@ struct Installed {
     cache_config: Arc<Path>,
     /// Whether it exports [`CHECK_SETTINGS`].
     checks_settings: bool,
+    /// Its Manifest's logo, if [`kept_logo`] kept it.
+    logo_svg: Option<String>,
 }
 
 /// An enabled Installed Plugin, compiled once with its allowed hosts and settings. Each call into
@@ -220,6 +222,7 @@ impl Plugin for Installed {
             id: self.id(),
             version: self.manifest.version.clone(),
             settings: self.settings_schema.clone(),
+            logo_svg: self.logo_svg.clone(),
         }
     }
 
@@ -544,6 +547,7 @@ fn describe(
                 version: plugin.manifest.version.clone(),
                 settings_schema: plugin.settings_schema.clone(),
                 checks_settings: plugin.checks_settings,
+                logo_svg: plugin.logo_svg.clone(),
                 make: Ok(Arc::new(move || Arc::new(plugin.clone()))),
             };
             (id, described)
@@ -555,6 +559,7 @@ fn describe(
                 version: String::new(),
                 settings_schema: SettingsSchema::default(),
                 checks_settings: false,
+                logo_svg: None,
                 make: Err(refused.to_string()),
             };
             (PluginId::from(name.into_owned()), described)
@@ -649,11 +654,16 @@ fn load(wasm: Vec<u8>, cache_config: &Path) -> Result<Installed, Refused> {
         Ok((bytes, plugin.function_exists(CHECK_SETTINGS)))
     })
     .map_err(Refused::Panicked)??;
-    let manifest = Manifest::decode_from_slice(&bytes).map_err(Refused::Decode)?;
+    let mut manifest = Manifest::decode_from_slice(&bytes).map_err(Refused::Decode)?;
     check_nama_api(&manifest.nama_api)?;
     check_allowed_hosts(&manifest.allowed_hosts)?;
     let settings_schema = settings_schema(&manifest)?;
+    // Taken out, so the Manifest kept with the Plugin never holds a logo the Server dropped.
+    let logo_svg = Some(mem::take(&mut manifest.logo_svg))
+        .filter(|logo| !logo.is_empty())
+        .and_then(|logo| kept_logo(&PluginId::from(manifest.id.clone()), logo));
     Ok(Installed {
+        logo_svg,
         manifest: Arc::new(manifest),
         settings_schema,
         wasm: wasm.into(),

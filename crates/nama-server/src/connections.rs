@@ -332,6 +332,7 @@ mod tests {
                 id: PluginId::from_static("chat"),
                 version: "1.0.0".to_owned(),
                 settings: SettingsSchema::default(),
+                logo_svg: None,
             }
         }
 

@@ -53,6 +53,12 @@ pub struct ManifestView<'a> {
         'a,
         ::buffa::EnumValue<super::super::ProvidePoint>,
     >,
+    /// The Plugin's logo: an SVG document's text, not base64, such as "\<svg xmlns=...\>...\</svg\>".
+    /// A Server drops one over 16 KiB or that isn't SVG, logging why, and still loads the Plugin.
+    /// Admins see it as an image on a neutral tile in either colour scheme, so it should read on both.
+    ///
+    /// Field 8: `logo_svg`
+    pub logo_svg: &'a str,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for ManifestView<'a> {
@@ -105,6 +111,13 @@ impl<'a> ::buffa::MessageView<'a> for ManifestView<'a> {
                     ::buffa::encoding::WireType::LengthDelimited,
                 )?;
                 view.nama_api = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            8u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.logo_svg = ::buffa::types::borrow_str(&mut cur)?;
             }
             4u32 => {
                 ::buffa::encoding::check_wire_type(
@@ -228,6 +241,7 @@ impl<'a> ::buffa::MessageView<'a> for ManifestView<'a> {
             allowed_hosts: self.allowed_hosts.iter().map(|s| s.to_string()).collect(),
             observers: self.observers.to_vec(),
             providers: self.providers.to_vec(),
+            logo_svg: self.logo_svg.to_string(),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -274,6 +288,9 @@ impl<'a> ::buffa::ViewEncode<'a> for ManifestView<'a> {
                 .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
                 .sum::<u64>();
             size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
+        }
+        if !self.logo_svg.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.logo_svg) as u64;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
@@ -328,6 +345,9 @@ impl<'a> ::buffa::ViewEncode<'a> for ManifestView<'a> {
                 ::buffa::types::encode_int32(v.to_i32(), buf);
             }
         }
+        if !self.logo_svg.is_empty() {
+            ::buffa::types::put_string_field(8u32, &self.logo_svg, buf);
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
 }
@@ -377,6 +397,9 @@ impl<'__a> ::serde::Serialize for ManifestView<'__a> {
                     "providers",
                     &::buffa::json_helpers::EnumSeqJson(&self.providers),
                 )?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.logo_svg) {
+            __map.serialize_entry("logoSvg", self.logo_svg)?;
         }
         __map.end()
     }
@@ -526,6 +549,15 @@ impl ManifestOwnedView {
         &self,
     ) -> &::buffa::RepeatedView<'_, ::buffa::EnumValue<super::super::ProvidePoint>> {
         &self.0.reborrow().providers
+    }
+    /// The Plugin's logo: an SVG document's text, not base64, such as "\<svg xmlns=...\>...\</svg\>".
+    /// A Server drops one over 16 KiB or that isn't SVG, logging why, and still loads the Plugin.
+    /// Admins see it as an image on a neutral tile in either colour scheme, so it should read on both.
+    ///
+    /// Field 8: `logo_svg`
+    #[must_use]
+    pub fn logo_svg(&self) -> &'_ str {
+        self.0.reborrow().logo_svg
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<ManifestView<'static>>>

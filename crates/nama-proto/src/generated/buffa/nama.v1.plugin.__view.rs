@@ -4074,6 +4074,10 @@ pub struct PluginSummaryView<'a> {
     ///
     /// Field 6: `settings_missing`
     pub settings_missing: bool,
+    /// As `Plugin.logo_svg`.
+    ///
+    /// Field 7: `logo_svg`
+    pub logo_svg: &'a str,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for PluginSummaryView<'a> {
@@ -4150,6 +4154,13 @@ impl<'a> ::buffa::MessageView<'a> for PluginSummaryView<'a> {
                 )?;
                 view.settings_missing = ::buffa::types::decode_bool(&mut cur)?;
             }
+            7u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.logo_svg = ::buffa::types::borrow_str(&mut cur)?;
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -4178,6 +4189,7 @@ impl<'a> ::buffa::MessageView<'a> for PluginSummaryView<'a> {
             enabled: self.enabled,
             refused_reason: self.refused_reason.to_string(),
             settings_missing: self.settings_missing,
+            logo_svg: self.logo_svg.to_string(),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -4212,6 +4224,9 @@ impl<'a> ::buffa::ViewEncode<'a> for PluginSummaryView<'a> {
         if self.settings_missing {
             size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
+        if !self.logo_svg.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.logo_svg) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -4243,6 +4258,9 @@ impl<'a> ::buffa::ViewEncode<'a> for PluginSummaryView<'a> {
         }
         if self.settings_missing {
             ::buffa::types::put_bool_field(6u32, self.settings_missing, buf);
+        }
+        if !self.logo_svg.is_empty() {
+            ::buffa::types::put_string_field(7u32, &self.logo_svg, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -4282,6 +4300,9 @@ impl<'__a> ::serde::Serialize for PluginSummaryView<'__a> {
         }
         if self.settings_missing {
             __map.serialize_entry("settingsMissing", &self.settings_missing)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.logo_svg) {
+            __map.serialize_entry("logoSvg", self.logo_svg)?;
         }
         __map.end()
     }
@@ -4414,6 +4435,13 @@ impl PluginSummaryOwnedView {
     pub fn settings_missing(&self) -> bool {
         self.0.reborrow().settings_missing
     }
+    /// As `Plugin.logo_svg`.
+    ///
+    /// Field 7: `logo_svg`
+    #[must_use]
+    pub fn logo_svg(&self) -> &'_ str {
+        self.0.reborrow().logo_svg
+    }
 }
 impl ::core::convert::From<::buffa::OwnedView<PluginSummaryView<'static>>>
 for PluginSummaryOwnedView {
@@ -4478,6 +4506,11 @@ pub struct PluginView<'a> {
     ///
     /// Field 7: `refused_reason`
     pub refused_reason: &'a str,
+    /// Its logo, an SVG document's text, or empty if it has none. Untrusted: show it only as an
+    /// image, such as from a `data:image/svg+xml` URL, never inline in a page.
+    ///
+    /// Field 8: `logo_svg`
+    pub logo_svg: &'a str,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for PluginView<'a> {
@@ -4554,6 +4587,13 @@ impl<'a> ::buffa::MessageView<'a> for PluginView<'a> {
                 )?;
                 view.refused_reason = ::buffa::types::borrow_str(&mut cur)?;
             }
+            8u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.logo_svg = ::buffa::types::borrow_str(&mut cur)?;
+            }
             5u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -4605,6 +4645,7 @@ impl<'a> ::buffa::MessageView<'a> for PluginView<'a> {
                 .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
             checks_settings: self.checks_settings,
             refused_reason: self.refused_reason.to_string(),
+            logo_svg: self.logo_svg.to_string(),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -4647,6 +4688,9 @@ impl<'a> ::buffa::ViewEncode<'a> for PluginView<'a> {
                 += 1u64
                     + ::buffa::types::string_encoded_len(&self.refused_reason) as u64;
         }
+        if !self.logo_svg.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.logo_svg) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -4686,6 +4730,9 @@ impl<'a> ::buffa::ViewEncode<'a> for PluginView<'a> {
         }
         if !self.refused_reason.is_empty() {
             ::buffa::types::put_string_field(7u32, &self.refused_reason, buf);
+        }
+        if !self.logo_svg.is_empty() {
+            ::buffa::types::put_string_field(8u32, &self.logo_svg, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -4728,6 +4775,9 @@ impl<'__a> ::serde::Serialize for PluginView<'__a> {
         }
         if !::buffa::json_helpers::skip_if::is_empty_str(self.refused_reason) {
             __map.serialize_entry("refusedReason", self.refused_reason)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.logo_svg) {
+            __map.serialize_entry("logoSvg", self.logo_svg)?;
         }
         __map.end()
     }
@@ -4865,6 +4915,14 @@ impl PluginOwnedView {
     #[must_use]
     pub fn refused_reason(&self) -> &'_ str {
         self.0.reborrow().refused_reason
+    }
+    /// Its logo, an SVG document's text, or empty if it has none. Untrusted: show it only as an
+    /// image, such as from a `data:image/svg+xml` URL, never inline in a page.
+    ///
+    /// Field 8: `logo_svg`
+    #[must_use]
+    pub fn logo_svg(&self) -> &'_ str {
+        self.0.reborrow().logo_svg
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<PluginView<'static>>> for PluginOwnedView {

@@ -3,6 +3,7 @@ import { Link, createFileRoute } from "@tanstack/react-router";
 import { PowerOff, TriangleAlert } from "lucide-react";
 
 import { Page } from "@/components/page";
+import { PluginLogo } from "@/components/plugin-logo";
 import { PluginToggle } from "@/components/plugin-toggle";
 import { StateLabel } from "@/components/state-label";
 import { buttonVariants } from "@/components/ui/button";
@@ -25,7 +26,7 @@ function Plugins() {
       <p className="mt-2 max-w-prose text-pretty text-muted-foreground">
         Plugins add to what the Server can do, such as finding Movies and Shows on TMDB.
       </p>
-      {/* Pulled out by the rows' own padding, so the ids line up with the heading. */}
+      {/* Pulled out by the rows' own padding, so the logos line up with the heading. */}
       <ul className="mt-8 -mx-3 flex max-w-2xl flex-col">
         {summaries.map((plugin) => (
           <PluginRow key={plugin.id} plugin={plugin} />
@@ -38,6 +39,7 @@ function Plugins() {
 function PluginRow({ plugin }: { plugin: PluginSummary }) {
   return (
     <li className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b px-3 py-3 last:border-b-0">
+      <PluginLogo plugin={plugin} />
       <div className="me-auto flex min-w-0 flex-col items-start">
         <Link
           to="/admin/plugins/$pluginId"

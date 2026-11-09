@@ -101,6 +101,7 @@ impl Plugin for Tmdb {
             id: Self::ID,
             version: env!("CARGO_PKG_VERSION").to_owned(),
             settings,
+            logo_svg: Some(include_str!("../logo.svg").to_owned()),
         }
     }
 

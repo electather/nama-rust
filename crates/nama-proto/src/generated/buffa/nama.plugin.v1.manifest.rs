@@ -599,6 +599,18 @@ pub struct Manifest {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec"
     )]
     pub providers: ::buffa::alloc::vec::Vec<::buffa::EnumValue<ProvidePoint>>,
+    /// The Plugin's logo: an SVG document's text, not base64, such as "\<svg xmlns=...\>...\</svg\>".
+    /// A Server drops one over 16 KiB or that isn't SVG, logging why, and still loads the Plugin.
+    /// Admins see it as an image on a neutral tile in either colour scheme, so it should read on both.
+    ///
+    /// Field 8: `logo_svg`
+    #[serde(
+        rename = "logoSvg",
+        alias = "logo_svg",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub logo_svg: ::buffa::alloc::string::String,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -613,6 +625,7 @@ impl ::core::fmt::Debug for Manifest {
             .field("allowed_hosts", &self.allowed_hosts)
             .field("observers", &self.observers)
             .field("providers", &self.providers)
+            .field("logo_svg", &self.logo_svg)
             .finish()
     }
 }
@@ -679,6 +692,9 @@ impl ::buffa::Message for Manifest {
                 .sum::<u64>();
             size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
         }
+        if !self.logo_svg.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.logo_svg) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -730,6 +746,9 @@ impl ::buffa::Message for Manifest {
             for v in &self.providers {
                 ::buffa::types::encode_int32(v.to_i32(), buf);
             }
+        }
+        if !self.logo_svg.is_empty() {
+            ::buffa::types::put_string_field(8u32, &self.logo_svg, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -864,6 +883,13 @@ impl ::buffa::Message for Manifest {
                     );
                 }
             }
+            8u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.logo_svg, buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -879,6 +905,7 @@ impl ::buffa::Message for Manifest {
         self.allowed_hosts.clear();
         self.observers.clear();
         self.providers.clear();
+        self.logo_svg.clear();
         self.__buffa_unknown_fields.clear();
     }
 }

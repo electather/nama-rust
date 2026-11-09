@@ -27,6 +27,9 @@ use thiserror::Error;
 use tokio::sync::mpsc;
 use tracing::{error, info, warn};
 
+/// The most a Plugin's logo may take, in bytes, since every list of Plugins carries it inline.
+const MAX_LOGO_BYTES: usize = 16 * 1024;
+
 /// How long a Plugin's settings check may take before it counts as failed.
 pub const SETTINGS_CHECK_TIMEOUT: Duration = Duration::from_secs(10);
 
@@ -65,6 +68,7 @@ struct Described {
     version: String,
     settings_schema: SettingsSchema,
     checks_settings: bool,
+    logo_svg: Option<String>,
 }
 
 struct Enabled {
@@ -110,6 +114,8 @@ pub struct Listed {
     pub checks_settings: bool,
     /// Whether it is enabled now.
     pub enabled: bool,
+    /// Its logo, an SVG document's text, unless it had none or the Server dropped it.
+    pub logo_svg: Option<String>,
 }
 
 /// Why a Plugin wasn't disabled: no other enabled Plugin provides a capability it may provide.
@@ -526,6 +532,7 @@ impl Registry {
                     settings_schema: described.settings_schema.clone(),
                     checks_settings: described.checks_settings,
                     enabled: state.plugins.contains_key(id),
+                    logo_svg: described.logo_svg.clone(),
                 })
                 .collect()
         })
@@ -940,6 +947,29 @@ fn log_not_enabled(id: &PluginId, err: &EnableError) {
     } else {
         error!(plugin = %id, "could not enable plugin: {err}");
     }
+}
+
+/// The Plugin's `logo` if the Server keeps it: at most [`MAX_LOGO_BYTES`] and an SVG document.
+/// Logs why it drops one, which leaves the Plugin without a logo but otherwise as it was.
+fn kept_logo(plugin: &PluginId, logo: String) -> Option<String> {
+    let why = if logo.len() > MAX_LOGO_BYTES {
+        format!("it is over {MAX_LOGO_BYTES} bytes")
+    } else if !is_svg(&logo) {
+        "it isn't SVG".to_owned()
+    } else {
+        return Some(logo);
+    };
+    warn!(plugin = %plugin, "dropped its logo: {why}");
+    None
+}
+
+/// Whether `text` is an XML document whose root is SVG's `<svg>`, as a browser needs to show it
+/// as an `image/svg+xml` image. roxmltree refuses a DTD, so entities can't blow it up.
+fn is_svg(text: &str) -> bool {
+    roxmltree::Document::parse(text).is_ok_and(|document| {
+        let root = document.root_element().tag_name();
+        root.name() == "svg" && root.namespace() == Some("http://www.w3.org/2000/svg")
+    })
 }
 
 pub(crate) fn contain_sync<T>(call: impl FnOnce() -> T) -> Result<T, String> {

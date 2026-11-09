@@ -191,6 +191,7 @@ impl Plugin for Forward {
             id: PluginId::from_static("forward"),
             version: "0.0.0".to_owned(),
             settings: SettingsSchema::default(),
+            logo_svg: None,
         }
     }
 

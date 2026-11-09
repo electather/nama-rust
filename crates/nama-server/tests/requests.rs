@@ -916,6 +916,7 @@ impl Plugin for ShowsFulfillerPlugin {
             id: PluginId::from_static("fake-shows-fulfiller"),
             version: "0.0.0".to_owned(),
             settings: SettingsSchema::default(),
+            logo_svg: None,
         }
     }
 
@@ -933,6 +934,7 @@ impl Plugin for FulfillerPlugin {
             id: PluginId::from_static("fake-fulfiller"),
             version: "0.0.0".to_owned(),
             settings: SettingsSchema::default(),
+            logo_svg: None,
         }
     }
 
@@ -3204,6 +3206,7 @@ impl Plugin for NotifierPlugin {
             id: PluginId::from_static(self.0),
             version: "0.0.0".to_owned(),
             settings: SettingsSchema::default(),
+            logo_svg: None,
         }
     }
 

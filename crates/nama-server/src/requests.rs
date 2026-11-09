@@ -2135,6 +2135,7 @@ mod tests {
                 id: PluginId::from_static("gated"),
                 version: "0.0.0".to_owned(),
                 settings: SettingsSchema::default(),
+                logo_svg: None,
             }
         }
 
