@@ -245,7 +245,8 @@ impl Requests {
 
     /// Asks for the Movie with the TMDB id `tmdb_id` for `asker`, who joins its open Request, or
     /// opens one: Approved, and handed to the Fulfiller for Movies, if `asker` may have Movies
-    /// approved as they ask, else Pending. Publishes what changed, if anything did.
+    /// approved as they ask, else Pending. Such an `asker` joining a Pending Request approves it
+    /// and hands it off the same way. Publishes what changed, if anything did.
     pub(crate) async fn create(&self, asker: &User, tmdb_id: i64) -> Result<Request, Error> {
         // Refuses before asking TMDB, which may be down or slow; `ask` checks again for a scan
         // that Matched the Movie meanwhile.
@@ -269,10 +270,11 @@ impl Requests {
             .db
             .write(move |tx| Box::pin(ask_movie(tx, user, wanted, state)))
             .await?;
-        // Only the asker who opens the Request hands it off, so joining it can't hand it twice.
-        let opened = happened.as_ref().and_then(opened_request_id).is_some();
-        self.events.publish(happened.into_iter().collect());
-        if opened && request.state == RequestState::Approved {
+        // Only the asker who opens or approves the Request hands it off, so joining it can't hand
+        // it twice.
+        let hands_off = happened.iter().any(|event| to_hand_off(event).is_some());
+        self.events.publish(happened);
+        if hands_off && request.state == RequestState::Approved {
             return self.hand_off(request).await;
         }
         Ok(request)
@@ -326,9 +328,9 @@ impl Requests {
                 .db
                 .write(move |tx| Box::pin(ask_seasons(tx, user, wanted, state)))
                 .await?;
-            let opened: HashSet<i64> = happened.iter().filter_map(opened_request_id).collect();
+            let ids: HashSet<i64> = happened.iter().filter_map(to_hand_off).collect();
             this.events.publish(happened);
-            this.hand_off_opened(requests, &opened).await
+            this.hand_off_opened(requests, &ids).await
         })
         .await
     }
@@ -384,7 +386,7 @@ impl Requests {
                 .db
                 .write(move |tx| Box::pin(follow(tx, user, wanted, state)))
                 .await?;
-            let opened: HashSet<i64> = happened.iter().filter_map(opened_request_id).collect();
+            let opened: HashSet<i64> = happened.iter().filter_map(to_hand_off).collect();
             this.events.publish(happened);
             let requests = this.hand_off_opened(requests, &opened).await?;
             Ok((followed, requests))
@@ -1077,24 +1079,24 @@ async fn today(conn: &mut SqliteConnection) -> Result<String, sqlx::Error> {
         .await
 }
 
-/// [`ask`]s for the Movie `wanted`, unless a Library has it.
+/// [`ask_approving`]s for the Movie `wanted`, unless a Library has it.
 async fn ask_movie(
     conn: &mut SqliteConnection,
     user: i64,
     wanted: Wanted,
     state: RequestState,
-) -> Result<(Request, Option<Event>), Error> {
+) -> Result<(Request, Vec<Event>), Error> {
     if contents::library_with_movie(conn, wanted.tmdb_id)
         .await?
         .is_some()
     {
         return Err(Error::InLibrary(wanted.tmdb_id));
     }
-    Ok(ask(conn, user, wanted, state).await?)
+    ask_approving(conn, user, wanted, state).await
 }
 
-/// [`ask`]s for each of the Seasons `show`, unless a Library has any of them. Returns the Requests
-/// in the order of `show.seasons`, and the events for what changed.
+/// [`ask_approving`]s for each of the Seasons `show`, unless a Library has any of them. Returns the
+/// Requests in the order of `show.seasons`, and the events for what changed.
 async fn ask_seasons(
     conn: &mut SqliteConnection,
     user: i64,
@@ -1126,11 +1128,29 @@ async fn ask_seasons(
             show_ids: show_ids.clone(),
             followed_show: None,
         };
-        let (request, event) = ask(conn, user, wanted, state).await?;
+        let (request, events) = ask_approving(conn, user, wanted, state).await?;
         requests.push(request);
-        happened.extend(event);
+        happened.extend(events);
     }
     Ok((requests, happened))
+}
+
+/// [`ask`]s for `wanted`, then approves the open Request `user` joined if it is Pending and `state`
+/// is Approved, since their ask would have opened it Approved.
+async fn ask_approving(
+    conn: &mut SqliteConnection,
+    user: i64,
+    wanted: Wanted,
+    state: RequestState,
+) -> Result<(Request, Vec<Event>), Error> {
+    let (request, happened) = ask(conn, user, wanted, state).await?;
+    let mut happened = Vec::from_iter(happened);
+    if state != RequestState::Approved || request.state != RequestState::Pending {
+        return Ok((request, happened));
+    }
+    let approved = decide(conn, request.id, state, None).await?;
+    happened.push(state_changed(approved.clone()));
+    Ok((approved, happened))
 }
 
 /// How much a Library has of the Season with `episodes`, of which those numbered in `matched` are
@@ -1901,10 +1921,16 @@ async fn detached<T: Send + 'static>(
         .unwrap_or_else(|_| Err(sqlx::Error::WorkerCrashed.into()))
 }
 
-/// The id of the Request `happened` says was opened, if it says that.
-fn opened_request_id(happened: &Event) -> Option<i64> {
+/// The id of the Request an ask opened or approved, if `happened` says that, which that ask hands
+/// off if it is Approved.
+fn to_hand_off(happened: &Event) -> Option<i64> {
     match &happened.event {
         Some(Happened::RequestCreated(created)) => Some(created.request.id),
+        Some(Happened::RequestStateChanged(changed))
+            if changed.request.state == RequestState::Approved =>
+        {
+            Some(changed.request.id)
+        }
         _ => None,
     }
 }

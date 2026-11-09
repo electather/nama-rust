@@ -551,6 +551,7 @@ async fn two_users_asking_for_the_same_movie_share_one_request_with_both_as_requ
     let again = ask(&requests(as_grace.clone()), HEAT).await;
 
     assert_eq!(second.id, first.id);
+    assert_eq!(second.state, RequestState::Pending);
     assert_eq!(requester_ids(&second), [ada, grace]);
     assert_eq!(again, second, "asking twice changes nothing");
     let movie = second.movie.as_option().map(|movie| movie.title.as_str());
@@ -1073,6 +1074,83 @@ async fn a_request_opened_approved_goes_to_the_movie_fulfiller_and_joining_it_do
 }
 
 #[tokio::test]
+async fn a_user_who_may_auto_approve_movies_joining_a_pending_request_approves_it_hands_it_off_and_tells_its_requesters()
+ {
+    let fulfiller = FakeFulfiller::default();
+    let fixture = Fixture::with_fulfiller(&fulfiller).await;
+    let (ada, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let (grace, as_grace) = fixture
+        .user(
+            "Grace",
+            &[Permission::Request, Permission::AutoApproveMovie],
+        )
+        .await;
+    let pending = ask(&requests(as_ada.clone()), HEAT).await;
+    let mut adas_events = subscribe_to_requests(as_ada).await;
+
+    let joined = ask(&requests(as_grace), HEAT).await;
+    let events = [
+        next_event(&mut adas_events).await,
+        next_event(&mut adas_events).await,
+        next_event(&mut adas_events).await,
+    ];
+
+    assert_eq!(joined.id, pending.id);
+    assert_eq!(joined.state, RequestState::Processing);
+    assert_eq!(requester_ids(&joined), [ada, grace]);
+    assert_eq!(fulfiller.handed(), [HEAT]);
+    let [
+        event::Event::RequesterAdded(_),
+        event::Event::RequestStateChanged(approved),
+        event::Event::RequestStateChanged(processing),
+    ] = events
+    else {
+        panic!("not the join, the approval, then the hand-off: {events:?}");
+    };
+    assert_eq!(approved.request.state, RequestState::Approved);
+    assert_eq!(requester_ids(&approved.request), [ada, grace]);
+    assert_eq!(processing.request.as_option(), Some(&joined));
+}
+
+#[tokio::test]
+async fn a_user_who_may_auto_approve_joining_an_approved_request_leaves_it_approved() {
+    let fixture = Fixture::start().await;
+    let may_auto_approve = [Permission::Request, Permission::AutoApproveMovie];
+    let (_, as_ada) = fixture.user("Ada", &may_auto_approve).await;
+    let (_, as_grace) = fixture.user("Grace", &may_auto_approve).await;
+    let approved = ask(&requests(as_ada.clone()), HEAT).await;
+    let mut adas_events = subscribe_to_requests(as_ada).await;
+
+    let joined = ask(&requests(as_grace), HEAT).await;
+    let added = next_event(&mut adas_events).await;
+
+    assert_eq!(approved.state, RequestState::Approved);
+    assert_eq!(joined.state, RequestState::Approved);
+    let event::Event::RequesterAdded(added) = added else {
+        panic!("not the join: {added:?}");
+    };
+    assert_eq!(added.request.as_option(), Some(&joined));
+}
+
+#[tokio::test]
+async fn a_user_who_may_auto_approve_joining_a_failed_request_leaves_it_failed_and_does_not_hand_it_off_again()
+ {
+    let fulfiller = FakeFulfiller::refusing();
+    let fixture = Fixture::with_fulfiller(&fulfiller).await;
+    let may_auto_approve = [Permission::Request, Permission::AutoApproveMovie];
+    let (_, as_ada) = fixture.user("Ada", &may_auto_approve).await;
+    let (_, as_grace) = fixture.user("Grace", &may_auto_approve).await;
+    let failed = ask(&requests(as_ada), HEAT).await;
+    fulfiller.recover();
+
+    let joined = ask(&requests(as_grace), HEAT).await;
+
+    assert_eq!(failed.state, RequestState::Failed);
+    assert_eq!(joined.state, RequestState::Failed);
+    assert_eq!(fulfiller.handed(), [HEAT]);
+}
+
+#[tokio::test]
 async fn a_request_the_movie_fulfiller_refuses_fails_with_its_reason_and_the_member_sees_it_live() {
     let fulfiller = FakeFulfiller::refusing();
     let fixture = Fixture::with_fulfiller(&fulfiller).await;
@@ -1356,6 +1434,27 @@ async fn a_season_request_opened_approved_goes_to_the_shows_fulfiller() {
     assert_eq!(
         fixture.fulfiller_reference(opened[1].id).await.as_deref(),
         Some("show-70523-season-3")
+    );
+}
+
+#[tokio::test]
+async fn a_user_who_may_auto_approve_tv_joining_a_pending_season_request_approves_it_and_hands_it_off()
+ {
+    let fulfiller = FakeFulfiller::default();
+    let fixture = Fixture::with_shows_fulfiller(&fulfiller).await;
+    let (ada, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let (grace, as_grace) = fixture
+        .user("Grace", &[Permission::RequestTv, Permission::AutoApproveTv])
+        .await;
+    let pending = ask_seasons(&requests(as_ada), DARK, &[2]).await;
+
+    let joined = ask_seasons(&requests(as_grace), DARK, &[2]).await;
+
+    assert_eq!(states(&joined), [(pending[0].id, RequestState::Processing)]);
+    assert_eq!(requester_ids(&joined[0]), [ada, grace]);
+    assert_eq!(
+        fulfiller.handed_seasons(),
+        [(DARK, Some(DARK_TVDB), 2, false)]
     );
 }
 
@@ -2864,6 +2963,23 @@ async fn a_second_user_asking_for_a_whole_show_joins_its_followed_show_and_shows
         look_up_dark(as_grace).await.followed_show.as_option(),
         Some(&joined)
     );
+}
+
+#[tokio::test]
+async fn following_an_approved_followed_show_without_auto_approve_leaves_someone_elses_pending_season_request_pending()
+ {
+    let fixture = Fixture::start().await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let (_, as_bob) = fixture.user("Bob", &NEW_USER).await;
+    let (_, as_grace) = fixture.user("Grace", &NEW_USER).await;
+    let season_2 = ask_seasons(&requests(as_ada), DARK, &[2]).await;
+    let (followed, _) = follow(&requests(as_bob), DARK).await;
+    approve_followed(&fixture, followed.id).await.unwrap();
+
+    let (_, asked) = follow(&requests(as_grace), DARK).await;
+
+    let joined = asked.iter().find(|r| r.id == season_2[0].id);
+    assert_eq!(joined.map(|r| r.state), Some(RequestState::Pending.into()));
 }
 
 #[tokio::test]
