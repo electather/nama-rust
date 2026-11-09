@@ -15,6 +15,8 @@ pub(crate) struct MovieResult {
     original_title: Option<String>,
     release_date: Option<String>,
     poster_path: Option<String>,
+    #[serde(default)]
+    vote_count: u32,
 }
 
 impl From<MovieResult> for Candidate {
@@ -26,6 +28,7 @@ impl From<MovieResult> for Candidate {
             original_title: present(movie.original_title),
             poster: present(movie.poster_path),
             origin_country: Vec::new(),
+            vote_count: movie.vote_count,
         }
     }
 }
@@ -39,6 +42,8 @@ pub(crate) struct ShowResult {
     poster_path: Option<String>,
     #[serde(default)]
     origin_country: Vec<String>,
+    #[serde(default)]
+    vote_count: u32,
 }
 
 impl From<ShowResult> for Candidate {
@@ -50,6 +55,7 @@ impl From<ShowResult> for Candidate {
             original_title: present(show.original_name),
             poster: present(show.poster_path),
             origin_country: show.origin_country,
+            vote_count: show.vote_count,
         }
     }
 }

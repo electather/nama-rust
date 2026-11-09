@@ -113,6 +113,8 @@ pub struct Candidate {
     /// The ISO 3166-1 alpha-2 codes of the countries a Show comes from. Empty where unknown, as
     /// for Movies.
     pub origin_country: Vec<String>,
+    /// How many people rated it, a measure of how well known it is.
+    pub vote_count: u32,
 }
 
 /// A Movie's details.
