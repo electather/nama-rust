@@ -686,7 +686,7 @@ mod tests {
 
     use super::{ManualError, Matcher, Summary};
     use crate::{
-        contents::{Contents, FileItem, Item, Recorded},
+        contents::{Contents, Decided, FileItem, Item, Recorded},
         db::Database,
         events::{EventBus, Filter, event},
         libraries::{Kind, Libraries},
@@ -1082,6 +1082,27 @@ mod tests {
                 matched(2_316_001, "Pilot"),
             ]
         );
+    }
+
+    #[tokio::test]
+    async fn a_show_left_unmatched_by_the_parser_before_country_tags_matches_once_rescanned() {
+        let media = Fixture::without_tmdb().await;
+        let shows = &media.shows;
+        let pilot = "Euphoria (US)/Season 01/Euphoria (US) - S01E01.mkv";
+        shows.write(pilot);
+        media.scan(shows).await;
+        let item = media.item(shows, pilot).await;
+        media
+            .contents
+            .record(vec![(item, Decided::Unmatched)])
+            .await
+            .unwrap();
+        media.contents.read_by_older_parser(shows.id).await;
+        media.enable_tmdb();
+
+        media.scan(shows).await;
+
+        assert_eq!(media.outcomes(shows).await, [matched(1_734_395, "Pilot")]);
     }
 
     #[tokio::test]
