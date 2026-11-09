@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "INSERT INTO library_items (file_id, kind, title, year, tmdb_id, season, episode)\n               VALUES (?, ?, ?, ?, ?, ?, ?)\n               RETURNING id AS \"id!\"",
+  "query": "INSERT INTO library_items (file_id, kind, title, year, hint, season, episode)\n               VALUES (?, ?, ?, ?, ?, ?, ?)\n               RETURNING id AS \"id!\"",
   "describe": {
     "columns": [
       {
@@ -22,5 +22,5 @@
       null
     ]
   },
-  "hash": "29b56083402e7d6e041b8843678137853aa0d7a002a431649d130d0bd40d96ea"
+  "hash": "93a56eefa8682429358f52dbdda2d26e7a1d3d4458d79addc30894ab7a4b059d"
 }

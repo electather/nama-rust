@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT library_items.id AS \"id!\", library_items.kind AS \"kind: ItemKind\",\n                      library_items.title, library_items.year, library_items.tmdb_id,\n                      library_items.season, library_items.episode,\n                      match_pins.pinned_at IS NOT NULL AS \"pinned!: bool\",\n                      match_pins.pinned_tmdb_id, match_pins.pinned_imdb_id,\n                      match_pins.pinned_tvdb_id\n               FROM library_items\n               JOIN library_files ON library_files.id = library_items.file_id\n               LEFT JOIN match_pins ON match_pins.library_id = library_files.library_id\n                                   AND match_pins.kind = library_items.kind\n                                   AND match_pins.title = library_items.title\n                                   AND match_pins.year IS library_items.year\n                                   AND match_pins.tmdb_id IS library_items.tmdb_id\n               WHERE library_files.library_id = ?\n                 AND NOT EXISTS (SELECT 1 FROM item_matches\n                                 WHERE item_matches.item_id = library_items.id)\n               ORDER BY library_items.id",
+  "query": "SELECT library_items.id AS \"id!\", library_items.kind AS \"kind: ItemKind\",\n                      library_items.title, library_items.year, library_items.hint,\n                      library_items.season, library_items.episode,\n                      match_pins.pinned_at IS NOT NULL AS \"pinned!: bool\",\n                      match_pins.pinned_tmdb_id, match_pins.pinned_imdb_id,\n                      match_pins.pinned_tvdb_id\n               FROM library_items\n               JOIN library_files ON library_files.id = library_items.file_id\n               LEFT JOIN match_pins ON match_pins.library_id = library_files.library_id\n                                   AND match_pins.kind = library_items.kind\n                                   AND match_pins.title = library_items.title\n                                   AND match_pins.year IS library_items.year\n                                   AND match_pins.hint IS library_items.hint\n               WHERE library_files.library_id = ?\n                 AND NOT EXISTS (SELECT 1 FROM item_matches\n                                 WHERE item_matches.item_id = library_items.id)\n               ORDER BY library_items.id",
   "describe": {
     "columns": [
       {
@@ -48,13 +48,13 @@
         }
       },
       {
-        "name": "tmdb_id",
+        "name": "hint",
         "ordinal": 4,
-        "type_info": "Integer",
+        "type_info": "Text",
         "origin": {
           "Table": {
             "table": "library_items",
-            "name": "tmdb_id"
+            "name": "hint"
           }
         }
       },
@@ -137,5 +137,5 @@
       true
     ]
   },
-  "hash": "7660222ed11c71ef535fb03456db879080dc85d3ea214c622a1c4b3b72d5a37f"
+  "hash": "1320cf07957e1a399686cc72bf6494596ccd5c808257bec2f9973cf7316a0d48"
 }

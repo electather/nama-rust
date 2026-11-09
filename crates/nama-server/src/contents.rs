@@ -40,8 +40,8 @@ pub enum Item {
         title: String,
         /// The release year.
         year: Option<i64>,
-        /// The Movie's TMDB id, from an ID hint.
-        tmdb_id: Option<i64>,
+        /// The Movie's id, from an ID Hint.
+        hint: Option<ExternalId>,
     },
     /// One Episode of a Show.
     Episode {
@@ -49,8 +49,8 @@ pub enum Item {
         show: String,
         /// The year the Show first aired.
         year: Option<i64>,
-        /// The Show's TMDB id, from an ID hint on its folder.
-        tmdb_id: Option<i64>,
+        /// The Show's id, from an ID Hint on its folder.
+        hint: Option<ExternalId>,
         /// The Season number; 0 holds specials.
         season: i64,
         /// The Episode number within the Season.
@@ -65,8 +65,7 @@ pub(crate) struct Name {
     kind: ItemKind,
     pub(crate) title: String,
     pub(crate) year: Option<i64>,
-    /// From an ID hint.
-    pub(crate) tmdb_id: Option<i64>,
+    pub(crate) hint: Option<ExternalId>,
 }
 
 /// A Match an admin set or cleared by hand, which Matching follows instead of searching.
@@ -310,7 +309,7 @@ impl Contents {
     ) -> Result<Vec<(i64, Item, Option<Pin>)>, sqlx::Error> {
         let rows = sqlx::query!(
             r#"SELECT library_items.id AS "id!", library_items.kind AS "kind: ItemKind",
-                      library_items.title, library_items.year, library_items.tmdb_id,
+                      library_items.title, library_items.year, library_items.hint,
                       library_items.season, library_items.episode,
                       match_pins.pinned_at IS NOT NULL AS "pinned!: bool",
                       match_pins.pinned_tmdb_id, match_pins.pinned_imdb_id,
@@ -321,7 +320,7 @@ impl Contents {
                                    AND match_pins.kind = library_items.kind
                                    AND match_pins.title = library_items.title
                                    AND match_pins.year IS library_items.year
-                                   AND match_pins.tmdb_id IS library_items.tmdb_id
+                                   AND match_pins.hint IS library_items.hint
                WHERE library_files.library_id = ?
                  AND NOT EXISTS (SELECT 1 FROM item_matches
                                  WHERE item_matches.item_id = library_items.id)
@@ -342,7 +341,7 @@ impl Contents {
                     kind: row.kind,
                     title: Cow::Owned(row.title),
                     year: row.year,
-                    tmdb_id: row.tmdb_id,
+                    hint: row.hint,
                     season: row.season,
                     episode: row.episode,
                 }
@@ -456,7 +455,7 @@ impl Contents {
     pub(crate) async fn named_like(&self, item: i64) -> Result<Option<Named>, sqlx::Error> {
         let rows = sqlx::query!(
             r#"SELECT files.library_id, named.id AS "id!", named.kind AS "kind: ItemKind",
-                      named.title, named.year, named.tmdb_id, named.season, named.episode
+                      named.title, named.year, named.hint, named.season, named.episode
                FROM library_items AS this
                JOIN library_files AS this_file ON this_file.id = this.file_id
                JOIN library_files AS files ON files.library_id = this_file.library_id
@@ -465,7 +464,7 @@ impl Contents {
                  AND named.kind = this.kind
                  AND named.title = this.title
                  AND named.year IS this.year
-                 AND named.tmdb_id IS this.tmdb_id
+                 AND named.hint IS this.hint
                ORDER BY named.id"#,
             item
         )
@@ -481,7 +480,7 @@ impl Contents {
                     kind: row.kind,
                     title: Cow::Owned(row.title),
                     year: row.year,
-                    tmdb_id: row.tmdb_id,
+                    hint: row.hint,
                     season: row.season,
                     episode: row.episode,
                 }
@@ -505,7 +504,7 @@ impl Contents {
         let rows = sqlx::query!(
             r#"SELECT library_items.id AS "id!", library_files.path,
                       library_items.kind AS "kind: ItemKind", library_items.title,
-                      library_items.year, library_items.tmdb_id, library_items.season,
+                      library_items.year, library_items.hint, library_items.season,
                       library_items.episode
                FROM library_items
                JOIN library_files ON library_files.id = library_items.file_id
@@ -517,7 +516,7 @@ impl Contents {
                                    AND match_pins.kind = library_items.kind
                                    AND match_pins.title = library_items.title
                                    AND match_pins.year IS library_items.year
-                                   AND match_pins.tmdb_id IS library_items.tmdb_id
+                                   AND match_pins.hint IS library_items.hint
                                    AND match_pins.pinned_tmdb_id IS NULL
                                    AND match_pins.pinned_imdb_id IS NULL
                                    AND match_pins.pinned_tvdb_id IS NULL)
@@ -533,7 +532,7 @@ impl Contents {
                     kind: row.kind,
                     title: Cow::Owned(row.title),
                     year: row.year,
-                    tmdb_id: row.tmdb_id,
+                    hint: row.hint,
                     season: row.season,
                     episode: row.episode,
                 }
@@ -714,12 +713,13 @@ impl Contents {
 
 impl Item {
     pub(crate) fn name(&self) -> Name {
+        let (Self::Movie { hint, .. } | Self::Episode { hint, .. }) = self;
         let row = ItemRow::from(self);
         Name {
             kind: row.kind,
             title: row.title.into_owned(),
             year: row.year,
-            tmdb_id: row.tmdb_id,
+            hint: hint.clone(),
         }
     }
 }
@@ -807,6 +807,16 @@ fn primary_id(ids: ExternalIds) -> Option<ExternalId> {
         .or_else(|| ids.tvdb.map(ExternalId::Tvdb))
 }
 
+/// The ID Hint stored as `text`, which is how [`ExternalId`] displays.
+fn parse_hint(text: &str) -> Option<ExternalId> {
+    match text.split_once('-')? {
+        ("tmdb", id) => id.parse().ok().map(ExternalId::Tmdb),
+        ("tvdb", id) => id.parse().ok().map(ExternalId::Tvdb),
+        ("imdb", id) => Some(ExternalId::Imdb(id.to_owned())),
+        _ => None,
+    }
+}
+
 async fn apply(
     conn: &mut SqliteConnection,
     library: i64,
@@ -877,7 +887,7 @@ async fn reparse(
     .execute(&mut *conn)
     .await?;
     let mut stored = sqlx::query!(
-        r#"SELECT id AS "id!", kind AS "kind: ItemKind", title, year, tmdb_id, season, episode
+        r#"SELECT id AS "id!", kind AS "kind: ItemKind", title, year, hint, season, episode
            FROM library_items WHERE file_id = ? ORDER BY id"#,
         file
     )
@@ -893,13 +903,15 @@ async fn reparse(
             unpaired.push(item.clone());
             continue;
         };
-        let old_name = Name {
+        let old_row = ItemRow {
             kind: old.kind,
-            title: old.title,
+            title: Cow::Owned(old.title),
             year: old.year,
-            tmdb_id: old.tmdb_id,
+            hint: old.hint,
+            season: old.season,
+            episode: old.episode,
         };
-        rename_item(conn, library, old.id, &old_name, &new).await?;
+        rename_item(conn, library, old.id, &old_row, &new).await?;
     }
     let mut events = Vec::new();
     for gone in stored {
@@ -930,17 +942,17 @@ async fn rename_item(
     conn: &mut SqliteConnection,
     library: i64,
     id: i64,
-    old: &Name,
+    old: &ItemRow<'_>,
     new: &ItemRow<'_>,
 ) -> Result<(), sqlx::Error> {
     sqlx::query!(
-        "UPDATE library_items SET kind = ?, title = ?, year = ?, tmdb_id = ?, season = ?,
+        "UPDATE library_items SET kind = ?, title = ?, year = ?, hint = ?, season = ?,
                                   episode = ?
          WHERE id = ?",
         new.kind,
         new.title,
         new.year,
-        new.tmdb_id,
+        new.hint,
         new.season,
         new.episode,
         id,
@@ -951,20 +963,20 @@ async fn rename_item(
     // still named the old way; a name that is already pinned keeps its own pin.
     sqlx::query!(
         "INSERT OR IGNORE INTO match_pins (
-             library_id, kind, title, year, tmdb_id,
+             library_id, kind, title, year, hint,
              pinned_tmdb_id, pinned_imdb_id, pinned_tvdb_id, pinned_at)
          SELECT library_id, kind, ?, ?, ?,
                 pinned_tmdb_id, pinned_imdb_id, pinned_tvdb_id, pinned_at
          FROM match_pins
-         WHERE library_id = ? AND kind = ? AND title = ? AND year IS ? AND tmdb_id IS ?",
+         WHERE library_id = ? AND kind = ? AND title = ? AND year IS ? AND hint IS ?",
         new.title,
         new.year,
-        new.tmdb_id,
+        new.hint,
         library,
         old.kind,
         old.title,
         old.year,
-        old.tmdb_id,
+        old.hint,
     )
     .execute(conn)
     .await?;
@@ -1006,14 +1018,14 @@ async fn insert_items(
     for item in items {
         let row = ItemRow::from(item);
         let id = sqlx::query_scalar!(
-            r#"INSERT INTO library_items (file_id, kind, title, year, tmdb_id, season, episode)
+            r#"INSERT INTO library_items (file_id, kind, title, year, hint, season, episode)
                VALUES (?, ?, ?, ?, ?, ?, ?)
                RETURNING id AS "id!""#,
             file,
             row.kind,
             row.title,
             row.year,
-            row.tmdb_id,
+            row.hint,
             row.season,
             row.episode,
         )
@@ -1047,9 +1059,10 @@ async fn insert_pin(
     now: i64,
 ) -> Result<bool, sqlx::Error> {
     let pinned = pin.columns();
+    let hint = name.hint.as_ref().map(ExternalId::to_string);
     let inserted = sqlx::query!(
         "INSERT OR REPLACE INTO match_pins (
-             library_id, kind, title, year, tmdb_id,
+             library_id, kind, title, year, hint,
              pinned_tmdb_id, pinned_imdb_id, pinned_tvdb_id, pinned_at)
          SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?
          WHERE EXISTS (SELECT 1 FROM libraries WHERE id = ?)",
@@ -1057,7 +1070,7 @@ async fn insert_pin(
         name.kind,
         name.title,
         name.year,
-        name.tmdb_id,
+        hint,
         pinned.tmdb,
         pinned.imdb,
         pinned.tvdb,
@@ -1129,7 +1142,8 @@ struct ItemRow<'a> {
     kind: ItemKind,
     title: Cow<'a, str>,
     year: Option<i64>,
-    tmdb_id: Option<i64>,
+    /// An [`ExternalId`] as it displays, such as `tvdb-433631`.
+    hint: Option<String>,
     season: Option<i64>,
     episode: Option<i64>,
 }
@@ -1142,20 +1156,21 @@ impl ItemRow<'_> {
             kind,
             title,
             year,
-            tmdb_id,
+            hint,
             season,
             episode,
         } = self;
+        let hint = hint.as_deref().and_then(parse_hint);
         Some(match kind {
             ItemKind::Movie => Item::Movie {
                 title: title.into_owned(),
                 year,
-                tmdb_id,
+                hint,
             },
             ItemKind::Episode => Item::Episode {
                 show: title.into_owned(),
                 year,
-                tmdb_id,
+                hint,
                 season: season?,
                 episode: episode?,
             },
@@ -1169,26 +1184,26 @@ impl<'a> From<&'a Item> for ItemRow<'a> {
             Item::Movie {
                 ref title,
                 year,
-                tmdb_id,
+                ref hint,
             } => Self {
                 kind: ItemKind::Movie,
                 title: Cow::Borrowed(title),
                 year,
-                tmdb_id,
+                hint: hint.as_ref().map(ExternalId::to_string),
                 season: None,
                 episode: None,
             },
             Item::Episode {
                 ref show,
                 year,
-                tmdb_id,
+                ref hint,
                 season,
                 episode,
             } => Self {
                 kind: ItemKind::Episode,
                 title: Cow::Borrowed(show),
                 year,
-                tmdb_id,
+                hint: hint.as_ref().map(ExternalId::to_string),
                 season: Some(season),
                 episode: Some(episode),
             },
@@ -1312,7 +1327,7 @@ impl Contents {
             r#"SELECT library_files.path, library_files.size,
                       library_items.id AS "item?", library_items.kind AS "kind?: ItemKind",
                       library_items.title AS "item_title?", library_items.year,
-                      library_items.tmdb_id AS "hint", library_items.season,
+                      library_items.hint, library_items.season,
                       library_items.episode,
                       item_matches.state AS "state?: MatchState", item_matches.plugin,
                       item_matches.tmdb_id, item_matches.imdb_id, item_matches.tvdb_id,
@@ -1344,7 +1359,7 @@ impl Contents {
                 kind,
                 title: Cow::Owned(title),
                 year: row.year,
-                tmdb_id: row.hint,
+                hint: row.hint,
                 season: row.season,
                 episode: row.episode,
             }
@@ -1488,7 +1503,7 @@ mod tests {
         Item::Movie {
             title: title.to_owned(),
             year: Some(year),
-            tmdb_id: None,
+            hint: None,
         }
     }
 
@@ -1606,23 +1621,24 @@ mod tests {
     async fn a_pin_still_applies_after_a_reparse_gives_its_items_a_new_name() {
         let fx = Fixture::new().await;
         let heat = "/media/Heat (1995) {tmdb-949}/Heat (1995).mkv";
-        let dark = "/media/Dark (2017) {tmdb-70523}/Season 01/Dark (2017) - S01E01.mkv";
-        let dark_pilot = |tmdb_id| Item::Episode {
-            show: "Dark".to_owned(),
-            year: Some(2017),
-            tmdb_id,
+        let knight = "/media/A Knight of the Seven Kingdoms (2026) [tvdbid-433631]/Season 01/\
+                      A Knight of the Seven Kingdoms - S01E01.mkv";
+        let knight_pilot = |hint| Item::Episode {
+            show: "A Knight of the Seven Kingdoms".to_owned(),
+            year: Some(2026),
+            hint,
             season: 1,
             episode: 1,
         };
         fx.store(ALIEN, 10, movie("Alien", 1979)).await;
         fx.store(heat, 10, movie("Heat", 1995)).await;
-        fx.store(dark, 10, dark_pilot(None)).await;
+        fx.store(knight, 10, knight_pilot(None)).await;
         let (alien_item, heat_item) = (fx.item(ALIEN).await, fx.item(heat).await);
-        let dark_item = fx.item(dark).await;
+        let knight_item = fx.item(knight).await;
         let pins = [
             (alien_item, Pin::Title(ExternalId::Tmdb(348))),
             (heat_item, Pin::Unmatched),
-            (dark_item, Pin::Title(ExternalId::Tmdb(70523))),
+            (knight_item, Pin::Title(ExternalId::Tmdb(224_372))),
         ];
         for (item, pin) in pins.clone() {
             let named = fx.contents.named_like(item).await.unwrap().unwrap();
@@ -1633,11 +1649,11 @@ mod tests {
                 .unwrap();
         }
 
-        // A newer parser reads an ID Hint the old one missed.
-        let hinted = |title: &str, year, tmdb_id| Item::Movie {
+        // A newer parser reads ID Hints the old one missed.
+        let hinted = |title: &str, year, hint| Item::Movie {
             title: title.to_owned(),
             year: Some(year),
-            tmdb_id: Some(tmdb_id),
+            hint: Some(hint),
         };
         let stored = fx.contents.stored(fx.library).await.unwrap();
         let reparse = |path: &str, item| Change::Reparse {
@@ -1646,9 +1662,12 @@ mod tests {
             items: vec![item],
         };
         let changes = vec![
-            reparse(ALIEN, hinted("Alien", 1979, 348)),
-            reparse(heat, hinted("Heat", 1995, 949)),
-            reparse(dark, dark_pilot(Some(70523))),
+            reparse(
+                ALIEN,
+                hinted("Alien", 1979, ExternalId::Imdb("tt0078748".to_owned())),
+            ),
+            reparse(heat, hinted("Heat", 1995, ExternalId::Tmdb(949))),
+            reparse(knight, knight_pilot(Some(ExternalId::Tvdb(433_631)))),
         ];
         fx.contents.apply(fx.library, changes).await.unwrap();
 
@@ -1656,14 +1675,34 @@ mod tests {
         assert_eq!(
             undecided
                 .into_iter()
-                .map(|(id, item, pin)| (id, item.name().tmdb_id, pin))
+                .map(|(id, item, pin)| (id, item.name().hint, pin))
                 .collect::<Vec<_>>(),
             [
-                (alien_item, Some(348), Some(pins[0].1.clone())),
-                (heat_item, Some(949), Some(Pin::Unmatched)),
-                (dark_item, Some(70523), Some(pins[2].1.clone())),
+                (
+                    alien_item,
+                    Some(ExternalId::Imdb("tt0078748".to_owned())),
+                    Some(pins[0].1.clone())
+                ),
+                (heat_item, Some(ExternalId::Tmdb(949)), Some(Pin::Unmatched)),
+                (
+                    knight_item,
+                    Some(ExternalId::Tvdb(433_631)),
+                    Some(pins[2].1.clone())
+                ),
             ]
         );
+    }
+
+    #[test]
+    fn a_stored_id_hint_reads_back_as_the_id_it_was() {
+        let hints = [
+            ExternalId::Tmdb(78),
+            ExternalId::Tvdb(433_631),
+            ExternalId::Imdb("tt0083658".to_owned()),
+        ];
+        for hint in hints {
+            assert_eq!(super::parse_hint(&hint.to_string()), Some(hint));
+        }
     }
 
     #[tokio::test]
@@ -1706,7 +1745,7 @@ mod tests {
         let episode = |number| Item::Episode {
             show: "Dark".to_owned(),
             year: Some(2017),
-            tmdb_id: None,
+            hint: None,
             season: 1,
             episode: number,
         };

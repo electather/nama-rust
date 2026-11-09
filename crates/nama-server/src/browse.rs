@@ -323,7 +323,7 @@ mod tests {
             items: vec![Item::Movie {
                 title: "Alien".to_owned(),
                 year: Some(1979),
-                tmdb_id: None,
+                hint: None,
             }],
         };
         contents.apply(library, vec![file]).await.unwrap();
