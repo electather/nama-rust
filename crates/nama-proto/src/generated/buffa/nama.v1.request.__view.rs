@@ -63,9 +63,18 @@ pub struct RequestView<'a> {
     pub quality: ::buffa::MessageFieldView<
         super::super::__buffa::view::RequestedQualityView<'a>,
     >,
+    /// The Quality its service is downloading it at, as the hand-off reported it, which differs from
+    /// `quality` when the service already had the title and kept its own profile. Unset until it is
+    /// handed off, if it has no `quality`, or if the Fulfiller didn't say. With no Quality on the
+    /// list for that profile, `id` is 0 and `name` is the service's own: set in the service.
+    ///
+    /// Field 12: `quality_used`
+    pub quality_used: ::buffa::MessageFieldView<
+        super::super::__buffa::view::RequestedQualityView<'a>,
+    >,
     /// The latest change a Request manager made to its Quality, if any. Only the latest is kept.
     ///
-    /// Field 12: `quality_change`
+    /// Field 13: `quality_change`
     pub quality_change: ::buffa::MessageFieldView<
         super::super::__buffa::view::QualityChangeView<'a>,
     >,
@@ -215,6 +224,27 @@ impl<'a> ::buffa::MessageView<'a> for RequestView<'a> {
                 )?;
                 let __sub_ctx = ctx.descend()?;
                 let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                match view.quality_used.as_mut() {
+                    Some(existing) => {
+                        ::buffa::MessageView::merge_into_view(existing, sub, __sub_ctx)?
+                    }
+                    None => {
+                        view.quality_used = ::buffa::MessageFieldView::set(
+                            <super::super::__buffa::view::RequestedQualityView as ::buffa::MessageView>::decode_view_ctx(
+                                sub,
+                                __sub_ctx,
+                            )?,
+                        );
+                    }
+                }
+            }
+            13u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
                 match view.quality_change.as_mut() {
                     Some(existing) => {
                         ::buffa::MessageView::merge_into_view(existing, sub, __sub_ctx)?
@@ -330,6 +360,15 @@ impl<'a> ::buffa::MessageView<'a> for RequestView<'a> {
                 }
                 None => ::buffa::MessageField::none(),
             },
+            quality_used: match self.quality_used.as_option() {
+                Some(v) => {
+                    ::buffa::MessageField::<
+                        super::super::RequestedQuality,
+                        ::buffa::Inline<super::super::RequestedQuality>,
+                    >::some(v.to_owned_from_source(__buffa_src)?)
+                }
+                None => ::buffa::MessageField::none(),
+            },
             quality_change: match self.quality_change.as_option() {
                 Some(v) => {
                     ::buffa::MessageField::<
@@ -406,6 +445,14 @@ impl<'a> ::buffa::ViewEncode<'a> for RequestView<'a> {
         if self.quality.is_set() {
             let __slot = __cache.reserve();
             let inner_size = self.quality.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        if self.quality_used.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.quality_used.compute_size(__cache);
             __cache.set(__slot, inner_size);
             size
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
@@ -491,9 +538,17 @@ impl<'a> ::buffa::ViewEncode<'a> for RequestView<'a> {
             );
             self.quality.write_to(__cache, buf);
         }
-        if self.quality_change.is_set() {
+        if self.quality_used.is_set() {
             ::buffa::types::put_len_delimited_header(
                 12u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.quality_used.write_to(__cache, buf);
+        }
+        if self.quality_change.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                13u32,
                 u64::from(__cache.consume_next()),
                 buf,
             );
@@ -565,6 +620,11 @@ impl<'__a> ::serde::Serialize for RequestView<'__a> {
         {
             if let ::core::option::Option::Some(__v) = self.quality.as_option() {
                 __map.serialize_entry("quality", __v)?;
+            }
+        }
+        {
+            if let ::core::option::Option::Some(__v) = self.quality_used.as_option() {
+                __map.serialize_entry("qualityUsed", __v)?;
             }
         }
         {
@@ -756,9 +816,23 @@ impl RequestOwnedView {
     > {
         &self.0.reborrow().quality
     }
+    /// The Quality its service is downloading it at, as the hand-off reported it, which differs from
+    /// `quality` when the service already had the title and kept its own profile. Unset until it is
+    /// handed off, if it has no `quality`, or if the Fulfiller didn't say. With no Quality on the
+    /// list for that profile, `id` is 0 and `name` is the service's own: set in the service.
+    ///
+    /// Field 12: `quality_used`
+    #[must_use]
+    pub fn quality_used(
+        &self,
+    ) -> &::buffa::MessageFieldView<
+        super::super::__buffa::view::RequestedQualityView<'_>,
+    > {
+        &self.0.reborrow().quality_used
+    }
     /// The latest change a Request manager made to its Quality, if any. Only the latest is kept.
     ///
-    /// Field 12: `quality_change`
+    /// Field 13: `quality_change`
     #[must_use]
     pub fn quality_change(
         &self,

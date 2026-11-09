@@ -37,6 +37,8 @@ struct Fake {
     existing: Vec<i64>,
     /// The TMDB ids it can't find.
     not_found: Vec<i64>,
+    /// The ids of the quality profiles removed from it, as when an Admin deletes one in Radarr.
+    removed_profiles: Mutex<Vec<i64>>,
     /// The body of each request that added a Movie, in order.
     added: Mutex<Vec<Value>>,
     /// The fixture its queue answers with.
@@ -60,6 +62,7 @@ impl FakeRadarr {
                 refuses_key: AtomicBool::default(),
                 existing: existing.to_vec(),
                 not_found: not_found.to_vec(),
+                removed_profiles: Mutex::default(),
                 added: Mutex::default(),
                 queue: Mutex::new("queue-empty.json"),
                 queue_calls: AtomicUsize::default(),
@@ -100,6 +103,15 @@ impl FakeRadarr {
     /// Refuses every API key from now on, as when an Admin makes Radarr a new one.
     pub(crate) fn refuse_key(&self) {
         self.state.refuses_key.store(true, Ordering::Relaxed);
+    }
+
+    /// Stops offering the quality profile `id`, as when an Admin deletes it in Radarr.
+    pub(crate) fn remove_profile(&self, id: i64) {
+        self.state
+            .removed_profiles
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push(id);
     }
 
     /// Makes its queue answer with the fixture `file`, such as `queue.json`.
@@ -146,11 +158,42 @@ async fn answer(
         return StatusCode::UNAUTHORIZED.into_response();
     }
     match (method, uri.path()) {
-        (Method::GET, "/api/v3/qualityprofile") => fixture(StatusCode::OK, "qualityprofile.json"),
+        (Method::GET, "/api/v3/qualityprofile") => quality_profiles(&fake),
         (Method::GET, "/api/v3/rootfolder") => fixture(StatusCode::OK, "rootfolder.json"),
+        (Method::GET, "/api/v3/movie") => movie(&fake, &uri),
         (Method::POST, "/api/v3/movie") => add_movie(&fake, &body),
         (Method::GET, "/api/v3/queue") => queue(&fake, &uri),
         _ => StatusCode::NOT_FOUND.into_response(),
+    }
+}
+
+/// Its quality profiles, but those removed.
+fn quality_profiles(fake: &Fake) -> Response {
+    let removed = fake
+        .removed_profiles
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .clone();
+    let mut profiles = fixture_json("qualityprofile.json");
+    if let Value::Array(profiles) = &mut profiles {
+        profiles.retain(|profile| {
+            profile["id"]
+                .as_i64()
+                .is_none_or(|id| !removed.contains(&id))
+        });
+    }
+    json(&profiles)
+}
+
+/// The Movie with the TMDB id `?tmdbId=` names, if it has it: only Alien has a fixture.
+fn movie(fake: &Fake, uri: &Uri) -> Response {
+    let tmdb_id = uri
+        .query()
+        .and_then(|query| query.strip_prefix("tmdbId="))
+        .and_then(|id| id.parse::<i64>().ok());
+    match tmdb_id {
+        Some(id) if fake.existing.contains(&id) => fixture(StatusCode::OK, "movie-alien.json"),
+        _ => json(&Value::Array(Vec::new())),
     }
 }
 
@@ -192,7 +235,27 @@ fn queue(fake: &Fake, uri: &Uri) -> Response {
     reason = "a test helper fails its test by panicking"
 )]
 fn fixture(status: StatusCode, file: &str) -> Response {
-    let fixtures = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../plugins/radarr/fixtures");
-    let body = std::fs::read(fixtures.join(file)).unwrap();
+    let body = std::fs::read(fixture_path(file)).unwrap();
     (status, [(header::CONTENT_TYPE, "application/json")], body).into_response()
+}
+
+/// `body` as a `200 OK` answer.
+fn json(body: &Value) -> Response {
+    let body = body.to_string();
+    ([(header::CONTENT_TYPE, "application/json")], body).into_response()
+}
+
+/// The recorded response `file`, parsed.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+fn fixture_json(file: &str) -> Value {
+    serde_json::from_slice(&std::fs::read(fixture_path(file)).unwrap()).unwrap()
+}
+
+fn fixture_path(file: &str) -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../plugins/radarr/fixtures")
+        .join(file)
 }

@@ -17,13 +17,39 @@ pub struct Fulfilled {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub reference: ::buffa::alloc::string::String,
+    /// The service's quality profile the title is downloaded at, as `nama.v1.Quality.profile_id`:
+    /// the one asked for, or the service's own when it already had the title and kept it. Empty if
+    /// the Fulfiller doesn't say.
+    ///
+    /// Field 2: `profile_id`
+    #[serde(
+        rename = "profileId",
+        alias = "profile_id",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub profile_id: ::buffa::alloc::string::String,
+    /// The service's name for that profile, such as Radarr's `HD-1080p`.
+    ///
+    /// Field 3: `profile_name`
+    #[serde(
+        rename = "profileName",
+        alias = "profile_name",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub profile_name: ::buffa::alloc::string::String,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
 impl ::core::fmt::Debug for Fulfilled {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("Fulfilled").field("reference", &self.reference).finish()
+        f.debug_struct("Fulfilled")
+            .field("reference", &self.reference)
+            .field("profile_id", &self.profile_id)
+            .field("profile_name", &self.profile_name)
+            .finish()
     }
 }
 impl Fulfilled {
@@ -56,6 +82,12 @@ impl ::buffa::Message for Fulfilled {
         if !self.reference.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.reference) as u64;
         }
+        if !self.profile_id.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.profile_id) as u64;
+        }
+        if !self.profile_name.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.profile_name) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -68,6 +100,12 @@ impl ::buffa::Message for Fulfilled {
         use ::buffa::Enumeration as _;
         if !self.reference.is_empty() {
             ::buffa::types::put_string_field(1u32, &self.reference, buf);
+        }
+        if !self.profile_id.is_empty() {
+            ::buffa::types::put_string_field(2u32, &self.profile_id, buf);
+        }
+        if !self.profile_name.is_empty() {
+            ::buffa::types::put_string_field(3u32, &self.profile_name, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -89,6 +127,20 @@ impl ::buffa::Message for Fulfilled {
                 )?;
                 ::buffa::types::merge_string(&mut self.reference, buf)?;
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.profile_id, buf)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.profile_name, buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -98,6 +150,8 @@ impl ::buffa::Message for Fulfilled {
     }
     fn clear(&mut self) {
         self.reference.clear();
+        self.profile_id.clear();
+        self.profile_name.clear();
         self.__buffa_unknown_fields.clear();
     }
 }

@@ -500,9 +500,24 @@ pub struct Request {
         RequestedQuality,
         ::buffa::Inline<RequestedQuality>,
     >,
+    /// The Quality its service is downloading it at, as the hand-off reported it, which differs from
+    /// `quality` when the service already had the title and kept its own profile. Unset until it is
+    /// handed off, if it has no `quality`, or if the Fulfiller didn't say. With no Quality on the
+    /// list for that profile, `id` is 0 and `name` is the service's own: set in the service.
+    ///
+    /// Field 12: `quality_used`
+    #[serde(
+        rename = "qualityUsed",
+        alias = "quality_used",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
+    )]
+    pub quality_used: ::buffa::MessageField<
+        RequestedQuality,
+        ::buffa::Inline<RequestedQuality>,
+    >,
     /// The latest change a Request manager made to its Quality, if any. Only the latest is kept.
     ///
-    /// Field 12: `quality_change`
+    /// Field 13: `quality_change`
     #[serde(
         rename = "qualityChange",
         alias = "quality_change",
@@ -530,6 +545,7 @@ impl ::core::fmt::Debug for Request {
             .field("followed_show_id", &self.followed_show_id)
             .field("downloads", &self.downloads)
             .field("quality", &self.quality)
+            .field("quality_used", &self.quality_used)
             .field("quality_change", &self.quality_change)
             .finish()
     }
@@ -651,6 +667,14 @@ impl ::buffa::Message for Request {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if self.quality_used.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.quality_used.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         if self.quality_change.is_set() {
             let __slot = __cache.reserve();
             let inner_size = self.quality_change.compute_size(__cache);
@@ -730,9 +754,17 @@ impl ::buffa::Message for Request {
             );
             self.quality.write_to(__cache, buf);
         }
-        if self.quality_change.is_set() {
+        if self.quality_used.is_set() {
             ::buffa::types::put_len_delimited_header(
                 12u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.quality_used.write_to(__cache, buf);
+        }
+        if self.quality_change.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                13u32,
                 u64::from(__cache.consume_next()),
                 buf,
             );
@@ -870,6 +902,17 @@ impl ::buffa::Message for Request {
                     ::buffa::encoding::WireType::LengthDelimited,
                 )?;
                 ::buffa::Message::merge_length_delimited(
+                    self.quality_used.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            13u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
                     self.quality_change.get_or_insert_default(),
                     buf,
                     ctx,
@@ -894,6 +937,7 @@ impl ::buffa::Message for Request {
         self.followed_show_id = ::core::option::Option::None;
         self.downloads.clear();
         self.quality = ::buffa::MessageField::none();
+        self.quality_used = ::buffa::MessageField::none();
         self.quality_change = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
     }

@@ -10,6 +10,7 @@ import {
   type QualityChange,
   type Request,
   RequestService,
+  type RequestedQuality,
 } from "@/gen/nama/v1/request_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { dayOf, metadataLine, seasonName, yearOf } from "@/lib/browse";
@@ -201,12 +202,19 @@ function aboutRequest(request: Request | FollowedShow, you: bigint | undefined) 
 }
 
 /**
- * A Request's Quality, and who last changed it from what, and when: "HD, changed from 4K by Sam on
- * 9 Nov 2026".
+ * The Quality a Request is downloaded at: the one its service used once handed off, else the one
+ * asked for, a profile no Quality offers being the service's own. Then who last changed it from
+ * what, and when: "HD, changed from 4K by Sam on 9 Nov 2026".
  */
-function qualityOf({ quality, qualityChange }: Request) {
-  if (!quality || !qualityChange) return quality?.name;
-  return `${quality.name}, ${changeText(qualityChange)}`;
+function qualityOf({ quality, qualityUsed, qualityChange }: Request) {
+  const shown = qualityUsed ?? quality;
+  if (shown === undefined) return shown;
+  return qualityChange ? `${nameOf(shown)}, ${changeText(qualityChange)}` : nameOf(shown);
+}
+
+/** A Quality's name, or the service's own profile's when no Quality offers it. */
+function nameOf({ id, name }: RequestedQuality) {
+  return id === 0n ? `${name} (set in the service)` : name;
 }
 
 /** Who changed a Quality from what, and when, in words: "changed from 4K by Sam on 9 Nov 2026". */

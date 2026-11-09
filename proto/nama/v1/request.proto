@@ -167,8 +167,13 @@ message Request {
   // Unset if no Fulfiller was enabled or it had no Qualities then, when the Plugin's own
   // `quality_profile` applies. A Season Request has none yet.
   RequestedQuality quality = 11;
+  // The Quality its service is downloading it at, as the hand-off reported it, which differs from
+  // `quality` when the service already had the title and kept its own profile. Unset until it is
+  // handed off, if it has no `quality`, or if the Fulfiller didn't say. With no Quality on the
+  // list for that profile, `id` is 0 and `name` is the service's own: set in the service.
+  RequestedQuality quality_used = 12;
   // The latest change a Request manager made to its Quality, if any. Only the latest is kept.
-  QualityChange quality_change = 12;
+  QualityChange quality_change = 13;
 }
 
 // A Request manager changing a Request's Quality, as `Request.quality` now has it.

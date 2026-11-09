@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file nama/plugin/v1/fulfiller.proto.
  */
 export const file_nama_plugin_v1_fulfiller: GenFile = /*@__PURE__*/
-  fileDesc("Ch5uYW1hL3BsdWdpbi92MS9mdWxmaWxsZXIucHJvdG8SDm5hbWEucGx1Z2luLnYxIh4KCUZ1bGZpbGxlZBIRCglyZWZlcmVuY2UYASABKAkiIwoNUHJvZ3Jlc3NBc2tlZBISCgpyZWZlcmVuY2VzGAEgAygJIpMBCghQcm9ncmVzcxI6Cglkb3dubG9hZHMYASADKAsyJy5uYW1hLnBsdWdpbi52MS5Qcm9ncmVzcy5Eb3dubG9hZHNFbnRyeRpLCg5Eb3dubG9hZHNFbnRyeRILCgNrZXkYASABKAkSKAoFdmFsdWUYAiABKAsyGS5uYW1hLnBsdWdpbi52MS5Eb3dubG9hZHM6AjgBIjEKCURvd25sb2FkcxIkCglkb3dubG9hZHMYASADKAsyES5uYW1hLnYxLkRvd25sb2FkYgZwcm90bzM", [file_nama_v1_request]);
+  fileDesc("Ch5uYW1hL3BsdWdpbi92MS9mdWxmaWxsZXIucHJvdG8SDm5hbWEucGx1Z2luLnYxIkgKCUZ1bGZpbGxlZBIRCglyZWZlcmVuY2UYASABKAkSEgoKcHJvZmlsZV9pZBgCIAEoCRIUCgxwcm9maWxlX25hbWUYAyABKAkiIwoNUHJvZ3Jlc3NBc2tlZBISCgpyZWZlcmVuY2VzGAEgAygJIpMBCghQcm9ncmVzcxI6Cglkb3dubG9hZHMYASADKAsyJy5uYW1hLnBsdWdpbi52MS5Qcm9ncmVzcy5Eb3dubG9hZHNFbnRyeRpLCg5Eb3dubG9hZHNFbnRyeRILCgNrZXkYASABKAkSKAoFdmFsdWUYAiABKAsyGS5uYW1hLnBsdWdpbi52MS5Eb3dubG9hZHM6AjgBIjEKCURvd25sb2FkcxIkCglkb3dubG9hZHMYASADKAsyES5uYW1hLnYxLkRvd25sb2FkYgZwcm90bzM", [file_nama_v1_request]);
 
 /**
  * What an Installed Plugin's `fulfill` export returns once its Fulfiller took the Request it was
@@ -28,6 +28,22 @@ export type Fulfilled = Message<"nama.plugin.v1.Fulfilled"> & {
    * @generated from field: string reference = 1;
    */
   reference: string;
+
+  /**
+   * The service's quality profile the title is downloaded at, as `nama.v1.Quality.profile_id`:
+   * the one asked for, or the service's own when it already had the title and kept it. Empty if
+   * the Fulfiller doesn't say.
+   *
+   * @generated from field: string profile_id = 2;
+   */
+  profileId: string;
+
+  /**
+   * The service's name for that profile, such as Radarr's `HD-1080p`.
+   *
+   * @generated from field: string profile_name = 3;
+   */
+  profileName: string;
 };
 
 /**

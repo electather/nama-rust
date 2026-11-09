@@ -17,7 +17,7 @@ use std::{
 
 use nama_plugin_api::{
     PluginId,
-    fulfiller::{Download, Fulfiller, Movies, Shows},
+    fulfiller::{Download, Fulfilled, Fulfiller, Movies, Shows},
     metadata::{Candidate, Episode, ExternalId, ExternalIds, SearchQuery, Season, Show, TitleKind},
 };
 use nama_proto::nama::v1::{
@@ -299,28 +299,29 @@ impl Requests {
 
     /// A copy of the enabled Movie Fulfiller's default Quality, if it has one.
     async fn default_quality(&self) -> Result<Option<RequestedQuality>, sqlx::Error> {
-        let Some(fulfiller) = self.fulfiller_of(TitleKind::Movie) else {
+        let Some(fulfiller) = self.fulfiller::<Movies>() else {
             return Ok(None);
         };
         let mut conn = self.db.reader().acquire().await?;
         qualities::default_of(&mut conn, &fulfiller).await
     }
 
-    /// The enabled Plugin providing the Fulfiller for titles of `kind`, if any.
-    fn fulfiller_of(&self, kind: TitleKind) -> Option<PluginId> {
+    /// The enabled Plugin providing the Fulfiller of `Kind`, if any.
+    fn fulfiller<Kind: 'static>(&self) -> Option<PluginId> {
         self.plugins
             .enabled()
             .into_iter()
-            .find(|plugin| match kind {
-                TitleKind::Movie => self.plugins.provides::<dyn Fulfiller<Movies>>(plugin),
-                TitleKind::Show => self.plugins.provides::<dyn Fulfiller<Shows>>(plugin),
-            })
+            .find(|plugin| self.plugins.provides::<dyn Fulfiller<Kind>>(plugin))
     }
 
     /// The Qualities the enabled Fulfiller for titles of `kind` offers, none if there is no such
     /// Fulfiller.
     pub(crate) async fn offered_qualities(&self, kind: TitleKind) -> Result<Vec<Quality>, Error> {
-        let Some(fulfiller) = self.fulfiller_of(kind) else {
+        let fulfiller = match kind {
+            TitleKind::Movie => self.fulfiller::<Movies>(),
+            TitleKind::Show => self.fulfiller::<Shows>(),
+        };
+        let Some(fulfiller) = fulfiller else {
             return Ok(Vec::new());
         };
         let mut conn = self.db.reader().acquire().await?;
@@ -348,7 +349,7 @@ impl Requests {
         let fulfiller = if request.movie.is_unset() {
             None
         } else {
-            self.fulfiller_of(TitleKind::Movie)
+            self.fulfiller::<Movies>()
         };
         let offered = match fulfiller {
             Some(fulfiller) => qualities::offered(&mut conn, &fulfiller, quality_id).await?,
@@ -671,9 +672,15 @@ impl Requests {
             return Ok(current);
         };
         let took = fulfilled.is_ok();
+        let asked = current.quality.as_option().cloned();
+        let plugin = if current.movie.is_unset() {
+            self.fulfiller::<Shows>()
+        } else {
+            self.fulfiller::<Movies>()
+        };
         let settled = self
             .db
-            .write(move |tx| Box::pin(settle(tx, id, fulfilled)))
+            .write(move |tx| Box::pin(settle(tx, id, fulfilled, asked, plugin)))
             .await?;
         if took && settled.is_none() {
             warn!(
@@ -732,9 +739,9 @@ impl Requests {
         Ok(())
     }
 
-    /// What the Fulfiller for `request`'s kind says to it, if one is enabled: the reference it
-    /// gives once it takes it, or why it doesn't, with no secret setting's value in it.
-    async fn fulfill(&self, request: &Request) -> Option<Result<String, String>> {
+    /// What the Fulfiller for `request`'s kind says to it, if one is enabled: what it reports once
+    /// it takes it, or why it doesn't, with no secret setting's value in it.
+    async fn fulfill(&self, request: &Request) -> Option<Result<Fulfilled, String>> {
         let fulfilled = if request.movie.is_unset() {
             self.fulfill_as::<Shows>(request).await
         } else {
@@ -749,7 +756,10 @@ impl Requests {
     }
 
     /// [`Self::fulfill`] by the Fulfiller of `Kind`.
-    async fn fulfill_as<Kind: 'static>(&self, request: &Request) -> Option<Result<String, String>> {
+    async fn fulfill_as<Kind: 'static>(
+        &self,
+        request: &Request,
+    ) -> Option<Result<Fulfilled, String>> {
         self.plugins
             .call_provider_blanking_secrets::<dyn Fulfiller<Kind>, _, _>(|fulfiller| async move {
                 // Inside the call, so formatting and dropping the Plugin's error are contained.
@@ -1330,12 +1340,7 @@ async fn insert_request(
     state: &str,
     now: i64,
 ) -> Result<i64, sqlx::Error> {
-    let quality = wanted.quality.as_ref();
-    let (quality_id, quality_name, quality_profile_id) = (
-        quality.map(|quality| quality.id),
-        quality.map(|quality| &quality.name),
-        quality.map(|quality| &quality.profile_id),
-    );
+    let (quality_id, quality_name, quality_profile_id) = quality_columns(wanted.quality.as_ref());
     sqlx::query_scalar!(
         "INSERT INTO requests (tmdb_id, season, title, release_date, show_imdb_id, show_tvdb_id,
                                state, created_at, followed_show_id, quality_id, quality_name,
@@ -1619,25 +1624,41 @@ async fn decide(
     Ok(request)
 }
 
-/// Moves the Approved Request `id` on as its Fulfiller said: to Processing, keeping the reference
-/// it gave, or to Failed, keeping why. Returns it as it is now, or `None` if it isn't Approved any
-/// more.
+/// Moves the Approved Request `id`, asked at the Quality `asked`, on as its Fulfiller, from the
+/// Plugin `plugin`, said: to Processing, keeping its reference and the Quality used, or to Failed,
+/// keeping why. Returns it as it is now, or `None` if it isn't Approved any more.
 async fn settle(
     conn: &mut SqliteConnection,
     id: i64,
-    fulfilled: Result<String, String>,
+    fulfilled: Result<Fulfilled, String>,
+    asked: Option<RequestedQuality>,
+    plugin: Option<PluginId>,
 ) -> Result<Option<Request>, sqlx::Error> {
-    let (state, reference, reason) = match fulfilled {
-        Ok(reference) => (RequestState::Processing, Some(reference), None),
-        Err(reason) => (RequestState::Failed, None, Some(reason)),
+    // In the same write as the reference, so a failed read can't lose a Request the Fulfiller took.
+    let (state, reference, used, reason) = match fulfilled {
+        Ok(fulfilled) => {
+            let used = quality_used(conn, asked.as_ref(), plugin.as_ref(), &fulfilled).await?;
+            (
+                RequestState::Processing,
+                Some(fulfilled.reference),
+                used,
+                None,
+            )
+        }
+        Err(reason) => (RequestState::Failed, None, None, Some(reason)),
     };
     let state = stored(state);
+    let (used_id, used_name, used_profile_id) = quality_columns(used.as_ref());
     let settled = sqlx::query!(
-        "UPDATE requests SET state = ?, fulfiller_reference = ?, failure_reason = ?
+        "UPDATE requests SET state = ?, fulfiller_reference = ?, failure_reason = ?,
+                             quality_used_id = ?, quality_used_name = ?, quality_used_profile_id = ?
          WHERE id = ? AND state = 'approved'",
         state,
         reference,
         reason,
+        used_id,
+        used_name,
+        used_profile_id,
         id
     )
     .execute(&mut *conn)
@@ -1648,6 +1669,41 @@ async fn settle(
         return Ok(None);
     }
     load_one(conn, id).await
+}
+
+/// The Quality the service downloads a Request asked at `asked` at, as its Fulfiller, from the
+/// Plugin `plugin`, reported in `fulfilled`: `asked` if it has that profile, else the Quality on the
+/// Plugin's list that has it, else the service's own profile, with no Quality id. `None` if the
+/// Request took no Quality, so the Plugin's own setting applied, or the Fulfiller didn't say.
+async fn quality_used(
+    conn: &mut SqliteConnection,
+    asked: Option<&RequestedQuality>,
+    plugin: Option<&PluginId>,
+    fulfilled: &Fulfilled,
+) -> Result<Option<RequestedQuality>, sqlx::Error> {
+    let Fulfilled {
+        profile_id,
+        profile_name,
+        ..
+    } = fulfilled;
+    let Some(asked) = asked else {
+        return Ok(None);
+    };
+    if profile_id.is_empty() {
+        return Ok(None);
+    }
+    if asked.profile_id == *profile_id {
+        return Ok(Some(asked.clone()));
+    }
+    let listed = match plugin {
+        Some(plugin) => qualities::with_profile(conn, plugin, profile_id).await?,
+        None => None,
+    };
+    Ok(Some(listed.unwrap_or_else(|| RequestedQuality {
+        name: profile_name.clone(),
+        profile_id: profile_id.clone(),
+        ..Default::default()
+    })))
 }
 
 /// Moves the Failed Request `id` back to Approved at `new_quality`, if given, forgetting why it
@@ -2063,7 +2119,8 @@ async fn load(
         r#"SELECT id AS "id!", tmdb_id, season AS "season: u32", title, release_date, show_imdb_id,
                   show_tvdb_id, state, created_at, decline_reason, failure_reason, followed_show_id,
                   quality_id, quality_name, quality_profile_id, quality_changed_from,
-                  quality_changed_at,
+                  quality_changed_at, quality_used_id, quality_used_name,
+                  quality_used_profile_id,
                   (SELECT display_username FROM users WHERE id = quality_changed_by)
                       AS quality_changed_by
            FROM requests
@@ -2076,7 +2133,7 @@ async fn load(
     )
     .fetch_all(&mut *conn)
     .await?;
-    let mut requesters = load_requesters(conn, id).await?;
+    let mut requesters = requesters_by_request(conn, id).await?;
     Ok(rows
         .into_iter()
         .map(|row| {
@@ -2099,6 +2156,12 @@ async fn load(
                         ..Default::default()
                     })
                     .into(),
+                quality_used: stored_quality(
+                    row.quality_used_id,
+                    row.quality_used_name,
+                    row.quality_used_profile_id,
+                )
+                .into(),
                 ..Default::default()
             };
             match row.season {
@@ -2129,16 +2192,16 @@ async fn load(
         .collect())
 }
 
-/// The Requesters of each Request, by its id, first asker first: only the Request `id`'s if
-/// given.
-async fn load_requesters(
+/// The Requesters of the Request `id`, or of every Request if `None`, by Request id, first asker
+/// first.
+async fn requesters_by_request(
     conn: &mut SqliteConnection,
     id: Option<i64>,
 ) -> Result<HashMap<i64, Vec<Requester>>, sqlx::Error> {
     // ponytail: every Request's Requesters, even for one User's Requests; filter by them in SQL if
     // the list gets big.
     let mut requesters: HashMap<i64, Vec<Requester>> = HashMap::new();
-    let rows = sqlx::query!(
+    let requester_rows = sqlx::query!(
         "SELECT requesters.request_id, requesters.user_id, users.display_username,
                 requesters.requested_at
          FROM requesters
@@ -2149,7 +2212,7 @@ async fn load_requesters(
     )
     .fetch_all(&mut *conn)
     .await?;
-    for row in rows {
+    for row in requester_rows {
         requesters
             .entry(row.request_id)
             .or_default()
@@ -2163,7 +2226,19 @@ async fn load_requesters(
     Ok(requesters)
 }
 
-/// The Quality a Request stored, if it took one: [`insert_request`] sets all three or none.
+/// The three columns a Request stores `quality` in, all set or all `NULL`, as [`stored_quality`]
+/// reads them back.
+fn quality_columns(
+    quality: Option<&RequestedQuality>,
+) -> (Option<i64>, Option<&str>, Option<&str>) {
+    (
+        quality.map(|quality| quality.id),
+        quality.map(|quality| quality.name.as_str()),
+        quality.map(|quality| quality.profile_id.as_str()),
+    )
+}
+
+/// A Quality a Request stored, if it has one, from the columns [`quality_columns`] gives.
 fn stored_quality(
     id: Option<i64>,
     name: Option<String>,
@@ -2259,7 +2334,7 @@ mod tests {
 
     use nama_plugin_api::{
         BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
-        fulfiller::{Download, Fulfiller, Movies},
+        fulfiller::{Download, Fulfilled, Fulfiller, Movies},
         metadata::{Episode, ExternalId, ExternalIds, Season},
         settings::SettingsSchema,
     };
@@ -2379,11 +2454,14 @@ mod tests {
     }
 
     impl Fulfiller<Movies> for Gated {
-        fn fulfill<'a>(&'a self, _: &'a Request) -> BoxFuture<'a, Result<String, PluginError>> {
+        fn fulfill<'a>(&'a self, _: &'a Request) -> BoxFuture<'a, Result<Fulfilled, PluginError>> {
             self.handed.fetch_add(1, Ordering::SeqCst);
             Box::pin(async {
                 self.open.notified().await;
-                Ok("taken".to_owned())
+                Ok(Fulfilled {
+                    reference: "taken".to_owned(),
+                    ..Fulfilled::default()
+                })
             })
         }
 
@@ -2414,9 +2492,14 @@ mod tests {
         fn fulfill<'a>(
             &'a self,
             request: &'a Request,
-        ) -> BoxFuture<'a, Result<String, PluginError>> {
+        ) -> BoxFuture<'a, Result<Fulfilled, PluginError>> {
             let reference = request.movie.tmdb_id.to_string();
-            Box::pin(async { Ok(reference) })
+            Box::pin(async {
+                Ok(Fulfilled {
+                    reference,
+                    ..Fulfilled::default()
+                })
+            })
         }
 
         fn progress<'a>(
