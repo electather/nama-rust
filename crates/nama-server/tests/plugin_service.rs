@@ -1,6 +1,6 @@
-//! Listing the Server's Plugins, getting one with its settings, without ever sending a secret's value, and
-//! changing those settings and enabling and disabling them without a restart, over a real socket
-//! and against a real SQLite database.
+//! Listing the Server's Plugins, getting one with its settings without ever sending a secret's
+//! value, and changing a Plugin's settings and enabling and disabling it without a restart, over a
+//! real socket and against a real SQLite database.
 
 #[path = "support/refused.rs"]
 mod refused;

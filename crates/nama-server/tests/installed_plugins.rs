@@ -303,7 +303,7 @@ async fn a_dropped_plugin_is_listed_disabled_observes_scans_only_while_enabled_a
 }
 
 #[tokio::test]
-async fn a_refused_plugin_is_listed_and_got_with_why_and_enabling_it_is_refused() {
+async fn a_refused_plugin_is_listed_and_shown_with_why_and_enabling_it_is_refused() {
     let started = Started::new().await;
 
     started.drop_in("out-of-range.wasm", "out-of-range");
@@ -484,7 +484,7 @@ async fn a_plugin_that_keeps_panicking_logs_why_is_disabled_and_saved_so_and_can
 async fn testing_offers_the_checks_choices_and_only_an_offered_one_is_saved() {
     let started = Started::new().await;
     started.drop_in("test.wasm", "");
-    // Opening the Plugins page, which lists them, reads it.
+    // Only listing reads `plugins/`, so finds the dropped `test.wasm`.
     assert!(started.listed("test-plugin").await.is_some());
     assert!(started.got("test-plugin").await.checks_settings);
 
