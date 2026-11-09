@@ -2709,45 +2709,45 @@ fn plugin_to_proto(
 /// The Extension Points an admin is shown for `points`, leaving out any this API doesn't name,
 /// such as a test's own.
 fn extension_points_to_proto(points: &[PointKey]) -> Vec<EnumValue<proto::ExtensionPoint>> {
-    use proto::ExtensionPoint as Shown;
-    let shown = [
+    use proto::ExtensionPoint as Public;
+    let public = [
         (
             PointKey::provide::<dyn Fulfiller<Movies>>(),
-            Shown::EXTENSION_POINT_MOVIE_FULFILLER,
+            Public::EXTENSION_POINT_MOVIE_FULFILLER,
         ),
         (
             PointKey::provide::<dyn Fulfiller<Shows>>(),
-            Shown::EXTENSION_POINT_SHOW_FULFILLER,
+            Public::EXTENSION_POINT_SHOW_FULFILLER,
         ),
         (
             PointKey::provide::<dyn Notifier>(),
-            Shown::EXTENSION_POINT_NOTIFIER,
+            Public::EXTENSION_POINT_NOTIFIER,
         ),
         (
             PointKey::provide::<dyn Connector>(),
-            Shown::EXTENSION_POINT_CONNECTOR,
+            Public::EXTENSION_POINT_CONNECTOR,
         ),
         (
             PointKey::provide::<dyn Authenticator>(),
-            Shown::EXTENSION_POINT_AUTHENTICATOR,
+            Public::EXTENSION_POINT_AUTHENTICATOR,
         ),
         (
             PointKey::provide::<dyn MetadataProvider>(),
-            Shown::EXTENSION_POINT_METADATA_PROVIDER,
+            Public::EXTENSION_POINT_METADATA_PROVIDER,
         ),
         (
             PointKey::observe::<Events>(),
-            Shown::EXTENSION_POINT_EVENTS_OBSERVER,
+            Public::EXTENSION_POINT_EVENTS_OBSERVER,
         ),
         (
             PointKey::observe::<ServerStarted>(),
-            Shown::EXTENSION_POINT_SERVER_STARTED_OBSERVER,
+            Public::EXTENSION_POINT_SERVER_STARTED_OBSERVER,
         ),
     ];
     points
         .iter()
-        .filter_map(|point| shown.iter().find(|(key, _)| key == point))
-        .map(|&(_, shown)| shown.into())
+        .filter_map(|point| public.iter().find(|(key, _)| key == point))
+        .map(|&(_, public)| public.into())
         .collect()
 }
 

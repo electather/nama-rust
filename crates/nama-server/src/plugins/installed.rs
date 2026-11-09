@@ -256,36 +256,32 @@ impl Plugin for Installed {
             })
         };
         let fulfiller = with_own_crash_count();
-        // An Extension Point this Server doesn't know is one the Plugin can do without, since its
-        // nama-api requirement admits this Server.
-        let providers = &self.manifest.providers;
-        if providers.contains(&ProvidePoint::PROVIDE_POINT_MOVIE_FULFILLER.into()) {
+        // Read from the Manifest's own list, so it registers only at the points it names.
+        let names = |point| extension_points(&self.manifest).contains(&point);
+        if names(PointKey::provide::<dyn Fulfiller<Movies>>()) {
             registrar.provide::<dyn Fulfiller<Movies>>(
                 Priority::DEFAULT,
                 Arc::<Running>::clone(&fulfiller),
             );
         }
-        if providers.contains(&ProvidePoint::PROVIDE_POINT_SHOW_FULFILLER.into()) {
+        if names(PointKey::provide::<dyn Fulfiller<Shows>>()) {
             registrar.provide::<dyn Fulfiller<Shows>>(Priority::DEFAULT, fulfiller);
         }
-        if providers.contains(&ProvidePoint::PROVIDE_POINT_NOTIFIER.into()) {
+        if names(PointKey::provide::<dyn Notifier>()) {
             registrar.provide::<dyn Notifier>(Priority::DEFAULT, with_own_crash_count());
         }
-        if providers.contains(&ProvidePoint::PROVIDE_POINT_CONNECTOR.into()) {
+        if names(PointKey::provide::<dyn Connector>()) {
             registrar.provide::<dyn Connector>(Priority::DEFAULT, with_own_crash_count());
         }
-        if self
-            .manifest
-            .observers
-            .contains(&ObservePoint::OBSERVE_POINT_EVENTS.into())
-        {
+        if names(PointKey::observe::<Events>()) {
             registrar.observe::<Events>(running);
         }
     }
 }
 
 /// The Extension Points `manifest` names, which [`Installed::register`] registers at. One this
-/// Server doesn't know is left out, as `register` leaves it out.
+/// Server doesn't know is left out: one the Plugin can do without, since its nama-api requirement
+/// admits this Server.
 fn extension_points(manifest: &Manifest) -> Vec<PointKey> {
     let providers = manifest.providers.iter().filter_map(|point| {
         Some(match point.as_known()? {

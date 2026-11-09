@@ -3,7 +3,7 @@ import { Activity, Bell, Film, KeyRound, Link, ScanSearch, Server, Tv } from "lu
 import type { Shown } from "@/components/state-label";
 import { ExtensionPoint } from "@/gen/nama/v1/plugin_pb";
 
-/** Each Extension Point in the Glossary's words, with the icon the web picks for it. */
+/** Each Extension Point in plain words, with the icon the web picks for it. */
 const points: Partial<Record<ExtensionPoint, Shown>> = {
   [ExtensionPoint.MOVIE_FULFILLER]: { label: "Fulfiller for Movies", Icon: Film },
   [ExtensionPoint.SHOW_FULFILLER]: { label: "Fulfiller for Shows", Icon: Tv },
