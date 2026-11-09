@@ -1,8 +1,6 @@
 import { ChevronDown } from "lucide-react";
 
-import { RequestProgress, RequestStateLabel, requestStateName } from "@/components/request-state";
-// Re-exported so the Requests page, which shows them, stays within the lint's limit on imports.
-export { RequestProgress, RequestStateLabel };
+import { requestStateName } from "@/components/request-state";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,

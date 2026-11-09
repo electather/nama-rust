@@ -63,7 +63,7 @@ impl ServerUrl {
     pub(crate) fn request_link(&self, id: i64) -> Option<String> {
         let url = self.get();
         // The URL may name a path the web app is served under, which a link keeps.
-        (!url.is_empty()).then(|| format!("{}/requests#request-{id}", url.trim_end_matches('/')))
+        (!url.is_empty()).then(|| format!("{}/requests/{id}", url.trim_end_matches('/')))
     }
 
     fn set(&self, url: String) {
@@ -100,7 +100,7 @@ mod tests {
         assert_eq!(unset, None);
         assert_eq!(
             url.request_link(7).as_deref(),
-            Some("https://example.com/nama/requests#request-7")
+            Some("https://example.com/nama/requests/7")
         );
     }
 }
