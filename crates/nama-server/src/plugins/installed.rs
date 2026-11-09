@@ -256,8 +256,10 @@ impl Plugin for Installed {
             })
         };
         let fulfiller = with_own_crash_count();
-        // Read from the Manifest's own list, so it registers only at the points it names.
-        let names = |point| extension_points(&self.manifest).contains(&point);
+        // The Kernel refuses a Plugin registering at a point its Manifest doesn't name, so read
+        // them from the same list the Kernel checks.
+        let declared = extension_points(&self.manifest);
+        let names = |point| declared.contains(&point);
         if names(PointKey::provide::<dyn Fulfiller<Movies>>()) {
             registrar.provide::<dyn Fulfiller<Movies>>(
                 Priority::DEFAULT,
