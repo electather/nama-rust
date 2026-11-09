@@ -189,4 +189,7 @@ enum RefusalReason {
   // `permission_denied`: the caller named a Quality, even the default, without
   // `PERMISSION_CHOOSE_QUALITY`. `field` is `quality`.
   REFUSAL_REASON_QUALITY_NOT_ALLOWED = 57;
+  // `invalid_argument`: the page token isn't one the Server handed out for the same request, such
+  // as one listing Requests in another state. `field` is `page_token`.
+  REFUSAL_REASON_PAGE_TOKEN_INVALID = 58;
 }

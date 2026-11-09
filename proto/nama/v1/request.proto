@@ -41,9 +41,10 @@ service RequestService {
   // a Request for its Requesters. Fails with `invalid_argument` if the metadata source has no Show
   // with the id, and `unavailable` if no metadata Provider is enabled, or it failed.
   rpc CreateFollowedShow(CreateFollowedShowRequest) returns (CreateFollowedShowResponse);
-  // Lists the Requests and Followed Shows the caller may see, newest first: only those in `state`
-  // if one is given. Each is filtered on its own, so a Season Request can be listed without its
-  // Followed Show.
+  // Lists a page of the Requests and Followed Shows the caller may see, newest first: only those in
+  // `state` if one is given. Each is filtered on its own, so a Season Request can be listed without
+  // its Followed Show. Fails with `invalid_argument` if `page_token` isn't one a call with the same
+  // `state` returned.
   rpc ListRequests(ListRequestsRequest) returns (ListRequestsResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
@@ -322,6 +323,13 @@ message CreateSeasonRequestsResponse {
 message ListRequestsRequest {
   // The state to list Requests and Followed Shows in. Unspecified lists every state.
   RequestState state = 1;
+  // How many Requests and Followed Shows, together, to list at most. 0 lists 50, and more than 100
+  // lists 100.
+  uint32 page_size = 2;
+  // The `next_page_token` of the page before, to list the page after it, or empty for the first.
+  // Pages follow the newest-first order as it was, so Requests opened while paging don't shift
+  // later pages.
+  string page_token = 3;
 }
 
 message CreateFollowedShowRequest {
@@ -338,9 +346,13 @@ message CreateFollowedShowResponse {
 }
 
 message ListRequestsResponse {
+  // The page's Requests, newest first. With `followed_shows`, one page of a single newest-first
+  // list: by `created_at`, a Request before a Followed Show opened in the same second.
   repeated Request requests = 1;
-  // The Followed Shows the caller may see, newest first.
+  // The page's Followed Shows, newest first.
   repeated FollowedShow followed_shows = 2;
+  // The `page_token` that lists the next page, or empty if this is the last.
+  string next_page_token = 3;
 }
 
 message ListMovieQualitiesRequest {}

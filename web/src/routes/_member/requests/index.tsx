@@ -1,9 +1,10 @@
-import { createQueryOptions, useSuspenseQuery } from "@connectrpc/connect-query";
+import { createInfiniteQueryOptions, useSuspenseInfiniteQuery } from "@connectrpc/connect-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
 import { FindATitle, type Searchable, TitlesFound } from "@/components/find-a-title";
 import { Page } from "@/components/page";
 import { RequestRow, type ShowGroup, ShowRequests } from "@/components/request-row";
+import { ShowMore } from "@/components/show-more";
 import {
   type StateFilter,
   StateFilterMenu,
@@ -11,7 +12,12 @@ import {
   isStateFilter,
   listedIn,
 } from "@/components/request-state-filter";
-import { type FollowedShow, type Request, RequestService } from "@/gen/nama/v1/request_pb";
+import {
+  type FollowedShow,
+  type ListRequestsResponse,
+  type Request,
+  RequestService,
+} from "@/gen/nama/v1/request_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { may } from "@/lib/permissions";
 
@@ -35,8 +41,11 @@ export const Route = createFileRoute("/_member/requests/")({
   }),
   loaderDeps: ({ search: { state } }) => ({ state }),
   loader: ({ context: { queryClient, transport }, deps: { state } }) =>
-    queryClient.query({
-      ...createQueryOptions(RequestService.method.listRequests, listedIn(state), { transport }),
+    queryClient.infiniteQuery({
+      ...createInfiniteQueryOptions(RequestService.method.listRequests, firstPageIn(state), {
+        transport,
+        ...paging,
+      }),
       staleTime: "static",
     }),
   component: Requests,
@@ -82,10 +91,30 @@ function FindOrList({
   );
 }
 
-/** The Requests and Followed Shows in the state the URL names, under the filter that chooses it. */
+/** `ListRequests`' first page of the Requests and Followed Shows in `filter`. */
+function firstPageIn(filter: StateFilter | undefined) {
+  return { ...listedIn(filter), pageSize: 50, pageToken: "" };
+}
+
+/** How each `ListRequests` page asks for the next, until the last says there is none. */
+const paging = {
+  pageParamKey: "pageToken",
+  getNextPageParam: (page: ListRequestsResponse) => page.nextPageToken || undefined,
+} as const;
+
+/**
+ * The Requests and Followed Shows in the state the URL names, a page at a time, under the filter
+ * that chooses it.
+ */
 function RequestList() {
   const { state: filter = "all" } = Route.useSearch();
-  const { data } = useSuspenseQuery(RequestService.method.listRequests, listedIn(filter));
+  const { data, hasNextPage, fetchNextPage } = useSuspenseInfiniteQuery(
+    RequestService.method.listRequests,
+    firstPageIn(filter),
+    paging,
+  );
+  const requests = data.pages.flatMap((page) => page.requests);
+  const followedShows = data.pages.flatMap((page) => page.followedShows);
   const navigate = Route.useNavigate();
   const choose = (state: StateFilter) =>
     void navigate({ search: (search) => ({ ...search, state }) });
@@ -94,13 +123,13 @@ function RequestList() {
       <div className="mt-8 -ms-4">
         <StateFilterMenu chosen={filter} choose={choose} />
       </div>
-      {data.requests.length + data.followedShows.length === 0 ? (
+      {requests.length + followedShows.length === 0 ? (
         <p className="mt-4 text-muted-foreground">
           {filter === "all" ? "No Requests yet." : `No ${filterName(filter)} Requests.`}
         </p>
       ) : (
         <ul className="mt-4 flex max-w-2xl flex-col">
-          {groupShows(data.requests, data.followedShows).map((entry) =>
+          {groupShows(requests, followedShows).map((entry) =>
             "seasons" in entry ? (
               <ShowRequests key={`show-${entry.showTmdbId}`} {...entry} />
             ) : (
@@ -109,6 +138,7 @@ function RequestList() {
           )}
         </ul>
       )}
+      {hasNextPage && <ShowMore load={fetchNextPage} loaded={data.pages.length} />}
     </>
   );
 }

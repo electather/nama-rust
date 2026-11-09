@@ -3298,13 +3298,40 @@ pub struct ListRequestsRequest {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_default_enum_value"
     )]
     pub state: ::buffa::EnumValue<RequestState>,
+    /// How many Requests and Followed Shows, together, to list at most. 0 lists 50, and more than 100
+    /// lists 100.
+    ///
+    /// Field 2: `page_size`
+    #[serde(
+        rename = "pageSize",
+        alias = "page_size",
+        with = "::buffa::json_helpers::uint32",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
+    )]
+    pub page_size: u32,
+    /// The `next_page_token` of the page before, to list the page after it, or empty for the first.
+    /// Pages follow the newest-first order as it was, so Requests opened while paging don't shift
+    /// later pages.
+    ///
+    /// Field 3: `page_token`
+    #[serde(
+        rename = "pageToken",
+        alias = "page_token",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub page_token: ::buffa::alloc::string::String,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
 impl ::core::fmt::Debug for ListRequestsRequest {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("ListRequestsRequest").field("state", &self.state).finish()
+        f.debug_struct("ListRequestsRequest")
+            .field("state", &self.state)
+            .field("page_size", &self.page_size)
+            .field("page_token", &self.page_token)
+            .finish()
     }
 }
 impl ListRequestsRequest {
@@ -3340,6 +3367,12 @@ impl ::buffa::Message for ListRequestsRequest {
                 size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
             }
         }
+        if self.page_size != 0u32 {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(self.page_size) as u64;
+        }
+        if !self.page_token.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.page_token) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -3355,6 +3388,12 @@ impl ::buffa::Message for ListRequestsRequest {
             if val != 0 {
                 ::buffa::types::put_int32_field(1u32, val, buf);
             }
+        }
+        if self.page_size != 0u32 {
+            ::buffa::types::put_uint32_field(2u32, self.page_size, buf);
+        }
+        if !self.page_token.is_empty() {
+            ::buffa::types::put_string_field(3u32, &self.page_token, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -3378,6 +3417,20 @@ impl ::buffa::Message for ListRequestsRequest {
                     ::buffa::types::decode_int32(buf)?,
                 );
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.page_size = ::buffa::types::decode_uint32(buf)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.page_token, buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -3387,6 +3440,8 @@ impl ::buffa::Message for ListRequestsRequest {
     }
     fn clear(&mut self) {
         self.state = ::buffa::EnumValue::from(0);
+        self.page_size = 0u32;
+        self.page_token.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -3737,6 +3792,9 @@ pub const __CREATE_FOLLOWED_SHOW_RESPONSE_JSON_ANY: ::buffa::type_registry::Json
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct ListRequestsResponse {
+    /// The page's Requests, newest first. With `followed_shows`, one page of a single newest-first
+    /// list: by `created_at`, a Request before a Followed Show opened in the same second.
+    ///
     /// Field 1: `requests`
     #[serde(
         rename = "requests",
@@ -3744,7 +3802,7 @@ pub struct ListRequestsResponse {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub requests: ::buffa::alloc::vec::Vec<Request>,
-    /// The Followed Shows the caller may see, newest first.
+    /// The page's Followed Shows, newest first.
     ///
     /// Field 2: `followed_shows`
     #[serde(
@@ -3754,6 +3812,16 @@ pub struct ListRequestsResponse {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub followed_shows: ::buffa::alloc::vec::Vec<FollowedShow>,
+    /// The `page_token` that lists the next page, or empty if this is the last.
+    ///
+    /// Field 3: `next_page_token`
+    #[serde(
+        rename = "nextPageToken",
+        alias = "next_page_token",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub next_page_token: ::buffa::alloc::string::String,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -3763,6 +3831,7 @@ impl ::core::fmt::Debug for ListRequestsResponse {
         f.debug_struct("ListRequestsResponse")
             .field("requests", &self.requests)
             .field("followed_shows", &self.followed_shows)
+            .field("next_page_token", &self.next_page_token)
             .finish()
     }
 }
@@ -3809,6 +3878,11 @@ impl ::buffa::Message for ListRequestsResponse {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if !self.next_page_token.is_empty() {
+            size
+                += 1u64
+                    + ::buffa::types::string_encoded_len(&self.next_page_token) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -3834,6 +3908,9 @@ impl ::buffa::Message for ListRequestsResponse {
                 buf,
             );
             v.write_to(__cache, buf);
+        }
+        if !self.next_page_token.is_empty() {
+            ::buffa::types::put_string_field(3u32, &self.next_page_token, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -3872,6 +3949,13 @@ impl ::buffa::Message for ListRequestsResponse {
                 ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
                 self.followed_shows.push(elem);
             }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.next_page_token, buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -3882,6 +3966,7 @@ impl ::buffa::Message for ListRequestsResponse {
     fn clear(&mut self) {
         self.requests.clear();
         self.followed_shows.clear();
+        self.next_page_token.clear();
         self.__buffa_unknown_fields.clear();
     }
 }

@@ -1537,16 +1537,15 @@ impl RequestService for RequestServiceHandler {
             .state
             .as_known()
             .filter(|&state| state != RequestState::Unspecified);
-        let (requests, followed_shows) = self
+        let size = match request.page_size {
+            0 => 50,
+            size => size.min(100),
+        };
+        let page = self
             .requests
-            .list(viewer, state)
-            .await
-            .map_err(database_failed)?;
-        Response::ok(ListRequestsResponse {
-            requests,
-            followed_shows,
-            ..Default::default()
-        })
+            .list(viewer, state, size as usize, request.page_token)
+            .await?;
+        Response::ok(page)
     }
 
     async fn get_request(
@@ -3025,7 +3024,8 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_NOT_A_URL
         | R::REFUSAL_REASON_QUALITY_REPEATED
         | R::REFUSAL_REASON_DEFAULT_QUALITY_REQUIRED
-        | R::REFUSAL_REASON_QUALITY_NOT_OFFERED => ErrorCode::InvalidArgument,
+        | R::REFUSAL_REASON_QUALITY_NOT_OFFERED
+        | R::REFUSAL_REASON_PAGE_TOKEN_INVALID => ErrorCode::InvalidArgument,
         R::REFUSAL_REASON_SIGN_IN_REQUIRED
         | R::REFUSAL_REASON_WRONG_NAME_OR_PASSWORD
         | R::REFUSAL_REASON_WRONG_PASSWORD
@@ -3278,6 +3278,9 @@ impl From<requests::Error> for ConnectError {
                 refuse(R::REFUSAL_REASON_QUALITY_NOT_OFFERED, message)
                     .field("quality")
                     .param("qualityId", &id)
+            }
+            requests::Error::PageTokenInvalid => {
+                refuse(R::REFUSAL_REASON_PAGE_TOKEN_INVALID, message).field("page_token")
             }
             requests::Error::Database(err) => return database_failed(err),
         };
