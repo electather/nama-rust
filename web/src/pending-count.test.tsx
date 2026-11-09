@@ -1,10 +1,10 @@
+import type { MessageInitShape } from "@bufbuild/protobuf";
 import { cleanup, screen } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import type { EventSchema } from "@/gen/nama/v1/event_pb";
 import { RequestService } from "@/gen/nama/v1/request_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import type { MessageInitShape } from "@bufbuild/protobuf";
 
 import { eventFeed, fakeServer, newUser, openApp } from "./test-app";
 

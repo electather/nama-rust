@@ -2,8 +2,8 @@ import { Outlet, createFileRoute, redirect, useMatches } from "@tanstack/react-r
 
 import { AppChrome } from "@/components/app-chrome";
 import { ConfirmItsYou } from "@/components/confirm-its-you";
-import { adminPagesFor, isSetupRequired, whoIsSignedIn } from "@/lib/access";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
+import { adminPagesFor, isSetupRequired, whoIsSignedIn } from "@/lib/access";
 import { useEvents } from "@/lib/events";
 import { may } from "@/lib/permissions";
 

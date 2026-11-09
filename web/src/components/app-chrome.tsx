@@ -25,7 +25,7 @@ export function AppChrome({
         <NavLink to="/" activeOptions={{ exact: true }}>
           Libraries
         </NavLink>
-        <RequestsLink counted={managesRequests} />
+        <RequestsLink managesRequests={managesRequests} />
         <NavLink to="/settings">Settings</NavLink>
         {hasAdminPages && <NavLink to="/admin">Admin</NavLink>}
       </nav>
@@ -50,11 +50,15 @@ function NavLink(props: LinkProps & { children: ReactNode }) {
 }
 
 /**
- * The link to Requests, with how many are Pending when `counted`. Request Events refetch the count
- * along with every other Request query.
+ * The link to Requests, with how many are Pending for a Request manager. Request Events refetch the
+ * count along with every other Request query.
  */
-function RequestsLink({ counted }: { counted: boolean }) {
-  const { data } = useQuery(RequestService.method.countPendingRequests, {}, { enabled: counted });
+function RequestsLink({ managesRequests }: { managesRequests: boolean }) {
+  const { data } = useQuery(
+    RequestService.method.countPendingRequests,
+    {},
+    { enabled: managesRequests },
+  );
   const pending = data?.count ?? 0;
   if (pending === 0) return <NavLink to="/requests">Requests</NavLink>;
   return (
@@ -65,9 +69,10 @@ function RequestsLink({ counted }: { counted: boolean }) {
   );
 }
 
+// DESIGN.md "State labels": a hairline pill, so its edge stays when the ghost link fills on hover.
 function PendingBadge({ pending }: { pending: number }) {
   return (
-    <span className="ms-1.5 rounded-full bg-muted px-1.5 text-xs font-medium tabular-nums text-foreground">
+    <span className="ms-1.5 rounded-full border px-1.5 text-sm tabular-nums text-foreground">
       {pending > 99 ? "99+" : pending}
     </span>
   );
