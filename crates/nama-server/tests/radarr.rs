@@ -300,7 +300,10 @@ impl Fixture {
 }
 
 /// Asks for the Movie `tmdb_id` as `member`, at the Quality `quality` if given.
-#[expect(clippy::unwrap_used, reason = "a test helper fails its test by panicking")]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
 async fn ask(
     member: &ClientConfig,
     tmdb_id: i64,
