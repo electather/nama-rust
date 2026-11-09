@@ -56,7 +56,8 @@ pub struct RequestView<'a> {
         super::super::__buffa::view::DownloadView<'a>,
     >,
     /// The Quality it is downloaded at, as its Fulfiller's default was when it opened (ADR 0025).
-    /// Unset if that Fulfiller had no Qualities, when the Plugin's own `quality_profile` applies.
+    /// Unset if no Fulfiller was enabled or it had no Qualities then, when the Plugin's own
+    /// `quality_profile` applies. A Season Request has none yet.
     ///
     /// Field 11: `quality`
     pub quality: ::buffa::MessageFieldView<
@@ -686,7 +687,8 @@ impl RequestOwnedView {
         &self.0.reborrow().downloads
     }
     /// The Quality it is downloaded at, as its Fulfiller's default was when it opened (ADR 0025).
-    /// Unset if that Fulfiller had no Qualities, when the Plugin's own `quality_profile` applies.
+    /// Unset if no Fulfiller was enabled or it had no Qualities then, when the Plugin's own
+    /// `quality_profile` applies. A Season Request has none yet.
     ///
     /// Field 11: `quality`
     #[must_use]

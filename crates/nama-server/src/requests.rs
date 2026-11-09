@@ -208,7 +208,7 @@ struct Wanted {
     show_ids: ExternalIds,
     /// The Followed Show a new Request for it is opened for, if any.
     followed_show: Option<i64>,
-    /// The Quality a new Request for it takes, if its Fulfiller has any.
+    /// The Quality a new Request for it takes, if its Fulfiller has any. Only a Movie's, for now.
     quality: Option<RequestedQuality>,
 }
 

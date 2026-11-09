@@ -91,7 +91,8 @@ export type Request = Message<"nama.v1.Request"> & {
 
   /**
    * The Quality it is downloaded at, as its Fulfiller's default was when it opened (ADR 0025).
-   * Unset if that Fulfiller had no Qualities, when the Plugin's own `quality_profile` applies.
+   * Unset if no Fulfiller was enabled or it had no Qualities then, when the Plugin's own
+   * `quality_profile` applies. A Season Request has none yet.
    *
    * @generated from field: nama.v1.RequestedQuality quality = 11;
    */

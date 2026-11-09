@@ -488,7 +488,8 @@ pub struct Request {
     )]
     pub downloads: ::buffa::alloc::vec::Vec<Download>,
     /// The Quality it is downloaded at, as its Fulfiller's default was when it opened (ADR 0025).
-    /// Unset if that Fulfiller had no Qualities, when the Plugin's own `quality_profile` applies.
+    /// Unset if no Fulfiller was enabled or it had no Qualities then, when the Plugin's own
+    /// `quality_profile` applies. A Season Request has none yet.
     ///
     /// Field 11: `quality`
     #[serde(

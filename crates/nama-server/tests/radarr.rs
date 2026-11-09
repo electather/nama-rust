@@ -540,13 +540,17 @@ async fn a_movie_request_goes_to_radarr_at_the_default_quality_an_admin_offers()
 }
 
 #[tokio::test]
-async fn a_request_keeps_its_quality_and_retries_with_its_profile_after_the_quality_is_removed() {
+async fn a_request_keeps_its_quality_and_retries_with_its_profile_after_it_is_renamed_and_removed()
+{
     let mut fixture = Fixture::with_radarr_enabled_at(ANY).await;
     let offered = fixture.replace_qualities(hd_and_4k()).await.unwrap();
     fixture.radarr.go_down();
     let failed = fixture.approve_movie(&fixture.member().await, HEAT).await;
     fixture.radarr.come_back().await;
 
+    let mut renamed = offered.clone();
+    renamed[0].name = "Full HD".to_owned();
+    fixture.replace_qualities(renamed).await.unwrap();
     let mut only_4k = offered[1].clone();
     only_4k.is_default = true;
     let kept = fixture

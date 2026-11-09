@@ -6,6 +6,7 @@ import { useState } from "react";
 import { FormEnd } from "@/components/form-field";
 import { AddQuality, QualityFields } from "@/components/quality-fields";
 import {
+  ExtensionPoint,
   type Plugin,
   PluginService,
   type Quality,
@@ -19,10 +20,14 @@ import { pluginName } from "@/lib/plugins";
 /** The choice setting whose choices a Fulfiller's Qualities offer (`qualities.rs` on the Server). */
 const qualityProfile = "quality_profile";
 
-/** Whether `plugin` takes Qualities: it has the `quality_profile` choice setting. */
+/**
+ * Whether `plugin` takes Qualities: a Movie Fulfiller with the `quality_profile` choice setting.
+ * Shows have none yet.
+ */
 function takesQualities(plugin: Plugin) {
-  return plugin.settings.some(
-    ({ key, kind }) => key === qualityProfile && kind === SettingKind.CHOICE,
+  return (
+    plugin.extensionPoints.includes(ExtensionPoint.MOVIE_FULFILLER) &&
+    plugin.settings.some(({ key, kind }) => key === qualityProfile && kind === SettingKind.CHOICE)
   );
 }
 
