@@ -676,7 +676,7 @@ mod tests {
 
     use super::{ManualError, Matcher, Summary};
     use crate::{
-        contents::{Contents, Decided, FileItem, Item, Recorded},
+        contents::{Change, Contents, Decided, FileItem, Item, Recorded},
         db::Database,
         events::{EventBus, Filter, event},
         libraries::{Kind, Libraries},
@@ -1001,13 +1001,36 @@ mod tests {
         let pilot = "Dark [tvdbid-334824]/Season 01/Dark - S01E01.mkv";
         shows.write(pilot);
         media.scan(shows).await;
-        // Before TVDB ids were read, the folder was searched for as a Show with no year.
+        // Before TVDB ids were read, the folder named a Show with no year and no ID Hint, which
+        // a search left Unmatched.
+        let (path, file) = media
+            .contents
+            .stored(shows.id)
+            .await
+            .unwrap()
+            .into_iter()
+            .next()
+            .unwrap();
+        let old_name = Item::Episode {
+            show: "Dark".to_owned(),
+            year: None,
+            hint: None,
+            season: 1,
+            episode: 1,
+        };
+        let reparse = Change::Reparse {
+            file: file.id,
+            path,
+            items: vec![old_name],
+        };
+        media.contents.apply(shows.id, vec![reparse]).await.unwrap();
         let item = media.item(shows, pilot).await;
         media
             .contents
             .record(vec![(item, Decided::Unmatched)])
             .await
             .unwrap();
+        assert_eq!(media.items(shows).await[0].1.item.name().hint, None);
 
         media.contents.read_by_older_parser(shows.id).await;
         media.scan(shows).await;
