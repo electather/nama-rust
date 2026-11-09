@@ -530,9 +530,9 @@ async fn telegrams_details_page_gets_its_three_settings_without_the_bot_token() 
     let fixture = Fixture::start().await;
     fixture.set_up_telegram(BOT_TOKEN, Some(CHANNEL)).await;
 
-    let listed = fixture.got().await;
+    let telegram = fixture.got().await;
 
-    let settings: Vec<_> = listed
+    let settings: Vec<_> = telegram
         .settings
         .iter()
         .map(|setting| (setting.key.as_str(), setting.value.as_option().is_some()))
@@ -541,9 +541,9 @@ async fn telegrams_details_page_gets_its_three_settings_without_the_bot_token() 
         settings,
         [("bot_token", false), ("channel", true), ("api_url", true)]
     );
-    let token = &listed.settings[0];
+    let token = &telegram.settings[0];
     assert!(token.secret_set);
-    assert!(!format!("{listed:?}").contains(BOT_TOKEN), "{listed:?}");
+    assert!(!format!("{telegram:?}").contains(BOT_TOKEN), "{telegram:?}");
 }
 
 #[tokio::test]

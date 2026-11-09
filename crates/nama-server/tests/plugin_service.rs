@@ -78,13 +78,20 @@ impl Started {
     }
 
     /// The Plugin `id` with its settings, as its details page gets it as the Admin.
+    #[expect(
+        clippy::expect_used,
+        reason = "a test helper fails its test by panicking"
+    )]
     async fn get(&self, id: &str) -> Result<Plugin, ConnectError> {
         let request = GetPluginRequest {
             id: id.to_owned(),
             ..Default::default()
         };
         let got = self.client().get_plugin(request).await?.into_owned();
-        Ok(got.plugin.into_option().unwrap_or_default())
+        Ok(got
+            .plugin
+            .into_option()
+            .expect("GetPlugin returns the Plugin"))
     }
 
     /// Runs the Plugin `id`'s settings check on `settings`, as the Admin.
