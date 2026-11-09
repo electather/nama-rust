@@ -230,11 +230,12 @@ struct Wanted {
     quality_chosen: bool,
 }
 
-/// A Request manager changing a Request's Quality, as they approve or retry it.
+/// A User changing a Request's Quality: a Request manager as they approve or retry it, or an
+/// auto-approved Requester whose ask approves it.
 #[derive(Debug)]
 struct NewQuality {
     quality: RequestedQuality,
-    /// The Request manager's User id.
+    /// The User id of whoever changes it.
     by: i64,
 }
 

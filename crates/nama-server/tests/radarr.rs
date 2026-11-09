@@ -1214,3 +1214,29 @@ async fn a_joiner_who_isnt_auto_approved_leaves_the_quality_as_it_is() {
     assert_eq!(joined.quality.name, "4K");
     assert!(joined.quality_change.is_unset());
 }
+
+#[tokio::test]
+async fn an_auto_approved_joiners_default_no_longer_offered_isnt_their_choice() {
+    let fixture = Fixture::with_radarr_enabled_at(ANY).await;
+    let (offered, _) = alices_pending_4k_request(&fixture).await;
+    let mut with_any = offered.clone();
+    with_any.push(quality(ANY, "Any", false));
+    let with_any = fixture.replace_qualities(with_any).await.unwrap();
+    let bob = fixture
+        .member_named(
+            "Bob",
+            Some(&[
+                Permission::Request,
+                Permission::AutoApproveMovie,
+                Permission::ChooseQuality,
+            ]),
+        )
+        .await;
+    set_default(&bob, Some(with_any[2].id)).await.unwrap();
+    fixture.replace_qualities(offered).await.unwrap();
+
+    let joined = ask(&bob, HEAT, None).await.unwrap();
+
+    assert_eq!(joined.quality.name, "4K");
+    assert!(joined.quality_change.is_unset());
+}
