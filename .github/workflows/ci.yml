@@ -132,8 +132,28 @@ jobs:
           tool: cargo-machete,cargo-deny
       # Dependencies declared in Cargo.toml that no code uses.
       - run: cargo machete
-      # Advisories, licenses, banned and unknown sources (deny.toml).
-      - run: cargo deny check
+      # Licenses, banned and unknown sources (deny.toml).
+      - run: cargo deny check bans licenses sources
+      # An advisory published against a dependency main already has isn't the PR's to fix, so a
+      # PR fails only on one its own Cargo.lock adds. advisories.yml files main's as issues.
+      - name: No new advisories
+        if: github.event_name == 'pull_request'
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          git worktree add --detach "$RUNNER_TEMP/base" "$BASE"
+          (cd "$RUNNER_TEMP/base" && "$GITHUB_WORKSPACE/.github/scripts/advisories.sh") > "$RUNNER_TEMP/base.jsonl"
+          git worktree remove --force "$RUNNER_TEMP/base"
+          .github/scripts/advisories.sh > "$RUNNER_TEMP/head.jsonl"
+          new=$(jq -sc --slurpfile base "$RUNNER_TEMP/base.jsonl" \
+            '($base | map(.key)) as $old | .[] | select(.key as $k | $old | index($k) | not)' \
+            "$RUNNER_TEMP/head.jsonl")
+          jq -r '"Already on main: \(.key) (\(.title))"' "$RUNNER_TEMP/base.jsonl"
+          if [ -n "$new" ]; then
+            jq -r '"::error::\(.id) in \(.package) \(.version): \(.title) \(.url // "")"' <<< "$new"
+            echo "Run 'cargo deny check advisories' for the fix, or ignore it in deny.toml with a reason."
+            exit 1
+          fi
 
   # The web app (web/README.md, "Checks"). Runs on drafts too. The Server's `web` feature test
   # runs in `test`, where it shares the workspace's build cache.

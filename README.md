@@ -48,10 +48,12 @@ cargo nextest run --workspace --locked
 cargo test --workspace --doc --locked
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked
 cargo machete
-cargo deny check
+cargo deny check bans licenses sources
 ```
 
 Building the Server builds the Plugins it bundles for wasm32 (`crates/nama-server/build.rs`), and its tests build the test Plugin, so both need the `wasm32-unknown-unknown` target (`rustup target add wasm32-unknown-unknown`).
+
+`cargo deny check advisories` fails a PR only on an advisory its own `Cargo.lock` adds, not one already on main ([`.github/scripts/advisories.sh`](.github/scripts/advisories.sh)). The [`advisories`](.github/workflows/advisories.yml) workflow checks main daily and opens a `needs-triage` issue for each advisory it finds there.
 
 It also checks that the generated code and the sqlx query data are current. If you change `proto/`, see [`crates/nama-proto/README.md`](crates/nama-proto/README.md). If you change a query or a migration, see [`crates/nama-server/README.md`](crates/nama-server/README.md).
 
