@@ -151,6 +151,21 @@ message Request {
   // keeps them in memory only, so after it restarts a Request has none until it asks again, and
   // `EventService` sends a `RequestProgress` whenever they change.
   repeated Download downloads = 10;
+  // The Quality it is downloaded at, as its Fulfiller's default was when it opened (ADR 0025).
+  // Unset if no Fulfiller was enabled or it had no Qualities then, when the Plugin's own
+  // `quality_profile` applies. A Season Request has none yet.
+  RequestedQuality quality = 11;
+}
+
+// A copy of the Quality a Request took, kept as it was so renaming or removing the Quality changes
+// neither what the Request reads nor what it is handed off with.
+message RequestedQuality {
+  // The Quality's id on its Fulfiller's list, which may not have it any more.
+  int64 id = 1;
+  // Its friendly name, such as `HD`.
+  string name = 2;
+  // The service's quality profile it is handed off with, as `Quality.profile_id`.
+  string profile_id = 3;
 }
 
 // One download a Fulfiller's service is making for a Request. A Season may be one download of the

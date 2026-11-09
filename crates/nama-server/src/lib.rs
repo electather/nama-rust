@@ -14,6 +14,7 @@ mod libraries;
 mod matching;
 pub mod plugin_settings;
 pub mod plugins;
+mod qualities;
 mod rate_limits;
 mod requests;
 mod scanner;

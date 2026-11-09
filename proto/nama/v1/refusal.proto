@@ -177,4 +177,9 @@ enum RefusalReason {
   // `invalid_argument`: the field isn't an http or https URL with a host, or has a query or fragment
   // where links are added to its end.
   REFUSAL_REASON_NOT_A_URL = 53;
+  // `invalid_argument`: a Fulfiller's Qualities name the same profile twice, or two Qualities
+  // share a name, ignoring case. `field` names the second, such as `qualities[1].name`.
+  REFUSAL_REASON_QUALITY_REPEATED = 54;
+  // `invalid_argument`: a Fulfiller's Qualities don't mark exactly one as the default.
+  REFUSAL_REASON_DEFAULT_QUALITY_REQUIRED = 55;
 }
