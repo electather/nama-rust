@@ -19,7 +19,7 @@ use nama_plugin_api::{
     BoxFuture, Observer, Plugin, PluginError, PluginId, Priority, Registrar,
     connector::{ConnectionStarted, Connector},
     fulfiller::{Download, Fulfiller, Movies, Shows},
-    notifier::{Notification, Notifier, Recipient},
+    notifier::{Notification, Notifier, Recipient, RecipientGone},
     points::Events,
     settings::{
         Choice, Choices, SettingField, SettingKind, SettingValue, Settings, SettingsCheck,
@@ -31,8 +31,8 @@ use nama_proto::{
     nama::{
         plugin::v1::{
             self as wire, Channel, CheckedSettings, ConnectionPoll, ConnectionPolled,
-            ConnectionStart, Delivery, Fulfilled, Manifest, ObservePoint, ObservedEvents, Progress,
-            ProgressAsked, ProvidePoint, setting_value,
+            ConnectionStart, Delivered, Delivery, Fulfilled, Manifest, ObservePoint,
+            ObservedEvents, Progress, ProgressAsked, ProvidePoint, setting_value,
         },
         v1::{Event, PluginKind, Request},
     },
@@ -334,7 +334,13 @@ impl Notifier for Running {
             ..Default::default()
         }
         .encode_to_vec();
-        Box::pin(async move { self.provide("deliver", input).await.map(drop) })
+        Box::pin(async move {
+            let output = self.provide("deliver", input).await?;
+            if Delivered::decode_from_slice(&output)?.recipient_gone {
+                return Err(RecipientGone.into());
+            }
+            Ok(())
+        })
     }
 }
 

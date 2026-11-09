@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM plugin_connections\n                 WHERE user_id = ? AND plugin_id = ? AND connection = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "0d42b415280c06912ebecc932b24a0b151b3341470127b1c0d01ef1252e10c4c"
+}

@@ -15,10 +15,11 @@ use nama_pdk::{
     reason = "an export returns `FnResult` even when it can't fail"
 )]
 mod exports {
-    use std::collections::BTreeMap;
+    use std::{collections::BTreeMap, fmt};
 
     use nama_pdk::{
         Buffa, ConnectionStarted, Connector, FnResult, Manifest, Notification, Notifier, Recipient,
+        RecipientGone,
         extism_pdk::{self, Error, HttpRequest, HttpResponse, Json, config},
         nama_proto::nama::plugin::v1::{
             ProvidePoint, SettingField, SettingKind, SettingValue, setting_value,
@@ -94,13 +95,18 @@ mod exports {
 
     impl Notifier for Telegram {
         fn deliver(notification: Notification, recipient: Recipient) -> Result<(), Error> {
-            let chat = match recipient {
-                Recipient::Channel(_) => channel()?,
-                Recipient::Connection(chat_id) => Some(chat_id),
+            let Some(text) = super::message(&notification) else {
+                return Ok(());
             };
-            match (chat, super::message(&notification)) {
-                (Some(chat), Some(text)) => send_message(&chat, &text),
-                _ => Ok(()),
+            match recipient {
+                Recipient::Channel(_) => {
+                    channel()?.map_or(Ok(()), |chat| send_message(&chat, &text))
+                }
+                // Telegram refuses a User's own chat once they block the bot.
+                Recipient::Connection(chat_id) => match send_message(&chat_id, &text) {
+                    Err(error) if error.is::<Forbidden>() => Err(RecipientGone.into()),
+                    sent => sent,
+                },
             }
         }
     }
@@ -170,18 +176,36 @@ mod exports {
         config::get(key)?.ok_or_else(|| Error::msg(format!("the setting {key} isn't set")))
     }
 
-    /// Why Telegram refused a request, in words an admin understands.
+    /// Why Telegram refused a request, in words an admin understands: a [`Forbidden`] for a 403.
     fn refused(response: &HttpResponse) -> Error {
-        let reason = match response.status_code() {
+        let status = response.status_code();
+        let reason = match status {
             // Telegram answers 404 to a token that isn't even shaped like one.
             401 | 404 => "Telegram refused the bot token".to_owned(),
-            status => match response.json::<Refusal>() {
+            _ => match response.json::<Refusal>() {
                 Ok(refusal) => format!("Telegram said: {}", refusal.description),
                 Err(_) => format!("Telegram failed with HTTP status {status}"),
             },
         };
-        Error::msg(reason)
+        if status == 403 {
+            Error::new(Forbidden(reason))
+        } else {
+            Error::msg(reason)
+        }
     }
+
+    /// Telegram's 403: the bot may not post in that chat, as when its User blocked the bot or a
+    /// channel didn't make it an admin.
+    #[derive(Debug)]
+    struct Forbidden(String);
+
+    impl fmt::Display for Forbidden {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            f.write_str(&self.0)
+        }
+    }
+
+    impl std::error::Error for Forbidden {}
 
     /// What `sendMessage` takes. Plain text, so a title needs no escaping.
     #[derive(Serialize)]

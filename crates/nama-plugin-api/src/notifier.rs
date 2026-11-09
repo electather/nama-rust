@@ -8,7 +8,7 @@
 //! registrar.provide::<dyn Notifier>(Priority::DEFAULT, Arc::new(my_notifier));
 //! ```
 
-use std::time::Duration;
+use std::{error::Error, fmt, time::Duration};
 
 pub use nama_proto::nama::plugin::v1::Notification;
 
@@ -28,6 +28,19 @@ pub enum Recipient {
     Connection(String),
 }
 
+/// The error a [`Notifier`] returns when the service says a [`Recipient::Connection`] is gone,
+/// such as a User who blocked the bot. The Kernel then deletes that Plugin Connection.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RecipientGone;
+
+impl fmt::Display for RecipientGone {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("the recipient is gone")
+    }
+}
+
+impl Error for RecipientGone {}
+
 /// A Provider that delivers notifications about Requests through an outside service.
 pub trait Notifier: Send + Sync + 'static {
     /// Formats `notification` and sends it to `recipient`. The Kernel doesn't wait for this, so a
@@ -35,8 +48,9 @@ pub trait Notifier: Send + Sync + 'static {
     ///
     /// # Errors
     ///
-    /// When the service didn't take the notification. The Kernel logs the reason, or the
-    /// timeout, and doesn't retry.
+    /// [`RecipientGone`] when the service says a [`Recipient::Connection`] is gone. Otherwise when
+    /// the service didn't take the notification: the Kernel logs the reason, or the timeout, and
+    /// doesn't retry.
     fn deliver<'a>(
         &'a self,
         notification: &'a Notification,

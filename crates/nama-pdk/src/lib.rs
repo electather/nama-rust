@@ -44,7 +44,7 @@
 //! A Plugin that connects Users to an outside service, such as their Telegram chat, implements
 //! [`Connector`] and exports it with [`connector!`].
 
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt};
 
 pub use extism_pdk::{self, FnResult, plugin_fn};
 pub use nama_proto::{
@@ -225,34 +225,57 @@ pub trait Notifier {
     ///
     /// # Errors
     ///
-    /// When the service didn't take the notification. The Server logs the error's message and
-    /// doesn't retry.
+    /// [`RecipientGone`] when the service says a [`Recipient::Connection`] is gone. Otherwise when
+    /// the service didn't take the notification: the Server logs the error's message and doesn't
+    /// retry.
     fn deliver(notification: Notification, recipient: Recipient) -> Result<(), Error>;
 }
 
+/// The error a [`Notifier`] returns when the service says a [`Recipient::Connection`] is gone,
+/// such as a User who blocked the bot. The Server then deletes that Plugin Connection.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RecipientGone;
+
+impl fmt::Display for RecipientGone {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("the recipient is gone")
+    }
+}
+
+impl std::error::Error for RecipientGone {}
+
 /// Exports a [`Notifier`] as the Plugin's `deliver`, taking the `nama.plugin.v1.Delivery` the
-/// Server sends it.
+/// Server sends it and returning a `nama.plugin.v1.Delivered`.
 #[macro_export]
 macro_rules! notifier {
     ($notifier:ty) => {
         const _: () = {
             // `plugin_fn` expands to paths starting with `extism_pdk`.
             use $crate::{
-                Buffa, FnResult, Notifier,
+                Buffa, FnResult, Notifier, RecipientGone,
                 extism_pdk::{self, Error},
-                nama_proto::nama::plugin::v1::Delivery,
+                nama_proto::nama::plugin::v1::{Delivered, Delivery},
                 plugin_fn,
             };
 
             #[plugin_fn]
-            pub fn deliver(Buffa(delivery): Buffa<Delivery>) -> FnResult<()> {
+            pub fn deliver(Buffa(delivery): Buffa<Delivery>) -> FnResult<Buffa<Delivered>> {
                 let recipient = delivery
                     .recipient
                     .ok_or_else(|| Error::msg("it doesn't know whom the notification is for"))?;
                 let notification = delivery
                     .notification
                     .ok_or_else(|| Error::msg("the Server sent no notification"))?;
-                Ok(<$notifier as Notifier>::deliver(notification, recipient)?)
+                let recipient_gone = match <$notifier as Notifier>::deliver(notification, recipient)
+                {
+                    Ok(()) => false,
+                    Err(error) if error.is::<RecipientGone>() => true,
+                    Err(error) => return Err(error.into()),
+                };
+                Ok(Buffa(Delivered {
+                    recipient_gone,
+                    ..Delivered::default()
+                }))
             }
         };
     };

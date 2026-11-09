@@ -12,7 +12,7 @@ use std::sync::Arc;
 use futures_util::{Stream, StreamExt, future, stream};
 use nama_plugin_api::{
     PluginError, PluginId,
-    notifier::{DELIVER_TIMEOUT, Notification, Notifier, Recipient},
+    notifier::{DELIVER_TIMEOUT, Notification, Notifier, Recipient, RecipientGone},
     points,
 };
 use nama_proto::nama::v1::{
@@ -21,7 +21,7 @@ use nama_proto::nama::v1::{
 };
 use tokio::sync::broadcast::{self, error::RecvError};
 use tokio_util::sync::CancellationToken;
-use tracing::error;
+use tracing::{error, info};
 
 use crate::{
     connections, db::Database, plugins::Registry, server_settings::ServerUrl, users::User,
@@ -204,28 +204,39 @@ async fn next_message(
 
 /// Hands `notification` to `plugin`'s `notifier` for its channel and for the Plugin Connection to
 /// `plugin` of each User told about it, [`DELIVERING_AT_ONCE`] at a time. A User with none is
-/// skipped.
+/// skipped, and one the Notifier finds gone is disconnected (ADR 0021).
 ///
 /// # Errors
 ///
-/// Each recipient's that failed, together. Reading the Plugin Connections failing is logged, and
-/// the channel still told.
+/// Each recipient's that failed, together. Reading or deleting Plugin Connections failing is
+/// logged, and the others still told.
 async fn deliver(
     db: Arc<Database>,
     plugin: PluginId,
     notifier: Arc<dyn Notifier>,
     notification: Arc<Notification>,
 ) -> Result<(), PluginError> {
-    let mut recipients = vec![("the channel".to_owned(), Recipient::Channel)];
+    let mut recipients = vec![(None, Recipient::Channel)];
     match connections::connected(&db, &plugin).await {
         Ok(connected) => recipients.extend(connections_to_tell(&notification.event, connected)),
         Err(err) => error!(%plugin, "could not read whom to message about a Request: {err}"),
     }
-    let deliveries = recipients.into_iter().map(|(whom, recipient)| {
-        let (notifier, notification) = (&notifier, &notification);
+    let deliveries = recipients.into_iter().map(|(user, recipient)| {
+        let (db, plugin, notifier, notification) = (&db, &plugin, &notifier, &notification);
         async move {
             let delivered = deliver_to(notifier.as_ref(), notification, &recipient).await;
-            delivered.err().map(|error| format!("to {whom}: {error}"))
+            match (delivered, user, recipient) {
+                (Ok(()), ..) => None,
+                (Err(error), Some(user), Recipient::Connection(connection))
+                    if error.is::<RecipientGone>() =>
+                {
+                    disconnect(db, user, plugin, connection).await;
+                    None
+                }
+                // By id, so that no log names a chat id.
+                (Err(error), Some(user), _) => Some(format!("to User {user}: {error}")),
+                (Err(error), None, _) => Some(format!("to the channel: {error}")),
+            }
         }
     });
     let failed: Vec<String> = stream::iter(deliveries)
@@ -240,18 +251,28 @@ async fn deliver(
     }
 }
 
-/// The Plugin Connection of each of `connected` that [`users_to_tell`] picks for `event`, named
-/// by whose it is.
-fn connections_to_tell(event: &Event, connected: Vec<(User, String)>) -> Vec<(String, Recipient)> {
+/// The Plugin Connection of each of `connected` that [`users_to_tell`] picks for `event`, with
+/// the id of the User whose it is.
+fn connections_to_tell(
+    event: &Event,
+    connected: Vec<(User, String)>,
+) -> Vec<(Option<i64>, Recipient)> {
     let (users, connections): (Vec<_>, Vec<_>) = connected.into_iter().unzip();
     let told = users_to_tell(event, &users);
     users
         .iter()
         .zip(connections)
         .filter(|(user, _)| told.contains(&user.id))
-        // By id, so that no log names a chat id.
-        .map(|(user, connection)| (format!("User {}", user.id), Recipient::Connection(connection)))
+        .map(|(user, connection)| (Some(user.id), Recipient::Connection(connection)))
         .collect()
+}
+
+/// Deletes `user`'s Plugin Connection to `plugin`, `connection`, which its Notifier found gone.
+async fn disconnect(db: &Database, user: i64, plugin: &PluginId, connection: String) {
+    match connections::forget(db, user, plugin, connection).await {
+        Ok(()) => info!(%plugin, user, "disconnected a User the service says is gone"),
+        Err(err) => error!(%plugin, user, "could not disconnect a User who is gone: {err}"),
+    }
 }
 
 /// Hands `notification` to `notifier` for `recipient`, giving up after [`DELIVER_TIMEOUT`].
