@@ -2,17 +2,23 @@
 //!
 //! Each candidate gets a confidence from 0 to 1: how alike the titles are (the candidate's
 //! title or original title, whichever is closer) times how well the years agree. A candidate
-//! Matches only above [`THRESHOLD`], and only if no other candidate comes within [`MARGIN`] of
-//! it: two titles that fit about as well are ambiguous, and an ambiguous file stays Unmatched
-//! rather than risk the wrong Match.
+//! Matches only above [`THRESHOLD`], and only if every other candidate within [`MARGIN`] of it
+//! has at most a [`VOTE_RATIO`]th of its votes: two titles that fit about as well and are about
+//! as well known are ambiguous, and an ambiguous file stays Unmatched rather than risk the wrong
+//! Match.
 
 use nama_plugin_api::metadata::{Candidate, ExternalId};
 
 /// The least confidence a Match needs.
 const THRESHOLD: f64 = 0.85;
 
-/// How far ahead of the next candidate the best must be.
+/// How far ahead of the next candidate the best must be to Match on its fit alone.
 const MARGIN: f64 = 0.1;
+
+/// How many times the votes of each candidate within [`MARGIN`] the best needs to Match anyway.
+/// A bare "The Office" (the US show with 5.6 times the UK one's votes) stays Unmatched: in a
+/// Sonarr Library that folder is the UK show.
+const VOTE_RATIO: u64 = 10;
 
 /// What a search's results say about a title.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -32,13 +38,31 @@ pub(crate) fn decide(title: &str, year: Option<i32>, candidates: &[Candidate]) -
         .iter()
         .map(|candidate| (confidence(title, year, candidate), candidate))
         .collect();
-    scored.sort_by(|a, b| b.0.total_cmp(&a.0));
-    match scored.as_slice() {
-        [(best, _), ..] if *best < THRESHOLD => Decision::NoMatch,
-        [] => Decision::NoMatch,
-        [(best, _), (second, _), ..] if best - second < MARGIN => Decision::Ambiguous,
-        [(_, best), ..] => Decision::Match(best.id.clone()),
+    // On equal fit the better-known candidate is the best, whatever order the search gave.
+    scored.sort_by(|a, b| {
+        b.0.total_cmp(&a.0)
+            .then(b.1.vote_count.cmp(&a.1.vote_count))
+    });
+    let Some(((best_score, best), others)) = scored.split_first() else {
+        return Decision::NoMatch;
+    };
+    if *best_score < THRESHOLD {
+        return Decision::NoMatch;
     }
+    let contested = others
+        .iter()
+        .take_while(|(score, _)| best_score - score < MARGIN)
+        .any(|(_, other)| !outvotes(best, other));
+    if contested {
+        Decision::Ambiguous
+    } else {
+        Decision::Match(best.id.clone())
+    }
+}
+
+/// Whether `best` is far better known than `other`, counting no votes as one.
+fn outvotes(best: &Candidate, other: &Candidate) -> bool {
+    u64::from(best.vote_count) >= VOTE_RATIO * u64::from(other.vote_count.max(1))
 }
 
 fn confidence(title: &str, year: Option<i32>, candidate: &Candidate) -> f64 {
@@ -148,6 +172,14 @@ mod tests {
             original_title: None,
             year,
             poster: None,
+            vote_count: 0,
+        }
+    }
+
+    fn with_votes(vote_count: u32, candidate: Candidate) -> Candidate {
+        Candidate {
+            vote_count,
+            ..candidate
         }
     }
 
@@ -241,46 +273,84 @@ mod tests {
     }
 
     #[test]
-    fn two_titles_that_fit_as_well_are_ambiguous() {
-        let same_year = [
-            candidate(10_688, "Hamlet", Some(2000)),
-            candidate(58_995, "Hamlet", Some(2000)),
+    fn a_far_better_known_title_breaks_a_tie() {
+        let arrival = [
+            with_votes(4, candidate(420_634, "Arrival", Some(2016))),
+            with_votes(18_000, candidate(329_865, "Arrival", Some(2016))),
         ];
-        let no_year = [
-            candidate(2316, "The Office", Some(2005)),
-            candidate(2996, "The Office", Some(2001)),
+        let oblivion = [
+            with_votes(11_000, candidate(75_612, "Oblivion", Some(2013))),
+            with_votes(2, candidate(254_986, "Oblivion", Some(2013))),
+        ];
+        let band_of_brothers = [
+            with_votes(3_400, candidate(4613, "Band of Brothers", Some(2001))),
+            with_votes(3, candidate(96_157, "Band of Brothers", Some(2019))),
         ];
 
         assert_eq!(
-            decide("Hamlet", Some(2000), &same_year),
-            Decision::Ambiguous
+            decide("Arrival", Some(2016), &arrival),
+            Decision::Match(ExternalId::Tmdb(329_865))
         );
-        assert_eq!(decide("The Office", None, &no_year), Decision::Ambiguous);
+        assert_eq!(
+            decide("Oblivion", Some(2013), &oblivion),
+            Decision::Match(ExternalId::Tmdb(75_612))
+        );
+        assert_eq!(
+            decide("Band of Brothers", None, &band_of_brothers),
+            Decision::Match(ExternalId::Tmdb(4613))
+        );
     }
 
     #[test]
-    fn a_runner_up_just_below_the_threshold_still_makes_it_ambiguous() {
-        // The file's typo fits the first title at about 0.92 and the second at about 0.84:
-        // within the margin of each other, though only the first clears the threshold.
-        let found = [
-            candidate(
-                120,
-                "The Lord of the Rings: The Fellowship of the Ring",
-                Some(2001),
-            ),
-            candidate(
-                9,
-                "Lord of the Rings: The Fellowship of the Ring",
-                Some(2001),
-            ),
+    fn a_tie_between_titles_less_than_ten_times_apart_in_votes_stays_ambiguous() {
+        let the_office = [
+            with_votes(5_682, candidate(2316, "The Office", Some(2005))),
+            with_votes(1_016, candidate(2996, "The Office", Some(2001))),
+        ];
+        let barely_rated = [
+            with_votes(1, candidate(1, "Hamlet", Some(2000))),
+            with_votes(0, candidate(2, "Hamlet", Some(2000))),
         ];
 
+        assert_eq!(decide("The Office", None, &the_office), Decision::Ambiguous);
         assert_eq!(
-            decide(
-                "The Lord of the Rings - The Fellowshp of the Ring",
-                Some(2001),
-                &found
-            ),
+            decide("Hamlet", Some(2000), &barely_rated),
+            Decision::Ambiguous
+        );
+    }
+
+    #[test]
+    fn a_runner_up_just_below_the_threshold_needs_outvoting_too() {
+        // The file's typo fits the first title at about 0.92 and the second at about 0.84:
+        // within the margin of each other, though only the first clears the threshold.
+        let fellowship = |votes| {
+            [
+                with_votes(
+                    25_000,
+                    candidate(
+                        120,
+                        "The Lord of the Rings: The Fellowship of the Ring",
+                        Some(2001),
+                    ),
+                ),
+                with_votes(
+                    votes,
+                    candidate(
+                        9,
+                        "Lord of the Rings: The Fellowship of the Ring",
+                        Some(2001),
+                    ),
+                ),
+            ]
+        };
+        let typo = "The Lord of the Rings - The Fellowshp of the Ring";
+
+        assert_eq!(
+            decide(typo, Some(2001), &fellowship(2_500)),
+            Decision::Match(ExternalId::Tmdb(120))
+        );
+        assert_eq!(
+            decide(typo, Some(2001), &fellowship(2_501)),
             Decision::Ambiguous
         );
     }

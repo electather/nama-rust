@@ -110,6 +110,8 @@ pub struct Candidate {
     pub year: Option<i32>,
     /// The poster's path, to pass to [`MetadataProvider::image`].
     pub poster: Option<String>,
+    /// How many people rated it, a measure of how well known it is.
+    pub vote_count: u32,
 }
 
 /// A Movie's details.
