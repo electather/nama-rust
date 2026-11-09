@@ -33,6 +33,11 @@ const states: Partial<Record<RequestState, Shown>> = {
 /** A state from a newer Server than this app knows. */
 const unknown: Shown = { label: "Unknown", Icon: CircleHelp };
 
+/** A Request's state in the Glossary's words. */
+export function requestStateName(state: RequestState) {
+  return (states[state] ?? unknown).label;
+}
+
 /** A Request's state as a labelled pill. */
 export function RequestStateLabel({ state }: { state: RequestState }) {
   return <StateLabel {...(states[state] ?? unknown)} />;
