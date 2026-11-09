@@ -15,6 +15,8 @@ pub(crate) struct MovieResult {
     original_title: Option<String>,
     release_date: Option<String>,
     poster_path: Option<String>,
+    #[serde(default)]
+    vote_count: u32,
 }
 
 impl From<MovieResult> for Candidate {
@@ -25,6 +27,7 @@ impl From<MovieResult> for Candidate {
             title: movie.title,
             original_title: present(movie.original_title),
             poster: present(movie.poster_path),
+            vote_count: movie.vote_count,
         }
     }
 }
@@ -36,6 +39,8 @@ pub(crate) struct ShowResult {
     original_name: Option<String>,
     first_air_date: Option<String>,
     poster_path: Option<String>,
+    #[serde(default)]
+    vote_count: u32,
 }
 
 impl From<ShowResult> for Candidate {
@@ -46,6 +51,7 @@ impl From<ShowResult> for Candidate {
             title: show.name,
             original_title: present(show.original_name),
             poster: present(show.poster_path),
+            vote_count: show.vote_count,
         }
     }
 }
