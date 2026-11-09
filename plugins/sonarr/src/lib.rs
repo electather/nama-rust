@@ -46,6 +46,7 @@ mod exports {
             ..SettingField::default()
         };
         Ok(Buffa(Manifest {
+            logo_svg: include_str!("../logo.svg").to_owned(),
             providers: vec![ProvidePoint::PROVIDE_POINT_SHOW_FULFILLER.into()],
             settings: vec![
                 setting(

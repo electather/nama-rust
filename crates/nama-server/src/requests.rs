@@ -2582,6 +2582,7 @@ mod tests {
                 version: "0.0.0".to_owned(),
                 settings: SettingsSchema::default(),
                 extension_points: vec![PointKey::provide::<dyn Fulfiller<Movies>>()],
+                logo_svg: None,
             }
         }
 

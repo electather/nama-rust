@@ -76,6 +76,7 @@ impl Plugin for TestChoices {
                 PointKey::provide::<dyn Fulfiller<Movies>>(),
                 PointKey::provide::<dyn Fulfiller<Shows>>(),
             ],
+            logo_svg: Some(include_str!("../logo.svg").to_owned()),
         }
     }
 

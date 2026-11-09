@@ -5604,6 +5604,10 @@ pub struct PluginSummaryView<'a> {
         'a,
         ::buffa::EnumValue<super::super::ExtensionPoint>,
     >,
+    /// As `Plugin.logo_svg`.
+    ///
+    /// Field 10: `logo_svg`
+    pub logo_svg: &'a str,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for PluginSummaryView<'a> {
@@ -5694,6 +5698,13 @@ impl<'a> ::buffa::MessageView<'a> for PluginSummaryView<'a> {
                 )?;
                 view.description = ::buffa::types::borrow_str(&mut cur)?;
             }
+            10u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.logo_svg = ::buffa::types::borrow_str(&mut cur)?;
+            }
             9u32 => {
                 if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
                     let payload = ::buffa::types::borrow_bytes(&mut cur)?;
@@ -5755,6 +5766,7 @@ impl<'a> ::buffa::MessageView<'a> for PluginSummaryView<'a> {
             name: self.name.to_string(),
             description: self.description.to_string(),
             extension_points: self.extension_points.to_vec(),
+            logo_svg: self.logo_svg.to_string(),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -5802,6 +5814,9 @@ impl<'a> ::buffa::ViewEncode<'a> for PluginSummaryView<'a> {
                 .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
                 .sum::<u64>();
             size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
+        }
+        if !self.logo_svg.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.logo_svg) as u64;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
@@ -5851,6 +5866,9 @@ impl<'a> ::buffa::ViewEncode<'a> for PluginSummaryView<'a> {
             for v in &self.extension_points {
                 ::buffa::types::encode_int32(v.to_i32(), buf);
             }
+        }
+        if !self.logo_svg.is_empty() {
+            ::buffa::types::put_string_field(10u32, &self.logo_svg, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -5903,6 +5921,9 @@ impl<'__a> ::serde::Serialize for PluginSummaryView<'__a> {
                     "extensionPoints",
                     &::buffa::json_helpers::EnumSeqJson(&self.extension_points),
                 )?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.logo_svg) {
+            __map.serialize_entry("logoSvg", self.logo_svg)?;
         }
         __map.end()
     }
@@ -6058,6 +6079,13 @@ impl PluginSummaryOwnedView {
     ) -> &::buffa::RepeatedView<'_, ::buffa::EnumValue<super::super::ExtensionPoint>> {
         &self.0.reborrow().extension_points
     }
+    /// As `Plugin.logo_svg`.
+    ///
+    /// Field 10: `logo_svg`
+    #[must_use]
+    pub fn logo_svg(&self) -> &'_ str {
+        self.0.reborrow().logo_svg
+    }
 }
 impl ::core::convert::From<::buffa::OwnedView<PluginSummaryView<'static>>>
 for PluginSummaryOwnedView {
@@ -6138,6 +6166,12 @@ pub struct PluginView<'a> {
         'a,
         ::buffa::EnumValue<super::super::ExtensionPoint>,
     >,
+    /// Its logo, an SVG document's text, or empty if it has none. An Installed Plugin's author wrote
+    /// it, so show it only as an image, such as from a `data:image/svg+xml` URL, never inline in a
+    /// page, where its scripts would run.
+    ///
+    /// Field 11: `logo_svg`
+    pub logo_svg: &'a str,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for PluginView<'a> {
@@ -6228,6 +6262,13 @@ impl<'a> ::buffa::MessageView<'a> for PluginView<'a> {
                 )?;
                 view.description = ::buffa::types::borrow_str(&mut cur)?;
             }
+            11u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.logo_svg = ::buffa::types::borrow_str(&mut cur)?;
+            }
             5u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -6312,6 +6353,7 @@ impl<'a> ::buffa::MessageView<'a> for PluginView<'a> {
             name: self.name.to_string(),
             description: self.description.to_string(),
             extension_points: self.extension_points.to_vec(),
+            logo_svg: self.logo_svg.to_string(),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -6367,6 +6409,9 @@ impl<'a> ::buffa::ViewEncode<'a> for PluginView<'a> {
                 .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
                 .sum::<u64>();
             size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
+        }
+        if !self.logo_svg.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.logo_svg) as u64;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
@@ -6425,6 +6470,9 @@ impl<'a> ::buffa::ViewEncode<'a> for PluginView<'a> {
                 ::buffa::types::encode_int32(v.to_i32(), buf);
             }
         }
+        if !self.logo_svg.is_empty() {
+            ::buffa::types::put_string_field(11u32, &self.logo_svg, buf);
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
 }
@@ -6479,6 +6527,9 @@ impl<'__a> ::serde::Serialize for PluginView<'__a> {
                     "extensionPoints",
                     &::buffa::json_helpers::EnumSeqJson(&self.extension_points),
                 )?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.logo_svg) {
+            __map.serialize_entry("logoSvg", self.logo_svg)?;
         }
         __map.end()
     }
@@ -6640,6 +6691,15 @@ impl PluginOwnedView {
         &self,
     ) -> &::buffa::RepeatedView<'_, ::buffa::EnumValue<super::super::ExtensionPoint>> {
         &self.0.reborrow().extension_points
+    }
+    /// Its logo, an SVG document's text, or empty if it has none. An Installed Plugin's author wrote
+    /// it, so show it only as an image, such as from a `data:image/svg+xml` URL, never inline in a
+    /// page, where its scripts would run.
+    ///
+    /// Field 11: `logo_svg`
+    #[must_use]
+    pub fn logo_svg(&self) -> &'_ str {
+        self.0.reborrow().logo_svg
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<PluginView<'static>>> for PluginOwnedView {

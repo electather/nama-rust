@@ -4,7 +4,7 @@ import { afterEach, expect, test } from "vite-plus/test";
 
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 
-import { input, openPlugin, openPlugins, plugin, row } from "./test-plugins";
+import { input, openPlugin, openPlugins, plugin, row, tmdbLogo } from "./test-plugins";
 import { refused } from "./test-refusal";
 
 afterEach(cleanup);
@@ -44,6 +44,26 @@ test("each Plugin says whether it is Built-in or Installed", async () => {
 
   expect((await row("TMDB")).getByText("Built-in, version 0.1.0")).toBeDefined();
   expect((await row("test-plugin")).getByText("Installed, version 0.1.0")).toBeDefined();
+});
+
+test("each Plugin on the list shows its logo as an image, or a generic one without", async () => {
+  openPlugins();
+
+  const logo = (await row("TMDB")).getByRole<HTMLImageElement>("img", { name: "TMDB logo" });
+  expect(logo.src).toBe(`data:image/svg+xml,${encodeURIComponent(tmdbLogo)}`);
+  const generic = (await row("local-auth")).getByRole("img", { name: "local-auth logo" });
+  expect(generic.getAttribute("src")).toBeNull();
+});
+
+test("a Plugin's details page shows its logo as an image, or a generic one without", async () => {
+  openPlugin("tmdb");
+
+  const logo = (await plugin("TMDB")).getByRole<HTMLImageElement>("img", { name: "TMDB logo" });
+  expect(logo.src).toBe(`data:image/svg+xml,${encodeURIComponent(tmdbLogo)}`);
+  cleanup();
+  openPlugin("local-auth");
+  const generic = (await plugin("local-auth")).getByRole("img", { name: "local-auth logo" });
+  expect(generic.getAttribute("src")).toBeNull();
 });
 
 test("a Plugin providing Fulfillers for Movies and Shows shows both on the list and its page", async () => {

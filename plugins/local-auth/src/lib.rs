@@ -43,6 +43,7 @@ impl Plugin for LocalAuth {
             version: env!("CARGO_PKG_VERSION").to_owned(),
             settings: SettingsSchema::default(),
             extension_points: vec![PointKey::provide::<dyn Authenticator>()],
+            logo_svg: Some(include_str!("../logo.svg").to_owned()),
         }
     }
 

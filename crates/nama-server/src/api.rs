@@ -2827,6 +2827,7 @@ fn plugin_summary_to_proto(
         kind: plugin.kind.into(),
         enabled: plugin.enabled,
         refused_reason: plugin.refused_reason.unwrap_or_default(),
+        logo_svg: plugin.logo_svg.unwrap_or_default(),
         ..Default::default()
     }
 }
@@ -2845,6 +2846,7 @@ fn plugin_to_proto(
         enabled: plugin.enabled,
         checks_settings: plugin.checks_settings,
         extension_points: extension_points_to_proto(&plugin.extension_points),
+        logo_svg: plugin.logo_svg.unwrap_or_default(),
         settings: plugin
             .settings_schema
             .fields
