@@ -1727,8 +1727,10 @@ pub struct FollowedShow {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub decline_reason: ::core::option::Option<::buffa::alloc::string::String>,
-    /// The Quality each Season Request it opens takes, now or when a later Season comes out: the
-    /// Show's (`FoundShow.quality`). Unset if the Shows Fulfiller had no Qualities when it opened.
+    /// The Quality it was opened at, or a Request manager last changed the Show's to. Each Season
+    /// Request it opens, now or when a later Season comes out, takes the Show's (`FoundShow.quality`),
+    /// which is this one unless Sonarr kept another for a series it already had. Unset if the Shows
+    /// Fulfiller had no Qualities when it opened.
     ///
     /// Field 8: `quality`
     #[serde(

@@ -287,8 +287,10 @@ message FollowedShow {
   // Why it was declined, for its Requesters to read. Only a Declined Followed Show has one, and
   // only if the decliner gave one.
   optional string decline_reason = 7;
-  // The Quality each Season Request it opens takes, now or when a later Season comes out: the
-  // Show's (`FoundShow.quality`). Unset if the Shows Fulfiller had no Qualities when it opened.
+  // The Quality it was opened at, or a Request manager last changed the Show's to. Each Season
+  // Request it opens, now or when a later Season comes out, takes the Show's (`FoundShow.quality`),
+  // which is this one unless Sonarr kept another for a series it already had. Unset if the Shows
+  // Fulfiller had no Qualities when it opened.
   RequestedQuality quality = 8;
 }
 

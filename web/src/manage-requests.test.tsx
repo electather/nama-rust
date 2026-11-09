@@ -231,8 +231,3 @@ test("a Request manager retries a Failed Request at another Quality", async () =
   expect(await screen.findByText("Processing")).toBeDefined();
   expect(screen.getByText(/4K, changed from HD by Sam on .*9.*2026/u)).toBeDefined();
 });
-
-/**
- * A fake Server holding Ada's Pending Followed Show of Dark, and the Season 1 Request it opened,
- * signed in as an Admin, that approves and cancels the Followed Show.
- */

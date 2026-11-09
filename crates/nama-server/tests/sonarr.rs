@@ -1073,6 +1073,22 @@ async fn following_a_show_at_4k_opens_its_season_requests_at_4k_and_sonarr_adds_
 }
 
 #[tokio::test]
+async fn a_member_without_choose_quality_following_a_show_at_a_quality_is_refused() {
+    let fixture = Fixture::with_sonarr_enabled().await;
+    let offered = fixture.offer_hd_and_4k().await;
+    let member = RequestServiceClient::new(HttpClient::plaintext(), fixture.member().await);
+
+    let refused = follow(&member, DARK, Some(offered[0].id)).await;
+
+    let refusal = assert_refused(
+        refused,
+        ErrorCode::PermissionDenied,
+        RefusalReason::REFUSAL_REASON_QUALITY_NOT_ALLOWED,
+    );
+    assert_eq!(refusal.field, "quality");
+}
+
+#[tokio::test]
 async fn a_request_manager_approving_a_followed_show_as_hd_has_its_season_requests_use_hd() {
     let fixture = Fixture::with_sonarr_enabled().await;
     let offered = fixture.offer_hd_and_4k().await;

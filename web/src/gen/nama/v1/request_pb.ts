@@ -312,8 +312,10 @@ export type FollowedShow = Message<"nama.v1.FollowedShow"> & {
   declineReason?: string | undefined;
 
   /**
-   * The Quality each Season Request it opens takes, now or when a later Season comes out: the
-   * Show's (`FoundShow.quality`). Unset if the Shows Fulfiller had no Qualities when it opened.
+   * The Quality it was opened at, or a Request manager last changed the Show's to. Each Season
+   * Request it opens, now or when a later Season comes out, takes the Show's (`FoundShow.quality`),
+   * which is this one unless Sonarr kept another for a series it already had. Unset if the Shows
+   * Fulfiller had no Qualities when it opened.
    *
    * @generated from field: nama.v1.RequestedQuality quality = 8;
    */

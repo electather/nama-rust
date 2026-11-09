@@ -23,7 +23,7 @@ export function useAskForShow(show: FoundShow) {
     onSuccess: () => {},
   });
   const showTmdbId = show.tmdbId;
-  const askAtDefault = (seasonNumbers: number[], onSuccess: () => void) => {
+  const askWithoutPicking = (seasonNumbers: number[], onSuccess: () => void) => {
     if (whole) follow.mutate({ showTmdbId }, { onSuccess });
     else ask.mutate({ showTmdbId, seasonNumbers }, { onSuccess });
   };
@@ -36,7 +36,7 @@ export function useAskForShow(show: FoundShow) {
     setAwaitingQuality({ seasonNumbers, onSuccess });
     // With no Season picked, the Server's refusal says to pick one, so there's no Quality to ask.
     const picking = (whole || seasonNumbers.length > 0) && picker.open();
-    if (!picking) askAtDefault(seasonNumbers, onSuccess);
+    if (!picking) askWithoutPicking(seasonNumbers, onSuccess);
   });
   const onPick = (quality: bigint) => {
     const { seasonNumbers, onSuccess } = awaitingQuality;

@@ -1926,8 +1926,10 @@ pub struct FollowedShowView<'a> {
     ///
     /// Field 7: `decline_reason`
     pub decline_reason: ::core::option::Option<&'a str>,
-    /// The Quality each Season Request it opens takes, now or when a later Season comes out: the
-    /// Show's (`FoundShow.quality`). Unset if the Shows Fulfiller had no Qualities when it opened.
+    /// The Quality it was opened at, or a Request manager last changed the Show's to. Each Season
+    /// Request it opens, now or when a later Season comes out, takes the Show's (`FoundShow.quality`),
+    /// which is this one unless Sonarr kept another for a series it already had. Unset if the Shows
+    /// Fulfiller had no Qualities when it opened.
     ///
     /// Field 8: `quality`
     pub quality: ::buffa::MessageFieldView<
@@ -2383,8 +2385,10 @@ impl FollowedShowOwnedView {
     pub fn decline_reason(&self) -> ::core::option::Option<&'_ str> {
         self.0.reborrow().decline_reason
     }
-    /// The Quality each Season Request it opens takes, now or when a later Season comes out: the
-    /// Show's (`FoundShow.quality`). Unset if the Shows Fulfiller had no Qualities when it opened.
+    /// The Quality it was opened at, or a Request manager last changed the Show's to. Each Season
+    /// Request it opens, now or when a later Season comes out, takes the Show's (`FoundShow.quality`),
+    /// which is this one unless Sonarr kept another for a series it already had. Unset if the Shows
+    /// Fulfiller had no Qualities when it opened.
     ///
     /// Field 8: `quality`
     #[must_use]

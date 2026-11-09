@@ -10,7 +10,7 @@ import {
 import { TitleKind } from "@/gen/nama/v1/match_pb";
 import { type FollowedShow, type Request, RequestService } from "@/gen/nama/v1/request_pb";
 
-/** A Request's Quality, which approving or retrying it can change. */
+/** A Request's or a Followed Show's Quality, which approving it, or retrying a Request, can change. */
 export interface QualityTarget {
   /** Whose Fulfiller's Qualities it can change to: a Movie's or a Show's. */
   kind: TitleKind;
