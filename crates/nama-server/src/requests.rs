@@ -328,7 +328,8 @@ impl Requests {
     }
 
     /// `manager` changing the Request `id`'s Quality to the one with the id `quality`, if given,
-    /// which must be on the list of the Fulfiller the Request goes to.
+    /// which must be on the list of the Fulfiller the Request goes to. A Season Request has none
+    /// to change yet.
     async fn new_quality(
         &self,
         manager: &User,
@@ -342,12 +343,13 @@ impl Requests {
         let request = load_one(&mut conn, id)
             .await?
             .ok_or(Error::NoSuchRequest(id))?;
-        let kind = if request.movie.is_unset() {
-            TitleKind::Show
+        // shortcut: only a Movie Request has a Quality to change, until a Show has one (#283).
+        let fulfiller = if request.movie.is_unset() {
+            None
         } else {
-            TitleKind::Movie
+            self.fulfiller_of(TitleKind::Movie)
         };
-        let offered = match self.fulfiller_of(kind) {
+        let offered = match fulfiller {
             Some(fulfiller) => qualities::offered(&mut conn, &fulfiller, quality_id).await?,
             None => None,
         };

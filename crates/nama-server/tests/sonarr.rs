@@ -28,10 +28,11 @@ use nama_proto::nama::v1::{
     __buffa::view::SubscribeResponseView, ApproveRequestRequest, CancelFollowedShowRequest,
     CreateFollowedShowRequest, CreateSeasonRequestsRequest, CreateUserRequest, Download,
     DownloadStatus, EnablePluginRequest, EventServiceClient, EventType, ListPluginsRequest,
-    PluginServiceClient, RefusalReason, Request, RequestServiceClient, RequestState,
-    RetryRequestRequest, SessionDelivery, SignInRequest, SignInServiceClient, SubscribeRequest,
-    SubscribeResponse, TestPluginSettingsRequest, TestPluginSettingsResponse,
-    UpdatePluginSettingsRequest, event, setting_value::Value, subscribe_response,
+    PluginServiceClient, Quality, RefusalReason, ReplaceQualitiesRequest, Request,
+    RequestServiceClient, RequestState, RetryRequestRequest, SessionDelivery, SignInRequest,
+    SignInServiceClient, SubscribeRequest, SubscribeResponse, TestPluginSettingsRequest,
+    TestPluginSettingsResponse, UpdatePluginSettingsRequest, event, setting_value::Value,
+    subscribe_response,
 };
 use nama_server::{config::Config, db::Database, plugin_settings, plugins::Registry};
 use refused::assert_refused;
@@ -342,6 +343,44 @@ fn states(requests: &[Request]) -> Vec<Option<RequestState>> {
         .iter()
         .map(|request| request.state.as_known())
         .collect()
+}
+
+#[tokio::test]
+async fn a_season_request_has_no_quality_to_change_even_if_sonarr_offers_some() {
+    let fixture = Fixture::with_sonarr_enabled().await;
+    let hd = Quality {
+        profile_id: "4".to_owned(),
+        name: "HD".to_owned(),
+        is_default: true,
+        ..Default::default()
+    };
+    let offered = fixture
+        .plugins()
+        .replace_qualities(ReplaceQualitiesRequest {
+            id: "sonarr".to_owned(),
+            qualities: vec![hd],
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_owned()
+        .qualities;
+    let asked = fixture.ask_pending(DARK, 1).await;
+
+    let approving = fixture
+        .requests()
+        .approve_request(ApproveRequestRequest {
+            id: asked.id,
+            quality_id: Some(offered[0].id),
+            ..Default::default()
+        })
+        .await;
+
+    assert_refused(
+        approving,
+        ErrorCode::FailedPrecondition,
+        RefusalReason::REFUSAL_REASON_QUALITY_NOT_OFFERED,
+    );
 }
 
 #[tokio::test]

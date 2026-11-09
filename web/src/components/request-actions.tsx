@@ -99,7 +99,7 @@ interface Target {
    */
   changes: typeof requestChanges | typeof followedShowChanges;
   /** A Request's Quality, which approving or retrying it can change; a Followed Show has none. */
-  quality?: QualityTarget;
+  quality?: QualityTarget | undefined;
 }
 
 function targetOf(request: Request | FollowedShow): Target {

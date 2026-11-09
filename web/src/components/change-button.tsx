@@ -18,16 +18,20 @@ export interface QualityTarget {
   id: bigint | undefined;
 }
 
-/** What approving or retrying `request` can change its Quality to: its Fulfiller's other ones. */
-export function qualityTargetOf(request: Request): QualityTarget {
-  return { kind: request.season ? TitleKind.SHOW : TitleKind.MOVIE, id: request.quality?.id };
+/**
+ * What approving or retrying `request` can change its Quality to, if anything: a Movie Request's
+ * Fulfiller's other Qualities. A Season Request has no Quality yet.
+ */
+export function qualityTargetOf({ movie, quality }: Request): QualityTarget | undefined {
+  return movie && { kind: TitleKind.MOVIE, id: quality?.id };
 }
 
+/** What a {@link ChangeButton} changes, and how it says the Server refused. */
 export interface ChangeButtonProps {
   action: string;
   /** The button's accessible name, which says which Request it changes. */
   name: string;
-  /** The mutation the button calls with the Request's ID. */
+  /** The mutation the button calls with the Request's ID, and the menu with a Quality's too. */
   change: {
     mutate: (input: { id: bigint; qualityId?: bigint }) => void;
     isPending: boolean;

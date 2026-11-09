@@ -203,10 +203,11 @@ function aboutRequest(request: Request | FollowedShow, you: bigint | undefined) 
 /** A Request's Quality, and who last changed it from what: "HD, changed from 4K by Sam". */
 function qualityOf({ quality, qualityChange }: Request) {
   if (!quality || !qualityChange) return quality?.name;
-  return `${quality.name}, ${changed(qualityChange)}`;
+  return `${quality.name}, ${changeText(qualityChange)}`;
 }
 
-function changed({ previousName, changedBy = "a Request manager" }: QualityChange) {
+/** Who changed a Quality from what, in words: "changed from 4K by Sam". */
+function changeText({ previousName, changedBy = "a Request manager" }: QualityChange) {
   const from = previousName === undefined ? "" : ` from ${previousName}`;
   return `changed${from} by ${changedBy}`;
 }
