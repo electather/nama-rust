@@ -41,8 +41,9 @@ use nama_proto::nama::v1::{
     ApproveRequestResponse, ApproveSignInCodeRequest, ApproveSignInCodeResponse, BrowseService,
     CancelFollowedShowRequest, CancelFollowedShowResponse, CancelRequestRequest,
     CancelRequestResponse, ChangePasswordRequest, ChangePasswordResponse, ClearMatchRequest,
-    ClearMatchResponse, CreateFollowedShowRequest, CreateFollowedShowResponse,
-    CreateLibraryRequest, CreateLibraryResponse, CreateRequestRequest, CreateRequestResponse,
+    ClearMatchResponse, CountPendingRequestsRequest, CountPendingRequestsResponse,
+    CreateFollowedShowRequest, CreateFollowedShowResponse, CreateLibraryRequest,
+    CreateLibraryResponse, CreateRequestRequest, CreateRequestResponse,
     CreateSeasonRequestsRequest, CreateSeasonRequestsResponse, CreateUserRequest,
     CreateUserResponse, DeclineFollowedShowRequest, DeclineFollowedShowResponse,
     DeclineRequestRequest, DeclineRequestResponse, DeleteLibraryRequest, DeleteLibraryResponse,
@@ -280,6 +281,7 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::REQUEST_SERVICE_CREATE_SEASON_REQUESTS_SPEC.procedure, REQUEST_TV),
     (proto::REQUEST_SERVICE_LIST_REQUESTS_SPEC.procedure,         Access::SignedIn),
     (proto::REQUEST_SERVICE_GET_REQUEST_SPEC.procedure,           Access::SignedIn),
+    (proto::REQUEST_SERVICE_COUNT_PENDING_REQUESTS_SPEC.procedure, MANAGE_REQUESTS),
     (proto::REQUEST_SERVICE_SEARCH_MOVIES_SPEC.procedure,         REQUEST_MOVIE),
     (proto::REQUEST_SERVICE_LOOK_UP_MOVIE_SPEC.procedure,         REQUEST_MOVIE),
     (proto::REQUEST_SERVICE_SEARCH_SHOWS_SPEC.procedure,          REQUEST_TV),
@@ -1540,6 +1542,22 @@ impl RequestService for RequestServiceHandler {
         let request = self.requests.get(viewer, request.id).await?;
         Response::ok(GetRequestResponse {
             request: request.into(),
+            ..Default::default()
+        })
+    }
+
+    async fn count_pending_requests(
+        &self,
+        _ctx: RequestContext,
+        _request: ServiceRequest<'_, CountPendingRequestsRequest>,
+    ) -> ServiceResult<CountPendingRequestsResponse> {
+        let count = self
+            .requests
+            .count_pending()
+            .await
+            .map_err(database_failed)?;
+        Response::ok(CountPendingRequestsResponse {
+            count,
             ..Default::default()
         })
     }

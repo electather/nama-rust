@@ -853,6 +853,17 @@ impl Requests {
         Ok((requests, followed))
     }
 
+    /// How many Requests and Followed Shows are Pending, counting a Followed Show apart from its
+    /// Season Requests.
+    pub(crate) async fn count_pending(&self) -> Result<u32, sqlx::Error> {
+        sqlx::query_scalar!(
+            r#"SELECT (SELECT COUNT(*) FROM requests WHERE state = 'pending')
+                + (SELECT COUNT(*) FROM followed_shows WHERE state = 'pending') AS "count!: u32""#
+        )
+        .fetch_one(self.db.reader())
+        .await
+    }
+
     /// The Movies the metadata source finds titled like `title`, best fit first, as `viewer`
     /// sees them.
     pub(crate) async fn search(

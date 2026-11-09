@@ -38,6 +38,12 @@ service RequestService {
   rpc GetRequest(GetRequestRequest) returns (GetRequestResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
+  // Counts the Requests and Followed Shows that are Pending, for the Requests link. A Pending
+  // Followed Show and each of its Pending Season Requests count once each. Needs
+  // `PERMISSION_MANAGE_REQUESTS`.
+  rpc CountPendingRequests(CountPendingRequestsRequest) returns (CountPendingRequestsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
   // Searches the metadata source for Movies to ask for, best fit first. Unlike
   // `MatchService.SearchMetadata`, it needs only `PERMISSION_REQUEST_MOVIE`. Fails with
   // `invalid_argument` if the title is blank, and `unavailable` if no metadata Provider is
@@ -284,6 +290,13 @@ message GetRequestRequest {
 
 message GetRequestResponse {
   Request request = 1;
+}
+
+message CountPendingRequestsRequest {}
+
+message CountPendingRequestsResponse {
+  // How many Requests and Followed Shows are Pending.
+  uint32 count = 1;
 }
 
 message ApproveRequestRequest {
