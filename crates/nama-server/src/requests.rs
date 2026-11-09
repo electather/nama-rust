@@ -1632,9 +1632,8 @@ async fn approve(
 }
 
 /// Changes the Quality of the Request `id` to `quality`, and for a Season Request that of every
-/// open Season Request of its Show, so the Show keeps one Quality (ADR 0025). Once a Season of the
-/// Show was handed off, Sonarr keeps the profile it added the series with, so another Quality is
-/// refused.
+/// open Season Request of its Show, so the Show keeps one Quality (ADR 0025). Once its Quality is
+/// fixed, Sonarr keeps the profile it added the series with, so another Quality is refused.
 async fn change_quality(
     conn: &mut SqliteConnection,
     id: i64,
@@ -1648,14 +1647,14 @@ async fn change_quality(
     if let Some(show) = show
         && show_quality_fixed(conn, show).await?
     {
-        let kept = request.quality.as_option().map(|kept| kept.id);
+        let kept = show_quality(conn, show).await?.map(|kept| kept.id);
         if kept != Some(quality.id) {
             return Err(Error::NotTheShowsQuality(quality.id));
         }
         return Ok(());
     }
     let (quality_id, quality_name, quality_profile_id) = quality_columns(Some(quality));
-    // shortcut: the Show's other Season Requests change without an event, so a client sees it on
+    // ponytail: the Show's other Season Requests change without an event, so a client sees it on
     // its next read; publish one for each if a screen shows them live.
     sqlx::query!(
         "UPDATE requests SET quality_id = ?, quality_name = ?, quality_profile_id = ?
@@ -1675,12 +1674,16 @@ async fn change_quality(
 /// The Quality of the Show `show_tmdb_id`, which each of its Season Requests takes (ADR 0025):
 /// that of its earliest Season Request with one that is open or was handed off, which a Request
 /// tells by keeping its Fulfiller's reference. So Declined, Cancelled or Withdrawn ones don't count.
+/// It is the Quality Sonarr used, once the hand-off said, as Sonarr keeps a series' profile.
 async fn show_quality(
     conn: &mut SqliteConnection,
     show_tmdb_id: i64,
 ) -> Result<Option<RequestedQuality>, sqlx::Error> {
+    // The used columns are all set or all NULL, as `quality_columns` writes them.
     let row = sqlx::query!(
-        r#"SELECT quality_id AS "id!", quality_name AS "name!", quality_profile_id AS "profile_id!"
+        r#"SELECT COALESCE(quality_used_id, quality_id) AS "id!: i64",
+                  COALESCE(quality_used_name, quality_name) AS "name!: String",
+                  COALESCE(quality_used_profile_id, quality_profile_id) AS "profile_id!: String"
            FROM requests
            WHERE tmdb_id = ? AND season IS NOT NULL AND quality_id IS NOT NULL
              AND (state NOT IN ('declined', 'available') OR fulfiller_reference IS NOT NULL)
@@ -1698,7 +1701,8 @@ async fn show_quality(
     }))
 }
 
-/// Whether a Season of the Show `show_tmdb_id` was handed off, which fixes the Show's Quality.
+/// Whether a Season of the Show `show_tmdb_id` was handed off, which fixes the Show's Quality. An
+/// Approved one counts, as its hand-off may be under way.
 async fn show_quality_fixed(
     conn: &mut SqliteConnection,
     show_tmdb_id: i64,
@@ -1706,7 +1710,8 @@ async fn show_quality_fixed(
     sqlx::query_scalar!(
         r#"SELECT EXISTS (SELECT 1 FROM requests
                           WHERE tmdb_id = ? AND season IS NOT NULL
-                            AND fulfiller_reference IS NOT NULL) AS "is!: bool""#,
+                            AND (fulfiller_reference IS NOT NULL OR state = 'approved'))
+           AS "is!: bool""#,
         show_tmdb_id
     )
     .fetch_one(&mut *conn)

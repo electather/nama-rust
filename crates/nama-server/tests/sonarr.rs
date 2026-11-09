@@ -918,6 +918,7 @@ async fn a_series_sonarr_already_had_at_another_profile_shows_that_profile() {
         .await;
 
     let asked = fixture.ask_approved(DARK, &[2]).await.remove(0);
+    let shows = fixture.show_quality(DARK).await;
 
     assert_eq!(asked.state, RequestState::Processing);
     assert_eq!(asked.quality.name, "4K");
@@ -926,4 +927,5 @@ async fn a_series_sonarr_already_had_at_another_profile_shows_that_profile() {
         (used.id, used.name.as_str(), used.profile_id.as_str()),
         (0, "HD-1080p", HD_1080P)
     );
+    assert_eq!(shows.as_ref(), asked.quality_used.as_option());
 }

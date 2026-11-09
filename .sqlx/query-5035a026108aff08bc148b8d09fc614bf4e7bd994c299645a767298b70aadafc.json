@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT EXISTS (SELECT 1 FROM requests\n                          WHERE tmdb_id = ? AND season IS NOT NULL\n                            AND (fulfiller_reference IS NOT NULL OR state = 'approved'))\n           AS \"is!: bool\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "is!: bool",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "5035a026108aff08bc148b8d09fc614bf4e7bd994c299645a767298b70aadafc"
+}
