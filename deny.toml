@@ -4,7 +4,8 @@
 all-features = true
 
 [advisories]
-# Any RustSec advisory (vulnerable, unmaintained, yanked) fails the build.
+# Any RustSec advisory (vulnerable, unmaintained, yanked) fails a PR that adds it; one already on
+# main becomes an issue instead (.github/workflows/advisories.yml).
 yanked = "deny"
 ignore = [
   # Bundled SQLite < 3.54 with a crafted db/-wal pair. sqlx 0.9 caps libsqlite3-sys below the
