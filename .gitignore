@@ -3,6 +3,8 @@
 # pnpm keeps its store on the same filesystem as web/, at the mount root when that differs
 # from the home directory's.
 /.pnpm-store
+# Where it lands when pnpm runs from the repo root; #302 committed it by accident.
+/node_modules
 /nama.toml
 # TokenEconomizer tool pruning writes its deny list here; agents must not commit it
 /.claude/settings.local.json
