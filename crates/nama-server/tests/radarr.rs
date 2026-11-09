@@ -252,14 +252,7 @@ impl Fixture {
 
     /// Subscribes as the Admin to the events of type `only` about every Request.
     async fn subscribe_to(&self, only: EventType) -> Subscription {
-        let only = SubscribeRequest {
-            types: vec![only.into()],
-            ..Default::default()
-        };
-        EventServiceClient::new(HttpClient::plaintext(), self.server.client_config())
-            .subscribe(only)
-            .await
-            .unwrap()
+        subscribe(self.server.client_config(), only).await
     }
 
     /// Creates a User with the Permissions a new User gets, signs them in, and returns client
@@ -270,13 +263,18 @@ impl Fixture {
 
     /// [`Self::member`], with `permissions` the Admin gives them in place of a new User's, if any.
     async fn member_with(&self, permissions: Option<&[Permission]>) -> ClientConfig {
+        self.member_named("Ada", permissions).await
+    }
+
+    /// [`Self::member_with`], named `name`.
+    async fn member_named(&self, name: &str, permissions: Option<&[Permission]>) -> ClientConfig {
         let users = nama_proto::nama::v1::UserServiceClient::new(
             HttpClient::plaintext(),
             self.server.client_config(),
         );
         let created = users
             .create_user(CreateUserRequest {
-                name: "Ada".to_owned(),
+                name: name.to_owned(),
                 password: PASSWORD.to_owned(),
                 ..Default::default()
             })
@@ -297,7 +295,7 @@ impl Fixture {
             self.server.anonymous_client_config(),
         )
         .sign_in(SignInRequest {
-            name: "Ada".to_owned(),
+            name: name.to_owned(),
             password: PASSWORD.to_owned(),
             device_name: "Phone".to_owned(),
             delivery: SessionDelivery::SESSION_DELIVERY_TOKEN.into(),
@@ -307,6 +305,22 @@ impl Fixture {
         .unwrap();
         self.server.client_config_as(&signed_in.into_owned().token)
     }
+}
+
+/// Subscribes as `member` to the events of type `only` they may see.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn subscribe(member: ClientConfig, only: EventType) -> Subscription {
+    let only = SubscribeRequest {
+        types: vec![only.into()],
+        ..Default::default()
+    };
+    EventServiceClient::new(HttpClient::plaintext(), member)
+        .subscribe(only)
+        .await
+        .unwrap()
 }
 
 /// Asks for the Movie `tmdb_id` as `member`, at the Quality `quality` if given.
@@ -1097,4 +1111,140 @@ async fn a_default_not_on_the_list_is_refused_naming_it_and_a_cleared_one_is_uns
     );
     assert_eq!(refusal.field, "quality");
     assert_eq!(defaults(&chooser).await[0].quality, None);
+}
+
+/// "HD" (the default) and "4K", and Alice, who may choose and opened a Pending Request for Heat at
+/// 4K.
+#[expect(
+    clippy::unwrap_used,
+    clippy::indexing_slicing,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn alices_pending_4k_request(fixture: &Fixture) -> (Vec<Quality>, ClientConfig) {
+    let offered = fixture.replace_qualities(hd_and_4k()).await.unwrap();
+    let alice = fixture
+        .member_named(
+            "Alice",
+            Some(&[Permission::Request, Permission::ChooseQuality]),
+        )
+        .await;
+    let asked = ask(&alice, HEAT, Some(offered[1].id)).await.unwrap();
+    assert_eq!(asked.state, RequestState::Pending);
+    (offered, alice)
+}
+
+#[tokio::test]
+async fn an_auto_approved_joiner_picking_hd_approves_a_pending_4k_request_at_hd_and_alice_is_told()
+{
+    let fixture = Fixture::with_radarr_enabled_at(ANY).await;
+    let (offered, alice) = alices_pending_4k_request(&fixture).await;
+    let bob = fixture
+        .member_named(
+            "Bob",
+            Some(&[
+                Permission::Request,
+                Permission::AutoApproveMovie,
+                Permission::ChooseQuality,
+            ]),
+        )
+        .await;
+    let mut approvals = subscribe(alice, EventType::EVENT_TYPE_REQUEST_STATE_CHANGED).await;
+
+    ask(&bob, HEAT, Some(offered[0].id)).await.unwrap();
+
+    let told = next_state_change(&mut approvals).await;
+    assert_eq!(told.state, RequestState::Approved);
+    assert_eq!(told.quality.name, "HD");
+    let change = &told.quality_change;
+    assert_eq!(change.changed_by.as_deref(), Some("Bob"));
+    assert_eq!(change.previous_name.as_deref(), Some("4K"));
+    assert!(change.changed_at > 0);
+    assert_eq!(fixture.radarr.added()[0]["qualityProfileId"], json!(4));
+}
+
+#[tokio::test]
+async fn an_auto_approved_joiner_choosing_nothing_approves_a_pending_request_at_its_quality() {
+    let fixture = Fixture::with_radarr_enabled_at(ANY).await;
+    alices_pending_4k_request(&fixture).await;
+    let bob = fixture
+        .member_named(
+            "Bob",
+            Some(&[Permission::Request, Permission::AutoApproveMovie]),
+        )
+        .await;
+
+    let joined = ask(&bob, HEAT, None).await.unwrap();
+
+    assert_eq!(joined.state, RequestState::Processing);
+    assert_eq!(joined.quality.name, "4K");
+    assert!(joined.quality_change.is_unset());
+    assert_eq!(fixture.radarr.added()[0]["qualityProfileId"], json!(5));
+}
+
+#[tokio::test]
+async fn an_auto_approved_joiners_personal_default_counts_as_their_choice() {
+    let fixture = Fixture::with_radarr_enabled_at(ANY).await;
+    let (offered, _) = alices_pending_4k_request(&fixture).await;
+    let bob = fixture
+        .member_named(
+            "Bob",
+            Some(&[
+                Permission::Request,
+                Permission::AutoApproveMovie,
+                Permission::ChooseQuality,
+            ]),
+        )
+        .await;
+    // HD is the Fulfiller's default too: Bob picking it still counts.
+    set_default(&bob, Some(offered[0].id)).await.unwrap();
+
+    let joined = ask(&bob, HEAT, None).await.unwrap();
+
+    assert_eq!(joined.quality.name, "HD");
+    assert_eq!(joined.quality_change.changed_by.as_deref(), Some("Bob"));
+    assert_eq!(fixture.radarr.added()[0]["qualityProfileId"], json!(4));
+}
+
+#[tokio::test]
+async fn a_joiner_who_isnt_auto_approved_leaves_the_quality_as_it_is() {
+    let fixture = Fixture::with_radarr_enabled_at(ANY).await;
+    let (offered, _) = alices_pending_4k_request(&fixture).await;
+    let bob = fixture
+        .member_named(
+            "Bob",
+            Some(&[Permission::Request, Permission::ChooseQuality]),
+        )
+        .await;
+
+    let joined = ask(&bob, HEAT, Some(offered[0].id)).await.unwrap();
+
+    assert_eq!(joined.state, RequestState::Pending);
+    assert_eq!(joined.quality.name, "4K");
+    assert!(joined.quality_change.is_unset());
+}
+
+#[tokio::test]
+async fn an_auto_approved_joiners_default_no_longer_offered_isnt_their_choice() {
+    let fixture = Fixture::with_radarr_enabled_at(ANY).await;
+    let (offered, _) = alices_pending_4k_request(&fixture).await;
+    let mut with_any = offered.clone();
+    with_any.push(quality(ANY, "Any", false));
+    let with_any = fixture.replace_qualities(with_any).await.unwrap();
+    let bob = fixture
+        .member_named(
+            "Bob",
+            Some(&[
+                Permission::Request,
+                Permission::AutoApproveMovie,
+                Permission::ChooseQuality,
+            ]),
+        )
+        .await;
+    set_default(&bob, Some(with_any[2].id)).await.unwrap();
+    fixture.replace_qualities(offered).await.unwrap();
+
+    let joined = ask(&bob, HEAT, None).await.unwrap();
+
+    assert_eq!(joined.quality.name, "4K");
+    assert!(joined.quality_change.is_unset());
 }
