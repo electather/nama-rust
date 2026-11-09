@@ -14,6 +14,7 @@
 
 use std::collections::HashMap;
 
+pub use nama_proto::nama::plugin::v1::Fulfilled;
 use nama_proto::nama::v1::Request;
 pub use nama_proto::nama::v1::{Download, DownloadStatus};
 
@@ -32,7 +33,8 @@ pub enum Shows {}
 pub trait Fulfiller<Kind>: Send + Sync + 'static {
     /// Hands `request` to the service and returns at once, without waiting for it to be
     /// fulfilled, with a reference the Kernel keeps with the Request and passes back to
-    /// [`Fulfiller::progress`]. Only this Fulfiller reads the reference.
+    /// [`Fulfiller::progress`], and the quality profile the service used. Only this Fulfiller
+    /// reads the reference.
     ///
     /// A Season Request naming a Followed Show in `followed_show_id` also asks it to follow the
     /// Show: to fetch the Seasons that come out later too, until [`Fulfiller::unfollow`]. The
@@ -41,8 +43,10 @@ pub trait Fulfiller<Kind>: Send + Sync + 'static {
     /// # Errors
     ///
     /// When the service didn't take the Request, such as when it is unreachable or doesn't know
-    /// the title, or the Fulfiller can't follow a Show it was asked to. The error is the reason.
-    fn fulfill<'a>(&'a self, request: &'a Request) -> BoxFuture<'a, Result<String, PluginError>>;
+    /// the title or the quality profile `request` names, or the Fulfiller can't follow a Show it
+    /// was asked to. The error is the reason.
+    fn fulfill<'a>(&'a self, request: &'a Request)
+    -> BoxFuture<'a, Result<Fulfilled, PluginError>>;
 
     /// Stops following the Show `request` is a Season of, as a hand-off asked it to, since its
     /// Followed Show ended. A Fulfiller that never follows, such as one for Movies, leaves it be.

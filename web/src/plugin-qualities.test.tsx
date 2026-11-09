@@ -36,8 +36,17 @@ const radarr = {
   ],
 };
 
-/** Radarr's page, offering HD (the default) and its profiles, answering a save with `replace`. */
-function openRadarr(replace: (request: ReplaceQualitiesRequest) => object) {
+/**
+ * Radarr's page, offering HD (the default) and the profiles `profiles`, HD-1080p and Ultra-HD
+ * unless given, answering a save with `replace`.
+ */
+function openRadarr(
+  replace: (request: ReplaceQualitiesRequest) => object,
+  profiles = [
+    { value: "4", label: "HD-1080p" },
+    { value: "5", label: "Ultra-HD" },
+  ],
+) {
   openPlugin("radarr", {
     getPlugin: () => ({ plugin: radarr }),
     listQualities: () => ({
@@ -45,12 +54,7 @@ function openRadarr(replace: (request: ReplaceQualitiesRequest) => object) {
     }),
     testPluginSettings: () => ({
       choices: {
-        quality_profile: {
-          choices: [
-            { value: "4", label: "HD-1080p" },
-            { value: "5", label: "Ultra-HD" },
-          ],
-        },
+        quality_profile: { choices: profiles },
       },
     }),
     replaceQualities: replace,
@@ -94,6 +98,16 @@ test("an Admin adds a Quality from the service's profiles and saves the list wit
     [3n, "4", "HD", true],
     [0n, "5", "4K", false],
   ]);
+});
+
+test("a Quality whose profile the service no longer offers is flagged", async () => {
+  openRadarr(() => ({}), [{ value: "5", label: "Ultra-HD" }]);
+  await plugin("Radarr");
+
+  const hd = await quality(1);
+
+  const flag = await hd.findByText("Radarr doesn’t offer this profile now.");
+  expect(hd.getByLabelText("Profile").getAttribute("aria-describedby")).toContain(flag.id);
 });
 
 test("a name another Quality has is refused under it", async () => {

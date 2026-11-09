@@ -373,6 +373,20 @@ async fn testing_radarrs_settings_offers_its_quality_profiles_and_root_folders()
     );
 }
 
+// The Plugin page flags a Quality whose profile this check stops offering.
+#[tokio::test]
+async fn testing_radarrs_settings_stops_offering_a_profile_removed_from_radarr() {
+    let fixture = Fixture::start().await;
+    fixture.radarr.remove_profile(4);
+
+    let tested = fixture.test_settings(RADARR_KEY).await.unwrap();
+
+    assert_eq!(
+        choices(&tested, "quality_profile"),
+        [("1", "Any"), ("5", "Ultra-HD")]
+    );
+}
+
 #[tokio::test]
 async fn testing_radarrs_settings_with_a_wrong_key_or_radarr_down_fails_in_plain_words() {
     let mut fixture = Fixture::start().await;
@@ -404,6 +418,7 @@ async fn approving_a_movie_request_adds_it_to_radarr_with_the_chosen_profile_and
 
     assert_eq!(approved.state, RequestState::Processing);
     assert!(approved.quality.is_unset());
+    assert!(approved.quality_used.is_unset());
     let added = json!({
         "tmdbId": HEAT,
         "title": "Heat",
@@ -565,6 +580,7 @@ async fn a_movie_request_goes_to_radarr_at_the_default_quality_an_admin_offers()
         (hd.id, "HD")
     );
     assert_eq!(approved.quality.profile_id, HD_1080P);
+    assert_eq!(approved.quality_used, approved.quality);
     let added = fixture.radarr.added();
     assert_eq!(added.len(), 1);
     assert_eq!(added[0]["qualityProfileId"], json!(4));
@@ -594,6 +610,68 @@ async fn a_request_keeps_its_quality_and_retries_with_its_profile_after_it_is_re
     assert_eq!(retried.state, RequestState::Processing);
     assert_eq!(retried.quality.name, "HD");
     assert_eq!(fixture.radarr.added()[0]["qualityProfileId"], json!(4));
+}
+
+#[tokio::test]
+async fn a_request_whose_profile_was_removed_from_radarr_fails_naming_it() {
+    let fixture = Fixture::with_radarr_enabled_at(ANY).await;
+    fixture.replace_qualities(hd_and_4k()).await.unwrap();
+    fixture.radarr.remove_profile(4);
+
+    let failed = fixture.approve_movie(&fixture.member().await, HEAT).await;
+
+    assert_eq!(failed.state, RequestState::Failed);
+    assert_eq!(
+        failed.failure_reason.as_deref(),
+        Some("Radarr has no quality profile with the id 4, which HD uses")
+    );
+    assert_eq!(fixture.radarr.added(), Vec::<serde_json::Value>::new());
+}
+
+#[tokio::test]
+async fn a_movie_radarr_already_had_at_another_quality_shows_that_quality() {
+    let fixture = Fixture::with_radarr_enabled_at(ANY).await;
+    let offered = fixture.replace_qualities(hd_and_4k()).await.unwrap();
+
+    let approved = fixture.approve_movie(&fixture.member().await, ALIEN).await;
+
+    assert_eq!(approved.state, RequestState::Processing);
+    assert_eq!(approved.quality.name, "HD");
+    let used = &approved.quality_used;
+    assert_eq!(
+        (used.id, used.name.as_str(), used.profile_id.as_str()),
+        (offered[1].id, "4K", ULTRA_HD)
+    );
+}
+
+#[tokio::test]
+async fn a_movie_radarr_already_had_goes_to_processing_at_its_own_profile_though_the_asked_one_was_removed()
+ {
+    let fixture = Fixture::with_radarr_enabled_at(ANY).await;
+    fixture.replace_qualities(hd_and_4k()).await.unwrap();
+    fixture.radarr.remove_profile(4);
+
+    let approved = fixture.approve_movie(&fixture.member().await, ALIEN).await;
+
+    assert_eq!(approved.state, RequestState::Processing);
+    assert_eq!(approved.quality_used.name, "4K");
+}
+
+#[tokio::test]
+async fn a_movie_radarr_already_had_at_a_profile_no_quality_offers_shows_radarrs_name_for_it() {
+    let fixture = Fixture::with_radarr_enabled_at(ANY).await;
+    fixture
+        .replace_qualities(vec![quality(HD_1080P, "HD", true)])
+        .await
+        .unwrap();
+
+    let approved = fixture.approve_movie(&fixture.member().await, ALIEN).await;
+
+    let used = &approved.quality_used;
+    assert_eq!(
+        (used.id, used.name.as_str(), used.profile_id.as_str()),
+        (0, "Ultra-HD", ULTRA_HD)
+    );
 }
 
 #[tokio::test]

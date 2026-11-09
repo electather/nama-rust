@@ -155,6 +155,29 @@ pub(crate) async fn for_request(
     }))
 }
 
+/// A copy of the Quality on the Plugin `plugin`'s list that offers the profile `profile_id`, if
+/// one does.
+pub(crate) async fn with_profile(
+    conn: &mut SqliteConnection,
+    plugin: &PluginId,
+    profile_id: &str,
+) -> Result<Option<RequestedQuality>, sqlx::Error> {
+    let plugin = plugin.as_str();
+    let row = sqlx::query!(
+        r#"SELECT id AS "id!", name FROM qualities WHERE plugin_id = ? AND profile_id = ?"#,
+        plugin,
+        profile_id
+    )
+    .fetch_optional(&mut *conn)
+    .await?;
+    Ok(row.map(|row| RequestedQuality {
+        id: row.id,
+        name: row.name,
+        profile_id: profile_id.to_owned(),
+        ..Default::default()
+    }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

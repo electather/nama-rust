@@ -11,7 +11,7 @@ mod exports {
     use std::collections::HashMap;
 
     use nama_pdk::{
-        Buffa, CheckedSettings, Download, FnResult, Fulfiller, Manifest, Request,
+        Buffa, CheckedSettings, Download, FnResult, Fulfilled, Fulfiller, Manifest, Request,
         extism_pdk::{self, Error, HttpRequest, HttpResponse, Json, ToMemory, config},
         nama_proto::nama::{
             plugin::v1::{ProvidePoint, SettingField, SettingKind},
@@ -94,29 +94,32 @@ mod exports {
     }
 
     /// Adds each Movie to Radarr, which starts a search for it. Its reference is the Movie's TMDB
-    /// id, which Radarr also knows it by.
+    /// id, which Radarr also knows it by. A Movie Radarr already has keeps its own profile.
     struct RadarrFulfiller;
 
     impl Fulfiller for RadarrFulfiller {
-        fn fulfill(request: Request) -> Result<String, Error> {
+        fn fulfill(request: Request) -> Result<Fulfilled, Error> {
             let radarr = Radarr::from_config()?;
-            let movie = NewMovie {
-                tmdb_id: request.movie.tmdb_id,
-                title: request.movie.title.clone(),
-                quality_profile_id: quality_profile(&request)?,
-                root_folder_path: setting(ROOT_FOLDER)?,
-                monitored: true,
-                minimum_availability: "released",
-                add_options: AddOptions {
-                    search_for_movie: true,
-                },
-            };
-            let response = send(&radarr.request("POST", "movie"), Some(Json(movie)))?;
-            if is_success(&response) || already_has(&response) {
-                Ok(request.movie.tmdb_id.to_string())
+            let tmdb_id = request.movie.tmdb_id;
+            let asked = quality_profile(&request)?;
+            // Checked first, as Radarr may add a Movie with a profile it no longer has.
+            let profiles: Vec<QualityProfile> = radarr.get("qualityprofile")?;
+            let used_id = if profiles.iter().any(|profile| profile.id == asked) {
+                radarr.add(&request, asked)?
             } else {
-                Err(refused(&response))
-            }
+                // A Movie Radarr already has keeps its own profile, so the asked one needn't exist.
+                let kept = radarr.profile_of(tmdb_id)?;
+                Some(kept.ok_or_else(|| no_such_profile(&request, asked))?)
+            };
+            let used = profiles
+                .into_iter()
+                .find(|profile| Some(profile.id) == used_id);
+            Ok(Fulfilled {
+                reference: tmdb_id.to_string(),
+                profile_id: used_id.map(|id| id.to_string()).unwrap_or_default(),
+                profile_name: used.map(|used| used.name).unwrap_or_default(),
+                ..Fulfilled::default()
+            })
         }
 
         /// Reads Radarr's whole queue in one call, whatever the number of `references`. A Movie
@@ -165,6 +168,36 @@ mod exports {
                 .with_header("Content-Type", "application/json")
         }
 
+        /// Adds the Movie `request` asks for at the quality profile `profile`, starting a search,
+        /// and returns the id of the profile Radarr has it at: its own if it already had it.
+        fn add(&self, request: &Request, profile: i64) -> Result<Option<i64>, Error> {
+            let movie = NewMovie {
+                tmdb_id: request.movie.tmdb_id,
+                title: request.movie.title.clone(),
+                quality_profile_id: profile,
+                root_folder_path: setting(ROOT_FOLDER)?,
+                monitored: true,
+                minimum_availability: "released",
+                add_options: AddOptions {
+                    search_for_movie: true,
+                },
+            };
+            let response = send(&self.request("POST", "movie"), Some(Json(movie)))?;
+            if is_success(&response) {
+                Ok(Some(profile))
+            } else if already_has(&response) {
+                self.profile_of(request.movie.tmdb_id)
+            } else {
+                Err(refused(&response))
+            }
+        }
+
+        /// The id of the quality profile Radarr has the Movie `tmdb_id` at, if it has the Movie.
+        fn profile_of(&self, tmdb_id: i64) -> Result<Option<i64>, Error> {
+            let movies: Vec<AddedMovie> = self.get(&format!("movie?tmdbId={tmdb_id}"))?;
+            Ok(movies.first().map(|movie| movie.quality_profile_id))
+        }
+
         /// What Radarr answers at the API path `path`.
         fn get<T: DeserializeOwned>(&self, path: &str) -> Result<T, Error> {
             let response = send(&self.request("GET", path), None::<()>)?;
@@ -191,6 +224,15 @@ mod exports {
         profile
             .parse()
             .map_err(|err| Error::msg(format!("the quality profile isn't an id: {err}")))
+    }
+
+    /// Why `request` can't go to Radarr, which has no quality profile `id`.
+    fn no_such_profile(request: &Request, id: i64) -> Error {
+        let reason = format!("Radarr has no quality profile with the id {id}");
+        Error::msg(match request.quality.as_option() {
+            Some(quality) => format!("{reason}, which {} uses", quality.name),
+            None => reason,
+        })
     }
 
     /// The setting `key`, which the Server sets before every call but a settings check, and for
@@ -390,6 +432,13 @@ mod exports {
     struct ValidationFailure {
         error_message: String,
         error_code: Option<String>,
+    }
+
+    /// A Movie Radarr has, as `GET /api/v3/movie` gives it.
+    #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct AddedMovie {
+        quality_profile_id: i64,
     }
 
     /// What `POST /api/v3/movie` takes to add a Movie.

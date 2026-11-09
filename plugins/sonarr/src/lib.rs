@@ -11,7 +11,7 @@ mod exports {
     use std::collections::{HashMap, HashSet};
 
     use nama_pdk::{
-        Buffa, CheckedSettings, Download, FnResult, Fulfiller, Manifest, Request,
+        Buffa, CheckedSettings, Download, FnResult, Fulfilled, Fulfiller, Manifest, Request,
         extism_pdk::{self, Error, HttpRequest, HttpResponse, Json, ToMemory, config},
         nama_proto::nama::{
             plugin::v1::{ProvidePoint, SettingField, SettingKind},
@@ -105,7 +105,9 @@ mod exports {
     struct SonarrFulfiller;
 
     impl Fulfiller for SonarrFulfiller {
-        fn fulfill(request: Request) -> Result<String, Error> {
+        // ponytail: says nothing of the profile used; report the series' once Season Requests
+        // have a Quality.
+        fn fulfill(request: Request) -> Result<Fulfilled, Error> {
             let tvdb_id = show_tvdb_id(&request)?;
             let season_number = request.season.season_number;
             let follow = request.followed_show_id.is_some();
@@ -114,7 +116,10 @@ mod exports {
             let id = match sonarr.find(tvdb_id)? {
                 Some(id) => id,
                 None if sonarr.add(sonarr.look_up(tvdb_id)?, season_number, follow)? => {
-                    return Ok(reference);
+                    return Ok(Fulfilled {
+                        reference,
+                        ..Fulfilled::default()
+                    });
                 }
                 // Another hand-off for the Show added it since `find`.
                 None => sonarr.find(tvdb_id)?.ok_or_else(|| {
@@ -126,7 +131,10 @@ mod exports {
                 sonarr.monitor_new_seasons(id, true)?;
             }
             sonarr.monitor_and_search(id, season_number)?;
-            Ok(reference)
+            Ok(Fulfilled {
+                reference,
+                ..Fulfilled::default()
+            })
         }
 
         fn unfollow(request: Request) -> Result<(), Error> {
