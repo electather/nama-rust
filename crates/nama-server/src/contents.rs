@@ -893,15 +893,13 @@ async fn reparse(
             unpaired.push(item.clone());
             continue;
         };
-        let old_row = ItemRow {
+        let old_name = Name {
             kind: old.kind,
-            title: Cow::Owned(old.title),
+            title: old.title,
             year: old.year,
             tmdb_id: old.tmdb_id,
-            season: old.season,
-            episode: old.episode,
         };
-        rename_item(conn, library, old.id, &old_row, &new).await?;
+        rename_item(conn, library, old.id, &old_name, &new).await?;
     }
     let mut events = Vec::new();
     for gone in stored {
@@ -927,12 +925,12 @@ async fn reparse(
     Ok(events)
 }
 
-/// Stores `new` as what the Item `id` holds, and gives its name any pin `old`'s name had.
+/// Stores `new` as what the Item `id` holds, and gives its name any pin on `old`.
 async fn rename_item(
     conn: &mut SqliteConnection,
     library: i64,
     id: i64,
-    old: &ItemRow<'_>,
+    old: &Name,
     new: &ItemRow<'_>,
 ) -> Result<(), sqlx::Error> {
     sqlx::query!(
@@ -1608,12 +1606,23 @@ mod tests {
     async fn a_pin_still_applies_after_a_reparse_gives_its_items_a_new_name() {
         let fx = Fixture::new().await;
         let heat = "/media/Heat (1995) {tmdb-949}/Heat (1995).mkv";
+        let dark = "/media/Dark (2017) {tmdb-70523}/Season 01/Dark (2017) - S01E01.mkv";
+        let dark_pilot = |tmdb_id| Item::Episode {
+            show: "Dark".to_owned(),
+            year: Some(2017),
+            tmdb_id,
+            season: 1,
+            episode: 1,
+        };
         fx.store(ALIEN, 10, movie("Alien", 1979)).await;
         fx.store(heat, 10, movie("Heat", 1995)).await;
+        fx.store(dark, 10, dark_pilot(None)).await;
         let (alien_item, heat_item) = (fx.item(ALIEN).await, fx.item(heat).await);
+        let dark_item = fx.item(dark).await;
         let pins = [
             (alien_item, Pin::Title(ExternalId::Tmdb(348))),
             (heat_item, Pin::Unmatched),
+            (dark_item, Pin::Title(ExternalId::Tmdb(70523))),
         ];
         for (item, pin) in pins.clone() {
             let named = fx.contents.named_like(item).await.unwrap().unwrap();
@@ -1639,6 +1648,7 @@ mod tests {
         let changes = vec![
             reparse(ALIEN, hinted("Alien", 1979, 348)),
             reparse(heat, hinted("Heat", 1995, 949)),
+            reparse(dark, dark_pilot(Some(70523))),
         ];
         fx.contents.apply(fx.library, changes).await.unwrap();
 
@@ -1651,6 +1661,7 @@ mod tests {
             [
                 (alien_item, Some(348), Some(pins[0].1.clone())),
                 (heat_item, Some(949), Some(Pin::Unmatched)),
+                (dark_item, Some(70523), Some(pins[2].1.clone())),
             ]
         );
     }

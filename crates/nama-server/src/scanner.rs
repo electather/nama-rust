@@ -3,10 +3,9 @@
 //!
 //! A rescan is incremental. A file whose size and modified time are what was stored is skipped,
 //! unless an older version of the name parser read it (ADR 0023); a new or changed file is parsed
-//! and stored; a stored file that's gone is removed, except
-//! under a folder that couldn't be read, so a drive that isn't mounted doesn't empty the
-//! Library. A renamed file is a file gone and a file found. Changes are written in batches of
-//! [`BATCH_SIZE`] (see the crate's `AGENTS.md`).
+//! and stored; a stored file that's gone is removed, except under a folder that couldn't be read,
+//! so a drive that isn't mounted doesn't empty the Library. A renamed file is a file gone and a
+//! file found. Changes are written in batches of [`BATCH_SIZE`] (see the crate's `AGENTS.md`).
 //!
 //! Files are only listed and their metadata read, never opened: sidecars such as `.nfo` files
 //! are ignored.
