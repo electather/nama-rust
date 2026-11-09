@@ -452,7 +452,6 @@ async fn a_plugin_that_panics_while_registering_is_not_enabled() {
     );
 }
 
-/// A Plugin whose `manifest` panics.
 struct PanicsInManifest;
 
 impl Plugin for PanicsInManifest {

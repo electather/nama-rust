@@ -80,7 +80,7 @@ impl fmt::Display for PluginId {
 /// What a Plugin says about itself before it is enabled, as an Installed Plugin's package does.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Manifest {
-    /// The Plugin's unique id. It must not change while the Plugin is enabled.
+    /// The Plugin's unique id.
     pub id: PluginId,
     /// The Plugin's version, for the log and the admin.
     pub version: String,
@@ -95,7 +95,8 @@ pub struct Manifest {
 /// the Plugin. A Plugin and its handlers must not panic when dropped, because the last reference
 /// to a handler may be dropped wherever the Kernel was using it.
 pub trait Plugin: Send + Sync + 'static {
-    /// What the Plugin says about itself, which the Kernel reads before enabling it.
+    /// What the Plugin says about itself, which the Kernel reads before enabling it. Its id must
+    /// not change while the Plugin is enabled.
     fn manifest(&self) -> Manifest;
 
     /// The Plugin's check of its settings, if it has one, which offers the choices for its

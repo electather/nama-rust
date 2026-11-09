@@ -42,18 +42,24 @@ impl Registry {
             };
             // A Plugin's `manifest` and `settings_check` are Plugin code, so a panic in them is
             // contained.
-            let describe = || (plugin.manifest(), plugin.settings_check().is_some());
-            let (manifest, checks_settings) = match contain_sync(describe) {
-                Ok(described) => described,
+            let manifest = match contain_sync(|| plugin.manifest()) {
+                Ok(manifest) => manifest,
                 Err(message) => {
                     error!(
                         message,
-                        "a built-in plugin panicked while describing itself"
+                        "a built-in plugin panicked while giving its manifest"
                     );
                     continue;
                 }
             };
             let id = manifest.id;
+            let checks_settings = match contain_sync(|| plugin.settings_check().is_some()) {
+                Ok(checks_settings) => checks_settings,
+                Err(message) => {
+                    error!(plugin = %id, message, "a built-in plugin panicked while describing itself");
+                    continue;
+                }
+            };
             let described = Described {
                 kind: PluginKind::PLUGIN_KIND_BUILT_IN,
                 make: Ok(Arc::new(make)),
