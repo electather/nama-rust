@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT version_id, container, duration_ms, bitrate FROM version_probes\n             WHERE version_id IN (SELECT value FROM json_each(?))",
+  "query": "SELECT version_id, size, modified_ns, container, duration_ms, bitrate\n             FROM version_probes\n             WHERE version_id IN (SELECT value FROM json_each(?))",
   "describe": {
     "columns": [
       {
@@ -15,8 +15,30 @@
         }
       },
       {
-        "name": "container",
+        "name": "size",
         "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "version_probes",
+            "name": "size"
+          }
+        }
+      },
+      {
+        "name": "modified_ns",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "version_probes",
+            "name": "modified_ns"
+          }
+        }
+      },
+      {
+        "name": "container",
+        "ordinal": 3,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -27,7 +49,7 @@
       },
       {
         "name": "duration_ms",
-        "ordinal": 2,
+        "ordinal": 4,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -38,7 +60,7 @@
       },
       {
         "name": "bitrate",
-        "ordinal": 3,
+        "ordinal": 5,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -54,9 +76,11 @@
     "nullable": [
       false,
       false,
+      false,
+      false,
       true,
       true
     ]
   },
-  "hash": "f71484a81f4707539dc58425169942c28a77b368c939d6d6d8602f74f08cb5eb"
+  "hash": "62a33c1cc9558e1ae4673806f69107523350fb3de61fea935cf9ca348e136a62"
 }

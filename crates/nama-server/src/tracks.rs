@@ -140,11 +140,18 @@ impl Tracks {
             .await
     }
 
-    /// What probing found in each of the Versions `versions` that has been probed.
-    pub(crate) async fn of(&self, versions: &[i64]) -> Result<HashMap<i64, Probe>, sqlx::Error> {
-        let versions = json_array(versions);
+    /// What probing found in each of `files`, by Version id, if it read the file at the size and
+    /// modified time `Contents` stores for it now, by whichever [`PROBE_VERSION`].
+    pub(crate) async fn of(&self, files: &[Stored]) -> Result<HashMap<i64, Probe>, sqlx::Error> {
+        let read_at: HashSet<(i64, i64, i64)> = files
+            .iter()
+            .map(|file| (file.id, file.size, file.modified_ns))
+            .collect();
+        let ids: Vec<i64> = files.iter().map(|file| file.id).collect();
+        let versions = json_array(&ids);
         let probes = sqlx::query!(
-            "SELECT version_id, container, duration_ms, bitrate FROM version_probes
+            "SELECT version_id, size, modified_ns, container, duration_ms, bitrate
+             FROM version_probes
              WHERE version_id IN (SELECT value FROM json_each(?))",
             versions
         )
@@ -152,6 +159,7 @@ impl Tracks {
         .await?;
         let mut probes: HashMap<i64, Probe> = probes
             .into_iter()
+            .filter(|row| read_at.contains(&(row.version_id, row.size, row.modified_ns)))
             .map(|row| {
                 let probe = Probe {
                     container: row.container,

@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT library_files.id AS \"file!\", library_files.path, library_files.size,\n                      item_matches.plugin AS \"plugin!\", item_matches.tmdb_id,\n                      item_matches.imdb_id, item_matches.tvdb_id, item_matches.title AS \"title!\",\n                      item_matches.original_title, item_matches.overview,\n                      item_matches.release_date, item_matches.runtime_minutes,\n                      item_matches.poster, item_matches.backdrop\n               FROM item_matches\n               JOIN library_items ON library_items.id = item_matches.item_id\n               JOIN library_files ON library_files.id = library_items.file_id\n               WHERE library_files.library_id = ?\n                 AND library_items.kind = 'movie'\n                 AND item_matches.state = 'matched'\n               ORDER BY item_matches.tmdb_id,\n                        IIF(item_matches.tmdb_id IS NULL, item_matches.imdb_id, NULL),\n                        IIF(item_matches.tmdb_id IS NULL AND item_matches.imdb_id IS NULL,\n                            item_matches.tvdb_id, NULL),\n                        library_files.path",
+  "query": "SELECT library_files.id AS \"file!\", library_files.path, library_files.size,\n                      library_files.modified_ns, library_files.parser_version,\n                      item_matches.plugin AS \"plugin!\", item_matches.tmdb_id,\n                      item_matches.imdb_id, item_matches.tvdb_id, item_matches.title AS \"title!\",\n                      item_matches.original_title, item_matches.overview,\n                      item_matches.release_date, item_matches.runtime_minutes,\n                      item_matches.poster, item_matches.backdrop\n               FROM item_matches\n               JOIN library_items ON library_items.id = item_matches.item_id\n               JOIN library_files ON library_files.id = library_items.file_id\n               WHERE library_files.library_id = ?\n                 AND library_items.kind = 'movie'\n                 AND item_matches.state = 'matched'\n               ORDER BY item_matches.tmdb_id,\n                        IIF(item_matches.tmdb_id IS NULL, item_matches.imdb_id, NULL),\n                        IIF(item_matches.tmdb_id IS NULL AND item_matches.imdb_id IS NULL,\n                            item_matches.tvdb_id, NULL),\n                        library_files.path",
   "describe": {
     "columns": [
       {
@@ -37,8 +37,30 @@
         }
       },
       {
-        "name": "plugin!",
+        "name": "modified_ns",
         "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_files",
+            "name": "modified_ns"
+          }
+        }
+      },
+      {
+        "name": "parser_version",
+        "ordinal": 4,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_files",
+            "name": "parser_version"
+          }
+        }
+      },
+      {
+        "name": "plugin!",
+        "ordinal": 5,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -49,7 +71,7 @@
       },
       {
         "name": "tmdb_id",
-        "ordinal": 4,
+        "ordinal": 6,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -60,7 +82,7 @@
       },
       {
         "name": "imdb_id",
-        "ordinal": 5,
+        "ordinal": 7,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -71,7 +93,7 @@
       },
       {
         "name": "tvdb_id",
-        "ordinal": 6,
+        "ordinal": 8,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -82,7 +104,7 @@
       },
       {
         "name": "title!",
-        "ordinal": 7,
+        "ordinal": 9,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -93,7 +115,7 @@
       },
       {
         "name": "original_title",
-        "ordinal": 8,
+        "ordinal": 10,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -104,7 +126,7 @@
       },
       {
         "name": "overview",
-        "ordinal": 9,
+        "ordinal": 11,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -115,7 +137,7 @@
       },
       {
         "name": "release_date",
-        "ordinal": 10,
+        "ordinal": 12,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -126,7 +148,7 @@
       },
       {
         "name": "runtime_minutes",
-        "ordinal": 11,
+        "ordinal": 13,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -137,7 +159,7 @@
       },
       {
         "name": "poster",
-        "ordinal": 12,
+        "ordinal": 14,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -148,7 +170,7 @@
       },
       {
         "name": "backdrop",
-        "ordinal": 13,
+        "ordinal": 15,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -165,6 +187,8 @@
       false,
       false,
       false,
+      false,
+      false,
       true,
       true,
       true,
@@ -178,5 +202,5 @@
       true
     ]
   },
-  "hash": "f0be95e9c0043b69db7471291b5afe5027ad35a16f89adae3f4c92ddc0fe35be"
+  "hash": "8eb943aac3c0490744728005218e5a20be19044664361ed4cf014618a5f011bb"
 }
