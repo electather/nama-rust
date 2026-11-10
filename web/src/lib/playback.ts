@@ -12,15 +12,12 @@ import {
   useSyncExternalStore,
 } from "react";
 
-import type Hls from "hls.js";
-
 import {
-  PlaybackMethod,
-  type PlaybackPlan,
+  type PlaybackMethod,
   PlaybackPlanSchema,
   PlaybackService,
 } from "@/gen/nama/v1/playback_pb";
-import { findDeviceDecoding, playsHlsNatively } from "@/lib/device-decoding";
+import { findDeviceDecoding } from "@/lib/device-decoding";
 import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
 
 /** How long the controls stay after the pointer or keyboard was last used, while playing. */
@@ -30,66 +27,38 @@ const VOLUME_STEP = 0.1;
 
 /**
  * The Server's Playback Plan for Version `versionId` on this Device, starting where `watchState`
- * stopped. The plan is asked for once each time the player opens, and never reused after.
+ * stopped, and `tryPlanningAgain` for when the browser fails to play it. The plan is asked for once
+ * each time the player opens or a method fails, and never reused after.
  */
 export function usePlaybackPlan(versionId: bigint, watchState: WatchState | undefined) {
   const transport = useTransport();
+  const [failedMethods, setFailedMethods] = useState<PlaybackMethod[]>([]);
   // Where it stood on opening: a new plan would reload the `<video>`, so the refetches each Watch
   // State report causes mustn't ask again.
   const [startPositionMs] = useState(() =>
     watchState && !watchState.played ? watchState.positionMs : 0n,
   );
-  return useSuspenseQuery({
-    queryKey: ["planPlayback", String(versionId)],
+  const plan = useSuspenseQuery({
+    queryKey: ["planPlayback", String(versionId), failedMethods],
     queryFn: async () => {
       const deviceDecoding = await findDeviceDecoding();
-      const input = { versionId, startPositionMs, deviceDecoding };
-      const { plan } = await callUnaryMethod(transport, PlaybackService.method.planPlayback, input);
-      return create(PlaybackPlanSchema, plan);
+      const input = { versionId, startPositionMs, deviceDecoding, failedMethods };
+      const response = await callUnaryMethod(transport, PlaybackService.method.planPlayback, input);
+      return create(PlaybackPlanSchema, response.plan);
     },
     staleTime: "static",
     gcTime: 0,
   }).data;
-}
-
-/**
- * Plays `url` in the `<video>`: a file when `method` Direct Plays, or else an HLS playlist, played
- * natively where the browser has HLS and through hls.js otherwise, which calls `onCantPlay` if it
- * gives up. Returns the `src` the `<video>` takes, if any.
- */
-export function usePlaybackSource(
-  videoRef: RefObject<HTMLVideoElement | null>,
-  { url, method }: Pick<PlaybackPlan, "url" | "method">,
-  onCantPlay: () => void,
-) {
-  const throughHlsJs = method !== PlaybackMethod.DIRECT_PLAY && !playsHlsNatively();
-  useEffect(() => {
-    const video = videoRef.current;
-    return throughHlsJs && video ? playThroughHlsJs(video, url, onCantPlay) : undefined;
-  }, [videoRef, throughHlsJs, url, onCantPlay]);
-  return throughHlsJs ? undefined : url;
-}
-
-/** Plays the HLS playlist `url` in `video` through hls.js, until the cleanup it returns. */
-function playThroughHlsJs(video: HTMLVideoElement, url: string, onCantPlay: () => void) {
-  let hls: Hls | undefined;
-  let left = false;
-  const start = async () => {
-    // Fetched only for HLS, which Direct Play never needs.
-    const { default: HlsJs } = await import("hls.js");
-    if (left) return;
-    hls = new HlsJs();
-    hls.on(HlsJs.Events.ERROR, (_event, { fatal }) => {
-      if (fatal) onCantPlay();
-    });
-    hls.loadSource(url);
-    hls.attachMedia(video);
-  };
-  start().catch(onCantPlay);
-  return () => {
-    left = true;
-    hls?.destroy();
-  };
+  /**
+   * Asks for a new plan without the plan's method, which just failed here, and says whether it did:
+   * only once per method, so a Server that plans it again can't make the player ask forever.
+   */
+  const tryPlanningAgain = useCallback(() => {
+    if (failedMethods.includes(plan.method)) return false;
+    setFailedMethods([...failedMethods, plan.method]);
+    return true;
+  }, [failedMethods, plan.method]);
+  return { plan, tryPlanningAgain };
 }
 
 /** What the controls need of the `<video>`: what it's doing, and a way to act on it. */

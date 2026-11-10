@@ -45,6 +45,14 @@ pub(crate) enum Method {
 
 impl Method {
     const ALL: [Self; 3] = [Self::DirectPlay, Self::Remux, Self::Transcode];
+
+    const fn name(self) -> &'static str {
+        match self {
+            Self::DirectPlay => "Direct Play",
+            Self::Remux => "Remux",
+            Self::Transcode => "Transcode",
+        }
+    }
 }
 
 /// How the Server will play one Version on one Device, and why.
@@ -91,15 +99,21 @@ impl DeviceDecoding {
     }
 }
 
-/// Plans playing the Version `version` on the Device `device`, which decodes `decoding`, probing
-/// the Version first unless its Tracks are current, and starts the plan running in `running` if it
-/// needs ffmpeg. `None` if there is no such Version.
+/// Plans playing the Version `version` on the Device `device`, which decodes `decoding`, by any
+/// method but those that just `failed` there, probing the Version first unless its Tracks are
+/// current, and starts the plan running in `running` if it needs ffmpeg. `None` if there is no
+/// such Version.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "each is its own fact about the request, and a struct would only rename them"
+)]
 pub(crate) async fn plan(
     scanner: &Scanner,
     running: &RunningPlans,
     version: i64,
     device: i64,
     decoding: DeviceDecoding,
+    failed: BTreeSet<Method>,
 ) -> Result<Option<Plan>, StartError> {
     let probe = match scanner.probe_now(version).await {
         Ok(probe) => Some(probe),
@@ -120,6 +134,7 @@ pub(crate) async fn plan(
         probe,
         device: decoding,
         ffmpeg: running.can_run(),
+        failed,
     };
     let mut plan = build(&facts, &STEPS);
     // Only a probed Version gets this far: without its Tracks, nothing rules out Direct Play.
@@ -143,6 +158,8 @@ struct Facts {
     /// Whether the Server has ffmpeg and ffprobe, which every method but Direct Play needs
     /// (ADR 0026).
     ffmpeg: bool,
+    /// The methods that just failed to play it on the Device. The Server never stores them.
+    failed: BTreeSet<Method>,
 }
 
 /// What one step lets a plan be, and why.
@@ -154,7 +171,12 @@ struct Narrowing {
 type Step = fn(&Facts) -> Narrowing;
 
 /// In ADR 0027's order. A new input is a new step here.
-const STEPS: [Step; 3] = [version_tracks, device_decoding, server_ffmpeg];
+const STEPS: [Step; 4] = [
+    version_tracks,
+    device_decoding,
+    server_ffmpeg,
+    failed_on_device,
+];
 
 /// The plan for `facts` that every one of `steps` allows.
 fn build(facts: &Facts, steps: &[Step]) -> Plan {
@@ -214,7 +236,7 @@ fn device_decoding(facts: &Facts) -> Narrowing {
         .into_iter()
         .chain(tracks.iter().cloned())
         .collect();
-    let Some(cant) = joined_with_or(&cant) else {
+    let Some(cant) = joined(&cant, "or") else {
         return Narrowing {
             allows: BTreeSet::from(Method::ALL),
             reason: "This Device decodes its container and Tracks".to_owned(),
@@ -248,6 +270,25 @@ fn server_ffmpeg(facts: &Facts) -> Narrowing {
             allows: BTreeSet::from([Method::DirectPlay]),
             reason: "This Server lacks ffmpeg or ffprobe, so it can only Direct Play".to_owned(),
         }
+    }
+}
+
+/// The step for what just failed to play on the Device: it rules out each method that did, so
+/// the player can ask again without looping.
+fn failed_on_device(facts: &Facts) -> Narrowing {
+    let failed: Vec<String> = (facts.failed.iter())
+        .map(|method| method.name().to_owned())
+        .collect();
+    let reason = match joined(&failed, "and") {
+        Some(failed) => format!("{failed} failed on this Device"),
+        None => "Nothing has failed to play it on this Device".to_owned(),
+    };
+    Narrowing {
+        allows: BTreeSet::from(Method::ALL)
+            .difference(&facts.failed)
+            .copied()
+            .collect(),
+        reason,
     }
 }
 
@@ -325,13 +366,13 @@ const fn hdr_name(hdr: Hdr) -> &'static str {
     }
 }
 
-/// `items` as "a, b or c", or `None` if there are none.
-fn joined_with_or(items: &[String]) -> Option<String> {
+/// `items` as "a, b <conjunction> c", or `None` if there are none.
+fn joined(items: &[String], conjunction: &str) -> Option<String> {
     let (last, rest) = items.split_last()?;
     Some(if rest.is_empty() {
         last.clone()
     } else {
-        format!("{} or {last}", rest.join(", "))
+        format!("{} {conjunction} {last}", rest.join(", "))
     })
 }
 
@@ -420,6 +461,7 @@ mod tests {
 
     use super::{
         DeviceDecoding, Facts, Method, Narrowing, Plan, STEPS, Subtitle, build, device_decoding,
+        failed_on_device,
     };
     use crate::tracks::{Hdr, Probe, Track, TrackKind};
 
@@ -494,6 +536,7 @@ mod tests {
             }),
             device: firefox(),
             ffmpeg: true,
+            failed: BTreeSet::new(),
         }
     }
 
@@ -514,6 +557,7 @@ mod tests {
                     "Its Tracks need no change".to_owned(),
                     "This Device decodes its container and Tracks".to_owned(),
                     "This Server has ffmpeg".to_owned(),
+                    "Nothing has failed to play it on this Device".to_owned(),
                 ],
                 subtitles: vec![],
             }
@@ -629,6 +673,7 @@ mod tests {
                 "Its Tracks aren't known, so they're taken to need no change",
                 "Its Tracks aren't known, so this Device is taken to decode them",
                 "This Server has ffmpeg",
+                "Nothing has failed to play it on this Device",
             ]
         );
     }
@@ -668,8 +713,42 @@ mod tests {
                 "Its Tracks need no change",
                 "This Device can't decode its Matroska container, so it can't be Direct Played",
                 "This Server has ffmpeg",
+                "Nothing has failed to play it on this Device",
             ]
         );
+    }
+
+    #[test]
+    fn each_method_that_just_failed_on_the_device_is_ruled_out_and_the_plan_says_so() {
+        use Method::{DirectPlay, Remux, Transcode};
+        let cases = [
+            (
+                vec![],
+                vec![DirectPlay, Remux, Transcode],
+                "Nothing has failed to play it on this Device",
+            ),
+            (
+                vec![DirectPlay],
+                vec![Remux, Transcode],
+                "Direct Play failed on this Device",
+            ),
+            (
+                vec![Remux, DirectPlay],
+                vec![Transcode],
+                "Direct Play and Remux failed on this Device",
+            ),
+        ];
+        for (failed, allowed, reason) in cases {
+            let facts = Facts {
+                failed: BTreeSet::from_iter(failed),
+                ..facts(None)
+            };
+
+            let narrowing = failed_on_device(&facts);
+
+            assert_eq!(narrowing.allows, BTreeSet::from_iter(allowed), "{reason}");
+            assert_eq!(narrowing.reason, reason);
+        }
     }
 
     #[test]

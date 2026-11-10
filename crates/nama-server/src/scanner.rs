@@ -610,7 +610,7 @@ impl Scanner {
 
 #[cfg(test)]
 mod tests {
-    use std::{fs, path::PathBuf, sync::Arc, time::Duration};
+    use std::{collections::BTreeSet, fs, path::PathBuf, sync::Arc, time::Duration};
 
     use futures_util::StreamExt;
     use nama_plugin_api::{
@@ -1225,9 +1225,16 @@ EOF"#,
         );
         let decoding = playback::DeviceDecoding::default();
 
-        let plan = playback::plan(&media.scanner, &running, version, 1, decoding)
-            .await
-            .unwrap();
+        let plan = playback::plan(
+            &media.scanner,
+            &running,
+            version,
+            1,
+            decoding,
+            BTreeSet::new(),
+        )
+        .await
+        .unwrap();
 
         let tracks = plan.map(|plan| plan.tracks).unwrap_or_default();
         let codecs: Vec<&str> = tracks.iter().map(|track| track.codec.as_str()).collect();

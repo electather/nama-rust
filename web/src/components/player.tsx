@@ -28,10 +28,10 @@ import {
   useAwake,
   useIsFullscreen,
   usePlaybackPlan,
-  usePlaybackSource,
   useShortcuts,
   useVideo,
 } from "@/lib/playback";
+import { usePlaybackSource } from "@/lib/playback-source";
 // oxlint-disable-next-line import/max-dependencies -- the player puts together the video, its controls, Watch State and playback info
 import { useWatchState } from "@/lib/watch-state";
 
@@ -48,15 +48,16 @@ export interface PlayerProps {
 
 /**
  * Plays a Version full screen with Nama's own controls, from where the Server's Playback Plan says,
- * or says so plainly when it can't play here.
+ * asking for a new plan when the browser fails to play one, or says so plainly when it can't play
+ * here.
  */
 export function Player(props: PlayerProps) {
-  const plan = usePlaybackPlan(props.versionId, props.watchState);
+  const { plan, tryPlanningAgain } = usePlaybackPlan(props.versionId, props.watchState);
   const [cantPlay, setCantPlay] = useState(false);
-  // Stable, so hls.js isn't restarted each time the player renders.
+  // Stable until the plan changes, so hls.js isn't restarted each time the player renders.
   const onCantPlay = useCallback(() => {
-    setCantPlay(true);
-  }, []);
+    if (!tryPlanningAgain()) setCantPlay(true);
+  }, [tryPlanningAgain]);
   if (plan.url === "") return <CantPlay back={props.back} reasons={plan.reasons} />;
   if (cantPlay) return <CantPlay back={props.back} reasons={[]} />;
   return (
