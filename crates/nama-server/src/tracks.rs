@@ -1,8 +1,8 @@
 //! Tracks: what ffprobe found inside each Version, the facts of its whole file and its video, audio
 //! and subtitle Tracks.
 //!
-//! [`Tracks`] owns `version_probes` and `tracks` (see the crate's `AGENTS.md`). Their rows are
-//! keyed by Version id and go when the file goes; which files there are is for
+//! [`Tracks`] owns `version_probes`, `tracks` and `probe_failures` (see the crate's `AGENTS.md`).
+//! Their rows are keyed by Version id and go when the file goes; which files there are is for
 //! [`crate::contents::Contents`] to say.
 
 use std::{
@@ -13,11 +13,25 @@ use std::{
 use nama_proto::nama::v1 as proto;
 use sqlx::SqliteConnection;
 
-use crate::{contents::Stored, db::Database, ffmpeg::TEXT_SUBTITLES};
+use crate::{
+    contents::Stored,
+    db::Database,
+    ffmpeg::{ProbeError, TEXT_SUBTITLES},
+};
 
 /// The version of how probing reads a file, stored with what it read like the name parser's
 /// (ADR 0023). A Version read by an older one is probed again; when to bump it is in `AGENTS.md`.
 pub(crate) const PROBE_VERSION: i64 = 3;
+
+/// Like [`PROBE_VERSION`], but a Version ffprobe lastingly failed on at an older one is tried
+/// again, and those it read are left alone; when to bump it is in `AGENTS.md`. A
+/// [`PROBE_VERSION`] bump retries them too.
+pub(crate) const PROBE_FAILURE_VERSION: i64 = 1;
+
+/// How many times in a row the probe pass tries a file that fails for a passing reason, such as a
+/// timeout, before it skips it like a lasting failure. A file that timed out once may well again,
+/// and each try can hold a probe slot for the whole timeout.
+pub(crate) const PROBE_ATTEMPTS: i64 = 3;
 
 /// What probing a Version found.
 #[derive(Debug, Clone, PartialEq)]
@@ -105,16 +119,26 @@ impl Tracks {
         Self { db }
     }
 
-    /// Those of `files` whose Tracks are current: read by the current [`PROBE_VERSION`] at the
-    /// size and modified time `Contents` stores for the file now.
+    /// Those of `files` the current [`PROBE_VERSION`] read, or failed to read for a lasting reason
+    /// or [`PROBE_ATTEMPTS`] times at the current [`PROBE_FAILURE_VERSION`], at the size and
+    /// modified time `Contents` stores for the file now, which the probe pass skips. A failed one
+    /// has no Tracks, so [`Self::of`] leaves it out.
     pub(crate) async fn current(&self, files: &[Stored]) -> Result<HashSet<i64>, sqlx::Error> {
         let versions: Vec<i64> = files.iter().map(|file| file.id).collect();
         let versions = json_array(&versions);
         let read_at: HashSet<(i64, i64, i64)> = sqlx::query!(
-            "SELECT version_id, size, modified_ns FROM version_probes
-             WHERE probe_version = ? AND version_id IN (SELECT value FROM json_each(?))",
+            r#"SELECT version_id AS "version_id!", size AS "size!", modified_ns AS "modified_ns!"
+               FROM version_probes
+               WHERE probe_version = ?1 AND version_id IN (SELECT value FROM json_each(?2))
+               UNION ALL
+               SELECT version_id, size, modified_ns FROM probe_failures
+               WHERE probe_version = ?1 AND failure_version = ?3
+                 AND (reason IN ('failed', 'unreadable_output') OR attempts >= ?4)
+                 AND version_id IN (SELECT value FROM json_each(?2))"#,
             PROBE_VERSION,
-            versions
+            versions,
+            PROBE_FAILURE_VERSION,
+            PROBE_ATTEMPTS
         )
         .fetch_all(self.db.reader())
         .await?
@@ -136,25 +160,66 @@ impl Tracks {
             .db
             .write(move |tx| Box::pin(store(tx, version, probe)))
             .await;
-        match stored {
-            Err(sqlx::Error::Database(err)) if err.is_foreign_key_violation() => Ok(()),
-            stored => stored,
-        }
+        ignore_removed(stored)
     }
 
-    /// Forgets what probing found in the Version `version`, once probing it again has failed, so
-    /// Tracks read from what the file held before don't outlive it.
-    pub(crate) async fn forget(&self, version: i64) -> Result<(), sqlx::Error> {
-        self.db
+    /// Stores that the current [`PROBE_VERSION`] couldn't read the Version `version` at its stored
+    /// size and modified time, and why (`err`). For a lasting reason, the probe pass skips it until
+    /// one of them or [`PROBE_FAILURE_VERSION`] changes; for a passing one, such as a timeout, it
+    /// tries again next pass, until it has failed [`PROBE_ATTEMPTS`] times in a row. Forgets what
+    /// probing found in it before, so Tracks read from what the file held then don't outlive it. A
+    /// Version removed since, or an `err` that says nothing about the file, such as ffprobe not
+    /// running, stores and forgets nothing.
+    pub(crate) async fn store_failure(
+        &self,
+        version: Stored,
+        err: &ProbeError,
+    ) -> Result<(), sqlx::Error> {
+        let Some(reason) = failure_reason(err) else {
+            return Ok(());
+        };
+        let stored = self
+            .db
             .write(move |tx| {
                 Box::pin(async move {
-                    sqlx::query!("DELETE FROM version_probes WHERE version_id = ?", version)
-                        .execute(&mut **tx)
-                        .await
-                        .map(drop)
+                    sqlx::query!(
+                        "DELETE FROM version_probes WHERE version_id = ?",
+                        version.id
+                    )
+                    .execute(&mut **tx)
+                    .await?;
+                    sqlx::query!(
+                        // SET reads the row as it was, so `attempts` counts on only when the
+                        // file and versions it failed at before are the same.
+                        "INSERT INTO probe_failures
+                             (version_id, reason, probe_version, failure_version, size,
+                              modified_ns, attempts)
+                         VALUES (?, ?, ?, ?, ?, ?, 1)
+                         ON CONFLICT (version_id) DO UPDATE SET
+                             attempts = CASE
+                                 WHEN (probe_version, failure_version, size, modified_ns)
+                                    = (excluded.probe_version, excluded.failure_version,
+                                       excluded.size, excluded.modified_ns)
+                                 THEN attempts + 1 ELSE 1 END,
+                             reason = excluded.reason,
+                             probe_version = excluded.probe_version,
+                             failure_version = excluded.failure_version,
+                             size = excluded.size,
+                             modified_ns = excluded.modified_ns",
+                        version.id,
+                        reason,
+                        PROBE_VERSION,
+                        PROBE_FAILURE_VERSION,
+                        version.size,
+                        version.modified_ns,
+                    )
+                    .execute(&mut **tx)
+                    .await
+                    .map(drop)
                 })
             })
-            .await
+            .await;
+        ignore_removed(stored)
     }
 
     /// When each keyframe of the Version `version`'s first video falls, in milliseconds, if
@@ -277,6 +342,30 @@ impl Tracks {
     }
 }
 
+/// `err` as `probe_failures.reason`, which says whether it lasts, or none if it says nothing about
+/// the file.
+const fn failure_reason(err: &ProbeError) -> Option<&'static str> {
+    match err {
+        // ffprobe read the file and refused it, or said something it can't parse: it will again.
+        ProbeError::Failed(_) => Some("failed"),
+        ProbeError::Output(_) => Some("unreadable_output"),
+        // A slow or unmounted share, or a busy disk, may not be slow next time.
+        ProbeError::TimedOut(_) => Some("timed_out"),
+        // ffprobe never reached the file, so counting it against the file would skip a whole
+        // Library after one bad pass, such as during a package upgrade.
+        ProbeError::Run(_) | ProbeError::Unavailable => None,
+    }
+}
+
+/// `written`, but a write about a Version removed meanwhile is no error: what it said goes with
+/// the Version.
+fn ignore_removed(written: Result<(), sqlx::Error>) -> Result<(), sqlx::Error> {
+    match written {
+        Err(sqlx::Error::Database(err)) if err.is_foreign_key_violation() => Ok(()),
+        written => written,
+    }
+}
+
 /// `ids` as a JSON array, which SQLite's `json_each` turns into rows, since a query can't bind a
 /// list.
 fn json_array(ids: &[i64]) -> String {
@@ -290,6 +379,9 @@ async fn store(
 ) -> Result<(), sqlx::Error> {
     let version = stored.id;
     sqlx::query!("DELETE FROM version_probes WHERE version_id = ?", version)
+        .execute(&mut *conn)
+        .await?;
+    sqlx::query!("DELETE FROM probe_failures WHERE version_id = ?", version)
         .execute(&mut *conn)
         .await?;
     sqlx::query!(
@@ -469,6 +561,53 @@ impl Tracks {
         .fetch_optional(self.db.reader())
         .await
         .unwrap()
+    }
+
+    /// Why probing the Version `version` last failed, as stored, if it did.
+    pub(crate) async fn failure_reason_of(&self, version: i64) -> Option<String> {
+        sqlx::query_scalar!(
+            "SELECT reason FROM probe_failures WHERE version_id = ?",
+            version
+        )
+        .fetch_optional(self.db.reader())
+        .await
+        .unwrap()
+    }
+
+    /// Marks the Version `version` as failed at the failure version before the current one.
+    pub(crate) async fn failed_by_older_failure_version(&self, version: i64) {
+        self.db
+            .write(move |tx| {
+                Box::pin(async move {
+                    sqlx::query!(
+                        "UPDATE probe_failures SET failure_version = ? - 1 WHERE version_id = ?",
+                        PROBE_FAILURE_VERSION,
+                        version
+                    )
+                    .execute(&mut **tx)
+                    .await
+                })
+            })
+            .await
+            .unwrap();
+    }
+
+    /// Marks the Version `version` as failed by the version before the current one.
+    pub(crate) async fn failed_by_older_probe(&self, version: i64) {
+        self.db
+            .write(move |tx| {
+                Box::pin(async move {
+                    sqlx::query!(
+                        "UPDATE probe_failures SET probe_version = ? - 1 WHERE version_id = ?",
+                        PROBE_VERSION,
+                        version
+                    )
+                    .execute(&mut **tx)
+                    .await
+                })
+            })
+            .await
+            .unwrap();
     }
 
     /// Marks the Version `version` as probed by the version before the current one.

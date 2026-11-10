@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO probe_failures\n                             (version_id, reason, probe_version, failure_version, size,\n                              modified_ns, attempts)\n                         VALUES (?, ?, ?, ?, ?, ?, 1)\n                         ON CONFLICT (version_id) DO UPDATE SET\n                             attempts = CASE\n                                 WHEN (probe_version, failure_version, size, modified_ns)\n                                    = (excluded.probe_version, excluded.failure_version,\n                                       excluded.size, excluded.modified_ns)\n                                 THEN attempts + 1 ELSE 1 END,\n                             reason = excluded.reason,\n                             probe_version = excluded.probe_version,\n                             failure_version = excluded.failure_version,\n                             size = excluded.size,\n                             modified_ns = excluded.modified_ns",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": []
+  },
+  "hash": "add5cd6212e4550630904a3873db2eaeaff24f402aa7066bfaf2b00393955ba3"
+}

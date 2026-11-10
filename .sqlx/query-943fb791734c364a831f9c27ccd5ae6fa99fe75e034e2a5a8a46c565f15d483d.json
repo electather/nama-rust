@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE probe_failures SET probe_version = ? - 1 WHERE version_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "943fb791734c364a831f9c27ccd5ae6fa99fe75e034e2a5a8a46c565f15d483d"
+}
