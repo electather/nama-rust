@@ -39,6 +39,14 @@ pub(crate) enum Method {
 
 impl Method {
     const ALL: [Self; 3] = [Self::DirectPlay, Self::Remux, Self::Transcode];
+
+    const fn name(self) -> &'static str {
+        match self {
+            Self::DirectPlay => "Direct Play",
+            Self::Remux => "Remux",
+            Self::Transcode => "Transcode",
+        }
+    }
 }
 
 /// How the Server will play one Version on one Device, and why.
@@ -72,12 +80,13 @@ impl DeviceDecoding {
     }
 }
 
-/// Plans playing the Version `version` on `device`, probing it first unless its Tracks are
-/// current. `None` if there is no such Version.
+/// Plans playing the Version `version` on `device` by any method but those that just `failed`
+/// there, probing it first unless its Tracks are current. `None` if there is no such Version.
 pub(crate) async fn plan(
     scanner: &Scanner,
     version: i64,
     device: DeviceDecoding,
+    failed: BTreeSet<Method>,
 ) -> Result<Option<Plan>, sqlx::Error> {
     let probe = match scanner.probe_now(version).await {
         Ok(probe) => Some(probe),
@@ -97,6 +106,7 @@ pub(crate) async fn plan(
         version,
         probe,
         device,
+        failed,
     };
     Ok(Some(build(&facts, &STEPS)))
 }
@@ -107,6 +117,8 @@ struct Facts {
     /// What probing found in the Version, or `None` if it couldn't be probed.
     probe: Option<Probe>,
     device: DeviceDecoding,
+    /// The methods that just failed to play it on the Device. The Server never stores them.
+    failed: BTreeSet<Method>,
 }
 
 /// What one step lets a plan be, and why.
@@ -118,7 +130,7 @@ struct Narrowing {
 type Step = fn(&Facts) -> Narrowing;
 
 /// In ADR 0027's order. A new input is a new step here.
-const STEPS: [Step; 2] = [version_tracks, device_decoding];
+const STEPS: [Step; 3] = [version_tracks, device_decoding, failed_on_device];
 
 /// The plan for `facts` that every one of `steps` allows.
 fn build(facts: &Facts, steps: &[Step]) -> Plan {
@@ -172,7 +184,7 @@ fn device_decoding(facts: &Facts) -> Narrowing {
         .into_iter()
         .chain(tracks.iter().cloned())
         .collect();
-    let Some(cant) = joined_with_or(&cant) else {
+    let Some(cant) = joined(&cant, "or") else {
         return Narrowing {
             allows: BTreeSet::from(Method::ALL),
             reason: "This Device decodes its container and Tracks".to_owned(),
@@ -187,6 +199,25 @@ fn device_decoding(facts: &Facts) -> Narrowing {
     Narrowing {
         allows,
         reason: format!("This Device can't decode its {cant}, so it can't be Direct Played"),
+    }
+}
+
+/// The step for what just failed to play on the Device: it rules out each method that did, so
+/// the player can ask again without looping.
+fn failed_on_device(facts: &Facts) -> Narrowing {
+    let failed: Vec<String> = (facts.failed.iter())
+        .map(|method| method.name().to_owned())
+        .collect();
+    let reason = match joined(&failed, "and") {
+        Some(failed) => format!("{failed} failed on this Device"),
+        None => "Nothing has failed to play it on this Device".to_owned(),
+    };
+    Narrowing {
+        allows: BTreeSet::from(Method::ALL)
+            .difference(&facts.failed)
+            .copied()
+            .collect(),
+        reason,
     }
 }
 
@@ -264,13 +295,13 @@ const fn hdr_name(hdr: Hdr) -> &'static str {
     }
 }
 
-/// `items` as "a, b or c", or `None` if there are none.
-fn joined_with_or(items: &[String]) -> Option<String> {
+/// `items` as "a, b or c" for the `conjunction` "or", or `None` if there are none.
+fn joined(items: &[String], conjunction: &str) -> Option<String> {
     let (last, rest) = items.split_last()?;
     Some(if rest.is_empty() {
         last.clone()
     } else {
-        format!("{} or {last}", rest.join(", "))
+        format!("{} {conjunction} {last}", rest.join(", "))
     })
 }
 
@@ -328,7 +359,10 @@ async fn serve(
 mod tests {
     use std::collections::BTreeSet;
 
-    use super::{DeviceDecoding, Facts, Method, Narrowing, Plan, STEPS, build, device_decoding};
+    use super::{
+        DeviceDecoding, Facts, Method, Narrowing, Plan, STEPS, build, device_decoding,
+        failed_on_device,
+    };
     use crate::tracks::{Hdr, Probe, Track, TrackKind};
 
     fn track(codec: &str, default: bool, kind: TrackKind) -> Track {
@@ -399,6 +433,7 @@ mod tests {
                 tracks,
             }),
             device: firefox(),
+            failed: BTreeSet::new(),
         }
     }
 
@@ -418,6 +453,7 @@ mod tests {
                 reasons: vec![
                     "Its Tracks need no change".to_owned(),
                     "This Device decodes its container and Tracks".to_owned(),
+                    "Nothing has failed to play it on this Device".to_owned(),
                 ],
             }
         );
@@ -531,6 +567,7 @@ mod tests {
             [
                 "Its Tracks aren't known, so they're taken to need no change",
                 "Its Tracks aren't known, so this Device is taken to decode them",
+                "Nothing has failed to play it on this Device",
             ]
         );
     }
@@ -552,6 +589,39 @@ mod tests {
             let plan = build(&facts(Some(with_subtitle)), &STEPS);
 
             assert_eq!(plan.tracks, [video("h264"), played], "{tracks:?}");
+        }
+    }
+
+    #[test]
+    fn each_method_that_just_failed_on_the_device_is_ruled_out_and_the_plan_says_so() {
+        use Method::{DirectPlay, Remux, Transcode};
+        let cases = [
+            (
+                vec![],
+                vec![DirectPlay, Remux, Transcode],
+                "Nothing has failed to play it on this Device",
+            ),
+            (
+                vec![DirectPlay],
+                vec![Remux, Transcode],
+                "Direct Play failed on this Device",
+            ),
+            (
+                vec![Remux, DirectPlay],
+                vec![Transcode],
+                "Direct Play and Remux failed on this Device",
+            ),
+        ];
+        for (failed, allowed, reason) in cases {
+            let facts = Facts {
+                failed: BTreeSet::from_iter(failed),
+                ..facts(None)
+            };
+
+            let narrowing = failed_on_device(&facts);
+
+            assert_eq!(narrowing.allows, BTreeSet::from_iter(allowed), "{reason}");
+            assert_eq!(narrowing.reason, reason);
         }
     }
 
