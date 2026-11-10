@@ -21,3 +21,7 @@
 - **Causes stay server-side.** A database or server-side error is logged; the client gets a generic Connect error.
 - **Refusals are typed.** Every error a client can cause carries a `nama.v1.Refusal` detail (ADR 0019). Build it with `refuse` in `src/api.rs`, which sets the Connect code from the `RefusalReason` and fills `debug`; never build a client-caused `ConnectError` directly. The one exception is the router's 404 for a path no `ACCESS` entry lists (see "New RPCs start closed"). A refusal about one request field names it in `field`, and values its message mentions go in `params` (AIP-193: lowerCamelCase keys, units in the key). Server-side failures carry none.
 - **Plugin code runs contained.** Every call into a Plugin, its `Drop` included, goes through `contain_sync` (or its async twin) in `src/plugins.rs`, outside the registry lock.
+
+### Tests
+
+- **One fixture.** Server tests build on `TestServer` in `tests/support`, started through `TestServer::builder()`. Their setup goes through the API, as a client's would; a shared helper never writes the database. A test file adds a fixture of its own only for what that file alone needs, and a shortcut one test needs stays in that test's file.

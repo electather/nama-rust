@@ -4,7 +4,10 @@ use std::{net::SocketAddr, path::Path, sync::Arc};
 
 use connectrpc::client::{ClientConfig, HttpClient};
 use nama_plugin_local_auth::LocalAuth;
-use nama_proto::nama::v1::{SessionDelivery, SetupRequest, SignInServiceClient};
+use nama_proto::nama::v1::{
+    CreateUserRequest, Permission, SessionDelivery, SetPermissionsRequest, SetupRequest,
+    SignInRequest, SignInServiceClient, UserServiceClient,
+};
 use nama_server::{
     config::Config, db::Database, ffmpeg::Ffmpeg, plugin_settings::PluginSettings,
     plugins::Registry, users::SetupCode,
@@ -16,39 +19,53 @@ use tokio::{net::TcpListener, sync::oneshot};
 pub(crate) const PASSWORD: &str = "correct horse battery staple";
 
 /// A Server with its own empty data directory and an Admin signed in, serving until dropped.
+/// Server tests build on it: see "Tests" in `crates/nama-server/AGENTS.md`.
 pub(crate) struct TestServer {
     pub(crate) addr: SocketAddr,
     /// The session token of the Admin's Device.
     pub(crate) admin_token: String,
+    db: Arc<Database>,
     _stop: oneshot::Sender<()>,
     data_dir: TempDir,
 }
 
-impl TestServer {
-    /// Starts serving `config` on a free port, with a fresh database and the Plugins `plugins`
-    /// knows and the Built-in `local-auth` started as a Server starts them, and signs an Admin in.
-    /// Plugins already enabled in `plugins` stay enabled.
-    pub(crate) async fn start(config: Config, plugins: Registry) -> Self {
-        Self::start_with_db(config, plugins).await.0
+/// How a [`TestServer`] starts: its config, Plugins and ffmpeg.
+#[derive(Default)]
+pub(crate) struct Builder {
+    config: Config,
+    plugins: Registry,
+    ffmpeg: Ffmpeg,
+}
+
+impl Builder {
+    /// Serves `config`, with the data directory replaced by a fresh one.
+    pub(crate) fn config(self, config: Config) -> Self {
+        Self { config, ..self }
     }
 
-    /// Like [`TestServer::start`], also returning the Server's database, for a test that reads or
-    /// changes what the API can't.
-    pub(crate) async fn start_with_db(config: Config, plugins: Registry) -> (Self, Arc<Database>) {
-        Self::start_with_ffmpeg(config, plugins, Ffmpeg::default()).await
+    /// Starts the Plugins `plugins` knows as a Server starts them, keeping those it already
+    /// enabled.
+    pub(crate) fn plugins(self, plugins: Registry) -> Self {
+        Self { plugins, ..self }
     }
 
-    /// Like [`TestServer::start_with_db`], with `ffmpeg` as what the Server found at startup
-    /// instead of nothing.
+    /// Has the Server start with `ffmpeg` as what it found at startup.
+    pub(crate) fn ffmpeg(self, ffmpeg: Ffmpeg) -> Self {
+        Self { ffmpeg, ..self }
+    }
+
+    /// Starts serving on a free port, with a fresh database and the Built-in `local-auth` among
+    /// its Plugins, and signs an Admin in.
     #[expect(
         clippy::unwrap_used,
         reason = "a test helper fails its test by panicking"
     )]
-    pub(crate) async fn start_with_ffmpeg(
-        config: Config,
-        plugins: Registry,
-        ffmpeg: Ffmpeg,
-    ) -> (Self, Arc<Database>) {
+    pub(crate) async fn start(self) -> TestServer {
+        let Self {
+            config,
+            plugins,
+            ffmpeg,
+        } = self;
         plugins.describe_builtin(|| Arc::new(LocalAuth));
         let data_dir = tempfile::tempdir().unwrap();
         let config = Config {
@@ -75,13 +92,40 @@ impl TestServer {
             },
         ));
         let admin_token = set_up(anonymous_config(addr), &setup_code).await;
-        let server = Self {
+        TestServer {
             addr,
             admin_token,
+            db,
             _stop: stop,
             data_dir,
-        };
-        (server, db)
+        }
+    }
+}
+
+/// A User signed in on a Device named Phone. Holds a session token, so it skips `Debug`.
+pub(crate) struct SignedIn {
+    pub(crate) id: i64,
+    pub(crate) token: String,
+    client_config: ClientConfig,
+}
+
+impl SignedIn {
+    /// Client settings that point at the Server and call it as this User.
+    pub(crate) fn client_config(&self) -> ClientConfig {
+        self.client_config.clone()
+    }
+}
+
+impl TestServer {
+    /// A builder for a Server with the default config, no Plugins but the Built-in `local-auth`,
+    /// and no ffmpeg.
+    pub(crate) fn builder() -> Builder {
+        Builder::default()
+    }
+
+    /// The Server's database, for a test that reads or changes what the API can't.
+    pub(crate) fn db(&self) -> &Arc<Database> {
+        &self.db
     }
 
     /// The Server's data directory, such as for its Installed Plugins.
@@ -103,6 +147,79 @@ impl TestServer {
     /// Client settings that point at this Server and carry no session.
     pub(crate) fn anonymous_client_config(&self) -> ClientConfig {
         anonymous_config(self.addr)
+    }
+
+    /// Creates the User `name` as the Admin, gives them exactly `permissions` and signs them in.
+    #[expect(
+        clippy::unwrap_used,
+        reason = "a test helper fails its test by panicking"
+    )]
+    pub(crate) async fn user(&self, name: &str, permissions: &[Permission]) -> SignedIn {
+        let id = self.create_user(name).await;
+        self.users()
+            .set_permissions(SetPermissionsRequest {
+                user_id: id,
+                permissions: permissions.iter().map(|&p| p.into()).collect(),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        self.sign_in(id, name).await
+    }
+
+    /// Creates the User `name` as the Admin with the Server's default Permissions and signs them
+    /// in.
+    pub(crate) async fn user_with_default_permissions(&self, name: &str) -> SignedIn {
+        let id = self.create_user(name).await;
+        self.sign_in(id, name).await
+    }
+
+    fn users(&self) -> UserServiceClient<HttpClient> {
+        UserServiceClient::new(HttpClient::plaintext(), self.client_config())
+    }
+
+    /// Creates the User `name` with [`PASSWORD`] as the Admin, and returns their id.
+    #[expect(
+        clippy::unwrap_used,
+        reason = "a test helper fails its test by panicking"
+    )]
+    async fn create_user(&self, name: &str) -> i64 {
+        self.users()
+            .create_user(CreateUserRequest {
+                name: name.to_owned(),
+                password: PASSWORD.to_owned(),
+                ..Default::default()
+            })
+            .await
+            .unwrap()
+            .into_owned()
+            .id
+    }
+
+    /// Signs the User `id`, named `name`, in on a new Device.
+    #[expect(
+        clippy::unwrap_used,
+        reason = "a test helper fails its test by panicking"
+    )]
+    async fn sign_in(&self, id: i64, name: &str) -> SignedIn {
+        let token =
+            SignInServiceClient::new(HttpClient::plaintext(), self.anonymous_client_config())
+                .sign_in(SignInRequest {
+                    name: name.to_owned(),
+                    password: PASSWORD.to_owned(),
+                    device_name: "Phone".to_owned(),
+                    delivery: SessionDelivery::SESSION_DELIVERY_TOKEN.into(),
+                    ..Default::default()
+                })
+                .await
+                .unwrap()
+                .into_owned()
+                .token;
+        SignedIn {
+            id,
+            client_config: self.client_config_as(&token),
+            token,
+        }
     }
 }
 

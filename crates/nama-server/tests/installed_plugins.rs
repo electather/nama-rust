@@ -7,7 +7,7 @@ mod log;
 #[path = "support/refused.rs"]
 mod refused;
 #[path = "support/server.rs"]
-#[expect(dead_code, reason = "the harness's plain `start` has no use here")]
+#[expect(dead_code, reason = "this binary uses only some of the fixture")]
 mod server;
 #[path = "support/test_plugin.rs"]
 mod test_plugin;
@@ -31,7 +31,6 @@ use nama_proto::nama::v1::{
 };
 use nama_server::{
     config::Config,
-    db::Database,
     plugin_settings::{self, PluginSettings},
     plugins::Registry,
 };
@@ -48,7 +47,6 @@ const WAIT: Duration = Duration::from_secs(10);
 /// A running Server with no Installed Plugins yet.
 struct Started {
     server: TestServer,
-    db: Arc<Database>,
     plugins: Registry,
 }
 
@@ -59,12 +57,8 @@ struct Started {
 impl Started {
     async fn new() -> Self {
         let plugins = Registry::with_builtins();
-        let (server, db) = TestServer::start_with_db(Config::default(), plugins.clone()).await;
-        Self {
-            server,
-            db,
-            plugins,
-        }
+        let server = TestServer::builder().plugins(plugins.clone()).start().await;
+        Self { server, plugins }
     }
 
     /// Drops the test Plugin, built with `features`, into the Server's `plugins/` as `file`.
@@ -284,10 +278,13 @@ async fn a_dropped_plugin_is_listed_disabled_observes_scans_only_while_enabled_a
         data_dir: started.server.data_dir().to_owned(),
         ..Config::default()
     };
-    let restarted =
-        PluginSettings::start(Arc::clone(&started.db), Registry::with_builtins(), &config)
-            .await
-            .unwrap();
+    let restarted = PluginSettings::start(
+        Arc::clone(started.server.db()),
+        Registry::with_builtins(),
+        &config,
+    )
+    .await
+    .unwrap();
     assert!(restarted.registry().enabled().contains(&test_plugin));
 
     started
@@ -400,7 +397,7 @@ async fn a_refused_plugin_is_listed_and_shown_with_why_and_enabling_it_is_refuse
         RefusalReason::REFUSAL_REASON_PLUGIN_REFUSED,
     );
     assert_eq!(
-        plugin_settings::stored(&started.db).await.unwrap(),
+        plugin_settings::stored(started.server.db()).await.unwrap(),
         Some(BTreeMap::new())
     );
 }
@@ -523,7 +520,7 @@ async fn a_url_setting_that_isnt_a_url_is_refused_naming_it() {
     assert_eq!(refusal.field, "settings.url");
     assert_eq!(refusal.params["settingKind"], "SETTING_KIND_URL");
     assert_eq!(
-        plugin_settings::stored(&started.db).await.unwrap(),
+        plugin_settings::stored(started.server.db()).await.unwrap(),
         Some(BTreeMap::new())
     );
 }
@@ -574,7 +571,12 @@ async fn a_plugin_that_keeps_panicking_logs_why_is_disabled_and_saved_so_and_can
     // Saved like an admin's disable, which the Server shows and a restart keeps.
     assert!(!started.listed("test-plugin").await.unwrap().enabled);
     let saved_at = Instant::now();
-    while plugin_settings::stored(&started.db).await.unwrap().unwrap()["test-plugin"].enabled {
+    while plugin_settings::stored(started.server.db())
+        .await
+        .unwrap()
+        .unwrap()["test-plugin"]
+        .enabled
+    {
         assert!(saved_at.elapsed() < WAIT, "its disable was never saved");
         tokio::time::sleep(Duration::from_millis(20)).await;
     }
@@ -606,7 +608,10 @@ async fn testing_offers_the_checks_choices_and_only_an_offered_one_is_saved() {
         RefusalReason::REFUSAL_REASON_CHOICE_NOT_OFFERED,
     );
     assert_eq!(refusal.field, "settings.profile");
-    let stored = plugin_settings::stored(&started.db).await.unwrap().unwrap();
+    let stored = plugin_settings::stored(started.server.db())
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(
         stored["test-plugin"].settings.get("profile"),
         Some(&nama_plugin_api::settings::SettingValue::Text(
