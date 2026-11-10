@@ -2022,6 +2022,44 @@ async fn hdr10_transcoded_for_a_browser_on_an_sdr_screen_is_tone_mapped_to_sdr()
 }
 
 #[tokio::test]
+async fn hdr10_transcoded_for_a_browser_on_an_hdr_screen_stays_hdr10_as_its_tracks_say() {
+    let write = |file: &Path| ffmpeg::write_4k_with_5_1(file, "smpte2084");
+    let (fx, version) = Fixture::alien_written(system_ffmpeg(), write).await;
+
+    let plan = fx
+        .ask_for_plan(PlanPlaybackRequest {
+            version_id: version,
+            device_decoding: DeviceDecoding {
+                hdr: true,
+                ..chrome()
+            }
+            .into(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_TRANSCODE);
+    let video = Track {
+        codec: "h264".to_owned(),
+        kind: VideoTrack {
+            width: 3840,
+            height: 2160,
+            frame_rate: 24.0,
+            bit_depth: 8,
+            hdr: HdrFormat::HDR_FORMAT_HDR10.into(),
+            ..Default::default()
+        }
+        .into(),
+        ..Default::default()
+    };
+    assert_eq!(plan.tracks.first(), Some(&video));
+    let colours = "color_transfer,color_primaries";
+    let played = played_streams(&fx, &plan.url, "v", "0.m4s", colours).await;
+    assert_eq!(played, "smpte2084,bt2020");
+}
+
+#[tokio::test]
 async fn a_version_whose_direct_play_just_failed_on_the_device_cant_be_played_and_says_why() {
     let fx = Fixture::alien().await;
     let version = fx.version_ids(ALIEN).await[0];

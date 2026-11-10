@@ -18,7 +18,7 @@ use serde::Deserialize;
 pub use self::hardware::{Accel, Hardware};
 use crate::{
     config::Config,
-    tracks::{Hdr, Probe, Track, TrackKind},
+    tracks::{BaseLayer, Hdr, Probe, Track, TrackKind},
 };
 
 /// The oldest ffmpeg and ffprobe the Server uses, as major and minor version. HLS with fMP4
@@ -806,8 +806,8 @@ struct ProbedSideData {
     side_data_type: String,
     #[serde(default)]
     dv_profile: i64,
-    /// What a player without Dolby Vision shows: 1 is HDR10 and 6 Ultra HD Blu-ray's HDR10,
-    /// while 0 is nothing, 2 SDR and 4 HLG.
+    /// Its Base Layer: 1 is HDR10 and 6 Ultra HD Blu-ray's HDR10, while 0 is none, 2 SDR and 4
+    /// HLG.
     dv_bl_signal_compatibility_id: Option<i64>,
 }
 
@@ -888,7 +888,12 @@ fn hdr(stream: &ProbedStream) -> Option<Hdr> {
     if let Some(record) = dolby_vision {
         return Some(Hdr::DolbyVision {
             profile: record.dv_profile,
-            hdr10_base_layer: matches!(record.dv_bl_signal_compatibility_id, Some(1 | 6)),
+            base_layer: match record.dv_bl_signal_compatibility_id {
+                Some(1 | 6) => Some(BaseLayer::Hdr10),
+                Some(2) => Some(BaseLayer::Sdr),
+                Some(4) => Some(BaseLayer::Hlg),
+                _ => None,
+            },
         });
     }
     match stream.color_transfer.as_deref()? {
@@ -986,13 +991,16 @@ fn is_release_before(version: &str, release: (u32, u32)) -> bool {
 #[cfg(any(test, feature = "testing"))]
 pub fn write_4k_with_5_1(path: &Path, transfer: &str) -> io::Result<()> {
     write_test_media(path, |ffmpeg| {
+        // The frames carry the colours, since ffmpeg 9 drops `-color_trc` and the like for FFV1.
+        let picture = format!(
+            "color=size=3840x2160:rate=24,format=yuv420p10le,\
+             setparams=color_primaries=bt2020:color_trc={transfer}:colorspace=bt2020nc"
+        );
         ffmpeg
-            .args(["-f", "lavfi", "-i", "color=size=3840x2160:rate=24"])
+            .args(["-f", "lavfi", "-i", &picture])
             .args(["-f", "lavfi", "-i", "anullsrc=channel_layout=5.1"])
             // Encoders every ffmpeg build has; of those, FFV1 is one that takes 10 bits.
             .args(["-t", "0.2", "-c:v", "ffv1", "-pix_fmt", "yuv420p10le", "-c:a", "ac3"])
-            .args(["-color_primaries", "bt2020", "-colorspace", "bt2020nc"])
-            .args(["-color_trc", transfer])
             .args(["-metadata:s:a:0", "language=eng", "-f", "matroska"])
     })
 }
@@ -1548,7 +1556,7 @@ mod tests {
 #[cfg(test)]
 mod probe_output_tests {
     use super::parse_probe;
-    use crate::tracks::{Hdr, Probe, Track, TrackKind};
+    use crate::tracks::{BaseLayer, Hdr, Probe, Track, TrackKind};
 
     /// Cut down from ffprobe 7.0's output for a Blu-ray remux with cover art.
     const BLU_RAY_REMUX: &str = r#"{
@@ -1677,37 +1685,41 @@ mod probe_output_tests {
     }
 
     #[test]
-    fn dolby_vision_is_read_with_its_profile_and_whether_its_base_layer_is_hdr10() {
+    fn dolby_vision_is_read_with_its_profile_and_base_layer() {
+        let dolby_vision_with = |profile, base_layer| {
+            Some(Hdr::DolbyVision {
+                profile,
+                base_layer,
+            })
+        };
         assert_eq!(
             hdr_of(&dolby_vision(8, 1, "smpte2084")),
-            Some(Hdr::DolbyVision {
-                profile: 8,
-                hdr10_base_layer: true,
-            })
+            dolby_vision_with(8, Some(BaseLayer::Hdr10))
         );
         // Ultra HD Blu-ray's, with an enhancement layer over HDR10.
         assert_eq!(
             hdr_of(&dolby_vision(7, 6, "smpte2084")),
-            Some(Hdr::DolbyVision {
-                profile: 7,
-                hdr10_base_layer: true,
-            })
+            dolby_vision_with(7, Some(BaseLayer::Hdr10))
         );
         // Streaming's, which only a Dolby Vision player shows right.
         assert_eq!(
             hdr_of(&dolby_vision(5, 0, "unknown")),
-            Some(Hdr::DolbyVision {
-                profile: 5,
-                hdr10_base_layer: false,
-            })
+            dolby_vision_with(5, None)
         );
         // Broadcast's, over HLG.
         assert_eq!(
             hdr_of(&dolby_vision(8, 4, "arib-std-b67")),
-            Some(Hdr::DolbyVision {
-                profile: 8,
-                hdr10_base_layer: false,
-            })
+            dolby_vision_with(8, Some(BaseLayer::Hlg))
+        );
+        // Over SDR.
+        assert_eq!(
+            hdr_of(&dolby_vision(8, 2, "bt709")),
+            dolby_vision_with(8, Some(BaseLayer::Sdr))
+        );
+        // A reserved id says nothing a player without Dolby Vision could show.
+        assert_eq!(
+            hdr_of(&dolby_vision(8, 3, "unknown")),
+            dolby_vision_with(8, None)
         );
     }
 
@@ -1838,7 +1850,8 @@ mod hls_tests {
                     "-f",
                     "lavfi",
                     "-i",
-                    "testsrc=size=320x240:rate=24",
+                    // The frames carry the transfer, since ffmpeg 9 drops `-color_trc`.
+                    "testsrc=size=320x240:rate=24,setparams=color_trc=smpte2084",
                     "-t",
                     "1",
                 ])
@@ -1850,7 +1863,7 @@ mod hls_tests {
                     "-pix_fmt",
                     "yuv420p10le",
                 ])
-                .args(["-x265-params", "log-level=error", "-color_trc", "smpte2084"])
+                .args(["-x265-params", "log-level=error"])
                 .args(["-f", "matroska"])
         })
         .unwrap();

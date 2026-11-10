@@ -133,10 +133,21 @@ enum HdrFormat {
 
 // A Dolby Vision video Track's own facts.
 message DolbyVision {
+  reserved 2;
+  reserved "hdr10_base_layer";
   // Such as 5, 7 or 8, which says which players can show it.
   uint32 profile = 1;
-  // Whether its base layer is HDR10, which a player without Dolby Vision shows instead.
-  bool hdr10_base_layer = 2;
+  // What a player without Dolby Vision shows instead, and a Transcode makes.
+  BaseLayer base_layer = 3;
+}
+
+// A Dolby Vision Track's Base Layer: the picture a player without Dolby Vision shows instead.
+enum BaseLayer {
+  // It has none, as in profile 5, so only a Dolby Vision player can show it.
+  BASE_LAYER_UNSPECIFIED = 0;
+  BASE_LAYER_SDR = 1;
+  BASE_LAYER_HDR10 = 2;
+  BASE_LAYER_HLG = 3;
 }
 
 // An audio Track's own facts.

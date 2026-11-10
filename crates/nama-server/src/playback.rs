@@ -448,11 +448,13 @@ fn server_ffmpeg(facts: &Facts) -> Narrowing {
     }
     let reason = match played_hdr(facts) {
         // Its picture is in Dolby Vision's own colours, which only a Dolby Vision player knows.
-        Some(Hdr::DolbyVision { profile: 5, .. }) => {
+        Some(Hdr::DolbyVision {
+            base_layer: None, ..
+        }) => {
             return Narrowing {
                 allows: BTreeSet::from([Method::DirectPlay, Method::Remux]),
-                reason: "This Server has ffmpeg, but it can't Transcode a Dolby Vision profile 5 \
-                         picture, which has no HDR10 base layer to tone-map in software"
+                reason: "This Server has ffmpeg, but it can't Transcode a Dolby Vision picture \
+                         with no Base Layer, as in profile 5"
                     .to_owned(),
             };
         }
@@ -460,7 +462,7 @@ fn server_ffmpeg(facts: &Facts) -> Narrowing {
             "This Server has ffmpeg, which tone-maps its {} picture to SDR in a Transcode",
             hdr_name(hdr)
         ),
-        Some(hdr) if !facts.device.hdr => format!(
+        Some(hdr) if !facts.device.hdr && transcoded_hdr(facts).is_some() => format!(
             "This Server's ffmpeg lacks zscale, so a Transcode can't tone-map its {} picture to \
              SDR and its colours look washed out",
             hdr_name(hdr)
@@ -481,10 +483,8 @@ fn tone_maps(facts: &Facts) -> bool {
 /// What tone-maps the played video's HDR to SDR in a Transcode, when the Device can't show it: the
 /// GPU, if a Transcode runs on one that passed its tone-map test and burns nothing in, which
 /// takes the frames off it, or else zscale, if ffmpeg has it.
-// ponytail: Dolby Vision 8.2's SDR base layer is tone-mapped too, which darkens it; probing would
-// have to store which base layer it has to tell it from 8.4's HLG one.
 fn tone_mapper(facts: &Facts) -> Option<ToneMapper> {
-    if facts.device.hdr || played_hdr(facts).is_none() {
+    if facts.device.hdr || transcoded_hdr(facts).is_none() {
         return None;
     }
     match transcodes_on(facts) {
@@ -860,7 +860,8 @@ fn played_as(method: Option<Method>, facts: &Facts) -> Vec<Track> {
         None => tracks,
     };
     if method == Some(Method::Transcode) {
-        converted_to_h264(tracks, scaled_size(facts))
+        let hdr = transcoded_hdr(facts).filter(|_| !tone_maps(facts));
+        converted_to_h264(tracks, scaled_size(facts), hdr)
     } else {
         tracks
     }
@@ -917,19 +918,29 @@ fn converted_to_aac(mut tracks: Vec<Track>, channels: i64) -> Vec<Track> {
     tracks
 }
 
-/// `tracks` with their video converted to 8-bit H.264, as a Transcode makes it, scaled to `size`
-/// if given.
-fn converted_to_h264(mut tracks: Vec<Track>, size: Option<(i64, i64)>) -> Vec<Track> {
+/// `tracks` with their video converted to 8-bit H.264 with `hdr`, as a Transcode makes it, scaled
+/// to `size` if given.
+// ffmpeg tags the H.264 with the colours it decoded, so an HDR10 or HLG picture stays one at 8
+// bits.
+// ponytail: checked only for libx264; a GPU encoder that drops those tags sends an untagged
+// picture the Track calls HDR.
+fn converted_to_h264(
+    mut tracks: Vec<Track>,
+    size: Option<(i64, i64)>,
+    hdr: Option<Hdr>,
+) -> Vec<Track> {
     for track in &mut tracks {
         if let TrackKind::Video {
             bit_depth,
             width,
             height,
+            hdr: played,
             ..
         } = &mut track.kind
         {
             "h264".clone_into(&mut track.codec);
             *bit_depth = Some(8);
+            *played = hdr;
             if let Some((scaled_width, scaled_height)) = size {
                 (*width, *height) = (Some(scaled_width), Some(scaled_height));
             }
@@ -1015,6 +1026,15 @@ fn played_hdr(facts: &Facts) -> Option<Hdr> {
         return None;
     };
     hdr
+}
+
+/// How the picture a Transcode decodes is HDR, or `None` for SDR: a Dolby Vision Track's Base
+/// Layer, since re-encoding drops Dolby Vision, or else the played video's own.
+fn transcoded_hdr(facts: &Facts) -> Option<Hdr> {
+    match played_hdr(facts)? {
+        Hdr::DolbyVision { base_layer, .. } => base_layer?.hdr(),
+        hdr @ (Hdr::Hdr10 | Hdr::Hlg) => Some(hdr),
+    }
 }
 
 /// The Track [`played_audio`] counts to.
@@ -1130,7 +1150,7 @@ mod tests {
     use crate::{
         ffmpeg::{Accel, Hardware, ToneMapper, VideoConversion},
         server_settings::HardwareChoice,
-        tracks::{Hdr, Probe, Track, TrackKind},
+        tracks::{BaseLayer, Hdr, Probe, Track, TrackKind},
     };
 
     fn track(codec: &str, default: bool, kind: TrackKind) -> Track {
@@ -1158,6 +1178,21 @@ mod tests {
             hdr,
         };
         track(codec, false, kind)
+    }
+
+    const fn dolby_vision_8(base_layer: Option<BaseLayer>) -> Hdr {
+        Hdr::DolbyVision {
+            profile: 8,
+            base_layer,
+        }
+    }
+
+    /// How the video among `tracks` is HDR.
+    fn video_hdr(tracks: &[Track]) -> Option<Hdr> {
+        tracks.iter().find_map(|track| match track.kind {
+            TrackKind::Video { hdr, .. } => hdr,
+            TrackKind::Audio { .. } | TrackKind::Subtitle { .. } => None,
+        })
     }
 
     fn audio(codec: &str, default: bool) -> Track {
@@ -1721,14 +1756,11 @@ mod tests {
 
     #[test]
     fn hdr_transcoded_for_a_device_that_cant_show_it_is_tone_mapped_and_the_plan_says_so() {
-        let dolby_vision_8 = Hdr::DolbyVision {
-            profile: 8,
-            hdr10_base_layer: true,
-        };
         let cases = [
             (Hdr::Hdr10, "HDR10"),
             (Hdr::Hlg, "HLG"),
-            (dolby_vision_8, "Dolby Vision"),
+            (dolby_vision_8(Some(BaseLayer::Hdr10)), "Dolby Vision"),
+            (dolby_vision_8(Some(BaseLayer::Hlg)), "Dolby Vision"),
         ];
         for (hdr, name) in cases {
             let facts = in_container(MP4, Some(vec![hdr_video("hevc", Some(hdr))]));
@@ -1737,6 +1769,7 @@ mod tests {
 
             assert_eq!(plan.method, Some(Method::Transcode), "{name}");
             assert!(tone_maps(&facts), "{name}");
+            assert_eq!(video_hdr(&plan.tracks), None, "{hdr:?} comes out SDR");
             assert_eq!(
                 plan.reasons[2],
                 format!(
@@ -1782,10 +1815,45 @@ mod tests {
     }
 
     #[test]
-    fn dolby_vision_profile_5_isnt_transcoded_so_a_device_that_cant_decode_it_cant_play_it() {
+    fn a_transcode_that_doesnt_tone_map_lists_the_hdr_of_what_it_decodes() {
+        let cases = [
+            (Hdr::Hdr10, Some(Hdr::Hdr10)),
+            (Hdr::Hlg, Some(Hdr::Hlg)),
+            (dolby_vision_8(Some(BaseLayer::Hdr10)), Some(Hdr::Hdr10)),
+            (dolby_vision_8(Some(BaseLayer::Hlg)), Some(Hdr::Hlg)),
+            (dolby_vision_8(Some(BaseLayer::Sdr)), None),
+        ];
+        for (hdr, played) in cases {
+            let mut facts = in_container(MP4, Some(vec![hdr_video("hevc", Some(hdr))]));
+            facts.device.hdr = true;
+
+            let plan = build(&facts, &STEPS);
+
+            assert_eq!(plan.method, Some(Method::Transcode), "{hdr:?}");
+            assert!(!tone_maps(&facts), "{hdr:?}");
+            assert_eq!(video_hdr(&plan.tracks), played, "{hdr:?}");
+        }
+    }
+
+    #[test]
+    fn dolby_vision_over_sdr_isnt_tone_mapped_for_a_device_that_cant_show_hdr() {
+        let hdr = dolby_vision_8(Some(BaseLayer::Sdr));
+        let facts = in_container(MP4, Some(vec![hdr_video("hevc", Some(hdr))]));
+
+        let plan = build(&facts, &STEPS);
+
+        assert_eq!(plan.method, Some(Method::Transcode));
+        assert!(!tone_maps(&facts));
+        assert_eq!(plan.reasons[2], "This Server has ffmpeg");
+        assert_eq!(video_hdr(&plan.tracks), None);
+    }
+
+    #[test]
+    fn dolby_vision_without_a_base_layer_isnt_transcoded_so_a_device_that_cant_decode_it_cant_play_it()
+     {
         let profile_5 = Hdr::DolbyVision {
             profile: 5,
-            hdr10_base_layer: false,
+            base_layer: None,
         };
         let facts = in_container(MP4, Some(vec![hdr_video("hevc", Some(profile_5))]));
 
@@ -1794,8 +1862,8 @@ mod tests {
         assert_eq!(plan.method, None);
         assert_eq!(
             plan.reasons[2],
-            "This Server has ffmpeg, but it can't Transcode a Dolby Vision profile 5 picture, \
-             which has no HDR10 base layer to tone-map in software"
+            "This Server has ffmpeg, but it can't Transcode a Dolby Vision picture with no Base \
+             Layer, as in profile 5"
         );
     }
 
