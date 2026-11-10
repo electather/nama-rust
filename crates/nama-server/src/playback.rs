@@ -32,7 +32,7 @@ use tower_http::services::ServeFile;
 use crate::{
     contents::Contents,
     ffmpeg::{BurnIn, Ffmpeg, Hardware, ProbeError, ToneMapper, VideoConversion, VideoLimit},
-    scanner::{ProbeNowError, Scanner},
+    probing::{self, Probing},
     server_settings::HardwareChoice,
     tracks::{Hdr, Probe, Track, TrackKind, Tracks, track_to_proto},
     users::{Caller, User},
@@ -182,7 +182,7 @@ impl DeviceDecoding {
               only rename them"
 )]
 pub(crate) async fn plan(
-    scanner: &Scanner,
+    probing: &Probing,
     running: &RunningPlans,
     caller: &Caller,
     version: i64,
@@ -194,9 +194,9 @@ pub(crate) async fn plan(
     remote_default: Option<PlaybackLimit>,
     subtitle: Option<usize>,
 ) -> Result<Option<Plan>, StartError> {
-    let probe = match scanner.probe_now(version).await {
+    let probe = match probing.current(version).await {
         Ok(probe) => Some(probe),
-        Err(ProbeNowError::Probe(err)) => {
+        Err(probing::Error::Probe(err)) => {
             if !matches!(*err, ProbeError::Unavailable) {
                 tracing::warn!(
                     version,
@@ -205,8 +205,8 @@ pub(crate) async fn plan(
             }
             None
         }
-        Err(ProbeNowError::NoSuchVersion(_)) => return Ok(None),
-        Err(ProbeNowError::Database(err)) => return Err(err.into()),
+        Err(probing::Error::NoSuchVersion(_)) => return Ok(None),
+        Err(probing::Error::Database(err)) => return Err(err.into()),
     };
     let mut facts = Facts {
         version,
@@ -2238,5 +2238,152 @@ mod tests {
             default_max_transcodes(&hevc_on(HardwareChoice::Automatic, vec![], None)),
             2
         );
+    }
+
+    /// An ffprobe in `bin` that finds an H.264 video and an AAC audio Track in any file. It's a
+    /// shell script.
+    #[cfg(unix)]
+    fn h264_aac_ffprobe(bin: &std::path::Path) -> crate::ffmpeg::Ffmpeg {
+        use std::os::unix::fs::PermissionsExt;
+
+        let path = bin.join("ffprobe");
+        let script = r#"#!/bin/sh
+echo '{"streams": [{"codec_name": "h264", "codec_type": "video"},
+                   {"codec_name": "aac", "codec_type": "audio"}],
+       "format": {"format_name": "mov,mp4,m4a,3gp,3g2,mj2"}}'
+"#;
+        std::fs::write(&path, script).unwrap();
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        crate::ffmpeg::Ffmpeg {
+            ffprobe: Ok(crate::ffmpeg::FoundProgram {
+                path,
+                version: "7.1.1".to_owned(),
+            }),
+            ..crate::ffmpeg::Ffmpeg::default()
+        }
+    }
+
+    /// Stores a file in the Library `library` in `contents` without probing it, and Matches it to
+    /// Alien, which makes it a Version. Returns its id.
+    async fn unprobed_version(contents: &crate::contents::Contents, library: i64) -> i64 {
+        use nama_plugin_api::{PluginId, metadata::ExternalIds};
+
+        use crate::contents::{Change, Decided, Item, Metadata};
+
+        let alien = Change::Store {
+            path: "/media/Alien (1979)/Alien (1979).mp4".to_owned(),
+            size: 10,
+            modified_ns: 0,
+            items: vec![Item::Movie {
+                title: "Alien".to_owned(),
+                year: Some(1979),
+                hint: None,
+            }],
+        };
+        contents.apply(library, vec![alien]).await.unwrap();
+        let matched = Metadata {
+            plugin: PluginId::from_static("tmdb"),
+            ids: ExternalIds {
+                tmdb: Some(348),
+                ..ExternalIds::default()
+            },
+            show_ids: ExternalIds::default(),
+            title: "Alien".to_owned(),
+            original_title: None,
+            show_title: None,
+            overview: None,
+            release_date: None,
+            runtime_minutes: None,
+            poster: None,
+            backdrop: None,
+        };
+        let (item, _, _) = contents.undecided(library).await.unwrap().remove(0);
+        contents
+            .record(vec![(item, Decided::Matched(Box::new(matched)))])
+            .await
+            .unwrap();
+        contents.every_stored().await.unwrap()[0].id
+    }
+
+    fn ripley_on_the_nostromo() -> crate::users::Caller {
+        use crate::users::{Caller, Device, Permissions, User};
+
+        Caller {
+            user: User {
+                id: 1,
+                name: "Ripley".to_owned(),
+                permissions: Permissions::NEW_USER,
+                created_at: 0,
+            },
+            device: Device {
+                id: 1,
+                name: "Nostromo".to_owned(),
+                created_at: 0,
+                last_seen_at: 0,
+                authenticated_at: 0,
+            },
+        }
+    }
+
+    // The fake ffprobe is a shell script. The Version is stored without a scan, so no background
+    // pass probes it.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_version_without_tracks_is_probed_before_its_playback_plan_is_built() {
+        use std::sync::Arc;
+
+        use crate::{
+            contents::Contents,
+            db::Database,
+            events::EventBus,
+            ffmpeg::Ffmpeg,
+            libraries::{Kind, Libraries},
+            playback::{plan, running::RunningPlans, subtitles},
+            plugins::Registry,
+            probing::Probing,
+            server_settings::{SegmentFolder, ServerUrl},
+            tracks::Tracks,
+        };
+
+        let data = tempfile::tempdir().unwrap();
+        let db = Arc::new(Database::open(data.path()).await.unwrap());
+        let library = Libraries::new(Arc::clone(&db))
+            .create("Movies", Kind::Movies, vec!["/media".to_owned()])
+            .await
+            .unwrap();
+        let contents = Contents::new(Arc::clone(&db));
+        let version = unprobed_version(&contents, library.id).await;
+        let probing = Probing::new(
+            Arc::clone(&db),
+            Arc::new(h264_aac_ffprobe(data.path())),
+            subtitles::Cache::new(data.path()),
+        );
+        let running = RunningPlans::new(
+            SegmentFolder::new(data.path().join("transcodes")),
+            Arc::new(Ffmpeg::default()),
+            contents,
+            Tracks::new(Arc::clone(&db)),
+            EventBus::new(db, Registry::new(), ServerUrl::default()),
+        );
+
+        let plan = plan(
+            &probing,
+            &running,
+            &ripley_on_the_nostromo(),
+            version,
+            DeviceDecoding::default(),
+            BTreeSet::new(),
+            None,
+            PickedLimit::Unpicked,
+            std::net::Ipv4Addr::LOCALHOST.into(),
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+
+        let tracks = plan.map(|plan| plan.tracks).unwrap_or_default();
+        let codecs: Vec<&str> = tracks.iter().map(|track| track.codec.as_str()).collect();
+        assert_eq!(codecs, ["h264", "aac"]);
     }
 }

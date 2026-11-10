@@ -105,6 +105,7 @@ use crate::{
     },
     plugin_settings::{ChangeError, ListError, PluginSettings, StoredPlugin},
     plugins::{CheckError, EnableError, Listed},
+    probing::Probing,
     qualities,
     rate_limits::{Blocked, SignInCodeLimits, SignInLimits},
     requests::{self, Found, FoundShow, Requests},
@@ -129,6 +130,7 @@ pub(crate) fn router(
     db: Arc<Database>,
     plugin_settings: PluginSettings,
     scanner: Scanner,
+    probing: Probing,
     events: EventBus,
     requests: Requests,
     server_url: ServerUrl,
@@ -187,7 +189,7 @@ pub(crate) fn router(
             browse,
         }))
         .add_service(Arc::new(PlaybackServiceHandler {
-            scanner: scanner.clone(),
+            probing: probing.clone(),
             running,
             remote_limit,
         }))
@@ -196,6 +198,7 @@ pub(crate) fn router(
         .add_service(Arc::new(LibraryServiceHandler {
             libraries: Libraries::new(db),
             scanner,
+            probing,
         }))
         .add_service(Arc::new(EventServiceHandler {
             events,
@@ -922,6 +925,7 @@ fn poll_status(status: SignInCodeStatus) -> ServiceResult<PollSignInCodeResponse
 struct LibraryServiceHandler {
     libraries: Libraries,
     scanner: Scanner,
+    probing: Probing,
 }
 
 #[expect(
@@ -1008,11 +1012,12 @@ impl LibraryService for LibraryServiceHandler {
         _ctx: RequestContext,
         request: ServiceRequest<'_, DeleteLibraryRequest>,
     ) -> ServiceResult<DeleteLibraryResponse> {
-        let (libraries, scanner, id) = (self.libraries.clone(), self.scanner.clone(), request.id);
+        let (libraries, probing, id) = (self.libraries.clone(), self.probing.clone(), request.id);
         // The delete commits even if the caller stops waiting, so its cleanup must follow (ADR 0029).
         detached(async move {
             libraries.delete(id).await?;
-            scanner.clean_subtitles().await;
+            // It has no stored files left, so this only cleans the subtitle cache.
+            probing.files_changed(id).await;
             Ok::<_, libraries::Error>(())
         })
         .await?;
@@ -1370,7 +1375,7 @@ fn version_not_found() -> ConnectError {
 
 /// `nama.v1.PlaybackService`: how each signed-in User's Device plays a Version.
 struct PlaybackServiceHandler {
-    scanner: Scanner,
+    probing: Probing,
     running: RunningPlans,
     remote_limit: RemotePlaybackLimit,
 }
@@ -1403,7 +1408,7 @@ impl PlaybackService for PlaybackServiceHandler {
             .filter_map(|method| method_from_proto(*method))
             .collect();
         let plan = playback::plan(
-            &self.scanner,
+            &self.probing,
             &self.running,
             caller,
             request.version_id,

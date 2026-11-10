@@ -16,6 +16,7 @@ mod matching;
 mod playback;
 pub mod plugin_settings;
 pub mod plugins;
+mod probing;
 mod qualities;
 mod rate_limits;
 mod requests;
@@ -43,6 +44,7 @@ use crate::{
     playback::running::RunningPlans,
     playback::subtitles,
     plugin_settings::PluginSettings,
+    probing::Probing,
     requests::{PROGRESS_EVERY, Requests},
     scanner::Scanner,
     server_settings::{RemotePlaybackLimit, SegmentFolder, ServerUrl},
@@ -101,12 +103,12 @@ pub fn serve(
     let events = EventBus::new(Arc::clone(&db), registry.clone(), server_url.clone());
     let ffmpeg = Arc::new(ffmpeg);
     let subtitles = subtitles::Cache::new(&config.data_dir);
+    let probing = Probing::new(Arc::clone(&db), Arc::clone(&ffmpeg), subtitles.clone());
     let scanner = Scanner::new(
         Arc::clone(&db),
         registry.clone(),
         events.clone(),
-        Arc::clone(&ffmpeg),
-        subtitles.clone(),
+        Some(probing.clone()),
     );
     let matcher = Matcher::new(Arc::clone(&db), registry.clone(), events.clone());
     let requests = Requests::new(Arc::clone(&db), matcher, events.clone(), registry.clone());
@@ -131,6 +133,7 @@ pub fn serve(
         db,
         plugins.clone(),
         scanner.clone(),
+        probing.clone(),
         events.clone(),
         requests.clone(),
         server_url,
@@ -166,7 +169,9 @@ pub fn serve(
         })
         .await;
         running.stop_all().await;
+        // The Scanner first, so a scan finishing now can't start a pass once Probing has stopped.
         scanner.shutdown().await;
+        probing.shutdown().await;
         // The Requests not handed off yet stay Approved, so the next start hands them off. The one
         // being handed off now runs on in a task of its own (`HandOff::request`), which nothing
         // waits for: if the runtime stops first, a Request the Fulfiller took stays Approved and
