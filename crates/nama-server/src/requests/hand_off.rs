@@ -34,7 +34,7 @@ use crate::{
 
 /// How often the Fulfillers are asked how their Processing Requests are progressing, as Seerr asks
 /// (ADR 0012).
-pub(crate) const PROGRESS_EVERY: Duration = Duration::from_secs(60);
+pub(super) const PROGRESS_EVERY: Duration = Duration::from_secs(60);
 
 /// Requests' way to the Fulfillers for Movies and for Shows, where they are enabled, which also
 /// publishes the changes its writes make.
@@ -452,9 +452,9 @@ impl Drop for Claim {
     }
 }
 
-// Nothing panics while one is held, so a poisoned map is still whole.
-fn lock<T>(map: &Mutex<T>) -> MutexGuard<'_, T> {
-    map.lock().unwrap_or_else(PoisonError::into_inner)
+// Nothing panics while one is held, so a poisoned lock's value is still whole.
+pub(super) fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+    mutex.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
 #[cfg(test)]
