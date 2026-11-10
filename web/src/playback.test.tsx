@@ -116,3 +116,27 @@ test("a segment folder that isn't an absolute path is refused under its field", 
 
   await expectUnderField("Segment folder", "The segment folder must be an absolute path.");
 });
+
+test("a Transcodes at once the Server refuses as missing is refused under its field", async () => {
+  openApp(
+    "/admin/playback",
+    fakeServer({
+      signedIn: admin,
+      serverService: {
+        getPlaybackStatus: () => ({}),
+        getPlaybackSettings: () => ({ settings: { maxTranscodes: 2 } }),
+        updatePlaybackSettings: () => {
+          throw refused(Code.InvalidArgument, "the most Transcodes at once must be at least 1", {
+            reason: RefusalReason.FIELD_REQUIRED,
+            field: "settings.max_transcodes",
+          });
+        },
+      },
+    }),
+  );
+
+  await screen.findByLabelText("Transcodes at once");
+  fireEvent.click(screen.getByRole("button", { name: "Save playback settings" }));
+
+  await expectUnderField("Transcodes at once", "The most Transcodes at once must be at least 1.");
+});

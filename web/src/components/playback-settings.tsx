@@ -45,12 +45,7 @@ export function PlaybackSettingsForm() {
     <form
       className="mt-10 flex max-w-md flex-col gap-5"
       onSubmit={onSubmitted((typed) => {
-        update.mutate({
-          settings: {
-            segmentFolder: formText(typed, "segmentFolder"),
-            maxTranscodes: Number(formText(typed, "maxTranscodes")),
-          },
-        });
+        update.mutate({ settings: typedSettings(typed) });
       })}
     >
       <FormField
@@ -71,6 +66,7 @@ export function PlaybackSettingsForm() {
         min={1}
         defaultValue={settings.maxTranscodes}
         hint="The most the Server runs at once. Remuxes don’t count. While that many run, a Device that can play a Remux gets one instead, and one that can’t is told the Server is busy."
+        error={errors.maxTranscodes}
       />
       <FormEnd
         action={update.isPending ? "Saving playback settings…" : "Save playback settings"}
@@ -82,6 +78,14 @@ export function PlaybackSettingsForm() {
   );
 }
 
+/** The Playback settings the form holds `typed`. */
+function typedSettings(typed: FormData) {
+  return {
+    segmentFolder: formText(typed, "segmentFolder"),
+    maxTranscodes: Number(formText(typed, "maxTranscodes")),
+  };
+}
+
 /** Why the Server refused the Playback settings, under their field, or `{}` while it hasn't. */
 function playbackSettingsErrors(error: ConnectError | null) {
   if (error === null) return {};
@@ -89,6 +93,10 @@ function playbackSettingsErrors(error: ConnectError | null) {
     error,
     "save the playback settings",
     {},
-    { [RefusalReason.FOLDER_NOT_ABSOLUTE]: { segmentFolder: serverMessage(error) } },
+    {
+      [RefusalReason.FOLDER_NOT_ABSOLUTE]: { segmentFolder: serverMessage(error) },
+      // The only field the Server refuses as missing here, a cap of 0.
+      [RefusalReason.FIELD_REQUIRED]: { maxTranscodes: serverMessage(error) },
+    },
   );
 }
