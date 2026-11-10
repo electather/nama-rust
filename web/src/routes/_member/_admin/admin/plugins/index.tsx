@@ -2,12 +2,14 @@ import { createQueryOptions, useSuspenseQuery } from "@connectrpc/connect-query"
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { PowerOff, TriangleAlert } from "lucide-react";
 
+import { AdminList, AdminRow } from "@/components/admin-list";
 import { ExtensionPoints, PluginLogo } from "@/components/plugin-at-a-glance";
 import { Page } from "@/components/page";
 import { PluginToggle } from "@/components/plugin-toggle";
 import { StateLabel } from "@/components/state-label";
 import { buttonVariants } from "@/components/ui/button";
 import { type PluginSummary, PluginService } from "@/gen/nama/v1/plugin_pb";
+// oxlint-disable-next-line import/max-dependencies -- each row puts together a Plugin’s logo, what it is, its state and how to enable or set it up
 import { kindAndVersion, pluginName } from "@/lib/plugins";
 
 export const Route = createFileRoute("/_member/_admin/admin/plugins/")({
@@ -26,35 +28,30 @@ function Plugins() {
       <p className="mt-2 max-w-prose text-pretty text-muted-foreground">
         Plugins add to what the Server can do, such as finding Movies and Shows on TMDB.
       </p>
-      {/* Pulled out by the rows' own padding, so the logos line up with the heading. */}
-      <ul className="mt-8 -mx-3 flex max-w-2xl flex-col">
+      <AdminList>
         {summaries.map((plugin) => (
           <PluginRow key={plugin.id} plugin={plugin} />
         ))}
-      </ul>
+      </AdminList>
     </Page>
   );
 }
 
 function PluginRow({ plugin }: { plugin: PluginSummary }) {
   return (
-    <li className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b px-3 py-3 last:border-b-0">
-      <PluginLogo plugin={plugin} />
-      <div className="flex min-w-0 flex-1 basis-64 flex-col items-start">
-        <Link
-          to="/admin/plugins/$pluginId"
-          params={{ pluginId: plugin.id }}
-          className="truncate rounded-sm font-medium outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
-        >
-          {pluginName(plugin)}
-        </Link>
-        {plugin.description !== "" && <p className="text-sm text-pretty">{plugin.description}</p>}
-        <span className="text-sm text-muted-foreground">{kindAndVersion(plugin)}</span>
-        {plugin.enabled && plugin.settingsMissing && <NeedsAttention />}
-        <ExtensionPoints extensionPoints={plugin.extensionPoints} />
-      </div>
-      <EnableOrSetUp plugin={plugin} />
-    </li>
+    <AdminRow start={<PluginLogo plugin={plugin} />} end={<EnableOrSetUp plugin={plugin} />}>
+      <Link
+        to="/admin/plugins/$pluginId"
+        params={{ pluginId: plugin.id }}
+        className="truncate rounded-sm font-medium outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
+      >
+        {pluginName(plugin)}
+      </Link>
+      {plugin.description !== "" && <p className="text-sm text-pretty">{plugin.description}</p>}
+      <span className="text-sm text-muted-foreground">{kindAndVersion(plugin)}</span>
+      {plugin.enabled && plugin.settingsMissing && <NeedsAttention />}
+      <ExtensionPoints extensionPoints={plugin.extensionPoints} />
+    </AdminRow>
   );
 }
 
