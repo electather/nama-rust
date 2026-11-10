@@ -24,13 +24,13 @@ use nama_proto::nama::v1::{
     ApproveRequestRequest, CancelRequestRequest, CreateLibraryRequest, CreateRequestRequest,
     CreateUserRequest, DeletePluginConnectionRequest, DeleteUserRequest, EnablePluginRequest,
     GetPluginRequest, GetRequestRequest, LibraryKind, LibraryServiceClient,
-    ListPluginConnectionsRequest, ListPluginsRequest, Permission, Plugin, PluginConnectionState,
-    PluginServiceClient, Request, RequestServiceClient, RequestState, ScanLibraryRequest,
-    ServerServiceClient, ServerSettings, SessionDelivery, SetPermissionsRequest, SignInRequest,
-    SignInServiceClient, StartPluginConnectionRequest, UpdatePluginSettingsRequest,
-    UpdateServerSettingsRequest, UserServiceClient, setting_value::Value,
+    ListPluginConnectionsRequest, Permission, Plugin, PluginConnectionState, PluginServiceClient,
+    Request, RequestServiceClient, RequestState, ScanLibraryRequest, ServerServiceClient,
+    ServerSettings, SessionDelivery, SetPermissionsRequest, SignInRequest, SignInServiceClient,
+    StartPluginConnectionRequest, UpdatePluginSettingsRequest, UpdateServerSettingsRequest,
+    UserServiceClient, setting_value::Value,
 };
-use nama_server::{config::Config, db::Database, plugin_settings, plugins::Registry};
+use nama_server::{config::Config, db::Database, plugins::Registry};
 use serde_json::{Value as Json, json};
 use server::{PASSWORD, TestServer};
 
@@ -74,26 +74,15 @@ impl Fixture {
             .enable_with_settings(Arc::new(Tmdb::with_endpoints(tmdb.endpoints())), settings)
             .unwrap();
         let (server, db) = TestServer::start_with_db(Config::default(), plugins).await;
-        // As on a Server's first start.
-        plugin_settings::import(&db, &BTreeMap::new())
-            .await
-            .unwrap();
         let (ada_id, ada) = user(&server, "Ada").await;
-        let fixture = Self {
+        Self {
             server,
             db,
             telegram: FakeTelegram::start().await,
             ada_id,
             ada,
             _tmdb: tmdb,
-        };
-        // Listing is what reads the Installed Plugins, bundled ones too.
-        fixture
-            .plugins()
-            .list_plugins(ListPluginsRequest::default())
-            .await
-            .unwrap();
-        fixture
+        }
     }
 
     /// A Fixture where an Admin set Telegram up with `bot_token`, the fake Telegram's URL and
@@ -519,6 +508,26 @@ async fn an_unreachable_telegram_is_logged_in_plain_words() {
 
     log.wait_for(
         &["telegram", "provider failed", "Telegram didn't answer"],
+        1,
+    )
+    .await;
+    assert!(!log.contents().contains(BOT_TOKEN), "{}", log.contents());
+}
+
+#[tokio::test]
+async fn an_answer_that_is_not_json_is_logged_as_making_no_sense() {
+    let log = Log::global();
+    let fixture = Fixture::with_telegram(BOT_TOKEN, Some(CHANNEL)).await;
+    fixture.telegram.talk_nonsense();
+
+    fixture.ada_asks_for(DUNE).await;
+
+    log.wait_for(
+        &[
+            "telegram",
+            "provider failed",
+            "Telegram's answer made no sense",
+        ],
         1,
     )
     .await;

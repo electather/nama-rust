@@ -6,11 +6,8 @@ use connectrpc::client::{ClientConfig, HttpClient};
 use nama_plugin_local_auth::LocalAuth;
 use nama_proto::nama::v1::{SessionDelivery, SetupRequest, SignInServiceClient};
 use nama_server::{
-    config::Config,
-    db::Database,
-    ffmpeg::Ffmpeg,
-    plugins::{EnableError, Registry},
-    users::SetupCode,
+    config::Config, db::Database, ffmpeg::Ffmpeg, plugin_settings::PluginSettings,
+    plugins::Registry, users::SetupCode,
 };
 use tempfile::TempDir;
 use tokio::{net::TcpListener, sync::oneshot};
@@ -28,8 +25,9 @@ pub(crate) struct TestServer {
 }
 
 impl TestServer {
-    /// Starts serving `config` on a free port, with a fresh database and the Plugins enabled in
-    /// `plugins` plus `local-auth`, if it isn't already, and signs an Admin in.
+    /// Starts serving `config` on a free port, with a fresh database and the Plugins `plugins`
+    /// knows and the Built-in `local-auth` started as a Server starts them, and signs an Admin in.
+    /// Plugins already enabled in `plugins` stay enabled.
     pub(crate) async fn start(config: Config, plugins: Registry) -> Self {
         Self::start_with_db(config, plugins).await.0
     }
@@ -51,18 +49,16 @@ impl TestServer {
         plugins: Registry,
         ffmpeg: Ffmpeg,
     ) -> (Self, Arc<Database>) {
-        let enabled = plugins.enable(Arc::new(LocalAuth));
-        // Already enabled such as by `Registry::with_builtins`.
-        assert!(
-            matches!(enabled, Ok(()) | Err(EnableError::AlreadyEnabled(_))),
-            "{enabled:?}"
-        );
+        plugins.describe_builtin(|| Arc::new(LocalAuth));
         let data_dir = tempfile::tempdir().unwrap();
         let config = Config {
             data_dir: data_dir.path().to_owned(),
             ..config
         };
         let db = Arc::new(Database::open(data_dir.path()).await.unwrap());
+        let plugins = PluginSettings::start(Arc::clone(&db), plugins, &config)
+            .await
+            .unwrap();
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         let setup_code = SetupCode::generate().unwrap();

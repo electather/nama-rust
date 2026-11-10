@@ -24,7 +24,7 @@ All lint, type-check and Fallow config lives in `vite.config.ts`, `tsconfig.json
 
 ## Checks
 
-CI's web job runs, and every finding fails it:
+CI's `web` job runs, and every finding fails it:
 
 ```sh
 vp check

@@ -540,7 +540,8 @@ impl Registry {
     }
 
     /// Every Plugin the Server has, enabled or not, sorted by id: the Built-in ones
-    /// [`Registry::with_builtins`] knew, and the Installed ones the Server last read.
+    /// [`Registry::with_builtins`] or [`Registry::describe_builtin`] made known, and the Installed
+    /// ones the Server last read.
     #[must_use]
     pub fn plugins(&self) -> Vec<Listed> {
         self.read(|state| {
@@ -966,7 +967,7 @@ fn without_secrets(mut message: String, secrets: &[String]) -> String {
 }
 
 /// Logs why the Plugin `id` wasn't enabled at start.
-fn log_not_enabled(id: &PluginId, err: &EnableError) {
+pub(crate) fn log_not_enabled(id: &PluginId, err: &EnableError) {
     // Not an error: a Plugin such as TMDB needs an API key before it can run.
     if matches!(err, EnableError::InvalidSettings { .. }) {
         warn!(plugin = %id, "plugin not enabled: {err}");

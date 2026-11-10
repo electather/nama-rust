@@ -1,8 +1,12 @@
-//! The Built-in Plugins: which ship in the Server, how config turns them on and off, and what
-//! they may depend on.
+//! The Built-in Plugins: which ship in the Server, how config turns them on and off at startup,
+//! and what they may depend on.
 
 use std::{collections::BTreeMap, path::Path, process::Command, sync::Arc};
 
+use figment::{
+    Figment,
+    providers::{Format, Serialized, Toml},
+};
 use nama_plugin_api::{
     Plugin, PluginId, Registrar, Registration,
     auth::Authenticator,
@@ -12,30 +16,44 @@ use nama_plugin_local_auth::LocalAuth;
 use nama_plugin_log_events::LogEvents;
 use nama_plugin_test_choices::TestChoices;
 use nama_plugin_tmdb::Tmdb;
-use nama_server::{config::PluginConfig, plugins::Registry};
+use nama_server::{
+    config::Config, db::Database, plugin_settings::PluginSettings, plugins::Registry,
+};
 
-#[test]
-fn every_builtin_plugin_is_enabled_by_default_once_it_has_the_settings_it_requires() {
-    let without_settings = Registry::with_builtins(&BTreeMap::new());
-    let tmdb = PluginConfig {
-        settings: BTreeMap::from([(
-            "api_key".to_owned(),
-            SettingValue::Text("secret".to_owned()),
-        )]),
-        ..PluginConfig::default()
-    };
-    let with_settings = Registry::with_builtins(&BTreeMap::from([("tmdb".to_owned(), tmdb)]));
+/// The Built-in Plugins started as a Server starts them, with the `[plugins.*]` tables in `toml`.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn started(toml: &str) -> Vec<PluginId> {
+    let data_dir = tempfile::tempdir().unwrap();
+    let db = Arc::new(Database::open(data_dir.path()).await.unwrap());
+    let config: Config = Figment::from(Serialized::defaults(Config::default()))
+        .merge(Toml::string(toml))
+        .merge(Serialized::default("data_dir", data_dir.path()))
+        .extract()
+        .unwrap();
+    let plugins = PluginSettings::start(Arc::clone(&db), Registry::with_builtins(), &config)
+        .await
+        .unwrap();
+    plugins.registry().enabled()
+}
+
+#[tokio::test]
+async fn every_builtin_plugin_is_enabled_by_default_once_it_has_the_settings_it_requires() {
+    let without_settings = started("").await;
+    let with_settings = started("[plugins.tmdb]\napi_key = \"secret\"").await;
 
     // TMDB can't run without an API key.
     assert_eq!(
-        without_settings.enabled(),
+        without_settings,
         [
             PluginId::from_static("local-auth"),
             PluginId::from_static("log-events")
         ]
     );
     assert_eq!(
-        with_settings.enabled(),
+        with_settings,
         [
             PluginId::from_static("local-auth"),
             PluginId::from_static("log-events"),
@@ -44,29 +62,19 @@ fn every_builtin_plugin_is_enabled_by_default_once_it_has_the_settings_it_requir
     );
 }
 
-#[test]
-fn config_can_disable_a_builtin_plugin() {
-    let plugins = BTreeMap::from([(
-        "log-events".to_owned(),
-        PluginConfig {
-            enabled: false,
-            ..PluginConfig::default()
-        },
-    )]);
+#[tokio::test]
+async fn config_can_disable_a_builtin_plugin() {
+    let enabled = started("[plugins.log-events]\nenabled = false").await;
 
-    let registry = Registry::with_builtins(&plugins);
-
-    assert_eq!(registry.enabled(), [PluginId::from_static("local-auth")]);
+    assert_eq!(enabled, [PluginId::from_static("local-auth")]);
 }
 
-#[test]
-fn config_for_a_plugin_the_server_does_not_have_is_ignored() {
-    let plugins = BTreeMap::from([("no-such-plugin".to_owned(), PluginConfig::default())]);
-
-    let registry = Registry::with_builtins(&plugins);
+#[tokio::test]
+async fn config_for_a_plugin_the_server_does_not_have_is_ignored() {
+    let enabled = started("[plugins.no-such-plugin]").await;
 
     assert_eq!(
-        registry.enabled(),
+        enabled,
         [
             PluginId::from_static("local-auth"),
             PluginId::from_static("log-events")
@@ -76,14 +84,9 @@ fn config_for_a_plugin_the_server_does_not_have_is_ignored() {
 
 #[test]
 fn a_plugin_that_isnt_running_may_be_disabled_only_while_another_provides_an_authenticator() {
-    let without_local_auth = Registry::with_builtins(&BTreeMap::from([(
-        "local-auth".to_owned(),
-        PluginConfig {
-            enabled: false,
-            ..PluginConfig::default()
-        },
-    )]));
-    let with_local_auth = Registry::with_builtins(&BTreeMap::new());
+    let without_local_auth = Registry::with_builtins();
+    let with_local_auth = Registry::new();
+    with_local_auth.enable(Arc::new(LocalAuth)).unwrap();
 
     // As after `local-auth` panicked: it may be what would provide one after a restart.
     let refused = without_local_auth
@@ -104,7 +107,7 @@ fn each_builtin_plugin_registers_at_exactly_the_extension_points_its_manifest_na
         Arc::new(Tmdb::new()),
     ];
     // So a Built-in Plugin added later can't miss this test.
-    let builtins: Vec<_> = Registry::with_builtins(&BTreeMap::new())
+    let builtins: Vec<_> = Registry::with_builtins()
         .plugins()
         .into_iter()
         .map(|plugin| plugin.id)

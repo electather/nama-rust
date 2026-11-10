@@ -13,8 +13,7 @@ installers = []
 targets = ["aarch64-apple-darwin", "aarch64-unknown-linux-gnu", "x86_64-apple-darwin", "x86_64-unknown-linux-gnu", "x86_64-pc-windows-msvc"]
 # Where to host releases
 hosting = "github"
-# Don't run release jobs on pull requests: they need GitHub-hosted runners, and the
-# account has no Actions minutes. CI (ci.yml) covers PRs on the self-hosted runners.
+# Don't run release jobs on pull requests: CI (ci.yml) covers PRs.
 pr-run-mode = "skip"
 # Release binaries embed and serve the web app (ADR 0004). `.github/build-setup.yml` runs
 # `vp build` before cargo, since the feature embeds web/dist.
