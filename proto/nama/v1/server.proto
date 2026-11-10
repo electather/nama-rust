@@ -18,6 +18,11 @@ service ServerService {
   rpc UpdateServerSettings(UpdateServerSettingsRequest) returns (UpdateServerSettingsResponse) {
     option idempotency_level = IDEMPOTENT;
   }
+  // Returns the ffmpeg and ffprobe the Server found at startup, which it needs to Remux and
+  // Transcode; without both it only Direct Plays. Needs `PERMISSION_ADMIN`.
+  rpc GetPlaybackStatus(GetPlaybackStatusRequest) returns (GetPlaybackStatusResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
 }
 
 message GetServerInfoRequest {}
@@ -52,4 +57,21 @@ message ServerSettings {
   // The address people reach the Server at, such as `https://nama.example.com`, which links to the
   // web app in notifications start with. Empty, the default, for none: notifications have no links.
   string url = 1;
+}
+
+message GetPlaybackStatusRequest {}
+
+message GetPlaybackStatusResponse {
+  // ffmpeg, unset when the Server didn't find it.
+  FoundProgram ffmpeg = 1;
+  // ffprobe, unset when the Server didn't find it.
+  FoundProgram ffprobe = 2;
+}
+
+// A program the Server found and runs, such as ffmpeg.
+message FoundProgram {
+  // Where it is, such as `/usr/bin/ffmpeg`.
+  string path = 1;
+  // Its version as it reports it, such as `7.1.1`.
+  string version = 2;
 }

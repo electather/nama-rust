@@ -234,7 +234,7 @@ jobs:
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       # The test Plugin and the bundled ones for wasm32, as Installed Plugins are built: with
       # nama-pdk, and nama-proto's messages without its ConnectRPC stubs.
-      - run: cargo clippy --package nama-test-plugin --package nama-plugin-radarr --package nama-plugin-sonarr --package nama-plugin-telegram --target wasm32-unknown-unknown --locked -- -D warnings
+      - run: cargo clippy --package nama-test-plugin --package nama-plugin-radarr --package nama-plugin-sonarr --package nama-plugin-telegram --package nama-servarr --target wasm32-unknown-unknown --locked -- -D warnings
       - uses: taiki-e/install-action@nextest
       # nextest builds every target it runs, so there's no separate `cargo build`. The `ci` profile
       # (.config/nextest.toml) retries, kills hung tests and writes a JUnit report. The cached

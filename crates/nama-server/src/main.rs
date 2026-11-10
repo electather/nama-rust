@@ -1,6 +1,7 @@
 //! The `nama-server` binary.
 
 use std::{
+    env,
     future::Future,
     io::{self, IsTerminal},
     path::PathBuf,
@@ -16,6 +17,7 @@ use nama_plugin_api::{
 use nama_server::{
     config::{self, Config},
     db::{self, Database},
+    ffmpeg::Ffmpeg,
     plugin_settings,
     plugins::Registry,
     users::{SetupCode, Users},
@@ -77,6 +79,8 @@ async fn main() -> ExitCode {
         }
     };
 
+    let ffmpeg = find_ffmpeg().await;
+
     let listener = match TcpListener::bind(config.listen).await {
         Ok(listener) => listener,
         Err(err) => {
@@ -110,6 +114,7 @@ async fn main() -> ExitCode {
         Arc::clone(&db),
         plugins,
         setup_code,
+        ffmpeg,
         shutdown,
     )
     .await;
@@ -151,6 +156,22 @@ async fn setup_code(users: Users) -> Result<Option<SetupCode>, Box<dyn std::erro
     let code = SetupCode::generate()?;
     info!(setup_code = %code, "this Server has no Users yet: create the first Admin with this Setup Code");
     Ok(Some(code))
+}
+
+/// The ffmpeg and ffprobe on `PATH`, logging what was found, or why the Server can only Direct
+/// Play without them.
+async fn find_ffmpeg() -> Ffmpeg {
+    let path = env::var_os("PATH").unwrap_or_default();
+    let ffmpeg = task::spawn_blocking(move || Ffmpeg::find(&path))
+        .await
+        .inspect_err(|err| error!("looking for ffmpeg failed: {err}"))
+        .unwrap_or_default();
+    if let Some(reason) = ffmpeg.direct_play_only_because() {
+        warn!("{reason}, so this Server can only Direct Play, not Remux or Transcode");
+    } else {
+        info!(?ffmpeg, "found ffmpeg and ffprobe");
+    }
+    ffmpeg
 }
 
 /// Closes the database, which must hold the last handle to it.
