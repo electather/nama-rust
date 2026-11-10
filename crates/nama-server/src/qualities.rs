@@ -24,9 +24,9 @@ pub(crate) const QUALITY_PROFILE: &str = "quality_profile";
 pub(crate) const PROFILE: &str = "profile_id";
 pub(crate) const NAME: &str = "name";
 
-/// The fields a User names a Quality in, by their proto names: an asker's `quality` as they ask,
-/// and a Request manager's `quality_id` as they approve or retry.
+/// The proto field an asker names a Quality in as they ask.
 pub(crate) const ASKED: &str = "quality";
+/// The proto field a Request manager names a Quality in as they approve or retry.
 pub(crate) const CHANGED: &str = "quality_id";
 
 /// Why a list of Qualities can't be saved. The `usize` is the index of the Quality at fault.
@@ -53,9 +53,9 @@ pub(crate) enum Refused {
     /// An asker named a Quality other than the Show's, which each of its Seasons takes.
     #[error("each Season of the Show takes its Quality {}, not the Quality {named}", .shows.name)]
     NotTheShows { named: i64, shows: RequestedQuality },
-    /// A Request manager changed the Show's Quality once a Season was handed off, after which
-    /// Sonarr keeps the profile it added the series with.
-    #[error("the Show's Quality {} is fixed, as a Season of it was handed off", .shows.name)]
+    /// A Request manager changed the Show's Quality once a Season was handed off or Approved,
+    /// after which Sonarr keeps the profile it added the series with.
+    #[error("the Show's Quality {} is fixed, as a Season of it was approved", .shows.name)]
     ShowQualityFixed { named: i64, shows: RequestedQuality },
 }
 
@@ -437,7 +437,10 @@ impl ShowRequests {
 /// The Quality an auto-approved joiner's ask approves a Pending Request at: `theirs` if they
 /// `chose` it, by picking it or as a personal default still on the list, else `None`, so the
 /// Request keeps its own and its earlier Requesters aren't moved to the default.
-pub(crate) fn joiners(theirs: Option<RequestedQuality>, chose: bool) -> Option<RequestedQuality> {
+pub(crate) fn joiner_approves_at(
+    theirs: Option<RequestedQuality>,
+    chose: bool,
+) -> Option<RequestedQuality> {
     theirs.filter(|_| chose)
 }
 
@@ -790,7 +793,8 @@ mod tests {
     }
 
     #[test]
-    fn else_its_earliest_open_seasons_else_its_followed_shows_else_none() {
+    fn without_a_handed_off_season_a_shows_quality_is_its_earliest_open_seasons_else_its_followed_shows()
+     {
         let closed_first = vec![
             season(1, UHD, RequestState::Declined, false),
             season(2, HD, RequestState::Pending, false),
@@ -886,8 +890,8 @@ mod tests {
     fn a_joiners_quality_replaces_a_pending_requests_only_if_they_chose_it() {
         let hd = Some(requested_as(HD, "HD"));
 
-        assert_eq!(joiners(hd.clone(), true), hd);
-        assert_eq!(joiners(hd, false), None);
+        assert_eq!(joiner_approves_at(hd.clone(), true), hd);
+        assert_eq!(joiner_approves_at(hd, false), None);
     }
 
     fn fulfilled(profile_id: &str, profile_name: &str) -> Fulfilled {

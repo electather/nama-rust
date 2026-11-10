@@ -116,7 +116,7 @@ service RequestService {
   // User's Requests. Fails with `not_found` if there is no Request with the ID,
   // `failed_precondition` if it isn't Pending, and `invalid_argument` if the Quality isn't on its
   // Fulfiller's list (`REFUSAL_REASON_QUALITY_NOT_OFFERED`), or isn't the Show's once another
-  // Season of the Show was handed off, which fixes the Show's Quality
+  // Season of the Show was handed off or Approved, which fixes the Show's Quality
   // (`REFUSAL_REASON_SHOW_HAS_QUALITY`).
   rpc ApproveRequest(ApproveRequestRequest) returns (ApproveRequestResponse);
   // Declines a Pending Request, which closes it: asking for the Movie again opens a new one. Needs

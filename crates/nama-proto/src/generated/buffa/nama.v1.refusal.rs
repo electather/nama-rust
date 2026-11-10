@@ -161,9 +161,9 @@ pub enum RefusalReason {
     /// as one listing Requests in another state. `field` is `page_token`.
     REFUSAL_REASON_PAGE_TOKEN_INVALID = 58i32,
     /// `invalid_argument`: the Quality named isn't the Show's, which each of its Seasons takes: an
-    /// asker named another, or a Request manager changed it once a Season was handed off, which
-    /// fixes it. `field` is `quality` or `quality_id`. Params: `qualityId`, and the Show's Quality as
-    /// `showQualityId` and `showQualityName`.
+    /// asker named another, or a Request manager changed it once a Season was handed off or
+    /// Approved, which fixes it. `field` is `quality` or `quality_id`. Params: `qualityId`, and the
+    /// Show's Quality as `showQualityId` and `showQualityName`.
     REFUSAL_REASON_SHOW_HAS_QUALITY = 59i32,
 }
 impl RefusalReason {

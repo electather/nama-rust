@@ -1536,14 +1536,14 @@ async fn ask_seasons(
 
 /// [`ask`]s for `wanted`, then approves the open Request `user` joined if it is Pending and `state`
 /// is Approved, since their ask would have opened it Approved, at the Quality
-/// [`qualities::joiners`] gives.
+/// [`qualities::joiner_approves_at`] gives.
 async fn ask_approving(
     conn: &mut SqliteConnection,
     user: i64,
     wanted: Wanted,
     state: RequestState,
 ) -> Result<(Request, Vec<Event>), Error> {
-    let new_quality = qualities::joiners(wanted.quality.clone(), wanted.quality_chosen)
+    let new_quality = qualities::joiner_approves_at(wanted.quality.clone(), wanted.quality_chosen)
         .map(|quality| NewQuality { quality, by: user });
     let (request, happened) = ask(conn, user, wanted, state).await?;
     let mut happened = Vec::from_iter(happened);
