@@ -24,6 +24,7 @@ import {
   useShortcuts,
   useVideo,
 } from "@/lib/playback";
+// oxlint-disable-next-line import/max-dependencies -- the player puts together the video, its controls, Watch State and playback info
 import { useWatchState } from "@/lib/watch-state";
 
 /** What the player plays, and where "back" goes. */
