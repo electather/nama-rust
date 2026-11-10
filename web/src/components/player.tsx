@@ -42,7 +42,8 @@ export interface PlayerProps {
 export function Player(props: PlayerProps) {
   const plan = usePlaybackPlan(props.versionId, props.watchState);
   const [cantPlay, setCantPlay] = useState(false);
-  if (cantPlay || plan === undefined || plan.url === "") return <CantPlay back={props.back} />;
+  if (plan.url === "") return <CantPlay back={props.back} reasons={plan.reasons} />;
+  if (cantPlay) return <CantPlay back={props.back} reasons={[]} />;
   return (
     <VideoPlayer
       {...props}
@@ -222,15 +223,24 @@ function FullscreenButton({ playerRef }: { playerRef: RefObject<HTMLDivElement |
   );
 }
 
-function CantPlay({ back }: { back: LinkOptions }) {
+/** Says the Version can't play here: why, as its plan's `reasons` say, or else in general. */
+function CantPlay({ back, reasons }: { back: LinkOptions; reasons: string[] }) {
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center px-6">
       <h1 className="text-2xl font-semibold tracking-tight text-balance">
         This Version can’t play here
       </h1>
-      <p className="mt-2 text-muted-foreground">
-        This browser can’t play it. Another browser, or another Version, may play.
-      </p>
+      {reasons.length > 0 ? (
+        <ul className="mt-2 space-y-1 text-muted-foreground">
+          {reasons.map((reason) => (
+            <li key={reason}>{reason}</li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-2 text-muted-foreground">
+          This browser can’t play it. Another browser, or another Version, may play.
+        </p>
+      )}
       <div className="mt-6 -ms-4">
         <BackLink back={back} variant="ghost">
           Back
