@@ -11,18 +11,9 @@ mod servarr;
 #[path = "support/server.rs"]
 mod server;
 
-use std::{collections::BTreeMap, sync::Arc};
-
 use connectrpc::{ErrorCode, client::HttpClient};
 use fake_radarr::{API_KEY as RADARR_KEY, FakeRadarr};
-use nama_plugin_api::{
-    fulfiller::Movies,
-    settings::{SettingValue, Settings},
-};
-use nama_plugin_tmdb::{
-    Tmdb,
-    testing::{API_KEY as TMDB_KEY, FakeTmdb},
-};
+use nama_plugin_api::fulfiller::Movies;
 use nama_proto::nama::v1::{
     ApproveRequestRequest, CreateRequestRequest, Download, DownloadStatus, EnablePluginRequest,
     EventType, Quality, RefusalReason, ReplaceQualitiesRequest, Request, RequestServiceClient,
@@ -32,17 +23,15 @@ use nama_server::plugins::Registry;
 use refused::assert_refused;
 use serde_json::json;
 use servarr::{ServarrFixture, choices, quality, text};
-use server::{SignedIn, Subscription, TestServer, subscribe};
+use server::{
+    SignedIn, Subscription, TestServer, subscribe,
+    tmdb::{ALIEN, DUNE, HEAT},
+};
 
 /// Quality profiles the fake Radarr offers, by id.
 const ANY: &str = "1";
 const HD_1080P: &str = "4";
 const ULTRA_HD: &str = "5";
-
-/// Movies the fake TMDB knows.
-const ALIEN: i64 = 348;
-const HEAT: i64 = 949;
-const DUNE: i64 = 438_631;
 
 /// A Server with the TMDB Plugin enabled against a fake TMDB, beside a fake Radarr that already
 /// has Alien and can't find Dune.
@@ -51,7 +40,6 @@ struct Fixture {
     /// The Server's Plugins, to ask Radarr's Fulfiller directly.
     plugins: Registry,
     radarr: FakeRadarr,
-    _tmdb: FakeTmdb,
 }
 
 impl ServarrFixture for Fixture {
@@ -77,21 +65,16 @@ impl ServarrFixture for Fixture {
 )]
 impl Fixture {
     async fn start() -> Self {
-        let tmdb = FakeTmdb::start().await;
         let plugins = Registry::new();
-        let settings = Settings::new(BTreeMap::from([(
-            "api_key".to_owned(),
-            SettingValue::Text(TMDB_KEY.to_owned()),
-        )]));
-        plugins
-            .enable_with_settings(Arc::new(Tmdb::with_endpoints(tmdb.endpoints())), settings)
-            .unwrap();
-        let server = TestServer::builder().plugins(plugins.clone()).start().await;
+        let server = TestServer::builder()
+            .plugins(plugins.clone())
+            .tmdb()
+            .start()
+            .await;
         Self {
             server,
             plugins,
             radarr: FakeRadarr::start(&[ALIEN], &[DUNE]).await,
-            _tmdb: tmdb,
         }
     }
 

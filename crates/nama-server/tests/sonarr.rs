@@ -11,18 +11,9 @@ mod servarr;
 #[path = "support/server.rs"]
 mod server;
 
-use std::{collections::BTreeMap, sync::Arc};
-
 use connectrpc::{ErrorCode, client::HttpClient};
-use fake_sonarr::{API_KEY as SONARR_KEY, DARK_TVDB, FakeSonarr};
-use nama_plugin_api::{
-    fulfiller::Shows,
-    settings::{SettingValue, Settings},
-};
-use nama_plugin_tmdb::{
-    Tmdb,
-    testing::{API_KEY as TMDB_KEY, FakeTmdb},
-};
+use fake_sonarr::{API_KEY as SONARR_KEY, FakeSonarr};
+use nama_plugin_api::fulfiller::Shows;
 use nama_proto::nama::v1::{
     ApproveRequestRequest, CancelFollowedShowRequest, CreateFollowedShowRequest,
     CreateSeasonRequestsRequest, Download, DownloadStatus, EnablePluginRequest, EventType, Quality,
@@ -32,11 +23,10 @@ use nama_proto::nama::v1::{
 use nama_server::plugins::Registry;
 use refused::assert_refused;
 use servarr::{ServarrFixture, choices, quality, text};
-use server::{SignedIn, Subscription, TestServer, subscribe};
-
-/// Shows the fake TMDB knows, by TMDB id. Sonarr can find Dark, but not The Office.
-const DARK: i64 = 70_523;
-const THE_OFFICE: i64 = 2316;
+use server::{
+    SignedIn, Subscription, TestServer, subscribe,
+    tmdb::{DARK, DARK_TVDB, THE_OFFICE},
+};
 
 /// Quality profiles the fake Sonarr offers, by id.
 const HD_1080P: &str = "4";
@@ -49,7 +39,6 @@ struct Fixture {
     /// The Server's Plugins, to ask Sonarr's Fulfiller directly.
     plugins: Registry,
     sonarr: FakeSonarr,
-    _tmdb: FakeTmdb,
 }
 
 impl ServarrFixture for Fixture {
@@ -75,21 +64,16 @@ impl ServarrFixture for Fixture {
 )]
 impl Fixture {
     async fn start() -> Self {
-        let tmdb = FakeTmdb::start().await;
         let plugins = Registry::new();
-        let settings = Settings::new(BTreeMap::from([(
-            "api_key".to_owned(),
-            SettingValue::Text(TMDB_KEY.to_owned()),
-        )]));
-        plugins
-            .enable_with_settings(Arc::new(Tmdb::with_endpoints(tmdb.endpoints())), settings)
-            .unwrap();
-        let server = TestServer::builder().plugins(plugins.clone()).start().await;
+        let server = TestServer::builder()
+            .plugins(plugins.clone())
+            .tmdb()
+            .start()
+            .await;
         Self {
             server,
             plugins,
             sonarr: FakeSonarr::start().await,
-            _tmdb: tmdb,
         }
     }
 

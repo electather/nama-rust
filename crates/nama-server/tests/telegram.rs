@@ -10,16 +10,11 @@ mod log;
 #[path = "support/server.rs"]
 mod server;
 
-use std::{collections::BTreeMap, fs, sync::Arc, time::Duration};
+use std::{fs, time::Duration};
 
 use connectrpc::client::HttpClient;
 use fake_telegram::{BOT_TOKEN, FakeTelegram};
 use log::Log;
-use nama_plugin_api::settings::{SettingValue, Settings};
-use nama_plugin_tmdb::{
-    Tmdb,
-    testing::{API_KEY as TMDB_KEY, FakeTmdb},
-};
 use nama_proto::nama::v1::{
     ApproveRequestRequest, CancelRequestRequest, CreateLibraryRequest, CreateRequestRequest,
     DeletePluginConnectionRequest, DeleteUserRequest, EnablePluginRequest, GetPluginRequest,
@@ -29,13 +24,11 @@ use nama_proto::nama::v1::{
     StartPluginConnectionRequest, UpdatePluginSettingsRequest, UpdateServerSettingsRequest,
     UserServiceClient, setting_value::Value,
 };
-use nama_server::plugins::Registry;
 use serde_json::{Value as Json, json};
-use server::{SignedIn, TestServer, WAIT};
-
-/// Movies the fake TMDB knows.
-const ALIEN: i64 = 348;
-const DUNE: i64 = 438_631;
+use server::{
+    SignedIn, TestServer, WAIT,
+    tmdb::{ALIEN, DUNE},
+};
 
 /// The channel the Telegram Plugin posts to.
 const CHANNEL: &str = "@nama_requests";
@@ -49,7 +42,6 @@ struct Fixture {
     server: TestServer,
     telegram: FakeTelegram,
     ada: SignedIn,
-    _tmdb: FakeTmdb,
 }
 
 #[expect(
@@ -58,22 +50,12 @@ struct Fixture {
 )]
 impl Fixture {
     async fn start() -> Self {
-        let tmdb = FakeTmdb::start().await;
-        let plugins = Registry::new();
-        let settings = Settings::new(BTreeMap::from([(
-            "api_key".to_owned(),
-            SettingValue::Text(TMDB_KEY.to_owned()),
-        )]));
-        plugins
-            .enable_with_settings(Arc::new(Tmdb::with_endpoints(tmdb.endpoints())), settings)
-            .unwrap();
-        let server = TestServer::builder().plugins(plugins).start().await;
+        let server = TestServer::builder().tmdb().start().await;
         let ada = server.user_with_default_permissions("Ada").await;
         Self {
             server,
             telegram: FakeTelegram::start().await,
             ada,
-            _tmdb: tmdb,
         }
     }
 

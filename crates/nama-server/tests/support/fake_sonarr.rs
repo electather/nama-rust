@@ -27,6 +27,8 @@ use axum::{
 use fake_servarr::{FakeServarr, Servarr, json, lock};
 use serde_json::{Value, json};
 
+use crate::server::tmdb::DARK_TVDB;
+
 /// The API key the fake Sonarr accepts.
 pub(crate) const API_KEY: &str = "test-sonarr-key";
 
@@ -35,9 +37,6 @@ const SONARR: Servarr = Servarr {
     fixtures: "plugins/sonarr/fixtures",
     queue_include: "includeSeries",
 };
-
-/// The TVDB id of Dark, the one Show the fake Sonarr can find (`series-lookup.json`).
-pub(crate) const DARK_TVDB: i64 = 334_824;
 
 /// How long the refresh Sonarr starts as it adds a Show takes, as one fetching it from TVDB does.
 const REFRESH: Duration = Duration::from_millis(300);
@@ -179,7 +178,7 @@ fn find(fake: &Fake, tvdb_id: &str) -> Response {
 }
 
 /// As Sonarr answers a lookup by `term` such as `tvdb:334824`: the Show as TVDB knows it, or `[]`
-/// for one it can't find.
+/// for one it can't find. It finds only Dark (`series-lookup.json`).
 fn look_up(term: &str) -> Response {
     if term == format!("tvdb:{DARK_TVDB}") {
         SONARR.fixture(StatusCode::OK, "series-lookup.json")

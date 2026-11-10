@@ -1,5 +1,8 @@
 //! A Server serving the API on a random local port, for tests that call it the way clients do.
 
+#[path = "tmdb.rs"]
+pub(crate) mod tmdb;
+
 use std::{net::SocketAddr, path::Path, sync::Arc, time::Duration};
 
 use connectrpc::{
@@ -7,6 +10,7 @@ use connectrpc::{
     client::{ClientConfig, HttpClient, ServerStream},
 };
 use nama_plugin_local_auth::LocalAuth;
+use nama_plugin_tmdb::testing::FakeTmdb;
 use nama_proto::nama::v1::{
     __buffa::view::SubscribeResponseView, CreateUserRequest, EventServiceClient, EventType,
     Permission, SessionDelivery, SetPermissionsRequest, SetupRequest, SignInRequest,
@@ -33,16 +37,18 @@ pub(crate) struct TestServer {
     /// The session token of the Admin's Device.
     pub(crate) admin_token: String,
     db: Arc<Database>,
+    tmdb: Option<FakeTmdb>,
     _stop: oneshot::Sender<()>,
     data_dir: TempDir,
 }
 
-/// How a [`TestServer`] starts: its config, Plugins and ffmpeg.
+/// How a [`TestServer`] starts: its config, Plugins, ffmpeg and whether it has a fake TMDB.
 #[derive(Default)]
 pub(crate) struct Builder {
     config: Config,
     plugins: Registry,
     ffmpeg: Ffmpeg,
+    tmdb: bool,
 }
 
 impl Builder {
@@ -62,6 +68,11 @@ impl Builder {
         Self { ffmpeg, ..self }
     }
 
+    /// Has the Server start with a fake TMDB and the TMDB Plugin enabled against it, for metadata.
+    pub(crate) fn tmdb(self) -> Self {
+        Self { tmdb: true, ..self }
+    }
+
     /// Starts serving on a free port, with a fresh database and the Built-in `local-auth` among
     /// its Plugins, and signs an Admin in.
     #[expect(
@@ -73,8 +84,14 @@ impl Builder {
             config,
             plugins,
             ffmpeg,
+            tmdb,
         } = self;
         plugins.describe_builtin(|| Arc::new(LocalAuth));
+        let tmdb = if tmdb {
+            Some(tmdb::enable(&plugins).await)
+        } else {
+            None
+        };
         let data_dir = tempfile::tempdir().unwrap();
         let config = Config {
             data_dir: data_dir.path().to_owned(),
@@ -104,6 +121,7 @@ impl Builder {
             addr,
             admin_token,
             db,
+            tmdb,
             _stop: stop,
             data_dir,
         }
@@ -126,7 +144,7 @@ impl SignedIn {
 
 impl TestServer {
     /// A builder for a Server with the default config, no Plugins but the Built-in `local-auth`,
-    /// and no ffmpeg.
+    /// no ffmpeg and no TMDB.
     pub(crate) fn builder() -> Builder {
         Builder::default()
     }
@@ -134,6 +152,26 @@ impl TestServer {
     /// The Server's database, for a test that reads or changes what the API can't.
     pub(crate) fn db(&self) -> &Arc<Database> {
         &self.db
+    }
+
+    /// The fake TMDB, for a test that reads the requests it got.
+    ///
+    /// # Panics
+    ///
+    /// If the builder didn't turn TMDB on.
+    #[expect(
+        clippy::expect_used,
+        reason = "a test helper fails its test by panicking"
+    )]
+    pub(crate) fn tmdb(&self) -> &FakeTmdb {
+        self.tmdb
+            .as_ref()
+            .expect("TMDB is on: `TestServer::builder().tmdb()`")
+    }
+
+    /// Stops the fake TMDB, as when TMDB is down.
+    pub(crate) fn stop_tmdb(&mut self) {
+        self.tmdb = None;
     }
 
     /// The Server's data directory, such as for its Installed Plugins.
