@@ -27,10 +27,11 @@ jobs:
           merge-multiple: true
       - name: Put each architecture's binary where the Dockerfile copies it from
         run: |
-          for arch in amd64:x86_64 arm64:aarch64; do
-            mkdir -p "docker/${arch%%:*}"
-            tar --extract --xz --strip-components=1 --directory="docker/${arch%%:*}" \
-              --file="target/distrib/nama-server-${arch#*:}-unknown-linux-gnu.tar.xz"
+          for pair in amd64:x86_64 arm64:aarch64; do
+            IFS=: read -r docker_arch rust_arch <<<"$pair"
+            mkdir -p "docker/$docker_arch"
+            tar --extract --xz --strip-components=1 --directory="docker/$docker_arch" \
+              --file="target/distrib/nama-server-$rust_arch-unknown-linux-gnu.tar.xz"
           done
       - name: Name the image's tags
         id: tags

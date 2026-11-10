@@ -39,7 +39,7 @@ Approved Movie Requests go to Radarr through the Radarr Plugin ([`plugins/radarr
 
 ## Docker
 
-Each release is also a Docker image for amd64 and arm64, `ghcr.io/electather/nama-server`, with [jellyfin-ffmpeg](https://github.com/jellyfin/jellyfin-ffmpeg) as its ffmpeg and ffprobe, the easiest way to get hardware Transcoding. It runs as user 1000, keeps its state in `/data`, and reads `/data/nama.toml` if there is one. Mount each Library's folder and give the Library the path inside the container:
+Each release, prereleases aside, is also a Docker image for amd64 and arm64, `ghcr.io/electather/nama-server`, with [jellyfin-ffmpeg](https://github.com/jellyfin/jellyfin-ffmpeg) as its ffmpeg and ffprobe, the easiest way to get hardware Transcoding. It runs as user 1000, keeps its state in `/data`, and reads `/data/nama.toml` if there is one. Mount each Library's folder and give the Library the path inside the container:
 
 ```sh
 docker run -d --name nama -p 7980:7980 \
@@ -58,7 +58,7 @@ For Intel or AMD hardware acceleration (VAAPI and QSV), pass the GPU and the gro
 
 For NVIDIA (NVENC), install the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) on the host and add `--gpus all`.
 
-The admin's Playback page shows the ffmpeg version the Server found.
+An Admin sees which ffmpeg the Server found, and its version, on the Playback page.
 
 ## Checks
 
