@@ -41,6 +41,7 @@ use crate::{
     ffmpeg::Ffmpeg,
     matching::Matcher,
     playback::running::RunningPlans,
+    playback::subtitles,
     plugin_settings::PluginSettings,
     requests::{PROGRESS_EVERY, Requests},
     scanner::Scanner,
@@ -94,11 +95,13 @@ pub fn serve(
     let server_url = ServerUrl::default();
     let events = EventBus::new(Arc::clone(&db), registry.clone(), server_url.clone());
     let ffmpeg = Arc::new(ffmpeg);
+    let subtitles = subtitles::Cache::new(&config.data_dir);
     let scanner = Scanner::new(
         Arc::clone(&db),
         registry.clone(),
         events.clone(),
         Arc::clone(&ffmpeg),
+        subtitles.clone(),
     );
     let matcher = Matcher::new(Arc::clone(&db), registry.clone(), events.clone());
     let requests = Requests::new(Arc::clone(&db), matcher, events.clone(), registry.clone());
@@ -122,6 +125,7 @@ pub fn serve(
         running.clone(),
         setup_code,
         ffmpeg,
+        subtitles,
     );
     #[cfg(feature = "web")]
     let app = app.layer(axum::middleware::from_fn(web::serve));

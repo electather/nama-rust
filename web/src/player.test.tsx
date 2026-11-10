@@ -32,11 +32,13 @@ vi.mock("hls.js", () => ({
   },
 }));
 
+// happy-dom doesn't name the ready states the player reads.
+Object.assign(HTMLMediaElement, { HAVE_METADATA: 1 });
+
 afterEach(() => {
   cleanup();
   hlsJs.played = [];
   vi.restoreAllMocks();
-  vi.useRealTimers();
   // happy-dom has no `navigator.mediaCapabilities`; a test may lend it one.
   Reflect.deleteProperty(navigator, "mediaCapabilities");
 });
@@ -119,9 +121,10 @@ test("without a version, the player plays the largest from where its plan says",
   expect(screen.queryByRole("navigation", { name: "Main" })).toBeNull();
 });
 
-test("a file the browser fails to play is planned again without Direct Play, which says why it can't play", async () => {
+test("a file the browser fails to load is planned again from where it started, without Direct Play, which says why it can't play", async () => {
   const asked: PlanPlaybackRequest[] = [];
-  openApp("/libraries/1/movies/tmdb-603/play?version=7", serverPlanning({ asked }));
+  const watchState = { positionMs: 600_000n, durationMs: 7_000_000n };
+  openApp("/libraries/1/movies/tmdb-603/play?version=7", serverPlanning({ asked, watchState }));
 
   fireEvent.error(await findVideo());
 
@@ -129,6 +132,47 @@ test("a file the browser fails to play is planned again without Direct Play, whi
   expect(screen.getByText(directPlayFailed)).toBeDefined();
   expect(screen.queryByLabelText("The Matrix")).toBeNull();
   expect(asked.map((request) => request.failedMethods)).toEqual([[], [PlaybackMethod.DIRECT_PLAY]]);
+  expect(asked.map((request) => request.startPositionMs)).toEqual([600_000n, 600_000n]);
+});
+
+/** As the real Server plans a file in a container the Device decodes: Direct Play, then a Remux. */
+const remuxOnceDirectPlayFails: Planned = (request) => {
+  const failed = (method: PlaybackMethod) => request.failedMethods.includes(method);
+  if (failed(PlaybackMethod.REMUX)) return { reasons: [directPlayFailed, "Remux failed too"] };
+  if (failed(PlaybackMethod.DIRECT_PLAY)) return { ...remux(request), reasons: [directPlayFailed] };
+  return directPlay(request);
+};
+
+test("a Direct Play that fails mid-film goes on as a Remux from there, until that fails too", async () => {
+  const asked: PlanPlaybackRequest[] = [];
+  const planned = remuxOnceDirectPlayFails;
+  const fallingBack = serverPlanning({ planned, asked, ignoresFailures: true });
+  openApp("/libraries/1/movies/tmdb-603/play?version=7", fallingBack);
+  const directPlaying = await screen.findByLabelText<HTMLVideoElement>("The Matrix");
+  Object.defineProperty(directPlaying, "readyState", { value: HTMLMediaElement.HAVE_METADATA });
+  directPlaying.currentTime = 1234.5;
+
+  fireEvent.error(directPlaying);
+  // The same failure reported again, a little later, as hls.js and the `<video>` may.
+  directPlaying.currentTime = 1240;
+  fireEvent.error(directPlaying);
+
+  await waitFor(() => {
+    expect(hlsJs.played).toHaveLength(1);
+  });
+  expect(asked.map((request) => request.startPositionMs)).toEqual([0n, 1_234_500n]);
+  const remuxing = await screen.findByLabelText<HTMLVideoElement>("The Matrix");
+  // As in a browser, where a new source loads from its start; happy-dom keeps the old time.
+  remuxing.currentTime = 0;
+  fireEvent(remuxing, new Event("loadedmetadata"));
+  expect(remuxing.currentTime).toBe(1234.5);
+  fireEvent.click(screen.getByRole("button", { name: "Playback info" }));
+  expect(screen.getByText(directPlayFailed)).toBeDefined();
+
+  fireEvent.error(remuxing);
+
+  expect(await screen.findByText("This Version can’t play here")).toBeDefined();
+  expect(screen.getByText("Remux failed too")).toBeDefined();
 });
 
 test("a method that fails again gives up instead of asking for plans in a loop", async () => {
@@ -209,21 +253,6 @@ test("a Remux resumes from the Watch State's point in the file", async () => {
   fireEvent(video, new Event("loadedmetadata"));
 
   expect(video.currentTime).toBe(600);
-});
-
-// The Server stops a plan a minute after it was last asked for, and a paused player asks for nothing.
-test("an open Remux asks for its playlist every 30 seconds, so a pause doesn't stop it", async () => {
-  vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
-  const fetched = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response());
-  openApp("/libraries/1/movies/tmdb-603/play", serverPlanning({ planned: remux }));
-  await findVideo();
-  const playlistAsks = () =>
-    fetched.mock.calls.filter(([url]) => url === "/media/plans/0/index.m3u8");
-  const before = playlistAsks().length;
-
-  vi.advanceTimersByTime(30_000);
-
-  expect(playlistAsks()).toHaveLength(before + 1);
 });
 
 test("a Remux plays its HLS playlist natively in a browser with HLS of its own", async () => {

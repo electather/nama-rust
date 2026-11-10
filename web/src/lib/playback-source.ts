@@ -13,14 +13,14 @@ const KEEP_ALIVE_MS = 30_000;
 
 /**
  * Plays `url` in the `<video>`: a file when `method` Direct Plays, or else an HLS playlist, played
- * natively where the browser has HLS and through hls.js otherwise, which calls `onCantPlay` if it
- * gives up. Until the player closes, keeps an HLS plan running. Returns the `src` the `<video>`
- * takes, if any.
+ * natively where the browser has HLS and through hls.js otherwise, which calls `onCantPlay` with
+ * the `<video>` if it gives up. Until the player closes, keeps an HLS plan running. Returns the
+ * `src` the `<video>` takes, if any.
  */
 export function usePlaybackSource(
   videoRef: RefObject<HTMLVideoElement | null>,
   { url, method }: Pick<PlaybackPlan, "url" | "method">,
-  onCantPlay: () => void,
+  onCantPlay: (video: HTMLVideoElement) => void,
 ) {
   const throughHlsJs = method !== PlaybackMethod.DIRECT_PLAY && !playsHlsNatively();
   useEffect(() => {
@@ -35,7 +35,11 @@ export function usePlaybackSource(
 }
 
 /** Plays the HLS playlist `url` in `video` through hls.js, until the cleanup it returns. */
-function playThroughHlsJs(video: HTMLVideoElement, url: string, onCantPlay: () => void) {
+function playThroughHlsJs(
+  video: HTMLVideoElement,
+  url: string,
+  onCantPlay: (video: HTMLVideoElement) => void,
+) {
   let hls: Hls | undefined;
   let left = false;
   const start = async () => {
@@ -44,12 +48,14 @@ function playThroughHlsJs(video: HTMLVideoElement, url: string, onCantPlay: () =
     if (left) return;
     hls = new HlsJs();
     hls.on(HlsJs.Events.ERROR, (_event, { fatal }) => {
-      if (fatal) onCantPlay();
+      if (fatal) onCantPlay(video);
     });
     hls.loadSource(url);
     hls.attachMedia(video);
   };
-  start().catch(onCantPlay);
+  start().catch(() => {
+    onCantPlay(video);
+  });
   return () => {
     left = true;
     hls?.destroy();

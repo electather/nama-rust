@@ -45,6 +45,7 @@ use crate::{
     ffmpeg::{Ffmpeg, ProbeError},
     libraries::{self, Kind, Libraries},
     matching::{self, ManualError, Matcher, count},
+    playback::subtitles,
     plugins::Registry,
     tracks::{Probe, Tracks},
 };
@@ -139,6 +140,7 @@ struct Inner {
     events: EventBus,
     tracks: Tracks,
     ffmpeg: Arc<Ffmpeg>,
+    subtitles: subtitles::Cache,
     /// Background scans and probes, so shutting down can wait for them.
     tasks: TaskTracker,
     /// Cancelled when the Server shuts down.
@@ -171,12 +173,14 @@ impl ScanLock {
 }
 
 impl Scanner {
-    /// Probes files with `ffmpeg`'s ffprobe, or not at all without one.
+    /// Probes files with `ffmpeg`'s ffprobe, or not at all without one, and throws away what
+    /// `subtitles` caches for files gone or changed.
     pub(crate) fn new(
         db: Arc<Database>,
         plugins: Registry,
         events: EventBus,
         ffmpeg: Arc<Ffmpeg>,
+        subtitles: subtitles::Cache,
     ) -> Self {
         Self {
             inner: Arc::new(Inner {
@@ -185,6 +189,7 @@ impl Scanner {
                 events,
                 tracks: Tracks::new(Arc::clone(&db)),
                 ffmpeg,
+                subtitles,
                 contents: Contents::new(db),
                 tasks: TaskTracker::new(),
                 cancel: CancellationToken::new(),
@@ -296,6 +301,7 @@ impl Scanner {
                 .events
                 .publish(std::iter::once(progress).chain(items).collect());
         }
+        self.clean_subtitles().await;
         tracing::info!(library = id, ?summary, "scanned a Library");
         self.inner.events.publish(vec![event(ScanFinished {
             library_id: id,
@@ -308,6 +314,23 @@ impl Scanner {
         self.inner.matcher.match_library(scan, &cancel).await?;
         self.probe_in_background(id);
         Ok(summary)
+    }
+
+    /// Throws away the subtitles cached for files gone, such as a deleted Library's, or changed
+    /// since they were cached. Logs why it couldn't.
+    pub(crate) async fn clean_subtitles(&self) {
+        // ponytail: reads every stored file after each scan; clean only the Library scanned once
+        // Libraries get big.
+        let cleaned = match self.inner.contents.every_stored().await {
+            Ok(stored) => self.inner.subtitles.keep_only(&stored).await,
+            Err(err) => {
+                tracing::error!("could not read which files to keep subtitles for: {err}");
+                return;
+            }
+        };
+        if let Err(err) = cleaned {
+            tracing::error!("could not throw away subtitles of files gone or changed: {err}");
+        }
     }
 
     /// Probes the Library `library`'s files without current Tracks in the background, unless the
@@ -678,6 +701,7 @@ mod tests {
                     Registry::new(),
                     events.clone(),
                     Arc::new(ffmpeg),
+                    playback::subtitles::Cache::new(data.path()),
                 ),
                 tracks: Tracks::new(Arc::clone(&db)),
                 contents: Contents::new(db),
