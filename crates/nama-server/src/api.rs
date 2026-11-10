@@ -62,24 +62,25 @@ use nama_proto::nama::v1::{
     ListShowsRequest, ListShowsResponse, ListUnmatchedItemsRequest, ListUnmatchedItemsResponse,
     ListUsersRequest, ListUsersResponse, LookUpMovieRequest, LookUpMovieResponse,
     LookUpShowRequest, LookUpShowResponse, LookUpSignInCodeRequest, LookUpSignInCodeResponse,
-    MatchService, Permission, PluginConnection, PluginConnectionState, PluginService,
-    PollSignInCodeRequest, PollSignInCodeResponse, ReauthenticateRequest, ReauthenticateResponse,
-    Refusal, RefusalReason, ReportProgressRequest, ReportProgressResponse, RequestService,
-    RequestState, ResetPasswordRequest, ResetPasswordResponse, RetryRequestRequest,
-    RetryRequestResponse, RevokeDeviceRequest, RevokeDeviceResponse, ScanLibraryRequest,
-    ScanLibraryResponse, SearchMetadataRequest, SearchMetadataResponse, SearchMoviesRequest,
-    SearchMoviesResponse, SearchShowsRequest, SearchShowsResponse, ServerService, ServerSettings,
-    SessionDelivery, SetDefaultPermissionsRequest, SetDefaultPermissionsResponse, SetMatchRequest,
-    SetMatchResponse, SetPermissionsRequest, SetPermissionsResponse, SetPlayedRequest,
-    SetPlayedResponse, SetupRequest, SetupResponse, SignInCodeStatus, SignInRequest,
-    SignInResponse, SignInService, SignOutRequest, SignOutResponse, StartPluginConnectionRequest,
-    StartPluginConnectionResponse, StartSignInCodeRequest, StartSignInCodeResponse,
-    SubscribeRequest, SubscribeResponse, TestPluginSettingsRequest, TestPluginSettingsResponse,
-    UpdateLibraryRequest, UpdateLibraryResponse, UpdatePluginSettingsRequest,
-    UpdatePluginSettingsResponse, UpdateServerSettingsRequest, UpdateServerSettingsResponse,
-    UserService, WatchStateService, WhoAmIRequest, WhoAmIResponse, WithdrawFollowedShowRequest,
-    WithdrawFollowedShowResponse, WithdrawRequestRequest, WithdrawRequestResponse, external_id,
-    reauthenticate_request::Proof, set_played_request::Target, setting_value,
+    MatchService, Permission, PlanPlaybackRequest, PlanPlaybackResponse, PlaybackService,
+    PluginConnection, PluginConnectionState, PluginService, PollSignInCodeRequest,
+    PollSignInCodeResponse, ReauthenticateRequest, ReauthenticateResponse, Refusal, RefusalReason,
+    ReportProgressRequest, ReportProgressResponse, RequestService, RequestState,
+    ResetPasswordRequest, ResetPasswordResponse, RetryRequestRequest, RetryRequestResponse,
+    RevokeDeviceRequest, RevokeDeviceResponse, ScanLibraryRequest, ScanLibraryResponse,
+    SearchMetadataRequest, SearchMetadataResponse, SearchMoviesRequest, SearchMoviesResponse,
+    SearchShowsRequest, SearchShowsResponse, ServerService, ServerSettings, SessionDelivery,
+    SetDefaultPermissionsRequest, SetDefaultPermissionsResponse, SetMatchRequest, SetMatchResponse,
+    SetPermissionsRequest, SetPermissionsResponse, SetPlayedRequest, SetPlayedResponse,
+    SetupRequest, SetupResponse, SignInCodeStatus, SignInRequest, SignInResponse, SignInService,
+    SignOutRequest, SignOutResponse, StartPluginConnectionRequest, StartPluginConnectionResponse,
+    StartSignInCodeRequest, StartSignInCodeResponse, SubscribeRequest, SubscribeResponse,
+    TestPluginSettingsRequest, TestPluginSettingsResponse, UpdateLibraryRequest,
+    UpdateLibraryResponse, UpdatePluginSettingsRequest, UpdatePluginSettingsResponse,
+    UpdateServerSettingsRequest, UpdateServerSettingsResponse, UserService, WatchStateService,
+    WhoAmIRequest, WhoAmIResponse, WithdrawFollowedShowRequest, WithdrawFollowedShowResponse,
+    WithdrawRequestRequest, WithdrawRequestResponse, external_id, reauthenticate_request::Proof,
+    set_played_request::Target, setting_value,
 };
 
 use crate::{
@@ -94,6 +95,7 @@ use crate::{
     forwarded::{RequestSource, identify_source},
     libraries::{self, FolderProblem, Kind, Libraries, Library},
     matching::{ManualError, Matcher},
+    playback::{self, Method, Plan},
     plugin_settings::{ChangeError, ListError, PluginSettings, StoredPlugin},
     plugins::{CheckError, EnableError, Listed},
     qualities,
@@ -105,7 +107,6 @@ use crate::{
     sign_in_codes::{self, Poll, SignInCodes},
     tracks::{Hdr, Track, TrackKind},
     users::{self, Caller, NewDevice, Permissions, SetupCode, SignedIn, Users},
-    versions,
     watch_states::{Progress, WatchState, WatchStates},
 };
 
@@ -132,7 +133,7 @@ pub(crate) fn router(
     let contents = Contents::new(Arc::clone(&db));
     let artwork = Artwork::new(&config.data_dir, plugins.clone());
     let artwork_router = artwork::router(artwork.clone(), contents.clone());
-    let versions = versions::router(contents);
+    let media = playback::router(contents);
     let browse = Browse::new(Arc::clone(&db));
     let connections = Connections::new(Arc::clone(&db), plugins.clone());
     connectrpc::Router::new()
@@ -164,6 +165,9 @@ pub(crate) fn router(
             watch_states: WatchStates::new(Arc::clone(&db)),
             browse,
         }))
+        .add_service(Arc::new(PlaybackServiceHandler {
+            scanner: scanner.clone(),
+        }))
         .add_service(Arc::new(RequestServiceHandler { requests, artwork }))
         .add_service(Arc::new(PluginServiceHandler { plugin_settings }))
         .add_service(Arc::new(LibraryServiceHandler {
@@ -180,7 +184,7 @@ pub(crate) fn router(
         }))
         .into_axum_router()
         .merge(artwork_router)
-        .merge(versions)
+        .merge(media)
         .layer(middleware::from_fn(require_access))
         .layer(middleware::from_fn_with_state(users, identify_caller))
         .layer(middleware::from_fn_with_state(
@@ -255,6 +259,7 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::BROWSE_SERVICE_LIST_CONTINUE_WATCHING_SPEC.procedure, Access::SignedIn),
     (proto::WATCH_STATE_SERVICE_REPORT_PROGRESS_SPEC.procedure,   Access::SignedIn),
     (proto::WATCH_STATE_SERVICE_SET_PLAYED_SPEC.procedure,        Access::SignedIn),
+    (proto::PLAYBACK_SERVICE_PLAN_PLAYBACK_SPEC.procedure,        Access::SignedIn),
     (proto::EVENT_SERVICE_SUBSCRIBE_SPEC.procedure,               Access::SignedIn),
     (proto::USER_SERVICE_CREATE_USER_SPEC.procedure,              MANAGE_USERS),
     (proto::USER_SERVICE_LIST_USERS_SPEC.procedure,               MANAGE_USERS),
@@ -1133,14 +1138,7 @@ impl WatchStateService for WatchStateServiceHandler {
             })?;
         let matched_to = self.contents.matched_to(request.version_id).await;
         let reported = match matched_to.map_err(database_failed)? {
-            MatchedTo::NoSuchVersion => {
-                return Err(refuse(
-                    RefusalReason::REFUSAL_REASON_VERSION_NOT_FOUND,
-                    "there is no such Version",
-                )
-                .field("version_id")
-                .into());
-            }
+            MatchedTo::NoSuchVersion => return Err(version_not_found()),
             MatchedTo::Nothing => Ok(()),
             MatchedTo::Movie(movie) => self.watch_states.report_movie(user, &movie, progress).await,
             MatchedTo::Episodes(episodes) => {
@@ -1205,6 +1203,44 @@ impl WatchStateService for WatchStateServiceHandler {
         };
         marked.map_err(database_failed)?;
         Response::ok(SetPlayedResponse::default())
+    }
+}
+
+/// The refusal of a request whose `version_id` names no Version.
+fn version_not_found() -> ConnectError {
+    refuse(
+        RefusalReason::REFUSAL_REASON_VERSION_NOT_FOUND,
+        "there is no such Version",
+    )
+    .field("version_id")
+    .into()
+}
+
+/// `nama.v1.PlaybackService`: how each signed-in User's Device plays a Version.
+struct PlaybackServiceHandler {
+    scanner: Scanner,
+}
+
+#[expect(
+    refining_impl_trait,
+    reason = "plain `async fn` returning the owned response is the form the generated trait \
+              documents; the refined signature isn't visible outside this crate"
+)]
+impl PlaybackService for PlaybackServiceHandler {
+    async fn plan_playback(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, PlanPlaybackRequest>,
+    ) -> ServiceResult<PlanPlaybackResponse> {
+        // The rest of the request is for steps still to come (ADR 0027).
+        let plan = playback::plan(&self.scanner, request.version_id)
+            .await
+            .map_err(database_failed)?
+            .ok_or_else(version_not_found)?;
+        Response::ok(PlanPlaybackResponse {
+            plan: plan_to_proto(plan).into(),
+            ..Default::default()
+        })
     }
 }
 
@@ -2296,6 +2332,22 @@ fn hdr_to_proto(hdr: Option<Hdr>) -> (proto::HdrFormat, Option<proto::DolbyVisio
                 Some(dolby_vision),
             )
         }
+    }
+}
+
+fn plan_to_proto(plan: Plan) -> proto::PlaybackPlan {
+    let method = match plan.method {
+        None => proto::PlaybackMethod::PLAYBACK_METHOD_UNSPECIFIED,
+        Some(Method::DirectPlay) => proto::PlaybackMethod::PLAYBACK_METHOD_DIRECT_PLAY,
+        Some(Method::Remux) => proto::PlaybackMethod::PLAYBACK_METHOD_REMUX,
+        Some(Method::Transcode) => proto::PlaybackMethod::PLAYBACK_METHOD_TRANSCODE,
+    };
+    proto::PlaybackPlan {
+        method: method.into(),
+        url: plan.url.unwrap_or_default(),
+        tracks: plan.tracks.iter().map(track_to_proto).collect(),
+        reasons: plan.reasons,
+        ..Default::default()
     }
 }
 

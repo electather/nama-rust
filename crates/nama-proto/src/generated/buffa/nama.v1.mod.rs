@@ -7,6 +7,7 @@ include!("nama.v1.plugin.rs");
 include!("nama.v1.request.rs");
 include!("nama.v1.event.rs");
 include!("nama.v1.library.rs");
+include!("nama.v1.playback.rs");
 include!("nama.v1.refusal.rs");
 include!("nama.v1.server.rs");
 include!("nama.v1.sign_in.rs");
@@ -35,6 +36,7 @@ pub mod __buffa {
         include!("nama.v1.request.__view.rs");
         include!("nama.v1.event.__view.rs");
         include!("nama.v1.library.__view.rs");
+        include!("nama.v1.playback.__view.rs");
         include!("nama.v1.refusal.__view.rs");
         include!("nama.v1.server.__view.rs");
         include!("nama.v1.sign_in.__view.rs");
@@ -221,6 +223,10 @@ pub mod __buffa {
         reg.register_json_any(super::__DELETE_LIBRARY_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__SCAN_LIBRARY_REQUEST_JSON_ANY);
         reg.register_json_any(super::__SCAN_LIBRARY_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__PLAN_PLAYBACK_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__DEVICE_DECODING_JSON_ANY);
+        reg.register_json_any(super::__PLAN_PLAYBACK_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__PLAYBACK_PLAN_JSON_ANY);
         reg.register_json_any(super::__REFUSAL_JSON_ANY);
         reg.register_json_any(super::__GET_SERVER_INFO_REQUEST_JSON_ANY);
         reg.register_json_any(super::__GET_SERVER_INFO_RESPONSE_JSON_ANY);
@@ -917,6 +923,22 @@ pub use self::__buffa::view::ScanLibraryRequestOwnedView;
 pub use self::__buffa::view::ScanLibraryResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::ScanLibraryResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PlanPlaybackRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::PlanPlaybackRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::DeviceDecodingView;
+#[doc(inline)]
+pub use self::__buffa::view::DeviceDecodingOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PlanPlaybackResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::PlanPlaybackResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PlaybackPlanView;
+#[doc(inline)]
+pub use self::__buffa::view::PlaybackPlanOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::RefusalView;
 #[doc(inline)]
