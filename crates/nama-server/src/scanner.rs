@@ -1067,6 +1067,7 @@ mod tests {
                     title: None,
                     default: false,
                     forced: false,
+                    sdh: false,
                     kind: TrackKind::Video {
                         width: Some(3840),
                         height: Some(2160),
@@ -1081,6 +1082,7 @@ mod tests {
                     title: None,
                     default: false,
                     forced: false,
+                    sdh: false,
                     kind: TrackKind::Audio { channels: Some(6) },
                 },
             ]

@@ -892,6 +892,16 @@ pub struct Track {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
     )]
     pub forced: bool,
+    /// Whether the file marks it for the deaf and hard of hearing (SDH), as subtitles that also
+    /// describe sounds.
+    ///
+    /// Field 9: `sdh`
+    #[serde(
+        rename = "sdh",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub sdh: bool,
     #[serde(flatten)]
     pub kind: ::core::option::Option<__buffa::oneof::track::Kind>,
     #[serde(skip)]
@@ -906,6 +916,7 @@ impl ::core::fmt::Debug for Track {
             .field("title", &self.title)
             .field("default", &self.default)
             .field("forced", &self.forced)
+            .field("sdh", &self.sdh)
             .field("kind", &self.kind)
             .finish()
     }
@@ -1002,6 +1013,9 @@ impl ::buffa::Message for Track {
                 }
             }
         }
+        if self.sdh {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -1054,6 +1068,9 @@ impl ::buffa::Message for Track {
                     x.write_to(__cache, buf);
                 }
             }
+        }
+        if self.sdh {
+            ::buffa::types::put_bool_field(9u32, self.sdh, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -1171,6 +1188,13 @@ impl ::buffa::Message for Track {
                     );
                 }
             }
+            9u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.sdh = ::buffa::types::decode_bool(buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -1185,6 +1209,7 @@ impl ::buffa::Message for Track {
         self.default = false;
         self.forced = false;
         self.kind = ::core::option::Option::None;
+        self.sdh = false;
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -1226,6 +1251,7 @@ impl<'de> ::serde::Deserialize<'de> for Track {
                 > = None;
                 let mut __f_default: ::core::option::Option<bool> = None;
                 let mut __f_forced: ::core::option::Option<bool> = None;
+                let mut __f_sdh: ::core::option::Option<bool> = None;
                 let mut __oneof_kind: ::core::option::Option<
                     __buffa::oneof::track::Kind,
                 > = None;
@@ -1282,6 +1308,21 @@ impl<'de> ::serde::Deserialize<'de> for Track {
                         }
                         "forced" => {
                             __f_forced = Some({
+                                struct _S;
+                                impl<'de> ::serde::de::DeserializeSeed<'de> for _S {
+                                    type Value = bool;
+                                    fn deserialize<D: ::serde::Deserializer<'de>>(
+                                        self,
+                                        d: D,
+                                    ) -> ::core::result::Result<bool, D::Error> {
+                                        ::buffa::json_helpers::proto_bool::deserialize(d)
+                                    }
+                                }
+                                map.next_value_seed(_S)?
+                            });
+                        }
+                        "sdh" => {
+                            __f_sdh = Some({
                                 struct _S;
                                 impl<'de> ::serde::de::DeserializeSeed<'de> for _S {
                                     type Value = bool;
@@ -1387,6 +1428,9 @@ impl<'de> ::serde::Deserialize<'de> for Track {
                 }
                 if let ::core::option::Option::Some(v) = __f_forced {
                     __r.forced = v;
+                }
+                if let ::core::option::Option::Some(v) = __f_sdh {
+                    __r.sdh = v;
                 }
                 __r.kind = __oneof_kind;
                 Ok(__r)
