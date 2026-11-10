@@ -137,7 +137,7 @@ impl Embedded {
 
     fn cache_key(&self) -> PathBuf {
         Path::new("versions")
-            .join(file_name(self.file))
+            .join(cache_folder(self.file))
             .join(format!("{}.vtt", self.track))
     }
 
@@ -146,9 +146,9 @@ impl Embedded {
     }
 }
 
-/// The name the subtitles cached for the Version `file` go under, which changes when its file
-/// does or probing it changes, so they're never served for any other.
-fn file_name(file: Stored) -> String {
+/// The folder the subtitles cached for the Version stored as `file` go in, named so it changes
+/// when the file or how it's probed does, and they're never served for any other.
+fn cache_folder(file: Stored) -> String {
     format!(
         "{}.{}.{}.{PROBE_VERSION}",
         file.id, file.size, file.modified_ns
@@ -161,7 +161,7 @@ pub(crate) struct Cache {
     dir: PathBuf,
     /// A lock per subtitle being made, so requests for it at once wait for one making rather
     /// than each read the file.
-    making: Arc<Mutex<HashMap<PathBuf, Arc<tokio::sync::Mutex<()>>>>>,
+    making_locks: Arc<Mutex<HashMap<PathBuf, Arc<tokio::sync::Mutex<()>>>>>,
 }
 
 impl Cache {
@@ -169,7 +169,7 @@ impl Cache {
     pub(crate) fn new(data_dir: &Path) -> Self {
         Self {
             dir: data_dir.join("subtitles"),
-            making: Arc::default(),
+            making_locks: Arc::default(),
         }
     }
 
@@ -184,9 +184,9 @@ impl Cache {
         if let Some(webvtt) = cached(&path).await? {
             return Ok(webvtt);
         }
-        let making = Arc::clone(self.making().entry(path.clone()).or_default());
+        let making_lock = Arc::clone(self.making_locks().entry(path.clone()).or_default());
         let webvtt = async {
-            let _making = making.lock().await;
+            let _making = making_lock.lock().await;
             // Whoever held the lock before may have made it.
             if let Some(webvtt) = cached(&path).await? {
                 return Ok(webvtt);
@@ -196,9 +196,10 @@ impl Cache {
             Ok(webvtt)
         }
         .await;
-        drop(making);
+        drop(making_lock);
         // Also drops the locks of makings cancelled midway, which nothing holds any more.
-        self.making().retain(|_, lock| Arc::strong_count(lock) > 1);
+        self.making_locks()
+            .retain(|_, lock| Arc::strong_count(lock) > 1);
         webvtt
     }
 
@@ -209,7 +210,7 @@ impl Cache {
     /// caches under the file it read, which the next call throws away if that changed, and what's
     /// thrown away is made again.
     pub(crate) async fn keep_only(&self, stored: &[Stored]) -> io::Result<()> {
-        let current: HashSet<String> = stored.iter().copied().map(file_name).collect();
+        let current: HashSet<String> = stored.iter().copied().map(cache_folder).collect();
         let mut cached = match tokio::fs::read_dir(self.dir.join("versions")).await {
             Ok(cached) => cached,
             Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(()),
@@ -232,12 +233,13 @@ impl Cache {
         Ok(())
     }
 
-    fn making(&self) -> MutexGuard<'_, HashMap<PathBuf, Arc<tokio::sync::Mutex<()>>>> {
-        self.making.lock().unwrap_or_else(PoisonError::into_inner)
+    fn making_locks(&self) -> MutexGuard<'_, HashMap<PathBuf, Arc<tokio::sync::Mutex<()>>>> {
+        self.making_locks
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
     }
 }
 
-/// The WebVTT cached at `path`, if any.
 async fn cached(path: &Path) -> io::Result<Option<Vec<u8>>> {
     match tokio::fs::read(path).await {
         Ok(webvtt) => Ok(Some(webvtt)),

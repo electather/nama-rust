@@ -319,6 +319,8 @@ impl Scanner {
     /// Throws away the subtitles cached for files gone, such as a deleted Library's, or changed
     /// since they were cached. Logs why it couldn't.
     pub(crate) async fn clean_subtitles(&self) {
+        // ponytail: reads every stored file after each scan; clean only the Library scanned once
+        // Libraries get big.
         let cleaned = match self.inner.contents.every_stored().await {
             Ok(stored) => self.inner.subtitles.keep_only(&stored).await,
             Err(err) => {
