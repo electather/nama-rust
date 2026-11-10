@@ -1960,7 +1960,7 @@ async fn a_pgs_track_turned_on_mid_play_is_burned_into_a_transcode_from_there() 
 
     assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_TRANSCODE);
     assert_eq!(
-        plan.reasons[6],
+        plan.reasons[7],
         "The subtitles chosen are burned into its picture, which only a Transcode does"
     );
     // The player asks first for the segment 7 seconds falls in, where ffmpeg starts.
