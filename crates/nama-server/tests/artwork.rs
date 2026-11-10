@@ -1,16 +1,12 @@
 //! Posters and backdrops: fetched from the metadata Provider the first time they're asked for,
 //! then served from the cache on disk.
 
-use std::{collections::BTreeMap, sync::Arc};
+#[expect(dead_code, reason = "this binary uses only some of the fixture")]
+#[path = "support/tmdb.rs"]
+mod tmdb;
 
-use nama_plugin_api::{
-    PluginId,
-    settings::{SettingValue, Settings},
-};
-use nama_plugin_tmdb::{
-    Tmdb,
-    testing::{API_KEY, FakeTmdb},
-};
+use nama_plugin_api::PluginId;
+use nama_plugin_tmdb::testing::FakeTmdb;
 use nama_server::{
     artwork::{Artwork, Error},
     plugins::Registry,
@@ -19,21 +15,9 @@ use nama_server::{
 const POSTER: &str = "/vfrQk5IPloGg1v9Rzbh2Eg3VGyM.jpg";
 
 /// A fake TMDB, and a registry with the TMDB Plugin enabled against it.
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
 async fn tmdb() -> (FakeTmdb, Registry) {
-    let fake = FakeTmdb::start().await;
     let plugins = Registry::new();
-    let settings = Settings::new(BTreeMap::from([(
-        "api_key".to_owned(),
-        SettingValue::Text(API_KEY.to_owned()),
-    )]));
-    plugins
-        .enable_with_settings(Arc::new(Tmdb::with_endpoints(fake.endpoints())), settings)
-        .unwrap();
-    (fake, plugins)
+    (tmdb::enable(&plugins).await, plugins)
 }
 
 #[tokio::test]

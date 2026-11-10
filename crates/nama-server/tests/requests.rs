@@ -41,10 +41,6 @@ use nama_plugin_api::{
 };
 use nama_plugin_local_auth::LocalAuth;
 use nama_plugin_test_choices as test_choices;
-use nama_plugin_tmdb::{
-    Tmdb,
-    testing::{API_KEY, FakeTmdb},
-};
 use nama_proto::nama::v1::{
     ApproveFollowedShowRequest, ApproveRequestRequest, BrowseServiceClient,
     CancelFollowedShowRequest, CancelRequestRequest, CountPendingRequestsRequest,
@@ -68,18 +64,12 @@ use nama_server::{
     plugins::Registry,
 };
 use refused::assert_refused;
-use server::{Subscription, TestServer, WAIT, subscribe};
+use server::{
+    Subscription, TestServer, WAIT, subscribe,
+    tmdb::{ALIEN, DARK, DARK_TVDB, DUNE, HEAT, THE_OFFICE},
+};
 use tokio::{net::TcpListener, sync::mpsc};
 
-/// Movies the fake TMDB knows.
-const ALIEN: i64 = 348;
-const HEAT: i64 = 949;
-const DUNE: i64 = 438_631;
-
-/// A Show the fake TMDB knows, whose Season 1 has three aired Episodes and Season 2 one.
-const DARK: i64 = 70523;
-/// Dark's TVDB id, as the fake TMDB gives it.
-const DARK_TVDB: i64 = 334_824;
 const DARK_S01E01: &str = "Dark {tmdb-70523}/Season 01/Dark - S01E01.mkv";
 const DARK_S01E02: &str = "Dark {tmdb-70523}/Season 01/Dark - S01E02.mkv";
 const DARK_S01E03: &str = "Dark {tmdb-70523}/Season 01/Dark - S01E03.mkv";
@@ -87,7 +77,6 @@ const DARK_S02E01: &str = "Dark {tmdb-70523}/Season 02/Dark - S02E01.mkv";
 /// Season 3 of Dark is still airing in the fake TMDB: Episode 1 has aired, Episode 2 hasn't.
 const DARK_S03E01: &str = "Dark {tmdb-70523}/Season 03/Dark - S03E01.mkv";
 const DARK_S03E02: &str = "Dark {tmdb-70523}/Season 03/Dark - S03E02.mkv";
-const THE_OFFICE: i64 = 2316;
 
 /// What a new User gets: `REQUEST` and `VIEW_REQUESTS`.
 const NEW_USER: [Permission; 2] = [Permission::Request, Permission::ViewRequests];
@@ -108,10 +97,9 @@ const HD_PROFILE: &str = "4";
 /// The id of the Ultra-HD quality profile a fake Fulfiller can offer.
 const ULTRA_HD_PROFILE: &str = "5";
 
-/// A Server with the TMDB Plugin enabled against a fake TMDB, and an Admin.
+/// A Server with TMDB on, and an Admin.
 struct Fixture {
     server: TestServer,
-    tmdb: FakeTmdb,
     plugins: Registry,
 }
 
@@ -170,24 +158,13 @@ impl Fixture {
 
     /// A Fixture with the Plugins enabled in `plugins` too, started with `config`.
     async fn start_with_config(plugins: Registry, config: Config) -> Self {
-        let tmdb = FakeTmdb::start().await;
-        let settings = Settings::new(BTreeMap::from([(
-            "api_key".to_owned(),
-            SettingValue::Text(API_KEY.to_owned()),
-        )]));
-        plugins
-            .enable_with_settings(Arc::new(Tmdb::with_endpoints(tmdb.endpoints())), settings)
-            .unwrap();
         let server = TestServer::builder()
             .config(config)
             .plugins(plugins.clone())
+            .tmdb()
             .start()
             .await;
-        Self {
-            server,
-            tmdb,
-            plugins,
-        }
+        Self { server, plugins }
     }
 
     /// A Fixture with the Built-in Plugins, where the Built-in Movie Fulfiller `test-choices` is
@@ -2705,7 +2682,8 @@ async fn a_poster_a_search_found_is_served_and_an_image_none_found_is_not() {
     assert!(poster.body.starts_with(b"\xff\xd8"));
     assert_eq!(backdrop.status, 404);
     let images: Vec<_> = fixture
-        .tmdb
+        .server
+        .tmdb()
         .requests()
         .into_iter()
         .filter(|request| request.starts_with("/t/p/"))

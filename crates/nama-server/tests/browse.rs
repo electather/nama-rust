@@ -11,7 +11,7 @@ mod refused;
 mod server;
 
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::BTreeSet,
     fs,
     path::{Path, PathBuf},
     slice,
@@ -24,11 +24,6 @@ use connectrpc::{
     client::{ClientConfig, HttpClient},
 };
 use http::{fetch, fetch_range};
-use nama_plugin_api::settings::{SettingValue, Settings};
-use nama_plugin_tmdb::{
-    Tmdb,
-    testing::{API_KEY, FakeTmdb},
-};
 use nama_proto::nama::v1::{
     AudioTrack, BrowseServiceClient, ClearMatchRequest, ContinueWatchingEntry,
     CreateLibraryRequest, Episode, ExternalId, GetMovieRequest, GetShowRequest, GetShowResponse,
@@ -42,26 +37,26 @@ use nama_server::{
     config::Config,
     contents::Contents,
     ffmpeg::{self, Ffmpeg},
-    plugins::Registry,
 };
 use refused::assert_refused;
-use server::{SignedIn, TestServer, WAIT};
+use server::{
+    SignedIn, TestServer, WAIT,
+    tmdb::{ALIEN, DARK, THE_OFFICE as THE_OFFICE_US},
+};
 use tempfile::TempDir;
 
-/// TMDB Matches both to Alien, TMDB id 348.
+/// TMDB Matches both to Alien.
 const ALIEN_1080P: &str = "Alien (1979)/Alien (1979) - 1080p.mkv";
 const ALIEN_2160P: &str = "Alien (1979)/Alien (1979) - 2160p.mkv";
-const ALIEN: i64 = 348;
 
 /// TMDB finds nothing for this file, so it is Unmatched.
 const HOME_MOVIES: &str = "Home Movies (2019)/Home Movies (2019).mkv";
 
-/// Dark, TMDB id 70523, in two folders: TMDB finds the first by its title and year, and the
-/// second names it in an ID hint. The first file holds two Episodes.
+/// Dark in two folders: TMDB finds the first by its title and year, and the second names it in an
+/// ID hint. The first file holds two Episodes.
 const DARK_S01E01_E02: &str = "Dark (2017)/Season 01/Dark - S01E01-E02.mkv";
 const DARK_S01E01: &str = "Dark {tmdb-70523}/Season 01/Dark - S01E01.mkv";
 const DARK_S02E01: &str = "Dark {tmdb-70523}/Season 02/Dark - S02E01.mkv";
-const DARK: i64 = 70523;
 /// The TMDB ids of Dark's Episodes S01E01, S01E02 and S02E01.
 const SECRETS: i64 = 1_388_538;
 const LIES: i64 = 1_388_539;
@@ -69,7 +64,6 @@ const BEGINNINGS_AND_ENDINGS: i64 = 1_803_405;
 
 /// Both the US and the UK Office fit, so this is Unmatched.
 const THE_OFFICE: &str = "The Office/Season 01/The Office - S01E01.mkv";
-const THE_OFFICE_US: i64 = 2316;
 
 /// Two hours, in milliseconds: the length a test's player reports.
 const TWO_HOURS: u64 = 7_200_000;
@@ -77,8 +71,7 @@ const TWO_HOURS: u64 = 7_200_000;
 const AN_HOUR: u64 = 3_600_000;
 const MINUTE: u64 = 60_000;
 
-/// A Server with one Library, the TMDB Plugin enabled against a fake TMDB, and the clients a test
-/// browses and fixes Matches with.
+/// A Server with one Library and TMDB on, and the clients a test browses and fixes Matches with.
 struct Fixture {
     library: i64,
     folder: PathBuf,
@@ -86,7 +79,6 @@ struct Fixture {
     browse: BrowseServiceClient<HttpClient>,
     matches: MatchServiceClient<HttpClient>,
     contents: Contents,
-    tmdb: FakeTmdb,
     server: TestServer,
     _media: TempDir,
 }
@@ -103,20 +95,7 @@ impl Fixture {
 
     /// Starts a Server with a Library of `kind` that found `ffmpeg` at startup.
     async fn start_with_ffmpeg(kind: LibraryKind, ffmpeg: Ffmpeg) -> Self {
-        let tmdb = FakeTmdb::start().await;
-        let plugins = Registry::new();
-        let settings = Settings::new(BTreeMap::from([(
-            "api_key".to_owned(),
-            SettingValue::Text(API_KEY.to_owned()),
-        )]));
-        plugins
-            .enable_with_settings(Arc::new(Tmdb::with_endpoints(tmdb.endpoints())), settings)
-            .unwrap();
-        let server = TestServer::builder()
-            .plugins(plugins)
-            .ffmpeg(ffmpeg)
-            .start()
-            .await;
+        let server = TestServer::builder().tmdb().ffmpeg(ffmpeg).start().await;
         let config = server.client_config();
         let libraries = LibraryServiceClient::new(HttpClient::plaintext(), config.clone());
         let media = tempfile::tempdir().unwrap();
@@ -129,7 +108,6 @@ impl Fixture {
             browse: BrowseServiceClient::new(HttpClient::plaintext(), config.clone()),
             matches: MatchServiceClient::new(HttpClient::plaintext(), config),
             contents: Contents::new(Arc::clone(server.db())),
-            tmdb,
             server,
             _media: media,
         }
@@ -904,7 +882,7 @@ async fn any_other_artwork_path_is_not_found() {
 
         assert_eq!(reply.status, 404, "{path}");
     }
-    let images = fx.tmdb.requests();
+    let images = fx.server.tmdb().requests();
     assert!(
         !images.iter().any(|request| request.starts_with("/t/p/")),
         "{images:?}"
@@ -925,9 +903,9 @@ async fn artwork_without_a_session_is_refused() {
 /// A client should try again later, rather than take the image to be gone.
 #[tokio::test]
 async fn artwork_from_a_provider_that_fails_is_unavailable() {
-    let fx = Fixture::alien().await;
+    let mut fx = Fixture::alien().await;
     let movie = fx.get_movie(fx.library, ALIEN).await.unwrap();
-    drop(fx.tmdb);
+    fx.server.stop_tmdb();
 
     let reply = fetch(
         &fx.server,

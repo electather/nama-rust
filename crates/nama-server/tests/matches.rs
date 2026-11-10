@@ -8,7 +8,6 @@ mod refused;
 mod server;
 
 use std::{
-    collections::BTreeMap,
     fs,
     path::{Path, PathBuf},
     sync::Arc,
@@ -16,11 +15,6 @@ use std::{
 };
 
 use connectrpc::{ConnectError, ErrorCode, client::HttpClient};
-use nama_plugin_api::settings::{SettingValue, Settings};
-use nama_plugin_tmdb::{
-    Tmdb,
-    testing::{API_KEY, FakeTmdb},
-};
 use nama_proto::nama::v1::{
     ClearMatchRequest, CreateLibraryRequest, CreateRequestRequest, CreateSeasonRequestsRequest,
     ExternalId, GetRequestRequest, LibraryKind, LibraryServiceClient, ListUnmatchedItemsRequest,
@@ -28,9 +22,9 @@ use nama_proto::nama::v1::{
     RequestState, ScanLibraryRequest, SearchMetadataRequest, SetMatchRequest, SetMatchResponse,
     TitleKind, UnmatchedItem, external_id,
 };
-use nama_server::{contents::Contents, plugins::Registry};
+use nama_server::contents::Contents;
 use refused::assert_refused;
-use server::{TestServer, WAIT};
+use server::{Builder, TestServer, WAIT};
 use tempfile::TempDir;
 
 /// TMDB finds nothing for this file, so it is Unmatched until Matched by hand.
@@ -54,7 +48,6 @@ struct Fixture {
     libraries: LibraryServiceClient<HttpClient>,
     matches: MatchServiceClient<HttpClient>,
     contents: Contents,
-    _tmdb: Option<FakeTmdb>,
     server: TestServer,
     _media: TempDir,
 }
@@ -66,26 +59,17 @@ struct Fixture {
 impl Fixture {
     /// Starts a Server with a Library of `kind`.
     async fn start(kind: LibraryKind) -> Self {
-        let tmdb = FakeTmdb::start().await;
-        let plugins = Registry::new();
-        let settings = Settings::new(BTreeMap::from([(
-            "api_key".to_owned(),
-            SettingValue::Text(API_KEY.to_owned()),
-        )]));
-        plugins
-            .enable_with_settings(Arc::new(Tmdb::with_endpoints(tmdb.endpoints())), settings)
-            .unwrap();
-        Self::start_with(kind, plugins, Some(tmdb)).await
+        Self::start_with(kind, TestServer::builder().tmdb()).await
     }
 
     /// Starts a Server with a Library of `kind` and no metadata Provider, so nothing is Matched.
     async fn start_without_metadata(kind: LibraryKind) -> Self {
-        Self::start_with(kind, Registry::new(), None).await
+        Self::start_with(kind, TestServer::builder()).await
     }
 
-    /// Starts a Server with a Library of `kind` and `plugins`, keeping `tmdb` running for them.
-    async fn start_with(kind: LibraryKind, plugins: Registry, tmdb: Option<FakeTmdb>) -> Self {
-        let server = TestServer::builder().plugins(plugins).start().await;
+    /// Starts the Server `builder` makes, with a Library of `kind`.
+    async fn start_with(kind: LibraryKind, builder: Builder) -> Self {
+        let server = builder.start().await;
         let config = server.client_config();
         let libraries = LibraryServiceClient::new(HttpClient::plaintext(), config.clone());
         let media = tempfile::tempdir().unwrap();
@@ -109,7 +93,6 @@ impl Fixture {
             libraries,
             matches: MatchServiceClient::new(HttpClient::plaintext(), config),
             contents: Contents::new(Arc::clone(server.db())),
-            _tmdb: tmdb,
             server,
             _media: media,
         }
