@@ -47,11 +47,16 @@ impl Ffmpeg {
 /// The first `name` in the directories of `path` that runs and says which version it is.
 fn find(name: &str, path: &OsStr) -> Option<FoundProgram> {
     let file = format!("{name}{}", env::consts::EXE_SUFFIX);
-    let path = env::split_paths(path)
+    env::split_paths(path)
         // A relative entry, such as an empty one, would run whatever is in the working directory.
         .filter(|dir| dir.is_absolute())
         .map(|dir| dir.join(&file))
-        .find(|candidate| candidate.is_file())?;
+        .filter(|candidate| candidate.is_file())
+        .find_map(|candidate| run(name, candidate))
+}
+
+/// `name` at `path`, if it runs and says which version it is.
+fn run(name: &str, path: PathBuf) -> Option<FoundProgram> {
     let output = Command::new(&path).arg("-version").output().ok()?;
     if !output.status.success() {
         return None;
@@ -129,6 +134,25 @@ mod tests {
         assert_eq!(
             found.direct_play_only_because(),
             Some("ffmpeg and ffprobe weren't found on PATH")
+        );
+    }
+
+    #[test]
+    fn one_that_doesnt_run_is_skipped_for_a_later_one_on_path() {
+        let broken = tempfile::tempdir().unwrap();
+        let bin = tempfile::tempdir().unwrap();
+        fake(broken.path(), "ffmpeg", "something else entirely");
+        fake(bin.path(), "ffmpeg", "ffmpeg version 7.1.1");
+        let path = std::env::join_paths([broken.path(), bin.path()]).unwrap();
+
+        let found = Ffmpeg::find(&path);
+
+        assert_eq!(
+            found.ffmpeg,
+            Some(FoundProgram {
+                path: bin.path().join("ffmpeg"),
+                version: "7.1.1".to_owned(),
+            })
         );
     }
 
