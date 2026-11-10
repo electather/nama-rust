@@ -162,6 +162,14 @@ _Avoid_: locked match, override, manual lock
 A title's id at a metadata source, written in a file or folder name, such as `{tmdb-78}` or `[tvdbid-433631]`. An Item with one is Matched by that id without a search.
 _Avoid_: id tag, provider id
 
+**Scan**:
+One pass over a Library: storing what changed in its folders, then Matching the new Items, then Probing the files without current Tracks.
+_Avoid_: pass, sync, refresh
+
+**Probing**:
+Reading a Version's file to learn its Tracks.
+_Avoid_: analysis, inspection
+
 **Watch State**:
 A User's progress through a Movie or Episode: whether it's been played, how far in, and when.
 _Avoid_: watched status, play state, progress
@@ -193,7 +201,7 @@ How the Server will play one Version on one Device: which Version, when the clie
 _Avoid_: decision, profile, stream info
 
 **Playback Limit**:
-The most a User asks playback to send, such as "Original", "1080p" or "720p". A limit below the Version's own makes it Transcode. Until the User picks one, a Device outside the local network gets the default an Admin sets for remote playback.
+The most a User asks playback to send, such as "Original", "1080p" or "720p". A limit below the Version's own makes it Transcode; when the Server can't Transcode it, it plays as it is and the Playback Plan says why. Until the User picks one, a Device outside the local network gets the default an Admin sets for remote playback.
 _Avoid_: quality, bitrate, resolution
 
 ## Requests
@@ -203,7 +211,7 @@ Users asking for a Movie, or one Season of a Show, that isn't on a Server to be 
 _Avoid_: ticket, order, wish
 
 **Requester**:
-A User who asked for what a Request covers. A Request can have several.
+A User who asked for what a Request or a Followed Show covers. Each can have several.
 _Avoid_: owner, submitter
 
 **Quality**:
@@ -231,5 +239,5 @@ The state of a Request its Fulfiller didn't take, such as when the service is un
 _Avoid_: errored, stuck, timed out
 
 **Partially Available**:
-The state of a Request when some, but not all, of what it asked for has been Matched in a Library. For a Season, what it asked for is the Episodes aired so far, so a Season still airing can become Available, and Episodes that air later don't reopen it.
+The state of a Request its Fulfiller has, when some, but not all, of what it asked for has been Matched in a Library. A Request not yet handed off keeps its state until all of it is Matched. For a Season, what it asked for is the Episodes aired so far, so a Season still airing can become Available, and Episodes that air later don't reopen it.
 _Avoid_: in progress, partial
