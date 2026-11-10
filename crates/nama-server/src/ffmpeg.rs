@@ -719,8 +719,9 @@ mod probe_output_tests {
         );
     }
 
-    /// The video stream of ffprobe 7.0's output for a Dolby Vision file whose
-    /// `dv_bl_signal_compatibility_id` is `compatibility`, cut down to what probing reads.
+    /// ffprobe 7.0's output for a Dolby Vision file of `profile`, whose base layer's
+    /// `dv_bl_signal_compatibility_id` is `compatibility` and transfer is `transfer`, cut down to
+    /// its video stream.
     fn dolby_vision(profile: u8, compatibility: u8, transfer: &str) -> String {
         format!(
             r#"{{
