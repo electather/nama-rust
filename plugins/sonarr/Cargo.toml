@@ -12,6 +12,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 nama-pdk = { version = "0.1.0", path = "../../crates/nama-pdk" }
+nama-servarr = { version = "0.1.0", path = "../servarr" }
 serde = { version = "1", features = ["derive"] }
 
 [lints]

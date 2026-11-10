@@ -199,7 +199,7 @@ jobs:
       # The test Plugin and the bundled ones for wasm32, as Installed Plugins are built: with
       # nama-pdk, and nama-proto's messages without its ConnectRPC stubs.
       - if: env.RUST == 'true'
-        run: cargo clippy --package nama-test-plugin --package nama-plugin-radarr --package nama-plugin-sonarr --package nama-plugin-telegram --target wasm32-unknown-unknown --locked -- -D warnings
+        run: cargo clippy --package nama-test-plugin --package nama-plugin-radarr --package nama-plugin-sonarr --package nama-plugin-telegram --package nama-servarr --target wasm32-unknown-unknown --locked -- -D warnings
       # Broken intra-doc links and malformed docs fail the build.
       - if: env.RUST == 'true'
         run: cargo doc --workspace --no-deps --locked

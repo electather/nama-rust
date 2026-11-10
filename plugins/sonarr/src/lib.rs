@@ -12,14 +12,15 @@ mod exports {
 
     use nama_pdk::{
         Buffa, CheckedSettings, Download, FnResult, Fulfilled, Fulfiller, Manifest, Request,
-        extism_pdk::{self, Error, HttpRequest, HttpResponse, Json, ToMemory, config},
+        extism_pdk::{self, Error, HttpResponse, config},
         nama_proto::nama::{
             plugin::v1::{ProvidePoint, SettingField, SettingKind},
             v1::DownloadStatus,
         },
         plugin_fn,
     };
-    use serde::{Deserialize, Serialize, de::DeserializeOwned};
+    use nama_servarr::Servarr;
+    use serde::{Deserialize, Serialize};
 
     const URL: &str = "url";
     const API_KEY: &str = "api_key";
@@ -84,8 +85,8 @@ mod exports {
     #[plugin_fn]
     pub fn check_settings() -> FnResult<Buffa<CheckedSettings>> {
         let sonarr = Sonarr::from_config()?;
-        let profiles: Vec<QualityProfile> = sonarr.get("qualityprofile")?;
-        let folders: Vec<RootFolder> = sonarr.get("rootfolder")?;
+        let profiles: Vec<QualityProfile> = sonarr.api.get("qualityprofile")?;
+        let folders: Vec<RootFolder> = sonarr.api.get("rootfolder")?;
         let profiles: Vec<_> = profiles
             .into_iter()
             .map(|profile| (profile.id.to_string(), profile.name))
@@ -112,7 +113,7 @@ mod exports {
             let season_number = request.season.season_number;
             let asked = quality_profile(&request)?;
             let sonarr = Sonarr::from_config()?;
-            let profiles: Vec<QualityProfile> = sonarr.get("qualityprofile")?;
+            let profiles: Vec<QualityProfile> = sonarr.api.get("qualityprofile")?;
             let had = match sonarr.find(tvdb_id)? {
                 None => sonarr.add_asked(&request, asked, &profiles)?,
                 had => had,
@@ -146,8 +147,9 @@ mod exports {
         fn progress(references: Vec<String>) -> Result<HashMap<String, Vec<Download>>, Error> {
             // ponytail: reads only the first 1000 entries, one per Episode; page through
             // `totalRecords` if a queue ever holds more.
-            let queue: Queue =
-                Sonarr::from_config()?.get("queue?pageSize=1000&includeSeries=true")?;
+            let queue: Queue = Sonarr::from_config()?
+                .api
+                .get("queue?pageSize=1000&includeSeries=true")?;
             let mut listed = HashSet::new();
             let in_batch = queue
                 .records
@@ -171,27 +173,26 @@ mod exports {
 
     /// Sonarr's API, as the settings say where it is and its key.
     struct Sonarr {
-        url: String,
-        api_key: String,
+        api: Servarr,
     }
 
     impl Sonarr {
         fn from_config() -> Result<Self, Error> {
-            Ok(Self {
-                url: setting(URL)?,
-                api_key: setting(API_KEY)?,
-            })
+            let api = Servarr::new("Sonarr", setting(URL)?, setting(API_KEY)?);
+            Ok(Self { api })
         }
 
         /// The Show with the TVDB id `tvdb_id`, if Sonarr has it.
         fn find(&self, tvdb_id: i64) -> Result<Option<Added>, Error> {
-            let had: Vec<Added> = self.get(&format!("series?tvdbId={tvdb_id}"))?;
+            let had: Vec<Added> = self.api.get(&format!("series?tvdbId={tvdb_id}"))?;
             Ok(had.into_iter().next())
         }
 
         /// The Show with the TVDB id `tvdb_id` as Sonarr would add it.
         fn look_up(&self, tvdb_id: i64) -> Result<Show, Error> {
-            let found: Vec<Show> = self.get(&format!("series/lookup?term=tvdb:{tvdb_id}"))?;
+            let found: Vec<Show> = self
+                .api
+                .get(&format!("series/lookup?term=tvdb:{tvdb_id}"))?;
             found.into_iter().next().ok_or_else(|| {
                 Error::msg(format!(
                     "Sonarr couldn't find the Show by its TVDB id, {tvdb_id}"
@@ -256,11 +257,7 @@ mod exports {
                     search_for_missing_episodes: true,
                 },
             };
-            let response = send(&self.request("POST", "series"), Some(Json(new_show)))?;
-            if already_has(&response) {
-                return Ok(false);
-            }
-            accepted(response).map(|_| true)
+            self.api.add("series", new_show, SERIES_EXISTS)
         }
 
         /// Returns once Sonarr has no refresh of the Show `show_id` queued or running, or fails
@@ -285,8 +282,8 @@ mod exports {
         /// The second of the day by Sonarr's clock, if it has a refresh of the Show `show_id`
         /// queued or running.
         fn refreshing_at(&self, show_id: i64) -> Result<Option<i64>, Error> {
-            let response = self.get_response("command")?;
-            let commands: Vec<Command> = parsed(&response)?;
+            let response = self.api.get_response("command")?;
+            let commands: Vec<Command> = self.api.parsed(&response)?;
             if !commands.iter().any(|command| command.refreshes(show_id)) {
                 return Ok(None);
             }
@@ -300,7 +297,7 @@ mod exports {
                 series_ids: [show_id],
                 monitor_new_items: new_items(monitored),
             };
-            self.change("PUT", "series/editor", editor)
+            self.api.change("PUT", "series/editor", editor)
         }
 
         /// Monitors the Season `season_number` of the Show Sonarr has as `show_id`, and its
@@ -319,46 +316,21 @@ mod exports {
                     seasons: [season],
                 }],
             };
-            self.change("POST", "seasonpass", pass)?;
-            let episodes: Vec<Episode> = self.get(&format!(
+            self.api.change("POST", "seasonpass", pass)?;
+            let episodes: Vec<Episode> = self.api.get(&format!(
                 "episode?seriesId={show_id}&seasonNumber={season_number}"
             ))?;
             let monitor = EpisodesMonitored {
                 episode_ids: episodes.into_iter().map(|episode| episode.id).collect(),
                 monitored: true,
             };
-            self.change("PUT", "episode/monitor", monitor)?;
+            self.api.change("PUT", "episode/monitor", monitor)?;
             let search = SeasonSearch {
                 name: "SeasonSearch",
                 series_id: show_id,
                 season_number,
             };
-            self.change("POST", "command", search)
-        }
-
-        /// A `method` request for the API path `path`, such as `series`.
-        fn request(&self, method: &str, path: &str) -> HttpRequest {
-            let url = format!("{}/api/v3/{path}", self.url.trim_end_matches('/'));
-            HttpRequest::new(url)
-                .with_method(method)
-                .with_header("X-Api-Key", &self.api_key)
-                .with_header("Content-Type", "application/json")
-        }
-
-        /// What Sonarr answers at the API path `path`.
-        fn get<T: DeserializeOwned>(&self, path: &str) -> Result<T, Error> {
-            parsed(&self.get_response(path)?)
-        }
-
-        /// Sonarr's response at the API path `path`, if it took the request.
-        fn get_response(&self, path: &str) -> Result<HttpResponse, Error> {
-            accepted(send(&self.request("GET", path), None::<()>)?)
-        }
-
-        /// Sends Sonarr the change `body` to the API path `path` with `method`, ignoring what it
-        /// answers once it takes it.
-        fn change(&self, method: &str, path: &str, body: impl Serialize) -> Result<(), Error> {
-            accepted(send(&self.request(method, path), Some(Json(body)))?).map(drop)
+            self.api.change("POST", "command", search)
         }
     }
 
@@ -413,11 +385,6 @@ mod exports {
         if monitored { "all" } else { "none" }
     }
 
-    fn send<T: ToMemory>(request: &HttpRequest, body: Option<T>) -> Result<HttpResponse, Error> {
-        // Not naming the URL: a Request's reason reaches every Requester.
-        nama_pdk::http_request(request, body, "Sonarr didn't answer")
-    }
-
     /// The setting `key`, which the Server sets before every call but a settings check, and for
     /// that one too unless it is a Choice.
     fn setting(key: &str) -> Result<String, Error> {
@@ -432,12 +399,6 @@ mod exports {
         )
     }
 
-    fn parsed<T: DeserializeOwned>(response: &HttpResponse) -> Result<T, Error> {
-        response
-            .json()
-            .map_err(|err| Error::msg(format!("Sonarr's answer made no sense: {err}")))
-    }
-
     /// The second of the day `response` was sent at, by its `Date` header.
     fn second_of_day(response: &HttpResponse) -> Option<i64> {
         // An HTTP date has a fixed shape, such as `Sun, 08 Nov 2026 12:00:03 GMT`.
@@ -449,44 +410,6 @@ mod exports {
             return None;
         };
         Some((hours * 60 + minutes) * 60 + seconds)
-    }
-
-    /// `response`, if Sonarr took the request, or else why it refused.
-    fn accepted(response: HttpResponse) -> Result<HttpResponse, Error> {
-        if (200..300).contains(&response.status_code()) {
-            Ok(response)
-        } else {
-            Err(refused(&response))
-        }
-    }
-
-    fn already_has(response: &HttpResponse) -> bool {
-        failures(response)
-            .iter()
-            .any(|failure| failure.error_code.as_deref() == Some(SERIES_EXISTS))
-    }
-
-    /// Why Sonarr refused a request, in words a User understands.
-    fn refused(response: &HttpResponse) -> Error {
-        let messages: Vec<_> = failures(response)
-            .into_iter()
-            .map(|failure| failure.error_message)
-            .collect();
-        let reason = match response.status_code() {
-            401 => "Sonarr refused the API key".to_owned(),
-            400 if !messages.is_empty() => format!("Sonarr said: {}", messages.join(" ")),
-            status => format!("Sonarr failed with HTTP status {status}"),
-        };
-        Error::msg(reason)
-    }
-
-    /// The validation failures in the body of a `400 Bad Request` from Sonarr, if it is one.
-    fn failures(response: &HttpResponse) -> Vec<ValidationFailure> {
-        if response.status_code() == 400 {
-            response.json().unwrap_or_default()
-        } else {
-            Vec::new()
-        }
     }
 
     /// A page of `GET /api/v3/queue`.
@@ -652,13 +575,6 @@ mod exports {
     #[derive(Deserialize)]
     struct RootFolder {
         path: String,
-    }
-
-    #[derive(Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    struct ValidationFailure {
-        error_message: String,
-        error_code: Option<String>,
     }
 
     /// A Show as Sonarr's lookup gives it.
