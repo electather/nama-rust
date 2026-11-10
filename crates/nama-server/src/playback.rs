@@ -236,7 +236,8 @@ pub(crate) async fn plan(
             None => Ok(Some(plan)),
         };
     };
-    // Only a probed Version gets this far: without its Tracks, nothing rules out Direct Play.
+    // Only a probed Version is Remuxed or Transcoded: without Tracks, `version_tracks` allows
+    // only Direct Play.
     let started = match (plan.method, &facts.probe) {
         (Some(Method::Remux), Some(probed)) => {
             let (played, aac) = (played_audio(&facts), channels_as_aac(plan.method, &facts));
@@ -370,17 +371,21 @@ fn build(facts: &Facts, steps: &[Step]) -> Plan {
     }
 }
 
-/// The step for the Version's own Tracks. None needs changing to play yet, so it allows every
-/// method.
+/// The step for the Version's own Tracks. None needs changing to play yet, so once they're known
+/// it allows every method, and before then only Direct Play, since a Remux or a Transcode needs
+/// them.
 fn version_tracks(facts: &Facts) -> Narrowing {
-    let reason = if facts.probe.is_some() {
-        "Its Tracks need no change"
+    let (allows, reason) = if facts.probe.is_some() {
+        (BTreeSet::from(Method::ALL), "Its Tracks need no change")
     } else {
-        // ADR 0026: without ffprobe, a Server Direct Plays.
-        "Its Tracks aren't known, so they're taken to need no change"
+        (
+            BTreeSet::from([Method::DirectPlay]),
+            "Its Tracks aren't known, so they're taken to need no change, and it can only be \
+             Direct Played",
+        )
     };
     Narrowing {
-        allows: BTreeSet::from(Method::ALL),
+        allows,
         reason: reason.to_owned(),
     }
 }
@@ -390,7 +395,7 @@ fn version_tracks(facts: &Facts) -> Narrowing {
 /// the video, since a Remux converts only the audio.
 fn device_decoding(facts: &Facts) -> Narrowing {
     let Some(probe) = &facts.probe else {
-        // ADR 0026, as for the Tracks step.
+        // ADR 0026: without ffprobe, a Server Direct Plays.
         return Narrowing {
             allows: BTreeSet::from(Method::ALL),
             reason: "Its Tracks aren't known, so this Device is taken to decode them".to_owned(),
@@ -1407,7 +1412,8 @@ mod tests {
         assert_eq!(
             plan.reasons,
             [
-                "Its Tracks aren't known, so they're taken to need no change",
+                "Its Tracks aren't known, so they're taken to need no change, and it can only \
+                 be Direct Played",
                 "Its Tracks aren't known, so this Device is taken to decode them",
                 "This Server has ffmpeg",
                 "No hardware acceleration passed its test when this Server started, so a \
@@ -1420,6 +1426,29 @@ mod tests {
                 "This Server isn't running as many Transcodes as it may at once",
             ]
         );
+    }
+
+    #[test]
+    fn a_version_whose_tracks_arent_known_cant_be_played_once_direct_play_failed() {
+        let facts = Facts {
+            failed: BTreeSet::from([Method::DirectPlay]),
+            ..facts(None)
+        };
+
+        let plan = build(&facts, &STEPS);
+
+        assert_eq!((plan.method, plan.url), (None, None));
+    }
+
+    #[test]
+    fn a_version_whose_tracks_arent_known_is_never_too_busy_to_play() {
+        let facts = Facts {
+            failed: BTreeSet::from([Method::DirectPlay, Method::Remux]),
+            transcodes_full: Some(1),
+            ..facts(None)
+        };
+
+        assert_eq!(too_busy_to_play(facts), None);
     }
 
     #[test]
