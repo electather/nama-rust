@@ -118,9 +118,13 @@ jobs:
       - name: buf breaking against main
         working-directory: proto
         run: |
+          # HEAD^1 is the main this code sits on: a PR's merge ref's base, or main before this push.
+          # Not origin/main, which may have moved since the merge ref was made and would read as
+          # the PR deleting whatever landed in between.
+          base=$(git rev-parse HEAD^1)
           # Until the Buf module first lands on main there is nothing to compare against.
-          if git cat-file -e origin/main:proto/buf.yaml 2>/dev/null; then
-            buf breaking --against "../.git#ref=origin/main,subdir=proto"
+          if git cat-file -e "$base:proto/buf.yaml" 2>/dev/null; then
+            buf breaking --against "../.git#ref=$base,subdir=proto"
           else
             echo "main has no Buf module yet; skipping"
           fi
