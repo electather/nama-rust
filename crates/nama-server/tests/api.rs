@@ -271,6 +271,7 @@ fn set_segment_folder(folder: &str) -> UpdatePlaybackSettingsRequest {
     UpdatePlaybackSettingsRequest {
         settings: PlaybackSettings {
             segment_folder: folder.to_owned(),
+            max_transcodes: 2,
             ..Default::default()
         }
         .into(),
@@ -291,6 +292,57 @@ async fn the_segment_folder_is_empty_until_an_admin_sets_it() {
 
     assert_eq!(unset, "");
     assert_eq!(segment_folder(&client).await, "/dev/shm/nama");
+}
+
+#[tokio::test]
+async fn the_transcode_cap_is_2_until_an_admin_sets_it() {
+    let server = TestServer::builder().start().await;
+    let client = ServerServiceClient::new(HttpClient::plaintext(), server.client_config());
+    let settings = async || {
+        let got = client.get_playback_settings(GetPlaybackSettingsRequest::default());
+        got.await.unwrap().into_owned().settings.max_transcodes
+    };
+    let unset = settings().await;
+
+    client
+        .update_playback_settings(UpdatePlaybackSettingsRequest {
+            settings: PlaybackSettings {
+                max_transcodes: 1,
+                ..Default::default()
+            }
+            .into(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    assert_eq!(unset, 2);
+    assert_eq!(settings().await, 1);
+}
+
+#[tokio::test]
+async fn a_transcode_cap_of_0_or_left_out_is_refused_naming_it_and_nothing_changes() {
+    let server = TestServer::builder().start().await;
+    let client = ServerServiceClient::new(HttpClient::plaintext(), server.client_config());
+
+    let updated = client
+        .update_playback_settings(UpdatePlaybackSettingsRequest {
+            settings: PlaybackSettings {
+                segment_folder: "/dev/shm/nama".to_owned(),
+                ..Default::default()
+            }
+            .into(),
+            ..Default::default()
+        })
+        .await;
+
+    let refusal = assert_refused(
+        updated,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
+    );
+    assert_eq!(refusal.field, "settings.max_transcodes");
+    assert_eq!(segment_folder(&client).await, "");
 }
 
 #[tokio::test]

@@ -198,4 +198,7 @@ enum RefusalReason {
   // Approved, which fixes it. `field` is `quality` or `quality_id`. Params: `qualityId`, and the
   // Show's Quality as `showQualityId` and `showQualityName`.
   REFUSAL_REASON_SHOW_HAS_QUALITY = 59;
+  // `resource_exhausted`: only a Transcode would play the Version on this Device, and the Server
+  // is already running as many as its Playback settings allow. Params: `maxTranscodes`.
+  REFUSAL_REASON_SERVER_BUSY = 60;
 }

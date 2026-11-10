@@ -30,7 +30,8 @@ service ServerService {
   }
   // Replaces how the Server plays Versions it changes, for plans made from then on. Needs
   // `PERMISSION_ADMIN`. A `segment_folder` that isn't an absolute path is refused with
-  // `REFUSAL_REASON_FOLDER_NOT_ABSOLUTE` naming it, and nothing changes.
+  // `REFUSAL_REASON_FOLDER_NOT_ABSOLUTE` naming it, a `max_transcodes` of 0 with
+  // `REFUSAL_REASON_FIELD_REQUIRED` naming it, and nothing changes.
   rpc UpdatePlaybackSettings(UpdatePlaybackSettingsRequest) returns (UpdatePlaybackSettingsResponse) {
     option idempotency_level = IDEMPOTENT;
   }
@@ -113,4 +114,7 @@ message PlaybackSettings {
   // tmpfs's. Each plan's files go in a folder of their own inside it, deleted a minute after the
   // plan was last asked for. Empty, the default, for `transcodes` in the Server's data folder.
   string segment_folder = 1;
+  // The most Transcodes the Server runs at once, at least 1, and 2 out of the box; Remuxes don't
+  // count. A plan that only a Transcode would play is refused while that many run.
+  uint32 max_transcodes = 2;
 }

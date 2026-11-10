@@ -61,7 +61,7 @@ test("a User who manages settings but isn’t an Admin can’t open the Playback
   expect(await screen.findByRole("heading", { name: "You can’t open this page" })).toBeDefined();
 });
 
-test("an Admin sets the segment folder on the Playback page", async () => {
+test("an Admin sets the segment folder and the Transcodes at once on the Playback page", async () => {
   const updates: UpdatePlaybackSettingsRequest[] = [];
   openApp(
     "/admin/playback",
@@ -69,7 +69,9 @@ test("an Admin sets the segment folder on the Playback page", async () => {
       signedIn: admin,
       serverService: {
         getPlaybackStatus: () => ({}),
-        getPlaybackSettings: () => ({ settings: { segmentFolder: "/srv/segments" } }),
+        getPlaybackSettings: () => ({
+          settings: { segmentFolder: "/srv/segments", maxTranscodes: 2 },
+        }),
         updatePlaybackSettings: (request) => {
           updates.push(request);
           return { settings: request.settings };
@@ -79,11 +81,15 @@ test("an Admin sets the segment folder on the Playback page", async () => {
   );
 
   expect(await screen.findByLabelText("Segment folder")).toHaveProperty("value", "/srv/segments");
+  expect(screen.getByLabelText("Transcodes at once")).toHaveProperty("value", "2");
   fill("Segment folder", "/dev/shm/nama");
-  fireEvent.click(screen.getByRole("button", { name: "Save segment folder" }));
+  fill("Transcodes at once", "1");
+  fireEvent.click(screen.getByRole("button", { name: "Save playback settings" }));
 
   expect(await screen.findByText("Saved.")).toBeDefined();
-  expect(updates).toMatchObject([{ settings: { segmentFolder: "/dev/shm/nama" } }]);
+  expect(updates).toMatchObject([
+    { settings: { segmentFolder: "/dev/shm/nama", maxTranscodes: 1 } },
+  ]);
 });
 
 test("a segment folder that isn't an absolute path is refused under its field", async () => {
@@ -93,6 +99,7 @@ test("a segment folder that isn't an absolute path is refused under its field", 
       signedIn: admin,
       serverService: {
         getPlaybackStatus: () => ({}),
+        getPlaybackSettings: () => ({ settings: { maxTranscodes: 2 } }),
         updatePlaybackSettings: () => {
           throw refused(Code.InvalidArgument, "the segment folder must be an absolute path", {
             reason: RefusalReason.FOLDER_NOT_ABSOLUTE,
@@ -105,7 +112,31 @@ test("a segment folder that isn't an absolute path is refused under its field", 
 
   await screen.findByLabelText("Segment folder");
   fill("Segment folder", "shm/nama");
-  fireEvent.click(screen.getByRole("button", { name: "Save segment folder" }));
+  fireEvent.click(screen.getByRole("button", { name: "Save playback settings" }));
 
   await expectUnderField("Segment folder", "The segment folder must be an absolute path.");
+});
+
+test("a Transcodes at once the Server refuses as missing is refused under its field", async () => {
+  openApp(
+    "/admin/playback",
+    fakeServer({
+      signedIn: admin,
+      serverService: {
+        getPlaybackStatus: () => ({}),
+        getPlaybackSettings: () => ({ settings: { maxTranscodes: 2 } }),
+        updatePlaybackSettings: () => {
+          throw refused(Code.InvalidArgument, "the most Transcodes at once must be at least 1", {
+            reason: RefusalReason.FIELD_REQUIRED,
+            field: "settings.max_transcodes",
+          });
+        },
+      },
+    }),
+  );
+
+  await screen.findByLabelText("Transcodes at once");
+  fireEvent.click(screen.getByRole("button", { name: "Save playback settings" }));
+
+  await expectUnderField("Transcodes at once", "The most Transcodes at once must be at least 1.");
 });

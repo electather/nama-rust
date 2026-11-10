@@ -1,9 +1,13 @@
 //! What an admin sets about the Server as a whole, kept in the database: so far its URL, which
-//! notifications link to the web app with, and the folder playback writes segment files to.
+//! notifications link to the web app with, the folder playback writes segment files to, and the
+//! most Transcodes it runs at once.
 
 use std::{
     path::{Path, PathBuf},
-    sync::{Arc, PoisonError, RwLock},
+    sync::{
+        Arc, PoisonError, RwLock,
+        atomic::{AtomicU32, Ordering},
+    },
 };
 
 use nama_plugin_api::settings::{SettingKind, SettingValue};
@@ -157,9 +161,66 @@ impl SegmentFolder {
     }
 }
 
+/// The most Transcodes the Server runs at once, out of the box.
+const DEFAULT_MAX_TRANSCODES: u32 = 2;
+
+/// The most Transcodes the Server runs at once, held in memory so that planning doesn't read the
+/// database. Clones share it.
+#[derive(Debug, Clone)]
+pub(crate) struct MaxTranscodes(Arc<AtomicU32>);
+
+impl Default for MaxTranscodes {
+    fn default() -> Self {
+        Self(Arc::new(AtomicU32::new(DEFAULT_MAX_TRANSCODES)))
+    }
+}
+
+impl MaxTranscodes {
+    /// Takes the stored cap, if any, as this one.
+    pub(crate) async fn load(&self, db: &Database) -> Result<(), sqlx::Error> {
+        let stored = sqlx::query_scalar!("SELECT max_transcodes FROM server_settings")
+            .fetch_optional(db.reader())
+            .await?;
+        if let Some(stored) = stored {
+            // Only `save` writes it, from a `u32`.
+            self.set(u32::try_from(stored).unwrap_or(DEFAULT_MAX_TRANSCODES));
+        }
+        Ok(())
+    }
+
+    /// Stores `max` and uses it for plans made from now on.
+    pub(crate) async fn save(&self, db: &Database, max: u32) -> Result<(), sqlx::Error> {
+        let this = self.clone();
+        db.write(move |tx| {
+            Box::pin(async move {
+                sqlx::query!(
+                    "INSERT INTO server_settings (id, url, max_transcodes) VALUES (1, '', ?)
+                     ON CONFLICT (id) DO UPDATE SET max_transcodes = excluded.max_transcodes",
+                    max
+                )
+                .execute(&mut **tx)
+                .await?;
+                // On the one writer, as `ServerUrl::save` does, so saves take effect in order.
+                this.set(max);
+                Ok::<_, sqlx::Error>(())
+            })
+        })
+        .await
+    }
+
+    /// The cap now.
+    pub(crate) fn get(&self) -> u32 {
+        self.0.load(Ordering::Relaxed)
+    }
+
+    fn set(&self, max: u32) {
+        self.0.store(max, Ordering::Relaxed);
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{SegmentFolder, ServerUrl};
+    use super::{MaxTranscodes, SegmentFolder, ServerUrl};
     use crate::db::Database;
 
     #[tokio::test]
@@ -207,6 +268,21 @@ mod tests {
 
         assert_eq!(folder.get(), "");
         assert_eq!(folder.path(), std::path::Path::new("/data/transcodes"));
+    }
+
+    #[tokio::test]
+    async fn the_transcode_cap_is_2_until_one_is_saved_which_is_loaded_again_after_a_restart() {
+        let data_dir = tempfile::tempdir().unwrap();
+        let db = Database::open(data_dir.path()).await.unwrap();
+        let unsaved = MaxTranscodes::default();
+        unsaved.load(&db).await.unwrap();
+        assert_eq!(unsaved.get(), 2);
+        unsaved.save(&db, 5).await.unwrap();
+
+        let restarted = MaxTranscodes::default();
+        restarted.load(&db).await.unwrap();
+
+        assert_eq!(restarted.get(), 5);
     }
 
     #[test]

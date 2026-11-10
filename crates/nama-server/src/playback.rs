@@ -137,7 +137,9 @@ impl DeviceDecoding {
 /// method but those that just `failed` there, with the audio Track at the place `audio` in the
 /// Version's Tracks, or else its own, within the Playback Limit `limit`, `None` being Original,
 /// probing the Version first unless its Tracks are current, and keeps a playable plan in
-/// `running`, which starts its ffmpeg if it needs one. `None` if there is no such Version.
+/// `running`, which starts its ffmpeg if it needs one. `None` if there is no such Version, and
+/// [`StartError::Busy`] if only a Transcode would play it and the Server is running as many as it
+/// may.
 #[expect(
     clippy::too_many_arguments,
     reason = "each is its own fact about the request or a service it needs, and a struct would \
@@ -175,11 +177,15 @@ pub(crate) async fn plan(
         zscale: running.can_tone_map().await,
         failed,
         audio,
+        transcodes_full: running.transcodes_full(caller.device.id),
         limit,
     };
     let mut plan = build(&facts, &STEPS);
     let Some(playback) = playback(caller, version, &plan) else {
-        return Ok(Some(plan));
+        return match too_busy_to_play(facts) {
+            Some(max) => Err(StartError::Busy(max)),
+            None => Ok(Some(plan)),
+        };
     };
     // Only a probed Version gets this far: without its Tracks, nothing rules out Direct Play.
     let started = match (plan.method, &facts.probe) {
@@ -253,6 +259,8 @@ struct Facts {
     failed: BTreeSet<Method>,
     /// The audio Track the User chose, by its place in the Version's Tracks, if they chose one.
     audio: Option<usize>,
+    /// The most Transcodes the Server may run at once, if other Devices already run that many.
+    transcodes_full: Option<u32>,
     /// The User's Playback Limit, `None` being Original.
     limit: Option<PlaybackLimit>,
 }
@@ -266,13 +274,14 @@ struct Narrowing {
 type Step = fn(&Facts) -> Narrowing;
 
 /// In ADR 0027's order. A new input is a new step here.
-const STEPS: [Step; 6] = [
+const STEPS: [Step; 7] = [
     version_tracks,
     device_decoding,
     server_ffmpeg,
     failed_on_device,
     chosen_audio,
     playback_limit,
+    server_busy,
 ];
 
 /// The plan for `facts` that every one of `steps` allows.
@@ -427,6 +436,35 @@ fn chosen_audio(facts: &Facts) -> Narrowing {
             reason: "It plays the file's own audio Track".to_owned(),
         },
     }
+}
+
+/// The step for how busy the Server is: no Transcode while other Devices run as many as it may.
+fn server_busy(facts: &Facts) -> Narrowing {
+    match facts.transcodes_full {
+        None => Narrowing {
+            allows: BTreeSet::from(Method::ALL),
+            reason: "This Server isn't running as many Transcodes as it may at once".to_owned(),
+        },
+        Some(max) => Narrowing {
+            allows: BTreeSet::from([Method::DirectPlay, Method::Remux]),
+            reason: format!(
+                "This Server is busy, running as many Transcodes as it may at once ({max}), so \
+                 it can't Transcode it"
+            ),
+        },
+    }
+}
+
+/// The most Transcodes the Server may run at once, if running that many is all that keeps the
+/// plan for `facts` from playing: a Transcode would play it otherwise. A plan nothing else plays
+/// is refused as busy rather than shown as unplayable, since trying again later may play it.
+fn too_busy_to_play(facts: Facts) -> Option<u32> {
+    let max = facts.transcodes_full?;
+    let not_busy = Facts {
+        transcodes_full: None,
+        ..facts
+    };
+    (build(&not_busy, &STEPS).method == Some(Method::Transcode)).then_some(max)
 }
 
 /// The step for what just failed to play on the Device: it rules out each method that did, so
@@ -868,6 +906,7 @@ mod tests {
     use super::{
         DeviceDecoding, Facts, Method, Narrowing, Plan, PlaybackLimit, STEPS, Subtitle,
         aac_channels, build, device_decoding, failed_on_device, fitted, played_audio, tone_maps,
+        too_busy_to_play,
     };
     use crate::tracks::{Hdr, Probe, Track, TrackKind};
 
@@ -950,6 +989,7 @@ mod tests {
             zscale: true,
             failed: BTreeSet::new(),
             audio: None,
+            transcodes_full: None,
             limit: None,
         }
     }
@@ -979,6 +1019,7 @@ mod tests {
                     "Nothing has failed to play it on this Device".to_owned(),
                     "It plays the file's own audio Track".to_owned(),
                     "The Playback Limit is Original".to_owned(),
+                    "This Server isn't running as many Transcodes as it may at once".to_owned(),
                 ],
                 subtitles: vec![],
             }
@@ -1104,6 +1145,7 @@ mod tests {
                 "Nothing has failed to play it on this Device",
                 "It plays the file's own audio Track",
                 "The Playback Limit is Original",
+                "This Server isn't running as many Transcodes as it may at once",
             ]
         );
     }
@@ -1204,6 +1246,7 @@ mod tests {
                 "Nothing has failed to play it on this Device",
                 "It plays the file's own audio Track",
                 "The Playback Limit is Original",
+                "This Server isn't running as many Transcodes as it may at once",
             ]
         );
     }
@@ -1527,6 +1570,40 @@ mod tests {
             "This Device can't decode its HEVC video, so it can't be Direct Played or Remuxed, \
              and a Transcode converts it to H.264"
         );
+    }
+
+    #[test]
+    fn a_busy_server_remuxes_what_the_device_can_play_remuxed_and_the_plan_says_so() {
+        let facts = Facts {
+            transcodes_full: Some(1),
+            ..in_container(MKV, Some(vec![video("h264"), audio("aac", true)]))
+        };
+
+        let plan = build(&facts, &STEPS);
+
+        assert_eq!(plan.method, Some(Method::Remux));
+        assert_eq!(
+            plan.reasons[6],
+            "This Server is busy, running as many Transcodes as it may at once (1), so it can't \
+             Transcode it"
+        );
+        assert_eq!(too_busy_to_play(facts), None);
+    }
+
+    #[test]
+    fn a_plan_only_a_transcode_would_play_is_too_busy_to_play_while_the_server_is_busy() {
+        let hevc = || Some(vec![video("hevc"), audio("aac", true)]);
+        let busy = |facts| Facts {
+            transcodes_full: Some(2),
+            ..facts
+        };
+        let mut without_hls = busy(facts(hevc()));
+        without_hls.device.hls = false;
+
+        assert_eq!(build(&busy(facts(hevc())), &STEPS).method, None);
+        assert_eq!(too_busy_to_play(busy(facts(hevc()))), Some(2));
+        assert_eq!(too_busy_to_play(facts(hevc())), None, "not busy");
+        assert_eq!(too_busy_to_play(without_hls), None, "nothing plays it");
     }
 
     #[test]

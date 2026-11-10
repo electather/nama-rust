@@ -18,6 +18,7 @@ export interface FormErrors {
   folders?: string;
   serverUrl?: string;
   segmentFolder?: string;
+  maxTranscodes?: string;
 }
 
 /**

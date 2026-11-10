@@ -49,7 +49,7 @@ use crate::{
     contents::Contents,
     events::{EventBus, event},
     ffmpeg::{Ffmpeg, Keyframe, ProbeError, VideoLimit, hls_init},
-    server_settings::SegmentFolder,
+    server_settings::{MaxTranscodes, SegmentFolder},
     tracks::{Probe, Tracks},
     users::Caller,
 };
@@ -92,6 +92,9 @@ pub(crate) enum StartError {
     Keyframes(#[from] ProbeError),
     #[error("ffmpeg couldn't be started: {0}")]
     Run(#[from] io::Error),
+    /// Only a Transcode would play it, and the Server runs as many as it may at once, this many.
+    #[error("the Server is running as many Transcodes as it may at once, {0}")]
+    Busy(u32),
 }
 
 /// Starts ffmpeg writing a plan's files, from a keyframe on, to the folder it's given.
@@ -106,6 +109,7 @@ pub(crate) struct RunningPlans {
 struct Inner {
     /// Where each plan's files go, in a folder named by its id.
     folder: SegmentFolder,
+    max_transcodes: MaxTranscodes,
     ffmpeg: Arc<Ffmpeg>,
     /// Whether `ffmpeg` has zscale, once it answered.
     zscale: tokio::sync::OnceCell<bool>,
@@ -129,8 +133,7 @@ struct Plan {
 /// A plan's HLS files, and the ffmpeg writing them.
 struct Running {
     id: u64,
-    /// How far ahead a request waits for ffmpeg, and so the Transcode cap (#340) can leave
-    /// Remuxes out.
+    /// How far ahead a request waits for ffmpeg, and so the Transcode cap leaves Remuxes out.
     method: Method,
     timeline: Timeline,
     dir: PathBuf,
@@ -181,6 +184,7 @@ impl RunningPlans {
     ) -> Self {
         let inner = Arc::new(Inner {
             folder,
+            max_transcodes: MaxTranscodes::default(),
             ffmpeg,
             zscale: tokio::sync::OnceCell::new(),
             contents,
@@ -197,6 +201,27 @@ impl RunningPlans {
     /// Whether plans can run at all (ADR 0026).
     pub(crate) fn can_run(&self) -> bool {
         self.inner.ffmpeg.can_remux()
+    }
+
+    /// The most Transcodes these run at once, which an admin sets.
+    pub(crate) fn max_transcodes(&self) -> &MaxTranscodes {
+        &self.inner.max_transcodes
+    }
+
+    /// The most Transcodes the Server may run at once, if that many already run, leaving out one
+    /// of `device`'s own: the plan it asks for replaces the one it plays, which it stops only
+    /// once the new one plays.
+    // ponytail: the plan isn't kept until after probing, the folder and spawning ffmpeg, so every
+    // Device planning in that window finds room and they can pass the cap together until
+    // Transcodes end; reserve room under the plans' lock if that ever matters.
+    pub(crate) fn transcodes_full(&self, device: i64) -> Option<u32> {
+        let max = self.inner.max_transcodes.get();
+        let plans = lock(&self.inner.plans);
+        let (own, others): (Vec<_>, Vec<_>) = (plans.values())
+            .filter(|plan| (plan.hls.as_ref()).is_some_and(|hls| hls.method == Method::Transcode))
+            .partition(|plan| plan.playback.device_id == device);
+        let running = others.len() + own.len().saturating_sub(1);
+        (u32::try_from(running).unwrap_or(u32::MAX) >= max).then_some(max)
     }
 
     /// Whether a Transcode can tone-map HDR to SDR in software, as ffmpeg said the first time it
@@ -250,7 +275,6 @@ impl RunningPlans {
     /// video kept within `video`, and returns its id and its playlist's URL. Its segments are
     /// [`SEGMENT_MS`] each, as it forces a
     /// keyframe at each. `None` if there is no such Version.
-    // ponytail: no cap on how many Transcodes run at once, each a software encode; #340 adds one.
     #[expect(
         clippy::too_many_arguments,
         reason = "the plan fixes each of the Transcode's conversions, as for `Ffmpeg::transcode`"
@@ -1136,6 +1160,46 @@ mod tests {
 
         assert_eq!(hls(&plans, id, 7).method, Method::Remux);
         assert!(plans.ask(id, 8).is_none());
+    }
+
+    // The fake ffmpeg is `sleep`.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn another_devices_transcodes_fill_the_cap_until_one_stops_and_remuxes_never_do() {
+        let data = tempfile::tempdir().unwrap();
+        let plans = running_plans(data.path()).await;
+        let transcode = || {
+            let timeline = every_two_seconds();
+            start_method_writing_nothing(&plans, Method::Transcode, timeline)
+        };
+        let (first, _) = transcode().await;
+        start_writing_nothing(&plans).await;
+        assert_eq!(plans.transcodes_full(8), None, "a Remux doesn't count");
+        transcode().await;
+
+        let full = plans.transcodes_full(8);
+        let for_its_own_device = plans.transcodes_full(7);
+        plans.stop_for(first, 7).await;
+
+        assert_eq!(full, Some(2), "out of the box");
+        assert_eq!(
+            for_its_own_device, None,
+            "the one its new plan replaces doesn't count"
+        );
+        assert_eq!(plans.transcodes_full(8), None);
+    }
+
+    // The fake ffmpeg is `sleep`.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_device_leaves_only_one_of_its_own_transcodes_out_of_the_count() {
+        let data = tempfile::tempdir().unwrap();
+        let plans = running_plans(data.path()).await;
+        for _ in 0..3 {
+            start_method_writing_nothing(&plans, Method::Transcode, every_two_seconds()).await;
+        }
+
+        assert_eq!(plans.transcodes_full(7), Some(2));
     }
 
     #[test]

@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT max_transcodes FROM server_settings",
+  "describe": {
+    "columns": [
+      {
+        "name": "max_transcodes",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "server_settings",
+            "name": "max_transcodes"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "0bf6c2381d36b1645048e06f39fea5fd519005c2e70b7bfa89f5eadf9dff93b2"
+}

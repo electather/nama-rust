@@ -1969,6 +1969,17 @@ pub struct PlaybackSettings {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub segment_folder: ::buffa::alloc::string::String,
+    /// The most Transcodes the Server runs at once, at least 1, and 2 out of the box; Remuxes don't
+    /// count. A plan that only a Transcode would play is refused while that many run.
+    ///
+    /// Field 2: `max_transcodes`
+    #[serde(
+        rename = "maxTranscodes",
+        alias = "max_transcodes",
+        with = "::buffa::json_helpers::uint32",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
+    )]
+    pub max_transcodes: u32,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -1977,6 +1988,7 @@ impl ::core::fmt::Debug for PlaybackSettings {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
         f.debug_struct("PlaybackSettings")
             .field("segment_folder", &self.segment_folder)
+            .field("max_transcodes", &self.max_transcodes)
             .finish()
     }
 }
@@ -2012,6 +2024,10 @@ impl ::buffa::Message for PlaybackSettings {
                 += 1u64
                     + ::buffa::types::string_encoded_len(&self.segment_folder) as u64;
         }
+        if self.max_transcodes != 0u32 {
+            size
+                += 1u64 + ::buffa::types::uint32_encoded_len(self.max_transcodes) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -2024,6 +2040,9 @@ impl ::buffa::Message for PlaybackSettings {
         use ::buffa::Enumeration as _;
         if !self.segment_folder.is_empty() {
             ::buffa::types::put_string_field(1u32, &self.segment_folder, buf);
+        }
+        if self.max_transcodes != 0u32 {
+            ::buffa::types::put_uint32_field(2u32, self.max_transcodes, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2045,6 +2064,13 @@ impl ::buffa::Message for PlaybackSettings {
                 )?;
                 ::buffa::types::merge_string(&mut self.segment_folder, buf)?;
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.max_transcodes = ::buffa::types::decode_uint32(buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -2054,6 +2080,7 @@ impl ::buffa::Message for PlaybackSettings {
     }
     fn clear(&mut self) {
         self.segment_folder.clear();
+        self.max_transcodes = 0u32;
         self.__buffa_unknown_fields.clear();
     }
 }

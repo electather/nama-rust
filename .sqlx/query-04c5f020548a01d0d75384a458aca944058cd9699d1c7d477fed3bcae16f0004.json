@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO server_settings (id, url, max_transcodes) VALUES (1, '', ?)\n                     ON CONFLICT (id) DO UPDATE SET max_transcodes = excluded.max_transcodes",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "04c5f020548a01d0d75384a458aca944058cd9699d1c7d477fed3bcae16f0004"
+}
