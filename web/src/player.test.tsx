@@ -1,7 +1,8 @@
-import { cleanup, fireEvent, screen } from "@testing-library/react";
+import type { MessageInitShape } from "@bufbuild/protobuf";
+import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
-import { BrowseService } from "@/gen/nama/v1/browse_pb";
+import { BrowseService, type TrackSchema } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
 import {
   type PlanPlaybackRequest,
@@ -19,10 +20,15 @@ afterEach(() => {
 
 const libraries = [{ id: 1n, name: "Films", kind: LibraryKind.MOVIES }];
 const cantDecode = "This Device can't decode its HEVC video, so it can't be Direct Played";
+const plannedTracks: MessageInitShape<typeof TrackSchema>[] = [
+  { codec: "h264", kind: { case: "video", value: { width: 1920, height: 1080 } } },
+  { codec: "aac", language: "eng", kind: { case: "audio", value: { channels: 6 } } },
+  { codec: "subrip", language: "fre", kind: { case: "subtitle", value: {} } },
+];
 /**
  * A Server whose Library 1 has The Matrix in three Versions, the largest being Version 8, and
- * whose plans Direct Play each from an address of its own, or, unless `playable`, say why it can't
- * play. Each plan request goes in `asked`.
+ * whose plans Direct Play each from an address of its own with `plannedTracks`, or, unless
+ * `playable`, say why it can't play. Each plan request goes in `asked`.
  */
 const serverPlanning = (playable = true, asked: PlanPlaybackRequest[] = []) =>
   fakeServer({ signedIn: newUser, libraries }, {}, {}, (router) => {
@@ -31,7 +37,12 @@ const serverPlanning = (playable = true, asked: PlanPlaybackRequest[] = []) =>
         asked.push(request);
         return {
           plan: playable
-            ? { method: PlaybackMethod.DIRECT_PLAY, url: `/planned/${request.versionId}` }
+            ? {
+                method: PlaybackMethod.DIRECT_PLAY,
+                url: `/planned/${request.versionId}`,
+                tracks: plannedTracks,
+                reasons: ["Its Tracks need no change"],
+              }
             : { reasons: ["Its Tracks need no change", cantDecode] },
         };
       },
@@ -107,4 +118,32 @@ test("an address with no title to play keeps the app chrome, so there's a way ou
 
   expect(await screen.findByText("Page not found")).toBeDefined();
   expect(screen.getByRole("navigation", { name: "Main" })).toBeDefined();
+});
+
+test("playback info says how the plan plays the Version, why, and with which Tracks", async () => {
+  openApp("/libraries/1/movies/tmdb-603/play", server);
+
+  const info = await screen.findByRole("button", { name: "Playback info" });
+  expect(info.getAttribute("aria-expanded")).toBe("false");
+  // A button, so Enter and Space open it from the keyboard as a click does.
+  fireEvent.click(info);
+
+  expect(info.getAttribute("aria-expanded")).toBe("true");
+  const panel = within(screen.getByRole("region", { name: "Playback info" }));
+  expect(panel.getByText("Direct Play")).toBeDefined();
+  expect(panel.getByText("Its Tracks need no change")).toBeDefined();
+  expect(panel.getByText("H.264 · 1080p")).toBeDefined();
+  expect(panel.getByText("AAC · 5.1 · English")).toBeDefined();
+  expect(panel.getByText("SRT · French")).toBeDefined();
+});
+
+test("Esc closes playback info and stays in the player, wherever focus is", async () => {
+  openApp("/libraries/1/movies/tmdb-603/play", server);
+  fireEvent.click(await screen.findByRole("button", { name: "Playback info" }));
+
+  // As after clicking the video, which takes no focus.
+  fireEvent.keyDown(document.body, { key: "Escape" });
+
+  expect(screen.queryByRole("region", { name: "Playback info" })).toBeNull();
+  expect(screen.getByLabelText("The Matrix")).toBeDefined();
 });
