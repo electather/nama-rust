@@ -97,8 +97,8 @@ impl PluginSettings {
     /// # Errors
     ///
     /// If the settings can't be read or imported, a `[plugins.*]` table isn't a Plugin's config,
-    /// or no Plugin provides an [`Authenticator`], since then nobody could sign in. A refused start imports nothing, so a config the Server
-    /// refuses can still be fixed in the file.
+    /// or no Plugin provides an [`Authenticator`], since then nobody could sign in. A refused
+    /// start imports nothing, so a config the Server refuses can still be fixed in the file.
     pub async fn start(
         db: Arc<Database>,
         registry: Registry,
@@ -161,7 +161,7 @@ impl PluginSettings {
                 warn!(plugin = %id, "settings name a plugin this Server doesn't have");
             }
         }
-        // Built-in first, as before: the first Plugin enabled for a kind of Fulfiller keeps it.
+        // Built-in first: the first Plugin enabled for a kind of Fulfiller keeps it.
         known.sort_by_key(|plugin| plugin.kind != PluginKind::PLUGIN_KIND_BUILT_IN);
         for plugin in known
             .into_iter()

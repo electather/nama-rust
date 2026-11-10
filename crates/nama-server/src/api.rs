@@ -2412,7 +2412,7 @@ impl PluginService for PluginServiceHandler {
             .await
             .map_err(list_failed)?
             .into_iter()
-            .map(|got| plugin_summary_to_proto(got.plugin, got.stored.settings))
+            .map(|StoredPlugin { plugin, stored }| plugin_summary_to_proto(plugin, stored.settings))
             .collect();
         Response::ok(ListPluginsResponse {
             summaries,
@@ -2492,7 +2492,7 @@ impl PluginService for PluginServiceHandler {
             .get(&id)
             .await
             .map_err(database_failed)?
-            .map(|got| got.stored.settings)
+            .map(|found| found.stored.settings)
             .unwrap_or_default();
         match self.plugins.enable_by_id(&id, Settings::new(settings)) {
             // Saving it again is how a retry fixes a save that failed below.
@@ -2613,14 +2613,14 @@ impl PluginServiceHandler {
     /// The Plugin `id` with what is stored for it, or the refusal of a call naming one no Plugin
     /// has or one the Server refused.
     async fn listed(&self, id: &PluginId) -> Result<StoredPlugin, ConnectError> {
-        let got = self.known(id).await?;
-        match got.plugin.refused_reason {
+        let found = self.known(id).await?;
+        match found.plugin.refused_reason {
             Some(reason) => Err(EnableError::Refused {
-                plugin: got.plugin.id,
+                plugin: found.plugin.id,
                 reason,
             }
             .into()),
-            None => Ok(got),
+            None => Ok(found),
         }
     }
 
@@ -3152,8 +3152,8 @@ fn database_failed(err: sqlx::Error) -> ConnectError {
 fn list_failed(err: ListError) -> ConnectError {
     match err {
         ListError::Read(err) => database_failed(err),
-        ListError::ReadInstalled(err) => {
-            tracing::error!("reading the Installed Plugins failed: {err}");
+        err @ ListError::ReadInstalled(_) => {
+            tracing::error!("{err}");
             ConnectError::internal("the Server failed")
         }
     }
