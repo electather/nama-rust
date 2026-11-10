@@ -31,13 +31,21 @@ const PROBE_TIMEOUT: Duration = Duration::from_secs(60);
 /// file from a slow network share.
 const KEYFRAMES_TIMEOUT: Duration = Duration::from_mins(10);
 
-/// A keyframe of a Version's video: its number, from 0, and when it falls, in milliseconds from
-/// the file's start.
+/// A keyframe of a Version's video that a Remux starts at.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Keyframe {
+    /// Its number, from 0.
     pub(crate) n: usize,
+    /// When it falls, in milliseconds from the file's start.
     pub(crate) ms: i64,
+    /// When the keyframe before it falls, or `None` for the first.
+    pub(crate) previous_ms: Option<i64>,
 }
+
+/// How much later than in its file a Remux times everything, in milliseconds. A Remux keeps
+/// packets from up to half a second before its first keyframe, and ffmpeg shifts the times of a
+/// run that would start before 0, which would put it out of step with runs started later.
+const REMUX_LATER_BY_MS: i64 = 1000;
 
 /// The name of the init segment a Remux started at keyframe `n` writes beside its files. Every
 /// run's is the same, but each writes its own, since ffmpeg writes it from empty as a run goes.
@@ -196,10 +204,10 @@ impl Ffmpeg {
     }
 
     /// Starts ffmpeg copying the first video, and the `audio`th audio Track if any, of the file
-    /// at `path` untouched into fMP4 in `dir`, from the keyframe `from` to the end: an init
-    /// segment ([`remux_init`]), whole once `from`'s file is, and a file for each keyframe, named by its number such as `3.m4s`, which a segment the
-    /// Server serves joins up. A run started at any keyframe writes the same files, timed as in
-    /// the file, so it can pick up where another stopped. Each file appears only once it's
+    /// at `path` untouched into fMP4 in `dir`, from the keyframe `from` to the end. It writes a
+    /// file per keyframe, named by its number such as `3.m4s`, and an init segment named by
+    /// [`remux_init`] that's whole once `from`'s file is. A run started at any keyframe writes the
+    /// same files, so one can pick up where another stopped. Each file appears only once it's
     /// whole. Dropping the child stops ffmpeg.
     pub(crate) fn remux(
         &self,
@@ -211,28 +219,30 @@ impl Ffmpeg {
         let ffmpeg = (self.ffmpeg.as_ref()).map_err(|why| io::Error::other(why.clone()))?;
         let mut command = tokio::process::Command::new(&ffmpeg.path);
         command.args(["-v", "error", "-nostdin"]);
-        // Keyframe times are rounded down to the millisecond, so a millisecond before it is past
-        // the keyframe before.
-        let seek = (from.n > 0).then(|| {
-            let ms = from.ms - 1;
-            format!("{}.{:03}", ms / 1000, ms % 1000)
-        });
-        if let Some(seek) = &seek {
+        // The output `-ss` below drops packets by when they decode, and with B-frames a keyframe
+        // decodes a few frames before it shows, so it starts back towards the keyframe before.
+        let back_ms = from
+            .previous_ms
+            .map_or(500, |previous| (from.ms - previous) / 2);
+        let start_ms = from.ms - back_ms.min(500);
+        if start_ms > 0 {
             // Jumps to a keyframe at or before it, which in Matroska can be a few before.
-            command.args(["-ss", seek]);
+            command.args(["-ss", &seconds(start_ms)]);
         }
+        command.args(["-itsoffset", &seconds(REMUX_LATER_BY_MS)]);
         command.arg("-i").arg(path);
-        if let Some(seek) = &seek {
-            // Drops what's before it, then puts the times back to the file's own.
-            command.args([
-                "-copyts",
-                "-start_at_zero",
-                "-ss",
-                seek,
-                "-output_ts_offset",
-                seek,
-            ]);
-        }
+        // Times as in the file, from its start. The output `-ss` drops what's before `start` and
+        // starts the times from it, so `-output_ts_offset` puts them back.
+        let start = seconds(start_ms + REMUX_LATER_BY_MS);
+        let times = [
+            "-copyts",
+            "-start_at_zero",
+            "-ss",
+            &start,
+            "-output_ts_offset",
+            &start,
+        ];
+        command.args(times);
         command.args(["-map", "0:V:0"]);
         if let Some(audio) = audio {
             command.arg("-map").arg(format!("0:a:{audio}"));
@@ -250,7 +260,7 @@ impl Ffmpeg {
             .args(["-hls_time", "0.001", "-hls_playlist_type", "vod"])
             .args(["-hls_flags", "temp_file", "-hls_fmp4_init_filename"])
             .arg(remux_init(from.n))
-            // Fragments timed as in the file, rather than from where this run started.
+            // Or each run's fragments would be timed from where it started.
             .args([segment_options, "movflags=+frag_discont"])
             .arg("-start_number")
             .arg(from.n.to_string())
@@ -313,6 +323,11 @@ fn parse_keyframes(csv: &str) -> Vec<i64> {
     // Packets come in decoding order.
     keyframes.sort_unstable();
     keyframes
+}
+
+/// `ms` milliseconds as seconds, such as `"5.120"`, as ffmpeg takes a time.
+fn seconds(ms: i64) -> String {
+    format!("{}.{:03}", ms / 1000, ms % 1000)
 }
 
 /// Seconds such as `"5.120000"` in whole milliseconds, rounded down, or `None` for anything else,
@@ -464,7 +479,7 @@ fn find(name: &str, configured: Option<&Path>, path: &OsStr) -> Result<FoundProg
         Some(configured) => at_configured_path(name, configured)?,
         None => on_path(name, path).ok_or_else(|| not_on_path(name))?,
     };
-    if is_too_old(&found.version) {
+    if is_release_before(&found.version, MINIMUM) {
         let (major, minor) = MINIMUM;
         return Err(format!(
             "{name} {} at {} is older than {major}.{minor}, the oldest this Server supports",
@@ -521,11 +536,6 @@ fn run(name: &str, path: PathBuf) -> Option<FoundProgram> {
     Some(FoundProgram { path, version })
 }
 
-/// Whether `version` is a release older than [`MINIMUM`].
-fn is_too_old(version: &str) -> bool {
-    is_release_before(version, MINIMUM)
-}
-
 /// Whether `version` is a release older than `release`, as major and minor version.
 fn is_release_before(version: &str, release: (u32, u32)) -> bool {
     // A release says `7.1.1`, `n7.0` or `4.4.2-0ubuntu0.22.04.1`. A build from git says
@@ -562,8 +572,8 @@ pub fn write_4k_with_5_1(path: &Path, transfer: &str) -> io::Result<()> {
     })
 }
 
-/// Writes 14 seconds of H.264 video with a keyframe every 2 seconds, and AAC audio, as Matroska,
-/// to `path`, with the ffmpeg on `PATH`, for a test to Remux.
+/// Writes 14 seconds of H.264 video with B-frames and a keyframe every 2 seconds, and AAC audio,
+/// as Matroska, to `path`, with the ffmpeg on `PATH`, for a test to Remux.
 ///
 /// # Errors
 ///
@@ -579,6 +589,9 @@ pub fn write_h264_and_aac(path: &Path) -> io::Result<()> {
                 "libx264",
                 "-preset",
                 "ultrafast",
+                // As most H.264 has, so a keyframe decodes before it shows.
+                "-bf",
+                "2",
                 "-g",
                 "48",
                 "-sc_threshold",
@@ -836,7 +849,8 @@ mod tests {
         let bin = tempfile::tempdir().unwrap();
         let args = bin.path().join("args");
         let script = format!(
-            "#!/bin/sh\n[ \"$1\" = -version ] && echo 'ffmpeg version 4.4.2' || echo \"$*\" > '{}'\n",
+            "#!/bin/sh\n[ \"$1\" = -version ] && echo 'ffmpeg version 4.4.2' \
+             || echo \"$*\" > '{}'\n",
             args.display()
         );
         let ffmpeg = {
@@ -858,7 +872,12 @@ mod tests {
 
         let remux = {
             let _running = WRITING_FAKES.read().unwrap_or_else(PoisonError::into_inner);
-            ffmpeg.remux("alien.mkv", None, bin.path(), Keyframe { n: 0, ms: 0 })
+            let first = Keyframe {
+                n: 0,
+                ms: 0,
+                previous_ms: None,
+            };
+            ffmpeg.remux("alien.mkv", None, bin.path(), first)
         };
 
         remux.unwrap().wait().await.unwrap();
@@ -1115,24 +1134,36 @@ mod remux_tests {
     }
 
     #[tokio::test]
-    async fn a_remux_started_at_a_keyframe_writes_its_files_on_timed_as_in_the_file() {
+    async fn a_remux_started_at_a_keyframe_writes_the_same_files_from_there_on() {
         let ffmpeg = system_ffmpeg();
         let work = tempfile::tempdir().unwrap();
         let file = work.path().join("alien.mkv");
         write_h264_and_aac(&file).unwrap();
-        let (whole, restarted) = (work.path().join("whole"), work.path().join("restarted"));
-        remux(&ffmpeg, &file, &whole, Keyframe { n: 0, ms: 0 }).await;
-
-        remux(&ffmpeg, &file, &restarted, Keyframe { n: 3, ms: 6000 }).await;
-
         // A keyframe every 2 seconds of 14, each starting a file.
+        let keyframes = ffmpeg.keyframes(file.to_str().unwrap()).await.unwrap();
+        assert_eq!(keyframes.len(), 7);
+        let (whole, restarted) = (work.path().join("whole"), work.path().join("restarted"));
+        let first = Keyframe {
+            n: 0,
+            ms: keyframes[0],
+            previous_ms: None,
+        };
+        remux(&ffmpeg, &file, &whole, first).await;
+
+        let third = Keyframe {
+            n: 3,
+            ms: keyframes[3],
+            previous_ms: Some(keyframes[2]),
+        };
+        remux(&ffmpeg, &file, &restarted, third).await;
+
         assert!(!restarted.join("2.m4s").exists());
         for n in 3..7 {
             let segment = |dir: &Path| fs::read(dir.join(format!("{n}.m4s"))).unwrap();
             let (expected, actual) = (starts_at(&segment(&whole)), starts_at(&segment(&restarted)));
-            // ffmpeg can cut the first a millisecond differently.
+            // Within 2 ms, at 12288 units a second: a run's first file can round differently.
             assert!(
-                expected.abs_diff(actual) <= expected / 100,
+                expected.abs_diff(actual) <= 25,
                 "{n}.m4s: {actual} against {expected}"
             );
         }

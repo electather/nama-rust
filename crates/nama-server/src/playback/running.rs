@@ -108,7 +108,7 @@ struct Running {
     /// The last segment asked for, by number.
     last_asked: AtomicUsize,
     /// The run of ffmpeg writing its files, and its task, which stops ffmpeg when aborted.
-    ffmpeg: Mutex<Option<(Arc<FfmpegRun>, AbortHandle)>>,
+    ffmpeg: tokio::sync::Mutex<Option<(Arc<FfmpegRun>, AbortHandle)>>,
 }
 
 /// One run of ffmpeg, from one keyframe on.
@@ -224,9 +224,9 @@ impl RunningPlans {
             dir,
             run,
             last_asked: AtomicUsize::new(0),
-            ffmpeg: Mutex::default(),
+            ffmpeg: tokio::sync::Mutex::default(),
         });
-        *lock(&running.ffmpeg) = Some(running.run_from(0)?);
+        *running.ffmpeg.lock().await = Some(running.run_from(0)?);
         lock(&self.inner.plans).insert(id, running);
         Ok(id)
     }
@@ -239,9 +239,9 @@ impl RunningPlans {
 }
 
 impl Timeline {
-    /// A video with `keyframes`, in milliseconds, cut where ffmpeg's HLS muxer cuts a copied video
-    /// it runs through whole: at the first keyframe at or after each multiple of [`SEGMENT_MS`]
-    /// past the last cut's multiple. The last segment ends at `duration_ms`.
+    /// A video with `keyframes`, in milliseconds, cut at the first keyframe at or after each
+    /// multiple of [`SEGMENT_MS`] past the last cut's multiple. The last segment ends at
+    /// `duration_ms`.
     fn new(keyframes: Vec<i64>, duration_ms: i64) -> Self {
         let mut segments = vec![];
         let (mut first_keyframe, mut start, mut cut_after) = (0, 0, SEGMENT_MS);
@@ -277,8 +277,20 @@ impl Timeline {
     }
 
     /// When segment `n` starts, in milliseconds.
-    fn segment_ms(&self, n: usize) -> i64 {
+    fn segment_start_ms(&self, n: usize) -> i64 {
         self.keyframe_ms(self.keyframes_of(n).start)
+    }
+
+    /// Keyframe `n`, for ffmpeg to start at.
+    fn keyframe(&self, n: usize) -> Keyframe {
+        let previous_ms = n
+            .checked_sub(1)
+            .and_then(|previous| self.keyframes.get(previous));
+        Keyframe {
+            n,
+            ms: self.keyframes.get(n).copied().unwrap_or_default(),
+            previous_ms: previous_ms.copied(),
+        }
     }
 
     /// The HLS playlist listing segments `0.m4s`, `1.m4s` and so on.
@@ -318,7 +330,7 @@ impl Running {
         self.last_asked.store(n, Ordering::Relaxed);
         let mut segment = vec![];
         for keyframe in self.timeline.keyframes_of(n) {
-            if !self.keyframe_written(keyframe).await? {
+            if !self.keyframe_written(keyframe, n).await? {
                 return Ok(None);
             }
             segment.extend(tokio::fs::read(self.keyframe_path(keyframe)).await?);
@@ -329,7 +341,7 @@ impl Running {
     /// The init segment, once ffmpeg has written it whole, or `None` if it stopped first.
     async fn init(&self) -> io::Result<Option<Vec<u8>>> {
         loop {
-            let Some((from, stopped)) = lock(&self.ffmpeg)
+            let Some((from, stopped)) = (self.ffmpeg.lock().await)
                 .as_ref()
                 .map(|(run, _)| (run.from, run.stopped.load(Ordering::Acquire)))
             else {
@@ -353,12 +365,13 @@ impl Running {
         self.dir.join(format!("{n}.m4s"))
     }
 
-    /// Waits until ffmpeg has written keyframe `n`'s file, and says whether it did. ffmpeg
-    /// writes each under another name and renames it once whole (`-hls_flags temp_file`).
-    async fn keyframe_written(self: &Arc<Self>, n: usize) -> io::Result<bool> {
+    /// Waits until ffmpeg has written keyframe `n`'s file, for segment `segment`, and says
+    /// whether it did. ffmpeg writes each under another name and renames it once whole
+    /// (`-hls_flags temp_file`).
+    async fn keyframe_written(self: &Arc<Self>, n: usize, segment: usize) -> io::Result<bool> {
         let path = self.keyframe_path(n);
         while !tokio::fs::try_exists(&path).await? {
-            if !self.will_write(n)? {
+            if !self.will_write(n, segment).await? {
                 // It may have been written just before ffmpeg stopped.
                 return tokio::fs::try_exists(&path).await;
             }
@@ -367,22 +380,28 @@ impl Running {
         Ok(true)
     }
 
-    /// Whether ffmpeg is on its way to keyframe `n`'s file, which isn't written, restarting it
+    /// Whether ffmpeg is on its way to keyframe `n`'s file, for segment `segment`, restarting it
     /// there unless it's at most [`WAIT_AHEAD_MS`] short of it. `false` once a run started there
-    /// has stopped, so asking again doesn't start ffmpeg over and over.
-    fn will_write(self: &Arc<Self>, n: usize) -> io::Result<bool> {
-        let mut ffmpeg = lock(&self.ffmpeg);
+    /// has stopped, or once a later request asked for another segment, so ffmpeg isn't started
+    /// over and over.
+    async fn will_write(self: &Arc<Self>, n: usize, segment: usize) -> io::Result<bool> {
+        let mut ffmpeg = self.ffmpeg.lock().await;
+        // Under the lock, since a run started at a written file would write its init again.
+        if tokio::fs::try_exists(self.keyframe_path(n)).await? {
+            return Ok(true);
+        }
         if let Some((run, task)) = &*ffmpeg {
             let stopped = run.stopped.load(Ordering::Acquire);
             if stopped && run.from == n {
                 return Ok(false);
             }
-            let written_to = self
-                .timeline
-                .keyframe_ms(run.written_to.load(Ordering::Relaxed));
+            let written_to = (self.timeline).keyframe_ms(run.written_to.load(Ordering::Relaxed));
             let short = self.timeline.keyframe_ms(n).saturating_sub(written_to);
             if !stopped && run.from <= n && short <= WAIT_AHEAD_MS {
                 return Ok(true);
+            }
+            if self.last_asked.load(Ordering::Relaxed) != segment {
+                return Ok(false);
             }
             task.abort();
         }
@@ -392,11 +411,7 @@ impl Running {
 
     /// Starts ffmpeg writing this plan's files from keyframe `n` on.
     fn run_from(self: &Arc<Self>, n: usize) -> io::Result<(Arc<FfmpegRun>, AbortHandle)> {
-        let from = Keyframe {
-            n,
-            ms: self.timeline.keyframes.get(n).copied().unwrap_or_default(),
-        };
-        let ffmpeg = (self.run)(&self.dir, from)?;
+        let ffmpeg = (self.run)(&self.dir, self.timeline.keyframe(n))?;
         let run = Arc::new(FfmpegRun {
             from: n,
             written_to: AtomicUsize::new(n),
@@ -418,7 +433,7 @@ impl Running {
     }
 
     /// Returns once `run` has written [`RUN_AHEAD_MS`] past the start of the last segment asked
-    /// for, keeping track of how far it has written meanwhile.
+    /// for, or of where it started if later, keeping track of how far it has written meanwhile.
     async fn written_far_ahead(&self, run: &FfmpegRun) {
         let mut written_to = run.from;
         loop {
@@ -431,9 +446,9 @@ impl Running {
                 written_to += 1;
             }
             run.written_to.store(written_to, Ordering::Relaxed);
-            let asked = self
-                .timeline
-                .segment_ms(self.last_asked.load(Ordering::Relaxed));
+            let asked = (self.timeline).segment_start_ms(self.last_asked.load(Ordering::Relaxed));
+            // An earlier segment asked for just after a seek mustn't stop the run it started.
+            let asked = asked.max(self.timeline.keyframe_ms(run.from));
             if self.timeline.keyframe_ms(written_to).saturating_sub(asked) >= RUN_AHEAD_MS {
                 return;
             }
@@ -558,6 +573,12 @@ mod tests {
         }
     }
 
+    /// What `request` answers, failing the test if it doesn't within 10 seconds.
+    async fn answer<T>(request: tokio::task::JoinHandle<T>) -> T {
+        let answered = tokio::time::timeout(Duration::from_secs(10), request).await;
+        answered.unwrap().unwrap()
+    }
+
     /// Waits until `starts` holds `count` runs.
     async fn until_started(starts: &Mutex<Vec<usize>>, count: usize) -> Vec<usize> {
         let started = async {
@@ -584,8 +605,49 @@ mod tests {
 
         assert_eq!(until_started(&starts, 2).await, [0, 399]);
         write_keyframes(data.path(), id, 399..402);
-        let segment = eighty_percent.await.unwrap().unwrap().unwrap();
+        let segment = answer(eighty_percent).await.unwrap().unwrap();
         assert_eq!(segment, b"399400401");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_request_left_waiting_by_a_later_seek_gives_up_rather_than_restart_ffmpeg() {
+        let data = tempfile::tempdir().unwrap();
+        let plans = running_plans(data.path()).await;
+        let (id, starts) = start_writing_nothing(&plans).await;
+        let plan = plans.of_device(id, 7).unwrap();
+        let first = Arc::clone(&plan);
+        let eighty_percent = tokio::spawn(async move { first.segment(133).await });
+        until_started(&starts, 2).await;
+
+        let ten_percent = tokio::spawn(async move { plan.segment(10).await });
+
+        assert_eq!(until_started(&starts, 3).await, [0, 399, 30]);
+        assert_eq!(answer(eighty_percent).await.unwrap(), None);
+        tokio::time::sleep(POLL_EVERY * 3).await;
+        assert_eq!(*lock(&starts), [0, 399, 30]);
+        write_keyframes(data.path(), id, 30..33);
+        assert_eq!(answer(ten_percent).await.unwrap().unwrap(), b"303132");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_segment_made_earlier_asked_for_after_a_seek_leaves_ffmpeg_running_there() {
+        let data = tempfile::tempdir().unwrap();
+        let plans = running_plans(data.path()).await;
+        let (id, starts) = start_writing_nothing(&plans).await;
+        let plan = plans.of_device(id, 7).unwrap();
+        write_keyframes(data.path(), id, 0..30);
+        let first = Arc::clone(&plan);
+        let eighty_percent = tokio::spawn(async move { first.segment(133).await });
+        until_started(&starts, 2).await;
+
+        plan.segment(2).await.unwrap().unwrap();
+
+        tokio::time::sleep(POLL_EVERY * 3).await;
+        write_keyframes(data.path(), id, 399..402);
+        assert_eq!(answer(eighty_percent).await.unwrap().unwrap(), b"399400401");
+        assert_eq!(*lock(&starts), [0, 399]);
     }
 
     #[cfg(unix)]
@@ -623,7 +685,7 @@ mod tests {
 
         assert_eq!(until_started(&starts, 2).await, [0, 60]);
         write_keyframes(data.path(), id, 60..63);
-        assert_eq!(next.await.unwrap().unwrap().unwrap(), b"606162");
+        assert_eq!(answer(next).await.unwrap().unwrap(), b"606162");
     }
 
     #[cfg(unix)]
@@ -664,7 +726,6 @@ mod tests {
 
         let timeline = Timeline::new(every_two_and_a_half_seconds, 30_020);
 
-        // ffmpeg 7.0 cut a 30-second H.264 file with these keyframes at 7.5, 12.5, 20 and 25 s.
         let segment_ms: Vec<i64> = timeline.segments.iter().map(|segment| segment.ms).collect();
         assert_eq!(segment_ms, [7500, 5000, 7500, 5000, 5020]);
         assert_eq!(timeline.keyframes_of(1), 3..5);
