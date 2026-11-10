@@ -19,6 +19,7 @@ use std::{
     time::Duration,
 };
 
+use buffa::EnumValue;
 use connectrpc::{
     ConnectError, ErrorCode,
     client::{ClientConfig, HttpClient},
@@ -127,6 +128,15 @@ impl Fixture {
     /// Starts a Server with the ffmpeg on `PATH` and a Movies Library holding Alien, with English
     /// SDH and French Forced SRT subtitles, scanned and Matched.
     async fn subtitled_alien() -> Self {
+        Self::alien_written_by(ALIEN_1080P, |path| {
+            write_english_and_french_srt(path, "Bonjour");
+        })
+        .await
+    }
+
+    /// Starts a Server with the ffmpeg on `PATH` and a Movies Library holding Alien as `file`,
+    /// which `write` writes, scanned and Matched.
+    async fn alien_written_by(file: &str, write: impl FnOnce(&Path)) -> Self {
         let path = std::env::var_os("PATH").unwrap_or_default();
         let ffmpeg = Ffmpeg::find(&Config::default(), &path);
         assert!(
@@ -134,9 +144,9 @@ impl Fixture {
             "this test needs ffmpeg and ffprobe on PATH"
         );
         let fx = Self::start_with_ffmpeg(LibraryKind::LIBRARY_KIND_MOVIES, ffmpeg).await;
-        let file = fx.folder.join(ALIEN_1080P);
+        let file = fx.folder.join(file);
         fs::create_dir_all(file.parent().unwrap()).unwrap();
-        write_english_and_french_srt(&file, "Bonjour");
+        write(&file);
         fx.scan_until_decided(1).await;
         fx
     }
@@ -230,6 +240,15 @@ impl Fixture {
     /// The Admin's Playback Plan for the Version `version`, on a Device that decodes H.264 and AAC
     /// in MP4.
     async fn plan(&self, version: i64) -> Result<PlaybackPlan, ConnectError> {
+        self.plan_after_failing(version, &[]).await
+    }
+
+    /// As [`Self::plan`], on a Device where the methods `failed` just failed to play it.
+    async fn plan_after_failing(
+        &self,
+        version: i64,
+        failed: &[PlaybackMethod],
+    ) -> Result<PlaybackPlan, ConnectError> {
         let config = self.server.client_config();
         let content_types = [
             "video/mp4",
@@ -244,6 +263,7 @@ impl Fixture {
                     ..Default::default()
                 }
                 .into(),
+                failed_methods: failed.iter().copied().map(EnumValue::from).collect(),
                 ..Default::default()
             })
             .await?
@@ -1082,7 +1102,8 @@ async fn an_h264_and_aac_mp4_direct_plays_through_its_plans_url() {
         plan.reasons,
         [
             "Its Tracks need no change",
-            "This Device decodes its container and Tracks"
+            "This Device decodes its container and Tracks",
+            "Nothing has failed to play it on this Device"
         ]
     );
     let played = fetch(&fx.server, &plan.url, Some(&fx.server.admin_token)).await;
@@ -1104,9 +1125,25 @@ async fn without_ffprobe_a_version_direct_plays_and_its_plan_says_its_tracks_are
         plan.reasons,
         [
             "Its Tracks aren't known, so they're taken to need no change",
-            "Its Tracks aren't known, so this Device is taken to decode them"
+            "Its Tracks aren't known, so this Device is taken to decode them",
+            "Nothing has failed to play it on this Device"
         ]
     );
+}
+
+#[tokio::test]
+async fn a_version_whose_direct_play_just_failed_on_the_device_cant_be_played_and_says_why() {
+    let fx = Fixture::alien().await;
+    let version = fx.version_ids(ALIEN).await[0];
+
+    let plan = fx
+        .plan_after_failing(version, &[PlaybackMethod::PLAYBACK_METHOD_DIRECT_PLAY])
+        .await
+        .unwrap();
+
+    assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_UNSPECIFIED);
+    assert_eq!(plan.url, "");
+    assert_eq!(plan.reasons[2], "Direct Play failed on this Device");
 }
 
 #[tokio::test]
@@ -1257,6 +1294,112 @@ async fn a_deleted_librarys_cached_subtitles_are_removed() {
         .unwrap();
 
     assert_eq!(fx.cached_subtitles(), Vec::<PathBuf>::new());
+}
+
+#[tokio::test]
+async fn an_mp4s_mov_text_track_is_served_as_webvtt() {
+    let webvtt = served_webvtt("Alien (1979)/Alien (1979).mp4", HELLO_SRT, "mov_text").await;
+
+    assert!(webvtt.starts_with("WEBVTT"), "{webvtt}");
+    assert!(
+        webvtt.contains("00:00.000 --> 00:01.000\nHello"),
+        "{webvtt}"
+    );
+}
+
+#[tokio::test]
+async fn an_embedded_webvtt_track_is_served() {
+    let webvtt = served_webvtt(ALIEN_1080P, HELLO_SRT, "webvtt").await;
+
+    assert!(webvtt.starts_with("WEBVTT"), "{webvtt}");
+    assert!(
+        webvtt.contains("00:00.000 --> 00:01.000\nHello"),
+        "{webvtt}"
+    );
+}
+
+#[tokio::test]
+async fn an_ass_track_is_served_as_plain_webvtt_cues() {
+    let webvtt = served_webvtt(ALIEN_1080P, STYLED_ASS, "ass").await;
+
+    assert_eq!(
+        webvtt,
+        "WEBVTT\n\n\
+         00:00:00.000 --> 00:00:00.500\nHello there\nfriend\n\n\
+         00:00:00.500 --> 00:00:01.000\nStyled line\n\n"
+    );
+}
+
+/// A subtitle script's file name, which tells ffmpeg its format, and what it says.
+type Script = (&'static str, &'static str);
+
+const HELLO_SRT: Script = ("hello.srt", "1\n00:00:00,000 --> 00:00:01,000\nHello\n");
+
+/// Two lines, positioned, coloured and styled, and a shape drawn over the whole second.
+const STYLED_ASS: Script = (
+    "styled.ass",
+    r"[Script Info]
+ScriptType: v4.00+
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,Arial,20,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,2,2,2,10,10,10,1
+Style: Fancy,Arial,20,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,-1,-1,-1,0,100,100,0,0,1,2,2,2,10,10,10,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:00.00,0:00:00.50,Default,,0,0,0,,{\an8\pos(10,10)\c&H0000FF&\b1}Hello{\b0} {\i1}there{\i0}\Nfriend
+Dialogue: 0,0:00:00.50,0:00:01.00,Fancy,,0,0,0,,Styled line
+Dialogue: 0,0:00:00.00,0:00:01.00,Default,,0,0,0,,{\p1}m 0 0 l 100 0 100 100 0 100{\p0}
+",
+);
+
+/// What the Server serves for the one subtitle Track of an Alien at `file`, which is `script`
+/// stored as `codec`.
+#[expect(
+    clippy::unwrap_used,
+    clippy::indexing_slicing,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn served_webvtt(file: &str, script: Script, codec: &str) -> String {
+    let fx = Fixture::alien_written_by(file, |path| write_subtitled(path, script, codec)).await;
+    let version = fx.version_ids(ALIEN).await[0];
+    let plan = fx.plan(version).await.unwrap();
+    let token = Some(fx.server.admin_token.as_str());
+    let reply = fetch(&fx.server, &plan.subtitles[0].url, token).await;
+    assert_eq!(reply.status, 200);
+    String::from_utf8(reply.body).unwrap()
+}
+
+/// Writes a second of video with `script` as its one subtitle Track, stored as `codec`, to
+/// `path`, in the format its extension names, with the ffmpeg on `PATH`.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+fn write_subtitled(path: &Path, (name, contents): Script, codec: &str) {
+    let dir = tempfile::tempdir().unwrap();
+    let script = dir.path().join(name);
+    fs::write(&script, contents).unwrap();
+    let status = std::process::Command::new("ffmpeg")
+        .args([
+            "-v",
+            "error",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=size=64x64:rate=24",
+            "-i",
+        ])
+        .arg(&script)
+        .args([
+            "-map", "0", "-map", "1", "-t", "1", "-c:v", "mpeg4", "-c:s", codec,
+        ])
+        .arg(path)
+        .status()
+        .unwrap();
+    assert!(status.success(), "ffmpeg failed: {status}");
 }
 
 /// Anyone who may play a Version may fetch its subtitles: anyone with a session.

@@ -12,7 +12,11 @@ import {
   useSyncExternalStore,
 } from "react";
 
-import { PlaybackPlanSchema, PlaybackService } from "@/gen/nama/v1/playback_pb";
+import {
+  type PlaybackMethod,
+  PlaybackPlanSchema,
+  PlaybackService,
+} from "@/gen/nama/v1/playback_pb";
 import { findDeviceDecoding } from "@/lib/device-decoding";
 import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
 
@@ -23,26 +27,38 @@ const VOLUME_STEP = 0.1;
 
 /**
  * The Server's Playback Plan for Version `versionId` on this Device, starting where `watchState`
- * stopped. The plan is asked for once each time the player opens, and never reused after.
+ * stopped, and `tryPlanningAgain` for when the browser fails to play it. The plan is asked for once
+ * each time the player opens or a method fails, and never reused after.
  */
 export function usePlaybackPlan(versionId: bigint, watchState: WatchState | undefined) {
   const transport = useTransport();
+  const [failedMethods, setFailedMethods] = useState<PlaybackMethod[]>([]);
   // Where it stood on opening: a new plan would reload the `<video>`, so the refetches each Watch
   // State report causes mustn't ask again.
   const [startPositionMs] = useState(() =>
     watchState && !watchState.played ? watchState.positionMs : 0n,
   );
-  return useSuspenseQuery({
-    queryKey: ["planPlayback", String(versionId)],
+  const plan = useSuspenseQuery({
+    queryKey: ["planPlayback", String(versionId), failedMethods],
     queryFn: async () => {
       const deviceDecoding = await findDeviceDecoding();
-      const input = { versionId, startPositionMs, deviceDecoding };
-      const { plan } = await callUnaryMethod(transport, PlaybackService.method.planPlayback, input);
-      return create(PlaybackPlanSchema, plan);
+      const input = { versionId, startPositionMs, deviceDecoding, failedMethods };
+      const response = await callUnaryMethod(transport, PlaybackService.method.planPlayback, input);
+      return create(PlaybackPlanSchema, response.plan);
     },
     staleTime: "static",
     gcTime: 0,
   }).data;
+  /**
+   * Asks for a new plan without the plan's method, which just failed here, and says whether it did:
+   * only once per method, so a Server that plans it again can't make the player ask forever.
+   */
+  const tryPlanningAgain = () => {
+    if (failedMethods.includes(plan.method)) return false;
+    setFailedMethods([...failedMethods, plan.method]);
+    return true;
+  };
+  return { plan, tryPlanningAgain };
 }
 
 /** What the controls need of the `<video>`: what it's doing, and a way to act on it. */

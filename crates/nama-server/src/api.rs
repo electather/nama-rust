@@ -1252,7 +1252,10 @@ impl PlaybackService for PlaybackServiceHandler {
             content_types: decoding.content_types,
             hdr: decoding.hdr,
         };
-        let plan = playback::plan(&self.scanner, request.version_id, device)
+        let failed = (request.failed_methods.iter())
+            .filter_map(|method| method_from_proto(*method))
+            .collect();
+        let plan = playback::plan(&self.scanner, request.version_id, device, failed)
             .await
             .map_err(database_failed)?
             .ok_or_else(version_not_found)?;
@@ -2351,6 +2354,21 @@ fn hdr_to_proto(hdr: Option<Hdr>) -> (proto::HdrFormat, Option<proto::DolbyVisio
                 Some(dolby_vision),
             )
         }
+    }
+}
+
+/// `None` for no method, or one newer than this Server, which it can't plan anyway.
+fn method_from_proto(method: EnumValue<proto::PlaybackMethod>) -> Option<Method> {
+    match method {
+        EnumValue::Known(proto::PlaybackMethod::PLAYBACK_METHOD_DIRECT_PLAY) => {
+            Some(Method::DirectPlay)
+        }
+        EnumValue::Known(proto::PlaybackMethod::PLAYBACK_METHOD_REMUX) => Some(Method::Remux),
+        EnumValue::Known(proto::PlaybackMethod::PLAYBACK_METHOD_TRANSCODE) => {
+            Some(Method::Transcode)
+        }
+        EnumValue::Known(proto::PlaybackMethod::PLAYBACK_METHOD_UNSPECIFIED)
+        | EnumValue::Unknown(_) => None,
     }
 }
 

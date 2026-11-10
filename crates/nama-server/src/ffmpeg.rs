@@ -34,8 +34,8 @@ const SUBTITLE_TIMEOUT: Duration = Duration::from_secs(300);
 /// Subtitle codecs, as ffprobe names them, that are bitmaps rather than text.
 const IMAGE_SUBTITLES: &[&str] = &["dvb_subtitle", "dvd_subtitle", "hdmv_pgs_subtitle", "xsub"];
 
-/// Subtitle codecs, as ffprobe names them, that are text [`Ffmpeg::webvtt`] can convert. Others
-/// that aren't images either, such as teletext, need a library ffmpeg may lack, or are unknown.
+/// Subtitle codecs, as ffprobe names them, that are text the Server serves as WebVTT. Others that
+/// aren't images either, such as teletext, need a library ffmpeg may lack, or are unknown.
 pub(crate) const TEXT_SUBTITLES: &[&str] = &["subrip", "mov_text", "webvtt", "ass", "ssa"];
 
 /// Why probing a file failed.
@@ -142,11 +142,12 @@ impl Ffmpeg {
     }
 
     /// The file at `path`'s subtitle stream `subtitle`, counting only its subtitle streams from 0,
-    /// as WebVTT.
-    pub(crate) async fn webvtt(
+    /// in `format`, which names both ffmpeg's encoder and its muxer, such as `webvtt` or `ass`.
+    pub(crate) async fn subtitle(
         &self,
         path: &str,
         subtitle: usize,
+        format: &str,
     ) -> Result<Vec<u8>, SubtitleError> {
         let Ok(ffmpeg) = &self.ffmpeg else {
             return Err(SubtitleError::Unavailable);
@@ -155,7 +156,7 @@ impl Ffmpeg {
             .args(["-v", "error", "-nostdin", "-i"])
             .arg(path)
             .args(["-map", &format!("0:s:{subtitle}")])
-            .args(["-c:s", "webvtt", "-f", "webvtt", "-"])
+            .args(["-c:s", format, "-f", format, "-"])
             // A fetch given up on, or cancelled at shutdown, stops ffmpeg too.
             .kill_on_drop(true)
             .output();
