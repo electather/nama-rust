@@ -40,8 +40,8 @@ export interface ServerState {
   libraries?: MessageInitShape<typeof LibrarySchema>[];
   /** The Events the app's subscription gets. Without them, none arrive. */
   events?: ReadableStream<SubscribeResponse>;
-  /** How the fake Server answers for its settings. Without it, it has none set. */
-  serverSettings?: Partial<ServiceImpl<typeof ServerService>>;
+  /** How the fake Server answers `ServerService` RPCs, over its defaults: its info, and no settings set. */
+  serverService?: Partial<ServiceImpl<typeof ServerService>>;
 }
 
 /**
@@ -63,7 +63,7 @@ export function fakeServer(
         }),
       getServerSettings: () => ({ settings: {} }),
       getPlaybackSettings: () => ({ settings: {} }),
-      ...state.serverSettings,
+      ...state.serverService,
     });
     router.service(SignInService, {
       whoAmI: () => {
