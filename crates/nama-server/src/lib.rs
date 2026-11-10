@@ -42,7 +42,7 @@ use crate::{
     plugin_settings::PluginSettings,
     requests::{PROGRESS_EVERY, Requests},
     scanner::Scanner,
-    server_settings::ServerUrl,
+    server_settings::{SegmentFolder, ServerUrl},
     users::SetupCode,
 };
 
@@ -98,14 +98,22 @@ pub fn serve(
     );
     let matcher = Matcher::new(Arc::clone(&db), registry.clone(), events.clone());
     let requests = Requests::new(Arc::clone(&db), matcher, events.clone(), registry.clone());
-    let load_server_url = {
-        let (server_url, db) = (server_url.clone(), Arc::clone(&db));
+    let segment_folder = SegmentFolder::new(config.data_dir.join("transcodes"));
+    let load_settings = {
+        let (server_url, segment_folder, db) =
+            (server_url.clone(), segment_folder.clone(), Arc::clone(&db));
         async move {
             if let Err(err) = server_url.load(&db).await {
                 tracing::error!(
                     "reading the Server URL failed, so notifications have no links: {err}"
                 );
             }
+            if let Err(err) = segment_folder.load(&db).await {
+                tracing::error!(
+                    "reading the segment folder failed, so segment files go to the default: {err}"
+                );
+            }
+            playback::running::sweep_leftovers(&segment_folder).await;
         }
     };
     let app = api::router(
@@ -116,14 +124,16 @@ pub fn serve(
         events.clone(),
         requests.clone(),
         server_url,
+        segment_folder,
         setup_code,
         ffmpeg,
     );
     #[cfg(feature = "web")]
     let app = app.layer(axum::middleware::from_fn(web::serve));
     async move {
-        // Before anything can publish an event, so that no notification misses its link.
-        load_server_url.await;
+        // Before anything can publish an event, so that no notification misses its link, and
+        // before serving, so the sweep deletes no plan's files but an earlier run's.
+        load_settings.await;
         scanner.start_all().await;
         // In the background, so a slow Fulfiller doesn't hold up serving.
         let progress = requests.clone();

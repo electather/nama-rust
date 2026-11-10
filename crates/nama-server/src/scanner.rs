@@ -630,7 +630,7 @@ mod tests {
         libraries::{self, Kind, Libraries},
         playback::{self, running::RunningPlans},
         plugins::Registry,
-        server_settings::ServerUrl,
+        server_settings::{SegmentFolder, ServerUrl},
         tracks::{Hdr, PROBE_VERSION, Track, TrackKind, Tracks},
     };
 
@@ -1218,7 +1218,7 @@ EOF"#,
 
         let transcodes = tempfile::tempdir().unwrap();
         let running = RunningPlans::new(
-            transcodes.path().to_owned(),
+            SegmentFolder::new(transcodes.path().to_owned()),
             Arc::new(Ffmpeg::default()),
             media.contents.clone(),
             media.tracks.clone(),

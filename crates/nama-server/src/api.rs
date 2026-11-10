@@ -51,18 +51,19 @@ use nama_proto::nama::v1::{
     DeleteUserResponse, DisablePluginRequest, DisablePluginResponse, EnablePluginRequest,
     EnablePluginResponse, EventService, EventType, FoundProgram, GetDefaultPermissionsRequest,
     GetDefaultPermissionsResponse, GetLibraryRequest, GetLibraryResponse, GetMovieRequest,
-    GetMovieResponse, GetPlaybackStatusRequest, GetPlaybackStatusResponse, GetPluginRequest,
-    GetPluginResponse, GetRequestRequest, GetRequestResponse, GetServerInfoRequest,
-    GetServerInfoResponse, GetServerSettingsRequest, GetServerSettingsResponse, GetShowRequest,
-    GetShowResponse, LibraryKind, LibraryService, ListContinueWatchingRequest,
-    ListContinueWatchingResponse, ListDevicesRequest, ListDevicesResponse, ListEpisodesRequest,
-    ListEpisodesResponse, ListLibrariesRequest, ListLibrariesResponse, ListMoviesRequest,
-    ListMoviesResponse, ListPluginConnectionsRequest, ListPluginConnectionsResponse,
-    ListPluginsRequest, ListPluginsResponse, ListRequestsRequest, ListRequestsResponse,
-    ListShowsRequest, ListShowsResponse, ListUnmatchedItemsRequest, ListUnmatchedItemsResponse,
-    ListUsersRequest, ListUsersResponse, LookUpMovieRequest, LookUpMovieResponse,
-    LookUpShowRequest, LookUpShowResponse, LookUpSignInCodeRequest, LookUpSignInCodeResponse,
-    MatchService, Permission, PlanPlaybackRequest, PlanPlaybackResponse, PlaybackService,
+    GetMovieResponse, GetPlaybackSettingsRequest, GetPlaybackSettingsResponse,
+    GetPlaybackStatusRequest, GetPlaybackStatusResponse, GetPluginRequest, GetPluginResponse,
+    GetRequestRequest, GetRequestResponse, GetServerInfoRequest, GetServerInfoResponse,
+    GetServerSettingsRequest, GetServerSettingsResponse, GetShowRequest, GetShowResponse,
+    LibraryKind, LibraryService, ListContinueWatchingRequest, ListContinueWatchingResponse,
+    ListDevicesRequest, ListDevicesResponse, ListEpisodesRequest, ListEpisodesResponse,
+    ListLibrariesRequest, ListLibrariesResponse, ListMoviesRequest, ListMoviesResponse,
+    ListPluginConnectionsRequest, ListPluginConnectionsResponse, ListPluginsRequest,
+    ListPluginsResponse, ListRequestsRequest, ListRequestsResponse, ListShowsRequest,
+    ListShowsResponse, ListUnmatchedItemsRequest, ListUnmatchedItemsResponse, ListUsersRequest,
+    ListUsersResponse, LookUpMovieRequest, LookUpMovieResponse, LookUpShowRequest,
+    LookUpShowResponse, LookUpSignInCodeRequest, LookUpSignInCodeResponse, MatchService,
+    Permission, PlanPlaybackRequest, PlanPlaybackResponse, PlaybackService, PlaybackSettings,
     PluginConnection, PluginConnectionState, PluginService, PollSignInCodeRequest,
     PollSignInCodeResponse, ReauthenticateRequest, ReauthenticateResponse, Refusal, RefusalReason,
     ReportProgressRequest, ReportProgressResponse, RequestService, RequestState,
@@ -76,10 +77,11 @@ use nama_proto::nama::v1::{
     SignOutRequest, SignOutResponse, StartPluginConnectionRequest, StartPluginConnectionResponse,
     StartSignInCodeRequest, StartSignInCodeResponse, SubscribeRequest, SubscribeResponse,
     TestPluginSettingsRequest, TestPluginSettingsResponse, UpdateLibraryRequest,
-    UpdateLibraryResponse, UpdatePluginSettingsRequest, UpdatePluginSettingsResponse,
-    UpdateServerSettingsRequest, UpdateServerSettingsResponse, UserService, WatchStateService,
-    WhoAmIRequest, WhoAmIResponse, WithdrawFollowedShowRequest, WithdrawFollowedShowResponse,
-    WithdrawRequestRequest, WithdrawRequestResponse, external_id, reauthenticate_request::Proof,
+    UpdateLibraryResponse, UpdatePlaybackSettingsRequest, UpdatePlaybackSettingsResponse,
+    UpdatePluginSettingsRequest, UpdatePluginSettingsResponse, UpdateServerSettingsRequest,
+    UpdateServerSettingsResponse, UserService, WatchStateService, WhoAmIRequest, WhoAmIResponse,
+    WithdrawFollowedShowRequest, WithdrawFollowedShowResponse, WithdrawRequestRequest,
+    WithdrawRequestResponse, external_id, reauthenticate_request::Proof,
     set_played_request::Target, setting_value,
 };
 
@@ -105,7 +107,7 @@ use crate::{
     rate_limits::{Blocked, SignInCodeLimits, SignInLimits},
     requests::{self, Found, FoundShow, Requests},
     scanner::Scanner,
-    server_settings::ServerUrl,
+    server_settings::{SegmentFolder, ServerUrl},
     sessions::{cleared_session_cookie, identify_caller, in_session_cookie, session_cookie},
     sign_in_codes::{self, Poll, SignInCodes},
     tracks::{Hdr, Track, TrackKind, Tracks},
@@ -128,6 +130,7 @@ pub(crate) fn router(
     events: EventBus,
     requests: Requests,
     server_url: ServerUrl,
+    segment_folder: SegmentFolder,
     setup_code: Option<SetupCode>,
     ffmpeg: Arc<Ffmpeg>,
 ) -> axum::Router {
@@ -137,7 +140,7 @@ pub(crate) fn router(
     let artwork = Artwork::new(&config.data_dir, plugins.clone());
     let artwork_router = artwork::router(artwork.clone(), contents.clone());
     let running = RunningPlans::new(
-        config.data_dir.join("transcodes"),
+        segment_folder.clone(),
         Arc::clone(&ffmpeg),
         contents.clone(),
         Tracks::new(Arc::clone(&db)),
@@ -157,6 +160,7 @@ pub(crate) fn router(
             users: users.clone(),
             db: Arc::clone(&db),
             server_url,
+            segment_folder,
             ffmpeg,
         }))
         .add_service(Arc::new(SignInServiceHandler {
@@ -248,6 +252,8 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::SERVER_SERVICE_GET_SERVER_SETTINGS_SPEC.procedure,    MANAGE_SETTINGS),
     (proto::SERVER_SERVICE_UPDATE_SERVER_SETTINGS_SPEC.procedure, MANAGE_SETTINGS),
     (proto::SERVER_SERVICE_GET_PLAYBACK_STATUS_SPEC.procedure,    ADMIN),
+    (proto::SERVER_SERVICE_GET_PLAYBACK_SETTINGS_SPEC.procedure,  ADMIN),
+    (proto::SERVER_SERVICE_UPDATE_PLAYBACK_SETTINGS_SPEC.procedure, ADMIN),
     (proto::SIGN_IN_SERVICE_SETUP_SPEC.procedure,                 Access::Anyone),
     (proto::SIGN_IN_SERVICE_SIGN_IN_SPEC.procedure,               Access::Anyone),
     (proto::SIGN_IN_SERVICE_SIGN_OUT_SPEC.procedure,              Access::SignedIn),
@@ -422,6 +428,7 @@ struct ServerServiceHandler {
     users: Users,
     db: Arc<Database>,
     server_url: ServerUrl,
+    segment_folder: SegmentFolder,
     ffmpeg: Arc<Ffmpeg>,
 }
 
@@ -508,12 +515,57 @@ impl ServerService for ServerServiceHandler {
             ..Default::default()
         }))
     }
+
+    fn get_playback_settings<'a>(
+        &'a self,
+        _ctx: RequestContext,
+        _request: ServiceRequest<'_, GetPlaybackSettingsRequest>,
+    ) -> impl Future<
+        Output = ServiceResult<impl Encodable<GetPlaybackSettingsResponse> + Send + use<'a>>,
+    > + Send {
+        future::ready(Response::ok(GetPlaybackSettingsResponse {
+            settings: self.playback_settings().into(),
+            ..Default::default()
+        }))
+    }
+
+    async fn update_playback_settings(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, UpdatePlaybackSettingsRequest>,
+    ) -> ServiceResult<UpdatePlaybackSettingsResponse> {
+        let folder = request.settings.segment_folder.trim().to_owned();
+        if !SegmentFolder::accepts(&folder) {
+            return Err(refuse(
+                RefusalReason::REFUSAL_REASON_FOLDER_NOT_ABSOLUTE,
+                "the segment folder must be an absolute path, such as /dev/shm/nama",
+            )
+            .field("settings.segment_folder")
+            .param("folder", &folder)
+            .into());
+        }
+        self.segment_folder
+            .save(&self.db, folder)
+            .await
+            .map_err(database_failed)?;
+        Response::ok(UpdatePlaybackSettingsResponse {
+            settings: self.playback_settings().into(),
+            ..Default::default()
+        })
+    }
 }
 
 impl ServerServiceHandler {
     fn server_settings(&self) -> ServerSettings {
         ServerSettings {
             url: self.server_url.get(),
+            ..Default::default()
+        }
+    }
+
+    fn playback_settings(&self) -> PlaybackSettings {
+        PlaybackSettings {
+            segment_folder: self.segment_folder.get(),
             ..Default::default()
         }
     }
