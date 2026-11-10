@@ -5,7 +5,7 @@
 #[path = "support/refused.rs"]
 mod refused;
 #[path = "support/server.rs"]
-#[expect(dead_code, reason = "the harness's plain `start` has no use here")]
+#[expect(dead_code, reason = "this binary uses only some of the fixture")]
 mod server;
 
 use std::{collections::BTreeMap, sync::Arc};
@@ -26,7 +26,6 @@ use nama_proto::nama::v1::{
 };
 use nama_server::{
     config::{Config, PluginConfig},
-    db::Database,
     plugin_settings::{self, PluginSettings},
     plugins::{Registry, SETTINGS_CHECK_TIMEOUT},
 };
@@ -38,7 +37,6 @@ const TMDB_KEY: &str = "tmdb-key-that-must-stay-on-the-server";
 /// A Server whose Built-in Plugins have `settings`, stored as an upgrade imports them.
 struct Started {
     server: TestServer,
-    db: Arc<Database>,
     plugins: Registry,
 }
 
@@ -53,12 +51,12 @@ impl Started {
             .merge(Serialized::default("plugins", settings))
             .extract()
             .unwrap();
-        let (server, db) = TestServer::start_with_db(config, plugins.clone()).await;
-        Self {
-            server,
-            db,
-            plugins,
-        }
+        let server = TestServer::builder()
+            .config(config)
+            .plugins(plugins.clone())
+            .start()
+            .await;
+        Self { server, plugins }
     }
 
     fn client(&self) -> PluginServiceClient<HttpClient> {
@@ -134,7 +132,10 @@ impl Started {
         reason = "a test helper fails its test by panicking"
     )]
     async fn stored(&self) -> BTreeMap<String, PluginConfig> {
-        plugin_settings::stored(&self.db).await.unwrap().unwrap()
+        plugin_settings::stored(self.server.db())
+            .await
+            .unwrap()
+            .unwrap()
     }
 
     /// The Plugins a restart enables from what is stored, as `main` starts them.
@@ -147,11 +148,15 @@ impl Started {
             data_dir: self.server.data_dir().to_owned(),
             ..Config::default()
         };
-        PluginSettings::start(Arc::clone(&self.db), Registry::with_builtins(), &config)
-            .await
-            .unwrap()
-            .registry()
-            .enabled()
+        PluginSettings::start(
+            Arc::clone(self.server.db()),
+            Registry::with_builtins(),
+            &config,
+        )
+        .await
+        .unwrap()
+        .registry()
+        .enabled()
     }
 
     /// Whether some enabled Plugin provides `T`, as Matching looks for a metadata Provider to call.
@@ -687,7 +692,7 @@ async fn disabling_the_only_authenticator_is_refused_and_it_stays_enabled() {
     assert_eq!(refusal.params["pluginId"], "local-auth");
     assert!(started.provides::<dyn Authenticator>().await);
     assert_eq!(
-        plugin_settings::stored(&started.db).await.unwrap(),
+        plugin_settings::stored(started.server.db()).await.unwrap(),
         Some(BTreeMap::new())
     );
 }
@@ -706,7 +711,7 @@ async fn enabling_a_plugin_missing_a_required_setting_is_refused_naming_it() {
     assert_eq!(refusal.params["settingKey"], "api_key");
     assert!(!started.can_match().await);
     assert_eq!(
-        plugin_settings::stored(&started.db).await.unwrap(),
+        plugin_settings::stored(started.server.db()).await.unwrap(),
         Some(BTreeMap::new())
     );
 }

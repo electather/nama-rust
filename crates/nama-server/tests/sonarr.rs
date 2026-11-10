@@ -7,7 +7,7 @@ mod fake_sonarr;
 mod refused;
 #[path = "support/servarr.rs"]
 mod servarr;
-#[expect(dead_code, reason = "the harness's plain `start` has no use here")]
+#[expect(dead_code, reason = "this binary uses only some of the fixture")]
 #[path = "support/server.rs"]
 mod server;
 
@@ -15,7 +15,7 @@ use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
 use connectrpc::{
     ErrorCode,
-    client::{ClientConfig, HttpClient, ServerStream},
+    client::{HttpClient, ServerStream},
 };
 use fake_sonarr::{API_KEY as SONARR_KEY, DARK_TVDB, FakeSonarr};
 use nama_plugin_api::{
@@ -28,16 +28,15 @@ use nama_plugin_tmdb::{
 };
 use nama_proto::nama::v1::{
     __buffa::view::SubscribeResponseView, ApproveRequestRequest, CancelFollowedShowRequest,
-    CreateFollowedShowRequest, CreateSeasonRequestsRequest, CreateUserRequest, Download,
-    DownloadStatus, EnablePluginRequest, EventServiceClient, EventType, Quality, RefusalReason,
+    CreateFollowedShowRequest, CreateSeasonRequestsRequest, Download, DownloadStatus,
+    EnablePluginRequest, EventServiceClient, EventType, Quality, RefusalReason,
     ReplaceQualitiesRequest, Request, RequestServiceClient, RequestState, RetryRequestRequest,
-    SessionDelivery, SignInRequest, SignInServiceClient, SubscribeRequest, SubscribeResponse,
-    UpdatePluginSettingsRequest, event, subscribe_response,
+    SubscribeRequest, SubscribeResponse, UpdatePluginSettingsRequest, event, subscribe_response,
 };
-use nama_server::{config::Config, db::Database, plugins::Registry};
+use nama_server::plugins::Registry;
 use refused::assert_refused;
 use servarr::{ServarrFixture, choices, quality, text};
-use server::{PASSWORD, TestServer};
+use server::{SignedIn, TestServer};
 
 /// Shows the fake TMDB knows, by TMDB id. Sonarr can find Dark, but not The Office.
 const DARK: i64 = 70_523;
@@ -56,7 +55,6 @@ type Subscription = ServerStream<hyper::body::Incoming, SubscribeResponseView<'s
 /// Shows yet.
 struct Fixture {
     server: TestServer,
-    db: Arc<Database>,
     /// The Server's Plugins, to ask Sonarr's Fulfiller directly.
     plugins: Registry,
     sonarr: FakeSonarr,
@@ -95,10 +93,9 @@ impl Fixture {
         plugins
             .enable_with_settings(Arc::new(Tmdb::with_endpoints(tmdb.endpoints())), settings)
             .unwrap();
-        let (server, db) = TestServer::start_with_db(Config::default(), plugins.clone()).await;
+        let server = TestServer::builder().plugins(plugins.clone()).start().await;
         Self {
             server,
-            db,
             plugins,
             sonarr: FakeSonarr::start().await,
             _tmdb: tmdb,
@@ -163,9 +160,9 @@ impl Fixture {
             .unwrap();
     }
 
-    /// The Season `season` of the Show `show`, asked for by a new User and so Pending.
-    async fn ask_pending(&self, show: i64, season: u32) -> Request {
-        let member = RequestServiceClient::new(HttpClient::plaintext(), self.member().await);
+    /// The Season `season` of the Show `show`, asked for by the new User `member` and so Pending.
+    async fn ask_pending(&self, member: &SignedIn, show: i64, season: u32) -> Request {
+        let member = RequestServiceClient::new(HttpClient::plaintext(), member.client_config());
         let asked = ask(&member, show, &[season]).await.remove(0);
         assert_eq!(asked.state, RequestState::Pending);
         asked
@@ -212,7 +209,8 @@ impl Fixture {
     /// Forgets every Season Request's Show TVDB id, as for a Show the metadata source has none
     /// for.
     async fn forget_show_tvdb_ids(&self) {
-        self.db
+        self.server
+            .db()
             .write(|tx| {
                 Box::pin(async move {
                     sqlx::query("UPDATE requests SET show_tvdb_id = NULL")
@@ -234,36 +232,6 @@ impl Fixture {
             .subscribe(only)
             .await
             .unwrap()
-    }
-
-    /// Creates a User with the Permissions a new User gets, signs them in, and returns client
-    /// settings that call as them.
-    async fn member(&self) -> ClientConfig {
-        nama_proto::nama::v1::UserServiceClient::new(
-            HttpClient::plaintext(),
-            self.server.client_config(),
-        )
-        .create_user(CreateUserRequest {
-            name: "Ada".to_owned(),
-            password: PASSWORD.to_owned(),
-            ..Default::default()
-        })
-        .await
-        .unwrap();
-        let signed_in = SignInServiceClient::new(
-            HttpClient::plaintext(),
-            self.server.anonymous_client_config(),
-        )
-        .sign_in(SignInRequest {
-            name: "Ada".to_owned(),
-            password: PASSWORD.to_owned(),
-            device_name: "Phone".to_owned(),
-            delivery: SessionDelivery::SESSION_DELIVERY_TOKEN.into(),
-            ..Default::default()
-        })
-        .await
-        .unwrap();
-        self.server.client_config_as(&signed_in.into_owned().token)
     }
 }
 
@@ -428,7 +396,8 @@ async fn with_sonarr_down_a_request_fails_in_plain_words_and_retrying_once_it_is
 #[tokio::test]
 async fn a_season_of_a_show_with_no_tvdb_id_fails_in_plain_words() {
     let fixture = Fixture::with_sonarr_enabled().await;
-    let pending = fixture.ask_pending(DARK, 1).await;
+    let ada = fixture.server.user_with_default_permissions("Ada").await;
+    let pending = fixture.ask_pending(&ada, DARK, 1).await;
     fixture.forget_show_tvdb_ids().await;
 
     let failed = fixture.approve(pending.id).await;

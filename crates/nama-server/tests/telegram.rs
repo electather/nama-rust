@@ -6,13 +6,13 @@
 mod fake_telegram;
 #[path = "support/log.rs"]
 mod log;
-#[expect(dead_code, reason = "the harness's plain `start` has no use here")]
+#[expect(dead_code, reason = "this binary uses only some of the fixture")]
 #[path = "support/server.rs"]
 mod server;
 
 use std::{collections::BTreeMap, fs, sync::Arc, time::Duration};
 
-use connectrpc::client::{ClientConfig, HttpClient};
+use connectrpc::client::HttpClient;
 use fake_telegram::{BOT_TOKEN, FakeTelegram};
 use log::Log;
 use nama_plugin_api::settings::{SettingValue, Settings};
@@ -22,17 +22,16 @@ use nama_plugin_tmdb::{
 };
 use nama_proto::nama::v1::{
     ApproveRequestRequest, CancelRequestRequest, CreateLibraryRequest, CreateRequestRequest,
-    CreateUserRequest, DeletePluginConnectionRequest, DeleteUserRequest, EnablePluginRequest,
-    GetPluginRequest, GetRequestRequest, LibraryKind, LibraryServiceClient,
-    ListPluginConnectionsRequest, Permission, Plugin, PluginConnectionState, PluginServiceClient,
-    Request, RequestServiceClient, RequestState, ScanLibraryRequest, ServerServiceClient,
-    ServerSettings, SessionDelivery, SetPermissionsRequest, SignInRequest, SignInServiceClient,
+    DeletePluginConnectionRequest, DeleteUserRequest, EnablePluginRequest, GetPluginRequest,
+    GetRequestRequest, LibraryKind, LibraryServiceClient, ListPluginConnectionsRequest, Permission,
+    Plugin, PluginConnectionState, PluginServiceClient, Request, RequestServiceClient,
+    RequestState, ScanLibraryRequest, ServerServiceClient, ServerSettings, SetPermissionsRequest,
     StartPluginConnectionRequest, UpdatePluginSettingsRequest, UpdateServerSettingsRequest,
     UserServiceClient, setting_value::Value,
 };
-use nama_server::{config::Config, db::Database, plugins::Registry};
+use nama_server::plugins::Registry;
 use serde_json::{Value as Json, json};
-use server::{PASSWORD, TestServer};
+use server::{SignedIn, TestServer};
 
 /// Movies the fake TMDB knows.
 const ALIEN: i64 = 348;
@@ -44,6 +43,9 @@ const CHANNEL: &str = "@nama_requests";
 /// The chat Ada presses Start in.
 const ADA_CHAT: i64 = 987_654_321;
 
+/// What a new User gets: `REQUEST` and `VIEW_REQUESTS`.
+const NEW_USER: [Permission; 2] = [Permission::Request, Permission::ViewRequests];
+
 /// How long a test waits for a Plugin Connection.
 const WAIT: Duration = Duration::from_secs(10);
 
@@ -51,10 +53,8 @@ const WAIT: Duration = Duration::from_secs(10);
 /// Ada, whose Requests are Pending.
 struct Fixture {
     server: TestServer,
-    db: Arc<Database>,
     telegram: FakeTelegram,
-    ada_id: i64,
-    ada: ClientConfig,
+    ada: SignedIn,
     _tmdb: FakeTmdb,
 }
 
@@ -73,13 +73,11 @@ impl Fixture {
         plugins
             .enable_with_settings(Arc::new(Tmdb::with_endpoints(tmdb.endpoints())), settings)
             .unwrap();
-        let (server, db) = TestServer::start_with_db(Config::default(), plugins).await;
-        let (ada_id, ada) = user(&server, "Ada").await;
+        let server = TestServer::builder().plugins(plugins).start().await;
+        let ada = server.user("Ada", &NEW_USER).await;
         Self {
             server,
-            db,
             telegram: FakeTelegram::start().await,
-            ada_id,
             ada,
             _tmdb: tmdb,
         }
@@ -144,7 +142,7 @@ impl Fixture {
     }
 
     fn ada_users(&self) -> UserServiceClient<HttpClient> {
-        UserServiceClient::new(HttpClient::plaintext(), self.ada.clone())
+        UserServiceClient::new(HttpClient::plaintext(), self.ada.client_config())
     }
 
     /// Ada's Plugin Connections as she lists them, by Plugin id.
@@ -206,8 +204,8 @@ impl Fixture {
         sqlx::query_scalar(
             "SELECT connection FROM plugin_connections WHERE user_id = ? AND plugin_id = 'telegram'",
         )
-        .bind(self.ada_id)
-        .fetch_optional(self.db.reader())
+        .bind(self.ada.id)
+        .fetch_optional(self.server.db().reader())
         .await
         .unwrap()
     }
@@ -225,7 +223,7 @@ impl Fixture {
     async fn ada_manages_requests(&self) {
         UserServiceClient::new(HttpClient::plaintext(), self.server.client_config())
             .set_permissions(SetPermissionsRequest {
-                user_id: self.ada_id,
+                user_id: self.ada.id,
                 permissions: [
                     Permission::Request,
                     Permission::ViewRequests,
@@ -301,57 +299,13 @@ impl Fixture {
     }
 }
 
-/// Creates a User named `name` with what a new User gets, signs them in, and returns their id and
-/// client settings that call as them.
+/// `user` asks for the Movie `tmdb_id`, which opens a Pending Request.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
-async fn user(server: &TestServer, name: &str) -> (i64, ClientConfig) {
-    let as_admin = UserServiceClient::new(HttpClient::plaintext(), server.client_config());
-    let id = as_admin
-        .create_user(CreateUserRequest {
-            name: name.to_owned(),
-            password: PASSWORD.to_owned(),
-            ..Default::default()
-        })
-        .await
-        .unwrap()
-        .into_owned()
-        .id;
-    as_admin
-        .set_permissions(SetPermissionsRequest {
-            user_id: id,
-            permissions: [Permission::Request, Permission::ViewRequests]
-                .map(Into::into)
-                .into(),
-            ..Default::default()
-        })
-        .await
-        .unwrap();
-    let token = SignInServiceClient::new(HttpClient::plaintext(), server.anonymous_client_config())
-        .sign_in(SignInRequest {
-            name: name.to_owned(),
-            password: PASSWORD.to_owned(),
-            device_name: "Phone".to_owned(),
-            delivery: SessionDelivery::SESSION_DELIVERY_TOKEN.into(),
-            ..Default::default()
-        })
-        .await
-        .unwrap()
-        .into_owned()
-        .token;
-    (id, server.client_config_as(&token))
-}
-
-/// The User whose client settings are `user` asks for the Movie `tmdb_id`, which opens a Pending
-/// Request.
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
-async fn asks_for(user: &ClientConfig, tmdb_id: i64) -> Request {
-    RequestServiceClient::new(HttpClient::plaintext(), user.clone())
+async fn asks_for(user: &SignedIn, tmdb_id: i64) -> Request {
+    RequestServiceClient::new(HttpClient::plaintext(), user.client_config())
         .create_request(CreateRequestRequest {
             movie_tmdb_id: tmdb_id,
             ..Default::default()
@@ -646,7 +600,7 @@ async fn deleting_the_user_deletes_their_plugin_connection() {
 
     UserServiceClient::new(HttpClient::plaintext(), fixture.server.client_config())
         .delete_user(DeleteUserRequest {
-            user_id: fixture.ada_id,
+            user_id: fixture.ada.id,
             ..Default::default()
         })
         .await
@@ -701,7 +655,7 @@ async fn a_user_with_manage_requests_who_connected_is_messaged_about_a_new_pendi
     let fixture = Fixture::with_telegram(BOT_TOKEN, None).await;
     fixture.connect_ada().await;
     fixture.ada_manages_requests().await;
-    let (_, ben) = user(&fixture.server, "Ben").await;
+    let ben = fixture.server.user("Ben", &NEW_USER).await;
 
     asks_for(&ben, DUNE).await;
 
@@ -716,7 +670,7 @@ async fn a_user_with_manage_requests_who_connected_is_messaged_about_a_new_pendi
 async fn a_requester_who_did_not_connect_is_skipped_and_the_channel_still_posts() {
     let fixture = Fixture::with_telegram(BOT_TOKEN, Some(CHANNEL)).await;
     fixture.connect_ada().await;
-    let (_, ben) = user(&fixture.server, "Ben").await;
+    let ben = fixture.server.user("Ben", &NEW_USER).await;
     let dune = asks_for(&ben, DUNE).await;
     fixture.ada_asks_for(DUNE).await;
 

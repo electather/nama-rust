@@ -2,21 +2,17 @@
 #![cfg(feature = "web")]
 
 #[path = "support/server.rs"]
-#[expect(
-    dead_code,
-    reason = "these tests call the Server over plain HTTP, not a Connect client"
-)]
+#[expect(dead_code, reason = "this binary uses only some of the fixture")]
 mod server;
 
 use std::{net::SocketAddr, path::Path};
 
-use nama_server::{config::Config, plugins::Registry};
 use server::TestServer;
 
 /// A deep link reloaded in the browser gets the app, which then routes to the page itself.
 #[tokio::test]
 async fn a_deep_link_serves_the_app() {
-    let server = TestServer::start(Config::default(), Registry::new()).await;
+    let server = TestServer::builder().start().await;
 
     let (status, content_type, body) = http1_get(server.addr, "/libraries/3").await;
 
@@ -32,7 +28,7 @@ async fn a_deep_link_serves_the_app() {
 /// The stylesheet the app links to is served as CSS, not as the app's HTML.
 #[tokio::test]
 async fn the_app_s_stylesheet_is_served() {
-    let server = TestServer::start(Config::default(), Registry::new()).await;
+    let server = TestServer::builder().start().await;
     let (_, _, shell) = http1_get(server.addr, "/").await;
     let shell = String::from_utf8(shell).unwrap();
     let stylesheet = shell
@@ -53,7 +49,7 @@ async fn the_app_s_stylesheet_is_served() {
 /// a 404 either way.
 #[tokio::test]
 async fn unknown_rpc_and_media_paths_are_not_found() {
-    let server = TestServer::start(Config::default(), Registry::new()).await;
+    let server = TestServer::builder().start().await;
 
     for path in ["/nama.v1.NoSuchService/Nothing", "/media/42"] {
         let (status, _, _) = http1_get_as(server.addr, path, Some(&server.admin_token)).await;

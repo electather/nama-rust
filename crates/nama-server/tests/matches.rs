@@ -3,7 +3,7 @@
 
 #[path = "support/refused.rs"]
 mod refused;
-#[expect(dead_code, reason = "the harness's plain `start` has no use here")]
+#[expect(dead_code, reason = "this binary uses only some of the fixture")]
 #[path = "support/server.rs"]
 mod server;
 
@@ -28,7 +28,7 @@ use nama_proto::nama::v1::{
     RequestState, ScanLibraryRequest, SearchMetadataRequest, SetMatchRequest, SetMatchResponse,
     TitleKind, UnmatchedItem, external_id,
 };
-use nama_server::{config::Config, contents::Contents, plugins::Registry};
+use nama_server::{contents::Contents, plugins::Registry};
 use refused::assert_refused;
 use server::TestServer;
 use tempfile::TempDir;
@@ -85,7 +85,7 @@ impl Fixture {
 
     /// Starts a Server with a Library of `kind` and `plugins`, keeping `tmdb` running for them.
     async fn start_with(kind: LibraryKind, plugins: Registry, tmdb: Option<FakeTmdb>) -> Self {
-        let (server, db) = TestServer::start_with_db(Config::default(), plugins).await;
+        let server = TestServer::builder().plugins(plugins).start().await;
         let config = server.client_config();
         let libraries = LibraryServiceClient::new(HttpClient::plaintext(), config.clone());
         let media = tempfile::tempdir().unwrap();
@@ -108,7 +108,7 @@ impl Fixture {
             folder,
             libraries,
             matches: MatchServiceClient::new(HttpClient::plaintext(), config),
-            contents: Contents::new(db),
+            contents: Contents::new(Arc::clone(server.db())),
             _tmdb: tmdb,
             server,
             _media: media,

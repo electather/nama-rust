@@ -3,7 +3,7 @@
 #[path = "support/refused.rs"]
 mod refused;
 #[path = "support/server.rs"]
-#[expect(dead_code, reason = "the harness's `data_dir` has no use here")]
+#[expect(dead_code, reason = "this binary uses only some of the fixture")]
 mod server;
 
 use std::net::SocketAddr;
@@ -14,7 +14,7 @@ use nama_proto::nama::v1::{
     GetServerInfoResponse, GetServerSettingsRequest, RefusalReason, ServerServiceClient,
     ServerSettings, UpdateServerSettingsRequest,
 };
-use nama_server::{config::Config, ffmpeg::Ffmpeg, plugins::Registry};
+use nama_server::{config::Config, ffmpeg::Ffmpeg};
 use refused::assert_refused;
 use server::TestServer;
 
@@ -41,7 +41,10 @@ async fn get_server_info(client: &ServerServiceClient<HttpClient>) -> GetServerI
 /// protobuf bodies.
 #[tokio::test]
 async fn get_server_info_returns_the_server_name_and_version_over_every_transport() {
-    let server = TestServer::start(config_named("Living Room"), Registry::new()).await;
+    let server = TestServer::builder()
+        .config(config_named("Living Room"))
+        .start()
+        .await;
     let transports = [
         (
             "HTTP/1.1 JSON",
@@ -76,7 +79,10 @@ async fn get_server_info_returns_the_server_name_and_version_over_every_transpor
 /// What `curl -H 'Content-Type: application/json' -d '{}' .../GetServerInfo` sends.
 #[tokio::test]
 async fn a_plain_http1_json_post_gets_a_json_answer() {
-    let server = TestServer::start(config_named("Attic"), Registry::new()).await;
+    let server = TestServer::builder()
+        .config(config_named("Attic"))
+        .start()
+        .await;
 
     let (status, content_type, body) =
         http1_post_json(server.addr, "/nama.v1.ServerService/GetServerInfo", "{}").await;
@@ -152,7 +158,7 @@ fn set_server_url(url: &str) -> UpdateServerSettingsRequest {
 
 #[tokio::test]
 async fn the_server_url_is_empty_until_an_admin_sets_it() {
-    let server = TestServer::start(Config::default(), Registry::new()).await;
+    let server = TestServer::builder().start().await;
     let client = ServerServiceClient::new(HttpClient::plaintext(), server.client_config());
     let unset = server_url(&client).await;
 
@@ -167,7 +173,7 @@ async fn the_server_url_is_empty_until_an_admin_sets_it() {
 
 #[tokio::test]
 async fn a_server_url_that_isnt_an_http_url_is_refused_naming_it_and_nothing_changes() {
-    let server = TestServer::start(Config::default(), Registry::new()).await;
+    let server = TestServer::builder().start().await;
     let client = ServerServiceClient::new(HttpClient::plaintext(), server.client_config());
     client
         .update_server_settings(set_server_url("https://nama.example.com"))
@@ -198,8 +204,7 @@ async fn a_server_url_that_isnt_an_http_url_is_refused_naming_it_and_nothing_cha
     reason = "a test helper fails its test by panicking"
 )]
 async fn playback_status(ffmpeg: Ffmpeg) -> GetPlaybackStatusResponse {
-    let (server, _) =
-        TestServer::start_with_ffmpeg(Config::default(), Registry::new(), ffmpeg).await;
+    let server = TestServer::builder().ffmpeg(ffmpeg).start().await;
     ServerServiceClient::new(HttpClient::plaintext(), server.client_config())
         .get_playback_status(GetPlaybackStatusRequest::default())
         .await
