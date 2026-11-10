@@ -11,11 +11,12 @@
 //! 0007: media bytes are not RPC), to anyone with a session. A browser's `<video src>` presents
 //! that session in its cookie (ADR 0014). Range requests let a `<video>` seek. Only Versions,
 //! files a scan stored for a Library and Matched, are served, by id, so a client can never name a
-//! path.
+//! path. The text subtitles a plan offers are served beside it ([`subtitles`]).
 
 pub(crate) mod running;
+mod subtitles;
 
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, path::Path as FsPath, sync::Arc};
 
 use axum::{
     Router,
@@ -28,9 +29,9 @@ use tower_http::services::ServeFile;
 
 use crate::{
     contents::Contents,
-    ffmpeg::ProbeError,
+    ffmpeg::{Ffmpeg, ProbeError},
     scanner::{ProbeNowError, Scanner},
-    tracks::{Hdr, Probe, Track, TrackKind},
+    tracks::{Hdr, Probe, Track, TrackKind, Tracks},
 };
 use running::{RunningPlans, StartError};
 
@@ -57,6 +58,16 @@ pub(crate) struct Plan {
     pub(crate) tracks: Vec<Track>,
     /// Why, one for each step, in the order they ran.
     pub(crate) reasons: Vec<String>,
+    /// The text subtitles a player can turn on without a new plan.
+    pub(crate) subtitles: Vec<Subtitle>,
+}
+
+/// A text subtitle a player shows as a WebVTT `<track>`.
+#[derive(Debug, PartialEq)]
+pub(crate) struct Subtitle {
+    pub(crate) track: Track,
+    /// Where it's served as WebVTT, on this Server.
+    pub(crate) url: String,
 }
 
 /// What a Device says it can decode, as it found out just now. The Server never stores it.
@@ -164,6 +175,11 @@ fn build(facts: &Facts, steps: &[Step]) -> Plan {
         url: (method == Some(Method::DirectPlay)).then(|| direct_play_url(facts.version)),
         tracks: facts.probe.as_ref().map(played_tracks).unwrap_or_default(),
         reasons,
+        subtitles: facts
+            .probe
+            .as_ref()
+            .map(|probe| text_subtitles(facts.version, probe))
+            .unwrap_or_default(),
     }
 }
 
@@ -337,16 +353,40 @@ fn audio_tracks(probe: &Probe) -> impl Iterator<Item = &Track> {
     (probe.tracks.iter()).filter(|track| matches!(track.kind, TrackKind::Audio { .. }))
 }
 
+/// The Version's text subtitle Tracks.
+fn text_subtitles(version: i64, probe: &Probe) -> Vec<Subtitle> {
+    (probe.tracks.iter().enumerate())
+        .filter(|(_, track)| track.is_text_subtitle())
+        .map(|(position, track)| Subtitle {
+            track: track.clone(),
+            url: subtitles::url(version, position),
+        })
+        .collect()
+}
+
 fn direct_play_url(version: i64) -> String {
     format!("/media/versions/{version}")
 }
 
 /// Serves `GET /media/versions/<id>` with the file of the Version `id` in `contents`, and 404 if
-/// there is none. Whether the caller has a session is up to the layers the router is put behind.
-pub(crate) fn router(contents: Contents) -> Router {
+/// there is none, and the text subtitles plans offer, read with `ffmpeg` and cached in
+/// `data_dir`. Whether the caller has a session is up to the layers the router is put behind.
+pub(crate) fn router(
+    contents: Contents,
+    tracks: Tracks,
+    ffmpeg: Arc<Ffmpeg>,
+    data_dir: &FsPath,
+) -> Router {
+    let subtitles = subtitles::router(subtitles::Subtitles {
+        contents: contents.clone(),
+        tracks,
+        ffmpeg,
+        cache: subtitles::Cache::new(data_dir),
+    });
     Router::new()
         .route("/media/versions/{id}", get(serve))
         .with_state(contents)
+        .merge(subtitles)
 }
 
 async fn serve(
@@ -378,7 +418,9 @@ async fn serve(
 mod tests {
     use std::collections::BTreeSet;
 
-    use super::{DeviceDecoding, Facts, Method, Narrowing, Plan, STEPS, build, device_decoding};
+    use super::{
+        DeviceDecoding, Facts, Method, Narrowing, Plan, STEPS, Subtitle, build, device_decoding,
+    };
     use crate::tracks::{Hdr, Probe, Track, TrackKind};
 
     fn track(codec: &str, default: bool, kind: TrackKind) -> Track {
@@ -388,6 +430,7 @@ mod tests {
             title: None,
             default,
             forced: false,
+            sdh: false,
             kind,
         }
     }
@@ -472,6 +515,7 @@ mod tests {
                     "This Device decodes its container and Tracks".to_owned(),
                     "This Server has ffmpeg".to_owned(),
                 ],
+                subtitles: vec![],
             }
         );
     }
@@ -624,6 +668,46 @@ mod tests {
                 "Its Tracks need no change",
                 "This Device can't decode its Matroska container, so it can't be Direct Played",
                 "This Server has ffmpeg",
+            ]
+        );
+    }
+
+    #[test]
+    fn the_plan_offers_the_text_subtitles_by_their_place_in_the_version_but_not_image_or_teletext()
+    {
+        let english = track("subrip", false, TrackKind::Subtitle { image: false });
+        let pgs = track(
+            "hdmv_pgs_subtitle",
+            false,
+            TrackKind::Subtitle { image: true },
+        );
+        let teletext = track("dvb_teletext", false, TrackKind::Subtitle { image: false });
+        let french = Track {
+            language: Some("fre".to_owned()),
+            ..english.clone()
+        };
+        let tracks = vec![
+            video("h264"),
+            english.clone(),
+            audio("aac", true),
+            pgs,
+            teletext,
+            french.clone(),
+        ];
+
+        let plan = build(&facts(Some(tracks)), &STEPS);
+
+        assert_eq!(
+            plan.subtitles,
+            [
+                Subtitle {
+                    track: english,
+                    url: "/media/versions/7/subtitles/1".to_owned(),
+                },
+                Subtitle {
+                    track: french,
+                    url: "/media/versions/7/subtitles/5".to_owned(),
+                },
             ]
         );
     }

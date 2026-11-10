@@ -985,6 +985,11 @@ pub struct TrackView<'a> {
     ///
     /// Field 5: `forced`
     pub forced: bool,
+    /// Whether the file marks it for the deaf and hard of hearing (SDH), as subtitles that also
+    /// describe sounds.
+    ///
+    /// Field 9: `sdh`
+    pub sdh: bool,
     pub kind: ::core::option::Option<
         super::super::__buffa::view::oneof::track::Kind<'a>,
     >,
@@ -1054,6 +1059,13 @@ impl<'a> ::buffa::MessageView<'a> for TrackView<'a> {
                     ::buffa::encoding::WireType::Varint,
                 )?;
                 view.forced = ::buffa::types::decode_bool(&mut cur)?;
+            }
+            9u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.sdh = ::buffa::types::decode_bool(&mut cur)?;
             }
             6u32 => {
                 ::buffa::encoding::check_wire_type(
@@ -1175,6 +1187,7 @@ impl<'a> ::buffa::MessageView<'a> for TrackView<'a> {
             title: self.title.map(|s| s.to_string()),
             default: self.default,
             forced: self.forced,
+            sdh: self.sdh,
             kind: match self.kind.as_ref() {
                 ::core::option::Option::Some(v) => {
                     ::core::option::Option::Some(
@@ -1261,6 +1274,9 @@ impl<'a> ::buffa::ViewEncode<'a> for TrackView<'a> {
                 }
             }
         }
+        if self.sdh {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -1315,6 +1331,9 @@ impl<'a> ::buffa::ViewEncode<'a> for TrackView<'a> {
                 }
             }
         }
+        if self.sdh {
+            ::buffa::types::put_bool_field(9u32, self.sdh, buf);
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
 }
@@ -1350,6 +1369,9 @@ impl<'__a> ::serde::Serialize for TrackView<'__a> {
         }
         if self.forced {
             __map.serialize_entry("forced", &self.forced)?;
+        }
+        if self.sdh {
+            __map.serialize_entry("sdh", &self.sdh)?;
         }
         if let ::core::option::Option::Some(ref __ov) = self.kind {
             match __ov {
@@ -1483,6 +1505,14 @@ impl TrackOwnedView {
     #[must_use]
     pub fn forced(&self) -> bool {
         self.0.reborrow().forced
+    }
+    /// Whether the file marks it for the deaf and hard of hearing (SDH), as subtitles that also
+    /// describe sounds.
+    ///
+    /// Field 9: `sdh`
+    #[must_use]
+    pub fn sdh(&self) -> bool {
+        self.0.reborrow().sdh
     }
     /// Oneof `kind`.
     #[must_use]

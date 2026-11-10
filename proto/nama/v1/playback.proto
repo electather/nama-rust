@@ -88,4 +88,16 @@ message PlaybackPlan {
   repeated Track tracks = 3;
   // Why it plays this way, in plain words, one for each step, in the order they ran.
   repeated string reasons = 4;
+  // The text subtitles the player can turn on and off without a new plan, in the order the
+  // Version holds them. Image subtitles, such as PGS, aren't among them.
+  repeated PlaybackSubtitle subtitles = 5;
+}
+
+// A text subtitle a player shows as a WebVTT `<track>`.
+message PlaybackSubtitle {
+  // Its Track, for its language, title and whether it's Forced or SDH.
+  Track track = 1;
+  // Where to fetch it as WebVTT, on this Server. The first fetch can take up to a minute while
+  // the Server reads it out of the file; later ones are answered at once.
+  string url = 2;
 }

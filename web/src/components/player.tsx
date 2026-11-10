@@ -2,11 +2,21 @@ import type { VariantProps } from "class-variance-authority";
 import { cn } from "cn";
 import { Link, type LinkOptions } from "@tanstack/react-router";
 import { ArrowLeft, Maximize, Minimize, Pause, Play, Volume2, VolumeX } from "lucide-react";
-import { type ReactNode, type RefObject, useCallback, useRef, useState } from "react";
+import {
+  type PointerEvent,
+  type ReactNode,
+  type RefObject,
+  useCallback,
+  useRef,
+  useState,
+} from "react";
 
 import { PlaybackInfo } from "@/components/playback-info";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { SubtitleTracks, SubtitlesMenu } from "@/components/subtitles-menu";
 import { Slider } from "@/components/ui/slider";
+import type { PlaybackPlan } from "@/gen/nama/v1/playback_pb";
+// oxlint-disable-next-line import/max-dependencies -- the player puts together the video, its controls, subtitles, Watch State and playback info
 import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
 import {
   type Video,
@@ -49,7 +59,19 @@ export function Player(props: PlayerProps) {
   }, []);
   if (plan.url === "") return <CantPlay back={props.back} reasons={plan.reasons} />;
   if (cantPlay) return <CantPlay back={props.back} reasons={[]} />;
-  return <VideoPlayer {...props} plan={plan} onCantPlay={onCantPlay} />;
+  return (
+    <VideoPlayer
+      {...props}
+      plan={plan}
+      playbackInfo={<PlaybackInfo plan={plan} />}
+      onCantPlay={onCantPlay}
+    />
+  );
+}
+
+// A click pauses or plays; a tap only brings the controls back.
+function clickToToggle(event: PointerEvent<HTMLVideoElement>) {
+  if (event.pointerType === "mouse") togglePlay(event.currentTarget);
 }
 
 function VideoPlayer({
@@ -58,25 +80,25 @@ function VideoPlayer({
   watchState,
   back,
   plan,
+  playbackInfo,
   onCantPlay,
-}: PlayerProps & { plan: ReturnType<typeof usePlaybackPlan>; onCantPlay: () => void }) {
+}: PlayerProps & { plan: PlaybackPlan; playbackInfo: ReactNode; onCantPlay: () => void }) {
   const playerRef = useRef<HTMLDivElement>(null);
   const { ref: videoRef, events, ...video } = useVideo();
   const src = usePlaybackSource(videoRef, plan, onCantPlay);
   useWatchState(videoRef, versionId, watchState);
   const [awake, wake] = useAwake();
   useShortcuts(videoRef, playerRef, back, wake);
-  const controlsHidden = video.state.playing && !awake;
 
   return (
     <div
       ref={playerRef}
-      data-controls-hidden={controlsHidden || undefined}
+      data-controls-hidden={(video.state.playing && !awake) || undefined}
       onPointerMove={wake}
       onPointerDown={wake}
       className="group fixed inset-0 bg-background data-controls-hidden:cursor-none"
     >
-      {/* oxlint-disable-next-line jsx-a11y/media-has-caption -- Versions carry no caption files yet. */}
+      {/* oxlint-disable-next-line jsx-a11y/media-has-caption -- a Version may have no subtitles. */}
       <video
         ref={videoRef}
         src={src}
@@ -84,17 +106,18 @@ function VideoPlayer({
         autoPlay
         playsInline
         onError={onCantPlay}
-        onPointerUp={(event) => {
-          // A click pauses or plays; a tap only brings the controls back.
-          if (event.pointerType === "mouse") togglePlay(event.currentTarget);
-        }}
+        onPointerUp={clickToToggle}
         className="size-full object-contain"
         {...events}
-      />
+      >
+        <SubtitleTracks subtitles={plan.subtitles} />
+      </video>
       {/* Any key brings the controls back, so a focused control shows its ring when it's used. */}
       <div className="pointer-events-none absolute inset-0 flex flex-col justify-between transition-opacity duration-500 ease-out-expo group-data-controls-hidden:opacity-0 motion-reduce:transition-none">
-        <TopBar title={title} back={back} playbackInfo={<PlaybackInfo plan={plan} />} />
-        <BottomBar video={video} playerRef={playerRef} />
+        <TopBar title={title} back={back} playbackInfo={playbackInfo} />
+        <BottomBar video={video} playerRef={playerRef}>
+          <SubtitlesMenu subtitles={plan.subtitles} videoRef={videoRef} container={playerRef} />
+        </BottomBar>
       </div>
     </div>
   );
@@ -120,12 +143,15 @@ function TopBar({
   );
 }
 
+/** The position, Play and the time, then `children` beside the volume and full screen. */
 function BottomBar({
   video,
   playerRef,
+  children,
 }: {
   video: Video;
   playerRef: RefObject<HTMLDivElement | null>;
+  children: ReactNode;
 }) {
   const { playing, time, duration } = video.state;
   return (
@@ -159,6 +185,7 @@ function BottomBar({
           {clock(time)} / {clock(duration)}
         </span>
         <div className="ms-auto flex items-center gap-1">
+          {children}
           <VolumeControls video={video} />
           <FullscreenButton playerRef={playerRef} />
         </div>

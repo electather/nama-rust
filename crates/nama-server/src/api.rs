@@ -142,7 +142,13 @@ pub(crate) fn router(
         contents.clone(),
         Tracks::new(Arc::clone(&db)),
     );
-    let media = playback::router(contents).merge(playback::running::router(running.clone()));
+    let media = playback::router(
+        contents,
+        Tracks::new(Arc::clone(&db)),
+        Arc::clone(&ffmpeg),
+        &config.data_dir,
+    )
+    .merge(playback::running::router(running.clone()));
     let browse = Browse::new(Arc::clone(&db));
     let connections = Connections::new(Arc::clone(&db), plugins.clone());
     connectrpc::Router::new()
@@ -2381,6 +2387,13 @@ fn plan_to_proto(plan: Plan) -> proto::PlaybackPlan {
         url: plan.url.unwrap_or_default(),
         tracks: plan.tracks.iter().map(track_to_proto).collect(),
         reasons: plan.reasons,
+        subtitles: (plan.subtitles.iter())
+            .map(|subtitle| proto::PlaybackSubtitle {
+                track: track_to_proto(&subtitle.track).into(),
+                url: subtitle.url.clone(),
+                ..Default::default()
+            })
+            .collect(),
         ..Default::default()
     }
 }
@@ -2425,6 +2438,7 @@ fn track_to_proto(track: &Track) -> proto::Track {
         title: track.title.clone(),
         default: track.default,
         forced: track.forced,
+        sdh: track.sdh,
         kind,
         ..Default::default()
     }
