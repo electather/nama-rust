@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package nama.v1;
 
+import "nama/v1/browse.proto";
+import "nama/v1/playback.proto";
 import "nama/v1/request.proto";
 
 // Live updates: what happens on the Server as it happens. Observers receive the same `Event`s.
@@ -40,6 +42,8 @@ enum EventType {
   EVENT_TYPE_FOLLOWED_SHOW_CANCELLED = 17;
   EVENT_TYPE_FOLLOWED_SHOW_REQUESTER_REMOVED = 18;
   EVENT_TYPE_FOLLOWED_SHOW_WITHDRAWN = 19;
+  EVENT_TYPE_PLAYBACK_STARTED = 20;
+  EVENT_TYPE_PLAYBACK_ENDED = 21;
 }
 
 message SubscribeRequest {
@@ -87,6 +91,8 @@ message Event {
     FollowedShowCancelled followed_show_cancelled = 17;
     FollowedShowRequesterRemoved followed_show_requester_removed = 18;
     FollowedShowWithdrawn followed_show_withdrawn = 19;
+    PlaybackStarted playback_started = 20;
+    PlaybackEnded playback_ended = 21;
   }
 }
 
@@ -228,4 +234,35 @@ message FollowedShowRequesterRemoved {
 message FollowedShowWithdrawn {
   // The Followed Show as it was before it was removed.
   FollowedShow followed_show = 1;
+}
+
+// A Device was given a Playback Plan it can play: the first for a Version, or one that replaces
+// another, which gets an event of its own. Playback events reach the User playing, and subscribers
+// with `PERMISSION_ADMIN`.
+message PlaybackStarted {
+  Playback playback = 1;
+}
+
+// A Remux or Transcode stopped: its player asked for none of its files for 60 seconds, as when it
+// stopped or its tab closed, or the Server shut down. A Direct Play runs nothing on the Server,
+// so it has no end to tell.
+message PlaybackEnded {
+  // As its `PlaybackStarted` told it.
+  Playback playback = 1;
+}
+
+// One Playback Plan playing a Version on a Device.
+message Playback {
+  // The User playing.
+  int64 user_id = 1;
+  // The Device playing.
+  int64 device_id = 2;
+  // The Version played.
+  int64 version_id = 3;
+  // How the plan plays it.
+  PlaybackMethod method = 4;
+  // The Tracks it plays, as its plan lists them.
+  repeated Track tracks = 5;
+  // Why it plays this way, as its plan says.
+  repeated string reasons = 6;
 }

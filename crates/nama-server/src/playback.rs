@@ -25,13 +25,16 @@ use axum::{
     response::{IntoResponse, Response},
     routing::get,
 };
+use nama_proto::nama::v1::{self as proto, PlaybackStarted};
 use tower_http::services::ServeFile;
 
 use crate::{
     contents::Contents,
+    events::{EventBus, event},
     ffmpeg::{Ffmpeg, ProbeError},
     scanner::{ProbeNowError, Scanner},
-    tracks::{Hdr, Probe, Track, TrackKind, Tracks},
+    tracks::{Hdr, Probe, Track, TrackKind, Tracks, track_to_proto},
+    users::Caller,
 };
 use running::{RunningPlans, StartError};
 
@@ -101,19 +104,21 @@ impl DeviceDecoding {
     }
 }
 
-/// Plans playing the Version `version` on the Device `device`, which decodes `decoding`, by any
+/// Plans playing the Version `version` on `caller`'s Device, which decodes `decoding`, by any
 /// method but those that just `failed` there, probing the Version first unless its Tracks are
-/// current, and starts the plan running in `running` if it needs ffmpeg. `None` if there is no
-/// such Version.
+/// current, starts the plan running in `running` if it needs ffmpeg, and publishes a playable
+/// plan's `PlaybackStarted` on `events`. `None` if there is no such Version.
 #[expect(
     clippy::too_many_arguments,
-    reason = "each is its own fact about the request, and a struct would only rename them"
+    reason = "each is its own fact about the request or a service it needs, and a struct would \
+              only rename them"
 )]
 pub(crate) async fn plan(
     scanner: &Scanner,
     running: &RunningPlans,
+    events: &EventBus,
+    caller: &Caller,
     version: i64,
-    device: i64,
     decoding: DeviceDecoding,
     failed: BTreeSet<Method>,
 ) -> Result<Option<Plan>, StartError> {
@@ -139,17 +144,52 @@ pub(crate) async fn plan(
         failed,
     };
     let mut plan = build(&facts, &STEPS);
+    let Some(playback) = playback(caller, version, &plan) else {
+        return Ok(Some(plan));
+    };
     // Only a probed Version gets this far: without its Tracks, nothing rules out Direct Play.
     if plan.method == Some(Method::Remux)
         && let Some(probed) = &facts.probe
     {
         let aac = aac_channels(probed, &facts.device);
-        let Some(url) = running.remux(version, device, probed, aac).await? else {
+        let Some(url) = running.remux(playback.clone(), probed, aac).await? else {
             return Ok(None);
         };
         plan.url = Some(url);
     }
+    // ponytail: only a running plan has an end to tell, so a Direct Play gets no `PlaybackEnded`
+    // until the player says when it stops (#441).
+    let started = PlaybackStarted {
+        playback: playback.into(),
+        ..Default::default()
+    };
+    events.publish(vec![event(started)]);
     Ok(Some(plan))
+}
+
+/// What Observers are told of `caller` playing the Version `version` by `plan`, or `None` if it
+/// can't be played.
+fn playback(caller: &Caller, version: i64, plan: &Plan) -> Option<proto::Playback> {
+    plan.method?;
+    Some(proto::Playback {
+        user_id: caller.user.id,
+        device_id: caller.device.id,
+        version_id: version,
+        method: method_to_proto(plan.method).into(),
+        tracks: plan.tracks.iter().map(track_to_proto).collect(),
+        reasons: plan.reasons.clone(),
+        ..Default::default()
+    })
+}
+
+/// `method` as the API names it, `None` being a plan that can't be played.
+pub(crate) const fn method_to_proto(method: Option<Method>) -> proto::PlaybackMethod {
+    match method {
+        None => proto::PlaybackMethod::PLAYBACK_METHOD_UNSPECIFIED,
+        Some(Method::DirectPlay) => proto::PlaybackMethod::PLAYBACK_METHOD_DIRECT_PLAY,
+        Some(Method::Remux) => proto::PlaybackMethod::PLAYBACK_METHOD_REMUX,
+        Some(Method::Transcode) => proto::PlaybackMethod::PLAYBACK_METHOD_TRANSCODE,
+    }
 }
 
 /// What a plan is based on.

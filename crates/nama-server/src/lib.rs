@@ -112,6 +112,7 @@ pub fn serve(
         Arc::clone(&ffmpeg),
         Contents::new(Arc::clone(&db)),
         Tracks::new(Arc::clone(&db)),
+        events.clone(),
     );
     let app = api::router(
         config,

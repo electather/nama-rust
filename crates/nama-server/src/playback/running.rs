@@ -7,8 +7,8 @@
 //! State needs no conversion. A segment asked for before ffmpeg has written it waits for it.
 //!
 //! A plan is stopped and its folder deleted [`STOP_UNUSED_AFTER`] after it was last asked for, or
-//! as the Server shuts down, and [`sweep_leftovers`] deletes the folders of plans a run left behind
-//! when the next starts.
+//! as the Server shuts down, which publishes its `PlaybackEnded`, and [`sweep_leftovers`] deletes
+//! the folders of plans a run left behind when the next starts.
 
 use std::{
     collections::HashMap,
@@ -30,12 +30,14 @@ use axum::{
     response::{IntoResponse, Response},
     routing::get,
 };
+use nama_proto::nama::v1::{Playback, PlaybackEnded};
 use tokio::{process::Child, task::JoinHandle};
 use tower_http::services::ServeFile;
 
 use super::{Method, played_audio};
 use crate::{
     contents::Contents,
+    events::{EventBus, event},
     ffmpeg::{Ffmpeg, HLS_INIT, HLS_TIME_MS, ProbeError},
     server_settings::SegmentFolder,
     tracks::{Probe, Tracks},
@@ -82,14 +84,15 @@ struct Inner {
     ffmpeg: Arc<Ffmpeg>,
     contents: Contents,
     tracks: Tracks,
+    events: EventBus,
     next_id: AtomicU64,
     plans: Mutex<HashMap<u64, Arc<Running>>>,
 }
 
 /// One plan running ffmpeg.
 struct Running {
-    /// The Device it belongs to, by id.
-    device: i64,
+    /// What it plays, for whom, and on which Device, which alone is served its files.
+    playback: Playback,
     /// So the Transcode cap (#321) can leave Remuxes out.
     #[cfg_attr(
         not(test),
@@ -108,18 +111,21 @@ struct Running {
 
 impl RunningPlans {
     /// Runs plans with `ffmpeg`, writing their files to the segment folder `folder` as it is
-    /// when each starts. Until these are dropped, stops the plans gone unused in the background.
+    /// when each starts, and publishing on `events` when each stops. Until these are dropped,
+    /// stops the plans gone unused in the background.
     pub(crate) fn new(
         folder: SegmentFolder,
         ffmpeg: Arc<Ffmpeg>,
         contents: Contents,
         tracks: Tracks,
+        events: EventBus,
     ) -> Self {
         let inner = Arc::new(Inner {
             folder,
             ffmpeg,
             contents,
             tracks,
+            events,
             next_id: AtomicU64::new(0),
             plans: Mutex::default(),
         });
@@ -132,17 +138,17 @@ impl RunningPlans {
         self.inner.ffmpeg.can_remux()
     }
 
-    /// Starts Remuxing the Version `version`, which probing found holds `probe`, for the Device
-    /// `device`, with its audio converted to AAC with `aac_channels` channels, or else copied,
-    /// and returns its playlist's URL. Lists the Version's keyframes the first time and keeps
-    /// them. `None` if there is no such Version.
+    /// Starts Remuxing the Version `playback` plays, which probing found holds `probe`, for the
+    /// Device it plays on, with its audio converted to AAC with `aac_channels` channels, or else
+    /// copied, and returns its playlist's URL. Lists the Version's keyframes the first time and
+    /// keeps them. `None` if there is no such Version.
     pub(crate) async fn remux(
         &self,
-        version: i64,
-        device: i64,
+        playback: Playback,
         probe: &Probe,
         aac_channels: Option<i64>,
     ) -> Result<Option<String>, StartError> {
+        let version = playback.version_id;
         let Some((path, _)) = self.inner.contents.version_file(version).await? else {
             return Ok(None);
         };
@@ -150,7 +156,7 @@ impl RunningPlans {
         let segment_ms = segments(&keyframes, probe.duration_ms.unwrap_or_default());
         let audio = played_audio(probe);
         let id = self
-            .start(device, Method::Remux, segment_ms, |dir| {
+            .start(playback, Method::Remux, segment_ms, |dir| {
                 self.inner.ffmpeg.remux(&path, audio, aac_channels, dir)
             })
             .await?;
@@ -171,11 +177,11 @@ impl RunningPlans {
         Ok(keyframes)
     }
 
-    /// Starts a plan for the Device `device`, whose ffmpeg `run` starts writing `segment_ms`'s
+    /// Starts a plan playing `playback`, whose ffmpeg `run` starts writing `segment_ms`'s
     /// segments to the folder it's given, and returns the plan's id.
     async fn start(
         &self,
-        device: i64,
+        playback: Playback,
         method: Method,
         segment_ms: Vec<i64>,
         run: impl FnOnce(&Path) -> io::Result<Child>,
@@ -194,7 +200,7 @@ impl RunningPlans {
         let stopped = Arc::new(AtomicBool::new(false));
         let ffmpeg = tokio::spawn(log_when_stopped(ffmpeg, id, Arc::clone(&stopped)));
         let running = Running {
-            device,
+            playback,
             method,
             segment_ms,
             dir,
@@ -212,7 +218,9 @@ impl RunningPlans {
         // Marked under the lock `stop_unused` takes plans out under, so a plan found here isn't
         // stopped while it's served.
         let plans = lock(&self.inner.plans);
-        let plan = plans.get(&id).filter(|plan| plan.device == device)?;
+        let plan = plans
+            .get(&id)
+            .filter(|plan| plan.playback.device_id == device)?;
         *lock(&plan.last_asked) = Instant::now();
         Some(Arc::clone(plan))
     }
@@ -223,7 +231,7 @@ impl RunningPlans {
             .extract_if(|_, plan| lock(&plan.last_asked).elapsed() >= unused_for)
             .collect();
         for (id, plan) in unused {
-            stop(id, &plan).await;
+            self.stop(id, &plan).await;
         }
     }
 
@@ -232,22 +240,27 @@ impl RunningPlans {
     pub(crate) async fn stop_all(&self) {
         let plans: Vec<(u64, Arc<Running>)> = lock(&self.inner.plans).drain().collect();
         for (id, plan) in plans {
-            stop(id, &plan).await;
+            self.stop(id, &plan).await;
         }
     }
-}
 
-/// Stops the plan `id`'s ffmpeg and deletes its files.
-async fn stop(id: u64, plan: &Running) {
-    let ffmpeg = lock(&plan.ffmpeg).take();
-    if let Some(ffmpeg) = ffmpeg {
-        ffmpeg.abort();
-        // Awaited so ffmpeg is dropped, which kills it, before its folder is deleted.
-        let _: Result<(), _> = ffmpeg.await;
-    }
-    plan.stopped.store(true, Ordering::Release);
-    if let Err(err) = tokio::fs::remove_dir_all(&plan.dir).await {
-        tracing::warn!(plan = id, "could not delete {}: {err}", plan.dir.display());
+    /// Stops the plan `id`'s ffmpeg, deletes its files and publishes that its playback ended.
+    async fn stop(&self, id: u64, plan: &Running) {
+        let ffmpeg = lock(&plan.ffmpeg).take();
+        if let Some(ffmpeg) = ffmpeg {
+            ffmpeg.abort();
+            // Awaited so ffmpeg is dropped, which kills it, before its folder is deleted.
+            let _: Result<(), _> = ffmpeg.await;
+        }
+        plan.stopped.store(true, Ordering::Release);
+        if let Err(err) = tokio::fs::remove_dir_all(&plan.dir).await {
+            tracing::warn!(plan = id, "could not delete {}: {err}", plan.dir.display());
+        }
+        let ended = PlaybackEnded {
+            playback: plan.playback.clone().into(),
+            ..Default::default()
+        };
+        self.inner.events.publish(vec![event(ended)]);
     }
 }
 
@@ -438,19 +451,42 @@ fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
 mod tests {
     use std::{fs, path::Path, sync::Arc, time::Duration};
 
+    use futures_util::StreamExt;
+    use nama_proto::nama::v1::{Playback, PlaybackEnded, PlaybackMethod};
+
     use super::{Method, RunningPlans, segments, sweep_leftovers};
     use crate::{
-        contents::Contents, db::Database, ffmpeg::Ffmpeg, server_settings::SegmentFolder,
+        contents::Contents,
+        db::Database,
+        events::{EventBus, Filter, event},
+        ffmpeg::Ffmpeg,
+        plugins::Registry,
+        server_settings::{SegmentFolder, ServerUrl},
         tracks::Tracks,
     };
 
     fn plans_in(db: &Arc<Database>, folder: SegmentFolder) -> RunningPlans {
+        let events = EventBus::new(Arc::clone(db), Registry::new(), ServerUrl::default());
+        plans_with(db, folder, &events)
+    }
+
+    fn plans_with(db: &Arc<Database>, folder: SegmentFolder, events: &EventBus) -> RunningPlans {
         RunningPlans::new(
             folder,
             Arc::new(Ffmpeg::default()),
             Contents::new(Arc::clone(db)),
             Tracks::new(Arc::clone(db)),
+            events.clone(),
         )
+    }
+
+    /// The playback of a Remux on the Device `device`.
+    fn playback(device: i64) -> Playback {
+        Playback {
+            device_id: device,
+            method: PlaybackMethod::PLAYBACK_METHOD_REMUX.into(),
+            ..Default::default()
+        }
     }
 
     async fn database(data: &Path) -> Arc<Database> {
@@ -461,7 +497,7 @@ mod tests {
     /// returns its id.
     async fn start(plans: &RunningPlans, device: i64, program: &str, args: &[&str]) -> u64 {
         plans
-            .start(device, Method::Remux, vec![6000], |_| {
+            .start(playback(device), Method::Remux, vec![6000], |_| {
                 tokio::process::Command::new(program)
                     .args(args)
                     .kill_on_drop(true)
@@ -509,6 +545,31 @@ mod tests {
         assert!(!unused_dir.exists());
         assert!(plans.ask(used, device).is_some());
         assert!(used_dir.exists());
+    }
+
+    // The stand-in ffmpeg is `sleep`.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_plan_gone_unused_tells_its_playback_ended() {
+        let data = tempfile::tempdir().unwrap();
+        let db = database(data.path()).await;
+        let events = EventBus::new(Arc::clone(&db), Registry::new(), ServerUrl::default());
+        let plans = plans_with(
+            &db,
+            SegmentFolder::new(data.path().join("transcodes")),
+            &events,
+        );
+        let mut subscription = Box::pin(events.subscribe(Filter::default()));
+        start(&plans, 7, "sleep", &["60"]).await;
+
+        plans.stop_unused(Duration::ZERO).await;
+
+        let ended = event(PlaybackEnded {
+            playback: playback(7).into(),
+            ..Default::default()
+        });
+        let next = subscription.next().await.unwrap();
+        assert_eq!(next.message, Some(ended.into()));
     }
 
     // The stand-in ffmpeg is `sleep`.

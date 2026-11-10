@@ -98,7 +98,7 @@ use crate::{
     libraries::{self, FolderProblem, Kind, Libraries, Library},
     matching::{ManualError, Matcher},
     playback::{
-        self, DeviceDecoding, Method, Plan,
+        self, DeviceDecoding, Method, Plan, method_to_proto,
         running::{RunningPlans, StartError},
     },
     plugin_settings::{ChangeError, ListError, PluginSettings, StoredPlugin},
@@ -110,7 +110,7 @@ use crate::{
     server_settings::{SegmentFolder, ServerUrl},
     sessions::{cleared_session_cookie, identify_caller, in_session_cookie, session_cookie},
     sign_in_codes::{self, Poll, SignInCodes},
-    tracks::{Hdr, Track, TrackKind, Tracks},
+    tracks::{Tracks, track_to_proto},
     users::{self, Caller, NewDevice, Permissions, SetupCode, SignedIn, Users},
     watch_states::{Progress, WatchState, WatchStates},
 };
@@ -183,6 +183,7 @@ pub(crate) fn router(
         .add_service(Arc::new(PlaybackServiceHandler {
             scanner: scanner.clone(),
             running,
+            events: events.clone(),
         }))
         .add_service(Arc::new(RequestServiceHandler { requests, artwork }))
         .add_service(Arc::new(PluginServiceHandler { plugin_settings }))
@@ -1291,6 +1292,8 @@ fn version_not_found() -> ConnectError {
 struct PlaybackServiceHandler {
     scanner: Scanner,
     running: RunningPlans,
+    /// Where each plan's `PlaybackStarted` is published.
+    events: EventBus,
 }
 
 #[expect(
@@ -1304,7 +1307,7 @@ impl PlaybackService for PlaybackServiceHandler {
         ctx: RequestContext,
         request: ServiceRequest<'_, PlanPlaybackRequest>,
     ) -> ServiceResult<PlanPlaybackResponse> {
-        let device = caller(&ctx)?.device.id;
+        let caller = caller(&ctx)?;
         // The rest of the request is for steps still to come (ADR 0027).
         let request = request.to_owned_message();
         let decoding = request.device_decoding.into_option().unwrap_or_default();
@@ -1320,8 +1323,9 @@ impl PlaybackService for PlaybackServiceHandler {
         let plan = playback::plan(
             &self.scanner,
             &self.running,
+            &self.events,
+            caller,
             request.version_id,
-            device,
             decoding,
             failed,
         )
@@ -2140,6 +2144,8 @@ impl EventService for EventServiceHandler {
                 // `VIEW_REQUESTS` sees everyone's Request events until they resubscribe. End
                 // streams on a Permission change if that matters.
                 requester: requests::visible_to(&caller.user),
+                player: (!caller.user.permissions.allow(Permission::Admin))
+                    .then_some(caller.user.id),
             };
             let signed_out = self.users.signed_out(caller.device.id);
             let events = self.events.subscribe(filter).take_until(signed_out);
@@ -2411,30 +2417,6 @@ fn version_to_proto(version: &Version) -> proto::Version {
     }
 }
 
-/// `hdr` as a video Track's `hdr` and `dolby_vision`.
-fn hdr_to_proto(hdr: Option<Hdr>) -> (proto::HdrFormat, Option<proto::DolbyVision>) {
-    match hdr {
-        None => (proto::HdrFormat::HDR_FORMAT_UNSPECIFIED, None),
-        Some(Hdr::Hdr10) => (proto::HdrFormat::HDR_FORMAT_HDR10, None),
-        Some(Hdr::Hlg) => (proto::HdrFormat::HDR_FORMAT_HLG, None),
-        Some(Hdr::DolbyVision {
-            profile,
-            hdr10_base_layer,
-        }) => {
-            let dolby_vision = proto::DolbyVision {
-                // ffprobe reads it from a byte, so it's never negative.
-                profile: u32::try_from(profile).unwrap_or_default(),
-                hdr10_base_layer,
-                ..Default::default()
-            };
-            (
-                proto::HdrFormat::HDR_FORMAT_DOLBY_VISION,
-                Some(dolby_vision),
-            )
-        }
-    }
-}
-
 /// `None` for no method, or one newer than this Server, which it can't plan anyway.
 fn method_from_proto(method: EnumValue<proto::PlaybackMethod>) -> Option<Method> {
     match method {
@@ -2451,14 +2433,8 @@ fn method_from_proto(method: EnumValue<proto::PlaybackMethod>) -> Option<Method>
 }
 
 fn plan_to_proto(plan: Plan) -> proto::PlaybackPlan {
-    let method = match plan.method {
-        None => proto::PlaybackMethod::PLAYBACK_METHOD_UNSPECIFIED,
-        Some(Method::DirectPlay) => proto::PlaybackMethod::PLAYBACK_METHOD_DIRECT_PLAY,
-        Some(Method::Remux) => proto::PlaybackMethod::PLAYBACK_METHOD_REMUX,
-        Some(Method::Transcode) => proto::PlaybackMethod::PLAYBACK_METHOD_TRANSCODE,
-    };
     proto::PlaybackPlan {
-        method: method.into(),
+        method: method_to_proto(plan.method).into(),
         url: plan.url.unwrap_or_default(),
         tracks: plan.tracks.iter().map(track_to_proto).collect(),
         reasons: plan.reasons,
@@ -2469,52 +2445,6 @@ fn plan_to_proto(plan: Plan) -> proto::PlaybackPlan {
                 ..Default::default()
             })
             .collect(),
-        ..Default::default()
-    }
-}
-
-fn track_to_proto(track: &Track) -> proto::Track {
-    // 0 is what the proto says for a fact the file doesn't give. Stored ones are never negative.
-    let known = |n: Option<i64>| n.and_then(|n| u32::try_from(n).ok()).unwrap_or_default();
-    let kind = match track.kind {
-        TrackKind::Video {
-            width,
-            height,
-            frame_rate,
-            bit_depth,
-            hdr,
-        } => {
-            let (hdr, dolby_vision) = hdr_to_proto(hdr);
-            proto::VideoTrack {
-                width: known(width),
-                height: known(height),
-                frame_rate: frame_rate.unwrap_or_default(),
-                bit_depth: known(bit_depth),
-                hdr: hdr.into(),
-                dolby_vision: dolby_vision.into(),
-                ..Default::default()
-            }
-            .into()
-        }
-        TrackKind::Audio { channels } => proto::AudioTrack {
-            channels: known(channels),
-            ..Default::default()
-        }
-        .into(),
-        TrackKind::Subtitle { image } => proto::SubtitleTrack {
-            image,
-            ..Default::default()
-        }
-        .into(),
-    };
-    proto::Track {
-        codec: track.codec.clone(),
-        language: track.language.clone(),
-        title: track.title.clone(),
-        default: track.default,
-        forced: track.forced,
-        sdh: track.sdh,
-        kind,
         ..Default::default()
     }
 }

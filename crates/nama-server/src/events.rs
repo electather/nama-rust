@@ -59,6 +59,8 @@ pub(crate) struct Filter {
     /// Only Request and Followed Show events about those this User is a Requester of; `None` means
     /// every one's.
     pub(crate) requester: Option<i64>,
+    /// Only playback events about this User's playing; `None` means every User's.
+    pub(crate) player: Option<i64>,
 }
 
 /// What an event is about.
@@ -66,6 +68,8 @@ enum About<'a> {
     Library(i64),
     Request(&'a Request),
     FollowedShow(&'a FollowedShow),
+    /// The User playing.
+    Player(i64),
 }
 
 impl EventBus {
@@ -169,6 +173,9 @@ impl Filter {
             }
             About::Request(request) => self.lets_through_requesters(&request.requesters),
             About::FollowedShow(followed) => self.lets_through_requesters(&followed.requesters),
+            About::Player(user) => {
+                self.libraries.is_empty() && self.player.is_none_or(|player| player == user)
+            }
         };
         (self.types.is_empty() || self.types.contains(&kind)) && wanted
     }
@@ -293,7 +300,7 @@ async fn deliver_to(
 
 /// An event's type and what it is about.
 fn classify(event: &Event) -> Option<(EventType, About<'_>)> {
-    use About::{FollowedShow, Library, Request};
+    use About::{FollowedShow, Library, Player, Request};
     use EventType as T;
     use event::Event as E;
     Some(match event.event.as_ref()? {
@@ -355,6 +362,14 @@ fn classify(event: &Event) -> Option<(EventType, About<'_>)> {
             T::EVENT_TYPE_FOLLOWED_SHOW_WITHDRAWN,
             FollowedShow(e.followed_show.as_option()?),
         ),
+        E::PlaybackStarted(e) => (
+            T::EVENT_TYPE_PLAYBACK_STARTED,
+            Player(e.playback.as_option()?.user_id),
+        ),
+        E::PlaybackEnded(e) => (
+            T::EVENT_TYPE_PLAYBACK_ENDED,
+            Player(e.playback.as_option()?.user_id),
+        ),
     })
 }
 
@@ -412,11 +427,11 @@ pub(crate) fn event(happened: impl Into<event::Event>) -> Event {
 #[cfg(test)]
 mod tests {
     use nama_proto::nama::v1::{
-        Event, Permission, Request, RequestCancelled, RequestCreated, RequestState,
-        RequestStateChanged, Requester, RequesterAdded,
+        Event, Permission, Playback, PlaybackStarted, Request, RequestCancelled, RequestCreated,
+        RequestState, RequestStateChanged, Requester, RequesterAdded,
     };
 
-    use super::{event, users_to_tell};
+    use super::{Filter, event, users_to_tell};
     use crate::users::{Permissions, User};
 
     /// Users 1 and 2 have a new User's Permissions, 3 has `MANAGE_REQUESTS` and 4 has `ADMIN`.
@@ -461,6 +476,36 @@ mod tests {
             request: request(state, requesters).into(),
             ..Default::default()
         })
+    }
+
+    fn playback_of(user_id: i64) -> Event {
+        event(PlaybackStarted {
+            playback: Playback {
+                user_id,
+                ..Default::default()
+            }
+            .into(),
+            ..Default::default()
+        })
+    }
+
+    #[test]
+    fn a_playback_event_reaches_its_player_and_subscribers_who_see_everyones() {
+        let (mine, theirs) = (playback_of(1), playback_of(2));
+        let own = Filter {
+            player: Some(1),
+            ..Default::default()
+        };
+        let everyones = Filter::default();
+        let about_a_library = Filter {
+            libraries: vec![5],
+            ..Default::default()
+        };
+
+        assert!(own.lets_through(&mine));
+        assert!(!own.lets_through(&theirs));
+        assert!(everyones.lets_through(&theirs));
+        assert!(!about_a_library.lets_through(&mine));
     }
 
     #[test]

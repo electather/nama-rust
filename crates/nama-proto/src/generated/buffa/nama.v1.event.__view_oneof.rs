@@ -124,5 +124,15 @@ pub mod event {
                 super::super::super::super::__buffa::view::FollowedShowWithdrawnView<'a>,
             >,
         ),
+        PlaybackStarted(
+            ::buffa::alloc::boxed::Box<
+                super::super::super::super::__buffa::view::PlaybackStartedView<'a>,
+            >,
+        ),
+        PlaybackEnded(
+            ::buffa::alloc::boxed::Box<
+                super::super::super::super::__buffa::view::PlaybackEndedView<'a>,
+            >,
+        ),
     }
 }
