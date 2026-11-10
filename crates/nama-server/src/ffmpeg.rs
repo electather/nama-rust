@@ -55,6 +55,17 @@ const REMUX_LATER_BY_MS: i64 = 1000;
 /// at the file's start out of step with those started later.
 const TRANSCODE_LATER_BY_MS: i64 = 1000;
 
+/// How long ffmpeg may take to list its filters.
+const FILTERS_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// The software filters a Transcode tone-maps HDR to SDR with: to linear light, to BT.709's
+/// primaries, Hable's curve from HDR's brightness to SDR's 100 nits, then back to BT.709 video.
+// HDR10 and HLG are always BT.2020, but probing calls a file HDR by its transfer alone, and
+// zscale fails the whole Transcode with "no path between colorspaces" on untagged primaries.
+const TONE_MAP: &str = "setparams=color_primaries=bt2020:colorspace=bt2020nc,\
+                        zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,\
+                        tonemap=tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv,format=yuv420p";
+
 /// The name of the init segment a Remux or Transcode started at file `n` writes beside its files. Every
 /// run's is the same, but each writes its own, since ffmpeg writes it from empty as a run goes.
 pub(crate) fn hls_init(n: usize) -> String {
@@ -161,6 +172,27 @@ impl Ffmpeg {
         self.ffprobe.is_ok()
     }
 
+    /// Whether ffmpeg has the zscale filter, which [`Self::transcode`] tone-maps with and a system
+    /// ffmpeg may lack (ADR 0026), or why ffmpeg couldn't say, such as a timeout on a busy host.
+    pub(crate) async fn has_zscale(&self) -> Result<bool, String> {
+        let Ok(ffmpeg) = &self.ffmpeg else {
+            return Ok(false);
+        };
+        let output = tokio::process::Command::new(&ffmpeg.path)
+            .args(["-hide_banner", "-filters"])
+            .kill_on_drop(true)
+            .output();
+        let output = match tokio::time::timeout(FILTERS_TIMEOUT, output).await {
+            Ok(Ok(output)) if output.status.success() => output,
+            Ok(Ok(output)) => return Err(format!("it exited with {}", output.status)),
+            Ok(Err(err)) => return Err(err.to_string()),
+            Err(_) => return Err(format!("it took over {FILTERS_TIMEOUT:?}")),
+        };
+        // Each filter is a line such as ` .SC zscale  V->V  Apply resizing, ...`.
+        Ok((String::from_utf8_lossy(&output.stdout).lines())
+            .any(|line| line.split_whitespace().nth(1) == Some("zscale")))
+    }
+
     /// The facts of the file at `path` and its video, audio and subtitle Tracks, as ffprobe reads
     /// them.
     pub(crate) async fn probe(&self, path: &str) -> Result<Probe, ProbeError> {
@@ -264,7 +296,8 @@ impl Ffmpeg {
     }
 
     /// Starts ffmpeg converting the first video of the file at `path` to 8-bit H.264 in software,
-    /// and its `audio`th audio Track, if given, to AAC with the channels given beside it, into fMP4
+    /// tone-mapping its HDR to SDR if `tone_map`, which needs zscale ([`Self::has_zscale`]), keeping
+    /// its video within `video`, and its `audio`th audio Track, if given, to AAC with the channels given beside it, into fMP4
     /// in `dir`, from `cuts[0]` to the end. It cuts a file at each of `cuts`, in milliseconds,
     /// numbered from `n`, such as `3.m4s`, and writes an init segment named by [`hls_init`]
     /// that's whole once the first file is. A run started at any cut writes the same files, so one
@@ -272,12 +305,13 @@ impl Ffmpeg {
     /// child stops ffmpeg.
     #[expect(
         clippy::too_many_arguments,
-        reason = "as for `remux`: the plan fixes the first two and each run the rest"
+        reason = "as for `remux`: the plan fixes the first three and each run the rest"
     )]
     pub(crate) fn transcode(
         &self,
         path: &str,
         audio: Option<(usize, i64)>,
+        tone_map: bool,
         video: Option<VideoLimit>,
         dir: &Path,
         n: usize,
@@ -299,6 +333,11 @@ impl Ffmpeg {
         // ponytail: a 5-hour Version's cuts near Windows' 32K command line; read them from a
         // file if longer ones fail to Transcode there.
         let cuts: Vec<String> = cuts.iter().map(|&cut| seconds(cut)).collect();
+        // One `-vf`: a second would replace the first.
+        let mut filters = Vec::new();
+        if tone_map {
+            filters.push(TONE_MAP.to_owned());
+        }
         command
             // ponytail: assumes the Server's ffmpeg has libx264; check it as ADR 0026 says (#446).
             .args(["-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p"])
@@ -314,13 +353,16 @@ impl Ffmpeg {
             if let Some((width, height)) = size {
                 // ponytail: the size is from the stored picture, so a rotated phone clip is
                 // stretched; swap its sides once probing reads rotation.
-                command.arg("-vf").arg(format!("scale={width}:{height}"));
+                filters.push(format!("scale={width}:{height}"));
             }
             let rate = bits_per_second.to_string();
             // Two seconds' worth of buffer lets a busy scene borrow from a quiet one.
             command
                 .args(["-b:v", &rate, "-maxrate", &rate, "-bufsize"])
                 .arg((2 * u64::from(bits_per_second)).to_string());
+        }
+        if !filters.is_empty() {
+            command.arg("-vf").arg(filters.join(","));
         }
         aac(&mut command, audio.map(|(_, channels)| channels));
         command.args(["-output_ts_offset", &seconds(TRANSCODE_LATER_BY_MS)]);
@@ -1003,6 +1045,21 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn without_ffmpeg_or_zscale_among_its_filters_the_server_cant_tone_map() {
+        // Prints its arguments, not a filter.
+        let echo = Ffmpeg {
+            ffmpeg: Ok(FoundProgram {
+                path: "/bin/echo".into(),
+                version: "7.1.1".to_owned(),
+            }),
+            ..Ffmpeg::default()
+        };
+
+        assert_eq!(echo.has_zscale().await, Ok(false));
+        assert_eq!(Ffmpeg::default().has_zscale().await, Ok(false));
+    }
+
+    #[tokio::test]
     async fn ffmpeg_before_5_0_is_given_segment_options_by_their_old_name() {
         let bin = tempfile::tempdir().unwrap();
         let args = bin.path().join("args");
@@ -1258,7 +1315,7 @@ mod probe_output_tests {
 mod hls_tests {
     use std::{fs, path::Path};
 
-    use super::{Ffmpeg, Keyframe, write_h264_with_5_1, write_hevc_with_5_1};
+    use super::{Ffmpeg, Keyframe, write_h264_with_5_1, write_hevc_with_5_1, write_test_media};
     use crate::config::Config;
 
     /// The ffmpeg and ffprobe on `PATH`, which these tests need.
@@ -1300,12 +1357,51 @@ mod hls_tests {
             .transcode(
                 path.to_str().unwrap(),
                 Some((0, 2)),
+                false,
                 None,
                 dir,
                 n,
                 &cuts[n..],
             )
             .unwrap();
+        let output = output.wait_with_output().await.unwrap();
+        assert!(output.status.success(), "{output:?}");
+    }
+
+    #[tokio::test]
+    async fn hdr10_tagged_only_by_its_transfer_is_tone_mapped() {
+        let ffmpeg = system_ffmpeg();
+        let work = tempfile::tempdir().unwrap();
+        let file = work.path().join("hdr10.mkv");
+        write_test_media(&file, |command| {
+            command
+                .args([
+                    "-f",
+                    "lavfi",
+                    "-i",
+                    "testsrc=size=320x240:rate=24",
+                    "-t",
+                    "1",
+                ])
+                .args([
+                    "-c:v",
+                    "libx265",
+                    "-preset",
+                    "ultrafast",
+                    "-pix_fmt",
+                    "yuv420p10le",
+                ])
+                .args(["-x265-params", "log-level=error", "-color_trc", "smpte2084"])
+                .args(["-f", "matroska"])
+        })
+        .unwrap();
+        let dir = work.path().join("transcoded");
+        fs::create_dir_all(&dir).unwrap();
+
+        let output = ffmpeg
+            .transcode(file.to_str().unwrap(), None, true, None, &dir, 0, &[0])
+            .unwrap();
+
         let output = output.wait_with_output().await.unwrap();
         assert!(output.status.success(), "{output:?}");
     }

@@ -107,6 +107,8 @@ struct Inner {
     /// Where each plan's files go, in a folder named by its id.
     folder: SegmentFolder,
     ffmpeg: Arc<Ffmpeg>,
+    /// Whether `ffmpeg` has zscale, once it answered.
+    zscale: tokio::sync::OnceCell<bool>,
     contents: Contents,
     tracks: Tracks,
     events: EventBus,
@@ -180,6 +182,7 @@ impl RunningPlans {
         let inner = Arc::new(Inner {
             folder,
             ffmpeg,
+            zscale: tokio::sync::OnceCell::new(),
             contents,
             tracks,
             events,
@@ -194,6 +197,25 @@ impl RunningPlans {
     /// Whether plans can run at all (ADR 0026).
     pub(crate) fn can_run(&self) -> bool {
         self.inner.ffmpeg.can_remux()
+    }
+
+    /// Whether a Transcode can tone-map HDR to SDR in software, as ffmpeg said the first time it
+    /// answered.
+    pub(crate) async fn can_tone_map(&self) -> bool {
+        let ffmpeg = &self.inner.ffmpeg;
+        // Only an answer is kept, so a check that timed out on a busy host is asked again.
+        match self
+            .inner
+            .zscale
+            .get_or_try_init(|| ffmpeg.has_zscale())
+            .await
+        {
+            Ok(&zscale) => zscale,
+            Err(err) => {
+                tracing::warn!("could not ask ffmpeg whether it has zscale: {err}");
+                false
+            }
+        }
     }
 
     /// Starts Remuxing the Version `playback` plays, which probing found holds `probe`, for the
@@ -223,16 +245,22 @@ impl RunningPlans {
     }
 
     /// Starts Transcoding the Version `playback` plays, which probing found holds `probe`, for
-    /// the Device it plays on, with `audio`, its audio Track counting only its audio from 0 and
-    /// the channels it's converted to as AAC, and its video kept within `video`, and returns its
-    /// id and its playlist's URL. Its segments are [`SEGMENT_MS`] each, as it forces a
+    /// the Device it plays on, with its `audio` Track, counting only its audio from 0, converted
+    /// to AAC with the channels given beside it, its HDR tone-mapped to SDR if `tone_map`, and its
+    /// video kept within `video`, and returns its id and its playlist's URL. Its segments are
+    /// [`SEGMENT_MS`] each, as it forces a
     /// keyframe at each. `None` if there is no such Version.
     // ponytail: no cap on how many Transcodes run at once, each a software encode; #340 adds one.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the plan fixes each of the Transcode's conversions, as for `Ffmpeg::transcode`"
+    )]
     pub(crate) async fn transcode(
         &self,
         playback: Playback,
         probe: &Probe,
         audio: Option<(usize, i64)>,
+        tone_map: bool,
         video: Option<VideoLimit>,
     ) -> Result<Option<(u64, String)>, StartError> {
         let Some((path, _)) = (self.inner.contents)
@@ -249,7 +277,7 @@ impl RunningPlans {
         let ffmpeg = Arc::clone(&self.inner.ffmpeg);
         let run = move |dir: &Path, from: Keyframe| {
             let from_on = cuts.get(from.n..).unwrap_or_default();
-            ffmpeg.transcode(&path, audio, video, dir, from.n, from_on)
+            ffmpeg.transcode(&path, audio, tone_map, video, dir, from.n, from_on)
         };
         let id = self
             .start(playback, Method::Transcode, timeline, Box::new(run))

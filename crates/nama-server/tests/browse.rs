@@ -1478,32 +1478,37 @@ async fn a_remuxs_playlist_and_segments_without_a_session_are_refused() {
 /// The codec and channels of the audio the plan at `url` plays in its segment `segment`, such as
 /// `aac,6`, as ffprobe reads it with its init segment.
 async fn played_audio(fx: &Fixture, url: &str, segment: &str) -> String {
-    played_streams(fx, url, "a", segment).await
+    played_streams(fx, url, "a", segment, "codec_name,channels").await
 }
 
-/// The codec, and channels if audio or size if video, of the streams of type `kind`, as ffprobe's
-/// `-select_streams` takes it, that the plan at `url` plays in its segment `segment`, as ffprobe
-/// reads it with its init segment.
+/// The `entries` of the streams of type `kind`, as ffprobe's `-select_streams` and
+/// `-show_entries stream=` take them, that the plan at `url` plays in its segment `segment`, as
+/// ffprobe reads it with its init segment.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
-async fn played_streams(fx: &Fixture, url: &str, kind: &str, segment: &str) -> String {
+async fn played_streams(
+    fx: &Fixture,
+    url: &str,
+    kind: &str,
+    segment: &str,
+    entries: &str,
+) -> String {
     // The segment first, so ffmpeg starts there and the init segment is that run's.
     let segment = fx.fetch_ok(&beside(url, segment)).await;
     let mut mp4 = fx.fetch_ok(&beside(url, "init.mp4")).await;
     mp4.extend(segment);
     let file = tempfile::NamedTempFile::new().unwrap();
     fs::write(file.path(), mp4).unwrap();
-    let entries = [
-        "-show_entries",
-        "stream=codec_name,channels,width,height",
-        "-of",
-        "csv=p=0",
-    ];
     let output = std::process::Command::new("ffprobe")
         .args(["-v", "error", "-select_streams", kind])
-        .args(entries)
+        .args([
+            "-show_entries",
+            &format!("stream={entries}"),
+            "-of",
+            "csv=p=0",
+        ])
         .arg(file.path())
         .output()
         .unwrap();
@@ -1604,10 +1609,8 @@ async fn an_hevc_mkv_is_transcoded_to_h264_and_aac_over_hls_in_six_second_segmen
         let segment = fx.fetch_ok(&beside(&plan.url, file)).await;
         assert_ne!(segment.len(), 0, "{file}");
     }
-    assert_eq!(
-        played_streams(&fx, &plan.url, "v", "0.m4s").await,
-        "h264,320,240"
-    );
+    let video = played_streams(&fx, &plan.url, "v", "0.m4s", "codec_name,width,height").await;
+    assert_eq!(video, "h264,320,240");
     assert_eq!(played_audio(&fx, &plan.url, "0.m4s").await, "aac,2");
 }
 
@@ -1637,11 +1640,28 @@ async fn a_1080p_h264_mkv_limited_to_720p_is_transcoded_down_to_it_and_original_
          1280×720"
     );
     assert_eq!(
-        played_streams(&fx, &at_720p.url, "v", "0.m4s").await,
+        played_streams(&fx, &at_720p.url, "v", "0.m4s", "codec_name,width,height").await,
         "h264,1280,720"
     );
     assert_eq!(original.method, PlaybackMethod::PLAYBACK_METHOD_REMUX);
     assert_eq!(original.reasons[5], "The Playback Limit is Original");
+}
+
+#[tokio::test]
+async fn hdr10_transcoded_for_a_browser_on_an_sdr_screen_is_tone_mapped_to_sdr() {
+    let write = |file: &Path| ffmpeg::write_4k_with_5_1(file, "smpte2084");
+    let (fx, version) = Fixture::alien_written(system_ffmpeg(), write).await;
+
+    let plan = fx.plan(version).await.unwrap();
+
+    assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_TRANSCODE);
+    assert_eq!(
+        plan.reasons[2],
+        "This Server has ffmpeg, which tone-maps its HDR10 picture to SDR in a Transcode"
+    );
+    let colours = "color_transfer,color_primaries";
+    let played = played_streams(&fx, &plan.url, "v", "0.m4s", colours).await;
+    assert_eq!(played, "bt709,bt709");
 }
 
 #[tokio::test]
