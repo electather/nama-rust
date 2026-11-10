@@ -284,8 +284,7 @@ fn is_too_old(version: &str) -> bool {
 }
 
 /// Writes a fifth of a second of 4K video with English 5.1 audio, as Matroska, to `path`, with the
-/// ffmpeg on `PATH`, for a test to probe. Tests make their media this way, rather than commit
-/// sample files, so they need ffmpeg and ffprobe.
+/// ffmpeg on `PATH`, for a test to probe.
 ///
 /// # Errors
 ///
