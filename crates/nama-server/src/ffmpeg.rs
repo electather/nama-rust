@@ -312,9 +312,12 @@ impl Ffmpeg {
         }) = video
         {
             if let Some((width, height)) = size {
+                // ponytail: the size is from the stored picture, so a rotated phone clip is
+                // stretched; swap its sides once probing reads rotation.
                 command.arg("-vf").arg(format!("scale={width}:{height}"));
             }
             let rate = bits_per_second.to_string();
+            // Two seconds' worth of buffer lets a busy scene borrow from a quiet one.
             command
                 .args(["-b:v", &rate, "-maxrate", &rate, "-bufsize"])
                 .arg((2 * u64::from(bits_per_second)).to_string());

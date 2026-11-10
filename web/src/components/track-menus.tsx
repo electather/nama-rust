@@ -17,8 +17,8 @@ import type { usePlaybackPlan } from "@/lib/playback-plan";
 import { trackLabel } from "@/lib/subtitles";
 
 /**
- * The menus choosing which of the Version's Tracks play, its audio, then its subtitles, and then
- * its Playback Limit.
+ * The menus choosing what plays: the Version's audio Track, then its subtitles, then the Playback
+ * Limit.
  */
 export function TrackMenus({
   tracks,

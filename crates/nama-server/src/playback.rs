@@ -59,7 +59,7 @@ impl Method {
 }
 
 /// A Playback Limit below Original: the picture a Transcode fits the video in, and the bitrate it
-/// sends it at, which members never see.
+/// sends it at, which Users never see.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct PlaybackLimit {
     name: &'static str,
@@ -188,14 +188,7 @@ pub(crate) async fn plan(
         }
         (Some(Method::Transcode), Some(probed)) => {
             let converted_audio = played_audio(&facts).zip(channels_as_aac(plan.method, &facts));
-            let video = (facts.limit).map(
-                |PlaybackLimit {
-                     bits_per_second, ..
-                 }| VideoLimit {
-                    size: scaled_size(&facts),
-                    bits_per_second,
-                },
-            );
+            let video = video_limit(&facts);
             running
                 .transcode(playback, probed, converted_audio, video)
                 .await?
@@ -449,6 +442,17 @@ fn playback_limit(facts: &Facts) -> Narrowing {
         allows: BTreeSet::from(Method::ALL),
         reason,
     }
+}
+
+/// How a Transcode keeps the played video within the User's Playback Limit, if they picked one.
+fn video_limit(facts: &Facts) -> Option<VideoLimit> {
+    let PlaybackLimit {
+        bits_per_second, ..
+    } = facts.limit?;
+    Some(VideoLimit {
+        size: scaled_size(facts),
+        bits_per_second,
+    })
 }
 
 /// The size a Transcode scales the played video to, to fit the User's Playback Limit, if it's

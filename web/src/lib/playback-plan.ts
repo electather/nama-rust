@@ -19,6 +19,7 @@ interface Asking {
   startPositionMs: bigint;
   /** The chosen audio Track's place in the Version's Tracks, `undefined` being the file's own. */
   audioTrack: number | undefined;
+  /** The Playback Limit chosen, `PLAYBACK_LIMIT_UNSPECIFIED` until the User picks one. */
   playbackLimit: PlaybackLimit;
 }
 
