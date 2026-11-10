@@ -22,7 +22,9 @@ use nama_proto::nama::v1::{
     __buffa::view::SubscribeResponseView, CreateLibraryRequest, EventServiceClient, LibraryKind,
     LibraryServiceClient, RefusalReason, ScanLibraryRequest, SubscribeRequest, SubscribeResponse,
 };
-use nama_server::{config::Config, db::Database, plugins::Registry, users::SetupCode};
+use nama_server::{
+    config::Config, db::Database, ffmpeg::Ffmpeg, plugins::Registry, users::SetupCode,
+};
 use refused::assert_refused;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -84,6 +86,7 @@ async fn start_with(setup_code: Option<SetupCode>, config: &Config) -> TestServe
         db,
         plugins,
         setup_code.clone(),
+        Ffmpeg::default(),
         async {
             let _: Result<(), oneshot::error::RecvError> = stopped.await;
         },

@@ -23,6 +23,7 @@ import { Route as MemberRequestsRequestIdRouteImport } from './routes/_member/re
 import { Route as MemberShowsShowIdRouteImport } from './routes/_member/shows/$showId'
 import { Route as MemberAdminAdminIndexRouteImport } from './routes/_member/_admin/admin/index'
 import { Route as MemberAdminAdminNeedsAMatchRouteImport } from './routes/_member/_admin/admin/needs-a-match'
+import { Route as MemberAdminAdminPlaybackRouteImport } from './routes/_member/_admin/admin/playback'
 import { Route as MemberAdminAdminUsersRouteImport } from './routes/_member/_admin/admin/users'
 import { Route as MemberLibrariesLibraryIdIndexRouteImport } from './routes/_member/libraries/$libraryId/index'
 import { Route as MemberAdminAdminLibrariesIndexRouteImport } from './routes/_member/_admin/admin/libraries/index'
@@ -103,6 +104,12 @@ const MemberAdminAdminNeedsAMatchRoute =
     path: '/admin/needs-a-match',
     getParentRoute: () => MemberAdminRoute,
   } as any)
+const MemberAdminAdminPlaybackRoute =
+  MemberAdminAdminPlaybackRouteImport.update({
+    id: '/admin/playback',
+    path: '/admin/playback',
+    getParentRoute: () => MemberAdminRoute,
+  } as any)
 const MemberAdminAdminUsersRoute = MemberAdminAdminUsersRouteImport.update({
   id: '/admin/users',
   path: '/admin/users',
@@ -177,6 +184,7 @@ export interface FileRoutesByFullPath {
   '/shows/$showId': typeof MemberShowsShowIdRoute
   '/requests/': typeof MemberRequestsIndexRoute
   '/admin/needs-a-match': typeof MemberAdminAdminNeedsAMatchRoute
+  '/admin/playback': typeof MemberAdminAdminPlaybackRoute
   '/admin/users': typeof MemberAdminAdminUsersRoute
   '/admin/': typeof MemberAdminAdminIndexRoute
   '/libraries/$libraryId/': typeof MemberLibrariesLibraryIdIndexRoute
@@ -201,6 +209,7 @@ export interface FileRoutesByTo {
   '/shows/$showId': typeof MemberShowsShowIdRoute
   '/requests': typeof MemberRequestsIndexRoute
   '/admin/needs-a-match': typeof MemberAdminAdminNeedsAMatchRoute
+  '/admin/playback': typeof MemberAdminAdminPlaybackRoute
   '/admin/users': typeof MemberAdminAdminUsersRoute
   '/admin': typeof MemberAdminAdminIndexRoute
   '/libraries/$libraryId': typeof MemberLibrariesLibraryIdIndexRoute
@@ -228,6 +237,7 @@ export interface FileRoutesById {
   '/_member/shows/$showId': typeof MemberShowsShowIdRoute
   '/_member/requests/': typeof MemberRequestsIndexRoute
   '/_member/_admin/admin/needs-a-match': typeof MemberAdminAdminNeedsAMatchRoute
+  '/_member/_admin/admin/playback': typeof MemberAdminAdminPlaybackRoute
   '/_member/_admin/admin/users': typeof MemberAdminAdminUsersRoute
   '/_member/_admin/admin/': typeof MemberAdminAdminIndexRoute
   '/_member/libraries/$libraryId/': typeof MemberLibrariesLibraryIdIndexRoute
@@ -254,6 +264,7 @@ export interface FileRouteTypes {
     | '/shows/$showId'
     | '/requests/'
     | '/admin/needs-a-match'
+    | '/admin/playback'
     | '/admin/users'
     | '/admin/'
     | '/libraries/$libraryId/'
@@ -278,6 +289,7 @@ export interface FileRouteTypes {
     | '/shows/$showId'
     | '/requests'
     | '/admin/needs-a-match'
+    | '/admin/playback'
     | '/admin/users'
     | '/admin'
     | '/libraries/$libraryId'
@@ -304,6 +316,7 @@ export interface FileRouteTypes {
     | '/_member/shows/$showId'
     | '/_member/requests/'
     | '/_member/_admin/admin/needs-a-match'
+    | '/_member/_admin/admin/playback'
     | '/_member/_admin/admin/users'
     | '/_member/_admin/admin/'
     | '/_member/libraries/$libraryId/'
@@ -423,6 +436,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MemberAdminAdminNeedsAMatchRouteImport
       parentRoute: typeof MemberAdminRoute
     }
+    '/_member/_admin/admin/playback': {
+      id: '/_member/_admin/admin/playback'
+      path: '/admin/playback'
+      fullPath: '/admin/playback'
+      preLoaderRoute: typeof MemberAdminAdminPlaybackRouteImport
+      parentRoute: typeof MemberAdminRoute
+    }
     '/_member/_admin/admin/users': {
       id: '/_member/_admin/admin/users'
       path: '/admin/users'
@@ -498,6 +518,7 @@ declare module '@tanstack/react-router' {
 
 interface MemberAdminRouteChildren {
   MemberAdminAdminNeedsAMatchRoute: typeof MemberAdminAdminNeedsAMatchRoute
+  MemberAdminAdminPlaybackRoute: typeof MemberAdminAdminPlaybackRoute
   MemberAdminAdminUsersRoute: typeof MemberAdminAdminUsersRoute
   MemberAdminAdminIndexRoute: typeof MemberAdminAdminIndexRoute
   MemberAdminAdminLibrariesLibraryIdRoute: typeof MemberAdminAdminLibrariesLibraryIdRoute
@@ -508,6 +529,7 @@ interface MemberAdminRouteChildren {
 
 const MemberAdminRouteChildren: MemberAdminRouteChildren = {
   MemberAdminAdminNeedsAMatchRoute: MemberAdminAdminNeedsAMatchRoute,
+  MemberAdminAdminPlaybackRoute: MemberAdminAdminPlaybackRoute,
   MemberAdminAdminUsersRoute: MemberAdminAdminUsersRoute,
   MemberAdminAdminIndexRoute: MemberAdminAdminIndexRoute,
   MemberAdminAdminLibrariesLibraryIdRoute:

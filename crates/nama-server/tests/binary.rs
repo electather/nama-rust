@@ -93,6 +93,8 @@ fn spawn_server(config_file: &Path) -> KillOnDrop {
             .arg(config_file)
             .env("NAMA_LISTEN", "127.0.0.1:0")
             .env("RUST_LOG", "info")
+            // No ffmpeg, whatever the test machine has.
+            .env("PATH", "")
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
@@ -141,6 +143,13 @@ fn server_logs_its_config_creates_its_database_serves_the_api_and_exits_cleanly_
     // A Server with no Users yet logs the Setup Code that creates the first Admin.
     let setup_line = wait_for_line(&lines, "Setup Code");
     assert!(setup_line.contains("setup_code="), "{setup_line}");
+
+    // Without ffmpeg the Server still starts, and says why it can only Direct Play.
+    let ffmpeg_line = wait_for_line(&lines, "can only Direct Play");
+    assert!(
+        ffmpeg_line.contains("ffmpeg and ffprobe weren't found on PATH"),
+        "{ffmpeg_line}"
+    );
 
     // Port 0 asks the OS for a free port; the Server logs the one it got.
     let addr = bound_addr(&wait_for_line(&lines, "listening"));

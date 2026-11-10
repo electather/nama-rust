@@ -173,7 +173,7 @@ test.each([
     "Admin",
     Permission.ADMIN,
     "/admin/libraries",
-    ["Libraries", "Needs a Match", "Users", "Plugins"],
+    ["Libraries", "Needs a Match", "Users", "Plugins", "Playback"],
   ],
 ])(
   "with only the %s Permission, Admin opens on %s and lists only the pages it allows",

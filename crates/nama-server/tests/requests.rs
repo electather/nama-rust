@@ -61,6 +61,7 @@ use nama_proto::nama::v1::{
 use nama_server::{
     config::{Config, PluginConfig},
     db::Database,
+    ffmpeg::Ffmpeg,
     plugin_settings,
     plugins::Registry,
 };
@@ -185,6 +186,7 @@ impl Fixture {
             Arc::clone(&self.db),
             plugins,
             None,
+            Ffmpeg::default(),
             future::pending(),
         );
         tokio::spawn(async move {
