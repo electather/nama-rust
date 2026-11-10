@@ -289,15 +289,17 @@ impl Ffmpeg {
             &start,
         ];
         command.args(times);
-        map(&mut command, audio);
+        command.args(["-map", "0:V:0"]);
+        map_audio(&mut command, audio);
         command.args(["-c", "copy"]);
         aac(&mut command, aac_channels);
         spawn_hls(command, &ffmpeg.version, dir, from.n)
     }
 
     /// Starts ffmpeg converting the first video of the file at `path` to 8-bit H.264 in software,
-    /// tone-mapping its HDR to SDR if `tone_map`, which needs zscale ([`Self::has_zscale`]), keeping
-    /// its video within `video`, and its `audio`th audio Track, if given, to AAC with the channels given beside it, into fMP4
+    /// tone-mapping its HDR to SDR if `tone_map`, which needs zscale ([`Self::has_zscale`]), with
+    /// `burn_in` drawn into it, keeping its video within `video`, and its `audio`th audio Track, if
+    /// given, to AAC with the channels given beside it, into fMP4
     /// in `dir`, from `cuts[0]` to the end. It cuts a file at each of `cuts`, in milliseconds,
     /// numbered from `n`, such as `3.m4s`, and writes an init segment named by [`hls_init`]
     /// that's whole once the first file is. A run started at any cut writes the same files, so one
@@ -313,6 +315,7 @@ impl Ffmpeg {
         audio: Option<(usize, i64)>,
         tone_map: bool,
         video: Option<VideoLimit>,
+        burn_in: Option<BurnIn>,
         dir: &Path,
         n: usize,
         cuts: &[i64],
@@ -329,15 +332,12 @@ impl Ffmpeg {
         // Times as in the file, so the keyframes forced below fall at the same frames whichever
         // cut a run starts at: `-force_key_frames` expressions time frames from the run's first.
         command.args(["-copyts", "-start_at_zero"]);
-        map(&mut command, audio.map(|(audio, _)| audio));
+        let size = video.and_then(|video| video.size);
+        command.args(transcoded_video(path, tone_map, burn_in, size));
+        map_audio(&mut command, audio.map(|(audio, _)| audio));
         // ponytail: a 5-hour Version's cuts near Windows' 32K command line; read them from a
         // file if longer ones fail to Transcode there.
         let cuts: Vec<String> = cuts.iter().map(|&cut| seconds(cut)).collect();
-        // One `-vf`: a second would replace the first.
-        let mut filters = Vec::new();
-        if tone_map {
-            filters.push(TONE_MAP.to_owned());
-        }
         command
             // ponytail: assumes the Server's ffmpeg has libx264; check it as ADR 0026 says (#446).
             .args(["-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p"])
@@ -346,23 +346,14 @@ impl Ffmpeg {
             .arg("-force_key_frames")
             .arg(cuts.join(","));
         if let Some(VideoLimit {
-            size,
-            bits_per_second,
+            bits_per_second, ..
         }) = video
         {
-            if let Some((width, height)) = size {
-                // ponytail: the size is from the stored picture, so a rotated phone clip is
-                // stretched; swap its sides once probing reads rotation.
-                filters.push(format!("scale={width}:{height}"));
-            }
             let rate = bits_per_second.to_string();
             // Two seconds' worth of buffer lets a busy scene borrow from a quiet one.
             command
                 .args(["-b:v", &rate, "-maxrate", &rate, "-bufsize"])
                 .arg((2 * u64::from(bits_per_second)).to_string());
-        }
-        if !filters.is_empty() {
-            command.arg("-vf").arg(filters.join(","));
         }
         aac(&mut command, audio.map(|(_, channels)| channels));
         command.args(["-output_ts_offset", &seconds(TRANSCODE_LATER_BY_MS)]);
@@ -405,9 +396,96 @@ pub(crate) struct VideoLimit {
     pub(crate) bits_per_second: u32,
 }
 
-/// Has `command` take the first video, and the `audio`th audio Track if given.
-fn map(command: &mut tokio::process::Command, audio: Option<usize>) {
-    command.args(["-map", "0:V:0"]);
+/// A subtitle Track a Transcode burns into the picture.
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum BurnIn {
+    /// A bitmap, such as PGS, at its place among the file's subtitle streams, counting from 0, laid
+    /// over a picture of the width and height given, if known.
+    Image {
+        subtitle: usize,
+        picture: Option<(i64, i64)>,
+    },
+    /// Text, such as ASS, at its place among the file's subtitle streams, counting from 0, which
+    /// libass draws with its styling.
+    Text { subtitle: usize },
+}
+
+/// The arguments that take the first video of the file at `path` into a Transcode, tone-mapped to
+/// SDR if `tone_map`, then with `burn_in` drawn into it, then scaled to `size` if given.
+fn transcoded_video(
+    path: &str,
+    tone_map: bool,
+    burn_in: Option<BurnIn>,
+    size: Option<(i64, i64)>,
+) -> Vec<String> {
+    // Subtitles are drawn after tone-mapping, which would dim them, and before scaling, so they
+    // shrink with the picture.
+    let before = tone_map.then(|| TONE_MAP.to_owned());
+    // ponytail: the size is from the stored picture, so a rotated phone clip is stretched; swap
+    // its sides once probing reads rotation.
+    let after = size.map(|(width, height)| format!("scale={width}:{height}"));
+    let drawn = match burn_in {
+        None => None,
+        Some(BurnIn::Image { subtitle, picture }) => {
+            let graph = overlay_graph(before, subtitle, picture, after);
+            return ["-filter_complex", &graph, "-map", "[video]"]
+                .map(str::to_owned)
+                .into();
+        }
+        // shortcut: assumes ffmpeg has libass, as it does libx264 (#446). Each run reads the
+        // whole file for the subtitle first, attached fonts and all; read it once into the
+        // subtitle cache instead if seeking in a styled subtitle's Transcode is too slow.
+        Some(BurnIn::Text { subtitle }) => Some(format!(
+            "subtitles=filename={}:si={subtitle}",
+            filter_value(path)
+        )),
+    };
+    let filters: Vec<String> = [before, drawn, after].into_iter().flatten().collect();
+    let mut args: Vec<String> = ["-map", "0:V:0"].map(str::to_owned).into();
+    if !filters.is_empty() {
+        // One `-vf`: a second would replace the first.
+        args.extend(["-vf".to_owned(), filters.join(",")]);
+    }
+    args
+}
+
+/// The filtergraph that runs the first video through `before`, lays its `subtitle`th subtitle
+/// stream, a bitmap, over it, fitted to `picture` if known, then runs it through `after`, ending at
+/// `[video]`.
+fn overlay_graph(
+    before: Option<String>,
+    subtitle: usize,
+    picture: Option<(i64, i64)>,
+    after: Option<String>,
+) -> String {
+    // A bitmap's canvas can be smaller than the picture, as a 4K Blu-ray's 1080p PGS is.
+    let fit = picture.map(|(width, height)| format!("scale={width}:{height}"));
+    let or_null = |filter: Option<String>| filter.unwrap_or_else(|| "null".to_owned());
+    let (before, fit) = (or_null(before), or_null(fit));
+    let after: String = after.map(|after| format!(",{after}")).unwrap_or_default();
+    format!(
+        "[0:V:0]{before}[picture];[0:s:{subtitle}]{fit}[subtitle];\
+         [picture][subtitle]overlay{after}[video]"
+    )
+}
+
+/// `value` as a filter's option value in a filtergraph, which ffmpeg unescapes twice: once
+/// parsing the graph, then once parsing the filter's options (ffmpeg-filters(1), "Notes on
+/// filtergraph escaping").
+fn filter_value(value: &str) -> String {
+    let quoted = format!("'{}'", value.replace('\'', r"'\''"));
+    let mut escaped = String::with_capacity(quoted.len());
+    for character in quoted.chars() {
+        if r"\'[],;".contains(character) {
+            escaped.push('\\');
+        }
+        escaped.push(character);
+    }
+    escaped
+}
+
+/// Has `command` take the `audio`th audio Track, if given.
+fn map_audio(command: &mut tokio::process::Command, audio: Option<usize>) {
     if let Some(audio) = audio {
         command.arg("-map").arg(format!("0:a:{audio}"));
     }
@@ -799,6 +877,78 @@ pub fn write_hevc_with_5_1(path: &Path) -> io::Result<()> {
             .args(["-x265-params", "log-level=error"])
             .args(["-c:a", "ac3", "-f", "matroska"])
     })
+}
+
+/// Writes 20 seconds of black 320×240 H.264 video with a PGS subtitle Track showing a 16×16 white
+/// square at 100, 100 from its start to 19 seconds, as Matroska, to `path`, with the ffmpeg on
+/// `PATH`, for a test to burn in.
+///
+/// # Errors
+///
+/// If the subtitle can't be written beside `path`, or ffmpeg can't be run or fails.
+#[cfg(any(test, feature = "testing"))]
+pub fn write_black_with_pgs(path: &Path) -> io::Result<()> {
+    // ffmpeg can't encode PGS, so it muxes one written by hand.
+    let sup = path.with_extension("sup");
+    std::fs::write(&sup, white_square_pgs())?;
+    let written = write_test_media(path, |ffmpeg| {
+        ffmpeg
+            .args([
+                "-f",
+                "lavfi",
+                "-i",
+                "color=black:size=320x240:rate=24",
+                "-i",
+            ])
+            .arg(&sup)
+            .args(["-t", "20", "-map", "0", "-map", "1"])
+            .args(["-c:v", "libx264", "-preset", "ultrafast", "-c:s", "copy"])
+            .args(["-f", "matroska"])
+    });
+    std::fs::remove_file(&sup)?;
+    written
+}
+
+/// A PGS stream, as a `.sup` file holds it, on a 320×240 canvas: a 16×16 white square at 100, 100
+/// shown at 0 seconds and cleared at 19.
+#[cfg(any(test, feature = "testing"))]
+fn white_square_pgs() -> Vec<u8> {
+    // Each segment: "PG", when it shows and decodes in 90 kHz ticks, its type and its length.
+    let segment = |seconds: u32, kind: u8, body: &[u8]| -> Vec<u8> {
+        let length = u16::try_from(body.len()).unwrap_or(u16::MAX);
+        let shows = (seconds * 90_000).to_be_bytes();
+        [
+            &b"PG"[..],
+            &shows,
+            &[0; 4],
+            &[kind],
+            &length.to_be_bytes(),
+            body,
+        ]
+        .concat()
+    };
+    // Canvas width and height, frame rate, composition number, then its state: 0x80 starts one.
+    let composition = |state: u8| vec![1, 64, 0, 240, 0x10, 0, 0, state, 0, 0];
+    // Then its objects: one, in window 0 at 100, 100, or none.
+    let shown = [composition(0x80), vec![1, 0, 0, 0, 0, 0, 100, 0, 100]].concat();
+    let cleared = [composition(0), vec![0]].concat();
+    let window = [1, 0, 0, 100, 0, 100, 0, 16, 0, 16];
+    // Colour 1 is opaque white, as Y, Cr, Cb and alpha.
+    let palette = [0, 0, 1, 235, 128, 128, 255];
+    // Each row is 16 pixels of colour 1, then the end of the row.
+    let rows = [0, 0x80 | 16, 1, 0, 0].repeat(16);
+    let object = [&[0, 0, 0, 0xC0, 0, 0, 84, 0, 16, 0, 16][..], &rows].concat();
+    [
+        segment(0, 0x16, &shown),
+        segment(0, 0x17, &window),
+        segment(0, 0x14, &palette),
+        segment(0, 0x15, &object),
+        segment(0, 0x80, &[]),
+        segment(19, 0x16, &cleared),
+        segment(19, 0x17, &window),
+        segment(19, 0x80, &[]),
+    ]
+    .concat()
 }
 
 /// Runs the ffmpeg on `PATH` with the inputs and outputs `args` adds, writing to `path`.
@@ -1296,6 +1446,16 @@ mod probe_output_tests {
     }
 
     #[test]
+    fn a_path_in_a_filter_option_survives_both_of_ffmpegs_unescapings() {
+        let path = r"/films/it's: a [test], x; y\z.mkv";
+
+        assert_eq!(
+            super::filter_value(path),
+            r"\'/films/it\'\\\'\'s: a \[test\]\, x\; y\\z.mkv\'"
+        );
+    }
+
+    #[test]
     fn keyframes_are_the_packets_flagged_k_in_time_order() {
         let csv = "0.000000,K__\n0.083000,___\n2.002000,K_D\n1.001000,K__\nN/A,K__\n";
 
@@ -1359,6 +1519,7 @@ mod hls_tests {
                 Some((0, 2)),
                 false,
                 None,
+                None,
                 dir,
                 n,
                 &cuts[n..],
@@ -1399,7 +1560,16 @@ mod hls_tests {
         fs::create_dir_all(&dir).unwrap();
 
         let output = ffmpeg
-            .transcode(file.to_str().unwrap(), None, true, None, &dir, 0, &[0])
+            .transcode(
+                file.to_str().unwrap(),
+                None,
+                true,
+                None,
+                None,
+                &dir,
+                0,
+                &[0],
+            )
             .unwrap();
 
         let output = output.wait_with_output().await.unwrap();

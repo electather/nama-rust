@@ -8,11 +8,13 @@ import { type Track, TrackSchema } from "@/gen/nama/v1/browse_pb";
 export type SubtitleState = "loading" | "ready" | "failed";
 
 /**
- * Which of the `<video>`'s `<track>`s shows, by URL, and how each turned on so far is getting on.
- * Turning one on or off only changes which shows, never the plan or what the `<video>` plays.
+ * Shows the `<video>`'s `<track>` at the URL `shown`, or none, and says how each shown so far is
+ * getting on. Showing one only changes which shows, never the plan or what the `<video>` plays.
  */
-export function useSubtitles(videoRef: RefObject<HTMLVideoElement | null>) {
-  const [shown, setShown] = useState<string>();
+export function useSubtitles(
+  videoRef: RefObject<HTMLVideoElement | null>,
+  shown: string | undefined,
+): Partial<Record<string, SubtitleState>> {
   const [states, setStates] = useState<Partial<Record<string, SubtitleState>>>({});
   useEffect(() => {
     // A `<track>`'s `default` counts only when the `<video>` first loads, so its mode is set.
@@ -38,12 +40,8 @@ export function useSubtitles(videoRef: RefObject<HTMLVideoElement | null>) {
       video?.removeEventListener("error", onError, true);
     };
   }, [videoRef]);
-  /** Shows the `<track>` at `url`, or none for `undefined`. */
-  const show = (url: string | undefined) => {
-    setShown(url);
-    if (url !== undefined) setStates((before) => ({ [url]: "loading", ...before }));
-  };
-  return { shown, states, show };
+  // Shown and not yet settled is loading.
+  return shown === undefined ? states : { [shown]: "loading", ...states };
 }
 
 /**

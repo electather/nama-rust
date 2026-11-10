@@ -1327,6 +1327,7 @@ impl PlaybackService for PlaybackServiceHandler {
         // The rest of the request is for steps still to come (ADR 0027).
         let request = request.to_owned_message();
         let audio = (request.audio_track).and_then(|place| usize::try_from(place).ok());
+        let subtitle = (request.subtitle_track).and_then(|place| usize::try_from(place).ok());
         let decoding = request.device_decoding.into_option().unwrap_or_default();
         let decoding = DeviceDecoding {
             content_types: decoding.content_types,
@@ -1346,6 +1347,7 @@ impl PlaybackService for PlaybackServiceHandler {
             failed,
             audio,
             limit_from_proto(request.playback_limit),
+            subtitle,
         )
         .await
         .map_err(|err| match err {

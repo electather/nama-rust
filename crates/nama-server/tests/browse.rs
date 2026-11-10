@@ -1137,6 +1137,7 @@ async fn an_h264_and_aac_mp4_direct_plays_through_its_plans_url() {
             "Nothing has failed to play it on this Device",
             "It plays the file's own audio Track",
             "The Playback Limit is Original",
+            "No subtitles are burned into its picture",
             "This Server isn't running as many Transcodes as it may at once",
         ]
     );
@@ -1317,6 +1318,7 @@ async fn without_ffprobe_a_version_direct_plays_and_its_plan_says_its_tracks_are
             "Nothing has failed to play it on this Device",
             "It plays the file's own audio Track",
             "The Playback Limit is Original",
+            "No subtitles are burned into its picture",
             "This Server isn't running as many Transcodes as it may at once",
         ]
     );
@@ -1792,6 +1794,63 @@ async fn a_1080p_h264_mkv_limited_to_720p_is_transcoded_down_to_it_and_original_
     );
     assert_eq!(original.method, PlaybackMethod::PLAYBACK_METHOD_REMUX);
     assert_eq!(original.reasons[5], "The Playback Limit is Original");
+}
+
+#[tokio::test]
+async fn a_pgs_track_turned_on_mid_play_is_burned_into_a_transcode_from_there() {
+    let (fx, version) = Fixture::alien_written(system_ffmpeg(), ffmpeg::write_black_with_pgs).await;
+
+    let plan = fx
+        .ask_for_plan(PlanPlaybackRequest {
+            version_id: version,
+            start_position_ms: 7000,
+            subtitle_track: Some(1),
+            device_decoding: chrome().into(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_TRANSCODE);
+    assert_eq!(
+        plan.reasons[6],
+        "The subtitles chosen are burned into its picture, which only a Transcode does"
+    );
+    // The player asks first for the segment 7 seconds falls in, where ffmpeg starts.
+    let picture = last_frame(&fx, &plan.url, "1.m4s").await;
+    assert!(picture[108 * 320 + 108] > 200, "the square is burned in");
+    assert!(
+        picture[10 * 320 + 10] < 50,
+        "the picture around it stays black"
+    );
+}
+
+/// The last frame of the segment `segment` of the 320×240 plan at `url`, as 8-bit grey pixels row
+/// by row.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn last_frame(fx: &Fixture, url: &str, segment: &str) -> Vec<u8> {
+    // The segment first, so ffmpeg starts there and the init segment is that run's.
+    let segment = fx.fetch_ok(&beside(url, segment)).await;
+    let mut mp4 = fx.fetch_ok(&beside(url, "init.mp4")).await;
+    mp4.extend(segment);
+    let file = tempfile::NamedTempFile::new().unwrap();
+    fs::write(file.path(), mp4).unwrap();
+    let output = std::process::Command::new("ffmpeg")
+        .args(["-v", "error", "-i"])
+        .arg(file.path())
+        .args(["-f", "rawvideo", "-pix_fmt", "gray", "-"])
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{output:?}");
+    output
+        .stdout
+        .rchunks_exact(320 * 240)
+        .next()
+        .unwrap()
+        .to_vec()
 }
 
 #[tokio::test]

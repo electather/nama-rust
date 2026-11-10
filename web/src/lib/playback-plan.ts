@@ -23,7 +23,15 @@ interface Asking {
   audioTrack: number | undefined;
   /** The Playback Limit chosen, `PLAYBACK_LIMIT_UNSPECIFIED` until the User picks one. */
   playbackLimit: PlaybackLimit;
+  /** The place of the subtitle Track burned into the picture, if any, in the Version's Tracks. */
+  subtitleTrack: number | undefined;
 }
+
+/**
+ * A subtitle the User chose: a text one by the URL the player shows it from, one to burn in by its
+ * place in the Version's Tracks, or `undefined` for none.
+ */
+export type SubtitleChoice = string | number | undefined;
 
 /**
  * The Server's Playback Plan for Version `versionId` on this Device, the position in milliseconds
@@ -32,7 +40,9 @@ interface Asking {
  * that failed, or else sets `gaveUp`: only once per method, so a Server that plans it again can't
  * make the player ask forever. `chooseAudio` asks for a new plan from there with the audio Track
  * at a place in the Version's Tracks, which `audioTrack` then holds, and `chooseLimit` with a
- * Playback Limit, which `playbackLimit` then holds.
+ * Playback Limit, which `playbackLimit` then holds. `chooseSubtitle` shows a text subtitle, which
+ * `shownSubtitle` then holds, or asks for a new plan from there with a subtitle Track burned in,
+ * which `subtitleTrack` then holds.
  */
 export function usePlaybackPlan({
   versionId,
@@ -48,8 +58,11 @@ export function usePlaybackPlan({
     startPositionMs: watchState && !watchState.played ? watchState.positionMs : 0n,
     audioTrack: undefined,
     playbackLimit: PlaybackLimit.PLAYBACK_LIMIT_UNSPECIFIED,
+    subtitleTrack: undefined,
   }));
-  const { failedMethods, startPositionMs, audioTrack, playbackLimit } = asking;
+  const { failedMethods, startPositionMs, audioTrack, playbackLimit, subtitleTrack } = asking;
+  const askFromHere = asker(setAsking, startPositionMs);
+  const subtitles = useSubtitleChoice(askFromHere, subtitleTrack);
   const [gaveUp, setGaveUp] = useState(false);
   const plan = usePlan(versionId, asking);
   // Stable until the plan changes, so hls.js isn't restarted each time the player renders.
@@ -74,24 +87,28 @@ export function usePlaybackPlan({
     },
     [failedMethods, plan.method, startPositionMs],
   );
-  const chosen = { audioTrack, playbackLimit, ...choosers(setAsking, startPositionMs) };
-  return { plan, startPositionMs, gaveUp, onCantPlay, ...chosen };
+  const chosen = { audioTrack, playbackLimit, subtitleTrack, ...choosers(askFromHere) };
+  return { plan, startPositionMs, gaveUp, onCantPlay, ...chosen, ...subtitles };
 }
 
+/** What the User chose, as `Asking` holds it. */
+type Choice = Partial<Pick<Asking, "audioTrack" | "playbackLimit" | "subtitleTrack">>;
+
 /**
- * `chooseAudio` and `chooseLimit`, which `setAsking` for a new plan with the User's choice, from
- * where the `<video>` stands, or else from `startPositionMs`.
+ * What asks for a new plan with the User's choice, from where the `<video>` stands, or else from
+ * `startPositionMs`, by `setAsking`.
  */
-function choosers(setAsking: Dispatch<SetStateAction<Asking>>, startPositionMs: bigint) {
-  const askFromHere = (
-    video: HTMLVideoElement,
-    choice: Partial<Pick<Asking, "audioTrack" | "playbackLimit">>,
-  ) => {
+function asker(setAsking: Dispatch<SetStateAction<Asking>>, startPositionMs: bigint) {
+  return (video: HTMLVideoElement, choice: Choice) => {
     // As for a failure, so it isn't heard behind the loading screen.
     video.pause();
     const resumeFrom = resumeFromMs(video, startPositionMs);
     setAsking((before) => ({ ...before, ...choice, startPositionMs: resumeFrom }));
   };
+}
+
+/** `chooseAudio` and `chooseLimit`, which `askFromHere` with the User's choice. */
+function choosers(askFromHere: ReturnType<typeof asker>) {
   return {
     chooseAudio: (video: HTMLVideoElement, place: number) => {
       askFromHere(video, { audioTrack: place });
@@ -103,12 +120,30 @@ function choosers(setAsking: Dispatch<SetStateAction<Asking>>, startPositionMs: 
 }
 
 /**
+ * The text subtitle shown, by URL, kept here so the `<video>` a new plan plays in shows it too,
+ * and `chooseSubtitle`, which shows one, and will `askFromHere` when what's burned in changes from
+ * `subtitleTrack`.
+ */
+function useSubtitleChoice(
+  askFromHere: ReturnType<typeof asker>,
+  subtitleTrack: number | undefined,
+) {
+  const [shownSubtitle, setShownSubtitle] = useState<string>();
+  const chooseSubtitle = (video: HTMLVideoElement, choice: SubtitleChoice) => {
+    setShownSubtitle(typeof choice === "string" ? choice : undefined);
+    const burnIn = typeof choice === "number" ? choice : undefined;
+    if (burnIn !== subtitleTrack) askFromHere(video, { subtitleTrack: burnIn });
+  };
+  return { shownSubtitle, chooseSubtitle };
+}
+
+/**
  * The plan for Version `versionId` as `asking` says, asked for once and never reused after. A
  * Server too busy to Transcode it gives a plan that can't play, saying so.
  */
 function usePlan(versionId: bigint, asking: Asking) {
   const transport = useTransport();
-  const { failedMethods, startPositionMs, audioTrack, playbackLimit } = asking;
+  const { failedMethods, startPositionMs, audioTrack, playbackLimit, subtitleTrack } = asking;
   return useSuspenseQuery({
     queryKey: [
       "planPlayback",
@@ -117,6 +152,7 @@ function usePlan(versionId: bigint, asking: Asking) {
       String(startPositionMs),
       audioTrack,
       playbackLimit,
+      subtitleTrack,
     ],
     queryFn: async () => {
       const deviceDecoding = await findDeviceDecoding();

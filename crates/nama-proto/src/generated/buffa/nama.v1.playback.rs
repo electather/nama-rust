@@ -609,8 +609,9 @@ pub struct PlanPlaybackRequest {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub audio_track: ::core::option::Option<u32>,
-    /// The subtitle Track the caller chose, by its place in the Version's `tracks`, counting from 0.
-    /// Unset for none.
+    /// The subtitle Track the caller chose to burn into the picture, which makes the plan a
+    /// Transcode, by its place in the Version's `tracks`, counting from 0. Unset for none, as when
+    /// the player shows a text subtitle from `PlaybackPlan.subtitles` itself.
     ///
     /// Field 4: `subtitle_track`
     #[serde(

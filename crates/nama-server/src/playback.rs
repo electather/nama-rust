@@ -31,7 +31,7 @@ use tower_http::services::ServeFile;
 
 use crate::{
     contents::Contents,
-    ffmpeg::{Ffmpeg, ProbeError, VideoLimit},
+    ffmpeg::{BurnIn, Ffmpeg, ProbeError, VideoLimit},
     scanner::{ProbeNowError, Scanner},
     tracks::{Hdr, Probe, Track, TrackKind, Tracks, track_to_proto},
     users::{Caller, User},
@@ -136,7 +136,7 @@ impl DeviceDecoding {
 /// Plans playing the Version `version` on `caller`'s Device, which decodes `decoding`, by any
 /// method but those that just `failed` there, with the audio Track at the place `audio` in the
 /// Version's Tracks, or else its own, within the Playback Limit `limit`, `None` being Original,
-/// probing the Version first unless its Tracks are current, and keeps a playable plan in
+/// with the subtitle Track at the place `subtitle` burned into the picture, if any, probing the Version first unless its Tracks are current, and keeps a playable plan in
 /// `running`, which starts its ffmpeg if it needs one. `None` if there is no such Version, and
 /// [`StartError::Busy`] if only a Transcode would play it and the Server is running as many as it
 /// may.
@@ -154,6 +154,7 @@ pub(crate) async fn plan(
     failed: BTreeSet<Method>,
     audio: Option<usize>,
     limit: Option<PlaybackLimit>,
+    subtitle: Option<usize>,
 ) -> Result<Option<Plan>, StartError> {
     let probe = match scanner.probe_now(version).await {
         Ok(probe) => Some(probe),
@@ -179,6 +180,7 @@ pub(crate) async fn plan(
         audio,
         transcodes_full: running.transcodes_full(caller.device.id),
         limit,
+        subtitle,
     };
     let mut plan = build(&facts, &STEPS);
     let Some(playback) = playback(caller, version, &plan) else {
@@ -195,9 +197,10 @@ pub(crate) async fn plan(
         }
         (Some(Method::Transcode), Some(probed)) => {
             let converted_audio = played_audio(&facts).zip(channels_as_aac(plan.method, &facts));
-            let video = video_limit(&facts);
+            let (video, burned) = (video_limit(&facts), burn_in(&facts));
+            let tone_map = tone_maps(&facts);
             running
-                .transcode(playback, probed, converted_audio, tone_maps(&facts), video)
+                .transcode(playback, probed, converted_audio, tone_map, video, burned)
                 .await?
         }
         _ => {
@@ -263,6 +266,9 @@ struct Facts {
     transcodes_full: Option<u32>,
     /// The User's Playback Limit, `None` being Original.
     limit: Option<PlaybackLimit>,
+    /// The subtitle Track the User chose to burn into the picture, by its place in the Version's
+    /// Tracks, if they chose one.
+    subtitle: Option<usize>,
 }
 
 /// What one step lets a plan be, and why.
@@ -274,13 +280,14 @@ struct Narrowing {
 type Step = fn(&Facts) -> Narrowing;
 
 /// In ADR 0027's order. A new input is a new step here.
-const STEPS: [Step; 7] = [
+const STEPS: [Step; 8] = [
     version_tracks,
     device_decoding,
     server_ffmpeg,
     failed_on_device,
     chosen_audio,
     playback_limit,
+    chosen_subtitle,
     server_busy,
 ];
 
@@ -512,6 +519,40 @@ fn playback_limit(facts: &Facts) -> Narrowing {
     Narrowing {
         allows: BTreeSet::from(Method::ALL),
         reason,
+    }
+}
+
+/// The step for the subtitle Track the User chose to burn in: only a Transcode draws it into the
+/// picture.
+fn chosen_subtitle(facts: &Facts) -> Narrowing {
+    if burn_in(facts).is_some() {
+        return Narrowing {
+            allows: BTreeSet::from([Method::Transcode]),
+            reason: "The subtitles chosen are burned into its picture, which only a Transcode does"
+                .to_owned(),
+        };
+    }
+    Narrowing {
+        allows: BTreeSet::from(Method::ALL),
+        reason: "No subtitles are burned into its picture".to_owned(),
+    }
+}
+
+/// How a Transcode burns in the subtitle Track the User chose, if ffmpeg draws it: an image one,
+/// such as PGS, or a text one, such as ASS with its styling. Any other choice, as when the Version
+/// changed since the User saw it, is the same as none.
+fn burn_in(facts: &Facts) -> Option<BurnIn> {
+    let probe = facts.probe.as_ref()?;
+    let place = facts.subtitle?;
+    let track = probe.tracks.get(place)?;
+    let subtitle = probe.subtitle_stream(place);
+    match track.kind {
+        TrackKind::Subtitle { image: true } => Some(BurnIn::Image {
+            subtitle,
+            picture: picture(facts),
+        }),
+        _ if track.is_text_subtitle() => Some(BurnIn::Text { subtitle }),
+        TrackKind::Video { .. } | TrackKind::Audio { .. } | TrackKind::Subtitle { .. } => None,
     }
 }
 
@@ -991,6 +1032,7 @@ mod tests {
             audio: None,
             transcodes_full: None,
             limit: None,
+            subtitle: None,
         }
     }
 
@@ -1019,6 +1061,7 @@ mod tests {
                     "Nothing has failed to play it on this Device".to_owned(),
                     "It plays the file's own audio Track".to_owned(),
                     "The Playback Limit is Original".to_owned(),
+                    "No subtitles are burned into its picture".to_owned(),
                     "This Server isn't running as many Transcodes as it may at once".to_owned(),
                 ],
                 subtitles: vec![],
@@ -1145,6 +1188,7 @@ mod tests {
                 "Nothing has failed to play it on this Device",
                 "It plays the file's own audio Track",
                 "The Playback Limit is Original",
+                "No subtitles are burned into its picture",
                 "This Server isn't running as many Transcodes as it may at once",
             ]
         );
@@ -1246,6 +1290,7 @@ mod tests {
                 "Nothing has failed to play it on this Device",
                 "It plays the file's own audio Track",
                 "The Playback Limit is Original",
+                "No subtitles are burned into its picture",
                 "This Server isn't running as many Transcodes as it may at once",
             ]
         );
@@ -1583,7 +1628,7 @@ mod tests {
 
         assert_eq!(plan.method, Some(Method::Remux));
         assert_eq!(
-            plan.reasons[6],
+            plan.reasons[7],
             "This Server is busy, running as many Transcodes as it may at once (1), so it can't \
              Transcode it"
         );
@@ -1688,6 +1733,56 @@ mod tests {
         ];
         for (picture, limit, fits) in cases {
             assert_eq!(fitted(picture, limit), fits, "{picture:?} at {limit:?}");
+        }
+    }
+
+    #[test]
+    fn a_chosen_image_or_text_subtitle_is_burned_in_by_a_transcode_and_the_plan_says_so() {
+        let pgs = track(
+            "hdmv_pgs_subtitle",
+            false,
+            TrackKind::Subtitle { image: true },
+        );
+        let ass = track("ass", false, TrackKind::Subtitle { image: false });
+        for chosen in [pgs, ass] {
+            let facts = Facts {
+                subtitle: Some(2),
+                ..facts(Some(vec![
+                    video("h264"),
+                    audio("aac", true),
+                    chosen.clone(),
+                ]))
+            };
+
+            let plan = build(&facts, &STEPS);
+
+            assert_eq!(plan.method, Some(Method::Transcode), "{}", chosen.codec);
+            assert_eq!(
+                plan.reasons[6],
+                "The subtitles chosen are burned into its picture, which only a Transcode does"
+            );
+            let busy = Facts {
+                transcodes_full: Some(1),
+                ..facts
+            };
+            assert_eq!(too_busy_to_play(busy), Some(1), "{}", chosen.codec);
+        }
+    }
+
+    #[test]
+    fn a_subtitle_choice_that_isnt_a_subtitle_ffmpeg_draws_burns_nothing_in() {
+        let teletext = track("dvb_teletext", false, TrackKind::Subtitle { image: false });
+        let tracks = vec![video("h264"), audio("aac", true), teletext];
+        for chosen in [None, Some(1), Some(2), Some(9)] {
+            let facts = Facts {
+                subtitle: chosen,
+                ..facts(Some(tracks.clone()))
+            };
+
+            let plan = build(&facts, &STEPS);
+
+            assert_eq!(plan.method, Some(Method::DirectPlay), "{chosen:?}");
+            assert_eq!(plan.reasons[6], "No subtitles are burned into its picture");
         }
     }
 }

@@ -40,8 +40,9 @@ message PlanPlaybackRequest {
   // The audio Track the caller chose, by its place in the Version's `tracks`, counting from 0.
   // Unset for the one the Version plays by default.
   optional uint32 audio_track = 3;
-  // The subtitle Track the caller chose, by its place in the Version's `tracks`, counting from 0.
-  // Unset for none.
+  // The subtitle Track the caller chose to burn into the picture, which makes the plan a
+  // Transcode, by its place in the Version's `tracks`, counting from 0. Unset for none, as when
+  // the player shows a text subtitle from `PlaybackPlan.subtitles` itself.
   optional uint32 subtitle_track = 4;
   // The caller's Playback Limit.
   PlaybackLimit playback_limit = 5;
