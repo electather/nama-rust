@@ -122,11 +122,9 @@ impl Embedded {
         let Some((path, file)) = contents.version_file(version).await? else {
             return Ok(None);
         };
-        // Tracks read from what the file held before would pick the wrong stream out of it now.
-        if !tracks.current(&[file]).await?.contains(&version) {
-            return Ok(None);
-        }
-        let Some(probe) = tracks.of(&[version]).await?.remove(&version) else {
+        // `of` leaves out Tracks read from what the file held before, which would pick the wrong
+        // stream out of it now.
+        let Some(probe) = tracks.of(&[file]).await?.remove(&version) else {
             return Ok(None);
         };
         let Some(found) = (probe.tracks.get(track)).filter(|found| found.is_text_subtitle()) else {

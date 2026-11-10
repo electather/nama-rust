@@ -8,7 +8,7 @@ use std::{collections::HashMap, sync::Arc};
 use nama_plugin_api::metadata::ExternalId;
 
 use crate::{
-    contents::{Contents, Episode, Movie, Season, Show, Version},
+    contents::{Contents, Episode, Movie, Season, Show, Stored, Version},
     db::Database,
     libraries::{self, Kind, Libraries, Library},
     tracks::Tracks,
@@ -194,16 +194,16 @@ impl Browse {
         Ok(started)
     }
 
-    /// Fills in the Tracks of each of `versions` that has been probed.
+    /// Fills in the Tracks of each of `versions` that probing read from its file as it is now.
     async fn add_tracks(
         &self,
         versions: impl IntoIterator<Item = &mut Version>,
     ) -> Result<(), sqlx::Error> {
         let mut versions: Vec<&mut Version> = versions.into_iter().collect();
-        let ids: Vec<i64> = versions.iter().map(|version| version.id).collect();
-        let probes = self.tracks.of(&ids).await?;
+        let files: Vec<Stored> = versions.iter().map(|version| version.file).collect();
+        let probes = self.tracks.of(&files).await?;
         for version in &mut versions {
-            if let Some(probe) = probes.get(&version.id) {
+            if let Some(probe) = probes.get(&version.file.id) {
                 // A file holding two Episodes is a Version of each.
                 version.tracks.clone_from(&probe.tracks);
             }
@@ -331,10 +331,11 @@ mod tests {
 
     use super::{Browse, Started};
     use crate::{
-        contents::{Change, Contents, Decided, Item, Metadata},
+        contents::{Change, Contents, Decided, Item, Metadata, Stored},
         db::Database,
         libraries::{Kind, Libraries},
         plugins::Registry,
+        tracks::{Probe, Track, TrackKind, Tracks},
         users::{Permissions, User, Users},
         watch_states::{Progress, WatchStates},
     };
@@ -424,5 +425,47 @@ mod tests {
             })
             .collect();
         assert_eq!(listed, [(older, ExternalId::Tmdb(ALIEN_TMDB_ID))]);
+    }
+
+    #[tokio::test]
+    async fn a_version_has_no_tracks_read_from_its_file_before_it_changed() {
+        let data = tempfile::tempdir().unwrap();
+        let folder = tempfile::tempdir().unwrap();
+        let db = Arc::new(Database::open(data.path()).await.unwrap());
+        let library = library_with_alien(&db, "Movies", &folder).await;
+        let stored = Contents::new(Arc::clone(&db))
+            .stored(library)
+            .await
+            .unwrap();
+        let file = *stored.values().next().unwrap();
+        let before_it_changed = Stored {
+            modified_ns: file.modified_ns - 1,
+            ..file
+        };
+        let stereo = Probe {
+            container: "matroska,webm".to_owned(),
+            duration_ms: None,
+            bitrate: None,
+            tracks: vec![Track {
+                codec: "ac3".to_owned(),
+                language: None,
+                title: None,
+                default: false,
+                forced: false,
+                sdh: false,
+                kind: TrackKind::Audio { channels: Some(2) },
+            }],
+        };
+        Tracks::new(Arc::clone(&db))
+            .store(before_it_changed, stereo)
+            .await
+            .unwrap();
+
+        let (movie, _) = Browse::new(db)
+            .movie(0, library, &ExternalId::Tmdb(ALIEN_TMDB_ID))
+            .await
+            .unwrap();
+
+        assert_eq!(movie.versions[0].tracks, []);
     }
 }
