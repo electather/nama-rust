@@ -95,7 +95,7 @@ use crate::{
     forwarded::{RequestSource, identify_source},
     libraries::{self, FolderProblem, Kind, Libraries, Library},
     matching::{ManualError, Matcher},
-    playback::{self, Method, Plan},
+    playback::{self, Device, Method, Plan},
     plugin_settings::{ChangeError, ListError, PluginSettings, StoredPlugin},
     plugins::{CheckError, EnableError, Listed},
     qualities,
@@ -1233,7 +1233,13 @@ impl PlaybackService for PlaybackServiceHandler {
         request: ServiceRequest<'_, PlanPlaybackRequest>,
     ) -> ServiceResult<PlanPlaybackResponse> {
         // The rest of the request is for steps still to come (ADR 0027).
-        let plan = playback::plan(&self.scanner, request.version_id)
+        let request = request.to_owned_message();
+        let decoding = request.device_decoding.into_option().unwrap_or_default();
+        let device = Device {
+            content_types: decoding.content_types,
+            hdr: decoding.hdr,
+        };
+        let plan = playback::plan(&self.scanner, request.version_id, device)
             .await
             .map_err(database_failed)?
             .ok_or_else(version_not_found)?;

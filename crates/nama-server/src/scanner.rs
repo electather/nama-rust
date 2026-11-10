@@ -1214,7 +1214,9 @@ EOF"#,
         media.match_to_alien().await;
         let version = media.file_id(alien).await;
 
-        let plan = playback::plan(&media.scanner, version).await.unwrap();
+        let plan = playback::plan(&media.scanner, version, playback::Device::default())
+            .await
+            .unwrap();
 
         let tracks = plan.map(|plan| plan.tracks).unwrap_or_default();
         let codecs: Vec<&str> = tracks.iter().map(|track| track.codec.as_str()).collect();

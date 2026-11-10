@@ -26,7 +26,7 @@ use crate::{
     contents::Contents,
     ffmpeg::ProbeError,
     scanner::{ProbeNowError, Scanner},
-    tracks::{Probe, Track, TrackKind},
+    tracks::{Hdr, Probe, Track, TrackKind},
 };
 
 /// How a plan plays a Version, the one the Server prefers first.
@@ -54,9 +54,23 @@ pub(crate) struct Plan {
     pub(crate) reasons: Vec<String>,
 }
 
-/// Plans playing the Version `version`, probing it first unless its Tracks are current. `None`
-/// if there is no such Version.
-pub(crate) async fn plan(scanner: &Scanner, version: i64) -> Result<Option<Plan>, sqlx::Error> {
+/// What a Device says it can decode, as it found out just now. The Server never stores it.
+#[derive(Debug, Default)]
+pub(crate) struct Device {
+    /// Those of the content types [`container`] and [`CODECS`] name that it decodes, such as
+    /// `video/mp4` for a container or `video/mp4; codecs="avc1.640028"` for a codec.
+    pub(crate) content_types: Vec<String>,
+    /// Whether its display shows HDR.
+    pub(crate) hdr: bool,
+}
+
+/// Plans playing the Version `version` on `device`, probing it first unless its Tracks are
+/// current. `None` if there is no such Version.
+pub(crate) async fn plan(
+    scanner: &Scanner,
+    version: i64,
+    device: Device,
+) -> Result<Option<Plan>, sqlx::Error> {
     let probe = match scanner.probe_now(version).await {
         Ok(probe) => Some(probe),
         Err(ProbeNowError::Probe(err)) => {
@@ -71,7 +85,12 @@ pub(crate) async fn plan(scanner: &Scanner, version: i64) -> Result<Option<Plan>
         Err(ProbeNowError::NoSuchVersion(_)) => return Ok(None),
         Err(ProbeNowError::Database(err)) => return Err(err),
     };
-    Ok(Some(build(&Facts { version, probe }, &STEPS)))
+    let facts = Facts {
+        version,
+        probe,
+        device,
+    };
+    Ok(Some(build(&facts, &STEPS)))
 }
 
 /// What a plan is based on.
@@ -79,6 +98,7 @@ struct Facts {
     version: i64,
     /// What probing found in the Version, or `None` if it couldn't be probed.
     probe: Option<Probe>,
+    device: Device,
 }
 
 /// What one step lets a plan be, and why.
@@ -90,7 +110,7 @@ struct Narrowing {
 type Step = fn(&Facts) -> Narrowing;
 
 /// In ADR 0027's order. A new input is a new step here.
-const STEPS: [Step; 1] = [version_tracks];
+const STEPS: [Step; 2] = [version_tracks, device_decoding];
 
 /// The plan for `facts` that every one of `steps` allows.
 fn build(facts: &Facts, steps: &[Step]) -> Plan {
@@ -126,6 +146,110 @@ fn version_tracks(facts: &Facts) -> Narrowing {
         allows: BTreeSet::from(Method::ALL),
         reason: reason.to_owned(),
     }
+}
+
+/// The step for what the Device decodes: Direct Play only if it decodes the Version's container
+/// and the Tracks the plan plays, and its display shows their HDR.
+fn device_decoding(facts: &Facts) -> Narrowing {
+    let Some(probe) = &facts.probe else {
+        // ADR 0026, as for the Tracks step.
+        return Narrowing {
+            allows: BTreeSet::from(Method::ALL),
+            reason: "Its Tracks aren't known, so this Device is taken to decode them".to_owned(),
+        };
+    };
+    let Some(cant) = joined_with_or(&undecodable(probe, &facts.device)) else {
+        return Narrowing {
+            allows: BTreeSet::from(Method::ALL),
+            reason: "This Device decodes its container and Tracks".to_owned(),
+        };
+    };
+    Narrowing {
+        allows: BTreeSet::from([Method::Remux, Method::Transcode]),
+        reason: format!("This Device can't decode its {cant}, so it can't be Direct Played"),
+    }
+}
+
+/// Each codec a Device can say it decodes, as ffprobe names it, with the content type a Device
+/// lists for it and its name in plain words. `web/src/lib/device-decoding.ts` asks the browser
+/// about these same types.
+// ponytail: one common profile per codec, so a 10-bit or 4K Track may pass on a Device that
+// decodes only the 8-bit HD one; check the Track's own profile once probing reads it.
+const CODECS: [(&str, &str, &str); 11] = [
+    ("h264", r#"video/mp4; codecs="avc1.640028""#, "H.264"),
+    ("hevc", r#"video/mp4; codecs="hvc1.1.6.L120.90""#, "HEVC"),
+    ("vp9", r#"video/webm; codecs="vp09.00.40.08""#, "VP9"),
+    ("av1", r#"video/mp4; codecs="av01.0.08M.08""#, "AV1"),
+    ("aac", r#"audio/mp4; codecs="mp4a.40.2""#, "AAC"),
+    ("ac3", r#"audio/mp4; codecs="ac-3""#, "AC-3"),
+    ("eac3", r#"audio/mp4; codecs="ec-3""#, "E-AC-3"),
+    ("opus", r#"audio/webm; codecs="opus""#, "Opus"),
+    ("flac", r#"audio/mp4; codecs="flac""#, "FLAC"),
+    ("dts", r#"audio/mp4; codecs="dtsc""#, "DTS"),
+    ("truehd", r#"audio/mp4; codecs="mlpa""#, "TrueHD"),
+];
+
+/// What of `probe` `device` can't decode, in plain words, such as "HEVC video".
+fn undecodable(probe: &Probe, device: &Device) -> Vec<String> {
+    let decodes = |content_type: &str| {
+        device
+            .content_types
+            .iter()
+            .any(|listed| listed == content_type)
+    };
+    let mut cant = match container(probe) {
+        Some((content_type, _)) if decodes(content_type) => vec![],
+        Some((_, name)) => vec![format!("{name} container")],
+        None => vec![format!("{} container", probe.container)],
+    };
+    for track in played_tracks(probe) {
+        let (kind, hdr) = match track.kind {
+            TrackKind::Video { hdr, .. } => ("video", hdr),
+            TrackKind::Audio { .. } => ("audio", None),
+            TrackKind::Subtitle { .. } => ("subtitle", None),
+        };
+        match CODECS.into_iter().find(|(codec, ..)| *codec == track.codec) {
+            Some((_, content_type, _)) if decodes(content_type) => {}
+            Some((_, _, name)) => cant.push(format!("{name} {kind}")),
+            None => cant.push(format!("{} {kind}", track.codec)),
+        }
+        if let Some(hdr) = hdr.filter(|_| !device.hdr) {
+            cant.push(format!("{} picture", hdr_name(hdr)));
+        }
+    }
+    cant
+}
+
+/// The content type of `probe`'s container and its name in plain words, if a browser can play it
+/// at all. `web/src/lib/device-decoding.ts` asks the browser about these same types.
+fn container(probe: &Probe) -> Option<(&'static str, &'static str)> {
+    // ffprobe names WebM and Matroska alike; WebM is Matroska holding only these codecs.
+    const WEBM: [&str; 6] = ["vp8", "vp9", "av1", "opus", "vorbis", "webvtt"];
+    let webm = (probe.tracks.iter()).all(|track| WEBM.contains(&track.codec.as_str()));
+    match probe.container.as_str() {
+        "mov,mp4,m4a,3gp,3g2,mj2" => Some(("video/mp4", "MP4")),
+        "matroska,webm" if webm => Some(("video/webm", "WebM")),
+        "matroska,webm" => Some(("video/x-matroska", "Matroska")),
+        _ => None,
+    }
+}
+
+const fn hdr_name(hdr: Hdr) -> &'static str {
+    match hdr {
+        Hdr::Hdr10 => "HDR10",
+        Hdr::Hlg => "HLG",
+        Hdr::DolbyVision { .. } => "Dolby Vision",
+    }
+}
+
+/// `items` as "a, b or c", or `None` if there are none.
+fn joined_with_or(items: &[String]) -> Option<String> {
+    let (last, rest) = items.split_last()?;
+    Some(if rest.is_empty() {
+        last.clone()
+    } else {
+        format!("{} or {last}", rest.join(", "))
+    })
 }
 
 /// The Tracks a browser plays from the file: its first video, and the audio the file marks to
@@ -182,8 +306,8 @@ async fn serve(
 mod tests {
     use std::collections::BTreeSet;
 
-    use super::{Facts, Method, Narrowing, Plan, STEPS, build};
-    use crate::tracks::{Probe, Track, TrackKind};
+    use super::{Device, Facts, Method, Narrowing, Plan, STEPS, build};
+    use crate::tracks::{Hdr, Probe, Track, TrackKind};
 
     fn track(codec: &str, default: bool, kind: TrackKind) -> Track {
         Track {
@@ -197,12 +321,16 @@ mod tests {
     }
 
     fn video(codec: &str) -> Track {
+        hdr_video(codec, None)
+    }
+
+    fn hdr_video(codec: &str, hdr: Option<Hdr>) -> Track {
         let kind = TrackKind::Video {
             width: Some(1920),
             height: Some(1080),
             frame_rate: Some(24.0),
             bit_depth: Some(8),
-            hdr: None,
+            hdr,
         };
         track(codec, false, kind)
     }
@@ -211,15 +339,41 @@ mod tests {
         track(codec, default, TrackKind::Audio { channels: Some(2) })
     }
 
+    const MP4: &str = "mov,mp4,m4a,3gp,3g2,mj2";
+    const MKV: &str = "matroska,webm";
+
+    /// What Firefox on an SDR display says it decodes.
+    fn firefox() -> Device {
+        let content_types = [
+            "video/mp4",
+            "video/webm",
+            r#"video/mp4; codecs="avc1.640028""#,
+            r#"video/webm; codecs="vp09.00.40.08""#,
+            r#"video/mp4; codecs="av01.0.08M.08""#,
+            r#"audio/mp4; codecs="mp4a.40.2""#,
+            r#"audio/webm; codecs="opus""#,
+            r#"audio/mp4; codecs="flac""#,
+        ];
+        Device {
+            content_types: content_types.map(str::to_owned).to_vec(),
+            hdr: false,
+        }
+    }
+
     fn facts(tracks: Option<Vec<Track>>) -> Facts {
+        in_container(MP4, tracks)
+    }
+
+    fn in_container(container: &str, tracks: Option<Vec<Track>>) -> Facts {
         Facts {
             version: 7,
             probe: tracks.map(|tracks| Probe {
-                container: "mov,mp4,m4a,3gp,3g2,mj2".to_owned(),
+                container: container.to_owned(),
                 duration_ms: Some(7_200_000),
                 bitrate: Some(5_000_000),
                 tracks,
             }),
+            device: firefox(),
         }
     }
 
@@ -236,9 +390,74 @@ mod tests {
                 method: Some(Method::DirectPlay),
                 url: Some("/media/versions/7".to_owned()),
                 tracks: vec![video("h264"), audio("aac", true)],
-                reasons: vec!["Its Tracks need no change".to_owned()],
+                reasons: vec![
+                    "Its Tracks need no change".to_owned(),
+                    "This Device decodes its container and Tracks".to_owned(),
+                ],
             }
         );
+    }
+
+    #[test]
+    fn a_version_the_device_cant_decode_cant_be_direct_played_and_the_plan_names_what() {
+        let hdr10 = Some(Hdr::Hdr10);
+        let cases = [
+            (
+                MKV,
+                vec![video("hevc"), audio("aac", true)],
+                "Matroska container or HEVC video",
+            ),
+            (MP4, vec![video("h264"), audio("dts", true)], "DTS audio"),
+            (
+                MP4,
+                vec![hdr_video("av1", hdr10), audio("aac", true)],
+                "HDR10 picture",
+            ),
+            (
+                "avi",
+                vec![video("mpeg4"), audio("mp3", true)],
+                "avi container, mpeg4 video or mp3 audio",
+            ),
+        ];
+        for (container, tracks, cant) in cases {
+            let plan = build(&in_container(container, Some(tracks)), &STEPS);
+
+            assert_eq!(plan.method, None, "{cant}");
+            assert_eq!(
+                plan.reasons[1],
+                format!("This Device can't decode its {cant}, so it can't be Direct Played")
+            );
+        }
+    }
+
+    #[test]
+    fn a_device_decodes_what_its_content_types_and_display_say() {
+        let mut hdr_display = firefox();
+        hdr_display.hdr = true;
+        let cases = [
+            (MKV, vec![video("vp9"), audio("opus", true)], firefox()),
+            (
+                MP4,
+                vec![hdr_video("av1", Some(Hdr::Hlg)), audio("flac", true)],
+                hdr_display,
+            ),
+            // Only the Tracks the plan plays need decoding.
+            (
+                MP4,
+                vec![video("h264"), audio("dts", false), audio("aac", true)],
+                firefox(),
+            ),
+        ];
+        for (container, tracks, device) in cases {
+            let facts = Facts {
+                device,
+                ..in_container(container, Some(tracks.clone()))
+            };
+
+            let plan = build(&facts, &STEPS);
+
+            assert_eq!(plan.method, Some(Method::DirectPlay), "{tracks:?}");
+        }
     }
 
     #[test]
@@ -249,7 +468,10 @@ mod tests {
         assert_eq!(plan.tracks, []);
         assert_eq!(
             plan.reasons,
-            ["Its Tracks aren't known, so they're taken to need no change"]
+            [
+                "Its Tracks aren't known, so they're taken to need no change",
+                "Its Tracks aren't known, so this Device is taken to decode them",
+            ]
         );
     }
 

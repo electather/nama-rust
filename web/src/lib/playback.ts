@@ -1,4 +1,6 @@
-import { useSuspenseQuery } from "@connectrpc/connect-query";
+import { create } from "@bufbuild/protobuf";
+import { callUnaryMethod, useTransport } from "@connectrpc/connect-query";
+import { useSuspenseQuery } from "@tanstack/react-query";
 import { type LinkOptions, useNavigate } from "@tanstack/react-router";
 import {
   type RefObject,
@@ -10,7 +12,8 @@ import {
   useSyncExternalStore,
 } from "react";
 
-import { PlaybackService } from "@/gen/nama/v1/playback_pb";
+import { PlaybackPlanSchema, PlaybackService } from "@/gen/nama/v1/playback_pb";
+import { findDeviceDecoding } from "@/lib/device-decoding";
 import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
 
 /** How long the controls stay after the pointer or keyboard was last used, while playing. */
@@ -19,23 +22,27 @@ const SEEK_STEP_SECONDS = 10;
 const VOLUME_STEP = 0.1;
 
 /**
- * Where to play Version `versionId` from, starting where `watchState` stopped, as the Server's
- * Playback Plan says, or `""` if it can't play here. The plan is asked for once each time the
- * player opens, and never reused after.
+ * The Server's Playback Plan for Version `versionId` on this Device, starting where `watchState`
+ * stopped. The plan is asked for once each time the player opens, and never reused after.
  */
-export function usePlaybackUrl(versionId: bigint, watchState: WatchState | undefined) {
+export function usePlaybackPlan(versionId: bigint, watchState: WatchState | undefined) {
+  const transport = useTransport();
   // Where it stood on opening: a new plan would reload the `<video>`, so the refetches each Watch
   // State report causes mustn't ask again.
   const [startPositionMs] = useState(() =>
     watchState && !watchState.played ? watchState.positionMs : 0n,
   );
-  return (
-    useSuspenseQuery(
-      PlaybackService.method.planPlayback,
-      { versionId, startPositionMs },
-      { staleTime: "static", gcTime: 0 },
-    ).data.plan?.url ?? ""
-  );
+  return useSuspenseQuery({
+    queryKey: ["planPlayback", String(versionId)],
+    queryFn: async () => {
+      const deviceDecoding = await findDeviceDecoding();
+      const input = { versionId, startPositionMs, deviceDecoding };
+      const { plan } = await callUnaryMethod(transport, PlaybackService.method.planPlayback, input);
+      return create(PlaybackPlanSchema, plan);
+    },
+    staleTime: "static",
+    gcTime: 0,
+  }).data;
 }
 
 /** What the controls need of the `<video>`: what it's doing, and a way to act on it. */
