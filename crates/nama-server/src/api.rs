@@ -89,7 +89,7 @@ use crate::{
     config::Config,
     connections::{self, Connections},
     contents::{Contents, Episode, Item, MatchedTo, Metadata, Movie, Show, Unmatched, Version},
-    db::{Database, now},
+    db::{Database, detached, now},
     events::{EventBus, Filter},
     ffmpeg::{self, Ffmpeg},
     forwarded::{RequestSource, identify_source},
@@ -869,8 +869,14 @@ impl LibraryService for LibraryServiceHandler {
         _ctx: RequestContext,
         request: ServiceRequest<'_, DeleteLibraryRequest>,
     ) -> ServiceResult<DeleteLibraryResponse> {
-        self.libraries.delete(request.id).await?;
-        self.scanner.clean_subtitles().await;
+        let (libraries, scanner, id) = (self.libraries.clone(), self.scanner.clone(), request.id);
+        // The delete commits even if the caller stops waiting, so its cleanup must follow (ADR 0029).
+        detached(async move {
+            libraries.delete(id).await?;
+            scanner.clean_subtitles().await;
+            Ok::<_, libraries::Error>(())
+        })
+        .await?;
         Response::ok(DeleteLibraryResponse::default())
     }
 
