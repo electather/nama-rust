@@ -7,7 +7,7 @@ mod fake_radarr;
 mod refused;
 #[path = "support/servarr.rs"]
 mod servarr;
-#[expect(dead_code, reason = "the harness's plain `start` has no use here")]
+#[expect(dead_code, reason = "the harness's `data_dir` has no use here")]
 #[path = "support/server.rs"]
 mod server;
 
@@ -30,14 +30,13 @@ use nama_proto::nama::v1::{
     __buffa::view::SubscribeResponseView, ApproveRequestRequest, CreateRequestRequest,
     CreateUserRequest, DefaultQuality, Download, DownloadStatus, EnablePluginRequest,
     EventServiceClient, EventType, ExtensionPoint, ListDefaultQualitiesRequest,
-    ListMovieQualitiesRequest, ListOfferedQualitiesRequest, ListPluginsRequest,
-    ListQualitiesRequest, Permission, Quality, RefusalReason, ReplaceQualitiesRequest, Request,
-    RequestServiceClient, RequestState, RetryRequestRequest, SessionDelivery,
-    SetDefaultQualityRequest, SetPermissionsRequest, SignInRequest, SignInServiceClient,
-    SubscribeRequest, SubscribeResponse, TitleKind, UpdatePluginSettingsRequest, event,
-    subscribe_response,
+    ListMovieQualitiesRequest, ListOfferedQualitiesRequest, ListQualitiesRequest, Permission,
+    Quality, RefusalReason, ReplaceQualitiesRequest, Request, RequestServiceClient, RequestState,
+    RetryRequestRequest, SessionDelivery, SetDefaultQualityRequest, SetPermissionsRequest,
+    SignInRequest, SignInServiceClient, SubscribeRequest, SubscribeResponse, TitleKind,
+    UpdatePluginSettingsRequest, event, subscribe_response,
 };
-use nama_server::{config::Config, plugin_settings, plugins::Registry};
+use nama_server::{config::Config, plugins::Registry};
 use refused::assert_refused;
 use serde_json::json;
 use servarr::{ServarrFixture, choices, quality, text};
@@ -100,24 +99,13 @@ impl Fixture {
         plugins
             .enable_with_settings(Arc::new(Tmdb::with_endpoints(tmdb.endpoints())), settings)
             .unwrap();
-        let (server, db) = TestServer::start_with_db(Config::default(), plugins.clone()).await;
-        // As on a Server's first start.
-        plugin_settings::import(&db, &BTreeMap::new())
-            .await
-            .unwrap();
-        let fixture = Self {
+        let server = TestServer::start(Config::default(), plugins.clone()).await;
+        Self {
             server,
             plugins,
             radarr: FakeRadarr::start(&[ALIEN], &[DUNE]).await,
             _tmdb: tmdb,
-        };
-        // Listing is what reads the Installed Plugins, bundled ones too.
-        fixture
-            .plugins()
-            .list_plugins(ListPluginsRequest::default())
-            .await
-            .unwrap();
-        fixture
+        }
     }
 
     /// A Fixture where an Admin set Radarr up with the profile HD-1080p and the root folder

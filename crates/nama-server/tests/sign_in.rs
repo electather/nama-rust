@@ -23,7 +23,12 @@ use nama_proto::nama::v1::{
     LibraryServiceClient, RefusalReason, ScanLibraryRequest, SubscribeRequest, SubscribeResponse,
 };
 use nama_server::{
-    config::Config, db::Database, ffmpeg::Ffmpeg, plugins::Registry, users::SetupCode,
+    config::Config,
+    db::{self, Database},
+    ffmpeg::Ffmpeg,
+    plugin_settings::PluginSettings,
+    plugins::Registry,
+    users::SetupCode,
 };
 use refused::assert_refused;
 use serde_json::{Value, json};
@@ -73,16 +78,23 @@ async fn start_behind_proxy() -> TestServer {
     reason = "a test helper fails its test by panicking"
 )]
 async fn start_with(setup_code: Option<SetupCode>, config: &Config) -> TestServer {
-    let plugins = Registry::new();
-    plugins.enable(Arc::new(LocalAuth)).unwrap();
+    let registry = Registry::new();
+    registry.describe_builtin(|| Arc::new(LocalAuth));
     let data_dir = tempfile::tempdir().unwrap();
+    let config = Config {
+        data_dir: data_dir.path().to_owned(),
+        ..config.clone()
+    };
     let db = Arc::new(Database::open(data_dir.path()).await.unwrap());
+    let plugins = PluginSettings::start(Arc::clone(&db), registry, &config)
+        .await
+        .unwrap();
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     let (stop, stopped) = oneshot::channel::<()>();
     tokio::spawn(nama_server::serve(
         listener,
-        config,
+        &config,
         db,
         plugins,
         setup_code.clone(),
@@ -480,7 +492,11 @@ async fn setup_trims_the_name_and_accepts_64_characters() {
 fn database_bytes(data_dir: &Path) -> Vec<u8> {
     let mut bytes = Vec::new();
     for entry in std::fs::read_dir(data_dir).unwrap() {
-        bytes.extend(std::fs::read(entry.unwrap().path()).unwrap());
+        let path = entry.unwrap().path();
+        // Beside them are what reading the Installed Plugins caches.
+        if path.to_string_lossy().contains(db::FILE_NAME) {
+            bytes.extend(std::fs::read(path).unwrap());
+        }
     }
     bytes
 }
