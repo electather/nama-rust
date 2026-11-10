@@ -49,22 +49,23 @@ use nama_proto::nama::v1::{
     DeclineRequestRequest, DeclineRequestResponse, DeleteLibraryRequest, DeleteLibraryResponse,
     DeletePluginConnectionRequest, DeletePluginConnectionResponse, DeleteUserRequest,
     DeleteUserResponse, DisablePluginRequest, DisablePluginResponse, EnablePluginRequest,
-    EnablePluginResponse, EventService, EventType, GetDefaultPermissionsRequest,
+    EnablePluginResponse, EventService, EventType, FoundProgram, GetDefaultPermissionsRequest,
     GetDefaultPermissionsResponse, GetLibraryRequest, GetLibraryResponse, GetMovieRequest,
-    GetMovieResponse, GetPluginRequest, GetPluginResponse, GetRequestRequest, GetRequestResponse,
-    GetServerInfoRequest, GetServerInfoResponse, GetServerSettingsRequest,
-    GetServerSettingsResponse, GetShowRequest, GetShowResponse, LibraryKind, LibraryService,
-    ListContinueWatchingRequest, ListContinueWatchingResponse, ListDevicesRequest,
-    ListDevicesResponse, ListEpisodesRequest, ListEpisodesResponse, ListLibrariesRequest,
-    ListLibrariesResponse, ListMoviesRequest, ListMoviesResponse, ListPluginConnectionsRequest,
-    ListPluginConnectionsResponse, ListPluginsRequest, ListPluginsResponse, ListRequestsRequest,
-    ListRequestsResponse, ListShowsRequest, ListShowsResponse, ListUnmatchedItemsRequest,
-    ListUnmatchedItemsResponse, ListUsersRequest, ListUsersResponse, LookUpMovieRequest,
-    LookUpMovieResponse, LookUpShowRequest, LookUpShowResponse, LookUpSignInCodeRequest,
-    LookUpSignInCodeResponse, MatchService, Permission, PluginConnection, PluginConnectionState,
-    PluginService, PollSignInCodeRequest, PollSignInCodeResponse, ReauthenticateRequest,
-    ReauthenticateResponse, Refusal, RefusalReason, ReportProgressRequest, ReportProgressResponse,
-    RequestService, RequestState, ResetPasswordRequest, ResetPasswordResponse, RetryRequestRequest,
+    GetMovieResponse, GetPlaybackStatusRequest, GetPlaybackStatusResponse, GetPluginRequest,
+    GetPluginResponse, GetRequestRequest, GetRequestResponse, GetServerInfoRequest,
+    GetServerInfoResponse, GetServerSettingsRequest, GetServerSettingsResponse, GetShowRequest,
+    GetShowResponse, LibraryKind, LibraryService, ListContinueWatchingRequest,
+    ListContinueWatchingResponse, ListDevicesRequest, ListDevicesResponse, ListEpisodesRequest,
+    ListEpisodesResponse, ListLibrariesRequest, ListLibrariesResponse, ListMoviesRequest,
+    ListMoviesResponse, ListPluginConnectionsRequest, ListPluginConnectionsResponse,
+    ListPluginsRequest, ListPluginsResponse, ListRequestsRequest, ListRequestsResponse,
+    ListShowsRequest, ListShowsResponse, ListUnmatchedItemsRequest, ListUnmatchedItemsResponse,
+    ListUsersRequest, ListUsersResponse, LookUpMovieRequest, LookUpMovieResponse,
+    LookUpShowRequest, LookUpShowResponse, LookUpSignInCodeRequest, LookUpSignInCodeResponse,
+    MatchService, Permission, PluginConnection, PluginConnectionState, PluginService,
+    PollSignInCodeRequest, PollSignInCodeResponse, ReauthenticateRequest, ReauthenticateResponse,
+    Refusal, RefusalReason, ReportProgressRequest, ReportProgressResponse, RequestService,
+    RequestState, ResetPasswordRequest, ResetPasswordResponse, RetryRequestRequest,
     RetryRequestResponse, RevokeDeviceRequest, RevokeDeviceResponse, ScanLibraryRequest,
     ScanLibraryResponse, SearchMetadataRequest, SearchMetadataResponse, SearchMoviesRequest,
     SearchMoviesResponse, SearchShowsRequest, SearchShowsResponse, ServerService, ServerSettings,
@@ -89,6 +90,7 @@ use crate::{
     contents::{Contents, Episode, Item, MatchedTo, Metadata, Movie, Show, Unmatched, Version},
     db::{Database, now},
     events::{EventBus, Filter},
+    ffmpeg::{self, Ffmpeg},
     forwarded::{RequestSource, identify_source},
     libraries::{self, FolderProblem, Kind, Libraries, Library},
     matching::{ManualError, Matcher},
@@ -123,6 +125,7 @@ pub(crate) fn router(
     requests: Requests,
     server_url: ServerUrl,
     setup_code: Option<SetupCode>,
+    ffmpeg: Ffmpeg,
 ) -> (axum::Router, impl Future<Output = ()> + Send + 'static) {
     let plugins = plugin_settings.registry().clone();
     let saving_crashed = save_crashed(plugins.crashed(), plugin_settings.clone(), Arc::clone(&db));
@@ -139,6 +142,7 @@ pub(crate) fn router(
             users: users.clone(),
             db: Arc::clone(&db),
             server_url,
+            ffmpeg,
         }))
         .add_service(Arc::new(SignInServiceHandler {
             users: users.clone(),
@@ -210,6 +214,9 @@ const MANAGE_LIBRARIES: Access = Access::Needs(Permission::ManageLibraries);
 /// Managing Users and their Devices.
 const MANAGE_USERS: Access = Access::Needs(Permission::ManageUsers);
 
+/// What only an Admin may do.
+const ADMIN: Access = Access::Needs(Permission::Admin);
+
 /// Managing the Server's settings, such as its Plugins.
 const MANAGE_SETTINGS: Access = Access::Needs(Permission::ManageSettings);
 
@@ -230,6 +237,7 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::SERVER_SERVICE_GET_SERVER_INFO_SPEC.procedure,        Access::Anyone),
     (proto::SERVER_SERVICE_GET_SERVER_SETTINGS_SPEC.procedure,    MANAGE_SETTINGS),
     (proto::SERVER_SERVICE_UPDATE_SERVER_SETTINGS_SPEC.procedure, MANAGE_SETTINGS),
+    (proto::SERVER_SERVICE_GET_PLAYBACK_STATUS_SPEC.procedure,    ADMIN),
     (proto::SIGN_IN_SERVICE_SETUP_SPEC.procedure,                 Access::Anyone),
     (proto::SIGN_IN_SERVICE_SIGN_IN_SPEC.procedure,               Access::Anyone),
     (proto::SIGN_IN_SERVICE_SIGN_OUT_SPEC.procedure,              Access::SignedIn),
@@ -397,12 +405,13 @@ fn unlisted(path: &str) -> ConnectError {
         .with_http_status(StatusCode::NOT_FOUND)
 }
 
-/// `nama.v1.ServerService`: facts about this Server that any client can read.
+/// `nama.v1.ServerService`: facts about this Server, its settings, and the ffmpeg it found.
 struct ServerServiceHandler {
     name: String,
     users: Users,
     db: Arc<Database>,
     server_url: ServerUrl,
+    ffmpeg: Ffmpeg,
 }
 
 #[expect(
@@ -461,6 +470,27 @@ impl ServerService for ServerServiceHandler {
             settings: self.server_settings().into(),
             ..Default::default()
         })
+    }
+
+    fn get_playback_status<'a>(
+        &'a self,
+        _ctx: RequestContext,
+        _request: ServiceRequest<'_, GetPlaybackStatusRequest>,
+    ) -> impl Future<
+        Output = ServiceResult<impl Encodable<GetPlaybackStatusResponse> + Send + use<'a>>,
+    > + Send {
+        let found = |program: &Option<ffmpeg::FoundProgram>| {
+            program.as_ref().map(|program| FoundProgram {
+                path: program.path.display().to_string(),
+                version: program.version.clone(),
+                ..Default::default()
+            })
+        };
+        future::ready(Response::ok(GetPlaybackStatusResponse {
+            ffmpeg: found(&self.ffmpeg.ffmpeg).into(),
+            ffprobe: found(&self.ffmpeg.ffprobe).into(),
+            ..Default::default()
+        }))
     }
 }
 

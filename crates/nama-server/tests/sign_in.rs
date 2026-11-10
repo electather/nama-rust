@@ -25,6 +25,7 @@ use nama_proto::nama::v1::{
 use nama_server::{
     config::Config,
     db::{self, Database},
+    ffmpeg::Ffmpeg,
     plugin_settings::PluginSettings,
     plugins::Registry,
     users::SetupCode,
@@ -97,6 +98,7 @@ async fn start_with(setup_code: Option<SetupCode>, config: &Config) -> TestServe
         db,
         plugins,
         setup_code.clone(),
+        Ffmpeg::default(),
         async {
             let _: Result<(), oneshot::error::RecvError> = stopped.await;
         },

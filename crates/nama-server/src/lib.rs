@@ -9,6 +9,7 @@ pub mod contents;
 pub mod db;
 mod device_names;
 mod events;
+pub mod ffmpeg;
 mod forwarded;
 mod libraries;
 mod matching;
@@ -35,6 +36,7 @@ use crate::{
     config::Config,
     db::Database,
     events::EventBus,
+    ffmpeg::Ffmpeg,
     matching::Matcher,
     plugin_settings::PluginSettings,
     requests::{PROGRESS_EVERY, Requests},
@@ -57,6 +59,8 @@ use crate::{
 /// resolves.
 ///
 /// While the Server has no Users, `Setup` creates the first Admin for whoever gives `setup_code`.
+/// Admins see the `ffmpeg` found at startup with `GetPlaybackStatus`.
+///
 /// `Setup` and `SignIn` are rate limited by the client's IP address. That is the peer's, unless the
 /// peer is in [`Config::trusted_proxies`], whose `X-Forwarded-For` names the client.
 ///
@@ -77,6 +81,7 @@ pub fn serve(
     db: Arc<Database>,
     plugins: PluginSettings,
     setup_code: Option<SetupCode>,
+    ffmpeg: Ffmpeg,
     shutdown: impl Future<Output = ()> + Send + 'static,
 ) -> impl Future<Output = io::Result<()>> + Send + 'static {
     let registry = plugins.registry();
@@ -104,6 +109,7 @@ pub fn serve(
         requests.clone(),
         server_url,
         setup_code,
+        ffmpeg,
     );
     #[cfg(feature = "web")]
     let app = app.layer(axum::middleware::from_fn(web::serve));

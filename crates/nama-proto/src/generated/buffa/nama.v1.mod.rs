@@ -224,6 +224,9 @@ pub mod __buffa {
         reg.register_json_any(super::__UPDATE_SERVER_SETTINGS_REQUEST_JSON_ANY);
         reg.register_json_any(super::__UPDATE_SERVER_SETTINGS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__SERVER_SETTINGS_JSON_ANY);
+        reg.register_json_any(super::__GET_PLAYBACK_STATUS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__GET_PLAYBACK_STATUS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__FOUND_PROGRAM_JSON_ANY);
         reg.register_json_any(super::__USER_JSON_ANY);
         reg.register_json_any(super::__DEVICE_JSON_ANY);
         reg.register_json_any(super::__SETUP_REQUEST_JSON_ANY);
@@ -921,6 +924,18 @@ pub use self::__buffa::view::UpdateServerSettingsResponseOwnedView;
 pub use self::__buffa::view::ServerSettingsView;
 #[doc(inline)]
 pub use self::__buffa::view::ServerSettingsOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetPlaybackStatusRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::GetPlaybackStatusRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetPlaybackStatusResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::GetPlaybackStatusResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::FoundProgramView;
+#[doc(inline)]
+pub use self::__buffa::view::FoundProgramOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::UserView;
 #[doc(inline)]

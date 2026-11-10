@@ -1,6 +1,7 @@
 //! The `nama-server` binary.
 
 use std::{
+    env,
     future::Future,
     io::{self, IsTerminal},
     path::PathBuf,
@@ -13,12 +14,13 @@ use nama_plugin_api::points::{ServerStarted, ServerStartedEvent};
 use nama_server::{
     config::{self, Config},
     db::{self, Database},
+    ffmpeg::Ffmpeg,
     plugin_settings::PluginSettings,
     plugins::Registry,
     users::{SetupCode, Users},
 };
-use tokio::net::TcpListener;
-use tracing::{error, info};
+use tokio::{net::TcpListener, task};
+use tracing::{error, info, warn};
 use tracing_subscriber::EnvFilter;
 
 #[derive(Debug, Parser)]
@@ -65,8 +67,7 @@ async fn main() -> ExitCode {
         close(db).await;
         return ExitCode::FAILURE;
     };
-    let setup_code = match setup_code(Users::new(Arc::clone(&db), plugins.registry().clone())).await
-    {
+    let setup_code = match setup_code(&db, &plugins).await {
         Ok(setup_code) => setup_code,
         Err(err) => {
             error!("could not prepare the Setup Code: {err}");
@@ -75,6 +76,7 @@ async fn main() -> ExitCode {
         }
     };
 
+    let ffmpeg = find_ffmpeg().await;
     let listener = match TcpListener::bind(config.listen).await {
         Ok(listener) => listener,
         Err(err) => {
@@ -110,6 +112,7 @@ async fn main() -> ExitCode {
         Arc::clone(&db),
         plugins,
         setup_code,
+        ffmpeg,
         shutdown,
     )
     .await;
@@ -153,13 +156,33 @@ async fn start_plugins(config: &Config, db: &Arc<Database>) -> Option<PluginSett
 
 /// A new Setup Code, logged, while the Server has no Users, so whoever can read the log can create
 /// the first Admin.
-async fn setup_code(users: Users) -> Result<Option<SetupCode>, Box<dyn std::error::Error>> {
+async fn setup_code(
+    db: &Arc<Database>,
+    plugins: &PluginSettings,
+) -> Result<Option<SetupCode>, Box<dyn std::error::Error>> {
+    let users = Users::new(Arc::clone(db), plugins.registry().clone());
     if users.any().await? {
         return Ok(None);
     }
     let code = SetupCode::generate()?;
     info!(setup_code = %code, "this Server has no Users yet: create the first Admin with this Setup Code");
     Ok(Some(code))
+}
+
+/// The ffmpeg and ffprobe on `PATH`, logging what was found, or why the Server can only Direct
+/// Play without them.
+async fn find_ffmpeg() -> Ffmpeg {
+    let path = env::var_os("PATH").unwrap_or_default();
+    let ffmpeg = task::spawn_blocking(move || Ffmpeg::find(&path))
+        .await
+        .inspect_err(|err| error!("looking for ffmpeg failed: {err}"))
+        .unwrap_or_default();
+    if let Some(reason) = ffmpeg.direct_play_only_because() {
+        warn!("{reason}, so this Server can only Direct Play, not Remux or Transcode");
+    } else {
+        info!(?ffmpeg, "found ffmpeg and ffprobe");
+    }
+    ffmpeg
 }
 
 /// Closes the database, which must hold the last handle to it.
