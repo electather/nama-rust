@@ -16,17 +16,17 @@ use connectrpc::client::HttpClient;
 use fake_telegram::{BOT_TOKEN, FakeTelegram};
 use log::Log;
 use nama_proto::nama::v1::{
-    ApproveRequestRequest, CancelRequestRequest, CreateRequestRequest,
-    DeletePluginConnectionRequest, DeleteUserRequest, EnablePluginRequest, GetPluginRequest,
-    GetRequestRequest, LibraryKind, ListPluginConnectionsRequest, Permission, Plugin,
-    PluginConnectionState, PluginServiceClient, Request, RequestServiceClient, RequestState,
-    ServerServiceClient, ServerSettings, SetPermissionsRequest, StartPluginConnectionRequest,
+    CancelRequestRequest, DeletePluginConnectionRequest, DeleteUserRequest, EnablePluginRequest,
+    GetPluginRequest, LibraryKind, ListPluginConnectionsRequest, Permission, Plugin,
+    PluginConnectionState, PluginServiceClient, Request, RequestState, ServerServiceClient,
+    ServerSettings, SetPermissionsRequest, StartPluginConnectionRequest,
     UpdatePluginSettingsRequest, UpdateServerSettingsRequest, UserServiceClient,
     setting_value::Value,
 };
 use serde_json::{Value as Json, json};
 use server::{
     Library, SignedIn, TestServer, WAIT,
+    requests::Requester,
     tmdb::{ALIEN, DUNE},
 };
 
@@ -192,7 +192,7 @@ impl Fixture {
 
     /// Ada asks for the Movie `tmdb_id`, which opens a Pending Request.
     async fn ada_asks_for(&self, tmdb_id: i64) -> Request {
-        asks_for(&self.ada, tmdb_id).await
+        self.server.requests(&self.ada).ask(tmdb_id).await
     }
 
     /// An Admin gives Ada `MANAGE_REQUESTS` on top of what a new User gets.
@@ -213,34 +213,6 @@ impl Fixture {
             .unwrap();
     }
 
-    fn requests(&self) -> RequestServiceClient<HttpClient> {
-        RequestServiceClient::new(HttpClient::plaintext(), self.server.client_config())
-    }
-
-    async fn approve(&self, id: i64) {
-        self.requests()
-            .approve_request(ApproveRequestRequest {
-                id,
-                ..Default::default()
-            })
-            .await
-            .unwrap();
-    }
-
-    async fn get(&self, id: i64) -> Request {
-        self.requests()
-            .get_request(GetRequestRequest {
-                id,
-                ..Default::default()
-            })
-            .await
-            .unwrap()
-            .into_owned()
-            .request
-            .into_option()
-            .unwrap()
-    }
-
     /// Creates a Movies Library holding Alien and starts scanning it.
     async fn library_with_alien(&self) -> Library {
         self.server
@@ -250,25 +222,6 @@ impl Fixture {
             )
             .await
     }
-}
-
-/// `user` asks for the Movie `tmdb_id`, which opens a Pending Request.
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
-async fn asks_for(user: &SignedIn, tmdb_id: i64) -> Request {
-    RequestServiceClient::new(HttpClient::plaintext(), user.client_config())
-        .create_request(CreateRequestRequest {
-            movie_tmdb_id: tmdb_id,
-            ..Default::default()
-        })
-        .await
-        .unwrap()
-        .into_owned()
-        .request
-        .into_option()
-        .unwrap()
 }
 
 fn text(key: &str, value: &str) -> (String, nama_proto::nama::v1::SettingValue) {
@@ -334,7 +287,8 @@ async fn a_cancelled_request_has_no_link_since_it_is_gone_from_the_web_app() {
     let dune = fixture.ada_asks_for(DUNE).await;
 
     fixture
-        .requests()
+        .server
+        .admin_requests()
         .cancel_request(CancelRequestRequest {
             id: dune.id,
             ..Default::default()
@@ -353,7 +307,7 @@ async fn a_cancelled_request_has_no_link_since_it_is_gone_from_the_web_app() {
 async fn a_request_becoming_available_is_posted_to_the_channel() {
     let fixture = Fixture::with_telegram(BOT_TOKEN, Some(CHANNEL)).await;
     let alien = fixture.ada_asks_for(ALIEN).await;
-    fixture.approve(alien.id).await;
+    fixture.server.approve(alien.id).await;
 
     let _media = fixture.library_with_alien().await;
 
@@ -400,7 +354,10 @@ async fn a_refused_or_malformed_bot_token_is_logged_and_the_request_is_unaffecte
         let dune = fixture.ada_asks_for(DUNE).await;
 
         log.wait_for(&refused, times).await;
-        assert_eq!(fixture.get(dune.id).await.state, RequestState::Pending);
+        assert_eq!(
+            fixture.server.admin_requests().get(dune.id).await.state,
+            RequestState::Pending
+        );
         assert!(!log.contents().contains(token), "{}", log.contents());
     }
 }
@@ -588,7 +545,7 @@ async fn a_requester_who_connected_is_messaged_with_the_link_when_their_request_
     fixture.set_server_url("https://nama.example.com").await;
     fixture.connect_ada().await;
     let alien = fixture.ada_asks_for(ALIEN).await;
-    fixture.approve(alien.id).await;
+    fixture.server.approve(alien.id).await;
 
     let _media = fixture.library_with_alien().await;
 
@@ -610,7 +567,7 @@ async fn a_user_with_manage_requests_who_connected_is_messaged_about_a_new_pendi
     fixture.ada_manages_requests().await;
     let ben = fixture.server.user_with_default_permissions("Ben").await;
 
-    asks_for(&ben, DUNE).await;
+    fixture.server.requests(&ben).ask(DUNE).await;
 
     let sent = fixture.telegram.wait_for_messages(1).await;
     assert_eq!(
@@ -624,10 +581,10 @@ async fn a_requester_who_did_not_connect_is_skipped_and_the_channel_still_posts(
     let fixture = Fixture::with_telegram(BOT_TOKEN, Some(CHANNEL)).await;
     fixture.connect_ada().await;
     let ben = fixture.server.user_with_default_permissions("Ben").await;
-    let dune = asks_for(&ben, DUNE).await;
+    let dune = fixture.server.requests(&ben).ask(DUNE).await;
     fixture.ada_asks_for(DUNE).await;
 
-    fixture.approve(dune.id).await;
+    fixture.server.approve(dune.id).await;
 
     let sent = fixture.telegram.wait_for_messages(4).await;
     assert_eq!(
@@ -648,7 +605,7 @@ async fn a_user_who_blocked_the_bot_is_disconnected_and_messaged_no_more() {
     fixture.telegram.block(ADA_CHAT);
     let alien = fixture.ada_asks_for(ALIEN).await;
 
-    fixture.approve(alien.id).await;
+    fixture.server.approve(alien.id).await;
     fixture
         .wait_for_ada(PluginConnectionState::PLUGIN_CONNECTION_STATE_NOT_CONNECTED)
         .await;
@@ -684,7 +641,7 @@ async fn a_message_failing_for_another_reason_leaves_the_user_connected() {
     let alien = fixture.ada_asks_for(ALIEN).await;
     fixture.telegram.go_down();
 
-    fixture.approve(alien.id).await;
+    fixture.server.approve(alien.id).await;
 
     log.wait_for(&failed, failed_before + 1).await;
     assert_eq!(
