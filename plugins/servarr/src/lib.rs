@@ -1,7 +1,13 @@
 //! What the Sonarr and Radarr Installed Plugins share. "Servarr" is upstream's name for the
 //! codebase and v3 API both services are built on, not a Nama term.
 
-use nama_pdk::extism_pdk::{Error, HttpRequest, HttpResponse, Json, json};
+use std::collections::{HashMap, HashSet};
+
+use nama_pdk::{
+    Download,
+    extism_pdk::{Error, HttpRequest, HttpResponse, Json, json},
+    nama_proto::nama::v1::DownloadStatus,
+};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 /// A Sonarr or Radarr service's API, as its URL, API key and name say. Its errors name the
@@ -76,6 +82,21 @@ impl Servarr {
         self.accepted(response).map(|_| true)
     }
 
+    /// The Downloads in the service's queue for each of `references` that has any, read in one
+    /// call.
+    ///
+    /// # Errors
+    /// If the service doesn't answer, refuses, or answers with something other than a queue.
+    pub fn progress<Q: Queued>(
+        &self,
+        references: &[String],
+    ) -> Result<HashMap<String, Vec<Download>>, Error> {
+        // ponytail: reads only the first 1000 entries, which Sonarr lists one per Episode; page
+        // through `totalRecords` if a queue ever holds more.
+        let queue: Queue<Q> = self.get(&format!("queue?pageSize=1000&{}=true", Q::INCLUDE))?;
+        Ok(downloads(self.name, queue.records, references))
+    }
+
     fn send(
         &self,
         method: &str,
@@ -100,6 +121,41 @@ impl Servarr {
             Err(refused(self.name, status, &response.body()))
         }
     }
+}
+
+/// What a queue entry is for, as each Plugin reads its own part of the entry.
+pub trait Queued: DeserializeOwned {
+    /// The query parameter that has the service add this part to each entry, such as
+    /// `includeMovie`.
+    const INCLUDE: &'static str;
+
+    /// The reference `fulfill` gave what the entry is for, if the entry says.
+    fn reference(&self) -> Option<String>;
+}
+
+/// The Downloads in the queue `entries` of the service `service` for each of `references`, one
+/// per reference, download id and title.
+fn downloads<Q: Queued>(
+    service: &str,
+    entries: Vec<QueueEntry<Q>>,
+    references: &[String],
+) -> HashMap<String, Vec<Download>> {
+    let mut listed = HashSet::new();
+    let mut downloads: HashMap<String, Vec<Download>> = HashMap::new();
+    for entry in entries {
+        let Some(reference) = entry.part.reference().filter(|r| references.contains(r)) else {
+            continue;
+        };
+        // Sonarr lists a Season pack once for each of its Episodes.
+        let download = (entry.download_id.clone(), entry.title.clone());
+        if listed.insert((reference.clone(), download)) {
+            downloads
+                .entry(reference)
+                .or_default()
+                .push(entry.into_download(service));
+        }
+    }
+    downloads
 }
 
 /// `body` as a `T`, or else that the service `service` made no sense.
@@ -137,6 +193,141 @@ fn failures(status: u16, body: &[u8]) -> Vec<ValidationFailure> {
     } else {
         Vec::new()
     }
+}
+
+/// A page of `GET /api/v3/queue`.
+#[derive(Deserialize)]
+#[serde(bound = "Q: Queued")]
+struct Queue<Q> {
+    records: Vec<QueueEntry<Q>>,
+}
+
+/// One download in the service's queue, or for Sonarr one Episode of it, so a Season pack has an
+/// entry for each. The service may send `null` for those that are `Option`s.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", bound = "Q: Queued")]
+struct QueueEntry<Q> {
+    /// What it is for, only there with the part's include parameter.
+    #[serde(flatten)]
+    part: Q,
+    /// The download client's id for the download, shared by a pack's entries.
+    download_id: Option<String>,
+    title: Option<String>,
+    size: f64,
+    sizeleft: f64,
+    /// How long it has left, as a .NET `TimeSpan`.
+    timeleft: Option<String>,
+    /// Where the download client has it, such as `downloading` or `completed`.
+    status: String,
+    /// `ok`, `warning` or `error`.
+    tracked_download_status: Option<String>,
+    /// Where the service has it, such as `downloading`, `importBlocked` or `importing`.
+    tracked_download_state: Option<String>,
+    status_messages: Option<Vec<StatusMessage>>,
+    error_message: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct StatusMessage {
+    messages: Option<Vec<String>>,
+}
+
+impl<Q> QueueEntry<Q> {
+    /// The Download it is, with what is wrong in the words of the service `service`.
+    fn into_download(self, service: &str) -> Download {
+        let status = self.status();
+        Download {
+            percent: self.percent(),
+            size_bytes: self.size_bytes(),
+            // The service gives a queued download's time left as zero.
+            eta_seconds: (status == DownloadStatus::DOWNLOAD_STATUS_DOWNLOADING)
+                .then(|| self.timeleft.as_deref().and_then(seconds_of))
+                .flatten(),
+            attention_reason: (status == DownloadStatus::DOWNLOAD_STATUS_NEEDS_ATTENTION)
+                .then(|| self.attention_reason(service))
+                .flatten(),
+            status: status.into(),
+            title: self.title.unwrap_or_default(),
+            ..Download::default()
+        }
+    }
+
+    fn status(&self) -> DownloadStatus {
+        let tracked_state = self.tracked_download_state.as_deref();
+        if self.needs_attention() {
+            DownloadStatus::DOWNLOAD_STATUS_NEEDS_ATTENTION
+        } else if self.status == "completed"
+            || matches!(
+                tracked_state,
+                Some("importPending" | "importing" | "imported")
+            )
+        {
+            DownloadStatus::DOWNLOAD_STATUS_IMPORTING
+        } else if self.status == "downloading" {
+            DownloadStatus::DOWNLOAD_STATUS_DOWNLOADING
+        } else {
+            DownloadStatus::DOWNLOAD_STATUS_QUEUED
+        }
+    }
+
+    /// Whether it waits on a person, rather than on the service or its download client.
+    fn needs_attention(&self) -> bool {
+        matches!(
+            self.tracked_download_status.as_deref(),
+            Some("warning" | "error")
+        ) || matches!(
+            self.status.as_str(),
+            "failed" | "warning" | "downloadClientUnavailable"
+        ) || matches!(
+            self.tracked_download_state.as_deref(),
+            Some("importBlocked" | "failedPending" | "failed")
+        )
+    }
+
+    /// The messages of the service `service` about it, if it has any.
+    fn attention_reason(&self, service: &str) -> Option<String> {
+        let mut messages: Vec<&str> = self
+            .status_messages
+            .iter()
+            .flatten()
+            .flat_map(|status| status.messages.iter().flatten())
+            .map(String::as_str)
+            .collect();
+        messages.extend(self.error_message.as_deref());
+        (!messages.is_empty()).then(|| format!("{service} said: {}", messages.join(" ")))
+    }
+
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "a percent needs no more than f32's precision"
+    )]
+    fn percent(&self) -> f32 {
+        if self.size > 0.0 {
+            ((self.size - self.sizeleft) / self.size * 100.0).clamp(0.0, 100.0) as f32
+        } else {
+            0.0
+        }
+    }
+
+    #[expect(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "the service counts bytes in a double; only a positive size is kept"
+    )]
+    fn size_bytes(&self) -> Option<u64> {
+        (self.size > 0.0).then_some(self.size as u64)
+    }
+}
+
+/// The seconds in a .NET `TimeSpan` such as `1.02:03:04`, dropping any fraction of a second.
+fn seconds_of(timespan: &str) -> Option<u64> {
+    let mut parts = timespan.split(':');
+    let (hours, minutes, seconds) = (parts.next()?, parts.next()?, parts.next()?);
+    let (days, hours) = hours.split_once('.').unwrap_or(("0", hours));
+    let seconds = seconds.split('.').next()?;
+    let [days, hours, minutes, seconds] =
+        [days, hours, minutes, seconds].map(|part| part.parse::<u64>().ok());
+    Some(days? * 86_400 + hours? * 3_600 + minutes? * 60 + seconds?)
 }
 
 #[derive(Deserialize)]
@@ -209,6 +400,141 @@ mod tests {
             error.starts_with("Sonarr's answer made no sense: "),
             "{error}"
         );
+    }
+
+    /// A queue entry's part that gives its reference as it is.
+    #[derive(Deserialize)]
+    struct Referenced {
+        reference: Option<String>,
+    }
+
+    impl Queued for Referenced {
+        const INCLUDE: &'static str = "includeNothing";
+
+        fn reference(&self) -> Option<String> {
+            self.reference.clone()
+        }
+    }
+
+    /// The Downloads Sonarr's queue `entries`, a JSON array, holds for `references`.
+    fn downloads_of(entries: &str, references: &[&str]) -> HashMap<String, Vec<Download>> {
+        let entries: Vec<QueueEntry<Referenced>> =
+            parsed("Sonarr", entries.as_bytes()).expect("the entries are a queue's");
+        let references: Vec<String> = references.iter().map(|&r| r.to_owned()).collect();
+        downloads("Sonarr", entries, &references)
+    }
+
+    /// The one Download `entry` is, for the reference `1`.
+    fn download(entry: &str) -> Download {
+        let mut downloads = downloads_of(&format!("[{entry}]"), &["1"]);
+        let mut listed = downloads.remove("1").expect("the entry is listed");
+        assert_eq!(listed.len(), 1);
+        listed.remove(0)
+    }
+
+    #[test]
+    fn a_downloading_entry_says_how_far_along_it_is() {
+        let entry = r#"{"reference": "1", "title": "Show.S01", "size": 1000, "sizeleft": 250,
+            "timeleft": "00:01:30", "status": "downloading", "trackedDownloadStatus": "ok",
+            "trackedDownloadState": "downloading"}"#;
+        assert_eq!(
+            download(entry),
+            Download {
+                title: "Show.S01".to_owned(),
+                percent: 75.0,
+                size_bytes: Some(1000),
+                eta_seconds: Some(90),
+                status: DownloadStatus::DOWNLOAD_STATUS_DOWNLOADING.into(),
+                ..Download::default()
+            }
+        );
+    }
+
+    #[test]
+    fn a_queued_entry_of_unknown_size_has_no_size_or_time_left() {
+        let entry = r#"{"reference": "1", "title": null, "size": 0, "sizeleft": 0,
+            "timeleft": "00:00:00", "status": "queued"}"#;
+        assert_eq!(
+            download(entry),
+            Download {
+                status: DownloadStatus::DOWNLOAD_STATUS_QUEUED.into(),
+                ..Download::default()
+            }
+        );
+    }
+
+    #[test]
+    fn a_completed_entry_is_importing() {
+        let entry = r#"{"reference": "1", "size": 10, "sizeleft": 0, "status": "completed",
+            "trackedDownloadState": "importPending"}"#;
+        assert_eq!(
+            download(entry).status,
+            DownloadStatus::DOWNLOAD_STATUS_IMPORTING
+        );
+    }
+
+    #[test]
+    fn an_entry_waiting_on_a_person_says_why_in_the_services_words() {
+        let entry = r#"{"reference": "1", "size": 10, "sizeleft": 0, "timeleft": "00:00:10",
+            "status": "completed", "trackedDownloadStatus": "warning",
+            "trackedDownloadState": "importBlocked",
+            "statusMessages": [{"messages": ["No files found"]}, {"messages": null}],
+            "errorMessage": "Check the download"}"#;
+        let download = download(entry);
+        assert_eq!(
+            download.status,
+            DownloadStatus::DOWNLOAD_STATUS_NEEDS_ATTENTION
+        );
+        assert_eq!(
+            download.attention_reason.as_deref(),
+            Some("Sonarr said: No files found Check the download")
+        );
+        assert_eq!(download.eta_seconds, None);
+    }
+
+    #[test]
+    fn an_entry_waiting_on_a_person_without_messages_gives_no_reason() {
+        let entry = r#"{"reference": "1", "size": 10, "sizeleft": 5, "status": "failed"}"#;
+        assert_eq!(download(entry).attention_reason, None);
+    }
+
+    #[test]
+    fn a_season_packs_entries_merge_into_one_download_each() {
+        let entries = r#"[
+            {"reference": "1", "downloadId": "a", "title": "Show.S01", "size": 10, "sizeleft": 5, "status": "downloading"},
+            {"reference": "1", "downloadId": "a", "title": "Show.S01", "size": 10, "sizeleft": 5, "status": "downloading"},
+            {"reference": "1", "downloadId": "b", "title": "Show.S01", "size": 10, "sizeleft": 5, "status": "downloading"},
+            {"reference": "1", "downloadId": "b", "title": "Show.S01.REPACK", "size": 10, "sizeleft": 5, "status": "downloading"},
+            {"reference": "2", "downloadId": "a", "title": "Show.S01", "size": 10, "sizeleft": 5, "status": "downloading"}
+        ]"#;
+        let downloads = downloads_of(entries, &["1", "2"]);
+        assert_eq!(downloads["1"].len(), 3);
+        assert_eq!(downloads["2"].len(), 1);
+    }
+
+    #[test]
+    fn entries_for_other_references_are_left_out() {
+        let entries = r#"[
+            {"reference": "2", "size": 10, "sizeleft": 5, "status": "downloading"},
+            {"reference": null, "size": 10, "sizeleft": 5, "status": "downloading"}
+        ]"#;
+        assert!(downloads_of(entries, &["1"]).is_empty());
+    }
+
+    #[test]
+    fn a_timespan_counts_its_days_hours_minutes_and_seconds() {
+        assert_eq!(seconds_of("1.02:03:04"), Some(93_784));
+    }
+
+    #[test]
+    fn a_timespan_under_a_day_drops_its_fraction_of_a_second() {
+        assert_eq!(seconds_of("00:01:30.9990000"), Some(90));
+    }
+
+    #[test]
+    fn a_timespan_of_another_shape_has_no_seconds() {
+        assert_eq!(seconds_of("soon"), None);
+        assert_eq!(seconds_of("01:xx:00"), None);
     }
 
     #[test]
