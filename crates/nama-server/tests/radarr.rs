@@ -15,15 +15,16 @@ use connectrpc::ErrorCode;
 use fake_radarr::{API_KEY as RADARR_KEY, FakeRadarr};
 use nama_plugin_api::fulfiller::Movies;
 use nama_proto::nama::v1::{
-    Download, DownloadStatus, EnablePluginRequest, EventType, Quality, RefusalReason,
-    ReplaceQualitiesRequest, Request, RequestState, UpdatePluginSettingsRequest, event,
+    Download, DownloadStatus, EnablePluginRequest, EventType, Quality, RefusalReason, Request,
+    RequestState, UpdatePluginSettingsRequest, event,
 };
 use nama_server::plugins::Registry;
 use refused::assert_refused;
 use serde_json::json;
-use servarr::{ServarrFixture, choices, quality, text};
+use servarr::{ServarrFixture, choices, text};
 use server::{
     SignedIn, Subscription, TestServer,
+    fulfiller::quality,
     requests::Requester,
     subscribe,
     tmdb::{ALIEN, DUNE, HEAT},
@@ -116,18 +117,6 @@ impl Fixture {
         let asked = self.server.requests(member).ask(tmdb_id).await;
         assert_eq!(asked.state, RequestState::Pending);
         self.server.approve(asked.id).await
-    }
-
-    /// Replaces Radarr's Qualities with `qualities` as the Admin.
-    async fn replace_qualities(&self, qualities: Vec<Quality>) {
-        self.plugins()
-            .replace_qualities(ReplaceQualitiesRequest {
-                id: "radarr".to_owned(),
-                qualities,
-                ..Default::default()
-            })
-            .await
-            .unwrap();
     }
 
     /// Subscribes as the Admin to the progress of every Request.
@@ -370,7 +359,10 @@ async fn with_radarr_refusing_the_key_or_down_progress_fails_in_plain_words() {
 #[tokio::test]
 async fn with_a_quality_a_movie_is_added_to_radarr_at_its_profile() {
     let fixture = Fixture::with_radarr_enabled_at(ANY).await;
-    fixture.replace_qualities(hd_and_4k()).await;
+    fixture
+        .server
+        .replace_qualities("radarr", hd_and_4k())
+        .await;
 
     fixture
         .approve_movie(
@@ -387,7 +379,10 @@ async fn with_a_quality_a_movie_is_added_to_radarr_at_its_profile() {
 #[tokio::test]
 async fn a_request_whose_profile_was_removed_from_radarr_fails_naming_it() {
     let fixture = Fixture::with_radarr_enabled_at(ANY).await;
-    fixture.replace_qualities(hd_and_4k()).await;
+    fixture
+        .server
+        .replace_qualities("radarr", hd_and_4k())
+        .await;
     fixture.radarr.remove_profile(4);
 
     let failed = fixture
@@ -409,7 +404,10 @@ async fn a_request_whose_profile_was_removed_from_radarr_fails_naming_it() {
 async fn a_movie_radarr_already_had_goes_to_processing_at_its_own_profile_though_the_asked_one_was_removed()
  {
     let fixture = Fixture::with_radarr_enabled_at(ANY).await;
-    fixture.replace_qualities(hd_and_4k()).await;
+    fixture
+        .server
+        .replace_qualities("radarr", hd_and_4k())
+        .await;
     fixture.radarr.remove_profile(4);
 
     let approved = fixture
@@ -426,7 +424,8 @@ async fn a_movie_radarr_already_had_goes_to_processing_at_its_own_profile_though
 async fn a_movie_radarr_already_had_at_a_profile_no_quality_offers_shows_radarrs_name_for_it() {
     let fixture = Fixture::with_radarr_enabled_at(ANY).await;
     fixture
-        .replace_qualities(vec![quality(HD_1080P, "HD", true)])
+        .server
+        .replace_qualities("radarr", vec![quality(HD_1080P, "HD", true)])
         .await;
 
     let approved = fixture

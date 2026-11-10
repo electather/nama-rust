@@ -15,15 +15,15 @@ use connectrpc::ErrorCode;
 use fake_sonarr::{API_KEY as SONARR_KEY, FakeSonarr};
 use nama_plugin_api::fulfiller::Shows;
 use nama_proto::nama::v1::{
-    CancelFollowedShowRequest, Download, DownloadStatus, EnablePluginRequest, EventType, Quality,
-    RefusalReason, ReplaceQualitiesRequest, Request, RequestState, UpdatePluginSettingsRequest,
-    event,
+    CancelFollowedShowRequest, Download, DownloadStatus, EnablePluginRequest, EventType,
+    RefusalReason, Request, RequestState, UpdatePluginSettingsRequest, event,
 };
 use nama_server::plugins::Registry;
 use refused::assert_refused;
-use servarr::{ServarrFixture, choices, quality, text};
+use servarr::{ServarrFixture, choices, text};
 use server::{
     SignedIn, Subscription, TestServer,
+    fulfiller::quality,
     requests::Requester,
     subscribe,
     tmdb::{DARK, DARK_TVDB, THE_OFFICE},
@@ -142,18 +142,6 @@ impl Fixture {
             .remove(0);
         assert_eq!(asked.state, RequestState::Pending);
         asked
-    }
-
-    /// Replaces Sonarr's Qualities with `qualities` as the Admin.
-    async fn replace_qualities(&self, qualities: Vec<Quality>) {
-        self.plugins()
-            .replace_qualities(ReplaceQualitiesRequest {
-                id: "sonarr".to_owned(),
-                qualities,
-                ..Default::default()
-            })
-            .await
-            .unwrap();
     }
 
     /// Forgets every Season Request's Show TVDB id, as for a Show the metadata source has none
@@ -483,7 +471,8 @@ async fn cancelling_a_followed_show_turns_off_sonarrs_new_season_monitoring() {
 async fn a_new_series_is_added_to_sonarr_at_its_requests_profile() {
     let fixture = Fixture::with_sonarr_enabled().await;
     fixture
-        .replace_qualities(vec![quality(ULTRA_HD, "4K", true)])
+        .server
+        .replace_qualities("sonarr", vec![quality(ULTRA_HD, "4K", true)])
         .await;
 
     fixture.ask_approved(DARK, &[1]).await;
@@ -498,7 +487,8 @@ async fn the_hand_off_reports_the_profile_sonarr_kept_for_a_series_it_already_ha
     fixture.ask_approved(DARK, &[1]).await;
     fixture.sonarr.finish_refreshes().await;
     fixture
-        .replace_qualities(vec![quality(ULTRA_HD, "4K", true)])
+        .server
+        .replace_qualities("sonarr", vec![quality(ULTRA_HD, "4K", true)])
         .await;
 
     let asked = fixture.ask_approved(DARK, &[2]).await.remove(0);
