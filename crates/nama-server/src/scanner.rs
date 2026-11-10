@@ -406,6 +406,11 @@ impl Scanner {
     /// and waits for those another prober holds. A file that can't be probed is logged, and for a
     /// lasting reason skipped by later passes until it changes. Returns how many files were
     /// probed and how many ffprobe couldn't read.
+    ///
+    /// # Errors
+    ///
+    /// If the database can't be read, or what a file holds can't be stored, once every other file
+    /// is probed: the Library hasn't caught up.
     async fn probe_stale(&self, library: i64) -> Result<ProbingFinished, sqlx::Error> {
         let stored = self.inner.contents.stored(library).await?;
         let files: Vec<Stored> = stored.values().copied().collect();
@@ -421,16 +426,19 @@ impl Scanner {
             library_id: library,
             ..Default::default()
         };
+        let mut unstored = None;
         while let Some(outcome) = outcomes.next().await {
             match outcome {
-                Some(Ok(_)) => probed.probed += 1,
+                Ok(Some(Ok(_))) => probed.probed += 1,
                 // ffprobe didn't run, so the file is left for the next scan.
-                Some(Err(err)) if matches!(*err, ProbeError::Unavailable | ProbeError::Run(_)) => {}
-                Some(Err(_)) => probed.failed += 1,
-                None => {}
+                Ok(Some(Err(err)))
+                    if matches!(*err, ProbeError::Unavailable | ProbeError::Run(_)) => {}
+                Ok(Some(Err(_))) => probed.failed += 1,
+                Ok(None) => {}
+                Err(err) => unstored = Some(err),
             }
         }
-        Ok(probed)
+        unstored.map_or(Ok(probed), Err)
     }
 
     /// Probes the Version `version` now, without waiting for a background pass to reach it, and
@@ -479,12 +487,23 @@ impl Scanner {
     /// probes it after all if that gave up without finding anything.
     /// Once ffprobe can't be run, clears `ffprobe_runs` and leaves this and the pass's other files
     /// for the next pass. Returns what was found, or `None` if nothing was.
-    async fn probe(&self, path: String, file: Stored, ffprobe_runs: &AtomicBool) -> Option<Probed> {
+    ///
+    /// # Errors
+    ///
+    /// If the database can't be read or what the file holds can't be stored, which is logged.
+    async fn probe(
+        &self,
+        path: String,
+        file: Stored,
+        ffprobe_runs: &AtomicBool,
+    ) -> Result<Option<Probed>, sqlx::Error> {
         loop {
             // The semaphore is never closed.
-            let running = self.inner.probing.acquire().await.ok()?;
+            let Ok(running) = self.inner.probing.acquire().await else {
+                return Ok(None);
+            };
             if !ffprobe_runs.load(Ordering::Relaxed) {
-                return None;
+                return Ok(None);
             }
             // Claimed only now, so `probe_now` doesn't wait for a file still queued here.
             let mut prober = match self.try_claim(file) {
@@ -497,7 +516,7 @@ impl Scanner {
             if let Ok(found) = prober.wait_for(Option::is_some).await
                 && let Some(found) = Option::clone(&found)
             {
-                return Some(found);
+                return Ok(Some(found));
             }
         }
     }
@@ -508,7 +527,7 @@ impl Scanner {
         path: &str,
         claim: Claim<'_>,
         ffprobe_runs: &AtomicBool,
-    ) -> Option<Probed> {
+    ) -> Result<Option<Probed>, sqlx::Error> {
         let probed = self.probe_claimed(path, claim).await;
         match &probed {
             Ok(_) => {}
@@ -524,9 +543,10 @@ impl Scanner {
             Err(err) => tracing::warn!("could not probe {path}: {err}"),
         }
         match probed {
-            Ok(probe) => Some(Ok(probe)),
-            Err(ProbeNowError::Probe(err)) => Some(Err(err)),
-            Err(ProbeNowError::Database(_) | ProbeNowError::NoSuchVersion(_)) => None,
+            Ok(probe) => Ok(Some(Ok(probe))),
+            Err(ProbeNowError::Probe(err)) => Ok(Some(Err(err))),
+            Err(ProbeNowError::Database(err)) => Err(err),
+            Err(ProbeNowError::NoSuchVersion(_)) => Ok(None),
         }
     }
 
