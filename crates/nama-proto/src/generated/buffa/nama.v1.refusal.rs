@@ -81,7 +81,8 @@ pub enum RefusalReason {
     REFUSAL_REASON_NAME_LENGTH = 30i32,
     /// `invalid_argument`: the Authenticator Plugin rejects the password. Its own text is the message.
     REFUSAL_REASON_PASSWORD_REJECTED = 31i32,
-    /// `invalid_argument`: a Library's folder isn't an absolute path. Params: `folder`.
+    /// `invalid_argument`: a Library's folder, or the segment folder, isn't an absolute path. Params:
+    /// `folder`.
     REFUSAL_REASON_FOLDER_NOT_ABSOLUTE = 32i32,
     /// `invalid_argument`: a Library's folder can't be found. Params: `folder`.
     REFUSAL_REASON_FOLDER_NOT_FOUND = 33i32,

@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT segment_folder FROM server_settings",
+  "describe": {
+    "columns": [
+      {
+        "name": "segment_folder",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "server_settings",
+            "name": "segment_folder"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "e0e7e3a252a2c5008b6c1d664e799ec52838777d94023f774db5c8543e4c9fec"
+}

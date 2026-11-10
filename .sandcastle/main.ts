@@ -368,14 +368,17 @@ async function waitForChecks(issue: Issue): Promise<"pass" | "fail" | "stale"> {
   };
   let run = "";
   const signal = aborts.get(issue.number)?.signal;
-  for (let i = 0; i < 30 && !run; i++) {
+  // 15 minutes: during GitHub incidents a PR's first run has started up to 13 minutes late.
+  for (let i = 0; i < 90 && !run; i++) {
     await sleep(10_000);
     signal?.throwIfAborted();
     if (stale()) return "stale"; // a conflicting PR gets no run at all
     run = gh("run", "list", "--workflow", "CI", "--commit", sha, "--event", "pull_request",
       "--json", "databaseId", "--jq", ".[0].databaseId // empty");
   }
-  if (!run) throw new Blocked(`no CI run started for ${sha.slice(0, 7)} within 5 minutes`);
+  // A missing run is GitHub's fault, not the work's: crash (keeps ready-for-agent, a later run resumes the PR)
+  // rather than hand back.
+  if (!run) throw new Error(`no CI run started for ${sha.slice(0, 7)} within 15 minutes`);
   const url = `${REPO_URL}/actions/runs/${run}`;
   log(`#${issue.number} CI running on ${sha.slice(0, 7)}: ${url}`);
   record({ kind: "ci", issue: issue.number, url });
