@@ -103,6 +103,7 @@ use crate::{
     server_settings::ServerUrl,
     sessions::{cleared_session_cookie, identify_caller, in_session_cookie, session_cookie},
     sign_in_codes::{self, Poll, SignInCodes},
+    tracks::{Track, TrackKind},
     users::{self, Caller, NewDevice, Permissions, SetupCode, SignedIn, Users},
     versions,
     watch_states::{Progress, WatchState, WatchStates},
@@ -124,7 +125,7 @@ pub(crate) fn router(
     requests: Requests,
     server_url: ServerUrl,
     setup_code: Option<SetupCode>,
-    ffmpeg: Ffmpeg,
+    ffmpeg: Arc<Ffmpeg>,
 ) -> axum::Router {
     let plugins = plugin_settings.registry().clone();
     let users = Users::new(Arc::clone(&db), plugins.clone());
@@ -406,7 +407,7 @@ struct ServerServiceHandler {
     users: Users,
     db: Arc<Database>,
     server_url: ServerUrl,
-    ffmpeg: Ffmpeg,
+    ffmpeg: Arc<Ffmpeg>,
 }
 
 #[expect(
@@ -2275,6 +2276,44 @@ fn version_to_proto(version: &Version) -> proto::Version {
         file_name,
         // A size is never negative.
         size: u64::try_from(version.size).unwrap_or_default(),
+        tracks: version.tracks.iter().map(track_to_proto).collect(),
+        ..Default::default()
+    }
+}
+
+fn track_to_proto(track: &Track) -> proto::Track {
+    // 0 is what the proto says for a fact the file doesn't give. Stored ones are never negative.
+    let known = |n: Option<i64>| n.and_then(|n| u32::try_from(n).ok()).unwrap_or_default();
+    let kind = match track.kind {
+        TrackKind::Video {
+            width,
+            height,
+            frame_rate,
+        } => proto::VideoTrack {
+            width: known(width),
+            height: known(height),
+            frame_rate: frame_rate.unwrap_or_default(),
+            ..Default::default()
+        }
+        .into(),
+        TrackKind::Audio { channels } => proto::AudioTrack {
+            channels: known(channels),
+            ..Default::default()
+        }
+        .into(),
+        TrackKind::Subtitle { image } => proto::SubtitleTrack {
+            image,
+            ..Default::default()
+        }
+        .into(),
+    };
+    proto::Track {
+        codec: track.codec.clone(),
+        language: track.language.clone(),
+        title: track.title.clone(),
+        default: track.default,
+        forced: track.forced,
+        kind,
         ..Default::default()
     }
 }

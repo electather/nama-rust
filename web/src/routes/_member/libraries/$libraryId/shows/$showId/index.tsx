@@ -14,6 +14,8 @@ import {
   queryOrNotFound,
   runtimeOf,
   seasonName,
+  versionLine,
+  versionToPlay,
 } from "@/lib/browse";
 import { useSetPlayed } from "@/lib/watch-state";
 
@@ -103,7 +105,10 @@ function Episodes() {
   );
 }
 
-/** An Episode, which plays its largest Version, with your Watch State and a toggle for it. */
+/**
+ * An Episode, which plays its largest Version, with that Version's picture and sound, your Watch
+ * State and a toggle for it.
+ */
 function EpisodeRow({ libraryId, episode }: { libraryId: bigint; episode: Episode }) {
   const setPlayed = useSetPlayed();
   // Without its own ID there's nothing to mark.
@@ -120,7 +125,11 @@ function EpisodeRow({ libraryId, episode }: { libraryId: bigint; episode: Episod
           {episode.episodeNumber}. {episode.title}
         </span>
         <span className="mt-0.5 block text-sm text-muted-foreground">
-          {metadataLine(dateOf(episode.airDate), runtimeOf(episode.runtimeMinutes))}
+          {metadataLine(
+            dateOf(episode.airDate),
+            runtimeOf(episode.runtimeMinutes),
+            versionLine(versionToPlay(episode.versions)),
+          )}
         </span>
         {episode.overview !== undefined && (
           <span className="mt-2 block max-w-prose text-sm text-pretty text-muted-foreground">

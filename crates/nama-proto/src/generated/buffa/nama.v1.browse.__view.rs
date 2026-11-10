@@ -615,6 +615,12 @@ pub struct VersionView<'a> {
     ///
     /// Field 3: `size`
     pub size: u64,
+    /// Its video, audio and subtitle Tracks, in the order the file holds them. Empty until the
+    /// Server has probed it, which it does in the background after a scan, and always on a Server
+    /// without ffprobe.
+    ///
+    /// Field 4: `tracks`
+    pub tracks: ::buffa::RepeatedView<'a, super::super::__buffa::view::TrackView<'a>>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for VersionView<'a> {
@@ -668,6 +674,24 @@ impl<'a> ::buffa::MessageView<'a> for VersionView<'a> {
                 )?;
                 view.size = ::buffa::types::decode_uint64(&mut cur)?;
             }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                ctx.register_element_memory(
+                    ::core::mem::size_of::<super::super::__buffa::view::TrackView>(),
+                )?;
+                view.tracks
+                    .push(
+                        <super::super::__buffa::view::TrackView as ::buffa::MessageView>::decode_view_ctx(
+                            sub,
+                            __sub_ctx,
+                        )?,
+                    );
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -693,6 +717,11 @@ impl<'a> ::buffa::MessageView<'a> for VersionView<'a> {
             id: self.id,
             file_name: self.file_name.to_string(),
             size: self.size,
+            tracks: self
+                .tracks
+                .iter()
+                .map(|v| v.to_owned_from_source(__buffa_src))
+                .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -700,7 +729,7 @@ impl<'a> ::buffa::MessageView<'a> for VersionView<'a> {
 }
 impl<'a> ::buffa::ViewEncode<'a> for VersionView<'a> {
     #[allow(clippy::needless_borrow, clippy::let_and_return)]
-    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
@@ -713,13 +742,21 @@ impl<'a> ::buffa::ViewEncode<'a> for VersionView<'a> {
         if self.size != 0u64 {
             size += 1u64 + ::buffa::types::uint64_encoded_len(self.size) as u64;
         }
+        for v in &self.tracks {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
     #[allow(clippy::needless_borrow)]
     fn write_to(
         &self,
-        _cache: &mut ::buffa::SizeCache,
+        __cache: &mut ::buffa::SizeCache,
         buf: &mut impl ::buffa::EncodeSink,
     ) {
         #[allow(unused_imports)]
@@ -732,6 +769,14 @@ impl<'a> ::buffa::ViewEncode<'a> for VersionView<'a> {
         }
         if self.size != 0u64 {
             ::buffa::types::put_uint64_field(3u32, self.size, buf);
+        }
+        for v in &self.tracks {
+            ::buffa::types::put_len_delimited_header(
+                4u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -763,6 +808,9 @@ impl<'__a> ::serde::Serialize for VersionView<'__a> {
         if !::buffa::json_helpers::skip_if::is_zero_u64(&self.size) {
             __map
                 .serialize_entry("size", &::buffa::json_helpers::ProtoJson(&self.size))?;
+        }
+        if !self.tracks.is_empty() {
+            __map.serialize_entry("tracks", &*self.tracks)?;
         }
         __map.end()
     }
@@ -874,6 +922,17 @@ impl VersionOwnedView {
     pub fn size(&self) -> u64 {
         self.0.reborrow().size
     }
+    /// Its video, audio and subtitle Tracks, in the order the file holds them. Empty until the
+    /// Server has probed it, which it does in the background after a scan, and always on a Server
+    /// without ffprobe.
+    ///
+    /// Field 4: `tracks`
+    #[must_use]
+    pub fn tracks(
+        &self,
+    ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::TrackView<'_>> {
+        &self.0.reborrow().tracks
+    }
 }
 impl ::core::convert::From<::buffa::OwnedView<VersionView<'static>>>
 for VersionOwnedView {
@@ -898,6 +957,1377 @@ impl ::buffa::HasMessageView for super::super::Version {
     type ViewHandle = VersionOwnedView;
 }
 impl ::serde::Serialize for VersionOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+/// One video, audio or subtitle stream inside a Version.
+#[derive(Clone, Debug, Default)]
+pub struct TrackView<'a> {
+    /// As ffprobe names it, such as `hevc`, `eac3` or `subrip`.
+    ///
+    /// Field 1: `codec`
+    pub codec: &'a str,
+    /// As the file tags it, usually ISO 639-2, such as `eng`.
+    ///
+    /// Field 2: `language`
+    pub language: ::core::option::Option<&'a str>,
+    /// Field 3: `title`
+    pub title: ::core::option::Option<&'a str>,
+    /// Whether the file marks it to play when nothing else is chosen.
+    ///
+    /// Field 4: `default`
+    pub default: bool,
+    /// Whether the file marks it to show even when subtitles are off, as for foreign dialogue.
+    ///
+    /// Field 5: `forced`
+    pub forced: bool,
+    pub kind: ::core::option::Option<
+        super::super::__buffa::view::oneof::track::Kind<'a>,
+    >,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for TrackView<'a> {
+    type Owned = super::super::Track;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.codec = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.language = Some(::buffa::types::borrow_str(&mut cur)?);
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.title = Some(::buffa::types::borrow_str(&mut cur)?);
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.default = ::buffa::types::decode_bool(&mut cur)?;
+            }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.forced = ::buffa::types::decode_bool(&mut cur)?;
+            }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                if let Some(
+                    super::super::__buffa::view::oneof::track::Kind::Video(
+                        ref mut existing,
+                    ),
+                ) = view.kind
+                {
+                    ::buffa::MessageView::merge_into_view(
+                        &mut **existing,
+                        sub,
+                        __sub_ctx,
+                    )?;
+                } else {
+                    view.kind = Some(
+                        super::super::__buffa::view::oneof::track::Kind::Video(
+                            ::buffa::alloc::boxed::Box::new(
+                                <super::super::__buffa::view::VideoTrackView as ::buffa::MessageView>::decode_view_ctx(
+                                    sub,
+                                    __sub_ctx,
+                                )?,
+                            ),
+                        ),
+                    );
+                }
+            }
+            7u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                if let Some(
+                    super::super::__buffa::view::oneof::track::Kind::Audio(
+                        ref mut existing,
+                    ),
+                ) = view.kind
+                {
+                    ::buffa::MessageView::merge_into_view(
+                        &mut **existing,
+                        sub,
+                        __sub_ctx,
+                    )?;
+                } else {
+                    view.kind = Some(
+                        super::super::__buffa::view::oneof::track::Kind::Audio(
+                            ::buffa::alloc::boxed::Box::new(
+                                <super::super::__buffa::view::AudioTrackView as ::buffa::MessageView>::decode_view_ctx(
+                                    sub,
+                                    __sub_ctx,
+                                )?,
+                            ),
+                        ),
+                    );
+                }
+            }
+            8u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                if let Some(
+                    super::super::__buffa::view::oneof::track::Kind::Subtitle(
+                        ref mut existing,
+                    ),
+                ) = view.kind
+                {
+                    ::buffa::MessageView::merge_into_view(
+                        &mut **existing,
+                        sub,
+                        __sub_ctx,
+                    )?;
+                } else {
+                    view.kind = Some(
+                        super::super::__buffa::view::oneof::track::Kind::Subtitle(
+                            ::buffa::alloc::boxed::Box::new(
+                                <super::super::__buffa::view::SubtitleTrackView as ::buffa::MessageView>::decode_view_ctx(
+                                    sub,
+                                    __sub_ctx,
+                                )?,
+                            ),
+                        ),
+                    );
+                }
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<super::super::Track, ::buffa::DecodeError> {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<super::super::Track, ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::Track {
+            codec: self.codec.to_string(),
+            language: self.language.map(|s| s.to_string()),
+            title: self.title.map(|s| s.to_string()),
+            default: self.default,
+            forced: self.forced,
+            kind: match self.kind.as_ref() {
+                ::core::option::Option::Some(v) => {
+                    ::core::option::Option::Some(
+                        match v {
+                            super::super::__buffa::view::oneof::track::Kind::Video(v) => {
+                                super::super::__buffa::oneof::track::Kind::Video(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        v.to_owned_from_source(__buffa_src)?,
+                                    ),
+                                )
+                            }
+                            super::super::__buffa::view::oneof::track::Kind::Audio(v) => {
+                                super::super::__buffa::oneof::track::Kind::Audio(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        v.to_owned_from_source(__buffa_src)?,
+                                    ),
+                                )
+                            }
+                            super::super::__buffa::view::oneof::track::Kind::Subtitle(
+                                v,
+                            ) => {
+                                super::super::__buffa::oneof::track::Kind::Subtitle(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        v.to_owned_from_source(__buffa_src)?,
+                                    ),
+                                )
+                            }
+                        },
+                    )
+                }
+                ::core::option::Option::None => ::core::option::Option::None,
+            },
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for TrackView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if !self.codec.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.codec) as u64;
+        }
+        if let Some(ref v) = self.language {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        if let Some(ref v) = self.title {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        if self.default {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
+        if self.forced {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
+        if let ::core::option::Option::Some(ref v) = self.kind {
+            match v {
+                super::super::__buffa::view::oneof::track::Kind::Video(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+                super::super::__buffa::view::oneof::track::Kind::Audio(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+                super::super::__buffa::view::oneof::track::Kind::Subtitle(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+            }
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.codec.is_empty() {
+            ::buffa::types::put_string_field(1u32, &self.codec, buf);
+        }
+        if let Some(ref v) = self.language {
+            ::buffa::types::put_string_field(2u32, v, buf);
+        }
+        if let Some(ref v) = self.title {
+            ::buffa::types::put_string_field(3u32, v, buf);
+        }
+        if self.default {
+            ::buffa::types::put_bool_field(4u32, self.default, buf);
+        }
+        if self.forced {
+            ::buffa::types::put_bool_field(5u32, self.forced, buf);
+        }
+        if let ::core::option::Option::Some(ref v) = self.kind {
+            match v {
+                super::super::__buffa::view::oneof::track::Kind::Video(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        6u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                super::super::__buffa::view::oneof::track::Kind::Audio(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        7u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                super::super::__buffa::view::oneof::track::Kind::Subtitle(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        8u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+            }
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for TrackView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.codec) {
+            __map.serialize_entry("codec", self.codec)?;
+        }
+        if let ::core::option::Option::Some(__v) = self.language {
+            __map.serialize_entry("language", __v)?;
+        }
+        if let ::core::option::Option::Some(__v) = self.title {
+            __map.serialize_entry("title", __v)?;
+        }
+        if self.default {
+            __map.serialize_entry("default", &self.default)?;
+        }
+        if self.forced {
+            __map.serialize_entry("forced", &self.forced)?;
+        }
+        if let ::core::option::Option::Some(ref __ov) = self.kind {
+            match __ov {
+                super::super::__buffa::view::oneof::track::Kind::Video(v) => {
+                    __map.serialize_entry("video", v)?;
+                }
+                super::super::__buffa::view::oneof::track::Kind::Audio(v) => {
+                    __map.serialize_entry("audio", v)?;
+                }
+                super::super::__buffa::view::oneof::track::Kind::Subtitle(v) => {
+                    __map.serialize_entry("subtitle", v)?;
+                }
+            }
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for TrackView<'a> {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "Track";
+    const FULL_NAME: &'static str = "nama.v1.Track";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.Track";
+}
+::buffa::impl_default_view_instance!(TrackView);
+::buffa::impl_view_reborrow!(TrackView);
+/** Self-contained, `'static` owned view of a `Track` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`TrackView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`TrackView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct TrackOwnedView(::buffa::OwnedView<TrackView<'static>>);
+impl TrackOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(TrackOwnedView(::buffa::OwnedView::decode(bytes)?))
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            TrackOwnedView(::buffa::OwnedView::decode_with_options(bytes, opts)?),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::Track,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(TrackOwnedView(::buffa::OwnedView::from_owned(msg)?))
+    }
+    /// Borrow the full [`TrackView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &TrackView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::Track {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// As ffprobe names it, such as `hevc`, `eac3` or `subrip`.
+    ///
+    /// Field 1: `codec`
+    #[must_use]
+    pub fn codec(&self) -> &'_ str {
+        self.0.reborrow().codec
+    }
+    /// As the file tags it, usually ISO 639-2, such as `eng`.
+    ///
+    /// Field 2: `language`
+    #[must_use]
+    pub fn language(&self) -> ::core::option::Option<&'_ str> {
+        self.0.reborrow().language
+    }
+    /// Field 3: `title`
+    #[must_use]
+    pub fn title(&self) -> ::core::option::Option<&'_ str> {
+        self.0.reborrow().title
+    }
+    /// Whether the file marks it to play when nothing else is chosen.
+    ///
+    /// Field 4: `default`
+    #[must_use]
+    pub fn default(&self) -> bool {
+        self.0.reborrow().default
+    }
+    /// Whether the file marks it to show even when subtitles are off, as for foreign dialogue.
+    ///
+    /// Field 5: `forced`
+    #[must_use]
+    pub fn forced(&self) -> bool {
+        self.0.reborrow().forced
+    }
+    /// Oneof `kind`.
+    #[must_use]
+    pub fn kind(
+        &self,
+    ) -> ::core::option::Option<&super::super::__buffa::view::oneof::track::Kind<'_>> {
+        self.0.reborrow().kind.as_ref()
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<TrackView<'static>>> for TrackOwnedView {
+    fn from(inner: ::buffa::OwnedView<TrackView<'static>>) -> Self {
+        TrackOwnedView(inner)
+    }
+}
+impl ::core::convert::From<TrackOwnedView> for ::buffa::OwnedView<TrackView<'static>> {
+    fn from(wrapper: TrackOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<TrackView<'static>>> for TrackOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<TrackView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::Track {
+    type View<'a> = TrackView<'a>;
+    type ViewHandle = TrackOwnedView;
+}
+impl ::serde::Serialize for TrackOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+/// A video Track's own facts. Each is 0 when the file doesn't say.
+#[derive(Clone, Debug, Default)]
+pub struct VideoTrackView<'a> {
+    /// Field 1: `width`
+    pub width: u32,
+    /// Field 2: `height`
+    pub height: u32,
+    /// In frames per second.
+    ///
+    /// Field 3: `frame_rate`
+    pub frame_rate: f64,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for VideoTrackView<'a> {
+    type Owned = super::super::VideoTrack;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.width = ::buffa::types::decode_uint32(&mut cur)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.height = ::buffa::types::decode_uint32(&mut cur)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Fixed64,
+                )?;
+                view.frame_rate = ::buffa::types::decode_double(&mut cur)?;
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<super::super::VideoTrack, ::buffa::DecodeError> {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<super::super::VideoTrack, ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::VideoTrack {
+            width: self.width,
+            height: self.height,
+            frame_rate: self.frame_rate,
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for VideoTrackView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.width != 0u32 {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(self.width) as u64;
+        }
+        if self.height != 0u32 {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(self.height) as u64;
+        }
+        if self.frame_rate.to_bits() != 0u64 {
+            size += 1u64 + ::buffa::types::FIXED64_ENCODED_LEN as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.width != 0u32 {
+            ::buffa::types::put_uint32_field(1u32, self.width, buf);
+        }
+        if self.height != 0u32 {
+            ::buffa::types::put_uint32_field(2u32, self.height, buf);
+        }
+        if self.frame_rate.to_bits() != 0u64 {
+            ::buffa::types::put_double_field(3u32, self.frame_rate, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for VideoTrackView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_zero_u32(&self.width) {
+            __map
+                .serialize_entry(
+                    "width",
+                    &::buffa::json_helpers::ProtoJson(&self.width),
+                )?;
+        }
+        if !::buffa::json_helpers::skip_if::is_zero_u32(&self.height) {
+            __map
+                .serialize_entry(
+                    "height",
+                    &::buffa::json_helpers::ProtoJson(&self.height),
+                )?;
+        }
+        if !::buffa::json_helpers::skip_if::is_zero_f64(&self.frame_rate) {
+            __map
+                .serialize_entry(
+                    "frameRate",
+                    &::buffa::json_helpers::ProtoJson(&self.frame_rate),
+                )?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for VideoTrackView<'a> {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "VideoTrack";
+    const FULL_NAME: &'static str = "nama.v1.VideoTrack";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.VideoTrack";
+}
+::buffa::impl_default_view_instance!(VideoTrackView);
+::buffa::impl_view_reborrow!(VideoTrackView);
+/** Self-contained, `'static` owned view of a `VideoTrack` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`VideoTrackView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`VideoTrackView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct VideoTrackOwnedView(::buffa::OwnedView<VideoTrackView<'static>>);
+impl VideoTrackOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            VideoTrackOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            VideoTrackOwnedView(::buffa::OwnedView::decode_with_options(bytes, opts)?),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::VideoTrack,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            VideoTrackOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`VideoTrackView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &VideoTrackView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::VideoTrack {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// Field 1: `width`
+    #[must_use]
+    pub fn width(&self) -> u32 {
+        self.0.reborrow().width
+    }
+    /// Field 2: `height`
+    #[must_use]
+    pub fn height(&self) -> u32 {
+        self.0.reborrow().height
+    }
+    /// In frames per second.
+    ///
+    /// Field 3: `frame_rate`
+    #[must_use]
+    pub fn frame_rate(&self) -> f64 {
+        self.0.reborrow().frame_rate
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<VideoTrackView<'static>>>
+for VideoTrackOwnedView {
+    fn from(inner: ::buffa::OwnedView<VideoTrackView<'static>>) -> Self {
+        VideoTrackOwnedView(inner)
+    }
+}
+impl ::core::convert::From<VideoTrackOwnedView>
+for ::buffa::OwnedView<VideoTrackView<'static>> {
+    fn from(wrapper: VideoTrackOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<VideoTrackView<'static>>>
+for VideoTrackOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<VideoTrackView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::VideoTrack {
+    type View<'a> = VideoTrackView<'a>;
+    type ViewHandle = VideoTrackOwnedView;
+}
+impl ::serde::Serialize for VideoTrackOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+/// An audio Track's own facts.
+#[derive(Clone, Debug, Default)]
+pub struct AudioTrackView<'a> {
+    /// How many, such as 6 for 5.1. 0 when the file doesn't say.
+    ///
+    /// Field 1: `channels`
+    pub channels: u32,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for AudioTrackView<'a> {
+    type Owned = super::super::AudioTrack;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.channels = ::buffa::types::decode_uint32(&mut cur)?;
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<super::super::AudioTrack, ::buffa::DecodeError> {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<super::super::AudioTrack, ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::AudioTrack {
+            channels: self.channels,
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for AudioTrackView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.channels != 0u32 {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(self.channels) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.channels != 0u32 {
+            ::buffa::types::put_uint32_field(1u32, self.channels, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for AudioTrackView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_zero_u32(&self.channels) {
+            __map
+                .serialize_entry(
+                    "channels",
+                    &::buffa::json_helpers::ProtoJson(&self.channels),
+                )?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for AudioTrackView<'a> {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "AudioTrack";
+    const FULL_NAME: &'static str = "nama.v1.AudioTrack";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.AudioTrack";
+}
+::buffa::impl_default_view_instance!(AudioTrackView);
+::buffa::impl_view_reborrow!(AudioTrackView);
+/** Self-contained, `'static` owned view of a `AudioTrack` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`AudioTrackView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`AudioTrackView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct AudioTrackOwnedView(::buffa::OwnedView<AudioTrackView<'static>>);
+impl AudioTrackOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            AudioTrackOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            AudioTrackOwnedView(::buffa::OwnedView::decode_with_options(bytes, opts)?),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::AudioTrack,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            AudioTrackOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`AudioTrackView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &AudioTrackView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::AudioTrack {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// How many, such as 6 for 5.1. 0 when the file doesn't say.
+    ///
+    /// Field 1: `channels`
+    #[must_use]
+    pub fn channels(&self) -> u32 {
+        self.0.reborrow().channels
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<AudioTrackView<'static>>>
+for AudioTrackOwnedView {
+    fn from(inner: ::buffa::OwnedView<AudioTrackView<'static>>) -> Self {
+        AudioTrackOwnedView(inner)
+    }
+}
+impl ::core::convert::From<AudioTrackOwnedView>
+for ::buffa::OwnedView<AudioTrackView<'static>> {
+    fn from(wrapper: AudioTrackOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<AudioTrackView<'static>>>
+for AudioTrackOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<AudioTrackView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::AudioTrack {
+    type View<'a> = AudioTrackView<'a>;
+    type ViewHandle = AudioTrackOwnedView;
+}
+impl ::serde::Serialize for AudioTrackOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+/// A subtitle Track's own facts.
+#[derive(Clone, Debug, Default)]
+pub struct SubtitleTrackView<'a> {
+    /// Whether it is a bitmap, such as PGS, rather than text, such as SRT, which a client can
+    /// restyle.
+    ///
+    /// Field 1: `image`
+    pub image: bool,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for SubtitleTrackView<'a> {
+    type Owned = super::super::SubtitleTrack;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.image = ::buffa::types::decode_bool(&mut cur)?;
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<super::super::SubtitleTrack, ::buffa::DecodeError> {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<super::super::SubtitleTrack, ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::SubtitleTrack {
+            image: self.image,
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for SubtitleTrackView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.image {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.image {
+            ::buffa::types::put_bool_field(1u32, self.image, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for SubtitleTrackView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if self.image {
+            __map.serialize_entry("image", &self.image)?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for SubtitleTrackView<'a> {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "SubtitleTrack";
+    const FULL_NAME: &'static str = "nama.v1.SubtitleTrack";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.SubtitleTrack";
+}
+::buffa::impl_default_view_instance!(SubtitleTrackView);
+::buffa::impl_view_reborrow!(SubtitleTrackView);
+/** Self-contained, `'static` owned view of a `SubtitleTrack` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`SubtitleTrackView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`SubtitleTrackView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct SubtitleTrackOwnedView(::buffa::OwnedView<SubtitleTrackView<'static>>);
+impl SubtitleTrackOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            SubtitleTrackOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            SubtitleTrackOwnedView(::buffa::OwnedView::decode_with_options(bytes, opts)?),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::SubtitleTrack,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            SubtitleTrackOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`SubtitleTrackView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &SubtitleTrackView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::SubtitleTrack {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// Whether it is a bitmap, such as PGS, rather than text, such as SRT, which a client can
+    /// restyle.
+    ///
+    /// Field 1: `image`
+    #[must_use]
+    pub fn image(&self) -> bool {
+        self.0.reborrow().image
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<SubtitleTrackView<'static>>>
+for SubtitleTrackOwnedView {
+    fn from(inner: ::buffa::OwnedView<SubtitleTrackView<'static>>) -> Self {
+        SubtitleTrackOwnedView(inner)
+    }
+}
+impl ::core::convert::From<SubtitleTrackOwnedView>
+for ::buffa::OwnedView<SubtitleTrackView<'static>> {
+    fn from(wrapper: SubtitleTrackOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<SubtitleTrackView<'static>>>
+for SubtitleTrackOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<SubtitleTrackView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::SubtitleTrack {
+    type View<'a> = SubtitleTrackView<'a>;
+    type ViewHandle = SubtitleTrackOwnedView;
+}
+impl ::serde::Serialize for SubtitleTrackOwnedView {
     fn serialize<__S: ::serde::Serializer>(
         &self,
         __s: __S,

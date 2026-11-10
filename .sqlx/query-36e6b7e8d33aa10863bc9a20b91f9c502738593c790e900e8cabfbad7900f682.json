@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO tracks (version_id, position, kind, codec, language, title, is_default,\n                                 forced, width, height, frame_rate, channels, image)\n             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 13
+    },
+    "nullable": []
+  },
+  "hash": "36e6b7e8d33aa10863bc9a20b91f9c502738593c790e900e8cabfbad7900f682"
+}

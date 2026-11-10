@@ -63,6 +63,7 @@ test("marking a Season played marks each of its Episodes played", async () => {
           seasonNumber: 1,
           episodeNumber,
           title: `Episode ${episodeNumber}`,
+          versions: [{ id: BigInt(episodeNumber) }],
           watchState: { played },
         })),
       }),
