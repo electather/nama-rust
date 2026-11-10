@@ -130,7 +130,7 @@ impl Embedded {
         let Some(found) = (probe.tracks.get(track)).filter(|found| found.is_text_subtitle()) else {
             return Ok(None);
         };
-        let ass = matches!(found.codec.as_str(), "ass" | "ssa");
+        let ass = found.is_ass_subtitle();
         Ok(Some(Self {
             file,
             track,

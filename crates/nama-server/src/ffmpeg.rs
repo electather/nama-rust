@@ -458,14 +458,18 @@ fn overlay_graph(
     picture: Option<(i64, i64)>,
     after: Option<String>,
 ) -> String {
-    // A bitmap's canvas can be smaller than the picture, as a 4K Blu-ray's 1080p PGS is.
-    let fit = picture.map(|(width, height)| format!("scale={width}:{height}"));
+    // A bitmap's canvas can be smaller than the picture, as a 4K Blu-ray's 1080p PGS is, or
+    // another shape, as a cropped film's 1080p PGS is: scaled evenly and centred, its text is
+    // neither stretched nor cut off.
+    let fit = picture.map(|(width, height)| {
+        format!("scale={width}:{height}:force_original_aspect_ratio=decrease")
+    });
     let or_null = |filter: Option<String>| filter.unwrap_or_else(|| "null".to_owned());
     let (before, fit) = (or_null(before), or_null(fit));
     let after: String = after.map(|after| format!(",{after}")).unwrap_or_default();
     format!(
         "[0:V:0]{before}[picture];[0:s:{subtitle}]{fit}[subtitle];\
-         [picture][subtitle]overlay{after}[video]"
+         [picture][subtitle]overlay=(W-w)/2:(H-h)/2{after}[video]"
     )
 }
 
@@ -902,7 +906,9 @@ pub fn write_black_with_pgs(path: &Path) -> io::Result<()> {
             ])
             .arg(&sup)
             .args(["-t", "20", "-map", "0", "-map", "1"])
-            .args(["-c:v", "libx264", "-preset", "ultrafast", "-c:s", "copy"])
+            // A keyframe each second, so a Transcode started mid-way seeks past where the
+            // subtitle starts, as it would in a film.
+            .args(["-c:v", "libx264", "-preset", "ultrafast", "-g", "24", "-c:s", "copy"])
             .args(["-f", "matroska"])
     });
     std::fs::remove_file(&sup)?;

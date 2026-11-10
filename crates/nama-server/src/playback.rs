@@ -552,7 +552,7 @@ fn burn_in(facts: &Facts) -> Option<BurnIn> {
             subtitle,
             picture: picture(facts),
         }),
-        TrackKind::Subtitle { image: false } if matches!(track.codec.as_str(), "ass" | "ssa") => {
+        TrackKind::Subtitle { image: false } if track.is_ass_subtitle() => {
             Some(BurnIn::Text { subtitle })
         }
         TrackKind::Video { .. } | TrackKind::Audio { .. } | TrackKind::Subtitle { .. } => None,

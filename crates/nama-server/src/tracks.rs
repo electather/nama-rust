@@ -104,6 +104,12 @@ impl Track {
         matches!(self.kind, TrackKind::Subtitle { .. })
             && TEXT_SUBTITLES.contains(&self.codec.as_str())
     }
+
+    /// Whether it's an ASS or SSA subtitle, whose styling only libass draws.
+    pub(crate) fn is_ass_subtitle(&self) -> bool {
+        matches!(self.kind, TrackKind::Subtitle { .. })
+            && matches!(self.codec.as_str(), "ass" | "ssa")
+    }
 }
 
 /// How a video [`Track`]'s picture is HDR.

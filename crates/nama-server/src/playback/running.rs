@@ -273,7 +273,8 @@ impl RunningPlans {
     /// the Device it plays on, with its `audio` Track, counting only its audio from 0, converted
     /// to AAC with the channels given beside it, its HDR tone-mapped to SDR if `tone_map`, with
     /// `burn_in` drawn into its picture, and its video kept within `video`, and returns its id and
-    /// its playlist's URL. Its segments are [`SEGMENT_MS`] each, as it forces a keyframe at each. `None` if there is no such Version.
+    /// its playlist's URL. Its segments are [`SEGMENT_MS`] each, as it forces a keyframe at each.
+    /// `None` if there is no such Version.
     #[expect(
         clippy::too_many_arguments,
         reason = "the plan fixes each of the Transcode's conversions, as for `Ffmpeg::transcode`"
