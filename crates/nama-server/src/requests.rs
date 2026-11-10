@@ -187,6 +187,81 @@ struct WantedSeasons {
     chosen: Option<i64>,
 }
 
+/// What a write to Requests did: its `value`, the events it built for what happened, and the
+/// Requests it approved, which [`Requests::apply`] hands off.
+#[derive(Debug)]
+struct Applied<T> {
+    value: T,
+    events: Vec<Event>,
+    hand_off: Vec<Request>,
+}
+
+impl<T> Applied<T> {
+    /// `value`, from a write that changed nothing worth an event.
+    fn quiet(value: T) -> Self {
+        Self {
+            value,
+            events: Vec::new(),
+            hand_off: Vec::new(),
+        }
+    }
+
+    /// `value`, from a write that `happened` says what it did.
+    fn saying(value: T, happened: Event) -> Self {
+        Self {
+            events: vec![happened],
+            ..Self::quiet(value)
+        }
+    }
+}
+
+impl Applied<Request> {
+    /// `request`, which the write moved to the state it is in now.
+    fn moved(request: Request) -> Self {
+        Self::saying(request.clone(), state_changed(request))
+    }
+
+    /// `request`, which the write approved, so it is handed off.
+    fn approved(request: Request) -> Self {
+        Self {
+            hand_off: vec![request.clone()],
+            ..Self::moved(request)
+        }
+    }
+}
+
+/// A write's value that may hold Requests the write hands off, which [`Requests::apply`] swaps
+/// for those Requests as the Hand-off left them.
+trait HandedBack: Sized {
+    /// `self` with any of `handed` in place of the Request with its id.
+    fn handed_back(self, _handed: &[Request]) -> Self {
+        self
+    }
+}
+
+impl HandedBack for () {}
+
+impl HandedBack for Request {
+    fn handed_back(self, handed: &[Request]) -> Self {
+        let now = handed.iter().find(|request| request.id == self.id);
+        now.cloned().unwrap_or(self)
+    }
+}
+
+impl HandedBack for Option<Request> {
+    fn handed_back(self, handed: &[Request]) -> Self {
+        self.map(|request| request.handed_back(handed))
+    }
+}
+
+impl HandedBack for Vec<Request> {
+    fn handed_back(self, handed: &[Request]) -> Self {
+        self.into_iter()
+            .map(|request| request.handed_back(handed))
+            .collect()
+    }
+}
+
 /// Whose Requests `viewer` may see: everyone's (`None`), or only those they are a Requester of.
 pub(crate) fn visible_to(viewer: &User) -> Option<i64> {
     (!viewer.permissions.allow(Permission::ViewRequests)).then_some(viewer.id)
@@ -245,23 +320,26 @@ impl Requests {
         };
         let state = opening_state(asker, Permission::AutoApproveMovie);
         let user = asker.id;
-        let this = self.clone();
-        // The write too, as in `create_seasons`.
-        detached(async move {
-            let (request, happened) = this
-                .db
-                .write(move |tx| Box::pin(ask_movie(tx, user, wanted, state)))
-                .await?;
-            // Only the asker who opens or approves the Request hands it off, so joining it can't
-            // hand it twice.
-            let hands_off = happened.iter().any(|event| handed_off_id(event).is_some());
-            this.events.publish(happened);
-            if hands_off && request.state == RequestState::Approved {
-                return this.hand_off.request(request).await;
-            }
-            Ok(request)
-        })
-        .await
+        self.apply(move |tx| Box::pin(ask_movie(tx, user, wanted, state)))
+            .await
+    }
+
+    /// Runs `write`, publishes the events it built, then hands off the Requests it approved, and
+    /// returns its value with those Requests as they are after the Hand-off.
+    ///
+    /// Runs in a task of its own, since the write commits even if the caller stops waiting, so
+    /// what follows it must too (ADR 0029).
+    async fn apply<T, W>(&self, write: W) -> Result<T, Error>
+    where
+        T: HandedBack + Send + 'static,
+        W: for<'t> FnOnce(
+                &'t mut Transaction<'_, Sqlite>,
+            ) -> BoxFuture<'t, Result<Applied<T>, Error>>
+            + Send
+            + 'static,
+    {
+        let hand_off = self.hand_off.clone();
+        detached(async move { hand_off.apply(write).await }).await
     }
 
     /// The Quality a new Request `asker` opens on the enabled Fulfiller of `Kind` takes, and
@@ -435,18 +513,8 @@ impl Requests {
         };
         let state = opening_state(asker, Permission::AutoApproveTv);
         let user = asker.id;
-        let this = self.clone();
-        // The write too, so a caller that stops waiting leaves no Season Approved behind.
-        detached(async move {
-            let (requests, happened) = this
-                .db
-                .write(move |tx| Box::pin(ask_seasons(tx, user, wanted, state)))
-                .await?;
-            let to_hand_off: HashSet<i64> = happened.iter().filter_map(handed_off_id).collect();
-            this.events.publish(happened);
-            this.hand_off.these(requests, &to_hand_off).await
-        })
-        .await
+        self.apply(move |tx| Box::pin(ask_seasons(tx, user, wanted, state)))
+            .await
     }
 
     /// Asks for the whole Show with the TMDB id `tmdb_id` for `asker`: each current Season not in
@@ -481,7 +549,7 @@ impl Requests {
         let state = opening_state(asker, Permission::AutoApproveTv);
         let user = asker.id;
         let this = self.clone();
-        // The write too, as in `create_seasons`.
+        // The write too, as in `apply`.
         detached(async move {
             let (followed, requests, happened) = this
                 .db
@@ -535,7 +603,7 @@ impl Requests {
         new_quality: Option<NewQuality>,
     ) -> Result<FollowedShow, Error> {
         let this = self.clone();
-        // The write too, as in `approve`.
+        // The write too, as in `apply`.
         detached(async move {
             let (followed, decided) = this
                 .db
@@ -611,14 +679,8 @@ impl Requests {
         quality: Option<i64>,
     ) -> Result<Request, Error> {
         let new_quality = self.new_quality(manager, id, quality).await?;
-        let requests = self.clone();
-        detached(async move {
-            let approved = requests
-                .decide(id, RequestState::Approved, None, new_quality)
-                .await?;
-            requests.hand_off.request(approved).await
-        })
-        .await
+        self.apply(move |tx| Box::pin(approve(tx, id, new_quality)))
+            .await
     }
 
     /// Moves the Failed Request `id` back to Approved as `manager`, changing its Quality as
@@ -631,18 +693,8 @@ impl Requests {
         quality: Option<i64>,
     ) -> Result<Request, Error> {
         let new_quality = self.new_quality(manager, id, quality).await?;
-        let requests = self.clone();
-        detached(async move {
-            let approved = requests
-                .db
-                .write(move |tx| Box::pin(retry(tx, id, new_quality)))
-                .await?;
-            requests
-                .events
-                .publish(vec![state_changed(approved.clone())]);
-            requests.hand_off.request(approved).await
-        })
-        .await
+        self.apply(move |tx| Box::pin(retry(tx, id, new_quality)))
+            .await
     }
 
     /// Hands each Approved Request, oldest first, to its Fulfiller whenever a Plugin `came_up`
@@ -665,45 +717,13 @@ impl Requests {
     /// blank, and publishes that its state changed.
     pub(crate) async fn decline(&self, id: i64, reason: &str) -> Result<Request, Error> {
         let reason = given_reason(reason);
-        let this = self.clone();
-        // The write commits even if the caller stops waiting, so its event must follow (ADR 0029).
-        detached(async move { this.decide(id, RequestState::Declined, reason, None).await }).await
-    }
-
-    async fn decide(
-        &self,
-        id: i64,
-        state: RequestState,
-        reason: Option<String>,
-        new_quality: Option<NewQuality>,
-    ) -> Result<Request, Error> {
-        let request = self
-            .db
-            .write(move |tx| {
-                Box::pin(async move {
-                    // Undone with the rest if the Request can't be decided.
-                    change_quality(tx, id, new_quality).await?;
-                    decide(tx, id, state, reason).await
-                })
-            })
-            .await?;
-        self.events.publish(vec![state_changed(request.clone())]);
-        Ok(request)
+        self.apply(move |tx| Box::pin(decline(tx, id, reason)))
+            .await
     }
 
     /// Removes the Request `id`, whatever its state, and publishes that it was cancelled.
     pub(crate) async fn cancel(&self, id: i64) -> Result<(), Error> {
-        let this = self.clone();
-        // As in `decline`.
-        detached(async move {
-            let request = this.db.write(move |tx| Box::pin(cancel(tx, id))).await?;
-            this.events.publish(vec![event(RequestCancelled {
-                request: request.into(),
-                ..Default::default()
-            })]);
-            Ok(())
-        })
-        .await
+        self.apply(move |tx| Box::pin(cancel(tx, id))).await
     }
 
     /// Takes `requester` off the Pending Request `id`, removing it once nobody is left on it, and
@@ -711,17 +731,8 @@ impl Requests {
     pub(crate) async fn withdraw(&self, requester: &User, id: i64) -> Result<(), Error> {
         let user = requester.id;
         let visible = visible_to(requester);
-        let this = self.clone();
-        // As in `decline`.
-        detached(async move {
-            let happened = this
-                .db
-                .write(move |tx| Box::pin(withdraw(tx, user, visible, id)))
-                .await?;
-            this.events.publish(vec![happened]);
-            Ok(())
-        })
-        .await
+        self.apply(move |tx| Box::pin(withdraw(tx, user, visible, id)))
+            .await
     }
 
     /// A page of at most `size` of the Requests and Followed Shows `viewer` may see, newest first:
@@ -1115,7 +1126,7 @@ async fn ask_movie(
     user: i64,
     wanted: Wanted,
     state: RequestState,
-) -> Result<(Request, Vec<Event>), Error> {
+) -> Result<Applied<Request>, Error> {
     if contents::library_with_movie(conn, wanted.tmdb_id)
         .await?
         .is_some()
@@ -1126,13 +1137,13 @@ async fn ask_movie(
 }
 
 /// [`ask_approving`]s for each of the Seasons `show`, unless a Library has any of them. Returns the
-/// Requests in the order of `show.seasons`, and the events for what changed.
+/// Requests in the order of `show.seasons`.
 async fn ask_seasons(
     conn: &mut SqliteConnection,
     user: i64,
     show: WantedSeasons,
     state: RequestState,
-) -> Result<(Vec<Request>, Vec<Event>), Error> {
+) -> Result<Applied<Vec<Request>>, Error> {
     // Read in the write, so two asks for the Show's Seasons at once can't take two Qualities.
     let (quality, quality_chosen) = show_requests(conn, show.show_tmdb_id)
         .await?
@@ -1145,8 +1156,7 @@ async fn ask_seasons(
         ..
     } = show;
     let today = today(conn).await?;
-    let mut requests = Vec::with_capacity(seasons.len());
-    let mut happened = Vec::new();
+    let mut asked = Applied::quiet(Vec::with_capacity(seasons.len()));
     for season in seasons {
         let matched = contents::matched_episodes(conn, show_tmdb_id, season.number.into()).await?;
         if availability(&season.episodes, &matched, &today) == Some(RequestState::Available) {
@@ -1165,11 +1175,12 @@ async fn ask_seasons(
             quality: quality.clone(),
             quality_chosen,
         };
-        let (request, events) = ask_approving(conn, user, wanted, state).await?;
-        requests.push(request);
-        happened.extend(events);
+        let one = ask_approving(conn, user, wanted, state).await?;
+        asked.value.push(one.value);
+        asked.events.extend(one.events);
+        asked.hand_off.extend(one.hand_off);
     }
-    Ok((requests, happened))
+    Ok(asked)
 }
 
 /// [`ask`]s for `wanted`, then approves the open Request `user` joined if it is Pending and `state`
@@ -1180,18 +1191,18 @@ async fn ask_approving(
     user: i64,
     wanted: Wanted,
     state: RequestState,
-) -> Result<(Request, Vec<Event>), Error> {
+) -> Result<Applied<Request>, Error> {
     let new_quality = qualities::joiner_approves_at(wanted.quality.clone(), wanted.quality_chosen)
         .map(|quality| NewQuality { quality, by: user });
-    let (request, happened) = ask(conn, user, wanted, state).await?;
-    let mut happened = Vec::from_iter(happened);
-    if state != RequestState::Approved || request.state != RequestState::Pending {
-        return Ok((request, happened));
+    let asked = ask(conn, user, wanted, state).await?;
+    if state != RequestState::Approved || asked.value.state != RequestState::Pending {
+        return Ok(asked);
     }
-    change_quality(conn, request.id, new_quality).await?;
-    let approved = decide(conn, request.id, RequestState::Approved, None).await?;
-    happened.push(state_changed(approved.clone()));
-    Ok((approved, happened))
+    let approved = approve(conn, asked.value.id, new_quality).await?;
+    Ok(Applied {
+        events: [asked.events, approved.events].concat(),
+        ..approved
+    })
 }
 
 /// How much a Library has of the Season with `episodes`, of which those numbered in `matched` are
@@ -1254,20 +1265,20 @@ async fn insert_request(
 }
 
 /// Adds `user` as a Requester of the open Request for `wanted`, opening one in `state` if there
-/// is none. Returns the Request, and the event for what changed, if anything did.
+/// is none, which is handed off if that is Approved. Joining one hands nothing off, so a Request
+/// isn't handed off twice.
 async fn ask(
     conn: &mut SqliteConnection,
     user: i64,
     wanted: Wanted,
     state: RequestState,
-) -> Result<(Request, Option<Event>), sqlx::Error> {
+) -> Result<Applied<Request>, sqlx::Error> {
     let now = now();
-    let state = stored(state);
     let open = open_request(conn, wanted.tmdb_id, wanted.season).await?;
     let opened = open.is_none();
     let id = match open {
         Some(id) => id,
-        None => insert_request(conn, &wanted, state, now).await?,
+        None => insert_request(conn, &wanted, stored(state), now).await?,
     };
     let joined = sqlx::query!(
         "INSERT INTO requesters (request_id, user_id, requested_at) VALUES (?, ?, ?)
@@ -1281,21 +1292,26 @@ async fn ask(
     .rows_affected()
         > 0;
     let request = load_one(conn, id).await?.ok_or(sqlx::Error::RowNotFound)?;
-    let happened = if opened {
-        Some(event(RequestCreated {
+    if opened {
+        let created = event(RequestCreated {
             request: request.clone().into(),
             ..Default::default()
-        }))
-    } else if joined {
-        Some(event(RequesterAdded {
+        });
+        let hand_off = Vec::from_iter((state == RequestState::Approved).then(|| request.clone()));
+        return Ok(Applied {
+            hand_off,
+            ..Applied::saying(request, created)
+        });
+    }
+    if joined {
+        let added = event(RequesterAdded {
             request: request.clone().into(),
             user_id: user,
             ..Default::default()
-        }))
-    } else {
-        None
-    };
-    Ok((request, happened))
+        });
+        return Ok(Applied::saying(request, added));
+    }
+    Ok(Applied::quiet(request))
 }
 
 /// Makes Available the open Request for each of the Movies `tmdb_ids` that a Library now has,
@@ -1485,6 +1501,28 @@ async fn decide(
     Ok(request)
 }
 
+/// Approves the Pending Request `id`, first changing its Quality to `new_quality` if given.
+async fn approve(
+    conn: &mut SqliteConnection,
+    id: i64,
+    new_quality: Option<NewQuality>,
+) -> Result<Applied<Request>, Error> {
+    // Undone with the rest if the Request isn't Pending.
+    change_quality(conn, id, new_quality).await?;
+    let approved = decide(conn, id, RequestState::Approved, None).await?;
+    Ok(Applied::approved(approved))
+}
+
+/// Declines the Pending Request `id`, giving its Requesters `reason`.
+async fn decline(
+    conn: &mut SqliteConnection,
+    id: i64,
+    reason: Option<String>,
+) -> Result<Applied<Request>, Error> {
+    let declined = decide(conn, id, RequestState::Declined, reason).await?;
+    Ok(Applied::moved(declined))
+}
+
 /// Changes the Request `id`'s Quality to `new_quality`, if given, as [`requality`] does.
 async fn change_quality(
     conn: &mut SqliteConnection,
@@ -1630,7 +1668,7 @@ async fn settle(
     fulfilled: Result<Fulfilled, String>,
     asked: Option<RequestedQuality>,
     plugin: Option<PluginId>,
-) -> Result<Option<Request>, sqlx::Error> {
+) -> Result<Applied<Option<Request>>, Error> {
     // In the same write as the reference, so a failed read can't lose a Request the Fulfiller took.
     let (state, reference, used, reason) = match fulfilled {
         Ok(fulfilled) => {
@@ -1667,18 +1705,22 @@ async fn settle(
     .rows_affected()
         > 0;
     if !settled {
-        return Ok(None);
+        return Ok(Applied::quiet(None));
     }
-    load_one(conn, id).await
+    let request = load_one(conn, id).await?.ok_or(Error::NoSuchRequest(id))?;
+    Ok(Applied::saying(
+        Some(request.clone()),
+        state_changed(request),
+    ))
 }
 
 /// Moves the Failed Request `id` back to Approved at `new_quality`, if given, forgetting why it
-/// failed, and returns it as it is now.
+/// failed, so it is handed off again.
 async fn retry(
     conn: &mut SqliteConnection,
     id: i64,
     new_quality: Option<NewQuality>,
-) -> Result<Request, Error> {
+) -> Result<Applied<Request>, Error> {
     // Undone with the rest if the Request isn't Failed.
     change_quality(conn, id, new_quality).await?;
     let retried = sqlx::query!(
@@ -1694,26 +1736,30 @@ async fn retry(
     if !retried {
         return Err(Error::NotFailed(id));
     }
-    Ok(request)
+    Ok(Applied::approved(request))
 }
 
-/// Removes the Request `id`, and its Requesters with it, and returns it as it was.
-async fn cancel(conn: &mut SqliteConnection, id: i64) -> Result<Request, Error> {
+/// Removes the Request `id`, and its Requesters with it.
+async fn cancel(conn: &mut SqliteConnection, id: i64) -> Result<Applied<()>, Error> {
     let request = load_one(conn, id).await?.ok_or(Error::NoSuchRequest(id))?;
     sqlx::query!("DELETE FROM requests WHERE id = ?", id)
         .execute(&mut *conn)
         .await?;
-    Ok(request)
+    let cancelled = event(RequestCancelled {
+        request: request.into(),
+        ..Default::default()
+    });
+    Ok(Applied::saying((), cancelled))
 }
 
 /// Takes `user` off the Pending Request `id`, among those `visible` lets them see, removing the
-/// Request if they were its last Requester. Returns the event for what changed.
+/// Request if they were its last Requester.
 async fn withdraw(
     conn: &mut SqliteConnection,
     user: i64,
     visible: Option<i64>,
     id: i64,
-) -> Result<Event, Error> {
+) -> Result<Applied<()>, Error> {
     let request = load(conn, Some(id), visible)
         .await?
         .into_iter()
@@ -1729,10 +1775,11 @@ async fn withdraw(
         sqlx::query!("DELETE FROM requests WHERE id = ?", id)
             .execute(&mut *conn)
             .await?;
-        return Ok(event(RequestWithdrawn {
+        let withdrawn = event(RequestWithdrawn {
             request: request.into(),
             ..Default::default()
-        }));
+        });
+        return Ok(Applied::saying((), withdrawn));
     }
     sqlx::query!(
         "DELETE FROM requesters WHERE request_id = ? AND user_id = ?",
@@ -1741,11 +1788,12 @@ async fn withdraw(
     )
     .execute(&mut *conn)
     .await?;
-    Ok(event(RequesterRemoved {
+    let removed = event(RequesterRemoved {
         request: request.into(),
         user_id: user,
         ..Default::default()
-    }))
+    });
+    Ok(Applied::saying((), removed))
 }
 
 /// Adds `user` as a Requester of the open Followed Show for `show`, opening one in `state` if there
@@ -1824,14 +1872,13 @@ async fn follow(
         };
         // Only `user`'s own auto-approve approves someone else's Pending Season Request: joining an
         // Approved Followed Show doesn't.
-        let (request, events) = if may_auto_approve {
+        let asked = if may_auto_approve {
             ask_approving(conn, user, wanted, state).await?
         } else {
-            let (request, event) = ask(conn, user, wanted, state).await?;
-            (request, Vec::from_iter(event))
+            ask(conn, user, wanted, state).await?
         };
-        requests.push(request);
-        happened.extend(events);
+        requests.push(asked.value);
+        happened.extend(asked.events);
     }
     Ok((followed, requests, happened))
 }
@@ -2324,7 +2371,10 @@ mod tests {
     use sqlx::SqliteConnection;
     use tokio::sync::Notify;
 
-    use super::{Requests, Wanted, ask, ask_movie, availability, load_one, opening_state};
+    use super::{
+        Applied, Error, Requests, Wanted, WantedSeasons, approve, ask, ask_movie, ask_seasons,
+        availability, cancel, decline, load_one, opening_state, retry, settle, withdraw,
+    };
     use crate::{
         contents::{Change, Contents, Decided, Decisions, Item, Metadata},
         db::Database,
@@ -2391,8 +2441,7 @@ mod tests {
         let user = insert_ada(conn).await?;
         let mut ids = Vec::new();
         for one in wanted {
-            let (request, _) = ask(conn, user, one, state).await?;
-            ids.push(request.id);
+            ids.push(ask(conn, user, one, state).await?.value.id);
         }
         Ok(ids)
     }
@@ -2644,20 +2693,21 @@ mod tests {
     async fn ask_as(requests: &Requests, permissions: Permissions, tmdb_id: i64) -> i64 {
         let asker = ada(permissions);
         let state = opening_state(&asker, Permission::AutoApproveMovie);
-        let (request, _) = requests
+        let applied = requests
             .db
             .write(move |tx| Box::pin(ask_movie(tx, asker.id, movie(tmdb_id), state)))
             .await
             .unwrap();
-        request.id
+        applied.value.id
     }
 
     /// A new Library Matches a file to each of the Movies `tmdb_ids`, as a scan does, which makes
     /// their open Requests Available.
-    async fn match_in_a_library(requests: &Requests, tmdb_ids: &[i64]) {
+    async fn match_in_a_library(db: &Arc<Database>, tmdb_ids: &[i64]) {
         let folder = tempfile::tempdir().unwrap();
         let root = folder.path().canonicalize().unwrap();
-        let library = Libraries::new(Arc::clone(&requests.db))
+        let contents = Contents::new(Arc::clone(db));
+        let library = Libraries::new(Arc::clone(db))
             .create(
                 "Movies",
                 Kind::Movies,
@@ -2679,8 +2729,8 @@ mod tests {
                 }],
             })
             .collect();
-        requests.contents.apply(library, stores).await.unwrap();
-        let files = requests.contents.files(library).await.unwrap();
+        contents.apply(library, stores).await.unwrap();
+        let files = contents.files(library).await.unwrap();
         let decided: Vec<_> = files
             .into_iter()
             .flat_map(|file| file.items)
@@ -2695,11 +2745,7 @@ mod tests {
                 (stored.id, matched(tmdb(tmdb_id), ExternalIds::default()))
             })
             .collect();
-        requests
-            .contents
-            .record(Decisions::from(decided))
-            .await
-            .unwrap();
+        contents.record(Decisions::from(decided)).await.unwrap();
     }
 
     #[tokio::test]
@@ -2708,7 +2754,7 @@ mod tests {
         let fulfiller = Arc::clone(&asked);
         let (_data, requests) = approved_for(&[949, 438_631, 603], fulfiller).await;
         come_up(&requests, "gated").await;
-        match_in_a_library(&requests, &[603]).await;
+        match_in_a_library(&requests.db, &[603]).await;
 
         let any = requests.hand_off.poll_progress().await.unwrap();
 
@@ -2730,7 +2776,7 @@ mod tests {
 
         come_up(&requests, "gated").await;
         until_asked_about(&asked, &["438631", "949"]).await;
-        match_in_a_library(&requests, &[949, 438_631]).await;
+        match_in_a_library(&requests.db, &[949, 438_631]).await;
         // Asked once more at most, if it was already asking as they became Available.
         asked_while(&asked, EVERY * 5).await;
         let nothing_processing_again = asked_while(&asked, EVERY * 10).await;
@@ -3045,5 +3091,451 @@ mod tests {
             .state;
         assert_eq!(state.as_known(), Some(RequestState::Available));
         assert!(episode_2_aired.is_empty(), "{episode_2_aired:?}");
+    }
+
+    /// What each event in `applied` says happened, and the state its Request is in by then.
+    #[expect(
+        clippy::wildcard_enum_match_arm,
+        reason = "the writes under test publish only Request events"
+    )]
+    fn happened<T>(applied: &Applied<T>) -> Vec<(&'static str, RequestState)> {
+        applied
+            .events
+            .iter()
+            .map(|event| {
+                let (what, request) = match event.event.as_ref().expect("an event") {
+                    Happened::RequestCreated(created) => ("created", &created.request),
+                    Happened::RequesterAdded(added) => ("joined", &added.request),
+                    Happened::RequestStateChanged(changed) => ("moved", &changed.request),
+                    Happened::RequestCancelled(cancelled) => ("cancelled", &cancelled.request),
+                    Happened::RequestWithdrawn(withdrawn) => ("withdrawn", &withdrawn.request),
+                    Happened::RequesterRemoved(removed) => ("left", &removed.request),
+                    other => panic!("not a Request event: {other:?}"),
+                };
+                (what, request.state.as_known().unwrap_or_default())
+            })
+            .collect()
+    }
+
+    const NOTHING: [i64; 0] = [];
+
+    /// The ids of the Requests `applied` hands off.
+    fn handed_off<T>(applied: &Applied<T>) -> Vec<i64> {
+        applied.hand_off.iter().map(|request| request.id).collect()
+    }
+
+    const ADA: i64 = 1;
+    const BOB: i64 = 2;
+
+    /// A new database holding the Users [`ADA`] and [`BOB`].
+    async fn ada_and_bob() -> (tempfile::TempDir, Arc<Database>) {
+        let data = tempfile::tempdir().unwrap();
+        let db = Arc::new(Database::open(data.path()).await.unwrap());
+        db.write(|tx| {
+            Box::pin(async move {
+                insert_ada(tx).await?;
+                sqlx::query(
+                    "INSERT INTO users (username, display_username, permissions, created_at,
+                                        updated_at)
+                     VALUES ('bob', 'Bob', 0, 0, 0)",
+                )
+                .execute(&mut **tx)
+                .await
+            })
+        })
+        .await
+        .unwrap();
+        (data, db)
+    }
+
+    /// `user` asks for the Movie `tmdb_id`, opening a Request in `state` if it has none.
+    async fn ask_for(
+        db: &Database,
+        user: i64,
+        tmdb_id: i64,
+        state: RequestState,
+    ) -> Applied<Request> {
+        db.write(move |tx| Box::pin(ask_movie(tx, user, movie(tmdb_id), state)))
+            .await
+            .unwrap()
+    }
+
+    /// The Fulfiller took the Approved Request `id`, or didn't, and why.
+    async fn settled(
+        db: &Database,
+        id: i64,
+        fulfilled: Result<Fulfilled, String>,
+    ) -> Applied<Option<Request>> {
+        db.write(move |tx| Box::pin(settle(tx, id, fulfilled, None, None)))
+            .await
+            .unwrap()
+    }
+
+    /// What a Fulfiller says when it takes a Request.
+    fn fulfilled() -> Fulfilled {
+        Fulfilled {
+            reference: "taken".to_owned(),
+            ..Fulfilled::default()
+        }
+    }
+
+    #[tokio::test]
+    async fn asking_for_a_movie_opens_its_request_and_hands_it_off_only_if_approved() {
+        let (_data, db) = ada_and_bob().await;
+
+        let pending = ask_for(&db, ADA, 949, RequestState::Pending).await;
+        let approved = ask_for(&db, ADA, 603, RequestState::Approved).await;
+
+        assert_eq!(happened(&pending), [("created", RequestState::Pending)]);
+        assert_eq!(handed_off(&pending), NOTHING);
+        assert_eq!(happened(&approved), [("created", RequestState::Approved)]);
+        assert_eq!(handed_off(&approved), [approved.value.id]);
+    }
+
+    #[tokio::test]
+    async fn joining_a_pending_request_approves_and_hands_it_off_only_for_an_auto_approver() {
+        let (_data, db) = ada_and_bob().await;
+        ask_for(&db, ADA, 949, RequestState::Pending).await;
+
+        let joined = ask_for(&db, BOB, 949, RequestState::Pending).await;
+        let asked_again = ask_for(&db, BOB, 949, RequestState::Approved).await;
+
+        assert_eq!(happened(&joined), [("joined", RequestState::Pending)]);
+        assert_eq!(handed_off(&joined), NOTHING);
+        assert_eq!(happened(&asked_again), [("moved", RequestState::Approved)]);
+        assert_eq!(handed_off(&asked_again), [joined.value.id]);
+    }
+
+    #[tokio::test]
+    async fn joining_a_request_already_approved_hands_nothing_off() {
+        let (_data, db) = ada_and_bob().await;
+        ask_for(&db, ADA, 949, RequestState::Approved).await;
+        let processing = ask_for(&db, ADA, 603, RequestState::Approved)
+            .await
+            .value
+            .id;
+        settled(&db, processing, Ok(fulfilled())).await;
+        let failed = ask_for(&db, ADA, 348, RequestState::Approved)
+            .await
+            .value
+            .id;
+        settled(&db, failed, Err("no space".to_owned())).await;
+
+        let mut joined = Vec::new();
+        for tmdb_id in [949, 603, 348] {
+            let applied = ask_for(&db, BOB, tmdb_id, RequestState::Approved).await;
+            assert_eq!(handed_off(&applied), NOTHING);
+            joined.extend(happened(&applied));
+        }
+
+        assert_eq!(
+            joined,
+            [
+                ("joined", RequestState::Approved),
+                ("joined", RequestState::Processing),
+                ("joined", RequestState::Failed)
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn asking_for_a_declined_movie_opens_a_new_request_but_one_in_a_library_is_refused() {
+        let (_data, db) = ada_and_bob().await;
+        let declined = ask_for(&db, ADA, 949, RequestState::Pending).await.value.id;
+        db.write(move |tx| Box::pin(decline(tx, declined, None)))
+            .await
+            .unwrap();
+        ask_for(&db, ADA, 603, RequestState::Pending).await;
+        match_in_a_library(&db, &[603]).await;
+
+        let asked_again = ask_for(&db, BOB, 949, RequestState::Pending).await;
+        let in_a_library = db
+            .write(|tx| Box::pin(ask_movie(tx, BOB, movie(603), RequestState::Pending)))
+            .await;
+
+        assert_eq!(happened(&asked_again), [("created", RequestState::Pending)]);
+        assert_ne!(asked_again.value.id, declined);
+        assert!(
+            matches!(in_a_library, Err(Error::InLibrary(603))),
+            "{in_a_library:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn asking_again_for_a_request_one_is_on_changes_nothing() {
+        let (_data, db) = ada_and_bob().await;
+        ask_for(&db, ADA, 949, RequestState::Pending).await;
+
+        let again = ask_for(&db, ADA, 949, RequestState::Pending).await;
+
+        assert_eq!(again.events.len(), 0);
+        assert_eq!(handed_off(&again), NOTHING);
+    }
+
+    /// Seasons 1 and 2 of Dark, as the metadata source gives them.
+    fn dark() -> WantedSeasons {
+        WantedSeasons {
+            show_tmdb_id: 70523,
+            show_ids: ExternalIds::default(),
+            show_title: "Dark".to_owned(),
+            seasons: vec![
+                season_1("2017-12-08"),
+                Season {
+                    number: 2,
+                    ..season_1("2019-06-21")
+                },
+            ],
+            quality: None,
+            quality_chosen: false,
+            chosen: None,
+        }
+    }
+
+    /// A new Library Matches a file holding only the first Episode of Season 1 of Dark, as a scan
+    /// does, though both have aired, which makes its open Request Partially Available.
+    async fn match_dark_pilot(db: &Arc<Database>) {
+        let dark = dark();
+        let folder = tempfile::tempdir().unwrap();
+        let root = folder.path().canonicalize().unwrap();
+        let contents = Contents::new(Arc::clone(db));
+        let library = Libraries::new(Arc::clone(db))
+            .create(
+                "Shows",
+                Kind::Shows,
+                vec![root.to_str().unwrap().to_owned()],
+            )
+            .await
+            .unwrap()
+            .id;
+        let pilot = Item::Episode {
+            show: dark.show_title,
+            year: None,
+            hint: Some(ExternalId::Tmdb(dark.show_tmdb_id)),
+            season: 1,
+            episode: 1,
+        };
+        let store = Change::Store {
+            path: "/media/Dark/Season 01/Dark - S01E01.mkv".to_owned(),
+            size: 1,
+            modified_ns: 0,
+            items: vec![pilot],
+        };
+        contents.apply(library, vec![store]).await.unwrap();
+        let item = contents.files(library).await.unwrap()[0].items[0].id;
+        let season_1 = dark.seasons.into_iter().next().unwrap();
+        let scan = Decisions {
+            items: vec![(
+                item,
+                matched(ExternalIds::default(), tmdb(dark.show_tmdb_id)),
+            )],
+            seasons: vec![(dark.show_tmdb_id, season_1)],
+        };
+        contents.record(scan).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn asking_for_seasons_opens_a_request_for_each_and_hands_off_the_approved_ones() {
+        let (_data, db) = ada_and_bob().await;
+        let pending = db
+            .write(|tx| Box::pin(ask_seasons(tx, ADA, dark(), RequestState::Pending)))
+            .await
+            .unwrap();
+        let first = pending.value[0].id;
+        db.write(move |tx| Box::pin(cancel(tx, first)))
+            .await
+            .unwrap();
+
+        let approved = db
+            .write(|tx| Box::pin(ask_seasons(tx, BOB, dark(), RequestState::Approved)))
+            .await
+            .unwrap();
+
+        assert_eq!(
+            happened(&pending),
+            [
+                ("created", RequestState::Pending),
+                ("created", RequestState::Pending)
+            ]
+        );
+        assert_eq!(handed_off(&pending), NOTHING);
+        assert_eq!(
+            happened(&approved),
+            [
+                ("created", RequestState::Approved),
+                ("joined", RequestState::Pending),
+                ("moved", RequestState::Approved)
+            ]
+        );
+        let ids: Vec<i64> = approved.value.iter().map(|request| request.id).collect();
+        assert_eq!(handed_off(&approved), ids);
+    }
+
+    #[tokio::test]
+    async fn approving_a_pending_request_hands_it_off() {
+        let (_data, db) = ada_and_bob().await;
+        let id = ask_for(&db, ADA, 949, RequestState::Pending).await.value.id;
+
+        let approved = db
+            .write(move |tx| Box::pin(approve(tx, id, None)))
+            .await
+            .unwrap();
+        let again = db.write(move |tx| Box::pin(approve(tx, id, None))).await;
+
+        assert_eq!(happened(&approved), [("moved", RequestState::Approved)]);
+        assert_eq!(handed_off(&approved), [id]);
+        assert!(matches!(again, Err(Error::NotPending(_))), "{again:?}");
+    }
+
+    #[tokio::test]
+    async fn declining_a_pending_request_hands_nothing_off() {
+        let (_data, db) = ada_and_bob().await;
+        let id = ask_for(&db, ADA, 949, RequestState::Pending).await.value.id;
+
+        let declined = db
+            .write(move |tx| Box::pin(decline(tx, id, Some("No.".to_owned()))))
+            .await
+            .unwrap();
+        let again = db.write(move |tx| Box::pin(decline(tx, id, None))).await;
+
+        assert_eq!(happened(&declined), [("moved", RequestState::Declined)]);
+        assert_eq!(handed_off(&declined), NOTHING);
+        assert_eq!(declined.value.decline_reason.as_deref(), Some("No."));
+        assert!(matches!(again, Err(Error::NotPending(_))), "{again:?}");
+    }
+
+    #[tokio::test]
+    async fn settling_an_approved_request_moves_it_to_processing_or_failed_once() {
+        let (_data, db) = ada_and_bob().await;
+        let taken = ask_for(&db, ADA, 949, RequestState::Approved)
+            .await
+            .value
+            .id;
+        let refused = ask_for(&db, ADA, 603, RequestState::Approved)
+            .await
+            .value
+            .id;
+
+        let processing = settled(&db, taken, Ok(fulfilled())).await;
+        let failed = settled(&db, refused, Err("no space".to_owned())).await;
+        let again = settled(&db, taken, Ok(fulfilled())).await;
+
+        assert_eq!(happened(&processing), [("moved", RequestState::Processing)]);
+        assert_eq!(happened(&failed), [("moved", RequestState::Failed)]);
+        assert_eq!(handed_off(&processing), NOTHING);
+        assert_eq!(handed_off(&failed), NOTHING);
+        assert!(again.value.is_none());
+        assert_eq!(again.events.len(), 0);
+    }
+
+    #[tokio::test]
+    async fn retrying_a_failed_request_approves_and_hands_it_off() {
+        let (_data, db) = ada_and_bob().await;
+        let id = ask_for(&db, ADA, 949, RequestState::Approved)
+            .await
+            .value
+            .id;
+        let pending = ask_for(&db, ADA, 603, RequestState::Pending).await.value.id;
+        settled(&db, id, Err("no space".to_owned())).await;
+
+        let retried = db
+            .write(move |tx| Box::pin(retry(tx, id, None)))
+            .await
+            .unwrap();
+        let not_failed = db.write(move |tx| Box::pin(retry(tx, pending, None))).await;
+
+        assert_eq!(happened(&retried), [("moved", RequestState::Approved)]);
+        assert_eq!(handed_off(&retried), [id]);
+        assert_eq!(retried.value.failure_reason, None);
+        assert!(
+            matches!(not_failed, Err(Error::NotFailed(_))),
+            "{not_failed:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn cancelling_a_request_says_so_whatever_its_state() {
+        let (_data, db) = ada_and_bob().await;
+        let pending = ask_for(&db, ADA, 949, RequestState::Pending).await.value.id;
+        let processing = ask_for(&db, ADA, 603, RequestState::Approved)
+            .await
+            .value
+            .id;
+        settled(&db, processing, Ok(fulfilled())).await;
+        let declined = ask_for(&db, ADA, 348, RequestState::Pending).await.value.id;
+        db.write(move |tx| Box::pin(decline(tx, declined, None)))
+            .await
+            .unwrap();
+        let approved = ask_for(&db, ADA, 680, RequestState::Approved)
+            .await
+            .value
+            .id;
+        let failed = ask_for(&db, ADA, 155, RequestState::Approved)
+            .await
+            .value
+            .id;
+        settled(&db, failed, Err("no space".to_owned())).await;
+        let available = ask_for(&db, ADA, 157, RequestState::Pending).await.value.id;
+        match_in_a_library(&db, &[157]).await;
+        let partly = db
+            .write(|tx| Box::pin(ask_seasons(tx, ADA, dark(), RequestState::Pending)))
+            .await
+            .unwrap()
+            .value[0]
+            .id;
+        match_dark_pilot(&db).await;
+
+        let mut cancelled = Vec::new();
+        for id in [
+            pending, processing, declined, approved, failed, available, partly,
+        ] {
+            let applied = db.write(move |tx| Box::pin(cancel(tx, id))).await.unwrap();
+            assert_eq!(handed_off(&applied), NOTHING);
+            cancelled.extend(happened(&applied));
+        }
+
+        assert_eq!(
+            cancelled,
+            [
+                ("cancelled", RequestState::Pending),
+                ("cancelled", RequestState::Processing),
+                ("cancelled", RequestState::Declined),
+                ("cancelled", RequestState::Approved),
+                ("cancelled", RequestState::Failed),
+                ("cancelled", RequestState::Available),
+                ("cancelled", RequestState::PartiallyAvailable)
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn withdrawing_from_a_pending_request_removes_the_requester_then_the_request() {
+        let (_data, db) = ada_and_bob().await;
+        let id = ask_for(&db, ADA, 949, RequestState::Pending).await.value.id;
+        ask_for(&db, BOB, 949, RequestState::Pending).await;
+        let approved = ask_for(&db, ADA, 603, RequestState::Approved)
+            .await
+            .value
+            .id;
+
+        let bob_left = db
+            .write(move |tx| Box::pin(withdraw(tx, BOB, None, id)))
+            .await
+            .unwrap();
+        let ada_left = db
+            .write(move |tx| Box::pin(withdraw(tx, ADA, None, id)))
+            .await
+            .unwrap();
+        let not_pending = db
+            .write(move |tx| Box::pin(withdraw(tx, ADA, None, approved)))
+            .await;
+
+        assert_eq!(happened(&bob_left), [("left", RequestState::Pending)]);
+        assert_eq!(happened(&ada_left), [("withdrawn", RequestState::Pending)]);
+        assert_eq!(handed_off(&bob_left), NOTHING);
+        assert_eq!(handed_off(&ada_left), NOTHING);
+        assert!(
+            matches!(not_pending, Err(Error::NotPending(_))),
+            "{not_pending:?}"
+        );
     }
 }

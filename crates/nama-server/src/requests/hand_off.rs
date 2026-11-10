@@ -15,6 +15,7 @@ use nama_plugin_api::{
     fulfiller::{Download, Fulfilled, Fulfiller, Movies, Shows},
 };
 use nama_proto::nama::v1::{Request, RequestProgress, RequestState};
+use sqlx::{Sqlite, Transaction};
 use tokio::{
     sync::{Notify, mpsc::UnboundedReceiver},
     time::error::Elapsed,
@@ -22,10 +23,11 @@ use tokio::{
 use tracing::{error, warn};
 
 use super::{
-    Error, Processing, as_handed_off, detached, load, load_one, processing, settle, state_changed,
+    Applied, Error, HandedBack, Processing, as_handed_off, detached, load, load_one, processing,
+    settle,
 };
 use crate::{
-    db::Database,
+    db::{BoxFuture, Database},
     events::{EventBus, event},
     plugins::Registry,
 };
@@ -87,9 +89,10 @@ impl HandOff {
     ///
     /// Runs in a task of its own: once the Fulfiller has taken the Request, its reference must be
     /// stored even if the caller stops waiting.
-    pub(super) async fn request(&self, request: Request) -> Result<Request, Error> {
+    // Boxed, since the Hand-off settles through `apply`, which hands off in turn.
+    pub(super) fn request(&self, request: Request) -> BoxFuture<'static, Result<Request, Error>> {
         let hand_off = self.clone();
-        detached(async move {
+        Box::pin(detached(async move {
             // An approval and enabling the Fulfiller may hand the same Request off at once, which
             // would hand it to the Fulfiller twice.
             let Some(mut claim) = Claim::take(&hand_off.handing, request.id) else {
@@ -103,8 +106,7 @@ impl HandOff {
                     None => return Ok(request),
                 }
             }
-        })
-        .await
+        }))
     }
 
     /// Each of `requests`, handed off first as [`Self::request`] does if it is Approved and its id
@@ -147,9 +149,9 @@ impl HandOff {
         let took = fulfilled.is_ok();
         let asked = current.quality.as_option().cloned();
         let plugin = self.fulfiller_of(&current);
+        // Not detached again: this Hand-off already is.
         let settled = self
-            .db
-            .write(move |tx| Box::pin(settle(tx, id, fulfilled, asked, plugin)))
+            .apply(move |tx| Box::pin(settle(tx, id, fulfilled, asked, plugin)))
             .await?;
         if took && settled.is_none() {
             warn!(
@@ -160,11 +162,34 @@ impl HandOff {
         let Some(settled) = settled else {
             return Ok(current);
         };
-        self.events.publish(vec![state_changed(settled.clone())]);
         if settled.state == RequestState::Processing {
             self.became_processing.notify_one();
         }
         Ok(settled)
+    }
+
+    /// [`super::Requests::apply`], in the task the caller runs it in.
+    pub(super) async fn apply<T, W>(&self, write: W) -> Result<T, Error>
+    where
+        T: HandedBack + Send + 'static,
+        W: for<'t> FnOnce(
+                &'t mut Transaction<'_, Sqlite>,
+            ) -> BoxFuture<'t, Result<Applied<T>, Error>>
+            + Send
+            + 'static,
+    {
+        let Applied {
+            value,
+            events,
+            hand_off,
+        } = self.db.write(write).await?;
+        self.events.publish(events);
+        let mut handed = Vec::with_capacity(hand_off.len());
+        // ponytail: one Hand-off at a time, so a slow Fulfiller takes as long for each Season.
+        for request in hand_off {
+            handed.push(self.request(request).await?);
+        }
+        Ok(value.handed_back(&handed))
     }
 
     /// Hands each Approved Request, oldest first, to its Fulfiller as [`Self::request`] does
