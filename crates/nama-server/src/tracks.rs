@@ -55,8 +55,11 @@ pub(crate) enum LastingReason {
 }
 
 impl LastingReason {
-    /// Every one, which [`Tracks::current`] skips. A new variant goes here too.
-    const ALL: [Self; 2] = [Self::Failed, Self::UnreadableOutput];
+    /// Every one, which [`Tracks::current`] skips.
+    const ALL: [Self; 2] = match Self::Failed {
+        // Names every variant, so a new one fails to compile here until it's listed.
+        Self::Failed | Self::UnreadableOutput => [Self::Failed, Self::UnreadableOutput],
+    };
 
     const fn stored(self) -> &'static str {
         match self {

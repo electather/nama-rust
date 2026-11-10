@@ -162,7 +162,7 @@ impl Probing {
         self.inner.tasks.wait().await;
     }
 
-    /// Logs why it couldn't.
+    /// Throws away the subtitles cached for files gone or changed, or logs why it couldn't.
     async fn clean_subtitles(&self) {
         // ponytail: reads every stored file after each scan; clean only the Library scanned once
         // Libraries get big.
