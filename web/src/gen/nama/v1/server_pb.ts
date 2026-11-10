@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file nama/v1/server.proto.
  */
 export const file_nama_v1_server: GenFile = /*@__PURE__*/
-  fileDesc("ChRuYW1hL3YxL3NlcnZlci5wcm90bxIHbmFtYS52MSIWChRHZXRTZXJ2ZXJJbmZvUmVxdWVzdCJOChVHZXRTZXJ2ZXJJbmZvUmVzcG9uc2USDAoEbmFtZRgBIAEoCRIPCgd2ZXJzaW9uGAIgASgJEhYKDnNldHVwX3JlcXVpcmVkGAMgASgIIhoKGEdldFNlcnZlclNldHRpbmdzUmVxdWVzdCJGChlHZXRTZXJ2ZXJTZXR0aW5nc1Jlc3BvbnNlEikKCHNldHRpbmdzGAEgASgLMhcubmFtYS52MS5TZXJ2ZXJTZXR0aW5ncyJIChtVcGRhdGVTZXJ2ZXJTZXR0aW5nc1JlcXVlc3QSKQoIc2V0dGluZ3MYASABKAsyFy5uYW1hLnYxLlNlcnZlclNldHRpbmdzIkkKHFVwZGF0ZVNlcnZlclNldHRpbmdzUmVzcG9uc2USKQoIc2V0dGluZ3MYASABKAsyFy5uYW1hLnYxLlNlcnZlclNldHRpbmdzIh0KDlNlcnZlclNldHRpbmdzEgsKA3VybBgBIAEoCTKvAgoNU2VydmVyU2VydmljZRJTCg1HZXRTZXJ2ZXJJbmZvEh0ubmFtYS52MS5HZXRTZXJ2ZXJJbmZvUmVxdWVzdBoeLm5hbWEudjEuR2V0U2VydmVySW5mb1Jlc3BvbnNlIgOQAgESXwoRR2V0U2VydmVyU2V0dGluZ3MSIS5uYW1hLnYxLkdldFNlcnZlclNldHRpbmdzUmVxdWVzdBoiLm5hbWEudjEuR2V0U2VydmVyU2V0dGluZ3NSZXNwb25zZSIDkAIBEmgKFFVwZGF0ZVNlcnZlclNldHRpbmdzEiQubmFtYS52MS5VcGRhdGVTZXJ2ZXJTZXR0aW5nc1JlcXVlc3QaJS5uYW1hLnYxLlVwZGF0ZVNlcnZlclNldHRpbmdzUmVzcG9uc2UiA5ACAmIGcHJvdG8z");
+  fileDesc("ChRuYW1hL3YxL3NlcnZlci5wcm90bxIHbmFtYS52MSIWChRHZXRTZXJ2ZXJJbmZvUmVxdWVzdCJOChVHZXRTZXJ2ZXJJbmZvUmVzcG9uc2USDAoEbmFtZRgBIAEoCRIPCgd2ZXJzaW9uGAIgASgJEhYKDnNldHVwX3JlcXVpcmVkGAMgASgIIhoKGEdldFNlcnZlclNldHRpbmdzUmVxdWVzdCJGChlHZXRTZXJ2ZXJTZXR0aW5nc1Jlc3BvbnNlEikKCHNldHRpbmdzGAEgASgLMhcubmFtYS52MS5TZXJ2ZXJTZXR0aW5ncyJIChtVcGRhdGVTZXJ2ZXJTZXR0aW5nc1JlcXVlc3QSKQoIc2V0dGluZ3MYASABKAsyFy5uYW1hLnYxLlNlcnZlclNldHRpbmdzIkkKHFVwZGF0ZVNlcnZlclNldHRpbmdzUmVzcG9uc2USKQoIc2V0dGluZ3MYASABKAsyFy5uYW1hLnYxLlNlcnZlclNldHRpbmdzIh0KDlNlcnZlclNldHRpbmdzEgsKA3VybBgBIAEoCSIaChhHZXRQbGF5YmFja1N0YXR1c1JlcXVlc3QiagoZR2V0UGxheWJhY2tTdGF0dXNSZXNwb25zZRIlCgZmZm1wZWcYASABKAsyFS5uYW1hLnYxLkZvdW5kUHJvZ3JhbRImCgdmZnByb2JlGAIgASgLMhUubmFtYS52MS5Gb3VuZFByb2dyYW0iLQoMRm91bmRQcm9ncmFtEgwKBHBhdGgYASABKAkSDwoHdmVyc2lvbhgCIAEoCTKQAwoNU2VydmVyU2VydmljZRJTCg1HZXRTZXJ2ZXJJbmZvEh0ubmFtYS52MS5HZXRTZXJ2ZXJJbmZvUmVxdWVzdBoeLm5hbWEudjEuR2V0U2VydmVySW5mb1Jlc3BvbnNlIgOQAgESXwoRR2V0U2VydmVyU2V0dGluZ3MSIS5uYW1hLnYxLkdldFNlcnZlclNldHRpbmdzUmVxdWVzdBoiLm5hbWEudjEuR2V0U2VydmVyU2V0dGluZ3NSZXNwb25zZSIDkAIBEmgKFFVwZGF0ZVNlcnZlclNldHRpbmdzEiQubmFtYS52MS5VcGRhdGVTZXJ2ZXJTZXR0aW5nc1JlcXVlc3QaJS5uYW1hLnYxLlVwZGF0ZVNlcnZlclNldHRpbmdzUmVzcG9uc2UiA5ACAhJfChFHZXRQbGF5YmFja1N0YXR1cxIhLm5hbWEudjEuR2V0UGxheWJhY2tTdGF0dXNSZXF1ZXN0GiIubmFtYS52MS5HZXRQbGF5YmFja1N0YXR1c1Jlc3BvbnNlIgOQAgFiBnByb3RvMw");
 
 /**
  * @generated from message nama.v1.GetServerInfoRequest
@@ -148,6 +148,73 @@ export const ServerSettingsSchema: GenMessage<ServerSettings> = /*@__PURE__*/
   messageDesc(file_nama_v1_server, 6);
 
 /**
+ * @generated from message nama.v1.GetPlaybackStatusRequest
+ */
+export type GetPlaybackStatusRequest = Message<"nama.v1.GetPlaybackStatusRequest"> & {
+};
+
+/**
+ * Describes the message nama.v1.GetPlaybackStatusRequest.
+ * Use `create(GetPlaybackStatusRequestSchema)` to create a new message.
+ */
+export const GetPlaybackStatusRequestSchema: GenMessage<GetPlaybackStatusRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_server, 7);
+
+/**
+ * @generated from message nama.v1.GetPlaybackStatusResponse
+ */
+export type GetPlaybackStatusResponse = Message<"nama.v1.GetPlaybackStatusResponse"> & {
+  /**
+   * ffmpeg, unset when the Server didn't find it.
+   *
+   * @generated from field: nama.v1.FoundProgram ffmpeg = 1;
+   */
+  ffmpeg?: FoundProgram | undefined;
+
+  /**
+   * ffprobe, unset when the Server didn't find it.
+   *
+   * @generated from field: nama.v1.FoundProgram ffprobe = 2;
+   */
+  ffprobe?: FoundProgram | undefined;
+};
+
+/**
+ * Describes the message nama.v1.GetPlaybackStatusResponse.
+ * Use `create(GetPlaybackStatusResponseSchema)` to create a new message.
+ */
+export const GetPlaybackStatusResponseSchema: GenMessage<GetPlaybackStatusResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_server, 8);
+
+/**
+ * A program the Server found and runs, such as ffmpeg.
+ *
+ * @generated from message nama.v1.FoundProgram
+ */
+export type FoundProgram = Message<"nama.v1.FoundProgram"> & {
+  /**
+   * Where it is, such as `/usr/bin/ffmpeg`.
+   *
+   * @generated from field: string path = 1;
+   */
+  path: string;
+
+  /**
+   * Its version as it reports it, such as `7.1.1`.
+   *
+   * @generated from field: string version = 2;
+   */
+  version: string;
+};
+
+/**
+ * Describes the message nama.v1.FoundProgram.
+ * Use `create(FoundProgramSchema)` to create a new message.
+ */
+export const FoundProgramSchema: GenMessage<FoundProgram> = /*@__PURE__*/
+  messageDesc(file_nama_v1_server, 9);
+
+/**
  * Facts about a Server that any client can read, before signing in, and the Server's settings.
  *
  * @generated from service nama.v1.ServerService
@@ -184,6 +251,17 @@ export const ServerService: GenService<{
     methodKind: "unary";
     input: typeof UpdateServerSettingsRequestSchema;
     output: typeof UpdateServerSettingsResponseSchema;
+  },
+  /**
+   * Returns the ffmpeg and ffprobe the Server found at startup, which it needs to Remux and
+   * Transcode; without both it only Direct Plays. Needs `PERMISSION_ADMIN`.
+   *
+   * @generated from rpc nama.v1.ServerService.GetPlaybackStatus
+   */
+  getPlaybackStatus: {
+    methodKind: "unary";
+    input: typeof GetPlaybackStatusRequestSchema;
+    output: typeof GetPlaybackStatusResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_nama_v1_server, 0);

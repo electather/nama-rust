@@ -10,10 +10,11 @@ use std::net::SocketAddr;
 
 use connectrpc::{ErrorCode, client::HttpClient};
 use nama_proto::nama::v1::{
-    GetServerInfoRequest, GetServerInfoResponse, GetServerSettingsRequest, RefusalReason,
-    ServerServiceClient, ServerSettings, UpdateServerSettingsRequest,
+    FoundProgram, GetPlaybackStatusRequest, GetPlaybackStatusResponse, GetServerInfoRequest,
+    GetServerInfoResponse, GetServerSettingsRequest, RefusalReason, ServerServiceClient,
+    ServerSettings, UpdateServerSettingsRequest,
 };
-use nama_server::{config::Config, plugins::Registry};
+use nama_server::{config::Config, ffmpeg::Ffmpeg, plugins::Registry};
 use refused::assert_refused;
 use server::TestServer;
 
@@ -190,4 +191,48 @@ async fn a_server_url_that_isnt_an_http_url_is_refused_naming_it_and_nothing_cha
         assert_eq!(refusal.field, "settings.url", "{not_a_url}");
     }
     assert_eq!(server_url(&client).await, "https://nama.example.com");
+}
+
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn playback_status(ffmpeg: Ffmpeg) -> GetPlaybackStatusResponse {
+    let (server, _) =
+        TestServer::start_with_ffmpeg(Config::default(), Registry::new(), ffmpeg).await;
+    ServerServiceClient::new(HttpClient::plaintext(), server.client_config())
+        .get_playback_status(GetPlaybackStatusRequest::default())
+        .await
+        .unwrap()
+        .into_owned()
+}
+
+#[tokio::test]
+async fn the_playback_status_shows_the_path_and_version_of_the_ffmpeg_and_ffprobe_found() {
+    let found = |name: &str| nama_server::ffmpeg::FoundProgram {
+        path: format!("/usr/bin/{name}").into(),
+        version: "7.1.1".to_owned(),
+    };
+
+    let status = playback_status(Ffmpeg {
+        ffmpeg: Some(found("ffmpeg")),
+        ffprobe: Some(found("ffprobe")),
+    })
+    .await;
+
+    let shown = |path: &str| FoundProgram {
+        path: path.to_owned(),
+        version: "7.1.1".to_owned(),
+        ..Default::default()
+    };
+    assert_eq!(status.ffmpeg.as_option(), Some(&shown("/usr/bin/ffmpeg")));
+    assert_eq!(status.ffprobe.as_option(), Some(&shown("/usr/bin/ffprobe")));
+}
+
+#[tokio::test]
+async fn the_playback_status_shows_neither_when_neither_was_found() {
+    let status = playback_status(Ffmpeg::default()).await;
+
+    assert!(status.ffmpeg.is_unset(), "{status:?}");
+    assert!(status.ffprobe.is_unset(), "{status:?}");
 }

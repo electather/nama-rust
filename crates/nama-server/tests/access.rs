@@ -71,6 +71,9 @@ const MANAGE_SETTINGS: [&str; 10] = [
     "/nama.v1.PluginService/ReplaceQualities",
 ];
 
+/// The RPCs only an Admin may call, which need `PERMISSION_ADMIN`.
+const ADMIN: [&str; 1] = ["/nama.v1.ServerService/GetPlaybackStatus"];
+
 /// The RPCs for browsing the Libraries, what they hold and the caller's Continue Watching, which
 /// any signed-in User may call.
 const BROWSE: [&str; 7] = [
@@ -320,12 +323,13 @@ async fn refused_for_recent_authentication(
     refused
 }
 
-/// Every RPC that manages Libraries, Matches, Users or settings.
+/// Every RPC that manages Libraries, Matches, Users or settings, or only an Admin may call.
 fn managing() -> impl Iterator<Item = &'static &'static str> {
     MANAGE_LIBRARIES
         .iter()
         .chain(&MANAGE_USERS)
         .chain(&MANAGE_SETTINGS)
+        .chain(&ADMIN)
 }
 
 /// Asserts that `token` may call each of `paths`: an empty request is wrong for most of them, but
@@ -484,6 +488,20 @@ async fn an_admin_may_manage_libraries_matches_users_and_settings() {
     assert_allowed(&server, &server.admin_token, &MANAGE_LIBRARIES).await;
     assert_allowed(&server, &server.admin_token, &MANAGE_USERS).await;
     assert_allowed(&server, &server.admin_token, &MANAGE_SETTINGS).await;
+    assert_allowed(&server, &server.admin_token, &ADMIN).await;
+}
+
+#[tokio::test]
+async fn a_user_who_manages_everything_but_isnt_an_admin_is_refused_the_admins_rpcs() {
+    let (server, token) = start_with_user(&[
+        Permission::ManageLibraries,
+        Permission::ManageUsers,
+        Permission::ManageSettings,
+        Permission::ManageRequests,
+    ])
+    .await;
+
+    assert_refused_for_want_of(&server, &token, &ADMIN, Permission::Admin).await;
 }
 
 #[tokio::test]
