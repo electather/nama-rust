@@ -1265,6 +1265,7 @@ impl PlaybackService for PlaybackServiceHandler {
             content_types: decoding.content_types,
             hdr: decoding.hdr,
             hls: decoding.native_hls || decoding.mse,
+            audio_channels: decoding.audio_channels,
         };
         let failed = (request.failed_methods.iter())
             .filter_map(|method| method_from_proto(*method))
