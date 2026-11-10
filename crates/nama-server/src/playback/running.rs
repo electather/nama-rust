@@ -406,6 +406,8 @@ impl Running {
                 return Ok(false);
             }
             task.abort();
+            // An aborted `watch` never marks it, and the restart below may fail.
+            run.stopped.store(true, Ordering::Release);
         }
         *ffmpeg = Some(self.run_from(n)?);
         Ok(true)
@@ -521,7 +523,10 @@ fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
 mod tests {
     use std::{
         path::Path,
-        sync::{Arc, Mutex},
+        sync::{
+            Arc, Mutex,
+            atomic::{AtomicUsize, Ordering::Relaxed},
+        },
         time::Duration,
     };
 
@@ -567,7 +572,7 @@ mod tests {
         (id, starts)
     }
 
-    /// Writes keyframe `n`'s file for the plan `id` as ffmpeg would, holding its number.
+    /// Writes the files of `keyframes` for the plan `id` as ffmpeg would, each holding its number.
     fn write_keyframes(data: &Path, id: u64, keyframes: std::ops::Range<usize>) {
         let dir = data.join("transcodes").join(id.to_string());
         for n in keyframes {
@@ -630,6 +635,40 @@ mod tests {
         assert_eq!(*lock(&starts), [0, 399, 30]);
         write_keyframes(data.path(), id, 30..33);
         assert_eq!(answer(ten_percent).await.unwrap().unwrap(), b"303132");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_restart_that_fails_leaves_the_next_request_to_start_ffmpeg_again() {
+        let data = tempfile::tempdir().unwrap();
+        let plans = running_plans(data.path()).await;
+        let runs = Arc::new(AtomicUsize::new(0));
+        let counted = Arc::clone(&runs);
+        let second_fails = move |_: &Path, _: Keyframe| match counted.fetch_add(1, Relaxed) {
+            1 => Err(std::io::Error::other("too many open files")),
+            _ => tokio::process::Command::new("sleep")
+                .arg("600")
+                .kill_on_drop(true)
+                .spawn(),
+        };
+        let id = plans
+            .start(
+                7,
+                Method::Remux,
+                every_two_seconds(),
+                Box::new(second_fails),
+            )
+            .await
+            .unwrap();
+        let plan = plans.of_device(id, 7).unwrap();
+        plan.segment(133).await.unwrap_err();
+
+        let near_the_start = tokio::spawn(async move { plan.segment(1).await });
+
+        tokio::time::sleep(POLL_EVERY * 3).await;
+        assert_eq!(runs.load(Relaxed), 3);
+        write_keyframes(data.path(), id, 3..6);
+        assert_eq!(answer(near_the_start).await.unwrap().unwrap(), b"345");
     }
 
     #[cfg(unix)]

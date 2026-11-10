@@ -42,9 +42,12 @@ pub(crate) struct Keyframe {
     pub(crate) previous_ms: Option<i64>,
 }
 
-/// How much later than in its file a Remux times everything, in milliseconds. A Remux keeps
-/// packets from up to half a second before its first keyframe, and ffmpeg shifts the times of a
-/// run that would start before 0, which would put it out of step with runs started later.
+/// How far before its first keyframe a Remux keeps packets at most, in milliseconds.
+const REMUX_BACK_AT_MOST_MS: i64 = 500;
+
+/// How much later than in its file a Remux times everything, in milliseconds: more than
+/// [`REMUX_BACK_AT_MOST_MS`], since ffmpeg shifts the times of a run that would start before 0,
+/// which would put it out of step with runs started later.
 const REMUX_LATER_BY_MS: i64 = 1000;
 
 /// The name of the init segment a Remux started at keyframe `n` writes beside its files. Every
@@ -229,8 +232,8 @@ impl Ffmpeg {
         // decodes a few frames before it shows, so it starts back towards the keyframe before.
         let back_ms = from
             .previous_ms
-            .map_or(500, |previous| (from.ms - previous) / 2);
-        let start_ms = from.ms - back_ms.min(500);
+            .map_or(REMUX_BACK_AT_MOST_MS, |previous| (from.ms - previous) / 2);
+        let start_ms = from.ms - back_ms.min(REMUX_BACK_AT_MOST_MS);
         if start_ms > 0 {
             // Jumps to a keyframe at or before it, which in Matroska can be a few before.
             command.args(["-ss", &seconds(start_ms)]);
