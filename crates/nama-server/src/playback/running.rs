@@ -51,7 +51,6 @@ const PLAN_FOLDER: &str = "nama-plan-";
 /// plan goes within about a minute.
 const STOP_UNUSED_AFTER: Duration = Duration::from_secs(60);
 
-/// How often plans are checked for having gone unused.
 const CHECK_UNUSED_EVERY: Duration = Duration::from_secs(10);
 
 /// How often a request for a file ffmpeg hasn't written yet looks for it again.
@@ -211,31 +210,27 @@ impl RunningPlans {
 
     /// Stops every plan not asked for in the last `unused_for`, and deletes its files.
     async fn stop_unused(&self, unused_for: Duration) {
-        let unused: Vec<u64> = lock(&self.inner.plans)
-            .iter()
-            .filter(|(_, plan)| lock(&plan.last_asked).elapsed() >= unused_for)
-            .map(|(&id, _)| id)
+        // Taken out under the one lock, so a plan asked for after the check isn't stopped.
+        let unused: Vec<(u64, Arc<Running>)> = lock(&self.inner.plans)
+            .extract_if(|_, plan| lock(&plan.last_asked).elapsed() >= unused_for)
             .collect();
-        for id in unused {
-            self.stop(id).await;
+        for (id, plan) in unused {
+            stop(id, &plan).await;
         }
     }
+}
 
-    /// Stops the plan `id`'s ffmpeg and deletes its files.
-    async fn stop(&self, id: u64) {
-        let Some(plan) = lock(&self.inner.plans).remove(&id) else {
-            return;
-        };
-        let ffmpeg = lock(&plan.ffmpeg).take();
-        if let Some(ffmpeg) = ffmpeg {
-            ffmpeg.abort();
-            // Awaited so ffmpeg is dropped, which kills it, before its folder is deleted.
-            let _: Result<(), _> = ffmpeg.await;
-        }
-        plan.stopped.store(true, Ordering::Release);
-        if let Err(err) = tokio::fs::remove_dir_all(&plan.dir).await {
-            tracing::warn!(plan = id, "could not delete {}: {err}", plan.dir.display());
-        }
+/// Stops the plan `id`'s ffmpeg and deletes its files.
+async fn stop(id: u64, plan: &Running) {
+    let ffmpeg = lock(&plan.ffmpeg).take();
+    if let Some(ffmpeg) = ffmpeg {
+        ffmpeg.abort();
+        // Awaited so ffmpeg is dropped, which kills it, before its folder is deleted.
+        let _: Result<(), _> = ffmpeg.await;
+    }
+    plan.stopped.store(true, Ordering::Release);
+    if let Err(err) = tokio::fs::remove_dir_all(&plan.dir).await {
+        tracing::warn!(plan = id, "could not delete {}: {err}", plan.dir.display());
     }
 }
 
@@ -426,7 +421,6 @@ mod tests {
         tracks::Tracks,
     };
 
-    /// Plans writing to `folder`, with the database `db`.
     fn plans_in(db: &Arc<Database>, folder: SegmentFolder) -> RunningPlans {
         RunningPlans::new(
             folder,
@@ -436,7 +430,6 @@ mod tests {
         )
     }
 
-    /// A fresh database in `data`.
     async fn database(data: &Path) -> Arc<Database> {
         Arc::new(Database::open(data).await.unwrap())
     }

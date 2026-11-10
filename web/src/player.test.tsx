@@ -210,6 +210,22 @@ test("a Remux resumes from the Watch State's point in the file", async () => {
   expect(video.currentTime).toBe(600);
 });
 
+// The Server stops a plan a minute after it was last asked for, and a paused player asks for nothing.
+test("an open Remux asks for its playlist every 30 seconds, so a pause doesn't stop it", async () => {
+  vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+  const fetched = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response());
+  openApp("/libraries/1/movies/tmdb-603/play", serverPlanning({ planned: remux }));
+  await findVideo();
+  const playlistAsks = () =>
+    fetched.mock.calls.filter(([url]) => url === "/media/plans/0/index.m3u8");
+  const before = playlistAsks().length;
+
+  vi.advanceTimersByTime(30_000);
+
+  expect(playlistAsks()).toHaveLength(before + 1);
+  vi.useRealTimers();
+});
+
 test("a Remux plays its HLS playlist natively in a browser with HLS of its own", async () => {
   vi.spyOn(HTMLMediaElement.prototype, "canPlayType").mockReturnValue("maybe");
   openApp("/libraries/1/movies/tmdb-603/play", serverPlanning({ planned: remux }));
