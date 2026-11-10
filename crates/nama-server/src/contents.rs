@@ -412,10 +412,14 @@ impl Contents {
             .map_or(MatchedTo::Nothing, MatchedTo::Movie))
     }
 
-    /// `None` unless some Item of the Version's file is Matched, so unmatched files are never served.
-    pub(crate) async fn version_path(&self, version: i64) -> Result<Option<String>, sqlx::Error> {
-        sqlx::query_scalar!(
-            "SELECT path FROM library_files
+    /// The path of the Version `version` and the file stored there, or `None` unless some Item of
+    /// the file is Matched, so unmatched files are never served or probed.
+    pub(crate) async fn version_file(
+        &self,
+        version: i64,
+    ) -> Result<Option<(String, Stored)>, sqlx::Error> {
+        let row = sqlx::query!(
+            "SELECT path, size, modified_ns, parser_version FROM library_files
              WHERE id = ?
                AND EXISTS (SELECT 1 FROM library_items
                            JOIN item_matches ON item_matches.item_id = library_items.id
@@ -424,7 +428,16 @@ impl Contents {
             version
         )
         .fetch_optional(self.db.reader())
-        .await
+        .await?;
+        Ok(row.map(|row| {
+            let stored = Stored {
+                id: version,
+                size: row.size,
+                modified_ns: row.modified_ns,
+                parser_version: row.parser_version,
+            };
+            (row.path, stored)
+        }))
     }
 
     pub(crate) async fn stores_image(
