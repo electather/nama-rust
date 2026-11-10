@@ -572,11 +572,11 @@ function pickNext(): Issue | "wait" | "done" {
 // likewise until the week resets: what's left of the week is the user's.
 // The API has no usage endpoint for a setup-token, but every reply carries the unified rate-limit headers, so a
 // 1-token Haiku call reads them. The OAuth token is only accepted with Claude Code's system prompt.
-const USAGE_PAUSE = Number(process.env.USAGE_PAUSE ?? 0.75);
+const USAGE_PAUSE = Number(process.env.USAGE_PAUSE ?? 0.95);
 const WEEKLY_STOP = Number(process.env.WEEKLY_STOP ?? 0.92);
 // Nearer the limits, fewer issues at once: past SLOW_5H of the 5-hour or SLOW_WEEKLY of the weekly limit, a new
 // issue starts only while fewer than SLOW_PARALLEL run.
-const SLOW_5H = Number(process.env.SLOW_5H ?? 0.6);
+const SLOW_5H = Number(process.env.SLOW_5H ?? 0.8);
 const SLOW_WEEKLY = Number(process.env.SLOW_WEEKLY ?? 0.85);
 const SLOW_PARALLEL = Number(process.env.SLOW_PARALLEL ?? 1);
 const OAUTH_TOKEN = parseEnv(readFileSync(".sandcastle/.env", "utf8")).CLAUDE_CODE_OAUTH_TOKEN;
