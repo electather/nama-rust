@@ -52,7 +52,7 @@ use crate::{
     contents::Contents,
     events::{EventBus, event},
     ffmpeg::{Ffmpeg, Hardware, Keyframe, ProbeError, ToneMapper, VideoConversion, hls_init},
-    server_settings::{HardwareAcceleration, MaxTranscodes, SegmentFolder},
+    server_settings::PlaybackSettings,
     tracks::{Probe, Tracks},
     users::Caller,
 };
@@ -117,10 +117,8 @@ pub(crate) struct RunningPlans {
 }
 
 struct Inner {
-    /// Where each plan's files go, in a folder named by its id.
-    folder: SegmentFolder,
-    max_transcodes: MaxTranscodes,
-    hardware_acceleration: HardwareAcceleration,
+    /// For the segment folder each plan's files go in, in a folder named by its id.
+    settings: PlaybackSettings,
     ffmpeg: Arc<Ffmpeg>,
     /// Whether `ffmpeg` has zscale, once it answered.
     zscale: tokio::sync::OnceCell<bool>,
@@ -194,20 +192,18 @@ struct Segment {
 }
 
 impl RunningPlans {
-    /// Runs plans with `ffmpeg`, writing their files to the segment folder `folder` as it is
-    /// when each starts, and publishing on `events` when each stops. Until these are dropped,
+    /// Runs plans with `ffmpeg`, writing their files to the segment folder in `settings` as it
+    /// is when each starts, and publishing on `events` when each stops. Until these are dropped,
     /// stops the plans gone unused in the background.
     pub(crate) fn new(
-        folder: SegmentFolder,
+        settings: PlaybackSettings,
         ffmpeg: Arc<Ffmpeg>,
         contents: Contents,
         tracks: Tracks,
         events: EventBus,
     ) -> Self {
         let inner = Arc::new(Inner {
-            folder,
-            max_transcodes: MaxTranscodes::default(),
-            hardware_acceleration: HardwareAcceleration::default(),
+            settings,
             ffmpeg,
             zscale: tokio::sync::OnceCell::new(),
             hardware: tokio::sync::OnceCell::new(),
@@ -235,16 +231,6 @@ impl RunningPlans {
         self.inner.ffmpeg.can_remux()
     }
 
-    /// The most Transcodes these run at once, which an admin sets.
-    pub(crate) fn max_transcodes(&self) -> &MaxTranscodes {
-        &self.inner.max_transcodes
-    }
-
-    /// What an admin chose for Transcodes to run on.
-    pub(crate) fn hardware_acceleration(&self) -> &HardwareAcceleration {
-        &self.inner.hardware_acceleration
-    }
-
     /// The hardware acceleration that passed its test encode, tested the first time it's asked
     /// for, which the Server does as it starts, and kept.
     pub(crate) async fn found_hardware(&self) -> &[Hardware] {
@@ -260,14 +246,13 @@ impl RunningPlans {
             .await
     }
 
-    /// The most Transcodes the Server may run at once, the admin's cap or else `default`, if that
-    /// many already run, leaving out one of `device`'s own: the plan it asks for replaces the one
-    /// it plays, which it stops only once the new one plays.
+    /// The most Transcodes the Server may run at once, `max`, if that many already run, leaving
+    /// out one of `device`'s own: the plan it asks for replaces the one it plays, which it stops
+    /// only once the new one plays.
     // ponytail: the plan isn't kept until after probing, the folder and spawning ffmpeg, so every
     // Device planning in that window finds room and they can pass the cap together until
     // Transcodes end; reserve room under the plans' lock if that ever matters.
-    pub(crate) fn transcodes_full(&self, device: i64, default: u32) -> Option<u32> {
-        let max = self.inner.max_transcodes.get().unwrap_or(default);
+    pub(crate) fn transcodes_full(&self, device: i64, max: u32) -> Option<u32> {
         let plans = lock(&self.inner.plans);
         let (own, others): (Vec<_>, Vec<_>) = (plans.values())
             .filter(|plan| (plan.hls.as_ref()).is_some_and(|hls| hls.method == Method::Transcode))
@@ -421,7 +406,11 @@ impl RunningPlans {
         fallback: Option<Fallback>,
     ) -> io::Result<u64> {
         let id = self.inner.next_id.fetch_add(1, Ordering::Relaxed);
-        let dir = self.inner.folder.path().join(format!("{PLAN_FOLDER}{id}"));
+        let dir = self
+            .inner
+            .settings
+            .path()
+            .join(format!("{PLAN_FOLDER}{id}"));
         // Ids start again with each run, and the sweep at startup misses a segment folder an
         // earlier run that didn't shut down cleanly had set but this one doesn't, so its segments
         // may be there.
@@ -556,10 +545,10 @@ async fn stop_unused_plans(inner: Weak<Inner>) {
     }
 }
 
-/// Deletes the plan folders an earlier run left in the segment folder `folder` and the default.
-/// Runs before any plan starts, whose folder it would delete too.
-pub(crate) async fn sweep_leftovers(folder: &SegmentFolder) {
-    for path in folder.leftover_paths() {
+/// Deletes the plan folders an earlier run left in the segment folder in `settings` and the
+/// default. Runs before any plan starts, whose folder it would delete too.
+pub(crate) async fn sweep_leftovers(settings: &PlaybackSettings) {
+    for path in settings.leftover_paths() {
         if let Err(err) = sweep(&path).await {
             tracing::warn!(
                 "could not delete the segment files left in {}: {err}",
@@ -968,7 +957,7 @@ fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
 mod tests {
     use std::{
         fs,
-        path::Path,
+        path::{Path, PathBuf},
         sync::{
             Arc, Mutex,
             atomic::{AtomicUsize, Ordering::Relaxed},
@@ -990,18 +979,22 @@ mod tests {
         events::{EventBus, Filter, event},
         ffmpeg::{Ffmpeg, Keyframe},
         plugins::Registry,
-        server_settings::{SegmentFolder, ServerUrl},
+        server_settings::{HardwareChoice, PlaybackChange, PlaybackSettings, ServerUrl, Settings},
         tracks::Tracks,
     };
 
-    fn plans_in(db: &Arc<Database>, folder: SegmentFolder) -> RunningPlans {
+    fn plans_in(db: &Arc<Database>, settings: PlaybackSettings) -> RunningPlans {
         let events = EventBus::new(Arc::clone(db), Registry::new(), ServerUrl::default());
-        plans_with(db, folder, &events)
+        plans_with(db, settings, &events)
     }
 
-    fn plans_with(db: &Arc<Database>, folder: SegmentFolder, events: &EventBus) -> RunningPlans {
+    fn plans_with(
+        db: &Arc<Database>,
+        settings: PlaybackSettings,
+        events: &EventBus,
+    ) -> RunningPlans {
         RunningPlans::new(
-            folder,
+            settings,
             Arc::new(Ffmpeg::default()),
             Contents::new(Arc::clone(db)),
             Tracks::new(Arc::clone(db)),
@@ -1023,13 +1016,18 @@ mod tests {
         Arc::clone(plans.ask(id, device).unwrap().hls.as_ref().unwrap())
     }
 
+    /// The Server settings in `db`, with segment files going to `default` while no folder is set.
+    fn settings(db: &Arc<Database>, default: PathBuf) -> Settings {
+        Settings::new(Arc::clone(db), default)
+    }
+
     async fn database(data: &Path) -> Arc<Database> {
         Arc::new(Database::open(data).await.unwrap())
     }
 
     async fn running_plans(data: &Path) -> RunningPlans {
         let db = database(data).await;
-        plans_in(&db, SegmentFolder::new(data.join("transcodes")))
+        plans_in(&db, settings(&db, data.join("transcodes")).playback())
     }
 
     /// A Version 1000 seconds long with a keyframe every 2, so each segment is 3 keyframes long.
@@ -1368,7 +1366,7 @@ mod tests {
         let events = EventBus::new(Arc::clone(&db), Registry::new(), ServerUrl::default());
         let plans = plans_with(
             &db,
-            SegmentFolder::new(data.path().join("transcodes")),
+            settings(&db, data.path().join("transcodes")).playback(),
             &events,
         );
         let mut subscription = Box::pin(events.subscribe(Filter::default()));
@@ -1441,21 +1439,20 @@ mod tests {
 
     #[cfg(unix)]
     #[tokio::test]
-    async fn the_transcode_cap_left_unset_is_the_default_given_and_a_set_one_wins() {
+    async fn transcodes_are_full_once_as_many_as_the_cap_run() {
         let data = tempfile::tempdir().unwrap();
         let db = database(data.path()).await;
-        let plans = plans_in(&db, SegmentFolder::new(data.path().join("transcodes")));
+        let plans = plans_in(
+            &db,
+            settings(&db, data.path().join("transcodes")).playback(),
+        );
         for _ in 0..2 {
             start_method_writing_nothing(&plans, Method::Transcode, every_two_seconds()).await;
         }
 
-        let unlimited = plans.transcodes_full(8, u32::MAX);
-        let in_software = plans.transcodes_full(8, 2);
-        plans.max_transcodes().save(&db, Some(3)).await.unwrap();
-
-        assert_eq!(unlimited, None);
-        assert_eq!(in_software, Some(2));
-        assert_eq!(plans.transcodes_full(8, 2), None, "the 3 set");
+        assert_eq!(plans.transcodes_full(8, u32::MAX), None);
+        assert_eq!(plans.transcodes_full(8, 3), None);
+        assert_eq!(plans.transcodes_full(8, 2), Some(2));
     }
 
     #[test]
@@ -1495,7 +1492,10 @@ mod tests {
     async fn a_plan_unused_for_long_enough_is_stopped_and_its_files_deleted() {
         let data = tempfile::tempdir().unwrap();
         let db = database(data.path()).await;
-        let plans = plans_in(&db, SegmentFolder::new(data.path().join("transcodes")));
+        let plans = plans_in(
+            &db,
+            settings(&db, data.path().join("transcodes")).playback(),
+        );
         let device = 7;
         let (used, unused) = (
             start_sleeping(&plans, device).await,
@@ -1525,7 +1525,7 @@ mod tests {
         let events = EventBus::new(Arc::clone(&db), Registry::new(), ServerUrl::default());
         let plans = plans_with(
             &db,
-            SegmentFolder::new(data.path().join("transcodes")),
+            settings(&db, data.path().join("transcodes")).playback(),
             &events,
         );
         let mut subscription = Box::pin(events.subscribe(Filter::default()));
@@ -1556,7 +1556,7 @@ mod tests {
         let events = EventBus::new(Arc::clone(&db), Registry::new(), ServerUrl::default());
         let plans = plans_with(
             &db,
-            SegmentFolder::new(data.path().join("transcodes")),
+            settings(&db, data.path().join("transcodes")).playback(),
             &events,
         );
         let (device, another) = (7, 8);
@@ -1582,7 +1582,10 @@ mod tests {
     async fn a_direct_play_is_kept_while_its_device_asks_for_its_version_and_then_ends() {
         let data = tempfile::tempdir().unwrap();
         let db = database(data.path()).await;
-        let plans = plans_in(&db, SegmentFolder::new(data.path().join("transcodes")));
+        let plans = plans_in(
+            &db,
+            settings(&db, data.path().join("transcodes")).playback(),
+        );
         let (version, device, another) = (4, 7, 8);
         let direct_play = |on| Playback {
             device_id: on,
@@ -1609,7 +1612,10 @@ mod tests {
     async fn stopping_all_plans_deletes_every_plans_files() {
         let data = tempfile::tempdir().unwrap();
         let db = database(data.path()).await;
-        let plans = plans_in(&db, SegmentFolder::new(data.path().join("transcodes")));
+        let plans = plans_in(
+            &db,
+            settings(&db, data.path().join("transcodes")).playback(),
+        );
         let id = start_sleeping(&plans, 7).await;
         let dir = hls(&plans, id, 7).dir.clone();
 
@@ -1622,13 +1628,18 @@ mod tests {
     #[tokio::test]
     async fn a_new_plan_writes_to_the_segment_folder_set_since_the_last() {
         let data = tempfile::tempdir().unwrap();
-        let folder = SegmentFolder::new(data.path().join("transcodes"));
         let db = database(data.path()).await;
-        let plans = plans_in(&db, folder.clone());
+        let settings = settings(&db, data.path().join("transcodes"));
+        let plans = plans_in(&db, settings.playback());
         let before = start_sleeping(&plans, 7).await;
         let tmpfs = data.path().join("tmpfs");
-        folder
-            .save(&db, tmpfs.to_str().unwrap().to_owned())
+        settings
+            .change_playback(PlaybackChange {
+                segment_folder: tmpfs.to_str().unwrap(),
+                max_transcodes: None,
+                hardware: HardwareChoice::Automatic,
+                remote_limit: None,
+            })
             .await
             .unwrap();
 
@@ -1655,14 +1666,19 @@ mod tests {
         fs::create_dir_all(&others).unwrap();
         // A file, which deleting as a folder fails, so the sweep must go on past it.
         fs::write(default.join("nama-plan-not-a-folder"), "").unwrap();
-        let folder = SegmentFolder::new(default);
         let db = database(data.path()).await;
-        folder
-            .save(&db, set.to_str().unwrap().to_owned())
+        let settings = settings(&db, default);
+        settings
+            .change_playback(PlaybackChange {
+                segment_folder: set.to_str().unwrap(),
+                max_transcodes: None,
+                hardware: HardwareChoice::Automatic,
+                remote_limit: None,
+            })
             .await
             .unwrap();
 
-        sweep_leftovers(&folder).await;
+        sweep_leftovers(&settings.playback()).await;
 
         for leftover in leftovers {
             assert!(!leftover.exists(), "{}", leftover.display());
