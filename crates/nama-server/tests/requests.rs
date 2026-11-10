@@ -100,12 +100,14 @@ const CHOOSER: [Permission; 3] = [
     Permission::ChooseQuality,
 ];
 
-/// The ids of the Plugins providing the fake Fulfillers, for Movies and for Shows.
+/// The id of the Plugin providing the fake Fulfiller for Movies.
 const MOVIE_FULFILLER: &str = "fake-fulfiller";
+/// The id of the Plugin providing the fake Fulfiller for Shows.
 const SHOWS_FULFILLER: &str = "fake-shows-fulfiller";
 
-/// Quality profiles a fake Fulfiller can offer, by id.
+/// The id of the HD quality profile a fake Fulfiller can offer.
 const HD_PROFILE: &str = "4";
+/// The id of the Ultra-HD quality profile a fake Fulfiller can offer.
 const ULTRA_HD_PROFILE: &str = "5";
 
 /// A Server with the TMDB Plugin enabled against a fake TMDB, and an Admin.
@@ -4155,23 +4157,30 @@ async fn approving_a_followed_show_at_another_quality_hands_off_its_season_reque
 }
 
 #[tokio::test]
-async fn retrying_a_failed_request_at_another_quality_hands_it_off_at_that_one_and_refuses_one_not_offered()
+async fn retrying_a_failed_request_at_another_quality_hands_it_off_at_that_one_keeping_only_that_change()
  {
     let fulfiller = FakeFulfiller::refusing();
     let fixture = Fixture::with_fulfiller(&fulfiller).await;
     let offered = fixture.offer_hd_and_4k(&fulfiller, MOVIE_FULFILLER).await;
     let failed = ask(&requests(fixture.server.client_config()), HEAT).await;
+    let failed_again = retry_at(&fixture, failed.id, Some(offered[1].id))
+        .await
+        .unwrap();
     fulfiller.recover();
 
     let not_offered = retry_at(&fixture, failed.id, Some(999)).await;
-    let retried = retry_at(&fixture, failed.id, Some(offered[1].id))
+    let retried = retry_at(&fixture, failed.id, Some(offered[0].id))
         .await
         .unwrap();
 
-    assert_eq!(failed.state, RequestState::Failed);
+    assert_eq!(failed_again.state, RequestState::Failed);
+    assert_eq!(
+        failed_again.quality_change.previous_name.as_deref(),
+        Some("HD")
+    );
     assert_eq!(retried.state, RequestState::Processing);
-    assert_eq!(retried.quality.name, "4K");
-    assert_eq!(retried.quality_change.previous_name.as_deref(), Some("HD"));
+    assert_eq!(retried.quality.name, "HD");
+    assert_eq!(retried.quality_change.previous_name.as_deref(), Some("4K"));
     let refusal = assert_refused(
         not_offered,
         ErrorCode::InvalidArgument,

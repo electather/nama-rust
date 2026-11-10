@@ -765,7 +765,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_replaced_list_keeps_an_id_it_had_once_and_gives_the_rest_new_ones() {
+    async fn a_quality_id_given_twice_is_kept_once_and_the_other_quality_gets_a_new_one() {
         let listed = Listed::new().await;
         let with_hds_id = |name, is_default| Quality {
             id: listed.hd,
