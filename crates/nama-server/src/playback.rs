@@ -5,7 +5,8 @@
 //! and the plan keeps only what every step allows, so no step can widen what an earlier one ruled
 //! out.
 //!
-//! Remuxes run as [`running::RunningPlans`], which serve their own files.
+//! Each playable plan is kept in [`running::RunningPlans`] until it stops, and Remuxes serve their
+//! own files there.
 //!
 //! Direct Play serves a Version's file as it is, over plain HTTP at `/media/versions/<id>` (ADR
 //! 0007: media bytes are not RPC), to anyone with a session. A browser's `<video src>` presents
@@ -25,13 +26,15 @@ use axum::{
     response::{IntoResponse, Response},
     routing::get,
 };
+use nama_proto::nama::v1 as proto;
 use tower_http::services::ServeFile;
 
 use crate::{
     contents::Contents,
     ffmpeg::{Ffmpeg, ProbeError},
     scanner::{ProbeNowError, Scanner},
-    tracks::{Hdr, Probe, Track, TrackKind, Tracks},
+    tracks::{Hdr, Probe, Track, TrackKind, Tracks, track_to_proto},
+    users::{Caller, User},
 };
 use running::{RunningPlans, StartError};
 
@@ -58,6 +61,9 @@ impl Method {
 /// How the Server will play one Version on one Device, and why.
 #[derive(Debug, PartialEq)]
 pub(crate) struct Plan {
+    /// What [`RunningPlans`] keeps it by, once [`plan`] started it; `None` when it can't be
+    /// played.
+    pub(crate) id: Option<u64>,
     /// `None` when it can't be played.
     pub(crate) method: Option<Method>,
     /// Where to play it from, on this Server. `None` when it can't be played.
@@ -101,19 +107,20 @@ impl DeviceDecoding {
     }
 }
 
-/// Plans playing the Version `version` on the Device `device`, which decodes `decoding`, by any
+/// Plans playing the Version `version` on `caller`'s Device, which decodes `decoding`, by any
 /// method but those that just `failed` there, probing the Version first unless its Tracks are
-/// current, and starts the plan running in `running` if it needs ffmpeg. `None` if there is no
-/// such Version.
+/// current, and keeps a playable plan in `running`, which starts its ffmpeg if it needs one.
+/// `None` if there is no such Version.
 #[expect(
     clippy::too_many_arguments,
-    reason = "each is its own fact about the request, and a struct would only rename them"
+    reason = "each is its own fact about the request or a service it needs, and a struct would \
+              only rename them"
 )]
 pub(crate) async fn plan(
     scanner: &Scanner,
     running: &RunningPlans,
+    caller: &Caller,
     version: i64,
-    device: i64,
     decoding: DeviceDecoding,
     failed: BTreeSet<Method>,
 ) -> Result<Option<Plan>, StartError> {
@@ -139,17 +146,53 @@ pub(crate) async fn plan(
         failed,
     };
     let mut plan = build(&facts, &STEPS);
+    let Some(playback) = playback(caller, version, &plan) else {
+        return Ok(Some(plan));
+    };
     // Only a probed Version gets this far: without its Tracks, nothing rules out Direct Play.
     if plan.method == Some(Method::Remux)
         && let Some(probed) = &facts.probe
     {
         let aac = aac_channels(probed, &facts.device);
-        let Some(url) = running.remux(version, device, probed, aac).await? else {
+        let Some((id, url)) = running.remux(playback, probed, aac).await? else {
             return Ok(None);
         };
+        plan.id = Some(id);
         plan.url = Some(url);
+    } else {
+        plan.id = Some(running.direct_play(playback));
     }
     Ok(Some(plan))
+}
+
+/// What Observers are told of `caller` playing the Version `version` by `plan`, or `None` if it
+/// can't be played.
+fn playback(caller: &Caller, version: i64, plan: &Plan) -> Option<proto::Playback> {
+    let method = plan.method?;
+    Some(proto::Playback {
+        user_id: caller.user.id,
+        device_id: caller.device.id,
+        version_id: version,
+        method: method_to_proto(Some(method)).into(),
+        tracks: plan.tracks.iter().map(track_to_proto).collect(),
+        reasons: plan.reasons.clone(),
+        ..Default::default()
+    })
+}
+
+/// Whose playback events `viewer` may see: everyone's (`None`) with `ADMIN`, or else only their own.
+pub(crate) fn visible_to(viewer: &User) -> Option<i64> {
+    (!viewer.permissions.allow(proto::Permission::Admin)).then_some(viewer.id)
+}
+
+/// `method` as the API names it, `None` being a plan that can't be played.
+pub(crate) const fn method_to_proto(method: Option<Method>) -> proto::PlaybackMethod {
+    match method {
+        None => proto::PlaybackMethod::PLAYBACK_METHOD_UNSPECIFIED,
+        Some(Method::DirectPlay) => proto::PlaybackMethod::PLAYBACK_METHOD_DIRECT_PLAY,
+        Some(Method::Remux) => proto::PlaybackMethod::PLAYBACK_METHOD_REMUX,
+        Some(Method::Transcode) => proto::PlaybackMethod::PLAYBACK_METHOD_TRANSCODE,
+    }
 }
 
 /// What a plan is based on.
@@ -202,6 +245,7 @@ fn build(facts: &Facts, steps: &[Step]) -> Plan {
         tracks = converted_to_aac(tracks, channels);
     }
     Plan {
+        id: None,
         method,
         // A Remux's URL is its running plan's, which `plan` starts.
         url: (method == Some(Method::DirectPlay)).then(|| direct_play_url(facts.version)),
@@ -500,10 +544,12 @@ fn direct_play_url(version: i64) -> String {
 }
 
 /// Serves `GET /media/versions/<id>` with the file of the Version `id` in `contents`, and 404 if
-/// there is none, and the text subtitles plans offer, read with `ffmpeg` and cached in
-/// `subtitles`. Whether the caller has a session is up to the layers the router is put behind.
+/// there is none, marking the caller's Direct Plays of it in `running` asked for, and the text
+/// subtitles plans offer, read with `ffmpeg` and cached in `subtitles`. Whether the caller has a
+/// session is up to the layers the router is put behind.
 pub(crate) fn router(
     contents: Contents,
+    running: RunningPlans,
     tracks: Tracks,
     ffmpeg: Arc<Ffmpeg>,
     subtitles: subtitles::Cache,
@@ -516,15 +562,18 @@ pub(crate) fn router(
     });
     Router::new()
         .route("/media/versions/{id}", get(serve))
-        .with_state(contents)
+        .with_state((contents, running))
         .merge(subtitles)
 }
 
 async fn serve(
-    State(contents): State<Contents>,
+    State((contents, running)): State<(Contents, RunningPlans)>,
     Path(id): Path<i64>,
     request: Request,
 ) -> Response {
+    if let Some(caller) = request.extensions().get::<Caller>() {
+        running.ask_direct_plays(id, caller.device.id);
+    }
     let path = match contents.version_file(id).await {
         Ok(Some((path, _))) => path,
         Ok(None) => return StatusCode::NOT_FOUND.into_response(),
@@ -645,6 +694,7 @@ mod tests {
         assert_eq!(
             plan,
             Plan {
+                id: None,
                 method: Some(Method::DirectPlay),
                 url: Some("/media/versions/7".to_owned()),
                 tracks: vec![video("h264"), audio("aac", true)],

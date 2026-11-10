@@ -27,12 +27,13 @@ use connectrpc::{
 use http::{fetch, fetch_range};
 use nama_proto::nama::v1::{
     AudioTrack, BrowseServiceClient, ClearMatchRequest, ContinueWatchingEntry,
-    DeleteLibraryRequest, DeviceDecoding, Episode, ExternalId, GetMovieRequest, GetShowRequest,
-    GetShowResponse, HdrFormat, LibraryKind, LibraryServiceClient, ListContinueWatchingRequest,
-    ListEpisodesRequest, ListMoviesRequest, ListShowsRequest, MatchServiceClient, Movie,
-    PlanPlaybackRequest, PlaybackMethod, PlaybackPlan, PlaybackServiceClient, PlaybackSettings,
-    RefusalReason, ReportProgressRequest, Season, ServerServiceClient, SetMatchRequest,
-    SetPlayedRequest, Show, ShowSeason, Track, UpdatePlaybackSettingsRequest, Version, VideoTrack,
+    DeleteLibraryRequest, DeviceDecoding, Episode, EventType, ExternalId, GetMovieRequest,
+    GetShowRequest, GetShowResponse, HdrFormat, LibraryKind, LibraryServiceClient,
+    ListContinueWatchingRequest, ListEpisodesRequest, ListMoviesRequest, ListShowsRequest,
+    MatchServiceClient, Movie, PlanPlaybackRequest, Playback, PlaybackEnded, PlaybackMethod,
+    PlaybackPlan, PlaybackServiceClient, PlaybackSettings, PlaybackStarted, RefusalReason,
+    ReportProgressRequest, Season, ServerServiceClient, SetMatchRequest, SetPlayedRequest, Show,
+    ShowSeason, StopPlaybackRequest, Track, UpdatePlaybackSettingsRequest, Version, VideoTrack,
     WatchState, WatchStateServiceClient, continue_watching_entry, external_id,
     set_played_request::Target,
 };
@@ -43,7 +44,7 @@ use nama_server::{
 };
 use refused::assert_refused;
 use server::{
-    Library, SignedIn, TestServer, WAIT,
+    Library, SignedIn, TestServer, WAIT, subscribe,
     tmdb::{ALIEN, DARK, THE_OFFICE as THE_OFFICE_US},
 };
 
@@ -1161,6 +1162,64 @@ async fn without_ffprobe_a_version_direct_plays_and_its_plan_says_its_tracks_are
             "Nothing has failed to play it on this Device"
         ]
     );
+}
+
+#[tokio::test]
+async fn each_plan_tells_subscribers_its_playback_started() {
+    let fx = Fixture::alien().await;
+    let version = fx.version_ids(ALIEN).await[0];
+    let started = [EventType::EVENT_TYPE_PLAYBACK_STARTED];
+    let mut subscription = subscribe(&fx.server.client_config(), &started).await;
+
+    let first = fx.plan(version).await.unwrap();
+    let replacing = fx.plan(version).await.unwrap();
+
+    for plan in [first, replacing] {
+        let told = PlaybackStarted {
+            playback: admins_playback(version, plan).into(),
+            ..Default::default()
+        };
+        assert_eq!(subscription.next().await, told.into());
+    }
+}
+
+#[tokio::test]
+async fn a_direct_play_its_player_stops_tells_subscribers_its_playback_ended() {
+    let fx = Fixture::alien().await;
+    let version = fx.version_ids(ALIEN).await[0];
+    let config = fx.server.client_config();
+    let ended = [EventType::EVENT_TYPE_PLAYBACK_ENDED];
+    let mut subscription = subscribe(&config, &ended).await;
+    let plan = fx.plan(version).await.unwrap();
+    assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_DIRECT_PLAY);
+
+    PlaybackServiceClient::new(HttpClient::plaintext(), config)
+        .stop_playback(StopPlaybackRequest {
+            plan_id: plan.id,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    let told = PlaybackEnded {
+        playback: admins_playback(version, plan).into(),
+        ..Default::default()
+    };
+    assert_eq!(subscription.next().await, told.into());
+}
+
+/// What Observers are told of the Admin playing the Version `version` by `plan`.
+fn admins_playback(version: i64, plan: PlaybackPlan) -> Playback {
+    Playback {
+        // The first User and Device in a fresh database: the Admin's.
+        user_id: 1,
+        device_id: 1,
+        version_id: version,
+        method: plan.method,
+        tracks: plan.tracks,
+        reasons: plan.reasons,
+        ..Default::default()
+    }
 }
 
 /// The ffmpeg and ffprobe on `PATH`, which these tests need.

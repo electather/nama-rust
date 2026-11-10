@@ -15,7 +15,20 @@ service PlaybackService {
   rpc PlanPlayback(PlanPlaybackRequest) returns (PlanPlaybackResponse) {
     option idempotency_level = IDEMPOTENT;
   }
+  // Stops a plan the caller's Device was given, as when its player closes or a new plan replaces
+  // it, so the Server stops any ffmpeg it runs and tells Observers its playback ended. A plan
+  // already stopped, or another Device's, is left alone.
+  rpc StopPlayback(StopPlaybackRequest) returns (StopPlaybackResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
 }
+
+message StopPlaybackRequest {
+  // The plan, as `PlaybackPlan.id` names it.
+  uint64 plan_id = 1;
+}
+
+message StopPlaybackResponse {}
 
 message PlanPlaybackRequest {
   // The Version to play, as browsing gave it.
@@ -95,6 +108,8 @@ message PlaybackPlan {
   // The text subtitles the player can turn on and off without a new plan, in the order the
   // Version holds them. Image subtitles, such as PGS, aren't among them.
   repeated PlaybackSubtitle subtitles = 5;
+  // Names it to `StopPlayback`. 0 when it can't be played.
+  uint64 id = 6;
 }
 
 // A text subtitle a player shows as a WebVTT `<track>`.

@@ -655,6 +655,7 @@ mod tests {
         plugins::Registry,
         server_settings::{SegmentFolder, ServerUrl},
         tracks::{Hdr, PROBE_VERSION, Track, TrackKind, Tracks},
+        users::{Caller, Device, Permissions, User},
     };
 
     /// How many events a [`Fixture`]'s subscribers may fall behind.
@@ -1246,14 +1247,30 @@ EOF"#,
             Arc::new(Ffmpeg::default()),
             media.contents.clone(),
             media.tracks.clone(),
+            media.events.clone(),
         );
         let decoding = playback::DeviceDecoding::default();
+        let caller = Caller {
+            user: User {
+                id: 1,
+                name: "Ripley".to_owned(),
+                permissions: Permissions::NEW_USER,
+                created_at: 0,
+            },
+            device: Device {
+                id: 1,
+                name: "Nostromo".to_owned(),
+                created_at: 0,
+                last_seen_at: 0,
+                authenticated_at: 0,
+            },
+        };
 
         let plan = playback::plan(
             &media.scanner,
             &running,
+            &caller,
             version,
-            1,
             decoding,
             BTreeSet::new(),
         )

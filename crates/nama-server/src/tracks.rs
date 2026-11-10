@@ -10,6 +10,7 @@ use std::{
     sync::Arc,
 };
 
+use nama_proto::nama::v1 as proto;
 use sqlx::SqliteConnection;
 
 use crate::{contents::Stored, db::Database, ffmpeg::TEXT_SUBTITLES};
@@ -374,6 +375,77 @@ fn hdr_from_columns(
             hdr10_base_layer: dolby_vision_hdr10_base_layer.unwrap_or_default(),
         },
     })
+}
+
+/// `track` as the API shows it.
+pub(crate) fn track_to_proto(track: &Track) -> proto::Track {
+    // 0 is what the proto says for a fact the file doesn't give. Stored ones are never negative.
+    let known = |n: Option<i64>| n.and_then(|n| u32::try_from(n).ok()).unwrap_or_default();
+    let kind = match track.kind {
+        TrackKind::Video {
+            width,
+            height,
+            frame_rate,
+            bit_depth,
+            hdr,
+        } => {
+            let (hdr, dolby_vision) = hdr_to_proto(hdr);
+            proto::VideoTrack {
+                width: known(width),
+                height: known(height),
+                frame_rate: frame_rate.unwrap_or_default(),
+                bit_depth: known(bit_depth),
+                hdr: hdr.into(),
+                dolby_vision: dolby_vision.into(),
+                ..Default::default()
+            }
+            .into()
+        }
+        TrackKind::Audio { channels } => proto::AudioTrack {
+            channels: known(channels),
+            ..Default::default()
+        }
+        .into(),
+        TrackKind::Subtitle { image } => proto::SubtitleTrack {
+            image,
+            ..Default::default()
+        }
+        .into(),
+    };
+    proto::Track {
+        codec: track.codec.clone(),
+        language: track.language.clone(),
+        title: track.title.clone(),
+        default: track.default,
+        forced: track.forced,
+        sdh: track.sdh,
+        kind,
+        ..Default::default()
+    }
+}
+
+/// `hdr` as a video Track's `hdr` and `dolby_vision`.
+fn hdr_to_proto(hdr: Option<Hdr>) -> (proto::HdrFormat, Option<proto::DolbyVision>) {
+    match hdr {
+        None => (proto::HdrFormat::HDR_FORMAT_UNSPECIFIED, None),
+        Some(Hdr::Hdr10) => (proto::HdrFormat::HDR_FORMAT_HDR10, None),
+        Some(Hdr::Hlg) => (proto::HdrFormat::HDR_FORMAT_HLG, None),
+        Some(Hdr::DolbyVision {
+            profile,
+            hdr10_base_layer,
+        }) => {
+            let dolby_vision = proto::DolbyVision {
+                // ffprobe reads it from a byte, so it's never negative.
+                profile: u32::try_from(profile).unwrap_or_default(),
+                hdr10_base_layer,
+                ..Default::default()
+            };
+            (
+                proto::HdrFormat::HDR_FORMAT_DOLBY_VISION,
+                Some(dolby_vision),
+            )
+        }
+    }
 }
 
 #[cfg(test)]
