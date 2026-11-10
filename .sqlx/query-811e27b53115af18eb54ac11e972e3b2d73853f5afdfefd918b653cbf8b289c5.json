@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT reason FROM probe_failures WHERE version_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "reason",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "probe_failures",
+            "name": "reason"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "811e27b53115af18eb54ac11e972e3b2d73853f5afdfefd918b653cbf8b289c5"
+}

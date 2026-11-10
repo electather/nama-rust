@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT OR REPLACE INTO probe_failures\n                             (version_id, reason, probe_version, failure_version, size,\n                              modified_ns)\n                         VALUES (?, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": []
+  },
+  "hash": "599b060c78c34a840d8b85952784e00664589414304a3a22c01767f3da1dfcbf"
+}

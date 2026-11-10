@@ -18,8 +18,9 @@
 //! Tracks, never probed or changed or read by an older probe version since, are probed in the
 //! background, a few at a time, and their Tracks stored (see [`crate::tracks`]), without holding
 //! up the next scan. A file ffprobe couldn't read is skipped the same way until it changes, as
-//! probing it again would fail again. A Version can also be probed right away ([`Scanner::probe_now`]), which
-//! waits for a background probe of it rather than probe it twice.
+//! probing it again would fail again, unless it failed for a passing reason such as a timeout. A
+//! Version can also be probed right away ([`Scanner::probe_now`]), which waits for a background
+//! probe of it rather than probe it twice.
 
 mod names;
 
@@ -350,7 +351,8 @@ impl Scanner {
     }
 
     /// Probes the Library `library`'s files without current Tracks and stores what each holds.
-    /// A file that can't be probed is logged, and skipped by later passes until it changes.
+    /// A file that can't be probed is logged, and for a lasting reason skipped by later passes
+    /// until it changes.
     async fn probe_stale(&self, library: i64) -> Result<(), sqlx::Error> {
         let stored = self.inner.contents.stored(library).await?;
         let files: Vec<Stored> = stored.values().copied().collect();
@@ -441,8 +443,7 @@ impl Scanner {
 
     /// Probes the file at `path`, stored as `file`, and stores and returns what it holds, unless
     /// its Tracks became current since whoever claimed it found them stale. If ffprobe can't read
-    /// it, stores that, so the probe pass skips it until it changes, and forgets what it held
-    /// before.
+    /// it, stores that and why, and forgets what it held before.
     async fn probe_and_store(&self, path: &str, file: Stored) -> Result<Probe, ProbeNowError> {
         if self.inner.tracks.current(&[file]).await?.contains(&file.id)
             && let Some(probe) = self.inner.tracks.of(&[file]).await?.remove(&file.id)
@@ -455,7 +456,7 @@ impl Scanner {
             // ffprobe keeps it, as it never probes in the background.
             Err(ProbeError::Unavailable) => return Err(ProbeError::Unavailable.into()),
             Err(err) => {
-                self.inner.tracks.store_failure(file).await?;
+                self.inner.tracks.store_failure(file, &err).await?;
                 return Err(err.into());
             }
         };
@@ -1650,5 +1651,61 @@ echo '{{"format": {{"format_name": "matroska,webm"}}, "streams": [{{"codec_type"
         media.scan_and_probe().await;
 
         assert_eq!(probe_runs(bin.path()), 2);
+    }
+
+    // The fake ffprobe is a shell script.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_file_that_couldnt_be_probed_is_probed_again_once_the_failure_version_is_bumped() {
+        let bin = tempfile::tempdir().unwrap();
+        let runs = bin.path().join("runs");
+        let ffmpeg = fake_ffprobe(
+            bin.path(),
+            &format!("echo run >> '{}'\nexit 1", runs.display()),
+        );
+        let media = Fixture::with_ffmpeg(Kind::Movies, ffmpeg).await;
+        let alien = "Alien (1979)/Alien (1979).mkv";
+        media.write(alien, 10);
+        media.scan_and_probe().await;
+        let version = media.file_id(alien).await;
+        assert_eq!(
+            media.tracks.failure_reason_of(version).await.as_deref(),
+            Some("failed")
+        );
+
+        media.tracks.failed_by_older_failure_version(version).await;
+        media.scan_and_probe().await;
+
+        assert_eq!(probe_runs(bin.path()), 2);
+    }
+
+    // The fake ffprobe is a shell script.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_file_ffprobe_couldnt_be_run_on_is_probed_again_next_scan() {
+        let bin = tempfile::tempdir().unwrap();
+        let ffmpeg = counting_ffprobe(bin.path());
+        let ffprobe = bin.path().join("ffprobe");
+        let script = fs::read(&ffprobe).unwrap();
+        let media = Fixture::with_ffmpeg(Kind::Movies, ffmpeg).await;
+        let alien = "Alien (1979)/Alien (1979).mkv";
+        media.write(alien, 10);
+        fs::remove_file(&ffprobe).unwrap();
+        media.scan_and_probe().await;
+        let version = media.file_id(alien).await;
+        assert_eq!(
+            media.tracks.failure_reason_of(version).await.as_deref(),
+            Some("not_run")
+        );
+
+        fs::write(&ffprobe, script).unwrap();
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(&ffprobe, fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        media.scan_and_probe().await;
+
+        assert_eq!(media.channels(alien).await, Some(10));
+        assert_eq!(media.tracks.failure_reason_of(version).await, None);
     }
 }
