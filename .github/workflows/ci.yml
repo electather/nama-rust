@@ -36,6 +36,9 @@ jobs:
   changes:
     if: github.event.action != 'closed'
     runs-on: [self-hosted, nama-rust]
+    # The repo's default token can't list a PR's files.
+    permissions:
+      pull-requests: read
     outputs:
       rust: ${{ github.event_name != 'pull_request' || steps.filter.outputs.rust == 'true' }}
       web: ${{ github.event_name != 'pull_request' || steps.filter.outputs.web == 'true' }}
