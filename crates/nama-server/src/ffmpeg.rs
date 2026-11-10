@@ -278,6 +278,7 @@ impl Ffmpeg {
         &self,
         path: &str,
         audio: Option<(usize, i64)>,
+        video: Option<VideoLimit>,
         dir: &Path,
         n: usize,
         cuts: &[i64],
@@ -305,6 +306,19 @@ impl Ffmpeg {
             .args(["-x264-params", "keyint=infinite:scenecut=0"])
             .arg("-force_key_frames")
             .arg(cuts.join(","));
+        if let Some(VideoLimit {
+            size,
+            bits_per_second,
+        }) = video
+        {
+            if let Some((width, height)) = size {
+                command.arg("-vf").arg(format!("scale={width}:{height}"));
+            }
+            let rate = bits_per_second.to_string();
+            command
+                .args(["-b:v", &rate, "-maxrate", &rate, "-bufsize"])
+                .arg((2 * u64::from(bits_per_second)).to_string());
+        }
         aac(&mut command, audio.map(|(_, channels)| channels));
         command.args(["-output_ts_offset", &seconds(TRANSCODE_LATER_BY_MS)]);
         spawn_hls(command, &ffmpeg.version, dir, n)
@@ -336,6 +350,14 @@ impl Ffmpeg {
         }
         Ok(output.stdout)
     }
+}
+
+/// How a Transcode keeps its video within a Playback Limit.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct VideoLimit {
+    /// The width and height it scales the picture to, if it does.
+    pub(crate) size: Option<(i64, i64)>,
+    pub(crate) bits_per_second: u32,
 }
 
 /// Has `command` take the first video, and the `audio`th audio Track if given.
@@ -688,6 +710,23 @@ pub fn write_h264_with_5_1(path: &Path, audio: &str) -> io::Result<()> {
             ])
             // ffmpeg's DTS encoder is marked experimental.
             .args(["-c:a", audio, "-strict", "experimental", "-f", "matroska"])
+    })
+}
+
+/// Writes 2 seconds of 1080p H.264 video with stereo AAC audio, as Matroska, to `path`, with the
+/// ffmpeg on `PATH`, for a test to play within a Playback Limit.
+///
+/// # Errors
+///
+/// If ffmpeg can't be run or fails.
+#[cfg(any(test, feature = "testing"))]
+pub fn write_1080p_h264(path: &Path) -> io::Result<()> {
+    write_test_media(path, |ffmpeg| {
+        ffmpeg
+            .args(["-f", "lavfi", "-i", "testsrc=size=1920x1080:rate=24"])
+            .args(["-f", "lavfi", "-i", "sine", "-t", "2"])
+            .args(["-c:v", "libx264", "-preset", "ultrafast", "-c:a", "aac"])
+            .args(["-f", "matroska"])
     })
 }
 
@@ -1255,7 +1294,14 @@ mod hls_tests {
         fs::create_dir_all(dir).unwrap();
         let cuts = [0, 6000, 12_000, 18_000];
         let output = ffmpeg
-            .transcode(path.to_str().unwrap(), Some((0, 2)), dir, n, &cuts[n..])
+            .transcode(
+                path.to_str().unwrap(),
+                Some((0, 2)),
+                None,
+                dir,
+                n,
+                &cuts[n..],
+            )
             .unwrap();
         let output = output.wait_with_output().await.unwrap();
         assert!(output.status.success(), "{output:?}");

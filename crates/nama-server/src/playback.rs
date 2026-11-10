@@ -31,7 +31,7 @@ use tower_http::services::ServeFile;
 
 use crate::{
     contents::Contents,
-    ffmpeg::{Ffmpeg, ProbeError},
+    ffmpeg::{Ffmpeg, ProbeError, VideoLimit},
     scanner::{ProbeNowError, Scanner},
     tracks::{Hdr, Probe, Track, TrackKind, Tracks, track_to_proto},
     users::{Caller, User},
@@ -54,6 +54,32 @@ impl Method {
             Self::DirectPlay => "Direct Play",
             Self::Remux => "Remux",
             Self::Transcode => "Transcode",
+        }
+    }
+}
+
+/// A Playback Limit below Original: the picture a Transcode fits the video in, and the bitrate it
+/// sends it at, which members never see.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct PlaybackLimit {
+    name: &'static str,
+    width: i64,
+    height: i64,
+    bits_per_second: u32,
+}
+
+impl PlaybackLimit {
+    pub(crate) const P1080: Self = Self::new("1080p", 1920, 1080, 8_000_000);
+    pub(crate) const P720: Self = Self::new("720p", 1280, 720, 4_000_000);
+    // 854 is 480 at 16:9, made even.
+    pub(crate) const P480: Self = Self::new("480p", 854, 480, 1_500_000);
+
+    const fn new(name: &'static str, width: i64, height: i64, bits_per_second: u32) -> Self {
+        Self {
+            name,
+            width,
+            height,
+            bits_per_second,
         }
     }
 }
@@ -109,9 +135,9 @@ impl DeviceDecoding {
 
 /// Plans playing the Version `version` on `caller`'s Device, which decodes `decoding`, by any
 /// method but those that just `failed` there, with the audio Track at the place `audio` in the
-/// Version's Tracks, or else its own, probing the Version first unless its Tracks are current,
-/// and keeps a playable plan in `running`, which starts its ffmpeg if it needs one. `None` if
-/// there is no such Version.
+/// Version's Tracks, or else its own, within the Playback Limit `limit`, `None` being Original,
+/// probing the Version first unless its Tracks are current, and keeps a playable plan in
+/// `running`, which starts its ffmpeg if it needs one. `None` if there is no such Version.
 #[expect(
     clippy::too_many_arguments,
     reason = "each is its own fact about the request or a service it needs, and a struct would \
@@ -125,6 +151,7 @@ pub(crate) async fn plan(
     decoding: DeviceDecoding,
     failed: BTreeSet<Method>,
     audio: Option<usize>,
+    limit: Option<PlaybackLimit>,
 ) -> Result<Option<Plan>, StartError> {
     let probe = match scanner.probe_now(version).await {
         Ok(probe) => Some(probe),
@@ -147,6 +174,7 @@ pub(crate) async fn plan(
         ffmpeg: running.can_run(),
         failed,
         audio,
+        limit,
     };
     let mut plan = build(&facts, &STEPS);
     let Some(playback) = playback(caller, version, &plan) else {
@@ -159,8 +187,18 @@ pub(crate) async fn plan(
             running.remux(playback, probed, played, aac).await?
         }
         (Some(Method::Transcode), Some(probed)) => {
-            let (played, aac) = (played_audio(&facts), channels_as_aac(plan.method, &facts));
-            running.transcode(playback, probed, played, aac).await?
+            let converted_audio = played_audio(&facts).zip(channels_as_aac(plan.method, &facts));
+            let video = (facts.limit).map(
+                |PlaybackLimit {
+                     bits_per_second, ..
+                 }| VideoLimit {
+                    size: scaled_size(&facts),
+                    bits_per_second,
+                },
+            );
+            running
+                .transcode(playback, probed, converted_audio, video)
+                .await?
         }
         _ => {
             plan.id = Some(running.direct_play(playback));
@@ -218,6 +256,8 @@ struct Facts {
     failed: BTreeSet<Method>,
     /// The audio Track the User chose, by its place in the Version's Tracks, if they chose one.
     audio: Option<usize>,
+    /// The User's Playback Limit, `None` being Original.
+    limit: Option<PlaybackLimit>,
 }
 
 /// What one step lets a plan be, and why.
@@ -229,12 +269,13 @@ struct Narrowing {
 type Step = fn(&Facts) -> Narrowing;
 
 /// In ADR 0027's order. A new input is a new step here.
-const STEPS: [Step; 5] = [
+const STEPS: [Step; 6] = [
     version_tracks,
     device_decoding,
     server_ffmpeg,
     failed_on_device,
     chosen_audio,
+    playback_limit,
 ];
 
 /// The plan for `facts` that every one of `steps` allows.
@@ -381,6 +422,68 @@ fn failed_on_device(facts: &Facts) -> Narrowing {
     }
 }
 
+/// The step for the User's Playback Limit: only a Transcode, which scales the picture down to fit
+/// it, when the Version's picture is larger.
+fn playback_limit(facts: &Facts) -> Narrowing {
+    let Some(PlaybackLimit { name, .. }) = facts.limit else {
+        return Narrowing {
+            allows: BTreeSet::from(Method::ALL),
+            reason: "The Playback Limit is Original".to_owned(),
+        };
+    };
+    if let Some((width, height)) = scaled_size(facts) {
+        return Narrowing {
+            allows: BTreeSet::from([Method::Transcode]),
+            reason: format!(
+                "Its picture is larger than the {name} Playback Limit, so a Transcode scales it \
+                 down to {width}×{height}"
+            ),
+        };
+    }
+    let reason = if picture(facts).is_some() {
+        format!("Its picture fits the {name} Playback Limit")
+    } else {
+        format!("Its picture size isn't known, so it's taken to fit the {name} Playback Limit")
+    };
+    Narrowing {
+        allows: BTreeSet::from(Method::ALL),
+        reason,
+    }
+}
+
+/// The size a Transcode scales the played video to, to fit the User's Playback Limit, if it's
+/// larger.
+fn scaled_size(facts: &Facts) -> Option<(i64, i64)> {
+    fitted(picture(facts)?, facts.limit?)
+}
+
+/// The width and height of the played video, if the file says.
+fn picture(facts: &Facts) -> Option<(i64, i64)> {
+    match played_video(facts.probe.as_ref()?)?.kind {
+        TrackKind::Video {
+            width: Some(width),
+            height: Some(height),
+            ..
+        } => Some((width, height)),
+        TrackKind::Video { .. } | TrackKind::Audio { .. } | TrackKind::Subtitle { .. } => None,
+    }
+}
+
+/// `picture`, a width and height, scaled down to fit `limit` with its shape kept, if it's larger.
+fn fitted((width, height): (i64, i64), limit: PlaybackLimit) -> Option<(i64, i64)> {
+    if width <= limit.width && height <= limit.height {
+        return None;
+    }
+    let rounded = |numerator: i64, denominator: i64| (numerator + denominator / 2) / denominator;
+    let (width, height) = if width * limit.height > height * limit.width {
+        (limit.width, rounded(height * limit.width, width))
+    } else {
+        (rounded(width * limit.height, height), limit.height)
+    };
+    // H.264 in 4:2:0 needs even sides.
+    Some((width / 2 * 2, height / 2 * 2))
+}
+
 /// Each codec a Device can say it decodes, as ffprobe names it, with the content type a Device
 /// lists for it and its name in plain words. `web/src/lib/device-decoding.ts` asks the browser
 /// about these same types.
@@ -471,7 +574,7 @@ fn played_as(method: Option<Method>, facts: &Facts) -> Vec<Track> {
         None => tracks,
     };
     if method == Some(Method::Transcode) {
-        converted_to_h264(tracks)
+        converted_to_h264(tracks, scaled_size(facts))
     } else {
         tracks
     }
@@ -528,12 +631,22 @@ fn converted_to_aac(mut tracks: Vec<Track>, channels: i64) -> Vec<Track> {
     tracks
 }
 
-/// `tracks` with their video converted to 8-bit H.264, as a Transcode makes it.
-fn converted_to_h264(mut tracks: Vec<Track>) -> Vec<Track> {
+/// `tracks` with their video converted to 8-bit H.264, as a Transcode makes it, scaled to `size`
+/// if given.
+fn converted_to_h264(mut tracks: Vec<Track>, size: Option<(i64, i64)>) -> Vec<Track> {
     for track in &mut tracks {
-        if let TrackKind::Video { bit_depth, .. } = &mut track.kind {
+        if let TrackKind::Video {
+            bit_depth,
+            width,
+            height,
+            ..
+        } = &mut track.kind
+        {
             "h264".clone_into(&mut track.codec);
             *bit_depth = Some(8);
+            if let Some((scaled_width, scaled_height)) = size {
+                (*width, *height) = (Some(scaled_width), Some(scaled_height));
+            }
         }
     }
     tracks
@@ -716,8 +829,8 @@ mod tests {
     use std::collections::BTreeSet;
 
     use super::{
-        DeviceDecoding, Facts, Method, Narrowing, Plan, STEPS, Subtitle, aac_channels, build,
-        device_decoding, failed_on_device, played_audio,
+        DeviceDecoding, Facts, Method, Narrowing, Plan, PlaybackLimit, STEPS, Subtitle,
+        aac_channels, build, device_decoding, failed_on_device, fitted, played_audio,
     };
     use crate::tracks::{Hdr, Probe, Track, TrackKind};
 
@@ -799,6 +912,7 @@ mod tests {
             ffmpeg: true,
             failed: BTreeSet::new(),
             audio: None,
+            limit: None,
         }
     }
 
@@ -826,6 +940,7 @@ mod tests {
                     "This Server has ffmpeg".to_owned(),
                     "Nothing has failed to play it on this Device".to_owned(),
                     "It plays the file's own audio Track".to_owned(),
+                    "The Playback Limit is Original".to_owned(),
                 ],
                 subtitles: vec![],
             }
@@ -950,6 +1065,7 @@ mod tests {
                 "This Server has ffmpeg",
                 "Nothing has failed to play it on this Device",
                 "It plays the file's own audio Track",
+                "The Playback Limit is Original",
             ]
         );
     }
@@ -1049,6 +1165,7 @@ mod tests {
                 "This Server has ffmpeg",
                 "Nothing has failed to play it on this Device",
                 "It plays the file's own audio Track",
+                "The Playback Limit is Original",
             ]
         );
     }
@@ -1318,5 +1435,77 @@ mod tests {
         assert_eq!(plan.method, Some(Method::Remux));
         assert_eq!(plan.tracks, [video("h264"), audio("aac", true)]);
         assert_eq!(aac_channels(&facts), None);
+    }
+
+    #[test]
+    fn a_playback_limit_below_the_versions_picture_transcodes_it_down_to_fit_and_says_so() {
+        let facts = Facts {
+            limit: Some(PlaybackLimit::P720),
+            ..facts(Some(vec![video("h264"), audio("aac", true)]))
+        };
+
+        let plan = build(&facts, &STEPS);
+
+        assert_eq!(plan.method, Some(Method::Transcode));
+        let scaled = TrackKind::Video {
+            width: Some(1280),
+            height: Some(720),
+            frame_rate: Some(24.0),
+            bit_depth: Some(8),
+            hdr: None,
+        };
+        assert_eq!(
+            plan.tracks,
+            [track("h264", false, scaled), audio("aac", true)]
+        );
+        assert_eq!(
+            plan.reasons[5],
+            "Its picture is larger than the 720p Playback Limit, so a Transcode scales it down to \
+             1280×720"
+        );
+    }
+
+    #[test]
+    fn a_playback_limit_the_versions_picture_fits_or_original_leaves_it_direct_played() {
+        let probed = Some(vec![video("h264"), audio("aac", true)]);
+        let cases = [
+            (
+                Some(PlaybackLimit::P1080),
+                probed.clone(),
+                "Its picture fits the 1080p Playback Limit",
+            ),
+            (None, probed, "The Playback Limit is Original"),
+            (
+                Some(PlaybackLimit::P480),
+                None,
+                "Its picture size isn't known, so it's taken to fit the 480p Playback Limit",
+            ),
+        ];
+        for (limit, tracks, reason) in cases {
+            let facts = Facts {
+                limit,
+                ..facts(tracks)
+            };
+
+            let plan = build(&facts, &STEPS);
+
+            assert_eq!(plan.method, Some(Method::DirectPlay), "{reason}");
+            assert_eq!(plan.reasons[5], reason);
+        }
+    }
+
+    #[test]
+    fn a_picture_fitted_to_a_playback_limit_keeps_its_shape_with_even_sides() {
+        let cases = [
+            ((1920, 800), PlaybackLimit::P720, Some((1280, 532))),
+            ((3840, 2160), PlaybackLimit::P480, Some((852, 480))),
+            ((1440, 1080), PlaybackLimit::P720, Some((960, 720))),
+            ((3840, 2160), PlaybackLimit::P1080, Some((1920, 1080))),
+            ((1920, 1080), PlaybackLimit::P1080, None),
+            ((1280, 536), PlaybackLimit::P720, None),
+        ];
+        for (picture, limit, fits) in cases {
+            assert_eq!(fitted(picture, limit), fits, "{picture:?} at {limit:?}");
+        }
     }
 }

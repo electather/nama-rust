@@ -48,7 +48,7 @@ use super::Method;
 use crate::{
     contents::Contents,
     events::{EventBus, event},
-    ffmpeg::{Ffmpeg, Keyframe, ProbeError, hls_init},
+    ffmpeg::{Ffmpeg, Keyframe, ProbeError, VideoLimit, hls_init},
     server_settings::SegmentFolder,
     tracks::{Probe, Tracks},
     users::Caller,
@@ -223,17 +223,17 @@ impl RunningPlans {
     }
 
     /// Starts Transcoding the Version `playback` plays, which probing found holds `probe`, for
-    /// the Device it plays on, with its audio Track `played_audio`, counting only its audio from
-    /// 0, converted to AAC with `aac_channels` channels, and
-    /// returns its id and its playlist's URL. Its segments are [`SEGMENT_MS`] each, as it forces a
+    /// the Device it plays on, with `audio`, its audio Track counting only its audio from 0 and
+    /// the channels it's converted to as AAC, and its video kept within `video`, and returns its
+    /// id and its playlist's URL. Its segments are [`SEGMENT_MS`] each, as it forces a
     /// keyframe at each. `None` if there is no such Version.
     // ponytail: no cap on how many Transcodes run at once, each a software encode; #340 adds one.
     pub(crate) async fn transcode(
         &self,
         playback: Playback,
         probe: &Probe,
-        played_audio: Option<usize>,
-        aac_channels: Option<i64>,
+        audio: Option<(usize, i64)>,
+        video: Option<VideoLimit>,
     ) -> Result<Option<(u64, String)>, StartError> {
         let Some((path, _)) = (self.inner.contents)
             .version_file(playback.version_id)
@@ -246,11 +246,10 @@ impl RunningPlans {
         let segments = (duration_ms.max(1) + SEGMENT_MS - 1) / SEGMENT_MS;
         let cuts: Vec<i64> = (0..segments).map(|n| n * SEGMENT_MS).collect();
         let timeline = Timeline::new(cuts.clone(), duration_ms);
-        let audio = played_audio.zip(aac_channels);
         let ffmpeg = Arc::clone(&self.inner.ffmpeg);
         let run = move |dir: &Path, from: Keyframe| {
             let from_on = cuts.get(from.n..).unwrap_or_default();
-            ffmpeg.transcode(&path, audio, dir, from.n, from_on)
+            ffmpeg.transcode(&path, audio, video, dir, from.n, from_on)
         };
         let id = self
             .start(playback, Method::Transcode, timeline, Box::new(run))

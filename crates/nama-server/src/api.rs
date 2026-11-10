@@ -98,7 +98,7 @@ use crate::{
     libraries::{self, FolderProblem, Kind, Libraries, Library},
     matching::{ManualError, Matcher},
     playback::{
-        self, DeviceDecoding, Method, Plan, method_to_proto,
+        self, DeviceDecoding, Method, Plan, PlaybackLimit, method_to_proto,
         running::{RunningPlans, StartError},
     },
     plugin_settings::{ChangeError, ListError, PluginSettings, StoredPlugin},
@@ -1328,6 +1328,7 @@ impl PlaybackService for PlaybackServiceHandler {
             decoding,
             failed,
             audio,
+            limit_from_proto(request.playback_limit),
         )
         .await
         .map_err(|err| match err {
@@ -2423,6 +2424,21 @@ fn version_to_proto(version: &Version) -> proto::Version {
         size: u64::try_from(version.file.size).unwrap_or_default(),
         tracks: version.tracks.iter().map(track_to_proto).collect(),
         ..Default::default()
+    }
+}
+
+/// The Playback Limit `limit` names, `None` being Original, as is one not picked or one newer
+/// than this Server.
+const fn limit_from_proto(limit: EnumValue<proto::PlaybackLimit>) -> Option<PlaybackLimit> {
+    match limit {
+        EnumValue::Known(proto::PlaybackLimit::PLAYBACK_LIMIT_1080P) => Some(PlaybackLimit::P1080),
+        EnumValue::Known(proto::PlaybackLimit::PLAYBACK_LIMIT_720P) => Some(PlaybackLimit::P720),
+        EnumValue::Known(proto::PlaybackLimit::PLAYBACK_LIMIT_480P) => Some(PlaybackLimit::P480),
+        EnumValue::Known(
+            proto::PlaybackLimit::PLAYBACK_LIMIT_UNSPECIFIED
+            | proto::PlaybackLimit::PLAYBACK_LIMIT_ORIGINAL,
+        )
+        | EnumValue::Unknown(_) => None,
     }
 }
 
