@@ -610,7 +610,7 @@ impl Scanner {
 
 #[cfg(test)]
 mod tests {
-    use std::{fs, path::PathBuf, sync::Arc, time::Duration};
+    use std::{collections::BTreeSet, fs, path::PathBuf, sync::Arc, time::Duration};
 
     use futures_util::StreamExt;
     use nama_plugin_api::{
@@ -1216,7 +1216,8 @@ EOF"#,
         media.match_to_alien().await;
         let version = media.file_id(alien).await;
 
-        let plan = playback::plan(&media.scanner, version, playback::DeviceDecoding::default())
+        let device = playback::DeviceDecoding::default();
+        let plan = playback::plan(&media.scanner, version, device, BTreeSet::new())
             .await
             .unwrap();
 

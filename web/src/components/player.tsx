@@ -40,10 +40,11 @@ export interface PlayerProps {
 
 /**
  * Plays a Version full screen with Nama's own controls, from where the Server's Playback Plan says,
- * or says so plainly when it can't play here.
+ * asking for a new plan when the browser fails to play one, or says so plainly when it can't play
+ * here.
  */
 export function Player(props: PlayerProps) {
-  const plan = usePlaybackPlan(props.versionId, props.watchState);
+  const { plan, tryPlanningAgain } = usePlaybackPlan(props.versionId, props.watchState);
   const [cantPlay, setCantPlay] = useState(false);
   if (plan.url === "") return <CantPlay back={props.back} reasons={plan.reasons} />;
   if (cantPlay) return <CantPlay back={props.back} reasons={[]} />;
@@ -53,7 +54,7 @@ export function Player(props: PlayerProps) {
       plan={plan}
       playbackInfo={<PlaybackInfo plan={plan} />}
       onCantPlay={() => {
-        setCantPlay(true);
+        if (!tryPlanningAgain()) setCantPlay(true);
       }}
     />
   );

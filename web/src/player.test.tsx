@@ -25,16 +25,26 @@ const plannedTracks: MessageInitShape<typeof TrackSchema>[] = [
   { codec: "aac", language: "eng", kind: { case: "audio", value: { channels: 6 } } },
   { codec: "subrip", language: "fre", kind: { case: "subtitle", value: {} } },
 ];
+const directPlayFailed = "Direct Play failed on this Device";
 /**
  * A Server whose Library 1 has The Matrix in three Versions, the largest being Version 8, and
  * whose plans Direct Play each from an address of its own with `plannedTracks`, or, unless
- * `playable`, say why it can't play. Each plan request goes in `asked`.
+ * `playable`, say why it can't play. As the real Server does, a plan asked for after Direct Play
+ * failed says it can't play, unless the Server `ignoresFailures`. Each plan request goes in
+ * `asked`.
  */
-const serverPlanning = (playable = true, asked: PlanPlaybackRequest[] = []) =>
+const serverPlanning = ({
+  playable = true,
+  asked = [] as PlanPlaybackRequest[],
+  ignoresFailures = false,
+} = {}) =>
   fakeServer({ signedIn: newUser, libraries }, {}, {}, (router) => {
     router.service(PlaybackService, {
       planPlayback: (request) => {
         asked.push(request);
+        const failed =
+          !ignoresFailures && request.failedMethods.includes(PlaybackMethod.DIRECT_PLAY);
+        if (failed) return { plan: { reasons: ["Its Tracks need no change", directPlayFailed] } };
         return {
           plan: playable
             ? {
@@ -74,17 +84,36 @@ test("without a version, the player plays the largest from where its plan says",
   expect(screen.queryByRole("navigation", { name: "Main" })).toBeNull();
 });
 
-test("a file the browser can't play shows a message instead of the player", async () => {
-  openApp("/libraries/1/movies/tmdb-603/play?version=7", server);
+test("a file the browser fails to play is planned again without Direct Play, which says why it can't play", async () => {
+  const asked: PlanPlaybackRequest[] = [];
+  openApp("/libraries/1/movies/tmdb-603/play?version=7", serverPlanning({ asked }));
 
   fireEvent.error(await findVideo());
 
   expect(await screen.findByText("This Version can’t play here")).toBeDefined();
+  expect(screen.getByText(directPlayFailed)).toBeDefined();
   expect(screen.queryByLabelText("The Matrix")).toBeNull();
+  expect(asked.map((request) => request.failedMethods)).toEqual([[], [PlaybackMethod.DIRECT_PLAY]]);
+});
+
+test("a method that fails again gives up instead of asking for plans in a loop", async () => {
+  const asked: PlanPlaybackRequest[] = [];
+  openApp(
+    "/libraries/1/movies/tmdb-603/play?version=7",
+    serverPlanning({ asked, ignoresFailures: true }),
+  );
+  fireEvent.error(await findVideo());
+  // The player is hidden while it asks again, and back once the new plan says Direct Play again.
+  await screen.findByRole("button", { name: "Playback info" });
+
+  fireEvent.error(await findVideo());
+
+  expect(await screen.findByText(/This browser can’t play it/u)).toBeDefined();
+  expect(asked).toHaveLength(2);
 });
 
 test("a Version whose plan says it can't play shows the plan's reasons instead of the player", async () => {
-  openApp("/libraries/1/movies/tmdb-603/play", serverPlanning(false));
+  openApp("/libraries/1/movies/tmdb-603/play", serverPlanning({ playable: false }));
 
   expect(await screen.findByText("This Version can’t play here")).toBeDefined();
   expect(screen.getByText(cantDecode)).toBeDefined();
@@ -106,7 +135,7 @@ test("the plan request says what this Device decodes", async () => {
     configurable: true,
   });
   const asked: PlanPlaybackRequest[] = [];
-  openApp("/libraries/1/movies/tmdb-603/play", serverPlanning(true, asked));
+  openApp("/libraries/1/movies/tmdb-603/play", serverPlanning({ asked }));
 
   await findVideo();
 

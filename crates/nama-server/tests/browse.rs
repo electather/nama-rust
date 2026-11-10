@@ -19,6 +19,7 @@ use std::{
     time::Duration,
 };
 
+use buffa::EnumValue;
 use connectrpc::{
     ConnectError, ErrorCode,
     client::{ClientConfig, HttpClient},
@@ -210,6 +211,15 @@ impl Fixture {
     /// The Admin's Playback Plan for the Version `version`, on a Device that decodes H.264 and AAC
     /// in MP4.
     async fn plan(&self, version: i64) -> Result<PlaybackPlan, ConnectError> {
+        self.plan_after_failing(version, &[]).await
+    }
+
+    /// As [`Self::plan`], on a Device where the methods `failed` just failed to play it.
+    async fn plan_after_failing(
+        &self,
+        version: i64,
+        failed: &[PlaybackMethod],
+    ) -> Result<PlaybackPlan, ConnectError> {
         let config = self.server.client_config();
         let content_types = [
             "video/mp4",
@@ -224,6 +234,7 @@ impl Fixture {
                     ..Default::default()
                 }
                 .into(),
+                failed_methods: failed.iter().copied().map(EnumValue::from).collect(),
                 ..Default::default()
             })
             .await?
@@ -1062,7 +1073,8 @@ async fn an_h264_and_aac_mp4_direct_plays_through_its_plans_url() {
         plan.reasons,
         [
             "Its Tracks need no change",
-            "This Device decodes its container and Tracks"
+            "This Device decodes its container and Tracks",
+            "Nothing has failed to play it on this Device"
         ]
     );
     let played = fetch(&fx.server, &plan.url, Some(&fx.server.admin_token)).await;
@@ -1084,9 +1096,25 @@ async fn without_ffprobe_a_version_direct_plays_and_its_plan_says_its_tracks_are
         plan.reasons,
         [
             "Its Tracks aren't known, so they're taken to need no change",
-            "Its Tracks aren't known, so this Device is taken to decode them"
+            "Its Tracks aren't known, so this Device is taken to decode them",
+            "Nothing has failed to play it on this Device"
         ]
     );
+}
+
+#[tokio::test]
+async fn a_version_whose_direct_play_just_failed_on_the_device_cant_be_played_and_says_why() {
+    let fx = Fixture::alien().await;
+    let version = fx.version_ids(ALIEN).await[0];
+
+    let plan = fx
+        .plan_after_failing(version, &[PlaybackMethod::PLAYBACK_METHOD_DIRECT_PLAY])
+        .await
+        .unwrap();
+
+    assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_UNSPECIFIED);
+    assert_eq!(plan.url, "");
+    assert_eq!(plan.reasons[2], "Direct Play failed on this Device");
 }
 
 #[tokio::test]
