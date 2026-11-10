@@ -12,8 +12,7 @@ use std::{
     cmp::Reverse,
     collections::{BTreeSet, HashMap, HashSet},
     iter,
-    sync::Arc,
-    time::Duration,
+    sync::{Arc, Mutex},
 };
 
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
@@ -32,7 +31,7 @@ use nama_proto::nama::v1::{
 };
 use serde::{Deserialize, Serialize};
 use sqlx::{Sqlite, SqliteConnection, Transaction};
-use tokio::sync::mpsc::UnboundedReceiver;
+use tokio::{sync::mpsc::UnboundedReceiver, task::JoinHandle};
 
 use crate::{
     contents::{self, Contents, Metadata},
@@ -46,8 +45,7 @@ use crate::{
 
 mod hand_off;
 
-use hand_off::HandOff;
-pub(crate) use hand_off::PROGRESS_EVERY;
+use hand_off::{HandOff, PROGRESS_EVERY, lock};
 
 /// Each Request state as `requests.state` stores it.
 const STATES: [(RequestState, &str); 7] = [
@@ -109,6 +107,10 @@ pub(crate) struct Requests {
     matcher: Matcher,
     /// Its only way to the Fulfillers, and what publishes the changes its writes make.
     hand_off: HandOff,
+    /// The loop [`Requests::start`] spawns to hand off as Fulfillers come up.
+    handing_off: Arc<Mutex<Option<JoinHandle<()>>>>,
+    /// The loop [`Requests::start`] spawns to ask the Fulfillers about progress.
+    following: Arc<Mutex<Option<JoinHandle<()>>>>,
 }
 
 /// A Movie the metadata source has, and how close it is to being on the Server.
@@ -291,7 +293,36 @@ impl Requests {
             hand_off: HandOff::new(Arc::clone(&db), events, plugins),
             db,
             matcher,
+            handing_off: Arc::default(),
+            following: Arc::default(),
         }
+    }
+
+    /// Starts, in the background so a slow Fulfiller doesn't hold up serving, handing each
+    /// Approved Request, oldest first, to its Fulfiller whenever a Plugin `came_up` names provides
+    /// one, and asking the Fulfillers how their Processing Requests are progressing, every
+    /// [`PROGRESS_EVERY`] while any is Processing and at once when one becomes Processing. A
+    /// failed hand-off is only logged, and leaves the rest waiting. Call it once.
+    pub(crate) fn start(&self, came_up: UnboundedReceiver<PluginId>) {
+        let handing = self.hand_off.clone();
+        let handing_off = tokio::spawn(async move { handing.as_fulfillers_come_up(came_up).await });
+        let asking = self.hand_off.clone();
+        let following = tokio::spawn(async move { asking.follow_progress(PROGRESS_EVERY).await });
+        *lock(&self.handing_off) = Some(handing_off);
+        *lock(&self.following) = Some(following);
+    }
+
+    /// Stops what [`Self::start`] started, logging a panic from either loop. Does nothing before
+    /// it.
+    ///
+    /// The Requests not handed off yet stay Approved, so the next start hands them off. The one
+    /// being handed off now runs on in a task of its own (`HandOff::request`), which nothing waits
+    /// for: if the runtime stops first, a Request the Fulfiller took stays Approved and the next
+    /// start hands it over again, as for an approval in flight (ADR 0029). Progress is kept in
+    /// memory only, so stopping mid-poll loses nothing.
+    pub(crate) async fn shutdown(&self) {
+        stop(&self.handing_off, "handing the waiting Requests off").await;
+        stop(&self.following, "asking the Fulfillers about progress").await;
     }
 
     /// Asks for the Movie with the TMDB id `tmdb_id` for `asker`, who joins its open Request, or
@@ -658,22 +689,6 @@ impl Requests {
             .await
     }
 
-    /// Hands each Approved Request, oldest first, to its Fulfiller whenever a Plugin `came_up`
-    /// names provides one. A failure is only logged, and leaves the rest waiting. Runs until
-    /// `came_up` closes or it is dropped.
-    pub(crate) async fn hand_off_as_fulfillers_come_up(
-        &self,
-        came_up: UnboundedReceiver<PluginId>,
-    ) {
-        self.hand_off.as_fulfillers_come_up(came_up).await;
-    }
-
-    /// Asks the Fulfillers how their Processing Requests are progressing, every `interval` while any
-    /// Request is Processing, and at once when one becomes Processing. Runs until dropped.
-    pub(crate) async fn follow_progress(&self, interval: Duration) {
-        self.hand_off.follow_progress(interval).await;
-    }
-
     /// Declines the Pending Request `id`, giving its Requesters `reason`, trimmed, unless it is
     /// blank, and publishes that its state changed.
     pub(crate) async fn decline(&self, id: i64, reason: &str) -> Result<Request, Error> {
@@ -953,6 +968,19 @@ impl Listed {
                 id: followed.id,
             },
         }
+    }
+}
+
+/// Aborts the loop `task` holds, if any, and waits for it, logging that `doing` panicked if it did.
+async fn stop(task: &Mutex<Option<JoinHandle<()>>>, doing: &str) {
+    let Some(handle) = lock(task).take() else {
+        return;
+    };
+    handle.abort();
+    if let Err(err) = handle.await
+        && err.is_panic()
+    {
+        tracing::error!("{doing} panicked: {err}");
     }
 }
 
@@ -2747,7 +2775,7 @@ mod tests {
         let (_data, requests) = approved_for(&[949, 438_631], fulfiller).await;
         let pending = ask_as(&requests, Permissions::NEW_USER, 603).await;
         let following = requests.clone();
-        let follow = tokio::spawn(async move { following.follow_progress(EVERY).await });
+        let follow = tokio::spawn(async move { following.hand_off.follow_progress(EVERY).await });
         let nothing_processing = asked_while(&asked, EVERY * 10).await;
 
         come_up(&requests, "gated").await;
@@ -2800,7 +2828,7 @@ mod tests {
         let (came_up, queue) = tokio::sync::mpsc::unbounded_channel();
         came_up.send(PluginId::from_static(plugin)).unwrap();
         drop(came_up);
-        requests.hand_off_as_fulfillers_come_up(queue).await;
+        requests.hand_off.as_fulfillers_come_up(queue).await;
     }
 
     /// Ada, the User the tests ask as, holding `permissions`.
