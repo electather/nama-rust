@@ -63,8 +63,8 @@ impl Servarr {
             .map(drop)
     }
 
-    /// Posts `body` to the API path `path` to add what it describes. Returns `false` if the service already has
-    /// it, as it says by the validator `exists`, such as `MovieExistsValidator`.
+    /// Posts `body` to the API path `path` to add what it describes. Returns `false` if the service
+    /// already has it, as it says by the validator `exists`, such as `MovieExistsValidator`.
     ///
     /// # Errors
     /// If the service doesn't answer or refuses for another reason.
