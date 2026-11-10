@@ -140,8 +140,10 @@ impl Tracks {
             .await
     }
 
-    /// What probing found in each of `files`, by Version id, if it read the file at the size and
-    /// modified time `Contents` stores for it now, by whichever [`PROBE_VERSION`].
+    /// What probing found in each of `files`, by Version id, if probing read the file at the size
+    /// and modified time `Contents` stores for it now. An older [`PROBE_VERSION`]'s read still
+    /// counts: it read the same bytes, and hiding it would blank every Version's Tracks after a
+    /// bump until the probe pass catches up.
     pub(crate) async fn of(&self, files: &[Stored]) -> Result<HashMap<i64, Probe>, sqlx::Error> {
         let read_at: HashSet<(i64, i64, i64)> = files
             .iter()

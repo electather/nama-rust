@@ -1133,7 +1133,8 @@ mod tests {
         assert_eq!(media.scan().await, summary(1, 0, 0, 0));
         media.scanner.idle().await;
 
-        assert_eq!(media.probe(alien).await, None);
+        let version = media.file_id(alien).await;
+        assert_eq!(media.tracks.probe_version_of(version).await, None);
     }
 
     #[tokio::test]
