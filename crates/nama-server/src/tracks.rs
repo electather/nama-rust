@@ -21,7 +21,7 @@ use crate::{
 
 /// The version of how probing reads a file, stored with what it read like the name parser's
 /// (ADR 0023). A Version read by an older one is probed again; when to bump it is in `AGENTS.md`.
-pub(crate) const PROBE_VERSION: i64 = 3;
+pub(crate) const PROBE_VERSION: i64 = 4;
 
 /// Like [`PROBE_VERSION`], but a Version ffprobe lastingly failed on at an older one is tried
 /// again, and those it read are left alone; when to bump it is in `AGENTS.md`. A
@@ -120,9 +120,29 @@ pub(crate) enum Hdr {
     DolbyVision {
         /// Such as 5, 7 or 8, which says which players can show it.
         profile: i64,
-        /// Whether its base layer is HDR10, which a player without Dolby Vision shows instead.
-        hdr10_base_layer: bool,
+        /// What a player without Dolby Vision shows instead, and a Transcode makes, or `None` when
+        /// only a Dolby Vision player can show it.
+        base_layer: Option<BaseLayer>,
     },
+}
+
+/// A Dolby Vision Track's Base Layer: the picture a player without Dolby Vision shows instead.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum BaseLayer {
+    Hdr10,
+    Hlg,
+    Sdr,
+}
+
+impl BaseLayer {
+    /// How it's HDR, or `None` for SDR.
+    pub(crate) const fn hdr(self) -> Option<Hdr> {
+        match self {
+            Self::Hdr10 => Some(Hdr::Hdr10),
+            Self::Hlg => Some(Hdr::Hlg),
+            Self::Sdr => None,
+        }
+    }
 }
 
 /// Reads and writes what probing found.
@@ -313,7 +333,7 @@ impl Tracks {
             r#"SELECT version_id, kind, codec, language, title, is_default AS "default: bool",
                       forced AS "forced: bool", sdh AS "sdh: bool", width, height, frame_rate, bit_depth, hdr,
                       dolby_vision_profile,
-                      dolby_vision_hdr10_base_layer AS "dolby_vision_hdr10_base_layer: bool",
+                      dolby_vision_base_layer,
                       channels, image AS "image: bool"
                FROM tracks
                WHERE version_id IN (SELECT value FROM json_each(?))
@@ -332,7 +352,7 @@ impl Tracks {
                     hdr: hdr_from_columns(
                         row.hdr.as_deref(),
                         row.dolby_vision_profile,
-                        row.dolby_vision_hdr10_base_layer,
+                        row.dolby_vision_base_layer.as_deref(),
                     ),
                 },
                 "audio" => TrackKind::Audio {
@@ -433,11 +453,11 @@ async fn store(
                 ("subtitle", None, None, None, None, None, None, Some(image))
             }
         };
-        let (hdr, dolby_vision_profile, dolby_vision_hdr10_base_layer) = hdr_columns(hdr);
+        let (hdr, dolby_vision_profile, dolby_vision_base_layer) = hdr_columns(hdr);
         sqlx::query!(
             "INSERT INTO tracks (version_id, position, kind, codec, language, title, is_default,
                                  forced, sdh, width, height, frame_rate, bit_depth, hdr,
-                                 dolby_vision_profile, dolby_vision_hdr10_base_layer, channels,
+                                 dolby_vision_profile, dolby_vision_base_layer, channels,
                                  image)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             version,
@@ -455,7 +475,7 @@ async fn store(
             bit_depth,
             hdr,
             dolby_vision_profile,
-            dolby_vision_hdr10_base_layer,
+            dolby_vision_base_layer,
             channels,
             image,
         )
@@ -465,17 +485,26 @@ async fn store(
     Ok(())
 }
 
-/// `hdr` as its `tracks` columns: its name, and Dolby Vision's profile and whether its base layer
-/// is HDR10.
-const fn hdr_columns(hdr: Option<Hdr>) -> (Option<&'static str>, Option<i64>, Option<bool>) {
+/// `hdr` as its `tracks` columns: its name, and Dolby Vision's profile and Base Layer.
+const fn hdr_columns(
+    hdr: Option<Hdr>,
+) -> (Option<&'static str>, Option<i64>, Option<&'static str>) {
     match hdr {
         None => (None, None, None),
         Some(Hdr::Hdr10) => (Some("hdr10"), None, None),
         Some(Hdr::Hlg) => (Some("hlg"), None, None),
         Some(Hdr::DolbyVision {
             profile,
-            hdr10_base_layer,
-        }) => (Some("dolby_vision"), Some(profile), Some(hdr10_base_layer)),
+            base_layer,
+        }) => {
+            let base_layer = match base_layer {
+                None => None,
+                Some(BaseLayer::Hdr10) => Some("hdr10"),
+                Some(BaseLayer::Hlg) => Some("hlg"),
+                Some(BaseLayer::Sdr) => Some("sdr"),
+            };
+            (Some("dolby_vision"), Some(profile), base_layer)
+        }
     }
 }
 
@@ -483,7 +512,7 @@ const fn hdr_columns(hdr: Option<Hdr>) -> (Option<&'static str>, Option<i64>, Op
 fn hdr_from_columns(
     hdr: Option<&str>,
     dolby_vision_profile: Option<i64>,
-    dolby_vision_hdr10_base_layer: Option<bool>,
+    dolby_vision_base_layer: Option<&str>,
 ) -> Option<Hdr> {
     Some(match hdr? {
         "hdr10" => Hdr::Hdr10,
@@ -491,7 +520,12 @@ fn hdr_from_columns(
         // The table holds Dolby Vision's facts for it, and only for it.
         _ => Hdr::DolbyVision {
             profile: dolby_vision_profile.unwrap_or_default(),
-            hdr10_base_layer: dolby_vision_hdr10_base_layer.unwrap_or_default(),
+            base_layer: dolby_vision_base_layer.and_then(|base_layer| match base_layer {
+                "hdr10" => Some(BaseLayer::Hdr10),
+                "hlg" => Some(BaseLayer::Hlg),
+                "sdr" => Some(BaseLayer::Sdr),
+                _ => None,
+            }),
         },
     })
 }
@@ -551,12 +585,18 @@ fn hdr_to_proto(hdr: Option<Hdr>) -> (proto::HdrFormat, Option<proto::DolbyVisio
         Some(Hdr::Hlg) => (proto::HdrFormat::HDR_FORMAT_HLG, None),
         Some(Hdr::DolbyVision {
             profile,
-            hdr10_base_layer,
+            base_layer,
         }) => {
+            let base_layer = match base_layer {
+                None => proto::BaseLayer::BASE_LAYER_UNSPECIFIED,
+                Some(BaseLayer::Hdr10) => proto::BaseLayer::BASE_LAYER_HDR10,
+                Some(BaseLayer::Hlg) => proto::BaseLayer::BASE_LAYER_HLG,
+                Some(BaseLayer::Sdr) => proto::BaseLayer::BASE_LAYER_SDR,
+            };
             let dolby_vision = proto::DolbyVision {
                 // ffprobe reads it from a byte, so it's never negative.
                 profile: u32::try_from(profile).unwrap_or_default(),
-                hdr10_base_layer,
+                base_layer: base_layer.into(),
                 ..Default::default()
             };
             (

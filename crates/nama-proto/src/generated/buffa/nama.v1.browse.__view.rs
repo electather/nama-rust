@@ -2000,10 +2000,10 @@ pub struct DolbyVisionView<'a> {
     ///
     /// Field 1: `profile`
     pub profile: u32,
-    /// Whether its base layer is HDR10, which a player without Dolby Vision shows instead.
+    /// What a player without Dolby Vision shows instead, and a Transcode makes.
     ///
-    /// Field 2: `hdr10_base_layer`
-    pub hdr10_base_layer: bool,
+    /// Field 3: `base_layer`
+    pub base_layer: ::buffa::EnumValue<super::super::BaseLayer>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for DolbyVisionView<'a> {
@@ -2043,12 +2043,14 @@ impl<'a> ::buffa::MessageView<'a> for DolbyVisionView<'a> {
                 )?;
                 view.profile = ::buffa::types::decode_uint32(&mut cur)?;
             }
-            2u32 => {
+            3u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
                     ::buffa::encoding::WireType::Varint,
                 )?;
-                view.hdr10_base_layer = ::buffa::types::decode_bool(&mut cur)?;
+                view.base_layer = ::buffa::EnumValue::from(
+                    ::buffa::types::decode_int32(&mut cur)?,
+                );
             }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
@@ -2073,7 +2075,7 @@ impl<'a> ::buffa::MessageView<'a> for DolbyVisionView<'a> {
         let _ = __buffa_src;
         ::core::result::Result::Ok(super::super::DolbyVision {
             profile: self.profile,
-            hdr10_base_layer: self.hdr10_base_layer,
+            base_layer: self.base_layer,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -2088,8 +2090,11 @@ impl<'a> ::buffa::ViewEncode<'a> for DolbyVisionView<'a> {
         if self.profile != 0u32 {
             size += 1u64 + ::buffa::types::uint32_encoded_len(self.profile) as u64;
         }
-        if self.hdr10_base_layer {
-            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        {
+            let val = self.base_layer.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
@@ -2105,8 +2110,11 @@ impl<'a> ::buffa::ViewEncode<'a> for DolbyVisionView<'a> {
         if self.profile != 0u32 {
             ::buffa::types::put_uint32_field(1u32, self.profile, buf);
         }
-        if self.hdr10_base_layer {
-            ::buffa::types::put_bool_field(2u32, self.hdr10_base_layer, buf);
+        {
+            let val = self.base_layer.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(3u32, val, buf);
+            }
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2136,8 +2144,8 @@ impl<'__a> ::serde::Serialize for DolbyVisionView<'__a> {
                     &::buffa::json_helpers::ProtoJson(&self.profile),
                 )?;
         }
-        if self.hdr10_base_layer {
-            __map.serialize_entry("hdr10BaseLayer", &self.hdr10_base_layer)?;
+        if !::buffa::json_helpers::skip_if::is_default_enum_value(&self.base_layer) {
+            __map.serialize_entry("baseLayer", &self.base_layer)?;
         }
         __map.end()
     }
@@ -2237,12 +2245,12 @@ impl DolbyVisionOwnedView {
     pub fn profile(&self) -> u32 {
         self.0.reborrow().profile
     }
-    /// Whether its base layer is HDR10, which a player without Dolby Vision shows instead.
+    /// What a player without Dolby Vision shows instead, and a Transcode makes.
     ///
-    /// Field 2: `hdr10_base_layer`
+    /// Field 3: `base_layer`
     #[must_use]
-    pub fn hdr10_base_layer(&self) -> bool {
-        self.0.reborrow().hdr10_base_layer
+    pub fn base_layer(&self) -> ::buffa::EnumValue<super::super::BaseLayer> {
+        self.0.reborrow().base_layer
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<DolbyVisionView<'static>>>

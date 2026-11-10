@@ -184,6 +184,10 @@ _Avoid_: on deck, in progress, resume list
 One video, audio or subtitle stream inside a Version, such as its English audio or its French subtitles.
 _Avoid_: stream, channel
 
+**Base Layer**:
+The picture inside a Dolby Vision Track that a player without Dolby Vision shows instead: HDR10, HLG or SDR. Some Dolby Vision Tracks have none, and only a Dolby Vision player can show them.
+_Avoid_: fallback layer, compatibility layer
+
 **Direct Play**:
 Playing a Version's file exactly as it is.
 _Avoid_: direct stream, original

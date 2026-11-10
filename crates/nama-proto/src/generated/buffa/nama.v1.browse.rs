@@ -159,6 +159,163 @@ impl ::buffa::Enumeration for HdrFormat {
         ]
     }
 }
+/// A Dolby Vision Track's Base Layer: the picture a player without Dolby Vision shows instead.
+#[allow(non_camel_case_types)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[repr(i32)]
+pub enum BaseLayer {
+    /// It has none, as in profile 5, so only a Dolby Vision player can show it.
+    BASE_LAYER_UNSPECIFIED = 0i32,
+    BASE_LAYER_SDR = 1i32,
+    BASE_LAYER_HDR10 = 2i32,
+    BASE_LAYER_HLG = 3i32,
+}
+impl BaseLayer {
+    ///Idiomatic alias for [`Self::BASE_LAYER_UNSPECIFIED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Unspecified: Self = Self::BASE_LAYER_UNSPECIFIED;
+    ///Idiomatic alias for [`Self::BASE_LAYER_SDR`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Sdr: Self = Self::BASE_LAYER_SDR;
+    ///Idiomatic alias for [`Self::BASE_LAYER_HDR10`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Hdr10: Self = Self::BASE_LAYER_HDR10;
+    ///Idiomatic alias for [`Self::BASE_LAYER_HLG`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Hlg: Self = Self::BASE_LAYER_HLG;
+}
+impl ::core::default::Default for BaseLayer {
+    fn default() -> Self {
+        Self::BASE_LAYER_UNSPECIFIED
+    }
+}
+impl ::serde::Serialize for BaseLayer {
+    fn serialize<S: ::serde::Serializer>(
+        &self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        s.serialize_str(::buffa::Enumeration::proto_name(self))
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for BaseLayer {
+    fn deserialize<D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        struct _V;
+        impl ::serde::de::Visitor<'_> for _V {
+            type Value = BaseLayer;
+            fn expecting(
+                &self,
+                f: &mut ::core::fmt::Formatter<'_>,
+            ) -> ::core::fmt::Result {
+                f.write_str(
+                    concat!("a string, integer, or null for ", stringify!(BaseLayer)),
+                )
+            }
+            fn visit_str<E: ::serde::de::Error>(
+                self,
+                v: &str,
+            ) -> ::core::result::Result<BaseLayer, E> {
+                <BaseLayer as ::buffa::Enumeration>::from_proto_name(v)
+                    .ok_or_else(|| { ::serde::de::Error::unknown_variant(v, &[]) })
+            }
+            fn visit_i64<E: ::serde::de::Error>(
+                self,
+                v: i64,
+            ) -> ::core::result::Result<BaseLayer, E> {
+                let v32 = i32::try_from(v)
+                    .map_err(|_| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("enum value {v} out of i32 range"),
+                        )
+                    })?;
+                <BaseLayer as ::buffa::Enumeration>::from_i32(v32)
+                    .ok_or_else(|| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("unknown enum value {v32}"),
+                        )
+                    })
+            }
+            fn visit_u64<E: ::serde::de::Error>(
+                self,
+                v: u64,
+            ) -> ::core::result::Result<BaseLayer, E> {
+                let v32 = i32::try_from(v)
+                    .map_err(|_| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("enum value {v} out of i32 range"),
+                        )
+                    })?;
+                <BaseLayer as ::buffa::Enumeration>::from_i32(v32)
+                    .ok_or_else(|| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("unknown enum value {v32}"),
+                        )
+                    })
+            }
+            fn visit_unit<E: ::serde::de::Error>(
+                self,
+            ) -> ::core::result::Result<BaseLayer, E> {
+                ::core::result::Result::Ok(::core::default::Default::default())
+            }
+        }
+        d.deserialize_any(_V)
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for BaseLayer {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+impl ::buffa::Enumeration for BaseLayer {
+    fn from_i32(value: i32) -> ::core::option::Option<Self> {
+        match value {
+            0i32 => ::core::option::Option::Some(Self::BASE_LAYER_UNSPECIFIED),
+            1i32 => ::core::option::Option::Some(Self::BASE_LAYER_SDR),
+            2i32 => ::core::option::Option::Some(Self::BASE_LAYER_HDR10),
+            3i32 => ::core::option::Option::Some(Self::BASE_LAYER_HLG),
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn to_i32(&self) -> i32 {
+        *self as i32
+    }
+    fn proto_name(&self) -> &'static str {
+        match self {
+            Self::BASE_LAYER_UNSPECIFIED => "BASE_LAYER_UNSPECIFIED",
+            Self::BASE_LAYER_SDR => "BASE_LAYER_SDR",
+            Self::BASE_LAYER_HDR10 => "BASE_LAYER_HDR10",
+            Self::BASE_LAYER_HLG => "BASE_LAYER_HLG",
+        }
+    }
+    fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
+        match name {
+            "BASE_LAYER_UNSPECIFIED" => {
+                ::core::option::Option::Some(Self::BASE_LAYER_UNSPECIFIED)
+            }
+            "BASE_LAYER_SDR" => ::core::option::Option::Some(Self::BASE_LAYER_SDR),
+            "BASE_LAYER_HDR10" => ::core::option::Option::Some(Self::BASE_LAYER_HDR10),
+            "BASE_LAYER_HLG" => ::core::option::Option::Some(Self::BASE_LAYER_HLG),
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn values() -> &'static [Self] {
+        &[
+            Self::BASE_LAYER_UNSPECIFIED,
+            Self::BASE_LAYER_SDR,
+            Self::BASE_LAYER_HDR10,
+            Self::BASE_LAYER_HLG,
+        ]
+    }
+}
 /// A Movie some items of a Library are Matched to, with the metadata its Match stores.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
@@ -1748,16 +1905,16 @@ pub struct DolbyVision {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
     )]
     pub profile: u32,
-    /// Whether its base layer is HDR10, which a player without Dolby Vision shows instead.
+    /// What a player without Dolby Vision shows instead, and a Transcode makes.
     ///
-    /// Field 2: `hdr10_base_layer`
+    /// Field 3: `base_layer`
     #[serde(
-        rename = "hdr10BaseLayer",
-        alias = "hdr10_base_layer",
-        with = "::buffa::json_helpers::proto_bool",
-        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+        rename = "baseLayer",
+        alias = "base_layer",
+        with = "::buffa::json_helpers::proto_enum",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_default_enum_value"
     )]
-    pub hdr10_base_layer: bool,
+    pub base_layer: ::buffa::EnumValue<BaseLayer>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -1766,7 +1923,7 @@ impl ::core::fmt::Debug for DolbyVision {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
         f.debug_struct("DolbyVision")
             .field("profile", &self.profile)
-            .field("hdr10_base_layer", &self.hdr10_base_layer)
+            .field("base_layer", &self.base_layer)
             .finish()
     }
 }
@@ -1800,8 +1957,11 @@ impl ::buffa::Message for DolbyVision {
         if self.profile != 0u32 {
             size += 1u64 + ::buffa::types::uint32_encoded_len(self.profile) as u64;
         }
-        if self.hdr10_base_layer {
-            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        {
+            let val = self.base_layer.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
@@ -1816,8 +1976,11 @@ impl ::buffa::Message for DolbyVision {
         if self.profile != 0u32 {
             ::buffa::types::put_uint32_field(1u32, self.profile, buf);
         }
-        if self.hdr10_base_layer {
-            ::buffa::types::put_bool_field(2u32, self.hdr10_base_layer, buf);
+        {
+            let val = self.base_layer.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(3u32, val, buf);
+            }
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -1839,12 +2002,14 @@ impl ::buffa::Message for DolbyVision {
                 )?;
                 self.profile = ::buffa::types::decode_uint32(buf)?;
             }
-            2u32 => {
+            3u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
                     ::buffa::encoding::WireType::Varint,
                 )?;
-                self.hdr10_base_layer = ::buffa::types::decode_bool(buf)?;
+                self.base_layer = ::buffa::EnumValue::from(
+                    ::buffa::types::decode_int32(buf)?,
+                );
             }
             _ => {
                 self.__buffa_unknown_fields
@@ -1855,7 +2020,7 @@ impl ::buffa::Message for DolbyVision {
     }
     fn clear(&mut self) {
         self.profile = 0u32;
-        self.hdr10_base_layer = false;
+        self.base_layer = ::buffa::EnumValue::from(0);
         self.__buffa_unknown_fields.clear();
     }
 }

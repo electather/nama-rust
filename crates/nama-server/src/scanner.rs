@@ -686,7 +686,7 @@ mod tests {
         playback::{self, running::RunningPlans},
         plugins::Registry,
         server_settings::{SegmentFolder, ServerUrl},
-        tracks::{Hdr, PROBE_ATTEMPTS, PROBE_VERSION, Probe, Track, TrackKind, Tracks},
+        tracks::{BaseLayer, Hdr, PROBE_ATTEMPTS, PROBE_VERSION, Probe, Track, TrackKind, Tracks},
         users::{Caller, Device, Permissions, User},
     };
 
@@ -1360,7 +1360,7 @@ EOF"#,
                 bit_depth: Some(10),
                 hdr: Some(Hdr::DolbyVision {
                     profile: 8,
-                    hdr10_base_layer: true,
+                    base_layer: Some(BaseLayer::Hdr10),
                 }),
             })
         );
