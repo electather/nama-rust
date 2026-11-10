@@ -219,6 +219,7 @@ pub mod __buffa {
         reg.register_json_any(super::__FOLLOWED_SHOW_WITHDRAWN_JSON_ANY);
         reg.register_json_any(super::__PLAYBACK_STARTED_JSON_ANY);
         reg.register_json_any(super::__PLAYBACK_ENDED_JSON_ANY);
+        reg.register_json_any(super::__PLAYBACK_CHANGED_JSON_ANY);
         reg.register_json_any(super::__PLAYBACK_JSON_ANY);
         reg.register_json_any(super::__LIBRARY_JSON_ANY);
         reg.register_json_any(super::__CREATE_LIBRARY_REQUEST_JSON_ANY);
@@ -243,6 +244,7 @@ pub mod __buffa {
         reg.register_json_any(super::__SERVER_SETTINGS_JSON_ANY);
         reg.register_json_any(super::__GET_PLAYBACK_STATUS_REQUEST_JSON_ANY);
         reg.register_json_any(super::__GET_PLAYBACK_STATUS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__FOUND_HARDWARE_JSON_ANY);
         reg.register_json_any(super::__FOUND_PROGRAM_JSON_ANY);
         reg.register_json_any(super::__GET_PLAYBACK_SETTINGS_REQUEST_JSON_ANY);
         reg.register_json_any(super::__GET_PLAYBACK_SETTINGS_RESPONSE_JSON_ANY);
@@ -919,6 +921,10 @@ pub use self::__buffa::view::PlaybackEndedView;
 #[doc(inline)]
 pub use self::__buffa::view::PlaybackEndedOwnedView;
 #[doc(inline)]
+pub use self::__buffa::view::PlaybackChangedView;
+#[doc(inline)]
+pub use self::__buffa::view::PlaybackChangedOwnedView;
+#[doc(inline)]
 pub use self::__buffa::view::PlaybackView;
 #[doc(inline)]
 pub use self::__buffa::view::PlaybackOwnedView;
@@ -1014,6 +1020,10 @@ pub use self::__buffa::view::GetPlaybackStatusRequestOwnedView;
 pub use self::__buffa::view::GetPlaybackStatusResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::GetPlaybackStatusResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::FoundHardwareView;
+#[doc(inline)]
+pub use self::__buffa::view::FoundHardwareOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::FoundProgramView;
 #[doc(inline)]

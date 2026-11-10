@@ -411,8 +411,8 @@ pub trait ServerService: Send + Sync + 'static {
         >,
     > + Send;
     /// Returns the ffmpeg and ffprobe the Server found at startup, which it needs to Remux and
-    /// Transcode, or why it can't use them; without both it only Direct Plays. Needs
-    /// `PERMISSION_ADMIN`.
+    /// Transcode, or why it can't use them; without both it only Direct Plays. Also returns the
+    /// hardware acceleration that passed its test at startup. Needs `PERMISSION_ADMIN`.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
@@ -460,7 +460,7 @@ pub trait ServerService: Send + Sync + 'static {
     > + Send;
     /// Replaces how the Server plays Versions it changes, for plans made from then on. Needs
     /// `PERMISSION_ADMIN`. A `segment_folder` that isn't an absolute path is refused with
-    /// `REFUSAL_REASON_FOLDER_NOT_ABSOLUTE` naming it, a `max_transcodes` of 0 with
+    /// `REFUSAL_REASON_FOLDER_NOT_ABSOLUTE` naming it, a `max_transcodes` set to 0 with
     /// `REFUSAL_REASON_FIELD_REQUIRED` naming it, and nothing changes.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).

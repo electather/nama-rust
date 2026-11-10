@@ -317,7 +317,7 @@ impl Fixture {
             .update_playback_settings(UpdatePlaybackSettingsRequest {
                 settings: PlaybackSettings {
                     remote_playback_limit: limit.into(),
-                    max_transcodes: 2,
+                    max_transcodes: Some(2),
                     ..Default::default()
                 }
                 .into(),
@@ -1111,7 +1111,7 @@ async fn a_remux_writes_its_segments_to_the_segment_folder_an_admin_set() {
         .update_playback_settings(UpdatePlaybackSettingsRequest {
             settings: PlaybackSettings {
                 segment_folder: tmpfs.path().to_str().unwrap().to_owned(),
-                max_transcodes: 2,
+                max_transcodes: Some(2),
                 ..Default::default()
             }
             .into(),
@@ -1170,6 +1170,8 @@ async fn an_h264_and_aac_mp4_direct_plays_through_its_plans_url() {
             "Its Tracks need no change",
             "This Device decodes its container and Tracks",
             "This Server lacks ffmpeg or ffprobe, so it can only Direct Play",
+            "No hardware acceleration passed its test when this Server started, so a Transcode \
+             runs in software",
             "Nothing has failed to play it on this Device",
             "It plays the file's own audio Track",
             "This Device is on the local network",
@@ -1240,7 +1242,7 @@ impl Fixture {
         ServerServiceClient::new(HttpClient::plaintext(), fx.server.client_config())
             .update_playback_settings(UpdatePlaybackSettingsRequest {
                 settings: PlaybackSettings {
-                    max_transcodes: 1,
+                    max_transcodes: Some(1),
                     ..Default::default()
                 }
                 .into(),
@@ -1352,6 +1354,8 @@ async fn without_ffprobe_a_version_direct_plays_and_its_plan_says_its_tracks_are
             "Its Tracks aren't known, so they're taken to need no change",
             "Its Tracks aren't known, so this Device is taken to decode them",
             "This Server lacks ffmpeg or ffprobe, so it can only Direct Play",
+            "No hardware acceleration passed its test when this Server started, so a Transcode \
+             runs in software",
             "Nothing has failed to play it on this Device",
             "It plays the file's own audio Track",
             "This Device is on the local network",
@@ -1774,7 +1778,7 @@ async fn switching_to_the_commentary_mid_play_remuxes_it_from_there_with_its_aud
     assert_eq!(commentary.method, PlaybackMethod::PLAYBACK_METHOD_REMUX);
     assert_eq!(commentary.tracks[1].title.as_deref(), Some("Commentary"));
     assert_eq!(
-        commentary.reasons[4],
+        commentary.reasons[5],
         "The audio Track chosen isn't the one browsers play from its file, so it can't be Direct \
          Played"
     );
@@ -1830,7 +1834,7 @@ async fn a_1080p_h264_mkv_limited_to_720p_is_transcoded_down_to_it_and_original_
 
     assert_eq!(at_720p.method, PlaybackMethod::PLAYBACK_METHOD_TRANSCODE);
     assert_eq!(
-        at_720p.reasons[6],
+        at_720p.reasons[7],
         "Its picture is larger than the 720p Playback Limit, so a Transcode scales it down to \
          1280×720"
     );
@@ -1839,7 +1843,7 @@ async fn a_1080p_h264_mkv_limited_to_720p_is_transcoded_down_to_it_and_original_
         "h264,1280,720"
     );
     assert_eq!(original.method, PlaybackMethod::PLAYBACK_METHOD_REMUX);
-    assert_eq!(original.reasons[6], "The Playback Limit is Original");
+    assert_eq!(original.reasons[7], "The Playback Limit is Original");
 }
 
 /// A Server behind a reverse proxy at the test's own address, which it trusts.
@@ -1886,7 +1890,7 @@ async fn a_1080p_h264_mkv_played_from_outside_the_local_network_transcodes_to_th
     let local = fx.ask_for_plan(unpicked).await.unwrap();
 
     assert_eq!(defaulted.method, PlaybackMethod::PLAYBACK_METHOD_TRANSCODE);
-    assert_eq!(defaulted.reasons[5], REMOTE_720P);
+    assert_eq!(defaulted.reasons[6], REMOTE_720P);
     assert_eq!(defaulted.playback_limit, PlaybackLimit::PLAYBACK_LIMIT_720P);
     assert_eq!(
         played_streams(&fx, &defaulted.url, "v", "0.m4s", "width,height").await,
@@ -1897,7 +1901,7 @@ async fn a_1080p_h264_mkv_played_from_outside_the_local_network_transcodes_to_th
         PlaybackMethod::PLAYBACK_METHOD_REMUX
     );
     assert_eq!(local.method, PlaybackMethod::PLAYBACK_METHOD_REMUX);
-    assert_eq!(local.reasons[5], LOCAL);
+    assert_eq!(local.reasons[6], LOCAL);
     assert_eq!(local.playback_limit, PlaybackLimit::PLAYBACK_LIMIT_ORIGINAL);
 }
 
@@ -1918,9 +1922,9 @@ async fn behind_a_trusted_proxy_the_forwarded_client_address_decides_whether_pla
         .await
         .unwrap();
 
-    assert_eq!(remote.reasons[5], REMOTE_720P);
+    assert_eq!(remote.reasons[6], REMOTE_720P);
     assert_eq!(remote.playback_limit, PlaybackLimit::PLAYBACK_LIMIT_720P);
-    assert_eq!(local.reasons[5], LOCAL);
+    assert_eq!(local.reasons[6], LOCAL);
     assert_eq!(local.playback_limit, PlaybackLimit::PLAYBACK_LIMIT_ORIGINAL);
 }
 
@@ -1939,7 +1943,7 @@ async fn behind_an_untrusted_proxy_the_peers_address_decides_whether_playback_is
         .await
         .unwrap();
 
-    assert_eq!(plan.reasons[5], LOCAL);
+    assert_eq!(plan.reasons[6], LOCAL);
     assert_eq!(plan.playback_limit, PlaybackLimit::PLAYBACK_LIMIT_ORIGINAL);
 }
 
@@ -1960,7 +1964,7 @@ async fn a_pgs_track_turned_on_mid_play_is_burned_into_a_transcode_from_there() 
 
     assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_TRANSCODE);
     assert_eq!(
-        plan.reasons[7],
+        plan.reasons[8],
         "The subtitles chosen are burned into its picture, which only a Transcode does"
     );
     // The player asks first for the segment 7 seconds falls in, where ffmpeg starts.
@@ -2034,7 +2038,7 @@ async fn a_version_whose_direct_play_just_failed_on_the_device_cant_be_played_an
 
     assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_UNSPECIFIED);
     assert_eq!(plan.url, "");
-    assert_eq!(plan.reasons[3], "Direct Play failed on this Device");
+    assert_eq!(plan.reasons[4], "Direct Play failed on this Device");
 }
 
 #[tokio::test]

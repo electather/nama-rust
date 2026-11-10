@@ -329,7 +329,8 @@ fn what_happened(notification: &Notification) -> Option<String> {
         | Event::FollowedShowRequesterRemoved(_)
         | Event::FollowedShowWithdrawn(_)
         | Event::PlaybackStarted(_)
-        | Event::PlaybackEnded(_) => return None,
+        | Event::PlaybackEnded(_)
+        | Event::PlaybackChanged(_) => return None,
     })
 }
 

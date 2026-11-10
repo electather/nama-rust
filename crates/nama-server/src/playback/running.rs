@@ -14,6 +14,9 @@
 //! restarts ffmpeg at it, and ffmpeg stops once it's [`RUN_AHEAD_MS`] past the last segment asked
 //! for, to start again at the next file asked for that it hasn't written.
 //!
+//! A Transcode on hardware that fails carries on in software from the first file it hadn't
+//! written, adds why to its plan's reasons and publishes `PlaybackChanged`.
+//!
 //! A plan is stopped, and its folder deleted, when its player says it stopped, [`STOP_UNUSED_AFTER`]
 //! after it was last asked for, or as the Server shuts down. A Direct Play is asked for through
 //! its file at `/media/versions/<id>`, which marks every Direct Play of that Version on the Device
@@ -41,15 +44,15 @@ use axum::{
     response::{IntoResponse, Response},
     routing::get,
 };
-use nama_proto::nama::v1::{Playback, PlaybackEnded, PlaybackStarted};
+use nama_proto::nama::v1::{Playback, PlaybackChanged, PlaybackEnded, PlaybackStarted};
 use tokio::{process::Child, task::JoinHandle};
 
 use super::Method;
 use crate::{
     contents::Contents,
     events::{EventBus, event},
-    ffmpeg::{BurnIn, Ffmpeg, Keyframe, ProbeError, VideoLimit, hls_init},
-    server_settings::{MaxTranscodes, SegmentFolder},
+    ffmpeg::{Ffmpeg, Hardware, Keyframe, ProbeError, ToneMapper, VideoConversion, hls_init},
+    server_settings::{HardwareAcceleration, MaxTranscodes, SegmentFolder},
     tracks::{Probe, Tracks},
     users::Caller,
 };
@@ -100,6 +103,13 @@ pub(crate) enum StartError {
 /// Starts ffmpeg writing a plan's files, from a keyframe on, to the folder it's given.
 type Run = dyn Fn(&Path, Keyframe) -> io::Result<Child> + Send + Sync;
 
+/// What a Transcode on hardware runs instead once a run there fails.
+struct Fallback {
+    run: Box<Run>,
+    /// Why, as its plan's reasons then say.
+    why: String,
+}
+
 /// The playable plans, by id.
 #[derive(Clone)]
 pub(crate) struct RunningPlans {
@@ -110,9 +120,12 @@ struct Inner {
     /// Where each plan's files go, in a folder named by its id.
     folder: SegmentFolder,
     max_transcodes: MaxTranscodes,
+    hardware_acceleration: HardwareAcceleration,
     ffmpeg: Arc<Ffmpeg>,
     /// Whether `ffmpeg` has zscale, once it answered.
     zscale: tokio::sync::OnceCell<bool>,
+    /// The hardware acceleration that passed its test, once tested.
+    hardware: tokio::sync::OnceCell<Vec<Hardware>>,
     contents: Contents,
     tracks: Tracks,
     events: EventBus,
@@ -122,7 +135,8 @@ struct Inner {
 
 /// One playable plan.
 struct Plan {
-    /// What it plays, for whom, and on which Device, which alone is served its files.
+    /// What it plays, for whom, and on which Device, which alone is served its files, as it
+    /// started.
     playback: Playback,
     /// Its HLS files and the ffmpeg writing them; `None` for a Direct Play, which runs nothing.
     hls: Option<Arc<Running>>,
@@ -142,6 +156,14 @@ struct Running {
     last_asked: AtomicUsize,
     /// Whether the plan was stopped, so no ffmpeg is started again for requests still waiting.
     closed: AtomicBool,
+    /// For a Transcode on hardware, what it runs once a run there fails.
+    fallback: Option<Fallback>,
+    /// Whether a run on hardware failed, so `fallback` runs from then on.
+    fell_back: AtomicBool,
+    /// Tells Observers how the plan plays now, once it fell back.
+    events: EventBus,
+    /// As it started, for telling Observers how it plays once it fell back.
+    playback: Playback,
     /// The run of ffmpeg writing its files, and its task, which stops ffmpeg when aborted.
     ffmpeg: tokio::sync::Mutex<Option<(Arc<FfmpegRun>, JoinHandle<()>)>>,
 }
@@ -185,8 +207,10 @@ impl RunningPlans {
         let inner = Arc::new(Inner {
             folder,
             max_transcodes: MaxTranscodes::default(),
+            hardware_acceleration: HardwareAcceleration::default(),
             ffmpeg,
             zscale: tokio::sync::OnceCell::new(),
+            hardware: tokio::sync::OnceCell::new(),
             contents,
             tracks,
             events,
@@ -195,7 +219,15 @@ impl RunningPlans {
             plans: Mutex::default(),
         });
         tokio::spawn(stop_unused_plans(Arc::downgrade(&inner)));
-        Self { inner }
+        let plans = Self { inner };
+        // At startup, in the background, as it takes a few seconds; the first plan or status asked
+        // for waits for it.
+        let testing = plans.clone();
+        tokio::spawn(async move {
+            // Only for testing once; what was found is kept, and a task's output must be owned.
+            let _: usize = testing.found_hardware().await.len();
+        });
+        plans
     }
 
     /// Whether plans can run at all (ADR 0026).
@@ -208,14 +240,34 @@ impl RunningPlans {
         &self.inner.max_transcodes
     }
 
-    /// The most Transcodes the Server may run at once, if that many already run, leaving out one
-    /// of `device`'s own: the plan it asks for replaces the one it plays, which it stops only
-    /// once the new one plays.
+    /// What an admin chose for Transcodes to run on.
+    pub(crate) fn hardware_acceleration(&self) -> &HardwareAcceleration {
+        &self.inner.hardware_acceleration
+    }
+
+    /// The hardware acceleration that passed its test encode, tested the first time it's asked
+    /// for, which the Server does as it starts, and kept.
+    pub(crate) async fn found_hardware(&self) -> &[Hardware] {
+        let ffmpeg = &self.inner.ffmpeg;
+        self.inner
+            .hardware
+            .get_or_init(|| async {
+                let found = ffmpeg.find_hardware().await;
+                let names: Vec<&str> = found.iter().map(|found| found.accel.name()).collect();
+                tracing::info!(hardware = ?names, "tested hardware acceleration");
+                found
+            })
+            .await
+    }
+
+    /// The most Transcodes the Server may run at once, the admin's cap or else `default`, if that
+    /// many already run, leaving out one of `device`'s own: the plan it asks for replaces the one
+    /// it plays, which it stops only once the new one plays.
     // ponytail: the plan isn't kept until after probing, the folder and spawning ffmpeg, so every
     // Device planning in that window finds room and they can pass the cap together until
     // Transcodes end; reserve room under the plans' lock if that ever matters.
-    pub(crate) fn transcodes_full(&self, device: i64) -> Option<u32> {
-        let max = self.inner.max_transcodes.get();
+    pub(crate) fn transcodes_full(&self, device: i64, default: u32) -> Option<u32> {
+        let max = self.inner.max_transcodes.get().unwrap_or(default);
         let plans = lock(&self.inner.plans);
         let (own, others): (Vec<_>, Vec<_>) = (plans.values())
             .filter(|plan| (plan.hls.as_ref()).is_some_and(|hls| hls.method == Method::Transcode))
@@ -264,17 +316,17 @@ impl RunningPlans {
         let ffmpeg = Arc::clone(&self.inner.ffmpeg);
         let run = move |dir: &Path, from| ffmpeg.remux(&path, audio, aac_channels, dir, from);
         let id = self
-            .start(playback, Method::Remux, timeline, Box::new(run))
+            .start(playback, Method::Remux, timeline, Box::new(run), None)
             .await?;
         Ok(Some((id, playlist_url(id))))
     }
 
     /// Starts Transcoding the Version `playback` plays, which probing found holds `probe`, for
     /// the Device it plays on, with its `audio` Track, counting only its audio from 0, converted
-    /// to AAC with the channels given beside it, its HDR tone-mapped to SDR if `tone_map`, with
-    /// `burn_in` drawn into its picture, and its video kept within `video`, and returns its id and
-    /// its playlist's URL. Its segments are [`SEGMENT_MS`] each, as it forces a keyframe at each.
-    /// `None` if there is no such Version.
+    /// to AAC with the channels given beside it, and its video converted as `video` says, and
+    /// returns its id and its playlist's URL. Its segments are [`SEGMENT_MS`] each, as it forces a
+    /// keyframe at each. On hardware, it falls back to software, tone-mapping there only if
+    /// `zscale`. `None` if there is no such Version.
     #[expect(
         clippy::too_many_arguments,
         reason = "the plan fixes each of the Transcode's conversions, as for `Ffmpeg::transcode`"
@@ -284,9 +336,8 @@ impl RunningPlans {
         playback: Playback,
         probe: &Probe,
         audio: Option<(usize, i64)>,
-        tone_map: bool,
-        video: Option<VideoLimit>,
-        burn_in: Option<BurnIn>,
+        video: VideoConversion,
+        zscale: bool,
     ) -> Result<Option<(u64, String)>, StartError> {
         let Some((path, _)) = (self.inner.contents)
             .version_file(playback.version_id)
@@ -300,12 +351,36 @@ impl RunningPlans {
         let cuts: Vec<i64> = (0..segments).map(|n| n * SEGMENT_MS).collect();
         let timeline = Timeline::new(cuts.clone(), duration_ms);
         let ffmpeg = Arc::clone(&self.inner.ffmpeg);
-        let run = move |dir: &Path, from: Keyframe| {
-            let from_on = cuts.get(from.n..).unwrap_or_default();
-            ffmpeg.transcode(&path, audio, tone_map, video, burn_in, dir, from.n, from_on)
+        let run = move |conversion: VideoConversion| -> Box<Run> {
+            let (ffmpeg, path, cuts) = (Arc::clone(&ffmpeg), path.clone(), cuts.clone());
+            Box::new(move |dir: &Path, from: Keyframe| {
+                let from_on = cuts.get(from.n..).unwrap_or_default();
+                ffmpeg.transcode(&path, audio, &conversion, dir, from.n, from_on)
+            })
         };
+        let fallback = video.hardware.map(|accel| {
+            let software = VideoConversion {
+                hardware: None,
+                tone_map: (video.tone_map)
+                    .filter(|_| zscale)
+                    .map(|_| ToneMapper::Software),
+                ..video
+            };
+            let untone_mapped = if software.tone_map.is_none() && video.tone_map.is_some() {
+                ", without tone-mapping its HDR, as this Server's ffmpeg lacks zscale"
+            } else {
+                ""
+            };
+            Fallback {
+                run: run(software),
+                why: format!(
+                    "{} failed partway, so the rest of it Transcodes in software{untone_mapped}",
+                    accel.name()
+                ),
+            }
+        });
         let id = self
-            .start(playback, Method::Transcode, timeline, Box::new(run))
+            .start(playback, Method::Transcode, timeline, run(video), fallback)
             .await?;
         Ok(Some((id, playlist_url(id))))
     }
@@ -332,13 +407,18 @@ impl RunningPlans {
     }
 
     /// Starts a plan playing `playback`, cut as `timeline` says, whose files `run` starts
-    /// ffmpeg writing, and returns the plan's id.
+    /// ffmpeg writing, or `fallback` once a run fails, and returns the plan's id.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "each is its own part of the plan, and a struct would only rename them"
+    )]
     async fn start(
         &self,
         playback: Playback,
         method: Method,
         timeline: Timeline,
         run: Box<Run>,
+        fallback: Option<Fallback>,
     ) -> io::Result<u64> {
         let id = self.inner.next_id.fetch_add(1, Ordering::Relaxed);
         let dir = self.inner.folder.path().join(format!("{PLAN_FOLDER}{id}"));
@@ -358,6 +438,10 @@ impl RunningPlans {
             run,
             last_asked: AtomicUsize::new(0),
             closed: AtomicBool::new(false),
+            fallback,
+            fell_back: AtomicBool::new(false),
+            events: self.inner.events.clone(),
+            playback: playback.clone(),
             ffmpeg: tokio::sync::Mutex::default(),
         });
         *running.ffmpeg.lock().await = Some(running.run_from(0)?);
@@ -443,8 +527,12 @@ impl RunningPlans {
         if let Some(hls) = &plan.hls {
             hls.stop(id).await;
         }
+        let playback = match &plan.hls {
+            Some(hls) => hls.playback_now(),
+            None => plan.playback.clone(),
+        };
         let ended = PlaybackEnded {
-            playback: plan.playback.clone().into(),
+            playback: playback.into(),
             ..Default::default()
         };
         self.inner.events.publish(vec![event(ended)]);
@@ -704,9 +792,24 @@ impl Running {
         Ok(true)
     }
 
+    /// How it plays now: as it started, and why it fell back if it did.
+    fn playback_now(&self) -> Playback {
+        let mut playback = self.playback.clone();
+        if let Some(Fallback { why, .. }) =
+            (self.fallback.as_ref()).filter(|_| self.fell_back.load(Ordering::Acquire))
+        {
+            playback.reasons.push(why.clone());
+        }
+        playback
+    }
+
     /// Starts ffmpeg writing this plan's files from keyframe `n` on.
     fn run_from(self: &Arc<Self>, n: usize) -> io::Result<(Arc<FfmpegRun>, JoinHandle<()>)> {
-        let ffmpeg = (self.run)(&self.dir, self.timeline.keyframe(n))?;
+        let start = match &self.fallback {
+            Some(fallback) if self.fell_back.load(Ordering::Acquire) => &fallback.run,
+            _ => &self.run,
+        };
+        let ffmpeg = start(&self.dir, self.timeline.keyframe(n))?;
         let run = Arc::new(FfmpegRun {
             from: n,
             written_to: AtomicUsize::new(n),
@@ -719,12 +822,56 @@ impl Running {
     /// Waits for `ffmpeg`, doing the run `run`, to stop, or stops it once it has written far
     /// enough ahead, then logs why if it failed and marks it stopped.
     async fn watch(self: Arc<Self>, ffmpeg: Child, run: Arc<FfmpegRun>) {
-        tokio::select! {
+        let failed = tokio::select! {
             output = ffmpeg.wait_with_output() => log_failure(output, self.id),
             // Dropping the child stops ffmpeg.
-            () = self.written_far_ahead(&run) => {}
+            () = self.written_far_ahead(&run) => false,
+        };
+        if failed {
+            self.fall_back(&run).await;
         }
         run.stopped.store(true, Ordering::Release);
+    }
+
+    /// Once `run`, the plan's current run of ffmpeg, failed on hardware, starts its fallback from
+    /// the first file it hadn't written, and tells Observers so. Only the first failure does.
+    async fn fall_back(self: &Arc<Self>, run: &Arc<FfmpegRun>) {
+        let Some(Fallback { why, .. }) = &self.fallback else {
+            return;
+        };
+        // Before waiting for the lock, so a seek that restarts ffmpeg meanwhile, aborting this
+        // task, restarts it in software.
+        if self.fell_back.swap(true, Ordering::AcqRel) {
+            return;
+        }
+        tracing::warn!(plan = self.id, "{why}");
+        let changed = PlaybackChanged {
+            playback: self.playback_now().into(),
+            ..Default::default()
+        };
+        self.events.publish(vec![event(changed)]);
+        // Under the lock a restart takes, so it doesn't race a seek's.
+        let mut ffmpeg = self.ffmpeg.lock().await;
+        let current = (ffmpeg.as_ref()).is_some_and(|(current, _)| Arc::ptr_eq(current, run));
+        if !current || self.closed.load(Ordering::Acquire) {
+            return;
+        }
+        let mut from = run.from;
+        while from < self.timeline.keyframes.len()
+            && tokio::fs::try_exists(self.keyframe_path(from))
+                .await
+                .unwrap_or_default()
+        {
+            from += 1;
+        }
+        if from < self.timeline.keyframes.len() {
+            run.stopped.store(true, Ordering::Release);
+            match self.run_from(from) {
+                // Replaces this task's own handle, which leaves it to finish.
+                Ok(fallback) => *ffmpeg = Some(fallback),
+                Err(err) => tracing::warn!(plan = self.id, "could not start ffmpeg again: {err}"),
+            }
+        }
     }
 
     /// Returns once `run` has written [`RUN_AHEAD_MS`] past the start of the last segment asked
@@ -751,15 +898,19 @@ impl Running {
     }
 }
 
-/// Logs why ffmpeg, running for the plan `plan`, failed, if it did.
-fn log_failure(output: io::Result<Output>, plan: u64) {
+/// Logs why ffmpeg, running for the plan `plan`, failed, if it did, and says whether it did.
+fn log_failure(output: io::Result<Output>, plan: u64) -> bool {
     match output {
-        Ok(Output { status, .. }) if status.success() => {}
+        Ok(Output { status, .. }) if status.success() => false,
         Ok(Output { status, stderr, .. }) => {
             let stderr = String::from_utf8_lossy(&stderr);
             tracing::warn!(plan, "ffmpeg failed ({status}): {}", stderr.trim());
+            true
         }
-        Err(err) => tracing::warn!(plan, "could not wait for ffmpeg: {err}"),
+        Err(err) => {
+            tracing::warn!(plan, "could not wait for ffmpeg: {err}");
+            false
+        }
     }
 }
 
@@ -826,9 +977,13 @@ mod tests {
     };
 
     use futures_util::StreamExt;
-    use nama_proto::nama::v1::{Playback, PlaybackEnded, PlaybackMethod, PlaybackStarted};
+    use nama_proto::nama::v1::{
+        Playback, PlaybackChanged, PlaybackEnded, PlaybackMethod, PlaybackStarted,
+    };
 
-    use super::{Method, POLL_EVERY, Running, RunningPlans, Timeline, lock, sweep_leftovers};
+    use super::{
+        Fallback, Method, POLL_EVERY, Running, RunningPlans, Timeline, lock, sweep_leftovers,
+    };
     use crate::{
         contents::Contents,
         db::Database,
@@ -904,7 +1059,7 @@ mod tests {
                 .spawn()
         };
         let id = plans
-            .start(playback(7), method, timeline, Box::new(run))
+            .start(playback(7), method, timeline, Box::new(run), None)
             .await
             .unwrap();
         (id, starts)
@@ -944,7 +1099,7 @@ mod tests {
     }
 
     /// Waits until `starts` holds `count` runs.
-    async fn until_started(starts: &Mutex<Vec<usize>>, count: usize) -> Vec<usize> {
+    async fn until_started<T: Clone>(starts: &Mutex<Vec<T>>, count: usize) -> Vec<T> {
         let started = async {
             while lock(starts).len() < count {
                 tokio::time::sleep(Duration::from_millis(20)).await;
@@ -1036,6 +1191,7 @@ mod tests {
                 Method::Remux,
                 every_two_seconds(),
                 Box::new(second_fails),
+                None,
             )
             .await
             .unwrap();
@@ -1175,11 +1331,11 @@ mod tests {
         };
         let (first, _) = transcode().await;
         start_writing_nothing(&plans).await;
-        assert_eq!(plans.transcodes_full(8), None, "a Remux doesn't count");
+        assert_eq!(plans.transcodes_full(8, 2), None, "a Remux doesn't count");
         transcode().await;
 
-        let full = plans.transcodes_full(8);
-        let for_its_own_device = plans.transcodes_full(7);
+        let full = plans.transcodes_full(8, 2);
+        let for_its_own_device = plans.transcodes_full(7, 2);
         plans.stop_for(first, 7).await;
 
         assert_eq!(full, Some(2), "out of the box");
@@ -1187,7 +1343,7 @@ mod tests {
             for_its_own_device, None,
             "the one its new plan replaces doesn't count"
         );
-        assert_eq!(plans.transcodes_full(8), None);
+        assert_eq!(plans.transcodes_full(8, 2), None);
     }
 
     // The fake ffmpeg is `sleep`.
@@ -1200,7 +1356,106 @@ mod tests {
             start_method_writing_nothing(&plans, Method::Transcode, every_two_seconds()).await;
         }
 
-        assert_eq!(plans.transcodes_full(7), Some(2));
+        assert_eq!(plans.transcodes_full(7, 2), Some(2));
+    }
+
+    // The fake ffmpegs are `false` and `sleep`.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_transcode_whose_hardware_fails_carries_on_in_software_and_says_so() {
+        let data = tempfile::tempdir().unwrap();
+        let db = database(data.path()).await;
+        let events = EventBus::new(Arc::clone(&db), Registry::new(), ServerUrl::default());
+        let plans = plans_with(
+            &db,
+            SegmentFolder::new(data.path().join("transcodes")),
+            &events,
+        );
+        let mut subscription = Box::pin(events.subscribe(Filter::default()));
+        let starts = Arc::new(Mutex::new(vec![]));
+        let (on_hardware, in_software) = (Arc::clone(&starts), Arc::clone(&starts));
+        let hardware = move |_: &Path, from: Keyframe| {
+            lock(&on_hardware).push(("hardware", from.n));
+            tokio::process::Command::new("false").spawn()
+        };
+        let software = move |_: &Path, from: Keyframe| {
+            lock(&in_software).push(("software", from.n));
+            tokio::process::Command::new("sleep")
+                .arg("600")
+                .kill_on_drop(true)
+                .spawn()
+        };
+        let reason = "VAAPI failed partway, so the rest of it Transcodes in software";
+        let id = plans
+            .start(
+                playback(7),
+                Method::Transcode,
+                every_two_seconds(),
+                Box::new(hardware),
+                Some(Fallback {
+                    run: Box::new(software),
+                    why: reason.to_owned(),
+                }),
+            )
+            .await
+            .unwrap();
+        let plan = hls(&plans, id, 7);
+
+        let later = tokio::spawn(async move { plan.segment(1).await });
+
+        until_started(&starts, 2).await;
+        tokio::time::sleep(POLL_EVERY * 3).await;
+        assert_eq!(*lock(&starts), [("hardware", 0), ("software", 0)]);
+        write_keyframes(data.path(), id, 0..6);
+        assert_eq!(answer(later).await.unwrap().unwrap(), b"345");
+        let changed = Playback {
+            reasons: vec![reason.to_owned()],
+            ..playback(7)
+        };
+        subscription.next().await.unwrap();
+        let next = subscription.next().await.unwrap();
+        assert_eq!(
+            next.message,
+            Some(
+                event(PlaybackChanged {
+                    playback: changed.clone().into(),
+                    ..Default::default()
+                })
+                .into()
+            )
+        );
+        plans.stop_for(id, 7).await;
+        let ended = subscription.next().await.unwrap();
+        assert_eq!(
+            ended.message,
+            Some(
+                event(PlaybackEnded {
+                    playback: changed.into(),
+                    ..Default::default()
+                })
+                .into()
+            ),
+            "ends as it played"
+        );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn the_transcode_cap_left_unset_is_the_default_given_and_a_set_one_wins() {
+        let data = tempfile::tempdir().unwrap();
+        let db = database(data.path()).await;
+        let plans = plans_in(&db, SegmentFolder::new(data.path().join("transcodes")));
+        for _ in 0..2 {
+            start_method_writing_nothing(&plans, Method::Transcode, every_two_seconds()).await;
+        }
+
+        let unlimited = plans.transcodes_full(8, u32::MAX);
+        let in_software = plans.transcodes_full(8, 2);
+        plans.max_transcodes().save(&db, Some(3)).await.unwrap();
+
+        assert_eq!(unlimited, None);
+        assert_eq!(in_software, Some(2));
+        assert_eq!(plans.transcodes_full(8, 2), None, "the 3 set");
     }
 
     #[test]
@@ -1228,6 +1483,7 @@ mod tests {
                         .kill_on_drop(true)
                         .spawn()
                 }),
+                None,
             )
             .await
             .unwrap()

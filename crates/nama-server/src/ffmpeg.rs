@@ -1,6 +1,8 @@
 //! Finding the ffmpeg and ffprobe the Server Remuxes, Transcodes and probes Versions with, which
 //! come from the system, not the release (ADR 0026).
 
+mod hardware;
+
 use std::{
     collections::HashMap,
     env,
@@ -13,6 +15,7 @@ use std::{
 
 use serde::Deserialize;
 
+pub use self::hardware::{Accel, Hardware};
 use crate::{
     config::Config,
     tracks::{Hdr, Probe, Track, TrackKind},
@@ -55,8 +58,19 @@ const REMUX_LATER_BY_MS: i64 = 1000;
 /// at the file's start out of step with those started later.
 const TRANSCODE_LATER_BY_MS: i64 = 1000;
 
-/// How long ffmpeg may take to list its filters.
-const FILTERS_TIMEOUT: Duration = Duration::from_secs(10);
+/// How long ffmpeg may take to list its filters or encoders.
+const LIST_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// How long a test encode on hardware may take, opening the device included: a second or two
+/// where it works, and the first plan waits for every test.
+const HARDWARE_TEST_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// A second of video a test encode on hardware converts, at 720p as a Transcode might get it.
+const TEST_CLIP: &str = "testsrc2=size=1280x720:rate=24:duration=1";
+
+/// [`TEST_CLIP`] as 10-bit HDR10, for a test tone-map on hardware.
+const TEST_HDR_CLIP: &str = "testsrc2=size=1280x720:rate=24:duration=1,format=yuv420p10le,\
+                             setparams=color_primaries=bt2020:color_trc=smpte2084:colorspace=bt2020nc";
 
 /// The software filters a Transcode tone-maps HDR to SDR with: to linear light, to BT.709's
 /// primaries, Hable's curve from HDR's brightness to SDR's 100 nits, then back to BT.709 video.
@@ -172,25 +186,114 @@ impl Ffmpeg {
         self.ffprobe.is_ok()
     }
 
-    /// Whether ffmpeg has the zscale filter, which [`Self::transcode`] tone-maps with and a system
-    /// ffmpeg may lack (ADR 0026), or why ffmpeg couldn't say, such as a timeout on a busy host.
+    /// Whether ffmpeg has the zscale filter, which [`Self::transcode`] tone-maps with in software
+    /// and a system ffmpeg may lack (ADR 0026), or why ffmpeg couldn't say, such as a timeout on a
+    /// busy host.
     pub(crate) async fn has_zscale(&self) -> Result<bool, String> {
+        // Each filter is a line such as ` .SC zscale  V->V  Apply resizing, ...`.
+        Ok(self
+            .listed("-filters")
+            .await?
+            .contains(&"zscale".to_owned()))
+    }
+
+    /// The names `ffmpeg -hide_banner <list>` lists, such as its filters for `-filters`, or why it
+    /// couldn't say. Empty without ffmpeg.
+    async fn listed(&self, list: &str) -> Result<Vec<String>, String> {
         let Ok(ffmpeg) = &self.ffmpeg else {
-            return Ok(false);
+            return Ok(vec![]);
         };
         let output = tokio::process::Command::new(&ffmpeg.path)
-            .args(["-hide_banner", "-filters"])
+            .args(["-hide_banner", list])
             .kill_on_drop(true)
             .output();
-        let output = match tokio::time::timeout(FILTERS_TIMEOUT, output).await {
+        let output = match tokio::time::timeout(LIST_TIMEOUT, output).await {
             Ok(Ok(output)) if output.status.success() => output,
             Ok(Ok(output)) => return Err(format!("it exited with {}", output.status)),
             Ok(Err(err)) => return Err(err.to_string()),
-            Err(_) => return Err(format!("it took over {FILTERS_TIMEOUT:?}")),
+            Err(_) => return Err(format!("it took over {LIST_TIMEOUT:?}")),
         };
-        // Each filter is a line such as ` .SC zscale  V->V  Apply resizing, ...`.
+        // Each is a line of flags, its name and what it is.
         Ok((String::from_utf8_lossy(&output.stdout).lines())
-            .any(|line| line.split_whitespace().nth(1) == Some("zscale")))
+            .filter_map(|line| line.split_whitespace().nth(1))
+            .map(str::to_owned)
+            .collect())
+    }
+
+    /// The hardware acceleration APIs that ffmpeg lists an encoder for and that pass a test
+    /// encode, as a Transcode would run it, in [`Accel::ALL`]'s order, each with whether it passes
+    /// a test tone-map too. Takes a few seconds while each opens its device.
+    pub(crate) async fn find_hardware(&self) -> Vec<Hardware> {
+        let encoders = match self.listed("-encoders").await {
+            Ok(encoders) => encoders,
+            Err(err) => {
+                tracing::warn!("could not ask ffmpeg for its encoders: {err}");
+                return vec![];
+            }
+        };
+        let mut found = vec![];
+        for accel in Accel::ALL {
+            if !encoders.iter().any(|encoder| encoder == accel.encoder()) {
+                continue;
+            }
+            let scaled = VideoConversion {
+                hardware: Some(accel),
+                tone_map: None,
+                limit: Some(VideoLimit {
+                    size: Some((640, 360)),
+                    bits_per_second: 1_000_000,
+                }),
+                burn_in: None,
+                in_band_headers: true,
+            };
+            if let Err(err) = self.test_encode(TEST_CLIP, &scaled).await {
+                tracing::info!("{} didn't pass its test encode: {err}", accel.name());
+                continue;
+            }
+            let tone_mapped = VideoConversion {
+                tone_map: Some(ToneMapper::Hardware),
+                ..scaled
+            };
+            let tone_maps = accel.has_tone_map_filter()
+                && (self.test_encode(TEST_HDR_CLIP, &tone_mapped).await)
+                    .inspect_err(|err| {
+                        tracing::info!("{} didn't pass its test tone-map: {err}", accel.name());
+                    })
+                    .is_ok();
+            found.push(Hardware { accel, tone_maps });
+        }
+        found
+    }
+
+    /// Converts `clip`, a lavfi source, as `video` says, and throws it away, or says why it failed.
+    async fn test_encode(&self, clip: &str, video: &VideoConversion) -> Result<(), String> {
+        let ffmpeg = self.ffmpeg.as_ref().map_err(Clone::clone)?;
+        // The clip's path matters only to a subtitle burned in, which a test has none of.
+        let VideoArgs {
+            input,
+            video,
+            codec,
+        } = video_args(clip, video);
+        let output = tokio::process::Command::new(&ffmpeg.path)
+            .args(["-v", "error", "-nostdin"])
+            .args(input)
+            .args(["-f", "lavfi", "-i", clip])
+            .args(video)
+            .args(codec)
+            .args(["-force_key_frames", "0", "-f", "null", "-"])
+            .stdin(Stdio::null())
+            .kill_on_drop(true)
+            .output();
+        match tokio::time::timeout(HARDWARE_TEST_TIMEOUT, output).await {
+            Ok(Ok(output)) if output.status.success() => Ok(()),
+            Ok(Ok(output)) => Err(format!(
+                "ffmpeg exited with {}: {}",
+                output.status,
+                String::from_utf8_lossy(&output.stderr).trim()
+            )),
+            Ok(Err(err)) => Err(err.to_string()),
+            Err(_) => Err(format!("it took over {HARDWARE_TEST_TIMEOUT:?}")),
+        }
     }
 
     /// The facts of the file at `path` and its video, audio and subtitle Tracks, as ffprobe reads
@@ -296,15 +399,13 @@ impl Ffmpeg {
         spawn_hls(command, &ffmpeg.version, dir, from.n)
     }
 
-    /// Starts ffmpeg converting the first video of the file at `path` to 8-bit H.264 in software,
-    /// tone-mapping its HDR to SDR if `tone_map`, which needs zscale ([`Self::has_zscale`]), with
-    /// `burn_in` drawn into it, keeping its video within `video`, and its `audio`th audio Track, if
-    /// given, to AAC with the channels given beside it, into fMP4
-    /// in `dir`, from `cuts[0]` to the end. It cuts a file at each of `cuts`, in milliseconds,
-    /// numbered from `n`, such as `3.m4s`, and writes an init segment named by [`hls_init`]
-    /// that's whole once the first file is. A run started at any cut writes the same files, so one
-    /// can pick up where another stopped. Each file appears only once it's whole. Dropping the
-    /// child stops ffmpeg.
+    /// Starts ffmpeg converting the first video of the file at `path` to 8-bit H.264 as `video`
+    /// says, and its `audio`th audio Track, if given, to AAC with the channels given beside it,
+    /// into fMP4 in `dir`, from `cuts[0]` to the end. It cuts a file at each of `cuts`, in
+    /// milliseconds, numbered from `n`, such as `3.m4s`, and writes an init segment named by
+    /// [`hls_init`] that's whole once the first file is. A run started at any cut writes the same
+    /// files, so one can pick up where another stopped. Each file appears only once it's whole.
+    /// Dropping the child stops ffmpeg.
     #[expect(
         clippy::too_many_arguments,
         reason = "as for `remux`: the plan fixes the first three and each run the rest"
@@ -313,9 +414,7 @@ impl Ffmpeg {
         &self,
         path: &str,
         audio: Option<(usize, i64)>,
-        tone_map: bool,
-        video: Option<VideoLimit>,
-        burn_in: Option<BurnIn>,
+        video: &VideoConversion,
         dir: &Path,
         n: usize,
         cuts: &[i64],
@@ -323,6 +422,12 @@ impl Ffmpeg {
         let ffmpeg = (self.ffmpeg.as_ref()).map_err(|why| io::Error::other(why.clone()))?;
         let mut command = tokio::process::Command::new(&ffmpeg.path);
         command.args(["-v", "error", "-nostdin"]);
+        let VideoArgs {
+            input,
+            video: video_input,
+            codec,
+        } = video_args(path, video);
+        command.args(input);
         let start_ms = cuts.first().copied().unwrap_or_default();
         if start_ms > 0 {
             // Decodes from the keyframe before it and drops the frames before it.
@@ -332,22 +437,20 @@ impl Ffmpeg {
         // Times as in the file, so the keyframes forced below fall at the same frames whichever
         // cut a run starts at: `-force_key_frames` expressions time frames from the run's first.
         command.args(["-copyts", "-start_at_zero"]);
-        let size = video.and_then(|video| video.size);
-        command.args(transcoded_video(path, tone_map, burn_in, size));
+        command.args(video_input);
         map_audio(&mut command, audio.map(|(audio, _)| audio));
         // ponytail: a 5-hour Version's cuts near Windows' 32K command line; read them from a
         // file if longer ones fail to Transcode there.
         let cuts: Vec<String> = cuts.iter().map(|&cut| seconds(cut)).collect();
         command
-            // ponytail: assumes the Server's ffmpeg has libx264; check it as ADR 0026 says (#446).
-            .args(["-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p"])
-            // Keyframes only where forced, so each cut starts a file and nothing else does.
-            .args(["-x264-params", "keyint=infinite:scenecut=0"])
+            .args(codec)
             .arg("-force_key_frames")
             .arg(cuts.join(","));
+        // ponytail: at Original, a hardware encoder picks its own rate, which is low on NVENC and
+        // VideoToolbox; set one from the Version's bitrate if that shows.
         if let Some(VideoLimit {
             bits_per_second, ..
-        }) = video
+        }) = video.limit
         {
             let rate = bits_per_second.to_string();
             // Two seconds' worth of buffer lets a busy scene borrow from a quiet one.
@@ -389,7 +492,7 @@ impl Ffmpeg {
 }
 
 /// How a Transcode keeps its video within a Playback Limit.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct VideoLimit {
     /// The width and height it scales the picture to, if it does.
     pub(crate) size: Option<(i64, i64)>,
@@ -397,7 +500,7 @@ pub(crate) struct VideoLimit {
 }
 
 /// A subtitle Track a Transcode burns into the picture.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum BurnIn {
     /// A bitmap, such as PGS, at its place among the file's subtitle streams, counting from 0, laid
     /// over a picture of the width and height given, if known.
@@ -410,20 +513,14 @@ pub(crate) enum BurnIn {
     Text { subtitle: usize },
 }
 
-/// The arguments that take the first video of the file at `path` into a Transcode, tone-mapped to
-/// SDR if `tone_map`, then with `burn_in` drawn into it, then scaled to `size` if given.
+/// The arguments that take the first video of the file at `path` into a Transcode, through
+/// `before`, then with `burn_in` drawn into it, then through `after`.
 fn transcoded_video(
     path: &str,
-    tone_map: bool,
+    before: Option<String>,
     burn_in: Option<BurnIn>,
-    size: Option<(i64, i64)>,
+    after: Option<String>,
 ) -> Vec<String> {
-    // Subtitles are drawn after tone-mapping, which would dim them, and before scaling, so they
-    // shrink with the picture.
-    let before = tone_map.then(|| TONE_MAP.to_owned());
-    // ponytail: the size is from the stored picture, so a rotated phone clip is stretched; swap
-    // its sides once probing reads rotation.
-    let after = size.map(|(width, height)| format!("scale={width}:{height}"));
     let drawn = match burn_in {
         None => None,
         Some(BurnIn::Image { subtitle, picture }) => {
@@ -486,6 +583,97 @@ fn filter_value(value: &str) -> String {
         escaped.push(character);
     }
     escaped
+}
+
+/// How a Transcode converts its video.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct VideoConversion {
+    /// The API it decodes, converts and encodes on, or `None` for software.
+    pub(crate) hardware: Option<Accel>,
+    /// What tone-maps its HDR to SDR, if anything does.
+    pub(crate) tone_map: Option<ToneMapper>,
+    pub(crate) limit: Option<VideoLimit>,
+    /// The subtitle it draws into the picture, if any.
+    pub(crate) burn_in: Option<BurnIn>,
+    /// Whether each file carries the video's headers, so files written by another encoder, as
+    /// when hardware fails and software carries on, play after this one's init segment.
+    pub(crate) in_band_headers: bool,
+}
+
+/// What tone-maps a Transcode's HDR to SDR.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ToneMapper {
+    /// ffmpeg's zscale, which [`Ffmpeg::has_zscale`] says it has.
+    Software,
+    /// The GPU of [`VideoConversion::hardware`], which [`Hardware::tone_maps`] says it can, while
+    /// nothing is burned in.
+    Hardware,
+}
+
+/// The arguments for ffmpeg that convert video as a [`VideoConversion`] says.
+struct VideoArgs {
+    /// Before `-i`.
+    input: Vec<String>,
+    /// After `-i`: which video, and the filters it goes through.
+    video: Vec<String>,
+    /// The encoder, making keyframes only where forced.
+    codec: Vec<String>,
+}
+
+/// The arguments for ffmpeg that convert the first video of the file at `path` as `video` says.
+fn video_args(path: &str, video: &VideoConversion) -> VideoArgs {
+    let size = video.limit.and_then(|limit| limit.size);
+    let mut codec = match video.hardware {
+        // ponytail: assumes the Server's ffmpeg has libx264; check it as ADR 0026 says (#446).
+        None => ["-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p"]
+            .into_iter()
+            // Keyframes only where forced, so each cut starts a file and nothing else does.
+            .chain(["-x264-params", "keyint=infinite:scenecut=0"])
+            .map(str::to_owned)
+            .collect(),
+        Some(accel) => accel.codec(),
+    };
+    if video.in_band_headers {
+        // `avc3` has decoders read the headers before each keyframe rather than the init
+        // segment's, which a player fetched once, from whichever encoder wrote it.
+        codec.extend(["-bsf:v", "dump_extra=freq=keyframe", "-tag:v", "avc3"].map(str::to_owned));
+    }
+    // zscale and subtitles work on frames in memory, so with either the GPU only decodes and
+    // encodes.
+    let on_gpu = (video.hardware)
+        .filter(|_| video.tone_map != Some(ToneMapper::Software) && video.burn_in.is_none())
+        .and_then(|accel| {
+            let tone_map = video.tone_map == Some(ToneMapper::Hardware);
+            Some((accel, accel.gpu_filters(tone_map, size)?))
+        });
+    if let Some((accel, filters)) = on_gpu {
+        return VideoArgs {
+            input: accel.input(true),
+            video: ["-map", "0:V:0", "-vf", &filters].map(str::to_owned).into(),
+            codec,
+        };
+    }
+    // Subtitles are drawn after tone-mapping, which would dim them, and before scaling, so they
+    // shrink with the picture.
+    let before = (video.tone_map.is_some()).then(|| TONE_MAP.to_owned());
+    // ponytail: the size is from the stored picture, so a rotated phone clip is stretched; swap
+    // its sides once probing reads rotation.
+    let scale = size.map(|(width, height)| format!("scale={width}:{height}"));
+    let upload = video.hardware.map(|accel| accel.upload().to_owned());
+    let after: Vec<String> = [scale, upload].into_iter().flatten().collect();
+    VideoArgs {
+        input: video
+            .hardware
+            .map(|accel| accel.input(false))
+            .unwrap_or_default(),
+        video: transcoded_video(
+            path,
+            before,
+            video.burn_in,
+            (!after.is_empty()).then(|| after.join(",")),
+        ),
+        codec,
+    }
 }
 
 /// Has `command` take the `audio`th audio Track, if given.
@@ -985,7 +1173,7 @@ mod tests {
         sync::{PoisonError, RwLock},
     };
 
-    use super::{Ffmpeg, FoundProgram, Keyframe};
+    use super::{Accel, Ffmpeg, FoundProgram, Hardware, Keyframe};
     use crate::config::Config;
 
     /// Held to write a fake, and shared to run them. A child forked while another test has a fake
@@ -1201,6 +1389,10 @@ mod tests {
     }
 
     #[tokio::test]
+    #[expect(
+        clippy::await_holding_lock,
+        reason = "the fakes' lock is held while ffmpeg runs, which forks; a test waits on no other"
+    )]
     async fn without_ffmpeg_or_zscale_among_its_filters_the_server_cant_tone_map() {
         // Prints its arguments, not a filter.
         let echo = Ffmpeg {
@@ -1211,8 +1403,101 @@ mod tests {
             ..Ffmpeg::default()
         };
 
+        let _running = WRITING_FAKES.read().unwrap_or_else(PoisonError::into_inner);
         assert_eq!(echo.has_zscale().await, Ok(false));
         assert_eq!(Ffmpeg::default().has_zscale().await, Ok(false));
+    }
+
+    /// Writes a fake ffmpeg into `dir` that runs `script`, a shell `case` over its arguments, and
+    /// returns it as the Server's ffmpeg.
+    #[expect(
+        clippy::unwrap_used,
+        reason = "a test helper fails its test by panicking"
+    )]
+    fn fake_ffmpeg(dir: &Path, script: &str) -> Ffmpeg {
+        let path = dir.join("ffmpeg");
+        {
+            let _writing = WRITING_FAKES
+                .write()
+                .unwrap_or_else(PoisonError::into_inner);
+            fs::write(
+                &path,
+                format!("#!/bin/sh\ncase \"$*\" in\n{script}\nesac\n"),
+            )
+            .unwrap();
+            fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        Ffmpeg {
+            ffmpeg: Ok(FoundProgram {
+                path,
+                version: "7.1.1".to_owned(),
+            }),
+            ..Ffmpeg::default()
+        }
+    }
+
+    #[tokio::test]
+    #[expect(
+        clippy::await_holding_lock,
+        reason = "the fakes' lock is held while ffmpeg runs, which forks; a test waits on no other"
+    )]
+    async fn only_hardware_ffmpeg_lists_and_that_passes_its_test_encode_is_found() {
+        let bin = tempfile::tempdir().unwrap();
+        let ffmpeg = fake_ffmpeg(
+            bin.path(),
+            // NVENC is listed but fails, as without NVIDIA's driver; QSV isn't listed at all.
+            "*-encoders*) echo ' V....D h264_vaapi  H.264/AVC (VAAPI)'; \
+                          echo ' V....D h264_nvenc  NVIDIA NVENC H.264 encoder' ;;
+             *tonemap_vaapi*) exit 1 ;;
+             *h264_vaapi*) exit 0 ;;
+             *) exit 1 ;;",
+        );
+
+        let found = {
+            let _running = WRITING_FAKES.read().unwrap_or_else(PoisonError::into_inner);
+            ffmpeg.find_hardware().await
+        };
+
+        assert_eq!(
+            found,
+            [Hardware {
+                accel: Accel::Vaapi,
+                tone_maps: false,
+            }]
+        );
+    }
+
+    #[tokio::test]
+    #[expect(
+        clippy::await_holding_lock,
+        reason = "the fakes' lock is held while ffmpeg runs, which forks; a test waits on no other"
+    )]
+    async fn hardware_that_passes_its_tone_map_test_tone_maps() {
+        let bin = tempfile::tempdir().unwrap();
+        let ffmpeg = fake_ffmpeg(
+            bin.path(),
+            "*-encoders*) echo ' V..... h264_qsv  H.264 (Intel Quick Sync Video acceleration)' ;;
+             *h264_qsv*) exit 0 ;;
+             *) exit 1 ;;",
+        );
+
+        let found = {
+            let _running = WRITING_FAKES.read().unwrap_or_else(PoisonError::into_inner);
+            ffmpeg.find_hardware().await
+        };
+
+        assert_eq!(
+            found,
+            [Hardware {
+                accel: Accel::Qsv,
+                tone_maps: true,
+            }]
+        );
+    }
+
+    #[tokio::test]
+    async fn without_ffmpeg_no_hardware_is_found() {
+        assert_eq!(Ffmpeg::default().find_hardware().await, []);
     }
 
     #[tokio::test]
@@ -1481,7 +1766,10 @@ mod probe_output_tests {
 mod hls_tests {
     use std::{fs, path::Path};
 
-    use super::{Ffmpeg, Keyframe, write_h264_with_5_1, write_hevc_with_5_1, write_test_media};
+    use super::{
+        Ffmpeg, Keyframe, ToneMapper, VideoConversion, VideoLimit, write_h264_with_5_1,
+        write_hevc_with_5_1, write_test_media,
+    };
     use crate::config::Config;
 
     /// The ffmpeg and ffprobe on `PATH`, which these tests need.
@@ -1523,9 +1811,13 @@ mod hls_tests {
             .transcode(
                 path.to_str().unwrap(),
                 Some((0, 2)),
-                false,
-                None,
-                None,
+                &VideoConversion {
+                    hardware: None,
+                    tone_map: None,
+                    limit: None,
+                    burn_in: None,
+                    in_band_headers: false,
+                },
                 dir,
                 n,
                 &cuts[n..],
@@ -1564,22 +1856,75 @@ mod hls_tests {
         .unwrap();
         let dir = work.path().join("transcoded");
         fs::create_dir_all(&dir).unwrap();
+        let tone_mapped = VideoConversion {
+            hardware: None,
+            tone_map: Some(ToneMapper::Software),
+            limit: None,
+            burn_in: None,
+            in_band_headers: false,
+        };
+
+        let output = ffmpeg
+            .transcode(file.to_str().unwrap(), None, &tone_mapped, &dir, 0, &[0])
+            .unwrap();
+
+        let output = output.wait_with_output().await.unwrap();
+        assert!(output.status.success(), "{output:?}");
+    }
+
+    /// Run by hand where there is a GPU: `cargo test -p nama-server --lib -- --ignored hardware`.
+    #[tokio::test]
+    #[ignore = "needs a GPU that ffmpeg can use"]
+    async fn hardware_found_on_this_host_transcodes_cut_at_every_cut_and_tone_maps_hdr10() {
+        let ffmpeg = system_ffmpeg();
+        let found = ffmpeg.find_hardware().await;
+        let hardware = *found.first().expect("no hardware passed its test encode");
+        let work = tempfile::tempdir().unwrap();
+        let file = work.path().join("hdr10.mkv");
+        write_test_media(&file, |command| {
+            command
+                .args(["-f", "lavfi", "-i", "testsrc2=size=3840x2160:rate=24"])
+                .args(["-t", "20", "-c:v", "libx265", "-preset", "ultrafast"])
+                .args(["-pix_fmt", "yuv420p10le", "-x265-params"])
+                .arg("log-level=error:colorprim=bt2020:transfer=smpte2084:colormatrix=bt2020nc")
+                .args(["-f", "matroska"])
+        })
+        .unwrap();
+        let tone_map = if hardware.tone_maps {
+            ToneMapper::Hardware
+        } else {
+            ToneMapper::Software
+        };
+        let video = VideoConversion {
+            hardware: Some(hardware.accel),
+            tone_map: Some(tone_map),
+            limit: Some(VideoLimit {
+                size: Some((1920, 1080)),
+                bits_per_second: 8_000_000,
+            }),
+            burn_in: None,
+            in_band_headers: true,
+        };
+        let dir = work.path().join("transcoded");
+        fs::create_dir_all(&dir).unwrap();
 
         let output = ffmpeg
             .transcode(
                 file.to_str().unwrap(),
                 None,
-                true,
-                None,
-                None,
+                &video,
                 &dir,
                 0,
-                &[0],
+                &[0, 6000, 12_000, 18_000],
             )
             .unwrap();
 
         let output = output.wait_with_output().await.unwrap();
-        assert!(output.status.success(), "{output:?}");
+        assert!(output.status.success(), "{hardware:?}: {output:?}");
+        for n in 0..4 {
+            assert!(dir.join(format!("{n}.m4s")).exists(), "{n}.m4s");
+        }
+        assert!(!dir.join("4.m4s").exists(), "a keyframe of its own");
     }
 
     #[tokio::test]

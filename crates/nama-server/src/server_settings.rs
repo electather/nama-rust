@@ -1,6 +1,7 @@
 //! What an admin sets about the Server as a whole, kept in the database: so far its URL, which
-//! notifications link to the web app with, the folder playback writes segment files to, and the
-//! most Transcodes it runs at once, and the default Playback Limit for remote playback.
+//! notifications link to the web app with, the folder playback writes segment files to, the
+//! most Transcodes it runs at once, what they run on, and the default Playback Limit for remote
+//! playback.
 
 use std::{
     path::{Path, PathBuf},
@@ -12,7 +13,7 @@ use std::{
 
 use nama_plugin_api::settings::{SettingKind, SettingValue};
 
-use crate::{db::Database, playback::PlaybackLimit};
+use crate::{db::Database, ffmpeg::Accel, playback::PlaybackLimit};
 
 /// The address people reach the Server at, or `""` for none, held in memory so that building a
 /// notification doesn't read the database. Clones share it.
@@ -161,35 +162,26 @@ impl SegmentFolder {
     }
 }
 
-/// The most Transcodes the Server runs at once, out of the box.
-const DEFAULT_MAX_TRANSCODES: u32 = 2;
-
-/// The most Transcodes the Server runs at once, held in memory so that planning doesn't read the
-/// database. Clones share it.
-#[derive(Debug, Clone)]
+/// The most Transcodes the Server runs at once, as an admin set it, held in memory so that
+/// planning doesn't read the database. Unset, the default, depends on what they run on
+/// (`RunningPlans::transcodes_full`). Clones share it.
+#[derive(Debug, Clone, Default)]
 pub(crate) struct MaxTranscodes(Arc<AtomicU32>);
-
-impl Default for MaxTranscodes {
-    fn default() -> Self {
-        Self(Arc::new(AtomicU32::new(DEFAULT_MAX_TRANSCODES)))
-    }
-}
 
 impl MaxTranscodes {
     /// Takes the stored cap, if any, as this one.
     pub(crate) async fn load(&self, db: &Database) -> Result<(), sqlx::Error> {
         let stored = sqlx::query_scalar!("SELECT max_transcodes FROM server_settings")
             .fetch_optional(db.reader())
-            .await?;
-        if let Some(stored) = stored {
-            // Only `save` writes it, from a `u32`.
-            self.set(u32::try_from(stored).unwrap_or(DEFAULT_MAX_TRANSCODES));
-        }
+            .await?
+            .flatten();
+        // Only `save` writes it, from a `u32` of at least 1.
+        self.set(stored.and_then(|stored| u32::try_from(stored).ok()));
         Ok(())
     }
 
-    /// Stores `max` and uses it for plans made from now on.
-    pub(crate) async fn save(&self, db: &Database, max: u32) -> Result<(), sqlx::Error> {
+    /// Stores `max`, at least 1 or `None` for the default, and uses it for plans made from now on.
+    pub(crate) async fn save(&self, db: &Database, max: Option<u32>) -> Result<(), sqlx::Error> {
         let this = self.clone();
         db.write(move |tx| {
             Box::pin(async move {
@@ -208,13 +200,104 @@ impl MaxTranscodes {
         .await
     }
 
-    /// The cap now.
-    pub(crate) fn get(&self) -> u32 {
-        self.0.load(Ordering::Relaxed)
+    /// The cap as set, or `None` for the default.
+    pub(crate) fn get(&self) -> Option<u32> {
+        // 0 stands for unset, as a cap is at least 1.
+        Some(self.0.load(Ordering::Relaxed)).filter(|&max| max > 0)
     }
 
-    fn set(&self, max: u32) {
-        self.0.store(max, Ordering::Relaxed);
+    fn set(&self, max: Option<u32>) {
+        self.0.store(max.unwrap_or_default(), Ordering::Relaxed);
+    }
+}
+
+/// What an admin chose for Transcodes to run on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub(crate) enum HardwareChoice {
+    /// The first API that passed its test at startup, or software without one.
+    #[default]
+    Automatic,
+    /// Software only.
+    Off,
+    /// This API, if it passed its test at startup, or else software.
+    Api(Accel),
+}
+
+impl HardwareChoice {
+    /// As the database stores it.
+    const fn stored(self) -> &'static str {
+        match self {
+            Self::Automatic => "",
+            Self::Off => "off",
+            Self::Api(Accel::Nvenc) => "nvenc",
+            Self::Api(Accel::Qsv) => "qsv",
+            Self::Api(Accel::Vaapi) => "vaapi",
+            Self::Api(Accel::VideoToolbox) => "videotoolbox",
+        }
+    }
+
+    /// The choice the database stores as `stored`, Automatic for one this Server doesn't know.
+    fn from_stored(stored: &str) -> Self {
+        std::iter::once(Self::Off)
+            .chain(Accel::ALL.map(Self::Api))
+            .find(|choice| choice.stored() == stored)
+            .unwrap_or_default()
+    }
+}
+
+/// What an admin chose for Transcodes to run on, held in memory so that planning doesn't read the
+/// database. Clones share it.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct HardwareAcceleration(Arc<RwLock<HardwareChoice>>);
+
+impl HardwareAcceleration {
+    /// Takes the stored choice, if any, as this one.
+    pub(crate) async fn load(&self, db: &Database) -> Result<(), sqlx::Error> {
+        let stored = sqlx::query_scalar!("SELECT hardware_acceleration FROM server_settings")
+            .fetch_optional(db.reader())
+            .await?;
+        self.set(
+            stored
+                .as_deref()
+                .map(HardwareChoice::from_stored)
+                .unwrap_or_default(),
+        );
+        Ok(())
+    }
+
+    /// Stores `choice` and uses it for plans made from now on.
+    pub(crate) async fn save(
+        &self,
+        db: &Database,
+        choice: HardwareChoice,
+    ) -> Result<(), sqlx::Error> {
+        let this = self.clone();
+        db.write(move |tx| {
+            Box::pin(async move {
+                let stored = choice.stored();
+                sqlx::query!(
+                    "INSERT INTO server_settings (id, url, hardware_acceleration) VALUES (1, '', ?)
+                     ON CONFLICT (id) DO UPDATE
+                     SET hardware_acceleration = excluded.hardware_acceleration",
+                    stored
+                )
+                .execute(&mut **tx)
+                .await?;
+                // On the one writer, as `ServerUrl::save` does, so saves take effect in order.
+                this.set(choice);
+                Ok::<_, sqlx::Error>(())
+            })
+        })
+        .await
+    }
+
+    /// The choice now.
+    pub(crate) fn get(&self) -> HardwareChoice {
+        *self.0.read().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn set(&self, choice: HardwareChoice) {
+        *self.0.write().unwrap_or_else(PoisonError::into_inner) = choice;
     }
 }
 
@@ -271,8 +354,11 @@ impl RemotePlaybackLimit {
 
 #[cfg(test)]
 mod tests {
-    use super::{MaxTranscodes, RemotePlaybackLimit, SegmentFolder, ServerUrl};
-    use crate::{db::Database, playback::PlaybackLimit};
+    use super::{
+        HardwareAcceleration, HardwareChoice, MaxTranscodes, RemotePlaybackLimit, SegmentFolder,
+        ServerUrl,
+    };
+    use crate::{db::Database, ffmpeg::Accel, playback::PlaybackLimit};
 
     #[tokio::test]
     async fn a_saved_url_is_loaded_again_after_a_restart() {
@@ -338,18 +424,36 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn the_transcode_cap_is_2_until_one_is_saved_which_is_loaded_again_after_a_restart() {
+    async fn the_transcode_cap_is_unset_until_one_is_saved_which_is_loaded_again_after_a_restart() {
         let data_dir = tempfile::tempdir().unwrap();
         let db = Database::open(data_dir.path()).await.unwrap();
         let unsaved = MaxTranscodes::default();
         unsaved.load(&db).await.unwrap();
-        assert_eq!(unsaved.get(), 2);
-        unsaved.save(&db, 5).await.unwrap();
+        assert_eq!(unsaved.get(), None);
+        unsaved.save(&db, Some(5)).await.unwrap();
 
         let restarted = MaxTranscodes::default();
         restarted.load(&db).await.unwrap();
+        assert_eq!(restarted.get(), Some(5));
+        restarted.save(&db, None).await.unwrap();
+        restarted.load(&db).await.unwrap();
+        assert_eq!(restarted.get(), None);
+    }
 
-        assert_eq!(restarted.get(), 5);
+    #[tokio::test]
+    async fn hardware_acceleration_is_automatic_until_a_choice_is_saved_and_loaded_again() {
+        let data_dir = tempfile::tempdir().unwrap();
+        let db = Database::open(data_dir.path()).await.unwrap();
+        let unsaved = HardwareAcceleration::default();
+        unsaved.load(&db).await.unwrap();
+        assert_eq!(unsaved.get(), HardwareChoice::Automatic);
+
+        for choice in [HardwareChoice::Api(Accel::Vaapi), HardwareChoice::Off] {
+            unsaved.save(&db, choice).await.unwrap();
+            let restarted = HardwareAcceleration::default();
+            restarted.load(&db).await.unwrap();
+            assert_eq!(restarted.get(), choice);
+        }
     }
 
     #[test]

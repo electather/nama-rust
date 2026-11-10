@@ -71,6 +71,8 @@ fn playback(event: &Event) -> Option<(&'static str, &Playback)> {
         Some(("started", &started.playback))
     } else if let Some(Happened::PlaybackEnded(ended)) = &event.event {
         Some(("ended", &ended.playback))
+    } else if let Some(Happened::PlaybackChanged(changed)) = &event.event {
+        Some(("changed", &changed.playback))
     } else {
         None
     }

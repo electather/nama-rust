@@ -370,6 +370,10 @@ fn classify(event: &Event) -> Option<(EventType, About<'_>)> {
             T::EVENT_TYPE_PLAYBACK_ENDED,
             Player(e.playback.as_option()?.user_id),
         ),
+        E::PlaybackChanged(e) => (
+            T::EVENT_TYPE_PLAYBACK_CHANGED,
+            Player(e.playback.as_option()?.user_id),
+        ),
     })
 }
 

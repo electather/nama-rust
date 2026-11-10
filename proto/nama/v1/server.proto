@@ -21,8 +21,8 @@ service ServerService {
     option idempotency_level = IDEMPOTENT;
   }
   // Returns the ffmpeg and ffprobe the Server found at startup, which it needs to Remux and
-  // Transcode, or why it can't use them; without both it only Direct Plays. Needs
-  // `PERMISSION_ADMIN`.
+  // Transcode, or why it can't use them; without both it only Direct Plays. Also returns the
+  // hardware acceleration that passed its test at startup. Needs `PERMISSION_ADMIN`.
   rpc GetPlaybackStatus(GetPlaybackStatusRequest) returns (GetPlaybackStatusResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
@@ -32,7 +32,7 @@ service ServerService {
   }
   // Replaces how the Server plays Versions it changes, for plans made from then on. Needs
   // `PERMISSION_ADMIN`. A `segment_folder` that isn't an absolute path is refused with
-  // `REFUSAL_REASON_FOLDER_NOT_ABSOLUTE` naming it, a `max_transcodes` of 0 with
+  // `REFUSAL_REASON_FOLDER_NOT_ABSOLUTE` naming it, a `max_transcodes` set to 0 with
   // `REFUSAL_REASON_FIELD_REQUIRED` naming it, and nothing changes.
   rpc UpdatePlaybackSettings(UpdatePlaybackSettingsRequest) returns (UpdatePlaybackSettingsResponse) {
     option idempotency_level = IDEMPOTENT;
@@ -85,6 +85,34 @@ message GetPlaybackStatusResponse {
   string ffmpeg_problem = 3;
   // Why the Server can't use ffprobe, in plain words. Empty when it can.
   string ffprobe_problem = 4;
+  // The hardware acceleration APIs that passed a test encode at startup, the one Automatic picks
+  // first. Empty without ffmpeg, a GPU, or an ffmpeg built for one.
+  repeated FoundHardware hardware = 5;
+}
+
+// A hardware acceleration API that passed its test encode at startup.
+message FoundHardware {
+  // Which API. Never `HARDWARE_ACCELERATION_UNSPECIFIED` or `HARDWARE_ACCELERATION_OFF`.
+  HardwareAcceleration api = 1;
+  // Whether it also passed tone-mapping HDR to SDR on the GPU. Without it, a Transcode of HDR
+  // for an SDR screen tone-maps in software between decoding and encoding on the GPU.
+  bool tone_maps = 2;
+}
+
+// What a Transcode decodes, scales, tone-maps and encodes its video with.
+enum HardwareAcceleration {
+  // Automatic: the first API that passed its test encode at startup, or software without one.
+  HARDWARE_ACCELERATION_UNSPECIFIED = 0;
+  // Software only.
+  HARDWARE_ACCELERATION_OFF = 1;
+  // VAAPI, for Intel and AMD on Linux.
+  HARDWARE_ACCELERATION_VAAPI = 2;
+  // Intel Quick Sync Video.
+  HARDWARE_ACCELERATION_QSV = 3;
+  // NVIDIA NVENC and NVDEC.
+  HARDWARE_ACCELERATION_NVENC = 4;
+  // Apple VideoToolbox.
+  HARDWARE_ACCELERATION_VIDEOTOOLBOX = 5;
 }
 
 // A program the Server found and runs, such as ffmpeg.
@@ -116,11 +144,14 @@ message PlaybackSettings {
   // tmpfs's. Each plan's files go in a folder of their own inside it, deleted a minute after the
   // plan was last asked for. Empty, the default, for `transcodes` in the Server's data folder.
   string segment_folder = 1;
-  // The most Transcodes the Server runs at once, at least 1, and 2 out of the box; Remuxes don't
-  // count. A plan that only a Transcode would play is refused while that many run.
-  uint32 max_transcodes = 2;
+  // The most Transcodes the Server runs at once, at least 1; Remuxes don't count. A plan that
+  // only a Transcode would play is refused while that many run. Unset for the default: no limit
+  // while Transcodes use hardware acceleration, and 2 while they run in software.
+  optional uint32 max_transcodes = 2;
   // The Playback Limit for a Device whose address isn't on the local network, until its User
   // picks one in the player. `PLAYBACK_LIMIT_ORIGINAL`, the default, for none; unset is taken as
   // that.
   PlaybackLimit remote_playback_limit = 3;
+  // What Transcodes run on. One that didn't pass its test at startup leaves them in software.
+  HardwareAcceleration hardware_acceleration = 4;
 }

@@ -4,7 +4,7 @@ import { expect, test } from "vite-plus/test";
 
 import { PlaybackLimit } from "@/gen/nama/v1/playback_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
-import type { UpdatePlaybackSettingsRequest } from "@/gen/nama/v1/server_pb";
+import { HardwareAcceleration, type UpdatePlaybackSettingsRequest } from "@/gen/nama/v1/server_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
 
 import { admin, fakeServer, fill, openApp } from "./test-app";
@@ -56,6 +56,38 @@ test("without a usable ffmpeg the Playback page says why and that the Server can
   expect(screen.getByText(/can only Direct Play/u)).toBeDefined();
 });
 
+test("an Admin sees the hardware acceleration that passed its test and whether it tone-maps", async () => {
+  openApp(
+    "/admin/playback",
+    fakeServer({
+      signedIn: admin,
+      serverService: {
+        getPlaybackStatus: () => ({
+          hardware: [
+            { api: HardwareAcceleration.NVENC, toneMaps: true },
+            { api: HardwareAcceleration.VAAPI, toneMaps: false },
+          ],
+        }),
+      },
+    }),
+  );
+
+  expect(await screen.findByRole("heading", { name: "NVIDIA NVENC" })).toBeDefined();
+  expect(screen.getByRole("heading", { name: "VAAPI" })).toBeDefined();
+  expect(screen.getByText(/on the GPU too\. Automatic picks this one\./u)).toBeDefined();
+  expect(screen.getByText(/in software, between decoding/u)).toBeDefined();
+  expect(screen.queryByText(/Transcodes run in software/u)).toBeNull();
+});
+
+test("without hardware acceleration the Playback page says Transcodes run in software", async () => {
+  openApp(
+    "/admin/playback",
+    fakeServer({ signedIn: admin, serverService: { getPlaybackStatus: () => ({}) } }),
+  );
+
+  expect(await screen.findByText(/Transcodes run in software/u)).toBeDefined();
+});
+
 test("a User who manages settings but isn’t an Admin can’t open the Playback page", async () => {
   openApp("/admin/playback", fakeServer({ signedIn: [Permission.MANAGE_SETTINGS] }));
 
@@ -93,7 +125,60 @@ test("an Admin sets the segment folder and the Transcodes at once on the Playbac
   ]);
 });
 
-test("an Admin sets the default Playback Limit for remote playback, which starts at Original", async () => {
+test("an Admin who leaves Transcodes at once empty sends it unset", async () => {
+  const updates: UpdatePlaybackSettingsRequest[] = [];
+  openApp(
+    "/admin/playback",
+    fakeServer({
+      signedIn: admin,
+      serverService: {
+        getPlaybackStatus: () => ({}),
+        getPlaybackSettings: () => ({ settings: { maxTranscodes: 2 } }),
+        updatePlaybackSettings: (request) => {
+          updates.push(request);
+          return { settings: request.settings };
+        },
+      },
+    }),
+  );
+
+  await screen.findByLabelText("Transcodes at once");
+  fill("Transcodes at once", "");
+  fireEvent.click(screen.getByRole("button", { name: "Save playback settings" }));
+
+  expect(await screen.findByText("Saved.")).toBeDefined();
+  expect(updates[0]?.settings?.maxTranscodes).toBeUndefined();
+});
+
+test("an Admin chooses hardware acceleration that passed its test", async () => {
+  const updates: UpdatePlaybackSettingsRequest[] = [];
+  openApp(
+    "/admin/playback",
+    fakeServer({
+      signedIn: admin,
+      serverService: {
+        getPlaybackStatus: () => ({
+          hardware: [{ api: HardwareAcceleration.QSV, toneMaps: true }],
+        }),
+        getPlaybackSettings: () => ({ settings: {} }),
+        updatePlaybackSettings: (request) => {
+          updates.push(request);
+          return { settings: request.settings };
+        },
+      },
+    }),
+  );
+
+  const choice = await screen.findByRole("combobox", { name: "Hardware acceleration" });
+  expect(choice).toHaveProperty("value", String(HardwareAcceleration.UNSPECIFIED));
+  fireEvent.change(choice, { target: { value: String(HardwareAcceleration.QSV) } });
+  fireEvent.click(screen.getByRole("button", { name: "Save playback settings" }));
+
+  expect(await screen.findByText("Saved.")).toBeDefined();
+  expect(updates).toMatchObject([{ settings: { hardwareAcceleration: HardwareAcceleration.QSV } }]);
+});
+
+test("a saved hardware acceleration that didn't pass its test stays chosen", async () => {
   const updates: UpdatePlaybackSettingsRequest[] = [];
   openApp(
     "/admin/playback",
@@ -102,11 +187,7 @@ test("an Admin sets the default Playback Limit for remote playback, which starts
       serverService: {
         getPlaybackStatus: () => ({}),
         getPlaybackSettings: () => ({
-          settings: {
-            segmentFolder: "/srv/segments",
-            maxTranscodes: 2,
-            remotePlaybackLimit: PlaybackLimit.PLAYBACK_LIMIT_ORIGINAL,
-          },
+          settings: { hardwareAcceleration: HardwareAcceleration.NVENC },
         }),
         updatePlaybackSettings: (request) => {
           updates.push(request);
@@ -115,24 +196,13 @@ test("an Admin sets the default Playback Limit for remote playback, which starts
       },
     }),
   );
-  const limit = "Default Playback Limit for remote playback";
 
-  const select = await screen.findByLabelText<HTMLSelectElement>(limit);
-  const offered = [...select.options].map((option) => option.text);
-  expect(select.selectedOptions[0]?.text).toBe("Original");
-  fireEvent.change(select, { target: { value: String(PlaybackLimit.PLAYBACK_LIMIT_720P) } });
+  expect(await screen.findByRole("option", { name: "NVIDIA NVENC", selected: true })).toBeDefined();
   fireEvent.click(screen.getByRole("button", { name: "Save playback settings" }));
 
   expect(await screen.findByText("Saved.")).toBeDefined();
-  expect(offered).toEqual(["Original", "1080p", "720p", "480p"]);
   expect(updates).toMatchObject([
-    {
-      settings: {
-        segmentFolder: "/srv/segments",
-        maxTranscodes: 2,
-        remotePlaybackLimit: PlaybackLimit.PLAYBACK_LIMIT_720P,
-      },
-    },
+    { settings: { hardwareAcceleration: HardwareAcceleration.NVENC } },
   ]);
 });
 
@@ -183,4 +253,47 @@ test("a Transcodes at once the Server refuses as missing is refused under its fi
   fireEvent.click(screen.getByRole("button", { name: "Save playback settings" }));
 
   await expectUnderField("Transcodes at once", "The most Transcodes at once must be at least 1.");
+});
+
+test("an Admin sets the default Playback Limit for remote playback, which starts at Original", async () => {
+  const updates: UpdatePlaybackSettingsRequest[] = [];
+  openApp(
+    "/admin/playback",
+    fakeServer({
+      signedIn: admin,
+      serverService: {
+        getPlaybackStatus: () => ({}),
+        getPlaybackSettings: () => ({
+          settings: {
+            segmentFolder: "/srv/segments",
+            maxTranscodes: 2,
+            remotePlaybackLimit: PlaybackLimit.PLAYBACK_LIMIT_ORIGINAL,
+          },
+        }),
+        updatePlaybackSettings: (request) => {
+          updates.push(request);
+          return { settings: request.settings };
+        },
+      },
+    }),
+  );
+  const limit = "Default Playback Limit for remote playback";
+
+  const select = await screen.findByLabelText<HTMLSelectElement>(limit);
+  const offered = [...select.options].map((option) => option.text);
+  expect(select.selectedOptions[0]?.text).toBe("Original");
+  fireEvent.change(select, { target: { value: String(PlaybackLimit.PLAYBACK_LIMIT_720P) } });
+  fireEvent.click(screen.getByRole("button", { name: "Save playback settings" }));
+
+  expect(await screen.findByText("Saved.")).toBeDefined();
+  expect(offered).toEqual(["Original", "1080p", "720p", "480p"]);
+  expect(updates).toMatchObject([
+    {
+      settings: {
+        segmentFolder: "/srv/segments",
+        maxTranscodes: 2,
+        remotePlaybackLimit: PlaybackLimit.PLAYBACK_LIMIT_720P,
+      },
+    },
+  ]);
 });

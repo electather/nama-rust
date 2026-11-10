@@ -2,17 +2,17 @@
 // @generated from file nama/v1/server.proto (package nama.v1, syntax proto3)
 /* eslint-disable */
 
-import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
-import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
+import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
+import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
 import type { PlaybackLimit } from "./playback_pb";
 import { file_nama_v1_playback } from "./playback_pb";
-import type { Message } from "@bufbuild/protobuf";
+import type { Message, UnknownEnum } from "@bufbuild/protobuf";
 
 /**
  * Describes the file nama/v1/server.proto.
  */
 export const file_nama_v1_server: GenFile = /*@__PURE__*/
-  fileDesc("ChRuYW1hL3YxL3NlcnZlci5wcm90bxIHbmFtYS52MSIWChRHZXRTZXJ2ZXJJbmZvUmVxdWVzdCJOChVHZXRTZXJ2ZXJJbmZvUmVzcG9uc2USDAoEbmFtZRgBIAEoCRIPCgd2ZXJzaW9uGAIgASgJEhYKDnNldHVwX3JlcXVpcmVkGAMgASgIIhoKGEdldFNlcnZlclNldHRpbmdzUmVxdWVzdCJGChlHZXRTZXJ2ZXJTZXR0aW5nc1Jlc3BvbnNlEikKCHNldHRpbmdzGAEgASgLMhcubmFtYS52MS5TZXJ2ZXJTZXR0aW5ncyJIChtVcGRhdGVTZXJ2ZXJTZXR0aW5nc1JlcXVlc3QSKQoIc2V0dGluZ3MYASABKAsyFy5uYW1hLnYxLlNlcnZlclNldHRpbmdzIkkKHFVwZGF0ZVNlcnZlclNldHRpbmdzUmVzcG9uc2USKQoIc2V0dGluZ3MYASABKAsyFy5uYW1hLnYxLlNlcnZlclNldHRpbmdzIh0KDlNlcnZlclNldHRpbmdzEgsKA3VybBgBIAEoCSIaChhHZXRQbGF5YmFja1N0YXR1c1JlcXVlc3QimwEKGUdldFBsYXliYWNrU3RhdHVzUmVzcG9uc2USJQoGZmZtcGVnGAEgASgLMhUubmFtYS52MS5Gb3VuZFByb2dyYW0SJgoHZmZwcm9iZRgCIAEoCzIVLm5hbWEudjEuRm91bmRQcm9ncmFtEhYKDmZmbXBlZ19wcm9ibGVtGAMgASgJEhcKD2ZmcHJvYmVfcHJvYmxlbRgEIAEoCSItCgxGb3VuZFByb2dyYW0SDAoEcGF0aBgBIAEoCRIPCgd2ZXJzaW9uGAIgASgJIhwKGkdldFBsYXliYWNrU2V0dGluZ3NSZXF1ZXN0IkoKG0dldFBsYXliYWNrU2V0dGluZ3NSZXNwb25zZRIrCghzZXR0aW5ncxgBIAEoCzIZLm5hbWEudjEuUGxheWJhY2tTZXR0aW5ncyJMCh1VcGRhdGVQbGF5YmFja1NldHRpbmdzUmVxdWVzdBIrCghzZXR0aW5ncxgBIAEoCzIZLm5hbWEudjEuUGxheWJhY2tTZXR0aW5ncyJNCh5VcGRhdGVQbGF5YmFja1NldHRpbmdzUmVzcG9uc2USKwoIc2V0dGluZ3MYASABKAsyGS5uYW1hLnYxLlBsYXliYWNrU2V0dGluZ3MieQoQUGxheWJhY2tTZXR0aW5ncxIWCg5zZWdtZW50X2ZvbGRlchgBIAEoCRIWCg5tYXhfdHJhbnNjb2RlcxgCIAEoDRI1ChVyZW1vdGVfcGxheWJhY2tfbGltaXQYAyABKA4yFi5uYW1hLnYxLlBsYXliYWNrTGltaXQy5wQKDVNlcnZlclNlcnZpY2USUwoNR2V0U2VydmVySW5mbxIdLm5hbWEudjEuR2V0U2VydmVySW5mb1JlcXVlc3QaHi5uYW1hLnYxLkdldFNlcnZlckluZm9SZXNwb25zZSIDkAIBEl8KEUdldFNlcnZlclNldHRpbmdzEiEubmFtYS52MS5HZXRTZXJ2ZXJTZXR0aW5nc1JlcXVlc3QaIi5uYW1hLnYxLkdldFNlcnZlclNldHRpbmdzUmVzcG9uc2UiA5ACARJoChRVcGRhdGVTZXJ2ZXJTZXR0aW5ncxIkLm5hbWEudjEuVXBkYXRlU2VydmVyU2V0dGluZ3NSZXF1ZXN0GiUubmFtYS52MS5VcGRhdGVTZXJ2ZXJTZXR0aW5nc1Jlc3BvbnNlIgOQAgISXwoRR2V0UGxheWJhY2tTdGF0dXMSIS5uYW1hLnYxLkdldFBsYXliYWNrU3RhdHVzUmVxdWVzdBoiLm5hbWEudjEuR2V0UGxheWJhY2tTdGF0dXNSZXNwb25zZSIDkAIBEmUKE0dldFBsYXliYWNrU2V0dGluZ3MSIy5uYW1hLnYxLkdldFBsYXliYWNrU2V0dGluZ3NSZXF1ZXN0GiQubmFtYS52MS5HZXRQbGF5YmFja1NldHRpbmdzUmVzcG9uc2UiA5ACARJuChZVcGRhdGVQbGF5YmFja1NldHRpbmdzEiYubmFtYS52MS5VcGRhdGVQbGF5YmFja1NldHRpbmdzUmVxdWVzdBonLm5hbWEudjEuVXBkYXRlUGxheWJhY2tTZXR0aW5nc1Jlc3BvbnNlIgOQAgJiBnByb3RvMw", [file_nama_v1_playback]);
+  fileDesc("ChRuYW1hL3YxL3NlcnZlci5wcm90bxIHbmFtYS52MSIWChRHZXRTZXJ2ZXJJbmZvUmVxdWVzdCJOChVHZXRTZXJ2ZXJJbmZvUmVzcG9uc2USDAoEbmFtZRgBIAEoCRIPCgd2ZXJzaW9uGAIgASgJEhYKDnNldHVwX3JlcXVpcmVkGAMgASgIIhoKGEdldFNlcnZlclNldHRpbmdzUmVxdWVzdCJGChlHZXRTZXJ2ZXJTZXR0aW5nc1Jlc3BvbnNlEikKCHNldHRpbmdzGAEgASgLMhcubmFtYS52MS5TZXJ2ZXJTZXR0aW5ncyJIChtVcGRhdGVTZXJ2ZXJTZXR0aW5nc1JlcXVlc3QSKQoIc2V0dGluZ3MYASABKAsyFy5uYW1hLnYxLlNlcnZlclNldHRpbmdzIkkKHFVwZGF0ZVNlcnZlclNldHRpbmdzUmVzcG9uc2USKQoIc2V0dGluZ3MYASABKAsyFy5uYW1hLnYxLlNlcnZlclNldHRpbmdzIh0KDlNlcnZlclNldHRpbmdzEgsKA3VybBgBIAEoCSIaChhHZXRQbGF5YmFja1N0YXR1c1JlcXVlc3QixQEKGUdldFBsYXliYWNrU3RhdHVzUmVzcG9uc2USJQoGZmZtcGVnGAEgASgLMhUubmFtYS52MS5Gb3VuZFByb2dyYW0SJgoHZmZwcm9iZRgCIAEoCzIVLm5hbWEudjEuRm91bmRQcm9ncmFtEhYKDmZmbXBlZ19wcm9ibGVtGAMgASgJEhcKD2ZmcHJvYmVfcHJvYmxlbRgEIAEoCRIoCghoYXJkd2FyZRgFIAMoCzIWLm5hbWEudjEuRm91bmRIYXJkd2FyZSJOCg1Gb3VuZEhhcmR3YXJlEioKA2FwaRgBIAEoDjIdLm5hbWEudjEuSGFyZHdhcmVBY2NlbGVyYXRpb24SEQoJdG9uZV9tYXBzGAIgASgIIi0KDEZvdW5kUHJvZ3JhbRIMCgRwYXRoGAEgASgJEg8KB3ZlcnNpb24YAiABKAkiHAoaR2V0UGxheWJhY2tTZXR0aW5nc1JlcXVlc3QiSgobR2V0UGxheWJhY2tTZXR0aW5nc1Jlc3BvbnNlEisKCHNldHRpbmdzGAEgASgLMhkubmFtYS52MS5QbGF5YmFja1NldHRpbmdzIkwKHVVwZGF0ZVBsYXliYWNrU2V0dGluZ3NSZXF1ZXN0EisKCHNldHRpbmdzGAEgASgLMhkubmFtYS52MS5QbGF5YmFja1NldHRpbmdzIk0KHlVwZGF0ZVBsYXliYWNrU2V0dGluZ3NSZXNwb25zZRIrCghzZXR0aW5ncxgBIAEoCzIZLm5hbWEudjEuUGxheWJhY2tTZXR0aW5ncyLPAQoQUGxheWJhY2tTZXR0aW5ncxIWCg5zZWdtZW50X2ZvbGRlchgBIAEoCRIbCg5tYXhfdHJhbnNjb2RlcxgCIAEoDUgAiAEBEjUKFXJlbW90ZV9wbGF5YmFja19saW1pdBgDIAEoDjIWLm5hbWEudjEuUGxheWJhY2tMaW1pdBI8ChVoYXJkd2FyZV9hY2NlbGVyYXRpb24YBCABKA4yHS5uYW1hLnYxLkhhcmR3YXJlQWNjZWxlcmF0aW9uQhEKD19tYXhfdHJhbnNjb2RlcyrlAQoUSGFyZHdhcmVBY2NlbGVyYXRpb24SJQohSEFSRFdBUkVfQUNDRUxFUkFUSU9OX1VOU1BFQ0lGSUVEEAASHQoZSEFSRFdBUkVfQUNDRUxFUkFUSU9OX09GRhABEh8KG0hBUkRXQVJFX0FDQ0VMRVJBVElPTl9WQUFQSRACEh0KGUhBUkRXQVJFX0FDQ0VMRVJBVElPTl9RU1YQAxIfChtIQVJEV0FSRV9BQ0NFTEVSQVRJT05fTlZFTkMQBBImCiJIQVJEV0FSRV9BQ0NFTEVSQVRJT05fVklERU9UT09MQk9YEAUy5wQKDVNlcnZlclNlcnZpY2USUwoNR2V0U2VydmVySW5mbxIdLm5hbWEudjEuR2V0U2VydmVySW5mb1JlcXVlc3QaHi5uYW1hLnYxLkdldFNlcnZlckluZm9SZXNwb25zZSIDkAIBEl8KEUdldFNlcnZlclNldHRpbmdzEiEubmFtYS52MS5HZXRTZXJ2ZXJTZXR0aW5nc1JlcXVlc3QaIi5uYW1hLnYxLkdldFNlcnZlclNldHRpbmdzUmVzcG9uc2UiA5ACARJoChRVcGRhdGVTZXJ2ZXJTZXR0aW5ncxIkLm5hbWEudjEuVXBkYXRlU2VydmVyU2V0dGluZ3NSZXF1ZXN0GiUubmFtYS52MS5VcGRhdGVTZXJ2ZXJTZXR0aW5nc1Jlc3BvbnNlIgOQAgISXwoRR2V0UGxheWJhY2tTdGF0dXMSIS5uYW1hLnYxLkdldFBsYXliYWNrU3RhdHVzUmVxdWVzdBoiLm5hbWEudjEuR2V0UGxheWJhY2tTdGF0dXNSZXNwb25zZSIDkAIBEmUKE0dldFBsYXliYWNrU2V0dGluZ3MSIy5uYW1hLnYxLkdldFBsYXliYWNrU2V0dGluZ3NSZXF1ZXN0GiQubmFtYS52MS5HZXRQbGF5YmFja1NldHRpbmdzUmVzcG9uc2UiA5ACARJuChZVcGRhdGVQbGF5YmFja1NldHRpbmdzEiYubmFtYS52MS5VcGRhdGVQbGF5YmFja1NldHRpbmdzUmVxdWVzdBonLm5hbWEudjEuVXBkYXRlUGxheWJhY2tTZXR0aW5nc1Jlc3BvbnNlIgOQAgJiBnByb3RvMw", [file_nama_v1_playback]);
 
 /**
  * @generated from message nama.v1.GetServerInfoRequest
@@ -194,6 +194,14 @@ export type GetPlaybackStatusResponse = Message<"nama.v1.GetPlaybackStatusRespon
    * @generated from field: string ffprobe_problem = 4;
    */
   ffprobeProblem: string;
+
+  /**
+   * The hardware acceleration APIs that passed a test encode at startup, the one Automatic picks
+   * first. Empty without ffmpeg, a GPU, or an ffmpeg built for one.
+   *
+   * @generated from field: repeated nama.v1.FoundHardware hardware = 5;
+   */
+  hardware: FoundHardware[];
 };
 
 /**
@@ -202,6 +210,35 @@ export type GetPlaybackStatusResponse = Message<"nama.v1.GetPlaybackStatusRespon
  */
 export const GetPlaybackStatusResponseSchema: GenMessage<GetPlaybackStatusResponse> = /*@__PURE__*/
   messageDesc(file_nama_v1_server, 8);
+
+/**
+ * A hardware acceleration API that passed its test encode at startup.
+ *
+ * @generated from message nama.v1.FoundHardware
+ */
+export type FoundHardware = Message<"nama.v1.FoundHardware"> & {
+  /**
+   * Which API. Never `HARDWARE_ACCELERATION_UNSPECIFIED` or `HARDWARE_ACCELERATION_OFF`.
+   *
+   * @generated from field: nama.v1.HardwareAcceleration api = 1;
+   */
+  api: HardwareAcceleration;
+
+  /**
+   * Whether it also passed tone-mapping HDR to SDR on the GPU. Without it, a Transcode of HDR
+   * for an SDR screen tone-maps in software between decoding and encoding on the GPU.
+   *
+   * @generated from field: bool tone_maps = 2;
+   */
+  toneMaps: boolean;
+};
+
+/**
+ * Describes the message nama.v1.FoundHardware.
+ * Use `create(FoundHardwareSchema)` to create a new message.
+ */
+export const FoundHardwareSchema: GenMessage<FoundHardware> = /*@__PURE__*/
+  messageDesc(file_nama_v1_server, 9);
 
 /**
  * A program the Server found and runs, such as ffmpeg.
@@ -229,7 +266,7 @@ export type FoundProgram = Message<"nama.v1.FoundProgram"> & {
  * Use `create(FoundProgramSchema)` to create a new message.
  */
 export const FoundProgramSchema: GenMessage<FoundProgram> = /*@__PURE__*/
-  messageDesc(file_nama_v1_server, 9);
+  messageDesc(file_nama_v1_server, 10);
 
 /**
  * @generated from message nama.v1.GetPlaybackSettingsRequest
@@ -242,7 +279,7 @@ export type GetPlaybackSettingsRequest = Message<"nama.v1.GetPlaybackSettingsReq
  * Use `create(GetPlaybackSettingsRequestSchema)` to create a new message.
  */
 export const GetPlaybackSettingsRequestSchema: GenMessage<GetPlaybackSettingsRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_server, 10);
+  messageDesc(file_nama_v1_server, 11);
 
 /**
  * @generated from message nama.v1.GetPlaybackSettingsResponse
@@ -259,7 +296,7 @@ export type GetPlaybackSettingsResponse = Message<"nama.v1.GetPlaybackSettingsRe
  * Use `create(GetPlaybackSettingsResponseSchema)` to create a new message.
  */
 export const GetPlaybackSettingsResponseSchema: GenMessage<GetPlaybackSettingsResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_server, 11);
+  messageDesc(file_nama_v1_server, 12);
 
 /**
  * @generated from message nama.v1.UpdatePlaybackSettingsRequest
@@ -276,7 +313,7 @@ export type UpdatePlaybackSettingsRequest = Message<"nama.v1.UpdatePlaybackSetti
  * Use `create(UpdatePlaybackSettingsRequestSchema)` to create a new message.
  */
 export const UpdatePlaybackSettingsRequestSchema: GenMessage<UpdatePlaybackSettingsRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_server, 12);
+  messageDesc(file_nama_v1_server, 13);
 
 /**
  * @generated from message nama.v1.UpdatePlaybackSettingsResponse
@@ -295,7 +332,7 @@ export type UpdatePlaybackSettingsResponse = Message<"nama.v1.UpdatePlaybackSett
  * Use `create(UpdatePlaybackSettingsResponseSchema)` to create a new message.
  */
 export const UpdatePlaybackSettingsResponseSchema: GenMessage<UpdatePlaybackSettingsResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_server, 13);
+  messageDesc(file_nama_v1_server, 14);
 
 /**
  * What an admin sets about how the Server plays Versions it changes.
@@ -313,12 +350,13 @@ export type PlaybackSettings = Message<"nama.v1.PlaybackSettings"> & {
   segmentFolder: string;
 
   /**
-   * The most Transcodes the Server runs at once, at least 1, and 2 out of the box; Remuxes don't
-   * count. A plan that only a Transcode would play is refused while that many run.
+   * The most Transcodes the Server runs at once, at least 1; Remuxes don't count. A plan that
+   * only a Transcode would play is refused while that many run. Unset for the default: no limit
+   * while Transcodes use hardware acceleration, and 2 while they run in software.
    *
-   * @generated from field: uint32 max_transcodes = 2;
+   * @generated from field: optional uint32 max_transcodes = 2;
    */
-  maxTranscodes: number;
+  maxTranscodes?: number | undefined;
 
   /**
    * The Playback Limit for a Device whose address isn't on the local network, until its User
@@ -328,6 +366,13 @@ export type PlaybackSettings = Message<"nama.v1.PlaybackSettings"> & {
    * @generated from field: nama.v1.PlaybackLimit remote_playback_limit = 3;
    */
   remotePlaybackLimit: PlaybackLimit;
+
+  /**
+   * What Transcodes run on. One that didn't pass its test at startup leaves them in software.
+   *
+   * @generated from field: nama.v1.HardwareAcceleration hardware_acceleration = 4;
+   */
+  hardwareAcceleration: HardwareAcceleration;
 };
 
 /**
@@ -335,7 +380,69 @@ export type PlaybackSettings = Message<"nama.v1.PlaybackSettings"> & {
  * Use `create(PlaybackSettingsSchema)` to create a new message.
  */
 export const PlaybackSettingsSchema: GenMessage<PlaybackSettings> = /*@__PURE__*/
-  messageDesc(file_nama_v1_server, 14);
+  messageDesc(file_nama_v1_server, 15);
+
+/**
+ * What a Transcode decodes, scales, tone-maps and encodes its video with.
+ *
+ * @generated from enum nama.v1.HardwareAcceleration
+ */
+export const HardwareAcceleration = {
+  /**
+   * Automatic: the first API that passed its test encode at startup, or software without one.
+   *
+   * @generated from enum value: HARDWARE_ACCELERATION_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED: 0,
+
+  /**
+   * Software only.
+   *
+   * @generated from enum value: HARDWARE_ACCELERATION_OFF = 1;
+   */
+  OFF: 1,
+
+  /**
+   * VAAPI, for Intel and AMD on Linux.
+   *
+   * @generated from enum value: HARDWARE_ACCELERATION_VAAPI = 2;
+   */
+  VAAPI: 2,
+
+  /**
+   * Intel Quick Sync Video.
+   *
+   * @generated from enum value: HARDWARE_ACCELERATION_QSV = 3;
+   */
+  QSV: 3,
+
+  /**
+   * NVIDIA NVENC and NVDEC.
+   *
+   * @generated from enum value: HARDWARE_ACCELERATION_NVENC = 4;
+   */
+  NVENC: 4,
+
+  /**
+   * Apple VideoToolbox.
+   *
+   * @generated from enum value: HARDWARE_ACCELERATION_VIDEOTOOLBOX = 5;
+   */
+  VIDEOTOOLBOX: 5,
+} as const;
+
+/**
+ * What a Transcode decodes, scales, tone-maps and encodes its video with.
+ *
+ * @generated from enum nama.v1.HardwareAcceleration
+ */
+export type HardwareAcceleration = (typeof HardwareAcceleration)[keyof typeof HardwareAcceleration] | UnknownEnum;
+
+/**
+ * Describes the enum nama.v1.HardwareAcceleration.
+ */
+export const HardwareAccelerationSchema: GenEnum<HardwareAcceleration> = /*@__PURE__*/
+  enumDesc(file_nama_v1_server, 0);
 
 /**
  * Facts about a Server that any client can read, before signing in, and the Server's settings.
@@ -377,8 +484,8 @@ export const ServerService: GenService<{
   },
   /**
    * Returns the ffmpeg and ffprobe the Server found at startup, which it needs to Remux and
-   * Transcode, or why it can't use them; without both it only Direct Plays. Needs
-   * `PERMISSION_ADMIN`.
+   * Transcode, or why it can't use them; without both it only Direct Plays. Also returns the
+   * hardware acceleration that passed its test at startup. Needs `PERMISSION_ADMIN`.
    *
    * @generated from rpc nama.v1.ServerService.GetPlaybackStatus
    */
@@ -400,7 +507,7 @@ export const ServerService: GenService<{
   /**
    * Replaces how the Server plays Versions it changes, for plans made from then on. Needs
    * `PERMISSION_ADMIN`. A `segment_folder` that isn't an absolute path is refused with
-   * `REFUSAL_REASON_FOLDER_NOT_ABSOLUTE` naming it, a `max_transcodes` of 0 with
+   * `REFUSAL_REASON_FOLDER_NOT_ABSOLUTE` naming it, a `max_transcodes` set to 0 with
    * `REFUSAL_REASON_FIELD_REQUIRED` naming it, and nothing changes.
    *
    * @generated from rpc nama.v1.ServerService.UpdatePlaybackSettings
