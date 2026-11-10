@@ -166,6 +166,12 @@ impl Database {
         &self.migrations_applied
     }
 
+    /// How many writes wait for the writer, not counting the one it runs.
+    #[cfg(test)]
+    pub(crate) fn queued_writes(&self) -> usize {
+        self.jobs.max_capacity() - self.jobs.capacity()
+    }
+
     /// Closes every connection, after finishing the writes already queued.
     ///
     /// The writer closes last: only a writable connection can checkpoint the WAL into the
