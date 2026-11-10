@@ -40,7 +40,7 @@ use nama_proto::nama::v1::{
 };
 use nama_server::{contents::Contents, plugins::Registry};
 use refused::assert_refused;
-use server::TestServer;
+use server::{SignedIn, TestServer};
 use tempfile::TempDir;
 
 /// TMDB Matches both to Alien, TMDB id 348.
@@ -329,6 +329,11 @@ struct Viewer {
     reason = "a test helper fails its test by panicking"
 )]
 impl Viewer {
+    /// Clients that call the Server as the User `user`.
+    fn of(user: &SignedIn) -> Self {
+        Self::new(user.client_config())
+    }
+
     /// Clients that call the Server with `config`'s session.
     fn new(config: ClientConfig) -> Self {
         Self {
@@ -1093,12 +1098,7 @@ async fn a_version_of_an_unmatched_item_is_accepted_and_stores_nothing() {
 async fn two_users_watch_state_for_the_same_movie_are_kept_apart() {
     let fx = Fixture::alien().await;
     let admin = fx.admin();
-    let grace = Viewer::new(
-        fx.server
-            .user_with_default_permissions("Grace")
-            .await
-            .client_config(),
-    );
+    let grace = Viewer::of(&fx.server.user_with_default_permissions("Grace").await);
     let [version] = fx.version_ids(ALIEN).await[..] else {
         panic!("Alien has one Version");
     };
@@ -1379,12 +1379,7 @@ async fn a_movie_whose_file_has_gone_is_listed_again_once_a_rescan_matches_it() 
 async fn another_users_progress_never_appears() {
     let fx = Fixture::alien().await;
     let admin = fx.admin();
-    let grace = Viewer::new(
-        fx.server
-            .user_with_default_permissions("Grace")
-            .await
-            .client_config(),
-    );
+    let grace = Viewer::of(&fx.server.user_with_default_permissions("Grace").await);
     let [version] = fx.version_ids(ALIEN).await[..] else {
         panic!("Alien has one Version");
     };
@@ -1524,12 +1519,7 @@ async fn marking_a_partly_watched_movie_played_keeps_its_position_and_unplayed_c
 async fn marking_one_users_movie_played_leaves_anothers_alone() {
     let fx = Fixture::alien().await;
     let admin = fx.admin();
-    let grace = Viewer::new(
-        fx.server
-            .user_with_default_permissions("Grace")
-            .await
-            .client_config(),
-    );
+    let grace = Viewer::of(&fx.server.user_with_default_permissions("Grace").await);
 
     grace
         .set_played(fx.library, movie(ALIEN), true)
