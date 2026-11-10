@@ -11,7 +11,8 @@ pub(crate) fn build(features: &str) -> Vec<u8> {
     // One target directory for every feature set, so its dependencies build once: with one each,
     // every test process rebuilt them all in release at once, past nextest's timeout. The `.wasm`
     // lands at the same path whatever the features, so the build and the read hold one lock
-    // across test processes.
+    // across test processes. CI builds the dependencies into this directory first (`test` job in
+    // ci.yml), so the first test here doesn't compile them inside its timeout.
     let target_dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("test-plugin");
     std::fs::create_dir_all(&target_dir).unwrap();
     let lock = File::create(target_dir.join("build.lock")).unwrap();
