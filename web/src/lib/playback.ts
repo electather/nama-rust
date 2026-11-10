@@ -1,4 +1,6 @@
-import { useSuspenseQuery } from "@connectrpc/connect-query";
+import { create } from "@bufbuild/protobuf";
+import { callUnaryMethod, useTransport } from "@connectrpc/connect-query";
+import { useSuspenseQuery } from "@tanstack/react-query";
 import { type LinkOptions, useNavigate } from "@tanstack/react-router";
 import {
   type RefObject,
@@ -10,7 +12,8 @@ import {
   useSyncExternalStore,
 } from "react";
 
-import { PlaybackService } from "@/gen/nama/v1/playback_pb";
+import { PlaybackPlanSchema, PlaybackService } from "@/gen/nama/v1/playback_pb";
+import { findDeviceDecoding } from "@/lib/device-decoding";
 import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
 
 /** How long the controls stay after the pointer or keyboard was last used, while playing. */
@@ -19,21 +22,27 @@ const SEEK_STEP_SECONDS = 10;
 const VOLUME_STEP = 0.1;
 
 /**
- * The Server's Playback Plan for Version `versionId`, starting where `watchState` stopped: its
- * `url` is `""` if it can't play here. The plan is asked for once each time the player opens, and
- * never reused after.
+ * The Server's Playback Plan for Version `versionId` on this Device, starting where `watchState`
+ * stopped. The plan is asked for once each time the player opens, and never reused after.
  */
 export function usePlaybackPlan(versionId: bigint, watchState: WatchState | undefined) {
+  const transport = useTransport();
   // Where it stood on opening: a new plan would reload the `<video>`, so the refetches each Watch
   // State report causes mustn't ask again.
   const [startPositionMs] = useState(() =>
     watchState && !watchState.played ? watchState.positionMs : 0n,
   );
-  return useSuspenseQuery(
-    PlaybackService.method.planPlayback,
-    { versionId, startPositionMs },
-    { staleTime: "static", gcTime: 0 },
-  ).data.plan;
+  return useSuspenseQuery({
+    queryKey: ["planPlayback", String(versionId)],
+    queryFn: async () => {
+      const deviceDecoding = await findDeviceDecoding();
+      const input = { versionId, startPositionMs, deviceDecoding };
+      const { plan } = await callUnaryMethod(transport, PlaybackService.method.planPlayback, input);
+      return create(PlaybackPlanSchema, plan);
+    },
+    staleTime: "static",
+    gcTime: 0,
+  }).data;
 }
 
 /** What the controls need of the `<video>`: what it's doing, and a way to act on it. */
@@ -145,9 +154,13 @@ const keysFocusUses: Record<string, string> = {
 };
 
 function shortcutFor(event: KeyboardEvent): Shortcut | undefined {
-  // Ctrl+F, Alt+arrows and the like belong to the browser, and every key to an open menu.
-  if (hasModifier(event) || inMenu(event) || focusUses(event)) return undefined;
-  return shortcuts[event.key];
+  return keyIsTaken(event) ? undefined : shortcuts[event.key];
+}
+
+// Ctrl+F, Alt+arrows and the like belong to the browser, every key to an open menu, and a
+// prevented key to whatever already used it, such as Esc closing playback info.
+function keyIsTaken(event: KeyboardEvent) {
+  return event.defaultPrevented || hasModifier(event) || inMenu(event) || focusUses(event);
 }
 
 function inMenu({ target }: KeyboardEvent) {

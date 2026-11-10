@@ -25,8 +25,8 @@ use connectrpc::{
 };
 use http::{fetch, fetch_range};
 use nama_proto::nama::v1::{
-    AudioTrack, BrowseServiceClient, ClearMatchRequest, ContinueWatchingEntry, Episode, ExternalId,
-    GetMovieRequest, GetShowRequest, GetShowResponse, HdrFormat, LibraryKind,
+    AudioTrack, BrowseServiceClient, ClearMatchRequest, ContinueWatchingEntry, DeviceDecoding,
+    Episode, ExternalId, GetMovieRequest, GetShowRequest, GetShowResponse, HdrFormat, LibraryKind,
     ListContinueWatchingRequest, ListEpisodesRequest, ListMoviesRequest, ListShowsRequest,
     MatchServiceClient, Movie, PlanPlaybackRequest, PlaybackMethod, PlaybackPlan,
     PlaybackServiceClient, RefusalReason, ReportProgressRequest, Season, SetMatchRequest,
@@ -207,12 +207,23 @@ impl Fixture {
         Viewer::new(self.server.client_config())
     }
 
-    /// The Admin's Playback Plan for the Version `version`.
+    /// The Admin's Playback Plan for the Version `version`, on a Device that decodes H.264 and AAC
+    /// in MP4.
     async fn plan(&self, version: i64) -> Result<PlaybackPlan, ConnectError> {
         let config = self.server.client_config();
+        let content_types = [
+            "video/mp4",
+            r#"video/mp4; codecs="avc1.640028""#,
+            r#"audio/mp4; codecs="mp4a.40.2""#,
+        ];
         let response = PlaybackServiceClient::new(HttpClient::plaintext(), config)
             .plan_playback(PlanPlaybackRequest {
                 version_id: version,
+                device_decoding: DeviceDecoding {
+                    content_types: content_types.map(str::to_owned).to_vec(),
+                    ..Default::default()
+                }
+                .into(),
                 ..Default::default()
             })
             .await?
@@ -1047,7 +1058,13 @@ async fn an_h264_and_aac_mp4_direct_plays_through_its_plans_url() {
 
     assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_DIRECT_PLAY);
     assert_eq!(codecs(&plan), ["h264", "aac"]);
-    assert_eq!(plan.reasons, ["Its Tracks need no change"]);
+    assert_eq!(
+        plan.reasons,
+        [
+            "Its Tracks need no change",
+            "This Device decodes its container and Tracks"
+        ]
+    );
     let played = fetch(&fx.server, &plan.url, Some(&fx.server.admin_token)).await;
     assert_eq!(played.body, b"video");
 }
@@ -1065,7 +1082,10 @@ async fn without_ffprobe_a_version_direct_plays_and_its_plan_says_its_tracks_are
     assert_eq!(plan.tracks, []);
     assert_eq!(
         plan.reasons,
-        ["Its Tracks aren't known, so they're taken to need no change"]
+        [
+            "Its Tracks aren't known, so they're taken to need no change",
+            "Its Tracks aren't known, so this Device is taken to decode them"
+        ]
     );
 }
 
