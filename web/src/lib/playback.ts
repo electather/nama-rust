@@ -19,23 +19,21 @@ const SEEK_STEP_SECONDS = 10;
 const VOLUME_STEP = 0.1;
 
 /**
- * Where to play Version `versionId` from, starting where `watchState` stopped, as the Server's
- * Playback Plan says, or `""` if it can't play here. The plan is asked for once each time the
- * player opens, and never reused after.
+ * The Server's Playback Plan for Version `versionId`, starting where `watchState` stopped, or
+ * `undefined` if it sent none. The plan is asked for once each time the player opens, and never
+ * reused after.
  */
-export function usePlaybackUrl(versionId: bigint, watchState: WatchState | undefined) {
+export function usePlaybackPlan(versionId: bigint, watchState: WatchState | undefined) {
   // Where it stood on opening: a new plan would reload the `<video>`, so the refetches each Watch
   // State report causes mustn't ask again.
   const [startPositionMs] = useState(() =>
     watchState && !watchState.played ? watchState.positionMs : 0n,
   );
-  return (
-    useSuspenseQuery(
-      PlaybackService.method.planPlayback,
-      { versionId, startPositionMs },
-      { staleTime: "static", gcTime: 0 },
-    ).data.plan?.url ?? ""
-  );
+  return useSuspenseQuery(
+    PlaybackService.method.planPlayback,
+    { versionId, startPositionMs },
+    { staleTime: "static", gcTime: 0 },
+  ).data.plan;
 }
 
 /** What the controls need of the `<video>`: what it's doing, and a way to act on it. */
@@ -147,8 +145,9 @@ const keysFocusUses: Record<string, string> = {
 };
 
 function shortcutFor(event: KeyboardEvent): Shortcut | undefined {
-  // Ctrl+F, Alt+arrows and the like belong to the browser.
-  if (hasModifier(event) || focusUses(event)) return undefined;
+  // Ctrl+F, Alt+arrows and the like belong to the browser, and a prevented key to whatever
+  // already used it, such as Esc closing playback info.
+  if (event.defaultPrevented || hasModifier(event) || focusUses(event)) return undefined;
   return shortcuts[event.key];
 }
 

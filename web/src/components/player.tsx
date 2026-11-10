@@ -4,6 +4,7 @@ import { Link, type LinkOptions } from "@tanstack/react-router";
 import { ArrowLeft, Maximize, Minimize, Pause, Play, Volume2, VolumeX } from "lucide-react";
 import { type ReactNode, type RefObject, useRef, useState } from "react";
 
+import { PlaybackInfo } from "@/components/playback-info";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
@@ -16,10 +17,11 @@ import {
   togglePlay,
   useAwake,
   useIsFullscreen,
-  usePlaybackUrl,
+  usePlaybackPlan,
   useShortcuts,
   useVideo,
 } from "@/lib/playback";
+// oxlint-disable-next-line import/max-dependencies -- the player puts together the video, its controls, Watch State and playback info
 import { useWatchState } from "@/lib/watch-state";
 
 /** What the player plays, and where "back" goes. */
@@ -38,13 +40,14 @@ export interface PlayerProps {
  * or says so plainly when it can't play here.
  */
 export function Player(props: PlayerProps) {
-  const url = usePlaybackUrl(props.versionId, props.watchState);
+  const plan = usePlaybackPlan(props.versionId, props.watchState);
   const [cantPlay, setCantPlay] = useState(false);
-  if (cantPlay || url === "") return <CantPlay back={props.back} />;
+  if (cantPlay || plan === undefined || plan.url === "") return <CantPlay back={props.back} />;
   return (
     <VideoPlayer
       {...props}
-      url={url}
+      url={plan.url}
+      playbackInfo={<PlaybackInfo plan={plan} />}
       onCantPlay={() => {
         setCantPlay(true);
       }}
@@ -58,8 +61,9 @@ function VideoPlayer({
   watchState,
   back,
   url,
+  playbackInfo,
   onCantPlay,
-}: PlayerProps & { url: string; onCantPlay: () => void }) {
+}: PlayerProps & { url: string; playbackInfo: ReactNode; onCantPlay: () => void }) {
   const playerRef = useRef<HTMLDivElement>(null);
   const { ref: videoRef, events, ...video } = useVideo();
   useWatchState(videoRef, versionId, watchState);
@@ -92,20 +96,29 @@ function VideoPlayer({
       />
       {/* Any key brings the controls back, so a focused control shows its ring when it's used. */}
       <div className="pointer-events-none absolute inset-0 flex flex-col justify-between transition-opacity duration-500 ease-out-expo group-data-controls-hidden:opacity-0 motion-reduce:transition-none">
-        <TopBar title={title} back={back} />
+        <TopBar title={title} back={back} playbackInfo={playbackInfo} />
         <BottomBar video={video} playerRef={playerRef} />
       </div>
     </div>
   );
 }
 
-function TopBar({ title, back }: { title: string; back: LinkOptions }) {
+function TopBar({
+  title,
+  back,
+  playbackInfo,
+}: {
+  title: string;
+  back: LinkOptions;
+  playbackInfo: ReactNode;
+}) {
   return (
     <header className="pointer-events-auto flex group-data-controls-hidden:pointer-events-none items-center gap-2 bg-linear-to-b from-scrim px-2 pt-2 pb-10 sm:px-4 sm:pt-4">
       <BackLink back={back} variant="overlay" size="icon" label="Back">
         <ArrowLeft aria-hidden />
       </BackLink>
-      <h1 className="truncate font-medium">{title}</h1>
+      <h1 className="me-auto truncate font-medium">{title}</h1>
+      {playbackInfo}
     </header>
   );
 }
