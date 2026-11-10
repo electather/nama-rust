@@ -22,6 +22,19 @@ const belowOriginal = [
   { limit: PlaybackLimit.PLAYBACK_LIMIT_480P, name: "480p", width: 854, height: 480 },
 ];
 
+/** The Playback Limits below the picture of the first video Track in `tracks`, if it has a size. */
+function limitsBelow(tracks: Track[]) {
+  const [video] = tracks.flatMap(({ kind }) => (kind.case === "video" ? [kind.value] : []));
+  if (video === undefined) return [];
+  // As the Server decides: a limit is below a picture wider or taller than it, turned on its side
+  // for a portrait picture, since a limit names the short side.
+  const portrait = video.height > video.width;
+  return belowOriginal.filter(({ width, height }) => {
+    const [across, down] = portrait ? [height, width] : [width, height];
+    return video.width > across || video.height > down;
+  });
+}
+
 /**
  * Picks the Playback Limit with `choose`: Original, or one below the Version's picture. Absent when
  * none is below it, or its picture size isn't known.
@@ -39,11 +52,7 @@ export function PlaybackLimitMenu({
   /** Where the menu opens: inside the player, so it shows in full screen. */
   container: RefObject<HTMLDivElement | null>;
 }) {
-  const [video] = tracks.flatMap(({ kind }) => (kind.case === "video" ? [kind.value] : []));
-  // As the Server decides: a limit is below a picture wider or taller than it.
-  const below = belowOriginal.filter(
-    ({ width, height }) => video !== undefined && (video.width > width || video.height > height),
-  );
+  const below = limitsBelow(tracks);
   if (below.length === 0) return null;
   const original = PlaybackLimit.PLAYBACK_LIMIT_ORIGINAL;
   const offered = [{ limit: original, name: "Original" }, ...below];

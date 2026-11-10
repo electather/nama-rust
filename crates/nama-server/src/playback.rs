@@ -473,16 +473,22 @@ fn picture(facts: &Facts) -> Option<(i64, i64)> {
     }
 }
 
-/// `picture`, a width and height, scaled down to fit `limit` with its shape kept, if it's larger.
+/// A picture `width` by `height`, scaled down to fit `limit` with its shape kept, if it's larger.
 fn fitted((width, height): (i64, i64), limit: PlaybackLimit) -> Option<(i64, i64)> {
-    if width <= limit.width && height <= limit.height {
+    // A limit names the short side, so a portrait 1080×1920 picture is already 1080p.
+    let (limit_width, limit_height) = if height > width {
+        (limit.height, limit.width)
+    } else {
+        (limit.width, limit.height)
+    };
+    if width <= limit_width && height <= limit_height {
         return None;
     }
     let rounded = |numerator: i64, denominator: i64| (numerator + denominator / 2) / denominator;
-    let (width, height) = if width * limit.height > height * limit.width {
-        (limit.width, rounded(height * limit.width, width))
+    let (width, height) = if width * limit_height > height * limit_width {
+        (limit_width, rounded(height * limit_width, width))
     } else {
-        (rounded(width * limit.height, height), limit.height)
+        (rounded(width * limit_height, height), limit_height)
     };
     // H.264 in 4:2:0 needs even sides.
     Some((width / 2 * 2, height / 2 * 2))
@@ -1507,6 +1513,8 @@ mod tests {
             ((3840, 2160), PlaybackLimit::P1080, Some((1920, 1080))),
             ((1920, 1080), PlaybackLimit::P1080, None),
             ((1280, 536), PlaybackLimit::P720, None),
+            ((1080, 1920), PlaybackLimit::P1080, None),
+            ((1080, 1920), PlaybackLimit::P720, Some((720, 1280))),
         ];
         for (picture, limit, fits) in cases {
             assert_eq!(fitted(picture, limit), fits, "{picture:?} at {limit:?}");

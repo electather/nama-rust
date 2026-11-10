@@ -28,16 +28,17 @@ Object.assign(HTMLMediaElement, { HAVE_METADATA: 1 });
 afterEach(cleanup);
 
 const PLAYER = "/libraries/1/movies/tmdb-348/play";
+const LANDSCAPE_1080P = { width: 1920, height: 1080 };
 
 /**
- * A fake Server with Alien in Library 1, whose one Version is 1080p H.264. It Direct Plays it
- * unless a Playback Limit below Original is asked for, which it Transcodes, and each plan request
- * goes in `asked`.
+ * A fake Server with Alien in Library 1, whose one Version is H.264 with a `picture`, 1080p unless
+ * given. It Direct Plays it unless a Playback Limit below Original is asked for, which it
+ * Transcodes, and each plan request goes in `asked`.
  */
-function server(asked: PlanPlaybackRequest[]) {
+function server(asked: PlanPlaybackRequest[], picture = LANDSCAPE_1080P) {
   const libraries = [{ id: 1n, name: "Films", kind: LibraryKind.MOVIES }];
   const tracks = [
-    { codec: "h264", kind: { case: "video", value: { width: 1920, height: 1080 } } },
+    { codec: "h264", kind: { case: "video", value: picture } },
     { codec: "aac", default: true, kind: { case: "audio", value: { channels: 2 } } },
   ] as const;
   return fakeServer({ signedIn: newUser, libraries }, {}, {}, (router) => {
@@ -93,6 +94,13 @@ test("on a 1080p Version the Playback Limit menu offers Original, 720p and 480p,
     "false",
     "false",
   ]);
+});
+
+test("on a portrait 1080p Version the Playback Limit menu offers Original, 720p and 480p", async () => {
+  openApp(PLAYER, server([], { width: 1080, height: 1920 }));
+  await screen.findByLabelText("Alien");
+
+  expect(openLimits().map((item) => item.textContent)).toEqual(["Original", "720p", "480p"]);
 });
 
 test("choosing 720p mid-play, then Original, asks each time for a plan from where the video stands", async () => {
