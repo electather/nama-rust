@@ -1,5 +1,7 @@
 //! A Server serving the API on a random local port, for tests that call it the way clients do.
 
+#[path = "fulfiller.rs"]
+pub(crate) mod fulfiller;
 #[path = "requests.rs"]
 pub(crate) mod requests;
 #[path = "tmdb.rs"]
@@ -22,9 +24,9 @@ use nama_plugin_tmdb::testing::FakeTmdb;
 use nama_proto::nama::v1::{
     __buffa::view::SubscribeResponseView, CreateLibraryRequest, CreateUserRequest,
     EventServiceClient, EventType, LibraryKind, LibraryServiceClient, Permission,
-    ScanLibraryRequest, SessionDelivery, SetPermissionsRequest, SetupRequest, SignInRequest,
-    SignInServiceClient, SubscribeRequest, SubscribeResponse, UserServiceClient, event,
-    subscribe_response,
+    PluginServiceClient, Quality, ReplaceQualitiesRequest, ScanLibraryRequest, SessionDelivery,
+    SetPermissionsRequest, SetupRequest, SignInRequest, SignInServiceClient, SubscribeRequest,
+    SubscribeResponse, UserServiceClient, event, subscribe_response,
 };
 use nama_server::{
     config::Config, db::Database, ffmpeg::Ffmpeg, plugin_settings::PluginSettings,
@@ -32,6 +34,8 @@ use nama_server::{
 };
 use tempfile::TempDir;
 use tokio::{net::TcpListener, sync::oneshot};
+
+use fulfiller::{FakeFulfiller, Fulfills};
 
 /// How long any wait in a test lasts before it fails the test.
 pub(crate) const WAIT: Duration = Duration::from_secs(10);
@@ -47,17 +51,20 @@ pub(crate) struct TestServer {
     pub(crate) admin_token: String,
     db: Arc<Database>,
     tmdb: Option<FakeTmdb>,
+    fulfiller: Option<FakeFulfiller>,
     _stop: oneshot::Sender<()>,
     data_dir: TempDir,
 }
 
-/// How a [`TestServer`] starts: its config, Plugins, ffmpeg and whether it has a fake TMDB.
+/// How a [`TestServer`] starts: its config, Plugins, ffmpeg, and whether it has a fake TMDB and
+/// a fake Fulfiller.
 #[derive(Default)]
 pub(crate) struct Builder {
     config: Config,
     plugins: Registry,
     ffmpeg: Ffmpeg,
     tmdb: bool,
+    fulfiller: Option<(Fulfills, FakeFulfiller)>,
 }
 
 impl Builder {
@@ -82,6 +89,27 @@ impl Builder {
         Self { tmdb: true, ..self }
     }
 
+    /// Has the Server start with a fake Movie Fulfiller enabled, as the Built-in Plugin
+    /// [`fulfiller::MOVIE_FULFILLER`], whose settings check offers the quality profiles
+    /// `profiles`.
+    pub(crate) fn fulfiller(self, profiles: &[&str]) -> Self {
+        self.fake_fulfiller(Fulfills::Movies, profiles)
+    }
+
+    /// [`Self::fulfiller`] for Shows, as [`fulfiller::SHOWS_FULFILLER`].
+    pub(crate) fn shows_fulfiller(self, profiles: &[&str]) -> Self {
+        self.fake_fulfiller(Fulfills::Shows, profiles)
+    }
+
+    fn fake_fulfiller(self, fulfills: Fulfills, profiles: &[&str]) -> Self {
+        let fake = FakeFulfiller::default();
+        fake.offer_profiles(profiles);
+        Self {
+            fulfiller: Some((fulfills, fake)),
+            ..self
+        }
+    }
+
     /// Starts serving on a free port, with a fresh database and the Built-in `local-auth` among
     /// its Plugins, and signs an Admin in.
     #[expect(
@@ -94,8 +122,13 @@ impl Builder {
             plugins,
             ffmpeg,
             tmdb,
+            fulfiller,
         } = self;
         plugins.describe_builtin(|| Arc::new(LocalAuth));
+        let fulfiller = fulfiller.map(|(fulfills, fake)| {
+            fulfiller::enable(&plugins, fulfills, &fake);
+            fake
+        });
         let tmdb = if tmdb {
             Some(tmdb::enable(&plugins).await)
         } else {
@@ -131,6 +164,7 @@ impl Builder {
             admin_token,
             db,
             tmdb,
+            fulfiller,
             _stop: stop,
             data_dir,
         }
@@ -153,7 +187,7 @@ impl SignedIn {
 
 impl TestServer {
     /// A builder for a Server with the default config, no Plugins but the Built-in `local-auth`,
-    /// no ffmpeg and no TMDB.
+    /// no ffmpeg, no TMDB and no fake Fulfiller.
     pub(crate) fn builder() -> Builder {
         Builder::default()
     }
@@ -176,6 +210,52 @@ impl TestServer {
         self.tmdb
             .as_ref()
             .expect("TMDB is on: `TestServer::builder().tmdb()`")
+    }
+
+    /// The fake Fulfiller, for a test that changes how it answers or reads what it was handed.
+    ///
+    /// # Panics
+    ///
+    /// If the builder didn't turn a Fulfiller on.
+    #[expect(
+        clippy::expect_used,
+        reason = "a test helper fails its test by panicking"
+    )]
+    pub(crate) fn fulfiller(&self) -> &FakeFulfiller {
+        self.fulfiller
+            .as_ref()
+            .expect("a Fulfiller is on: `TestServer::builder().fulfiller(..)`")
+    }
+
+    /// Replaces the Plugin `plugin`'s Qualities with `qualities` as the Admin, returning them as
+    /// saved.
+    #[expect(
+        clippy::unwrap_used,
+        reason = "a test helper fails its test by panicking"
+    )]
+    pub(crate) async fn replace_qualities(
+        &self,
+        plugin: &str,
+        qualities: Vec<Quality>,
+    ) -> Vec<Quality> {
+        self.try_replace_qualities(plugin, qualities).await.unwrap()
+    }
+
+    /// [`Self::replace_qualities`], returning its error, such as a Refusal.
+    pub(crate) async fn try_replace_qualities(
+        &self,
+        plugin: &str,
+        qualities: Vec<Quality>,
+    ) -> Result<Vec<Quality>, ConnectError> {
+        let replaced = self
+            .plugin_service()
+            .replace_qualities(ReplaceQualitiesRequest {
+                id: plugin.to_owned(),
+                qualities,
+                ..Default::default()
+            })
+            .await?;
+        Ok(replaced.into_owned().qualities)
     }
 
     /// Stops the fake TMDB, as when TMDB is down.
@@ -307,6 +387,10 @@ impl TestServer {
 
     fn libraries(&self) -> LibraryServiceClient<HttpClient> {
         LibraryServiceClient::new(HttpClient::plaintext(), self.client_config())
+    }
+
+    fn plugin_service(&self) -> PluginServiceClient<HttpClient> {
+        PluginServiceClient::new(HttpClient::plaintext(), self.client_config())
     }
 
     fn users(&self) -> UserServiceClient<HttpClient> {
