@@ -103,7 +103,7 @@ use crate::{
     server_settings::ServerUrl,
     sessions::{cleared_session_cookie, identify_caller, in_session_cookie, session_cookie},
     sign_in_codes::{self, Poll, SignInCodes},
-    tracks::{Track, TrackKind},
+    tracks::{Hdr, Track, TrackKind},
     users::{self, Caller, NewDevice, Permissions, SetupCode, SignedIn, Users},
     versions,
     watch_states::{Progress, WatchState, WatchStates},
@@ -2281,6 +2281,30 @@ fn version_to_proto(version: &Version) -> proto::Version {
     }
 }
 
+/// `hdr` as a video Track's `hdr` and `dolby_vision`.
+fn hdr_to_proto(hdr: Option<Hdr>) -> (proto::HdrFormat, Option<proto::DolbyVision>) {
+    match hdr {
+        None => (proto::HdrFormat::HDR_FORMAT_UNSPECIFIED, None),
+        Some(Hdr::Hdr10) => (proto::HdrFormat::HDR_FORMAT_HDR10, None),
+        Some(Hdr::Hlg) => (proto::HdrFormat::HDR_FORMAT_HLG, None),
+        Some(Hdr::DolbyVision {
+            profile,
+            hdr10_base_layer,
+        }) => {
+            let dolby_vision = proto::DolbyVision {
+                // ffprobe reads it from a byte, so it's never negative.
+                profile: u32::try_from(profile).unwrap_or_default(),
+                hdr10_base_layer,
+                ..Default::default()
+            };
+            (
+                proto::HdrFormat::HDR_FORMAT_DOLBY_VISION,
+                Some(dolby_vision),
+            )
+        }
+    }
+}
+
 fn track_to_proto(track: &Track) -> proto::Track {
     // 0 is what the proto says for a fact the file doesn't give. Stored ones are never negative.
     let known = |n: Option<i64>| n.and_then(|n| u32::try_from(n).ok()).unwrap_or_default();
@@ -2289,13 +2313,21 @@ fn track_to_proto(track: &Track) -> proto::Track {
             width,
             height,
             frame_rate,
-        } => proto::VideoTrack {
-            width: known(width),
-            height: known(height),
-            frame_rate: frame_rate.unwrap_or_default(),
-            ..Default::default()
+            bit_depth,
+            hdr,
+        } => {
+            let (hdr, dolby_vision) = hdr_to_proto(hdr);
+            proto::VideoTrack {
+                width: known(width),
+                height: known(height),
+                frame_rate: frame_rate.unwrap_or_default(),
+                bit_depth: known(bit_depth),
+                hdr: hdr.into(),
+                dolby_vision: dolby_vision.into(),
+                ..Default::default()
+            }
+            .into()
         }
-        .into(),
         TrackKind::Audio { channels } => proto::AudioTrack {
             channels: known(channels),
             ..Default::default()

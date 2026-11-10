@@ -15,8 +15,9 @@ use sqlx::SqliteConnection;
 use crate::db::Database;
 
 /// The version of how probing reads a file, stored with what it read like the name parser's
-/// (ADR 0023), so what an older version read can be told apart.
-pub(crate) const PROBE_VERSION: i64 = 1;
+/// (ADR 0023), so what an older version read can be told apart. Version 1 read no bit depth or
+/// HDR format.
+pub(crate) const PROBE_VERSION: i64 = 2;
 
 /// What probing a Version found.
 #[derive(Debug, Clone, PartialEq)]
@@ -50,6 +51,10 @@ pub(crate) enum TrackKind {
         height: Option<i64>,
         /// In frames per second.
         frame_rate: Option<f64>,
+        /// Bits per sample, such as 10 for most HDR.
+        bit_depth: Option<i64>,
+        /// `None` for SDR, or when the file doesn't say.
+        hdr: Option<Hdr>,
     },
     Audio {
         channels: Option<i64>,
@@ -57,6 +62,19 @@ pub(crate) enum TrackKind {
     Subtitle {
         /// A bitmap, such as PGS, rather than text, such as SRT.
         image: bool,
+    },
+}
+
+/// How a video [`Track`]'s picture is HDR.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Hdr {
+    Hdr10,
+    Hlg,
+    DolbyVision {
+        /// Such as 5, 7 or 8, which says which players can show it.
+        profile: i64,
+        /// Whether its base layer is HDR10, which a player without Dolby Vision shows instead.
+        hdr10_base_layer: bool,
     },
 }
 
@@ -121,8 +139,10 @@ impl Tracks {
             .collect();
         let tracks = sqlx::query!(
             r#"SELECT version_id, kind, codec, language, title, is_default AS "default: bool",
-                      forced AS "forced: bool", width, height, frame_rate, channels,
-                      image AS "image: bool"
+                      forced AS "forced: bool", width, height, frame_rate, bit_depth, hdr,
+                      dolby_vision_profile,
+                      dolby_vision_hdr10_base_layer AS "dolby_vision_hdr10_base_layer: bool",
+                      channels, image AS "image: bool"
                FROM tracks
                WHERE version_id IN (SELECT value FROM json_each(?))
                ORDER BY version_id, position"#,
@@ -136,6 +156,12 @@ impl Tracks {
                     width: row.width,
                     height: row.height,
                     frame_rate: row.frame_rate,
+                    bit_depth: row.bit_depth,
+                    hdr: hdr_from_columns(
+                        row.hdr.as_deref(),
+                        row.dolby_vision_profile,
+                        row.dolby_vision_hdr10_base_layer,
+                    ),
                 },
                 "audio" => TrackKind::Audio {
                     channels: row.channels,
@@ -182,19 +208,30 @@ async fn store(conn: &mut SqliteConnection, version: i64, probe: Probe) -> Resul
     .execute(&mut *conn)
     .await?;
     for (position, track) in (0_i64..).zip(probe.tracks) {
-        let (kind, width, height, frame_rate, channels, image) = match track.kind {
+        let (kind, width, height, frame_rate, bit_depth, hdr, channels, image) = match track.kind {
             TrackKind::Video {
                 width,
                 height,
                 frame_rate,
-            } => ("video", width, height, frame_rate, None, None),
-            TrackKind::Audio { channels } => ("audio", None, None, None, channels, None),
-            TrackKind::Subtitle { image } => ("subtitle", None, None, None, None, Some(image)),
+                bit_depth,
+                hdr,
+            } => (
+                "video", width, height, frame_rate, bit_depth, hdr, None, None,
+            ),
+            TrackKind::Audio { channels } => {
+                ("audio", None, None, None, None, None, channels, None)
+            }
+            TrackKind::Subtitle { image } => {
+                ("subtitle", None, None, None, None, None, None, Some(image))
+            }
         };
+        let (hdr, dolby_vision_profile, dolby_vision_hdr10_base_layer) = hdr_columns(hdr);
         sqlx::query!(
             "INSERT INTO tracks (version_id, position, kind, codec, language, title, is_default,
-                                 forced, width, height, frame_rate, channels, image)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                                 forced, width, height, frame_rate, bit_depth, hdr,
+                                 dolby_vision_profile, dolby_vision_hdr10_base_layer, channels,
+                                 image)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             version,
             position,
             kind,
@@ -206,6 +243,10 @@ async fn store(conn: &mut SqliteConnection, version: i64, probe: Probe) -> Resul
             width,
             height,
             frame_rate,
+            bit_depth,
+            hdr,
+            dolby_vision_profile,
+            dolby_vision_hdr10_base_layer,
             channels,
             image,
         )
@@ -213,6 +254,37 @@ async fn store(conn: &mut SqliteConnection, version: i64, probe: Probe) -> Resul
         .await?;
     }
     Ok(())
+}
+
+/// `hdr` as its `tracks` columns: its name, and Dolby Vision's profile and whether its base layer
+/// is HDR10.
+const fn hdr_columns(hdr: Option<Hdr>) -> (Option<&'static str>, Option<i64>, Option<bool>) {
+    match hdr {
+        None => (None, None, None),
+        Some(Hdr::Hdr10) => (Some("hdr10"), None, None),
+        Some(Hdr::Hlg) => (Some("hlg"), None, None),
+        Some(Hdr::DolbyVision {
+            profile,
+            hdr10_base_layer,
+        }) => (Some("dolby_vision"), Some(profile), Some(hdr10_base_layer)),
+    }
+}
+
+/// The [`Hdr`] that [`hdr_columns`] stored.
+fn hdr_from_columns(
+    hdr: Option<&str>,
+    dolby_vision_profile: Option<i64>,
+    dolby_vision_hdr10_base_layer: Option<bool>,
+) -> Option<Hdr> {
+    Some(match hdr? {
+        "hdr10" => Hdr::Hdr10,
+        "hlg" => Hdr::Hlg,
+        // The table holds Dolby Vision's facts for it, and only for it.
+        _ => Hdr::DolbyVision {
+            profile: dolby_vision_profile.unwrap_or_default(),
+            hdr10_base_layer: dolby_vision_hdr10_base_layer.unwrap_or_default(),
+        },
+    })
 }
 
 #[cfg(test)]

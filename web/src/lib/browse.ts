@@ -8,7 +8,13 @@ import { Code } from "@connectrpc/connect";
 import { createConnectQueryKey, createQueryOptions } from "@connectrpc/connect-query";
 import { notFound } from "@tanstack/react-router";
 
-import { BrowseService, type Track, type Version } from "@/gen/nama/v1/browse_pb";
+import {
+  BrowseService,
+  HdrFormat,
+  type Track,
+  type Version,
+  type VideoTrack,
+} from "@/gen/nama/v1/browse_pb";
 import { LibraryService } from "@/gen/nama/v1/library_pb";
 import { type ExternalId, ExternalIdSchema } from "@/gen/nama/v1/match_pb";
 
@@ -117,11 +123,14 @@ export function metadataLine(...facts: (string | undefined)[]) {
 }
 
 /**
- * A Version's picture and sound in a few words, such as "4K · 5.1": its first video Track's size
- * and its default audio Track's channels, or its first's. Empty until the Server has probed it.
+ * A Version's picture and sound in a few words, such as "4K · HDR · 5.1": its first video Track's
+ * size and whether it's HDR, and its default audio Track's channels, or its first's. Empty until
+ * the Server has probed it.
  */
 export function versionLine({ tracks }: Version) {
-  return metadataLine(pictureOf(tracks), soundOf(tracks));
+  const [video] = tracks.flatMap(({ kind }) => (kind.case === "video" ? [kind.value] : []));
+  const hdr = video && video.hdr !== HdrFormat.UNSPECIFIED ? "HDR" : undefined;
+  return metadataLine(video && pictureOf(video), hdr, soundOf(tracks));
 }
 
 /** Picture sizes by name, largest first, with the width or height a picture reaches to be one. */
@@ -133,12 +142,9 @@ const pictureSizes = [
   { name: "SD", width: 1, height: 1 },
 ];
 
-function pictureOf(tracks: Track[]) {
-  const [video] = tracks.flatMap(({ kind }) => (kind.case === "video" ? [kind.value] : []));
-  return (
-    video &&
-    pictureSizes.find(({ width, height }) => video.width >= width || video.height >= height)?.name
-  );
+function pictureOf(video: VideoTrack) {
+  return pictureSizes.find(({ width, height }) => video.width >= width || video.height >= height)
+    ?.name;
 }
 
 const soundNames = new Map([

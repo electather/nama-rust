@@ -14,7 +14,7 @@ use serde::Deserialize;
 
 use crate::{
     config::Config,
-    tracks::{Probe, Track, TrackKind},
+    tracks::{Hdr, Probe, Track, TrackKind},
 };
 
 /// The oldest ffmpeg and ffprobe the Server uses, as major and minor version. HLS with fMP4
@@ -145,11 +145,28 @@ struct ProbedStream {
     height: Option<i64>,
     /// Such as `"24000/1001"`, or `"0/0"` when unknown.
     avg_frame_rate: Option<String>,
+    /// Such as `yuv420p10le`, which says its bit depth.
+    pix_fmt: Option<String>,
+    /// Such as `smpte2084` for HDR10's PQ or `arib-std-b67` for HLG.
+    color_transfer: Option<String>,
+    #[serde(default)]
+    side_data_list: Vec<ProbedSideData>,
     channels: Option<i64>,
     #[serde(default)]
     disposition: HashMap<String, u8>,
     #[serde(default)]
     tags: HashMap<String, String>,
+}
+
+#[derive(Deserialize)]
+struct ProbedSideData {
+    #[serde(default)]
+    side_data_type: String,
+    #[serde(default)]
+    dv_profile: i64,
+    /// What a player without Dolby Vision shows: 1 is HDR10 and 6 Ultra HD Blu-ray's HDR10,
+    /// while 0 is nothing, 2 SDR and 4 HLG.
+    dv_bl_signal_compatibility_id: Option<i64>,
 }
 
 /// The [`Probe`] ffprobe's JSON output describes.
@@ -178,6 +195,8 @@ fn track(mut stream: ProbedStream) -> Option<Track> {
             width: stream.width,
             height: stream.height,
             frame_rate: stream.avg_frame_rate.as_deref().and_then(frame_rate),
+            bit_depth: stream.pix_fmt.as_deref().and_then(bit_depth),
+            hdr: hdr(&stream),
         },
         "audio" => TrackKind::Audio {
             channels: stream.channels,
@@ -203,6 +222,39 @@ fn frame_rate(fraction: &str) -> Option<f64> {
     let (numerator, denominator) = fraction.split_once('/')?;
     let (numerator, denominator): (f64, f64) = (numerator.parse().ok()?, denominator.parse().ok()?);
     (denominator > 0.0).then(|| numerator / denominator)
+}
+
+/// Bits per sample of a planar pixel format such as `yuv420p10le`, or `None` for a packed one such
+/// as `rgb24`, whose number is bits per pixel.
+fn bit_depth(pix_fmt: &str) -> Option<i64> {
+    let format = ["le", "be"]
+        .into_iter()
+        .find_map(|endian| pix_fmt.strip_suffix(endian))
+        .unwrap_or(pix_fmt);
+    // A planar format names its bits after its `p`, and has 8 when it names none.
+    match format.rsplit_once('p')?.1 {
+        "" => Some(8),
+        bits => bits.parse().ok(),
+    }
+}
+
+/// How a video `stream`'s picture is HDR, or `None` for SDR.
+fn hdr(stream: &ProbedStream) -> Option<Hdr> {
+    let dolby_vision = stream
+        .side_data_list
+        .iter()
+        .find(|data| data.side_data_type == "DOVI configuration record");
+    if let Some(record) = dolby_vision {
+        return Some(Hdr::DolbyVision {
+            profile: record.dv_profile,
+            hdr10_base_layer: matches!(record.dv_bl_signal_compatibility_id, Some(1 | 6)),
+        });
+    }
+    match stream.color_transfer.as_deref()? {
+        "smpte2084" => Some(Hdr::Hdr10),
+        "arib-std-b67" => Some(Hdr::Hlg),
+        _ => None,
+    }
 }
 
 /// `name` at `configured`, or else on `path`, if it's new enough, or why the Server can't use it.
@@ -283,20 +335,23 @@ fn is_too_old(version: &str) -> bool {
     (major, minor) < MINIMUM
 }
 
-/// Writes a fifth of a second of 4K video with English 5.1 audio, as Matroska, to `path`, with the
-/// ffmpeg on `PATH`, for a test to probe.
+/// Writes a fifth of a second of 10-bit 4K video with English 5.1 audio, as Matroska, to `path`,
+/// with the ffmpeg on `PATH`, for a test to probe. The video is tagged with `transfer`, as ffmpeg
+/// names it: `smpte2084` for HDR10, `arib-std-b67` for HLG or `bt709` for SDR.
 ///
 /// # Errors
 ///
 /// If ffmpeg can't be run or fails.
 #[cfg(any(test, feature = "testing"))]
-pub fn write_4k_with_5_1(path: &Path) -> std::io::Result<()> {
+pub fn write_4k_with_5_1(path: &Path, transfer: &str) -> std::io::Result<()> {
     let status = Command::new("ffmpeg")
         .args(["-v", "error", "-y"])
         .args(["-f", "lavfi", "-i", "color=size=3840x2160:rate=24"])
         .args(["-f", "lavfi", "-i", "anullsrc=channel_layout=5.1"])
-        // Encoders every ffmpeg build has.
-        .args(["-t", "0.2", "-c:v", "mpeg4", "-c:a", "ac3"])
+        // Encoders every ffmpeg build has; of those, FFV1 is one that takes 10 bits.
+        .args(["-t", "0.2", "-c:v", "ffv1", "-pix_fmt", "yuv420p10le", "-c:a", "ac3"])
+        .args(["-color_primaries", "bt2020", "-colorspace", "bt2020nc"])
+        .args(["-color_trc", transfer])
         .args(["-metadata:s:a:0", "language=eng", "-f", "matroska"])
         .arg(path)
         .status()?;
@@ -535,9 +590,46 @@ mod tests {
 }
 
 #[cfg(test)]
+mod probe_tests {
+    use super::{Ffmpeg, write_4k_with_5_1};
+    use crate::{
+        config::Config,
+        tracks::{Hdr, TrackKind},
+    };
+
+    /// The HDR format ffprobe finds in a file ffmpeg writes tagged with `transfer`.
+    async fn hdr_of_file_tagged(transfer: &str) -> Option<Hdr> {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("video.mkv");
+        write_4k_with_5_1(&file, transfer).unwrap();
+        let path = std::env::var_os("PATH").unwrap_or_default();
+        let ffmpeg = Ffmpeg::find(&Config::default(), &path);
+
+        let probe = ffmpeg.probe(file.to_str().unwrap()).await.unwrap();
+
+        let Some(TrackKind::Video { hdr, bit_depth, .. }) = probe.tracks.first().map(|t| &t.kind)
+        else {
+            panic!("no video Track first: {probe:?}");
+        };
+        assert_eq!(*bit_depth, Some(10));
+        *hdr
+    }
+
+    #[tokio::test]
+    async fn an_hlg_file_is_hlg() {
+        assert_eq!(hdr_of_file_tagged("arib-std-b67").await, Some(Hdr::Hlg));
+    }
+
+    #[tokio::test]
+    async fn an_sdr_file_is_no_hdr() {
+        assert_eq!(hdr_of_file_tagged("bt709").await, None);
+    }
+}
+
+#[cfg(test)]
 mod probe_output_tests {
     use super::parse_probe;
-    use crate::tracks::{Probe, Track, TrackKind};
+    use crate::tracks::{Hdr, Probe, Track, TrackKind};
 
     /// Cut down from ffprobe 7.0's output for a Blu-ray remux with cover art.
     const BLU_RAY_REMUX: &str = r#"{
@@ -594,6 +686,8 @@ mod probe_output_tests {
                             width: Some(3840),
                             height: Some(1600),
                             frame_rate: Some(ntsc),
+                            bit_depth: None,
+                            hdr: None,
                         },
                     ),
                     Track {
@@ -623,5 +717,95 @@ mod probe_output_tests {
                 ],
             }
         );
+    }
+
+    /// The video stream of ffprobe 7.0's output for a Dolby Vision file whose
+    /// `dv_bl_signal_compatibility_id` is `compatibility`, cut down to what probing reads.
+    fn dolby_vision(profile: u8, compatibility: u8, transfer: &str) -> String {
+        format!(
+            r#"{{
+            "streams": [
+                {{"codec_name": "hevc", "codec_type": "video", "width": 3840, "height": 2160,
+                 "pix_fmt": "yuv420p10le", "color_transfer": "{transfer}",
+                 "side_data_list": [
+                    {{"side_data_type": "DOVI configuration record", "dv_version_major": 1,
+                     "dv_version_minor": 0, "dv_profile": {profile}, "dv_level": 6,
+                     "rpu_present_flag": 1, "el_present_flag": 0, "bl_present_flag": 1,
+                     "dv_bl_signal_compatibility_id": {compatibility}}}
+                 ]}}
+            ],
+            "format": {{"format_name": "matroska,webm"}}
+        }}"#
+        )
+    }
+
+    fn video_of(json: &str) -> TrackKind {
+        let probe = parse_probe(json.as_bytes()).unwrap();
+        probe.tracks.into_iter().next().unwrap().kind
+    }
+
+    fn hdr_of(json: &str) -> Option<Hdr> {
+        let TrackKind::Video { hdr, .. } = video_of(json) else {
+            panic!("not a video Track");
+        };
+        hdr
+    }
+
+    #[test]
+    fn dolby_vision_is_read_with_its_profile_and_whether_its_base_layer_is_hdr10() {
+        assert_eq!(
+            hdr_of(&dolby_vision(8, 1, "smpte2084")),
+            Some(Hdr::DolbyVision {
+                profile: 8,
+                hdr10_base_layer: true,
+            })
+        );
+        // Ultra HD Blu-ray's, with an enhancement layer over HDR10.
+        assert_eq!(
+            hdr_of(&dolby_vision(7, 6, "smpte2084")),
+            Some(Hdr::DolbyVision {
+                profile: 7,
+                hdr10_base_layer: true,
+            })
+        );
+        // Streaming's, which only a Dolby Vision player shows right.
+        assert_eq!(
+            hdr_of(&dolby_vision(5, 0, "unknown")),
+            Some(Hdr::DolbyVision {
+                profile: 5,
+                hdr10_base_layer: false,
+            })
+        );
+        // Broadcast's, over HLG.
+        assert_eq!(
+            hdr_of(&dolby_vision(8, 4, "arib-std-b67")),
+            Some(Hdr::DolbyVision {
+                profile: 8,
+                hdr10_base_layer: false,
+            })
+        );
+    }
+
+    #[test]
+    fn bit_depth_is_read_from_the_pixel_format() {
+        let depth_of = |pix_fmt: &str| {
+            let json = format!(
+                r#"{{"streams": [{{"codec_name": "hevc", "codec_type": "video",
+                    "pix_fmt": "{pix_fmt}"}}], "format": {{"format_name": "matroska,webm"}}}}"#
+            );
+            let TrackKind::Video { bit_depth, .. } = video_of(&json) else {
+                panic!("not a video Track");
+            };
+            bit_depth
+        };
+
+        assert_eq!(depth_of("yuv420p"), Some(8));
+        assert_eq!(depth_of("yuvj420p"), Some(8));
+        assert_eq!(depth_of("yuv420p10le"), Some(10));
+        assert_eq!(depth_of("yuv422p12be"), Some(12));
+        assert_eq!(depth_of("p010le"), Some(10));
+        // Packed formats name bits per pixel, not per sample.
+        assert_eq!(depth_of("rgb24"), None);
+        assert_eq!(depth_of("nv12"), None);
     }
 }

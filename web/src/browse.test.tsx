@@ -3,7 +3,7 @@ import { Code, ConnectError, type ServiceImpl } from "@connectrpc/connect";
 import { cleanup, screen } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
-import { BrowseService, type MovieSchema } from "@/gen/nama/v1/browse_pb";
+import { BrowseService, HdrFormat, type MovieSchema } from "@/gen/nama/v1/browse_pb";
 import {
   EventService,
   type SubscribeResponse,
@@ -96,7 +96,7 @@ test("a Library's page shows a Movie as soon as it's Matched", async () => {
   expect(await screen.findByText("Alien")).toBeDefined();
 });
 
-test("a Movie's page says each Version's picture and sound, such as 4K and 5.1", async () => {
+test("a Movie's page says each Version's picture and sound, such as 4K, HDR and 5.1", async () => {
   const transport = serverToBrowse({
     getMovie: () => ({
       movie: {
@@ -108,7 +108,13 @@ test("a Movie's page says each Version's picture and sound, such as 4K and 5.1",
             fileName: "Alien (1979) - 2160p.mkv",
             size: 60_000_000_000n,
             tracks: [
-              { codec: "hevc", kind: { case: "video", value: { width: 3840, height: 1600 } } },
+              {
+                codec: "hevc",
+                kind: {
+                  case: "video",
+                  value: { width: 3840, height: 1600, bitDepth: 10, hdr: HdrFormat.HDR10 },
+                },
+              },
               { codec: "ac3", kind: { case: "audio", value: { channels: 2 } } },
               { codec: "truehd", default: true, kind: { case: "audio", value: { channels: 6 } } },
             ],
@@ -131,7 +137,7 @@ test("a Movie's page says each Version's picture and sound, such as 4K and 5.1",
   openApp("/libraries/1/movies/tmdb-348", transport);
 
   // The largest, which plays unless another is chosen.
-  expect(await screen.findByText("1979 · 4K · 5.1")).toBeDefined();
+  expect(await screen.findByText("1979 · 4K · HDR · 5.1")).toBeDefined();
   expect(
     screen.getByRole("option", { name: "Alien (1979) - 720p.mkv (720p · Stereo · 2 GB)" }),
   ).toBeDefined();

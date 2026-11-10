@@ -2,19 +2,19 @@
 // @generated from file nama/v1/browse.proto (package nama.v1, syntax proto3)
 /* eslint-disable */
 
-import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
-import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
+import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
+import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
 import type { ExternalId } from "./match_pb";
 import { file_nama_v1_match } from "./match_pb";
 import type { WatchState } from "./watch_state_pb";
 import { file_nama_v1_watch_state } from "./watch_state_pb";
-import type { Message } from "@bufbuild/protobuf";
+import type { Message, UnknownEnum } from "@bufbuild/protobuf";
 
 /**
  * Describes the file nama/v1/browse.proto.
  */
 export const file_nama_v1_browse: GenFile = /*@__PURE__*/
-  fileDesc("ChRuYW1hL3YxL2Jyb3dzZS5wcm90bxIHbmFtYS52MSKLAwoFTW92aWUSHwoCaWQYASABKAsyEy5uYW1hLnYxLkV4dGVybmFsSWQSDQoFdGl0bGUYAiABKAkSGwoOb3JpZ2luYWxfdGl0bGUYAyABKAlIAIgBARIVCghvdmVydmlldxgEIAEoCUgBiAEBEhkKDHJlbGVhc2VfZGF0ZRgFIAEoCUgCiAEBEhwKD3J1bnRpbWVfbWludXRlcxgGIAEoDUgDiAEBEhcKCnBvc3Rlcl91cmwYByABKAlIBIgBARIZCgxiYWNrZHJvcF91cmwYCCABKAlIBYgBARIiCgh2ZXJzaW9ucxgJIAMoCzIQLm5hbWEudjEuVmVyc2lvbhIoCgt3YXRjaF9zdGF0ZRgKIAEoCzITLm5hbWEudjEuV2F0Y2hTdGF0ZUIRCg9fb3JpZ2luYWxfdGl0bGVCCwoJX292ZXJ2aWV3Qg8KDV9yZWxlYXNlX2RhdGVCEgoQX3J1bnRpbWVfbWludXRlc0INCgtfcG9zdGVyX3VybEIPCg1fYmFja2Ryb3BfdXJsIlYKB1ZlcnNpb24SCgoCaWQYASABKAMSEQoJZmlsZV9uYW1lGAIgASgJEgwKBHNpemUYAyABKAQSHgoGdHJhY2tzGAQgAygLMg4ubmFtYS52MS5UcmFjayL5AQoFVHJhY2sSDQoFY29kZWMYASABKAkSFQoIbGFuZ3VhZ2UYAiABKAlIAYgBARISCgV0aXRsZRgDIAEoCUgCiAEBEg8KB2RlZmF1bHQYBCABKAgSDgoGZm9yY2VkGAUgASgIEiQKBXZpZGVvGAYgASgLMhMubmFtYS52MS5WaWRlb1RyYWNrSAASJAoFYXVkaW8YByABKAsyEy5uYW1hLnYxLkF1ZGlvVHJhY2tIABIqCghzdWJ0aXRsZRgIIAEoCzIWLm5hbWEudjEuU3VidGl0bGVUcmFja0gAQgYKBGtpbmRCCwoJX2xhbmd1YWdlQggKBl90aXRsZSI/CgpWaWRlb1RyYWNrEg0KBXdpZHRoGAEgASgNEg4KBmhlaWdodBgCIAEoDRISCgpmcmFtZV9yYXRlGAMgASgBIh4KCkF1ZGlvVHJhY2sSEAoIY2hhbm5lbHMYASABKA0iHgoNU3VidGl0bGVUcmFjaxINCgVpbWFnZRgBIAEoCCInChFMaXN0TW92aWVzUmVxdWVzdBISCgpsaWJyYXJ5X2lkGAEgASgDIjQKEkxpc3RNb3ZpZXNSZXNwb25zZRIeCgZtb3ZpZXMYASADKAsyDi5uYW1hLnYxLk1vdmllIkwKD0dldE1vdmllUmVxdWVzdBISCgpsaWJyYXJ5X2lkGAEgASgDEiUKCG1vdmllX2lkGAIgASgLMhMubmFtYS52MS5FeHRlcm5hbElkIjEKEEdldE1vdmllUmVzcG9uc2USHQoFbW92aWUYASABKAsyDi5uYW1hLnYxLk1vdmllIooBCgRTaG93Eh8KAmlkGAEgASgLMhMubmFtYS52MS5FeHRlcm5hbElkEg0KBXRpdGxlGAIgASgJEhcKCnBvc3Rlcl91cmwYAyABKAlIAIgBARIZCgxiYWNrZHJvcF91cmwYBCABKAlIAYgBAUINCgtfcG9zdGVyX3VybEIPCg1fYmFja2Ryb3BfdXJsIkAKBlNlYXNvbhIOCgZudW1iZXIYASABKA0SFwoKcG9zdGVyX3VybBgCIAEoCUgAiAEBQg0KC19wb3N0ZXJfdXJsIrACCgdFcGlzb2RlEh8KAmlkGAEgASgLMhMubmFtYS52MS5FeHRlcm5hbElkEhUKDXNlYXNvbl9udW1iZXIYAiABKA0SFgoOZXBpc29kZV9udW1iZXIYAyABKA0SDQoFdGl0bGUYBCABKAkSFQoIb3ZlcnZpZXcYBSABKAlIAIgBARIVCghhaXJfZGF0ZRgGIAEoCUgBiAEBEhwKD3J1bnRpbWVfbWludXRlcxgHIAEoDUgCiAEBEiIKCHZlcnNpb25zGAggAygLMhAubmFtYS52MS5WZXJzaW9uEigKC3dhdGNoX3N0YXRlGAkgASgLMhMubmFtYS52MS5XYXRjaFN0YXRlQgsKCV9vdmVydmlld0ILCglfYWlyX2RhdGVCEgoQX3J1bnRpbWVfbWludXRlcyImChBMaXN0U2hvd3NSZXF1ZXN0EhIKCmxpYnJhcnlfaWQYASABKAMiMQoRTGlzdFNob3dzUmVzcG9uc2USHAoFc2hvd3MYASADKAsyDS5uYW1hLnYxLlNob3ciSgoOR2V0U2hvd1JlcXVlc3QSEgoKbGlicmFyeV9pZBgBIAEoAxIkCgdzaG93X2lkGAIgASgLMhMubmFtYS52MS5FeHRlcm5hbElkIlAKD0dldFNob3dSZXNwb25zZRIbCgRzaG93GAEgASgLMg0ubmFtYS52MS5TaG93EiAKB3NlYXNvbnMYAiADKAsyDy5uYW1hLnYxLlNlYXNvbiJmChNMaXN0RXBpc29kZXNSZXF1ZXN0EhIKCmxpYnJhcnlfaWQYASABKAMSJAoHc2hvd19pZBgCIAEoCzITLm5hbWEudjEuRXh0ZXJuYWxJZBIVCg1zZWFzb25fbnVtYmVyGAMgASgNIjoKFExpc3RFcGlzb2Rlc1Jlc3BvbnNlEiIKCGVwaXNvZGVzGAEgAygLMhAubmFtYS52MS5FcGlzb2RlIqIBChVDb250aW51ZVdhdGNoaW5nRW50cnkSEgoKbGlicmFyeV9pZBgBIAEoAxIfCgVtb3ZpZRgCIAEoCzIOLm5hbWEudjEuTW92aWVIABIjCgdlcGlzb2RlGAMgASgLMhAubmFtYS52MS5FcGlzb2RlSAASGwoEc2hvdxgEIAEoCzINLm5hbWEudjEuU2hvd0ISChBtb3ZpZV9vcl9lcGlzb2RlIh0KG0xpc3RDb250aW51ZVdhdGNoaW5nUmVxdWVzdCJPChxMaXN0Q29udGludWVXYXRjaGluZ1Jlc3BvbnNlEi8KB2VudHJpZXMYASADKAsyHi5uYW1hLnYxLkNvbnRpbnVlV2F0Y2hpbmdFbnRyeTLpAwoNQnJvd3NlU2VydmljZRJKCgpMaXN0TW92aWVzEhoubmFtYS52MS5MaXN0TW92aWVzUmVxdWVzdBobLm5hbWEudjEuTGlzdE1vdmllc1Jlc3BvbnNlIgOQAgESRAoIR2V0TW92aWUSGC5uYW1hLnYxLkdldE1vdmllUmVxdWVzdBoZLm5hbWEudjEuR2V0TW92aWVSZXNwb25zZSIDkAIBEkcKCUxpc3RTaG93cxIZLm5hbWEudjEuTGlzdFNob3dzUmVxdWVzdBoaLm5hbWEudjEuTGlzdFNob3dzUmVzcG9uc2UiA5ACARJBCgdHZXRTaG93EhcubmFtYS52MS5HZXRTaG93UmVxdWVzdBoYLm5hbWEudjEuR2V0U2hvd1Jlc3BvbnNlIgOQAgESUAoMTGlzdEVwaXNvZGVzEhwubmFtYS52MS5MaXN0RXBpc29kZXNSZXF1ZXN0Gh0ubmFtYS52MS5MaXN0RXBpc29kZXNSZXNwb25zZSIDkAIBEmgKFExpc3RDb250aW51ZVdhdGNoaW5nEiQubmFtYS52MS5MaXN0Q29udGludWVXYXRjaGluZ1JlcXVlc3QaJS5uYW1hLnYxLkxpc3RDb250aW51ZVdhdGNoaW5nUmVzcG9uc2UiA5ACAWIGcHJvdG8z", [file_nama_v1_match, file_nama_v1_watch_state]);
+  fileDesc("ChRuYW1hL3YxL2Jyb3dzZS5wcm90bxIHbmFtYS52MSKLAwoFTW92aWUSHwoCaWQYASABKAsyEy5uYW1hLnYxLkV4dGVybmFsSWQSDQoFdGl0bGUYAiABKAkSGwoOb3JpZ2luYWxfdGl0bGUYAyABKAlIAIgBARIVCghvdmVydmlldxgEIAEoCUgBiAEBEhkKDHJlbGVhc2VfZGF0ZRgFIAEoCUgCiAEBEhwKD3J1bnRpbWVfbWludXRlcxgGIAEoDUgDiAEBEhcKCnBvc3Rlcl91cmwYByABKAlIBIgBARIZCgxiYWNrZHJvcF91cmwYCCABKAlIBYgBARIiCgh2ZXJzaW9ucxgJIAMoCzIQLm5hbWEudjEuVmVyc2lvbhIoCgt3YXRjaF9zdGF0ZRgKIAEoCzITLm5hbWEudjEuV2F0Y2hTdGF0ZUIRCg9fb3JpZ2luYWxfdGl0bGVCCwoJX292ZXJ2aWV3Qg8KDV9yZWxlYXNlX2RhdGVCEgoQX3J1bnRpbWVfbWludXRlc0INCgtfcG9zdGVyX3VybEIPCg1fYmFja2Ryb3BfdXJsIlYKB1ZlcnNpb24SCgoCaWQYASABKAMSEQoJZmlsZV9uYW1lGAIgASgJEgwKBHNpemUYAyABKAQSHgoGdHJhY2tzGAQgAygLMg4ubmFtYS52MS5UcmFjayL5AQoFVHJhY2sSDQoFY29kZWMYASABKAkSFQoIbGFuZ3VhZ2UYAiABKAlIAYgBARISCgV0aXRsZRgDIAEoCUgCiAEBEg8KB2RlZmF1bHQYBCABKAgSDgoGZm9yY2VkGAUgASgIEiQKBXZpZGVvGAYgASgLMhMubmFtYS52MS5WaWRlb1RyYWNrSAASJAoFYXVkaW8YByABKAsyEy5uYW1hLnYxLkF1ZGlvVHJhY2tIABIqCghzdWJ0aXRsZRgIIAEoCzIWLm5hbWEudjEuU3VidGl0bGVUcmFja0gAQgYKBGtpbmRCCwoJX2xhbmd1YWdlQggKBl90aXRsZSKfAQoKVmlkZW9UcmFjaxINCgV3aWR0aBgBIAEoDRIOCgZoZWlnaHQYAiABKA0SEgoKZnJhbWVfcmF0ZRgDIAEoARIRCgliaXRfZGVwdGgYBCABKA0SHwoDaGRyGAUgASgOMhIubmFtYS52MS5IZHJGb3JtYXQSKgoMZG9sYnlfdmlzaW9uGAYgASgLMhQubmFtYS52MS5Eb2xieVZpc2lvbiI4CgtEb2xieVZpc2lvbhIPCgdwcm9maWxlGAEgASgNEhgKEGhkcjEwX2Jhc2VfbGF5ZXIYAiABKAgiHgoKQXVkaW9UcmFjaxIQCghjaGFubmVscxgBIAEoDSIeCg1TdWJ0aXRsZVRyYWNrEg0KBWltYWdlGAEgASgIIicKEUxpc3RNb3ZpZXNSZXF1ZXN0EhIKCmxpYnJhcnlfaWQYASABKAMiNAoSTGlzdE1vdmllc1Jlc3BvbnNlEh4KBm1vdmllcxgBIAMoCzIOLm5hbWEudjEuTW92aWUiTAoPR2V0TW92aWVSZXF1ZXN0EhIKCmxpYnJhcnlfaWQYASABKAMSJQoIbW92aWVfaWQYAiABKAsyEy5uYW1hLnYxLkV4dGVybmFsSWQiMQoQR2V0TW92aWVSZXNwb25zZRIdCgVtb3ZpZRgBIAEoCzIOLm5hbWEudjEuTW92aWUiigEKBFNob3cSHwoCaWQYASABKAsyEy5uYW1hLnYxLkV4dGVybmFsSWQSDQoFdGl0bGUYAiABKAkSFwoKcG9zdGVyX3VybBgDIAEoCUgAiAEBEhkKDGJhY2tkcm9wX3VybBgEIAEoCUgBiAEBQg0KC19wb3N0ZXJfdXJsQg8KDV9iYWNrZHJvcF91cmwiQAoGU2Vhc29uEg4KBm51bWJlchgBIAEoDRIXCgpwb3N0ZXJfdXJsGAIgASgJSACIAQFCDQoLX3Bvc3Rlcl91cmwisAIKB0VwaXNvZGUSHwoCaWQYASABKAsyEy5uYW1hLnYxLkV4dGVybmFsSWQSFQoNc2Vhc29uX251bWJlchgCIAEoDRIWCg5lcGlzb2RlX251bWJlchgDIAEoDRINCgV0aXRsZRgEIAEoCRIVCghvdmVydmlldxgFIAEoCUgAiAEBEhUKCGFpcl9kYXRlGAYgASgJSAGIAQESHAoPcnVudGltZV9taW51dGVzGAcgASgNSAKIAQESIgoIdmVyc2lvbnMYCCADKAsyEC5uYW1hLnYxLlZlcnNpb24SKAoLd2F0Y2hfc3RhdGUYCSABKAsyEy5uYW1hLnYxLldhdGNoU3RhdGVCCwoJX292ZXJ2aWV3QgsKCV9haXJfZGF0ZUISChBfcnVudGltZV9taW51dGVzIiYKEExpc3RTaG93c1JlcXVlc3QSEgoKbGlicmFyeV9pZBgBIAEoAyIxChFMaXN0U2hvd3NSZXNwb25zZRIcCgVzaG93cxgBIAMoCzINLm5hbWEudjEuU2hvdyJKCg5HZXRTaG93UmVxdWVzdBISCgpsaWJyYXJ5X2lkGAEgASgDEiQKB3Nob3dfaWQYAiABKAsyEy5uYW1hLnYxLkV4dGVybmFsSWQiUAoPR2V0U2hvd1Jlc3BvbnNlEhsKBHNob3cYASABKAsyDS5uYW1hLnYxLlNob3cSIAoHc2Vhc29ucxgCIAMoCzIPLm5hbWEudjEuU2Vhc29uImYKE0xpc3RFcGlzb2Rlc1JlcXVlc3QSEgoKbGlicmFyeV9pZBgBIAEoAxIkCgdzaG93X2lkGAIgASgLMhMubmFtYS52MS5FeHRlcm5hbElkEhUKDXNlYXNvbl9udW1iZXIYAyABKA0iOgoUTGlzdEVwaXNvZGVzUmVzcG9uc2USIgoIZXBpc29kZXMYASADKAsyEC5uYW1hLnYxLkVwaXNvZGUiogEKFUNvbnRpbnVlV2F0Y2hpbmdFbnRyeRISCgpsaWJyYXJ5X2lkGAEgASgDEh8KBW1vdmllGAIgASgLMg4ubmFtYS52MS5Nb3ZpZUgAEiMKB2VwaXNvZGUYAyABKAsyEC5uYW1hLnYxLkVwaXNvZGVIABIbCgRzaG93GAQgASgLMg0ubmFtYS52MS5TaG93QhIKEG1vdmllX29yX2VwaXNvZGUiHQobTGlzdENvbnRpbnVlV2F0Y2hpbmdSZXF1ZXN0Ik8KHExpc3RDb250aW51ZVdhdGNoaW5nUmVzcG9uc2USLwoHZW50cmllcxgBIAMoCzIeLm5hbWEudjEuQ29udGludWVXYXRjaGluZ0VudHJ5Km4KCUhkckZvcm1hdBIaChZIRFJfRk9STUFUX1VOU1BFQ0lGSUVEEAASFAoQSERSX0ZPUk1BVF9IRFIxMBABEhIKDkhEUl9GT1JNQVRfSExHEAISGwoXSERSX0ZPUk1BVF9ET0xCWV9WSVNJT04QAzLpAwoNQnJvd3NlU2VydmljZRJKCgpMaXN0TW92aWVzEhoubmFtYS52MS5MaXN0TW92aWVzUmVxdWVzdBobLm5hbWEudjEuTGlzdE1vdmllc1Jlc3BvbnNlIgOQAgESRAoIR2V0TW92aWUSGC5uYW1hLnYxLkdldE1vdmllUmVxdWVzdBoZLm5hbWEudjEuR2V0TW92aWVSZXNwb25zZSIDkAIBEkcKCUxpc3RTaG93cxIZLm5hbWEudjEuTGlzdFNob3dzUmVxdWVzdBoaLm5hbWEudjEuTGlzdFNob3dzUmVzcG9uc2UiA5ACARJBCgdHZXRTaG93EhcubmFtYS52MS5HZXRTaG93UmVxdWVzdBoYLm5hbWEudjEuR2V0U2hvd1Jlc3BvbnNlIgOQAgESUAoMTGlzdEVwaXNvZGVzEhwubmFtYS52MS5MaXN0RXBpc29kZXNSZXF1ZXN0Gh0ubmFtYS52MS5MaXN0RXBpc29kZXNSZXNwb25zZSIDkAIBEmgKFExpc3RDb250aW51ZVdhdGNoaW5nEiQubmFtYS52MS5MaXN0Q29udGludWVXYXRjaGluZ1JlcXVlc3QaJS5uYW1hLnYxLkxpc3RDb250aW51ZVdhdGNoaW5nUmVzcG9uc2UiA5ACAWIGcHJvdG8z", [file_nama_v1_match, file_nama_v1_watch_state]);
 
 /**
  * A Movie some items of a Library are Matched to, with the metadata its Match stores.
@@ -215,7 +215,7 @@ export const TrackSchema: GenMessage<Track> = /*@__PURE__*/
   messageDesc(file_nama_v1_browse, 2);
 
 /**
- * A video Track's own facts. Each is 0 when the file doesn't say.
+ * A video Track's own facts. Each number is 0 when the file doesn't say.
  *
  * @generated from message nama.v1.VideoTrack
  */
@@ -236,6 +236,27 @@ export type VideoTrack = Message<"nama.v1.VideoTrack"> & {
    * @generated from field: double frame_rate = 3;
    */
   frameRate: number;
+
+  /**
+   * Bits per sample, such as 10 for most HDR.
+   *
+   * @generated from field: uint32 bit_depth = 4;
+   */
+  bitDepth: number;
+
+  /**
+   * `HDR_FORMAT_UNSPECIFIED` for SDR, or when the file doesn't say.
+   *
+   * @generated from field: nama.v1.HdrFormat hdr = 5;
+   */
+  hdr: HdrFormat;
+
+  /**
+   * Set only when `hdr` is `HDR_FORMAT_DOLBY_VISION`.
+   *
+   * @generated from field: nama.v1.DolbyVision dolby_vision = 6;
+   */
+  dolbyVision?: DolbyVision | undefined;
 };
 
 /**
@@ -244,6 +265,34 @@ export type VideoTrack = Message<"nama.v1.VideoTrack"> & {
  */
 export const VideoTrackSchema: GenMessage<VideoTrack> = /*@__PURE__*/
   messageDesc(file_nama_v1_browse, 3);
+
+/**
+ * A Dolby Vision video Track's own facts.
+ *
+ * @generated from message nama.v1.DolbyVision
+ */
+export type DolbyVision = Message<"nama.v1.DolbyVision"> & {
+  /**
+   * Such as 5, 7 or 8, which says which players can show it.
+   *
+   * @generated from field: uint32 profile = 1;
+   */
+  profile: number;
+
+  /**
+   * Whether its base layer is HDR10, which a player without Dolby Vision shows instead.
+   *
+   * @generated from field: bool hdr10_base_layer = 2;
+   */
+  hdr10BaseLayer: boolean;
+};
+
+/**
+ * Describes the message nama.v1.DolbyVision.
+ * Use `create(DolbyVisionSchema)` to create a new message.
+ */
+export const DolbyVisionSchema: GenMessage<DolbyVision> = /*@__PURE__*/
+  messageDesc(file_nama_v1_browse, 4);
 
 /**
  * An audio Track's own facts.
@@ -264,7 +313,7 @@ export type AudioTrack = Message<"nama.v1.AudioTrack"> & {
  * Use `create(AudioTrackSchema)` to create a new message.
  */
 export const AudioTrackSchema: GenMessage<AudioTrack> = /*@__PURE__*/
-  messageDesc(file_nama_v1_browse, 4);
+  messageDesc(file_nama_v1_browse, 5);
 
 /**
  * A subtitle Track's own facts.
@@ -286,7 +335,7 @@ export type SubtitleTrack = Message<"nama.v1.SubtitleTrack"> & {
  * Use `create(SubtitleTrackSchema)` to create a new message.
  */
 export const SubtitleTrackSchema: GenMessage<SubtitleTrack> = /*@__PURE__*/
-  messageDesc(file_nama_v1_browse, 5);
+  messageDesc(file_nama_v1_browse, 6);
 
 /**
  * @generated from message nama.v1.ListMoviesRequest
@@ -305,7 +354,7 @@ export type ListMoviesRequest = Message<"nama.v1.ListMoviesRequest"> & {
  * Use `create(ListMoviesRequestSchema)` to create a new message.
  */
 export const ListMoviesRequestSchema: GenMessage<ListMoviesRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_browse, 6);
+  messageDesc(file_nama_v1_browse, 7);
 
 /**
  * @generated from message nama.v1.ListMoviesResponse
@@ -322,7 +371,7 @@ export type ListMoviesResponse = Message<"nama.v1.ListMoviesResponse"> & {
  * Use `create(ListMoviesResponseSchema)` to create a new message.
  */
 export const ListMoviesResponseSchema: GenMessage<ListMoviesResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_browse, 7);
+  messageDesc(file_nama_v1_browse, 8);
 
 /**
  * @generated from message nama.v1.GetMovieRequest
@@ -348,7 +397,7 @@ export type GetMovieRequest = Message<"nama.v1.GetMovieRequest"> & {
  * Use `create(GetMovieRequestSchema)` to create a new message.
  */
 export const GetMovieRequestSchema: GenMessage<GetMovieRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_browse, 8);
+  messageDesc(file_nama_v1_browse, 9);
 
 /**
  * @generated from message nama.v1.GetMovieResponse
@@ -365,7 +414,7 @@ export type GetMovieResponse = Message<"nama.v1.GetMovieResponse"> & {
  * Use `create(GetMovieResponseSchema)` to create a new message.
  */
 export const GetMovieResponseSchema: GenMessage<GetMovieResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_browse, 9);
+  messageDesc(file_nama_v1_browse, 10);
 
 /**
  * A Show some items of a Library are Matched to Episodes of.
@@ -408,7 +457,7 @@ export type Show = Message<"nama.v1.Show"> & {
  * Use `create(ShowSchema)` to create a new message.
  */
 export const ShowSchema: GenMessage<Show> = /*@__PURE__*/
-  messageDesc(file_nama_v1_browse, 10);
+  messageDesc(file_nama_v1_browse, 11);
 
 /**
  * A Season of a Show that some items of a Library are Matched to Episodes of.
@@ -436,7 +485,7 @@ export type Season = Message<"nama.v1.Season"> & {
  * Use `create(SeasonSchema)` to create a new message.
  */
 export const SeasonSchema: GenMessage<Season> = /*@__PURE__*/
-  messageDesc(file_nama_v1_browse, 11);
+  messageDesc(file_nama_v1_browse, 12);
 
 /**
  * An Episode some items of a Library are Matched to, with the metadata its Match stores.
@@ -507,7 +556,7 @@ export type Episode = Message<"nama.v1.Episode"> & {
  * Use `create(EpisodeSchema)` to create a new message.
  */
 export const EpisodeSchema: GenMessage<Episode> = /*@__PURE__*/
-  messageDesc(file_nama_v1_browse, 12);
+  messageDesc(file_nama_v1_browse, 13);
 
 /**
  * @generated from message nama.v1.ListShowsRequest
@@ -526,7 +575,7 @@ export type ListShowsRequest = Message<"nama.v1.ListShowsRequest"> & {
  * Use `create(ListShowsRequestSchema)` to create a new message.
  */
 export const ListShowsRequestSchema: GenMessage<ListShowsRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_browse, 13);
+  messageDesc(file_nama_v1_browse, 14);
 
 /**
  * @generated from message nama.v1.ListShowsResponse
@@ -543,7 +592,7 @@ export type ListShowsResponse = Message<"nama.v1.ListShowsResponse"> & {
  * Use `create(ListShowsResponseSchema)` to create a new message.
  */
 export const ListShowsResponseSchema: GenMessage<ListShowsResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_browse, 14);
+  messageDesc(file_nama_v1_browse, 15);
 
 /**
  * @generated from message nama.v1.GetShowRequest
@@ -569,7 +618,7 @@ export type GetShowRequest = Message<"nama.v1.GetShowRequest"> & {
  * Use `create(GetShowRequestSchema)` to create a new message.
  */
 export const GetShowRequestSchema: GenMessage<GetShowRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_browse, 15);
+  messageDesc(file_nama_v1_browse, 16);
 
 /**
  * @generated from message nama.v1.GetShowResponse
@@ -593,7 +642,7 @@ export type GetShowResponse = Message<"nama.v1.GetShowResponse"> & {
  * Use `create(GetShowResponseSchema)` to create a new message.
  */
 export const GetShowResponseSchema: GenMessage<GetShowResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_browse, 16);
+  messageDesc(file_nama_v1_browse, 17);
 
 /**
  * @generated from message nama.v1.ListEpisodesRequest
@@ -626,7 +675,7 @@ export type ListEpisodesRequest = Message<"nama.v1.ListEpisodesRequest"> & {
  * Use `create(ListEpisodesRequestSchema)` to create a new message.
  */
 export const ListEpisodesRequestSchema: GenMessage<ListEpisodesRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_browse, 17);
+  messageDesc(file_nama_v1_browse, 18);
 
 /**
  * @generated from message nama.v1.ListEpisodesResponse
@@ -643,7 +692,7 @@ export type ListEpisodesResponse = Message<"nama.v1.ListEpisodesResponse"> & {
  * Use `create(ListEpisodesResponseSchema)` to create a new message.
  */
 export const ListEpisodesResponseSchema: GenMessage<ListEpisodesResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_browse, 18);
+  messageDesc(file_nama_v1_browse, 19);
 
 /**
  * A Movie or Episode the caller has started and not played, with what a client needs to show it
@@ -691,7 +740,7 @@ export type ContinueWatchingEntry = Message<"nama.v1.ContinueWatchingEntry"> & {
  * Use `create(ContinueWatchingEntrySchema)` to create a new message.
  */
 export const ContinueWatchingEntrySchema: GenMessage<ContinueWatchingEntry> = /*@__PURE__*/
-  messageDesc(file_nama_v1_browse, 19);
+  messageDesc(file_nama_v1_browse, 20);
 
 /**
  * @generated from message nama.v1.ListContinueWatchingRequest
@@ -704,7 +753,7 @@ export type ListContinueWatchingRequest = Message<"nama.v1.ListContinueWatchingR
  * Use `create(ListContinueWatchingRequestSchema)` to create a new message.
  */
 export const ListContinueWatchingRequestSchema: GenMessage<ListContinueWatchingRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_browse, 20);
+  messageDesc(file_nama_v1_browse, 21);
 
 /**
  * @generated from message nama.v1.ListContinueWatchingResponse
@@ -723,7 +772,47 @@ export type ListContinueWatchingResponse = Message<"nama.v1.ListContinueWatching
  * Use `create(ListContinueWatchingResponseSchema)` to create a new message.
  */
 export const ListContinueWatchingResponseSchema: GenMessage<ListContinueWatchingResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_browse, 21);
+  messageDesc(file_nama_v1_browse, 22);
+
+/**
+ * How a video Track's picture is HDR.
+ *
+ * @generated from enum nama.v1.HdrFormat
+ */
+export const HdrFormat = {
+  /**
+   * @generated from enum value: HDR_FORMAT_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED: 0,
+
+  /**
+   * @generated from enum value: HDR_FORMAT_HDR10 = 1;
+   */
+  HDR10: 1,
+
+  /**
+   * @generated from enum value: HDR_FORMAT_HLG = 2;
+   */
+  HLG: 2,
+
+  /**
+   * @generated from enum value: HDR_FORMAT_DOLBY_VISION = 3;
+   */
+  DOLBY_VISION: 3,
+} as const;
+
+/**
+ * How a video Track's picture is HDR.
+ *
+ * @generated from enum nama.v1.HdrFormat
+ */
+export type HdrFormat = (typeof HdrFormat)[keyof typeof HdrFormat] | UnknownEnum;
+
+/**
+ * Describes the enum nama.v1.HdrFormat.
+ */
+export const HdrFormatSchema: GenEnum<HdrFormat> = /*@__PURE__*/
+  enumDesc(file_nama_v1_browse, 0);
 
 /**
  * Browsing what a Library holds, and the caller's Continue Watching, for any signed-in User.

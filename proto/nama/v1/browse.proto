@@ -106,12 +106,34 @@ message Track {
   }
 }
 
-// A video Track's own facts. Each is 0 when the file doesn't say.
+// A video Track's own facts. Each number is 0 when the file doesn't say.
 message VideoTrack {
   uint32 width = 1;
   uint32 height = 2;
   // In frames per second.
   double frame_rate = 3;
+  // Bits per sample, such as 10 for most HDR.
+  uint32 bit_depth = 4;
+  // `HDR_FORMAT_UNSPECIFIED` for SDR, or when the file doesn't say.
+  HdrFormat hdr = 5;
+  // Set only when `hdr` is `HDR_FORMAT_DOLBY_VISION`.
+  DolbyVision dolby_vision = 6;
+}
+
+// How a video Track's picture is HDR.
+enum HdrFormat {
+  HDR_FORMAT_UNSPECIFIED = 0;
+  HDR_FORMAT_HDR10 = 1;
+  HDR_FORMAT_HLG = 2;
+  HDR_FORMAT_DOLBY_VISION = 3;
+}
+
+// A Dolby Vision video Track's own facts.
+message DolbyVision {
+  // Such as 5, 7 or 8, which says which players can show it.
+  uint32 profile = 1;
+  // Whether its base layer is HDR10, which a player without Dolby Vision shows instead.
+  bool hdr10_base_layer = 2;
 }
 
 // An audio Track's own facts.
