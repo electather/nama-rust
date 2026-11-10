@@ -13,7 +13,7 @@ A self-hosted media server and request manager, with an optional central Hub for
 | [`crates/nama-proto`](crates/nama-proto) | Rust types and ConnectRPC stubs generated from `proto/` |
 | [`crates/nama-test-plugin`](crates/nama-test-plugin) | An Installed Plugin used only in the Server's tests |
 | [`crates/nama-test-report`](crates/nama-test-report) | CI tooling: records test results and reports flaky and slow tests |
-| [`plugins/`](plugins) | Built-in Plugins, and the Installed Plugins the Server bundles |
+| [`plugins/`](plugins) | Built-in Plugins, the Installed Plugins the Server bundles, and the libraries they share |
 | [`web/`](web) | The web app the Server serves |
 | [`proto/`](proto) | The Protobuf API schema |
 | [`spikes/`](spikes) | Throwaway prototypes, not workspace members |
@@ -43,7 +43,7 @@ CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs the following, 
 ```sh
 cargo fmt --all --check
 cargo clippy --workspace --all-targets --locked -- -D warnings
-cargo clippy --package nama-test-plugin --package nama-plugin-radarr --package nama-plugin-sonarr --package nama-plugin-telegram --target wasm32-unknown-unknown --locked -- -D warnings
+cargo clippy --package nama-test-plugin --package nama-plugin-radarr --package nama-plugin-sonarr --package nama-plugin-telegram --package nama-servarr --target wasm32-unknown-unknown --locked -- -D warnings
 cargo nextest run --workspace --locked
 cargo test --workspace --doc --locked
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked
