@@ -89,13 +89,13 @@ fn a_plugin_that_isnt_running_may_be_disabled_only_while_another_provides_an_aut
     with_local_auth.enable(Arc::new(LocalAuth)).unwrap();
 
     // As after `local-auth` panicked: it may be what would provide one after a restart.
-    let refused = without_local_auth
-        .disable_unless_last_provider::<dyn Authenticator>(&PluginId::from_static("local-auth"));
-    let allowed = with_local_auth
-        .disable_unless_last_provider::<dyn Authenticator>(&PluginId::from_static("tmdb"));
+    let refused =
+        without_local_auth.last_provider::<dyn Authenticator>(&PluginId::from_static("local-auth"));
+    let allowed =
+        with_local_auth.last_provider::<dyn Authenticator>(&PluginId::from_static("tmdb"));
 
-    assert!(refused.is_err(), "{refused:?}");
-    assert!(matches!(allowed, Ok(false)), "{allowed:?}");
+    assert!(refused.is_some(), "{refused:?}");
+    assert!(allowed.is_none(), "{allowed:?}");
 }
 
 #[test]
