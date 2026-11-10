@@ -75,13 +75,13 @@ struct Fake {
     queue_calls: AtomicUsize,
 }
 
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
 impl FakeServarr {
     /// Starts serving `servarr` on a free local port, answering with `routes` what the shared
     /// routes don't, once its API key checked out.
+    #[expect(
+        clippy::unwrap_used,
+        reason = "a test helper fails its test by panicking"
+    )]
     pub(crate) async fn start(servarr: Servarr, routes: Router) -> Self {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let mut fake = Self {
@@ -113,6 +113,10 @@ impl FakeServarr {
     }
 
     /// Answers again on the same port.
+    #[expect(
+        clippy::unwrap_used,
+        reason = "a test helper fails its test by panicking"
+    )]
     pub(crate) async fn come_back(&mut self) {
         let listener = TcpListener::bind(self.addr).await.unwrap();
         self.serve(listener);
