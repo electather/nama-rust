@@ -56,6 +56,7 @@ function DropdownMenuItem({ className, ...props }: MenuPrimitive.Item.Props) {
   );
 }
 
+/** Holds the radio items of which one is chosen at a time. */
 function DropdownMenuRadioGroup(props: MenuPrimitive.RadioGroup.Props) {
   return <MenuPrimitive.RadioGroup data-slot="dropdown-menu-radio-group" {...props} />;
 }

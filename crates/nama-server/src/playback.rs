@@ -158,10 +158,10 @@ fn played_tracks(probe: &Probe) -> Vec<Track> {
     [video, audio].into_iter().flatten().cloned().collect()
 }
 
-/// The Version's text subtitle Tracks, which a browser shows, unlike image ones such as PGS.
+/// The Version's text subtitle Tracks.
 fn text_subtitles(version: i64, probe: &Probe) -> Vec<Subtitle> {
     (probe.tracks.iter().enumerate())
-        .filter(|(_, track)| matches!(track.kind, TrackKind::Subtitle { image: false }))
+        .filter(|(_, track)| track.kind.is_text_subtitle())
         .map(|(position, track)| Subtitle {
             track: track.clone(),
             url: subtitles::url(version, position),

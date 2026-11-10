@@ -71,6 +71,14 @@ pub(crate) enum TrackKind {
     },
 }
 
+impl TrackKind {
+    /// Whether it's a text subtitle, such as SRT, which a browser shows, unlike an image one such
+    /// as PGS.
+    pub(crate) const fn is_text_subtitle(&self) -> bool {
+        matches!(self, Self::Subtitle { image: false })
+    }
+}
+
 /// How a video [`Track`]'s picture is HDR.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Hdr {

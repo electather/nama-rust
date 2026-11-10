@@ -113,8 +113,7 @@ impl Embedded {
         let Some(probe) = tracks.of(&[version]).await?.remove(&version) else {
             return Ok(None);
         };
-        let is_text = (probe.tracks.get(track))
-            .is_some_and(|found| matches!(found.kind, TrackKind::Subtitle { image: false }));
+        let is_text = (probe.tracks.get(track)).is_some_and(|found| found.kind.is_text_subtitle());
         if !is_text {
             return Ok(None);
         }

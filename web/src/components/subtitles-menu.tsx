@@ -46,7 +46,7 @@ export function SubtitlesMenu({
   /** Where the menu opens: inside the player, so it shows in full screen. */
   container: RefObject<HTMLDivElement | null>;
 }) {
-  const shown = useSubtitles(videoRef);
+  const { shown, states, show } = useSubtitles(videoRef);
   if (subtitles.length === 0) return null;
   return (
     <DropdownMenu>
@@ -55,14 +55,14 @@ export function SubtitlesMenu({
       </DropdownMenuTrigger>
       <DropdownMenuContent container={container}>
         <DropdownMenuRadioGroup
-          value={shown.shown ?? ""}
+          value={shown ?? ""}
           onValueChange={(url: string) => {
-            shown.show(url === "" ? undefined : url);
+            show(url === "" ? undefined : url);
           }}
         >
           <DropdownMenuRadioItem value="">Off</DropdownMenuRadioItem>
           {subtitles.map(({ track, url }) => (
-            <SubtitleItem key={url} track={track} url={url} state={shown.states[url]} />
+            <SubtitleItem key={url} track={track} url={url} state={states[url]} />
           ))}
         </DropdownMenuRadioGroup>
       </DropdownMenuContent>
