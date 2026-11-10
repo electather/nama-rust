@@ -43,9 +43,6 @@ const CHANNEL: &str = "@nama_requests";
 /// The chat Ada presses Start in.
 const ADA_CHAT: i64 = 987_654_321;
 
-/// What a new User gets: `REQUEST` and `VIEW_REQUESTS`.
-const NEW_USER: [Permission; 2] = [Permission::Request, Permission::ViewRequests];
-
 /// How long a test waits for a Plugin Connection.
 const WAIT: Duration = Duration::from_secs(10);
 
@@ -74,7 +71,7 @@ impl Fixture {
             .enable_with_settings(Arc::new(Tmdb::with_endpoints(tmdb.endpoints())), settings)
             .unwrap();
         let server = TestServer::builder().plugins(plugins).start().await;
-        let ada = server.user("Ada", &NEW_USER).await;
+        let ada = server.user_with_default_permissions("Ada").await;
         Self {
             server,
             telegram: FakeTelegram::start().await,
@@ -655,7 +652,7 @@ async fn a_user_with_manage_requests_who_connected_is_messaged_about_a_new_pendi
     let fixture = Fixture::with_telegram(BOT_TOKEN, None).await;
     fixture.connect_ada().await;
     fixture.ada_manages_requests().await;
-    let ben = fixture.server.user("Ben", &NEW_USER).await;
+    let ben = fixture.server.user_with_default_permissions("Ben").await;
 
     asks_for(&ben, DUNE).await;
 
@@ -670,7 +667,7 @@ async fn a_user_with_manage_requests_who_connected_is_messaged_about_a_new_pendi
 async fn a_requester_who_did_not_connect_is_skipped_and_the_channel_still_posts() {
     let fixture = Fixture::with_telegram(BOT_TOKEN, Some(CHANNEL)).await;
     fixture.connect_ada().await;
-    let ben = fixture.server.user("Ben", &NEW_USER).await;
+    let ben = fixture.server.user_with_default_permissions("Ben").await;
     let dune = asks_for(&ben, DUNE).await;
     fixture.ada_asks_for(DUNE).await;
 
