@@ -32,7 +32,8 @@ const IMPORTED_KEY: &str = "plugin_settings_imported";
 
 /// The Server's Plugins, started with what the database stores for each.
 ///
-/// Cloning one gives another handle to the same Plugins.
+/// Cloning one gives another handle to the same Plugins. A change, once asked for, runs to the end
+/// even if its caller stops waiting.
 #[derive(Clone, Debug)]
 pub struct PluginSettings {
     db: Arc<Database>,
@@ -343,35 +344,31 @@ impl PluginSettings {
         id: &PluginId,
         sent: BTreeMap<String, SettingValue>,
     ) -> Result<StoredPlugin, ChangeError> {
-        let _changing = self.lock().await;
-        let StoredPlugin { plugin, stored } = self.listed(id).await?;
-        let settings = with_stored_secrets(&plugin.settings_schema, sent, &stored.settings);
-        Settings::new(settings.clone())
-            .resolve(&plugin.settings_schema)
-            .map_err(ChangeError::InvalidSettings)?;
-        // ponytail: checked under `changing`, so a slow outside service holds up other Plugin
-        // changes for up to SETTINGS_CHECK_TIMEOUT; check before locking if that bites.
-        self.check_choices(&plugin, &settings).await?;
-        save(&self.db, id.as_str(), stored.enabled, &settings).await?;
-        // Enabled again even if it isn't running, such as TMDB left disabled without its key, and
-        // disabled first so nothing it registered with its old settings stays.
-        if stored.enabled {
-            self.registry.disable(id);
-            if let Err(err) = self
-                .registry
-                .enable_by_id(id, Settings::new(settings.clone()))
-            {
-                error!(plugin = %id, "could not enable the plugin with its new settings: {err}");
+        let (this, id) = (self.clone(), id.clone());
+        detached(async move {
+            let _changing = this.lock().await;
+            let StoredPlugin { plugin, stored } = this.listed(&id).await?;
+            let settings = with_stored_secrets(&plugin.settings_schema, sent, &stored.settings);
+            Settings::new(settings.clone())
+                .resolve(&plugin.settings_schema)
+                .map_err(ChangeError::InvalidSettings)?;
+            // ponytail: checked under `changing`, so a slow outside service holds up other Plugin
+            // changes for up to SETTINGS_CHECK_TIMEOUT; check before locking if that bites.
+            this.check_choices(&plugin, &settings).await?;
+            save(&this.db, id.as_str(), stored.enabled, &settings).await?;
+            if stored.enabled {
+                this.enable_again(&id, &settings);
             }
-        }
-        let enabled = self.registry.enabled().contains(id);
-        Ok(StoredPlugin {
-            plugin: Listed { enabled, ..plugin },
-            stored: PluginConfig {
-                enabled: stored.enabled,
-                settings,
-            },
+            let enabled = this.registry.enabled().contains(&id);
+            Ok(StoredPlugin {
+                plugin: Listed { enabled, ..plugin },
+                stored: PluginConfig {
+                    enabled: stored.enabled,
+                    settings,
+                },
+            })
         })
+        .await
     }
 
     /// Enables the Plugin `id` with its stored settings, then saves it as enabled, so a refused
@@ -381,17 +378,20 @@ impl PluginSettings {
     /// # Errors
     ///
     /// If no Plugin has the id or the Server refused it, it can't be enabled, or the database can't
-    /// be read or written. Should the save
-    /// fail, the Plugin stays enabled until a restart.
+    /// be read or written. Should the save fail, the Plugin stays enabled until a restart.
     pub async fn enable(&self, id: &PluginId) -> Result<(), ChangeError> {
-        let _changing = self.lock().await;
-        let settings = self.listed(id).await?.stored.settings;
-        match self.registry.enable_by_id(id, Settings::new(settings)) {
-            Ok(()) | Err(EnableError::AlreadyEnabled(_)) => {}
-            Err(err) => return Err(ChangeError::Enable(err)),
-        }
-        set_enabled(&self.db, id.as_str(), true).await?;
-        Ok(())
+        let (this, id) = (self.clone(), id.clone());
+        detached(async move {
+            let _changing = this.lock().await;
+            let settings = this.listed(&id).await?.stored.settings;
+            match this.registry.enable_by_id(&id, Settings::new(settings)) {
+                Ok(()) | Err(EnableError::AlreadyEnabled(_)) => {}
+                Err(err) => return Err(ChangeError::Enable(err)),
+            }
+            set_enabled(&this.db, id.as_str(), true).await?;
+            Ok(())
+        })
+        .await
     }
 
     /// Saves the Plugin `id` as disabled, then disables it, so should the save fail it keeps
@@ -403,16 +403,34 @@ impl PluginSettings {
     /// provides an [`Authenticator`], since then nobody could sign in, or the database can't be
     /// read or written. A refused disable saves nothing.
     pub async fn disable(&self, id: &PluginId) -> Result<(), ChangeError> {
-        let _changing = self.lock().await;
-        self.listed(id).await?;
-        if let Some(last) = self.registry.last_provider::<dyn Authenticator>(id) {
-            return Err(ChangeError::LastAuthenticator(last));
-        }
-        set_enabled(&self.db, id.as_str(), false).await?;
-        // ponytail: an Installed Authenticator crashing since the check can leave none running, as
-        // a crash can anyway; the next start then refuses until an admin enables one.
+        let (this, id) = (self.clone(), id.clone());
+        detached(async move {
+            let _changing = this.lock().await;
+            this.listed(&id).await?;
+            if let Some(last) = this.registry.last_provider::<dyn Authenticator>(&id) {
+                return Err(ChangeError::LastAuthenticator(last));
+            }
+            set_enabled(&this.db, id.as_str(), false).await?;
+            // ponytail: an Installed Authenticator crashing since the check can leave none
+            // running, as a crash can anyway; the next start then refuses until an admin enables
+            // one.
+            this.registry.disable(&id);
+            Ok(())
+        })
+        .await
+    }
+
+    /// Enables the Plugin `id` again with `settings`, even if it isn't running, such as TMDB left
+    /// disabled without its key. Disabled first, so nothing it registered with its old settings
+    /// stays; a failure is logged, since its settings are saved and a restart retries them.
+    fn enable_again(&self, id: &PluginId, settings: &BTreeMap<String, SettingValue>) {
         self.registry.disable(id);
-        Ok(())
+        if let Err(err) = self
+            .registry
+            .enable_by_id(id, Settings::new(settings.clone()))
+        {
+            error!(plugin = %id, "could not enable the plugin with its new settings: {err}");
+        }
     }
 
     /// Runs the Plugin `id`'s settings check on `sent`, a secret left out keeping its stored value,
@@ -547,6 +565,18 @@ impl PluginSettings {
     async fn stored(&self) -> Result<BTreeMap<String, PluginConfig>, sqlx::Error> {
         Ok(stored(&self.db).await?.unwrap_or_default())
     }
+}
+
+/// Runs `change` in a task of its own that the caller awaits but can't cancel, so a client that
+/// gives up can't stop it between saving and applying (ADR 0029).
+async fn detached<T: Send + 'static>(
+    change: impl Future<Output = Result<T, ChangeError>> + Send + 'static,
+) -> Result<T, ChangeError> {
+    // The task is never aborted, so it only fails if it panicked.
+    task::spawn(change).await.unwrap_or_else(|err| {
+        error!("changing a plugin panicked: {err}");
+        Err(sqlx::Error::WorkerCrashed.into())
+    })
 }
 
 /// The settings `sent` for a Plugin with `schema`: the ones it names, with a secret left out

@@ -419,7 +419,7 @@ async fn disabling_the_last_authenticator_is_refused_and_saves_nothing() {
 }
 
 #[tokio::test]
-async fn a_disable_is_saved_then_applied() {
+async fn a_disable_is_saved_and_applied() {
     let (data_dir, db) = open().await;
     let plugins = PluginSettings::start(db, registry(), &config(data_dir.path(), ""))
         .await
@@ -431,7 +431,8 @@ async fn a_disable_is_saved_then_applied() {
     assert!(!plugins.registry().enabled().contains(&greeter()));
 }
 
-#[tokio::test]
+// Several workers, so the changes really run at once and race between saving and applying.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn changes_at_once_leave_the_stored_state_as_what_is_running() {
     let (data_dir, db) = open().await;
     let plugins = PluginSettings::start(db, registry(), &config(data_dir.path(), ""))
@@ -441,17 +442,16 @@ async fn changes_at_once_leave_the_stored_state_as_what_is_running() {
         "greeting".to_owned(),
         SettingValue::Text("hello".to_owned()),
     )]);
-
     let greeter = greeter();
 
-    for _ in 0..5 {
-        let (enabled, disabled, updated) = tokio::join!(
-            plugins.enable(&greeter),
+    for _ in 0..50 {
+        let (disabled, enabled, updated) = tokio::join!(
             plugins.disable(&greeter),
+            plugins.enable(&greeter),
             plugins.update(&greeter, hello.clone()),
         );
-        enabled.unwrap();
         disabled.unwrap();
+        enabled.unwrap();
         updated.unwrap();
 
         let running = plugins.registry().enabled().contains(&greeter);
