@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE followed_shows\n             SET quality_id = ?, quality_name = ?, quality_profile_id = ?\n             WHERE tmdb_id = ? AND state != 'declined'",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "0a8ad4b719dc8dc0c44c246bfae9e3f321a69f55bb1cd2a9621077859ec5ce01"
+}

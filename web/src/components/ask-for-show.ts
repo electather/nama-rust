@@ -5,7 +5,7 @@ import { useQualityPicker } from "@/components/quality-picker";
 import { useReadBackAsked } from "@/components/request-state";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { type FoundShow, RequestService } from "@/gen/nama/v1/request_pb";
-import { askRefusal, onSubmitted } from "@/lib/forms";
+import { askRefusal, onSubmitted, showHasQuality } from "@/lib/forms";
 
 /**
  * Asking for the Seasons of `show` picked in a form, or for the Whole Show while `whole`. Either,
@@ -62,9 +62,13 @@ export function seasonsRefusal(error: unknown, title: string) {
     [RefusalReason.FIELD_REQUIRED]: { form: "Pick at least one Season." },
     // A scan Matched one since the page was opened, which reading the Seasons back shows.
     [RefusalReason.ALREADY_IN_LIBRARY]: { form: "One of those Seasons is already in a Library." },
-    // Removed from the list, or another Season gave the Show its Quality, since the page opened.
+    // Removed from the list since the page opened.
     [RefusalReason.QUALITY_NOT_OFFERED]: {
       form: "That Quality isn’t offered any more. Reload the page and pick another.",
+    },
+    // Another Season gave the Show its Quality since the page opened.
+    [RefusalReason.SHOW_HAS_QUALITY]: {
+      form: `${showHasQuality(error, title)} Reload the page to ask at it.`,
     },
   });
 }

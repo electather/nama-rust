@@ -1877,7 +1877,7 @@ export const RequestService: GenService<{
    * and `unavailable` if no metadata Provider is enabled, or it failed. A failure changes no
    * Request. A new Request takes the Show's Quality (`FoundShow.quality`) if it has one, else one
    * picked as `CreateRequest` picks a Movie's, refusing a Quality as `CreateRequest` does, and one
-   * other than the Show's with `REFUSAL_REASON_QUALITY_NOT_OFFERED`.
+   * other than the Show's with `REFUSAL_REASON_SHOW_HAS_QUALITY`.
    *
    * @generated from rpc nama.v1.RequestService.CreateSeasonRequests
    */
@@ -2006,9 +2006,10 @@ export const RequestService: GenService<{
    * that one, keeping the change in `Request.quality_change`, and for a Season Request that of
    * every open Season Request of its Show. Needs `PERMISSION_MANAGE_REQUESTS`, which manages every
    * User's Requests. Fails with `not_found` if there is no Request with the ID,
-   * `failed_precondition` if it isn't Pending, and `invalid_argument` if the Quality isn't offered
-   * for it (`REFUSAL_REASON_QUALITY_NOT_OFFERED`): not on its Fulfiller's list, or not the Show's
-   * once another Season of the Show was handed off, which fixes the Show's Quality.
+   * `failed_precondition` if it isn't Pending, and `invalid_argument` if the Quality isn't on its
+   * Fulfiller's list (`REFUSAL_REASON_QUALITY_NOT_OFFERED`), or isn't the Show's once another
+   * Season of the Show was handed off, which fixes the Show's Quality
+   * (`REFUSAL_REASON_SHOW_HAS_QUALITY`).
    *
    * @generated from rpc nama.v1.RequestService.ApproveRequest
    */
