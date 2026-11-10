@@ -11,20 +11,21 @@ mod servarr;
 #[path = "support/server.rs"]
 mod server;
 
-use connectrpc::{ErrorCode, client::HttpClient};
+use connectrpc::ErrorCode;
 use fake_sonarr::{API_KEY as SONARR_KEY, FakeSonarr};
 use nama_plugin_api::fulfiller::Shows;
 use nama_proto::nama::v1::{
-    ApproveRequestRequest, CancelFollowedShowRequest, CreateFollowedShowRequest,
-    CreateSeasonRequestsRequest, Download, DownloadStatus, EnablePluginRequest, EventType, Quality,
-    RefusalReason, ReplaceQualitiesRequest, Request, RequestServiceClient, RequestState,
-    RetryRequestRequest, UpdatePluginSettingsRequest, event,
+    CancelFollowedShowRequest, Download, DownloadStatus, EnablePluginRequest, EventType, Quality,
+    RefusalReason, ReplaceQualitiesRequest, Request, RequestState, UpdatePluginSettingsRequest,
+    event,
 };
 use nama_server::plugins::Registry;
 use refused::assert_refused;
 use servarr::{ServarrFixture, choices, quality, text};
 use server::{
-    SignedIn, Subscription, TestServer, subscribe,
+    SignedIn, Subscription, TestServer,
+    requests::Requester,
+    subscribe,
     tmdb::{DARK, DARK_TVDB, THE_OFFICE},
 };
 
@@ -106,27 +107,23 @@ impl Fixture {
     /// The Seasons `seasons` of the Show `show`, asked for by the Admin and so Approved at once, as
     /// their hand-offs left them.
     async fn ask_approved(&self, show: i64, seasons: &[u32]) -> Vec<Request> {
-        ask(&self.requests(), show, seasons).await
+        self.server
+            .admin_requests()
+            .ask_seasons(show, seasons)
+            .await
     }
 
     /// The whole Show `show`, asked for by the Admin and so Approved at once. Returns the Followed
     /// Show's id and its Season Requests as their hand-offs left them.
     async fn follow_approved(&self, show: i64) -> (i64, Vec<Request>) {
-        let followed = self
-            .requests()
-            .create_followed_show(CreateFollowedShowRequest {
-                show_tmdb_id: show,
-                ..Default::default()
-            })
-            .await
-            .unwrap()
-            .into_owned();
-        (followed.followed_show.id, followed.requests)
+        let (followed, asked) = self.server.admin_requests().follow(show).await;
+        (followed.id, asked)
     }
 
     /// Cancels the Followed Show `id` as the Admin.
     async fn cancel_followed(&self, id: i64) {
-        self.requests()
+        self.server
+            .admin_requests()
             .cancel_followed_show(CancelFollowedShowRequest {
                 id,
                 ..Default::default()
@@ -137,23 +134,14 @@ impl Fixture {
 
     /// The Season `season` of the Show `show`, asked for by the new User `member` and so Pending.
     async fn ask_pending(&self, member: &SignedIn, show: i64, season: u32) -> Request {
-        let member = RequestServiceClient::new(HttpClient::plaintext(), member.client_config());
-        let asked = ask(&member, show, &[season]).await.remove(0);
+        let asked = self
+            .server
+            .requests(member)
+            .ask_seasons(show, &[season])
+            .await
+            .remove(0);
         assert_eq!(asked.state, RequestState::Pending);
         asked
-    }
-
-    /// Approves the Request `id` as the Admin, and returns it as the approval left it.
-    async fn approve(&self, id: i64) -> Request {
-        let approved = self
-            .requests()
-            .approve_request(ApproveRequestRequest {
-                id,
-                ..Default::default()
-            })
-            .await
-            .unwrap();
-        approved.into_owned().request.into_option().unwrap()
     }
 
     /// Replaces Sonarr's Qualities with `qualities` as the Admin.
@@ -166,19 +154,6 @@ impl Fixture {
             })
             .await
             .unwrap();
-    }
-
-    /// Retries the Request `id` as the Admin, and returns it as the retry left it.
-    async fn retry(&self, id: i64) -> Request {
-        let retried = self
-            .requests()
-            .retry_request(RetryRequestRequest {
-                id,
-                ..Default::default()
-            })
-            .await
-            .unwrap();
-        retried.into_owned().request.into_option().unwrap()
     }
 
     /// Forgets every Season Request's Show TVDB id, as for a Show the metadata source has none
@@ -205,29 +180,6 @@ impl Fixture {
         )
         .await
     }
-}
-
-/// Asks for the Seasons `seasons` of the Show `show` as `client`'s User, and returns the Requests
-/// as asking left them.
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
-async fn ask(
-    client: &RequestServiceClient<HttpClient>,
-    show: i64,
-    seasons: &[u32],
-) -> Vec<Request> {
-    client
-        .create_season_requests(CreateSeasonRequestsRequest {
-            show_tmdb_id: show,
-            season_numbers: seasons.to_vec(),
-            ..Default::default()
-        })
-        .await
-        .unwrap()
-        .into_owned()
-        .requests
 }
 
 fn states(requests: &[Request]) -> Vec<Option<RequestState>> {
@@ -354,7 +306,7 @@ async fn with_sonarr_down_a_request_fails_in_plain_words_and_retrying_once_it_is
 
     let failed = fixture.ask_approved(DARK, &[1]).await.remove(0);
     fixture.sonarr.come_back().await;
-    let retried = fixture.retry(failed.id).await;
+    let retried = fixture.server.retry(failed.id).await;
 
     assert_eq!(failed.state, RequestState::Failed);
     assert_eq!(
@@ -372,7 +324,7 @@ async fn a_season_of_a_show_with_no_tvdb_id_fails_in_plain_words() {
     let pending = fixture.ask_pending(&ada, DARK, 1).await;
     fixture.forget_show_tvdb_ids().await;
 
-    let failed = fixture.approve(pending.id).await;
+    let failed = fixture.server.approve(pending.id).await;
 
     assert_eq!(failed.state, RequestState::Failed);
     assert_eq!(

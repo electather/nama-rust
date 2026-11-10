@@ -11,20 +11,21 @@ mod servarr;
 #[path = "support/server.rs"]
 mod server;
 
-use connectrpc::{ErrorCode, client::HttpClient};
+use connectrpc::ErrorCode;
 use fake_radarr::{API_KEY as RADARR_KEY, FakeRadarr};
 use nama_plugin_api::fulfiller::Movies;
 use nama_proto::nama::v1::{
-    ApproveRequestRequest, CreateRequestRequest, Download, DownloadStatus, EnablePluginRequest,
-    EventType, Quality, RefusalReason, ReplaceQualitiesRequest, Request, RequestServiceClient,
-    RequestState, RetryRequestRequest, UpdatePluginSettingsRequest, event,
+    Download, DownloadStatus, EnablePluginRequest, EventType, Quality, RefusalReason,
+    ReplaceQualitiesRequest, Request, RequestState, UpdatePluginSettingsRequest, event,
 };
 use nama_server::plugins::Registry;
 use refused::assert_refused;
 use serde_json::json;
 use servarr::{ServarrFixture, choices, quality, text};
 use server::{
-    SignedIn, Subscription, TestServer, subscribe,
+    SignedIn, Subscription, TestServer,
+    requests::Requester,
+    subscribe,
     tmdb::{ALIEN, DUNE, HEAT},
 };
 
@@ -112,27 +113,9 @@ impl Fixture {
     /// The Movie `tmdb_id`, asked for by the new User `member` and so Pending, then Approved by
     /// the Admin, as the approval left it.
     async fn approve_movie(&self, member: &SignedIn, tmdb_id: i64) -> Request {
-        let asked = RequestServiceClient::new(HttpClient::plaintext(), member.client_config())
-            .create_request(CreateRequestRequest {
-                movie_tmdb_id: tmdb_id,
-                ..Default::default()
-            })
-            .await
-            .unwrap()
-            .into_owned()
-            .request
-            .into_option()
-            .unwrap();
+        let asked = self.server.requests(member).ask(tmdb_id).await;
         assert_eq!(asked.state, RequestState::Pending);
-        let approved = self
-            .requests()
-            .approve_request(ApproveRequestRequest {
-                id: asked.id,
-                ..Default::default()
-            })
-            .await
-            .unwrap();
-        approved.into_owned().request.into_option().unwrap()
+        self.server.approve(asked.id).await
     }
 
     /// Replaces Radarr's Qualities with `qualities` as the Admin.
@@ -145,19 +128,6 @@ impl Fixture {
             })
             .await
             .unwrap();
-    }
-
-    /// Retries the Request `id` as the Admin, and returns it as the retry left it.
-    async fn retry(&self, id: i64) -> Request {
-        let retried = self
-            .requests()
-            .retry_request(RetryRequestRequest {
-                id,
-                ..Default::default()
-            })
-            .await
-            .unwrap();
-        retried.into_owned().request.into_option().unwrap()
     }
 
     /// Subscribes as the Admin to the progress of every Request.
@@ -270,7 +240,7 @@ async fn with_radarr_down_a_request_fails_in_plain_words_and_retrying_once_it_is
         )
         .await;
     fixture.radarr.come_back().await;
-    let retried = fixture.retry(failed.id).await;
+    let retried = fixture.server.retry(failed.id).await;
 
     assert_eq!(failed.state, RequestState::Failed);
     assert_eq!(

@@ -4,7 +4,7 @@
 use connectrpc::{ConnectError, client::HttpClient};
 use nama_plugin_api::fulfiller::Fulfiller;
 use nama_proto::nama::v1::{
-    PluginServiceClient, Quality, RequestServiceClient, SettingValue, TestPluginSettingsRequest,
+    PluginServiceClient, Quality, SettingValue, TestPluginSettingsRequest,
     TestPluginSettingsResponse, setting_value::Value,
 };
 use nama_server::plugins::Registry;
@@ -28,11 +28,6 @@ pub(crate) trait ServarrFixture {
     /// The Plugin service, as the Admin calls it.
     fn plugins(&self) -> PluginServiceClient<HttpClient> {
         PluginServiceClient::new(HttpClient::plaintext(), self.server().client_config())
-    }
-
-    /// The Request service, as the Admin calls it.
-    fn requests(&self) -> RequestServiceClient<HttpClient> {
-        RequestServiceClient::new(HttpClient::plaintext(), self.server().client_config())
     }
 
     /// The fake Servarr's URL and `api_key` as the Plugin's settings.

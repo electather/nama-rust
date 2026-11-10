@@ -1,5 +1,7 @@
 //! A Server serving the API on a random local port, for tests that call it the way clients do.
 
+#[path = "requests.rs"]
+pub(crate) mod requests;
 #[path = "tmdb.rs"]
 pub(crate) mod tmdb;
 
