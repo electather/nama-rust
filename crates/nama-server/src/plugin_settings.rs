@@ -47,6 +47,11 @@ pub struct PluginSettings {
     /// The task saving each Plugin disabled for crashing as disabled, until
     /// [`PluginSettings::shutdown`].
     saving_crashed: Arc<std::sync::Mutex<Option<JoinHandle<()>>>>,
+    /// Takes the id of each Plugin enabled, startup's included, so Requests can hand it the
+    /// Approved Requests waiting for it without this module calling Requests (ADR 0028).
+    came_up: mpsc::UnboundedSender<PluginId>,
+    /// The other end of `came_up`, until [`PluginSettings::take_came_up`] takes it.
+    came_up_reader: Arc<std::sync::Mutex<Option<mpsc::UnboundedReceiver<PluginId>>>>,
 }
 
 /// A Plugin the Server has, with what is stored for it.
@@ -176,12 +181,15 @@ impl PluginSettings {
             }
             None => config.plugins.parse()?,
         };
+        let (came_up, came_up_reader) = mpsc::unbounded_channel();
         let plugins = Self {
             db,
             registry,
             data_dir: config.data_dir.clone(),
             changing: Arc::default(),
             saving_crashed: Arc::default(),
+            came_up,
+            came_up_reader: Arc::new(std::sync::Mutex::new(Some(came_up_reader))),
         };
         let starting = plugins.clone();
         // Blocking: reading an Installed Plugin compiles it, and so does enabling it.
@@ -266,11 +274,12 @@ impl PluginSettings {
                 info!(plugin = %id, "plugin disabled in its settings");
                 continue;
             }
-            if let Err(err) = self
+            match self
                 .registry
                 .enable_by_id(&id, Settings::new(config.settings))
             {
-                log_not_enabled(&id, &err);
+                Ok(()) => self.queue_came_up(&id),
+                Err(err) => log_not_enabled(&id, &err),
             }
         }
         let enabled: Vec<String> = self
@@ -280,6 +289,21 @@ impl PluginSettings {
             .map(ToString::to_string)
             .collect();
         info!(?enabled, "enabled plugins");
+    }
+
+    /// The id of each Plugin enabled since [`PluginSettings::start`], startup's included, in order,
+    /// and of each one enabled from now on. Only the first call gets them; a later one gets an
+    /// empty, closed queue.
+    pub(crate) fn take_came_up(&self) -> mpsc::UnboundedReceiver<PluginId> {
+        lock_ignoring_poison(&self.came_up_reader)
+            .take()
+            .unwrap_or_else(|| mpsc::unbounded_channel().1)
+    }
+
+    /// Queues the Plugin `id`, just enabled, for [`PluginSettings::take_came_up`]'s reader.
+    fn queue_came_up(&self, id: &PluginId) {
+        // Fails only once the reader stopped, when the Server no longer serves.
+        let _: Result<(), _> = self.came_up.send(id.clone());
     }
 
     /// The registry the Plugins are enabled in, which the Kernel calls them through.
@@ -385,7 +409,8 @@ impl PluginSettings {
             let _changing = this.lock().await;
             let settings = this.listed(&id).await?.stored.settings;
             match this.registry.enable_by_id(&id, Settings::new(settings)) {
-                Ok(()) | Err(EnableError::AlreadyEnabled(_)) => {}
+                // Queued even if it was running, so enabling it again retries a failed hand-off.
+                Ok(()) | Err(EnableError::AlreadyEnabled(_)) => this.queue_came_up(&id),
                 Err(err) => return Err(ChangeError::Enable(err)),
             }
             set_enabled(&this.db, id.as_str(), true).await?;
@@ -425,11 +450,14 @@ impl PluginSettings {
     /// stays; a failure is logged, since its settings are saved and a restart retries them.
     fn enable_again(&self, id: &PluginId, settings: &BTreeMap<String, SettingValue>) {
         self.registry.disable(id);
-        if let Err(err) = self
+        match self
             .registry
             .enable_by_id(id, Settings::new(settings.clone()))
         {
-            error!(plugin = %id, "could not enable the plugin with its new settings: {err}");
+            Ok(()) => self.queue_came_up(id),
+            Err(err) => {
+                error!(plugin = %id, "could not enable the plugin with its new settings: {err}");
+            }
         }
     }
 

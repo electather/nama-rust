@@ -554,6 +554,29 @@ async fn list(client: &RequestServiceClient<HttpClient>) -> Vec<Request> {
     list_in(client, RequestState::Unspecified).await.0
 }
 
+/// [`list`], once none of the Requests is Approved, as after enabling their Fulfiller hands them
+/// off in the background.
+#[expect(
+    clippy::expect_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn list_once_handed_off(client: &RequestServiceClient<HttpClient>) -> Vec<Request> {
+    tokio::time::timeout(WAIT, async {
+        loop {
+            let listed = list(client).await;
+            if listed
+                .iter()
+                .all(|request| request.state != RequestState::Approved)
+            {
+                return listed;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("a Request stayed Approved")
+}
+
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
@@ -1931,7 +1954,7 @@ async fn enabling_a_shows_fulfiller_hands_it_the_season_requests_approved_while_
     fixture.enable_test_choices().await.unwrap();
 
     assert_eq!(
-        states(&list(&ada).await),
+        states(&list_once_handed_off(&ada).await),
         [
             (approved[1].id, RequestState::Processing),
             (approved[0].id, RequestState::Processing)
@@ -1964,7 +1987,7 @@ async fn enabling_a_movie_fulfiller_hands_it_the_requests_approved_while_there_w
     fixture.enable_test_choices().await.unwrap();
 
     assert_eq!(
-        states(&list(&ada).await),
+        states(&list_once_handed_off(&ada).await),
         [
             (approved[1].id, RequestState::Processing),
             (approved[0].id, RequestState::Processing)
@@ -1975,7 +1998,6 @@ async fn enabling_a_movie_fulfiller_hands_it_the_requests_approved_while_there_w
 /// Ada's Request for Heat, approved while there was no Movie Fulfiller, once it has left Approved
 /// after the Server is started again with `fulfiller` as the Movie Fulfiller.
 #[expect(
-    clippy::expect_used,
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
@@ -1987,23 +2009,13 @@ async fn waiting_request_after_starting_with(fulfiller: &FakeFulfiller) -> Reque
     let approved = fixture.approve(pending.id).await;
     assert_eq!(approved.state, RequestState::Approved);
     let restarted = Registry::new();
-    restarted
-        .enable(Arc::new(FulfillerPlugin(fulfiller.clone())))
-        .unwrap();
+    let fulfiller = fulfiller.clone();
+    restarted.describe_builtin(move || Arc::new(FulfillerPlugin(fulfiller.clone())));
 
     fixture.serve_again(restarted).await;
 
-    tokio::time::timeout(WAIT, async {
-        loop {
-            let [request] = list(&ada).await.try_into().unwrap();
-            if request.state != RequestState::Approved {
-                return request;
-            }
-            tokio::time::sleep(Duration::from_millis(10)).await;
-        }
-    })
-    .await
-    .expect("the waiting Request never went to the Movie Fulfiller")
+    let [request] = list_once_handed_off(&ada).await.try_into().unwrap();
+    request
 }
 
 #[tokio::test]

@@ -54,9 +54,9 @@ use crate::{
 ///
 /// Every Library is scanned, and its items Matched, in the background when serving starts. Scans
 /// still running when `shutdown` resolves are cancelled, and the returned future waits for them
-/// to stop. The Approved Requests waiting for a Fulfiller are handed to it in the background too,
-/// and the Fulfillers are asked how their Processing Requests are progressing, until `shutdown`
-/// resolves.
+/// to stop. The Approved Requests waiting for a Fulfiller are handed to it in the background
+/// whenever `plugins` enables one, startup's included, and the Fulfillers are asked how their
+/// Processing Requests are progressing, until `shutdown` resolves.
 ///
 /// While the Server has no Users, `Setup` creates the first Admin for whoever gives `setup_code`.
 /// Admins see the `ffmpeg` found at startup with `GetPlaybackStatus`.
@@ -120,7 +120,9 @@ pub fn serve(
         // In the background, so a slow Fulfiller doesn't hold up serving.
         let progress = requests.clone();
         let following = tokio::spawn(async move { progress.follow_progress(PROGRESS_EVERY).await });
-        let handing_off = tokio::spawn(async move { requests.hand_off_waiting().await });
+        let came_up = plugins.take_came_up();
+        let handing_off =
+            tokio::spawn(async move { requests.hand_off_as_fulfillers_come_up(came_up).await });
         let served = axum::serve(
             listener,
             // The peer's address decides whose rate limit counts and which proxies are trusted.

@@ -163,14 +163,8 @@ pub(crate) fn router(
             watch_states: WatchStates::new(Arc::clone(&db)),
             browse,
         }))
-        .add_service(Arc::new(RequestServiceHandler {
-            requests: requests.clone(),
-            artwork,
-        }))
-        .add_service(Arc::new(PluginServiceHandler {
-            plugin_settings,
-            requests,
-        }))
+        .add_service(Arc::new(RequestServiceHandler { requests, artwork }))
+        .add_service(Arc::new(PluginServiceHandler { plugin_settings }))
         .add_service(Arc::new(LibraryServiceHandler {
             libraries: Libraries::new(db),
             scanner,
@@ -2399,8 +2393,6 @@ fn device_to_proto(device: users::Device, is_current: bool) -> proto::Device {
 struct PluginServiceHandler {
     /// Each Plugin with what is stored for it, which every change to one goes through.
     plugin_settings: PluginSettings,
-    /// Hands the Requests waiting for a Fulfiller to one once it is enabled.
-    requests: Requests,
 }
 
 #[expect(
@@ -2455,9 +2447,6 @@ impl PluginService for PluginServiceHandler {
             .update(&id, settings_from_proto(&request.settings))
             .await
             .map_err(change_refused)?;
-        if plugin.enabled {
-            self.requests.hand_off_waiting_to(&id).await;
-        }
         Response::ok(UpdatePluginSettingsResponse {
             plugin: plugin_to_proto(plugin, &stored.settings).into(),
             ..Default::default()
@@ -2474,7 +2463,6 @@ impl PluginService for PluginServiceHandler {
             .enable(&id)
             .await
             .map_err(change_refused)?;
-        self.requests.hand_off_waiting_to(&id).await;
         Response::ok(EnablePluginResponse::default())
     }
 
