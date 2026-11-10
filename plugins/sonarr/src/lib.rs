@@ -33,7 +33,7 @@ mod exports {
         Ok(Buffa(Manifest {
             logo_svg: include_str!("../logo.svg").to_owned(),
             providers: vec![ProvidePoint::PROVIDE_POINT_SHOW_FULFILLER.into()],
-            settings: nama_servarr::settings("Sonarr", 8989),
+            settings: nama_servarr::settings("Sonarr", "Show", 8989),
             name: "Sonarr".to_owned(),
             description: "Sends Approved Season Requests to Sonarr to download.".to_owned(),
             ..nama_pdk::manifest("sonarr", env!("CARGO_PKG_VERSION"))

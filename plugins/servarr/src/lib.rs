@@ -18,10 +18,11 @@ const API_KEY: &str = "api_key";
 const QUALITY_PROFILE: &str = "quality_profile";
 const ROOT_FOLDER: &str = "root_folder";
 
-/// The settings of the service `service`, which listens on `port` unless set up otherwise: where
-/// it is, its API key, and the quality profile and root folder it adds titles with.
+/// The settings of the service `service`, which adds each `added`, such as "Movie": where it is,
+/// with its default `port` as the example, its API key, and the quality profile and root folder it
+/// adds with.
 #[must_use]
-pub fn settings(service: &str, port: u16) -> Vec<SettingField> {
+pub fn settings(service: &str, added: &str, port: u16) -> Vec<SettingField> {
     let setting = |key: &str, label: &str, description: String, kind: SettingKind| SettingField {
         key: key.to_owned(),
         label: label.to_owned(),
@@ -46,19 +47,19 @@ pub fn settings(service: &str, port: u16) -> Vec<SettingField> {
         setting(
             QUALITY_PROFILE,
             "Quality profile",
-            format!("The quality {service} downloads each title in."),
+            format!("The quality {service} downloads each {added} in."),
             SettingKind::SETTING_KIND_CHOICE,
         ),
         setting(
             ROOT_FOLDER,
             "Root folder",
-            format!("The folder {service} puts each title in."),
+            format!("The folder {service} puts each {added} in."),
             SettingKind::SETTING_KIND_CHOICE,
         ),
     ]
 }
 
-/// The root folder the settings say the service adds each title in.
+/// The root folder the settings say the service adds into.
 ///
 /// # Errors
 /// If it isn't set.
@@ -80,8 +81,8 @@ pub fn quality_profile(request: &Request) -> Result<i64, Error> {
         .map_err(|err| Error::msg(format!("the quality profile isn't an id: {err}")))
 }
 
-/// What a hand-off reports: its `reference`, and the profile `profile_id` the service has the
-/// title at, named as in `profiles`.
+/// What a hand-off reports: its `reference`, and the profile `profile_id` the service has what it
+/// was handed at, named as in `profiles`.
 #[must_use]
 pub fn fulfilled(
     reference: String,
@@ -105,7 +106,7 @@ fn setting(key: &str) -> Result<String, Error> {
     config::get(key)?.ok_or_else(|| Error::msg(format!("the setting {key} isn't set")))
 }
 
-/// A quality profile of the service, which a title is added at.
+/// A quality profile of the service, which a Request is added at.
 #[derive(Debug, Deserialize)]
 pub struct QualityProfile {
     /// The service's id for it.
@@ -558,6 +559,28 @@ mod tests {
         assert_eq!(
             sonarr.no_such_profile(&Request::default(), 4).to_string(),
             "Sonarr has no quality profile with the id 4"
+        );
+    }
+
+    #[test]
+    fn a_hand_off_names_the_profile_it_went_out_at() {
+        let profiles = vec![
+            QualityProfile {
+                id: 1,
+                name: "Any".to_owned(),
+            },
+            QualityProfile {
+                id: 4,
+                name: "HD-1080p".to_owned(),
+            },
+        ];
+        let fulfilled = fulfilled("603".to_owned(), Some(4), profiles);
+        assert_eq!(
+            (
+                fulfilled.profile_id.as_str(),
+                fulfilled.profile_name.as_str()
+            ),
+            ("4", "HD-1080p")
         );
     }
 
