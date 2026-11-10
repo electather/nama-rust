@@ -6,8 +6,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-/// How long [`Log::wait_for`] waits.
-const WAIT: Duration = Duration::from_secs(10);
+use crate::server::WAIT;
 
 /// Everything the Server logs, to this test binary's one global subscriber: a thread-local one
 /// wouldn't see what Observers log on the runtime's other threads.

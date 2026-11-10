@@ -40,7 +40,7 @@ use nama_proto::nama::v1::{
 };
 use nama_server::{contents::Contents, plugins::Registry};
 use refused::assert_refused;
-use server::{SignedIn, TestServer};
+use server::{SignedIn, TestServer, WAIT};
 use tempfile::TempDir;
 
 /// TMDB Matches both to Alien, TMDB id 348.
@@ -174,7 +174,7 @@ impl Fixture {
             })
             .await
             .unwrap();
-        tokio::time::timeout(Duration::from_secs(5), async {
+        tokio::time::timeout(WAIT, async {
             while !done().await {
                 tokio::time::sleep(Duration::from_millis(10)).await;
             }

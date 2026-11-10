@@ -22,11 +22,10 @@ use axum::{
 use serde_json::Value;
 use tokio::{net::TcpListener, task::JoinHandle};
 
+use crate::server::WAIT;
+
 /// The bot token the fake Telegram accepts.
 pub(crate) const BOT_TOKEN: &str = "123456:test-telegram-token";
-
-/// How long [`FakeTelegram::wait_for_messages`] waits.
-const WAIT: Duration = Duration::from_secs(10);
 
 /// A fake Telegram Bot API serving on a local port until dropped.
 pub(crate) struct FakeTelegram {

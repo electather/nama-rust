@@ -1,12 +1,17 @@
 //! A Server serving the API on a random local port, for tests that call it the way clients do.
 
-use std::{net::SocketAddr, path::Path, sync::Arc};
+use std::{net::SocketAddr, path::Path, sync::Arc, time::Duration};
 
-use connectrpc::client::{ClientConfig, HttpClient};
+use connectrpc::{
+    ConnectError,
+    client::{ClientConfig, HttpClient, ServerStream},
+};
 use nama_plugin_local_auth::LocalAuth;
 use nama_proto::nama::v1::{
-    CreateUserRequest, Permission, SessionDelivery, SetPermissionsRequest, SetupRequest,
-    SignInRequest, SignInServiceClient, UserServiceClient,
+    __buffa::view::SubscribeResponseView, CreateUserRequest, EventServiceClient, EventType,
+    Permission, SessionDelivery, SetPermissionsRequest, SetupRequest, SignInRequest,
+    SignInServiceClient, SubscribeRequest, SubscribeResponse, UserServiceClient, event,
+    subscribe_response,
 };
 use nama_server::{
     config::Config, db::Database, ffmpeg::Ffmpeg, plugin_settings::PluginSettings,
@@ -14,6 +19,9 @@ use nama_server::{
 };
 use tempfile::TempDir;
 use tokio::{net::TcpListener, sync::oneshot};
+
+/// How long any wait in a test lasts before it fails the test.
+pub(crate) const WAIT: Duration = Duration::from_secs(10);
 
 /// The password of every User a test creates.
 pub(crate) const PASSWORD: &str = "correct horse battery staple";
@@ -251,4 +259,64 @@ async fn set_up(config: ClientConfig, setup_code: &SetupCode) -> String {
         .unwrap()
         .into_owned()
         .token
+}
+
+/// Subscribes to events of `types`, or of every type if none, as whoever `who` calls the Server
+/// as: the Admin, a [`SignedIn`] User, any other session, or no one.
+pub(crate) async fn subscribe(who: &ClientConfig, types: &[EventType]) -> Subscription {
+    let only = SubscribeRequest {
+        types: types.iter().map(|&kind| kind.into()).collect(),
+        ..Default::default()
+    };
+    subscribe_with(who, only).await
+}
+
+/// Subscribes with `request`'s filters as whoever `who` calls the Server as.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+pub(crate) async fn subscribe_with(who: &ClientConfig, request: SubscribeRequest) -> Subscription {
+    let stream = EventServiceClient::new(HttpClient::plaintext(), who.clone())
+        .subscribe(request)
+        .await
+        .unwrap();
+    Subscription(stream)
+}
+
+/// An open `Subscribe` stream, read one message at a time within [`WAIT`].
+pub(crate) struct Subscription(ServerStream<hyper::body::Incoming, SubscribeResponseView<'static>>);
+
+impl Subscription {
+    /// The next Event, failing the test on a lag, an error, the stream's end or a timeout.
+    #[expect(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        clippy::panic,
+        reason = "a test helper fails its test by panicking"
+    )]
+    pub(crate) async fn next(&mut self) -> event::Event {
+        let next = self
+            .message()
+            .await
+            .unwrap()
+            .expect("the stream ended")
+            .message;
+        let Some(subscribe_response::Message::Event(event)) = next else {
+            panic!("not an event: {next:?}");
+        };
+        event.event.expect("an event of no kind")
+    }
+
+    /// The next message as it came, `None` once the stream ends, failing the test on a timeout.
+    #[expect(
+        clippy::expect_used,
+        reason = "a test helper fails its test by panicking"
+    )]
+    pub(crate) async fn message(&mut self) -> Result<Option<SubscribeResponse>, ConnectError> {
+        let message = tokio::time::timeout(WAIT, self.0.message::<SubscribeResponse>())
+            .await
+            .expect("timed out waiting for the stream")?;
+        Ok(message.map(|message| message.to_owned_message()))
+    }
 }

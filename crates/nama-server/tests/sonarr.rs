@@ -11,12 +11,9 @@ mod servarr;
 #[path = "support/server.rs"]
 mod server;
 
-use std::{collections::BTreeMap, sync::Arc, time::Duration};
+use std::{collections::BTreeMap, sync::Arc};
 
-use connectrpc::{
-    ErrorCode,
-    client::{HttpClient, ServerStream},
-};
+use connectrpc::{ErrorCode, client::HttpClient};
 use fake_sonarr::{API_KEY as SONARR_KEY, DARK_TVDB, FakeSonarr};
 use nama_plugin_api::{
     fulfiller::Shows,
@@ -27,16 +24,15 @@ use nama_plugin_tmdb::{
     testing::{API_KEY as TMDB_KEY, FakeTmdb},
 };
 use nama_proto::nama::v1::{
-    __buffa::view::SubscribeResponseView, ApproveRequestRequest, CancelFollowedShowRequest,
-    CreateFollowedShowRequest, CreateSeasonRequestsRequest, Download, DownloadStatus,
-    EnablePluginRequest, EventServiceClient, EventType, Quality, RefusalReason,
-    ReplaceQualitiesRequest, Request, RequestServiceClient, RequestState, RetryRequestRequest,
-    SubscribeRequest, SubscribeResponse, UpdatePluginSettingsRequest, event, subscribe_response,
+    ApproveRequestRequest, CancelFollowedShowRequest, CreateFollowedShowRequest,
+    CreateSeasonRequestsRequest, Download, DownloadStatus, EnablePluginRequest, EventType, Quality,
+    RefusalReason, ReplaceQualitiesRequest, Request, RequestServiceClient, RequestState,
+    RetryRequestRequest, UpdatePluginSettingsRequest, event,
 };
 use nama_server::plugins::Registry;
 use refused::assert_refused;
 use servarr::{ServarrFixture, choices, quality, text};
-use server::{SignedIn, TestServer};
+use server::{SignedIn, Subscription, TestServer, subscribe};
 
 /// Shows the fake TMDB knows, by TMDB id. Sonarr can find Dark, but not The Office.
 const DARK: i64 = 70_523;
@@ -45,11 +41,6 @@ const THE_OFFICE: i64 = 2316;
 /// Quality profiles the fake Sonarr offers, by id.
 const HD_1080P: &str = "4";
 const ULTRA_HD: &str = "5";
-
-/// How long to wait for the Server to tell of progress.
-const WAIT: Duration = Duration::from_secs(10);
-
-type Subscription = ServerStream<hyper::body::Incoming, SubscribeResponseView<'static>>;
 
 /// A Server with the TMDB Plugin enabled against a fake TMDB, beside a fake Sonarr that has no
 /// Shows yet.
@@ -224,14 +215,11 @@ impl Fixture {
 
     /// Subscribes as the Admin to the progress of every Request.
     async fn subscribe_to_progress(&self) -> Subscription {
-        let only = SubscribeRequest {
-            types: vec![EventType::EVENT_TYPE_REQUEST_PROGRESS.into()],
-            ..Default::default()
-        };
-        EventServiceClient::new(HttpClient::plaintext(), self.server.client_config())
-            .subscribe(only)
-            .await
-            .unwrap()
+        subscribe(
+            &self.server.client_config(),
+            &[EventType::EVENT_TYPE_REQUEST_PROGRESS],
+        )
+        .await
     }
 }
 
@@ -426,23 +414,12 @@ async fn a_show_sonarr_cant_find_fails_in_plain_words() {
 /// The Request and its downloads in the next progress event on `subscription`.
 #[expect(
     clippy::expect_used,
-    clippy::unwrap_used,
     clippy::panic,
     reason = "a test helper fails its test by panicking"
 )]
 async fn next_progress(subscription: &mut Subscription) -> (i64, Vec<Download>) {
-    let next = tokio::time::timeout(WAIT, subscription.message::<SubscribeResponse>())
-        .await
-        .expect("timed out waiting for progress")
-        .unwrap()
-        .expect("the stream ended")
-        .to_owned_message()
-        .message;
-    let Some(subscribe_response::Message::Event(event)) = next else {
-        panic!("not an event: {next:?}");
-    };
-    let Some(event::Event::RequestProgress(progress)) = event.event else {
-        panic!("not progress: {event:?}");
+    let event::Event::RequestProgress(progress) = subscription.next().await else {
+        panic!("not progress");
     };
     let request = progress
         .request

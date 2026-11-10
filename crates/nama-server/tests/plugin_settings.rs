@@ -8,6 +8,9 @@ mod test_plugin;
 #[path = "support/log.rs"]
 #[expect(dead_code, reason = "the harness's `wait_for` has no use here")]
 mod log;
+#[path = "support/server.rs"]
+#[expect(dead_code, reason = "this binary uses only `WAIT` from the fixture")]
+mod server;
 
 use std::{
     collections::{BTreeMap, HashMap},
@@ -34,6 +37,7 @@ use nama_server::{
     plugin_settings::{self, ChangeError, PluginSettings, StartError},
     plugins::Registry,
 };
+use server::WAIT;
 use tempfile::TempDir;
 
 /// A Plugin that registers nothing, with an optional `greeting` setting, and panics in `register`
@@ -492,10 +496,7 @@ async fn a_crashed_plugin_is_saved_as_disabled_unless_an_admin_enabled_it_again(
     crash_test_plugin(&plugins).await;
     let crashed_at = Instant::now();
     while stored_enabled(&plugins, &test_plugin).await {
-        assert!(
-            crashed_at.elapsed() < Duration::from_secs(10),
-            "its disable was never saved"
-        );
+        assert!(crashed_at.elapsed() < WAIT, "its disable was never saved");
         tokio::time::sleep(Duration::from_millis(20)).await;
     }
     plugins.enable(&test_plugin).await.unwrap();
