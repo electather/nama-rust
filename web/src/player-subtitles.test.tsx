@@ -63,7 +63,7 @@ const ways = [
   },
 ] as const;
 
-/** What `video` is playing: its `src`, and the playlists hls.js loaded into it. */
+/** What's playing: `video`'s `src`, and the playlists hls.js loaded into any `<video>`. */
 function playing(video: HTMLVideoElement) {
   return { src: video.getAttribute("src"), hlsJs: hlsJs.played };
 }
@@ -173,15 +173,21 @@ test("a subtitle turned on says it's loading until it has loaded", async () => {
   expect(english.getAttribute("aria-checked")).toBe("true");
 });
 
+/** Opens the player in `way`, with English turned on and loaded. */
+async function englishOn(way: (typeof ways)[number]) {
+  vi.spyOn(HTMLMediaElement.prototype, "canPlayType").mockReturnValue(way.canPlayHls);
+  const { transport, plans } = server(way.plan);
+  openApp(PLAYER, transport);
+  const { video, modes } = await player();
+  choose(/English/u);
+  loaded(video, ENGLISH);
+  return { video, modes, plans };
+}
+
 test.each(ways)(
   "switching subtitles in $how neither asks for a new plan nor reloads the video",
   async (way) => {
-    vi.spyOn(HTMLMediaElement.prototype, "canPlayType").mockReturnValue(way.canPlayHls);
-    const { transport, plans } = server(way.plan);
-    openApp(PLAYER, transport);
-    const { video, modes } = await player();
-    choose(/English/u);
-    loaded(video, ENGLISH);
+    const { video, modes, plans } = await englishOn(way);
 
     fireEvent.click(screen.getByRole("menuitemradio", { name: /French/u }));
 
@@ -198,6 +204,24 @@ test.each(ways)(
     expect(playing(video)).toEqual(way.plays);
   },
 );
+
+// The cues stay in sync because HLS time is the file's time, which the Server's Remux tests pin;
+// here, a seek mustn't turn the subtitle off or reload the video with its `<track>`s.
+test.each(ways)("a subtitle in $how stays on through a seek", async (way) => {
+  const { video, modes, plans } = await englishOn(way);
+
+  video.currentTime = 600;
+  fireEvent.seeking(video);
+  fireEvent.seeked(video);
+
+  expect(modes.get(ENGLISH)?.mode).toBe("showing");
+  expect(screen.getByRole("menuitemradio", { name: /English/u }).getAttribute("aria-checked")).toBe(
+    "true",
+  );
+  expect(plans.asked).toBe(1);
+  expect(screen.getByLabelText("Alien")).toBe(video);
+  expect(playing(video)).toEqual(way.plays);
+});
 
 test("Space in the subtitle menu picks a subtitle without playing or pausing", async () => {
   openApp(PLAYER, server().transport);
