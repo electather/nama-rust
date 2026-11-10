@@ -1,0 +1,74 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT url, segment_folder, max_transcodes, hardware_acceleration,\n                    remote_playback_limit\n             FROM server_settings",
+  "describe": {
+    "columns": [
+      {
+        "name": "url",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "server_settings",
+            "name": "url"
+          }
+        }
+      },
+      {
+        "name": "segment_folder",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "server_settings",
+            "name": "segment_folder"
+          }
+        }
+      },
+      {
+        "name": "max_transcodes",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "server_settings",
+            "name": "max_transcodes"
+          }
+        }
+      },
+      {
+        "name": "hardware_acceleration",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "server_settings",
+            "name": "hardware_acceleration"
+          }
+        }
+      },
+      {
+        "name": "remote_playback_limit",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "server_settings",
+            "name": "remote_playback_limit"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "5b5885c8284a43df9e62ccdc2179f7c5a28b930ca475013320b9c3599163a414"
+}

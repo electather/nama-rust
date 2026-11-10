@@ -45,7 +45,7 @@ use crate::{
     plugin_settings::PluginSettings,
     requests::{PROGRESS_EVERY, Requests},
     scanner::Scanner,
-    server_settings::{RemotePlaybackLimit, SegmentFolder, ServerUrl},
+    server_settings::Settings,
     tracks::Tracks,
     users::SetupCode,
 };
@@ -82,11 +82,6 @@ use crate::{
     reason = "each is a separate handle the Server is built from; a struct bundling them would \
               exist only for this call"
 )]
-#[expect(
-    clippy::too_many_lines,
-    reason = "it builds each service from the ones it needs, in order; split up, the parts would \
-              only hand those handles on"
-)]
 pub fn serve(
     listener: TcpListener,
     config: &Config,
@@ -97,8 +92,8 @@ pub fn serve(
     shutdown: impl Future<Output = ()> + Send + 'static,
 ) -> impl Future<Output = io::Result<()>> + Send + 'static {
     let registry = plugins.registry();
-    let server_url = ServerUrl::default();
-    let events = EventBus::new(Arc::clone(&db), registry.clone(), server_url.clone());
+    let settings = Settings::new(Arc::clone(&db), config.data_dir.join("transcodes"));
+    let events = EventBus::new(Arc::clone(&db), registry.clone(), settings.server_url());
     let ffmpeg = Arc::new(ffmpeg);
     let subtitles = subtitles::Cache::new(&config.data_dir);
     let scanner = Scanner::new(
@@ -110,22 +105,14 @@ pub fn serve(
     );
     let matcher = Matcher::new(Arc::clone(&db), registry.clone(), events.clone());
     let requests = Requests::new(Arc::clone(&db), matcher, events.clone(), registry.clone());
-    let segment_folder = SegmentFolder::new(config.data_dir.join("transcodes"));
-    let remote_limit = RemotePlaybackLimit::default();
     let running = RunningPlans::new(
-        segment_folder.clone(),
+        settings.playback(),
         Arc::clone(&ffmpeg),
         Contents::new(Arc::clone(&db)),
         Tracks::new(Arc::clone(&db)),
         events.clone(),
     );
-    let load_settings = load_settings(
-        server_url.clone(),
-        segment_folder.clone(),
-        remote_limit.clone(),
-        running.clone(),
-        Arc::clone(&db),
-    );
+    let load_settings = load_settings(settings.clone());
     let app = api::router(
         config,
         db,
@@ -133,9 +120,7 @@ pub fn serve(
         scanner.clone(),
         events.clone(),
         requests.clone(),
-        server_url,
-        segment_folder,
-        remote_limit,
+        settings,
         running.clone(),
         setup_code,
         ffmpeg,
@@ -189,34 +174,14 @@ pub fn serve(
     }
 }
 
-/// Reads the Server URL, the segment folder, the remote Playback Limit, and `running`'s Transcode
-/// cap and what Transcodes run on from `db`, logging a failure and going on with the default, then sweeps the segment files an earlier
-/// run left.
-async fn load_settings(
-    server_url: ServerUrl,
-    segment_folder: SegmentFolder,
-    remote_limit: RemotePlaybackLimit,
-    running: RunningPlans,
-    db: Arc<Database>,
-) {
-    if let Err(err) = server_url.load(&db).await {
-        tracing::error!("reading the Server URL failed, so notifications have no links: {err}");
-    }
-    if let Err(err) = segment_folder.load(&db).await {
+/// Reads the Server settings, logging a failure and going on with the defaults, then sweeps the
+/// segment files an earlier run left.
+async fn load_settings(settings: Settings) {
+    if let Err(err) = settings.load().await {
         tracing::error!(
-            "reading the segment folder failed, so segment files go to the default: {err}"
+            "reading the Server settings failed, so each is its default and notifications have \
+             no links: {err}"
         );
     }
-    if let Err(err) = running.max_transcodes().load(&db).await {
-        tracing::error!("reading the Transcode cap failed, so it's the default: {err}");
-    }
-    if let Err(err) = remote_limit.load(&db).await {
-        tracing::error!(
-            "reading the remote Playback Limit failed, so remote playback isn't limited: {err}"
-        );
-    }
-    if let Err(err) = running.hardware_acceleration().load(&db).await {
-        tracing::error!("reading what Transcodes run on failed, so it's Automatic: {err}");
-    }
-    playback::running::sweep_leftovers(&segment_folder).await;
+    playback::running::sweep_leftovers(&settings.playback()).await;
 }
