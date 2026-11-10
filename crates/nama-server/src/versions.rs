@@ -29,8 +29,8 @@ async fn serve(
     Path(id): Path<i64>,
     request: Request,
 ) -> Response {
-    let path = match contents.version_path(id).await {
-        Ok(Some(path)) => path,
+    let path = match contents.version_file(id).await {
+        Ok(Some((path, _))) => path,
         Ok(None) => return StatusCode::NOT_FOUND.into_response(),
         Err(err) => {
             tracing::error!("could not look up the Version {id}: {err}");

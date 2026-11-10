@@ -28,7 +28,7 @@ use std::{
 use buffa::Message;
 use connectrpc::{
     ConnectError, ErrorCode,
-    client::{ClientConfig, HttpClient, ServerStream},
+    client::{ClientConfig, HttpClient},
 };
 use figment::{Figment, providers::Serialized};
 use http::fetch;
@@ -46,20 +46,19 @@ use nama_plugin_tmdb::{
     testing::{API_KEY, FakeTmdb},
 };
 use nama_proto::nama::v1::{
-    __buffa::view::SubscribeResponseView, ApproveFollowedShowRequest, ApproveRequestRequest,
-    BrowseServiceClient, CancelFollowedShowRequest, CancelRequestRequest,
-    CountPendingRequestsRequest, CreateFollowedShowRequest, CreateLibraryRequest,
-    CreateRequestRequest, CreateSeasonRequestsRequest, DeclineFollowedShowRequest,
-    DeclineRequestRequest, EnablePluginRequest, EventServiceClient, EventType, ExtensionPoint,
-    FollowedShow, FoundMovie, FoundShow, GetRequestRequest, LibraryKind, LibraryServiceClient,
-    ListDefaultQualitiesRequest, ListMovieQualitiesRequest, ListMoviesRequest,
-    ListOfferedQualitiesRequest, ListPluginsRequest, ListQualitiesRequest, ListRequestsRequest,
-    ListRequestsResponse, ListShowsRequest, LookUpMovieRequest, LookUpShowRequest, Permission,
-    PluginServiceClient, Quality, RefusalReason, ReplaceQualitiesRequest, Request,
-    RequestServiceClient, RequestState, RetryRequestRequest, ScanLibraryRequest,
-    SearchMoviesRequest, SearchShowsRequest, SetDefaultQualityRequest, SubscribeRequest,
-    SubscribeResponse, TitleKind, UpdatePluginSettingsRequest, WithdrawFollowedShowRequest,
-    WithdrawRequestRequest, event, setting_value, subscribe_response,
+    ApproveFollowedShowRequest, ApproveRequestRequest, BrowseServiceClient,
+    CancelFollowedShowRequest, CancelRequestRequest, CountPendingRequestsRequest,
+    CreateFollowedShowRequest, CreateLibraryRequest, CreateRequestRequest,
+    CreateSeasonRequestsRequest, DeclineFollowedShowRequest, DeclineRequestRequest,
+    EnablePluginRequest, EventType, ExtensionPoint, FollowedShow, FoundMovie, FoundShow,
+    GetRequestRequest, LibraryKind, LibraryServiceClient, ListDefaultQualitiesRequest,
+    ListMovieQualitiesRequest, ListMoviesRequest, ListOfferedQualitiesRequest, ListPluginsRequest,
+    ListQualitiesRequest, ListRequestsRequest, ListRequestsResponse, ListShowsRequest,
+    LookUpMovieRequest, LookUpShowRequest, Permission, PluginServiceClient, Quality, RefusalReason,
+    ReplaceQualitiesRequest, Request, RequestServiceClient, RequestState, RetryRequestRequest,
+    ScanLibraryRequest, SearchMoviesRequest, SearchShowsRequest, SetDefaultQualityRequest,
+    TitleKind, UpdatePluginSettingsRequest, WithdrawFollowedShowRequest, WithdrawRequestRequest,
+    event, setting_value,
 };
 use nama_server::{
     config::{Config, PluginConfig},
@@ -69,7 +68,7 @@ use nama_server::{
     plugins::Registry,
 };
 use refused::assert_refused;
-use server::TestServer;
+use server::{Subscription, TestServer, WAIT, subscribe};
 use tokio::{net::TcpListener, sync::mpsc};
 
 /// Movies the fake TMDB knows.
@@ -89,8 +88,6 @@ const DARK_S02E01: &str = "Dark {tmdb-70523}/Season 02/Dark - S02E01.mkv";
 const DARK_S03E01: &str = "Dark {tmdb-70523}/Season 03/Dark - S03E01.mkv";
 const DARK_S03E02: &str = "Dark {tmdb-70523}/Season 03/Dark - S03E02.mkv";
 const THE_OFFICE: i64 = 2316;
-
-const WAIT: Duration = Duration::from_secs(10);
 
 /// What a new User gets: `REQUEST` and `VIEW_REQUESTS`.
 const NEW_USER: [Permission; 2] = [Permission::Request, Permission::ViewRequests];
@@ -147,6 +144,23 @@ impl Fixture {
             .enable(Arc::new(ShowsFulfillerPlugin(fulfiller.clone())))
             .unwrap();
         Self::start_with(plugins).await
+    }
+
+    /// A Fixture whose Movie Fulfiller `fulfiller` is a Built-in Plugin stored as disabled.
+    async fn with_fulfiller_disabled(fulfiller: &FakeFulfiller) -> Self {
+        let disabled = PluginConfig {
+            enabled: false,
+            settings: BTreeMap::new(),
+        };
+        let stored = BTreeMap::from([(MOVIE_FULFILLER.to_owned(), disabled)]);
+        let config = Figment::from(Serialized::defaults(Config::default()))
+            .merge(Serialized::default("plugins", stored))
+            .extract()
+            .unwrap();
+        let plugins = Registry::new();
+        let made = fulfiller.clone();
+        plugins.describe_builtin(move || Arc::new(FulfillerPlugin(made.clone())));
+        Self::start_with_config(plugins, config).await
     }
 
     /// A Fixture with the Plugins enabled in `plugins` too.
@@ -234,9 +248,14 @@ impl Fixture {
 
     /// Enables the Built-in Plugin `test-choices`, as the Admin.
     async fn enable_test_choices(&self) -> Result<(), ConnectError> {
-        PluginServiceClient::new(HttpClient::plaintext(), self.server.client_config())
+        self.enable(test_choices::ID).await
+    }
+
+    /// Enables the Plugin `id`, as the Admin.
+    async fn enable(&self, id: &str) -> Result<(), ConnectError> {
+        self.plugin_service()
             .enable_plugin(EnablePluginRequest {
-                id: test_choices::ID.to_owned(),
+                id: id.to_owned(),
                 ..Default::default()
             })
             .await
@@ -513,6 +532,29 @@ fn season_of(request: &Request) -> Option<(&str, u32)> {
 
 async fn list(client: &RequestServiceClient<HttpClient>) -> Vec<Request> {
     list_in(client, RequestState::Unspecified).await.0
+}
+
+/// [`list`], once none of the Requests is Approved, as after enabling their Fulfiller hands them
+/// off in the background.
+#[expect(
+    clippy::expect_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn list_once_handed_off(client: &RequestServiceClient<HttpClient>) -> Vec<Request> {
+    tokio::time::timeout(WAIT, async {
+        loop {
+            let listed = list(client).await;
+            if listed
+                .iter()
+                .all(|request| request.state != RequestState::Approved)
+            {
+                return listed;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("a Request stayed Approved")
 }
 
 #[expect(
@@ -849,13 +891,13 @@ async fn listing_by_a_state_gives_only_the_requests_and_followed_shows_in_it_and
     let approved = fixture.approve(dark[1].id).await;
     let declined = decline(&fixture, dark[2].id, "").await;
     let pending = ask_seasons(&ada, THE_OFFICE, &[1]).await;
-    let mut adas_events = subscribe_to_requests(as_ada).await;
+    let mut adas_events = subscribe_to_requests(&as_ada).await;
     let _movies = fixture.library_with_alien().await;
-    let available = state_changed(next_event(&mut adas_events).await);
+    let available = state_changed(adas_events.next().await);
     let _shows = fixture
         .library_with(LibraryKind::LIBRARY_KIND_SHOWS, &[DARK_S01E01])
         .await;
-    let partially_available = state_changed(next_event(&mut adas_events).await);
+    let partially_available = state_changed(adas_events.next().await);
 
     let (all_requests, all_followed) = list_in(&ada, RequestState::Unspecified).await;
     let mut by_state = Vec::new();
@@ -969,12 +1011,12 @@ async fn without_view_requests_the_events_stream_shows_only_the_users_own_reques
         .user("Grace", &[Permission::RequestMovie])
         .await
         .client_config();
-    let mut graces_events = subscribe_to_requests(as_grace.clone()).await;
+    let mut graces_events = subscribe_to_requests(&as_grace).await;
 
     ask(&requests(as_ada.clone()), HEAT).await;
     let shared = ask(&requests(as_ada), DUNE).await;
     ask(&requests(as_grace), DUNE).await;
-    let event = next_event(&mut graces_events).await;
+    let event = graces_events.next().await;
 
     let event::Event::RequesterAdded(added) = event else {
         panic!("Ada's Requests reached Grace first: {event:?}");
@@ -995,10 +1037,10 @@ async fn with_view_requests_the_events_stream_shows_everyones_requests() {
         .user("Grace", &[Permission::RequestMovie])
         .await;
     let (grace, as_grace) = (grace.id, grace.client_config());
-    let mut adas_events = subscribe_to_requests(as_ada).await;
+    let mut adas_events = subscribe_to_requests(&as_ada).await;
 
     let graces = ask(&requests(as_grace), HEAT).await;
-    let event = next_event(&mut adas_events).await;
+    let event = adas_events.next().await;
 
     let event::Event::RequestCreated(created) = event else {
         panic!("not Grace's new Request: {event:?}");
@@ -1012,10 +1054,10 @@ async fn an_admin_approves_a_members_pending_request_and_the_member_sees_it_live
     let fixture = Fixture::start().await;
     let as_ada = fixture.server.user("Ada", &NEW_USER).await.client_config();
     let pending = ask(&requests(as_ada.clone()), HEAT).await;
-    let mut adas_events = subscribe_to_requests(as_ada).await;
+    let mut adas_events = subscribe_to_requests(&as_ada).await;
 
     let approved = fixture.approve(pending.id).await;
-    let event = next_event(&mut adas_events).await;
+    let event = adas_events.next().await;
 
     assert_eq!(approved.state, RequestState::Approved);
     let event::Event::RequestStateChanged(changed) = event else {
@@ -1032,10 +1074,10 @@ async fn an_approved_request_becomes_available_once_a_scan_matches_its_movie_and
     let ada = requests(as_ada.clone());
     let pending = ask(&ada, ALIEN).await;
     fixture.approve(pending.id).await;
-    let mut adas_events = subscribe_to_requests(as_ada).await;
+    let mut adas_events = subscribe_to_requests(&as_ada).await;
 
     let _media = fixture.library_with_alien().await;
-    let event = next_event(&mut adas_events).await;
+    let event = adas_events.next().await;
 
     let event::Event::RequestStateChanged(changed) = event else {
         panic!("not the Request becoming Available: {event:?}");
@@ -1058,6 +1100,8 @@ struct FakeFulfiller {
     /// Each Season it was handed, in order.
     handed_seasons: Arc<Mutex<Vec<HandedSeason>>>,
     refuses: Arc<AtomicBool>,
+    /// Whether it never answers a hand-off.
+    stalls: Arc<AtomicBool>,
     /// Whether it refuses the hand-offs that ask it to follow a Show.
     refuses_following: Arc<AtomicBool>,
     /// The TMDB id of each Show it was told to stop following, in order.
@@ -1078,6 +1122,12 @@ impl FakeFulfiller {
     fn refusing() -> Self {
         let fulfiller = Self::default();
         fulfiller.refuses.store(true, Ordering::Relaxed);
+        fulfiller
+    }
+
+    fn stalling() -> Self {
+        let fulfiller = Self::default();
+        fulfiller.stalls.store(true, Ordering::Relaxed);
         fulfiller
     }
 
@@ -1168,8 +1218,12 @@ impl Fulfiller<Movies> for FakeFulfiller {
             .unwrap_or_else(PoisonError::into_inner)
             .push(tmdb_id);
         let refuses = self.refuses.load(Ordering::Relaxed);
+        let stalls = self.stalls.load(Ordering::Relaxed);
         let fulfilled = self.fulfilled(format!("movie-{tmdb_id}"));
         Box::pin(async move {
+            if stalls {
+                future::pending::<()>().await;
+            }
             if refuses {
                 return Err("Radarr is unreachable".into());
             }
@@ -1341,12 +1395,11 @@ async fn without_view_requests_a_user_sees_the_progress_of_only_their_own_proces
     fulfiller.download(DUNE, vec![dune.clone()]);
     let adas = ask(&requests(as_ada), HEAT).await;
     let graces = ask(&requests(as_grace.clone()), DUNE).await;
-    let mut graces_events =
-        subscribe(as_grace.clone(), &[EventType::EVENT_TYPE_REQUEST_PROGRESS]).await;
+    let mut graces_events = subscribe(&as_grace, &[EventType::EVENT_TYPE_REQUEST_PROGRESS]).await;
 
     fixture.approve(adas.id).await;
     fixture.approve(graces.id).await;
-    let event = next_event(&mut graces_events).await;
+    let event = graces_events.next().await;
 
     let event::Event::RequestProgress(progress) = event else {
         panic!("not progress: {event:?}");
@@ -1366,17 +1419,17 @@ async fn a_request_whose_fulfiller_cant_say_how_it_is_progressing_stays_processi
     let fixture = Fixture::with_fulfiller(&fulfiller).await;
     let as_ada = fixture.server.user("Ada", &NEW_USER).await.client_config();
     let ada = requests(as_ada.clone());
-    let mut adas_events = subscribe(as_ada, &[EventType::EVENT_TYPE_REQUEST_PROGRESS]).await;
+    let mut adas_events = subscribe(&as_ada, &[EventType::EVENT_TYPE_REQUEST_PROGRESS]).await;
     fulfiller.download(HEAT, vec![downloading("Heat.1995.1080p", 42.5)]);
     let heat = fixture.approve(ask(&ada, HEAT).await.id).await;
-    let event::Event::RequestProgress(_) = next_event(&mut adas_events).await else {
+    let event::Event::RequestProgress(_) = adas_events.next().await else {
         panic!("not Heat's first progress");
     };
 
     fulfiller.progress_fails.store(true, Ordering::Relaxed);
     // The Server asks again as soon as another Request becomes Processing.
     fixture.approve(ask(&ada, ALIEN).await.id).await;
-    let event = next_event(&mut adas_events).await;
+    let event = adas_events.next().await;
 
     let event::Event::RequestProgress(progress) = event else {
         panic!("not progress: {event:?}");
@@ -1396,13 +1449,10 @@ async fn approving_a_pending_request_hands_it_to_the_movie_fulfiller_and_the_mem
     let as_ada = fixture.server.user("Ada", &NEW_USER).await.client_config();
     let ada = requests(as_ada.clone());
     let pending = ask(&ada, HEAT).await;
-    let mut adas_events = subscribe_to_requests(as_ada).await;
+    let mut adas_events = subscribe_to_requests(&as_ada).await;
 
     let approved = fixture.approve(pending.id).await;
-    let events = [
-        next_event(&mut adas_events).await,
-        next_event(&mut adas_events).await,
-    ];
+    let events = [adas_events.next().await, adas_events.next().await];
 
     assert_eq!(approved.state, RequestState::Processing);
     assert_eq!(fulfiller.handed(), [HEAT]);
@@ -1466,13 +1516,13 @@ async fn a_user_who_may_auto_approve_movies_joining_a_pending_request_approves_i
         .await;
     let (grace, as_grace) = (grace.id, grace.client_config());
     let pending = ask(&requests(as_ada.clone()), HEAT).await;
-    let mut adas_events = subscribe_to_requests(as_ada).await;
+    let mut adas_events = subscribe_to_requests(&as_ada).await;
 
     let joined = ask(&requests(as_grace), HEAT).await;
     let events = [
-        next_event(&mut adas_events).await,
-        next_event(&mut adas_events).await,
-        next_event(&mut adas_events).await,
+        adas_events.next().await,
+        adas_events.next().await,
+        adas_events.next().await,
     ];
 
     assert_eq!(joined.id, pending.id);
@@ -1507,10 +1557,10 @@ async fn a_user_who_may_auto_approve_movies_joining_an_approved_request_leaves_i
         .await
         .client_config();
     let approved = ask(&requests(as_ada.clone()), HEAT).await;
-    let mut adas_events = subscribe_to_requests(as_ada).await;
+    let mut adas_events = subscribe_to_requests(&as_ada).await;
 
     let joined = ask(&requests(as_grace), HEAT).await;
-    let added = next_event(&mut adas_events).await;
+    let added = adas_events.next().await;
 
     assert_eq!(approved.state, RequestState::Approved);
     assert_eq!(joined.state, RequestState::Approved);
@@ -1553,13 +1603,10 @@ async fn a_request_the_movie_fulfiller_refuses_fails_with_its_reason_and_the_mem
     let as_ada = fixture.server.user("Ada", &NEW_USER).await.client_config();
     let ada = requests(as_ada.clone());
     let pending = ask(&ada, HEAT).await;
-    let mut adas_events = subscribe_to_requests(as_ada).await;
+    let mut adas_events = subscribe_to_requests(&as_ada).await;
 
     let failed = fixture.approve(pending.id).await;
-    let events = [
-        next_event(&mut adas_events).await,
-        next_event(&mut adas_events).await,
-    ];
+    let events = [adas_events.next().await, adas_events.next().await];
 
     assert_eq!(failed.state, RequestState::Failed);
     assert_eq!(
@@ -1582,14 +1629,11 @@ async fn retrying_a_failed_request_once_the_movie_fulfiller_recovers_moves_it_to
     let as_ada = fixture.server.user("Ada", &NEW_USER).await.client_config();
     let ada = requests(as_ada.clone());
     let failed = fixture.approve(ask(&ada, HEAT).await.id).await;
-    let mut adas_events = subscribe_to_requests(as_ada).await;
+    let mut adas_events = subscribe_to_requests(&as_ada).await;
 
     fulfiller.recover();
     let retried = retry(&fixture, failed.id).await.unwrap();
-    let events = [
-        next_event(&mut adas_events).await,
-        next_event(&mut adas_events).await,
-    ];
+    let events = [adas_events.next().await, adas_events.next().await];
 
     let [
         event::Event::RequestStateChanged(approved),
@@ -1669,10 +1713,10 @@ async fn approving_a_request_hands_it_to_an_installed_movie_fulfiller_which_says
     let fixture = Fixture::with_installed_plugin(&[("fulfiller", "take")]).await;
     let as_ada = fixture.server.user("Ada", &NEW_USER).await.client_config();
     let pending = ask(&requests(as_ada.clone()), HEAT).await;
-    let mut adas_events = subscribe(as_ada, &[EventType::EVENT_TYPE_REQUEST_PROGRESS]).await;
+    let mut adas_events = subscribe(&as_ada, &[EventType::EVENT_TYPE_REQUEST_PROGRESS]).await;
 
     let approved = fixture.approve(pending.id).await;
-    let event = next_event(&mut adas_events).await;
+    let event = adas_events.next().await;
 
     assert_eq!(approved.state, RequestState::Processing);
     assert_eq!(
@@ -1789,13 +1833,10 @@ async fn approving_a_pending_season_request_hands_it_to_the_shows_fulfiller_and_
     let as_ada = fixture.server.user("Ada", &NEW_USER).await.client_config();
     let ada = requests(as_ada.clone());
     let pending = ask_seasons(&ada, DARK, &[2]).await;
-    let mut adas_events = subscribe_to_requests(as_ada).await;
+    let mut adas_events = subscribe_to_requests(&as_ada).await;
 
     let approved = fixture.approve(pending[0].id).await;
-    let events = [
-        next_event(&mut adas_events).await,
-        next_event(&mut adas_events).await,
-    ];
+    let events = [adas_events.next().await, adas_events.next().await];
 
     assert_eq!(approved.state, RequestState::Processing);
     assert_eq!(
@@ -1965,7 +2006,7 @@ async fn enabling_a_shows_fulfiller_hands_it_the_season_requests_approved_while_
     fixture.enable_test_choices().await.unwrap();
 
     assert_eq!(
-        states(&list(&ada).await),
+        states(&list_once_handed_off(&ada).await),
         [
             (approved[1].id, RequestState::Processing),
             (approved[0].id, RequestState::Processing)
@@ -1998,7 +2039,7 @@ async fn enabling_a_movie_fulfiller_hands_it_the_requests_approved_while_there_w
     fixture.enable_test_choices().await.unwrap();
 
     assert_eq!(
-        states(&list(&ada).await),
+        states(&list_once_handed_off(&ada).await),
         [
             (approved[1].id, RequestState::Processing),
             (approved[0].id, RequestState::Processing)
@@ -2006,10 +2047,32 @@ async fn enabling_a_movie_fulfiller_hands_it_the_requests_approved_while_there_w
     );
 }
 
+#[tokio::test]
+async fn enabling_a_movie_fulfiller_answers_without_waiting_for_it_to_take_the_waiting_requests() {
+    let fulfiller = FakeFulfiller::stalling();
+    let fixture = Fixture::with_fulfiller_disabled(&fulfiller).await;
+    let as_ada = fixture.server.user("Ada", &NEW_USER).await.client_config();
+    let pending = ask(&requests(as_ada), HEAT).await;
+    fixture.approve(pending.id).await;
+
+    tokio::time::timeout(WAIT, fixture.enable(MOVIE_FULFILLER))
+        .await
+        .expect("enabling waited for the Fulfiller to take the Request")
+        .unwrap();
+
+    tokio::time::timeout(WAIT, async {
+        while fulfiller.handed().is_empty() {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("the waiting Request never went to the Fulfiller");
+    assert_eq!(fulfiller.handed(), [HEAT]);
+}
+
 /// Ada's Request for Heat, approved while there was no Movie Fulfiller, once it has left Approved
 /// after the Server is started again with `fulfiller` as the Movie Fulfiller.
 #[expect(
-    clippy::expect_used,
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
@@ -2021,23 +2084,13 @@ async fn waiting_request_after_starting_with(fulfiller: &FakeFulfiller) -> Reque
     let approved = fixture.approve(pending.id).await;
     assert_eq!(approved.state, RequestState::Approved);
     let restarted = Registry::new();
-    restarted
-        .enable(Arc::new(FulfillerPlugin(fulfiller.clone())))
-        .unwrap();
+    let fulfiller = fulfiller.clone();
+    restarted.describe_builtin(move || Arc::new(FulfillerPlugin(fulfiller.clone())));
 
     fixture.serve_again(restarted).await;
 
-    tokio::time::timeout(WAIT, async {
-        loop {
-            let [request] = list(&ada).await.try_into().unwrap();
-            if request.state != RequestState::Approved {
-                return request;
-            }
-            tokio::time::sleep(Duration::from_millis(10)).await;
-        }
-    })
-    .await
-    .expect("the waiting Request never went to the Movie Fulfiller")
+    let [request] = list_once_handed_off(&ada).await.try_into().unwrap();
+    request
 }
 
 #[tokio::test]
@@ -2212,7 +2265,7 @@ async fn cancelling_removes_a_request_and_tells_its_requesters() {
     let as_ada = fixture.server.user("Ada", &NEW_USER).await.client_config();
     let approved = ask(&requests(fixture.server.client_config()), HEAT).await;
     let joined = ask(&requests(as_ada.clone()), HEAT).await;
-    let mut adas_events = subscribe_to_requests(as_ada.clone()).await;
+    let mut adas_events = subscribe_to_requests(&as_ada).await;
 
     requests(fixture.server.client_config())
         .cancel_request(CancelRequestRequest {
@@ -2221,7 +2274,7 @@ async fn cancelling_removes_a_request_and_tells_its_requesters() {
         })
         .await
         .unwrap();
-    let event = next_event(&mut adas_events).await;
+    let event = adas_events.next().await;
 
     let event::Event::RequestCancelled(cancelled) = event else {
         panic!("not the cancelling: {event:?}");
@@ -2327,15 +2380,12 @@ async fn one_of_two_requesters_withdraws_and_the_request_stays_with_the_other() 
     let (grace, as_grace) = (grace.id, grace.client_config());
     let asked = ask(&requests(as_ada.clone()), HEAT).await;
     ask(&requests(as_grace.clone()), HEAT).await;
-    let mut adas_events = subscribe_to_requests(as_ada.clone()).await;
-    let mut graces_events = subscribe_to_requests(as_grace.clone()).await;
+    let mut adas_events = subscribe_to_requests(&as_ada).await;
+    let mut graces_events = subscribe_to_requests(&as_grace).await;
 
     withdraw(&requests(as_ada), asked.id).await.unwrap();
 
-    for event in [
-        next_event(&mut adas_events).await,
-        next_event(&mut graces_events).await,
-    ] {
+    for event in [adas_events.next().await, graces_events.next().await] {
         let event::Event::RequesterRemoved(removed) = event else {
             panic!("not the withdrawal: {event:?}");
         };
@@ -2353,10 +2403,10 @@ async fn the_last_requester_withdrawing_removes_the_request_and_the_movie_can_be
     let as_ada = fixture.server.user("Ada", &NEW_USER).await.client_config();
     let ada = requests(as_ada.clone());
     let asked = ask(&ada, HEAT).await;
-    let mut adas_events = subscribe_to_requests(as_ada).await;
+    let mut adas_events = subscribe_to_requests(&as_ada).await;
 
     withdraw(&ada, asked.id).await.unwrap();
-    let event = next_event(&mut adas_events).await;
+    let event = adas_events.next().await;
     let gone = list(&ada).await;
     let again = ask(&ada, HEAT).await;
 
@@ -2468,10 +2518,8 @@ async fn decline(fixture: &Fixture, id: i64, reason: &str) -> Request {
         .unwrap()
 }
 
-type Subscription = ServerStream<hyper::body::Incoming, SubscribeResponseView<'static>>;
-
 /// Subscribes to Request events, as the User `config` calls as.
-async fn subscribe_to_requests(config: ClientConfig) -> Subscription {
+async fn subscribe_to_requests(config: &ClientConfig) -> Subscription {
     subscribe(
         config,
         &[
@@ -2484,42 +2532,6 @@ async fn subscribe_to_requests(config: ClientConfig) -> Subscription {
         ],
     )
     .await
-}
-
-/// Subscribes to events of `types`, as the User `config` calls as.
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
-async fn subscribe(config: ClientConfig, types: &[EventType]) -> Subscription {
-    let only = SubscribeRequest {
-        types: types.iter().map(|&kind| kind.into()).collect(),
-        ..Default::default()
-    };
-    EventServiceClient::new(HttpClient::plaintext(), config)
-        .subscribe(only)
-        .await
-        .unwrap()
-}
-
-#[expect(
-    clippy::expect_used,
-    clippy::unwrap_used,
-    clippy::panic,
-    reason = "a test helper fails its test by panicking"
-)]
-async fn next_event(subscription: &mut Subscription) -> event::Event {
-    let next = tokio::time::timeout(WAIT, subscription.message::<SubscribeResponse>())
-        .await
-        .expect("timed out waiting for an event")
-        .unwrap()
-        .expect("the stream ended")
-        .to_owned_message()
-        .message;
-    let Some(subscribe_response::Message::Event(event)) = next else {
-        panic!("not an event: {next:?}");
-    };
-    event.event.expect("an event with nothing in it")
 }
 
 #[tokio::test]
@@ -2900,11 +2912,11 @@ async fn without_view_requests_the_events_stream_shows_only_the_users_own_season
         .user("Grace", &[Permission::RequestTv])
         .await
         .client_config();
-    let mut graces_events = subscribe_to_requests(as_grace.clone()).await;
+    let mut graces_events = subscribe_to_requests(&as_grace).await;
 
     ask_seasons(&requests(as_ada), DARK, &[1]).await;
     let graces = ask_seasons(&requests(as_grace), DARK, &[2]).await;
-    let event = next_event(&mut graces_events).await;
+    let event = graces_events.next().await;
 
     let event::Event::RequestCreated(created) = event else {
         panic!("Ada's Request reached Grace first: {event:?}");
@@ -2932,17 +2944,17 @@ async fn matching_season_1s_aired_episodes_makes_its_request_partially_available
     let ada = requests(as_ada.clone());
     let asked = ask_seasons(&ada, DARK, &[1, 2]).await;
     let (season_1, season_2) = (asked[0].id, asked[1].id);
-    let mut adas_events = subscribe_to_requests(as_ada).await;
+    let mut adas_events = subscribe_to_requests(&as_ada).await;
 
     let (media, library) = fixture
         .library_with(LibraryKind::LIBRARY_KIND_SHOWS, &[DARK_S01E01])
         .await;
-    let some_matched = state_changed(next_event(&mut adas_events).await);
+    let some_matched = state_changed(adas_events.next().await);
     write_files(media.path(), &[DARK_S01E02, DARK_S01E03]);
     fixture
         .scan_until(library, LibraryKind::LIBRARY_KIND_SHOWS, true)
         .await;
-    let all_matched = state_changed(next_event(&mut adas_events).await);
+    let all_matched = state_changed(adas_events.next().await);
 
     assert_eq!(some_matched, (season_1, RequestState::PartiallyAvailable));
     assert_eq!(all_matched, (season_1, RequestState::Available));
@@ -2968,7 +2980,7 @@ async fn a_season_still_airing_becomes_available_once_its_aired_episodes_are_mat
         .await;
     let aired_matched = states(&list(&ada).await);
     let mut matches = subscribe(
-        fixture.server.client_config(),
+        &fixture.server.client_config(),
         &[EventType::EVENT_TYPE_ITEM_MATCHED],
     )
     .await;
@@ -2976,7 +2988,7 @@ async fn a_season_still_airing_becomes_available_once_its_aired_episodes_are_mat
     fixture
         .scan_until(library, LibraryKind::LIBRARY_KIND_SHOWS, true)
         .await;
-    let later = next_event(&mut matches).await;
+    let later = matches.next().await;
 
     assert_eq!(aired_matched, [(asked[0].id, RequestState::Available)]);
     assert!(matches!(later, event::Event::ItemMatched(_)), "{later:?}");
@@ -3405,12 +3417,12 @@ async fn once_a_followed_show_is_approved_a_scan_matching_a_new_seasons_episodes
     follow(&requests(as_grace), DARK).await;
     let (followed, _) = follow_dark_before_season_3(&fixture, &requests(as_ada.clone())).await;
     approve_followed(&fixture, followed.id).await.unwrap();
-    let mut adas_events = subscribe_to_requests(as_ada).await;
+    let mut adas_events = subscribe_to_requests(&as_ada).await;
 
     let _media = fixture
         .library_with(LibraryKind::LIBRARY_KIND_SHOWS, &[DARK_S03E01])
         .await;
-    let event = next_event(&mut adas_events).await;
+    let event = adas_events.next().await;
 
     let event::Event::RequestCreated(created) = event else {
         panic!("not a new Request: {event:?}");
@@ -3840,7 +3852,7 @@ async fn the_last_requester_withdrawing_ends_a_followed_show_and_leaves_its_seas
 }
 
 /// Subscribes to Followed Show events, as the User `config` calls as.
-async fn subscribe_to_followed_shows(config: ClientConfig) -> Subscription {
+async fn subscribe_to_followed_shows(config: &ClientConfig) -> Subscription {
     subscribe(
         config,
         &[
@@ -3875,7 +3887,7 @@ async fn next_followed_show_events(
     use event::Event as E;
     let mut sent = Vec::with_capacity(count);
     for _ in 0..count {
-        let (happened, user, followed) = match next_event(subscription).await {
+        let (happened, user, followed) = match subscription.next().await {
             E::FollowedShowCreated(e) => ("created", None, e.followed_show),
             E::FollowedShowRequesterAdded(e) => {
                 ("requester added", Some(e.user_id), e.followed_show)
@@ -3917,7 +3929,7 @@ async fn each_change_to_a_followed_show_sends_it_as_it_is_after_or_as_it_was_bef
     let grace = fixture.server.user("Grace", &NEW_USER).await;
     let (grace, as_grace) = (grace.id, grace.client_config());
     let (ada_requests, grace_requests) = (requests(as_ada), requests(as_grace));
-    let mut events = subscribe_to_followed_shows(fixture.server.client_config()).await;
+    let mut events = subscribe_to_followed_shows(&fixture.server.client_config()).await;
 
     let (opened, _) = follow(&ada_requests, DARK).await;
     let (joined, _) = follow(&grace_requests, DARK).await;
@@ -3962,9 +3974,9 @@ async fn a_followed_show_event_reaches_its_requesters_and_view_requests_subscrib
         .user("Hopper", &[Permission::RequestTv])
         .await
         .client_config();
-    let mut adas_events = subscribe_to_followed_shows(as_ada).await;
-    let mut graces_events = subscribe_to_followed_shows(as_grace.clone()).await;
-    let mut hoppers_events = subscribe_to_followed_shows(as_hopper.clone()).await;
+    let mut adas_events = subscribe_to_followed_shows(&as_ada).await;
+    let mut graces_events = subscribe_to_followed_shows(&as_grace).await;
+    let mut hoppers_events = subscribe_to_followed_shows(&as_hopper).await;
 
     let (graces_requests, hoppers_requests) = (requests(as_grace), requests(as_hopper));
 
@@ -4044,7 +4056,7 @@ async fn opening_a_followed_show_for_a_show_whose_seasons_are_all_in_a_library_s
         )
         .await;
     let as_ada = fixture.server.user("Ada", &NEW_USER).await.client_config();
-    let mut adas_events = subscribe_to_followed_shows(as_ada.clone()).await;
+    let mut adas_events = subscribe_to_followed_shows(&as_ada).await;
 
     let (followed, asked) = follow(&requests(as_ada), DARK).await;
 
@@ -4070,7 +4082,7 @@ async fn a_scan_matching_more_of_a_season_in_a_library_when_its_show_was_followe
     let ada = requests(as_ada);
     follow(&ada, DARK).await;
     let mut matches = subscribe(
-        fixture.server.client_config(),
+        &fixture.server.client_config(),
         &[EventType::EVENT_TYPE_ITEM_MATCHED],
     )
     .await;
@@ -4079,7 +4091,7 @@ async fn a_scan_matching_more_of_a_season_in_a_library_when_its_show_was_followe
     fixture
         .scan_until(library, LibraryKind::LIBRARY_KIND_SHOWS, true)
         .await;
-    next_event(&mut matches).await;
+    matches.next().await;
 
     assert_eq!(dark_seasons_requested(&ada).await, [1, 2]);
 }
@@ -4107,7 +4119,7 @@ async fn a_season_request_a_followed_show_opened_isnt_opened_again_once_cancelle
         .await
         .unwrap();
     let mut matches = subscribe(
-        fixture.server.client_config(),
+        &fixture.server.client_config(),
         &[EventType::EVENT_TYPE_ITEM_MATCHED],
     )
     .await;
@@ -4116,7 +4128,7 @@ async fn a_season_request_a_followed_show_opened_isnt_opened_again_once_cancelle
     fixture
         .scan_until(library, LibraryKind::LIBRARY_KIND_SHOWS, true)
         .await;
-    next_event(&mut matches).await;
+    matches.next().await;
 
     assert_eq!(opened.len(), 1, "{opened:?}");
     assert_eq!(dark_seasons_requested(&ada).await, [1, 2]);
@@ -4155,12 +4167,12 @@ async fn a_season_that_comes_out_later_opens_its_request_at_the_followed_shows_q
     let (followed, _) = follow_dark_before_season_3(&fixture, &requests(as_ada.clone())).await;
     approve_followed(&fixture, followed.id).await.unwrap();
     offer_only_show_quality(&fixture, "HD").await;
-    let mut adas_events = subscribe_to_requests(as_ada).await;
+    let mut adas_events = subscribe_to_requests(&as_ada).await;
 
     let _media = fixture
         .library_with(LibraryKind::LIBRARY_KIND_SHOWS, &[DARK_S03E01])
         .await;
-    let event = next_event(&mut adas_events).await;
+    let event = adas_events.next().await;
 
     let event::Event::RequestCreated(created) = event else {
         panic!("not a new Request: {event:?}");

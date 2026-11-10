@@ -11,12 +11,9 @@ mod servarr;
 #[path = "support/server.rs"]
 mod server;
 
-use std::{collections::BTreeMap, sync::Arc, time::Duration};
+use std::{collections::BTreeMap, sync::Arc};
 
-use connectrpc::{
-    ErrorCode,
-    client::{HttpClient, ServerStream},
-};
+use connectrpc::{ErrorCode, client::HttpClient};
 use fake_radarr::{API_KEY as RADARR_KEY, FakeRadarr};
 use nama_plugin_api::{
     fulfiller::Movies,
@@ -27,16 +24,15 @@ use nama_plugin_tmdb::{
     testing::{API_KEY as TMDB_KEY, FakeTmdb},
 };
 use nama_proto::nama::v1::{
-    __buffa::view::SubscribeResponseView, ApproveRequestRequest, CreateRequestRequest, Download,
-    DownloadStatus, EnablePluginRequest, EventServiceClient, EventType, Quality, RefusalReason,
-    ReplaceQualitiesRequest, Request, RequestServiceClient, RequestState, RetryRequestRequest,
-    SubscribeRequest, SubscribeResponse, UpdatePluginSettingsRequest, event, subscribe_response,
+    ApproveRequestRequest, CreateRequestRequest, Download, DownloadStatus, EnablePluginRequest,
+    EventType, Quality, RefusalReason, ReplaceQualitiesRequest, Request, RequestServiceClient,
+    RequestState, RetryRequestRequest, UpdatePluginSettingsRequest, event,
 };
 use nama_server::plugins::Registry;
 use refused::assert_refused;
 use serde_json::json;
 use servarr::{ServarrFixture, choices, quality, text};
-use server::{SignedIn, TestServer};
+use server::{SignedIn, Subscription, TestServer, subscribe};
 
 /// Quality profiles the fake Radarr offers, by id.
 const ANY: &str = "1";
@@ -47,11 +43,6 @@ const ULTRA_HD: &str = "5";
 const ALIEN: i64 = 348;
 const HEAT: i64 = 949;
 const DUNE: i64 = 438_631;
-
-/// How long to wait for the Server to tell of progress.
-const WAIT: Duration = Duration::from_secs(10);
-
-type Subscription = ServerStream<hyper::body::Incoming, SubscribeResponseView<'static>>;
 
 /// A Server with the TMDB Plugin enabled against a fake TMDB, beside a fake Radarr that already
 /// has Alien and can't find Dune.
@@ -188,14 +179,11 @@ impl Fixture {
 
     /// Subscribes as the Admin to the progress of every Request.
     async fn subscribe_to_progress(&self) -> Subscription {
-        let only = SubscribeRequest {
-            types: vec![EventType::EVENT_TYPE_REQUEST_PROGRESS.into()],
-            ..Default::default()
-        };
-        EventServiceClient::new(HttpClient::plaintext(), self.server.client_config())
-            .subscribe(only)
-            .await
-            .unwrap()
+        subscribe(
+            &self.server.client_config(),
+            &[EventType::EVENT_TYPE_REQUEST_PROGRESS],
+        )
+        .await
     }
 }
 
@@ -342,27 +330,6 @@ async fn a_movie_radarr_cant_find_fails_with_radarrs_reason() {
     );
 }
 
-/// The next event on `subscription`.
-#[expect(
-    clippy::expect_used,
-    clippy::unwrap_used,
-    clippy::panic,
-    reason = "a test helper fails its test by panicking"
-)]
-async fn next_event(subscription: &mut Subscription) -> event::Event {
-    let next = tokio::time::timeout(WAIT, subscription.message::<SubscribeResponse>())
-        .await
-        .expect("timed out waiting for an event")
-        .unwrap()
-        .expect("the stream ended")
-        .to_owned_message()
-        .message;
-    let Some(subscribe_response::Message::Event(event)) = next else {
-        panic!("not an event: {next:?}");
-    };
-    event.event.expect("an event of no kind")
-}
-
 /// The Request and its downloads in the next progress event on `subscription`.
 #[expect(
     clippy::expect_used,
@@ -370,8 +337,9 @@ async fn next_event(subscription: &mut Subscription) -> event::Event {
     reason = "a test helper fails its test by panicking"
 )]
 async fn next_progress(subscription: &mut Subscription) -> (i64, Vec<Download>) {
-    let event::Event::RequestProgress(progress) = next_event(subscription).await else {
-        panic!("not progress");
+    let event = subscription.next().await;
+    let event::Event::RequestProgress(progress) = event else {
+        panic!("not progress: {event:?}");
     };
     let request = progress
         .request

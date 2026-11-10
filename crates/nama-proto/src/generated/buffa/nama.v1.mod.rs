@@ -83,6 +83,7 @@ pub mod __buffa {
         reg.register_json_any(super::__VERSION_JSON_ANY);
         reg.register_json_any(super::__TRACK_JSON_ANY);
         reg.register_json_any(super::__VIDEO_TRACK_JSON_ANY);
+        reg.register_json_any(super::__DOLBY_VISION_JSON_ANY);
         reg.register_json_any(super::__AUDIO_TRACK_JSON_ANY);
         reg.register_json_any(super::__SUBTITLE_TRACK_JSON_ANY);
         reg.register_json_any(super::__LIST_MOVIES_REQUEST_JSON_ANY);
@@ -364,6 +365,10 @@ pub use self::__buffa::view::TrackOwnedView;
 pub use self::__buffa::view::VideoTrackView;
 #[doc(inline)]
 pub use self::__buffa::view::VideoTrackOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::DolbyVisionView;
+#[doc(inline)]
+pub use self::__buffa::view::DolbyVisionOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::AudioTrackView;
 #[doc(inline)]

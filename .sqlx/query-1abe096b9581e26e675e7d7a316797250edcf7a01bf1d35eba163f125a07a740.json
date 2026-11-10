@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT path, size, modified_ns, parser_version FROM library_files\n             WHERE id = ?\n               AND EXISTS (SELECT 1 FROM library_items\n                           JOIN item_matches ON item_matches.item_id = library_items.id\n                           WHERE library_items.file_id = library_files.id\n                             AND item_matches.state = 'matched')",
+  "describe": {
+    "columns": [
+      {
+        "name": "path",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "library_files",
+            "name": "path"
+          }
+        }
+      },
+      {
+        "name": "size",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_files",
+            "name": "size"
+          }
+        }
+      },
+      {
+        "name": "modified_ns",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_files",
+            "name": "modified_ns"
+          }
+        }
+      },
+      {
+        "name": "parser_version",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_files",
+            "name": "parser_version"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "1abe096b9581e26e675e7d7a316797250edcf7a01bf1d35eba163f125a07a740"
+}

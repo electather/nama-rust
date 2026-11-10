@@ -135,7 +135,7 @@ fn server_logs_its_config_creates_its_database_serves_the_api_and_exits_cleanly_
     let database_line = wait_for_line(&lines, "opened database");
     assert!(
         database_line.contains(
-            "migrations_applied=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28]"
+            "migrations_applied=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30]"
         ),
         "{database_line}"
     );

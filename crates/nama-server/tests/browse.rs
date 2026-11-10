@@ -32,7 +32,7 @@ use nama_plugin_tmdb::{
 use nama_proto::nama::v1::{
     AudioTrack, BrowseServiceClient, ClearMatchRequest, ContinueWatchingEntry,
     CreateLibraryRequest, Episode, ExternalId, GetMovieRequest, GetShowRequest, GetShowResponse,
-    LibraryKind, LibraryServiceClient, ListContinueWatchingRequest, ListEpisodesRequest,
+    HdrFormat, LibraryKind, LibraryServiceClient, ListContinueWatchingRequest, ListEpisodesRequest,
     ListMoviesRequest, ListShowsRequest, MatchServiceClient, Movie, RefusalReason,
     ReportProgressRequest, ScanLibraryRequest, Season, SetMatchRequest, SetPlayedRequest, Show,
     ShowSeason, Track, Version, VideoTrack, WatchState, WatchStateServiceClient,
@@ -45,7 +45,7 @@ use nama_server::{
     plugins::Registry,
 };
 use refused::assert_refused;
-use server::{SignedIn, TestServer};
+use server::{SignedIn, TestServer, WAIT};
 use tempfile::TempDir;
 
 /// TMDB Matches both to Alien, TMDB id 348.
@@ -188,7 +188,7 @@ impl Fixture {
             })
             .await
             .unwrap();
-        tokio::time::timeout(Duration::from_secs(5), async {
+        tokio::time::timeout(WAIT, async {
             while !done().await {
                 tokio::time::sleep(Duration::from_millis(10)).await;
             }
@@ -553,7 +553,7 @@ async fn a_version_has_the_tracks_probing_found_once_a_scan_has_probed_it() {
     let fx = Fixture::start_with_ffmpeg(LibraryKind::LIBRARY_KIND_MOVIES, ffmpeg).await;
     let file = fx.folder.join(ALIEN_2160P);
     fs::create_dir_all(file.parent().unwrap()).unwrap();
-    ffmpeg::write_4k_with_5_1(&file).unwrap();
+    ffmpeg::write_4k_with_5_1(&file, "smpte2084").unwrap();
 
     fx.scan_until(fx.library, async || {
         fx.get_movie(fx.library, ALIEN).await.is_ok_and(|movie| {
@@ -571,11 +571,13 @@ async fn a_version_has_the_tracks_probing_found_once_a_scan_has_probed_it() {
         version.tracks,
         [
             Track {
-                codec: "mpeg4".to_owned(),
+                codec: "ffv1".to_owned(),
                 kind: VideoTrack {
                     width: 3840,
                     height: 2160,
                     frame_rate: 24.0,
+                    bit_depth: 10,
+                    hdr: HdrFormat::HDR_FORMAT_HDR10.into(),
                     ..Default::default()
                 }
                 .into(),

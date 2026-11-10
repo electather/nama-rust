@@ -35,14 +35,11 @@ use nama_server::{
     plugins::Registry,
 };
 use refused::assert_refused;
-use server::TestServer;
+use server::{TestServer, WAIT};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpListener,
 };
-
-/// How long a test waits for the Server to disable a crashing Plugin or save that.
-const WAIT: Duration = Duration::from_secs(10);
 
 /// A running Server with no Installed Plugins yet.
 struct Started {
