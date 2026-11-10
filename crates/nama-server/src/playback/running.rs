@@ -133,13 +133,15 @@ impl RunningPlans {
     }
 
     /// Starts Remuxing the Version `version`, which probing found holds `probe`, for the Device
-    /// `device`, and returns its playlist's URL. Lists the Version's keyframes the first time
-    /// and keeps them. `None` if there is no such Version.
+    /// `device`, with its audio converted to AAC with `aac_channels` channels, or else copied,
+    /// and returns its playlist's URL. Lists the Version's keyframes the first time and keeps
+    /// them. `None` if there is no such Version.
     pub(crate) async fn remux(
         &self,
         version: i64,
         device: i64,
         probe: &Probe,
+        aac_channels: Option<i64>,
     ) -> Result<Option<String>, StartError> {
         let Some((path, _)) = self.inner.contents.version_file(version).await? else {
             return Ok(None);
@@ -149,7 +151,7 @@ impl RunningPlans {
         let audio = played_audio(probe);
         let id = self
             .start(device, Method::Remux, segment_ms, |dir| {
-                self.inner.ffmpeg.remux(&path, audio, dir)
+                self.inner.ffmpeg.remux(&path, audio, aac_channels, dir)
             })
             .await?;
         Ok(Some(format!("/media/plans/{id}/{PLAYLIST}")))
@@ -354,8 +356,18 @@ impl Running {
         (n < self.segment_ms.len()).then(|| format!("{n}.m4s"))
     }
 
-    /// Waits until ffmpeg has written `path`, and says whether it did before it stopped. ffmpeg
-    /// writes each under another name and renames it once whole (`-hls_flags temp_file`).
+    /// The file whose being there says the file `name` is whole: `name` itself, as ffmpeg writes
+    /// each segment under another name and renames it once whole (`-hls_flags temp_file`), but
+    /// the first segment for the init segment. ffmpeg creates that empty and fills it in just
+    /// before it writes the first segment, slowly enough to be caught half-done when it converts
+    /// the audio.
+    // ponytail: the first segment is `0.m4s` while ffmpeg always starts at the start; #348 changes
+    // that.
+    fn whole_once(&self, name: &str) -> PathBuf {
+        self.dir.join(if name == HLS_INIT { "0.m4s" } else { name })
+    }
+
+    /// Waits until ffmpeg has written `path`, and says whether it did before it stopped.
     async fn written(&self, path: &Path) -> io::Result<bool> {
         loop {
             // Read before looking, so a file written just before ffmpeg stopped is still found.
@@ -399,8 +411,8 @@ async fn serve(
     let Some(name) = plan.file_name(&file) else {
         return StatusCode::NOT_FOUND.into_response();
     };
-    let path = plan.dir.join(name);
-    match plan.written(&path).await {
+    let path = plan.dir.join(&name);
+    match plan.written(&plan.whole_once(&name)).await {
         Ok(true) => {}
         Ok(false) => return StatusCode::NOT_FOUND.into_response(),
         Err(err) => {

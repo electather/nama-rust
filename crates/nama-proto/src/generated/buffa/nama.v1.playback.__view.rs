@@ -560,6 +560,11 @@ pub struct DeviceDecodingView<'a> {
     ///
     /// Field 4: `mse`
     pub mse: bool,
+    /// How many audio channels it plays out at once, such as 6 for 5.1. 0 when it doesn't say,
+    /// which the Server takes as stereo.
+    ///
+    /// Field 5: `audio_channels`
+    pub audio_channels: u32,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for DeviceDecodingView<'a> {
@@ -613,6 +618,13 @@ impl<'a> ::buffa::MessageView<'a> for DeviceDecodingView<'a> {
                 )?;
                 view.mse = ::buffa::types::decode_bool(&mut cur)?;
             }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.audio_channels = ::buffa::types::decode_uint32(&mut cur)?;
+            }
             1u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -650,6 +662,7 @@ impl<'a> ::buffa::MessageView<'a> for DeviceDecodingView<'a> {
             hdr: self.hdr,
             native_hls: self.native_hls,
             mse: self.mse,
+            audio_channels: self.audio_channels,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -673,6 +686,10 @@ impl<'a> ::buffa::ViewEncode<'a> for DeviceDecodingView<'a> {
         if self.mse {
             size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
+        if self.audio_channels != 0u32 {
+            size
+                += 1u64 + ::buffa::types::uint32_encoded_len(self.audio_channels) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -695,6 +712,9 @@ impl<'a> ::buffa::ViewEncode<'a> for DeviceDecodingView<'a> {
         }
         if self.mse {
             ::buffa::types::put_bool_field(4u32, self.mse, buf);
+        }
+        if self.audio_channels != 0u32 {
+            ::buffa::types::put_uint32_field(5u32, self.audio_channels, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -728,6 +748,13 @@ impl<'__a> ::serde::Serialize for DeviceDecodingView<'__a> {
         }
         if self.mse {
             __map.serialize_entry("mse", &self.mse)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_zero_u32(&self.audio_channels) {
+            __map
+                .serialize_entry(
+                    "audioChannels",
+                    &::buffa::json_helpers::ProtoJson(&self.audio_channels),
+                )?;
         }
         __map.end()
     }
@@ -850,6 +877,14 @@ impl DeviceDecodingOwnedView {
     #[must_use]
     pub fn mse(&self) -> bool {
         self.0.reborrow().mse
+    }
+    /// How many audio channels it plays out at once, such as 6 for 5.1. 0 when it doesn't say,
+    /// which the Server takes as stereo.
+    ///
+    /// Field 5: `audio_channels`
+    #[must_use]
+    pub fn audio_channels(&self) -> u32 {
+        self.0.reborrow().audio_channels
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<DeviceDecodingView<'static>>>
@@ -1187,8 +1222,8 @@ pub struct PlaybackPlanView<'a> {
     ///
     /// Field 2: `url`
     pub url: &'a str,
-    /// The Tracks it plays: its video, then its audio. Empty when they aren't known, as on a Server
-    /// without ffprobe.
+    /// The Tracks it plays: its video, then its audio, as the Device gets them, so audio a Remux
+    /// converts is AAC here. Empty when they aren't known, as on a Server without ffprobe.
     ///
     /// Field 3: `tracks`
     pub tracks: ::buffa::RepeatedView<'a, super::super::__buffa::view::TrackView<'a>>,
@@ -1556,8 +1591,8 @@ impl PlaybackPlanOwnedView {
     pub fn url(&self) -> &'_ str {
         self.0.reborrow().url
     }
-    /// The Tracks it plays: its video, then its audio. Empty when they aren't known, as on a Server
-    /// without ffprobe.
+    /// The Tracks it plays: its video, then its audio, as the Device gets them, so audio a Remux
+    /// converts is AAC here. Empty when they aren't known, as on a Server without ffprobe.
     ///
     /// Field 3: `tracks`
     #[must_use]
