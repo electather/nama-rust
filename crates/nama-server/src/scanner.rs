@@ -916,6 +916,32 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn a_scan_records_an_hlg_file_as_hlg_and_an_sdr_file_as_no_hdr() {
+        let media = Fixture::with_ffmpeg(Kind::Movies, system_ffmpeg()).await;
+        let hlg = "Alien (1979)/Alien (1979).mkv";
+        let sdr = "Heat (1995)/Heat (1995).mkv";
+        for (file, transfer) in [(hlg, "arib-std-b67"), (sdr, "bt709")] {
+            fs::create_dir_all(media.path(file).parent().unwrap()).unwrap();
+            ffmpeg::write_4k_with_5_1(&media.path(file), transfer).unwrap();
+        }
+
+        media.scan().await;
+        media.scanner.idle().await;
+
+        let versions = [media.file_id(hlg).await, media.file_id(sdr).await];
+        let mut probes = media.tracks.of(&versions).await.unwrap();
+        let mut hdr_of = |version| match probes.remove(&version).map(|probe| probe.tracks) {
+            Some(tracks) => match tracks.first().map(|track| &track.kind) {
+                Some(TrackKind::Video { hdr, .. }) => *hdr,
+                _ => panic!("no video Track first: {tracks:?}"),
+            },
+            None => panic!("the file wasn't probed"),
+        };
+        assert_eq!(hdr_of(versions[0]), Some(Hdr::Hlg));
+        assert_eq!(hdr_of(versions[1]), None);
+    }
+
+    #[tokio::test]
     async fn without_ffprobe_a_scan_stores_no_tracks() {
         let media = Fixture::new(Kind::Movies).await;
         let alien = "Alien (1979)/Alien (1979).mkv";

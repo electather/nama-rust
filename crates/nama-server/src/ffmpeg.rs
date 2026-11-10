@@ -224,17 +224,18 @@ fn frame_rate(fraction: &str) -> Option<f64> {
     (denominator > 0.0).then(|| numerator / denominator)
 }
 
-/// Bits per sample of a planar pixel format such as `yuv420p10le`, or `None` for a packed one such
-/// as `rgb24`, whose number is bits per pixel.
+/// Bits per sample of a planar pixel format such as `yuv420p10le` or `p210le`, or `None` for one
+/// such as `rgb24` or `nv12`, whose number is bits per pixel.
 fn bit_depth(pix_fmt: &str) -> Option<i64> {
     let format = ["le", "be"]
         .into_iter()
         .find_map(|endian| pix_fmt.strip_suffix(endian))
         .unwrap_or(pix_fmt);
-    // A planar format names its bits after its `p`, and has 8 when it names none.
+    // A planar format names its bits after its `p`, and has 8 when it names none. A semi-planar one
+    // such as `p210` puts its chroma subsampling first, so only the last two digits are bits.
     match format.rsplit_once('p')?.1 {
         "" => Some(8),
-        bits => bits.parse().ok(),
+        bits => bits.get(bits.len().saturating_sub(2)..)?.parse().ok(),
     }
 }
 
@@ -590,43 +591,6 @@ mod tests {
 }
 
 #[cfg(test)]
-mod probe_tests {
-    use super::{Ffmpeg, write_4k_with_5_1};
-    use crate::{
-        config::Config,
-        tracks::{Hdr, TrackKind},
-    };
-
-    /// The HDR format ffprobe finds in a file ffmpeg writes tagged with `transfer`.
-    async fn hdr_of_file_tagged(transfer: &str) -> Option<Hdr> {
-        let dir = tempfile::tempdir().unwrap();
-        let file = dir.path().join("video.mkv");
-        write_4k_with_5_1(&file, transfer).unwrap();
-        let path = std::env::var_os("PATH").unwrap_or_default();
-        let ffmpeg = Ffmpeg::find(&Config::default(), &path);
-
-        let probe = ffmpeg.probe(file.to_str().unwrap()).await.unwrap();
-
-        let Some(TrackKind::Video { hdr, bit_depth, .. }) = probe.tracks.first().map(|t| &t.kind)
-        else {
-            panic!("no video Track first: {probe:?}");
-        };
-        assert_eq!(*bit_depth, Some(10));
-        *hdr
-    }
-
-    #[tokio::test]
-    async fn an_hlg_file_is_hlg() {
-        assert_eq!(hdr_of_file_tagged("arib-std-b67").await, Some(Hdr::Hlg));
-    }
-
-    #[tokio::test]
-    async fn an_sdr_file_is_no_hdr() {
-        assert_eq!(hdr_of_file_tagged("bt709").await, None);
-    }
-}
-
-#[cfg(test)]
 mod probe_output_tests {
     use super::parse_probe;
     use crate::tracks::{Hdr, Probe, Track, TrackKind};
@@ -805,7 +769,9 @@ mod probe_output_tests {
         assert_eq!(depth_of("yuv420p10le"), Some(10));
         assert_eq!(depth_of("yuv422p12be"), Some(12));
         assert_eq!(depth_of("p010le"), Some(10));
-        // Packed formats name bits per pixel, not per sample.
+        assert_eq!(depth_of("p210le"), Some(10));
+        assert_eq!(depth_of("p416le"), Some(16));
+        // These name bits per pixel, not per sample.
         assert_eq!(depth_of("rgb24"), None);
         assert_eq!(depth_of("nv12"), None);
     }
