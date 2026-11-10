@@ -1,5 +1,5 @@
 import { Info } from "lucide-react";
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import type { Track } from "@/gen/nama/v1/browse_pb";
@@ -23,6 +23,19 @@ const trackKindNames: Record<NonNullable<Track["kind"]["case"]>, string> = {
 export function PlaybackInfo({ plan }: { plan: PlaybackPlan }) {
   const [open, setOpen] = useState(false);
   const panelId = useId();
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (!open || event.key !== "Escape") return;
+      // Esc otherwise leaves the player (`useShortcuts`), wherever focus is, so this listens on the
+      // document too, and first.
+      event.preventDefault();
+      setOpen(false);
+    }
+    document.addEventListener("keydown", onKeyDown, { capture: true });
+    return () => {
+      document.removeEventListener("keydown", onKeyDown, { capture: true });
+    };
+  }, [open]);
   return (
     <div className="relative">
       <Button
@@ -33,12 +46,6 @@ export function PlaybackInfo({ plan }: { plan: PlaybackPlan }) {
         aria-controls={panelId}
         onClick={() => {
           setOpen(!open);
-        }}
-        onKeyDown={(event) => {
-          if (event.key !== "Escape" || !open) return;
-          // Esc otherwise leaves the player (`useShortcuts`, listening on the document).
-          event.stopPropagation();
-          setOpen(false);
         }}
       >
         <Info aria-hidden />

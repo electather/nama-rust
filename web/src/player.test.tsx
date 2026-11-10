@@ -13,7 +13,7 @@ afterEach(cleanup);
 const libraries = [{ id: 1n, name: "Films", kind: LibraryKind.MOVIES }];
 const plannedTracks: MessageInitShape<typeof TrackSchema>[] = [
   { codec: "h264", kind: { case: "video", value: { width: 1920, height: 1080 } } },
-  { codec: "aac", language: "eng", kind: { case: "audio", value: {} } },
+  { codec: "aac", language: "eng", kind: { case: "audio", value: { channels: 6 } } },
   { codec: "subrip", language: "fre", kind: { case: "subtitle", value: {} } },
 ];
 /**
@@ -97,17 +97,17 @@ test("playback info says how the plan plays the Version, why, and with which Tra
   const panel = within(screen.getByRole("region", { name: "Playback info" }));
   expect(panel.getByText("Direct Play")).toBeDefined();
   expect(panel.getByText("Its Tracks need no change")).toBeDefined();
-  expect(panel.getByText("H264 · 1080p")).toBeDefined();
-  expect(panel.getByText("AAC · English")).toBeDefined();
-  expect(panel.getByText("SUBRIP · French")).toBeDefined();
+  expect(panel.getByText("H.264 · 1080p")).toBeDefined();
+  expect(panel.getByText("AAC · 5.1 · English")).toBeDefined();
+  expect(panel.getByText("SRT · French")).toBeDefined();
 });
 
-test("Esc on playback info closes it and stays in the player", async () => {
+test("Esc closes playback info and stays in the player, wherever focus is", async () => {
   openApp("/libraries/1/movies/tmdb-603/play", server);
-  const info = await screen.findByRole("button", { name: "Playback info" });
-  fireEvent.click(info);
+  fireEvent.click(await screen.findByRole("button", { name: "Playback info" }));
 
-  fireEvent.keyDown(info, { key: "Escape" });
+  // As after clicking the video, which takes no focus.
+  fireEvent.keyDown(document.body, { key: "Escape" });
 
   expect(screen.queryByRole("region", { name: "Playback info" })).toBeNull();
   expect(screen.getByLabelText("The Matrix")).toBeDefined();

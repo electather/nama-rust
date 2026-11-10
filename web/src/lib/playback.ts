@@ -145,8 +145,9 @@ const keysFocusUses: Record<string, string> = {
 };
 
 function shortcutFor(event: KeyboardEvent): Shortcut | undefined {
-  // Ctrl+F, Alt+arrows and the like belong to the browser.
-  if (hasModifier(event) || focusUses(event)) return undefined;
+  // Ctrl+F, Alt+arrows and the like belong to the browser, and a prevented key to whatever
+  // already used it, such as Esc closing playback info.
+  if (event.defaultPrevented || hasModifier(event) || focusUses(event)) return undefined;
   return shortcuts[event.key];
 }
 
