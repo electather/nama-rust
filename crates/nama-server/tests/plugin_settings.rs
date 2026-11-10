@@ -5,7 +5,11 @@
 #[expect(dead_code, reason = "the harness's `wait_for` has no use here")]
 mod log;
 
-use std::{collections::BTreeMap, path::Path, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashMap},
+    path::Path,
+    sync::Arc,
+};
 
 use figment::{
     Figment,
@@ -13,10 +17,12 @@ use figment::{
 };
 use log::Log;
 use nama_plugin_api::{
-    Manifest, Plugin, PluginId, Registrar,
+    BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
+    fulfiller::{Download, Fulfilled, Fulfiller, Movies},
     settings::{SettingField, SettingKind, SettingValue, SettingsSchema},
 };
 use nama_plugin_local_auth::LocalAuth;
+use nama_proto::nama::v1::Request;
 use nama_server::{
     config::{Config, PluginConfig},
     db::Database,
@@ -57,6 +63,40 @@ impl Plugin for Fake {
 
     fn register(&self, _registrar: &mut Registrar) {
         assert!(!self.panics, "register bug");
+    }
+}
+
+/// A Built-in Movie Fulfiller that takes no Request.
+struct BuiltinFulfiller;
+
+impl Plugin for BuiltinFulfiller {
+    fn manifest(&self) -> Manifest {
+        Manifest {
+            id: PluginId::from_static("zz-fulfiller"),
+            name: String::new(),
+            description: String::new(),
+            version: "0.0.0".to_owned(),
+            settings: SettingsSchema::default(),
+            extension_points: vec![PointKey::provide::<dyn Fulfiller<Movies>>()],
+            logo_svg: None,
+        }
+    }
+
+    fn register(&self, registrar: &mut Registrar) {
+        registrar.provide::<dyn Fulfiller<Movies>>(Priority::DEFAULT, Arc::new(Self));
+    }
+}
+
+impl Fulfiller<Movies> for BuiltinFulfiller {
+    fn fulfill<'a>(&'a self, _: &'a Request) -> BoxFuture<'a, Result<Fulfilled, PluginError>> {
+        Box::pin(async { Err("takes no Request".into()) })
+    }
+
+    fn progress<'a>(
+        &'a self,
+        _: &'a [String],
+    ) -> BoxFuture<'a, Result<HashMap<String, Vec<Download>>, PluginError>> {
+        Box::pin(async { Ok(HashMap::new()) })
     }
 }
 
@@ -233,6 +273,36 @@ async fn a_plugin_that_fails_to_enable_is_logged_and_left_off_while_the_rest_sta
         1,
         "{}",
         log.contents()
+    );
+}
+
+#[tokio::test]
+async fn builtin_plugins_enable_before_installed_ones_so_a_builtin_fulfiller_keeps_its_kind() {
+    let (data_dir, db) = open().await;
+    let registry = registry();
+    // Its id sorts after `radarr`'s, so only enabling Built-in Plugins first lets it win.
+    registry.describe_builtin(|| Arc::new(BuiltinFulfiller));
+    let config = config(
+        data_dir.path(),
+        r#"
+        [plugins.radarr]
+        url = "http://localhost:7878"
+        api_key = "key"
+        quality_profile = "1"
+        root_folder = "/movies"
+        "#,
+    );
+
+    let plugins = PluginSettings::start(db, registry, &config).await.unwrap();
+
+    let enabled = plugins.registry().enabled();
+    assert!(
+        enabled.contains(&PluginId::from_static("zz-fulfiller")),
+        "{enabled:?}"
+    );
+    assert!(
+        !enabled.contains(&PluginId::from_static("radarr")),
+        "{enabled:?}"
     );
 }
 

@@ -96,8 +96,8 @@ impl PluginSettings {
     ///
     /// # Errors
     ///
-    /// If the settings can't be read or imported, or no Plugin provides an [`Authenticator`],
-    /// since then nobody could sign in. A refused start imports nothing, so a config the Server
+    /// If the settings can't be read or imported, a `[plugins.*]` table isn't a Plugin's config,
+    /// or no Plugin provides an [`Authenticator`], since then nobody could sign in. A refused start imports nothing, so a config the Server
     /// refuses can still be fixed in the file.
     pub async fn start(
         db: Arc<Database>,
@@ -155,12 +155,14 @@ impl PluginSettings {
     /// Enables each Plugin the registry knows that `settings` store as enabled, or that starts
     /// enabled if they store nothing for it.
     fn enable_stored(&self, settings: &BTreeMap<String, PluginConfig>) {
-        let known = self.registry.plugins();
+        let mut known = self.registry.plugins();
         for id in settings.keys() {
             if !known.iter().any(|plugin| plugin.id.as_str() == id) {
                 warn!(plugin = %id, "settings name a plugin this Server doesn't have");
             }
         }
+        // Built-in first, as before: the first Plugin enabled for a kind of Fulfiller keeps it.
+        known.sort_by_key(|plugin| plugin.kind != PluginKind::PLUGIN_KIND_BUILT_IN);
         for plugin in known
             .into_iter()
             .filter(|plugin| plugin.refused_reason.is_none())
