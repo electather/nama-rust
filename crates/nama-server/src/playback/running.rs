@@ -208,8 +208,9 @@ impl RunningPlans {
     /// The most Transcodes the Server may run at once, if that many already run, leaving out one
     /// of `device`'s own: the plan it asks for replaces the one it plays, which it stops only
     /// once the new one plays.
-    // ponytail: two Devices planning at the same moment can both find room, passing the cap by
-    // one until a Transcode ends; reserve room under the plans' lock if that ever matters.
+    // ponytail: the plan isn't kept until after probing, the folder and spawning ffmpeg, so every
+    // Device planning in that window finds room and they can pass the cap together until
+    // Transcodes end; reserve room under the plans' lock if that ever matters.
     pub(crate) fn transcodes_full(&self, device: i64) -> Option<u32> {
         let max = self.inner.max_transcodes.get();
         let plans = lock(&self.inner.plans);
