@@ -2,14 +2,18 @@
 //! styling, positions and drawings are dropped, as burning them in is what keeps them.
 
 /// The dialogue of `ass`, a script as ffmpeg's `ass` muxer writes it, as WebVTT: a cue for each
-/// line with words, in the script's order.
+/// line with words, by start time.
 pub(super) fn to_webvtt(ass: &str) -> String {
-    let cues: String = ass.lines().filter_map(cue).collect();
+    let mut cues: Vec<_> = ass.lines().filter_map(cue).collect();
+    // WebVTT's cues go by start time. A script's needn't, and ffmpeg keeps the script's order.
+    cues.sort_by(|(start, _), (other, _)| start.cmp(other));
+    let cues: String = cues.into_iter().map(|(_, cue)| cue).collect();
     format!("WEBVTT\n\n{cues}")
 }
 
-/// The WebVTT cue for `line`, `None` unless it's a `Dialogue` line with words to show.
-fn cue(line: &str) -> Option<String> {
+/// The start time and WebVTT cue for `line`, `None` unless it's a `Dialogue` line with words to
+/// show.
+fn cue(line: &str) -> Option<(String, String)> {
     let fields: Vec<_> = line.strip_prefix("Dialogue:")?.splitn(10, ',').collect();
     // ffmpeg writes ASS and SSA dialogue with the same ten fields; only the last, the text, may
     // hold commas.
@@ -17,10 +21,13 @@ fn cue(line: &str) -> Option<String> {
         return None;
     };
     let words = words(text);
-    (!words.is_empty()).then(|| format!("{} --> {}\n{words}\n\n", time(start), time(end)))
+    let start = time(start);
+    let cue = format!("{start} --> {}\n{words}\n\n", time(end));
+    (!words.is_empty()).then_some((start, cue))
 }
 
-/// An ASS time, `H:MM:SS.cc` as ffmpeg writes it, as a WebVTT one, `HH:MM:SS.mmm`.
+/// An ASS time, `H:MM:SS.cc` as ffmpeg writes it, as a WebVTT one, `HH:MM:SS.mmm`, which sorts as
+/// text.
 fn time(ass: &str) -> String {
     format!("{ass:0>11}0")
 }
@@ -59,7 +66,7 @@ fn words(text: &str) -> String {
 fn draws(tags: &str) -> Option<bool> {
     let scale = tags
         .rsplit('\\')
-        .find_map(|tag| tag.strip_prefix('p')?.parse::<u32>().ok());
+        .find_map(|tag| tag.strip_prefix('p')?.trim().parse::<u32>().ok());
     scale.map(|scale| scale > 0)
 }
 
@@ -93,13 +100,28 @@ mod tests {
     #[test]
     fn what_dialogue_draws_is_dropped_and_a_cue_with_nothing_else_too() {
         let ass = script(&[
-            r"0,0:00:00.00,0:00:01.00,Default,,0,0,0,,{\p1}m 0 0 l 100 0 100 100{\p0}",
+            r"0,0:00:00.00,0:00:01.00,Default,,0,0,0,,{\p1 }m 0 0 l 100 0 100 100{\p0}",
             r"0,0:00:00.00,0:00:01.00,Default,,0,0,0,,Look{\p2\pos(1,1)}m 0 0 l 9 9{\pos(2,2)}l 1 1{\p0} here",
         ]);
 
         assert_eq!(
             to_webvtt(&ass),
             "WEBVTT\n\n00:00:00.000 --> 00:00:01.000\nLook here\n\n"
+        );
+    }
+
+    #[test]
+    fn cues_go_by_start_time_whatever_the_scripts_order() {
+        let ass = script(&[
+            r"0,0:00:02.00,0:00:03.00,Default,,0,0,0,,Later",
+            r"0,0:00:01.00,0:00:02.00,Default,,0,0,0,,Sooner",
+        ]);
+
+        assert_eq!(
+            to_webvtt(&ass),
+            "WEBVTT\n\n\
+             00:00:01.000 --> 00:00:02.000\nSooner\n\n\
+             00:00:02.000 --> 00:00:03.000\nLater\n\n"
         );
     }
 
