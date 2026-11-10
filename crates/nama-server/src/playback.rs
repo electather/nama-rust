@@ -269,7 +269,7 @@ fn device_decoding(facts: &Facts) -> Narrowing {
     let reason = match aac_channels(probe, &facts.device) {
         Some(channels) => format!(
             "{reason}, and a Remux converts that audio to {}",
-            aac_in_words(probe, channels)
+            aac_in_words(probe, &facts.device, channels)
         ),
         None => reason,
     };
@@ -403,17 +403,21 @@ fn converted_to_aac(mut tracks: Vec<Track>, channels: i64) -> Vec<Track> {
 
 /// AAC with `channels` channels in plain words, such as "5.1 AAC", saying why when that's fewer
 /// than `probe`'s played audio has.
-fn aac_in_words(probe: &Probe, channels: i64) -> String {
+fn aac_in_words(probe: &Probe, device: &DeviceDecoding, channels: i64) -> String {
     let name = match channels {
         1 => "mono".to_owned(),
         2 => "stereo".to_owned(),
         6 => "5.1".to_owned(),
         n => format!("{n}-channel"),
     };
-    let why = if channels < played_channels(probe).unwrap_or_default() {
-        ", the most this Device plays"
-    } else {
+    let why = if channels >= played_channels(probe).unwrap_or_default() {
         ""
+    } else if device.audio_channels >= 6 {
+        ", the most a Remux makes"
+    } else if device.audio_channels == 0 {
+        ", as this Device doesn't say it plays more"
+    } else {
+        ", the most this Device plays"
     };
     format!("{name} AAC{why}")
 }
@@ -960,9 +964,14 @@ mod tests {
     fn converted_audio_has_up_to_as_many_channels_as_the_device_plays_up_to_5_1() {
         let cases = [
             (Some(6), 6, Some(6), ""),
-            (Some(8), 8, Some(6), ", the most this Device plays"),
+            (Some(8), 8, Some(6), ", the most a Remux makes"),
             (Some(6), 2, Some(2), ", the most this Device plays"),
-            (Some(6), 0, Some(2), ", the most this Device plays"),
+            (
+                Some(6),
+                0,
+                Some(2),
+                ", as this Device doesn't say it plays more",
+            ),
             (Some(2), 6, Some(2), ""),
             (Some(1), 6, Some(1), ""),
             (None, 6, Some(2), ""),

@@ -169,7 +169,6 @@ test("the plan request says what this Device decodes", async () => {
     value: { decodingInfo },
     configurable: true,
   });
-  // A Device whose sound goes out over 5.1.
   vi.stubGlobal(
     "AudioContext",
     vi.fn(function audioContext() {

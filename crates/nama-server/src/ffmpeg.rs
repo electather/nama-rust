@@ -529,7 +529,7 @@ pub fn write_4k_with_5_1(path: &Path, transfer: &str) -> io::Result<()> {
 ///
 /// If ffmpeg can't be run or fails.
 #[cfg(any(test, feature = "testing"))]
-pub fn write_h264_and(path: &Path, audio: &str) -> io::Result<()> {
+pub fn write_h264_with_5_1(path: &Path, audio: &str) -> io::Result<()> {
     write_test_media(path, |ffmpeg| {
         ffmpeg
             .args(["-f", "lavfi", "-i", "testsrc=size=320x240:rate=24"])

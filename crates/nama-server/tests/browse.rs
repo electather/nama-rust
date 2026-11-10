@@ -1132,13 +1132,13 @@ fn system_ffmpeg() -> Ffmpeg {
 )]
 impl Fixture {
     /// Starts a Server with `ffmpeg` and a Movies Library holding Alien as an MKV of H.264 and 5.1
-    /// audio encoded with `audio`, as [`ffmpeg::write_h264_and`] takes it, and returns it with
+    /// audio encoded with `audio`, as [`ffmpeg::write_h264_with_5_1`] takes it, and returns it with
     /// that Version's id.
     async fn alien_mkv(ffmpeg: Ffmpeg, audio: &str) -> (Self, i64) {
         let fx = Self::start_with_ffmpeg(LibraryKind::LIBRARY_KIND_MOVIES, ffmpeg).await;
         let file = fx.folder.join("Alien (1979)/Alien (1979).mkv");
         fs::create_dir_all(file.parent().unwrap()).unwrap();
-        ffmpeg::write_h264_and(&file, audio).unwrap();
+        ffmpeg::write_h264_with_5_1(&file, audio).unwrap();
         fx.scan_until_decided(1).await;
         let version = fx.version_ids(ALIEN).await[0];
         (fx, version)
@@ -1241,7 +1241,7 @@ async fn an_h264_and_aac_mkv_is_remuxed_over_hls_because_of_its_container() {
     assert_eq!(
         played_audio(&fx, &plan.url).await,
         "aac,6",
-        "copied, though this Device says it plays only stereo"
+        "copied, though this Device doesn't say it plays 5.1"
     );
     // HLS time is the file's time, so Watch State needs no conversion: the playlist cuts where
     // ffmpeg did, from the start of the file to its end.
