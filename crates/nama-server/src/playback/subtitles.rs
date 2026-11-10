@@ -34,6 +34,10 @@ use crate::{
     tracks::{TrackKind, Tracks},
 };
 
+/// The version of how a source makes WebVTT, part of every cache key so what an older one made is
+/// made again; when to bump it is in `AGENTS.md`.
+const WEBVTT_VERSION: u32 = 2;
+
 /// Where clients fetch the Version `version`'s Track `track`, by its place in the Version's
 /// Tracks, as WebVTT.
 pub(super) fn url(version: i64, track: usize) -> String {
@@ -139,7 +143,7 @@ impl Embedded {
     fn cache_key(&self) -> PathBuf {
         Path::new("versions")
             .join(self.version.to_string())
-            .join(format!("{}.vtt", self.track))
+            .join(format!("{}.v{WEBVTT_VERSION}.vtt", self.track))
     }
 
     async fn webvtt(&self, ffmpeg: &Ffmpeg) -> Result<Vec<u8>, Error> {

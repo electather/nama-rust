@@ -15,8 +15,9 @@ pub(super) fn to_webvtt(ass: &str) -> String {
 /// show.
 fn cue(line: &str) -> Option<(String, String)> {
     let fields: Vec<_> = line.strip_prefix("Dialogue:")?.splitn(10, ',').collect();
-    // ffmpeg writes ASS and SSA dialogue with the same ten fields; only the last, the text, may
-    // hold commas.
+    // ffmpeg writes dialogue in its script's `Format` order. Nearly every script, SSA's included,
+    // has the usual ten fields, the last, the text, alone holding commas; ffmpeg's own WebVTT
+    // encoder drops any other script's dialogue too.
     let [_, start, end, _, _, _, _, _, _, text] = fields[..] else {
         return None;
     };
@@ -28,6 +29,8 @@ fn cue(line: &str) -> Option<(String, String)> {
 
 /// An ASS time, `H:MM:SS.cc` as ffmpeg writes it, as a WebVTT one, `HH:MM:SS.mmm`, which sorts as
 /// text.
+// ponytail: ffmpeg's `ass` muxer writes no time past 9:59:59.99, so cues after ten hours collapse
+// there; take the times from ffmpeg's packets if a ten-hour ASS Track turns up.
 fn time(ass: &str) -> String {
     format!("{ass:0>11}0")
 }
@@ -86,14 +89,14 @@ mod tests {
     fn dialogue_keeps_its_words_and_line_breaks_but_not_its_override_tags() {
         let ass = script(&[
             r"0,0:00:01.50,0:00:02.00,Default,,0,0,0,,{\an8\pos(10,10)\b1}Hi,{\b0} you\Nthere",
-            r"0,10:00:00.00,10:00:01.25,Default,,0,0,0,,soft\nbreak and\hhard space",
+            r"0,1:00:00.00,1:00:01.25,Default,,0,0,0,,soft\nbreak and\hhard space",
         ]);
 
         assert_eq!(
             to_webvtt(&ass),
             "WEBVTT\n\n\
              00:00:01.500 --> 00:00:02.000\nHi, you\nthere\n\n\
-             10:00:00.000 --> 10:00:01.250\nsoft break and\u{a0}hard space\n\n"
+             01:00:00.000 --> 01:00:01.250\nsoft break and\u{a0}hard space\n\n"
         );
     }
 
