@@ -145,10 +145,17 @@ fn the_config_file_can_turn_a_plugin_off() {
                     "log-events".to_owned(),
                     PluginConfig {
                         enabled: false,
-                        ..PluginConfig::default()
+                        settings: BTreeMap::new(),
                     }
                 ),
-                ("other".to_owned(), PluginConfig::default()),
+                // A table with no `enabled` line imports as enabled.
+                (
+                    "other".to_owned(),
+                    PluginConfig {
+                        enabled: true,
+                        settings: BTreeMap::new(),
+                    }
+                ),
             ])
         );
         assert_eq!(Config::default().plugins.ids().count(), 0);

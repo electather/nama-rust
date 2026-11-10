@@ -70,8 +70,6 @@ pub(crate) enum Error {
     NotPending(i64),
     #[error("the Request {0} isn't Failed")]
     NotFailed(i64),
-    #[error("the Quality {0} isn't offered for the Request")]
-    NewQualityNotOffered(i64),
     #[error("you aren't a Requester of the Request {0}")]
     NotARequester(i64),
     #[error("a Library already has the Movie tmdb-{0}")]
@@ -94,13 +92,8 @@ pub(crate) enum Error {
     FollowedShowNotPending(i64),
     #[error("you aren't a Requester of the Followed Show {0}")]
     NotAFollowedShowRequester(i64),
-    #[error("choosing a Quality needs PERMISSION_CHOOSE_QUALITY")]
-    QualityNotAllowed,
-    #[error("the Fulfiller doesn't offer the Quality {0}")]
-    QualityNotOffered(i64),
-    /// A Season can't take another Quality than its Show's (ADR 0025).
-    #[error("each Season of the Show takes the Show's Quality, not the Quality {0}")]
-    NotTheShowsQuality(i64),
+    #[error(transparent)]
+    Quality(#[from] qualities::Refused),
     #[error("the page token isn't one this Server gave for listing in this state")]
     PageTokenInvalid,
     #[error("database error: {0}")]
@@ -334,35 +327,16 @@ impl Requests {
         Ok(request)
     }
 
-    /// A copy of the Quality `chosen` by `asker`, else of their personal default if they may
-    /// choose and it is still offered, else of the default, on the list of the enabled Fulfiller
-    /// of `Kind`, or `None` if it has no list or none is enabled; and whether it was `asker`'s own
-    /// choice, either of the first two.
+    /// The Quality a new Request `asker` opens on the enabled Fulfiller of `Kind` takes, and
+    /// whether they chose it, as [`qualities::for_request`] decides.
     async fn quality<Kind: 'static>(
         &self,
         asker: &User,
         chosen: Option<i64>,
     ) -> Result<(Option<RequestedQuality>, bool), Error> {
-        if chosen.is_some() && !asker.permissions.allow(Permission::ChooseQuality) {
-            return Err(Error::QualityNotAllowed);
-        }
-        let (quality, preferred) = match self.fulfiller::<Kind>() {
-            Some(fulfiller) => {
-                let mut conn = self.db.reader().acquire().await?;
-                let preferred = usable_default(&mut conn, asker, &fulfiller).await?;
-                let quality =
-                    qualities::for_request(&mut conn, &fulfiller, chosen, preferred).await?;
-                (quality, preferred)
-            }
-            None => (None, None),
-        };
-        if let (Some(id), None) = (chosen, &quality) {
-            return Err(Error::QualityNotOffered(id));
-        }
-        let own_choice = quality
-            .as_ref()
-            .is_some_and(|quality| chosen.or(preferred) == Some(quality.id));
-        Ok((quality, own_choice))
+        let fulfiller = self.fulfiller::<Kind>();
+        let mut conn = self.db.reader().acquire().await?;
+        Ok(qualities::for_request(&mut conn, asker, fulfiller.as_ref(), chosen).await??)
     }
 
     /// The Qualities of the enabled Fulfiller of `Kind`, in the order an admin listed them, with
@@ -376,11 +350,7 @@ impl Requests {
             return Ok((Vec::new(), None));
         };
         let mut conn = self.db.reader().acquire().await?;
-        let qualities = qualities::list(&mut conn, &fulfiller).await?;
-        let personal_default = usable_default(&mut conn, asker, &fulfiller)
-            .await?
-            .filter(|id| qualities.iter().any(|quality| quality.id == *id));
-        Ok((qualities, personal_default))
+        qualities::offered_to(&mut conn, asker, &fulfiller).await
     }
 
     /// `user`'s default Quality for each enabled Fulfiller, Movies first, whose list has more than
@@ -430,11 +400,7 @@ impl Requests {
         plugin: PluginId,
         quality: Option<i64>,
     ) -> Result<(), Error> {
-        let set = qualities::set_personal_default(&self.db, user, plugin, quality).await?;
-        match quality {
-            Some(id) if !set => Err(Error::QualityNotOffered(id)),
-            _ => Ok(()),
-        }
+        Ok(qualities::set_personal_default(&self.db, user, plugin, quality).await??)
     }
 
     /// The enabled Plugin providing the Fulfiller of `Kind`, if any.
@@ -496,15 +462,10 @@ impl Requests {
         fulfiller: Option<PluginId>,
         quality_id: i64,
     ) -> Result<NewQuality, Error> {
-        let offered = match fulfiller {
-            Some(fulfiller) => {
-                let mut conn = self.db.reader().acquire().await?;
-                qualities::offered(&mut conn, &fulfiller, quality_id).await?
-            }
-            None => None,
-        };
+        let mut conn = self.db.reader().acquire().await?;
+        let quality = qualities::offered(&mut conn, fulfiller.as_ref(), quality_id).await??;
         Ok(NewQuality {
-            quality: offered.ok_or(Error::NewQualityNotOffered(quality_id))?,
+            quality,
             by: manager.id,
         })
     }
@@ -1286,7 +1247,7 @@ impl Requests {
                 .pop(),
             None => None,
         };
-        let quality = show_quality(&mut conn, tmdb_id).await?;
+        let quality = show_requests(&mut conn, tmdb_id).await?.quality().cloned();
         Ok(FoundShow {
             tmdb_id,
             plugin,
@@ -1517,22 +1478,6 @@ async fn ask_movie(
     ask_approving(conn, user, wanted, state).await
 }
 
-/// The Quality new Requests for the Seasons `show` take, and whether the asker chose it: the Show's
-/// if it has one, refusing another the asker named, else the one `show` was asked at.
-async fn seasons_quality(
-    conn: &mut SqliteConnection,
-    show: &WantedSeasons,
-) -> Result<(Option<RequestedQuality>, bool), Error> {
-    // Read in the write, so two asks for the Show's Seasons at once can't take two Qualities.
-    let Some(shows) = show_quality(conn, show.show_tmdb_id).await? else {
-        return Ok((show.quality.clone(), show.quality_chosen));
-    };
-    if let Some(other) = show.chosen.filter(|&id| id != shows.id) {
-        return Err(Error::NotTheShowsQuality(other));
-    }
-    Ok((Some(shows), false))
-}
-
 /// [`ask_approving`]s for each of the Seasons `show`, unless a Library has any of them. Returns the
 /// Requests in the order of `show.seasons`, and the events for what changed.
 async fn ask_seasons(
@@ -1541,7 +1486,10 @@ async fn ask_seasons(
     show: WantedSeasons,
     state: RequestState,
 ) -> Result<(Vec<Request>, Vec<Event>), Error> {
-    let (quality, quality_chosen) = seasons_quality(conn, &show).await?;
+    // Read in the write, so two asks for the Show's Seasons at once can't take two Qualities.
+    let (quality, quality_chosen) = show_requests(conn, show.show_tmdb_id)
+        .await?
+        .for_seasons((show.quality.clone(), show.quality_chosen), show.chosen)?;
     let WantedSeasons {
         show_tmdb_id,
         show_ids,
@@ -1578,18 +1526,15 @@ async fn ask_seasons(
 }
 
 /// [`ask`]s for `wanted`, then approves the open Request `user` joined if it is Pending and `state`
-/// is Approved, since their ask would have opened it Approved: at `user`'s Quality if they chose
-/// it, else at the Request's own, so its earlier Requesters aren't moved to the default.
+/// is Approved, since their ask would have opened it Approved, at the Quality
+/// [`qualities::joiner_approves_at`] gives.
 async fn ask_approving(
     conn: &mut SqliteConnection,
     user: i64,
     wanted: Wanted,
     state: RequestState,
 ) -> Result<(Request, Vec<Event>), Error> {
-    let new_quality = wanted
-        .quality
-        .clone()
-        .filter(|_| wanted.quality_chosen)
+    let new_quality = qualities::joiner_approves_at(wanted.quality.clone(), wanted.quality_chosen)
         .map(|quality| NewQuality { quality, by: user });
     let (request, happened) = ask(conn, user, wanted, state).await?;
     let mut happened = Vec::from_iter(happened);
@@ -1797,7 +1742,7 @@ async fn open_followed_season(
         // ponytail: a Followed Show stores no Show ids, and this Season opens already in a Library.
         show_ids: ExternalIds::default(),
         followed_show: Some(followed.id),
-        quality: show_quality(conn, show_tmdb_id).await?,
+        quality: show_requests(conn, show_tmdb_id).await?.quality().cloned(),
         quality_chosen: false,
     };
     let id = insert_request(conn, &wanted, stored(state), now()).await?;
@@ -1929,112 +1874,104 @@ async fn change_followed_quality(
 
 /// Changes the Quality of the Request `id`, if given, and of the Show `show`, if given, to
 /// `quality`, where it isn't that one, keeping each change as that Request's latest in place of
-/// any earlier one. The Show's Quality is that of every open Season Request of it not yet handed
-/// off and of its open Followed Show, so the Show keeps one Quality (ADR 0025), while a handed-off
-/// one keeps what it was asked at. Once a Season was handed off, Sonarr keeps the profile it added
-/// the series with, so another Quality is refused.
+/// any earlier one. What the Show's change moves, or why it is refused, is
+/// [`qualities::ShowRequests::change`]'s to say.
 async fn requality(
     conn: &mut SqliteConnection,
     id: Option<i64>,
     show: Option<i64>,
     NewQuality { quality, by }: NewQuality,
 ) -> Result<(), Error> {
-    if let Some(show) = show
-        && show_quality_fixed(conn, show).await?
-        && show_quality(conn, show).await?.map(|kept| kept.id) != Some(quality.id)
-    {
-        return Err(Error::NewQualityNotOffered(quality.id));
-    }
+    let (seasons, followed) = match show {
+        Some(show) => {
+            let moves = show_requests(conn, show).await?.change(&quality)?;
+            (moves.seasons, moves.followed)
+        }
+        None => (Vec::new(), false),
+    };
     let at = now();
-    // SQLite reads `quality_name` on the right as it was before this UPDATE.
     // ponytail: the Show's other Season Requests change without an event, so a client sees it on
     // its next read; publish one for each if a screen shows them live.
-    sqlx::query!(
-        "UPDATE requests
-         SET quality_id = ?1, quality_name = ?2, quality_profile_id = ?3,
-             quality_changed_by = ?4, quality_changed_from = quality_name, quality_changed_at = ?5
-         WHERE quality_id IS NOT ?1
-           AND (id = ?6
-                OR (tmdb_id = ?7 AND season IS NOT NULL AND fulfiller_reference IS NULL
-                    AND state NOT IN ('declined', 'available')))",
-        quality.id,
-        quality.name,
-        quality.profile_id,
-        by,
-        at,
-        id,
-        show
-    )
-    .execute(&mut *conn)
-    .await?;
-    // A Movie's `show` is `None`, which matches no Followed Show.
-    sqlx::query!(
-        "UPDATE followed_shows
-         SET quality_id = ?, quality_name = ?, quality_profile_id = ?
-         WHERE tmdb_id = ? AND state != 'declined'",
-        quality.id,
-        quality.name,
-        quality.profile_id,
-        show
-    )
-    .execute(&mut *conn)
-    .await?;
+    for request in id.into_iter().chain(seasons) {
+        // SQLite reads `quality_name` on the right as it was before this UPDATE.
+        sqlx::query!(
+            "UPDATE requests
+             SET quality_id = ?1, quality_name = ?2, quality_profile_id = ?3,
+                 quality_changed_by = ?4, quality_changed_from = quality_name,
+                 quality_changed_at = ?5
+             WHERE id = ?6 AND quality_id IS NOT ?1",
+            quality.id,
+            quality.name,
+            quality.profile_id,
+            by,
+            at,
+            request
+        )
+        .execute(&mut *conn)
+        .await?;
+    }
+    if followed {
+        // Open as `one_open_followed_show` has it.
+        sqlx::query!(
+            "UPDATE followed_shows
+             SET quality_id = ?, quality_name = ?, quality_profile_id = ?
+             WHERE tmdb_id = ? AND state != 'declined'",
+            quality.id,
+            quality.name,
+            quality.profile_id,
+            show
+        )
+        .execute(&mut *conn)
+        .await?;
+    }
     Ok(())
 }
 
-/// The Quality of the Show `show_tmdb_id`, which each of its Season Requests takes (ADR 0025):
-/// that of its earliest Season Request with one that was handed off, which a Request tells by
-/// keeping its Fulfiller's reference, else that of its earliest open one, else that of its open
-/// Followed Show. So Declined, Cancelled or Withdrawn ones don't count. It is the Quality Sonarr
-/// used, once the hand-off said, as Sonarr keeps a series' profile.
-async fn show_quality(
+/// The Season Requests, in the order they were made, and the open Followed Show of the Show
+/// `show_tmdb_id`, for its Quality rules.
+async fn show_requests(
     conn: &mut SqliteConnection,
     show_tmdb_id: i64,
-) -> Result<Option<RequestedQuality>, sqlx::Error> {
-    // The used columns are all set or all NULL, as `quality_columns` writes them.
-    let row = sqlx::query!(
-        r#"SELECT id AS "id!: i64", name AS "name!: String", profile_id AS "profile_id!: String"
-           FROM (SELECT COALESCE(quality_used_id, quality_id) AS id,
-                        COALESCE(quality_used_name, quality_name) AS name,
-                        COALESCE(quality_used_profile_id, quality_profile_id) AS profile_id,
-                        fulfiller_reference IS NULL AS waiting, 0 AS followed, created_at,
-                        id AS row_id
-                 FROM requests
-                 WHERE tmdb_id = ?1 AND season IS NOT NULL AND quality_id IS NOT NULL
-                   AND (state NOT IN ('declined', 'available') OR fulfiller_reference IS NOT NULL)
-                 UNION ALL
-                 SELECT quality_id, quality_name, quality_profile_id, 1, 1, created_at, id
-                 FROM followed_shows
-                 WHERE tmdb_id = ?1 AND state != 'declined' AND quality_id IS NOT NULL)
-           ORDER BY waiting, followed, created_at, row_id
-           LIMIT 1"#,
+) -> Result<qualities::ShowRequests, sqlx::Error> {
+    let rows = sqlx::query!(
+        r#"SELECT id AS "id!", state, fulfiller_reference IS NOT NULL AS "handed_off!: bool",
+                  quality_id, quality_name, quality_profile_id,
+                  quality_used_id, quality_used_name, quality_used_profile_id
+           FROM requests WHERE tmdb_id = ? AND season IS NOT NULL
+           ORDER BY created_at, id"#,
+        show_tmdb_id
+    )
+    .fetch_all(&mut *conn)
+    .await?;
+    let seasons = rows
+        .into_iter()
+        .map(|row| qualities::SeasonRequest {
+            id: row.id,
+            asked: stored_quality(row.quality_id, row.quality_name, row.quality_profile_id),
+            used: stored_quality(
+                row.quality_used_id,
+                row.quality_used_name,
+                row.quality_used_profile_id,
+            ),
+            state: read_state(&row.state),
+            handed_off: row.handed_off,
+        })
+        .collect();
+    // Open as `one_open_followed_show` has it.
+    let followed = sqlx::query!(
+        "SELECT quality_id, quality_name, quality_profile_id FROM followed_shows
+         WHERE tmdb_id = ? AND state != 'declined'",
         show_tmdb_id
     )
     .fetch_optional(&mut *conn)
     .await?;
-    Ok(row.map(|row| RequestedQuality {
-        id: row.id,
-        name: row.name,
-        profile_id: row.profile_id,
-        ..Default::default()
-    }))
-}
-
-/// Whether a Season of the Show `show_tmdb_id` was handed off at a Quality, which fixes the Show's
-/// Quality. An Approved one counts, as its hand-off may be under way.
-async fn show_quality_fixed(
-    conn: &mut SqliteConnection,
-    show_tmdb_id: i64,
-) -> Result<bool, sqlx::Error> {
-    sqlx::query_scalar!(
-        r#"SELECT EXISTS (SELECT 1 FROM requests
-                          WHERE tmdb_id = ? AND season IS NOT NULL AND quality_id IS NOT NULL
-                            AND (fulfiller_reference IS NOT NULL OR state = 'approved'))
-           AS "is!: bool""#,
-        show_tmdb_id
-    )
-    .fetch_one(&mut *conn)
-    .await
+    Ok(qualities::ShowRequests {
+        seasons,
+        followed: followed.is_some(),
+        followed_quality: followed.and_then(|row| {
+            stored_quality(row.quality_id, row.quality_name, row.quality_profile_id)
+        }),
+    })
 }
 
 /// Moves the Approved Request `id`, asked at the Quality `asked`, on as its Fulfiller, from the
@@ -2050,7 +1987,11 @@ async fn settle(
     // In the same write as the reference, so a failed read can't lose a Request the Fulfiller took.
     let (state, reference, used, reason) = match fulfilled {
         Ok(fulfilled) => {
-            let used = quality_used(conn, asked.as_ref(), plugin.as_ref(), &fulfilled).await?;
+            let listed = match &plugin {
+                Some(plugin) => qualities::list(conn, plugin).await?,
+                None => Vec::new(),
+            };
+            let used = qualities::used(asked.as_ref(), &listed, &fulfilled);
             (
                 RequestState::Processing,
                 Some(fulfilled.reference),
@@ -2082,41 +2023,6 @@ async fn settle(
         return Ok(None);
     }
     load_one(conn, id).await
-}
-
-/// The Quality the service downloads a Request asked at `asked` at, as its Fulfiller, from the
-/// Plugin `plugin`, reported in `fulfilled`: `asked` if it has that profile, else the Quality on the
-/// Plugin's list that has it, else the service's own profile, with no Quality id. `None` if the
-/// Request took no Quality, so the Plugin's own setting applied, or the Fulfiller didn't say.
-async fn quality_used(
-    conn: &mut SqliteConnection,
-    asked: Option<&RequestedQuality>,
-    plugin: Option<&PluginId>,
-    fulfilled: &Fulfilled,
-) -> Result<Option<RequestedQuality>, sqlx::Error> {
-    let Fulfilled {
-        profile_id,
-        profile_name,
-        ..
-    } = fulfilled;
-    let Some(asked) = asked else {
-        return Ok(None);
-    };
-    if profile_id.is_empty() {
-        return Ok(None);
-    }
-    if asked.profile_id == *profile_id {
-        return Ok(Some(asked.clone()));
-    }
-    let listed = match plugin {
-        Some(plugin) => qualities::with_profile(conn, plugin, profile_id).await?,
-        None => None,
-    };
-    Ok(Some(listed.unwrap_or_else(|| RequestedQuality {
-        name: profile_name.clone(),
-        profile_id: profile_id.clone(),
-        ..Default::default()
-    })))
 }
 
 /// Moves the Failed Request `id` back to Approved at `new_quality`, if given, forgetting why it
@@ -2206,7 +2112,10 @@ async fn follow(
     state: RequestState,
 ) -> Result<(FollowedShow, Vec<Request>, Vec<Event>), Error> {
     let now = now();
-    let (quality, quality_chosen) = seasons_quality(conn, &show).await?;
+    // Read in the write, so two asks for the Show's Seasons at once can't take two Qualities.
+    let (quality, quality_chosen) = show_requests(conn, show.show_tmdb_id)
+        .await?
+        .for_seasons((show.quality.clone(), show.quality_chosen), show.chosen)?;
     let already_open = open_followed_show(conn, show.show_tmdb_id).await?;
     let id = if let Some(id) = already_open {
         id
@@ -2748,19 +2657,6 @@ fn read_state(stored: &str) -> RequestState {
         .iter()
         .find(|&&(_, name)| name == stored)
         .map_or(RequestState::REQUEST_STATE_UNSPECIFIED, |&(state, _)| state)
-}
-
-/// The id of `asker`'s default Quality for the Plugin `plugin`, which its list may no longer have,
-/// or `None` while they may not choose a Quality, so it isn't used.
-async fn usable_default(
-    conn: &mut SqliteConnection,
-    asker: &User,
-    plugin: &PluginId,
-) -> Result<Option<i64>, sqlx::Error> {
-    if !asker.permissions.allow(Permission::ChooseQuality) {
-        return Ok(None);
-    }
-    qualities::personal_default(conn, asker.id, plugin).await
 }
 
 #[cfg(test)]

@@ -5,7 +5,7 @@ use std::{
     ffi::OsStr,
     future,
     net::IpAddr,
-    path::{Path, PathBuf},
+    path::Path,
     sync::Arc,
     time::Instant,
 };
@@ -62,7 +62,7 @@ use nama_proto::nama::v1::{
     ListShowsRequest, ListShowsResponse, ListUnmatchedItemsRequest, ListUnmatchedItemsResponse,
     ListUsersRequest, ListUsersResponse, LookUpMovieRequest, LookUpMovieResponse,
     LookUpShowRequest, LookUpShowResponse, LookUpSignInCodeRequest, LookUpSignInCodeResponse,
-    MatchService, Permission, PluginConnection, PluginConnectionState, PluginKind, PluginService,
+    MatchService, Permission, PluginConnection, PluginConnectionState, PluginService,
     PollSignInCodeRequest, PollSignInCodeResponse, ReauthenticateRequest, ReauthenticateResponse,
     Refusal, RefusalReason, ReportProgressRequest, ReportProgressResponse, RequestService,
     RequestState, ResetPasswordRequest, ResetPasswordResponse, RetryRequestRequest,
@@ -85,7 +85,7 @@ use nama_proto::nama::v1::{
 use crate::{
     artwork::{self, Artwork},
     browse::{self, Browse, Started},
-    config::{Config, PluginConfig},
+    config::Config,
     connections::{self, Connections},
     contents::{Contents, Episode, Item, MatchedTo, Metadata, Movie, Show, Unmatched, Version},
     db::{Database, now},
@@ -94,8 +94,8 @@ use crate::{
     forwarded::{RequestSource, identify_source},
     libraries::{self, FolderProblem, Kind, Libraries, Library},
     matching::{ManualError, Matcher},
-    plugin_settings,
-    plugins::{CheckError, EnableError, Listed, Registry, installed},
+    plugin_settings::{self, ListError, PluginSettings, StoredPlugin},
+    plugins::{CheckError, EnableError, Listed, Registry},
     qualities,
     rate_limits::{Blocked, SignInCodeLimits, SignInLimits},
     requests::{self, Found, FoundShow, Requests},
@@ -119,7 +119,7 @@ use crate::{
 pub(crate) fn router(
     config: &Config,
     db: Arc<Database>,
-    plugins: Registry,
+    plugin_settings: PluginSettings,
     scanner: Scanner,
     events: EventBus,
     requests: Requests,
@@ -127,13 +127,8 @@ pub(crate) fn router(
     setup_code: Option<SetupCode>,
     ffmpeg: Ffmpeg,
 ) -> (axum::Router, impl Future<Output = ()> + Send + 'static) {
-    let changing = Arc::default();
-    let saving_crashed = save_crashed(
-        plugins.crashed(),
-        plugins.clone(),
-        Arc::clone(&db),
-        Arc::clone(&changing),
-    );
+    let plugins = plugin_settings.registry().clone();
+    let saving_crashed = save_crashed(plugins.crashed(), plugin_settings.clone(), Arc::clone(&db));
     let users = Users::new(Arc::clone(&db), plugins.clone());
     let contents = Contents::new(Arc::clone(&db));
     let artwork = Artwork::new(&config.data_dir, plugins.clone());
@@ -176,10 +171,9 @@ pub(crate) fn router(
         }))
         .add_service(Arc::new(PluginServiceHandler {
             plugins,
+            plugin_settings,
             requests,
             db: Arc::clone(&db),
-            data_dir: config.data_dir.clone(),
-            changing,
         }))
         .add_service(Arc::new(LibraryServiceHandler {
             libraries: Libraries::new(db),
@@ -2409,15 +2403,11 @@ fn device_to_proto(device: users::Device, is_current: bool) -> proto::Device {
 /// `PERMISSION_MANAGE_SETTINGS`, which [`require_access`] enforces.
 struct PluginServiceHandler {
     plugins: Registry,
+    /// Each Plugin with what is stored for it, and the lock every change to one holds.
+    plugin_settings: PluginSettings,
     /// Hands the Requests waiting for a Fulfiller to one once it is enabled.
     requests: Requests,
     db: Arc<Database>,
-    /// Where the Installed Plugins are, in `plugins/`.
-    data_dir: PathBuf,
-    /// Held while a Plugin's settings change or it is enabled or disabled, and that is saved, so two
-    /// changes at once can't leave it running otherwise than the database says.
-    // ponytail: one lock for every Plugin; one per Plugin if Admins ever wait on each other.
-    changing: Arc<tokio::sync::Mutex<()>>,
 }
 
 /// Saves each Plugin `plugins` disables for crashing as disabled, as an admin's disable is, so it
@@ -2425,14 +2415,13 @@ struct PluginServiceHandler {
 /// `plugins` hands a later caller of [`Registry::crashed`] the crashes instead.
 async fn save_crashed(
     mut crashed: tokio::sync::mpsc::UnboundedReceiver<PluginId>,
-    plugins: Registry,
+    plugins: PluginSettings,
     db: Arc<Database>,
-    changing: Arc<tokio::sync::Mutex<()>>,
 ) {
     while let Some(id) = crashed.recv().await {
-        let _changing = changing.lock().await;
+        let _changing = plugins.lock().await;
         // An admin may have enabled it again since.
-        if plugins.enabled().contains(&id) {
+        if plugins.registry().enabled().contains(&id) {
             continue;
         }
         if let Err(err) = plugin_settings::set_enabled(&db, id.as_str(), false).await {
@@ -2452,30 +2441,13 @@ impl PluginService for PluginServiceHandler {
         _ctx: RequestContext,
         _request: ServiceRequest<'_, ListPluginsRequest>,
     ) -> ServiceResult<ListPluginsResponse> {
-        let data_dir = self.data_dir.clone();
-        // Compiled before taking `changing`, so a slow Plugin doesn't hold up Plugin changes.
-        let found = tokio::task::spawn_blocking(move || installed::read(&data_dir))
-            .await
-            .map_err(|err| {
-                tracing::error!("reading the Installed Plugins failed: {err}");
-                ConnectError::internal("the Server failed")
-            })?;
-        // Under `changing`, so a Plugin being enabled can't lose its listing halfway.
-        let changing = self.changing.lock().await;
-        self.plugins.list_installed(found);
-        drop(changing);
-        let mut stored = plugin_settings::stored(&self.db)
-            .await
-            .map_err(database_failed)?
-            .unwrap_or_default();
         let summaries = self
-            .plugins
-            .plugins()
+            .plugin_settings
+            .list()
+            .await
+            .map_err(list_failed)?
             .into_iter()
-            .map(|plugin| {
-                let settings = stored.remove(plugin.id.as_str()).unwrap_or_default();
-                plugin_summary_to_proto(plugin, settings.settings)
-            })
+            .map(|StoredPlugin { plugin, stored }| plugin_summary_to_proto(plugin, stored.settings))
             .collect();
         Response::ok(ListPluginsResponse {
             summaries,
@@ -2489,9 +2461,9 @@ impl PluginService for PluginServiceHandler {
         request: ServiceRequest<'_, GetPluginRequest>,
     ) -> ServiceResult<GetPluginResponse> {
         // Doesn't read `plugins/` again as listing does: the details page opens from the list.
-        let plugin = self.known(&PluginId::from(request.id.to_owned()))?;
         // A refused Plugin has no settings schema, so it comes with none.
-        let stored = self.stored(&plugin).await?;
+        let StoredPlugin { plugin, stored } =
+            self.known(&PluginId::from(request.id.to_owned())).await?;
         Response::ok(GetPluginResponse {
             plugin: plugin_to_proto(plugin, &stored.settings).into(),
             ..Default::default()
@@ -2505,9 +2477,8 @@ impl PluginService for PluginServiceHandler {
     ) -> ServiceResult<UpdatePluginSettingsResponse> {
         let request = request.to_owned_message();
         let id = PluginId::from(request.id);
-        let plugin = self.listed(&id)?;
-        let changing = self.changing.lock().await;
-        let stored = self.stored(&plugin).await?;
+        let changing = self.plugin_settings.lock().await;
+        let StoredPlugin { plugin, stored } = self.listed(&id).await?;
         let settings = with_stored_secrets(
             &plugin.settings_schema,
             settings_from_proto(&request.settings),
@@ -2550,12 +2521,13 @@ impl PluginService for PluginServiceHandler {
         request: ServiceRequest<'_, EnablePluginRequest>,
     ) -> ServiceResult<EnablePluginResponse> {
         let id = PluginId::from(request.id.to_owned());
-        let changing = self.changing.lock().await;
-        let settings = plugin_settings::stored(&self.db)
+        let changing = self.plugin_settings.lock().await;
+        let settings = self
+            .plugin_settings
+            .get(&id)
             .await
             .map_err(database_failed)?
-            .and_then(|mut stored| stored.remove(id.as_str()))
-            .map(|config| config.settings)
+            .map(|found| found.stored.settings)
             .unwrap_or_default();
         match self.plugins.enable_by_id(&id, Settings::new(settings)) {
             // Saving it again is how a retry fixes a save that failed below.
@@ -2579,8 +2551,7 @@ impl PluginService for PluginServiceHandler {
     ) -> ServiceResult<TestPluginSettingsResponse> {
         let request = request.to_owned_message();
         let id = PluginId::from(request.id);
-        let plugin = self.listed(&id)?;
-        let stored = self.stored(&plugin).await?;
+        let StoredPlugin { plugin, stored } = self.listed(&id).await?;
         let settings = with_stored_secrets(
             &plugin.settings_schema,
             settings_from_proto(&request.settings),
@@ -2607,8 +2578,8 @@ impl PluginService for PluginServiceHandler {
         request: ServiceRequest<'_, DisablePluginRequest>,
     ) -> ServiceResult<DisablePluginResponse> {
         let id = PluginId::from(request.id.to_owned());
-        self.listed(&id)?;
-        let _changing = self.changing.lock().await;
+        self.listed(&id).await?;
+        let _changing = self.plugin_settings.lock().await;
         // Without an Authenticator nobody could sign in, which is also why `main` won't start.
         self.plugins
             .disable_unless_last_provider::<dyn Authenticator>(&id)
@@ -2637,7 +2608,10 @@ impl PluginService for PluginServiceHandler {
         _ctx: RequestContext,
         request: ServiceRequest<'_, proto::ListQualitiesRequest>,
     ) -> ServiceResult<proto::ListQualitiesResponse> {
-        let plugin = self.listed(&PluginId::from(request.id.to_owned()))?;
+        let plugin = self
+            .listed(&PluginId::from(request.id.to_owned()))
+            .await?
+            .plugin;
         let mut conn = self.db.reader().acquire().await.map_err(database_failed)?;
         let qualities = qualities::list(&mut conn, &plugin.id)
             .await
@@ -2654,11 +2628,19 @@ impl PluginService for PluginServiceHandler {
         request: ServiceRequest<'_, proto::ReplaceQualitiesRequest>,
     ) -> ServiceResult<proto::ReplaceQualitiesResponse> {
         let request = request.to_owned_message();
-        let plugin = self.listed(&PluginId::from(request.id))?;
-        qualities::check(&request.qualities)?;
-        if !request.qualities.is_empty() {
-            self.check_profiles(&plugin, &request.qualities).await?;
-        }
+        let StoredPlugin { plugin, stored } = self.listed(&PluginId::from(request.id)).await?;
+        // Only a list with Qualities asks the settings check, so a Fulfiller that's down can still
+        // have its list cleared.
+        let offered = if request.qualities.is_empty() {
+            settings::Choices::new()
+        } else {
+            self.plugins
+                .check_settings(&plugin.id, Settings::new(stored.settings))
+                .await
+                .map_err(|err| check_refused(&plugin.id, err, None))?
+        };
+        qualities::check(&request.qualities, &offered)
+            .map_err(|err| invalid_qualities(err, &plugin.id))?;
         let qualities = qualities::replace(&self.db, plugin.id, request.qualities)
             .await
             .map_err(database_failed)?;
@@ -2670,26 +2652,27 @@ impl PluginService for PluginServiceHandler {
 }
 
 impl PluginServiceHandler {
-    /// The Plugin `id`, or the refusal of a call naming one no Plugin has or one the Server
-    /// refused.
-    fn listed(&self, id: &PluginId) -> Result<Listed, ConnectError> {
-        let plugin = self.known(id)?;
-        match plugin.refused_reason {
+    /// The Plugin `id` with what is stored for it, or the refusal of a call naming one no Plugin
+    /// has or one the Server refused.
+    async fn listed(&self, id: &PluginId) -> Result<StoredPlugin, ConnectError> {
+        let found = self.known(id).await?;
+        match found.plugin.refused_reason {
             Some(reason) => Err(EnableError::Refused {
-                plugin: plugin.id,
+                plugin: found.plugin.id,
                 reason,
             }
             .into()),
-            None => Ok(plugin),
+            None => Ok(found),
         }
     }
 
-    /// The Plugin `id`, refused or not, or the refusal of a call naming one no Plugin has.
-    fn known(&self, id: &PluginId) -> Result<Listed, ConnectError> {
-        self.plugins
-            .plugins()
-            .into_iter()
-            .find(|plugin| plugin.id == *id)
+    /// The Plugin `id`, refused or not, with what is stored for it, or the refusal of a call
+    /// naming one no Plugin has.
+    async fn known(&self, id: &PluginId) -> Result<StoredPlugin, ConnectError> {
+        self.plugin_settings
+            .get(id)
+            .await
+            .map_err(database_failed)?
             .ok_or_else(|| plugin_not_found(id))
     }
 
@@ -2731,58 +2714,6 @@ impl PluginServiceHandler {
             }
         }
         Ok(())
-    }
-
-    /// Refuses `qualities` unless `plugin`'s settings check, run on its stored settings, offers
-    /// each one's profile for its `quality_profile` setting.
-    async fn check_profiles(
-        &self,
-        plugin: &Listed,
-        qualities: &[proto::Quality],
-    ) -> Result<(), ConnectError> {
-        let stored = self.stored(plugin).await?;
-        let offered = self
-            .plugins
-            .check_settings(&plugin.id, Settings::new(stored.settings))
-            .await
-            .map_err(|err| check_refused(&plugin.id, err, None))?;
-        let profiles = offered
-            .get(qualities::QUALITY_PROFILE)
-            .map(Vec::as_slice)
-            .unwrap_or_default();
-        let not_offered = qualities.iter().enumerate().find(|(_, quality)| {
-            !profiles
-                .iter()
-                .any(|profile| profile.value == quality.profile_id)
-        });
-        let Some((index, quality)) = not_offered else {
-            return Ok(());
-        };
-        let profile = &quality.profile_id;
-        let message = format!("{} doesn't offer the quality profile {profile}", plugin.id);
-        Err(
-            refuse(RefusalReason::REFUSAL_REASON_CHOICE_NOT_OFFERED, message)
-                .field(&format!("qualities[{index}].{}", qualities::PROFILE))
-                .param("pluginId", &plugin.id)
-                .param("settingKey", &qualities::QUALITY_PROFILE)
-                .param("settingValue", profile)
-                .into(),
-        )
-    }
-
-    /// What is stored for `plugin`. For one never stored, no settings, and enabled only if it is
-    /// Built-in: Installed Plugins start disabled.
-    async fn stored(&self, plugin: &Listed) -> Result<PluginConfig, ConnectError> {
-        let never_stored = || PluginConfig {
-            enabled: plugin.kind == PluginKind::PLUGIN_KIND_BUILT_IN,
-            ..PluginConfig::default()
-        };
-        Ok(plugin_settings::stored(&self.db)
-            .await
-            .map_err(database_failed)?
-            .unwrap_or_default()
-            .remove(plugin.id.as_str())
-            .unwrap_or_else(never_stored))
     }
 }
 
@@ -3117,7 +3048,8 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_QUALITY_REPEATED
         | R::REFUSAL_REASON_DEFAULT_QUALITY_REQUIRED
         | R::REFUSAL_REASON_QUALITY_NOT_OFFERED
-        | R::REFUSAL_REASON_PAGE_TOKEN_INVALID => ErrorCode::InvalidArgument,
+        | R::REFUSAL_REASON_PAGE_TOKEN_INVALID
+        | R::REFUSAL_REASON_SHOW_HAS_QUALITY => ErrorCode::InvalidArgument,
         R::REFUSAL_REASON_SIGN_IN_REQUIRED
         | R::REFUSAL_REASON_WRONG_NAME_OR_PASSWORD
         | R::REFUSAL_REASON_WRONG_PASSWORD
@@ -3221,27 +3153,86 @@ fn database_failed(err: sqlx::Error) -> ConnectError {
     ConnectError::internal("the Server's database failed")
 }
 
-/// The refusal of a list of Qualities that breaks a list rule, naming the field at fault.
-impl From<qualities::Invalid> for ConnectError {
-    fn from(err: qualities::Invalid) -> Self {
+/// The Connect error a client gets when the Plugins couldn't be listed, logged as
+/// [`database_failed`] logs.
+fn list_failed(err: ListError) -> ConnectError {
+    match err {
+        ListError::Read(err) => database_failed(err),
+        err @ ListError::ReadInstalled(_) => {
+            tracing::error!("{err}");
+            ConnectError::internal("the Server failed")
+        }
+    }
+}
+
+/// The refusal of a list of Qualities for the Plugin `plugin` that breaks a list rule, naming the
+/// field at fault.
+fn invalid_qualities(err: qualities::Invalid, plugin: &PluginId) -> ConnectError {
+    use RefusalReason as R;
+    let message = err.to_string();
+    let (reason, field) = match err {
+        qualities::Invalid::Blank(index, part) => (
+            R::REFUSAL_REASON_FIELD_REQUIRED,
+            format!("qualities[{index}].{part}"),
+        ),
+        qualities::Invalid::Repeated(index, part) => (
+            R::REFUSAL_REASON_QUALITY_REPEATED,
+            format!("qualities[{index}].{part}"),
+        ),
+        qualities::Invalid::NotOneDefault => (
+            R::REFUSAL_REASON_DEFAULT_QUALITY_REQUIRED,
+            "qualities".to_owned(),
+        ),
+        qualities::Invalid::ProfileNotOffered(index, profile) => {
+            let field = format!("qualities[{index}].{}", qualities::PROFILE);
+            return refuse(R::REFUSAL_REASON_CHOICE_NOT_OFFERED, message)
+                .field(&field)
+                .param("pluginId", plugin)
+                .param("settingKey", &qualities::QUALITY_PROFILE)
+                .param("settingValue", &profile)
+                .into();
+        }
+    };
+    refuse(reason, message).field(&field).into()
+}
+
+/// The refusal of a Quality a User named, in the field they named it in.
+impl From<qualities::Refused> for ConnectError {
+    fn from(err: qualities::Refused) -> Self {
         use RefusalReason as R;
         let message = err.to_string();
-        let (reason, field) = match err {
-            qualities::Invalid::Blank(index, part) => (
-                R::REFUSAL_REASON_FIELD_REQUIRED,
-                format!("qualities[{index}].{part}"),
-            ),
-            qualities::Invalid::Repeated(index, part) => (
-                R::REFUSAL_REASON_QUALITY_REPEATED,
-                format!("qualities[{index}].{part}"),
-            ),
-            qualities::Invalid::NotOneDefault => (
-                R::REFUSAL_REASON_DEFAULT_QUALITY_REQUIRED,
-                "qualities".to_owned(),
-            ),
+        let refused = match err {
+            qualities::Refused::NotAllowed => {
+                refuse(R::REFUSAL_REASON_QUALITY_NOT_ALLOWED, message).field(qualities::ASKED)
+            }
+            qualities::Refused::NotOffered { id, field } => {
+                refuse(R::REFUSAL_REASON_QUALITY_NOT_OFFERED, message)
+                    .field(field)
+                    .param("qualityId", &id)
+            }
+            qualities::Refused::NotTheShows { named, shows } => {
+                show_has_quality(message, qualities::ASKED, named, &shows)
+            }
+            qualities::Refused::ShowQualityFixed { named, shows } => {
+                show_has_quality(message, qualities::CHANGED, named, &shows)
+            }
         };
-        refuse(reason, message).field(&field).into()
+        refused.into()
     }
+}
+
+/// The refusal of the Quality `named` in `field`, as it isn't the Show's, `shows`.
+fn show_has_quality(
+    message: String,
+    field: &str,
+    named: i64,
+    shows: &proto::RequestedQuality,
+) -> Refused {
+    refuse(RefusalReason::REFUSAL_REASON_SHOW_HAS_QUALITY, message)
+        .field(field)
+        .param("qualityId", &named)
+        .param("showQualityId", &shows.id)
+        .param("showQualityName", &shows.name)
 }
 
 /// The Connect error a client gets for a change to the Users that failed. Server-side failures
@@ -3314,11 +3305,6 @@ impl From<requests::Error> for ConnectError {
             requests::Error::NotFailed(id) => refuse(R::REFUSAL_REASON_REQUEST_NOT_FAILED, message)
                 .field("id")
                 .param("requestId", &id),
-            requests::Error::NewQualityNotOffered(id) => {
-                refuse(R::REFUSAL_REASON_QUALITY_NOT_OFFERED, message)
-                    .field("quality_id")
-                    .param("qualityId", &id)
-            }
             requests::Error::NotARequester(id) => {
                 refuse(R::REFUSAL_REASON_NOT_A_REQUESTER, message)
                     .field("id")
@@ -3361,17 +3347,7 @@ impl From<requests::Error> for ConnectError {
                     .param("seasonNumber", &season)
             }
             requests::Error::Unavailable => refuse(R::REFUSAL_REASON_NO_METADATA_PROVIDER, message),
-            // Each RPC that opens a Request names a Quality the caller may not choose in `quality`.
-            requests::Error::QualityNotAllowed => {
-                refuse(R::REFUSAL_REASON_QUALITY_NOT_ALLOWED, message).field("quality")
-            }
-            // `CreateRequest`, `CreateSeasonRequests`, `CreateFollowedShow` and `SetDefaultQuality`
-            // all name it in `quality`.
-            requests::Error::QualityNotOffered(id) | requests::Error::NotTheShowsQuality(id) => {
-                refuse(R::REFUSAL_REASON_QUALITY_NOT_OFFERED, message)
-                    .field("quality")
-                    .param("qualityId", &id)
-            }
+            requests::Error::Quality(refused) => return refused.into(),
             requests::Error::PageTokenInvalid => {
                 refuse(R::REFUSAL_REASON_PAGE_TOKEN_INVALID, message).field("page_token")
             }

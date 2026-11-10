@@ -3,7 +3,7 @@
 //! Built-in Plugin, so the Kernel can't tell them apart.
 
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::HashMap,
     fs, io, mem, panic,
     path::{Path, PathBuf},
     sync::{
@@ -43,10 +43,8 @@ use tokio::task;
 use tracing::{error, info, warn};
 
 use super::{
-    CheckTimedOut, Described, Registry, contain_sync, kept_logo, log_not_enabled, secret_values,
-    without_secrets,
+    CheckTimedOut, Described, Registry, contain_sync, kept_logo, secret_values, without_secrets,
 };
-use crate::config::PluginConfig;
 
 /// How long one call into an Installed Plugin may run, so one that never returns can't hold up
 /// the start, its Observer's task or a settings check.
@@ -494,10 +492,9 @@ pub(crate) fn read(data_dir: &Path) -> Found {
 
 impl Registry {
     /// Reads and lists the bundled Installed Plugins and those in `<data_dir>/plugins/` at start,
-    /// as listing the Plugins does: logs each one's id and version, or why the Server refused it,
-    /// and enables those `config` says are enabled. Installed Plugins start disabled, so one
-    /// `config` doesn't name stays disabled.
-    pub fn load_installed(&self, data_dir: &Path, config: &BTreeMap<String, PluginConfig>) {
+    /// as listing the Plugins does, and logs each one's id and version, or why the Server refused
+    /// it. Enables none.
+    pub(crate) fn load_installed(&self, data_dir: &Path) {
         let found = read(data_dir);
         for (file, plugin) in &found.0 {
             match plugin {
@@ -513,19 +510,6 @@ impl Registry {
             }
         }
         self.list_installed(found);
-        for (id, stored) in config {
-            let id = PluginId::from(id.clone());
-            let Some(kind) = self.read(|state| state.known.get(&id).map(|known| known.kind)) else {
-                warn!(plugin = %id, "settings name a plugin this Server doesn't have");
-                continue;
-            };
-            if kind == PluginKind::PLUGIN_KIND_INSTALLED
-                && stored.enabled
-                && let Err(err) = self.enable_by_id(&id, Settings::new(stored.settings.clone()))
-            {
-                log_not_enabled(&id, &err);
-            }
-        }
     }
 
     /// Lists the Installed Plugins `found` beside the Built-in ones, in place of those listed

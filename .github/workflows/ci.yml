@@ -6,7 +6,7 @@ on:
   pull_request:
     # ready_for_review starts the tests when a draft is marked ready. closed runs nothing: it
     # joins the PR's concurrency group below, which cancels the run still going on a merged or
-    # closed PR and frees its runner.
+    # closed PR and frees its runners.
     types: [opened, synchronize, reopened, ready_for_review, closed]
 
 # A new push to a PR (or to main) cancels the run already going on it.
@@ -20,46 +20,71 @@ env:
   CARGO_TERM_COLOR: always
   # No debug info: CI only needs pass/fail, and builds and links are faster without it.
   CARGO_PROFILE_DEV_DEBUG: 0
-  # A fixed path, so rust-cache restores it: a cache only matches a job that caches the same
-  # absolute paths, and each runner checks out under its own /_work/jit-runner-<id>/.
-  CARGO_TARGET_DIR: /home/runner/target
 
-# Jobs run on autoscaled self-hosted runners on the home lab (electather/home-services,
-# runner-scaler in services/lab/docker-compose.yml). There are only a few of them, so a run
-# uses one runner at a time: `lint` first, then `web`, then `test`, which only runs once both
-# pass and the PR isn't a draft.
+# GitHub-hosted runners, free for this public repo, so after `changes` every job runs at once.
+# Rust builds are split by mode: `rust-check` only type-checks (sqlx, clippy and rustdoc share
+# those artifacts), while `test` and `web-test` build to run and share one cache.
+# Never self-hosted: on a public repo, a fork's PR could run its own code on that machine.
 
 jobs:
-  # Everything that doesn't depend on the platform, in one job so it needs one runner:
-  # formatting, the schema in proto/ (ADR 0007: lint, no breaking changes against main,
-  # generated code in crates/nama-proto and web/src/gen is current), .sqlx query data, docs,
-  # unused deps and cargo-deny. Runs on drafts too.
-  lint:
-    name: lint
-    # A closed PR's run only cancels the one before it; `web` and `test` need this, so they skip too.
+  # Which side of the repo a PR touches, so a web-only PR skips the Rust work and the other way
+  # round. Pushes to main run everything, keeping main's caches and test history complete.
+  changes:
     if: github.event.action != 'closed'
-    runs-on: [self-hosted, nama-rust]
+    runs-on: ubuntu-latest
+    # The repo's default token can't list a PR's files.
+    permissions:
+      pull-requests: read
+    outputs:
+      rust: ${{ github.event_name != 'pull_request' || steps.filter.outputs.rust == 'true' }}
+      web: ${{ github.event_name != 'pull_request' || steps.filter.outputs.web == 'true' }}
+    steps:
+      # On a PR it lists the changed files through the API, so it needs no checkout.
+      - id: filter
+        if: github.event_name == 'pull_request'
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          # proto/ generates code on both sides, and a change to this file runs everything.
+          filters: |
+            rust:
+              - 'crates/**'
+              - 'plugins/**'
+              - 'proto/**'
+              - '.sqlx/**'
+              - '.config/**'
+              - '.github/scripts/**'
+              - '.github/workflows/ci.yml'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - 'clippy.toml'
+              - 'rustfmt.toml'
+              - 'deny.toml'
+            web:
+              - 'web/**'
+              - 'proto/**'
+              - '.impeccable/**'
+              - 'DESIGN.md'
+              - '.github/workflows/ci.yml'
+
+  # The checks that build nothing: formatting, the schema in proto/ (ADR 0007: lint, no breaking
+  # changes against main, generated code in crates/nama-proto and web/src/gen is current), unused
+  # deps and cargo-deny. Runs on drafts too, as do `web` and `rust-check`.
+  lint:
+    needs: changes
+    if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    env:
+      RUST: ${{ needs.changes.outputs.rust }}
     steps:
       - uses: actions/checkout@v7
         with:
-          # `buf breaking` reads main from the local clone.
+          # `buf breaking` and the advisories check read main from the local clone.
           fetch-depth: 0
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
-          # Building the Server, as `cargo doc` and `cargo sqlx prepare` do, builds the Plugins it
-          # bundles for wasm32.
-          targets: wasm32-unknown-unknown
-      - uses: Swatinem/rust-cache@v2
-        with:
-          # CARGO_TARGET_DIR, written relative to the checkout (/_work/jit-runner-<id>/nama-rust/
-          # nama-rust) because rust-cache joins it onto the workspace root.
-          # ponytail: tied to the checkout's depth; fix the runner's work directory to drop it.
-          workspaces: . -> ../../../../home/runner/target
-          # rust-cache's key leaves out the root Cargo.toml's [profile]s, so a profile change
-          # restored builds made with the old one, rebuilt every dependency and never saved them.
-          key: ${{ hashFiles('Cargo.toml') }}
-      - run: cargo fmt --all --check
+      - if: env.RUST == 'true'
+        run: cargo fmt --all --check
       - uses: bufbuild/buf-action@v1
         with:
           version: 1.75.0
@@ -72,33 +97,32 @@ jobs:
       - name: buf breaking against main
         working-directory: proto
         run: |
+          # HEAD^1 is the main this code sits on: a PR's merge ref's base, or main before this push.
+          # Not origin/main, which may have moved since the merge ref was made and would read as
+          # the PR deleting whatever landed in between.
+          base=$(git rev-parse HEAD^1)
           # Until the Buf module first lands on main there is nothing to compare against.
-          if git cat-file -e origin/main:proto/buf.yaml 2>/dev/null; then
-            buf breaking --against "../.git#ref=origin/main,subdir=proto"
+          if git cat-file -e "$base:proto/buf.yaml" 2>/dev/null; then
+            buf breaking --against "../.git#ref=$base,subdir=proto"
           else
             echo "main has no Buf module yet; skipping"
           fi
       # The generated code must compile against the connectrpc and buffa versions in
       # crates/nama-proto/Cargo.toml, so keep each plugin on the same minor version as its
-      # runtime crate when bumping either (and update the README's install line). sqlx-cli
-      # stays on the same minor version as the sqlx crate in crates/nama-server/Cargo.toml.
-      # Cached by version, since building them from source took 2-4 minutes of every run (sqlx-cli
-      # has no prebuilt binaries). Bump the cache key with any version here.
-      - id: tools-cache
+      # runtime crate when bumping either (and update the README's install line).
+      # Cached by version, since building them from source takes minutes. Bump the cache key with
+      # any version here.
+      - id: codegen-cache
         uses: actions/cache@v6
         with:
           path: |
             ${{ env.CARGO_HOME }}/bin/protoc-gen-buffa
             ${{ env.CARGO_HOME }}/bin/protoc-gen-buffa-packaging
             ${{ env.CARGO_HOME }}/bin/protoc-gen-connect-rust
-            ${{ env.CARGO_HOME }}/bin/sqlx
-            ${{ env.CARGO_HOME }}/bin/cargo-sqlx
-          key: tools-${{ runner.os }}-buffa-0.9.2-connectrpc-0.9.0-sqlx-cli-0.9.0
-      - name: Install codegen plugins and sqlx-cli
-        if: steps.tools-cache.outputs.cache-hit != 'true'
-        run: |
-          cargo install --locked protoc-gen-buffa@0.9.2 protoc-gen-buffa-packaging@0.9.2 connectrpc-codegen@0.9.0
-          cargo install --locked sqlx-cli@0.9.0 --no-default-features --features sqlite,rustls
+          key: codegen-${{ runner.os }}-buffa-0.9.2-connectrpc-0.9.0
+      - name: Install codegen plugins
+        if: steps.codegen-cache.outputs.cache-hit != 'true'
+        run: cargo install --locked protoc-gen-buffa@0.9.2 protoc-gen-buffa-packaging@0.9.2 connectrpc-codegen@0.9.0
       # Installs web/'s dependencies, protoc-gen-es among them.
       - uses: voidzero-dev/setup-vp@cab1ab9eaff52d4857875f4f2c016e36af8f2c76 # v1.22.0
         with:
@@ -112,32 +136,20 @@ jobs:
             echo "::error::crates/nama-proto/src/generated or web/src/gen is stale; run 'buf generate' in proto/ and commit the result"
             exit 1
           }
-      # Queries are checked at compile time against the query data in .sqlx/, so builds need
-      # no database. A scratch SQLite file with every migration applied checks it is current.
-      - name: .sqlx is up to date
-        run: |
-          export DATABASE_URL="sqlite://$RUNNER_TEMP/sqlx-check.db"
-          sqlx database create
-          sqlx migrate run --source crates/nama-server/migrations
-          cargo sqlx prepare --check --workspace -- --all-targets || {
-            echo "::error::.sqlx is stale; see crates/nama-server/README.md for how to regenerate it"
-            exit 1
-          }
-      # Broken intra-doc links and malformed docs fail the build.
-      - run: cargo doc --workspace --no-deps --locked
-        env:
-          RUSTDOCFLAGS: -D warnings
       - uses: taiki-e/install-action@v2
+        if: env.RUST == 'true'
         with:
           tool: cargo-machete,cargo-deny
       # Dependencies declared in Cargo.toml that no code uses.
-      - run: cargo machete
+      - if: env.RUST == 'true'
+        run: cargo machete
       # Licenses, banned and unknown sources (deny.toml).
-      - run: cargo deny check bans licenses sources
+      - if: env.RUST == 'true'
+        run: cargo deny check bans licenses sources
       # An advisory published against a dependency main already has isn't the PR's to fix, so a
       # PR fails only on one its own Cargo.lock adds. advisories.yml files main's as issues.
       - name: No new advisories
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && env.RUST == 'true'
         env:
           BASE: ${{ github.event.pull_request.base.sha }}
         run: |
@@ -155,12 +167,11 @@ jobs:
             exit 1
           fi
 
-  # The web app (web/README.md, "Checks"). Runs on drafts too. The Server's `web` feature test
-  # runs in `test`, where it shares the workspace's build cache.
+  # The web app's checks (web/README.md, "Checks").
   web:
-    name: web
-    needs: lint
-    runs-on: [self-hosted, nama-rust]
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: voidzero-dev/setup-vp@cab1ab9eaff52d4857875f4f2c016e36af8f2c76 # v1.22.0
@@ -193,77 +204,155 @@ jobs:
       - name: Design check
         run: vp dlx impeccable@4.8.0 detect --json web/src
 
-  # Release builds target Linux, macOS and Windows, and the Server has
-  # platform-specific code (shutdown signals), so this should check all three.
-  # macOS and Windows are switched off for now: they need GitHub-hosted
-  # minutes, which this account has none of. Re-add them to the matrix to
-  # turn them back on.
-  test:
-    name: clippy, build and test (${{ matrix.os }})
-    needs: web
-    # Draft PRs get lint and web only; marking one ready for review runs this.
-    if: github.event_name == 'push' || !github.event.pull_request.draft
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: linux
-            runner: [self-hosted, nama-rust]
-          # - os: macos-latest
-          #   runner: macos-latest
-          # - os: windows-latest
-          #   runner: windows-latest
-    runs-on: ${{ matrix.runner }}
+  # Everything that type-checks the workspace: .sqlx query data, clippy and rustdoc.
+  rust-check:
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
+          # Building the Server, as all three do, builds the Plugins it bundles for wasm32.
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          # rust-cache's key leaves out the root Cargo.toml's [profile]s, so a profile change
+          # restored builds made with the old one, rebuilt every dependency and never saved them.
+          key: ${{ hashFiles('Cargo.toml') }}
+          # A PR's cache is only visible to that PR, and the repo's 10 GB would fill with them.
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      # sqlx-cli stays on the same minor version as the sqlx crate in crates/nama-server/Cargo.toml.
+      # Cached by version: it has no prebuilt binaries, and building it takes minutes.
+      - id: sqlx-cache
+        uses: actions/cache@v6
+        with:
+          path: |
+            ${{ env.CARGO_HOME }}/bin/sqlx
+            ${{ env.CARGO_HOME }}/bin/cargo-sqlx
+          key: sqlx-cli-${{ runner.os }}-0.9.0
+      - name: Install sqlx-cli
+        if: steps.sqlx-cache.outputs.cache-hit != 'true'
+        run: cargo install --locked sqlx-cli@0.9.0 --no-default-features --features sqlite,rustls
+      # Queries are checked at compile time against the query data in .sqlx/, so builds need
+      # no database. A scratch SQLite file with every migration applied checks it is current.
+      - name: .sqlx is up to date
+        run: |
+          export DATABASE_URL="sqlite://$RUNNER_TEMP/sqlx-check.db"
+          sqlx database create
+          sqlx migrate run --source crates/nama-server/migrations
+          cargo sqlx prepare --check --workspace -- --all-targets || {
+            echo "::error::.sqlx is stale; see crates/nama-server/README.md for how to regenerate it"
+            exit 1
+          }
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      # The test Plugin and the bundled ones for wasm32, as Installed Plugins are built: with
+      # nama-pdk, and nama-proto's messages without its ConnectRPC stubs.
+      - run: cargo clippy --package nama-test-plugin --package nama-plugin-radarr --package nama-plugin-sonarr --package nama-plugin-telegram --package nama-servarr --target wasm32-unknown-unknown --locked -- -D warnings
+      # Broken intra-doc links and malformed docs fail the build.
+      - run: cargo doc --workspace --no-deps --locked
+        env:
+          RUSTDOCFLAGS: -D warnings
+
+  # The workspace's tests, each OS's split across two runners. A PR tests on Linux only; a push
+  # to main also tests on macOS and Windows, which release builds target and where the Server has
+  # platform-specific code (shutdown signals), but which take two to three times as long.
+  # So a macOS- or Windows-only failure shows up on main, after the merge.
+  # Clippy runs on Linux only (`rust-check`), so a lint in code for another OS isn't caught here.
+  test:
+    name: test (${{ matrix.os }}, ${{ matrix.partition }}/2)
+    needs: changes
+    # Draft PRs get the checks only; marking one ready for review runs this and `web-test`.
+    if: >-
+      (github.event_name == 'push' || !github.event.pull_request.draft) &&
+      needs.changes.outputs.rust == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: >-
+          ${{ github.event_name == 'push'
+            && fromJSON('["ubuntu-latest", "macos-latest", "windows-latest"]')
+            || fromJSON('["ubuntu-latest"]') }}
+        partition: [1, 2]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        # Git Bash on Windows, so the steps below are one script for all three.
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
           # The Server bundles Plugins built for wasm32, and its tests build the test Plugin
           # (crates/nama-test-plugin).
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
         with:
-          # CARGO_TARGET_DIR, written relative to the checkout (/_work/jit-runner-<id>/nama-rust/
-          # nama-rust) because rust-cache joins it onto the workspace root.
-          # ponytail: tied to the checkout's depth; fix the runner's work directory to drop it.
-          workspaces: . -> ../../../../home/runner/target
-          # rust-cache's key leaves out the root Cargo.toml's [profile]s, so a profile change
-          # restored builds made with the old one, rebuilt every dependency and never saved them.
+          # One cache for both shards and `web-test`: they build the same dependencies.
+          shared-key: test
+          # As in `rust-check`.
           key: ${{ hashFiles('Cargo.toml') }}
-      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
-      # The test Plugin and the bundled ones for wasm32, as Installed Plugins are built: with
-      # nama-pdk, and nama-proto's messages without its ConnectRPC stubs.
-      - run: cargo clippy --package nama-test-plugin --package nama-plugin-radarr --package nama-plugin-sonarr --package nama-plugin-telegram --package nama-servarr --target wasm32-unknown-unknown --locked -- -D warnings
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      # The cached target directory can hold an earlier run's reports, which would be uploaded
+      # as this run's.
+      - run: rm -rf target/nextest
       - uses: taiki-e/install-action@nextest
       # nextest builds every target it runs, so there's no separate `cargo build`. The `ci` profile
-      # (.config/nextest.toml) retries, kills hung tests and writes a JUnit report. The cached
-      # target directory can hold an earlier run's report, so it starts empty.
-      - run: |
-          rm -rf "$CARGO_TARGET_DIR/nextest"
-          cargo nextest run --workspace --locked --profile ci
+      # (.config/nextest.toml) retries, kills hung tests and writes a JUnit report. `count`
+      # deals each binary's tests out in turn, so its slow ones land on both shards.
+      - run: cargo nextest run --workspace --locked --profile ci --partition count:${{ matrix.partition }}/2
       # nextest doesn't run doctests.
-      - run: cargo test --workspace --doc --locked
-      # The Server with the `web` feature, which embeds the `vp build` output.
+      - if: matrix.partition == 1
+        run: cargo test --workspace --doc --locked
+      # For the test-report workflow (ADR 0022), as the vitest report in `web`.
+      # ponytail: Linux only, since the history doesn't record the OS and a test failing on one OS
+      # only would count as flaky. Add the OS to nama-test-report to record macOS and Windows.
+      - if: ${{ !cancelled() && runner.os == 'Linux' && hashFiles('target/nextest/*/junit.xml') != '' }}
+        run: git rev-parse 'HEAD^{tree}' > target/nextest/tree
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() && runner.os == 'Linux' }}
+        with:
+          name: test-reports-${{ github.run_attempt }}-nextest-${{ matrix.partition }}
+          path: |
+            target/nextest/*/junit.xml
+            target/nextest/tree
+          if-no-files-found: ignore
+
+  # The Server with the `web` feature, which embeds the `vp build` output and serves it. Runs
+  # for a web-only PR too.
+  web-test:
+    needs: changes
+    if: >-
+      (github.event_name == 'push' || !github.event.pull_request.draft) &&
+      (needs.changes.outputs.rust == 'true' || needs.changes.outputs.web == 'true')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          # As in `test`.
+          shared-key: test
+          key: ${{ hashFiles('Cargo.toml') }}
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - run: rm -rf target/nextest
+      - uses: taiki-e/install-action@nextest
       - uses: voidzero-dev/setup-vp@cab1ab9eaff52d4857875f4f2c016e36af8f2c76 # v1.22.0
         with:
           working-directory: web
           cache: true
       - run: vp -C web build
       - run: cargo nextest run -p nama-server --features web --test web --locked --profile ci-web
-      # For the test-report workflow (ADR 0022), as the web job's.
-      # ponytail: the history doesn't record the OS; add it before re-enabling macOS or Windows,
-      # or a test failing on one OS only counts as flaky.
-      - if: ${{ !cancelled() }}
-        run: |
-          if compgen -G "$CARGO_TARGET_DIR/nextest/*/junit.xml" > /dev/null; then
-            git rev-parse 'HEAD^{tree}' > "$CARGO_TARGET_DIR/nextest/tree"
-          fi
+      - if: ${{ !cancelled() && hashFiles('target/nextest/*/junit.xml') != '' }}
+        run: git rev-parse 'HEAD^{tree}' > target/nextest/tree
       - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         with:
-          name: test-reports-${{ github.run_attempt }}-nextest-${{ matrix.os }}
+          name: test-reports-${{ github.run_attempt }}-nextest-web
           path: |
-            ${{ env.CARGO_TARGET_DIR }}/nextest/*/junit.xml
-            ${{ env.CARGO_TARGET_DIR }}/nextest/tree
+            target/nextest/*/junit.xml
+            target/nextest/tree
           if-no-files-found: ignore

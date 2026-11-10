@@ -4,7 +4,10 @@
 
 use std::{
     path::PathBuf,
-    sync::{Arc, Mutex, PoisonError},
+    sync::{
+        Arc, Mutex, PoisonError,
+        atomic::{AtomicBool, Ordering},
+    },
     time::{Duration, Instant},
 };
 
@@ -41,6 +44,8 @@ struct Bot {
     started: Mutex<Vec<(String, i64)>>,
     /// The chats whose User blocked the bot.
     blocked: Mutex<Vec<i64>>,
+    /// Whether it answers every request with a body that isn't JSON.
+    talks_nonsense: AtomicBool,
 }
 
 #[expect(
@@ -70,6 +75,11 @@ impl FakeTelegram {
     /// The User in the chat `chat_id` blocks the bot, so messages to it are refused.
     pub(crate) fn block(&self, chat_id: i64) {
         lock(&self.bot.blocked).push(chat_id);
+    }
+
+    /// Answers every request with an HTML page from now on, as a proxy in front of it might.
+    pub(crate) fn talk_nonsense(&self) {
+        self.bot.talks_nonsense.store(true, Ordering::Relaxed);
     }
 
     /// Where it serves, as the Bot API URL setting names it.
@@ -116,6 +126,9 @@ async fn answer(
     Path((token, method)): Path<(String, String)>,
     body: Bytes,
 ) -> Response {
+    if bot.talks_nonsense.load(Ordering::Relaxed) {
+        return (StatusCode::OK, "<html>Bad gateway</html>").into_response();
+    }
     let token = token.strip_prefix("bot").unwrap_or_default();
     if token
         .split_once(':')

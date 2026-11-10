@@ -895,7 +895,7 @@ async fn a_caller_can_learn_which_plugin_provided_and_ask_that_plugin_again() {
 
 #[tokio::test(start_paused = true)]
 async fn a_settings_check_that_runs_past_its_timeout_has_failed_and_harms_nothing() {
-    let registry = Registry::with_builtins(&BTreeMap::new());
+    let registry = Registry::with_builtins();
     let id = PluginId::from_static(test_choices::ID);
     let settings = |fail_with: Option<&str>| {
         let mut settings = BTreeMap::from([(

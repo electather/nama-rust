@@ -68,6 +68,12 @@ function permissionRequired(error: unknown) {
     : `This needs the ${label} Permission.`;
 }
 
+/** Why a Quality was refused with `error`: each Season of `show` takes the Show's, which it names. */
+export function showHasQuality(error: unknown, show: string) {
+  const quality = refusalOf(error).params["showQualityName"];
+  return `Each Season of ${show} takes its Quality${quality === undefined ? "" : `, ${quality}`}.`;
+}
+
 /**
  * The message for a refusal no map explains: too many tries for `resource_exhausted`, or otherwise
  * that the `attempt` (such as "sign in") failed.

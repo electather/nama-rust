@@ -105,22 +105,13 @@ pub struct InvalidPluginTable {
 /// in the database once imported (`plugin_settings`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PluginConfig {
-    /// Whether the Server enables the Plugin.
+    /// Whether the Server enables the Plugin. A table with no `enabled` line imports as enabled.
     #[serde(default = "enabled_by_default")]
     pub enabled: bool,
     /// The Plugin's settings: every other key in its table, such as `api_key = "..."`. They are
     /// checked against the schema the Plugin declares when it is enabled.
     #[serde(flatten)]
     pub settings: BTreeMap<String, SettingValue>,
-}
-
-impl Default for PluginConfig {
-    fn default() -> Self {
-        Self {
-            enabled: enabled_by_default(),
-            settings: BTreeMap::new(),
-        }
-    }
 }
 
 const fn enabled_by_default() -> bool {

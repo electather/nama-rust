@@ -286,7 +286,7 @@ fn finding_failed(err: libraries::Error) -> Error {
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::BTreeMap, sync::Arc};
+    use std::sync::Arc;
 
     use nama_plugin_api::{
         PluginId,
@@ -365,7 +365,11 @@ mod tests {
             permissions: Permissions::ADMIN,
             created_at: 0,
         };
-        let user = Users::new(Arc::clone(&db), Registry::with_builtins(&BTreeMap::new()))
+        let plugins = Registry::new();
+        plugins
+            .enable(Arc::new(nama_plugin_local_auth::LocalAuth))
+            .unwrap();
+        let user = Users::new(Arc::clone(&db), plugins)
             .create(&root, "Ada", "correct horse battery staple")
             .await
             .unwrap();
