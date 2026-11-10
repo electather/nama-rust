@@ -1310,6 +1310,7 @@ EOF"#,
             decoding,
             BTreeSet::new(),
             None,
+            None,
         )
         .await
         .unwrap();

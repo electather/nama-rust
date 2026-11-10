@@ -296,8 +296,8 @@ impl Ffmpeg {
     }
 
     /// Starts ffmpeg converting the first video of the file at `path` to 8-bit H.264 in software,
-    /// tone-mapping its HDR to SDR if `tone_map`, which needs zscale ([`Self::has_zscale`]), and
-    /// its `audio`th audio Track, if given, to AAC with the channels given beside it, into fMP4
+    /// tone-mapping its HDR to SDR if `tone_map`, which needs zscale ([`Self::has_zscale`]), keeping
+    /// its video within `video`, and its `audio`th audio Track, if given, to AAC with the channels given beside it, into fMP4
     /// in `dir`, from `cuts[0]` to the end. It cuts a file at each of `cuts`, in milliseconds,
     /// numbered from `n`, such as `3.m4s`, and writes an init segment named by [`hls_init`]
     /// that's whole once the first file is. A run started at any cut writes the same files, so one
@@ -312,6 +312,7 @@ impl Ffmpeg {
         path: &str,
         audio: Option<(usize, i64)>,
         tone_map: bool,
+        video: Option<VideoLimit>,
         dir: &Path,
         n: usize,
         cuts: &[i64],
@@ -332,8 +333,10 @@ impl Ffmpeg {
         // ponytail: a 5-hour Version's cuts near Windows' 32K command line; read them from a
         // file if longer ones fail to Transcode there.
         let cuts: Vec<String> = cuts.iter().map(|&cut| seconds(cut)).collect();
+        // One `-vf`: a second would replace the first.
+        let mut filters = Vec::new();
         if tone_map {
-            command.args(["-vf", TONE_MAP]);
+            filters.push(TONE_MAP.to_owned());
         }
         command
             // ponytail: assumes the Server's ffmpeg has libx264; check it as ADR 0026 says (#446).
@@ -342,6 +345,25 @@ impl Ffmpeg {
             .args(["-x264-params", "keyint=infinite:scenecut=0"])
             .arg("-force_key_frames")
             .arg(cuts.join(","));
+        if let Some(VideoLimit {
+            size,
+            bits_per_second,
+        }) = video
+        {
+            if let Some((width, height)) = size {
+                // ponytail: the size is from the stored picture, so a rotated phone clip is
+                // stretched; swap its sides once probing reads rotation.
+                filters.push(format!("scale={width}:{height}"));
+            }
+            let rate = bits_per_second.to_string();
+            // Two seconds' worth of buffer lets a busy scene borrow from a quiet one.
+            command
+                .args(["-b:v", &rate, "-maxrate", &rate, "-bufsize"])
+                .arg((2 * u64::from(bits_per_second)).to_string());
+        }
+        if !filters.is_empty() {
+            command.arg("-vf").arg(filters.join(","));
+        }
         aac(&mut command, audio.map(|(_, channels)| channels));
         command.args(["-output_ts_offset", &seconds(TRANSCODE_LATER_BY_MS)]);
         spawn_hls(command, &ffmpeg.version, dir, n)
@@ -373,6 +395,14 @@ impl Ffmpeg {
         }
         Ok(output.stdout)
     }
+}
+
+/// How a Transcode keeps its video within a Playback Limit.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct VideoLimit {
+    /// The width and height it scales the picture to, if it does.
+    pub(crate) size: Option<(i64, i64)>,
+    pub(crate) bits_per_second: u32,
 }
 
 /// Has `command` take the first video, and the `audio`th audio Track if given.
@@ -725,6 +755,23 @@ pub fn write_h264_with_5_1(path: &Path, audio: &str) -> io::Result<()> {
             ])
             // ffmpeg's DTS encoder is marked experimental.
             .args(["-c:a", audio, "-strict", "experimental", "-f", "matroska"])
+    })
+}
+
+/// Writes 2 seconds of 1080p H.264 video with stereo AAC audio, as Matroska, to `path`, with the
+/// ffmpeg on `PATH`, for a test to play within a Playback Limit.
+///
+/// # Errors
+///
+/// If ffmpeg can't be run or fails.
+#[cfg(any(test, feature = "testing"))]
+pub fn write_1080p_h264(path: &Path) -> io::Result<()> {
+    write_test_media(path, |ffmpeg| {
+        ffmpeg
+            .args(["-f", "lavfi", "-i", "testsrc=size=1920x1080:rate=24"])
+            .args(["-f", "lavfi", "-i", "sine", "-t", "2"])
+            .args(["-c:v", "libx264", "-preset", "ultrafast", "-c:a", "aac"])
+            .args(["-f", "matroska"])
     })
 }
 
@@ -1311,6 +1358,7 @@ mod hls_tests {
                 path.to_str().unwrap(),
                 Some((0, 2)),
                 false,
+                None,
                 dir,
                 n,
                 &cuts[n..],
@@ -1351,7 +1399,7 @@ mod hls_tests {
         fs::create_dir_all(&dir).unwrap();
 
         let output = ffmpeg
-            .transcode(file.to_str().unwrap(), None, true, &dir, 0, &[0])
+            .transcode(file.to_str().unwrap(), None, true, None, &dir, 0, &[0])
             .unwrap();
 
         let output = output.wait_with_output().await.unwrap();

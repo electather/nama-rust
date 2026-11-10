@@ -30,11 +30,11 @@ use nama_proto::nama::v1::{
     DeleteLibraryRequest, DeviceDecoding, Episode, EventType, ExternalId, GetMovieRequest,
     GetShowRequest, GetShowResponse, HdrFormat, LibraryKind, LibraryServiceClient,
     ListContinueWatchingRequest, ListEpisodesRequest, ListMoviesRequest, ListShowsRequest,
-    MatchServiceClient, Movie, PlanPlaybackRequest, Playback, PlaybackEnded, PlaybackMethod,
-    PlaybackPlan, PlaybackServiceClient, PlaybackSettings, PlaybackStarted, RefusalReason,
-    ReportProgressRequest, Season, ServerServiceClient, SetMatchRequest, SetPlayedRequest, Show,
-    ShowSeason, StopPlaybackRequest, Track, UpdatePlaybackSettingsRequest, Version, VideoTrack,
-    WatchState, WatchStateServiceClient, continue_watching_entry, external_id,
+    MatchServiceClient, Movie, PlanPlaybackRequest, Playback, PlaybackEnded, PlaybackLimit,
+    PlaybackMethod, PlaybackPlan, PlaybackServiceClient, PlaybackSettings, PlaybackStarted,
+    RefusalReason, ReportProgressRequest, Season, ServerServiceClient, SetMatchRequest,
+    SetPlayedRequest, Show, ShowSeason, StopPlaybackRequest, Track, UpdatePlaybackSettingsRequest,
+    Version, VideoTrack, WatchState, WatchStateServiceClient, continue_watching_entry, external_id,
     set_played_request::Target,
 };
 use nama_server::{
@@ -1136,7 +1136,8 @@ async fn an_h264_and_aac_mp4_direct_plays_through_its_plans_url() {
             "This Server lacks ffmpeg or ffprobe, so it can only Direct Play",
             "Nothing has failed to play it on this Device",
             "It plays the file's own audio Track",
-            "This Server isn't running as many Transcodes as it may at once"
+            "The Playback Limit is Original",
+            "This Server isn't running as many Transcodes as it may at once",
         ]
     );
     let played = fetch(&fx.server, &plan.url, Some(&fx.server.admin_token)).await;
@@ -1315,7 +1316,8 @@ async fn without_ffprobe_a_version_direct_plays_and_its_plan_says_its_tracks_are
             "This Server lacks ffmpeg or ffprobe, so it can only Direct Play",
             "Nothing has failed to play it on this Device",
             "It plays the file's own audio Track",
-            "This Server isn't running as many Transcodes as it may at once"
+            "The Playback Limit is Original",
+            "This Server isn't running as many Transcodes as it may at once",
         ]
     );
 }
@@ -1754,9 +1756,42 @@ async fn an_hevc_mkv_is_transcoded_to_h264_and_aac_over_hls_in_six_second_segmen
         let segment = fx.fetch_ok(&beside(&plan.url, file)).await;
         assert_ne!(segment.len(), 0, "{file}");
     }
-    let video = played_streams(&fx, &plan.url, "v", "0.m4s", "codec_name").await;
-    assert_eq!(video, "h264");
+    let video = played_streams(&fx, &plan.url, "v", "0.m4s", "codec_name,width,height").await;
+    assert_eq!(video, "h264,320,240");
     assert_eq!(played_audio(&fx, &plan.url, "0.m4s").await, "aac,2");
+}
+
+#[tokio::test]
+async fn a_1080p_h264_mkv_limited_to_720p_is_transcoded_down_to_it_and_original_remuxes_it_again() {
+    let (fx, version) = Fixture::alien_written(system_ffmpeg(), ffmpeg::write_1080p_h264).await;
+    let limited = |playback_limit: PlaybackLimit| PlanPlaybackRequest {
+        version_id: version,
+        playback_limit: playback_limit.into(),
+        device_decoding: chrome().into(),
+        ..Default::default()
+    };
+
+    let at_720p = fx
+        .ask_for_plan(limited(PlaybackLimit::PLAYBACK_LIMIT_720P))
+        .await
+        .unwrap();
+    let original = fx
+        .ask_for_plan(limited(PlaybackLimit::PLAYBACK_LIMIT_ORIGINAL))
+        .await
+        .unwrap();
+
+    assert_eq!(at_720p.method, PlaybackMethod::PLAYBACK_METHOD_TRANSCODE);
+    assert_eq!(
+        at_720p.reasons[5],
+        "Its picture is larger than the 720p Playback Limit, so a Transcode scales it down to \
+         1280×720"
+    );
+    assert_eq!(
+        played_streams(&fx, &at_720p.url, "v", "0.m4s", "codec_name,width,height").await,
+        "h264,1280,720"
+    );
+    assert_eq!(original.method, PlaybackMethod::PLAYBACK_METHOD_REMUX);
+    assert_eq!(original.reasons[5], "The Playback Limit is Original");
 }
 
 #[tokio::test]

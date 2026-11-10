@@ -11,14 +11,18 @@ import {
 } from "@/components/ui/dropdown-menu";
 import type { Track } from "@/gen/nama/v1/browse_pb";
 import { metadataLine, soundOf } from "@/lib/browse";
+import { PlaybackLimitMenu } from "@/components/playback-limit-menu";
 import { SubtitlesMenu } from "@/components/subtitles-menu";
 import type { usePlaybackPlan } from "@/lib/playback-plan";
 import { trackLabel } from "@/lib/subtitles";
 
-/** The menus choosing which of the Version's Tracks play: its audio, then its subtitles. */
+/**
+ * The menus choosing what plays: the Version's audio Track, then its subtitles, then the Playback
+ * Limit.
+ */
 export function TrackMenus({
   tracks,
-  planned: { plan, audioTrack, chooseAudio },
+  planned: { plan, audioTrack, chooseAudio, playbackLimit, chooseLimit },
   videoRef,
   container,
 }: {
@@ -38,6 +42,14 @@ export function TrackMenus({
         container={container}
       />
       <SubtitlesMenu subtitles={plan.subtitles} videoRef={videoRef} container={container} />
+      <PlaybackLimitMenu
+        tracks={tracks}
+        chosen={playbackLimit}
+        choose={(limit) => {
+          if (videoRef.current) chooseLimit(videoRef.current, limit);
+        }}
+        container={container}
+      />
     </>
   );
 }
