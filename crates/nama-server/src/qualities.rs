@@ -228,6 +228,14 @@ pub(crate) async fn offered_to(
     Ok((listed, personal_default))
 }
 
+/// Whether a User's settings show their default for a Fulfiller whose list is `listed`: to pick
+/// one when it has more than one, or to flag `theirs` once an admin removed it from a list that
+/// still has one.
+pub(crate) fn shows_default(listed: &[Quality], theirs: Option<i64>) -> bool {
+    let removed = theirs.is_some_and(|id| listed.iter().all(|quality| quality.id != id));
+    listed.len() > 1 || (removed && !listed.is_empty())
+}
+
 /// Whether `user` may choose a Quality, so naming one or their personal default counts.
 fn may_choose(user: &User) -> bool {
     user.permissions.allow(Permission::ChooseQuality)
@@ -528,13 +536,16 @@ mod tests {
     }
 
     #[test]
-    fn a_name_repeated_in_another_case_or_with_spaces_is_repeated() {
+    fn a_profile_given_twice_or_a_name_in_another_case_or_with_spaces_is_repeated() {
+        let profiles_twice = [quality("4", "HD", true), quality("4", "Full HD", false)];
         let names = [quality("4", "HD", true), quality("5", " hd ", false)];
+        let offered = profiles(&["4", "5"]);
 
         assert_eq!(
-            check(&names, &profiles(&["4", "5"])),
-            Err(Invalid::Repeated(1, NAME))
+            check(&profiles_twice, &offered),
+            Err(Invalid::Repeated(1, PROFILE))
         );
+        assert_eq!(check(&names, &offered), Err(Invalid::Repeated(1, NAME)));
     }
 
     #[test]
@@ -733,11 +744,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_personal_default_off_the_list_is_refused() {
+    async fn a_personal_default_off_the_list_is_refused_and_a_cleared_one_is_unset() {
         let listed = Listed::new().await;
-        let plugin = listed.plugin.clone();
+        let set =
+            |quality| set_personal_default(&listed.db, listed.user, listed.plugin.clone(), quality);
 
-        let refused = set_personal_default(&listed.db, listed.user, plugin, Some(999)).await;
+        let refused = set(Some(999)).await;
+        set(None).await.unwrap().unwrap();
 
         assert_eq!(
             refused.unwrap(),
@@ -746,6 +759,48 @@ mod tests {
                 field: ASKED
             })
         );
+        let mut conn = listed.db.reader().acquire().await.unwrap();
+        let cleared = personal_default(&mut conn, listed.user, &listed.plugin).await;
+        assert_eq!(cleared.unwrap(), None);
+    }
+
+    #[tokio::test]
+    async fn a_quality_id_given_twice_is_kept_once_and_the_other_quality_gets_a_new_one() {
+        let listed = Listed::new().await;
+        let with_hds_id = |name, is_default| Quality {
+            id: listed.hd,
+            ..quality(name, name, is_default)
+        };
+
+        let saved = replace(
+            &listed.db,
+            listed.plugin.clone(),
+            vec![with_hds_id("HD", true), with_hds_id("8K", false)],
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(saved[0].id, listed.hd);
+        assert!(![listed.hd, listed.four_k].contains(&saved[1].id));
+    }
+
+    #[test]
+    fn settings_show_a_default_to_pick_from_two_or_to_flag_one_an_admin_removed() {
+        let hd = Quality {
+            id: 1,
+            ..quality("4", "HD", true)
+        };
+        let four_k = Quality {
+            id: 2,
+            ..quality("5", "4K", false)
+        };
+        let both = [hd, four_k];
+        let hd_only = &both[..1];
+
+        assert!(shows_default(&both, None));
+        assert!(shows_default(hd_only, Some(2)));
+        assert!(!shows_default(hd_only, Some(1)));
+        assert!(!shows_default(&[], Some(2)));
     }
 
     fn requested_as(id: i64, name: &str) -> RequestedQuality {
@@ -793,17 +848,18 @@ mod tests {
     }
 
     #[test]
-    fn without_a_handed_off_season_a_shows_quality_is_its_earliest_open_seasons_else_its_followed_shows()
+    fn without_a_handed_off_season_a_shows_quality_is_its_earliest_open_seasons_else_its_followed_shows_else_none()
      {
         let closed_first = vec![
             season(1, UHD, RequestState::Declined, false),
             season(2, HD, RequestState::Pending, false),
             season(3, FOUR_K, RequestState::Pending, false),
         ];
-        let closed_only = vec![season(1, UHD, RequestState::Declined, false)];
+        let closed_only = || vec![season(1, UHD, RequestState::Declined, false)];
 
         assert_eq!(quality_id(&show(closed_first, Some(FOUR_K))), Some(HD));
-        assert_eq!(quality_id(&show(closed_only, Some(FOUR_K))), Some(FOUR_K));
+        assert_eq!(quality_id(&show(closed_only(), Some(FOUR_K))), Some(FOUR_K));
+        assert_eq!(quality_id(&show(closed_only(), None)), None);
         assert_eq!(quality_id(&show(Vec::new(), None)), None);
     }
 
