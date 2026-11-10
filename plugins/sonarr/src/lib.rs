@@ -12,17 +12,12 @@ mod exports {
 
     use nama_pdk::{
         Buffa, CheckedSettings, Download, FnResult, Fulfilled, Fulfiller, Manifest, Request,
-        extism_pdk::{self, Error, HttpResponse, config},
-        nama_proto::nama::plugin::v1::{ProvidePoint, SettingField, SettingKind},
+        extism_pdk::{self, Error, HttpResponse},
+        nama_proto::nama::plugin::v1::ProvidePoint,
         plugin_fn,
     };
-    use nama_servarr::{Queued, Servarr};
+    use nama_servarr::{QualityProfile, Queued, Servarr};
     use serde::{Deserialize, Serialize};
-
-    const URL: &str = "url";
-    const API_KEY: &str = "api_key";
-    const QUALITY_PROFILE: &str = "quality_profile";
-    const ROOT_FOLDER: &str = "root_folder";
 
     /// How long, in seconds by Sonarr's `Date` header, a hand-off waits for Sonarr to finish
     /// adding its Show. That header counts whole seconds, so the wait lasts between one and two
@@ -35,67 +30,19 @@ mod exports {
 
     #[plugin_fn]
     pub fn manifest() -> FnResult<Buffa<Manifest>> {
-        let setting = |key: &str, label: &str, description: &str, kind: SettingKind| SettingField {
-            key: key.to_owned(),
-            label: label.to_owned(),
-            description: description.to_owned(),
-            kind: kind.into(),
-            required: true,
-            ..SettingField::default()
-        };
         Ok(Buffa(Manifest {
             logo_svg: include_str!("../logo.svg").to_owned(),
             providers: vec![ProvidePoint::PROVIDE_POINT_SHOW_FULFILLER.into()],
-            settings: vec![
-                setting(
-                    URL,
-                    "URL",
-                    "Where Sonarr is, such as http://localhost:8989.",
-                    SettingKind::SETTING_KIND_URL,
-                ),
-                setting(
-                    API_KEY,
-                    "API key",
-                    "Sonarr's API key, from Settings > General in Sonarr.",
-                    SettingKind::SETTING_KIND_SECRET,
-                ),
-                setting(
-                    QUALITY_PROFILE,
-                    "Quality profile",
-                    "The quality Sonarr downloads each Show in.",
-                    SettingKind::SETTING_KIND_CHOICE,
-                ),
-                setting(
-                    ROOT_FOLDER,
-                    "Root folder",
-                    "The folder Sonarr puts each Show in.",
-                    SettingKind::SETTING_KIND_CHOICE,
-                ),
-            ],
+            settings: nama_servarr::settings("Sonarr", 8989),
             name: "Sonarr".to_owned(),
             description: "Sends Approved Season Requests to Sonarr to download.".to_owned(),
             ..nama_pdk::manifest("sonarr", env!("CARGO_PKG_VERSION"))
         }))
     }
 
-    // Offers Sonarr's quality profiles, by id, and its root folders, by path.
     #[plugin_fn]
     pub fn check_settings() -> FnResult<Buffa<CheckedSettings>> {
-        let sonarr = Sonarr::from_config()?;
-        let profiles: Vec<QualityProfile> = sonarr.api.get("qualityprofile")?;
-        let folders: Vec<RootFolder> = sonarr.api.get("rootfolder")?;
-        let profiles: Vec<_> = profiles
-            .into_iter()
-            .map(|profile| (profile.id.to_string(), profile.name))
-            .collect();
-        let folders = folders
-            .into_iter()
-            .map(|folder| (folder.path.clone(), folder.path))
-            .collect();
-        Ok(Buffa(nama_pdk::checked_settings([
-            (QUALITY_PROFILE, profiles),
-            (ROOT_FOLDER, folders),
-        ])))
+        Ok(Buffa(Sonarr::from_config()?.api.checked_settings()?))
     }
 
     /// Has Sonarr monitor and search for each Season, adding its Show first if Sonarr doesn't have
@@ -108,9 +55,9 @@ mod exports {
         fn fulfill(request: Request) -> Result<Fulfilled, Error> {
             let tvdb_id = show_tvdb_id(&request)?;
             let season_number = request.season.season_number;
-            let asked = quality_profile(&request)?;
+            let asked = nama_servarr::quality_profile(&request)?;
             let sonarr = Sonarr::from_config()?;
-            let profiles: Vec<QualityProfile> = sonarr.api.get("qualityprofile")?;
+            let profiles = sonarr.api.quality_profiles()?;
             let had = match sonarr.find(tvdb_id)? {
                 None => sonarr.add_asked(&request, asked, &profiles)?,
                 had => had,
@@ -157,7 +104,7 @@ mod exports {
 
     impl Sonarr {
         fn from_config() -> Result<Self, Error> {
-            let api = Servarr::new("Sonarr", setting(URL)?, setting(API_KEY)?);
+            let api = Servarr::from_settings("Sonarr")?;
             Ok(Self { api })
         }
 
@@ -190,7 +137,7 @@ mod exports {
         ) -> Result<Option<Added>, Error> {
             // Checked first, as Sonarr may add a Show with a profile it no longer has.
             if !profiles.iter().any(|profile| profile.id == asked) {
-                return Err(no_such_profile(request, asked));
+                return Err(self.api.no_such_profile(request, asked));
             }
             let tvdb_id = show_tvdb_id(request)?;
             let follow = request.followed_show_id.is_some();
@@ -226,7 +173,7 @@ mod exports {
                 tvdb_id: show.tvdb_id,
                 title: show.title,
                 quality_profile_id: profile,
-                root_folder_path: setting(ROOT_FOLDER)?,
+                root_folder_path: nama_servarr::root_folder()?,
                 monitored: true,
                 monitor_new_items: new_items(follow),
                 season_folder: true,
@@ -321,35 +268,8 @@ mod exports {
         profile_id: i64,
         profiles: Vec<QualityProfile>,
     ) -> Fulfilled {
-        let used = profiles
-            .into_iter()
-            .find(|profile| profile.id == profile_id);
-        Fulfilled {
-            reference: season_reference(tvdb_id, season_number),
-            profile_id: profile_id.to_string(),
-            profile_name: used.map(|used| used.name).unwrap_or_default(),
-            ..Fulfilled::default()
-        }
-    }
-
-    /// The quality profile `request` asks for: its Quality's, else the setting's.
-    fn quality_profile(request: &Request) -> Result<i64, Error> {
-        let profile = match request.quality.as_option() {
-            Some(quality) => quality.profile_id.clone(),
-            None => setting(QUALITY_PROFILE)?,
-        };
-        profile
-            .parse()
-            .map_err(|err| Error::msg(format!("the quality profile isn't an id: {err}")))
-    }
-
-    /// Why `request` can't go to Sonarr, which has no quality profile `id`.
-    fn no_such_profile(request: &Request, id: i64) -> Error {
-        let reason = format!("Sonarr has no quality profile with the id {id}");
-        Error::msg(match request.quality.as_option() {
-            Some(quality) => format!("{reason}, which {} uses", quality.name),
-            None => reason,
-        })
+        let reference = season_reference(tvdb_id, season_number);
+        nama_servarr::fulfilled(reference, Some(profile_id), profiles)
     }
 
     fn show_tvdb_id(request: &Request) -> Result<i64, Error> {
@@ -362,12 +282,6 @@ mod exports {
     /// Sonarr's `monitorNewItems` for a Show whose new Seasons it monitors if `monitored`.
     fn new_items(monitored: bool) -> &'static str {
         if monitored { "all" } else { "none" }
-    }
-
-    /// The setting `key`, which the Server sets before every call but a settings check, and for
-    /// that one too unless it is a Choice.
-    fn setting(key: &str) -> Result<String, Error> {
-        config::get(key)?.ok_or_else(|| Error::msg(format!("the setting {key} isn't set")))
     }
 
     /// Why a Season Request fails when Sonarr takes too long adding its Show.
@@ -420,17 +334,6 @@ mod exports {
     /// The reference `fulfill` gives the Season `season_number` of the Show `tvdb_id`.
     fn season_reference(tvdb_id: i64, season_number: u32) -> String {
         format!("{tvdb_id}/{season_number}")
-    }
-
-    #[derive(Deserialize)]
-    struct QualityProfile {
-        id: i64,
-        name: String,
-    }
-
-    #[derive(Deserialize)]
-    struct RootFolder {
-        path: String,
     }
 
     /// A Show as Sonarr's lookup gives it.
