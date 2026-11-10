@@ -10,30 +10,28 @@
 
 use std::{
     cmp::Reverse,
-    collections::{BTreeSet, HashMap, HashSet, hash_map::Entry},
+    collections::{BTreeSet, HashMap, HashSet},
     iter,
-    sync::{Arc, Mutex, MutexGuard, PoisonError},
+    sync::Arc,
     time::Duration,
 };
 
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use nama_plugin_api::{
     PluginId,
-    fulfiller::{Download, Fulfilled, Fulfiller, Movies, Shows},
+    fulfiller::{Fulfilled, Movies, Shows},
     metadata::{Candidate, Episode, ExternalId, ExternalIds, SearchQuery, Season, Show, TitleKind},
 };
 use nama_proto::nama::v1::{
     DefaultQuality, Event, ExtensionPoint, FollowedShow, FollowedShowCancelled,
     FollowedShowCreated, FollowedShowRequesterAdded, FollowedShowRequesterRemoved,
     FollowedShowStateChanged, FollowedShowWithdrawn, FoundSeason, ListRequestsResponse, Permission,
-    Quality, QualityChange, Request, RequestCancelled, RequestCreated, RequestProgress,
-    RequestState, RequestStateChanged, RequestWithdrawn, RequestedMovie, RequestedQuality,
-    RequestedSeason, Requester, RequesterAdded, RequesterRemoved, event::Event as Happened,
+    Quality, QualityChange, Request, RequestCancelled, RequestCreated, RequestState,
+    RequestStateChanged, RequestWithdrawn, RequestedMovie, RequestedQuality, RequestedSeason,
+    Requester, RequesterAdded, RequesterRemoved, event::Event as Happened,
 };
 use serde::{Deserialize, Serialize};
 use sqlx::{Sqlite, SqliteConnection, Transaction};
-use tokio::{sync::Notify, time::error::Elapsed};
-use tracing::{error, warn};
 
 use crate::{
     contents::{self, Contents, Metadata},
@@ -45,6 +43,11 @@ use crate::{
     users::User,
 };
 
+mod hand_off;
+
+use hand_off::HandOff;
+pub(crate) use hand_off::PROGRESS_EVERY;
+
 /// Each Request state as `requests.state` stores it.
 const STATES: [(RequestState, &str); 7] = [
     (RequestState::Pending, "pending"),
@@ -55,10 +58,6 @@ const STATES: [(RequestState, &str); 7] = [
     (RequestState::Available, "available"),
     (RequestState::Failed, "failed"),
 ];
-
-/// How often the Fulfillers are asked how their Processing Requests are progressing, as Seerr asks
-/// (ADR 0012).
-pub(crate) const PROGRESS_EVERY: Duration = Duration::from_secs(60);
 
 /// Why a Request couldn't be made, found or changed.
 #[derive(Debug, thiserror::Error)]
@@ -108,73 +107,8 @@ pub(crate) struct Requests {
     /// Looks up what a new Request asks for: a Movie, or a Show's Seasons.
     matcher: Matcher,
     events: EventBus,
-    /// Holds the Fulfillers for Movies and for Shows, where they are enabled.
-    plugins: Registry,
-    /// The ids of the Requests being handed to a Fulfiller now, each with whether another hand-off
-    /// skipped it meanwhile.
-    handing: Arc<Mutex<HashMap<i64, bool>>>,
-    /// What each Processing Request's Fulfiller said it is downloading when last asked, by Request
-    /// id. Kept in memory only (ADR 0012).
-    progress: Arc<Mutex<HashMap<i64, Vec<Download>>>>,
-    /// Wakes [`Requests::follow_progress`] when a Request becomes Processing.
-    became_processing: Arc<Notify>,
-}
-
-/// A hand-off's hold on one Request in [`Requests::handing`], let go however the hand-off ends, a
-/// panic included, so the Request can be handed off again.
-struct Claim {
-    handing: Arc<Mutex<HashMap<i64, bool>>>,
-    id: i64,
-    /// Whether [`Self::release`] has let go already, so dropping it mustn't.
-    released: bool,
-}
-
-impl Claim {
-    /// Claims the Request `id`, unless another hand-off has it, which then has to look again.
-    fn take(requests: &Requests, id: i64) -> Option<Self> {
-        match lock(&requests.handing).entry(id) {
-            Entry::Occupied(mut skipped) => {
-                skipped.insert(true);
-                None
-            }
-            Entry::Vacant(free) => {
-                free.insert(false);
-                Some(Self {
-                    handing: Arc::clone(&requests.handing),
-                    id,
-                    released: false,
-                })
-            }
-        }
-    }
-
-    /// Lets go of the Request, unless another hand-off skipped it since the claim was taken or last
-    /// kept: that one may have come for a Fulfiller enabled after this one looked, so the claim is
-    /// kept for one more look.
-    fn release(mut self) -> Option<Self> {
-        let mut handing = lock(&self.handing);
-        if handing.insert(self.id, false) == Some(true) {
-            drop(handing);
-            return Some(self);
-        }
-        handing.remove(&self.id);
-        drop(handing);
-        self.released = true;
-        None
-    }
-}
-
-impl Drop for Claim {
-    fn drop(&mut self) {
-        if !self.released {
-            lock(&self.handing).remove(&self.id);
-        }
-    }
-}
-
-// Nothing panics while one is held, so a poisoned map is still whole.
-fn lock<T>(map: &Mutex<T>) -> MutexGuard<'_, T> {
-    map.lock().unwrap_or_else(PoisonError::into_inner)
+    /// Its only way to the Fulfillers.
+    hand_off: HandOff,
 }
 
 /// A Movie the metadata source has, and how close it is to being on the Server.
@@ -268,13 +202,10 @@ impl Requests {
     ) -> Self {
         Self {
             contents: Contents::new(Arc::clone(&db)),
+            hand_off: HandOff::new(Arc::clone(&db), events.clone(), plugins),
             db,
             matcher,
             events,
-            plugins,
-            handing: Arc::default(),
-            progress: Arc::default(),
-            became_processing: Arc::default(),
         }
     }
 
@@ -325,7 +256,7 @@ impl Requests {
             let hands_off = happened.iter().any(|event| handed_off_id(event).is_some());
             this.events.publish(happened);
             if hands_off && request.state == RequestState::Approved {
-                return this.hand_off(request).await;
+                return this.hand_off.request(request).await;
             }
             Ok(request)
         })
@@ -339,7 +270,7 @@ impl Requests {
         asker: &User,
         chosen: Option<i64>,
     ) -> Result<(Option<RequestedQuality>, bool), Error> {
-        let fulfiller = self.fulfiller::<Kind>();
+        let fulfiller = self.hand_off.fulfiller::<Kind>();
         let mut conn = self.db.reader().acquire().await?;
         Ok(qualities::for_request(&mut conn, asker, fulfiller.as_ref(), chosen).await??)
     }
@@ -351,7 +282,7 @@ impl Requests {
         &self,
         asker: &User,
     ) -> Result<(Vec<Quality>, Option<i64>), sqlx::Error> {
-        let Some(fulfiller) = self.fulfiller::<Kind>() else {
+        let Some(fulfiller) = self.hand_off.fulfiller::<Kind>() else {
             return Ok((Vec::new(), None));
         };
         let mut conn = self.db.reader().acquire().await?;
@@ -366,11 +297,11 @@ impl Requests {
     ) -> Result<Vec<DefaultQuality>, sqlx::Error> {
         let fulfillers = [
             (
-                self.fulfiller::<Movies>(),
+                self.hand_off.fulfiller::<Movies>(),
                 ExtensionPoint::EXTENSION_POINT_MOVIE_FULFILLER,
             ),
             (
-                self.fulfiller::<Shows>(),
+                self.hand_off.fulfiller::<Shows>(),
                 ExtensionPoint::EXTENSION_POINT_SHOW_FULFILLER,
             ),
         ];
@@ -406,29 +337,12 @@ impl Requests {
         Ok(qualities::set_personal_default(&self.db, user, plugin, quality).await??)
     }
 
-    /// The enabled Plugin providing the Fulfiller of `Kind`, if any.
-    fn fulfiller<Kind: 'static>(&self) -> Option<PluginId> {
-        self.plugins
-            .enabled()
-            .into_iter()
-            .find(|plugin| self.plugins.provides::<dyn Fulfiller<Kind>>(plugin))
-    }
-
-    /// The enabled Plugin providing the Fulfiller for `request`'s kind, Movies or Shows, if any.
-    fn fulfiller_of(&self, request: &Request) -> Option<PluginId> {
-        if request.movie.is_unset() {
-            self.fulfiller::<Shows>()
-        } else {
-            self.fulfiller::<Movies>()
-        }
-    }
-
     /// The Qualities the enabled Fulfiller for titles of `kind` offers, none if there is no such
     /// Fulfiller.
     pub(crate) async fn offered_qualities(&self, kind: TitleKind) -> Result<Vec<Quality>, Error> {
         let fulfiller = match kind {
-            TitleKind::Movie => self.fulfiller::<Movies>(),
-            TitleKind::Show => self.fulfiller::<Shows>(),
+            TitleKind::Movie => self.hand_off.fulfiller::<Movies>(),
+            TitleKind::Show => self.hand_off.fulfiller::<Shows>(),
         };
         let Some(fulfiller) = fulfiller else {
             return Ok(Vec::new());
@@ -451,7 +365,7 @@ impl Requests {
         let request = load_one(&mut *self.db.reader().acquire().await?, id)
             .await?
             .ok_or(Error::NoSuchRequest(id))?;
-        let fulfiller = self.fulfiller_of(&request);
+        let fulfiller = self.hand_off.fulfiller_of(&request);
         self.offered_change(manager, fulfiller, quality_id)
             .await
             .map(Some)
@@ -529,30 +443,9 @@ impl Requests {
                 .await?;
             let to_hand_off: HashSet<i64> = happened.iter().filter_map(handed_off_id).collect();
             this.events.publish(happened);
-            this.hand_off_these(requests, &to_hand_off).await
+            this.hand_off.these(requests, &to_hand_off).await
         })
         .await
-    }
-
-    /// Each of `requests`, handed off first if it is Approved and its id is in `to_hand_off`, as it
-    /// is after that.
-    async fn hand_off_these(
-        &self,
-        requests: Vec<Request>,
-        to_hand_off: &HashSet<i64>,
-    ) -> Result<Vec<Request>, Error> {
-        let mut after_hand_off = Vec::with_capacity(requests.len());
-        // ponytail: one hand-off at a time, so a slow Fulfiller takes as long for each Season.
-        for request in requests {
-            let request =
-                if to_hand_off.contains(&request.id) && request.state == RequestState::Approved {
-                    self.hand_off(request).await?
-                } else {
-                    request
-                };
-            after_hand_off.push(request);
-        }
-        Ok(after_hand_off)
     }
 
     /// Asks for the whole Show with the TMDB id `tmdb_id` for `asker`: each current Season not in
@@ -595,7 +488,7 @@ impl Requests {
                 .await?;
             let to_hand_off: HashSet<i64> = happened.iter().filter_map(handed_off_id).collect();
             this.events.publish(happened);
-            let requests = this.hand_off_these(requests, &to_hand_off).await?;
+            let requests = this.hand_off.these(requests, &to_hand_off).await?;
             Ok((followed, requests))
         })
         .await
@@ -613,7 +506,7 @@ impl Requests {
     ) -> Result<FollowedShow, Error> {
         let new_quality = match quality {
             Some(quality) => {
-                let fulfiller = self.fulfiller::<Shows>();
+                let fulfiller = self.hand_off.fulfiller::<Shows>();
                 Some(self.offered_change(manager, fulfiller, quality).await?)
             }
             None => None,
@@ -658,7 +551,7 @@ impl Requests {
                     .collect(),
             );
             let ids: HashSet<i64> = decided.iter().map(|request| request.id).collect();
-            this.hand_off_these(decided, &ids).await?;
+            this.hand_off.these(decided, &ids).await?;
             Ok(followed)
         })
         .await
@@ -700,29 +593,11 @@ impl Requests {
             let (happened, followed_season) = this.db.write(end).await?;
             this.events.publish(vec![happened]);
             if let Some(followed_season) = followed_season {
-                this.unfollow(&followed_season).await;
+                this.hand_off.unfollow(&followed_season).await;
             }
             Ok(())
         })
         .await
-    }
-
-    async fn unfollow(&self, season: &Request) {
-        let unfollowed = self
-            .plugins
-            .call_provider_blanking_secrets::<dyn Fulfiller<Shows>, _, _>(|fulfiller| async move {
-                fulfiller
-                    .unfollow(season)
-                    .await
-                    .map_err(|error| error.to_string())
-            })
-            .await;
-        if let Some(Err(reason)) = unfollowed {
-            warn!(
-                show = season.season.show_tmdb_id,
-                reason, "the Shows Fulfiller didn't stop following the Show"
-            );
-        }
     }
 
     /// Approves the Pending Request `id` as `manager`, first changing its Quality to the one with
@@ -740,7 +615,7 @@ impl Requests {
             let approved = requests
                 .decide(id, RequestState::Approved, None, new_quality)
                 .await?;
-            requests.hand_off(approved).await
+            requests.hand_off.request(approved).await
         })
         .await
     }
@@ -764,277 +639,28 @@ impl Requests {
             requests
                 .events
                 .publish(vec![state_changed(approved.clone())]);
-            requests.hand_off(approved).await
+            requests.hand_off.request(approved).await
         })
         .await
-    }
-
-    /// Hands the Approved `request` to the Fulfiller for its kind, Movies or Shows, publishing that
-    /// its state changed: to Processing once it takes the Request, or to Failed, with its reason,
-    /// if it doesn't. Returns the Request as it is now. Without a Fulfiller for its kind the
-    /// Request waits in Approved, and one already being handed off is left to that hand-off.
-    ///
-    /// Runs in a task of its own: once the Fulfiller has taken the Request, its reference must be
-    /// stored even if the caller stops waiting.
-    async fn hand_off(&self, request: Request) -> Result<Request, Error> {
-        let requests = self.clone();
-        detached(async move {
-            // An approval and enabling the Fulfiller may hand the same Request off at once, which
-            // would hand it to the Fulfiller twice.
-            let Some(mut claim) = Claim::take(&requests, request.id) else {
-                return Ok(request);
-            };
-            let mut request = request;
-            loop {
-                request = requests.hand_off_claimed(request).await?;
-                match claim.release() {
-                    Some(kept) => claim = kept,
-                    None => return Ok(request),
-                }
-            }
-        })
-        .await
-    }
-
-    /// [`Self::hand_off`] for `request`, which no other hand-off has, as it is in the database now:
-    /// one that finished since `request` was read has moved it on.
-    async fn hand_off_claimed(&self, request: Request) -> Result<Request, Error> {
-        let id = request.id;
-        let mut conn = self.db.reader().acquire().await?;
-        let current = match load_one(&mut conn, id).await? {
-            Some(current) if current.state == RequestState::Approved => current,
-            Some(moved_on) => return Ok(moved_on),
-            // Cancelled since.
-            None => return Ok(request),
-        };
-        let handed = as_handed_off(&mut conn, current.clone()).await?;
-        drop(conn);
-        let Some(fulfilled) = self.fulfill(&handed).await else {
-            return Ok(current);
-        };
-        let took = fulfilled.is_ok();
-        let asked = current.quality.as_option().cloned();
-        let plugin = self.fulfiller_of(&current);
-        let settled = self
-            .db
-            .write(move |tx| Box::pin(settle(tx, id, fulfilled, asked, plugin)))
-            .await?;
-        if took && settled.is_none() {
-            warn!(
-                request = id,
-                "the Fulfiller took a Request that was changed meanwhile, and keeps it"
-            );
-        }
-        let Some(settled) = settled else {
-            return Ok(current);
-        };
-        self.events.publish(vec![state_changed(settled.clone())]);
-        if settled.state == RequestState::Processing {
-            self.became_processing.notify_one();
-        }
-        Ok(settled)
     }
 
     /// Hands each Approved Request, oldest first, to its Fulfiller, as [`Self::hand_off_waiting`]
-    /// does, if the enabled Plugin `plugin` provides a Fulfiller.
-    ///
-    /// Runs in a task of its own, so a caller that stops waiting leaves none of them waiting.
-    pub(crate) async fn hand_off_waiting_to(&self, plugin: &PluginId) {
-        if !self.plugins.provides::<dyn Fulfiller<Movies>>(plugin)
-            && !self.plugins.provides::<dyn Fulfiller<Shows>>(plugin)
-        {
-            return;
-        }
-        let requests = self.clone();
-        if let Err(err) = detached(async move { requests.try_hand_off_waiting().await }).await {
-            error!("handing the waiting Requests to their Fulfillers failed: {err}");
-        }
-    }
-
-    /// Hands each Approved Request, oldest first, to its Fulfiller as [`Self::hand_off`] does, such
-    /// as those that waited for one to be enabled. A failure is only logged, and leaves the rest
+    /// does, if the enabled Plugin `plugin` provides a Fulfiller. Finishes even if the caller stops
     /// waiting.
+    pub(crate) async fn hand_off_waiting_to(&self, plugin: &PluginId) {
+        self.hand_off.waiting_to(plugin).await;
+    }
+
+    /// Hands each Approved Request, oldest first, to its Fulfiller, such as those that waited for
+    /// one to be enabled. A failure is only logged, and leaves the rest waiting.
     pub(crate) async fn hand_off_waiting(&self) {
-        if let Err(err) = self.try_hand_off_waiting().await {
-            error!("handing the waiting Requests to their Fulfillers failed: {err}");
-        }
-    }
-
-    async fn try_hand_off_waiting(&self) -> Result<(), Error> {
-        let mut conn = self.db.reader().acquire().await?;
-        // ponytail: reads every Request to find the Approved ones; filter in SQL if there get many.
-        let all = load(&mut conn, None, None).await?;
-        drop(conn);
-        let waiting = all
-            .into_iter()
-            .rev()
-            .filter(|request| request.state == RequestState::Approved);
-        // ponytail: one at a time, so a slow Fulfiller takes as long for each.
-        for request in waiting {
-            self.hand_off(request).await?;
-        }
-        Ok(())
-    }
-
-    /// What the Fulfiller for `request`'s kind says to it, if one is enabled: what it reports once
-    /// it takes it, or why it doesn't, with no secret setting's value in it.
-    async fn fulfill(&self, request: &Request) -> Option<Result<Fulfilled, String>> {
-        let fulfilled = if request.movie.is_unset() {
-            self.fulfill_as::<Shows>(request).await
-        } else {
-            self.fulfill_as::<Movies>(request).await
-        }?;
-        Some(fulfilled.inspect_err(|reason| {
-            warn!(
-                request = request.id,
-                reason, "the Fulfiller didn't take the Request"
-            );
-        }))
-    }
-
-    /// [`Self::fulfill`] by the Fulfiller of `Kind`.
-    async fn fulfill_as<Kind: 'static>(
-        &self,
-        request: &Request,
-    ) -> Option<Result<Fulfilled, String>> {
-        self.plugins
-            .call_provider_blanking_secrets::<dyn Fulfiller<Kind>, _, _>(|fulfiller| async move {
-                // Inside the call, so formatting and dropping the Plugin's error are contained.
-                fulfiller
-                    .fulfill(request)
-                    .await
-                    .map_err(|error| error.to_string())
-            })
-            .await
+        self.hand_off.waiting().await;
     }
 
     /// Asks the Fulfillers how their Processing Requests are progressing, every `interval` while any
     /// Request is Processing, and at once when one becomes Processing. Runs until dropped.
-    #[expect(
-        clippy::infinite_loop,
-        reason = "it follows progress for as long as the Server serves, which aborts it"
-    )]
     pub(crate) async fn follow_progress(&self, interval: Duration) {
-        loop {
-            let processing = self.poll_progress().await.unwrap_or_else(|err| {
-                error!("reading the Processing Requests failed: {err}");
-                true
-            });
-            // A Request that became Processing while the Fulfillers were asked left a permit, so
-            // this wakes at once for it.
-            let woken = self.became_processing.notified();
-            if processing {
-                let _: Result<(), Elapsed> = tokio::time::timeout(interval, woken).await;
-            } else {
-                woken.await;
-            }
-        }
-    }
-
-    /// Asks each enabled Fulfiller once what it is downloading for the Processing Requests it took,
-    /// keeps the answers in place of the last ones, and publishes each Request whose downloads
-    /// changed. Returns whether any Request is Processing.
-    async fn poll_progress(&self) -> Result<bool, sqlx::Error> {
-        let processing = processing(&mut *self.db.reader().acquire().await?).await?;
-        let (movies, seasons): (Vec<_>, Vec<_>) =
-            processing.into_iter().partition(|request| request.is_movie);
-        let any = !(movies.is_empty() && seasons.is_empty());
-        let mut polled = self.progress_of::<Movies>(movies).await;
-        polled.extend(self.progress_of::<Shows>(seasons).await);
-        let mut changed = self.changed_progress(&polled);
-        if changed.is_empty() {
-            *lock(&self.progress) = polled;
-            return Ok(any);
-        }
-        // Read before keeping `polled`, so if this fails the next poll sees the change again and
-        // publishes it then. ponytail: reads every Request to publish the changed ones; load them
-        // by id if there get many.
-        let all = load(&mut *self.db.reader().acquire().await?, None, None).await?;
-        *lock(&self.progress) = polled;
-        let events = all
-            .into_iter()
-            // One that left Processing since it was asked about has no progress any more.
-            .filter(|request| request.state == RequestState::Processing)
-            .filter_map(|mut request| {
-                request.downloads = changed.remove(&request.id)?;
-                Some(event(RequestProgress {
-                    request: request.into(),
-                    ..Default::default()
-                }))
-            })
-            .collect();
-        self.events.publish(events);
-        Ok(any)
-    }
-
-    /// What `Kind`'s Fulfiller, if one is enabled, is downloading for each of `processing`, by
-    /// Request id, asked in one batch. Each has nothing downloading if it couldn't say.
-    async fn progress_of<Kind: 'static>(
-        &self,
-        processing: Vec<Processing>,
-    ) -> HashMap<i64, Vec<Download>> {
-        if processing.is_empty() {
-            return HashMap::new();
-        }
-        let references: Vec<String> = processing
-            .iter()
-            .map(|request| request.reference.clone())
-            .collect();
-        let references = references.as_slice();
-        let answered = self
-            .plugins
-            .call_provider_blanking_secrets::<dyn Fulfiller<Kind>, _, _>(|fulfiller| async move {
-                // Bounded, so a Fulfiller that never answers can't stop every later poll. Inside
-                // the call, so formatting and dropping the Plugin's error are contained.
-                let asked = tokio::time::timeout(PROGRESS_EVERY, fulfiller.progress(references));
-                match asked.await {
-                    Ok(answered) => answered.map_err(|error| error.to_string()),
-                    Err(_) => Err("it didn't answer in time".to_owned()),
-                }
-            })
-            .await;
-        let by_reference = match answered {
-            Some(Ok(by_reference)) => by_reference,
-            Some(Err(reason)) => {
-                warn!(
-                    reason,
-                    "a Fulfiller couldn't say how its Requests are progressing"
-                );
-                HashMap::new()
-            }
-            None => HashMap::new(),
-        };
-        processing
-            .into_iter()
-            .map(|request| {
-                let downloads = by_reference.get(&request.reference).cloned();
-                (request.id, downloads.unwrap_or_default())
-            })
-            .collect()
-    }
-
-    /// Those of `polled`, what each Processing Request is downloading now, that differ from what
-    /// was kept.
-    fn changed_progress(
-        &self,
-        polled: &HashMap<i64, Vec<Download>>,
-    ) -> HashMap<i64, Vec<Download>> {
-        let kept = lock(&self.progress);
-        polled
-            .iter()
-            .filter(|&(id, now)| kept.get(id).map_or(&[][..], Vec::as_slice) != now.as_slice())
-            .map(|(&id, now)| (id, now.clone()))
-            .collect()
-    }
-
-    /// `request` with what its Fulfiller said it is downloading when last asked, if it is
-    /// Processing.
-    fn with_progress(&self, mut request: Request) -> Request {
-        if request.state == RequestState::Processing {
-            let kept = lock(&self.progress).get(&request.id).cloned();
-            request.downloads = kept.unwrap_or_default();
-        }
-        request
+        self.hand_off.follow_progress(interval).await;
     }
 
     /// Declines the Pending Request `id`, giving its Requesters `reason`, trimmed, unless it is
@@ -1136,7 +762,9 @@ impl Requests {
         };
         for row in rows {
             match row {
-                Listed::Request(request) => page.requests.push(self.with_progress(request)),
+                Listed::Request(request) => {
+                    page.requests.push(self.hand_off.with_progress(request));
+                }
                 Listed::Followed(show) => page.followed_shows.push(show),
             }
         }
@@ -1179,7 +807,9 @@ impl Requests {
         // ponytail: two queries per Movie found, which a search caps at a page of 20.
         for (tmdb_id, plugin, candidate) in candidates {
             let mut movie = look_around(&mut conn, viewer, tmdb_id, plugin, candidate).await?;
-            movie.request = movie.request.map(|request| self.with_progress(request));
+            movie.request = movie
+                .request
+                .map(|request| self.hand_off.with_progress(request));
             found.push(movie);
         }
         Ok(found)
@@ -1254,7 +884,9 @@ impl Requests {
         let mut seasons = look_around_seasons(&mut conn, viewer, tmdb_id, seasons).await?;
         for season in &mut seasons {
             let request = season.request.take();
-            season.request = request.map(|request| self.with_progress(request)).into();
+            season.request = request
+                .map(|request| self.hand_off.with_progress(request))
+                .into();
         }
         let followed_show = match open_followed_show(&mut conn, tmdb_id).await? {
             Some(id) => load_followed(&mut conn, Some(id), visible_to(viewer))
@@ -1296,7 +928,9 @@ impl Requests {
         let mut conn = self.db.reader().acquire().await?;
         let plugin = movie.plugin.clone();
         let mut found = look_around(&mut conn, viewer, tmdb_id, plugin, movie).await?;
-        found.request = found.request.map(|request| self.with_progress(request));
+        found.request = found
+            .request
+            .map(|request| self.hand_off.with_progress(request));
         Ok(found)
     }
 
@@ -1312,7 +946,7 @@ impl Requests {
         let mut conn = self.db.reader().acquire().await?;
         let found = load(&mut conn, Some(id), visible_to(viewer)).await?;
         let request = found.into_iter().next().ok_or(Error::NoSuchRequest(id))?;
-        Ok(self.with_progress(request))
+        Ok(self.hand_off.with_progress(request))
     }
 }
 
@@ -2605,7 +2239,7 @@ fn stored_quality(
     })
 }
 
-/// A Processing Request, as [`Requests::poll_progress`] asks its Fulfiller about it.
+/// A Processing Request, as [`hand_off::HandOff::poll_progress`] asks its Fulfiller about it.
 struct Processing {
     id: i64,
     /// Whether it asks for a Movie, rather than a Season.
@@ -2686,12 +2320,13 @@ mod tests {
         testing::{API_KEY, FakeTmdb},
     };
     use nama_proto::nama::v1::{
-        Request, RequestState, SubscribeResponse, event::Event as Happened, subscribe_response,
+        Permission, Request, RequestState, SubscribeResponse, event::Event as Happened,
+        subscribe_response,
     };
     use sqlx::SqliteConnection;
     use tokio::sync::Notify;
 
-    use super::{Claim, Requests, Wanted, ask, availability, change_state, load_one};
+    use super::{Requests, Wanted, ask, ask_movie, availability, load_one, opening_state};
     use crate::{
         contents::{Change, Contents, Decided, Decisions, Item, Metadata},
         db::Database,
@@ -2755,18 +2390,23 @@ mod tests {
         wanted: Vec<Wanted>,
         state: RequestState,
     ) -> Result<Vec<i64>, sqlx::Error> {
-        let user = sqlx::query_scalar(
-            "INSERT INTO users (username, display_username, permissions, created_at, updated_at)
-             VALUES ('ada', 'Ada', 0, 0, 0) RETURNING id",
-        )
-        .fetch_one(&mut *conn)
-        .await?;
+        let user = insert_ada(conn).await?;
         let mut ids = Vec::new();
         for one in wanted {
             let (request, _) = ask(conn, user, one, state).await?;
             ids.push(request.id);
         }
         Ok(ids)
+    }
+
+    /// Adds the User [`ada`] stands for, and returns the id.
+    async fn insert_ada(conn: &mut SqliteConnection) -> Result<i64, sqlx::Error> {
+        sqlx::query_scalar(
+            "INSERT INTO users (username, display_username, permissions, created_at, updated_at)
+             VALUES ('ada', 'Ada', 0, 0, 0) RETURNING id",
+        )
+        .fetch_one(&mut *conn)
+        .await
     }
 
     #[tokio::test]
@@ -2858,19 +2498,19 @@ mod tests {
             &'a self,
             references: &'a [String],
         ) -> BoxFuture<'a, Result<HashMap<String, Vec<Download>>, PluginError>> {
-            super::lock(&self.0).push(references.to_vec());
+            self.0.lock().unwrap().push(references.to_vec());
             Box::pin(async { Ok(HashMap::new()) })
         }
     }
 
     impl Asked {
         fn batches(&self) -> Vec<Vec<String>> {
-            super::lock(&self.0).clone()
+            self.0.lock().unwrap().clone()
         }
 
         /// The references it was last asked about, sorted.
         fn last_asked_about(&self) -> Vec<String> {
-            let mut batch = super::lock(&self.0).last().cloned().unwrap_or_default();
+            let mut batch = self.0.lock().unwrap().last().cloned().unwrap_or_default();
             batch.sort();
             batch
         }
@@ -2897,16 +2537,21 @@ mod tests {
         }
     }
 
-    /// A Match of an Episode of the Show `show_tmdb_id`.
-    fn matched_to_show(show_tmdb_id: i64) -> Decided {
+    /// The ids of a title with the TMDB id `tmdb_id`.
+    fn tmdb(tmdb_id: i64) -> ExternalIds {
+        ExternalIds {
+            tmdb: Some(tmdb_id),
+            ..ExternalIds::default()
+        }
+    }
+
+    /// A Match to the title with `ids`, or for an Episode to its Show's `show_ids`.
+    fn matched(ids: ExternalIds, show_ids: ExternalIds) -> Decided {
         Decided::Matched(Box::new(Metadata {
             plugin: PluginId::from_static("tmdb"),
-            ids: ExternalIds::default(),
-            show_ids: ExternalIds {
-                tmdb: Some(show_tmdb_id),
-                ..ExternalIds::default()
-            },
-            title: "Episode 1".to_owned(),
+            ids,
+            show_ids,
+            title: "Matched".to_owned(),
             original_title: None,
             show_title: None,
             overview: None,
@@ -2943,37 +2588,48 @@ mod tests {
         (data, requests, gated)
     }
 
+    /// The Movie with the TMDB id `tmdb_id`, as the metadata source gives it.
+    fn movie(tmdb_id: i64) -> Wanted {
+        Wanted {
+            tmdb_id,
+            season: None,
+            title: format!("Movie {tmdb_id}"),
+            release_date: None,
+            show_ids: ExternalIds::default(),
+            followed_show: None,
+            quality: None,
+            quality_chosen: false,
+        }
+    }
+
     /// Requests in a new database, which holds an Approved Movie Request for each of `tmdb_ids`,
     /// and whose one Plugin provides `fulfiller` as the Movie Fulfiller.
     async fn approved_for(
         tmdb_ids: &[i64],
         fulfiller: Arc<dyn Fulfiller<Movies>>,
     ) -> (tempfile::TempDir, Requests) {
+        approved_on(Registry::new(), tmdb_ids, fulfiller).await
+    }
+
+    /// [`approved_for`], with `plugins` enabled too.
+    async fn approved_on(
+        plugins: Registry,
+        tmdb_ids: &[i64],
+        fulfiller: Arc<dyn Fulfiller<Movies>>,
+    ) -> (tempfile::TempDir, Requests) {
         let data = tempfile::tempdir().unwrap();
         let db = Arc::new(Database::open(data.path()).await.unwrap());
-        let wanted = tmdb_ids
-            .iter()
-            .map(|&tmdb_id| Wanted {
-                tmdb_id,
-                season: None,
-                title: format!("Movie {tmdb_id}"),
-                release_date: None,
-                show_ids: ExternalIds::default(),
-                followed_show: None,
-                quality: None,
-                quality_chosen: false,
-            })
-            .collect();
-        db.write(move |tx| Box::pin(ask_each(tx, wanted, RequestState::Approved)))
-            .await
-            .unwrap();
-        let plugins = Registry::new();
+        db.write(|tx| Box::pin(insert_ada(tx))).await.unwrap();
         plugins
             .enable(Arc::new(FulfillerPlugin(fulfiller)))
             .unwrap();
         let events = EventBus::new(Arc::clone(&db), plugins.clone(), ServerUrl::default());
         let matcher = Matcher::new(Arc::clone(&db), plugins.clone(), events.clone());
-        (data, Requests::new(db, matcher, events, plugins))
+        let requests = Requests::new(db, matcher, events, plugins);
+        for &tmdb_id in tmdb_ids {
+            ask_as(&requests, Permissions::ADMIN, tmdb_id).await;
+        }
+        (data, requests)
     }
 
     /// Waits until `asked` has been asked about `references`, sorted, in one batch.
@@ -2995,10 +2651,65 @@ mod tests {
         asked.batches().len() - before
     }
 
-    async fn move_to(requests: &Requests, id: i64, state: RequestState) {
-        requests
+    /// [`ada`] holding `permissions` asks for the Movie `tmdb_id`, as [`Requests::create`] does
+    /// once the metadata source has answered. Returns the Request's id.
+    async fn ask_as(requests: &Requests, permissions: Permissions, tmdb_id: i64) -> i64 {
+        let asker = ada(permissions);
+        let state = opening_state(&asker, Permission::AutoApproveMovie);
+        let (request, _) = requests
             .db
-            .write(move |tx| Box::pin(change_state(tx, id, state)))
+            .write(move |tx| Box::pin(ask_movie(tx, asker.id, movie(tmdb_id), state)))
+            .await
+            .unwrap();
+        request.id
+    }
+
+    /// A new Library Matches a file to each of the Movies `tmdb_ids`, as a scan does, which makes
+    /// their open Requests Available.
+    async fn match_in_a_library(requests: &Requests, tmdb_ids: &[i64]) {
+        let folder = tempfile::tempdir().unwrap();
+        let root = folder.path().canonicalize().unwrap();
+        let library = Libraries::new(Arc::clone(&requests.db))
+            .create(
+                "Movies",
+                Kind::Movies,
+                vec![root.to_str().unwrap().to_owned()],
+            )
+            .await
+            .unwrap()
+            .id;
+        let stores = tmdb_ids
+            .iter()
+            .map(|&tmdb_id| Change::Store {
+                path: format!("/media/{tmdb_id}.mkv"),
+                size: 1,
+                modified_ns: 0,
+                items: vec![Item::Movie {
+                    title: format!("Movie {tmdb_id}"),
+                    year: None,
+                    hint: Some(ExternalId::Tmdb(tmdb_id)),
+                }],
+            })
+            .collect();
+        requests.contents.apply(library, stores).await.unwrap();
+        let files = requests.contents.files(library).await.unwrap();
+        let decided: Vec<_> = files
+            .into_iter()
+            .flat_map(|file| file.items)
+            .map(|stored| {
+                let Item::Movie {
+                    hint: Some(ExternalId::Tmdb(tmdb_id)),
+                    ..
+                } = stored.item
+                else {
+                    panic!("not a Movie stored above: {stored:?}");
+                };
+                (stored.id, matched(tmdb(tmdb_id), ExternalIds::default()))
+            })
+            .collect();
+        requests
+            .contents
+            .record(Decisions::from(decided))
             .await
             .unwrap();
     }
@@ -3009,9 +2720,9 @@ mod tests {
         let fulfiller = Arc::clone(&asked);
         let (_data, requests) = approved_for(&[949, 438_631, 603], fulfiller).await;
         requests.hand_off_waiting().await;
-        move_to(&requests, 3, RequestState::Available).await;
+        match_in_a_library(&requests, &[603]).await;
 
-        let any = requests.poll_progress().await.unwrap();
+        let any = requests.hand_off.poll_progress().await.unwrap();
 
         assert!(any);
         assert_eq!(asked.batches().len(), 1);
@@ -3024,22 +2735,23 @@ mod tests {
         let asked = Arc::new(Asked::default());
         let fulfiller = Arc::clone(&asked);
         let (_data, requests) = approved_for(&[949, 438_631], fulfiller).await;
+        let pending = ask_as(&requests, Permissions::NEW_USER, 603).await;
         let following = requests.clone();
         let follow = tokio::spawn(async move { following.follow_progress(EVERY).await });
         let nothing_processing = asked_while(&asked, EVERY * 10).await;
 
         requests.hand_off_waiting().await;
         until_asked_about(&asked, &["438631", "949"]).await;
-        move_to(&requests, 1, RequestState::Available).await;
-        move_to(&requests, 2, RequestState::Available).await;
+        match_in_a_library(&requests, &[949, 438_631]).await;
         // Asked once more at most, if it was already asking as they became Available.
         asked_while(&asked, EVERY * 5).await;
         let nothing_processing_again = asked_while(&asked, EVERY * 10).await;
-        // As if it were Approved again, to be handed off again.
-        move_to(&requests, 2, RequestState::Approved).await;
-        requests.hand_off_waiting().await;
+        requests
+            .approve(&ada(Permissions::ADMIN), pending, None)
+            .await
+            .unwrap();
 
-        until_asked_about(&asked, &["438631"]).await;
+        until_asked_about(&asked, &["603"]).await;
         follow.abort();
         assert_eq!(nothing_processing, 0);
         assert_eq!(nothing_processing_again, 0);
@@ -3064,18 +2776,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_claim_another_hand_off_skipped_is_kept_for_one_more_look() {
-        let (_data, requests, _) = approved_for_gated(&[]).await;
-        let claim = Claim::take(&requests, 1).unwrap();
-        assert!(Claim::take(&requests, 1).is_none());
-
-        let kept = claim.release().expect("the skipped Request was let go");
-
-        assert!(kept.release().is_none());
-        assert!(Claim::take(&requests, 1).is_some());
-    }
-
-    #[tokio::test]
     async fn enabling_a_fulfiller_hands_it_every_waiting_request_even_if_the_admin_stops_waiting() {
         let (_data, requests, gated) = approved_for_gated(&[949, 438_631]).await;
         let id = PluginId::from_static("gated");
@@ -3090,7 +2790,7 @@ mod tests {
             .expect("the second Request was never handed to the Fulfiller");
     }
 
-    /// Ada, the User [`approved_for`] asks as, holding `permissions`.
+    /// Ada, the User the tests ask as, holding `permissions`.
     fn ada(permissions: Permissions) -> User {
         User {
             id: 1,
@@ -3138,6 +2838,7 @@ mod tests {
             SettingValue::Text(API_KEY.to_owned()),
         )]));
         requests
+            .hand_off
             .plugins
             .enable_with_settings(Arc::new(Tmdb::with_endpoints(tmdb.endpoints())), settings)
             .unwrap();
@@ -3190,8 +2891,8 @@ mod tests {
 
     #[tokio::test]
     async fn a_request_declined_by_a_caller_who_left_is_published() {
-        let (_data, requests) = approved_for(&[949], Arc::new(Asked::default())).await;
-        move_to(&requests, 1, RequestState::Pending).await;
+        let (_data, requests) = approved_for(&[], Arc::new(Asked::default())).await;
+        ask_as(&requests, Permissions::NEW_USER, 949).await;
         let mut published = Box::pin(requests.events.subscribe(Filter::default()));
         let declining = requests.clone();
 
@@ -3220,8 +2921,8 @@ mod tests {
 
     #[tokio::test]
     async fn a_request_withdrawn_by_a_caller_who_left_is_published() {
-        let (_data, requests) = approved_for(&[949], Arc::new(Asked::default())).await;
-        move_to(&requests, 1, RequestState::Pending).await;
+        let (_data, requests) = approved_for(&[], Arc::new(Asked::default())).await;
+        ask_as(&requests, Permissions::NEW_USER, 949).await;
         let mut published = Box::pin(requests.events.subscribe(Filter::default()));
         let withdrawing = requests.clone();
 
@@ -3268,7 +2969,7 @@ mod tests {
         let item = requests.contents.files(library).await.unwrap()[0].items[0].id;
         let scanner = Scanner::new(
             Arc::clone(&requests.db),
-            requests.plugins.clone(),
+            requests.hand_off.plugins.clone(),
             requests.events.clone(),
         );
         let scan = scanner.lock(library).await;
@@ -3337,7 +3038,7 @@ mod tests {
             .await
             .unwrap()[0];
         let scan = |episode_2_airs| Decisions {
-            items: vec![(item, matched_to_show(DARK))],
+            items: vec![(item, matched(ExternalIds::default(), tmdb(DARK)))],
             seasons: vec![(DARK, season_1(episode_2_airs))],
         };
         contents.record(scan("2099-12-01")).await.unwrap();
