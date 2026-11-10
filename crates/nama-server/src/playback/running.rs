@@ -254,8 +254,18 @@ impl Running {
         (n < self.segment_ms.len()).then(|| format!("{n}.m4s"))
     }
 
-    /// Waits until ffmpeg has written `path`, and says whether it did before it stopped. ffmpeg
-    /// writes each under another name and renames it once whole (`-hls_flags temp_file`).
+    /// The file whose being there says the file `name` is whole: `name` itself, as ffmpeg writes
+    /// each segment under another name and renames it once whole (`-hls_flags temp_file`), but
+    /// the first segment for the init segment. ffmpeg creates that empty and fills it in just
+    /// before it writes the first segment, slowly enough to be caught half-done when it converts
+    /// the audio.
+    // ponytail: the first segment is `0.m4s` while ffmpeg always starts at the start; #348 changes
+    // that.
+    fn whole_once(&self, name: &str) -> PathBuf {
+        self.dir.join(if name == HLS_INIT { "0.m4s" } else { name })
+    }
+
+    /// Waits until ffmpeg has written `path`, and says whether it did before it stopped.
     async fn written(&self, path: &Path) -> io::Result<bool> {
         loop {
             // Read before looking, so a file written just before ffmpeg stopped is still found.
@@ -300,14 +310,7 @@ async fn serve(
         return StatusCode::NOT_FOUND.into_response();
     };
     let path = plan.dir.join(&name);
-    // ffmpeg creates the init segment empty, and fills it in just before it writes the first
-    // segment: slowly enough to be caught half-done when it converts the audio.
-    let whole_once = if name == HLS_INIT {
-        plan.dir.join("0.m4s")
-    } else {
-        path.clone()
-    };
-    match plan.written(&whole_once).await {
+    match plan.written(&plan.whole_once(&name)).await {
         Ok(true) => {}
         Ok(false) => return StatusCode::NOT_FOUND.into_response(),
         Err(err) => {

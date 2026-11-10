@@ -1204,7 +1204,7 @@ async fn ffmpegs_own_playlist(fx: &Fixture, url: &str) -> String {
 }
 
 #[tokio::test]
-async fn an_h264_and_aac_mkv_is_remuxed_over_hls_because_of_its_container() {
+async fn an_h264_and_aac_mkv_is_remuxed_over_hls_with_its_audio_copied() {
     let (fx, version) = Fixture::alien_mkv(system_ffmpeg(), "aac").await;
 
     let plan = fx.plan(version).await.unwrap();
@@ -1350,7 +1350,7 @@ async fn dts_is_remuxed_as_aac_with_up_to_as_many_channels_as_the_device_plays()
 
     for (plays, converted, to) in [
         (6, "aac,6", "5.1 AAC"),
-        (2, "aac,2", "stereo AAC, the most this Device plays"),
+        (2, "aac,2", "stereo AAC, as this Device doesn't play 5.1"),
     ] {
         let plan = fx.plan_on_device(version, &[], plays).await.unwrap();
 

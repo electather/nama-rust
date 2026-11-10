@@ -417,7 +417,7 @@ fn aac_in_words(probe: &Probe, device: &DeviceDecoding, channels: i64) -> String
     } else if device.audio_channels == 0 {
         ", as this Device doesn't say it plays more"
     } else {
-        ", the most this Device plays"
+        ", as this Device doesn't play 5.1"
     };
     format!("{name} AAC{why}")
 }
@@ -463,10 +463,12 @@ fn played_tracks(probe: &Probe) -> Vec<Track> {
         .collect()
 }
 
+/// The first video Track, which a browser plays.
 fn played_video(probe: &Probe) -> Option<&Track> {
     (probe.tracks.iter()).find(|track| matches!(track.kind, TrackKind::Video { .. }))
 }
 
+/// The Track [`played_audio`] counts to.
 fn played_audio_track(probe: &Probe) -> Option<&Track> {
     played_audio(probe).and_then(|n| audio_tracks(probe).nth(n))
 }
@@ -961,22 +963,33 @@ mod tests {
     }
 
     #[test]
-    fn converted_audio_has_up_to_as_many_channels_as_the_device_plays_up_to_5_1() {
+    fn converted_audio_has_as_many_channels_as_the_device_plays_up_to_5_1() {
         let cases = [
-            (Some(6), 6, Some(6), ""),
-            (Some(8), 8, Some(6), ", the most a Remux makes"),
-            (Some(6), 2, Some(2), ", the most this Device plays"),
+            (Some(6), 6, Some(6), "5.1 AAC"),
+            (Some(8), 8, Some(6), "5.1 AAC, the most a Remux makes"),
+            (
+                Some(6),
+                2,
+                Some(2),
+                "stereo AAC, as this Device doesn't play 5.1",
+            ),
+            (
+                Some(6),
+                4,
+                Some(2),
+                "stereo AAC, as this Device doesn't play 5.1",
+            ),
             (
                 Some(6),
                 0,
                 Some(2),
-                ", as this Device doesn't say it plays more",
+                "stereo AAC, as this Device doesn't say it plays more",
             ),
-            (Some(2), 6, Some(2), ""),
-            (Some(1), 6, Some(1), ""),
-            (None, 6, Some(2), ""),
+            (Some(2), 6, Some(2), "stereo AAC"),
+            (Some(1), 6, Some(1), "mono AAC"),
+            (None, 6, Some(2), "stereo AAC"),
         ];
-        for (source, plays, converted, why) in cases {
+        for (source, plays, converted, to) in cases {
             let mut facts = in_container(
                 MP4,
                 Some(vec![video("h264"), audio_with("dts", true, source)]),
@@ -985,11 +998,6 @@ mod tests {
 
             let plan = build(&facts, &STEPS);
 
-            let to = match converted {
-                Some(1) => "mono",
-                Some(2) => "stereo",
-                _ => "5.1",
-            };
             assert_eq!(
                 plan.tracks[1],
                 audio_with("aac", true, converted),
@@ -999,7 +1007,7 @@ mod tests {
                 plan.reasons[1],
                 format!(
                     "This Device can't decode its DTS audio, so it can't be Direct Played, and a \
-                     Remux converts that audio to {to} AAC{why}"
+                     Remux converts that audio to {to}"
                 ),
             );
         }

@@ -191,7 +191,8 @@ impl Ffmpeg {
     /// at `path` untouched into HLS with fMP4 segments in `dir`, but for converting that audio to
     /// AAC with `aac_channels` channels if given: [`HLS_INIT`], then `0.m4s`,
     /// `1.m4s` and so on, each cut at the first keyframe at or after the next multiple of
-    /// [`HLS_TIME_MS`]. Each file appears only once it's whole. Dropping the child stops ffmpeg.
+    /// [`HLS_TIME_MS`]. Each segment appears only once it's whole, but [`HLS_INIT`] appears empty
+    /// and is filled in just before `0.m4s` appears. Dropping the child stops ffmpeg.
     pub(crate) fn remux(
         &self,
         path: &str,
