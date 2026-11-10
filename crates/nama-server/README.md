@@ -25,9 +25,9 @@ ffmpeg = "/usr/lib/jellyfin-ffmpeg/ffmpeg"
 ffprobe = "/usr/lib/jellyfin-ffmpeg/ffprobe"
 ```
 
-Without a usable pair it only Direct Plays, and says why in its startup log and on the Playback page. With one, a Version whose Tracks the Device decodes but whose container it can't is Remuxed over HLS, and ffmpeg writes its segments under `transcodes/` in the data directory. With ffprobe, each scan is followed by probing, in the background, the files not probed yet, or changed or read by an older probe version since, for their Tracks.
+Without a usable pair it only Direct Plays, and says why in its startup log and on the Playback page. With one, a Version whose Tracks the Device decodes but whose container it can't is Remuxed over HLS, one whose video it can't decode is Transcoded to H.264 and AAC with libx264, and ffmpeg writes their segments under `transcodes/` in the data directory. With ffprobe, each scan is followed by probing, in the background, the files not probed yet, or changed or read by an older probe version since, for their Tracks.
 
-Tests make the media they probe with ffmpeg rather than commit sample files, so `cargo test` needs ffmpeg and ffprobe on `PATH`.
+Tests make the media they probe with ffmpeg rather than commit sample files, so `cargo test` needs ffmpeg, built with libx264 and libx265, and ffprobe on `PATH`.
 
 ## Regenerating `.sqlx/` after a query or migration change
 

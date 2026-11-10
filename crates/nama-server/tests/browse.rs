@@ -1275,10 +1275,19 @@ impl Fixture {
     /// audio encoded with `audio`, as [`ffmpeg::write_h264_with_5_1`] takes it, and returns it with
     /// that Version's id.
     async fn alien_mkv(ffmpeg: Ffmpeg, audio: &str) -> (Self, i64) {
+        Self::alien_written(ffmpeg, |file| ffmpeg::write_h264_with_5_1(file, audio)).await
+    }
+
+    /// Starts a Server with `ffmpeg` and a Movies Library holding Alien as an MKV `write` writes,
+    /// and returns it with that Version's id.
+    async fn alien_written(
+        ffmpeg: Ffmpeg,
+        write: impl FnOnce(&Path) -> std::io::Result<()>,
+    ) -> (Self, i64) {
         let fx = Self::start_with_ffmpeg(LibraryKind::LIBRARY_KIND_MOVIES, ffmpeg).await;
         let file = fx.folder.join("Alien (1979)/Alien (1979).mkv");
         fs::create_dir_all(file.parent().unwrap()).unwrap();
-        ffmpeg::write_h264_with_5_1(&file, audio).unwrap();
+        write(&file).unwrap();
         fx.scan_until_decided(1).await;
         let version = fx.version_ids(ALIEN).await[0];
         (fx, version)
@@ -1466,11 +1475,18 @@ async fn a_remuxs_playlist_and_segments_without_a_session_are_refused() {
 
 /// The codec and channels of the audio the plan at `url` plays in its segment `segment`, such as
 /// `aac,6`, as ffprobe reads it with its init segment.
+async fn played_audio(fx: &Fixture, url: &str, segment: &str) -> String {
+    played_streams(fx, url, "a", segment).await
+}
+
+/// The codec, and channels if audio, of the streams of type `kind`, as ffprobe's
+/// `-select_streams` takes it, that the plan at `url` plays in its segment `segment`, as ffprobe
+/// reads it with its init segment.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
-async fn played_audio(fx: &Fixture, url: &str, segment: &str) -> String {
+async fn played_streams(fx: &Fixture, url: &str, kind: &str, segment: &str) -> String {
     // The segment first, so ffmpeg starts there and the init segment is that run's.
     let segment = fx.fetch_ok(&beside(url, segment)).await;
     let mut mp4 = fx.fetch_ok(&beside(url, "init.mp4")).await;
@@ -1484,7 +1500,7 @@ async fn played_audio(fx: &Fixture, url: &str, segment: &str) -> String {
         "csv=p=0",
     ];
     let output = std::process::Command::new("ffprobe")
-        .args(["-v", "error", "-select_streams", "a"])
+        .args(["-v", "error", "-select_streams", kind])
         .args(entries)
         .arg(file.path())
         .output()
@@ -1562,6 +1578,32 @@ async fn switching_to_the_commentary_mid_play_remuxes_it_from_there_with_its_aud
     );
     // 7 seconds in is in the second segment, as they're cut about 6 seconds apart.
     assert_eq!(played_audio(&fx, &commentary.url, "1.m4s").await, "aac,2");
+}
+
+#[tokio::test]
+async fn an_hevc_mkv_is_transcoded_to_h264_and_aac_over_hls_in_six_second_segments() {
+    let (fx, version) = Fixture::alien_written(system_ffmpeg(), ffmpeg::write_hevc_with_5_1).await;
+
+    let plan = fx.plan(version).await.unwrap();
+
+    assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_TRANSCODE);
+    assert_eq!(codecs(&plan), ["h264", "aac"]);
+    assert_eq!(
+        plan.reasons[1],
+        "This Device can't decode its Matroska container, HEVC video or AC-3 audio, so it \
+         can't be Direct Played or Remuxed, and a Transcode converts it to H.264 and stereo \
+         AAC, as this Device doesn't say it plays more"
+    );
+    let playlist = String::from_utf8(fx.fetch_ok(&plan.url).await).unwrap();
+    let (durations, files) = segments(&playlist);
+    assert_eq!(files, ["0.m4s", "1.m4s", "2.m4s", "3.m4s"], "20 seconds");
+    assert_eq!(durations[..3], [6.0, 6.0, 6.0]);
+    for file in files {
+        let segment = fx.fetch_ok(&beside(&plan.url, file)).await;
+        assert_ne!(segment.len(), 0, "{file}");
+    }
+    assert_eq!(played_streams(&fx, &plan.url, "v", "0.m4s").await, "h264");
+    assert_eq!(played_audio(&fx, &plan.url, "0.m4s").await, "aac,2");
 }
 
 #[tokio::test]
