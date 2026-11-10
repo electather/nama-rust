@@ -526,6 +526,25 @@ async fn an_unreachable_telegram_is_logged_in_plain_words() {
 }
 
 #[tokio::test]
+async fn an_answer_that_is_not_json_is_logged_as_making_no_sense() {
+    let log = Log::global();
+    let fixture = Fixture::with_telegram(BOT_TOKEN, Some(CHANNEL)).await;
+    fixture.telegram.talk_nonsense();
+
+    fixture.ada_asks_for(DUNE).await;
+
+    log.wait_for(
+        &[
+            "telegram",
+            "provider failed",
+            "Telegram's answer made no sense",
+        ],
+        1,
+    )
+    .await;
+}
+
+#[tokio::test]
 async fn telegrams_details_page_gets_its_three_settings_without_the_bot_token() {
     let fixture = Fixture::start().await;
     fixture.set_up_telegram(BOT_TOKEN, Some(CHANNEL)).await;

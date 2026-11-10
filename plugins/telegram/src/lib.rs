@@ -173,7 +173,10 @@ mod exports {
         if !(200..300).contains(&response.status_code()) {
             return Err(refused(&response));
         }
-        Ok(response.json::<Answer<T>>()?.result)
+        response
+            .json::<Answer<T>>()
+            .map(|answer| answer.result)
+            .map_err(|err| Error::msg(format!("Telegram's answer made no sense: {err}")))
     }
 
     /// The setting `key`, which the Server sets before every call.
