@@ -542,6 +542,7 @@ async fn an_answer_that_is_not_json_is_logged_as_making_no_sense() {
         1,
     )
     .await;
+    assert!(!log.contents().contains(BOT_TOKEN), "{}", log.contents());
 }
 
 #[tokio::test]

@@ -15,4 +15,5 @@ re-recording one, trim it the same way.
 | `unauthorized.json` | any request with a token Telegram doesn't know: `401 Unauthorized` |
 | `not-found.json` | any request with a token not shaped like one, `<bot id>:<secret>`: `404 Not Found` |
 
-Once a test calls `talk_nonsense`, the fake answers every request with `200 OK` and an HTML page, which has no fixture.
+Once a test calls `talk_nonsense`, the fake answers every request with `200 OK` and an HTML page,
+which has no fixture.
