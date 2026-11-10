@@ -295,7 +295,8 @@ impl Scanner {
         });
     }
 
-    /// Probes the Library `library`'s files not probed yet and stores what each holds. A file that can't be probed is logged and skipped.
+    /// Probes the Library `library`'s files not probed yet and stores what each holds. A file
+    /// that can't be probed is logged and skipped.
     async fn probe_unprobed(&self, library: i64) -> Result<(), sqlx::Error> {
         let stored = self.inner.contents.stored(library).await?;
         let ids: Vec<i64> = stored.values().map(|file| file.id).collect();
