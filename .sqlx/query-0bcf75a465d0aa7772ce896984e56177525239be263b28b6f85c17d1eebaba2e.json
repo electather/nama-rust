@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT version_id, kind, codec, language, title, is_default AS \"default: bool\",\n                      forced AS \"forced: bool\", width, height, frame_rate, channels,\n                      image AS \"image: bool\"\n               FROM tracks\n               WHERE version_id IN (SELECT value FROM json_each(?))\n               ORDER BY version_id, position",
+  "query": "SELECT version_id, kind, codec, language, title, is_default AS \"default: bool\",\n                      forced AS \"forced: bool\", width, height, frame_rate, bit_depth, hdr,\n                      dolby_vision_profile,\n                      dolby_vision_hdr10_base_layer AS \"dolby_vision_hdr10_base_layer: bool\",\n                      channels, image AS \"image: bool\"\n               FROM tracks\n               WHERE version_id IN (SELECT value FROM json_each(?))\n               ORDER BY version_id, position",
   "describe": {
     "columns": [
       {
@@ -114,8 +114,52 @@
         }
       },
       {
-        "name": "channels",
+        "name": "bit_depth",
         "ordinal": 10,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "tracks",
+            "name": "bit_depth"
+          }
+        }
+      },
+      {
+        "name": "hdr",
+        "ordinal": 11,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "tracks",
+            "name": "hdr"
+          }
+        }
+      },
+      {
+        "name": "dolby_vision_profile",
+        "ordinal": 12,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "tracks",
+            "name": "dolby_vision_profile"
+          }
+        }
+      },
+      {
+        "name": "dolby_vision_hdr10_base_layer: bool",
+        "ordinal": 13,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "tracks",
+            "name": "dolby_vision_hdr10_base_layer"
+          }
+        }
+      },
+      {
+        "name": "channels",
+        "ordinal": 14,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -126,7 +170,7 @@
       },
       {
         "name": "image: bool",
-        "ordinal": 11,
+        "ordinal": 15,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -151,8 +195,12 @@
       true,
       true,
       true,
+      true,
+      true,
+      true,
+      true,
       true
     ]
   },
-  "hash": "f582c536e5408836e0227bdd8ba74d0eea274cce13c8c8026bf42aa357964496"
+  "hash": "0bcf75a465d0aa7772ce896984e56177525239be263b28b6f85c17d1eebaba2e"
 }

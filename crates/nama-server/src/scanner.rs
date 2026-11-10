@@ -515,7 +515,7 @@ mod tests {
         libraries::{self, Kind, Libraries},
         plugins::Registry,
         server_settings::ServerUrl,
-        tracks::{PROBE_VERSION, Track, TrackKind, Tracks},
+        tracks::{Hdr, PROBE_VERSION, Track, TrackKind, Tracks},
     };
 
     /// How many events a [`Fixture`]'s subscribers may fall behind.
@@ -887,11 +887,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_scan_probes_a_4k_file_with_5_1_audio_and_stores_its_tracks() {
+    async fn a_scan_probes_a_4k_hdr10_file_with_5_1_audio_and_stores_its_tracks() {
         let media = Fixture::with_ffmpeg(Kind::Movies, system_ffmpeg()).await;
         let alien = "Alien (1979)/Alien (1979).mkv";
         fs::create_dir_all(media.path("Alien (1979)")).unwrap();
-        ffmpeg::write_4k_with_5_1(&media.path(alien)).unwrap();
+        ffmpeg::write_4k_with_5_1(&media.path(alien), "smpte2084").unwrap();
 
         media.scan_and_probe().await;
 
@@ -909,7 +909,7 @@ mod tests {
             probe.tracks,
             [
                 Track {
-                    codec: "mpeg4".to_owned(),
+                    codec: "ffv1".to_owned(),
                     language: None,
                     title: None,
                     default: false,
@@ -918,6 +918,8 @@ mod tests {
                         width: Some(3840),
                         height: Some(2160),
                         frame_rate: Some(24.0),
+                        bit_depth: Some(10),
+                        hdr: Some(Hdr::Hdr10),
                     },
                 },
                 Track {
@@ -934,6 +936,32 @@ mod tests {
             media.tracks.probe_version_of(version).await,
             Some(PROBE_VERSION)
         );
+    }
+
+    #[tokio::test]
+    async fn a_scan_records_an_hlg_file_as_hlg_and_an_sdr_file_as_no_hdr() {
+        let media = Fixture::with_ffmpeg(Kind::Movies, system_ffmpeg()).await;
+        let hlg = "Alien (1979)/Alien (1979).mkv";
+        let sdr = "Heat (1995)/Heat (1995).mkv";
+        for (file, transfer) in [(hlg, "arib-std-b67"), (sdr, "bt709")] {
+            fs::create_dir_all(media.path(file).parent().unwrap()).unwrap();
+            ffmpeg::write_4k_with_5_1(&media.path(file), transfer).unwrap();
+        }
+
+        media.scan().await;
+        media.scanner.idle().await;
+
+        let versions = [media.file_id(hlg).await, media.file_id(sdr).await];
+        let mut probes = media.tracks.of(&versions).await.unwrap();
+        let mut hdr_of = |version| match probes.remove(&version).map(|probe| probe.tracks) {
+            Some(tracks) => match tracks.first().map(|track| &track.kind) {
+                Some(TrackKind::Video { hdr, .. }) => *hdr,
+                _ => panic!("no video Track first: {tracks:?}"),
+            },
+            None => panic!("the file wasn't probed"),
+        };
+        assert_eq!(hdr_of(versions[0]), Some(Hdr::Hlg));
+        assert_eq!(hdr_of(versions[1]), None);
     }
 
     #[tokio::test]
@@ -964,6 +992,49 @@ mod tests {
             }),
             ..Ffmpeg::default()
         }
+    }
+
+    // ffmpeg can't write Dolby Vision, so a fake ffprobe prints what a real one does for it, cut
+    // down to what probing reads. The fake is a shell script.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_scan_stores_a_dolby_vision_files_profile_and_whether_its_base_layer_is_hdr10() {
+        let bin = tempfile::tempdir().unwrap();
+        let ffmpeg = fake_ffprobe(
+            bin.path(),
+            r#"cat <<'EOF'
+{"streams": [{"codec_name": "hevc", "codec_type": "video", "pix_fmt": "yuv420p10le",
+  "color_transfer": "smpte2084",
+  "side_data_list": [{"side_data_type": "DOVI configuration record", "dv_profile": 8,
+                      "dv_bl_signal_compatibility_id": 1}]}],
+ "format": {"format_name": "matroska,webm"}}
+EOF"#,
+        );
+        let media = Fixture::with_ffmpeg(Kind::Movies, ffmpeg).await;
+        let alien = "Alien (1979)/Alien (1979).mkv";
+        media.write(alien, 10);
+
+        media.scan().await;
+        media.scanner.idle().await;
+
+        let version = media.file_id(alien).await;
+        let probe = media.tracks.of(&[version]).await.unwrap().remove(&version);
+        let kind = probe
+            .and_then(|probe| probe.tracks.into_iter().next())
+            .map(|t| t.kind);
+        assert_eq!(
+            kind,
+            Some(TrackKind::Video {
+                width: None,
+                height: None,
+                frame_rate: None,
+                bit_depth: Some(10),
+                hdr: Some(Hdr::DolbyVision {
+                    profile: 8,
+                    hdr10_base_layer: true,
+                }),
+            })
+        );
     }
 
     // The fake ffprobe is a shell script.
