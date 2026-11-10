@@ -3878,9 +3878,8 @@ async fn a_default_the_admin_removed_is_flagged_in_settings_and_left_out_of_the_
 
     fixture
         .server
-        .try_replace_qualities(MOVIE_FULFILLER, vec![offered[0].clone()])
-        .await
-        .unwrap();
+        .replace_qualities(MOVIE_FULFILLER, vec![offered[0].clone()])
+        .await;
     let settings = ada
         .list_default_qualities(ListDefaultQualitiesRequest::default())
         .await

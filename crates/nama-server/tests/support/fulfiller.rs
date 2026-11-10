@@ -1,4 +1,5 @@
-//! A fake Fulfiller a test turns on through the builder, and the Qualities an Admin offers of it.
+//! A fake Fulfiller a test turns on through the builder, and the Qualities an Admin offers of it
+//! as the test writes them.
 
 use std::{
     collections::HashMap,
@@ -164,6 +165,7 @@ impl FakeFulfiller {
         }
     }
 
+    /// The TMDB id of each Movie it was handed, in order.
     pub(crate) fn handed(&self) -> Vec<i64> {
         self.handed
             .lock()
@@ -171,6 +173,7 @@ impl FakeFulfiller {
             .clone()
     }
 
+    /// Each Season it was handed, in order.
     pub(crate) fn handed_seasons(&self) -> Vec<HandedSeason> {
         self.handed_seasons
             .lock()
@@ -178,6 +181,7 @@ impl FakeFulfiller {
             .clone()
     }
 
+    /// The TMDB id of each Show it was told to stop following, in order.
     pub(crate) fn unfollowed(&self) -> Vec<i64> {
         self.unfollowed
             .lock()
