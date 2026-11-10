@@ -1,7 +1,7 @@
 //! Tracks: what ffprobe found inside each Version, the facts of its whole file and its video, audio
 //! and subtitle Tracks.
 //!
-//! [`Tracks`] owns `version_probes` and `tracks` (see the crate's `AGENTS.md`). Their rows are
+//! [`Tracks`] owns `version_probes`, `tracks` and `probe_failures` (see the crate's `AGENTS.md`). Their rows are
 //! keyed by Version id and go when the file goes; which files there are is for
 //! [`crate::contents::Contents`] to say.
 
@@ -105,14 +105,19 @@ impl Tracks {
         Self { db }
     }
 
-    /// Those of `files` whose Tracks are current: read by the current [`PROBE_VERSION`] at the
-    /// size and modified time `Contents` stores for the file now.
+    /// Those of `files` the current [`PROBE_VERSION`] read, or failed to read, at the size and
+    /// modified time `Contents` stores for the file now, which the probe pass skips. A failed one
+    /// has no Tracks, so [`Self::of`] leaves it out.
     pub(crate) async fn current(&self, files: &[Stored]) -> Result<HashSet<i64>, sqlx::Error> {
         let versions: Vec<i64> = files.iter().map(|file| file.id).collect();
         let versions = json_array(&versions);
         let read_at: HashSet<(i64, i64, i64)> = sqlx::query!(
-            "SELECT version_id, size, modified_ns FROM version_probes
-             WHERE probe_version = ? AND version_id IN (SELECT value FROM json_each(?))",
+            r#"SELECT version_id AS "version_id!", size AS "size!", modified_ns AS "modified_ns!"
+               FROM version_probes
+               WHERE probe_version = ?1 AND version_id IN (SELECT value FROM json_each(?2))
+               UNION ALL
+               SELECT version_id, size, modified_ns FROM probe_failures
+               WHERE probe_version = ?1 AND version_id IN (SELECT value FROM json_each(?2))"#,
             PROBE_VERSION,
             versions
         )
@@ -136,25 +141,40 @@ impl Tracks {
             .db
             .write(move |tx| Box::pin(store(tx, version, probe)))
             .await;
-        match stored {
-            Err(sqlx::Error::Database(err)) if err.is_foreign_key_violation() => Ok(()),
-            stored => stored,
-        }
+        ignore_removed(stored)
     }
 
-    /// Forgets what probing found in the Version `version`, once probing it again has failed, so
-    /// Tracks read from what the file held before don't outlive it.
-    pub(crate) async fn forget(&self, version: i64) -> Result<(), sqlx::Error> {
-        self.db
+    /// Stores that the current [`PROBE_VERSION`] couldn't read the Version `version` at its stored
+    /// size and modified time, so the probe pass skips it until one of them changes. Forgets what
+    /// probing found in it before, so Tracks read from what the file held then don't outlive it. A
+    /// Version removed since stores nothing.
+    pub(crate) async fn store_failure(&self, version: Stored) -> Result<(), sqlx::Error> {
+        let stored = self
+            .db
             .write(move |tx| {
                 Box::pin(async move {
-                    sqlx::query!("DELETE FROM version_probes WHERE version_id = ?", version)
-                        .execute(&mut **tx)
-                        .await
-                        .map(drop)
+                    sqlx::query!(
+                        "DELETE FROM version_probes WHERE version_id = ?",
+                        version.id
+                    )
+                    .execute(&mut **tx)
+                    .await?;
+                    sqlx::query!(
+                        "INSERT OR REPLACE INTO probe_failures
+                             (version_id, probe_version, size, modified_ns)
+                         VALUES (?, ?, ?, ?)",
+                        version.id,
+                        PROBE_VERSION,
+                        version.size,
+                        version.modified_ns,
+                    )
+                    .execute(&mut **tx)
+                    .await
+                    .map(drop)
                 })
             })
-            .await
+            .await;
+        ignore_removed(stored)
     }
 
     /// When each keyframe of the Version `version`'s first video falls, in milliseconds, if
@@ -277,6 +297,15 @@ impl Tracks {
     }
 }
 
+/// `written`, but a write about a Version removed meanwhile is no error: what it said goes with
+/// the Version.
+fn ignore_removed(written: Result<(), sqlx::Error>) -> Result<(), sqlx::Error> {
+    match written {
+        Err(sqlx::Error::Database(err)) if err.is_foreign_key_violation() => Ok(()),
+        written => written,
+    }
+}
+
 /// `ids` as a JSON array, which SQLite's `json_each` turns into rows, since a query can't bind a
 /// list.
 fn json_array(ids: &[i64]) -> String {
@@ -290,6 +319,9 @@ async fn store(
 ) -> Result<(), sqlx::Error> {
     let version = stored.id;
     sqlx::query!("DELETE FROM version_probes WHERE version_id = ?", version)
+        .execute(&mut *conn)
+        .await?;
+    sqlx::query!("DELETE FROM probe_failures WHERE version_id = ?", version)
         .execute(&mut *conn)
         .await?;
     sqlx::query!(
@@ -469,6 +501,24 @@ impl Tracks {
         .fetch_optional(self.db.reader())
         .await
         .unwrap()
+    }
+
+    /// Marks the Version `version` as failed by the version before the current one.
+    pub(crate) async fn failed_by_older_probe(&self, version: i64) {
+        self.db
+            .write(move |tx| {
+                Box::pin(async move {
+                    sqlx::query!(
+                        "UPDATE probe_failures SET probe_version = ? - 1 WHERE version_id = ?",
+                        PROBE_VERSION,
+                        version
+                    )
+                    .execute(&mut **tx)
+                    .await
+                })
+            })
+            .await
+            .unwrap();
     }
 
     /// Marks the Version `version` as probed by the version before the current one.

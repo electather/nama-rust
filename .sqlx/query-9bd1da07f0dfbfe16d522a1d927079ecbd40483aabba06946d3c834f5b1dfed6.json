@@ -1,10 +1,10 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT version_id, size, modified_ns FROM version_probes\n             WHERE probe_version = ? AND version_id IN (SELECT value FROM json_each(?))",
+  "query": "SELECT version_id AS \"version_id!\", size AS \"size!\", modified_ns AS \"modified_ns!\"\n               FROM version_probes\n               WHERE probe_version = ?1 AND version_id IN (SELECT value FROM json_each(?2))\n               UNION ALL\n               SELECT version_id, size, modified_ns FROM probe_failures\n               WHERE probe_version = ?1 AND version_id IN (SELECT value FROM json_each(?2))",
   "describe": {
     "columns": [
       {
-        "name": "version_id",
+        "name": "version_id!",
         "ordinal": 0,
         "type_info": "Integer",
         "origin": {
@@ -15,7 +15,7 @@
         }
       },
       {
-        "name": "size",
+        "name": "size!",
         "ordinal": 1,
         "type_info": "Integer",
         "origin": {
@@ -26,7 +26,7 @@
         }
       },
       {
-        "name": "modified_ns",
+        "name": "modified_ns!",
         "ordinal": 2,
         "type_info": "Integer",
         "origin": {
@@ -46,5 +46,5 @@
       false
     ]
   },
-  "hash": "98f2993d96aaedc9157aefd1b0ba818e2ea075b6fccf0d7ed81638f86d823681"
+  "hash": "9bd1da07f0dfbfe16d522a1d927079ecbd40483aabba06946d3c834f5b1dfed6"
 }
