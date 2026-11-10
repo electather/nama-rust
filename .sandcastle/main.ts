@@ -8,6 +8,7 @@ import { inspect, parseEnv, promisify } from "node:util";
 import * as sandcastle from "@ai-hero/sandcastle";
 import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
 import { podman } from "@ai-hero/sandcastle/sandboxes/podman";
+import { slotPool } from "./slots.ts";
 import { recorder, type Outcome, type Stage, type Waiting } from "./status.ts";
 
 const MAX_ISSUES = Number(process.env.MAX_ISSUES ?? 60); // issues started per run; MAX_ISSUES=1 → one issue, then stop
@@ -185,16 +186,22 @@ async function agent(box: Box, issue: Issue, step: string, extra: Record<string,
   return result;
 }
 
+const slots = slotPool(MAX_PARALLEL);
+
 // Makes the branch mergeable: Sonnet first, then Opus from the last commit if Sonnet gives up.
 async function fix(box: Box, issue: Issue, problem: string) {
+  await slots.acquire(true);
   try {
+    aborts.get(issue.number)?.signal.throwIfAborted(); // closed while it waited for a slot
     return await agent(box, issue, "fix", { PROBLEM: problem }, SONNET);
   } catch (e) {
     if (!(e instanceof Blocked)) throw e;
     note(issue, `fix on Opus (${e.message})`);
     // Sonnet may have left a half-done merge behind.
     await box.exec("git merge --abort; git reset --hard HEAD");
-    return agent(box, issue, "fix", { PROBLEM: problem });
+    return await agent(box, issue, "fix", { PROBLEM: problem });
+  } finally {
+    slots.release();
   }
 }
 
@@ -327,6 +334,7 @@ const serially = queue(); // merges
 const oneSandboxAtATime = queue();
 
 async function build(issue: Issue): Promise<{ box: Box; body: string }> {
+  gh("issue", "edit", String(issue.number), "--add-label", WORKING);
   const box = await oneSandboxAtATime(() =>
     sandcastle.createSandbox({
       branch: branchOf(issue),
@@ -474,8 +482,10 @@ async function afterMerge(issue: Issue) {
 }
 
 // build → PR → green CI in parallel; only the merge waits its turn.
+// The dispatcher took a slot for this issue. The build uses it, and the issue gives it back before waiting on CI.
+// The sandbox stays open, but idle, while the PR waits, so a fix can run in it later.
 async function pipeline(issue: Issue) {
-  const { box, body } = await build(issue);
+  const { box, body } = await build(issue).finally(slots.release);
   let merged = false;
   try {
     const pr = await openPr(issue, box, body);
@@ -629,103 +639,113 @@ async function refreshUsage() {
   await usageRead;
 }
 const slowed = () => !!usage && (usage.used >= SLOW_5H || usage.weekly >= SLOW_WEEKLY);
-// True (after a minute's sleep) while paused.
+// True while paused.
 let wasSlowed = false;
 async function overUsage(): Promise<boolean> {
   await refreshUsage();
   if (slowed() !== wasSlowed) {
     wasSlowed = slowed();
     log(wasSlowed
-      ? `🐢 Claude usage at ${pct(usage!.used)} (5h), ${pct(usage!.weekly)} (week): at most ${SLOW_PARALLEL} issue(s) at once`
-      : `🐇 Claude usage back under the slow-down: ${MAX_PARALLEL} issues at once`);
+      ? `🐢 Claude usage at ${pct(usage!.used)} (5h), ${pct(usage!.weekly)} (week): at most ${SLOW_PARALLEL} slot(s) busy`
+      : `🐇 Claude usage back under the slow-down: ${MAX_PARALLEL} slots`);
   }
-  if (!paused()) return false;
-  await sleep(60_000);
-  return true;
+  return paused();
 }
 
-// One of MAX_PARALLEL slots: as soon as its issue is merged or handed back, it picks the next one.
-async function worker() {
-  while (!crashed && taken.size < MAX_ISSUES && !existsSync(STOP_FILE)) {
-    if (await overUsage()) continue;
-    // Checked here, with no await before inFlight.add, so two idle workers can't both slip under SLOW_PARALLEL.
-    if (slowed() && inFlight.size >= SLOW_PARALLEL) {
-      await sleep(60_000);
-      continue;
+// Starts an issue whenever a slot is free (see slotPool). Started issues finish in the background.
+async function dispatch() {
+  const running = new Set<Promise<void>>();
+  for (;;) {
+    await slots.acquire();
+    if (crashed || taken.size >= MAX_ISSUES || existsSync(STOP_FILE)) {
+      slots.release();
+      break;
     }
-    let issue: Issue | "wait" | "done";
-    try {
-      issue = pickNext();
-    } catch (e) {
-      // e.g. git or gh failing for everyone (network, auth, an Xcode licence prompt): a crash, not the end of
-      // the run. In-flight issues finish and release their claims; nothing new starts.
-      const why = `picking the next issue failed: ${oneLine(e)}`;
-      appendFileSync(`${LOGS}/crash-pick.log`, `${new Date().toISOString()} ${RUN}\n${inspect(e)}\n\n`);
-      log(`✗ ${why} (details: ${LOGS}/crash-pick.log)`);
-      crashed ||= why;
-      return;
+    let issue: Issue | "wait" | "done" = "wait";
+    // busy() includes the slot just taken, hence `>`.
+    if (!(await overUsage()) && !(slowed() && slots.busy() > SLOW_PARALLEL)) {
+      try {
+        issue = pickNext();
+      } catch (e) {
+        // e.g. git or gh failing for everyone (network, auth, an Xcode licence prompt): a crash, not the end of
+        // the run. In-flight issues finish and release their claims; nothing new starts.
+        const why = `picking the next issue failed: ${oneLine(e)}`;
+        appendFileSync(`${LOGS}/crash-pick.log`, `${new Date().toISOString()} ${RUN}\n${inspect(e)}\n\n`);
+        log(`✗ ${why} (details: ${LOGS}/crash-pick.log)`);
+        crashed ||= why;
+      }
     }
-    if (issue === "done") return;
+    if (crashed || issue === "done") {
+      slots.release();
+      break;
+    }
     if (issue === "wait") {
-      await sleep(60_000); // an in-flight merge may unblock an issue
+      slots.release();
+      await sleep(60_000); // paused, slowed, or waiting for an in-flight merge to unblock an issue
       continue;
     }
-    inFlight.add(issue);
-    log(`=== #${issue.number} ${issue.title} (${inFlight.size}/${MAX_PARALLEL} running) ===`);
-    stage(issue, "claimed");
-    const started = Date.now();
-    aborts.set(issue.number, new AbortController());
-    // Until the merge starts (the merge itself closes the issue), a closed issue stops its build.
-    // A merged PR stops it at any stage; the catch below then records it as merged.
-    const abort = aborts.get(issue.number)!;
-    const watcher = setInterval(() => {
-      if (abort.signal.aborted) return;
-      if (prMerged(issue)) {
-        log(`#${issue.number} PR was merged: stopping it`);
-        abort.abort(new Cancelled("the PR was merged"));
-      } else if (stageOf.get(issue.number)?.stage !== "merging" && isClosed(issue)) {
-        log(`#${issue.number} was closed: stopping it`);
-        abort.abort(new Cancelled("the issue was closed"));
-      }
-    }, 60_000);
-    try {
-      gh("issue", "edit", String(issue.number), "--add-label", WORKING);
-      await pipeline(issue);
-      finish(issue, "merged");
-    } catch (e) {
-      // Checked first: merging by hand makes whatever the factory was doing fail (a rejected push, a
-      // cancelled CI run, `gh pr merge` on a merged PR), and none of that is a crash or a hand-back.
-      if (prMerged(issue)) {
-        log(`✓ #${issue.number} merged by hand`);
-        await serially(() => afterMerge(issue));
-        ok("git", "branch", "-D", branchOf(issue)); // the sandbox is closed by now
-        finish(issue, "merged", "merged by hand");
-      // The signal, not `instanceof`: sandcastle may hand the reason back wrapped in an Effect FiberFailure.
-      } else if (abort.signal.aborted) {
-        const why = `${(abort.signal.reason as Error).message} during ${stageOf.get(issue.number)?.stage ?? "start"}`;
-        ok("gh", "pr", "close", branchOf(issue), "--comment", "🏭 The issue was closed, so the factory stopped building it.");
-        log(`⊘ #${issue.number} cancelled: ${why}`);
-        finish(issue, "cancelled", why);
-      } else if (e instanceof Blocked) {
-        handBack(issue, e.message);
-        finish(issue, "handed back", e.message);
-      } else {
-        // Infra failure (docker, auth, Claude limit): don't relabel; let in-flight issues finish, pick nothing new.
-        const at = stageOf.get(issue.number)?.stage ?? "start";
-        const why = `crashed at ${at}: ${oneLine(e)}`;
-        appendFileSync(`${LOGS}/crash-issue-${issue.number}.log`, `${new Date().toISOString()} ${RUN}\n${inspect(e)}\n\n`);
-        log(`✗ #${issue.number} ${why} (details: ${LOGS}/crash-issue-${issue.number}.log)`);
-        finish(issue, "crashed", why);
-        crashed ||= `#${issue.number} ${why}`;
-      }
-    } finally {
-      log(`#${issue.number} done after ${took(started)}`);
-      release(issue);
-      clearInterval(watcher);
-      aborts.delete(issue.number);
-      inFlight.delete(issue);
-      stageOf.delete(issue.number);
+    const started: Promise<void> = run(issue).finally(() => running.delete(started));
+    running.add(started);
+  }
+  await Promise.all(running);
+}
+
+// One issue from claim to merged, handed back, cancelled or crashed. Holds a slot until build() returns.
+async function run(issue: Issue) {
+  inFlight.add(issue);
+  log(`=== #${issue.number} ${issue.title} (${slots.busy()}/${MAX_PARALLEL} slots busy, ${inFlight.size} in flight) ===`);
+  stage(issue, "claimed");
+  const started = Date.now();
+  aborts.set(issue.number, new AbortController());
+  // Until the merge starts (the merge itself closes the issue), a closed issue stops its build.
+  // A merged PR stops it at any stage; the catch below then records it as merged.
+  const abort = aborts.get(issue.number)!;
+  const watcher = setInterval(() => {
+    if (abort.signal.aborted) return;
+    if (prMerged(issue)) {
+      log(`#${issue.number} PR was merged: stopping it`);
+      abort.abort(new Cancelled("the PR was merged"));
+    } else if (stageOf.get(issue.number)?.stage !== "merging" && isClosed(issue)) {
+      log(`#${issue.number} was closed: stopping it`);
+      abort.abort(new Cancelled("the issue was closed"));
     }
+  }, 60_000);
+  try {
+    await pipeline(issue);
+    finish(issue, "merged");
+  } catch (e) {
+    // Checked first: merging by hand makes whatever the factory was doing fail (a rejected push, a
+    // cancelled CI run, `gh pr merge` on a merged PR), and none of that is a crash or a hand-back.
+    if (prMerged(issue)) {
+      log(`✓ #${issue.number} merged by hand`);
+      await serially(() => afterMerge(issue));
+      ok("git", "branch", "-D", branchOf(issue)); // the sandbox is closed by now
+      finish(issue, "merged", "merged by hand");
+    // The signal, not `instanceof`: sandcastle may hand the reason back wrapped in an Effect FiberFailure.
+    } else if (abort.signal.aborted) {
+      const why = `${(abort.signal.reason as Error).message} during ${stageOf.get(issue.number)?.stage ?? "start"}`;
+      ok("gh", "pr", "close", branchOf(issue), "--comment", "🏭 The issue was closed, so the factory stopped building it.");
+      log(`⊘ #${issue.number} cancelled: ${why}`);
+      finish(issue, "cancelled", why);
+    } else if (e instanceof Blocked) {
+      handBack(issue, e.message);
+      finish(issue, "handed back", e.message);
+    } else {
+      // Infra failure (docker, auth, Claude limit): don't relabel; let in-flight issues finish, pick nothing new.
+      const at = stageOf.get(issue.number)?.stage ?? "start";
+      const why = `crashed at ${at}: ${oneLine(e)}`;
+      appendFileSync(`${LOGS}/crash-issue-${issue.number}.log`, `${new Date().toISOString()} ${RUN}\n${inspect(e)}\n\n`);
+      log(`✗ #${issue.number} ${why} (details: ${LOGS}/crash-issue-${issue.number}.log)`);
+      finish(issue, "crashed", why);
+      crashed ||= `#${issue.number} ${why}`;
+    }
+  } finally {
+    log(`#${issue.number} done after ${took(started)}`);
+    release(issue);
+    clearInterval(watcher);
+    aborts.delete(issue.number);
+    inFlight.delete(issue);
+    stageOf.delete(issue.number);
   }
 }
 
@@ -758,7 +778,7 @@ process.on("SIGINT", () => {
 
 log(`=== Factory ${RUN} started: ${MAX_PARALLEL} slots, at most ${MAX_ISSUES} issues ===`);
 record({ kind: "run-start", slots: MAX_PARALLEL });
-await Promise.all(Array.from({ length: MAX_PARALLEL }, worker));
+await dispatch();
 summary(
   crashed ? `${crashed}; finished in-flight work, started nothing new`
   : existsSync(STOP_FILE) ? `${STOP_FILE} found`

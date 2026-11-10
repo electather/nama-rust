@@ -1,7 +1,8 @@
 # AI factory (sandcastle)
 
-Takes open `ready-for-agent` issues with no open blockers, up to 2 at once (`MAX_PARALLEL=N` to change), each through:
+Takes open `ready-for-agent` issues with no open blockers, each through:
 `implement` skill → `code-review` skill + fixes → PR (`Closes #N`) → CI (one auto-fix attempt) → squash-merge.
+At most 2 agents run at once (`MAX_PARALLEL=N` to change). An issue takes a slot while it's built and again for each fix (a rebase or a CI fix), but not while its PR waits for CI or to merge. So the next issue starts while CI runs, and a fix goes ahead of new issues waiting for a slot. A PR waiting for CI keeps its sandbox open but idle, and its worktree stays on disk.
 While an issue is being built it carries `agent-working`; the label comes off when it merges, is handed back or the run crashes.
 Only one factory runs per machine (`~/.cache/nama-sandcastle/factory.pid`). Factories on different machines can run at once: each claims an issue by creating `refs/claims/issue-N` on origin, which only one of them can do, and deletes it when done or on Ctrl-C. A run that was killed outright leaves its claims behind. Free one with `git push origin --delete refs/claims/issue-N` and remove the issue's `agent-working` label.
 Anything stuck is relabelled `ready-for-human` with a comment.
@@ -77,7 +78,7 @@ Logs, all in `.sandcastle/logs/`:
 
 `npm --prefix .sandcastle run check` checks the `status.md` renderer.
 
-Claude usage: before picking each issue the factory reads the 5-hour and weekly usage from the rate-limit headers of a 1-token Haiku call. At 75% of the 5-hour limit (`USAGE_PAUSE=0.8` to change) or 92% of the weekly limit (`WEEKLY_STOP`) it starts nothing new until that window resets, while running issues carry on. Past 60% of the 5-hour limit (`SLOW_5H`) or 85% of the weekly limit (`SLOW_WEEKLY`) it starts a new issue only while fewer than `SLOW_PARALLEL` (default 1) run. `launchd.log` says when it pauses (⏸), resumes (▶), slows down (🐢) and speeds up again (🐇).
+Claude usage: before picking each issue the factory reads the 5-hour and weekly usage from the rate-limit headers of a 1-token Haiku call. At 75% of the 5-hour limit (`USAGE_PAUSE=0.8` to change) or 92% of the weekly limit (`WEEKLY_STOP`) it starts nothing new until that window resets, while running issues carry on. Past 60% of the 5-hour limit (`SLOW_5H`) or 85% of the weekly limit (`SLOW_WEEKLY`) it starts a new issue only while fewer than `SLOW_PARALLEL` (default 1) slots are busy. `launchd.log` says when it pauses (⏸), resumes (▶), slows down (🐢) and speeds up again (🐇).
 
 Stopping gracefully: `touch .sandcastle/STOP`. Issues already running finish (merged or handed back), nothing new starts, and the run exits. Later runs, such as a scheduled one, exit at once while the file exists. `rm .sandcastle/STOP` to resume.
 

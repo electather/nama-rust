@@ -76,7 +76,8 @@ export function render(events: Event[], repoUrl: string, now: Date): string {
 
   const out = [`# Factory status · updated ${now.toTimeString().slice(0, 8)}`, ""];
   if (start?.kind === "run-start") {
-    out.push(`**Run:** ${run} · started ${hhmm(start.t)} · ${inFlight.length}/${start.slots} slots busy`);
+    // In flight counts PRs waiting for CI or to merge, which hold no slot (see slotPool in main.ts).
+    out.push(`**Run:** ${run} · started ${hhmm(start.t)} · ${inFlight.length} in flight · ${start.slots} slots`);
     out.push(`**Ended:** ${end?.kind === "run-end" ? `${hhmm(end.t)} · ${cell(end.reason)}` : "—"}`, "");
   }
   out.push("## In flight", "| Issue | Title | Stage | Since | PR | CI |", "|---|---|---|---|---|---|");

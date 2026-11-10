@@ -28,7 +28,7 @@ const events: Event[] = [
 const md = render(events, repo, new Date(at(30)));
 console.log(md);
 assert.match(md, /\*\*Ended:\*\* —/);
-assert.match(md, /1\/3 slots busy/);
+assert.match(md, /1 in flight · 3 slots/);
 assert.match(md, /\| \[#105\]\(https:\/\/github.com\/o\/r\/issues\/105\) \| Auth schema \| ci \| .* \(10m\) \| \[#121\]/);
 assert.doesNotMatch(md, /#80\]/, "a killed run's leftovers are not in flight");
 assert.match(md, /\| \[#108\]\(.*\) \| blocked by #105 \(open\) \|/);
