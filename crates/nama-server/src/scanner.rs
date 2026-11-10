@@ -57,8 +57,8 @@ const VIDEO_EXTENSIONS: &[&str] = &[
 /// wait long behind a scan.
 const BATCH_SIZE: usize = 200;
 
-/// How many files the Server probes at once, across all Libraries. Each probe reads only a file's
-/// headers, but from a disk, or a network share, that playback is reading from too.
+/// How many files background passes probe at once, across all Libraries. Each probe reads only a
+/// file's headers, but from a disk, or a network share, that playback is reading from too.
 const PROBES_AT_ONCE: usize = 3;
 
 /// What one scan changed.
@@ -101,7 +101,7 @@ impl From<matching::Error> for Error {
     }
 }
 
-/// Why probing a Version right away found nothing.
+/// Why probing a Version found nothing.
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum ProbeNowError {
     /// ffprobe couldn't read it, or the Server has no ffprobe ([`ProbeError::Unavailable`]).
@@ -319,19 +319,18 @@ impl Scanner {
         let stored = self.inner.contents.stored(library).await?;
         let ids: Vec<i64> = stored.values().map(|file| file.id).collect();
         let probed = self.inner.tracks.probed(&ids).await?;
-        let unprobed: Vec<_> = stored
+        let unprobed = stored
             .into_iter()
-            .filter(|(_, file)| !probed.contains(&file.id))
-            .filter_map(|(path, file)| Some((path, self.try_claim(file.id)?)))
-            .collect();
+            .filter(|(_, file)| !probed.contains(&file.id));
         futures_util::stream::iter(unprobed)
-            .for_each_concurrent(PROBES_AT_ONCE, |(path, claim)| self.probe(path, claim))
+            .for_each_concurrent(PROBES_AT_ONCE, |(path, file)| self.probe(path, file.id))
             .await;
         Ok(())
     }
 
     /// Probes the Version `version` now, without waiting for a background pass to reach it, and
-    /// stores and returns what it holds.
+    /// stores and returns what it holds. If something is probing it already, waits for that and
+    /// returns what it stored instead; if it has been probed, returns what was stored.
     #[cfg_attr(
         not(test),
         expect(
@@ -342,13 +341,8 @@ impl Scanner {
     pub(crate) async fn probe_now(&self, version: i64) -> Result<Probe, ProbeNowError> {
         let path = (self.inner.contents.version_path(version).await?)
             .ok_or(ProbeNowError::NoSuchVersion(version))?;
-        let _claim = self.claim(version).await;
-        if let Some(probe) = self.inner.tracks.of(&[version]).await?.remove(&version) {
-            return Ok(probe);
-        }
-        let probe = self.inner.ffmpeg.probe(&path).await?;
-        self.inner.tracks.store(version, probe.clone()).await?;
-        Ok(probe)
+        let claim = self.claim(version).await;
+        self.probe_claimed(&path, &claim).await
     }
 
     /// Claims the Version `version`, once whoever is probing it has finished.
@@ -369,36 +363,47 @@ impl Scanner {
 
     /// Claims the Version `version`, unless something is probing it.
     fn try_claim(&self, version: i64) -> Option<Claim<'_>> {
-        let claimed = self
+        let unclaimed = self
             .inner
             .claimed
             .send_if_modified(|claimed| claimed.insert(version));
         // Not `then_some`: a `Claim` made when this one failed would give up the holder's.
-        claimed.then(|| Claim {
+        unclaimed.then(|| Claim {
             scanner: self,
             version,
         })
     }
 
-    /// Probes the file at `path`, stored as the Version `claim` is for, and stores what it holds,
-    /// or logs why not.
-    async fn probe(&self, path: String, claim: Claim<'_>) {
+    /// Probes the file at `path`, stored as `version`, and stores what it holds, or logs why not.
+    /// Leaves it to whoever else is probing it.
+    async fn probe(&self, path: String, version: i64) {
         // The semaphore is never closed.
-        let Ok(running) = self.inner.probing.acquire().await else {
+        let Ok(_running) = self.inner.probing.acquire().await else {
             return;
         };
-        let probed = self.inner.ffmpeg.probe(&path).await;
-        drop(running);
-        let stored = match probed {
-            Ok(probe) => self.inner.tracks.store(claim.version, probe).await,
-            Err(err) => {
-                tracing::warn!("could not probe {path}: {err}");
-                return;
-            }
+        // Claimed only now, so `probe_now` doesn't wait for a Version still queued here.
+        let Some(claim) = self.try_claim(version) else {
+            return;
         };
-        if let Err(err) = stored {
-            tracing::error!("could not store what {path} holds: {err}");
+        match self.probe_claimed(&path, &claim).await {
+            Ok(_) => {}
+            Err(ProbeNowError::Database(err)) => {
+                tracing::error!("could not store what {path} holds: {err}");
+            }
+            Err(err) => tracing::warn!("could not probe {path}: {err}"),
         }
+    }
+
+    /// Probes the file at `path`, stored as the Version `claim` is for, and stores and returns
+    /// what it holds, unless it was probed since whoever claimed it found it unprobed.
+    async fn probe_claimed(&self, path: &str, claim: &Claim<'_>) -> Result<Probe, ProbeNowError> {
+        let version = claim.version;
+        if let Some(probe) = self.inner.tracks.of(&[version]).await?.remove(&version) {
+            return Ok(probe);
+        }
+        let probe = self.inner.ffmpeg.probe(path).await?;
+        self.inner.tracks.store(version, probe.clone()).await?;
+        Ok(probe)
     }
 }
 
@@ -582,7 +587,7 @@ mod tests {
     use nama_proto::nama::v1::{Lagged, subscribe_response};
     use tempfile::TempDir;
 
-    use super::{ProbeNowError, Scanner, Summary};
+    use super::{PROBES_AT_ONCE, ProbeNowError, Scanner, Summary};
     use crate::{
         config::Config,
         contents::{Change, Contents, Decided, File, Item, Metadata},
@@ -1193,6 +1198,35 @@ mod tests {
             .unwrap();
 
         assert_eq!(probe.container, "matroska,webm");
+        media.scanner.idle().await;
+        assert_eq!(fs::read_to_string(&runs).unwrap(), "run\n");
+    }
+
+    // The fake ffprobe is a shell script.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn probing_a_version_right_away_doesnt_wait_for_the_background_pass_to_reach_it() {
+        let bin = tempfile::tempdir().unwrap();
+        let runs = bin.path().join("runs");
+        let media = Fixture::with_ffmpeg(Kind::Movies, slow_ffprobe(bin.path(), &runs)).await;
+        let alien = "Alien (1979)/Alien (1979).mkv";
+        media.write(alien, 10);
+        // The background pass is busy with other files.
+        let busy = (media.scanner.inner.probing)
+            .acquire_many(u32::try_from(PROBES_AT_ONCE).unwrap())
+            .await
+            .unwrap();
+        media.scan().await;
+        media.match_to_alien().await;
+
+        let probed = tokio::time::timeout(
+            Duration::from_secs(5),
+            media.scanner.probe_now(media.file_id(alien).await),
+        )
+        .await;
+
+        assert!(matches!(probed, Ok(Ok(_))), "{probed:?}");
+        drop(busy);
         media.scanner.idle().await;
         assert_eq!(fs::read_to_string(&runs).unwrap(), "run\n");
     }
