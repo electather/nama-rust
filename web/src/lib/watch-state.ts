@@ -1,12 +1,8 @@
 import { useMutation } from "@connectrpc/connect-query";
 import { type QueryClient, useQueryClient } from "@tanstack/react-query";
-import { type RefObject, useEffect, useState } from "react";
+import { type RefObject, useEffect } from "react";
 
-import {
-  type ReportProgressRequest,
-  type WatchState,
-  WatchStateService,
-} from "@/gen/nama/v1/watch_state_pb";
+import { type ReportProgressRequest, WatchStateService } from "@/gen/nama/v1/watch_state_pb";
 
 import { browseKey } from "./browse";
 import { retryIfUnreachable } from "./connect-errors";
@@ -27,18 +23,16 @@ export function useSetPlayed() {
 const REPORT_EVERY_MS = 10_000;
 
 /**
- * Keeps your Watch State while the `<video>` plays Version `versionId`: it starts where
- * `watchState` stopped, unless that was played, and reports how far in it is every few seconds,
- * on pause and seek, and on leaving. Reports go out in the background, so playback never waits
+ * Keeps your Watch State while the `<video>` plays Version `versionId`: it starts at
+ * `startPositionMs`, and reports how far in it is every few seconds, on pause and seek, and on
+ * leaving. Reports go out in the background, so playback never waits
  * on one. A failed report is sent again, and never shown.
  */
 export function useWatchState(
   videoRef: RefObject<HTMLVideoElement | null>,
   versionId: bigint,
-  watchState: WatchState | undefined,
+  startPositionMs: bigint,
 ) {
-  // Where it stood on opening: the refetches each report causes mustn't seek it back.
-  const [resumeFrom] = useState(watchState);
   const queryClient = useQueryClient();
   const { mutate: report } = useMutation(WatchStateService.method.reportProgress, {
     retry: retryIfUnreachable,
@@ -50,22 +44,22 @@ export function useWatchState(
   useEffect(() => {
     const video = videoRef.current;
     return video
-      ? followVideo(video, resumeFrom, (position) => {
+      ? followVideo(video, startPositionMs, (position) => {
           report({ versionId, ...position });
         })
       : undefined;
-  }, [videoRef, versionId, resumeFrom, report]);
+  }, [videoRef, versionId, startPositionMs, report]);
 }
 
 type Position = Pick<ReportProgressRequest, "positionMs" | "durationMs">;
 
 /**
- * Starts `video` from `resumeFrom` and passes how far in it is to `report` every few seconds, on
+ * Starts `video` from `startPositionMs` and passes how far in it is to `report` every few seconds, on
  * pause and seek, when the page is hidden or closed, and in the cleanup it returns.
  */
 function followVideo(
   video: HTMLVideoElement,
-  resumeFrom: WatchState | undefined,
+  startPositionMs: bigint,
   report: (position: Position) => void,
 ) {
   let reportedAt = 0;
@@ -76,11 +70,11 @@ function followVideo(
     report({ positionMs: toMs(video.currentTime), durationMs: toMs(video.duration) });
   };
   let resumed = false;
-  // Once: a reloaded source mustn't seek back to where it stood on opening.
+  // Once: a reloaded source mustn't seek back to where it started.
   const resume = () => {
     if (resumed) return;
     resumed = true;
-    if (resumeFrom && !resumeFrom.played) video.currentTime = Number(resumeFrom.positionMs) / 1000;
+    if (startPositionMs > 0n) video.currentTime = Number(startPositionMs) / 1000;
   };
   const sendEveryFewSeconds = () => {
     if (Date.now() - reportedAt >= REPORT_EVERY_MS) send();
@@ -110,7 +104,8 @@ function followVideo(
   };
 }
 
-function toMs(seconds: number) {
+/** Seconds as whole milliseconds, as the Server takes positions. */
+export function toMs(seconds: number) {
   return BigInt(Math.round(seconds * 1000));
 }
 

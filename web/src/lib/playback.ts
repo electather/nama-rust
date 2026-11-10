@@ -19,6 +19,7 @@ import {
 } from "@/gen/nama/v1/playback_pb";
 import { findDeviceDecoding } from "@/lib/device-decoding";
 import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
+import { toMs } from "@/lib/watch-state";
 
 /** How long the controls stay after the pointer or keyboard was last used, while playing. */
 const CONTROLS_LINGER_MS = 3000;
@@ -26,20 +27,29 @@ const SEEK_STEP_SECONDS = 10;
 const VOLUME_STEP = 0.1;
 
 /**
- * The Server's Playback Plan for Version `versionId` on this Device, starting where `watchState`
- * stopped, and `tryPlanningAgain` for when the browser fails to play it. The plan is asked for once
- * each time the player opens or a method fails, and never reused after.
+ * The Server's Playback Plan for Version `versionId` on this Device, the position in milliseconds
+ * it starts from, at first where `watchState` stopped, and `onCantPlay` for when the browser fails
+ * to play it. `onCantPlay` asks for a new plan from where the `<video>` stands, without the method
+ * that failed, or else sets `gaveUp`: only once per method, so a Server that plans it again can't make
+ * the player ask forever. Each plan is asked for once, and never reused after.
  */
-export function usePlaybackPlan(versionId: bigint, watchState: WatchState | undefined) {
+export function usePlaybackPlan({
+  versionId,
+  watchState,
+}: {
+  versionId: bigint;
+  watchState: WatchState | undefined;
+}) {
   const transport = useTransport();
-  const [failedMethods, setFailedMethods] = useState<PlaybackMethod[]>([]);
-  // Where it stood on opening: a new plan would reload the `<video>`, so the refetches each Watch
-  // State report causes mustn't ask again.
-  const [startPositionMs] = useState(() =>
-    watchState && !watchState.played ? watchState.positionMs : 0n,
-  );
+  // Where it stood on opening, until a method fails: a new plan would reload the `<video>`, so the
+  // refetches each Watch State report causes mustn't ask again.
+  const [{ failedMethods, startPositionMs }, setAsking] = useState(() => ({
+    failedMethods: [] as PlaybackMethod[],
+    startPositionMs: watchState && !watchState.played ? watchState.positionMs : 0n,
+  }));
+  const [gaveUp, setGaveUp] = useState(false);
   const plan = useSuspenseQuery({
-    queryKey: ["planPlayback", String(versionId), failedMethods],
+    queryKey: ["planPlayback", String(versionId), failedMethods, String(startPositionMs)],
     queryFn: async () => {
       const deviceDecoding = await findDeviceDecoding();
       const input = { versionId, startPositionMs, deviceDecoding, failedMethods };
@@ -49,16 +59,33 @@ export function usePlaybackPlan(versionId: bigint, watchState: WatchState | unde
     staleTime: "static",
     gcTime: 0,
   }).data;
-  /**
-   * Asks for a new plan without the plan's method, which just failed here, and says whether it did:
-   * only once per method, so a Server that plans it again can't make the player ask forever.
-   */
-  const tryPlanningAgain = useCallback(() => {
-    if (failedMethods.includes(plan.method)) return false;
-    setFailedMethods([...failedMethods, plan.method]);
-    return true;
-  }, [failedMethods, plan.method]);
-  return { plan, tryPlanningAgain };
+  // Stable until the plan changes, so hls.js isn't restarted each time the player renders.
+  const onCantPlay = useCallback(
+    (video: HTMLVideoElement) => {
+      // So a failure that leaves its buffer playing isn't heard behind the loading screen.
+      video.pause();
+      if (failedMethods.includes(plan.method)) setGaveUp(true);
+      // hls.js and the `<video>` may both report one failure: only the first asks again.
+      else
+        setAsking((asking) =>
+          asking.failedMethods.includes(plan.method)
+            ? asking
+            : {
+                failedMethods: [...failedMethods, plan.method],
+                startPositionMs: resumeFromMs(video, startPositionMs),
+              },
+        );
+    },
+    [failedMethods, plan.method, startPositionMs],
+  );
+  return { plan, startPositionMs, gaveUp, onCantPlay };
+}
+
+/** Where `video` stands in milliseconds, or `startPositionMs` if it never loaded far enough to
+ * have started there. */
+function resumeFromMs(video: HTMLVideoElement, startPositionMs: bigint) {
+  if (video.readyState < HTMLMediaElement.HAVE_METADATA) return startPositionMs;
+  return toMs(video.currentTime);
 }
 
 /** What the controls need of the `<video>`: what it's doing, and a way to act on it. */

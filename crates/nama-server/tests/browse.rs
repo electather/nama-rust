@@ -217,13 +217,15 @@ impl Fixture {
     /// The Admin's Playback Plan for the Version `version`, on a Device that decodes H.264 and AAC
     /// in MP4, and plays HLS through Media Source Extensions, as Chrome does.
     async fn plan(&self, version: i64) -> Result<PlaybackPlan, ConnectError> {
-        self.plan_after_failing(version, &[]).await
+        self.plan_on_device(version, &[], &[]).await
     }
 
-    /// As [`Self::plan`], on a Device where the methods `failed` just failed to play it.
-    async fn plan_after_failing(
+    /// As [`Self::plan`], on a Device that also decodes the content types `also_decodes`, where
+    /// the methods `failed` just failed to play it.
+    async fn plan_on_device(
         &self,
         version: i64,
+        also_decodes: &[&str],
         failed: &[PlaybackMethod],
     ) -> Result<PlaybackPlan, ConnectError> {
         let config = self.server.client_config();
@@ -231,12 +233,14 @@ impl Fixture {
             "video/mp4",
             r#"video/mp4; codecs="avc1.640028""#,
             r#"audio/mp4; codecs="mp4a.40.2""#,
-        ];
+        ]
+        .iter()
+        .chain(also_decodes);
         let response = PlaybackServiceClient::new(HttpClient::plaintext(), config)
             .plan_playback(PlanPlaybackRequest {
                 version_id: version,
                 device_decoding: DeviceDecoding {
-                    content_types: content_types.map(str::to_owned).to_vec(),
+                    content_types: content_types.map(|&kind| kind.to_owned()).collect(),
                     mse: true,
                     ..Default::default()
                 }
@@ -1315,13 +1319,38 @@ async fn a_version_whose_direct_play_just_failed_on_the_device_cant_be_played_an
     let version = fx.version_ids(ALIEN).await[0];
 
     let plan = fx
-        .plan_after_failing(version, &[PlaybackMethod::PLAYBACK_METHOD_DIRECT_PLAY])
+        .plan_on_device(version, &[], &[PlaybackMethod::PLAYBACK_METHOD_DIRECT_PLAY])
         .await
         .unwrap();
 
     assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_UNSPECIFIED);
     assert_eq!(plan.url, "");
     assert_eq!(plan.reasons[3], "Direct Play failed on this Device");
+}
+
+#[tokio::test]
+async fn a_version_whose_direct_play_just_failed_on_a_device_that_decodes_it_is_remuxed() {
+    let (fx, version) = Fixture::alien_mkv(system_ffmpeg()).await;
+    let matroska = "video/x-matroska";
+    let direct_play = fx.plan_on_device(version, &[matroska], &[]).await.unwrap();
+    assert_eq!(
+        direct_play.method,
+        PlaybackMethod::PLAYBACK_METHOD_DIRECT_PLAY
+    );
+
+    let failed = [PlaybackMethod::PLAYBACK_METHOD_DIRECT_PLAY];
+    let plan = fx
+        .plan_on_device(version, &[matroska], &failed)
+        .await
+        .unwrap();
+
+    assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_REMUX);
+    assert!(
+        plan.reasons
+            .contains(&"Direct Play failed on this Device".to_owned()),
+        "{:?}",
+        plan.reasons
+    );
 }
 
 #[tokio::test]

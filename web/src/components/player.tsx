@@ -2,21 +2,12 @@ import type { VariantProps } from "class-variance-authority";
 import { cn } from "cn";
 import { Link, type LinkOptions } from "@tanstack/react-router";
 import { ArrowLeft, Maximize, Minimize, Pause, Play, Volume2, VolumeX } from "lucide-react";
-import {
-  type PointerEvent,
-  type ReactNode,
-  type RefObject,
-  useCallback,
-  useRef,
-  useState,
-} from "react";
+import { type PointerEvent, type ReactNode, type RefObject, useRef } from "react";
 
 import { PlaybackInfo } from "@/components/playback-info";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { SubtitleTracks, SubtitlesMenu } from "@/components/subtitles-menu";
 import { Slider } from "@/components/ui/slider";
-import type { PlaybackPlan } from "@/gen/nama/v1/playback_pb";
-// oxlint-disable-next-line import/max-dependencies -- the player puts together the video, its controls, subtitles, Watch State and playback info
 import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
 import {
   type Video,
@@ -30,9 +21,9 @@ import {
   usePlaybackPlan,
   useShortcuts,
   useVideo,
+  // oxlint-disable-next-line import/max-dependencies -- the player puts together the video, its controls, subtitles, Watch State and playback info
 } from "@/lib/playback";
 import { usePlaybackSource } from "@/lib/playback-source";
-// oxlint-disable-next-line import/max-dependencies -- the player puts together the video, its controls, Watch State and playback info
 import { useWatchState } from "@/lib/watch-state";
 
 /** What the player plays, and where "back" goes. */
@@ -52,20 +43,18 @@ export interface PlayerProps {
  * here.
  */
 export function Player(props: PlayerProps) {
-  const { plan, tryPlanningAgain } = usePlaybackPlan(props.versionId, props.watchState);
-  const [cantPlay, setCantPlay] = useState(false);
-  // Stable until the plan changes, so hls.js isn't restarted each time the player renders.
-  const onCantPlay = useCallback(() => {
-    if (!tryPlanningAgain()) setCantPlay(true);
-  }, [tryPlanningAgain]);
+  const planned = usePlaybackPlan(props);
+  const { plan } = planned;
   if (plan.url === "") return <CantPlay back={props.back} reasons={plan.reasons} />;
-  if (cantPlay) return <CantPlay back={props.back} reasons={[]} />;
+  if (planned.gaveUp) return <CantPlay back={props.back} reasons={[]} />;
   return (
+    // A new plan plays in a new `<video>`, so it starts where that plan does. ponytail: that one
+    // starts unmuted at full volume with subtitles off; carry them over if anyone minds.
     <VideoPlayer
+      key={plan.url}
       {...props}
-      plan={plan}
+      planned={planned}
       playbackInfo={<PlaybackInfo plan={plan} />}
-      onCantPlay={onCantPlay}
     />
   );
 }
@@ -78,16 +67,14 @@ function clickToToggle(event: PointerEvent<HTMLVideoElement>) {
 function VideoPlayer({
   title,
   versionId,
-  watchState,
   back,
-  plan,
+  planned: { plan, startPositionMs, onCantPlay },
   playbackInfo,
-  onCantPlay,
-}: PlayerProps & { plan: PlaybackPlan; playbackInfo: ReactNode; onCantPlay: () => void }) {
+}: PlayerProps & { planned: ReturnType<typeof usePlaybackPlan>; playbackInfo: ReactNode }) {
   const playerRef = useRef<HTMLDivElement>(null);
   const { ref: videoRef, events, ...video } = useVideo();
   const src = usePlaybackSource(videoRef, plan, onCantPlay);
-  useWatchState(videoRef, versionId, watchState);
+  useWatchState(videoRef, versionId, startPositionMs);
   const [awake, wake] = useAwake();
   useShortcuts(videoRef, playerRef, back, wake);
 
@@ -106,7 +93,9 @@ function VideoPlayer({
         aria-label={title}
         autoPlay
         playsInline
-        onError={onCantPlay}
+        onError={(event) => {
+          onCantPlay(event.currentTarget);
+        }}
         onPointerUp={clickToToggle}
         className="size-full object-contain"
         {...events}
