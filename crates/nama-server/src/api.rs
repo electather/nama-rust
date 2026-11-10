@@ -131,6 +131,7 @@ pub(crate) fn router(
     requests: Requests,
     server_url: ServerUrl,
     segment_folder: SegmentFolder,
+    running: RunningPlans,
     setup_code: Option<SetupCode>,
     ffmpeg: Arc<Ffmpeg>,
 ) -> axum::Router {
@@ -139,12 +140,6 @@ pub(crate) fn router(
     let contents = Contents::new(Arc::clone(&db));
     let artwork = Artwork::new(&config.data_dir, plugins.clone());
     let artwork_router = artwork::router(artwork.clone(), contents.clone());
-    let running = RunningPlans::new(
-        segment_folder.clone(),
-        Arc::clone(&ffmpeg),
-        contents.clone(),
-        Tracks::new(Arc::clone(&db)),
-    );
     let media = playback::router(
         contents,
         Tracks::new(Arc::clone(&db)),

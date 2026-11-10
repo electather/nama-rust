@@ -6,8 +6,9 @@
 //! whole Version up front, cut where ffmpeg will cut it, so HLS time is the file's time and Watch
 //! State needs no conversion. A segment asked for before ffmpeg has written it waits for it.
 //!
-//! A plan is stopped and its folder deleted [`STOP_UNUSED_AFTER`] after it was last asked for, and
-//! [`sweep_leftovers`] deletes the folders of plans a run left behind when the next starts.
+//! A plan is stopped and its folder deleted [`STOP_UNUSED_AFTER`] after it was last asked for, or
+//! as the Server shuts down, and [`sweep_leftovers`] deletes the folders of plans a run left behind
+//! when the next starts.
 
 use std::{
     collections::HashMap,
@@ -180,7 +181,8 @@ impl RunningPlans {
         let id = self.inner.next_id.fetch_add(1, Ordering::Relaxed);
         let dir = self.inner.folder.path().join(format!("{PLAN_FOLDER}{id}"));
         // Ids start again with each run, and the sweep at startup misses a segment folder an
-        // earlier run had set but this one doesn't, so its segments may be there.
+        // earlier run that didn't shut down cleanly had set but this one doesn't, so its segments
+        // may be there.
         match tokio::fs::remove_dir_all(&dir).await {
             Err(err) if err.kind() != io::ErrorKind::NotFound => return Err(err),
             _ => {}
@@ -202,19 +204,32 @@ impl RunningPlans {
         Ok(id)
     }
 
-    /// The plan `id`, if it's running for the Device `device`.
-    fn of_device(&self, id: u64, device: i64) -> Option<Arc<Running>> {
+    /// The plan `id`, if it's running for the Device `device`, marked asked for now, which keeps
+    /// it running another [`STOP_UNUSED_AFTER`].
+    fn ask(&self, id: u64, device: i64) -> Option<Arc<Running>> {
+        // Marked under the lock `stop_unused` takes plans out under, so a plan found here isn't
+        // stopped while it's served.
         let plans = lock(&self.inner.plans);
-        plans.get(&id).filter(|plan| plan.device == device).cloned()
+        let plan = plans.get(&id).filter(|plan| plan.device == device)?;
+        *lock(&plan.last_asked) = Instant::now();
+        Some(Arc::clone(plan))
     }
 
     /// Stops every plan not asked for in the last `unused_for`, and deletes its files.
     async fn stop_unused(&self, unused_for: Duration) {
-        // Taken out under the one lock, so a plan asked for after the check isn't stopped.
         let unused: Vec<(u64, Arc<Running>)> = lock(&self.inner.plans)
             .extract_if(|_, plan| lock(&plan.last_asked).elapsed() >= unused_for)
             .collect();
         for (id, plan) in unused {
+            stop(id, &plan).await;
+        }
+    }
+
+    /// Stops every plan and deletes its files, as the Server shuts down, so none is left in a
+    /// segment folder the next run's sweep may not know of.
+    pub(crate) async fn stop_all(&self) {
+        let plans: Vec<(u64, Arc<Running>)> = lock(&self.inner.plans).drain().collect();
+        for (id, plan) in plans {
             stop(id, &plan).await;
         }
     }
@@ -260,15 +275,17 @@ pub(crate) async fn sweep_leftovers(folder: &SegmentFolder) {
     }
 }
 
-/// Deletes the plan folders in `path`.
+/// Deletes the plan folders in `path`, going on past one it can't delete.
 async fn sweep(path: &Path) -> io::Result<()> {
     let mut entries = match tokio::fs::read_dir(path).await {
         Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(()),
         entries => entries?,
     };
     while let Some(entry) = entries.next_entry().await? {
-        if entry.file_name().to_string_lossy().starts_with(PLAN_FOLDER) {
-            tokio::fs::remove_dir_all(entry.path()).await?;
+        if entry.file_name().to_string_lossy().starts_with(PLAN_FOLDER)
+            && let Err(err) = tokio::fs::remove_dir_all(entry.path()).await
+        {
+            tracing::warn!("could not delete {}: {err}", entry.path().display());
         }
     }
     Ok(())
@@ -327,11 +344,6 @@ fn playlist(segment_ms: &[i64]) -> String {
 }
 
 impl Running {
-    /// Marks the plan asked for now, which keeps it running another [`STOP_UNUSED_AFTER`].
-    fn asked(&self) {
-        *lock(&self.last_asked) = Instant::now();
-    }
-
     /// The file a request for `asked` gets: the init segment, or a segment the playlist lists,
     /// named as ffmpeg names it.
     fn file_name(&self, asked: &str) -> Option<String> {
@@ -377,10 +389,9 @@ async fn serve(
         .extensions()
         .get::<Caller>()
         .map(|caller| caller.device.id);
-    let Some(plan) = device.and_then(|device| plans.of_device(id, device)) else {
+    let Some(plan) = device.and_then(|device| plans.ask(id, device)) else {
         return StatusCode::NOT_FOUND.into_response();
     };
-    plan.asked();
     if file == PLAYLIST {
         let content_type = [(header::CONTENT_TYPE, "application/vnd.apple.mpegurl")];
         return (content_type, playlist(&plan.segment_ms)).into_response();
@@ -457,8 +468,8 @@ mod tests {
 
         let id = start(&plans, device, "true", &[]).await;
 
-        assert_eq!(plans.of_device(id, device).unwrap().method, Method::Remux);
-        assert!(plans.of_device(id, another).is_none());
+        assert_eq!(plans.ask(id, device).unwrap().method, Method::Remux);
+        assert!(plans.ask(id, another).is_none());
     }
 
     // The stand-in ffmpeg is `sleep`.
@@ -473,19 +484,35 @@ mod tests {
             start(&plans, device, "sleep", &["60"]).await,
             start(&plans, device, "sleep", &["60"]).await,
         );
-        let dir = |id| plans.of_device(id, device).unwrap().dir.clone();
+        let dir = |id| plans.ask(id, device).unwrap().dir.clone();
         let (used_dir, unused_dir) = (dir(used), dir(unused));
-        let stopped = Arc::clone(&plans.of_device(unused, device).unwrap().stopped);
+        let stopped = Arc::clone(&plans.ask(unused, device).unwrap().stopped);
         tokio::time::sleep(Duration::from_millis(100)).await;
-        plans.of_device(used, device).unwrap().asked();
+        plans.ask(used, device).unwrap();
 
         plans.stop_unused(Duration::from_millis(50)).await;
 
-        assert!(plans.of_device(unused, device).is_none());
+        assert!(plans.ask(unused, device).is_none());
         assert!(stopped.load(std::sync::atomic::Ordering::Acquire));
         assert!(!unused_dir.exists());
-        assert!(plans.of_device(used, device).is_some());
+        assert!(plans.ask(used, device).is_some());
         assert!(used_dir.exists());
+    }
+
+    // The stand-in ffmpeg is `sleep`.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn stopping_all_plans_deletes_every_plans_files() {
+        let data = tempfile::tempdir().unwrap();
+        let db = database(data.path()).await;
+        let plans = plans_in(&db, SegmentFolder::new(data.path().join("transcodes")));
+        let id = start(&plans, 7, "sleep", &["60"]).await;
+        let dir = plans.ask(id, 7).unwrap().dir.clone();
+
+        plans.stop_all().await;
+
+        assert!(plans.ask(id, 7).is_none());
+        assert!(!dir.exists());
     }
 
     #[tokio::test]
@@ -505,12 +532,12 @@ mod tests {
 
         assert!(
             plans
-                .of_device(before, 7)
+                .ask(before, 7)
                 .unwrap()
                 .dir
                 .starts_with(data.path().join("transcodes"))
         );
-        assert!(plans.of_device(after, 7).unwrap().dir.starts_with(&tmpfs));
+        assert!(plans.ask(after, 7).unwrap().dir.starts_with(&tmpfs));
     }
 
     #[tokio::test]
@@ -524,6 +551,8 @@ mod tests {
         }
         let others = set.join("someone else's");
         fs::create_dir_all(&others).unwrap();
+        // A file, which deleting as a folder fails, so the sweep must go on past it.
+        fs::write(default.join("nama-plan-not-a-folder"), "").unwrap();
         let folder = SegmentFolder::new(default);
         let db = database(data.path()).await;
         folder

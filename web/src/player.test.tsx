@@ -36,6 +36,7 @@ afterEach(() => {
   cleanup();
   hlsJs.played = [];
   vi.restoreAllMocks();
+  vi.useRealTimers();
   // happy-dom has no `navigator.mediaCapabilities`; a test may lend it one.
   Reflect.deleteProperty(navigator, "mediaCapabilities");
 });
@@ -223,7 +224,6 @@ test("an open Remux asks for its playlist every 30 seconds, so a pause doesn't s
   vi.advanceTimersByTime(30_000);
 
   expect(playlistAsks()).toHaveLength(before + 1);
-  vi.useRealTimers();
 });
 
 test("a Remux plays its HLS playlist natively in a browser with HLS of its own", async () => {
