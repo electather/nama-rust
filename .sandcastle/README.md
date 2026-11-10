@@ -1,10 +1,15 @@
 # AI factory (sandcastle)
 
-Takes open `ready-for-agent` issues with no open blockers, each through:
-`implement` skill → `code-review` skill + fixes → PR (`Closes #N`) → CI (one auto-fix attempt) → squash-merge.
-At most 2 agents run at once (`MAX_PARALLEL=N` to change). An issue takes a slot while it's built and again for each fix (a rebase or a CI fix), but not while its PR waits for CI or to merge. So the next issue starts while CI runs, and a fix goes ahead of new issues waiting for a slot. A PR waiting for CI keeps its sandbox open but idle, and its worktree stays on disk.
-While an issue is being built it carries `agent-working`; the label comes off when it merges, is handed back or the run crashes.
-Only one factory runs per machine (`~/.cache/nama-sandcastle/factory.pid`). Factories on different machines can run at once: each claims an issue by creating `refs/claims/issue-N` on origin, which only one of them can do, and deletes it when done or on Ctrl-C. A run that was killed outright leaves its claims behind. Free one with `git push origin --delete refs/claims/issue-N` and remove the issue's `agent-working` label.
+One process runs two loops:
+
+- **Implement:** open `ready-for-agent` issues with no open blockers and no open PR, each through
+  `implement` skill → `code-review` skill + fixes → push → PR (`Closes #N`). There the issue leaves this loop.
+- **Babysit:** every minute it takes each open PR that is not a draft, was opened by you (the `gh` user) from a branch of this repo (never a fork), and closes an open issue you wrote that carries `ready-for-agent`. Each goes through CI (a rebase when another merge conflicts with it, one auto-fix attempt when it fails) → squash-merge, one merge at a time. It opens a sandbox only when a PR needs an agent. PRs you open by hand qualify too.
+
+So a crash after the PR is open never builds the issue again: the next run babysits the PR. An issue with any open PR, a draft included, is left to that PR.
+At most 2 agents run at once (`MAX_PARALLEL=N` to change). A build takes a slot from claim to PR, and each rebase or CI fix takes one, ahead of new builds waiting for a slot. Waiting on CI holds none.
+While a loop has an issue it carries `agent-working`; the label comes off when that loop lets go of it.
+Only one factory runs per machine (`~/.cache/nama-sandcastle/factory.pid`). Factories on different machines can run at once: each claims an issue by creating `refs/claims/issue-N` on origin (a PR: `refs/claims/pr-N`), which only one of them can do, and deletes it when done or on Ctrl-C. A run that was killed outright leaves its claims behind. The next run on the same machine takes them over; free one for another machine with `git push origin --delete refs/claims/issue-N` and remove the issue's `agent-working` label.
 Anything stuck is relabelled `ready-for-human` with a comment.
 
 It builds web tickets as well as Rust ones. The image (`Dockerfile`, on `node:26-bookworm`) holds the Rust toolchain with the `wasm32` target (linking with `mold`, at most 4 cargo jobs, line-table debug info, so two sandboxes fit in OrbStack's memory), `buf`, `gh`, Claude Code, Vite+ (`vp`) with the Node 26 and pnpm 12 that `web/` pins, and Playwright's headless Chromium. On a ticket that touches `web/`, agents run CI's web checks and screenshot the screens they changed at phone and desktop widths to check them against `DESIGN.md`. The cargo registry and the pnpm store are cached on the host in `~/.cache/nama-sandcastle/`, so each sandbox doesn't download them again.
@@ -69,7 +74,7 @@ Unattended, retrying hourly after an infra failure such as the Claude usage limi
 
 Logs, all in `.sandcastle/logs/`:
 
-- `status.md`: what is in flight (stage, PR, CI run), what is waiting and why (blocked, a parent, claimed by another factory), and the last 20 finished issues. It's rewritten on every change and covers this machine's factory only.
+- `status.md`: what is in flight in either loop (stage, PR, CI run; an issue whose PR is open shows "→ pr opened" under Done, then comes back in flight while it's babysat), what is waiting and why (blocked, a parent, claimed by another factory), and the last 20 finished issues. It's rewritten on every change and covers this machine's factory only.
 - `events.jsonl`: one JSON event per line, the record `status.md` is rendered from (`status.ts`). It keeps the history across runs.
 - `launchd.log`: one timestamped line per event, stage changes with timings, and a summary of why the run ended and what is still queued.
 - `crash-issue-N.log`: the full error behind a one-line crash in `launchd.log`.
@@ -80,13 +85,15 @@ Logs, all in `.sandcastle/logs/`:
 
 Claude usage: before picking each issue the factory reads the 5-hour and weekly usage from the rate-limit headers of a 1-token Haiku call. At 95% of the 5-hour limit (`USAGE_PAUSE`) or 92% of the weekly limit (`WEEKLY_STOP`) it starts nothing new until that window resets, while running issues carry on. Past 80% of the 5-hour limit (`SLOW_5H`) or 85% of the weekly limit (`SLOW_WEEKLY`) it starts a new issue only while fewer than `SLOW_PARALLEL` (default 1) slots are busy. `launchd.log` says when it pauses (⏸), resumes (▶), slows down (🐢) and speeds up again (🐇).
 
-Stopping gracefully: `touch .sandcastle/STOP`. Issues already running finish (merged or handed back), nothing new starts, and the run exits. Later runs, such as a scheduled one, exit at once while the file exists. `rm .sandcastle/STOP` to resume.
+Stopping gracefully: `touch .sandcastle/STOP`. Builds already running finish with their PR, PRs already babysat finish (merged or handed back), nothing new starts, and the run exits. Later runs, such as a scheduled one, exit at once while the file exists. `rm .sandcastle/STOP` to resume.
 
-Stopping and resuming: Ctrl-C keeps branches, commits and worktrees. The next run continues on the same `agent/issue-N` branch and PR. Remove leftover containers with `docker ps --filter ancestor=sandcastle:nama-rust`.
+Stopping and resuming: Ctrl-C keeps branches, commits and worktrees. The next run continues on the same `agent/issue-N` branch, or babysits its PR if it had one. Remove leftover containers with `docker ps --filter ancestor=sandcastle:nama-rust`.
 
 Failures:
 
-- **Agent gives up or CI stays red:** the issue is relabelled `ready-for-human`.
+- **Agent gives up or CI stays red:** the issue is relabelled `ready-for-human`, which also takes its PR out of the babysitter's hands. The PR stays open.
 - **Issue closed while it's being built:** the factory notices within a minute (and at every stage change), stops that issue's agent, closes its PR and records it as cancelled. The rest of the run carries on. Once the merge has started, closing the issue no longer stops it.
+- **Babysat PR closed, or its issue closed or without `ready-for-agent`:** the babysitter lets go within a minute and leaves the PR as it is.
+- **No CI run starts within 15 minutes** (GitHub delays them during incidents): an infra error, below.
 - **PR merged by hand:** the factory notices within a minute, at any stage, stops that issue and records it as merged ("merged by hand"), closing finished parents as usual.
-- **Infra error (Docker, auth, Claude usage limit):** nothing is relabelled. The run finishes shipping what is already built, then exits with code 1. Rerun once the problem is fixed.
+- **Infra error (Docker, auth, Claude usage limit):** nothing is relabelled. The run finishes what's in flight, then exits with code 1. Rerun once the problem is fixed: an issue without a PR is built again, one with a PR is only babysat.
