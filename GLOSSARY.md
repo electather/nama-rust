@@ -218,6 +218,10 @@ _Avoid_: approver, admin, moderator
 Users asking for a whole Show, approved once, so its Seasons, including ones that come out later, are Requested without asking again. A Season Request appears for a new Season when its Fulfiller fetches it and a Library scan Matches its Episodes.
 _Avoid_: monitored show, subscription, series request
 
+**Hand-off**:
+Giving an Approved Request to its Fulfiller, which ends with the Request Processing or Failed.
+_Avoid_: dispatch, submit, send
+
 **Processing**:
 The state of a Request once its Fulfiller has taken it, until a Library scan Matches what it asked for.
 _Avoid_: downloading, sent, in progress
