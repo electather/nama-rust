@@ -186,6 +186,25 @@ impl Database {
 }
 
 /// Runs queued writes one at a time until every [`Database`] handle is gone.
+/// Runs `work` in a task of its own, so what must follow a committed write, such as publishing
+/// its events or handing a Request off, finishes even if the caller stops waiting (ADR 0029).
+///
+/// # Errors
+///
+/// Whatever `work` returns, or [`sqlx::Error::WorkerCrashed`] if it panicked.
+pub(crate) async fn detached<T, E>(
+    work: impl Future<Output = Result<T, E>> + Send + 'static,
+) -> Result<T, E>
+where
+    T: Send + 'static,
+    E: From<sqlx::Error> + Send + 'static,
+{
+    // The task is never aborted, so it only fails if it panicked.
+    tokio::spawn(work)
+        .await
+        .unwrap_or_else(|_| Err(sqlx::Error::WorkerCrashed.into()))
+}
+
 async fn run_writer(mut conn: SqliteConnection, mut queue: mpsc::Receiver<Job>) {
     while let Some(job) = queue.recv().await {
         // A write that panics fails alone: its caller gets an error, and the transaction it
