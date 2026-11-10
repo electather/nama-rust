@@ -1058,7 +1058,7 @@ async fn a_path_in_place_of_a_version_id_is_a_bad_request() {
 
 #[tokio::test]
 async fn a_remux_writes_its_segments_to_the_segment_folder_an_admin_set() {
-    let (fx, version) = Fixture::alien_mkv(system_ffmpeg()).await;
+    let (fx, version) = Fixture::alien_mkv(system_ffmpeg(), "aac").await;
     let tmpfs = tempfile::tempdir().unwrap();
     ServerServiceClient::new(HttpClient::plaintext(), fx.server.client_config())
         .update_playback_settings(UpdatePlaybackSettingsRequest {
