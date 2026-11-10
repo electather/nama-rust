@@ -418,8 +418,9 @@ async fn a_show_sonarr_cant_find_fails_in_plain_words() {
     reason = "a test helper fails its test by panicking"
 )]
 async fn next_progress(subscription: &mut Subscription) -> (i64, Vec<Download>) {
-    let event::Event::RequestProgress(progress) = subscription.next().await else {
-        panic!("not progress");
+    let event = subscription.next().await;
+    let event::Event::RequestProgress(progress) = event else {
+        panic!("not progress: {event:?}");
     };
     let request = progress
         .request

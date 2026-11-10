@@ -9,7 +9,7 @@ mod test_plugin;
 #[expect(dead_code, reason = "the harness's `wait_for` has no use here")]
 mod log;
 #[path = "support/server.rs"]
-#[expect(dead_code, reason = "this binary uses only `WAIT` from the fixture")]
+#[expect(dead_code, reason = "this binary uses only some of the fixture")]
 mod server;
 
 use std::{
