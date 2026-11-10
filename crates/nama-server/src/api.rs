@@ -127,6 +127,7 @@ pub(crate) fn router(
     server_url: ServerUrl,
     setup_code: Option<SetupCode>,
     ffmpeg: Arc<Ffmpeg>,
+    subtitles: playback::subtitles::Cache,
 ) -> axum::Router {
     let plugins = plugin_settings.registry().clone();
     let users = Users::new(Arc::clone(&db), plugins.clone());
@@ -137,7 +138,7 @@ pub(crate) fn router(
         contents,
         Tracks::new(Arc::clone(&db)),
         Arc::clone(&ffmpeg),
-        &config.data_dir,
+        subtitles,
     );
     let browse = Browse::new(Arc::clone(&db));
     let connections = Connections::new(Arc::clone(&db), plugins.clone());
@@ -869,6 +870,7 @@ impl LibraryService for LibraryServiceHandler {
         request: ServiceRequest<'_, DeleteLibraryRequest>,
     ) -> ServiceResult<DeleteLibraryResponse> {
         self.libraries.delete(request.id).await?;
+        self.scanner.clean_subtitles().await;
         Response::ok(DeleteLibraryResponse::default())
     }
 
