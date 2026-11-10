@@ -2,6 +2,8 @@
 //! URL, which notifications link to the web app with, and the Playback settings: the folder
 //! playback writes segment files to, the most Transcodes it runs at once, what they run on, and
 //! the default Playback Limit for remote playback.
+//!
+//! [`Settings`] owns the table (see the crate's `AGENTS.md`).
 
 use std::{
     num::NonZeroU32,

@@ -566,24 +566,22 @@ fn playback_settings_to_proto(settings: PlaybackValues) -> proto::PlaybackSettin
 
 /// The refusal naming the field whose value broke a rule, or a generic error if storing failed.
 fn settings_change_failed(err: server_settings::ChangeError) -> ConnectError {
-    let invalid = match err {
-        server_settings::ChangeError::Invalid(invalid) => invalid,
-        server_settings::ChangeError::Database(err) => return database_failed(err),
-    };
-    match invalid {
-        Invalid::NotAUrl => refuse(
+    use server_settings::ChangeError::{Database, Invalid as Refused};
+    match err {
+        Database(err) => return database_failed(err),
+        Refused(Invalid::NotAUrl) => refuse(
             RefusalReason::REFUSAL_REASON_NOT_A_URL,
             "the Server URL must be an http or https URL with no ? or #, such as \
              https://nama.example.com",
         )
         .field("settings.url"),
-        Invalid::FolderNotAbsolute { folder } => refuse(
+        Refused(Invalid::FolderNotAbsolute { folder }) => refuse(
             RefusalReason::REFUSAL_REASON_FOLDER_NOT_ABSOLUTE,
             "the segment folder must be an absolute path, such as /dev/shm/nama",
         )
         .field("settings.segment_folder")
         .param("folder", &folder),
-        Invalid::NoTranscodes => refuse(
+        Refused(Invalid::NoTranscodes) => refuse(
             RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
             "the most Transcodes at once must be at least 1",
         )
