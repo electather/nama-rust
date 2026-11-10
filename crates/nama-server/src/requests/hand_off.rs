@@ -33,11 +33,12 @@ use crate::{
 /// (ADR 0012).
 pub(crate) const PROGRESS_EVERY: Duration = Duration::from_secs(60);
 
-/// Requests' way to the Fulfillers for Movies and for Shows, where they are enabled.
+/// Requests' way to the Fulfillers for Movies and for Shows, where they are enabled, and the one
+/// place its events are published.
 #[derive(Debug, Clone)]
 pub(super) struct HandOff {
     db: Arc<Database>,
-    pub(super) events: EventBus,
+    events: EventBus,
     pub(super) plugins: Registry,
     /// The ids of the Requests being handed to a Fulfiller now, each with whether another hand-off
     /// skipped it meanwhile.
@@ -60,6 +61,12 @@ impl HandOff {
             progress: Arc::default(),
             became_processing: Arc::default(),
         }
+    }
+
+    /// The bus it publishes on, for a test to subscribe to.
+    #[cfg(test)]
+    pub(super) const fn events(&self) -> &EventBus {
+        &self.events
     }
 
     /// The enabled Plugin providing the Fulfiller of `Kind`, if any.

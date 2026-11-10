@@ -106,7 +106,7 @@ pub(crate) struct Requests {
     contents: Contents,
     /// Looks up what a new Request asks for: a Movie, or a Show's Seasons.
     matcher: Matcher,
-    /// Its only way to the Fulfillers, and the bus it publishes on.
+    /// Its only way to the Fulfillers, and the only one to publish its events.
     hand_off: HandOff,
 }
 
@@ -1895,8 +1895,9 @@ async fn open_followed_show(
 }
 
 /// Moves the Pending Followed Show `id`, and each Pending Season Request it opened, to `state`
-/// with `reason`, first changing its Show's Quality to `new_quality` if given, handing those
-/// Requests off if it approved them. Returns the Followed Show as it is now, with its event first.
+/// with `reason`, first changing its Show's Quality to `new_quality` if given, and names those
+/// Requests for a Hand-off if it approved them. Returns the Followed Show as it is now, with its
+/// event first.
 async fn decide_followed(
     conn: &mut SqliteConnection,
     id: i64,
@@ -1980,7 +1981,8 @@ async fn followed_show_approved(conn: &mut SqliteConnection, id: i64) -> Result<
     .await
 }
 
-/// Removes the Followed Show `id` as [`remove_followed`] does, unfollowing what it returns.
+/// Removes the Followed Show `id` as [`remove_followed`] does, naming what that returns to
+/// unfollow.
 async fn cancel_followed(conn: &mut SqliteConnection, id: i64) -> Result<Applied<()>, Error> {
     let followed = load_followed(conn, Some(id), None).await?.pop();
     let followed = followed.ok_or(Error::NoSuchFollowedShow(id))?;
@@ -2026,7 +2028,7 @@ async fn remove_followed(
 }
 
 /// Takes `user` off the Followed Show `id`, among those `visible` lets them see, removing it as
-/// [`remove_followed`] does, unfollowing what it returns, if they were its last Requester.
+/// [`remove_followed`] does, naming what that returns to unfollow, if they were its last Requester.
 async fn withdraw_followed(
     conn: &mut SqliteConnection,
     user: i64,
@@ -2890,7 +2892,7 @@ mod tests {
         let tmdb = FakeTmdb::start().await;
         let (_data, requests) = approved_for(&[], Arc::new(Asked::default())).await;
         enable_tmdb(&requests, &tmdb);
-        let mut published = Box::pin(requests.hand_off.events.subscribe(Filter::default()));
+        let mut published = Box::pin(requests.hand_off.events().subscribe(Filter::default()));
         let asking = requests.clone();
 
         leave_once_queued(&requests, async move {
@@ -2913,7 +2915,7 @@ mod tests {
     async fn a_request_declined_by_a_caller_who_left_is_published() {
         let (_data, requests) = approved_for(&[], Arc::new(Asked::default())).await;
         ask_as(&requests, Permissions::NEW_USER, 949).await;
-        let mut published = Box::pin(requests.hand_off.events.subscribe(Filter::default()));
+        let mut published = Box::pin(requests.hand_off.events().subscribe(Filter::default()));
         let declining = requests.clone();
 
         leave_once_queued(&requests, async move { declining.decline(1, "").await }).await;
@@ -2927,7 +2929,7 @@ mod tests {
     #[tokio::test]
     async fn a_request_cancelled_by_a_caller_who_left_is_published() {
         let (_data, requests) = approved_for(&[949], Arc::new(Asked::default())).await;
-        let mut published = Box::pin(requests.hand_off.events.subscribe(Filter::default()));
+        let mut published = Box::pin(requests.hand_off.events().subscribe(Filter::default()));
         let cancelling = requests.clone();
 
         leave_once_queued(&requests, async move { cancelling.cancel(1).await }).await;
@@ -2943,7 +2945,7 @@ mod tests {
     async fn a_request_withdrawn_by_a_caller_who_left_is_published() {
         let (_data, requests) = approved_for(&[], Arc::new(Asked::default())).await;
         ask_as(&requests, Permissions::NEW_USER, 949).await;
-        let mut published = Box::pin(requests.hand_off.events.subscribe(Filter::default()));
+        let mut published = Box::pin(requests.hand_off.events().subscribe(Filter::default()));
         let withdrawing = requests.clone();
 
         leave_once_queued(&requests, async move {
@@ -2990,11 +2992,11 @@ mod tests {
         let scanner = Scanner::new(
             Arc::clone(&requests.db),
             requests.hand_off.plugins.clone(),
-            requests.hand_off.events.clone(),
+            requests.hand_off.events().clone(),
             Arc::new(crate::ffmpeg::Ffmpeg::default()),
         );
         let scan = scanner.lock(library).await;
-        let mut published = Box::pin(requests.hand_off.events.subscribe(Filter::default()));
+        let mut published = Box::pin(requests.hand_off.events().subscribe(Filter::default()));
         let pinning = requests.matcher.clone();
 
         leave_once_queued(&requests, async move {
@@ -3826,7 +3828,7 @@ mod tests {
         let (_data, requests) = approved_on(plugins, &[], Arc::new(Asked::default())).await;
         let followed = follow_as(&requests.db, ADA, dark(), RequestState::Approved).await;
         let id = followed.value.0.id;
-        let mut published = Box::pin(requests.hand_off.events.subscribe(Filter::default()));
+        let mut published = Box::pin(requests.hand_off.events().subscribe(Filter::default()));
         let cancelling = requests.clone();
 
         leave_once_queued(
