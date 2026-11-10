@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use nama_plugin_api::Plugin;
+use nama_plugin_api::{Manifest, Plugin};
 use nama_plugin_local_auth::LocalAuth;
 use nama_plugin_log_events::LogEvents;
 use nama_plugin_tmdb::Tmdb;
@@ -43,26 +43,13 @@ impl Registry {
                 return;
             }
         };
-        // A Plugin's `manifest` and `settings_check` are Plugin code, so a panic in them is
-        // contained.
-        let manifest = match contain_sync(|| plugin.manifest()) {
-            Ok(manifest) => manifest,
-            Err(message) => {
-                error!(
-                    message,
-                    "a built-in plugin panicked while giving its manifest"
-                );
-                return;
-            }
+        let said = what_it_says(&*plugin);
+        // A panic dropping it is moot: what it said about itself is already read.
+        let _dropped = contain_sync(|| drop(plugin));
+        let Some((manifest, checks_settings)) = said else {
+            return;
         };
         let id = manifest.id;
-        let checks_settings = match contain_sync(|| plugin.settings_check().is_some()) {
-            Ok(checks_settings) => checks_settings,
-            Err(message) => {
-                error!(plugin = %id, message, "a built-in plugin panicked while describing itself");
-                return;
-            }
-        };
         let described = Described {
             kind: PluginKind::PLUGIN_KIND_BUILT_IN,
             make: Ok(Arc::new(make)),
@@ -76,4 +63,23 @@ impl Registry {
         };
         self.write(|state| state.known.insert(id, described));
     }
+}
+
+/// `plugin`'s Manifest and whether it has a settings check, or `None`, logged, if it panics
+/// giving them: both are Plugin code, so a panic in them is contained.
+fn what_it_says(plugin: &dyn Plugin) -> Option<(Manifest, bool)> {
+    let manifest = contain_sync(|| plugin.manifest())
+        .inspect_err(|message| {
+            error!(
+                message,
+                "a built-in plugin panicked while giving its manifest"
+            );
+        })
+        .ok()?;
+    let checks_settings = contain_sync(|| plugin.settings_check().is_some())
+        .inspect_err(|message| {
+            error!(plugin = %manifest.id, message, "a built-in plugin panicked while describing itself");
+        })
+        .ok()?;
+    Some((manifest, checks_settings))
 }

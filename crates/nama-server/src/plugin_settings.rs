@@ -59,9 +59,9 @@ pub enum StartError {
     /// On the first start, a `[plugins.*]` table in the config isn't a Plugin's config.
     #[error("could not load config: {0}")]
     Config(#[from] InvalidPluginTable),
-    /// Reading the Installed Plugins panicked.
-    #[error("reading the Installed Plugins failed: {0}")]
-    ReadInstalled(JoinError),
+    /// Reading or enabling the Plugins panicked outside the Plugin code the registry contains.
+    #[error("starting the plugins failed: {0}")]
+    Panicked(JoinError),
     /// No enabled Plugin provides an [`Authenticator`], so nobody could sign in.
     #[error(
         "no Authenticator is enabled, so nobody could sign in: enable the local-auth plugin \
@@ -104,11 +104,6 @@ impl PluginSettings {
         registry: Registry,
         config: &Config,
     ) -> Result<Self, StartError> {
-        let loading = registry.clone();
-        let data_dir = config.data_dir.clone();
-        task::spawn_blocking(move || loading.load_installed(&data_dir))
-            .await
-            .map_err(StartError::ReadInstalled)?;
         let stored = stored(&db).await.map_err(StartError::Read)?;
         let in_config: Vec<&str> = config.plugins.ids().collect();
         let importing = stored.is_none();
@@ -131,7 +126,15 @@ impl PluginSettings {
             data_dir: config.data_dir.clone(),
             changing: Arc::default(),
         };
-        plugins.enable_stored(&settings);
+        let starting = plugins.clone();
+        // Blocking: reading an Installed Plugin compiles it, and so does enabling it.
+        let settings = task::spawn_blocking(move || {
+            starting.registry.load_installed(&starting.data_dir);
+            starting.enable_stored(&settings);
+            settings
+        })
+        .await
+        .map_err(StartError::Panicked)?;
         let has_authenticator = plugins
             .registry
             .call_provider(|_: Arc<dyn Authenticator>| async {})
