@@ -189,7 +189,7 @@ Playing a Version with its video re-encoded, such as when the client can't decod
 _Avoid_: convert, encode
 
 **Playback Plan**:
-How the Server will play one Version on one Device: by Direct Play, Remux or Transcode, with which Tracks, and the reasons for each choice. A new one is made whenever what it was based on changes.
+How the Server will play one Version on one Device: which Version, when the client didn't name one; by Direct Play, Remux or Transcode; with which Tracks; and the reasons for each choice. A new one is made whenever what it was based on changes.
 _Avoid_: decision, profile, stream info
 
 **Playback Limit**:
