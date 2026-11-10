@@ -17,6 +17,7 @@ export interface FormErrors {
   newPassword?: string;
   folders?: string;
   serverUrl?: string;
+  segmentFolder?: string;
 }
 
 /**

@@ -206,7 +206,7 @@ async fn serve(
 
 /// Writes `bytes` to `path` so no reader ever sees a partial file, even if two downloads of the
 /// same image race.
-async fn write_atomically(path: &Path, bytes: &[u8]) -> io::Result<()> {
+pub(crate) async fn write_atomically(path: &Path, bytes: &[u8]) -> io::Result<()> {
     static NEXT: AtomicU64 = AtomicU64::new(0);
     if let Some(dir) = path.parent() {
         tokio::fs::create_dir_all(dir).await?;

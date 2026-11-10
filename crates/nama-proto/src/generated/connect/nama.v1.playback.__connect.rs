@@ -6,6 +6,14 @@ pub type OwnedPlanPlaybackRequestView = ::buffa::view::OwnedView<
 pub type OwnedPlanPlaybackResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::PlanPlaybackResponseView<'static>,
 >;
+///Shorthand for `OwnedView<StopPlaybackRequestView<'static>>`.
+pub type OwnedStopPlaybackRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::StopPlaybackRequestView<'static>,
+>;
+///Shorthand for `OwnedView<StopPlaybackResponseView<'static>>`.
+pub type OwnedStopPlaybackResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::StopPlaybackResponseView<'static>,
+>;
 impl ::connectrpc::Encodable<crate::messages::nama::v1::PlanPlaybackResponse>
 for crate::messages::nama::v1::__buffa::view::PlanPlaybackResponseView<'_> {
     fn encode(
@@ -40,11 +48,51 @@ for ::buffa::view::OwnedView<
         )
     }
 }
+impl ::connectrpc::Encodable<crate::messages::nama::v1::StopPlaybackResponse>
+for crate::messages::nama::v1::__buffa::view::StopPlaybackResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::StopPlaybackResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::StopPlaybackResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
 /// Full service name for this service.
 pub const PLAYBACK_SERVICE_SERVICE_NAME: &str = "nama.v1.PlaybackService";
 /// Static [`Spec`](::connectrpc::Spec) for the `PlanPlayback` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
 pub const PLAYBACK_SERVICE_PLAN_PLAYBACK_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
         "/nama.v1.PlaybackService/PlanPlayback",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
+/// Static [`Spec`](::connectrpc::Spec) for the `StopPlayback` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const PLAYBACK_SERVICE_STOP_PLAYBACK_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.PlaybackService/StopPlayback",
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
@@ -127,6 +175,31 @@ pub trait PlaybackService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
+    /// Stops a plan the caller's Device was given, as when its player closes or a new plan replaces
+    /// it, so the Server stops any ffmpeg it runs and tells Observers its playback ended. A plan
+    /// already stopped, or another Device's, is left alone.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn stop_playback<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::StopPlaybackRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::StopPlaybackResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
 }
 /// Extension trait for registering a service implementation with a Router.
 ///
@@ -188,6 +261,35 @@ impl<S: PlaybackService> PlaybackServiceExt for S {
                 },
             )
             .with_spec(PLAYBACK_SERVICE_PLAN_PLAYBACK_SPEC)
+            .route_view(
+                PLAYBACK_SERVICE_SERVICE_NAME,
+                "StopPlayback",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::StopPlaybackRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::StopPlaybackRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.stop_playback(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::StopPlaybackResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(PLAYBACK_SERVICE_STOP_PLAYBACK_SPEC)
     }
 }
 /// Type-inference marker used by [`Router::add_service`](::connectrpc::Router::add_service).
@@ -248,6 +350,12 @@ impl<T: PlaybackService> ::connectrpc::Dispatcher for PlaybackServiceServer<T> {
                         .with_spec(PLAYBACK_SERVICE_PLAN_PLAYBACK_SPEC),
                 )
             }
+            "StopPlayback" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(PLAYBACK_SERVICE_STOP_PLAYBACK_SPEC),
+                )
+            }
             _ => None,
         }
     }
@@ -282,6 +390,28 @@ impl<T: PlaybackService> ::connectrpc::Dispatcher for PlaybackServiceServer<T> {
                         .await?
                         .encode::<
                             crate::messages::nama::v1::PlanPlaybackResponse,
+                        >(format)
+                })
+            }
+            "StopPlayback" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::StopPlaybackRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::StopPlaybackRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::StopPlaybackRequest,
+                    >::from_parts(&req, &body);
+                    svc.stop_playback(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::StopPlaybackResponse,
                         >(format)
                 })
             }
@@ -452,6 +582,51 @@ where
                 &self.transport,
                 &self.config,
                 PLAYBACK_SERVICE_PLAN_PLAYBACK_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the StopPlayback RPC. Sends a request to /nama.v1.PlaybackService/StopPlayback.
+    pub async fn stop_playback(
+        &self,
+        request: crate::messages::nama::v1::StopPlaybackRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::StopPlaybackResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.stop_playback_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the StopPlayback RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn stop_playback_with_options(
+        &self,
+        request: crate::messages::nama::v1::StopPlaybackRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::StopPlaybackResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                PLAYBACK_SERVICE_STOP_PLAYBACK_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,

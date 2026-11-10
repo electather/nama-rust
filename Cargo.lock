@@ -1895,7 +1895,10 @@ name = "nama-plugin-log-events"
 version = "0.1.0"
 dependencies = [
  "nama-plugin-api",
+ "nama-proto",
+ "tokio",
  "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

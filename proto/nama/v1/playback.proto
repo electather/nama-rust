@@ -15,7 +15,20 @@ service PlaybackService {
   rpc PlanPlayback(PlanPlaybackRequest) returns (PlanPlaybackResponse) {
     option idempotency_level = IDEMPOTENT;
   }
+  // Stops a plan the caller's Device was given, as when its player closes or a new plan replaces
+  // it, so the Server stops any ffmpeg it runs and tells Observers its playback ended. A plan
+  // already stopped, or another Device's, is left alone.
+  rpc StopPlayback(StopPlaybackRequest) returns (StopPlaybackResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
 }
+
+message StopPlaybackRequest {
+  // The plan, as `PlaybackPlan.id` names it.
+  uint64 plan_id = 1;
+}
+
+message StopPlaybackResponse {}
 
 message PlanPlaybackRequest {
   // The Version to play, as browsing gave it.
@@ -58,6 +71,9 @@ message DeviceDecoding {
   bool native_hls = 3;
   // Whether it has Media Source Extensions, through which a script can play HLS.
   bool mse = 4;
+  // How many audio channels it plays out at once, such as 6 for 5.1. 0 when it doesn't say,
+  // which the Server takes as stereo.
+  uint32 audio_channels = 5;
 }
 
 // How a Playback Plan plays a Version.
@@ -66,7 +82,8 @@ enum PlaybackMethod {
   PLAYBACK_METHOD_UNSPECIFIED = 0;
   // Its file exactly as it is.
   PLAYBACK_METHOD_DIRECT_PLAY = 1;
-  // Its Tracks as they are, in a different container.
+  // Its video as it is, in a different container, with its audio converted to AAC if the
+  // Device can't decode it.
   PLAYBACK_METHOD_REMUX = 2;
   // With its video re-encoded.
   PLAYBACK_METHOD_TRANSCODE = 3;
@@ -83,9 +100,23 @@ message PlaybackPlan {
   PlaybackMethod method = 1;
   // Where to play it from, on this Server. Empty when it can't be played.
   string url = 2;
-  // The Tracks it plays: its video, then its audio. Empty when they aren't known, as on a Server
-  // without ffprobe.
+  // The Tracks it plays: its video, then its audio, as the Device gets them, so audio a Remux
+  // converts is AAC here. Empty when they aren't known, as on a Server without ffprobe.
   repeated Track tracks = 3;
   // Why it plays this way, in plain words, one for each step, in the order they ran.
   repeated string reasons = 4;
+  // The text subtitles the player can turn on and off without a new plan, in the order the
+  // Version holds them. Image subtitles, such as PGS, aren't among them.
+  repeated PlaybackSubtitle subtitles = 5;
+  // Names it to `StopPlayback`. 0 when it can't be played.
+  uint64 id = 6;
+}
+
+// A text subtitle a player shows as a WebVTT `<track>`.
+message PlaybackSubtitle {
+  // Its Track, for its language, title and whether it's Forced or SDH.
+  Track track = 1;
+  // Where to fetch it as WebVTT, on this Server. The first fetch can take up to a minute while
+  // the Server reads it out of the file; later ones are answered at once.
+  string url = 2;
 }

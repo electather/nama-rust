@@ -312,7 +312,10 @@ async fn every_plugin_is_listed_with_its_extension_points_enabled_or_not() {
     assert_eq!(points("local-auth"), [EXTENSION_POINT_AUTHENTICATOR]);
     assert_eq!(
         points("log-events"),
-        [EXTENSION_POINT_SERVER_STARTED_OBSERVER]
+        [
+            EXTENSION_POINT_SERVER_STARTED_OBSERVER,
+            EXTENSION_POINT_EVENTS_OBSERVER
+        ]
     );
     assert_eq!(points("radarr"), [EXTENSION_POINT_MOVIE_FULFILLER]);
     assert_eq!(points("sonarr"), [EXTENSION_POINT_SHOW_FULFILLER]);

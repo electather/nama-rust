@@ -2,10 +2,11 @@ import type { VariantProps } from "class-variance-authority";
 import { cn } from "cn";
 import { Link, type LinkOptions } from "@tanstack/react-router";
 import { ArrowLeft, Maximize, Minimize, Pause, Play, Volume2, VolumeX } from "lucide-react";
-import { type ReactNode, type RefObject, useRef, useState } from "react";
+import { type PointerEvent, type ReactNode, type RefObject, useRef } from "react";
 
 import { PlaybackInfo } from "@/components/playback-info";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { SubtitleTracks, SubtitlesMenu } from "@/components/subtitles-menu";
 import { Slider } from "@/components/ui/slider";
 import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
 import {
@@ -20,8 +21,9 @@ import {
   usePlaybackPlan,
   useShortcuts,
   useVideo,
+  // oxlint-disable-next-line import/max-dependencies -- the player puts together the video, its controls, subtitles, Watch State and playback info
 } from "@/lib/playback";
-// oxlint-disable-next-line import/max-dependencies -- the player puts together the video, its controls, Watch State and playback info
+import { usePlaybackSource } from "@/lib/playback-source";
 import { useWatchState } from "@/lib/watch-state";
 
 /** What the player plays, and where "back" goes. */
@@ -37,67 +39,75 @@ export interface PlayerProps {
 
 /**
  * Plays a Version full screen with Nama's own controls, from where the Server's Playback Plan says,
- * or says so plainly when it can't play here.
+ * asking for a new plan when the browser fails to play one, or says so plainly when it can't play
+ * here.
  */
 export function Player(props: PlayerProps) {
-  const plan = usePlaybackPlan(props.versionId, props.watchState);
-  const [cantPlay, setCantPlay] = useState(false);
-  if (cantPlay || plan === undefined || plan.url === "") return <CantPlay back={props.back} />;
+  const planned = usePlaybackPlan(props);
+  const { plan } = planned;
+  if (plan.url === "") return <CantPlay back={props.back} reasons={plan.reasons} />;
+  if (planned.gaveUp) return <CantPlay back={props.back} reasons={[]} />;
   return (
+    // A plan at a new URL plays in a new `<video>`, so it starts where that plan does. ponytail: that one
+    // starts unmuted at full volume with subtitles off; carry them over if anyone minds.
     <VideoPlayer
+      key={plan.url}
       {...props}
-      url={plan.url}
+      planned={planned}
       playbackInfo={<PlaybackInfo plan={plan} />}
-      onCantPlay={() => {
-        setCantPlay(true);
-      }}
     />
   );
+}
+
+// A click pauses or plays; a tap only brings the controls back.
+function clickToToggle(event: PointerEvent<HTMLVideoElement>) {
+  if (event.pointerType === "mouse") togglePlay(event.currentTarget);
 }
 
 function VideoPlayer({
   title,
   versionId,
-  watchState,
   back,
-  url,
+  planned: { plan, startPositionMs, onCantPlay },
   playbackInfo,
-  onCantPlay,
-}: PlayerProps & { url: string; playbackInfo: ReactNode; onCantPlay: () => void }) {
+}: PlayerProps & { planned: ReturnType<typeof usePlaybackPlan>; playbackInfo: ReactNode }) {
   const playerRef = useRef<HTMLDivElement>(null);
   const { ref: videoRef, events, ...video } = useVideo();
-  useWatchState(videoRef, versionId, watchState);
+  const src = usePlaybackSource(videoRef, plan, onCantPlay);
+  useWatchState(videoRef, versionId, startPositionMs);
   const [awake, wake] = useAwake();
   useShortcuts(videoRef, playerRef, back, wake);
-  const controlsHidden = video.state.playing && !awake;
 
   return (
     <div
       ref={playerRef}
-      data-controls-hidden={controlsHidden || undefined}
+      data-controls-hidden={(video.state.playing && !awake) || undefined}
       onPointerMove={wake}
       onPointerDown={wake}
       className="group fixed inset-0 bg-background data-controls-hidden:cursor-none"
     >
-      {/* oxlint-disable-next-line jsx-a11y/media-has-caption -- Versions carry no caption files yet. */}
+      {/* oxlint-disable-next-line jsx-a11y/media-has-caption -- a Version may have no subtitles. */}
       <video
         ref={videoRef}
-        src={url}
+        src={src}
         aria-label={title}
         autoPlay
         playsInline
-        onError={onCantPlay}
-        onPointerUp={(event) => {
-          // A click pauses or plays; a tap only brings the controls back.
-          if (event.pointerType === "mouse") togglePlay(event.currentTarget);
+        onError={(event) => {
+          onCantPlay(event.currentTarget);
         }}
+        onPointerUp={clickToToggle}
         className="size-full object-contain"
         {...events}
-      />
+      >
+        <SubtitleTracks subtitles={plan.subtitles} />
+      </video>
       {/* Any key brings the controls back, so a focused control shows its ring when it's used. */}
       <div className="pointer-events-none absolute inset-0 flex flex-col justify-between transition-opacity duration-500 ease-out-expo group-data-controls-hidden:opacity-0 motion-reduce:transition-none">
         <TopBar title={title} back={back} playbackInfo={playbackInfo} />
-        <BottomBar video={video} playerRef={playerRef} />
+        <BottomBar video={video} playerRef={playerRef}>
+          <SubtitlesMenu subtitles={plan.subtitles} videoRef={videoRef} container={playerRef} />
+        </BottomBar>
       </div>
     </div>
   );
@@ -123,12 +133,15 @@ function TopBar({
   );
 }
 
+/** The position, Play and the time, then `children` beside the volume and full screen. */
 function BottomBar({
   video,
   playerRef,
+  children,
 }: {
   video: Video;
   playerRef: RefObject<HTMLDivElement | null>;
+  children: ReactNode;
 }) {
   const { playing, time, duration } = video.state;
   return (
@@ -162,6 +175,7 @@ function BottomBar({
           {clock(time)} / {clock(duration)}
         </span>
         <div className="ms-auto flex items-center gap-1">
+          {children}
           <VolumeControls video={video} />
           <FullscreenButton playerRef={playerRef} />
         </div>
@@ -222,15 +236,24 @@ function FullscreenButton({ playerRef }: { playerRef: RefObject<HTMLDivElement |
   );
 }
 
-function CantPlay({ back }: { back: LinkOptions }) {
+/** Says the Version can't play here: why, as its plan's `reasons` say, or else in general. */
+function CantPlay({ back, reasons }: { back: LinkOptions; reasons: string[] }) {
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center px-6">
       <h1 className="text-2xl font-semibold tracking-tight text-balance">
         This Version can’t play here
       </h1>
-      <p className="mt-2 text-muted-foreground">
-        This browser can’t play it. Another browser, or another Version, may play.
-      </p>
+      {reasons.length > 0 ? (
+        <ul className="mt-2 space-y-1 text-muted-foreground">
+          {reasons.map((reason) => (
+            <li key={reason}>{reason}</li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-2 text-muted-foreground">
+          This browser can’t play it. Another browser, or another Version, may play.
+        </p>
+      )}
       <div className="mt-6 -ms-4">
         <BackLink back={back} variant="ghost">
           Back
