@@ -17,7 +17,6 @@ mod test_plugin;
 use std::{
     collections::{BTreeMap, HashMap},
     fs, future,
-    path::Path,
     sync::{
         Arc, Mutex, PoisonError,
         atomic::{AtomicBool, Ordering},
@@ -42,19 +41,18 @@ use nama_plugin_api::{
 use nama_plugin_local_auth::LocalAuth;
 use nama_plugin_test_choices as test_choices;
 use nama_proto::nama::v1::{
-    ApproveFollowedShowRequest, ApproveRequestRequest, BrowseServiceClient,
-    CancelFollowedShowRequest, CancelRequestRequest, CountPendingRequestsRequest,
-    CreateFollowedShowRequest, CreateLibraryRequest, CreateRequestRequest,
-    CreateSeasonRequestsRequest, DeclineFollowedShowRequest, DeclineRequestRequest,
-    EnablePluginRequest, EventType, ExtensionPoint, FollowedShow, FoundMovie, FoundShow,
-    GetRequestRequest, LibraryKind, LibraryServiceClient, ListDefaultQualitiesRequest,
-    ListMovieQualitiesRequest, ListMoviesRequest, ListOfferedQualitiesRequest, ListPluginsRequest,
-    ListQualitiesRequest, ListRequestsRequest, ListRequestsResponse, ListShowsRequest,
-    LookUpMovieRequest, LookUpShowRequest, Permission, PluginServiceClient, Quality, RefusalReason,
+    ApproveFollowedShowRequest, ApproveRequestRequest, CancelFollowedShowRequest,
+    CancelRequestRequest, CountPendingRequestsRequest, CreateFollowedShowRequest,
+    CreateRequestRequest, CreateSeasonRequestsRequest, DeclineFollowedShowRequest,
+    DeclineRequestRequest, EnablePluginRequest, EventType, ExtensionPoint, FollowedShow,
+    FoundMovie, FoundShow, GetRequestRequest, LibraryKind, ListDefaultQualitiesRequest,
+    ListMovieQualitiesRequest, ListOfferedQualitiesRequest, ListPluginsRequest,
+    ListQualitiesRequest, ListRequestsRequest, ListRequestsResponse, LookUpMovieRequest,
+    LookUpShowRequest, Permission, PluginServiceClient, Quality, RefusalReason,
     ReplaceQualitiesRequest, Request, RequestServiceClient, RequestState, RetryRequestRequest,
-    ScanLibraryRequest, SearchMoviesRequest, SearchShowsRequest, SetDefaultQualityRequest,
-    TitleKind, UpdatePluginSettingsRequest, WithdrawFollowedShowRequest, WithdrawRequestRequest,
-    event, setting_value,
+    SearchMoviesRequest, SearchShowsRequest, SetDefaultQualityRequest, TitleKind,
+    UpdatePluginSettingsRequest, WithdrawFollowedShowRequest, WithdrawRequestRequest, event,
+    setting_value,
 };
 use nama_server::{
     config::{Config, PluginConfig},
@@ -65,7 +63,7 @@ use nama_server::{
 };
 use refused::assert_refused;
 use server::{
-    Subscription, TestServer, WAIT, subscribe,
+    Library, Subscription, TestServer, WAIT, subscribe,
     tmdb::{ALIEN, DARK, DARK_TVDB, DUNE, HEAT, THE_OFFICE},
 };
 use tokio::{net::TcpListener, sync::mpsc};
@@ -343,113 +341,13 @@ impl Fixture {
     }
 
     /// Creates a Movies Library holding Alien, scans it, and waits until Alien is Matched.
-    /// Returns the folder and the Library's ID.
-    async fn library_with_alien(&self) -> (tempfile::TempDir, i64) {
-        self.library_with(
-            LibraryKind::LIBRARY_KIND_MOVIES,
-            &["Alien (1979)/Alien (1979).mkv"],
-        )
-        .await
-    }
-
-    /// Creates a Library of `kind` holding `files`, scans it, and waits until a title is Matched.
-    /// Returns the folder and the Library's ID.
-    async fn library_with(&self, kind: LibraryKind, files: &[&str]) -> (tempfile::TempDir, i64) {
-        let media = tempfile::tempdir().unwrap();
-        let folder = media.path().canonicalize().unwrap();
-        write_files(&folder, files);
-        let library =
-            LibraryServiceClient::new(HttpClient::plaintext(), self.server.client_config())
-                .create_library(CreateLibraryRequest {
-                    name: "Media".to_owned(),
-                    kind: kind.into(),
-                    folders: vec![folder.to_str().unwrap().to_owned()],
-                    ..Default::default()
-                })
-                .await
-                .unwrap()
-                .into_owned()
-                .library
-                .into_option()
-                .unwrap()
-                .id;
-        self.scan_until(library, kind, true).await;
-        (media, library)
-    }
-
-    /// Scans the Library `library` of `kind`, and waits until it lists a title if `has_titles`, or
-    /// none.
-    async fn scan_until(&self, library: i64, kind: LibraryKind, has_titles: bool) {
-        let config = self.server.client_config();
-        LibraryServiceClient::new(HttpClient::plaintext(), config.clone())
-            .scan_library(ScanLibraryRequest {
-                id: library,
-                ..Default::default()
-            })
+    async fn library_with_alien(&self) -> Library {
+        self.server
+            .matched_library(
+                LibraryKind::LIBRARY_KIND_MOVIES,
+                &["Alien (1979)/Alien (1979).mkv"],
+            )
             .await
-            .unwrap();
-        let browse = BrowseServiceClient::new(HttpClient::plaintext(), config);
-        tokio::time::timeout(WAIT, until_listed(&browse, library, kind, has_titles))
-            .await
-            .unwrap();
-    }
-}
-
-/// Writes `files` under `folder`, as stand-in videos.
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
-fn write_files(folder: &Path, files: &[&str]) {
-    for file in files {
-        let file = folder.join(file);
-        fs::create_dir_all(file.parent().unwrap()).unwrap();
-        fs::write(file, b"video").unwrap();
-    }
-}
-
-/// Waits until the Library `library` of `kind` lists a Movie or a Show if `has_titles`, or none.
-/// Matching stores a Show's Episodes together, so they are all Matched once it lists the Show.
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
-async fn until_listed(
-    browse: &BrowseServiceClient<HttpClient>,
-    library: i64,
-    kind: LibraryKind,
-    has_titles: bool,
-) {
-    loop {
-        let listed = if kind == LibraryKind::LIBRARY_KIND_MOVIES {
-            let listing = ListMoviesRequest {
-                library_id: library,
-                ..Default::default()
-            };
-            browse
-                .list_movies(listing)
-                .await
-                .unwrap()
-                .into_owned()
-                .movies
-                .len()
-        } else {
-            let listing = ListShowsRequest {
-                library_id: library,
-                ..Default::default()
-            };
-            browse
-                .list_shows(listing)
-                .await
-                .unwrap()
-                .into_owned()
-                .shows
-                .len()
-        };
-        if (listed > 0) == has_titles {
-            return;
-        }
-        tokio::time::sleep(Duration::from_millis(10)).await;
     }
 }
 
@@ -659,7 +557,7 @@ async fn a_user_without_request_movie_is_refused_naming_the_permission() {
 #[tokio::test]
 async fn requesting_a_movie_matched_in_a_library_is_refused() {
     let fixture = Fixture::start().await;
-    let (_media, _) = fixture.library_with_alien().await;
+    let _media = fixture.library_with_alien().await;
     let as_grace = fixture
         .server
         .user("Grace", &NEW_USER)
@@ -872,7 +770,8 @@ async fn listing_by_a_state_gives_only_the_requests_and_followed_shows_in_it_and
     let _movies = fixture.library_with_alien().await;
     let available = state_changed(adas_events.next().await);
     let _shows = fixture
-        .library_with(LibraryKind::LIBRARY_KIND_SHOWS, &[DARK_S01E01])
+        .server
+        .matched_library(LibraryKind::LIBRARY_KIND_SHOWS, &[DARK_S01E01])
         .await;
     let partially_available = state_changed(adas_events.next().await);
 
@@ -2172,12 +2071,16 @@ async fn an_available_request_stays_available_after_its_movie_leaves_the_library
     let as_ada = fixture.server.user("Ada", &NEW_USER).await.client_config();
     let ada = requests(as_ada);
     let first = ask(&ada, ALIEN).await;
-    let (media, library) = fixture.library_with_alien().await;
+    let library = fixture.library_with_alien().await;
+    let mut removed = subscribe(
+        &fixture.server.client_config(),
+        &[EventType::EVENT_TYPE_LIBRARY_ITEM_REMOVED],
+    )
+    .await;
 
-    fs::remove_dir_all(media.path().join("Alien (1979)")).unwrap();
-    fixture
-        .scan_until(library, LibraryKind::LIBRARY_KIND_MOVIES, false)
-        .await;
+    fs::remove_dir_all(library.folder().join("Alien (1979)")).unwrap();
+    fixture.server.scan(library.id).await;
+    removed.next().await;
     let again = ask(&ada, ALIEN).await;
 
     assert_eq!(
@@ -2538,7 +2441,7 @@ async fn a_search_finds_movies_with_their_year_and_poster_and_no_library_or_requ
 #[tokio::test]
 async fn a_search_shows_a_movie_matched_in_a_library_as_in_it() {
     let fixture = Fixture::start().await;
-    let (_media, _) = fixture.library_with_alien().await;
+    let _media = fixture.library_with_alien().await;
     let as_grace = fixture
         .server
         .user("Grace", &NEW_USER)
@@ -2787,7 +2690,8 @@ async fn requesting_a_season_whose_aired_episodes_are_all_matched_is_refused_but
  {
     let fixture = Fixture::start().await;
     let _media = fixture
-        .library_with(LibraryKind::LIBRARY_KIND_SHOWS, &[DARK_S01E01, DARK_S02E01])
+        .server
+        .matched_library(LibraryKind::LIBRARY_KIND_SHOWS, &[DARK_S01E01, DARK_S02E01])
         .await;
     let as_grace = fixture
         .server
@@ -2924,14 +2828,13 @@ async fn matching_season_1s_aired_episodes_makes_its_request_partially_available
     let (season_1, season_2) = (asked[0].id, asked[1].id);
     let mut adas_events = subscribe_to_requests(&as_ada).await;
 
-    let (media, library) = fixture
-        .library_with(LibraryKind::LIBRARY_KIND_SHOWS, &[DARK_S01E01])
+    let library = fixture
+        .server
+        .matched_library(LibraryKind::LIBRARY_KIND_SHOWS, &[DARK_S01E01])
         .await;
     let some_matched = state_changed(adas_events.next().await);
-    write_files(media.path(), &[DARK_S01E02, DARK_S01E03]);
-    fixture
-        .scan_until(library, LibraryKind::LIBRARY_KIND_SHOWS, true)
-        .await;
+    library.add(&[DARK_S01E02, DARK_S01E03]);
+    fixture.server.scan(library.id).await;
     let all_matched = state_changed(adas_events.next().await);
 
     assert_eq!(some_matched, (season_1, RequestState::PartiallyAvailable));
@@ -2953,8 +2856,9 @@ async fn a_season_still_airing_becomes_available_once_its_aired_episodes_are_mat
     let ada = requests(as_ada);
     let asked = ask_seasons(&ada, DARK, &[3]).await;
 
-    let (media, library) = fixture
-        .library_with(LibraryKind::LIBRARY_KIND_SHOWS, &[DARK_S03E01])
+    let library = fixture
+        .server
+        .matched_library(LibraryKind::LIBRARY_KIND_SHOWS, &[DARK_S03E01])
         .await;
     let aired_matched = states(&list(&ada).await);
     let mut matches = subscribe(
@@ -2962,10 +2866,8 @@ async fn a_season_still_airing_becomes_available_once_its_aired_episodes_are_mat
         &[EventType::EVENT_TYPE_ITEM_MATCHED],
     )
     .await;
-    write_files(media.path(), &[DARK_S03E02]);
-    fixture
-        .scan_until(library, LibraryKind::LIBRARY_KIND_SHOWS, true)
-        .await;
+    library.add(&[DARK_S03E02]);
+    fixture.server.scan(library.id).await;
     let later = matches.next().await;
 
     assert_eq!(aired_matched, [(asked[0].id, RequestState::Available)]);
@@ -2991,7 +2893,8 @@ async fn a_scan_makes_an_approved_season_request_available_and_leaves_a_declined
     let approved = ask_seasons(&requests(as_grace), DARK, &[1]).await;
 
     let _media = fixture
-        .library_with(
+        .server
+        .matched_library(
             LibraryKind::LIBRARY_KIND_SHOWS,
             &[DARK_S01E01, DARK_S01E02, DARK_S01E03],
         )
@@ -3028,8 +2931,9 @@ async fn look_up_dark(config: ClientConfig) -> FoundShow {
 #[tokio::test]
 async fn a_shows_seasons_say_whether_they_are_in_a_library_requested_or_neither() {
     let fixture = Fixture::start().await;
-    let (_media, _) = fixture
-        .library_with(LibraryKind::LIBRARY_KIND_SHOWS, &[DARK_S01E01, DARK_S02E01])
+    let _media = fixture
+        .server
+        .matched_library(LibraryKind::LIBRARY_KIND_SHOWS, &[DARK_S01E01, DARK_S02E01])
         .await;
     let as_ada = fixture.server.user("Ada", &NEW_USER).await.client_config();
     let as_grace = fixture
@@ -3353,7 +3257,8 @@ async fn asking_for_a_whole_show_opens_a_followed_show_and_a_request_per_season_
     let fixture = Fixture::start().await;
     // Season 3's one aired Episode, so Season 3 is in a Library.
     let _media = fixture
-        .library_with(LibraryKind::LIBRARY_KIND_SHOWS, &[DARK_S03E01])
+        .server
+        .matched_library(LibraryKind::LIBRARY_KIND_SHOWS, &[DARK_S03E01])
         .await;
     let ada = fixture.server.user("Ada", &NEW_USER).await;
     let (ada, as_ada) = (ada.id, ada.client_config());
@@ -3398,7 +3303,8 @@ async fn once_a_followed_show_is_approved_a_scan_matching_a_new_seasons_episodes
     let mut adas_events = subscribe_to_requests(&as_ada).await;
 
     let _media = fixture
-        .library_with(LibraryKind::LIBRARY_KIND_SHOWS, &[DARK_S03E01])
+        .server
+        .matched_library(LibraryKind::LIBRARY_KIND_SHOWS, &[DARK_S03E01])
         .await;
     let event = adas_events.next().await;
 
@@ -3424,7 +3330,8 @@ async fn asking_for_season_1_alone_then_scanning_season_3_opens_no_request() {
     ask_seasons(&ada, DARK, &[1]).await;
 
     let _media = fixture
-        .library_with(LibraryKind::LIBRARY_KIND_SHOWS, &[DARK_S03E01])
+        .server
+        .matched_library(LibraryKind::LIBRARY_KIND_SHOWS, &[DARK_S03E01])
         .await;
 
     assert_eq!(dark_seasons_requested(&ada).await, [1]);
@@ -3452,7 +3359,8 @@ async fn a_declined_followed_show_declines_its_season_requests_and_opens_no_requ
         .into_option()
         .unwrap();
     let _media = fixture
-        .library_with(LibraryKind::LIBRARY_KIND_SHOWS, &[DARK_S03E01])
+        .server
+        .matched_library(LibraryKind::LIBRARY_KIND_SHOWS, &[DARK_S03E01])
         .await;
 
     assert_eq!(declined.state, RequestState::Declined);
@@ -3485,7 +3393,8 @@ async fn a_cancelled_followed_show_leaves_its_season_requests_and_opens_no_reque
         .await
         .unwrap();
     let _media = fixture
-        .library_with(LibraryKind::LIBRARY_KIND_SHOWS, &[DARK_S03E01])
+        .server
+        .matched_library(LibraryKind::LIBRARY_KIND_SHOWS, &[DARK_S03E01])
         .await;
 
     assert_eq!(list_followed(&ada).await, []);
@@ -4022,7 +3931,8 @@ async fn opening_a_followed_show_for_a_show_whose_seasons_are_all_in_a_library_s
 {
     let fixture = Fixture::start().await;
     let _media = fixture
-        .library_with(
+        .server
+        .matched_library(
             LibraryKind::LIBRARY_KIND_SHOWS,
             &[
                 DARK_S01E01,
@@ -4049,8 +3959,9 @@ async fn opening_a_followed_show_for_a_show_whose_seasons_are_all_in_a_library_s
 async fn a_scan_matching_more_of_a_season_in_a_library_when_its_show_was_followed_opens_no_request()
 {
     let fixture = Fixture::start().await;
-    let (media, library) = fixture
-        .library_with(LibraryKind::LIBRARY_KIND_SHOWS, &[DARK_S03E01])
+    let library = fixture
+        .server
+        .matched_library(LibraryKind::LIBRARY_KIND_SHOWS, &[DARK_S03E01])
         .await;
     let as_ada = fixture
         .server
@@ -4065,10 +3976,8 @@ async fn a_scan_matching_more_of_a_season_in_a_library_when_its_show_was_followe
     )
     .await;
 
-    write_files(media.path(), &[DARK_S03E02]);
-    fixture
-        .scan_until(library, LibraryKind::LIBRARY_KIND_SHOWS, true)
-        .await;
+    library.add(&[DARK_S03E02]);
+    fixture.server.scan(library.id).await;
     matches.next().await;
 
     assert_eq!(dark_seasons_requested(&ada).await, [1, 2]);
@@ -4081,8 +3990,9 @@ async fn a_season_request_a_followed_show_opened_isnt_opened_again_once_cancelle
     let ada = requests(as_ada);
     let (followed, _) = follow_dark_before_season_3(&fixture, &ada).await;
     approve_followed(&fixture, followed.id).await.unwrap();
-    let (media, library) = fixture
-        .library_with(LibraryKind::LIBRARY_KIND_SHOWS, &[DARK_S03E01])
+    let library = fixture
+        .server
+        .matched_library(LibraryKind::LIBRARY_KIND_SHOWS, &[DARK_S03E01])
         .await;
     let opened: Vec<_> = list(&ada)
         .await
@@ -4102,10 +4012,8 @@ async fn a_season_request_a_followed_show_opened_isnt_opened_again_once_cancelle
     )
     .await;
 
-    write_files(media.path(), &[DARK_S03E02]);
-    fixture
-        .scan_until(library, LibraryKind::LIBRARY_KIND_SHOWS, true)
-        .await;
+    library.add(&[DARK_S03E02]);
+    fixture.server.scan(library.id).await;
     matches.next().await;
 
     assert_eq!(opened.len(), 1, "{opened:?}");
@@ -4148,7 +4056,8 @@ async fn a_season_that_comes_out_later_opens_its_request_at_the_followed_shows_q
     let mut adas_events = subscribe_to_requests(&as_ada).await;
 
     let _media = fixture
-        .library_with(LibraryKind::LIBRARY_KIND_SHOWS, &[DARK_S03E01])
+        .server
+        .matched_library(LibraryKind::LIBRARY_KIND_SHOWS, &[DARK_S03E01])
         .await;
     let event = adas_events.next().await;
 
