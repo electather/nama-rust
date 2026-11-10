@@ -313,18 +313,23 @@ impl Requests {
         };
         let state = opening_state(asker, Permission::AutoApproveMovie);
         let user = asker.id;
-        let (request, happened) = self
-            .db
-            .write(move |tx| Box::pin(ask_movie(tx, user, wanted, state)))
-            .await?;
-        // Only the asker who opens or approves the Request hands it off, so joining it can't hand
-        // it twice.
-        let hands_off = happened.iter().any(|event| handed_off_id(event).is_some());
-        self.events.publish(happened);
-        if hands_off && request.state == RequestState::Approved {
-            return self.hand_off(request).await;
-        }
-        Ok(request)
+        let this = self.clone();
+        // The write too, as in `create_seasons`.
+        detached(async move {
+            let (request, happened) = this
+                .db
+                .write(move |tx| Box::pin(ask_movie(tx, user, wanted, state)))
+                .await?;
+            // Only the asker who opens or approves the Request hands it off, so joining it can't
+            // hand it twice.
+            let hands_off = happened.iter().any(|event| handed_off_id(event).is_some());
+            this.events.publish(happened);
+            if hands_off && request.state == RequestState::Approved {
+                return this.hand_off(request).await;
+            }
+            Ok(request)
+        })
+        .await
     }
 
     /// The Quality a new Request `asker` opens on the enabled Fulfiller of `Kind` takes, and
@@ -1037,8 +1042,10 @@ impl Requests {
     /// Declines the Pending Request `id`, giving its Requesters `reason`, trimmed, unless it is
     /// blank, and publishes that its state changed.
     pub(crate) async fn decline(&self, id: i64, reason: &str) -> Result<Request, Error> {
-        self.decide(id, RequestState::Declined, given_reason(reason), None)
-            .await
+        let reason = given_reason(reason);
+        let this = self.clone();
+        // The write commits even if the caller stops waiting, so its event must follow (ADR 0029).
+        detached(async move { this.decide(id, RequestState::Declined, reason, None).await }).await
     }
 
     async fn decide(
@@ -1064,12 +1071,17 @@ impl Requests {
 
     /// Removes the Request `id`, whatever its state, and publishes that it was cancelled.
     pub(crate) async fn cancel(&self, id: i64) -> Result<(), Error> {
-        let request = self.db.write(move |tx| Box::pin(cancel(tx, id))).await?;
-        self.events.publish(vec![event(RequestCancelled {
-            request: request.into(),
-            ..Default::default()
-        })]);
-        Ok(())
+        let this = self.clone();
+        // As in `decline`.
+        detached(async move {
+            let request = this.db.write(move |tx| Box::pin(cancel(tx, id))).await?;
+            this.events.publish(vec![event(RequestCancelled {
+                request: request.into(),
+                ..Default::default()
+            })]);
+            Ok(())
+        })
+        .await
     }
 
     /// Takes `requester` off the Pending Request `id`, removing it once nobody is left on it, and
@@ -1077,12 +1089,17 @@ impl Requests {
     pub(crate) async fn withdraw(&self, requester: &User, id: i64) -> Result<(), Error> {
         let user = requester.id;
         let visible = visible_to(requester);
-        let happened = self
-            .db
-            .write(move |tx| Box::pin(withdraw(tx, user, visible, id)))
-            .await?;
-        self.events.publish(vec![happened]);
-        Ok(())
+        let this = self.clone();
+        // As in `decline`.
+        detached(async move {
+            let happened = this
+                .db
+                .write(move |tx| Box::pin(withdraw(tx, user, visible, id)))
+                .await?;
+            this.events.publish(vec![happened]);
+            Ok(())
+        })
+        .await
     }
 
     /// A page of at most `size` of the Requests and Followed Shows `viewer` may see, newest first:
@@ -2662,7 +2679,7 @@ fn read_state(stored: &str) -> RequestState {
 #[cfg(test)]
 mod tests {
     use std::{
-        collections::{HashMap, HashSet},
+        collections::{BTreeMap, HashMap, HashSet},
         sync::{
             Arc,
             atomic::{AtomicUsize, Ordering},
@@ -2670,13 +2687,20 @@ mod tests {
         time::Duration,
     };
 
+    use futures_util::{Stream, StreamExt};
     use nama_plugin_api::{
         BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
         fulfiller::{Download, Fulfilled, Fulfiller, Movies},
         metadata::{Episode, ExternalId, ExternalIds, Season},
-        settings::SettingsSchema,
+        settings::{SettingValue, Settings, SettingsSchema},
     };
-    use nama_proto::nama::v1::{Request, RequestState};
+    use nama_plugin_tmdb::{
+        Tmdb,
+        testing::{API_KEY, FakeTmdb},
+    };
+    use nama_proto::nama::v1::{
+        Request, RequestState, SubscribeResponse, event::Event as Happened, subscribe_response,
+    };
     use sqlx::SqliteConnection;
     use tokio::sync::Notify;
 
@@ -2684,11 +2708,12 @@ mod tests {
     use crate::{
         contents::{Change, Contents, Decided, Decisions, Item, Metadata},
         db::Database,
-        events::EventBus,
+        events::{EventBus, Filter},
         libraries::{Kind, Libraries},
         matching::Matcher,
         plugins::Registry,
         server_settings::ServerUrl,
+        users::{Permissions, User},
     };
 
     const TODAY: &str = "2026-11-08";
@@ -3075,6 +3100,148 @@ mod tests {
         tokio::time::timeout(Duration::from_secs(1), gated.take_until_handed(2))
             .await
             .expect("the second Request was never handed to the Fulfiller");
+    }
+
+    /// Ada, the User [`approved_for`] asks as, holding `permissions`.
+    fn ada(permissions: Permissions) -> User {
+        User {
+            id: 1,
+            name: "ada".to_owned(),
+            permissions,
+            created_at: 0,
+        }
+    }
+
+    /// Runs `change` for a caller that stops waiting once its write is queued, as hyper drops a
+    /// handler's future when its client goes away, then lets the write run.
+    async fn leave_once_queued<T: Send + 'static>(
+        requests: &Requests,
+        change: impl Future<Output = T> + Send + 'static,
+    ) {
+        let busy = Arc::new(Notify::new());
+        let release = Arc::new(Notify::new());
+        let db = Arc::clone(&requests.db);
+        let (writing, held) = (Arc::clone(&busy), Arc::clone(&release));
+        let holding = tokio::spawn(async move {
+            db.write(move |_| Box::pin(hold_writer(writing, held)))
+                .await
+        });
+        busy.notified().await;
+        let caller = tokio::spawn(change);
+        let queued = async {
+            while requests.db.queued_writes() == 0 {
+                tokio::task::yield_now().await;
+            }
+        };
+        tokio::time::timeout(Duration::from_secs(5), queued)
+            .await
+            .expect("the change never queued its write");
+
+        caller.abort();
+        assert!(caller.await.is_err_and(|ended| ended.is_cancelled()));
+        release.notify_one();
+        holding.await.unwrap().unwrap();
+    }
+
+    /// A write that tells `writing` it runs, then holds the writer until `released`.
+    async fn hold_writer(writing: Arc<Notify>, released: Arc<Notify>) -> Result<(), sqlx::Error> {
+        writing.notify_one();
+        released.notified().await;
+        Ok(())
+    }
+
+    /// What the next event `published` lets through says happened, waiting a second at most.
+    async fn next_happened(
+        published: &mut (impl Stream<Item = SubscribeResponse> + Unpin),
+    ) -> Happened {
+        let response = tokio::time::timeout(Duration::from_secs(1), published.next())
+            .await
+            .expect("nothing was published")
+            .expect("the bus closed");
+        match response.message {
+            Some(subscribe_response::Message::Event(event)) => event.event.unwrap(),
+            other => panic!("not an event: {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn an_auto_approved_movie_asked_for_by_a_caller_who_left_is_published_and_handed_off() {
+        let tmdb = FakeTmdb::start().await;
+        let (_data, requests) = approved_for(&[], Arc::new(Asked::default())).await;
+        let settings = Settings::new(BTreeMap::from([(
+            "api_key".to_owned(),
+            SettingValue::Text(API_KEY.to_owned()),
+        )]));
+        requests
+            .plugins
+            .enable_with_settings(Arc::new(Tmdb::with_endpoints(tmdb.endpoints())), settings)
+            .unwrap();
+        let mut published = Box::pin(requests.events.subscribe(Filter::default()));
+        let asking = requests.clone();
+
+        leave_once_queued(&requests, async move {
+            asking.create(&ada(Permissions::ADMIN), 348, None).await
+        })
+        .await;
+
+        let created = next_happened(&mut published).await;
+        assert!(
+            matches!(created, Happened::RequestCreated(_)),
+            "{created:?}"
+        );
+        let Happened::RequestStateChanged(handed_off) = next_happened(&mut published).await else {
+            panic!("the Request was not handed off");
+        };
+        assert_eq!(handed_off.request.state, RequestState::Processing);
+    }
+
+    #[tokio::test]
+    async fn a_request_declined_by_a_caller_who_left_is_published() {
+        let (_data, requests) = approved_for(&[949], Arc::new(Asked::default())).await;
+        move_to(&requests, 1, RequestState::Pending).await;
+        let mut published = Box::pin(requests.events.subscribe(Filter::default()));
+        let declining = requests.clone();
+
+        leave_once_queued(&requests, async move { declining.decline(1, "").await }).await;
+
+        let Happened::RequestStateChanged(declined) = next_happened(&mut published).await else {
+            panic!("not a change of state");
+        };
+        assert_eq!(declined.request.state, RequestState::Declined);
+    }
+
+    #[tokio::test]
+    async fn a_request_cancelled_by_a_caller_who_left_is_published() {
+        let (_data, requests) = approved_for(&[949], Arc::new(Asked::default())).await;
+        let mut published = Box::pin(requests.events.subscribe(Filter::default()));
+        let cancelling = requests.clone();
+
+        leave_once_queued(&requests, async move { cancelling.cancel(1).await }).await;
+
+        let cancelled = next_happened(&mut published).await;
+        assert!(
+            matches!(cancelled, Happened::RequestCancelled(_)),
+            "{cancelled:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_request_withdrawn_by_a_caller_who_left_is_published() {
+        let (_data, requests) = approved_for(&[949], Arc::new(Asked::default())).await;
+        move_to(&requests, 1, RequestState::Pending).await;
+        let mut published = Box::pin(requests.events.subscribe(Filter::default()));
+        let withdrawing = requests.clone();
+
+        leave_once_queued(&requests, async move {
+            withdrawing.withdraw(&ada(Permissions::NEW_USER), 1).await
+        })
+        .await;
+
+        let withdrawn = next_happened(&mut published).await;
+        assert!(
+            matches!(withdrawn, Happened::RequestWithdrawn(_)),
+            "{withdrawn:?}"
+        );
     }
 
     #[tokio::test]
