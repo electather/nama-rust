@@ -93,7 +93,7 @@ pub(crate) struct Unmatched {
     pub(crate) item: Item,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub(crate) struct Stored {
     pub(crate) id: i64,
     pub(crate) size: i64,

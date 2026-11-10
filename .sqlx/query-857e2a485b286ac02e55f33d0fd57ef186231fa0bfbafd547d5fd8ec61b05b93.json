@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO version_probes (version_id, probe_version, size, modified_ns, container,\n                                     duration_ms, bitrate)\n         VALUES (?, ?, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 7
+    },
+    "nullable": []
+  },
+  "hash": "857e2a485b286ac02e55f33d0fd57ef186231fa0bfbafd547d5fd8ec61b05b93"
+}
