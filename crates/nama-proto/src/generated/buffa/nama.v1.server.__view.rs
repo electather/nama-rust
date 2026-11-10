@@ -4008,6 +4008,12 @@ pub struct PlaybackSettingsView<'a> {
     ///
     /// Field 2: `max_transcodes`
     pub max_transcodes: u32,
+    /// The Playback Limit for a Device whose address isn't on the local network, until its User
+    /// picks one in the player. `PLAYBACK_LIMIT_ORIGINAL`, the default, for none; unset is taken as
+    /// that.
+    ///
+    /// Field 3: `remote_playback_limit`
+    pub remote_playback_limit: ::buffa::EnumValue<super::super::PlaybackLimit>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for PlaybackSettingsView<'a> {
@@ -4054,6 +4060,15 @@ impl<'a> ::buffa::MessageView<'a> for PlaybackSettingsView<'a> {
                 )?;
                 view.max_transcodes = ::buffa::types::decode_uint32(&mut cur)?;
             }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.remote_playback_limit = ::buffa::EnumValue::from(
+                    ::buffa::types::decode_int32(&mut cur)?,
+                );
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -4078,6 +4093,7 @@ impl<'a> ::buffa::MessageView<'a> for PlaybackSettingsView<'a> {
         ::core::result::Result::Ok(super::super::PlaybackSettings {
             segment_folder: self.segment_folder.to_string(),
             max_transcodes: self.max_transcodes,
+            remote_playback_limit: self.remote_playback_limit,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -4098,6 +4114,12 @@ impl<'a> ::buffa::ViewEncode<'a> for PlaybackSettingsView<'a> {
             size
                 += 1u64 + ::buffa::types::uint32_encoded_len(self.max_transcodes) as u64;
         }
+        {
+            let val = self.remote_playback_limit.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -4114,6 +4136,12 @@ impl<'a> ::buffa::ViewEncode<'a> for PlaybackSettingsView<'a> {
         }
         if self.max_transcodes != 0u32 {
             ::buffa::types::put_uint32_field(2u32, self.max_transcodes, buf);
+        }
+        {
+            let val = self.remote_playback_limit.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(3u32, val, buf);
+            }
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -4145,6 +4173,11 @@ impl<'__a> ::serde::Serialize for PlaybackSettingsView<'__a> {
                     "maxTranscodes",
                     &::buffa::json_helpers::ProtoJson(&self.max_transcodes),
                 )?;
+        }
+        if !::buffa::json_helpers::skip_if::is_default_enum_value(
+            &self.remote_playback_limit,
+        ) {
+            __map.serialize_entry("remotePlaybackLimit", &self.remote_playback_limit)?;
         }
         __map.end()
     }
@@ -4255,6 +4288,17 @@ impl PlaybackSettingsOwnedView {
     #[must_use]
     pub fn max_transcodes(&self) -> u32 {
         self.0.reborrow().max_transcodes
+    }
+    /// The Playback Limit for a Device whose address isn't on the local network, until its User
+    /// picks one in the player. `PLAYBACK_LIMIT_ORIGINAL`, the default, for none; unset is taken as
+    /// that.
+    ///
+    /// Field 3: `remote_playback_limit`
+    #[must_use]
+    pub fn remote_playback_limit(
+        &self,
+    ) -> ::buffa::EnumValue<super::super::PlaybackLimit> {
+        self.0.reborrow().remote_playback_limit
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<PlaybackSettingsView<'static>>>

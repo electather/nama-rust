@@ -44,7 +44,7 @@ use nama_server::{
 };
 use refused::assert_refused;
 use server::{
-    Library, SignedIn, TestServer, WAIT, subscribe,
+    Builder, Library, SignedIn, TestServer, WAIT, subscribe,
     tmdb::{ALIEN, DARK, THE_OFFICE as THE_OFFICE_US},
 };
 
@@ -97,7 +97,12 @@ impl Fixture {
 
     /// Starts a Server with a Library of `kind` that found `ffmpeg` at startup.
     async fn start_with_ffmpeg(kind: LibraryKind, ffmpeg: Ffmpeg) -> Self {
-        let server = TestServer::builder().tmdb().ffmpeg(ffmpeg).start().await;
+        Self::start_on(kind, TestServer::builder().ffmpeg(ffmpeg)).await
+    }
+
+    /// Starts a Server as `builder` says, with a fake TMDB and a Library of `kind`.
+    async fn start_on(kind: LibraryKind, builder: Builder) -> Self {
+        let server = builder.tmdb().start().await;
         let media = server.create_library(kind, &[]).await;
         Self::over(server, media)
     }
@@ -174,7 +179,12 @@ impl Fixture {
 
     /// Starts a Server with a Movies Library holding Alien, scanned and Matched.
     async fn alien() -> Self {
-        let server = TestServer::builder().tmdb().start().await;
+        Self::alien_on(TestServer::builder()).await
+    }
+
+    /// [`Self::alien`] on a Server `builder` starts.
+    async fn alien_on(builder: Builder) -> Self {
+        let server = builder.tmdb().start().await;
         let media = server
             .matched_library(LibraryKind::LIBRARY_KIND_MOVIES, &[ALIEN_1080P])
             .await;
@@ -289,6 +299,32 @@ impl Fixture {
         request: PlanPlaybackRequest,
     ) -> Result<PlaybackPlan, ConnectError> {
         ask_for_plan_as(self.server.client_config(), request).await
+    }
+
+    /// As [`Self::ask_for_plan`], through a proxy that says it relays for the address `client`.
+    async fn ask_for_plan_relayed_for(
+        &self,
+        client: &str,
+        request: PlanPlaybackRequest,
+    ) -> Result<PlaybackPlan, ConnectError> {
+        let config = (self.server.client_config()).with_default_header("x-forwarded-for", client);
+        ask_for_plan_as(config, request).await
+    }
+
+    /// Sets the default Playback Limit for remote playback to `limit`, as the Admin.
+    async fn set_remote_limit(&self, limit: PlaybackLimit) {
+        ServerServiceClient::new(HttpClient::plaintext(), self.server.client_config())
+            .update_playback_settings(UpdatePlaybackSettingsRequest {
+                settings: PlaybackSettings {
+                    remote_playback_limit: limit.into(),
+                    max_transcodes: 2,
+                    ..Default::default()
+                }
+                .into(),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
     }
 
     /// The ids of the Versions of the Movie with the TMDB id `tmdb`, by path.
@@ -1136,6 +1172,7 @@ async fn an_h264_and_aac_mp4_direct_plays_through_its_plans_url() {
             "This Server lacks ffmpeg or ffprobe, so it can only Direct Play",
             "Nothing has failed to play it on this Device",
             "It plays the file's own audio Track",
+            "This Device is on the local network",
             "The Playback Limit is Original",
             "This Server isn't running as many Transcodes as it may at once",
         ]
@@ -1316,6 +1353,7 @@ async fn without_ffprobe_a_version_direct_plays_and_its_plan_says_its_tracks_are
             "This Server lacks ffmpeg or ffprobe, so it can only Direct Play",
             "Nothing has failed to play it on this Device",
             "It plays the file's own audio Track",
+            "This Device is on the local network",
             "The Playback Limit is Original",
             "This Server isn't running as many Transcodes as it may at once",
         ]
@@ -1441,7 +1479,15 @@ impl Fixture {
         ffmpeg: Ffmpeg,
         write: impl FnOnce(&Path) -> std::io::Result<()>,
     ) -> (Self, i64) {
-        let fx = Self::start_with_ffmpeg(LibraryKind::LIBRARY_KIND_MOVIES, ffmpeg).await;
+        Self::alien_written_on(TestServer::builder().ffmpeg(ffmpeg), write).await
+    }
+
+    /// [`Self::alien_written`] on a Server `builder` starts.
+    async fn alien_written_on(
+        builder: Builder,
+        write: impl FnOnce(&Path) -> std::io::Result<()>,
+    ) -> (Self, i64) {
+        let fx = Self::start_on(LibraryKind::LIBRARY_KIND_MOVIES, builder).await;
         let file = fx.folder.join("Alien (1979)/Alien (1979).mkv");
         fs::create_dir_all(file.parent().unwrap()).unwrap();
         write(&file).unwrap();
@@ -1782,7 +1828,7 @@ async fn a_1080p_h264_mkv_limited_to_720p_is_transcoded_down_to_it_and_original_
 
     assert_eq!(at_720p.method, PlaybackMethod::PLAYBACK_METHOD_TRANSCODE);
     assert_eq!(
-        at_720p.reasons[5],
+        at_720p.reasons[6],
         "Its picture is larger than the 720p Playback Limit, so a Transcode scales it down to \
          1280×720"
     );
@@ -1791,7 +1837,108 @@ async fn a_1080p_h264_mkv_limited_to_720p_is_transcoded_down_to_it_and_original_
         "h264,1280,720"
     );
     assert_eq!(original.method, PlaybackMethod::PLAYBACK_METHOD_REMUX);
-    assert_eq!(original.reasons[5], "The Playback Limit is Original");
+    assert_eq!(original.reasons[6], "The Playback Limit is Original");
+}
+
+/// A Server behind a reverse proxy at the test's own address, which it trusts.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+fn behind_proxy() -> Builder {
+    TestServer::builder().config(Config {
+        trusted_proxies: vec!["127.0.0.1".parse().unwrap()],
+        ..Config::default()
+    })
+}
+
+/// A plan for `version` on Chrome, with the Playback Limit `picked`.
+fn picking(version: i64, picked: PlaybackLimit) -> PlanPlaybackRequest {
+    PlanPlaybackRequest {
+        version_id: version,
+        playback_limit: picked.into(),
+        device_decoding: chrome().into(),
+        ..Default::default()
+    }
+}
+
+const REMOTE_720P: &str = "This Device is outside the local network, so the default Playback \
+                           Limit for remote playback, 720p, applies";
+const LOCAL: &str = "This Device is on the local network";
+
+#[tokio::test]
+async fn a_1080p_h264_mkv_played_from_outside_the_local_network_transcodes_to_the_remote_default() {
+    let behind = behind_proxy().ffmpeg(system_ffmpeg());
+    let (fx, version) = Fixture::alien_written_on(behind, ffmpeg::write_1080p_h264).await;
+    fx.set_remote_limit(PlaybackLimit::PLAYBACK_LIMIT_720P)
+        .await;
+    let unpicked = picking(version, PlaybackLimit::PLAYBACK_LIMIT_UNSPECIFIED);
+    let original = picking(version, PlaybackLimit::PLAYBACK_LIMIT_ORIGINAL);
+    let remote = "203.0.113.7";
+
+    let defaulted = fx
+        .ask_for_plan_relayed_for(remote, unpicked.clone())
+        .await
+        .unwrap();
+    let picked_original = fx.ask_for_plan_relayed_for(remote, original).await.unwrap();
+    let local = fx.ask_for_plan(unpicked).await.unwrap();
+
+    assert_eq!(defaulted.method, PlaybackMethod::PLAYBACK_METHOD_TRANSCODE);
+    assert_eq!(defaulted.reasons[5], REMOTE_720P);
+    assert_eq!(defaulted.playback_limit, PlaybackLimit::PLAYBACK_LIMIT_720P);
+    assert_eq!(
+        played_streams(&fx, &defaulted.url, "v", "0.m4s", "width,height").await,
+        "1280,720"
+    );
+    assert_eq!(
+        picked_original.method,
+        PlaybackMethod::PLAYBACK_METHOD_REMUX
+    );
+    assert_eq!(local.method, PlaybackMethod::PLAYBACK_METHOD_REMUX);
+    assert_eq!(local.reasons[5], LOCAL);
+    assert_eq!(local.playback_limit, PlaybackLimit::PLAYBACK_LIMIT_ORIGINAL);
+}
+
+#[tokio::test]
+async fn behind_a_trusted_proxy_the_forwarded_client_address_decides_whether_playback_is_remote() {
+    let fx = Fixture::alien_on(behind_proxy()).await;
+    fx.set_remote_limit(PlaybackLimit::PLAYBACK_LIMIT_720P)
+        .await;
+    let version = fx.version_ids(ALIEN).await[0];
+    let unpicked = picking(version, PlaybackLimit::PLAYBACK_LIMIT_UNSPECIFIED);
+
+    let remote = fx
+        .ask_for_plan_relayed_for("203.0.113.7", unpicked.clone())
+        .await
+        .unwrap();
+    let local = fx
+        .ask_for_plan_relayed_for("192.168.1.20", unpicked)
+        .await
+        .unwrap();
+
+    assert_eq!(remote.reasons[5], REMOTE_720P);
+    assert_eq!(remote.playback_limit, PlaybackLimit::PLAYBACK_LIMIT_720P);
+    assert_eq!(local.reasons[5], LOCAL);
+    assert_eq!(local.playback_limit, PlaybackLimit::PLAYBACK_LIMIT_ORIGINAL);
+}
+
+#[tokio::test]
+async fn behind_an_untrusted_proxy_the_peers_address_decides_whether_playback_is_remote() {
+    let fx = Fixture::alien().await;
+    fx.set_remote_limit(PlaybackLimit::PLAYBACK_LIMIT_720P)
+        .await;
+    let version = fx.version_ids(ALIEN).await[0];
+
+    let plan = fx
+        .ask_for_plan_relayed_for(
+            "203.0.113.7",
+            picking(version, PlaybackLimit::PLAYBACK_LIMIT_UNSPECIFIED),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(plan.reasons[5], LOCAL);
+    assert_eq!(plan.playback_limit, PlaybackLimit::PLAYBACK_LIMIT_ORIGINAL);
 }
 
 #[tokio::test]

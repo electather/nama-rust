@@ -16,7 +16,7 @@ import { PlaybackLimit } from "@/gen/nama/v1/playback_pb";
  * The Playback Limits below Original, with the picture each fits a Transcode in, as the Server's
  * `PlaybackLimit` in `crates/nama-server/src/playback.rs` has them.
  */
-const belowOriginal = [
+export const belowOriginal = [
   { limit: PlaybackLimit.PLAYBACK_LIMIT_1080P, name: "1080p", width: 1920, height: 1080 },
   { limit: PlaybackLimit.PLAYBACK_LIMIT_720P, name: "720p", width: 1280, height: 720 },
   { limit: PlaybackLimit.PLAYBACK_LIMIT_480P, name: "480p", width: 854, height: 480 },
@@ -47,6 +47,7 @@ export function PlaybackLimitMenu({
 }: {
   /** The Version's Tracks, whose first video Track's picture the limits must be below. */
   tracks: Track[];
+  /** The limit the plan keeps to. */
   chosen: PlaybackLimit;
   choose: (limit: PlaybackLimit) => void;
   /** Where the menu opens: inside the player, so it shows in full screen. */
@@ -56,8 +57,8 @@ export function PlaybackLimitMenu({
   if (below.length === 0) return null;
   const original = PlaybackLimit.PLAYBACK_LIMIT_ORIGINAL;
   const offered = [{ limit: original, name: "Original" }, ...below];
-  // Not picking one is Original.
-  const playing = chosen === PlaybackLimit.PLAYBACK_LIMIT_UNSPECIFIED ? original : chosen;
+  // A limit the picture already fits, or none, plays it as it is.
+  const playing = offered.some(({ limit }) => limit === chosen) ? chosen : original;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
