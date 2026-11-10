@@ -62,10 +62,10 @@ function clearOfControls({ cues }: TextTrack) {
 const languageNames = new Intl.DisplayNames(["en"], { type: "language" });
 
 /**
- * A subtitle Track's name, its language or else its title, and what else tells it apart: its
- * title, Forced and SDH.
+ * A subtitle or audio Track's name, its language or else its title, and what else tells it apart:
+ * its title, Forced and SDH.
  */
-export function subtitleLabel(track: Track | undefined) {
+export function trackLabel(track: Track | undefined) {
   const facts = track ?? create(TrackSchema);
   const language = languageName(facts.language);
   return {

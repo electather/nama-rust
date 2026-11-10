@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import type { Track } from "@/gen/nama/v1/browse_pb";
 import type { PlaybackSubtitle } from "@/gen/nama/v1/playback_pb";
-import { type SubtitleState, subtitleLabel, useSubtitles } from "@/lib/subtitles";
+import { type SubtitleState, trackLabel, useSubtitles } from "@/lib/subtitles";
 
 /** The `<video>`'s `<track>`s, one per subtitle, which the browser fetches only once shown. */
 export function SubtitleTracks({ subtitles }: { subtitles: PlaybackSubtitle[] }) {
@@ -21,14 +21,14 @@ export function SubtitleTracks({ subtitles }: { subtitles: PlaybackSubtitle[] })
       kind="subtitles"
       src={url}
       srcLang={track?.language}
-      label={trackLabel(track)}
+      label={browserMenuLabel(track)}
     />
   ));
 }
 
 /** What the browser's own subtitle menu, such as in an iPhone's full screen, calls it. */
-function trackLabel(track: Track | undefined) {
-  const { name, details } = subtitleLabel(track);
+function browserMenuLabel(track: Track | undefined) {
+  const { name, details } = trackLabel(track);
   return details === "" ? name : `${name} (${details})`;
 }
 
@@ -85,7 +85,7 @@ function SubtitleItem({
   url: string;
   state: SubtitleState | undefined;
 }) {
-  const { name, details } = subtitleLabel(track);
+  const { name, details } = trackLabel(track);
   const more = [details, state === undefined ? "" : stateText[state]]
     .filter((text) => text !== "")
     .join(" · ");

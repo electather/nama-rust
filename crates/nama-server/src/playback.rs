@@ -108,9 +108,10 @@ impl DeviceDecoding {
 }
 
 /// Plans playing the Version `version` on `caller`'s Device, which decodes `decoding`, by any
-/// method but those that just `failed` there, probing the Version first unless its Tracks are
-/// current, and keeps a playable plan in `running`, which starts its ffmpeg if it needs one.
-/// `None` if there is no such Version.
+/// method but those that just `failed` there, with the audio Track at the place `audio` in the
+/// Version's Tracks, or else its own, probing the Version first unless its Tracks are current,
+/// and keeps a playable plan in `running`, which starts its ffmpeg if it needs one. `None` if
+/// there is no such Version.
 #[expect(
     clippy::too_many_arguments,
     reason = "each is its own fact about the request or a service it needs, and a struct would \
@@ -123,6 +124,7 @@ pub(crate) async fn plan(
     version: i64,
     decoding: DeviceDecoding,
     failed: BTreeSet<Method>,
+    audio: Option<usize>,
 ) -> Result<Option<Plan>, StartError> {
     let probe = match scanner.probe_now(version).await {
         Ok(probe) => Some(probe),
@@ -144,6 +146,7 @@ pub(crate) async fn plan(
         device: decoding,
         ffmpeg: running.can_run(),
         failed,
+        audio,
     };
     let mut plan = build(&facts, &STEPS);
     let Some(playback) = playback(caller, version, &plan) else {
@@ -153,8 +156,8 @@ pub(crate) async fn plan(
     if plan.method == Some(Method::Remux)
         && let Some(probed) = &facts.probe
     {
-        let aac = aac_channels(probed, &facts.device);
-        let Some((id, url)) = running.remux(playback, probed, aac).await? else {
+        let (played, aac) = (played_audio(&facts), aac_channels(&facts));
+        let Some((id, url)) = running.remux(playback, probed, played, aac).await? else {
             return Ok(None);
         };
         plan.id = Some(id);
@@ -206,6 +209,8 @@ struct Facts {
     ffmpeg: bool,
     /// The methods that just failed to play it on the Device. The Server never stores them.
     failed: BTreeSet<Method>,
+    /// The audio Track the User chose, by its place in the Version's Tracks, if they chose one.
+    audio: Option<usize>,
 }
 
 /// What one step lets a plan be, and why.
@@ -217,11 +222,12 @@ struct Narrowing {
 type Step = fn(&Facts) -> Narrowing;
 
 /// In ADR 0027's order. A new input is a new step here.
-const STEPS: [Step; 4] = [
+const STEPS: [Step; 5] = [
     version_tracks,
     device_decoding,
     server_ffmpeg,
     failed_on_device,
+    chosen_audio,
 ];
 
 /// The plan for `facts` that every one of `steps` allows.
@@ -237,10 +243,9 @@ fn build(facts: &Facts, steps: &[Step]) -> Plan {
     let method = allowed
         .into_iter()
         .find(|method| *method != Method::Transcode);
-    let mut tracks = facts.probe.as_ref().map(played_tracks).unwrap_or_default();
+    let mut tracks = played_tracks(facts);
     if method == Some(Method::Remux)
-        && let Some(channels) =
-            (facts.probe.as_ref()).and_then(|probe| aac_channels(probe, &facts.device))
+        && let Some(channels) = aac_channels(facts)
     {
         tracks = converted_to_aac(tracks, channels);
     }
@@ -287,7 +292,7 @@ fn device_decoding(facts: &Facts) -> Narrowing {
     };
     let cant: Vec<String> = undecodable_container(probe, &facts.device)
         .into_iter()
-        .chain(undecodable_tracks(probe, &facts.device))
+        .chain(undecodable_tracks(facts))
         .collect();
     let Some(cant) = joined(&cant, "or") else {
         return Narrowing {
@@ -310,10 +315,10 @@ fn device_decoding(facts: &Facts) -> Narrowing {
             reason,
         };
     }
-    let reason = match aac_channels(probe, &facts.device) {
+    let reason = match aac_channels(facts) {
         Some(channels) => format!(
             "{reason}, and a Remux converts that audio to {}",
-            aac_in_words(probe, &facts.device, channels)
+            aac_in_words(facts, channels)
         ),
         None => reason,
     };
@@ -335,6 +340,23 @@ fn server_ffmpeg(facts: &Facts) -> Narrowing {
             allows: BTreeSet::from([Method::DirectPlay]),
             reason: "This Server lacks ffmpeg or ffprobe, so it can only Direct Play".to_owned(),
         }
+    }
+}
+
+/// The step for the audio Track the User chose: Direct Play only if it's the one browsers play
+/// from the file, since only Safari switches audio inside a file.
+fn chosen_audio(facts: &Facts) -> Narrowing {
+    match &facts.probe {
+        Some(probe) if played_audio(facts) != file_audio(probe) => Narrowing {
+            allows: BTreeSet::from([Method::Remux, Method::Transcode]),
+            reason: "The audio Track chosen isn't the one browsers play from its file, so it \
+                     can't be Direct Played"
+                .to_owned(),
+        },
+        _ => Narrowing {
+            allows: BTreeSet::from(Method::ALL),
+            reason: "It plays the file's own audio Track".to_owned(),
+        },
     }
 }
 
@@ -388,10 +410,11 @@ fn undecodable_container(probe: &Probe, device: &DeviceDecoding) -> Option<Strin
     }
 }
 
-/// What of the Tracks the plan plays `device` can't decode, in plain words, such as "HEVC video".
-fn undecodable_tracks(probe: &Probe, device: &DeviceDecoding) -> Vec<String> {
-    (played_tracks(probe).iter())
-        .flat_map(|track| undecodable(track, device))
+/// What of the Tracks the plan plays the Device can't decode, in plain words, such as "HEVC
+/// video".
+fn undecodable_tracks(facts: &Facts) -> Vec<String> {
+    (played_tracks(facts).iter())
+        .flat_map(|track| undecodable(track, &facts.device))
         .collect()
 }
 
@@ -414,21 +437,25 @@ fn undecodable(track: &Track, device: &DeviceDecoding) -> Vec<String> {
     cant
 }
 
-/// How many channels a Remux converts `probe`'s played audio to, as AAC, if `device` can't decode
-/// it: as many as it has, up to 5.1 if `device` plays 5.1 and stereo otherwise.
-fn aac_channels(probe: &Probe, device: &DeviceDecoding) -> Option<i64> {
-    let audio = played_audio_track(probe)?;
-    if undecodable(audio, device).is_empty() {
+/// How many channels a Remux converts the played audio to, as AAC, if the Device can't decode it:
+/// as many as it has, up to 5.1 if the Device plays 5.1 and stereo otherwise.
+fn aac_channels(facts: &Facts) -> Option<i64> {
+    let audio = played_audio_track(facts)?;
+    if undecodable(audio, &facts.device).is_empty() {
         return None;
     }
-    let most = if device.audio_channels >= 6 { 6 } else { 2 };
+    let most = if facts.device.audio_channels >= 6 {
+        6
+    } else {
+        2
+    };
     // Stereo when the file doesn't say, which every Device plays.
-    Some(played_channels(probe).unwrap_or(2).min(most))
+    Some(played_channels(facts).unwrap_or(2).min(most))
 }
 
-/// How many channels `probe`'s played audio has, if the file says.
-fn played_channels(probe: &Probe) -> Option<i64> {
-    let TrackKind::Audio { channels } = played_audio_track(probe)?.kind else {
+/// How many channels the played audio has, if the file says.
+fn played_channels(facts: &Facts) -> Option<i64> {
+    let TrackKind::Audio { channels } = played_audio_track(facts)?.kind else {
         return None;
     };
     channels
@@ -446,19 +473,19 @@ fn converted_to_aac(mut tracks: Vec<Track>, channels: i64) -> Vec<Track> {
 }
 
 /// AAC with `channels` channels in plain words, such as "5.1 AAC", saying why when that's fewer
-/// than `probe`'s played audio has.
-fn aac_in_words(probe: &Probe, device: &DeviceDecoding, channels: i64) -> String {
+/// than the played audio has.
+fn aac_in_words(facts: &Facts, channels: i64) -> String {
     let name = match channels {
         1 => "mono".to_owned(),
         2 => "stereo".to_owned(),
         6 => "5.1".to_owned(),
         n => format!("{n}-channel"),
     };
-    let why = if channels >= played_channels(probe).unwrap_or_default() {
+    let why = if channels >= played_channels(facts).unwrap_or_default() {
         ""
-    } else if device.audio_channels >= 6 {
+    } else if facts.device.audio_channels >= 6 {
         ", the most a Remux makes"
-    } else if device.audio_channels == 0 {
+    } else if facts.device.audio_channels == 0 {
         ", as this Device doesn't say it plays more"
     } else {
         ", as this Device doesn't play 5.1"
@@ -498,9 +525,13 @@ fn joined(items: &[String], conjunction: &str) -> Option<String> {
     })
 }
 
-/// The Tracks a browser plays from the file: its first video, and its [`played_audio`].
-fn played_tracks(probe: &Probe) -> Vec<Track> {
-    [played_video(probe), played_audio_track(probe)]
+/// The Tracks the plan plays: the Version's first video, and its [`played_audio`]. Empty when
+/// they aren't known.
+fn played_tracks(facts: &Facts) -> Vec<Track> {
+    let Some(probe) = &facts.probe else {
+        return vec![];
+    };
+    [played_video(probe), played_audio_track(facts)]
         .into_iter()
         .flatten()
         .cloned()
@@ -513,19 +544,38 @@ fn played_video(probe: &Probe) -> Option<&Track> {
 }
 
 /// The Track [`played_audio`] counts to.
-fn played_audio_track(probe: &Probe) -> Option<&Track> {
-    played_audio(probe).and_then(|n| audio_tracks(probe).nth(n))
+fn played_audio_track(facts: &Facts) -> Option<&Track> {
+    let probe = facts.probe.as_ref()?;
+    played_audio(facts).and_then(|n| audio_tracks(probe).nth(n))
 }
 
-/// Which of `probe`'s audio Tracks a browser plays, counting from 0: the one the file marks to
-/// play by default, or else its first.
-fn played_audio(probe: &Probe) -> Option<usize> {
+/// Which of the Version's audio Tracks the plan plays, counting only its audio from 0: the one
+/// chosen, or else [`file_audio`]. A choice that isn't an audio Track, as when the Version
+/// changed since the User saw it, is the same as none.
+fn played_audio(facts: &Facts) -> Option<usize> {
+    let probe = facts.probe.as_ref()?;
+    let chosen = (facts.audio).filter(|&place| probe.tracks.get(place).is_some_and(is_audio));
+    let audio_before = |place| {
+        (probe.tracks.iter().take(place))
+            .filter(|track| is_audio(track))
+            .count()
+    };
+    chosen.map(audio_before).or_else(|| file_audio(probe))
+}
+
+/// Which of `probe`'s audio Tracks a browser plays from the file, counting from 0: the one the
+/// file marks to play by default, or else its first.
+fn file_audio(probe: &Probe) -> Option<usize> {
     (audio_tracks(probe).position(|track| track.default))
         .or_else(|| audio_tracks(probe).next().map(|_| 0))
 }
 
 fn audio_tracks(probe: &Probe) -> impl Iterator<Item = &Track> {
-    (probe.tracks.iter()).filter(|track| matches!(track.kind, TrackKind::Audio { .. }))
+    (probe.tracks.iter()).filter(|track| is_audio(track))
+}
+
+const fn is_audio(track: &Track) -> bool {
+    matches!(track.kind, TrackKind::Audio { .. })
 }
 
 /// The Version's text subtitle Tracks.
@@ -600,7 +650,7 @@ mod tests {
 
     use super::{
         DeviceDecoding, Facts, Method, Narrowing, Plan, STEPS, Subtitle, aac_channels, build,
-        device_decoding, failed_on_device,
+        device_decoding, failed_on_device, played_audio,
     };
     use crate::tracks::{Hdr, Probe, Track, TrackKind};
 
@@ -681,7 +731,12 @@ mod tests {
             device: firefox(),
             ffmpeg: true,
             failed: BTreeSet::new(),
+            audio: None,
         }
+    }
+
+    fn subtitle() -> Track {
+        track("subrip", true, TrackKind::Subtitle { image: false })
     }
 
     #[test]
@@ -703,6 +758,7 @@ mod tests {
                     "This Device decodes its container and Tracks".to_owned(),
                     "This Server has ffmpeg".to_owned(),
                     "Nothing has failed to play it on this Device".to_owned(),
+                    "It plays the file's own audio Track".to_owned(),
                 ],
                 subtitles: vec![],
             }
@@ -823,13 +879,13 @@ mod tests {
                 "Its Tracks aren't known, so this Device is taken to decode them",
                 "This Server has ffmpeg",
                 "Nothing has failed to play it on this Device",
+                "It plays the file's own audio Track",
             ]
         );
     }
 
     #[test]
     fn the_plan_plays_the_default_audio_track_and_else_the_first() {
-        let subtitle = track("subrip", true, TrackKind::Subtitle { image: false });
         let (first, default) = (audio("mp3", false), audio("aac", true));
         let cases = [
             (vec![video("h264"), first.clone(), default.clone()], default),
@@ -839,12 +895,71 @@ mod tests {
             ),
         ];
         for (tracks, played) in cases {
-            let with_subtitle = [tracks.clone(), vec![subtitle.clone()]].concat();
+            let with_subtitle = [tracks.clone(), vec![subtitle()]].concat();
 
             let plan = build(&facts(Some(with_subtitle)), &STEPS);
 
             assert_eq!(plan.tracks, [video("h264"), played], "{tracks:?}");
         }
+    }
+
+    #[test]
+    fn a_chosen_audio_track_other_than_the_files_own_is_remuxed_and_the_plan_says_so() {
+        let (english, commentary) = (audio("aac", true), audio("aac", false));
+        let facts = Facts {
+            audio: Some(3),
+            ..facts(Some(vec![
+                video("h264"),
+                english,
+                subtitle(),
+                commentary.clone(),
+            ]))
+        };
+
+        let plan = build(&facts, &STEPS);
+
+        assert_eq!(plan.method, Some(Method::Remux));
+        assert_eq!(plan.tracks, [video("h264"), commentary]);
+        assert_eq!(played_audio(&facts), Some(1), "counting only audio");
+        assert_eq!(
+            plan.reasons[4],
+            "The audio Track chosen isn't the one browsers play from its file, so it can't be \
+             Direct Played"
+        );
+    }
+
+    #[test]
+    fn choosing_the_files_own_audio_track_or_no_audio_track_plays_the_files_own() {
+        let (mp3, english) = (audio("mp3", false), audio("aac", true));
+        let tracks = vec![video("h264"), mp3, english.clone(), subtitle()];
+        for chosen in [Some(2), Some(0), Some(3), Some(9)] {
+            let facts = Facts {
+                audio: chosen,
+                ..facts(Some(tracks.clone()))
+            };
+
+            let plan = build(&facts, &STEPS);
+
+            assert_eq!(plan.method, Some(Method::DirectPlay), "{chosen:?}");
+            assert_eq!(plan.tracks, [video("h264"), english.clone()]);
+        }
+    }
+
+    #[test]
+    fn a_chosen_audio_track_the_device_cant_decode_is_converted_to_aac() {
+        let facts = Facts {
+            audio: Some(2),
+            ..facts(Some(vec![
+                video("h264"),
+                audio("aac", true),
+                audio("dts", false),
+            ]))
+        };
+
+        let plan = build(&facts, &STEPS);
+
+        assert_eq!(plan.tracks[1], audio("aac", false));
+        assert_eq!(aac_channels(&facts), Some(2));
     }
 
     #[test]
@@ -863,6 +978,7 @@ mod tests {
                 "This Device can't decode its Matroska container, so it can't be Direct Played",
                 "This Server has ffmpeg",
                 "Nothing has failed to play it on this Device",
+                "It plays the file's own audio Track",
             ]
         );
     }
@@ -1072,9 +1188,6 @@ mod tests {
 
         assert_eq!(plan.method, Some(Method::Remux));
         assert_eq!(plan.tracks, [video("h264"), audio("aac", true)]);
-        assert_eq!(
-            aac_channels(facts.probe.as_ref().unwrap(), &facts.device),
-            None
-        );
+        assert_eq!(aac_channels(&facts), None);
     }
 }

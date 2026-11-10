@@ -20,10 +20,12 @@ function PlayMovie() {
   const params = Route.useParams();
   // An Event may have removed it since the loader ran.
   if (!movie) return <NotFound />;
+  const { id, tracks } = versionToPlay(movie.versions, version);
   return (
     <Player
       title={movie.title}
-      versionId={versionToPlay(movie.versions, version).id}
+      versionId={id}
+      tracks={tracks}
       watchState={movie.watchState}
       back={{ to: "/libraries/$libraryId/movies/$movieId", params }}
     />

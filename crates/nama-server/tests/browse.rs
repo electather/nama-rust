@@ -239,8 +239,7 @@ impl Fixture {
         Viewer::new(self.server.client_config())
     }
 
-    /// The Admin's Playback Plan for the Version `version`, on a Device that decodes H.264 and AAC
-    /// in MP4, and plays HLS through Media Source Extensions, as Chrome does.
+    /// The Admin's Playback Plan for the Version `version`, on [`chrome`].
     async fn plan(&self, version: i64) -> Result<PlaybackPlan, ConnectError> {
         self.plan_on_device(version, &[], &[], 0).await
     }
@@ -255,27 +254,43 @@ impl Fixture {
         failed: &[PlaybackMethod],
         audio_channels: u32,
     ) -> Result<PlaybackPlan, ConnectError> {
+        let mut device = chrome();
+        (device.content_types).extend(also_decodes.iter().map(|&kind| kind.to_owned()));
+        device.audio_channels = audio_channels;
+        self.ask_for_plan(PlanPlaybackRequest {
+            version_id: version,
+            device_decoding: device.into(),
+            failed_methods: failed.iter().copied().map(EnumValue::from).collect(),
+            ..Default::default()
+        })
+        .await
+    }
+
+    /// As [`Self::plan`], from `start_position_ms`, with the audio Track at the place
+    /// `audio_track` in the Version's Tracks.
+    async fn plan_with_audio(
+        &self,
+        version: i64,
+        audio_track: u32,
+        start_position_ms: u64,
+    ) -> Result<PlaybackPlan, ConnectError> {
+        self.ask_for_plan(PlanPlaybackRequest {
+            version_id: version,
+            start_position_ms,
+            audio_track: Some(audio_track),
+            device_decoding: chrome().into(),
+            ..Default::default()
+        })
+        .await
+    }
+
+    async fn ask_for_plan(
+        &self,
+        request: PlanPlaybackRequest,
+    ) -> Result<PlaybackPlan, ConnectError> {
         let config = self.server.client_config();
-        let content_types = [
-            "video/mp4",
-            r#"video/mp4; codecs="avc1.640028""#,
-            r#"audio/mp4; codecs="mp4a.40.2""#,
-        ]
-        .iter()
-        .chain(also_decodes);
         let response = PlaybackServiceClient::new(HttpClient::plaintext(), config)
-            .plan_playback(PlanPlaybackRequest {
-                version_id: version,
-                device_decoding: DeviceDecoding {
-                    content_types: content_types.map(|&kind| kind.to_owned()).collect(),
-                    mse: true,
-                    audio_channels,
-                    ..Default::default()
-                }
-                .into(),
-                failed_methods: failed.iter().copied().map(EnumValue::from).collect(),
-                ..Default::default()
-            })
+            .plan_playback(request)
             .await?
             .into_owned();
         Ok(response.plan.into_option().unwrap())
@@ -1135,7 +1150,8 @@ async fn an_h264_and_aac_mp4_direct_plays_through_its_plans_url() {
             "Its Tracks need no change",
             "This Device decodes its container and Tracks",
             "This Server lacks ffmpeg or ffprobe, so it can only Direct Play",
-            "Nothing has failed to play it on this Device"
+            "Nothing has failed to play it on this Device",
+            "It plays the file's own audio Track"
         ]
     );
     let played = fetch(&fx.server, &plan.url, Some(&fx.server.admin_token)).await;
@@ -1159,7 +1175,8 @@ async fn without_ffprobe_a_version_direct_plays_and_its_plan_says_its_tracks_are
             "Its Tracks aren't known, so they're taken to need no change",
             "Its Tracks aren't known, so this Device is taken to decode them",
             "This Server lacks ffmpeg or ffprobe, so it can only Direct Play",
-            "Nothing has failed to play it on this Device"
+            "Nothing has failed to play it on this Device",
+            "It plays the file's own audio Track"
         ]
     );
 }
@@ -1218,6 +1235,21 @@ fn admins_playback(version: i64, plan: PlaybackPlan) -> Playback {
         method: plan.method,
         tracks: plan.tracks,
         reasons: plan.reasons,
+        ..Default::default()
+    }
+}
+
+/// What Chrome says it decodes, in part: H.264 and AAC in MP4, and HLS through Media Source
+/// Extensions.
+fn chrome() -> DeviceDecoding {
+    let content_types = [
+        "video/mp4",
+        r#"video/mp4; codecs="avc1.640028""#,
+        r#"audio/mp4; codecs="mp4a.40.2""#,
+    ];
+    DeviceDecoding {
+        content_types: content_types.map(str::to_owned).to_vec(),
+        mse: true,
         ..Default::default()
     }
 }
@@ -1343,7 +1375,7 @@ async fn an_h264_and_aac_mkv_is_remuxed_over_hls_with_its_audio_copied() {
         assert_ne!(segment.len(), 0, "{file}");
     }
     assert_eq!(
-        played_audio(&fx, &plan.url).await,
+        played_audio(&fx, &plan.url, "0.m4s").await,
         "aac,6",
         "copied, though this Device doesn't say it plays 5.1"
     );
@@ -1432,15 +1464,17 @@ async fn a_remuxs_playlist_and_segments_without_a_session_are_refused() {
     }
 }
 
-/// The codec and channels of the audio the plan at `url` plays, such as `aac,6`, as ffprobe reads
-/// its init segment and first segment.
+/// The codec and channels of the audio the plan at `url` plays in its segment `segment`, such as
+/// `aac,6`, as ffprobe reads it with its init segment.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
-async fn played_audio(fx: &Fixture, url: &str) -> String {
+async fn played_audio(fx: &Fixture, url: &str, segment: &str) -> String {
+    // The segment first, so ffmpeg starts there and the init segment is that run's.
+    let segment = fx.fetch_ok(&beside(url, segment)).await;
     let mut mp4 = fx.fetch_ok(&beside(url, "init.mp4")).await;
-    mp4.extend(fx.fetch_ok(&beside(url, "0.m4s")).await);
+    mp4.extend(segment);
     let file = tempfile::NamedTempFile::new().unwrap();
     fs::write(file.path(), mp4).unwrap();
     let entries = [
@@ -1477,8 +1511,57 @@ async fn dts_is_remuxed_as_aac_with_up_to_as_many_channels_as_the_device_plays()
                  Direct Played, and a Remux converts that audio to {to}"
             )
         );
-        assert_eq!(played_audio(&fx, &plan.url).await, converted);
+        assert_eq!(played_audio(&fx, &plan.url, "0.m4s").await, converted);
     }
+}
+
+/// Writes 14 seconds of H.264 with English 5.1 AAC, played by default, and a stereo AAC
+/// commentary, as Matroska, to `path`, with the ffmpeg on `PATH`.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+fn write_english_and_a_stereo_commentary(path: &Path) {
+    let status = std::process::Command::new("ffmpeg")
+        .args(["-v", "error", "-y"])
+        .args(["-f", "lavfi", "-i", "testsrc=size=320x240:rate=24"])
+        .args(["-f", "lavfi", "-i", "sine,aformat=channel_layouts=5.1"])
+        .args(["-f", "lavfi", "-i", "sine=frequency=880"])
+        .args(["-map", "0", "-map", "1", "-map", "2", "-t", "14"])
+        .args(["-c:v", "libx264", "-preset", "ultrafast", "-g", "48"])
+        .args(["-c:a", "aac", "-ac:a:1", "2"])
+        .args([
+            "-metadata:s:a:0",
+            "language=eng",
+            "-disposition:a:0",
+            "default",
+        ])
+        .args(["-metadata:s:a:1", "language=eng", "-disposition:a:1", "0"])
+        .args(["-metadata:s:a:1", "title=Commentary", "-f", "matroska"])
+        .arg(path)
+        .status()
+        .unwrap();
+    assert!(status.success(), "ffmpeg failed: {status}");
+}
+
+#[tokio::test]
+async fn switching_to_the_commentary_mid_play_remuxes_it_from_there_with_its_audio() {
+    let fx = Fixture::alien_written_by(ALIEN_1080P, write_english_and_a_stereo_commentary).await;
+    let version = fx.version_ids(ALIEN).await[0];
+    let english = fx.plan(version).await.unwrap();
+    assert_eq!(played_audio(&fx, &english.url, "1.m4s").await, "aac,6");
+
+    let commentary = fx.plan_with_audio(version, 2, 7_000).await.unwrap();
+
+    assert_eq!(commentary.method, PlaybackMethod::PLAYBACK_METHOD_REMUX);
+    assert_eq!(commentary.tracks[1].title.as_deref(), Some("Commentary"));
+    assert_eq!(
+        commentary.reasons[4],
+        "The audio Track chosen isn't the one browsers play from its file, so it can't be Direct \
+         Played"
+    );
+    // 7 seconds in is in the second segment, as they're cut about 6 seconds apart.
+    assert_eq!(played_audio(&fx, &commentary.url, "1.m4s").await, "aac,2");
 }
 
 #[tokio::test]

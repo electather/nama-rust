@@ -196,8 +196,11 @@ const soundNames = new Map([
   [8, "7.1"],
 ]);
 
-/** Sound by its usual name, such as "Stereo" or "5.1", or else how many channels it has. */
-function soundOf(tracks: Track[]) {
+/**
+ * The sound of `tracks`' default audio Track, or else its first, by its usual name, such as
+ * "Stereo" or "5.1", or else how many channels it has.
+ */
+export function soundOf(tracks: Track[]) {
   const audio = tracks.flatMap(({ kind, default: isDefault }) =>
     kind.case === "audio" && kind.value.channels > 0
       ? [{ channels: kind.value.channels, isDefault }]

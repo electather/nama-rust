@@ -6,8 +6,11 @@ import { type PointerEvent, type ReactNode, type RefObject, useRef } from "react
 
 import { PlaybackInfo } from "@/components/playback-info";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { SubtitleTracks, SubtitlesMenu } from "@/components/subtitles-menu";
+import { SubtitleTracks } from "@/components/subtitles-menu";
+import { TrackMenus } from "@/components/track-menus";
 import { Slider } from "@/components/ui/slider";
+// oxlint-disable-next-line import/max-dependencies -- the player puts together the video, its controls, Tracks, Watch State and playback info
+import type { Track } from "@/gen/nama/v1/browse_pb";
 import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
 import {
   type Video,
@@ -18,11 +21,10 @@ import {
   togglePlay,
   useAwake,
   useIsFullscreen,
-  usePlaybackPlan,
   useShortcuts,
   useVideo,
-  // oxlint-disable-next-line import/max-dependencies -- the player puts together the video, its controls, subtitles, Watch State and playback info
 } from "@/lib/playback";
+import { usePlaybackPlan } from "@/lib/playback-plan";
 import { usePlaybackSource } from "@/lib/playback-source";
 import { useWatchState } from "@/lib/watch-state";
 
@@ -31,6 +33,8 @@ export interface PlayerProps {
   /** The Movie's or Episode's title, which also names the video. */
   title: string;
   versionId: bigint;
+  /** The Version's Tracks, whose audio ones the User chooses from. */
+  tracks: Track[];
   /** Your Watch State of the Movie or Episode: where playing resumes. */
   watchState: WatchState | undefined;
   /** The title page to go back to. */
@@ -67,10 +71,12 @@ function clickToToggle(event: PointerEvent<HTMLVideoElement>) {
 function VideoPlayer({
   title,
   versionId,
+  tracks,
   back,
-  planned: { plan, startPositionMs, onCantPlay },
+  planned,
   playbackInfo,
 }: PlayerProps & { planned: ReturnType<typeof usePlaybackPlan>; playbackInfo: ReactNode }) {
+  const { plan, startPositionMs, onCantPlay } = planned;
   const playerRef = useRef<HTMLDivElement>(null);
   const { ref: videoRef, events, ...video } = useVideo();
   const src = usePlaybackSource(videoRef, plan, onCantPlay);
@@ -106,7 +112,7 @@ function VideoPlayer({
       <div className="pointer-events-none absolute inset-0 flex flex-col justify-between transition-opacity duration-500 ease-out-expo group-data-controls-hidden:opacity-0 motion-reduce:transition-none">
         <TopBar title={title} back={back} playbackInfo={playbackInfo} />
         <BottomBar video={video} playerRef={playerRef}>
-          <SubtitlesMenu subtitles={plan.subtitles} videoRef={videoRef} container={playerRef} />
+          <TrackMenus tracks={tracks} planned={planned} videoRef={videoRef} container={playerRef} />
         </BottomBar>
       </div>
     </div>
