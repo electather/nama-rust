@@ -76,7 +76,7 @@ async fn main() -> ExitCode {
         }
     };
 
-    let ffmpeg = find_ffmpeg().await;
+    let ffmpeg = find_ffmpeg(&config).await;
     let listener = match TcpListener::bind(config.listen).await {
         Ok(listener) => listener,
         Err(err) => {
@@ -169,11 +169,12 @@ async fn setup_code(
     Ok(Some(code))
 }
 
-/// The ffmpeg and ffprobe on `PATH`, logging what was found, or why the Server can only Direct
-/// Play without them.
-async fn find_ffmpeg() -> Ffmpeg {
+/// The ffmpeg and ffprobe at the paths `config` sets or on `PATH`, logging what was found, or why
+/// the Server can only Direct Play without them.
+async fn find_ffmpeg(config: &Config) -> Ffmpeg {
+    let config = config.clone();
     let path = env::var_os("PATH").unwrap_or_default();
-    let ffmpeg = task::spawn_blocking(move || Ffmpeg::find(&path))
+    let ffmpeg = task::spawn_blocking(move || Ffmpeg::find(&config, &path))
         .await
         .inspect_err(|err| error!("looking for ffmpeg failed: {err}"))
         .unwrap_or_default();

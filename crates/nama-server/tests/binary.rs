@@ -95,6 +95,7 @@ fn spawn_server(config_file: &Path) -> KillOnDrop {
             .env("RUST_LOG", "info")
             // No ffmpeg, whatever the test machine has.
             .env("PATH", "")
+            .env("NAMA_FFMPEG", "/nowhere/ffmpeg")
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
@@ -147,7 +148,9 @@ fn server_logs_its_config_creates_its_database_serves_the_api_and_exits_cleanly_
     // Without ffmpeg the Server still starts, and says why it can only Direct Play.
     let ffmpeg_line = wait_for_line(&lines, "can only Direct Play");
     assert!(
-        ffmpeg_line.contains("ffmpeg and ffprobe weren't found on PATH"),
+        ffmpeg_line.contains(
+            "ffmpeg wasn't found at the configured path /nowhere/ffmpeg and ffprobe wasn't found on PATH"
+        ),
         "{ffmpeg_line}"
     );
 

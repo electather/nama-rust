@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file nama/v1/server.proto.
  */
 export const file_nama_v1_server: GenFile = /*@__PURE__*/
-  fileDesc("ChRuYW1hL3YxL3NlcnZlci5wcm90bxIHbmFtYS52MSIWChRHZXRTZXJ2ZXJJbmZvUmVxdWVzdCJOChVHZXRTZXJ2ZXJJbmZvUmVzcG9uc2USDAoEbmFtZRgBIAEoCRIPCgd2ZXJzaW9uGAIgASgJEhYKDnNldHVwX3JlcXVpcmVkGAMgASgIIhoKGEdldFNlcnZlclNldHRpbmdzUmVxdWVzdCJGChlHZXRTZXJ2ZXJTZXR0aW5nc1Jlc3BvbnNlEikKCHNldHRpbmdzGAEgASgLMhcubmFtYS52MS5TZXJ2ZXJTZXR0aW5ncyJIChtVcGRhdGVTZXJ2ZXJTZXR0aW5nc1JlcXVlc3QSKQoIc2V0dGluZ3MYASABKAsyFy5uYW1hLnYxLlNlcnZlclNldHRpbmdzIkkKHFVwZGF0ZVNlcnZlclNldHRpbmdzUmVzcG9uc2USKQoIc2V0dGluZ3MYASABKAsyFy5uYW1hLnYxLlNlcnZlclNldHRpbmdzIh0KDlNlcnZlclNldHRpbmdzEgsKA3VybBgBIAEoCSIaChhHZXRQbGF5YmFja1N0YXR1c1JlcXVlc3QiagoZR2V0UGxheWJhY2tTdGF0dXNSZXNwb25zZRIlCgZmZm1wZWcYASABKAsyFS5uYW1hLnYxLkZvdW5kUHJvZ3JhbRImCgdmZnByb2JlGAIgASgLMhUubmFtYS52MS5Gb3VuZFByb2dyYW0iLQoMRm91bmRQcm9ncmFtEgwKBHBhdGgYASABKAkSDwoHdmVyc2lvbhgCIAEoCTKQAwoNU2VydmVyU2VydmljZRJTCg1HZXRTZXJ2ZXJJbmZvEh0ubmFtYS52MS5HZXRTZXJ2ZXJJbmZvUmVxdWVzdBoeLm5hbWEudjEuR2V0U2VydmVySW5mb1Jlc3BvbnNlIgOQAgESXwoRR2V0U2VydmVyU2V0dGluZ3MSIS5uYW1hLnYxLkdldFNlcnZlclNldHRpbmdzUmVxdWVzdBoiLm5hbWEudjEuR2V0U2VydmVyU2V0dGluZ3NSZXNwb25zZSIDkAIBEmgKFFVwZGF0ZVNlcnZlclNldHRpbmdzEiQubmFtYS52MS5VcGRhdGVTZXJ2ZXJTZXR0aW5nc1JlcXVlc3QaJS5uYW1hLnYxLlVwZGF0ZVNlcnZlclNldHRpbmdzUmVzcG9uc2UiA5ACAhJfChFHZXRQbGF5YmFja1N0YXR1cxIhLm5hbWEudjEuR2V0UGxheWJhY2tTdGF0dXNSZXF1ZXN0GiIubmFtYS52MS5HZXRQbGF5YmFja1N0YXR1c1Jlc3BvbnNlIgOQAgFiBnByb3RvMw");
+  fileDesc("ChRuYW1hL3YxL3NlcnZlci5wcm90bxIHbmFtYS52MSIWChRHZXRTZXJ2ZXJJbmZvUmVxdWVzdCJOChVHZXRTZXJ2ZXJJbmZvUmVzcG9uc2USDAoEbmFtZRgBIAEoCRIPCgd2ZXJzaW9uGAIgASgJEhYKDnNldHVwX3JlcXVpcmVkGAMgASgIIhoKGEdldFNlcnZlclNldHRpbmdzUmVxdWVzdCJGChlHZXRTZXJ2ZXJTZXR0aW5nc1Jlc3BvbnNlEikKCHNldHRpbmdzGAEgASgLMhcubmFtYS52MS5TZXJ2ZXJTZXR0aW5ncyJIChtVcGRhdGVTZXJ2ZXJTZXR0aW5nc1JlcXVlc3QSKQoIc2V0dGluZ3MYASABKAsyFy5uYW1hLnYxLlNlcnZlclNldHRpbmdzIkkKHFVwZGF0ZVNlcnZlclNldHRpbmdzUmVzcG9uc2USKQoIc2V0dGluZ3MYASABKAsyFy5uYW1hLnYxLlNlcnZlclNldHRpbmdzIh0KDlNlcnZlclNldHRpbmdzEgsKA3VybBgBIAEoCSIaChhHZXRQbGF5YmFja1N0YXR1c1JlcXVlc3QimwEKGUdldFBsYXliYWNrU3RhdHVzUmVzcG9uc2USJQoGZmZtcGVnGAEgASgLMhUubmFtYS52MS5Gb3VuZFByb2dyYW0SJgoHZmZwcm9iZRgCIAEoCzIVLm5hbWEudjEuRm91bmRQcm9ncmFtEhYKDmZmbXBlZ19wcm9ibGVtGAMgASgJEhcKD2ZmcHJvYmVfcHJvYmxlbRgEIAEoCSItCgxGb3VuZFByb2dyYW0SDAoEcGF0aBgBIAEoCRIPCgd2ZXJzaW9uGAIgASgJMpADCg1TZXJ2ZXJTZXJ2aWNlElMKDUdldFNlcnZlckluZm8SHS5uYW1hLnYxLkdldFNlcnZlckluZm9SZXF1ZXN0Gh4ubmFtYS52MS5HZXRTZXJ2ZXJJbmZvUmVzcG9uc2UiA5ACARJfChFHZXRTZXJ2ZXJTZXR0aW5ncxIhLm5hbWEudjEuR2V0U2VydmVyU2V0dGluZ3NSZXF1ZXN0GiIubmFtYS52MS5HZXRTZXJ2ZXJTZXR0aW5nc1Jlc3BvbnNlIgOQAgESaAoUVXBkYXRlU2VydmVyU2V0dGluZ3MSJC5uYW1hLnYxLlVwZGF0ZVNlcnZlclNldHRpbmdzUmVxdWVzdBolLm5hbWEudjEuVXBkYXRlU2VydmVyU2V0dGluZ3NSZXNwb25zZSIDkAICEl8KEUdldFBsYXliYWNrU3RhdHVzEiEubmFtYS52MS5HZXRQbGF5YmFja1N0YXR1c1JlcXVlc3QaIi5uYW1hLnYxLkdldFBsYXliYWNrU3RhdHVzUmVzcG9uc2UiA5ACAWIGcHJvdG8z");
 
 /**
  * @generated from message nama.v1.GetServerInfoRequest
@@ -165,18 +165,33 @@ export const GetPlaybackStatusRequestSchema: GenMessage<GetPlaybackStatusRequest
  */
 export type GetPlaybackStatusResponse = Message<"nama.v1.GetPlaybackStatusResponse"> & {
   /**
-   * ffmpeg, unset when the Server didn't find it.
+   * ffmpeg, unset when the Server has none it can use.
    *
    * @generated from field: nama.v1.FoundProgram ffmpeg = 1;
    */
   ffmpeg?: FoundProgram | undefined;
 
   /**
-   * ffprobe, unset when the Server didn't find it.
+   * ffprobe, unset when the Server has none it can use.
    *
    * @generated from field: nama.v1.FoundProgram ffprobe = 2;
    */
   ffprobe?: FoundProgram | undefined;
+
+  /**
+   * Why the Server can't use ffmpeg, in plain words, such as "ffmpeg wasn't found at the
+   * configured path /opt/ffmpeg". Empty when it can.
+   *
+   * @generated from field: string ffmpeg_problem = 3;
+   */
+  ffmpegProblem: string;
+
+  /**
+   * Why the Server can't use ffprobe, in plain words. Empty when it can.
+   *
+   * @generated from field: string ffprobe_problem = 4;
+   */
+  ffprobeProblem: string;
 };
 
 /**
@@ -254,7 +269,8 @@ export const ServerService: GenService<{
   },
   /**
    * Returns the ffmpeg and ffprobe the Server found at startup, which it needs to Remux and
-   * Transcode; without both it only Direct Plays. Needs `PERMISSION_ADMIN`.
+   * Transcode, or why it can't use them; without both it only Direct Plays. Needs
+   * `PERMISSION_ADMIN`.
    *
    * @generated from rpc nama.v1.ServerService.GetPlaybackStatus
    */

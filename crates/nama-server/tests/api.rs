@@ -215,8 +215,8 @@ async fn the_playback_status_shows_the_path_and_version_of_the_ffmpeg_and_ffprob
     };
 
     let status = playback_status(Ffmpeg {
-        ffmpeg: Some(found("ffmpeg")),
-        ffprobe: Some(found("ffprobe")),
+        ffmpeg: Ok(found("ffmpeg")),
+        ffprobe: Ok(found("ffprobe")),
     })
     .await;
 
@@ -230,9 +230,18 @@ async fn the_playback_status_shows_the_path_and_version_of_the_ffmpeg_and_ffprob
 }
 
 #[tokio::test]
-async fn the_playback_status_shows_neither_when_neither_was_found() {
-    let status = playback_status(Ffmpeg::default()).await;
+async fn the_playback_status_says_why_the_server_cant_use_ffmpeg_or_ffprobe() {
+    let status = playback_status(Ffmpeg {
+        ffmpeg: Err("ffmpeg wasn't found at the configured path /opt/ffmpeg".to_owned()),
+        ffprobe: Err("ffprobe wasn't found on PATH".to_owned()),
+    })
+    .await;
 
     assert!(status.ffmpeg.is_unset(), "{status:?}");
     assert!(status.ffprobe.is_unset(), "{status:?}");
+    assert_eq!(
+        status.ffmpeg_problem,
+        "ffmpeg wasn't found at the configured path /opt/ffmpeg"
+    );
+    assert_eq!(status.ffprobe_problem, "ffprobe wasn't found on PATH");
 }

@@ -315,7 +315,8 @@ pub trait ServerService: Send + Sync + 'static {
         >,
     > + Send;
     /// Returns the ffmpeg and ffprobe the Server found at startup, which it needs to Remux and
-    /// Transcode; without both it only Direct Plays. Needs `PERMISSION_ADMIN`.
+    /// Transcode, or why it can't use them; without both it only Direct Plays. Needs
+    /// `PERMISSION_ADMIN`.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
