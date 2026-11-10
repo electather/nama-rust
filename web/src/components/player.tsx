@@ -53,7 +53,7 @@ export function Player(props: PlayerProps) {
   if (planned.gaveUp) return <CantPlay back={props.back} reasons={[]} />;
   return (
     // A plan at a new URL plays in a new `<video>`, so it starts where that plan does. ponytail: that one
-    // starts unmuted at full volume with subtitles off; carry them over if anyone minds.
+    // starts unmuted at full volume; carry those over if anyone minds.
     <VideoPlayer
       key={plan.url}
       {...props}

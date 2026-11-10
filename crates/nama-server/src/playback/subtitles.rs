@@ -32,7 +32,7 @@ use crate::{
     artwork::write_atomically,
     contents::{Contents, Stored},
     ffmpeg::{Ffmpeg, SubtitleError},
-    tracks::{PROBE_VERSION, TrackKind, Tracks},
+    tracks::{PROBE_VERSION, Tracks},
 };
 
 /// The version of how a source makes WebVTT, part of every cache key so what an older one made is
@@ -130,16 +130,12 @@ impl Embedded {
         let Some(found) = (probe.tracks.get(track)).filter(|found| found.is_text_subtitle()) else {
             return Ok(None);
         };
-        let ass = matches!(found.codec.as_str(), "ass" | "ssa");
-        // Probing keeps every subtitle stream, so ffmpeg's subtitle streams are these, in order.
-        let subtitle = (probe.tracks.iter().take(track))
-            .filter(|earlier| matches!(earlier.kind, TrackKind::Subtitle { .. }))
-            .count();
+        let ass = found.is_ass_subtitle();
         Ok(Some(Self {
             file,
             track,
             path,
-            subtitle,
+            subtitle: probe.subtitle_stream(track),
             ass,
         }))
     }

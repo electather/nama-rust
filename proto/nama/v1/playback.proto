@@ -40,8 +40,10 @@ message PlanPlaybackRequest {
   // The audio Track the caller chose, by its place in the Version's `tracks`, counting from 0.
   // Unset for the one the Version plays by default.
   optional uint32 audio_track = 3;
-  // The subtitle Track the caller chose, by its place in the Version's `tracks`, counting from 0.
-  // Unset for none.
+  // The subtitle Track the caller chose to burn into the picture, an image one such as PGS or an
+  // ASS or SSA one with its styling, which makes the plan a Transcode, by its place in the
+  // Version's `tracks`, counting from 0. Unset for none, as when the player shows a text subtitle
+  // from `PlaybackPlan.subtitles` itself.
   optional uint32 subtitle_track = 4;
   // The Playback Limit the caller picked. Unset until they pick one, when a Device outside the
   // local network gets the Server's default for remote playback.

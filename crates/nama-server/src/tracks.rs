@@ -45,6 +45,17 @@ pub(crate) struct Probe {
     pub(crate) tracks: Vec<Track>,
 }
 
+impl Probe {
+    /// The Track at `track`'s place among the file's subtitle streams, counting from 0, which is
+    /// how ffmpeg picks it out.
+    pub(crate) fn subtitle_stream(&self, track: usize) -> usize {
+        // Probing keeps every subtitle stream, so ffmpeg's subtitle streams are these, in order.
+        (self.tracks.iter().take(track))
+            .filter(|earlier| matches!(earlier.kind, TrackKind::Subtitle { .. }))
+            .count()
+    }
+}
+
 /// One video, audio or subtitle stream inside a Version.
 #[derive(Debug, Clone, PartialEq)]
 #[expect(
@@ -92,6 +103,12 @@ impl Track {
     pub(crate) fn is_text_subtitle(&self) -> bool {
         matches!(self.kind, TrackKind::Subtitle { .. })
             && TEXT_SUBTITLES.contains(&self.codec.as_str())
+    }
+
+    /// Whether it's an ASS or SSA subtitle, whose styling only libass draws.
+    pub(crate) fn is_ass_subtitle(&self) -> bool {
+        matches!(self.kind, TrackKind::Subtitle { .. })
+            && matches!(self.codec.as_str(), "ass" | "ssa")
     }
 }
 

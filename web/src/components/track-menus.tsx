@@ -22,7 +22,7 @@ import { trackLabel } from "@/lib/subtitles";
  */
 export function TrackMenus({
   tracks,
-  planned: { plan, audioTrack, chooseAudio, chooseLimit },
+  planned,
   videoRef,
   container,
 }: {
@@ -35,18 +35,18 @@ export function TrackMenus({
     <>
       <AudioMenu
         tracks={tracks}
-        chosen={audioTrack}
+        chosen={planned.audioTrack}
         choose={(place) => {
-          if (videoRef.current) chooseAudio(videoRef.current, place);
+          if (videoRef.current) planned.chooseAudio(videoRef.current, place);
         }}
         container={container}
       />
-      <SubtitlesMenu subtitles={plan.subtitles} videoRef={videoRef} container={container} />
+      <SubtitlesMenu tracks={tracks} planned={planned} videoRef={videoRef} container={container} />
       <PlaybackLimitMenu
         tracks={tracks}
-        chosen={plan.playbackLimit}
+        chosen={planned.plan.playbackLimit}
         choose={(limit) => {
-          if (videoRef.current) chooseLimit(videoRef.current, limit);
+          if (videoRef.current) planned.chooseLimit(videoRef.current, limit);
         }}
         container={container}
       />
