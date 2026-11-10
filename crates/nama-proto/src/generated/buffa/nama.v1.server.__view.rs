@@ -2161,18 +2161,27 @@ impl ::serde::Serialize for GetPlaybackStatusRequestOwnedView {
 }
 #[derive(Clone, Debug, Default)]
 pub struct GetPlaybackStatusResponseView<'a> {
-    /// ffmpeg, unset when the Server didn't find it.
+    /// ffmpeg, unset when the Server has none it can use.
     ///
     /// Field 1: `ffmpeg`
     pub ffmpeg: ::buffa::MessageFieldView<
         super::super::__buffa::view::FoundProgramView<'a>,
     >,
-    /// ffprobe, unset when the Server didn't find it.
+    /// ffprobe, unset when the Server has none it can use.
     ///
     /// Field 2: `ffprobe`
     pub ffprobe: ::buffa::MessageFieldView<
         super::super::__buffa::view::FoundProgramView<'a>,
     >,
+    /// Why the Server can't use ffmpeg, in plain words, such as "ffmpeg wasn't found at the
+    /// configured path /opt/ffmpeg". Empty when it can.
+    ///
+    /// Field 3: `ffmpeg_problem`
+    pub ffmpeg_problem: &'a str,
+    /// Why the Server can't use ffprobe, in plain words. Empty when it can.
+    ///
+    /// Field 4: `ffprobe_problem`
+    pub ffprobe_problem: &'a str,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for GetPlaybackStatusResponseView<'a> {
@@ -2247,6 +2256,20 @@ impl<'a> ::buffa::MessageView<'a> for GetPlaybackStatusResponseView<'a> {
                     }
                 }
             }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.ffmpeg_problem = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.ffprobe_problem = ::buffa::types::borrow_str(&mut cur)?;
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -2293,6 +2316,8 @@ impl<'a> ::buffa::MessageView<'a> for GetPlaybackStatusResponseView<'a> {
                 }
                 None => ::buffa::MessageField::none(),
             },
+            ffmpeg_problem: self.ffmpeg_problem.to_string(),
+            ffprobe_problem: self.ffprobe_problem.to_string(),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -2320,6 +2345,16 @@ impl<'a> ::buffa::ViewEncode<'a> for GetPlaybackStatusResponseView<'a> {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if !self.ffmpeg_problem.is_empty() {
+            size
+                += 1u64
+                    + ::buffa::types::string_encoded_len(&self.ffmpeg_problem) as u64;
+        }
+        if !self.ffprobe_problem.is_empty() {
+            size
+                += 1u64
+                    + ::buffa::types::string_encoded_len(&self.ffprobe_problem) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -2346,6 +2381,12 @@ impl<'a> ::buffa::ViewEncode<'a> for GetPlaybackStatusResponseView<'a> {
                 buf,
             );
             self.ffprobe.write_to(__cache, buf);
+        }
+        if !self.ffmpeg_problem.is_empty() {
+            ::buffa::types::put_string_field(3u32, &self.ffmpeg_problem, buf);
+        }
+        if !self.ffprobe_problem.is_empty() {
+            ::buffa::types::put_string_field(4u32, &self.ffprobe_problem, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2377,6 +2418,12 @@ impl<'__a> ::serde::Serialize for GetPlaybackStatusResponseView<'__a> {
             if let ::core::option::Option::Some(__v) = self.ffprobe.as_option() {
                 __map.serialize_entry("ffprobe", __v)?;
             }
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.ffmpeg_problem) {
+            __map.serialize_entry("ffmpegProblem", self.ffmpeg_problem)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.ffprobe_problem) {
+            __map.serialize_entry("ffprobeProblem", self.ffprobe_problem)?;
         }
         __map.end()
     }
@@ -2473,7 +2520,7 @@ impl GetPlaybackStatusResponseOwnedView {
     pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
         self.0.into_bytes()
     }
-    /// ffmpeg, unset when the Server didn't find it.
+    /// ffmpeg, unset when the Server has none it can use.
     ///
     /// Field 1: `ffmpeg`
     #[must_use]
@@ -2482,7 +2529,7 @@ impl GetPlaybackStatusResponseOwnedView {
     ) -> &::buffa::MessageFieldView<super::super::__buffa::view::FoundProgramView<'_>> {
         &self.0.reborrow().ffmpeg
     }
-    /// ffprobe, unset when the Server didn't find it.
+    /// ffprobe, unset when the Server has none it can use.
     ///
     /// Field 2: `ffprobe`
     #[must_use]
@@ -2490,6 +2537,21 @@ impl GetPlaybackStatusResponseOwnedView {
         &self,
     ) -> &::buffa::MessageFieldView<super::super::__buffa::view::FoundProgramView<'_>> {
         &self.0.reborrow().ffprobe
+    }
+    /// Why the Server can't use ffmpeg, in plain words, such as "ffmpeg wasn't found at the
+    /// configured path /opt/ffmpeg". Empty when it can.
+    ///
+    /// Field 3: `ffmpeg_problem`
+    #[must_use]
+    pub fn ffmpeg_problem(&self) -> &'_ str {
+        self.0.reborrow().ffmpeg_problem
+    }
+    /// Why the Server can't use ffprobe, in plain words. Empty when it can.
+    ///
+    /// Field 4: `ffprobe_problem`
+    #[must_use]
+    pub fn ffprobe_problem(&self) -> &'_ str {
+        self.0.reborrow().ffprobe_problem
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<GetPlaybackStatusResponseView<'static>>>

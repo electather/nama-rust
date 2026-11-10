@@ -99,6 +99,31 @@ fn the_server_name_comes_from_the_config_file_or_environment() {
 }
 
 #[test]
+fn ffmpeg_and_ffprobe_paths_come_from_the_config_file_or_environment() {
+    Jail::expect_with(|jail| {
+        let defaults = Config::load(None).unwrap();
+        assert_eq!((defaults.ffmpeg, defaults.ffprobe), (None, None));
+
+        jail.create_file(
+            "nama.toml",
+            r#"
+                ffmpeg = "/opt/ffmpeg/ffmpeg"
+                ffprobe = "/opt/ffmpeg/ffprobe"
+            "#,
+        )?;
+        jail.set_env("NAMA_FFPROBE", "/usr/lib/jellyfin-ffmpeg/ffprobe");
+        let config = Config::load(None).unwrap();
+
+        assert_eq!(config.ffmpeg, Some(PathBuf::from("/opt/ffmpeg/ffmpeg")));
+        assert_eq!(
+            config.ffprobe,
+            Some(PathBuf::from("/usr/lib/jellyfin-ffmpeg/ffprobe"))
+        );
+        Ok(())
+    });
+}
+
+#[test]
 fn the_config_file_can_turn_a_plugin_off() {
     Jail::expect_with(|jail| {
         jail.create_file(

@@ -19,7 +19,7 @@ service ServerService {
     option idempotency_level = IDEMPOTENT;
   }
   // Returns the ffmpeg and ffprobe the Server found at startup, which it needs to Remux and
-  // Transcode; without both it only Direct Plays. Needs `PERMISSION_ADMIN`.
+  // Transcode, or why it can't use them; without both it only Direct Plays. Needs `PERMISSION_ADMIN`.
   rpc GetPlaybackStatus(GetPlaybackStatusRequest) returns (GetPlaybackStatusResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
@@ -62,10 +62,15 @@ message ServerSettings {
 message GetPlaybackStatusRequest {}
 
 message GetPlaybackStatusResponse {
-  // ffmpeg, unset when the Server didn't find it.
+  // ffmpeg, unset when the Server has none it can use.
   FoundProgram ffmpeg = 1;
-  // ffprobe, unset when the Server didn't find it.
+  // ffprobe, unset when the Server has none it can use.
   FoundProgram ffprobe = 2;
+  // Why the Server can't use ffmpeg, in plain words, such as "ffmpeg wasn't found at the
+  // configured path /opt/ffmpeg". Empty when it can.
+  string ffmpeg_problem = 3;
+  // Why the Server can't use ffprobe, in plain words. Empty when it can.
+  string ffprobe_problem = 4;
 }
 
 // A program the Server found and runs, such as ffmpeg.

@@ -25,14 +25,29 @@ test("an Admin sees the path and version of the ffmpeg and ffprobe the Server fo
   expect(screen.queryByText(/can only Direct Play/u)).toBeNull();
 });
 
-test("without ffmpeg the Playback page says it wasn’t found and that the Server can only Direct Play", async () => {
+test("without a usable ffmpeg the Playback page says why and that the Server can only Direct Play", async () => {
   openApp(
     "/admin/playback",
-    fakeServer({ signedIn: admin, serverSettings: { getPlaybackStatus: () => ({}) } }),
+    fakeServer({
+      signedIn: admin,
+      serverSettings: {
+        getPlaybackStatus: () => ({
+          ffmpegProblem:
+            "ffmpeg 4.3.1 at /usr/bin/ffmpeg is older than 4.4, the oldest this Server supports",
+          ffprobeProblem: "ffprobe wasn't found at the configured path /opt/ffprobe",
+        }),
+      },
+    }),
   );
 
-  expect(await screen.findByText("ffmpeg wasn’t found on the PATH.")).toBeDefined();
-  expect(screen.getByText("ffprobe wasn’t found on the PATH.")).toBeDefined();
+  expect(
+    await screen.findByText(
+      "ffmpeg 4.3.1 at /usr/bin/ffmpeg is older than 4.4, the oldest this Server supports",
+    ),
+  ).toBeDefined();
+  expect(
+    screen.getByText("ffprobe wasn't found at the configured path /opt/ffprobe"),
+  ).toBeDefined();
   expect(screen.getByText(/can only Direct Play/u)).toBeDefined();
 });
 

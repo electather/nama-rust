@@ -16,6 +16,17 @@ trusted_proxies = ["127.0.0.1", "10.0.0.0/8"]
 
 From a trusted peer, the client is the rightmost `X-Forwarded-For` address that isn't itself a trusted proxy, and the cookie is `Secure` when the last `X-Forwarded-Proto` value is `https`. List every proxy between the client and the Server, and nothing else: any listed peer can name its own client address, which dodges sign-in limits, and claim HTTPS.
 
+## ffmpeg
+
+A Server Remuxes and Transcodes with the system's ffmpeg and ffprobe, 4.4 or later (ADR 0026). It runs the first of each on `PATH`, or the ones `nama.toml` names, which `NAMA_FFMPEG` and `NAMA_FFPROBE` override:
+
+```toml
+ffmpeg = "/usr/lib/jellyfin-ffmpeg/ffmpeg"
+ffprobe = "/usr/lib/jellyfin-ffmpeg/ffprobe"
+```
+
+Without a usable pair it only Direct Plays, and says why in its startup log and on the Playback page.
+
 ## Regenerating `.sqlx/` after a query or migration change
 
 Queries use `sqlx::query!` and friends, which check them at compile time against the query data checked in under `.sqlx/` at the workspace root. Builds need no database. After adding or changing a query or a migration, regenerate that data against a scratch database, from the workspace root:

@@ -485,16 +485,21 @@ impl ServerService for ServerServiceHandler {
     ) -> impl Future<
         Output = ServiceResult<impl Encodable<GetPlaybackStatusResponse> + Send + use<'a>>,
     > + Send {
-        let found = |program: &Option<ffmpeg::FoundProgram>| {
-            program.as_ref().map(|program| FoundProgram {
+        let found = |program: &Result<ffmpeg::FoundProgram, String>| {
+            program.as_ref().ok().map(|program| FoundProgram {
                 path: program.path.display().to_string(),
                 version: program.version.clone(),
                 ..Default::default()
             })
         };
+        let problem = |program: &Result<ffmpeg::FoundProgram, String>| {
+            program.as_ref().err().cloned().unwrap_or_default()
+        };
         future::ready(Response::ok(GetPlaybackStatusResponse {
             ffmpeg: found(&self.ffmpeg.ffmpeg).into(),
             ffprobe: found(&self.ffmpeg.ffprobe).into(),
+            ffmpeg_problem: problem(&self.ffmpeg.ffmpeg),
+            ffprobe_problem: problem(&self.ffmpeg.ffprobe),
             ..Default::default()
         }))
     }

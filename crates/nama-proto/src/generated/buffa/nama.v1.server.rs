@@ -1039,7 +1039,7 @@ pub const __GET_PLAYBACK_STATUS_REQUEST_JSON_ANY: ::buffa::type_registry::JsonAn
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct GetPlaybackStatusResponse {
-    /// ffmpeg, unset when the Server didn't find it.
+    /// ffmpeg, unset when the Server has none it can use.
     ///
     /// Field 1: `ffmpeg`
     #[serde(
@@ -1047,7 +1047,7 @@ pub struct GetPlaybackStatusResponse {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
     pub ffmpeg: ::buffa::MessageField<FoundProgram, ::buffa::Inline<FoundProgram>>,
-    /// ffprobe, unset when the Server didn't find it.
+    /// ffprobe, unset when the Server has none it can use.
     ///
     /// Field 2: `ffprobe`
     #[serde(
@@ -1055,6 +1055,27 @@ pub struct GetPlaybackStatusResponse {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
     pub ffprobe: ::buffa::MessageField<FoundProgram, ::buffa::Inline<FoundProgram>>,
+    /// Why the Server can't use ffmpeg, in plain words, such as "ffmpeg wasn't found at the
+    /// configured path /opt/ffmpeg". Empty when it can.
+    ///
+    /// Field 3: `ffmpeg_problem`
+    #[serde(
+        rename = "ffmpegProblem",
+        alias = "ffmpeg_problem",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub ffmpeg_problem: ::buffa::alloc::string::String,
+    /// Why the Server can't use ffprobe, in plain words. Empty when it can.
+    ///
+    /// Field 4: `ffprobe_problem`
+    #[serde(
+        rename = "ffprobeProblem",
+        alias = "ffprobe_problem",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub ffprobe_problem: ::buffa::alloc::string::String,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -1064,6 +1085,8 @@ impl ::core::fmt::Debug for GetPlaybackStatusResponse {
         f.debug_struct("GetPlaybackStatusResponse")
             .field("ffmpeg", &self.ffmpeg)
             .field("ffprobe", &self.ffprobe)
+            .field("ffmpeg_problem", &self.ffmpeg_problem)
+            .field("ffprobe_problem", &self.ffprobe_problem)
             .finish()
     }
 }
@@ -1110,6 +1133,16 @@ impl ::buffa::Message for GetPlaybackStatusResponse {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if !self.ffmpeg_problem.is_empty() {
+            size
+                += 1u64
+                    + ::buffa::types::string_encoded_len(&self.ffmpeg_problem) as u64;
+        }
+        if !self.ffprobe_problem.is_empty() {
+            size
+                += 1u64
+                    + ::buffa::types::string_encoded_len(&self.ffprobe_problem) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -1135,6 +1168,12 @@ impl ::buffa::Message for GetPlaybackStatusResponse {
                 buf,
             );
             self.ffprobe.write_to(__cache, buf);
+        }
+        if !self.ffmpeg_problem.is_empty() {
+            ::buffa::types::put_string_field(3u32, &self.ffmpeg_problem, buf);
+        }
+        if !self.ffprobe_problem.is_empty() {
+            ::buffa::types::put_string_field(4u32, &self.ffprobe_problem, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -1171,6 +1210,20 @@ impl ::buffa::Message for GetPlaybackStatusResponse {
                     ctx,
                 )?;
             }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.ffmpeg_problem, buf)?;
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.ffprobe_problem, buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -1181,6 +1234,8 @@ impl ::buffa::Message for GetPlaybackStatusResponse {
     fn clear(&mut self) {
         self.ffmpeg = ::buffa::MessageField::none();
         self.ffprobe = ::buffa::MessageField::none();
+        self.ffmpeg_problem.clear();
+        self.ffprobe_problem.clear();
         self.__buffa_unknown_fields.clear();
     }
 }

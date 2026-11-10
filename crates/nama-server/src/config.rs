@@ -43,6 +43,12 @@ pub struct Config {
     /// (ADR 0018). Empty by default, so the headers are ignored.
     #[serde(default)]
     pub trusted_proxies: Vec<IpRange>,
+    /// The ffmpeg to run, such as a container's own. `None`, the default, looks for it on `PATH`.
+    #[serde(default)]
+    pub ffmpeg: Option<PathBuf>,
+    /// The ffprobe to run. `None`, the default, looks for it on `PATH`.
+    #[serde(default)]
+    pub ffprobe: Option<PathBuf>,
 }
 
 /// The `[plugins.<id>]` tables in the file, by Plugin id, as written.
@@ -129,6 +135,8 @@ impl Default for Config {
             data_dir: PathBuf::from("data"),
             plugins: PluginTables::default(),
             trusted_proxies: Vec::new(),
+            ffmpeg: None,
+            ffprobe: None,
         }
     }
 }
