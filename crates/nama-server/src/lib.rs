@@ -13,6 +13,7 @@ pub mod ffmpeg;
 mod forwarded;
 mod libraries;
 mod matching;
+mod playback;
 pub mod plugin_settings;
 pub mod plugins;
 mod qualities;
@@ -24,7 +25,6 @@ mod sessions;
 mod sign_in_codes;
 mod tracks;
 pub mod users;
-mod versions;
 mod watch_states;
 #[cfg(feature = "web")]
 mod web;

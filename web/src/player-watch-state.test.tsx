@@ -4,6 +4,7 @@ import { afterEach, expect, test } from "vite-plus/test";
 
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
+import { PlaybackMethod, PlaybackService } from "@/gen/nama/v1/playback_pb";
 import { type ReportProgressRequest, WatchStateService } from "@/gen/nama/v1/watch_state_pb";
 
 import { fakeServer, newUser, openApp } from "./test-app";
@@ -27,6 +28,11 @@ function server(failures = 0) {
           versions: [{ id: 7n, fileName: "Alien (1979).mkv", size: 1n }],
           watchState: { positionMs: reports.at(-1)?.positionMs ?? 0n, durationMs: 7_000_000n },
         },
+      }),
+    });
+    router.service(PlaybackService, {
+      planPlayback: () => ({
+        plan: { method: PlaybackMethod.DIRECT_PLAY, url: "/media/versions/7" },
       }),
     });
     router.service(WatchStateService, {

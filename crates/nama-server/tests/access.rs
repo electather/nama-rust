@@ -64,9 +64,9 @@ const MANAGE_SETTINGS: [&str; 10] = [
 /// The RPCs only an Admin may call, which need `PERMISSION_ADMIN`.
 const ADMIN: [&str; 1] = ["/nama.v1.ServerService/GetPlaybackStatus"];
 
-/// The RPCs for browsing the Libraries, what they hold and the caller's Continue Watching, which
-/// any signed-in User may call.
-const BROWSE: [&str; 7] = [
+/// The RPCs for browsing the Libraries, what they hold and the caller's Continue Watching, and for
+/// playing it, which any signed-in User may call.
+const BROWSE: [&str; 8] = [
     "/nama.v1.LibraryService/ListLibraries",
     "/nama.v1.BrowseService/ListMovies",
     "/nama.v1.BrowseService/GetMovie",
@@ -74,6 +74,7 @@ const BROWSE: [&str; 7] = [
     "/nama.v1.BrowseService/GetShow",
     "/nama.v1.BrowseService/ListEpisodes",
     "/nama.v1.BrowseService/ListContinueWatching",
+    "/nama.v1.PlaybackService/PlanPlayback",
 ];
 
 /// Every other unary RPC that needs a session.

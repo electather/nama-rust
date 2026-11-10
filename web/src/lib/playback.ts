@@ -1,3 +1,4 @@
+import { useSuspenseQuery } from "@connectrpc/connect-query";
 import { type LinkOptions, useNavigate } from "@tanstack/react-router";
 import {
   type RefObject,
@@ -9,10 +10,33 @@ import {
   useSyncExternalStore,
 } from "react";
 
+import { PlaybackService } from "@/gen/nama/v1/playback_pb";
+import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
+
 /** How long the controls stay after the pointer or keyboard was last used, while playing. */
 const CONTROLS_LINGER_MS = 3000;
 const SEEK_STEP_SECONDS = 10;
 const VOLUME_STEP = 0.1;
+
+/**
+ * Where to play Version `versionId` from, starting where `watchState` stopped, as the Server's
+ * Playback Plan says, or `""` if it can't play here. The plan is asked for once each time the
+ * player opens, and never reused after.
+ */
+export function usePlaybackUrl(versionId: bigint, watchState: WatchState | undefined) {
+  // Where it stood on opening: a new plan would reload the `<video>`, so the refetches each Watch
+  // State report causes mustn't ask again.
+  const [startPositionMs] = useState(() =>
+    watchState && !watchState.played ? watchState.positionMs : 0n,
+  );
+  return (
+    useSuspenseQuery(
+      PlaybackService.method.planPlayback,
+      { versionId, startPositionMs },
+      { staleTime: "static", gcTime: 0 },
+    ).data.plan?.url ?? ""
+  );
+}
 
 /** What the controls need of the `<video>`: what it's doing, and a way to act on it. */
 export type Video = Pick<ReturnType<typeof useVideo>, "state" | "control">;

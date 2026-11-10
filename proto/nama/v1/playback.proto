@@ -1,0 +1,91 @@
+syntax = "proto3";
+
+package nama.v1;
+
+import "nama/v1/browse.proto";
+
+// How the signed-in caller's Device plays a Version.
+//
+// The Server builds a Playback Plan by running separate steps in a fixed order, each of which can
+// only narrow what the plan may be, and records why (ADR 0027).
+service PlaybackService {
+  // Returns a Playback Plan for playing a Version on the caller's Device, probing the Version
+  // first if the Server has no current Tracks for it. Fails with `not_found` if there is no such
+  // Version.
+  rpc PlanPlayback(PlanPlaybackRequest) returns (PlanPlaybackResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
+}
+
+message PlanPlaybackRequest {
+  // The Version to play, as browsing gave it.
+  int64 version_id = 1;
+  // Where playing starts, in milliseconds.
+  uint64 start_position_ms = 2;
+  // The audio Track the caller chose, by its place in the Version's `tracks`, counting from 0.
+  // Unset for the one the Version plays by default.
+  optional uint32 audio_track = 3;
+  // The subtitle Track the caller chose, by its place in the Version's `tracks`, counting from 0.
+  // Unset for none.
+  optional uint32 subtitle_track = 4;
+  // The caller's Playback Limit.
+  PlaybackLimit playback_limit = 5;
+  // What the Device can decode, as it found out just now.
+  DeviceDecoding device_decoding = 6;
+  // The Methods that just failed to play this Version on this Device.
+  repeated PlaybackMethod failed_methods = 7;
+}
+
+// The most a User asks playback to send.
+enum PlaybackLimit {
+  // The User hasn't picked one.
+  PLAYBACK_LIMIT_UNSPECIFIED = 0;
+  // As much as the Version holds.
+  PLAYBACK_LIMIT_ORIGINAL = 1;
+  PLAYBACK_LIMIT_1080P = 2;
+  PLAYBACK_LIMIT_720P = 3;
+  PLAYBACK_LIMIT_480P = 4;
+}
+
+// What a Device can decode.
+message DeviceDecoding {
+  // The media types it can decode, with their codecs, such as
+  // `video/mp4; codecs="avc1.640028"`.
+  repeated string content_types = 1;
+  // Whether its display shows HDR.
+  bool hdr = 2;
+  // Whether it plays HLS without a script's help.
+  bool native_hls = 3;
+  // Whether it has Media Source Extensions, through which a script can play HLS.
+  bool mse = 4;
+}
+
+// How a Playback Plan plays a Version.
+enum PlaybackMethod {
+  // It can't be played on this Device.
+  PLAYBACK_METHOD_UNSPECIFIED = 0;
+  // Its file exactly as it is.
+  PLAYBACK_METHOD_DIRECT_PLAY = 1;
+  // Its Tracks as they are, in a different container.
+  PLAYBACK_METHOD_REMUX = 2;
+  // With its video re-encoded.
+  PLAYBACK_METHOD_TRANSCODE = 3;
+}
+
+message PlanPlaybackResponse {
+  PlaybackPlan plan = 1;
+}
+
+// How the Server will play one Version on one Device, and why.
+message PlaybackPlan {
+  // `PLAYBACK_METHOD_UNSPECIFIED` when the Version can't be played on this Device; `reasons` say
+  // why.
+  PlaybackMethod method = 1;
+  // Where to play it from, on this Server. Empty when it can't be played.
+  string url = 2;
+  // The Tracks it plays: its video, then its audio. Empty when they aren't known, as on a Server
+  // without ffprobe.
+  repeated Track tracks = 3;
+  // Why it plays this way, in plain words, one for each step, in the order they ran.
+  repeated string reasons = 4;
+}

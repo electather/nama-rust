@@ -16,6 +16,7 @@ import {
   togglePlay,
   useAwake,
   useIsFullscreen,
+  usePlaybackUrl,
   useShortcuts,
   useVideo,
 } from "@/lib/playback";
@@ -33,15 +34,17 @@ export interface PlayerProps {
 }
 
 /**
- * Plays a Version full screen with Nama's own controls, or says so plainly when the browser can't
- * play its file. Transcoding a file that won't play comes in M4.
+ * Plays a Version full screen with Nama's own controls, from where the Server's Playback Plan says,
+ * or says so plainly when it can't play here.
  */
 export function Player(props: PlayerProps) {
+  const url = usePlaybackUrl(props.versionId, props.watchState);
   const [cantPlay, setCantPlay] = useState(false);
-  if (cantPlay) return <CantPlay back={props.back} />;
+  if (cantPlay || url === "") return <CantPlay back={props.back} />;
   return (
     <VideoPlayer
       {...props}
+      url={url}
       onCantPlay={() => {
         setCantPlay(true);
       }}
@@ -54,8 +57,9 @@ function VideoPlayer({
   versionId,
   watchState,
   back,
+  url,
   onCantPlay,
-}: PlayerProps & { onCantPlay: () => void }) {
+}: PlayerProps & { url: string; onCantPlay: () => void }) {
   const playerRef = useRef<HTMLDivElement>(null);
   const { ref: videoRef, events, ...video } = useVideo();
   useWatchState(videoRef, versionId, watchState);
@@ -74,7 +78,7 @@ function VideoPlayer({
       {/* oxlint-disable-next-line jsx-a11y/media-has-caption -- Versions carry no caption files yet. */}
       <video
         ref={videoRef}
-        src={`/media/versions/${versionId}`}
+        src={url}
         aria-label={title}
         autoPlay
         playsInline

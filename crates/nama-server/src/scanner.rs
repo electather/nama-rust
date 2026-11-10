@@ -344,13 +344,6 @@ impl Scanner {
     /// stores and returns what it holds. If something is probing it already, waits for that and
     /// returns what it found instead, or probes it itself if that gave up without finding
     /// anything; if its Tracks are current, returns them.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "#318 probes a Version when someone presses play on it"
-        )
-    )]
     pub(crate) async fn probe_now(&self, version: i64) -> Result<Probe, ProbeNowError> {
         let (path, file) = (self.inner.contents.version_file(version).await?)
             .ok_or(ProbeNowError::NoSuchVersion(version))?;

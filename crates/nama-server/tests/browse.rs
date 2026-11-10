@@ -1,6 +1,6 @@
-//! Browsing Movies and Shows through the generated `BrowseService` client, and the Watch State
-//! that `WatchStateService` reports or marks and browsing shows, over a real socket, with the
-//! TMDB Plugin enabled against a fake TMDB.
+//! Browsing Movies and Shows through the generated `BrowseService` client, the Watch State that
+//! `WatchStateService` reports or marks and browsing shows, and playing their Versions, over a
+//! real socket, with the TMDB Plugin enabled against a fake TMDB.
 
 #[path = "support/http.rs"]
 mod http;
@@ -28,15 +28,16 @@ use nama_proto::nama::v1::{
     AudioTrack, BrowseServiceClient, ClearMatchRequest, ContinueWatchingEntry,
     CreateLibraryRequest, Episode, ExternalId, GetMovieRequest, GetShowRequest, GetShowResponse,
     HdrFormat, LibraryKind, LibraryServiceClient, ListContinueWatchingRequest, ListEpisodesRequest,
-    ListMoviesRequest, ListShowsRequest, MatchServiceClient, Movie, RefusalReason,
-    ReportProgressRequest, ScanLibraryRequest, Season, SetMatchRequest, SetPlayedRequest, Show,
-    ShowSeason, Track, Version, VideoTrack, WatchState, WatchStateServiceClient,
-    continue_watching_entry, external_id, set_played_request::Target,
+    ListMoviesRequest, ListShowsRequest, MatchServiceClient, Movie, PlanPlaybackRequest,
+    PlaybackMethod, PlaybackPlan, PlaybackServiceClient, RefusalReason, ReportProgressRequest,
+    ScanLibraryRequest, Season, SetMatchRequest, SetPlayedRequest, Show, ShowSeason, Track,
+    Version, VideoTrack, WatchState, WatchStateServiceClient, continue_watching_entry, external_id,
+    set_played_request::Target,
 };
 use nama_server::{
     config::Config,
     contents::Contents,
-    ffmpeg::{self, Ffmpeg},
+    ffmpeg::{self, Ffmpeg, FoundProgram},
 };
 use refused::assert_refused;
 use server::{
@@ -206,6 +207,19 @@ impl Fixture {
     /// The Admin, browsing and playing.
     fn admin(&self) -> Viewer {
         Viewer::new(self.server.client_config())
+    }
+
+    /// The Admin's Playback Plan for the Version `version`.
+    async fn plan(&self, version: i64) -> Result<PlaybackPlan, ConnectError> {
+        let config = self.server.client_config();
+        let response = PlaybackServiceClient::new(HttpClient::plaintext(), config)
+            .plan_playback(PlanPlaybackRequest {
+                version_id: version,
+                ..Default::default()
+            })
+            .await?
+            .into_owned();
+        Ok(response.plan.into_option().unwrap())
     }
 
     /// The ids of the Versions of the Movie with the TMDB id `tmdb`, by path.
@@ -1022,6 +1036,93 @@ async fn a_path_in_place_of_a_version_id_is_a_bad_request() {
     .await;
 
     assert_eq!(reply.status, 400);
+}
+
+/// A Server whose ffprobe, a shell script in `bin`, reads every file as an H.264 + AAC MP4.
+#[cfg(unix)]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+fn ffprobe_reading_h264_and_aac(bin: &Path) -> Ffmpeg {
+    use std::os::unix::fs::PermissionsExt;
+
+    let path = bin.join("ffprobe");
+    let script = r#"#!/bin/sh
+cat <<'EOF'
+{"streams": [{"codec_name": "h264", "codec_type": "video"},
+             {"codec_name": "aac", "codec_type": "audio", "disposition": {"default": 1}}],
+ "format": {"format_name": "mov,mp4,m4a,3gp,3g2,mj2"}}
+EOF
+"#;
+    fs::write(&path, script).unwrap();
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
+    Ffmpeg {
+        ffprobe: Ok(FoundProgram {
+            path,
+            version: "7.1.1".to_owned(),
+        }),
+        ..Ffmpeg::default()
+    }
+}
+
+/// The codecs of `plan`'s Tracks.
+fn codecs(plan: &PlaybackPlan) -> Vec<&str> {
+    plan.tracks
+        .iter()
+        .map(|track| track.codec.as_str())
+        .collect()
+}
+
+// The fake ffprobe is a shell script. Nothing waits for the background probe, so the plan has
+// Tracks only because the Version was probed before its plan was built.
+#[cfg(unix)]
+#[tokio::test]
+async fn an_h264_and_aac_mp4_is_probed_then_direct_plays_through_its_plans_url() {
+    let bin = tempfile::tempdir().unwrap();
+    let ffmpeg = ffprobe_reading_h264_and_aac(bin.path());
+    let fx = Fixture::start_with_ffmpeg(LibraryKind::LIBRARY_KIND_MOVIES, ffmpeg).await;
+    fx.write("Alien (1979)/Alien (1979).mp4", b"video");
+    fx.scan_until_decided(1).await;
+    let version = fx.version_ids(ALIEN).await[0];
+
+    let plan = fx.plan(version).await.unwrap();
+
+    assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_DIRECT_PLAY);
+    assert_eq!(codecs(&plan), ["h264", "aac"]);
+    assert_eq!(plan.reasons, ["Its Tracks need no change"]);
+    let played = fetch(&fx.server, &plan.url, Some(&fx.server.admin_token)).await;
+    assert_eq!(played.body, b"video");
+}
+
+/// A Server without ffprobe Direct Plays (ADR 0026).
+#[tokio::test]
+async fn without_ffprobe_a_version_direct_plays_and_its_plan_says_its_tracks_arent_known() {
+    let fx = Fixture::alien().await;
+    let version = fx.version_ids(ALIEN).await[0];
+
+    let plan = fx.plan(version).await.unwrap();
+
+    assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_DIRECT_PLAY);
+    assert_eq!(plan.url, format!("/media/versions/{version}"));
+    assert_eq!(plan.tracks, []);
+    assert_eq!(
+        plan.reasons,
+        ["Its Tracks aren't known, so they're taken to need no change"]
+    );
+}
+
+#[tokio::test]
+async fn planning_an_unknown_version_is_refused() {
+    let fx = Fixture::alien().await;
+
+    let planned = fx.plan(999).await;
+
+    assert_refused(
+        planned,
+        ErrorCode::NotFound,
+        RefusalReason::REFUSAL_REASON_VERSION_NOT_FOUND,
+    );
 }
 
 /// A Season as `GetShow` gives it.
