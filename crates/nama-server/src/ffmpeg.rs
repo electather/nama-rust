@@ -299,6 +299,7 @@ impl Ffmpeg {
         // file if longer ones fail to Transcode there.
         let cuts: Vec<String> = cuts.iter().map(|&cut| seconds(cut)).collect();
         command
+            // ponytail: assumes the Server's ffmpeg has libx264; check it as ADR 0026 says (#446).
             .args(["-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p"])
             // Keyframes only where forced, so each cut starts a file and nothing else does.
             .args(["-x264-params", "keyint=infinite:scenecut=0"])

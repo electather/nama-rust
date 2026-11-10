@@ -152,11 +152,11 @@ pub(crate) async fn plan(
     // Only a probed Version gets this far: without its Tracks, nothing rules out Direct Play.
     let started = match (plan.method, &facts.probe) {
         (Some(Method::Remux), Some(probed)) => {
-            let aac = aac_channels(probed, &facts.device);
+            let aac = channels_as_aac(plan.method, probed, &facts.device);
             running.remux(playback, probed, aac).await?
         }
         (Some(Method::Transcode), Some(probed)) => {
-            let aac = converted_channels(probed, &facts.device);
+            let aac = channels_as_aac(plan.method, probed, &facts.device);
             running.transcode(playback, probed, aac).await?
         }
         _ => {
@@ -444,12 +444,7 @@ fn transcode_in_words(probe: &Probe, device: &DeviceDecoding) -> String {
 /// are when it can't be played.
 fn played_as(method: Option<Method>, probe: &Probe, device: &DeviceDecoding) -> Vec<Track> {
     let tracks = played_tracks(probe);
-    let channels = match method {
-        None | Some(Method::DirectPlay) => None,
-        Some(Method::Remux) => aac_channels(probe, device),
-        Some(Method::Transcode) => converted_channels(probe, device),
-    };
-    let tracks = match channels {
+    let tracks = match channels_as_aac(method, probe, device) {
         Some(channels) => converted_to_aac(tracks, channels),
         None => tracks,
     };
@@ -457,6 +452,15 @@ fn played_as(method: Option<Method>, probe: &Probe, device: &DeviceDecoding) -> 
         converted_to_h264(tracks)
     } else {
         tracks
+    }
+}
+
+/// How many channels a plan by `method` converts `probe`'s played audio to, as AAC, if any.
+fn channels_as_aac(method: Option<Method>, probe: &Probe, device: &DeviceDecoding) -> Option<i64> {
+    match method {
+        None | Some(Method::DirectPlay) => None,
+        Some(Method::Remux) => aac_channels(probe, device),
+        Some(Method::Transcode) => converted_channels(probe, device),
     }
 }
 

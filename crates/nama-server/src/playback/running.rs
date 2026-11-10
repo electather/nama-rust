@@ -66,8 +66,7 @@ const RUN_AHEAD_MS: i64 = 120_000;
 
 /// How far past what a Remux's ffmpeg has written a file asked for can be and still be waited
 /// for, in milliseconds. ffmpeg restarts at one further on, since a Remux writes this much in a
-/// second or two but a seek far ahead would wait for everything before it. A software Transcode
-/// writes about as fast as it plays, so it waits only for the segment ffmpeg is on.
+/// second or two but a seek far ahead would wait for everything before it.
 const REMUX_WAIT_AHEAD_MS: i64 = 30_000;
 
 /// What a plan's folder in the segment folder is named, before its id. The sweep deletes only
@@ -602,7 +601,8 @@ impl Running {
     }
 
     /// How far past what ffmpeg has written a file asked for can be and still be waited for, in
-    /// milliseconds, as [`REMUX_WAIT_AHEAD_MS`] says.
+    /// milliseconds. A software Transcode writes about as fast as it plays, so it waits only for
+    /// the segment ffmpeg is on.
     const fn wait_ahead_ms(&self) -> i64 {
         match self.method {
             Method::Remux | Method::DirectPlay => REMUX_WAIT_AHEAD_MS,

@@ -1447,8 +1447,9 @@ async fn played_audio(fx: &Fixture, url: &str) -> String {
     played_streams(fx, url, "a").await
 }
 
-/// The codec, and channels if audio, of the streams of type `kind`, as ffprobe's `-select_streams` takes it,
-/// that the plan at `url` plays, as ffprobe reads its init segment and first segment.
+/// The codec, and channels if audio, of the streams of type `kind`, as ffprobe's
+/// `-select_streams` takes it, that the plan at `url` plays, as ffprobe reads its init segment and
+/// first segment.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
