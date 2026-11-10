@@ -548,7 +548,7 @@ impl Requests {
         let state = opening_state(asker, Permission::AutoApproveTv);
         let user = asker.id;
         let this = self.clone();
-        // The write too, as in `create_seasons`.
+        // The write too, as in `apply`.
         detached(async move {
             let (followed, requests, happened) = this
                 .db
@@ -602,7 +602,7 @@ impl Requests {
         new_quality: Option<NewQuality>,
     ) -> Result<FollowedShow, Error> {
         let this = self.clone();
-        // The write too, as in `approve`.
+        // The write too, as in `apply`.
         detached(async move {
             let (followed, decided) = this
                 .db
@@ -2715,10 +2715,11 @@ mod tests {
 
     /// A new Library Matches a file to each of the Movies `tmdb_ids`, as a scan does, which makes
     /// their open Requests Available.
-    async fn match_in_a_library(requests: &Requests, tmdb_ids: &[i64]) {
+    async fn match_in_a_library(db: &Arc<Database>, tmdb_ids: &[i64]) {
         let folder = tempfile::tempdir().unwrap();
         let root = folder.path().canonicalize().unwrap();
-        let library = Libraries::new(Arc::clone(&requests.db))
+        let contents = Contents::new(Arc::clone(db));
+        let library = Libraries::new(Arc::clone(db))
             .create(
                 "Movies",
                 Kind::Movies,
@@ -2740,8 +2741,8 @@ mod tests {
                 }],
             })
             .collect();
-        requests.contents.apply(library, stores).await.unwrap();
-        let files = requests.contents.files(library).await.unwrap();
+        contents.apply(library, stores).await.unwrap();
+        let files = contents.files(library).await.unwrap();
         let decided: Vec<_> = files
             .into_iter()
             .flat_map(|file| file.items)
@@ -2756,11 +2757,7 @@ mod tests {
                 (stored.id, matched(tmdb(tmdb_id), ExternalIds::default()))
             })
             .collect();
-        requests
-            .contents
-            .record(Decisions::from(decided))
-            .await
-            .unwrap();
+        contents.record(Decisions::from(decided)).await.unwrap();
     }
 
     #[tokio::test]
@@ -2769,7 +2766,7 @@ mod tests {
         let fulfiller = Arc::clone(&asked);
         let (_data, requests) = approved_for(&[949, 438_631, 603], fulfiller).await;
         requests.hand_off_waiting().await;
-        match_in_a_library(&requests, &[603]).await;
+        match_in_a_library(&requests.db, &[603]).await;
 
         let any = requests.hand_off.poll_progress().await.unwrap();
 
@@ -2791,7 +2788,7 @@ mod tests {
 
         requests.hand_off_waiting().await;
         until_asked_about(&asked, &["438631", "949"]).await;
-        match_in_a_library(&requests, &[949, 438_631]).await;
+        match_in_a_library(&requests.db, &[949, 438_631]).await;
         // Asked once more at most, if it was already asking as they became Available.
         asked_while(&asked, EVERY * 5).await;
         let nothing_processing_again = asked_while(&asked, EVERY * 10).await;
@@ -3139,9 +3136,9 @@ mod tests {
     const BOB: i64 = 2;
 
     /// A new database holding the Users [`ADA`] and [`BOB`].
-    async fn ada_and_bob() -> (tempfile::TempDir, Database) {
+    async fn ada_and_bob() -> (tempfile::TempDir, Arc<Database>) {
         let data = tempfile::tempdir().unwrap();
-        let db = Database::open(data.path()).await.unwrap();
+        let db = Arc::new(Database::open(data.path()).await.unwrap());
         db.write(|tx| {
             Box::pin(async move {
                 insert_ada(tx).await?;
@@ -3250,6 +3247,29 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn asking_for_a_declined_movie_opens_a_new_request_but_one_in_a_library_is_refused() {
+        let (_data, db) = ada_and_bob().await;
+        let declined = ask_for(&db, ADA, 949, RequestState::Pending).await.value.id;
+        db.write(move |tx| Box::pin(decline(tx, declined, None)))
+            .await
+            .unwrap();
+        ask_for(&db, ADA, 603, RequestState::Pending).await;
+        match_in_a_library(&db, &[603]).await;
+
+        let asked_again = ask_for(&db, BOB, 949, RequestState::Pending).await;
+        let in_a_library = db
+            .write(|tx| Box::pin(ask_movie(tx, BOB, movie(603), RequestState::Pending)))
+            .await;
+
+        assert_eq!(happened(&asked_again), [("created", RequestState::Pending)]);
+        assert_ne!(asked_again.value.id, declined);
+        assert!(
+            matches!(in_a_library, Err(Error::InLibrary(603))),
+            "{in_a_library:?}"
+        );
+    }
+
+    #[tokio::test]
     async fn asking_again_for_a_request_one_is_on_changes_nothing() {
         let (_data, db) = ada_and_bob().await;
         ask_for(&db, ADA, 949, RequestState::Pending).await;
@@ -3277,6 +3297,48 @@ mod tests {
             quality_chosen: false,
             chosen: None,
         }
+    }
+
+    /// A new Library Matches a file holding only the first Episode of Season 1 of Dark, as a scan
+    /// does, though both have aired, which makes its open Request Partially Available.
+    async fn match_dark_pilot(db: &Arc<Database>) {
+        let dark = dark();
+        let folder = tempfile::tempdir().unwrap();
+        let root = folder.path().canonicalize().unwrap();
+        let contents = Contents::new(Arc::clone(db));
+        let library = Libraries::new(Arc::clone(db))
+            .create(
+                "Shows",
+                Kind::Shows,
+                vec![root.to_str().unwrap().to_owned()],
+            )
+            .await
+            .unwrap()
+            .id;
+        let pilot = Item::Episode {
+            show: dark.show_title,
+            year: None,
+            hint: Some(ExternalId::Tmdb(dark.show_tmdb_id)),
+            season: 1,
+            episode: 1,
+        };
+        let store = Change::Store {
+            path: "/media/Dark/Season 01/Dark - S01E01.mkv".to_owned(),
+            size: 1,
+            modified_ns: 0,
+            items: vec![pilot],
+        };
+        contents.apply(library, vec![store]).await.unwrap();
+        let item = contents.files(library).await.unwrap()[0].items[0].id;
+        let season_1 = dark.seasons.into_iter().next().unwrap();
+        let scan = Decisions {
+            items: vec![(
+                item,
+                matched(ExternalIds::default(), tmdb(dark.show_tmdb_id)),
+            )],
+            seasons: vec![(dark.show_tmdb_id, season_1)],
+        };
+        contents.record(scan).await.unwrap();
     }
 
     #[tokio::test]
@@ -3341,10 +3403,12 @@ mod tests {
             .write(move |tx| Box::pin(decline(tx, id, Some("No.".to_owned()))))
             .await
             .unwrap();
+        let again = db.write(move |tx| Box::pin(decline(tx, id, None))).await;
 
         assert_eq!(happened(&declined), [("moved", RequestState::Declined)]);
         assert_eq!(handed_off(&declined), NOTHING);
         assert_eq!(declined.value.decline_reason.as_deref(), Some("No."));
+        assert!(matches!(again, Err(Error::NotPending(_))), "{again:?}");
     }
 
     #[tokio::test]
@@ -3418,9 +3482,20 @@ mod tests {
             .value
             .id;
         settled(&db, failed, Err("no space".to_owned())).await;
+        let available = ask_for(&db, ADA, 157, RequestState::Pending).await.value.id;
+        match_in_a_library(&db, &[157]).await;
+        let partly = db
+            .write(|tx| Box::pin(ask_seasons(tx, ADA, dark(), RequestState::Pending)))
+            .await
+            .unwrap()
+            .value[0]
+            .id;
+        match_dark_pilot(&db).await;
 
         let mut cancelled = Vec::new();
-        for id in [pending, processing, declined, approved, failed] {
+        for id in [
+            pending, processing, declined, approved, failed, available, partly,
+        ] {
             let applied = db.write(move |tx| Box::pin(cancel(tx, id))).await.unwrap();
             assert_eq!(handed_off(&applied), NOTHING);
             cancelled.extend(happened(&applied));
@@ -3433,7 +3508,9 @@ mod tests {
                 ("cancelled", RequestState::Processing),
                 ("cancelled", RequestState::Declined),
                 ("cancelled", RequestState::Approved),
-                ("cancelled", RequestState::Failed)
+                ("cancelled", RequestState::Failed),
+                ("cancelled", RequestState::Available),
+                ("cancelled", RequestState::PartiallyAvailable)
             ]
         );
     }
