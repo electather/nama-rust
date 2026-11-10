@@ -2467,19 +2467,28 @@ fn version_to_proto(version: &Version) -> proto::Version {
     }
 }
 
+/// Each Playback Limit below Original, by the API's name for it.
+const NAMED_LIMITS: [(PlaybackLimit, proto::PlaybackLimit); 3] = [
+    (
+        PlaybackLimit::P1080,
+        proto::PlaybackLimit::PLAYBACK_LIMIT_1080P,
+    ),
+    (
+        PlaybackLimit::P720,
+        proto::PlaybackLimit::PLAYBACK_LIMIT_720P,
+    ),
+    (
+        PlaybackLimit::P480,
+        proto::PlaybackLimit::PLAYBACK_LIMIT_480P,
+    ),
+];
+
 /// The Playback Limit `limit` names, `None` being Original, as is one not picked or one newer
 /// than this Server.
-const fn limit_from_proto(limit: EnumValue<proto::PlaybackLimit>) -> Option<PlaybackLimit> {
-    match limit {
-        EnumValue::Known(proto::PlaybackLimit::PLAYBACK_LIMIT_1080P) => Some(PlaybackLimit::P1080),
-        EnumValue::Known(proto::PlaybackLimit::PLAYBACK_LIMIT_720P) => Some(PlaybackLimit::P720),
-        EnumValue::Known(proto::PlaybackLimit::PLAYBACK_LIMIT_480P) => Some(PlaybackLimit::P480),
-        EnumValue::Known(
-            proto::PlaybackLimit::PLAYBACK_LIMIT_UNSPECIFIED
-            | proto::PlaybackLimit::PLAYBACK_LIMIT_ORIGINAL,
-        )
-        | EnumValue::Unknown(_) => None,
-    }
+fn limit_from_proto(limit: EnumValue<proto::PlaybackLimit>) -> Option<PlaybackLimit> {
+    (NAMED_LIMITS.into_iter())
+        .find(|(_, theirs)| EnumValue::Known(*theirs) == limit)
+        .map(|(ours, _)| ours)
 }
 
 /// The Playback Limit the User picked, as [`limit_from_proto`] has it.
@@ -2493,21 +2502,7 @@ fn picked_limit(limit: EnumValue<proto::PlaybackLimit>) -> PickedLimit {
 
 /// `limit` as the API names it, `None` being Original.
 fn limit_to_proto(limit: Option<PlaybackLimit>) -> proto::PlaybackLimit {
-    let named = [
-        (
-            PlaybackLimit::P1080,
-            proto::PlaybackLimit::PLAYBACK_LIMIT_1080P,
-        ),
-        (
-            PlaybackLimit::P720,
-            proto::PlaybackLimit::PLAYBACK_LIMIT_720P,
-        ),
-        (
-            PlaybackLimit::P480,
-            proto::PlaybackLimit::PLAYBACK_LIMIT_480P,
-        ),
-    ];
-    (named.into_iter())
+    (NAMED_LIMITS.into_iter())
         .find(|(ours, _)| Some(*ours) == limit)
         .map_or(
             proto::PlaybackLimit::PLAYBACK_LIMIT_ORIGINAL,

@@ -193,7 +193,7 @@ How the Server will play one Version on one Device: which Version, when the clie
 _Avoid_: decision, profile, stream info
 
 **Playback Limit**:
-The most a User asks playback to send, such as "Original", "1080p" or "720p". A limit below the Version's own makes it Transcode.
+The most a User asks playback to send, such as "Original", "1080p" or "720p". A limit below the Version's own makes it Transcode. Until the User picks one, a Device outside the local network gets the default an Admin sets for remote playback.
 _Avoid_: quality, bitrate, resolution
 
 ## Requests
