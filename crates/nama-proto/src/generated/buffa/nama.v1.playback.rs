@@ -620,7 +620,8 @@ pub struct PlanPlaybackRequest {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub subtitle_track: ::core::option::Option<u32>,
-    /// The caller's Playback Limit.
+    /// The Playback Limit the caller picked. Unset until they pick one, when a Device outside the
+    /// local network gets the Server's default for remote playback.
     ///
     /// Field 5: `playback_limit`
     #[serde(
@@ -1379,6 +1380,17 @@ pub struct PlaybackPlan {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u64"
     )]
     pub id: u64,
+    /// The Playback Limit it keeps to: the one asked for, or else the Server's default for remote
+    /// playback on a Device outside the local network, or else `PLAYBACK_LIMIT_ORIGINAL`.
+    ///
+    /// Field 7: `playback_limit`
+    #[serde(
+        rename = "playbackLimit",
+        alias = "playback_limit",
+        with = "::buffa::json_helpers::proto_enum",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_default_enum_value"
+    )]
+    pub playback_limit: ::buffa::EnumValue<PlaybackLimit>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -1392,6 +1404,7 @@ impl ::core::fmt::Debug for PlaybackPlan {
             .field("reasons", &self.reasons)
             .field("subtitles", &self.subtitles)
             .field("id", &self.id)
+            .field("playback_limit", &self.playback_limit)
             .finish()
     }
 }
@@ -1453,6 +1466,12 @@ impl ::buffa::Message for PlaybackPlan {
         if self.id != 0u64 {
             size += 1u64 + ::buffa::types::uint64_encoded_len(self.id) as u64;
         }
+        {
+            let val = self.playback_limit.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -1493,6 +1512,12 @@ impl ::buffa::Message for PlaybackPlan {
         }
         if self.id != 0u64 {
             ::buffa::types::put_uint64_field(6u32, self.id, buf);
+        }
+        {
+            let val = self.playback_limit.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(7u32, val, buf);
+            }
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -1565,6 +1590,15 @@ impl ::buffa::Message for PlaybackPlan {
                 )?;
                 self.id = ::buffa::types::decode_uint64(buf)?;
             }
+            7u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.playback_limit = ::buffa::EnumValue::from(
+                    ::buffa::types::decode_int32(buf)?,
+                );
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -1579,6 +1613,7 @@ impl ::buffa::Message for PlaybackPlan {
         self.reasons.clear();
         self.subtitles.clear();
         self.id = 0u64;
+        self.playback_limit = ::buffa::EnumValue::from(0);
         self.__buffa_unknown_fields.clear();
     }
 }

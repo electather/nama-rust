@@ -2,6 +2,7 @@ import { Code } from "@connectrpc/connect";
 import { fireEvent, screen } from "@testing-library/react";
 import { expect, test } from "vite-plus/test";
 
+import { PlaybackLimit } from "@/gen/nama/v1/playback_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import type { UpdatePlaybackSettingsRequest } from "@/gen/nama/v1/server_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
@@ -89,6 +90,49 @@ test("an Admin sets the segment folder and the Transcodes at once on the Playbac
   expect(await screen.findByText("Saved.")).toBeDefined();
   expect(updates).toMatchObject([
     { settings: { segmentFolder: "/dev/shm/nama", maxTranscodes: 1 } },
+  ]);
+});
+
+test("an Admin sets the default Playback Limit for remote playback, which starts at Original", async () => {
+  const updates: UpdatePlaybackSettingsRequest[] = [];
+  openApp(
+    "/admin/playback",
+    fakeServer({
+      signedIn: admin,
+      serverService: {
+        getPlaybackStatus: () => ({}),
+        getPlaybackSettings: () => ({
+          settings: {
+            segmentFolder: "/srv/segments",
+            maxTranscodes: 2,
+            remotePlaybackLimit: PlaybackLimit.PLAYBACK_LIMIT_ORIGINAL,
+          },
+        }),
+        updatePlaybackSettings: (request) => {
+          updates.push(request);
+          return { settings: request.settings };
+        },
+      },
+    }),
+  );
+  const limit = "Default Playback Limit for remote playback";
+
+  const select = await screen.findByLabelText<HTMLSelectElement>(limit);
+  const offered = [...select.options].map((option) => option.text);
+  expect(select.selectedOptions[0]?.text).toBe("Original");
+  fireEvent.change(select, { target: { value: String(PlaybackLimit.PLAYBACK_LIMIT_720P) } });
+  fireEvent.click(screen.getByRole("button", { name: "Save playback settings" }));
+
+  expect(await screen.findByText("Saved.")).toBeDefined();
+  expect(offered).toEqual(["Original", "1080p", "720p", "480p"]);
+  expect(updates).toMatchObject([
+    {
+      settings: {
+        segmentFolder: "/srv/segments",
+        maxTranscodes: 2,
+        remotePlaybackLimit: PlaybackLimit.PLAYBACK_LIMIT_720P,
+      },
+    },
   ]);
 });
 

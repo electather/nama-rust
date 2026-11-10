@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package nama.v1;
 
+import "nama/v1/playback.proto";
+
 // Facts about a Server that any client can read, before signing in, and the Server's settings.
 service ServerService {
   // Returns the Server's name and the version of Nama it runs.
@@ -117,4 +119,8 @@ message PlaybackSettings {
   // The most Transcodes the Server runs at once, at least 1, and 2 out of the box; Remuxes don't
   // count. A plan that only a Transcode would play is refused while that many run.
   uint32 max_transcodes = 2;
+  // The Playback Limit for a Device whose address isn't on the local network, until its User
+  // picks one in the player. `PLAYBACK_LIMIT_ORIGINAL`, the default, for none; unset is taken as
+  // that.
+  PlaybackLimit remote_playback_limit = 3;
 }

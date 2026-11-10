@@ -21,7 +21,10 @@ interface Asking {
   startPositionMs: bigint;
   /** The chosen audio Track's place in the Version's Tracks, `undefined` being the file's own. */
   audioTrack: number | undefined;
-  /** The Playback Limit chosen, `PLAYBACK_LIMIT_UNSPECIFIED` until the User picks one. */
+  /**
+   * The Playback Limit chosen, `PLAYBACK_LIMIT_UNSPECIFIED` until the User picks one, when the
+   * Server may pick its default for remote playback.
+   */
   playbackLimit: PlaybackLimit;
 }
 
@@ -32,7 +35,7 @@ interface Asking {
  * that failed, or else sets `gaveUp`: only once per method, so a Server that plans it again can't
  * make the player ask forever. `chooseAudio` asks for a new plan from there with the audio Track
  * at a place in the Version's Tracks, which `audioTrack` then holds, and `chooseLimit` with a
- * Playback Limit, which `playbackLimit` then holds.
+ * Playback Limit, which the plan's `playbackLimit` then holds.
  */
 export function usePlaybackPlan({
   versionId,
@@ -49,7 +52,7 @@ export function usePlaybackPlan({
     audioTrack: undefined,
     playbackLimit: PlaybackLimit.PLAYBACK_LIMIT_UNSPECIFIED,
   }));
-  const { failedMethods, startPositionMs, audioTrack, playbackLimit } = asking;
+  const { failedMethods, startPositionMs, audioTrack } = asking;
   const [gaveUp, setGaveUp] = useState(false);
   const plan = usePlan(versionId, asking);
   // Stable until the plan changes, so hls.js isn't restarted each time the player renders.
@@ -74,7 +77,7 @@ export function usePlaybackPlan({
     },
     [failedMethods, plan.method, startPositionMs],
   );
-  const chosen = { audioTrack, playbackLimit, ...choosers(setAsking, startPositionMs) };
+  const chosen = { audioTrack, ...choosers(setAsking, startPositionMs) };
   return { plan, startPositionMs, gaveUp, onCantPlay, ...chosen };
 }
 

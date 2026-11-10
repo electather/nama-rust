@@ -43,7 +43,8 @@ message PlanPlaybackRequest {
   // The subtitle Track the caller chose, by its place in the Version's `tracks`, counting from 0.
   // Unset for none.
   optional uint32 subtitle_track = 4;
-  // The caller's Playback Limit.
+  // The Playback Limit the caller picked. Unset until they pick one, when a Device outside the
+  // local network gets the Server's default for remote playback.
   PlaybackLimit playback_limit = 5;
   // What the Device can decode, as it found out just now.
   DeviceDecoding device_decoding = 6;
@@ -112,6 +113,9 @@ message PlaybackPlan {
   repeated PlaybackSubtitle subtitles = 5;
   // Names it to `StopPlayback`. 0 when it can't be played.
   uint64 id = 6;
+  // The Playback Limit it keeps to: the one asked for, or else the Server's default for remote
+  // playback on a Device outside the local network, or else `PLAYBACK_LIMIT_ORIGINAL`.
+  PlaybackLimit playback_limit = 7;
 }
 
 // A text subtitle a player shows as a WebVTT `<track>`.

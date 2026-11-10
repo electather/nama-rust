@@ -515,7 +515,8 @@ pub struct PlanPlaybackRequestView<'a> {
     ///
     /// Field 4: `subtitle_track`
     pub subtitle_track: ::core::option::Option<u32>,
-    /// The caller's Playback Limit.
+    /// The Playback Limit the caller picked. Unset until they pick one, when a Device outside the
+    /// local network gets the Server's default for remote playback.
     ///
     /// Field 5: `playback_limit`
     pub playback_limit: ::buffa::EnumValue<super::super::PlaybackLimit>,
@@ -976,7 +977,8 @@ impl PlanPlaybackRequestOwnedView {
     pub fn subtitle_track(&self) -> ::core::option::Option<u32> {
         self.0.reborrow().subtitle_track
     }
-    /// The caller's Playback Limit.
+    /// The Playback Limit the caller picked. Unset until they pick one, when a Device outside the
+    /// local network gets the Server's default for remote playback.
     ///
     /// Field 5: `playback_limit`
     #[must_use]
@@ -1737,6 +1739,11 @@ pub struct PlaybackPlanView<'a> {
     ///
     /// Field 6: `id`
     pub id: u64,
+    /// The Playback Limit it keeps to: the one asked for, or else the Server's default for remote
+    /// playback on a Device outside the local network, or else `PLAYBACK_LIMIT_ORIGINAL`.
+    ///
+    /// Field 7: `playback_limit`
+    pub playback_limit: ::buffa::EnumValue<super::super::PlaybackLimit>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for PlaybackPlanView<'a> {
@@ -1791,6 +1798,15 @@ impl<'a> ::buffa::MessageView<'a> for PlaybackPlanView<'a> {
                     ::buffa::encoding::WireType::Varint,
                 )?;
                 view.id = ::buffa::types::decode_uint64(&mut cur)?;
+            }
+            7u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.playback_limit = ::buffa::EnumValue::from(
+                    ::buffa::types::decode_int32(&mut cur)?,
+                );
             }
             3u32 => {
                 ::buffa::encoding::check_wire_type(
@@ -1877,6 +1893,7 @@ impl<'a> ::buffa::MessageView<'a> for PlaybackPlanView<'a> {
                 .map(|v| v.to_owned_from_source(__buffa_src))
                 .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
             id: self.id,
+            playback_limit: self.playback_limit,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -1918,6 +1935,12 @@ impl<'a> ::buffa::ViewEncode<'a> for PlaybackPlanView<'a> {
         }
         if self.id != 0u64 {
             size += 1u64 + ::buffa::types::uint64_encoded_len(self.id) as u64;
+        }
+        {
+            let val = self.playback_limit.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
@@ -1961,6 +1984,12 @@ impl<'a> ::buffa::ViewEncode<'a> for PlaybackPlanView<'a> {
         if self.id != 0u64 {
             ::buffa::types::put_uint64_field(6u32, self.id, buf);
         }
+        {
+            let val = self.playback_limit.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(7u32, val, buf);
+            }
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
 }
@@ -1999,6 +2028,9 @@ impl<'__a> ::serde::Serialize for PlaybackPlanView<'__a> {
         }
         if !::buffa::json_helpers::skip_if::is_zero_u64(&self.id) {
             __map.serialize_entry("id", &::buffa::json_helpers::ProtoJson(&self.id))?;
+        }
+        if !::buffa::json_helpers::skip_if::is_default_enum_value(&self.playback_limit) {
+            __map.serialize_entry("playbackLimit", &self.playback_limit)?;
         }
         __map.end()
     }
@@ -2142,6 +2174,14 @@ impl PlaybackPlanOwnedView {
     #[must_use]
     pub fn id(&self) -> u64 {
         self.0.reborrow().id
+    }
+    /// The Playback Limit it keeps to: the one asked for, or else the Server's default for remote
+    /// playback on a Device outside the local network, or else `PLAYBACK_LIMIT_ORIGINAL`.
+    ///
+    /// Field 7: `playback_limit`
+    #[must_use]
+    pub fn playback_limit(&self) -> ::buffa::EnumValue<super::super::PlaybackLimit> {
+        self.0.reborrow().playback_limit
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<PlaybackPlanView<'static>>>
