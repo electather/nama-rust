@@ -25,8 +25,8 @@ const REPORT_EVERY_MS = 10_000;
 /**
  * Keeps your Watch State while the `<video>` plays Version `versionId`: it starts at
  * `startPositionMs`, and reports how far in it is every few seconds, on pause and seek, and on
- * leaving. Reports go out in the background, so playback never waits
- * on one. A failed report is sent again, and never shown.
+ * leaving. Reports go out in the background, so playback never waits on one. A failed report is
+ * sent again, and never shown.
  */
 export function useWatchState(
   videoRef: RefObject<HTMLVideoElement | null>,
@@ -54,8 +54,8 @@ export function useWatchState(
 type Position = Pick<ReportProgressRequest, "positionMs" | "durationMs">;
 
 /**
- * Starts `video` from `startPositionMs` and passes how far in it is to `report` every few seconds, on
- * pause and seek, when the page is hidden or closed, and in the cleanup it returns.
+ * Starts `video` from `startPositionMs` and passes how far in it is to `report` every few seconds,
+ * on pause and seek, when the page is hidden or closed, and in the cleanup it returns.
  */
 function followVideo(
   video: HTMLVideoElement,

@@ -1347,7 +1347,8 @@ async fn a_version_whose_direct_play_just_failed_on_a_device_that_decodes_it_is_
     assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_REMUX);
     assert!(
         plan.reasons
-            .contains(&"Direct Play failed on this Device".to_owned()),
+            .iter()
+            .any(|reason| reason == "Direct Play failed on this Device"),
         "{:?}",
         plan.reasons
     );

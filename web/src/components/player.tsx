@@ -48,7 +48,7 @@ export function Player(props: PlayerProps) {
   if (plan.url === "") return <CantPlay back={props.back} reasons={plan.reasons} />;
   if (planned.gaveUp) return <CantPlay back={props.back} reasons={[]} />;
   return (
-    // A new plan plays in a new `<video>`, so it starts where that plan does. ponytail: that one
+    // A plan at a new URL plays in a new `<video>`, so it starts where that plan does. ponytail: that one
     // starts unmuted at full volume with subtitles off; carry them over if anyone minds.
     <VideoPlayer
       key={plan.url}

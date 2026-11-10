@@ -30,8 +30,8 @@ const VOLUME_STEP = 0.1;
  * The Server's Playback Plan for Version `versionId` on this Device, the position in milliseconds
  * it starts from, at first where `watchState` stopped, and `onCantPlay` for when the browser fails
  * to play it. `onCantPlay` asks for a new plan from where the `<video>` stands, without the method
- * that failed, or else sets `gaveUp`: only once per method, so a Server that plans it again can't make
- * the player ask forever. Each plan is asked for once, and never reused after.
+ * that failed, or else sets `gaveUp`: only once per method, so a Server that plans it again can't
+ * make the player ask forever. Each plan is asked for once, and never reused after.
  */
 export function usePlaybackPlan({
   versionId,
@@ -64,6 +64,8 @@ export function usePlaybackPlan({
     (video: HTMLVideoElement) => {
       // So a failure that leaves its buffer playing isn't heard behind the loading screen.
       video.pause();
+      // Read here: React may run the updater later, when the `<video>` has moved on.
+      const resumeFrom = resumeFromMs(video, startPositionMs);
       if (failedMethods.includes(plan.method)) setGaveUp(true);
       // hls.js and the `<video>` may both report one failure: only the first asks again.
       else
@@ -71,8 +73,8 @@ export function usePlaybackPlan({
           asking.failedMethods.includes(plan.method)
             ? asking
             : {
-                failedMethods: [...failedMethods, plan.method],
-                startPositionMs: resumeFromMs(video, startPositionMs),
+                failedMethods: [...asking.failedMethods, plan.method],
+                startPositionMs: resumeFrom,
               },
         );
     },
@@ -81,8 +83,10 @@ export function usePlaybackPlan({
   return { plan, startPositionMs, gaveUp, onCantPlay };
 }
 
-/** Where `video` stands in milliseconds, or `startPositionMs` if it never loaded far enough to
- * have started there. */
+/**
+ * Where `video` stands in milliseconds, or `startPositionMs` if it never loaded far enough to have
+ * started there.
+ */
 function resumeFromMs(video: HTMLVideoElement, startPositionMs: bigint) {
   if (video.readyState < HTMLMediaElement.HAVE_METADATA) return startPositionMs;
   return toMs(video.currentTime);
