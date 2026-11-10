@@ -60,7 +60,10 @@ const FILTERS_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// The software filters a Transcode tone-maps HDR to SDR with: to linear light, to BT.709's
 /// primaries, Hable's curve from HDR's brightness to SDR's 100 nits, then back to BT.709 video.
-const TONE_MAP: &str = "zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,\
+// HDR10 and HLG are always BT.2020, but probing calls a file HDR by its transfer alone, and
+// zscale fails the whole Transcode with "no path between colorspaces" on untagged primaries.
+const TONE_MAP: &str = "setparams=color_primaries=bt2020:colorspace=bt2020nc,\
+                        zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,\
                         tonemap=tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv,format=yuv420p";
 
 /// The name of the init segment a Remux or Transcode started at file `n` writes beside its files. Every
@@ -170,21 +173,24 @@ impl Ffmpeg {
     }
 
     /// Whether ffmpeg has the zscale filter, which [`Self::transcode`] tone-maps with and a system
-    /// ffmpeg may lack (ADR 0026).
-    pub(crate) async fn has_zscale(&self) -> bool {
+    /// ffmpeg may lack (ADR 0026), or why ffmpeg couldn't say, such as a timeout on a busy host.
+    pub(crate) async fn has_zscale(&self) -> Result<bool, String> {
         let Ok(ffmpeg) = &self.ffmpeg else {
-            return false;
+            return Ok(false);
         };
         let output = tokio::process::Command::new(&ffmpeg.path)
             .args(["-hide_banner", "-filters"])
             .kill_on_drop(true)
             .output();
-        let Ok(Ok(output)) = tokio::time::timeout(FILTERS_TIMEOUT, output).await else {
-            return false;
+        let output = match tokio::time::timeout(FILTERS_TIMEOUT, output).await {
+            Ok(Ok(output)) if output.status.success() => output,
+            Ok(Ok(output)) => return Err(format!("it exited with {}", output.status)),
+            Ok(Err(err)) => return Err(err.to_string()),
+            Err(_) => return Err(format!("it took over {FILTERS_TIMEOUT:?}")),
         };
         // Each filter is a line such as ` .SC zscale  V->V  Apply resizing, ...`.
-        (String::from_utf8_lossy(&output.stdout).lines())
-            .any(|line| line.split_whitespace().nth(1) == Some("zscale"))
+        Ok((String::from_utf8_lossy(&output.stdout).lines())
+            .any(|line| line.split_whitespace().nth(1) == Some("zscale")))
     }
 
     /// The facts of the file at `path` and its video, audio and subtitle Tracks, as ffprobe reads
@@ -1002,8 +1008,8 @@ mod tests {
             ..Ffmpeg::default()
         };
 
-        assert!(!echo.has_zscale().await);
-        assert!(!Ffmpeg::default().has_zscale().await);
+        assert_eq!(echo.has_zscale().await, Ok(false));
+        assert_eq!(Ffmpeg::default().has_zscale().await, Ok(false));
     }
 
     #[tokio::test]
@@ -1262,7 +1268,7 @@ mod probe_output_tests {
 mod hls_tests {
     use std::{fs, path::Path};
 
-    use super::{Ffmpeg, Keyframe, write_h264_with_5_1, write_hevc_with_5_1};
+    use super::{Ffmpeg, Keyframe, write_h264_with_5_1, write_hevc_with_5_1, write_test_media};
     use crate::config::Config;
 
     /// The ffmpeg and ffprobe on `PATH`, which these tests need.
@@ -1310,6 +1316,44 @@ mod hls_tests {
                 &cuts[n..],
             )
             .unwrap();
+        let output = output.wait_with_output().await.unwrap();
+        assert!(output.status.success(), "{output:?}");
+    }
+
+    #[tokio::test]
+    async fn hdr10_tagged_only_by_its_transfer_is_tone_mapped() {
+        let ffmpeg = system_ffmpeg();
+        let work = tempfile::tempdir().unwrap();
+        let file = work.path().join("hdr10.mkv");
+        write_test_media(&file, |command| {
+            command
+                .args([
+                    "-f",
+                    "lavfi",
+                    "-i",
+                    "testsrc=size=320x240:rate=24",
+                    "-t",
+                    "1",
+                ])
+                .args([
+                    "-c:v",
+                    "libx265",
+                    "-preset",
+                    "ultrafast",
+                    "-pix_fmt",
+                    "yuv420p10le",
+                ])
+                .args(["-x265-params", "log-level=error", "-color_trc", "smpte2084"])
+                .args(["-f", "matroska"])
+        })
+        .unwrap();
+        let dir = work.path().join("transcoded");
+        fs::create_dir_all(&dir).unwrap();
+
+        let output = ffmpeg
+            .transcode(file.to_str().unwrap(), None, true, &dir, 0, &[0])
+            .unwrap();
+
         let output = output.wait_with_output().await.unwrap();
         assert!(output.status.success(), "{output:?}");
     }

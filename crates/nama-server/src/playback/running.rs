@@ -107,7 +107,7 @@ struct Inner {
     /// Where each plan's files go, in a folder named by its id.
     folder: SegmentFolder,
     ffmpeg: Arc<Ffmpeg>,
-    /// Whether `ffmpeg` has zscale, once asked.
+    /// Whether `ffmpeg` has zscale, once it answered.
     zscale: tokio::sync::OnceCell<bool>,
     contents: Contents,
     tracks: Tracks,
@@ -199,10 +199,23 @@ impl RunningPlans {
         self.inner.ffmpeg.can_remux()
     }
 
-    /// Whether a Transcode can tone-map HDR to SDR in software, as ffmpeg said the first time.
+    /// Whether a Transcode can tone-map HDR to SDR in software, as ffmpeg said the first time it
+    /// answered.
     pub(crate) async fn can_tone_map(&self) -> bool {
         let ffmpeg = &self.inner.ffmpeg;
-        *self.inner.zscale.get_or_init(|| ffmpeg.has_zscale()).await
+        // Only an answer is kept, so a check that timed out on a busy host is asked again.
+        match self
+            .inner
+            .zscale
+            .get_or_try_init(|| ffmpeg.has_zscale())
+            .await
+        {
+            Ok(&zscale) => zscale,
+            Err(err) => {
+                tracing::warn!("could not ask ffmpeg whether it has zscale: {err}");
+                false
+            }
+        }
     }
 
     /// Starts Remuxing the Version `playback` plays, which probing found holds `probe`, for the
