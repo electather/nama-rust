@@ -12,14 +12,15 @@ mod exports {
 
     use nama_pdk::{
         Buffa, CheckedSettings, Download, FnResult, Fulfilled, Fulfiller, Manifest, Request,
-        extism_pdk::{self, Error, HttpRequest, HttpResponse, Json, ToMemory, config},
+        extism_pdk::{self, Error, config},
         nama_proto::nama::{
             plugin::v1::{ProvidePoint, SettingField, SettingKind},
             v1::DownloadStatus,
         },
         plugin_fn,
     };
-    use serde::{Deserialize, Serialize, de::DeserializeOwned};
+    use nama_servarr::Servarr;
+    use serde::{Deserialize, Serialize};
 
     const URL: &str = "url";
     const API_KEY: &str = "api_key";
@@ -77,7 +78,7 @@ mod exports {
     // Offers Radarr's quality profiles, by id, and its root folders, by path.
     #[plugin_fn]
     pub fn check_settings() -> FnResult<Buffa<CheckedSettings>> {
-        let radarr = Radarr::from_config()?;
+        let radarr = radarr()?;
         let profiles: Vec<QualityProfile> = radarr.get("qualityprofile")?;
         let folders: Vec<RootFolder> = radarr.get("rootfolder")?;
         let profiles: Vec<_> = profiles
@@ -100,16 +101,16 @@ mod exports {
 
     impl Fulfiller for RadarrFulfiller {
         fn fulfill(request: Request) -> Result<Fulfilled, Error> {
-            let radarr = Radarr::from_config()?;
+            let radarr = radarr()?;
             let tmdb_id = request.movie.tmdb_id;
             let asked = quality_profile(&request)?;
             // Checked first, as Radarr may add a Movie with a profile it no longer has.
             let profiles: Vec<QualityProfile> = radarr.get("qualityprofile")?;
             let used_id = if profiles.iter().any(|profile| profile.id == asked) {
-                radarr.add(&request, asked)?
+                add_movie(&radarr, &request, asked)?
             } else {
                 // A Movie Radarr already has keeps its own profile, so the asked one needn't exist.
-                let kept = radarr.profile_of(tmdb_id)?;
+                let kept = profile_of(&radarr, tmdb_id)?;
                 Some(kept.ok_or_else(|| no_such_profile(&request, asked))?)
             };
             let used = profiles
@@ -129,8 +130,7 @@ mod exports {
         fn progress(references: Vec<String>) -> Result<HashMap<String, Vec<Download>>, Error> {
             // ponytail: reads only the first 1000 entries; page through `totalRecords` if a
             // queue ever holds more.
-            let queue: Queue =
-                Radarr::from_config()?.get("queue?pageSize=1000&includeMovie=true")?;
+            let queue: Queue = radarr()?.get("queue?pageSize=1000&includeMovie=true")?;
             let in_batch = queue
                 .records
                 .into_iter()
@@ -147,73 +147,35 @@ mod exports {
     nama_pdk::fulfiller!(RadarrFulfiller);
 
     /// Radarr's API, as the settings say where it is and its key.
-    struct Radarr {
-        url: String,
-        api_key: String,
+    fn radarr() -> Result<Servarr, Error> {
+        Ok(Servarr::new("Radarr", setting(URL)?, setting(API_KEY)?))
     }
 
-    impl Radarr {
-        fn from_config() -> Result<Self, Error> {
-            Ok(Self {
-                url: setting(URL)?,
-                api_key: setting(API_KEY)?,
-            })
-        }
-
-        /// A `method` request for the API path `path`, such as `movie`.
-        fn request(&self, method: &str, path: &str) -> HttpRequest {
-            let url = format!("{}/api/v3/{path}", self.url.trim_end_matches('/'));
-            HttpRequest::new(url)
-                .with_method(method)
-                .with_header("X-Api-Key", &self.api_key)
-                .with_header("Content-Type", "application/json")
-        }
-
-        /// Adds the Movie `request` asks for at the quality profile `profile`, starting a search,
-        /// and returns the id of the profile Radarr has it at: its own if it already had it.
-        fn add(&self, request: &Request, profile: i64) -> Result<Option<i64>, Error> {
-            let movie = NewMovie {
-                tmdb_id: request.movie.tmdb_id,
-                title: request.movie.title.clone(),
-                quality_profile_id: profile,
-                root_folder_path: setting(ROOT_FOLDER)?,
-                monitored: true,
-                minimum_availability: "released",
-                add_options: AddOptions {
-                    search_for_movie: true,
-                },
-            };
-            let response = send(&self.request("POST", "movie"), Some(Json(movie)))?;
-            if is_success(&response) {
-                Ok(Some(profile))
-            } else if already_has(&response) {
-                self.profile_of(request.movie.tmdb_id)
-            } else {
-                Err(refused(&response))
-            }
-        }
-
-        /// The id of the quality profile Radarr has the Movie `tmdb_id` at, if it has the Movie.
-        fn profile_of(&self, tmdb_id: i64) -> Result<Option<i64>, Error> {
-            let movies: Vec<AddedMovie> = self.get(&format!("movie?tmdbId={tmdb_id}"))?;
-            Ok(movies.first().map(|movie| movie.quality_profile_id))
-        }
-
-        /// What Radarr answers at the API path `path`.
-        fn get<T: DeserializeOwned>(&self, path: &str) -> Result<T, Error> {
-            let response = send(&self.request("GET", path), None::<()>)?;
-            if !is_success(&response) {
-                return Err(refused(&response));
-            }
-            response
-                .json()
-                .map_err(|err| Error::msg(format!("Radarr's answer made no sense: {err}")))
+    /// Adds the Movie `request` asks for at the quality profile `profile`, starting a search, and
+    /// returns the id of the profile Radarr has it at: its own if it already had it.
+    fn add_movie(radarr: &Servarr, request: &Request, profile: i64) -> Result<Option<i64>, Error> {
+        let movie = NewMovie {
+            tmdb_id: request.movie.tmdb_id,
+            title: request.movie.title.clone(),
+            quality_profile_id: profile,
+            root_folder_path: setting(ROOT_FOLDER)?,
+            monitored: true,
+            minimum_availability: "released",
+            add_options: AddOptions {
+                search_for_movie: true,
+            },
+        };
+        if radarr.add("movie", movie, MOVIE_EXISTS)? {
+            Ok(Some(profile))
+        } else {
+            profile_of(radarr, request.movie.tmdb_id)
         }
     }
 
-    fn send<T: ToMemory>(request: &HttpRequest, body: Option<T>) -> Result<HttpResponse, Error> {
-        // Not naming the URL: a Request's reason reaches every Requester.
-        nama_pdk::http_request(request, body, "Radarr didn't answer")
+    /// The id of the quality profile Radarr has the Movie `tmdb_id` at, if it has the Movie.
+    fn profile_of(radarr: &Servarr, tmdb_id: i64) -> Result<Option<i64>, Error> {
+        let movies: Vec<AddedMovie> = radarr.get(&format!("movie?tmdbId={tmdb_id}"))?;
+        Ok(movies.first().map(|movie| movie.quality_profile_id))
     }
 
     /// The Radarr profile id `request` is to be added with: its Quality's, else the setting's.
@@ -240,39 +202,6 @@ mod exports {
     /// that one too unless it is a Choice.
     fn setting(key: &str) -> Result<String, Error> {
         config::get(key)?.ok_or_else(|| Error::msg(format!("the setting {key} isn't set")))
-    }
-
-    fn is_success(response: &HttpResponse) -> bool {
-        (200..300).contains(&response.status_code())
-    }
-
-    fn already_has(response: &HttpResponse) -> bool {
-        failures(response)
-            .iter()
-            .any(|failure| failure.error_code.as_deref() == Some(MOVIE_EXISTS))
-    }
-
-    /// Why Radarr refused a request, in words a User understands.
-    fn refused(response: &HttpResponse) -> Error {
-        let messages: Vec<_> = failures(response)
-            .into_iter()
-            .map(|failure| failure.error_message)
-            .collect();
-        let reason = match response.status_code() {
-            401 => "Radarr refused the API key".to_owned(),
-            400 if !messages.is_empty() => format!("Radarr said: {}", messages.join(" ")),
-            status => format!("Radarr failed with HTTP status {status}"),
-        };
-        Error::msg(reason)
-    }
-
-    /// The validation failures in the body of a `400 Bad Request` from Radarr, if it is one.
-    fn failures(response: &HttpResponse) -> Vec<ValidationFailure> {
-        if response.status_code() == 400 {
-            response.json().unwrap_or_default()
-        } else {
-            Vec::new()
-        }
     }
 
     /// A page of `GET /api/v3/queue`.
@@ -426,13 +355,6 @@ mod exports {
     #[derive(Deserialize)]
     struct RootFolder {
         path: String,
-    }
-
-    #[derive(Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    struct ValidationFailure {
-        error_message: String,
-        error_code: Option<String>,
     }
 
     /// A Movie Radarr has, as `GET /api/v3/movie` gives it.

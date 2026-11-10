@@ -133,11 +133,9 @@ fn each_builtin_plugin_registers_at_exactly_the_extension_points_its_manifest_na
     }
 }
 
-/// ADR 0006: Built-in Plugins are separate crates so the compiler keeps them out of Kernel
-/// internals. Of this workspace's crates they may use only the plugin API and the protobuf types,
-/// and an Installed Plugin in `plugins/` only `nama-pdk`.
+/// ADR 0006: the workspace crates a crate in `plugins/` may depend on, as `plugins/AGENTS.md` says.
 #[test]
-fn plugin_crates_depend_on_no_workspace_crate_but_the_plugin_api_and_proto_or_the_pdk() {
+fn plugin_crates_depend_only_on_the_workspace_crates_they_may() {
     let workspace = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let output = Command::new(env!("CARGO"))
         .args(["metadata", "--format-version=1", "--no-deps", "--offline"])
@@ -155,21 +153,43 @@ fn plugin_crates_depend_on_no_workspace_crate_but_the_plugin_api_and_proto_or_th
     // never prefixes Cargo's plain `D:\...` paths.
     let plugins_dir = Path::new(metadata["workspace_root"].as_str().unwrap()).join("plugins");
 
-    let mut checked = 0;
-    for package in metadata["packages"].as_array().unwrap() {
-        let manifest = Path::new(package["manifest_path"].as_str().unwrap());
-        if !manifest.starts_with(&plugins_dir) {
-            continue;
-        }
-        checked += 1;
+    let in_plugins: Vec<_> = metadata["packages"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|package| {
+            Path::new(package["manifest_path"].as_str().unwrap()).starts_with(&plugins_dir)
+        })
+        .collect();
+    let shared = |package: &serde_json::Value| {
+        !package["name"]
+            .as_str()
+            .unwrap()
+            .starts_with("nama-plugin-")
+    };
+    let mut pdk_and_shared = vec!["nama-pdk"];
+    pdk_and_shared.extend(
+        in_plugins
+            .iter()
+            .filter(|package| shared(package))
+            .map(|package| package["name"].as_str().unwrap()),
+    );
+
+    for package in &in_plugins {
         let installed = package["targets"].as_array().unwrap().iter().any(|target| {
             target["crate_types"]
                 .as_array()
                 .unwrap()
                 .contains(&"cdylib".into())
         });
-        let allowed: &[&str] = if installed {
-            &["nama-pdk"]
+        assert!(
+            !(installed && shared(package)),
+            "{} is an Installed Plugin, so its name starts with nama-plugin-",
+            package["name"]
+        );
+        let installed_or_shared = installed || shared(package);
+        let allowed: &[&str] = if installed_or_shared {
+            &pdk_and_shared
         } else {
             &["nama-plugin-api", "nama-proto"]
         };
@@ -186,7 +206,7 @@ fn plugin_crates_depend_on_no_workspace_crate_but_the_plugin_api_and_proto_or_th
         }
     }
     assert!(
-        checked > 0,
+        !in_plugins.is_empty(),
         "found no plugin crates in {}",
         plugins_dir.display()
     );
