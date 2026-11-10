@@ -2044,7 +2044,8 @@ export const RequestService: GenService<{
    * Moves a Failed Request back to Approved and hands it to its Fulfiller again, changing its
    * Quality first as `ApproveRequest` does. Needs `PERMISSION_MANAGE_REQUESTS`. Fails with
    * `not_found` if there is no Request with the ID, `failed_precondition` if it isn't Failed, and
-   * `invalid_argument` if the Quality isn't offered for it.
+   * `invalid_argument` if the Quality isn't offered for it or isn't the Show's, as
+   * `ApproveRequest` says.
    *
    * @generated from rpc nama.v1.RequestService.RetryRequest
    */
@@ -2070,7 +2071,7 @@ export const RequestService: GenService<{
    * `quality_id`, it first changes the Show's Quality to that one, as `ApproveRequest` changes a
    * Season Request's. Needs `PERMISSION_MANAGE_REQUESTS`. Fails with `not_found` if there is no
    * Followed Show with the ID, `failed_precondition` if it isn't Pending, and `invalid_argument` if
-   * the Quality isn't offered for the Show, as `ApproveRequest` says.
+   * the Quality isn't offered for the Show or isn't its fixed Quality, as `ApproveRequest` says.
    *
    * @generated from rpc nama.v1.RequestService.ApproveFollowedShow
    */

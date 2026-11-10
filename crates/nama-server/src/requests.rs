@@ -1478,18 +1478,6 @@ async fn ask_movie(
     ask_approving(conn, user, wanted, state).await
 }
 
-/// The Quality new Requests for the Seasons `show` take, and whether the asker chose it, as
-/// [`qualities::ShowRequests::for_seasons`] decides.
-async fn seasons_quality(
-    conn: &mut SqliteConnection,
-    show: &WantedSeasons,
-) -> Result<(Option<RequestedQuality>, bool), Error> {
-    // Read in the write, so two asks for the Show's Seasons at once can't take two Qualities.
-    let requests = show_requests(conn, show.show_tmdb_id).await?;
-    let taken = (show.quality.clone(), show.quality_chosen);
-    Ok(requests.for_seasons(taken, show.chosen)?)
-}
-
 /// [`ask_approving`]s for each of the Seasons `show`, unless a Library has any of them. Returns the
 /// Requests in the order of `show.seasons`, and the events for what changed.
 async fn ask_seasons(
@@ -1498,7 +1486,10 @@ async fn ask_seasons(
     show: WantedSeasons,
     state: RequestState,
 ) -> Result<(Vec<Request>, Vec<Event>), Error> {
-    let (quality, quality_chosen) = seasons_quality(conn, &show).await?;
+    // Read in the write, so two asks for the Show's Seasons at once can't take two Qualities.
+    let (quality, quality_chosen) = show_requests(conn, show.show_tmdb_id)
+        .await?
+        .for_seasons((show.quality.clone(), show.quality_chosen), show.chosen)?;
     let WantedSeasons {
         show_tmdb_id,
         show_ids,
@@ -2121,7 +2112,10 @@ async fn follow(
     state: RequestState,
 ) -> Result<(FollowedShow, Vec<Request>, Vec<Event>), Error> {
     let now = now();
-    let (quality, quality_chosen) = seasons_quality(conn, &show).await?;
+    // Read in the write, so two asks for the Show's Seasons at once can't take two Qualities.
+    let (quality, quality_chosen) = show_requests(conn, show.show_tmdb_id)
+        .await?
+        .for_seasons((show.quality.clone(), show.quality_chosen), show.chosen)?;
     let already_open = open_followed_show(conn, show.show_tmdb_id).await?;
     let id = if let Some(id) = already_open {
         id
