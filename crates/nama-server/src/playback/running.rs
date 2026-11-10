@@ -127,7 +127,7 @@ struct Plan {
 /// A plan's HLS files, and the ffmpeg writing them.
 struct Running {
     id: u64,
-    /// How far ahead a request waits for ffmpeg, and so the Transcode cap (#321) can leave
+    /// How far ahead a request waits for ffmpeg, and so the Transcode cap (#340) can leave
     /// Remuxes out.
     method: Method,
     timeline: Timeline,
@@ -225,6 +225,7 @@ impl RunningPlans {
     /// the Device it plays on, with its audio converted to AAC with `aac_channels` channels, and
     /// returns its id and its playlist's URL. Its segments are [`SEGMENT_MS`] each, as it forces a
     /// keyframe at each. `None` if there is no such Version.
+    // ponytail: no cap on how many Transcodes run at once, each a software encode; #340 adds one.
     pub(crate) async fn transcode(
         &self,
         playback: Playback,
@@ -602,7 +603,7 @@ impl Running {
 
     /// How far past what ffmpeg has written a file asked for can be and still be waited for, in
     /// milliseconds. A software Transcode writes about as fast as it plays, so it waits only for
-    /// the segment ffmpeg is on.
+    /// the segment ffmpeg is on and the next.
     const fn wait_ahead_ms(&self) -> i64 {
         match self.method {
             Method::Remux | Method::DirectPlay => REMUX_WAIT_AHEAD_MS,

@@ -1508,8 +1508,8 @@ async fn an_hevc_mkv_is_transcoded_to_h264_and_aac_over_hls_in_six_second_segmen
     assert_eq!(
         plan.reasons[1],
         "This Device can't decode its Matroska container, HEVC video or AC-3 audio, so it \
-         can't be Direct Played or Remuxed, and a Transcode converts it to H.264 and stereo AAC, as this Device \
-         doesn't say it plays more"
+         can't be Direct Played or Remuxed, and a Transcode converts it to H.264 and stereo \
+         AAC, as this Device doesn't say it plays more"
     );
     let playlist = String::from_utf8(fx.fetch_ok(&plan.url).await).unwrap();
     let (durations, files) = segments(&playlist);
