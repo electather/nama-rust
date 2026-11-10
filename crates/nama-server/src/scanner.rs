@@ -1214,7 +1214,7 @@ EOF"#,
         media.match_to_alien().await;
         let version = media.file_id(alien).await;
 
-        let plan = playback::plan(&media.scanner, version, playback::Device::default())
+        let plan = playback::plan(&media.scanner, version, playback::DeviceDecoding::default())
             .await
             .unwrap();
 

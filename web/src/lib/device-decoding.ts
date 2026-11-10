@@ -4,14 +4,17 @@ const CONTAINERS = ["video/mp4", "video/webm", "video/x-matroska"];
 const VIDEO_CODECS = [
   'video/mp4; codecs="avc1.640028"',
   'video/mp4; codecs="hvc1.1.6.L120.90"',
+  'video/webm; codecs="vp8"',
   'video/webm; codecs="vp09.00.40.08"',
   'video/mp4; codecs="av01.0.08M.08"',
 ];
 const AUDIO_CODECS = [
   'audio/mp4; codecs="mp4a.40.2"',
+  "audio/mpeg",
   'audio/mp4; codecs="ac-3"',
   'audio/mp4; codecs="ec-3"',
   'audio/webm; codecs="opus"',
+  'audio/webm; codecs="vorbis"',
   'audio/mp4; codecs="flac"',
   'audio/mp4; codecs="dtsc"',
   'audio/mp4; codecs="mlpa"',

@@ -95,7 +95,7 @@ use crate::{
     forwarded::{RequestSource, identify_source},
     libraries::{self, FolderProblem, Kind, Libraries, Library},
     matching::{ManualError, Matcher},
-    playback::{self, Device, Method, Plan},
+    playback::{self, DeviceDecoding, Method, Plan},
     plugin_settings::{ChangeError, ListError, PluginSettings, StoredPlugin},
     plugins::{CheckError, EnableError, Listed},
     qualities,
@@ -1235,7 +1235,7 @@ impl PlaybackService for PlaybackServiceHandler {
         // The rest of the request is for steps still to come (ADR 0027).
         let request = request.to_owned_message();
         let decoding = request.device_decoding.into_option().unwrap_or_default();
-        let device = Device {
+        let device = DeviceDecoding {
             content_types: decoding.content_types,
             hdr: decoding.hdr,
         };

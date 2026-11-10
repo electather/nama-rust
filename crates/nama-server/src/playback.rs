@@ -56,7 +56,7 @@ pub(crate) struct Plan {
 
 /// What a Device says it can decode, as it found out just now. The Server never stores it.
 #[derive(Debug, Default)]
-pub(crate) struct Device {
+pub(crate) struct DeviceDecoding {
     /// Those of the content types [`container`] and [`CODECS`] name that it decodes, such as
     /// `video/mp4` for a container or `video/mp4; codecs="avc1.640028"` for a codec.
     pub(crate) content_types: Vec<String>,
@@ -64,12 +64,20 @@ pub(crate) struct Device {
     pub(crate) hdr: bool,
 }
 
+impl DeviceDecoding {
+    fn decodes(&self, content_type: &str) -> bool {
+        self.content_types
+            .iter()
+            .any(|listed| listed == content_type)
+    }
+}
+
 /// Plans playing the Version `version` on `device`, probing it first unless its Tracks are
 /// current. `None` if there is no such Version.
 pub(crate) async fn plan(
     scanner: &Scanner,
     version: i64,
-    device: Device,
+    device: DeviceDecoding,
 ) -> Result<Option<Plan>, sqlx::Error> {
     let probe = match scanner.probe_now(version).await {
         Ok(probe) => Some(probe),
@@ -98,7 +106,7 @@ struct Facts {
     version: i64,
     /// What probing found in the Version, or `None` if it couldn't be probed.
     probe: Option<Probe>,
-    device: Device,
+    device: DeviceDecoding,
 }
 
 /// What one step lets a plan be, and why.
@@ -158,14 +166,26 @@ fn device_decoding(facts: &Facts) -> Narrowing {
             reason: "Its Tracks aren't known, so this Device is taken to decode them".to_owned(),
         };
     };
-    let Some(cant) = joined_with_or(&undecodable(probe, &facts.device)) else {
+    let container = undecodable_container(probe, &facts.device);
+    let tracks = undecodable_tracks(probe, &facts.device);
+    let cant: Vec<String> = container
+        .into_iter()
+        .chain(tracks.iter().cloned())
+        .collect();
+    let Some(cant) = joined_with_or(&cant) else {
         return Narrowing {
             allows: BTreeSet::from(Method::ALL),
             reason: "This Device decodes its container and Tracks".to_owned(),
         };
     };
+    // A Remux keeps the Tracks as they are, so it helps only with the container.
+    let allows = if tracks.is_empty() {
+        BTreeSet::from([Method::Remux, Method::Transcode])
+    } else {
+        BTreeSet::from([Method::Transcode])
+    };
     Narrowing {
-        allows: BTreeSet::from([Method::Remux, Method::Transcode]),
+        allows,
         reason: format!("This Device can't decode its {cant}, so it can't be Direct Played"),
     }
 }
@@ -175,33 +195,35 @@ fn device_decoding(facts: &Facts) -> Narrowing {
 /// about these same types.
 // ponytail: one common profile per codec, so a 10-bit or 4K Track may pass on a Device that
 // decodes only the 8-bit HD one; check the Track's own profile once probing reads it.
-const CODECS: [(&str, &str, &str); 11] = [
+const CODECS: [(&str, &str, &str); 14] = [
     ("h264", r#"video/mp4; codecs="avc1.640028""#, "H.264"),
     ("hevc", r#"video/mp4; codecs="hvc1.1.6.L120.90""#, "HEVC"),
+    ("vp8", r#"video/webm; codecs="vp8""#, "VP8"),
     ("vp9", r#"video/webm; codecs="vp09.00.40.08""#, "VP9"),
     ("av1", r#"video/mp4; codecs="av01.0.08M.08""#, "AV1"),
     ("aac", r#"audio/mp4; codecs="mp4a.40.2""#, "AAC"),
+    ("mp3", "audio/mpeg", "MP3"),
     ("ac3", r#"audio/mp4; codecs="ac-3""#, "AC-3"),
     ("eac3", r#"audio/mp4; codecs="ec-3""#, "E-AC-3"),
     ("opus", r#"audio/webm; codecs="opus""#, "Opus"),
+    ("vorbis", r#"audio/webm; codecs="vorbis""#, "Vorbis"),
     ("flac", r#"audio/mp4; codecs="flac""#, "FLAC"),
     ("dts", r#"audio/mp4; codecs="dtsc""#, "DTS"),
     ("truehd", r#"audio/mp4; codecs="mlpa""#, "TrueHD"),
 ];
 
-/// What of `probe` `device` can't decode, in plain words, such as "HEVC video".
-fn undecodable(probe: &Probe, device: &Device) -> Vec<String> {
-    let decodes = |content_type: &str| {
-        device
-            .content_types
-            .iter()
-            .any(|listed| listed == content_type)
-    };
-    let mut cant = match container(probe) {
-        Some((content_type, _)) if decodes(content_type) => vec![],
-        Some((_, name)) => vec![format!("{name} container")],
-        None => vec![format!("{} container", probe.container)],
-    };
+/// `probe`'s container in plain words, such as "Matroska container", if `device` can't decode it.
+fn undecodable_container(probe: &Probe, device: &DeviceDecoding) -> Option<String> {
+    match container(probe) {
+        Some((content_type, _)) if device.decodes(content_type) => None,
+        Some((_, name)) => Some(format!("{name} container")),
+        None => Some(format!("{} container", probe.container)),
+    }
+}
+
+/// What of the Tracks the plan plays `device` can't decode, in plain words, such as "HEVC video".
+fn undecodable_tracks(probe: &Probe, device: &DeviceDecoding) -> Vec<String> {
+    let mut cant = vec![];
     for track in played_tracks(probe) {
         let (kind, hdr) = match track.kind {
             TrackKind::Video { hdr, .. } => ("video", hdr),
@@ -209,7 +231,7 @@ fn undecodable(probe: &Probe, device: &Device) -> Vec<String> {
             TrackKind::Subtitle { .. } => ("subtitle", None),
         };
         match CODECS.into_iter().find(|(codec, ..)| *codec == track.codec) {
-            Some((_, content_type, _)) if decodes(content_type) => {}
+            Some((_, content_type, _)) if device.decodes(content_type) => {}
             Some((_, _, name)) => cant.push(format!("{name} {kind}")),
             None => cant.push(format!("{} {kind}", track.codec)),
         }
@@ -306,7 +328,7 @@ async fn serve(
 mod tests {
     use std::collections::BTreeSet;
 
-    use super::{Device, Facts, Method, Narrowing, Plan, STEPS, build};
+    use super::{DeviceDecoding, Facts, Method, Narrowing, Plan, STEPS, build, device_decoding};
     use crate::tracks::{Hdr, Probe, Track, TrackKind};
 
     fn track(codec: &str, default: bool, kind: TrackKind) -> Track {
@@ -343,18 +365,21 @@ mod tests {
     const MKV: &str = "matroska,webm";
 
     /// What Firefox on an SDR display says it decodes.
-    fn firefox() -> Device {
+    fn firefox() -> DeviceDecoding {
         let content_types = [
             "video/mp4",
             "video/webm",
             r#"video/mp4; codecs="avc1.640028""#,
+            r#"video/webm; codecs="vp8""#,
             r#"video/webm; codecs="vp09.00.40.08""#,
             r#"video/mp4; codecs="av01.0.08M.08""#,
             r#"audio/mp4; codecs="mp4a.40.2""#,
+            "audio/mpeg",
             r#"audio/webm; codecs="opus""#,
+            r#"audio/webm; codecs="vorbis""#,
             r#"audio/mp4; codecs="flac""#,
         ];
-        Device {
+        DeviceDecoding {
             content_types: content_types.map(str::to_owned).to_vec(),
             hdr: false,
         }
@@ -415,8 +440,8 @@ mod tests {
             ),
             (
                 "avi",
-                vec![video("mpeg4"), audio("mp3", true)],
-                "avi container, mpeg4 video or mp3 audio",
+                vec![video("mpeg4"), audio("pcm_s16le", true)],
+                "avi container, mpeg4 video or pcm_s16le audio",
             ),
         ];
         for (container, tracks, cant) in cases {
@@ -436,6 +461,8 @@ mod tests {
         hdr_display.hdr = true;
         let cases = [
             (MKV, vec![video("vp9"), audio("opus", true)], firefox()),
+            (MKV, vec![video("vp8"), audio("vorbis", true)], firefox()),
+            (MP4, vec![video("h264"), audio("mp3", true)], firefox()),
             (
                 MP4,
                 vec![hdr_video("av1", Some(Hdr::Hlg)), audio("flac", true)],
@@ -457,6 +484,39 @@ mod tests {
             let plan = build(&facts, &STEPS);
 
             assert_eq!(plan.method, Some(Method::DirectPlay), "{tracks:?}");
+        }
+    }
+
+    #[test]
+    fn only_a_transcode_helps_with_tracks_the_device_cant_decode() {
+        let remux_or_transcode = BTreeSet::from([Method::Remux, Method::Transcode]);
+        let transcode = BTreeSet::from([Method::Transcode]);
+        let cases = [
+            (
+                MKV,
+                vec![video("h264"), audio("aac", true)],
+                remux_or_transcode,
+            ),
+            (
+                MKV,
+                vec![video("hevc"), audio("aac", true)],
+                transcode.clone(),
+            ),
+            (
+                MP4,
+                vec![video("h264"), audio("dts", true)],
+                transcode.clone(),
+            ),
+            (
+                MP4,
+                vec![hdr_video("av1", Some(Hdr::Hdr10)), audio("aac", true)],
+                transcode,
+            ),
+        ];
+        for (container, tracks, allowed) in cases {
+            let narrowing = device_decoding(&in_container(container, Some(tracks.clone())));
+
+            assert_eq!(narrowing.allows, allowed, "{tracks:?}");
         }
     }
 
