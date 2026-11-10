@@ -326,6 +326,17 @@ jobs:
             target/nextest/tree
           if-no-files-found: ignore
 
+  # The one check main's ruleset requires (AGENTS.md, "CI jobs"). A job skipped by the path filter
+  # counts as passed, but a skipped matrix job reports under its unexpanded name
+  # (`test (${{ matrix.os }}, ...)`), so the ruleset can't require `test` itself.
+  ci-ok:
+    needs: [changes, lint, web, rust-check, test, web-test]
+    if: always() && github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1
+
   # The Server with the `web` feature, which embeds the `vp build` output and serves it. Runs
   # for a web-only PR too.
   web-test:

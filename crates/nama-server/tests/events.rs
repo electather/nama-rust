@@ -6,39 +6,29 @@ mod refused;
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 mod server;
 
-use std::{path::PathBuf, sync::Arc, time::Duration};
+use std::{path::PathBuf, sync::Arc};
 
-use connectrpc::{
-    ErrorCode,
-    client::{HttpClient, ServerStream},
-};
+use connectrpc::{ErrorCode, client::HttpClient};
 use nama_plugin_api::{
     BoxFuture, Manifest, Observer, Plugin, PluginId, PointKey, Registrar, points,
     settings::SettingsSchema,
 };
 use nama_proto::nama::v1::{
-    __buffa::view::SubscribeResponseView, CreateLibraryRequest, Event, EventServiceClient,
-    EventType, LibraryItemAdded, LibraryKind, LibraryServiceClient, RefusalReason, ScanFinished,
-    ScanLibraryRequest, ScanProgress, ScanStarted, SubscribeRequest, SubscribeResponse, event,
-    subscribe_response,
+    CreateLibraryRequest, Event, EventType, LibraryItemAdded, LibraryKind, LibraryServiceClient,
+    RefusalReason, ScanFinished, ScanLibraryRequest, ScanProgress, ScanStarted, SubscribeRequest,
+    event,
 };
 use nama_server::plugins::Registry;
 use refused::assert_refused;
-use server::TestServer;
+use server::{Subscription, TestServer, WAIT, subscribe_with};
 use tempfile::TempDir;
 use tokio::sync::mpsc;
 
-const WAIT: Duration = Duration::from_secs(10);
-
-type Subscription = ServerStream<hyper::body::Incoming, SubscribeResponseView<'static>>;
-
-/// A Server, clients for its `LibraryService` and `EventService`, and a scratch directory for
-/// media folders.
+/// A Server, a client for its `LibraryService`, and a scratch directory for media folders.
 struct Fixture {
     libraries: LibraryServiceClient<HttpClient>,
-    events: EventServiceClient<HttpClient>,
     media: TempDir,
-    _server: TestServer,
+    server: TestServer,
 }
 
 #[expect(
@@ -50,9 +40,8 @@ impl Fixture {
         let server = TestServer::builder().plugins(plugins).start().await;
         Self {
             libraries: LibraryServiceClient::new(HttpClient::plaintext(), server.client_config()),
-            events: EventServiceClient::new(HttpClient::plaintext(), server.client_config()),
             media: tempfile::tempdir().unwrap(),
-            _server: server,
+            server,
         }
     }
 
@@ -100,36 +89,17 @@ impl Fixture {
     }
 
     async fn subscribe(&self, request: SubscribeRequest) -> Subscription {
-        self.events.subscribe(request).await.unwrap()
+        subscribe_with(&self.server.client_config(), request).await
     }
 }
 
-#[expect(
-    clippy::expect_used,
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
-async fn next(subscription: &mut Subscription) -> subscribe_response::Message {
-    tokio::time::timeout(WAIT, subscription.message::<SubscribeResponse>())
-        .await
-        .expect("timed out waiting for an event")
-        .unwrap()
-        .expect("the subscription ended")
-        .to_owned_message()
-        .message
-        .expect("a message with nothing in it")
-}
-
 /// The events on `subscription` up to and including the next `ScanFinished`.
-#[expect(clippy::panic, reason = "a test helper fails its test by panicking")]
 async fn until_scan_finished(subscription: &mut Subscription) -> Vec<Event> {
     let mut events = Vec::new();
     loop {
-        let subscribe_response::Message::Event(event) = next(subscription).await else {
-            panic!("the subscription lagged");
-        };
-        let finished = matches!(event.event, Some(event::Event::ScanFinished(_)));
-        events.push(*event);
+        let next = subscription.next().await;
+        let finished = matches!(next, event::Event::ScanFinished(_));
+        events.push(event(next));
         if finished {
             return events;
         }
@@ -278,12 +248,12 @@ async fn a_subscriber_receives_only_the_event_types_and_libraries_it_asks_for() 
     fx.scan(wanted).await;
 
     assert_eq!(
-        next(&mut filtered).await,
-        subscribe_response::Message::Event(Box::new(event(ScanFinished {
+        event(filtered.next().await),
+        event(ScanFinished {
             library_id: wanted,
             added: 1,
             ..Default::default()
-        })))
+        })
     );
 }
 
@@ -297,9 +267,7 @@ async fn subscribing_to_an_unspecified_event_type_is_an_invalid_argument() {
         })
         .await;
 
-    let message = tokio::time::timeout(WAIT, refused.message::<SubscribeResponse>())
-        .await
-        .expect("timed out waiting for the refusal");
+    let message = refused.message().await;
     let refusal = assert_refused(
         message,
         ErrorCode::InvalidArgument,
@@ -315,8 +283,6 @@ async fn shutting_down_the_server_ends_every_subscription() {
 
     drop(fx);
 
-    let ended = tokio::time::timeout(WAIT, subscription.message::<SubscribeResponse>())
-        .await
-        .expect("the subscription outlived the Server");
+    let ended = subscription.message().await;
     assert!(matches!(ended, Ok(None)), "{ended:?}");
 }

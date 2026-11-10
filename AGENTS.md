@@ -5,6 +5,7 @@ Read `README.md` for the layout and the checks CI runs. Rules for one package li
 - **Lints.** CI denies every warning. To silence a lint, use `#[expect(lint, reason = "...")]` on the smallest item possible, never a bare `#[allow]`.
 - **Docs.** Every `pub` or exported item gets a one-line doc comment saying what it's for (`missing_docs`); it grows only for what the signature can't show, such as errors, ordering or who may call it. A private item gets one only when its name and signature leave something out.
 - **Comments say why:** a reason, an outside constraint (SQLite, a protocol, an ADR), a trap for the next editor, or a `ponytail:` ceiling. What the code says, a clearer name, a type or an assertion says instead. A test's name says what it checks.
+- **CI jobs.** A new job in `.github/workflows/ci.yml` goes in `ci-ok`'s `needs`. Main's ruleset requires only `ci-ok`, so a job left out never blocks a merge.
 - **Commit messages** are 10 words or fewer.
 - **Rules live in `AGENTS.md`.** A rule future code in a package must follow goes once in that package's `AGENTS.md`; code that enforces it points there in one line. A package's `README.md` says how to work on it.
 

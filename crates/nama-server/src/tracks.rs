@@ -12,11 +12,10 @@ use std::{
 
 use sqlx::SqliteConnection;
 
-use crate::db::Database;
+use crate::{contents::Stored, db::Database};
 
 /// The version of how probing reads a file, stored with what it read like the name parser's
-/// (ADR 0023), so what an older version read can be told apart. Version 1 read no bit depth or
-/// HDR format.
+/// (ADR 0023). A Version read by an older one is probed again; when to bump it is in `AGENTS.md`.
 pub(crate) const PROBE_VERSION: i64 = 2;
 
 /// What probing a Version found.
@@ -89,22 +88,33 @@ impl Tracks {
         Self { db }
     }
 
-    /// Those of the Versions `versions` that have been probed.
-    pub(crate) async fn probed(&self, versions: &[i64]) -> Result<HashSet<i64>, sqlx::Error> {
-        let versions = json_array(versions);
-        sqlx::query_scalar!(
-            "SELECT version_id FROM version_probes
-             WHERE version_id IN (SELECT value FROM json_each(?))",
+    /// Those of `files` whose Tracks are current: read by the current [`PROBE_VERSION`] at the
+    /// size and modified time `Contents` stores for the file now.
+    pub(crate) async fn current(&self, files: &[Stored]) -> Result<HashSet<i64>, sqlx::Error> {
+        let versions: Vec<i64> = files.iter().map(|file| file.id).collect();
+        let versions = json_array(&versions);
+        let read_at: HashSet<(i64, i64, i64)> = sqlx::query!(
+            "SELECT version_id, size, modified_ns FROM version_probes
+             WHERE probe_version = ? AND version_id IN (SELECT value FROM json_each(?))",
+            PROBE_VERSION,
             versions
         )
         .fetch_all(self.db.reader())
-        .await
-        .map(|ids| ids.into_iter().collect())
+        .await?
+        .into_iter()
+        .map(|row| (row.version_id, row.size, row.modified_ns))
+        .collect();
+        Ok(files
+            .iter()
+            .filter(|file| read_at.contains(&(file.id, file.size, file.modified_ns)))
+            .map(|file| file.id)
+            .collect())
     }
 
-    /// Stores `probe` as what the current [`PROBE_VERSION`] found in the Version `version`,
-    /// replacing what was stored for it. A Version removed since it was probed stores nothing.
-    pub(crate) async fn store(&self, version: i64, probe: Probe) -> Result<(), sqlx::Error> {
+    /// Stores `probe` as what the current [`PROBE_VERSION`] found in the Version `version` at its
+    /// stored size and modified time, replacing what was stored for it. A Version removed since it
+    /// was probed stores nothing.
+    pub(crate) async fn store(&self, version: Stored, probe: Probe) -> Result<(), sqlx::Error> {
         let stored = self
             .db
             .write(move |tx| Box::pin(store(tx, version, probe)))
@@ -113,6 +123,21 @@ impl Tracks {
             Err(sqlx::Error::Database(err)) if err.is_foreign_key_violation() => Ok(()),
             stored => stored,
         }
+    }
+
+    /// Forgets what probing found in the Version `version`, once probing it again has failed, so
+    /// Tracks read from what the file held before don't outlive it.
+    pub(crate) async fn forget(&self, version: i64) -> Result<(), sqlx::Error> {
+        self.db
+            .write(move |tx| {
+                Box::pin(async move {
+                    sqlx::query!("DELETE FROM version_probes WHERE version_id = ?", version)
+                        .execute(&mut **tx)
+                        .await
+                        .map(drop)
+                })
+            })
+            .await
     }
 
     /// What probing found in each of the Versions `versions` that has been probed.
@@ -192,15 +217,23 @@ fn json_array(ids: &[i64]) -> String {
     serde_json::Value::from(ids).to_string()
 }
 
-async fn store(conn: &mut SqliteConnection, version: i64, probe: Probe) -> Result<(), sqlx::Error> {
+async fn store(
+    conn: &mut SqliteConnection,
+    stored: Stored,
+    probe: Probe,
+) -> Result<(), sqlx::Error> {
+    let version = stored.id;
     sqlx::query!("DELETE FROM version_probes WHERE version_id = ?", version)
         .execute(&mut *conn)
         .await?;
     sqlx::query!(
-        "INSERT INTO version_probes (version_id, probe_version, container, duration_ms, bitrate)
-         VALUES (?, ?, ?, ?, ?)",
+        "INSERT INTO version_probes (version_id, probe_version, size, modified_ns, container,
+                                     duration_ms, bitrate)
+         VALUES (?, ?, ?, ?, ?, ?, ?)",
         version,
         PROBE_VERSION,
+        stored.size,
+        stored.modified_ns,
         probe.container,
         probe.duration_ms,
         probe.bitrate,
@@ -298,5 +331,23 @@ impl Tracks {
         .fetch_optional(self.db.reader())
         .await
         .unwrap()
+    }
+
+    /// Marks the Version `version` as probed by the version before the current one.
+    pub(crate) async fn read_by_older_probe(&self, version: i64) {
+        self.db
+            .write(move |tx| {
+                Box::pin(async move {
+                    sqlx::query!(
+                        "UPDATE version_probes SET probe_version = ? - 1 WHERE version_id = ?",
+                        PROBE_VERSION,
+                        version
+                    )
+                    .execute(&mut **tx)
+                    .await
+                })
+            })
+            .await
+            .unwrap();
     }
 }

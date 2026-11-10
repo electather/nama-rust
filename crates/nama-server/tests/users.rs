@@ -9,22 +9,18 @@ mod refused;
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 mod server;
 
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{SystemTime, UNIX_EPOCH};
 
-use connectrpc::{
-    ConnectError, ErrorCode,
-    client::{ClientConfig, HttpClient, ServerStream},
-};
+use connectrpc::{ConnectError, ErrorCode, client::HttpClient};
 use nama_proto::nama::v1::{
-    __buffa::view::SubscribeResponseView, ChangePasswordRequest, CreateUserRequest,
-    DeleteUserRequest, Device, EventServiceClient, GetDefaultPermissionsRequest,
-    ListDevicesRequest, ListUsersRequest, Permission, RefusalReason, ResetPasswordRequest,
-    RevokeDeviceRequest, SessionDelivery, SetDefaultPermissionsRequest, SetPermissionsRequest,
-    SignInRequest, SignInResponse, SignInServiceClient, SubscribeRequest, SubscribeResponse, User,
+    ChangePasswordRequest, CreateUserRequest, DeleteUserRequest, Device,
+    GetDefaultPermissionsRequest, ListDevicesRequest, ListUsersRequest, Permission, RefusalReason,
+    ResetPasswordRequest, RevokeDeviceRequest, SessionDelivery, SetDefaultPermissionsRequest,
+    SetPermissionsRequest, SignInRequest, SignInResponse, SignInServiceClient, User,
     UserServiceClient, WhoAmIRequest,
 };
 use refused::{assert_refused, refusal_of};
-use server::{PASSWORD, TestServer};
+use server::{PASSWORD, Subscription, TestServer, subscribe};
 
 /// A Server with an Admin signed in, and a client for its `UserService` calling as them.
 struct Fixture {
@@ -285,31 +281,9 @@ fn ids(signed_in: &SignInResponse) -> (i64, i64) {
     (user, device)
 }
 
-const WAIT: Duration = Duration::from_secs(10);
-
-type Subscription = ServerStream<hyper::body::Incoming, SubscribeResponseView<'static>>;
-
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
-async fn subscribe(config: ClientConfig) -> Subscription {
-    EventServiceClient::new(HttpClient::plaintext(), config)
-        .subscribe(SubscribeRequest::default())
-        .await
-        .unwrap()
-}
-
 /// Whether `subscription` ended, rather than failing or carrying on.
-#[expect(
-    clippy::expect_used,
-    reason = "a test helper fails its test by panicking"
-)]
 async fn ended(subscription: &mut Subscription) -> bool {
-    let next = tokio::time::timeout(WAIT, subscription.message::<SubscribeResponse>())
-        .await
-        .expect("timed out waiting for the stream");
-    matches!(next, Ok(None))
+    matches!(subscription.message().await, Ok(None))
 }
 
 /// Now, in seconds since the Unix epoch, as the Server stores times.
@@ -719,7 +693,7 @@ async fn setting_an_unspecified_default_permission_is_refused_and_changes_nothin
 async fn a_deleted_user_cant_sign_in_and_their_sessions_and_streams_end_at_once() {
     let fixture = Fixture::start().await;
     let (phone, laptop) = fixture.grace_on_phone_and_laptop().await;
-    let mut laptop_events = subscribe(fixture.server.client_config_as(&laptop.token)).await;
+    let mut laptop_events = subscribe(&fixture.server.client_config_as(&laptop.token), &[]).await;
 
     delete_user(&fixture.client, ids(&phone).0).await.unwrap();
 
@@ -832,7 +806,7 @@ async fn a_user_lists_their_devices_with_the_one_calling_marked_current() {
 async fn a_revoked_devices_token_is_refused_at_once_and_its_stream_ends() {
     let fixture = Fixture::start().await;
     let (phone, laptop) = fixture.grace_on_phone_and_laptop().await;
-    let mut laptop_events = subscribe(fixture.server.client_config_as(&laptop.token)).await;
+    let mut laptop_events = subscribe(&fixture.server.client_config_as(&laptop.token), &[]).await;
     let grace = fixture.client_as(&phone.token);
 
     revoke_device(&grace, None, ids(&laptop).1).await.unwrap();
@@ -964,7 +938,7 @@ async fn an_admin_asking_about_a_user_who_doesnt_exist_gets_not_found() {
 async fn a_changed_password_signs_in_and_signs_the_users_other_devices_out() {
     let fixture = Fixture::start().await;
     let (phone, laptop) = fixture.grace_on_phone_and_laptop().await;
-    let mut laptop_events = subscribe(fixture.server.client_config_as(&laptop.token)).await;
+    let mut laptop_events = subscribe(&fixture.server.client_config_as(&laptop.token), &[]).await;
     let new_password = "a brand new password";
 
     change_password(&fixture.client_as(&phone.token), new_password)
@@ -1050,8 +1024,8 @@ async fn two_devices_changing_the_password_at_once_leave_one_signed_in_with_its_
 async fn after_a_reset_the_new_password_signs_in_and_all_the_users_devices_are_signed_out() {
     let fixture = Fixture::start().await;
     let (phone, laptop) = fixture.grace_on_phone_and_laptop().await;
-    let mut phone_events = subscribe(fixture.server.client_config_as(&phone.token)).await;
-    let mut laptop_events = subscribe(fixture.server.client_config_as(&laptop.token)).await;
+    let mut phone_events = subscribe(&fixture.server.client_config_as(&phone.token), &[]).await;
+    let mut laptop_events = subscribe(&fixture.server.client_config_as(&laptop.token), &[]).await;
     let new_password = "a brand new password";
 
     reset_password(&fixture.client, ids(&phone).0, new_password)

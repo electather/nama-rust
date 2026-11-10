@@ -30,7 +30,7 @@ use nama_proto::nama::v1::{
 };
 use nama_server::{contents::Contents, plugins::Registry};
 use refused::assert_refused;
-use server::TestServer;
+use server::{TestServer, WAIT};
 use tempfile::TempDir;
 
 /// TMDB finds nothing for this file, so it is Unmatched until Matched by hand.
@@ -137,7 +137,7 @@ impl Fixture {
     async fn scan_until_stored(&self, relative: &str) -> i64 {
         self.scan().await;
         let path = self.path(relative);
-        tokio::time::timeout(Duration::from_secs(5), self.wait_for_item(&path))
+        tokio::time::timeout(WAIT, self.wait_for_item(&path))
             .await
             .unwrap()
     }
@@ -165,7 +165,7 @@ impl Fixture {
         self.scan().await;
         let path = self.folder.join(relative);
         let size = i64::try_from(contents.len()).unwrap();
-        tokio::time::timeout(Duration::from_secs(5), self.wait_for_decision(&path, size))
+        tokio::time::timeout(WAIT, self.wait_for_decision(&path, size))
             .await
             .unwrap()
     }
@@ -240,7 +240,7 @@ impl Fixture {
     async fn scan_until_unparsed(&self, relative: &str) {
         self.scan().await;
         let path = self.path(relative);
-        tokio::time::timeout(Duration::from_secs(5), self.wait_for_unparsed(&path))
+        tokio::time::timeout(WAIT, self.wait_for_unparsed(&path))
             .await
             .unwrap();
     }
