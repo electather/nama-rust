@@ -651,7 +651,7 @@ mod tests {
         events::{EventBus, Filter},
         ffmpeg::{self, Ffmpeg, FoundProgram, ProbeError},
         libraries::{self, Kind, Libraries},
-        playback,
+        playback::{self, running::RunningPlans},
         plugins::Registry,
         server_settings::ServerUrl,
         tracks::{Hdr, PROBE_VERSION, Track, TrackKind, Tracks},
@@ -1240,10 +1240,25 @@ EOF"#,
         media.match_to_alien().await;
         let version = media.file_id(alien).await;
 
-        let device = playback::DeviceDecoding::default();
-        let plan = playback::plan(&media.scanner, version, device, BTreeSet::new())
-            .await
-            .unwrap();
+        let transcodes = tempfile::tempdir().unwrap();
+        let running = RunningPlans::new(
+            transcodes.path().to_owned(),
+            Arc::new(Ffmpeg::default()),
+            media.contents.clone(),
+            media.tracks.clone(),
+        );
+        let decoding = playback::DeviceDecoding::default();
+
+        let plan = playback::plan(
+            &media.scanner,
+            &running,
+            version,
+            1,
+            decoding,
+            BTreeSet::new(),
+        )
+        .await
+        .unwrap();
 
         let tracks = plan.map(|plan| plan.tracks).unwrap_or_default();
         let codecs: Vec<&str> = tracks.iter().map(|track| track.codec.as_str()).collect();

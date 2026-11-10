@@ -2,7 +2,14 @@ import type { VariantProps } from "class-variance-authority";
 import { cn } from "cn";
 import { Link, type LinkOptions } from "@tanstack/react-router";
 import { ArrowLeft, Maximize, Minimize, Pause, Play, Volume2, VolumeX } from "lucide-react";
-import { type ReactNode, type RefObject, useRef, useState } from "react";
+import {
+  type PointerEvent,
+  type ReactNode,
+  type RefObject,
+  useCallback,
+  useRef,
+  useState,
+} from "react";
 
 import { PlaybackInfo } from "@/components/playback-info";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -24,6 +31,7 @@ import {
   useShortcuts,
   useVideo,
 } from "@/lib/playback";
+import { usePlaybackSource } from "@/lib/playback-source";
 // oxlint-disable-next-line import/max-dependencies -- the player puts together the video, its controls, Watch State and playback info
 import { useWatchState } from "@/lib/watch-state";
 
@@ -46,6 +54,10 @@ export interface PlayerProps {
 export function Player(props: PlayerProps) {
   const { plan, tryPlanningAgain } = usePlaybackPlan(props.versionId, props.watchState);
   const [cantPlay, setCantPlay] = useState(false);
+  // Stable until the plan changes, so hls.js isn't restarted each time the player renders.
+  const onCantPlay = useCallback(() => {
+    if (!tryPlanningAgain()) setCantPlay(true);
+  }, [tryPlanningAgain]);
   if (plan.url === "") return <CantPlay back={props.back} reasons={plan.reasons} />;
   if (cantPlay) return <CantPlay back={props.back} reasons={[]} />;
   return (
@@ -53,11 +65,14 @@ export function Player(props: PlayerProps) {
       {...props}
       plan={plan}
       playbackInfo={<PlaybackInfo plan={plan} />}
-      onCantPlay={() => {
-        if (!tryPlanningAgain()) setCantPlay(true);
-      }}
+      onCantPlay={onCantPlay}
     />
   );
+}
+
+// A click pauses or plays; a tap only brings the controls back.
+function clickToToggle(event: PointerEvent<HTMLVideoElement>) {
+  if (event.pointerType === "mouse") togglePlay(event.currentTarget);
 }
 
 function VideoPlayer({
@@ -65,12 +80,13 @@ function VideoPlayer({
   versionId,
   watchState,
   back,
-  plan: { url, subtitles },
+  plan,
   playbackInfo,
   onCantPlay,
 }: PlayerProps & { plan: PlaybackPlan; playbackInfo: ReactNode; onCantPlay: () => void }) {
   const playerRef = useRef<HTMLDivElement>(null);
   const { ref: videoRef, events, ...video } = useVideo();
+  const src = usePlaybackSource(videoRef, plan, onCantPlay);
   useWatchState(videoRef, versionId, watchState);
   const [awake, wake] = useAwake();
   useShortcuts(videoRef, playerRef, back, wake);
@@ -86,25 +102,22 @@ function VideoPlayer({
       {/* oxlint-disable-next-line jsx-a11y/media-has-caption -- a Version may have no subtitles. */}
       <video
         ref={videoRef}
-        src={url}
+        src={src}
         aria-label={title}
         autoPlay
         playsInline
         onError={onCantPlay}
-        onPointerUp={(event) => {
-          // A click pauses or plays; a tap only brings the controls back.
-          if (event.pointerType === "mouse") togglePlay(event.currentTarget);
-        }}
+        onPointerUp={clickToToggle}
         className="size-full object-contain"
         {...events}
       >
-        <SubtitleTracks subtitles={subtitles} />
+        <SubtitleTracks subtitles={plan.subtitles} />
       </video>
       {/* Any key brings the controls back, so a focused control shows its ring when it's used. */}
       <div className="pointer-events-none absolute inset-0 flex flex-col justify-between transition-opacity duration-500 ease-out-expo group-data-controls-hidden:opacity-0 motion-reduce:transition-none">
         <TopBar title={title} back={back} playbackInfo={playbackInfo} />
         <BottomBar video={video} playerRef={playerRef}>
-          <SubtitlesMenu subtitles={subtitles} videoRef={videoRef} container={playerRef} />
+          <SubtitlesMenu subtitles={plan.subtitles} videoRef={videoRef} container={playerRef} />
         </BottomBar>
       </div>
     </div>

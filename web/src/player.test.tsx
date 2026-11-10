@@ -1,19 +1,41 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
-import { cleanup, fireEvent, screen, within } from "@testing-library/react";
-import { afterEach, expect, test } from "vite-plus/test";
+import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { afterEach, expect, test, vi } from "vite-plus/test";
 
 import { BrowseService, type TrackSchema } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
 import {
   type PlanPlaybackRequest,
   PlaybackMethod,
+  type PlaybackPlanSchema,
   PlaybackService,
 } from "@/gen/nama/v1/playback_pb";
 
+import type { WatchStateSchema } from "@/gen/nama/v1/watch_state_pb";
+
 import { fakeServer, newUser, openApp } from "./test-app";
+
+/** What each hls.js player was given: the playlist it loads and the `<video>` it plays in. */
+const hlsJs = vi.hoisted(() => ({ played: [] as { url: string; video: HTMLMediaElement }[] }));
+vi.mock("hls.js", () => ({
+  default: class {
+    static Events = { ERROR: "hlsError" };
+    url = "";
+    on() {}
+    loadSource(url: string) {
+      this.url = url;
+    }
+    attachMedia(video: HTMLMediaElement) {
+      hlsJs.played.push({ url: this.url, video });
+    }
+    destroy() {}
+  },
+}));
 
 afterEach(() => {
   cleanup();
+  hlsJs.played = [];
+  vi.restoreAllMocks();
   // happy-dom has no `navigator.mediaCapabilities`; a test may lend it one.
   Reflect.deleteProperty(navigator, "mediaCapabilities");
 });
@@ -25,18 +47,38 @@ const plannedTracks: MessageInitShape<typeof TrackSchema>[] = [
   { codec: "aac", language: "eng", kind: { case: "audio", value: { channels: 6 } } },
   { codec: "subrip", language: "fre", kind: { case: "subtitle", value: {} } },
 ];
+type Planned = (request: PlanPlaybackRequest) => MessageInitShape<typeof PlaybackPlanSchema>;
+const directPlay: Planned = (request) => ({
+  method: PlaybackMethod.DIRECT_PLAY,
+  url: `/planned/${request.versionId}`,
+  tracks: plannedTracks,
+  reasons: ["Its Tracks need no change"],
+});
+const cantPlay: Planned = () => ({ reasons: ["Its Tracks need no change", cantDecode] });
+const remux: Planned = () => ({
+  method: PlaybackMethod.REMUX,
+  url: "/media/plans/0/index.m3u8",
+  tracks: plannedTracks,
+  reasons: ["This Device can't decode its Matroska container, so it can't be Direct Played"],
+});
 const directPlayFailed = "Direct Play failed on this Device";
 /**
  * A Server whose Library 1 has The Matrix in three Versions, the largest being Version 8, and
- * whose plans Direct Play each from an address of its own with `plannedTracks`, or, unless
- * `playable`, say why it can't play. As the real Server does, a plan asked for after Direct Play
- * failed says it can't play, unless the Server `ignoresFailures`. Each plan request goes in
- * `asked`.
+ * whose plans are `planned`'s, by default Direct Playing each from an address of its own with
+ * `plannedTracks`. As the real Server does, a plan asked for after Direct Play failed says it can't
+ * play, unless the Server `ignoresFailures`. Each plan request goes in `asked`. The Movie's Watch
+ * State is `watchState`.
  */
 const serverPlanning = ({
-  playable = true,
+  planned = directPlay,
   asked = [] as PlanPlaybackRequest[],
   ignoresFailures = false,
+  watchState,
+}: {
+  planned?: Planned;
+  asked?: PlanPlaybackRequest[];
+  ignoresFailures?: boolean;
+  watchState?: MessageInitShape<typeof WatchStateSchema>;
 } = {}) =>
   fakeServer({ signedIn: newUser, libraries }, {}, {}, (router) => {
     router.service(PlaybackService, {
@@ -45,16 +87,7 @@ const serverPlanning = ({
         const failed =
           !ignoresFailures && request.failedMethods.includes(PlaybackMethod.DIRECT_PLAY);
         if (failed) return { plan: { reasons: ["Its Tracks need no change", directPlayFailed] } };
-        return {
-          plan: playable
-            ? {
-                method: PlaybackMethod.DIRECT_PLAY,
-                url: `/planned/${request.versionId}`,
-                tracks: plannedTracks,
-                reasons: ["Its Tracks need no change"],
-              }
-            : { reasons: ["Its Tracks need no change", cantDecode] },
-        };
+        return { plan: planned(request) };
       },
     });
     router.service(BrowseService, {
@@ -62,6 +95,7 @@ const serverPlanning = ({
         movie: {
           id: { id: { case: "tmdb", value: 603n } },
           title: "The Matrix",
+          watchState,
           versions: [
             { id: 7n, fileName: "The Matrix (1999) 720p.mkv", size: 2_000_000_000n },
             { id: 8n, fileName: "The Matrix (1999) 2160p.mkv", size: 40_000_000_000n },
@@ -113,7 +147,7 @@ test("a method that fails again gives up instead of asking for plans in a loop",
 });
 
 test("a Version whose plan says it can't play shows the plan's reasons instead of the player", async () => {
-  openApp("/libraries/1/movies/tmdb-603/play", serverPlanning({ playable: false }));
+  openApp("/libraries/1/movies/tmdb-603/play", serverPlanning({ planned: cantPlay }));
 
   expect(await screen.findByText("This Version can’t play here")).toBeDefined();
   expect(screen.getByText(cantDecode)).toBeDefined();
@@ -140,6 +174,48 @@ test("the plan request says what this Device decodes", async () => {
   await findVideo();
 
   expect(asked.map((request) => request.deviceDecoding?.contentTypes)).toEqual([decodable]);
+});
+
+test("a Remux plays its HLS playlist through hls.js in a browser without HLS of its own", async () => {
+  openApp("/libraries/1/movies/tmdb-603/play", serverPlanning({ planned: remux }));
+
+  const video = await findVideo();
+
+  await waitFor(() => {
+    expect(hlsJs.played).toEqual([{ url: "/media/plans/0/index.m3u8", video }]);
+  });
+  expect(video.getAttribute("src")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Playback info" }));
+  const panel = within(screen.getByRole("region", { name: "Playback info" }));
+  expect(panel.getByText("Remux")).toBeDefined();
+  expect(
+    panel.getByText(
+      "This Device can't decode its Matroska container, so it can't be Direct Played",
+    ),
+  ).toBeDefined();
+});
+
+// The playlist lists the whole Version from its start, so a Remux's time is the file's.
+test("a Remux resumes from the Watch State's point in the file", async () => {
+  const watchState = { positionMs: 600_000n, durationMs: 7_000_000n };
+  openApp("/libraries/1/movies/tmdb-603/play", serverPlanning({ planned: remux, watchState }));
+  const video = await screen.findByLabelText<HTMLVideoElement>("The Matrix");
+  await waitFor(() => {
+    expect(hlsJs.played).toHaveLength(1);
+  });
+
+  Object.defineProperty(video, "duration", { value: 7000 });
+  fireEvent(video, new Event("loadedmetadata"));
+
+  expect(video.currentTime).toBe(600);
+});
+
+test("a Remux plays its HLS playlist natively in a browser with HLS of its own", async () => {
+  vi.spyOn(HTMLMediaElement.prototype, "canPlayType").mockReturnValue("maybe");
+  openApp("/libraries/1/movies/tmdb-603/play", serverPlanning({ planned: remux }));
+
+  expect((await findVideo()).getAttribute("src")).toBe("/media/plans/0/index.m3u8");
+  expect(hlsJs.played).toEqual([]);
 });
 
 test("an address with no title to play keeps the app chrome, so there's a way out", async () => {

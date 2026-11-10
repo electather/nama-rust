@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT keyframes_ms FROM version_probes WHERE version_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "keyframes_ms",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "version_probes",
+            "name": "keyframes_ms"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "fcea48293d7ab89842330ce89affead7c84f2028e827e72ff5c396e0ea6eb2f6"
+}
