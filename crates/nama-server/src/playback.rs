@@ -222,11 +222,12 @@ struct Narrowing {
 type Step = fn(&Facts) -> Narrowing;
 
 /// In ADR 0027's order. A new input is a new step here.
-const STEPS: [Step; 4] = [
+const STEPS: [Step; 5] = [
     version_tracks,
     device_decoding,
     server_ffmpeg,
     failed_on_device,
+    chosen_audio,
 ];
 
 /// The plan for `facts` that every one of `steps` allows.
@@ -263,24 +264,17 @@ fn build(facts: &Facts, steps: &[Step]) -> Plan {
     }
 }
 
-/// The step for the Version's own Tracks: Direct Play only if the audio Track chosen is the one
-/// browsers play from its file, since only Safari switches audio inside a file.
+/// The step for the Version's own Tracks. None needs changing to play yet, so it allows every
+/// method.
 fn version_tracks(facts: &Facts) -> Narrowing {
-    let (allows, reason) = match &facts.probe {
+    let reason = if facts.probe.is_some() {
+        "Its Tracks need no change"
+    } else {
         // ADR 0026: without ffprobe, a Server Direct Plays.
-        None => (
-            BTreeSet::from(Method::ALL),
-            "Its Tracks aren't known, so they're taken to need no change",
-        ),
-        Some(probe) if played_audio(facts) != file_audio(probe) => (
-            BTreeSet::from([Method::Remux, Method::Transcode]),
-            "The audio Track chosen isn't the one browsers play from its file, so it can't be \
-             Direct Played",
-        ),
-        Some(_) => (BTreeSet::from(Method::ALL), "Its Tracks need no change"),
+        "Its Tracks aren't known, so they're taken to need no change"
     };
     Narrowing {
-        allows,
+        allows: BTreeSet::from(Method::ALL),
         reason: reason.to_owned(),
     }
 }
@@ -346,6 +340,23 @@ fn server_ffmpeg(facts: &Facts) -> Narrowing {
             allows: BTreeSet::from([Method::DirectPlay]),
             reason: "This Server lacks ffmpeg or ffprobe, so it can only Direct Play".to_owned(),
         }
+    }
+}
+
+/// The step for the audio Track the User chose: Direct Play only if it's the one browsers play
+/// from the file, since only Safari switches audio inside a file.
+fn chosen_audio(facts: &Facts) -> Narrowing {
+    match &facts.probe {
+        Some(probe) if played_audio(facts) != file_audio(probe) => Narrowing {
+            allows: BTreeSet::from([Method::Remux, Method::Transcode]),
+            reason: "The audio Track chosen isn't the one browsers play from its file, so it \
+                     can't be Direct Played"
+                .to_owned(),
+        },
+        _ => Narrowing {
+            allows: BTreeSet::from(Method::ALL),
+            reason: "It plays the file's own audio Track".to_owned(),
+        },
     }
 }
 
@@ -747,6 +758,7 @@ mod tests {
                     "This Device decodes its container and Tracks".to_owned(),
                     "This Server has ffmpeg".to_owned(),
                     "Nothing has failed to play it on this Device".to_owned(),
+                    "It plays the file's own audio Track".to_owned(),
                 ],
                 subtitles: vec![],
             }
@@ -867,6 +879,7 @@ mod tests {
                 "Its Tracks aren't known, so this Device is taken to decode them",
                 "This Server has ffmpeg",
                 "Nothing has failed to play it on this Device",
+                "It plays the file's own audio Track",
             ]
         );
     }
@@ -909,7 +922,7 @@ mod tests {
         assert_eq!(plan.tracks, [video("h264"), commentary]);
         assert_eq!(played_audio(&facts), Some(1), "counting only audio");
         assert_eq!(
-            plan.reasons[0],
+            plan.reasons[4],
             "The audio Track chosen isn't the one browsers play from its file, so it can't be \
              Direct Played"
         );
@@ -965,6 +978,7 @@ mod tests {
                 "This Device can't decode its Matroska container, so it can't be Direct Played",
                 "This Server has ffmpeg",
                 "Nothing has failed to play it on this Device",
+                "It plays the file's own audio Track",
             ]
         );
     }

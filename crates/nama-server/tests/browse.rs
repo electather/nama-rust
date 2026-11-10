@@ -1150,7 +1150,8 @@ async fn an_h264_and_aac_mp4_direct_plays_through_its_plans_url() {
             "Its Tracks need no change",
             "This Device decodes its container and Tracks",
             "This Server lacks ffmpeg or ffprobe, so it can only Direct Play",
-            "Nothing has failed to play it on this Device"
+            "Nothing has failed to play it on this Device",
+            "It plays the file's own audio Track"
         ]
     );
     let played = fetch(&fx.server, &plan.url, Some(&fx.server.admin_token)).await;
@@ -1174,7 +1175,8 @@ async fn without_ffprobe_a_version_direct_plays_and_its_plan_says_its_tracks_are
             "Its Tracks aren't known, so they're taken to need no change",
             "Its Tracks aren't known, so this Device is taken to decode them",
             "This Server lacks ffmpeg or ffprobe, so it can only Direct Play",
-            "Nothing has failed to play it on this Device"
+            "Nothing has failed to play it on this Device",
+            "It plays the file's own audio Track"
         ]
     );
 }
@@ -1554,7 +1556,7 @@ async fn switching_to_the_commentary_mid_play_remuxes_it_from_there_with_its_aud
     assert_eq!(commentary.method, PlaybackMethod::PLAYBACK_METHOD_REMUX);
     assert_eq!(commentary.tracks[1].title.as_deref(), Some("Commentary"));
     assert_eq!(
-        commentary.reasons[0],
+        commentary.reasons[4],
         "The audio Track chosen isn't the one browsers play from its file, so it can't be Direct \
          Played"
     );
