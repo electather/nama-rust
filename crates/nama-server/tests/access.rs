@@ -8,24 +8,20 @@ mod refused;
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 mod server;
 
-use std::{collections::BTreeSet, time::Duration};
+use std::collections::BTreeSet;
 
 use buffa::Enumeration;
-use connectrpc::{
-    ConnectError, ErrorCode,
-    client::{ClientConfig, HttpClient, ServerStream},
-};
+use connectrpc::{ConnectError, ErrorCode, client::HttpClient};
 use hyper::{HeaderMap, Method};
 use nama_proto::nama::v1::{
-    __buffa::view::SubscribeResponseView, ApproveSignInCodeRequest, CreateLibraryRequest,
-    EventServiceClient, LibraryKind, LibraryServiceClient, ListLibrariesRequest, Permission,
-    PollSignInCodeRequest, RefusalReason, ScanLibraryRequest, SessionDelivery, SignInServiceClient,
-    StartSignInCodeRequest, SubscribeRequest, SubscribeResponse,
+    ApproveSignInCodeRequest, CreateLibraryRequest, LibraryKind, LibraryServiceClient,
+    ListLibrariesRequest, Permission, PollSignInCodeRequest, RefusalReason, ScanLibraryRequest,
+    SessionDelivery, SignInServiceClient, StartSignInCodeRequest,
 };
 use nama_server::db::Database;
 use refused::{assert_refused, refusal_of};
 use serde_json::{Value, json};
-use server::{PASSWORD, TestServer};
+use server::{PASSWORD, TestServer, subscribe};
 
 /// Every RPC that manages Libraries or Matches, which needs `PERMISSION_MANAGE_LIBRARIES`.
 const MANAGE_LIBRARIES: [&str; 9] = [
@@ -107,10 +103,6 @@ const SENSITIVE: [&str; 6] = [
     "/nama.v1.UserService/DeleteUser",
     "/nama.v1.SignInService/ApproveSignInCode",
 ];
-
-const WAIT: Duration = Duration::from_secs(10);
-
-type Subscription = ServerStream<hyper::body::Incoming, SubscribeResponseView<'static>>;
 
 struct Reply {
     status: u16,
@@ -322,25 +314,6 @@ async fn assert_refused_for_want_of(
     }
 }
 
-#[expect(
-    clippy::expect_used,
-    reason = "a test helper fails its test by panicking"
-)]
-async fn next_event(
-    subscription: &mut Subscription,
-) -> Result<Option<SubscribeResponse>, ConnectError> {
-    let message = tokio::time::timeout(WAIT, subscription.message::<SubscribeResponse>())
-        .await
-        .expect("timed out waiting for the stream")?;
-    Ok(message.map(|message| message.to_owned_message()))
-}
-
-async fn subscribe(config: ClientConfig) -> Result<Subscription, ConnectError> {
-    EventServiceClient::new(HttpClient::plaintext(), config)
-        .subscribe(SubscribeRequest::default())
-        .await
-}
-
 #[tokio::test]
 async fn an_unauthenticated_call_to_anything_but_the_public_rpcs_is_unauthenticated() {
     let server = TestServer::builder().start().await;
@@ -354,10 +327,11 @@ async fn an_unauthenticated_call_to_anything_but_the_public_rpcs_is_unauthentica
             RefusalReason::REFUSAL_REASON_SIGN_IN_REQUIRED,
         );
     }
-    let subscribed = match subscribe(server.anonymous_client_config()).await {
-        Ok(mut subscription) => next_event(&mut subscription).await.map(|_| ()),
-        Err(err) => Err(err),
-    };
+    let subscribed = subscribe(&server.anonymous_client_config(), &[])
+        .await
+        .message()
+        .await
+        .map(|_| ());
     assert_refused(
         subscribed,
         ErrorCode::Unauthenticated,
@@ -521,7 +495,7 @@ async fn a_new_user_lists_libraries_without_their_folders() {
 async fn a_new_user_receives_events() {
     let server = TestServer::builder().start().await;
     let token = server.user("Grace", &NEW_USER).await.token;
-    let mut events = subscribe(server.client_config_as(&token)).await.unwrap();
+    let mut events = subscribe(&server.client_config_as(&token), &[]).await;
 
     let folder = tempfile::tempdir().unwrap();
     let libraries = LibraryServiceClient::new(HttpClient::plaintext(), server.client_config());
@@ -546,7 +520,7 @@ async fn a_new_user_receives_events() {
         .await
         .unwrap();
 
-    let first = next_event(&mut events).await;
+    let first = events.message().await;
     assert!(matches!(first, Ok(Some(_))), "{first:?}");
 }
 

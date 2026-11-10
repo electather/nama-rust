@@ -31,7 +31,7 @@ use nama_proto::nama::v1::{
 };
 use nama_server::plugins::Registry;
 use serde_json::{Value as Json, json};
-use server::{SignedIn, TestServer};
+use server::{SignedIn, TestServer, WAIT};
 
 /// Movies the fake TMDB knows.
 const ALIEN: i64 = 348;
@@ -42,9 +42,6 @@ const CHANNEL: &str = "@nama_requests";
 
 /// The chat Ada presses Start in.
 const ADA_CHAT: i64 = 987_654_321;
-
-/// How long a test waits for a Plugin Connection.
-const WAIT: Duration = Duration::from_secs(10);
 
 /// A Server with the TMDB Plugin enabled against a fake TMDB, beside a fake Telegram, and a User,
 /// Ada, whose Requests are Pending.
