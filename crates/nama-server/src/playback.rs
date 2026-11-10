@@ -395,7 +395,7 @@ fn version_tracks(facts: &Facts) -> Narrowing {
 /// the video, since a Remux converts only the audio.
 fn device_decoding(facts: &Facts) -> Narrowing {
     let Some(probe) = &facts.probe else {
-        // ADR 0026: without ffprobe, a Server Direct Plays.
+        // `version_tracks` already leaves only Direct Play, so this step needn't rule anything out.
         return Narrowing {
             allows: BTreeSet::from(Method::ALL),
             reason: "Its Tracks aren't known, so this Device is taken to decode them".to_owned(),
