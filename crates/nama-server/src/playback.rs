@@ -372,6 +372,8 @@ fn server_ffmpeg(facts: &Facts) -> Narrowing {
 
 /// Whether a Transcode tone-maps the played video's HDR to SDR: when the Device can't show it and
 /// ffmpeg has zscale.
+// ponytail: Dolby Vision 8.2's SDR base layer is tone-mapped too, which darkens it; probing would
+// have to store which base layer it has to tell it from 8.4's HLG one.
 fn tone_maps(facts: &Facts) -> bool {
     facts.zscale && !facts.device.hdr && played_hdr(facts).is_some()
 }

@@ -992,7 +992,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn an_ffmpeg_whose_filters_dont_include_zscale_cant_tone_map() {
+    async fn without_ffmpeg_or_zscale_among_its_filters_the_server_cant_tone_map() {
         // Prints its arguments, not a filter.
         let echo = Ffmpeg {
             ffmpeg: Ok(FoundProgram {
