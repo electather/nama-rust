@@ -126,6 +126,12 @@ impl Fixture {
     /// Starts a Server with the ffmpeg on `PATH` and a Movies Library holding Alien, with English
     /// SDH and French Forced SRT subtitles, scanned and Matched.
     async fn subtitled_alien() -> Self {
+        Self::alien_written_by(ALIEN_1080P, write_english_and_french_srt).await
+    }
+
+    /// Starts a Server with the ffmpeg on `PATH` and a Movies Library holding Alien as `file`,
+    /// which `write` writes, scanned and Matched.
+    async fn alien_written_by(file: &str, write: impl FnOnce(&Path)) -> Self {
         let path = std::env::var_os("PATH").unwrap_or_default();
         let ffmpeg = Ffmpeg::find(&Config::default(), &path);
         assert!(
@@ -133,9 +139,9 @@ impl Fixture {
             "this test needs ffmpeg and ffprobe on PATH"
         );
         let fx = Self::start_with_ffmpeg(LibraryKind::LIBRARY_KIND_MOVIES, ffmpeg).await;
-        let file = fx.folder.join(ALIEN_1080P);
+        let file = fx.folder.join(file);
         fs::create_dir_all(file.parent().unwrap()).unwrap();
-        write_english_and_french_srt(&file);
+        write(&file);
         fx.scan_until_decided(1).await;
         fx
     }
@@ -1183,6 +1189,112 @@ async fn an_mkvs_srt_tracks_are_offered_with_their_plan_and_served_as_webvtt() {
     );
     let again = fetch(&fx.server, &plan.subtitles[1].url, token).await;
     assert_eq!(String::from_utf8(again.body).unwrap(), french);
+}
+
+#[tokio::test]
+async fn an_mp4s_mov_text_track_is_served_as_webvtt() {
+    let webvtt = served_webvtt("Alien (1979)/Alien (1979).mp4", HELLO_SRT, "mov_text").await;
+
+    assert!(webvtt.starts_with("WEBVTT"), "{webvtt}");
+    assert!(
+        webvtt.contains("00:00.000 --> 00:01.000\nHello"),
+        "{webvtt}"
+    );
+}
+
+#[tokio::test]
+async fn an_embedded_webvtt_track_is_served() {
+    let webvtt = served_webvtt(ALIEN_1080P, HELLO_SRT, "webvtt").await;
+
+    assert!(webvtt.starts_with("WEBVTT"), "{webvtt}");
+    assert!(
+        webvtt.contains("00:00.000 --> 00:01.000\nHello"),
+        "{webvtt}"
+    );
+}
+
+#[tokio::test]
+async fn an_ass_track_is_served_as_plain_webvtt_cues() {
+    let webvtt = served_webvtt(ALIEN_1080P, STYLED_ASS, "ass").await;
+
+    assert_eq!(
+        webvtt,
+        "WEBVTT\n\n\
+         00:00:00.000 --> 00:00:00.500\nHello there\nfriend\n\n\
+         00:00:00.500 --> 00:00:01.000\nStyled line\n\n"
+    );
+}
+
+/// A subtitle script's file name, which tells ffmpeg its format, and what it says.
+type Script = (&'static str, &'static str);
+
+const HELLO_SRT: Script = ("hello.srt", "1\n00:00:00,000 --> 00:00:01,000\nHello\n");
+
+/// Two lines, positioned, coloured and styled, and a shape drawn over the whole second.
+const STYLED_ASS: Script = (
+    "styled.ass",
+    r"[Script Info]
+ScriptType: v4.00+
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,Arial,20,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,2,2,2,10,10,10,1
+Style: Fancy,Arial,20,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,-1,-1,-1,0,100,100,0,0,1,2,2,2,10,10,10,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:00.00,0:00:00.50,Default,,0,0,0,,{\an8\pos(10,10)\c&H0000FF&\b1}Hello{\b0} {\i1}there{\i0}\Nfriend
+Dialogue: 0,0:00:00.50,0:00:01.00,Fancy,,0,0,0,,Styled line
+Dialogue: 0,0:00:00.00,0:00:01.00,Default,,0,0,0,,{\p1}m 0 0 l 100 0 100 100 0 100{\p0}
+",
+);
+
+/// What the Server serves for the one subtitle Track of an Alien at `file`, which is `script`
+/// stored as `codec`.
+#[expect(
+    clippy::unwrap_used,
+    clippy::indexing_slicing,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn served_webvtt(file: &str, script: Script, codec: &str) -> String {
+    let fx = Fixture::alien_written_by(file, |path| write_subtitled(path, script, codec)).await;
+    let version = fx.version_ids(ALIEN).await[0];
+    let plan = fx.plan(version).await.unwrap();
+    let token = Some(fx.server.admin_token.as_str());
+    let reply = fetch(&fx.server, &plan.subtitles[0].url, token).await;
+    assert_eq!(reply.status, 200);
+    String::from_utf8(reply.body).unwrap()
+}
+
+/// Writes a second of video with `script` as its one subtitle Track, stored as `codec`, to
+/// `path`, in the format its extension names, with the ffmpeg on `PATH`.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+fn write_subtitled(path: &Path, (name, contents): Script, codec: &str) {
+    let dir = tempfile::tempdir().unwrap();
+    let script = dir.path().join(name);
+    fs::write(&script, contents).unwrap();
+    let status = std::process::Command::new("ffmpeg")
+        .args([
+            "-v",
+            "error",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=size=64x64:rate=24",
+            "-i",
+        ])
+        .arg(&script)
+        .args([
+            "-map", "0", "-map", "1", "-t", "1", "-c:v", "mpeg4", "-c:s", codec,
+        ])
+        .arg(path)
+        .status()
+        .unwrap();
+    assert!(status.success(), "ffmpeg failed: {status}");
 }
 
 /// Anyone who may play a Version may fetch its subtitles: anyone with a session.

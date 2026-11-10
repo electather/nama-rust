@@ -6,6 +6,8 @@
 //! directory, and answers from there after. Subtitle files next to a video would be another source
 //! served by the same [`Cache`].
 //!
+//! ASS and SSA are served as plain cues ([`ass`]); burning them in is what keeps their styling.
+//!
 //! Clients fetch them at `/media/versions/<id>/subtitles/<track>` (ADR 0007: media bytes are not
 //! RPC), which, like the Version itself, is served to anyone with a session.
 
@@ -23,11 +25,13 @@ use axum::{
     routing::get,
 };
 
+mod ass;
+
 use crate::{
     artwork::write_atomically,
     contents::Contents,
     ffmpeg::{Ffmpeg, SubtitleError},
-    tracks::{Track, TrackKind, Tracks},
+    tracks::{TrackKind, Tracks},
 };
 
 /// Where clients fetch the Version `version`'s Track `track`, by its place in the Version's
@@ -96,6 +100,8 @@ struct Embedded {
     path: String,
     /// Its place among the file's subtitle Tracks, which is how ffmpeg picks it out.
     subtitle: usize,
+    /// ASS or SSA, whose dialogue ffmpeg would make WebVTT with their styling and drawings in.
+    ass: bool,
 }
 
 impl Embedded {
@@ -113,10 +119,10 @@ impl Embedded {
         let Some(probe) = tracks.of(&[version]).await?.remove(&version) else {
             return Ok(None);
         };
-        let is_text = (probe.tracks.get(track)).is_some_and(Track::is_text_subtitle);
-        if !is_text {
+        let Some(found) = (probe.tracks.get(track)).filter(|found| found.is_text_subtitle()) else {
             return Ok(None);
-        }
+        };
+        let ass = matches!(found.codec.as_str(), "ass" | "ssa");
         // Probing keeps every subtitle stream, so ffmpeg's subtitle streams are these, in order.
         let subtitle = (probe.tracks.iter().take(track))
             .filter(|earlier| matches!(earlier.kind, TrackKind::Subtitle { .. }))
@@ -126,6 +132,7 @@ impl Embedded {
             track,
             path,
             subtitle,
+            ass,
         }))
     }
 
@@ -136,7 +143,11 @@ impl Embedded {
     }
 
     async fn webvtt(&self, ffmpeg: &Ffmpeg) -> Result<Vec<u8>, Error> {
-        Ok(ffmpeg.webvtt(&self.path, self.subtitle).await?)
+        if self.ass {
+            let ass = ffmpeg.subtitle(&self.path, self.subtitle, "ass").await?;
+            return Ok(ass::to_webvtt(&String::from_utf8_lossy(&ass)).into_bytes());
+        }
+        Ok(ffmpeg.subtitle(&self.path, self.subtitle, "webvtt").await?)
     }
 }
 
