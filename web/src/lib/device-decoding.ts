@@ -36,9 +36,14 @@ export async function findDeviceDecoding() {
       ...audioCodecs,
     ],
     hdr: matchMedia("(dynamic-range: high)").matches,
-    nativeHls: video.canPlayType("application/vnd.apple.mpegurl") !== "",
+    nativeHls: playsHlsNatively(),
     mse: "MediaSource" in window || "ManagedMediaSource" in window,
   };
+}
+
+/** Whether this browser's `<video>` plays an HLS playlist itself, without hls.js. */
+export function playsHlsNatively() {
+  return document.createElement("video").canPlayType("application/vnd.apple.mpegurl") !== "";
 }
 
 /** Those of `contentTypes` this Device decodes, as `configuration` asks about each. */

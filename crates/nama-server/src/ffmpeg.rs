@@ -5,8 +5,9 @@ use std::{
     collections::HashMap,
     env,
     ffi::OsStr,
+    io,
     path::{Path, PathBuf},
-    process::Command,
+    process::{Command, Stdio},
     time::Duration,
 };
 
@@ -26,6 +27,16 @@ const MINIMUM: (u32, u32) = (4, 4);
 /// How long ffprobe may take over one file, such as one on a network share that stopped answering.
 const PROBE_TIMEOUT: Duration = Duration::from_secs(60);
 
+/// How long ffprobe may take to list a file's keyframes, which reads all of it, such as a 60 GB
+/// file from a slow network share.
+const KEYFRAMES_TIMEOUT: Duration = Duration::from_mins(10);
+
+/// How long a Remux's HLS segments aim to be, in milliseconds: ffmpeg's `-hls_time`.
+pub(crate) const HLS_TIME_MS: i64 = 6000;
+
+/// The name ffmpeg gives a Remux's HLS init segment, beside its segments.
+pub(crate) const HLS_INIT: &str = "init.mp4";
+
 /// How long ffmpeg may take to read one subtitle out of a file. Matroska interleaves it with the
 /// video, so the whole file is read: about a minute from a slow disk, so this leaves room for a
 /// slower one.
@@ -44,8 +55,8 @@ pub(crate) enum ProbeError {
     #[error("the Server has no ffprobe")]
     Unavailable,
     #[error("ffprobe couldn't be run: {0}")]
-    Run(#[from] std::io::Error),
-    #[error("ffprobe took longer than {}s", PROBE_TIMEOUT.as_secs())]
+    Run(#[from] io::Error),
+    #[error("ffprobe took too long")]
     TimedOut(#[from] tokio::time::error::Elapsed),
     #[error("ffprobe failed: {0}")]
     Failed(String),
@@ -59,7 +70,7 @@ pub(crate) enum SubtitleError {
     #[error("the Server has no ffmpeg")]
     Unavailable,
     #[error("ffmpeg couldn't be run: {0}")]
-    Run(#[from] std::io::Error),
+    Run(#[from] io::Error),
     #[error("ffmpeg took longer than {}s", SUBTITLE_TIMEOUT.as_secs())]
     TimedOut(#[from] tokio::time::error::Elapsed),
     #[error("ffmpeg failed: {0}")]
@@ -116,6 +127,11 @@ impl Ffmpeg {
         (!reasons.is_empty()).then(|| reasons.join(" and "))
     }
 
+    /// Whether the Server can Remux, which needs both: ffprobe to list keyframes, ffmpeg to copy.
+    pub(crate) const fn can_remux(&self) -> bool {
+        self.ffmpeg.is_ok() && self.ffprobe.is_ok()
+    }
+
     /// Whether the Server can probe files, which needs only ffprobe.
     pub(crate) const fn can_probe(&self) -> bool {
         self.ffprobe.is_ok()
@@ -124,21 +140,85 @@ impl Ffmpeg {
     /// The facts of the file at `path` and its video, audio and subtitle Tracks, as ffprobe reads
     /// them.
     pub(crate) async fn probe(&self, path: &str) -> Result<Probe, ProbeError> {
+        let args = ["-print_format", "json", "-show_format", "-show_streams"];
+        let output = self.run_ffprobe(&args, path, PROBE_TIMEOUT).await?;
+        Ok(parse_probe(&output)?)
+    }
+
+    /// When each keyframe of the first video in the file at `path` falls, in milliseconds from
+    /// its start, in order. Reads the whole file.
+    pub(crate) async fn keyframes(&self, path: &str) -> Result<Vec<i64>, ProbeError> {
+        // Packets rather than frames, so nothing is decoded. `V` skips cover art.
+        let packets = "packet=pts_time,flags:format=start_time";
+        let args = [
+            "-select_streams",
+            "V:0",
+            "-show_entries",
+            packets,
+            "-of",
+            "csv=p=0",
+        ];
+        let output = self.run_ffprobe(&args, path, KEYFRAMES_TIMEOUT).await?;
+        Ok(parse_keyframes(&String::from_utf8_lossy(&output)))
+    }
+
+    /// What ffprobe prints given `args` and the file at `path`, within `timeout`.
+    async fn run_ffprobe(
+        &self,
+        args: &[&str],
+        path: &str,
+        timeout: Duration,
+    ) -> Result<Vec<u8>, ProbeError> {
         let Ok(ffprobe) = &self.ffprobe else {
             return Err(ProbeError::Unavailable);
         };
         let output = tokio::process::Command::new(&ffprobe.path)
-            .args(["-v", "error", "-print_format", "json", "-show_format", "-show_streams"])
+            .args(["-v", "error"])
+            .args(args)
             .arg(path)
             // A probe given up on, or cancelled at shutdown, stops ffprobe too.
             .kill_on_drop(true)
             .output();
-        let output = tokio::time::timeout(PROBE_TIMEOUT, output).await??;
+        let output = tokio::time::timeout(timeout, output).await??;
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
             return Err(ProbeError::Failed(stderr.trim().to_owned()));
         }
-        Ok(parse_probe(&output.stdout)?)
+        Ok(output.stdout)
+    }
+
+    /// Starts ffmpeg copying the first video, and the `audio`th audio Track if any, of the file
+    /// at `path` untouched into HLS with fMP4 segments in `dir`: [`HLS_INIT`], then `0.m4s`,
+    /// `1.m4s` and so on, each cut at the first keyframe at or after the next multiple of
+    /// [`HLS_TIME_MS`]. Each file appears only once it's whole. Dropping the child stops ffmpeg.
+    pub(crate) fn remux(
+        &self,
+        path: &str,
+        audio: Option<usize>,
+        dir: &Path,
+    ) -> io::Result<tokio::process::Child> {
+        let ffmpeg = (self.ffmpeg.as_ref()).map_err(|why| io::Error::other(why.clone()))?;
+        let mut command = tokio::process::Command::new(&ffmpeg.path);
+        command.args(["-v", "error", "-nostdin", "-i"]).arg(path);
+        command.args(["-map", "0:V:0"]);
+        if let Some(audio) = audio {
+            command.arg("-map").arg(format!("0:a:{audio}"));
+        }
+        command
+            .args(["-c", "copy", "-f", "hls", "-hls_segment_type", "fmp4"])
+            .arg("-hls_time")
+            .arg((HLS_TIME_MS / 1000).to_string())
+            .args(["-hls_playlist_type", "vod", "-hls_flags", "temp_file"])
+            .args(["-hls_fmp4_init_filename", HLS_INIT, "-start_number", "0"])
+            .arg("-hls_segment_filename")
+            .arg(dir.join("%d.m4s"))
+            // The Server serves a playlist of its own, listing the whole Version up front.
+            .arg(dir.join("ffmpeg.m3u8"))
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped())
+            .kill_on_drop(true)
+            .spawn()
     }
 
     /// The file at `path`'s subtitle stream `subtitle`, counting only its subtitle streams from 0,
@@ -167,6 +247,35 @@ impl Ffmpeg {
         }
         Ok(output.stdout)
     }
+}
+
+/// The keyframes in what `ffprobe -show_entries packet=pts_time,flags:format=start_time -of
+/// csv=p=0` printed, packets such as `2.002000,K__` and then the file's start time, in
+/// milliseconds from that start, in order.
+fn parse_keyframes(csv: &str) -> Vec<i64> {
+    // ffmpeg shifts a file that starts late, as an MPEG-TS often does, to start at 0.
+    let start = (csv.lines())
+        .find(|line| !line.contains(','))
+        .and_then(millis)
+        .unwrap_or_default();
+    let mut keyframes: Vec<i64> = csv
+        .lines()
+        .filter_map(|line| {
+            let (seconds, flags) = line.split_once(',')?;
+            flags.contains('K').then(|| millis(seconds))?
+        })
+        .map(|keyframe| keyframe - start)
+        .collect();
+    // Packets come in decoding order.
+    keyframes.sort_unstable();
+    keyframes
+}
+
+/// Seconds such as `"5.120000"` in whole milliseconds, rounded down, or `None` for anything else,
+/// such as `N/A` or a negative time.
+fn millis(seconds: &str) -> Option<i64> {
+    let duration = Duration::try_from_secs_f64(seconds.parse().ok()?).ok()?;
+    i64::try_from(duration.as_millis()).ok()
 }
 
 /// What `ffprobe -print_format json -show_format -show_streams` printed.
@@ -224,10 +333,7 @@ fn parse_probe(json: &[u8]) -> Result<Probe, serde_json::Error> {
     let format = output.format;
     Ok(Probe {
         container: format.format_name,
-        duration_ms: format
-            .duration
-            .and_then(|seconds| Duration::try_from_secs_f64(seconds.parse().ok()?).ok())
-            .and_then(|duration| i64::try_from(duration.as_millis()).ok()),
+        duration_ms: format.duration.as_deref().and_then(millis),
         bitrate: format.bit_rate.and_then(|bitrate| bitrate.parse().ok()),
         tracks: output.streams.into_iter().filter_map(track).collect(),
     })
@@ -394,22 +500,59 @@ fn is_too_old(version: &str) -> bool {
 ///
 /// If ffmpeg can't be run or fails.
 #[cfg(any(test, feature = "testing"))]
-pub fn write_4k_with_5_1(path: &Path, transfer: &str) -> std::io::Result<()> {
-    let status = Command::new("ffmpeg")
-        .args(["-v", "error", "-y"])
-        .args(["-f", "lavfi", "-i", "color=size=3840x2160:rate=24"])
-        .args(["-f", "lavfi", "-i", "anullsrc=channel_layout=5.1"])
-        // Encoders every ffmpeg build has; of those, FFV1 is one that takes 10 bits.
-        .args(["-t", "0.2", "-c:v", "ffv1", "-pix_fmt", "yuv420p10le", "-c:a", "ac3"])
-        .args(["-color_primaries", "bt2020", "-colorspace", "bt2020nc"])
-        .args(["-color_trc", transfer])
-        .args(["-metadata:s:a:0", "language=eng", "-f", "matroska"])
+pub fn write_4k_with_5_1(path: &Path, transfer: &str) -> io::Result<()> {
+    write_test_media(path, |ffmpeg| {
+        ffmpeg
+            .args(["-f", "lavfi", "-i", "color=size=3840x2160:rate=24"])
+            .args(["-f", "lavfi", "-i", "anullsrc=channel_layout=5.1"])
+            // Encoders every ffmpeg build has; of those, FFV1 is one that takes 10 bits.
+            .args(["-t", "0.2", "-c:v", "ffv1", "-pix_fmt", "yuv420p10le", "-c:a", "ac3"])
+            .args(["-color_primaries", "bt2020", "-colorspace", "bt2020nc"])
+            .args(["-color_trc", transfer])
+            .args(["-metadata:s:a:0", "language=eng", "-f", "matroska"])
+    })
+}
+
+/// Writes 14 seconds of H.264 video with a keyframe every 2 seconds, and AAC audio, as Matroska,
+/// to `path`, with the ffmpeg on `PATH`, for a test to Remux.
+///
+/// # Errors
+///
+/// If ffmpeg can't be run or fails.
+#[cfg(any(test, feature = "testing"))]
+pub fn write_h264_and_aac(path: &Path) -> io::Result<()> {
+    write_test_media(path, |ffmpeg| {
+        ffmpeg
+            .args(["-f", "lavfi", "-i", "testsrc=size=320x240:rate=24"])
+            .args(["-f", "lavfi", "-i", "sine", "-t", "14"])
+            .args([
+                "-c:v",
+                "libx264",
+                "-preset",
+                "ultrafast",
+                "-g",
+                "48",
+                "-sc_threshold",
+                "0",
+            ])
+            .args(["-c:a", "aac", "-f", "matroska"])
+    })
+}
+
+/// Runs the ffmpeg on `PATH` with the inputs and outputs `args` adds, writing to `path`.
+#[cfg(any(test, feature = "testing"))]
+fn write_test_media(
+    path: &Path,
+    args: impl FnOnce(&mut Command) -> &mut Command,
+) -> io::Result<()> {
+    let mut ffmpeg = Command::new("ffmpeg");
+    let status = args(ffmpeg.args(["-v", "error", "-y"]))
         .arg(path)
         .status()?;
     if status.success() {
         Ok(())
     } else {
-        Err(std::io::Error::other(format!("ffmpeg failed: {status}")))
+        Err(io::Error::other(format!("ffmpeg failed: {status}")))
     }
 }
 
@@ -829,5 +972,20 @@ mod probe_output_tests {
         // These name bits per pixel, not per sample.
         assert_eq!(depth_of("rgb24"), None);
         assert_eq!(depth_of("nv12"), None);
+    }
+
+    #[test]
+    fn keyframes_are_the_packets_flagged_k_in_time_order() {
+        let csv = "0.000000,K__\n0.083000,___\n2.002000,K_D\n1.001000,K__\nN/A,K__\n";
+
+        assert_eq!(super::parse_keyframes(csv), [0, 1001, 2002]);
+    }
+
+    /// ffmpeg shifts a file that starts late to start at 0, and cuts its segments from there.
+    #[test]
+    fn keyframes_are_timed_from_the_files_start() {
+        let csv = "1.523000,K__\n4.023000,K__\n1.500000\n";
+
+        assert_eq!(super::parse_keyframes(csv), [23, 2523]);
     }
 }

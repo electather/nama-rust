@@ -95,7 +95,10 @@ use crate::{
     forwarded::{RequestSource, identify_source},
     libraries::{self, FolderProblem, Kind, Libraries, Library},
     matching::{ManualError, Matcher},
-    playback::{self, DeviceDecoding, Method, Plan},
+    playback::{
+        self, DeviceDecoding, Method, Plan,
+        running::{RunningPlans, StartError},
+    },
     plugin_settings::{ChangeError, ListError, PluginSettings, StoredPlugin},
     plugins::{CheckError, EnableError, Listed},
     qualities,
@@ -133,12 +136,19 @@ pub(crate) fn router(
     let contents = Contents::new(Arc::clone(&db));
     let artwork = Artwork::new(&config.data_dir, plugins.clone());
     let artwork_router = artwork::router(artwork.clone(), contents.clone());
+    let running = RunningPlans::new(
+        config.data_dir.join("transcodes"),
+        Arc::clone(&ffmpeg),
+        contents.clone(),
+        Tracks::new(Arc::clone(&db)),
+    );
     let media = playback::router(
         contents,
         Tracks::new(Arc::clone(&db)),
         Arc::clone(&ffmpeg),
         &config.data_dir,
-    );
+    )
+    .merge(playback::running::router(running.clone()));
     let browse = Browse::new(Arc::clone(&db));
     let connections = Connections::new(Arc::clone(&db), plugins.clone());
     connectrpc::Router::new()
@@ -172,6 +182,7 @@ pub(crate) fn router(
         }))
         .add_service(Arc::new(PlaybackServiceHandler {
             scanner: scanner.clone(),
+            running,
         }))
         .add_service(Arc::new(RequestServiceHandler { requests, artwork }))
         .add_service(Arc::new(PluginServiceHandler { plugin_settings }))
@@ -1224,6 +1235,7 @@ fn version_not_found() -> ConnectError {
 /// `nama.v1.PlaybackService`: how each signed-in User's Device plays a Version.
 struct PlaybackServiceHandler {
     scanner: Scanner,
+    running: RunningPlans,
 }
 
 #[expect(
@@ -1234,23 +1246,41 @@ struct PlaybackServiceHandler {
 impl PlaybackService for PlaybackServiceHandler {
     async fn plan_playback(
         &self,
-        _ctx: RequestContext,
+        ctx: RequestContext,
         request: ServiceRequest<'_, PlanPlaybackRequest>,
     ) -> ServiceResult<PlanPlaybackResponse> {
+        let device = caller(&ctx)?.device.id;
         // The rest of the request is for steps still to come (ADR 0027).
         let request = request.to_owned_message();
         let decoding = request.device_decoding.into_option().unwrap_or_default();
-        let device = DeviceDecoding {
+        let decoding = DeviceDecoding {
             content_types: decoding.content_types,
             hdr: decoding.hdr,
+            hls: decoding.native_hls || decoding.mse,
         };
         let failed = (request.failed_methods.iter())
             .filter_map(|method| method_from_proto(*method))
             .collect();
-        let plan = playback::plan(&self.scanner, request.version_id, device, failed)
-            .await
-            .map_err(database_failed)?
-            .ok_or_else(version_not_found)?;
+        let plan = playback::plan(
+            &self.scanner,
+            &self.running,
+            request.version_id,
+            device,
+            decoding,
+            failed,
+        )
+        .await
+        .map_err(|err| match err {
+            StartError::Database(err) => database_failed(err),
+            err @ (StartError::Keyframes(_) | StartError::Run(_)) => {
+                tracing::error!(
+                    version = request.version_id,
+                    "could not start a plan: {err}"
+                );
+                ConnectError::internal("the Server failed")
+            }
+        })?
+        .ok_or_else(version_not_found)?;
         Response::ok(PlanPlaybackResponse {
             plan: plan_to_proto(plan).into(),
             ..Default::default()

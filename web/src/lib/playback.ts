@@ -53,11 +53,11 @@ export function usePlaybackPlan(versionId: bigint, watchState: WatchState | unde
    * Asks for a new plan without the plan's method, which just failed here, and says whether it did:
    * only once per method, so a Server that plans it again can't make the player ask forever.
    */
-  const tryPlanningAgain = () => {
+  const tryPlanningAgain = useCallback(() => {
     if (failedMethods.includes(plan.method)) return false;
     setFailedMethods([...failedMethods, plan.method]);
     return true;
-  };
+  }, [failedMethods, plan.method]);
   return { plan, tryPlanningAgain };
 }
 

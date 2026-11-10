@@ -5,12 +5,15 @@
 //! and the plan keeps only what every step allows, so no step can widen what an earlier one ruled
 //! out.
 //!
+//! Remuxes run as [`running::RunningPlans`], which serve their own files.
+//!
 //! Direct Play serves a Version's file as it is, over plain HTTP at `/media/versions/<id>` (ADR
 //! 0007: media bytes are not RPC), to anyone with a session. A browser's `<video src>` presents
 //! that session in its cookie (ADR 0014). Range requests let a `<video>` seek. Only Versions,
 //! files a scan stored for a Library and Matched, are served, by id, so a client can never name a
 //! path. The text subtitles a plan offers are served beside it ([`subtitles`]).
 
+pub(crate) mod running;
 mod subtitles;
 
 use std::{collections::BTreeSet, path::Path as FsPath, sync::Arc};
@@ -30,6 +33,7 @@ use crate::{
     scanner::{ProbeNowError, Scanner},
     tracks::{Hdr, Probe, Track, TrackKind, Tracks},
 };
+use running::{RunningPlans, StartError};
 
 /// How a plan plays a Version, the one the Server prefers first.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -82,6 +86,9 @@ pub(crate) struct DeviceDecoding {
     pub(crate) content_types: Vec<String>,
     /// Whether its display shows HDR.
     pub(crate) hdr: bool,
+    /// Whether it plays HLS, natively or through Media Source Extensions, which every method but
+    /// Direct Play needs.
+    pub(crate) hls: bool,
 }
 
 impl DeviceDecoding {
@@ -92,14 +99,22 @@ impl DeviceDecoding {
     }
 }
 
-/// Plans playing the Version `version` on `device` by any method but those that just `failed`
-/// there, probing it first unless its Tracks are current. `None` if there is no such Version.
+/// Plans playing the Version `version` on the Device `device`, which decodes `decoding`, by any
+/// method but those that just `failed` there, probing the Version first unless its Tracks are
+/// current, and starts the plan running in `running` if it needs ffmpeg. `None` if there is no
+/// such Version.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "each is its own fact about the request, and a struct would only rename them"
+)]
 pub(crate) async fn plan(
     scanner: &Scanner,
+    running: &RunningPlans,
     version: i64,
-    device: DeviceDecoding,
+    device: i64,
+    decoding: DeviceDecoding,
     failed: BTreeSet<Method>,
-) -> Result<Option<Plan>, sqlx::Error> {
+) -> Result<Option<Plan>, StartError> {
     let probe = match scanner.probe_now(version).await {
         Ok(probe) => Some(probe),
         Err(ProbeNowError::Probe(err)) => {
@@ -112,15 +127,26 @@ pub(crate) async fn plan(
             None
         }
         Err(ProbeNowError::NoSuchVersion(_)) => return Ok(None),
-        Err(ProbeNowError::Database(err)) => return Err(err),
+        Err(ProbeNowError::Database(err)) => return Err(err.into()),
     };
     let facts = Facts {
         version,
         probe,
-        device,
+        device: decoding,
+        ffmpeg: running.can_run(),
         failed,
     };
-    Ok(Some(build(&facts, &STEPS)))
+    let mut plan = build(&facts, &STEPS);
+    // Only a probed Version gets this far: without its Tracks, nothing rules out Direct Play.
+    if plan.method == Some(Method::Remux)
+        && let Some(probed) = &facts.probe
+    {
+        let Some(url) = running.remux(version, device, probed).await? else {
+            return Ok(None);
+        };
+        plan.url = Some(url);
+    }
+    Ok(Some(plan))
 }
 
 /// What a plan is based on.
@@ -129,6 +155,9 @@ struct Facts {
     /// What probing found in the Version, or `None` if it couldn't be probed.
     probe: Option<Probe>,
     device: DeviceDecoding,
+    /// Whether the Server has ffmpeg and ffprobe, which every method but Direct Play needs
+    /// (ADR 0026).
+    ffmpeg: bool,
     /// The methods that just failed to play it on the Device. The Server never stores them.
     failed: BTreeSet<Method>,
 }
@@ -142,7 +171,12 @@ struct Narrowing {
 type Step = fn(&Facts) -> Narrowing;
 
 /// In ADR 0027's order. A new input is a new step here.
-const STEPS: [Step; 3] = [version_tracks, device_decoding, failed_on_device];
+const STEPS: [Step; 4] = [
+    version_tracks,
+    device_decoding,
+    server_ffmpeg,
+    failed_on_device,
+];
 
 /// The plan for `facts` that every one of `steps` allows.
 fn build(facts: &Facts, steps: &[Step]) -> Plan {
@@ -153,13 +187,14 @@ fn build(facts: &Facts, steps: &[Step]) -> Plan {
         allowed.retain(|method| allows.contains(method));
         reasons.push(reason);
     }
-    // ponytail: only Direct Play is served; take the first of `allowed` once #319 serves Remux.
+    // ponytail: Transcodes aren't served yet (#321).
     let method = allowed
-        .contains(&Method::DirectPlay)
-        .then_some(Method::DirectPlay);
+        .into_iter()
+        .find(|method| *method != Method::Transcode);
     Plan {
         method,
-        url: method.map(|_| direct_play_url(facts.version)),
+        // A Remux's URL is its running plan's, which `plan` starts.
+        url: (method == Some(Method::DirectPlay)).then(|| direct_play_url(facts.version)),
         tracks: facts.probe.as_ref().map(played_tracks).unwrap_or_default(),
         reasons,
         subtitles: facts
@@ -207,15 +242,34 @@ fn device_decoding(facts: &Facts) -> Narrowing {
             reason: "This Device decodes its container and Tracks".to_owned(),
         };
     };
+    let reason = format!("This Device can't decode its {cant}, so it can't be Direct Played");
+    if !facts.device.hls {
+        return Narrowing {
+            allows: BTreeSet::new(),
+            reason: format!("{reason}, and it can't play HLS, which anything else needs"),
+        };
+    }
     // A Remux keeps the Tracks as they are, so it helps only with the container.
     let allows = if tracks.is_empty() {
         BTreeSet::from([Method::Remux, Method::Transcode])
     } else {
         BTreeSet::from([Method::Transcode])
     };
-    Narrowing {
-        allows,
-        reason: format!("This Device can't decode its {cant}, so it can't be Direct Played"),
+    Narrowing { allows, reason }
+}
+
+/// The step for the Server's ffmpeg: without it, only Direct Play (ADR 0026).
+fn server_ffmpeg(facts: &Facts) -> Narrowing {
+    if facts.ffmpeg {
+        Narrowing {
+            allows: BTreeSet::from(Method::ALL),
+            reason: "This Server has ffmpeg".to_owned(),
+        }
+    } else {
+        Narrowing {
+            allows: BTreeSet::from([Method::DirectPlay]),
+            reason: "This Server lacks ffmpeg or ffprobe, so it can only Direct Play".to_owned(),
+        }
     }
 }
 
@@ -322,17 +376,22 @@ fn joined(items: &[String], conjunction: &str) -> Option<String> {
     })
 }
 
-/// The Tracks a browser plays from the file: its first video, and the audio the file marks to
-/// play by default, or else its first.
+/// The Tracks a browser plays from the file: its first video, and its [`played_audio`].
 fn played_tracks(probe: &Probe) -> Vec<Track> {
     let video = (probe.tracks.iter()).find(|track| matches!(track.kind, TrackKind::Video { .. }));
-    let mut audio =
-        (probe.tracks.iter()).filter(|track| matches!(track.kind, TrackKind::Audio { .. }));
-    let audio = audio
-        .clone()
-        .find(|track| track.default)
-        .or_else(|| audio.next());
+    let audio = played_audio(probe).and_then(|n| audio_tracks(probe).nth(n));
     [video, audio].into_iter().flatten().cloned().collect()
+}
+
+/// Which of `probe`'s audio Tracks a browser plays, counting from 0: the one the file marks to
+/// play by default, or else its first.
+fn played_audio(probe: &Probe) -> Option<usize> {
+    (audio_tracks(probe).position(|track| track.default))
+        .or_else(|| audio_tracks(probe).next().map(|_| 0))
+}
+
+fn audio_tracks(probe: &Probe) -> impl Iterator<Item = &Track> {
+    (probe.tracks.iter()).filter(|track| matches!(track.kind, TrackKind::Audio { .. }))
 }
 
 /// The Version's text subtitle Tracks.
@@ -458,6 +517,7 @@ mod tests {
         DeviceDecoding {
             content_types: content_types.map(str::to_owned).to_vec(),
             hdr: false,
+            hls: true,
         }
     }
 
@@ -475,6 +535,7 @@ mod tests {
                 tracks,
             }),
             device: firefox(),
+            ffmpeg: true,
             failed: BTreeSet::new(),
         }
     }
@@ -495,6 +556,7 @@ mod tests {
                 reasons: vec![
                     "Its Tracks need no change".to_owned(),
                     "This Device decodes its container and Tracks".to_owned(),
+                    "This Server has ffmpeg".to_owned(),
                     "Nothing has failed to play it on this Device".to_owned(),
                 ],
                 subtitles: vec![],
@@ -610,6 +672,7 @@ mod tests {
             [
                 "Its Tracks aren't known, so they're taken to need no change",
                 "Its Tracks aren't known, so this Device is taken to decode them",
+                "This Server has ffmpeg",
                 "Nothing has failed to play it on this Device",
             ]
         );
@@ -633,6 +696,26 @@ mod tests {
 
             assert_eq!(plan.tracks, [video("h264"), played], "{tracks:?}");
         }
+    }
+
+    #[test]
+    fn a_version_only_its_container_keeps_from_direct_playing_is_remuxed() {
+        let plan = build(
+            &in_container(MKV, Some(vec![video("h264"), audio("aac", true)])),
+            &STEPS,
+        );
+
+        assert_eq!(plan.method, Some(Method::Remux));
+        assert_eq!(plan.url, None, "a Remux's URL is its running plan's");
+        assert_eq!(
+            plan.reasons,
+            [
+                "Its Tracks need no change",
+                "This Device can't decode its Matroska container, so it can't be Direct Played",
+                "This Server has ffmpeg",
+                "Nothing has failed to play it on this Device",
+            ]
+        );
     }
 
     #[test]
@@ -708,6 +791,32 @@ mod tests {
         );
     }
 
+    #[test]
+    fn without_ffmpeg_on_the_server_or_hls_on_the_device_a_version_isnt_remuxed() {
+        let tracks = Some(vec![video("h264"), audio("aac", true)]);
+        let no_ffmpeg = Facts {
+            ffmpeg: false,
+            ..in_container(MKV, tracks.clone())
+        };
+        let mut no_hls = in_container(MKV, tracks);
+        no_hls.device.hls = false;
+
+        let without_ffmpeg = build(&no_ffmpeg, &STEPS);
+        let without_hls = build(&no_hls, &STEPS);
+
+        assert_eq!(without_ffmpeg.method, None);
+        assert_eq!(
+            without_ffmpeg.reasons[2],
+            "This Server lacks ffmpeg or ffprobe, so it can only Direct Play"
+        );
+        assert_eq!(without_hls.method, None);
+        assert_eq!(
+            without_hls.reasons[1],
+            "This Device can't decode its Matroska container, so it can't be Direct Played, \
+             and it can't play HLS, which anything else needs"
+        );
+    }
+
     fn rules_out_direct_play(_: &Facts) -> Narrowing {
         Narrowing {
             allows: BTreeSet::from([Method::Remux, Method::Transcode]),
@@ -726,8 +835,7 @@ mod tests {
     fn a_later_step_cant_allow_what_an_earlier_step_ruled_out() {
         let plan = build(&facts(None), &[rules_out_direct_play, allows_every_method]);
 
-        assert_eq!(plan.method, None);
-        assert_eq!(plan.url, None);
+        assert_eq!(plan.method, Some(Method::Remux));
         assert_eq!(
             plan.reasons,
             ["ruled out Direct Play", "allowed every method"]

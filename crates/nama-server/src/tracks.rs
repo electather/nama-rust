@@ -156,6 +156,44 @@ impl Tracks {
             .await
     }
 
+    /// When each keyframe of the Version `version`'s first video falls, in milliseconds, if
+    /// they've been kept since it was last probed.
+    pub(crate) async fn keyframes(&self, version: i64) -> Result<Option<Vec<i64>>, sqlx::Error> {
+        let keyframes = sqlx::query_scalar!(
+            "SELECT keyframes_ms FROM version_probes WHERE version_id = ?",
+            version
+        )
+        .fetch_optional(self.db.reader())
+        .await?
+        .flatten();
+        // Only `store_keyframes` writes them, as JSON it made.
+        Ok(keyframes.and_then(|json| serde_json::from_str(&json).ok()))
+    }
+
+    /// Keeps `keyframes` as the Version `version`'s until it's next probed. A Version not probed
+    /// keeps nothing.
+    pub(crate) async fn store_keyframes(
+        &self,
+        version: i64,
+        keyframes: &[i64],
+    ) -> Result<(), sqlx::Error> {
+        let keyframes = json_array(keyframes);
+        self.db
+            .write(move |tx| {
+                Box::pin(async move {
+                    sqlx::query!(
+                        "UPDATE version_probes SET keyframes_ms = ? WHERE version_id = ?",
+                        keyframes,
+                        version
+                    )
+                    .execute(&mut **tx)
+                    .await
+                    .map(drop)
+                })
+            })
+            .await
+    }
+
     /// What probing found in each of the Versions `versions` that has been probed.
     pub(crate) async fn of(&self, versions: &[i64]) -> Result<HashMap<i64, Probe>, sqlx::Error> {
         let versions = json_array(versions);
