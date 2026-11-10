@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO server_settings (id, url, segment_folder) VALUES (1, '', ?)\n                     ON CONFLICT (id) DO UPDATE SET segment_folder = excluded.segment_folder",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "ce38fd6a1eaf655966970a78419de10e5ac8ad372a023e30c377cf7689cbd7df"
+}

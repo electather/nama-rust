@@ -239,6 +239,11 @@ pub mod __buffa {
         reg.register_json_any(super::__GET_PLAYBACK_STATUS_REQUEST_JSON_ANY);
         reg.register_json_any(super::__GET_PLAYBACK_STATUS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__FOUND_PROGRAM_JSON_ANY);
+        reg.register_json_any(super::__GET_PLAYBACK_SETTINGS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__GET_PLAYBACK_SETTINGS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__UPDATE_PLAYBACK_SETTINGS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__UPDATE_PLAYBACK_SETTINGS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__PLAYBACK_SETTINGS_JSON_ANY);
         reg.register_json_any(super::__USER_JSON_ANY);
         reg.register_json_any(super::__DEVICE_JSON_ANY);
         reg.register_json_any(super::__SETUP_REQUEST_JSON_ANY);
@@ -988,6 +993,26 @@ pub use self::__buffa::view::GetPlaybackStatusResponseOwnedView;
 pub use self::__buffa::view::FoundProgramView;
 #[doc(inline)]
 pub use self::__buffa::view::FoundProgramOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetPlaybackSettingsRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::GetPlaybackSettingsRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetPlaybackSettingsResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::GetPlaybackSettingsResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::UpdatePlaybackSettingsRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::UpdatePlaybackSettingsRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::UpdatePlaybackSettingsResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::UpdatePlaybackSettingsResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PlaybackSettingsView;
+#[doc(inline)]
+pub use self::__buffa::view::PlaybackSettingsOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::UserView;
 #[doc(inline)]

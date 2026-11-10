@@ -30,9 +30,10 @@ use nama_proto::nama::v1::{
     DeleteLibraryRequest, DeviceDecoding, Episode, ExternalId, GetMovieRequest, GetShowRequest,
     GetShowResponse, HdrFormat, LibraryKind, LibraryServiceClient, ListContinueWatchingRequest,
     ListEpisodesRequest, ListMoviesRequest, ListShowsRequest, MatchServiceClient, Movie,
-    PlanPlaybackRequest, PlaybackMethod, PlaybackPlan, PlaybackServiceClient, RefusalReason,
-    ReportProgressRequest, Season, SetMatchRequest, SetPlayedRequest, Show, ShowSeason, Track,
-    Version, VideoTrack, WatchState, WatchStateServiceClient, continue_watching_entry, external_id,
+    PlanPlaybackRequest, PlaybackMethod, PlaybackPlan, PlaybackServiceClient, PlaybackSettings,
+    RefusalReason, ReportProgressRequest, Season, ServerServiceClient, SetMatchRequest,
+    SetPlayedRequest, Show, ShowSeason, Track, UpdatePlaybackSettingsRequest, Version, VideoTrack,
+    WatchState, WatchStateServiceClient, continue_watching_entry, external_id,
     set_played_request::Target,
 };
 use nama_server::{
@@ -1055,6 +1056,27 @@ async fn a_path_in_place_of_a_version_id_is_a_bad_request() {
     assert_eq!(reply.status, 400);
 }
 
+#[tokio::test]
+async fn a_remux_writes_its_segments_to_the_segment_folder_an_admin_set() {
+    let (fx, version) = Fixture::alien_mkv(system_ffmpeg(), "aac").await;
+    let tmpfs = tempfile::tempdir().unwrap();
+    ServerServiceClient::new(HttpClient::plaintext(), fx.server.client_config())
+        .update_playback_settings(UpdatePlaybackSettingsRequest {
+            settings: PlaybackSettings {
+                segment_folder: tmpfs.path().to_str().unwrap().to_owned(),
+                ..Default::default()
+            }
+            .into(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    let plan = fx.plan(version).await.unwrap();
+
+    ffmpegs_own_playlist(tmpfs.path(), &plan.url).await;
+}
+
 /// A Server whose ffprobe, a shell script in `bin`, reads every file as an H.264 + AAC MP4.
 #[cfg(unix)]
 #[expect(
@@ -1205,19 +1227,15 @@ fn beside(url: &str, file: &str) -> String {
     format!("{folder}/{file}")
 }
 
-/// The HLS playlist ffmpeg wrote for the plan at `url`, once it's done.
+/// The HLS playlist ffmpeg wrote to the segment folder `folder` for the plan at `url`, once it's
+/// done.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
-async fn ffmpegs_own_playlist(fx: &Fixture, url: &str) -> String {
+async fn ffmpegs_own_playlist(folder: &Path, url: &str) -> String {
     let id = url.split('/').nth(3).unwrap();
-    let path = fx
-        .server
-        .data_dir()
-        .join("transcodes")
-        .join(id)
-        .join("ffmpeg.m3u8");
+    let path = folder.join(format!("nama-plan-{id}")).join("ffmpeg.m3u8");
     tokio::time::timeout(WAIT, async {
         loop {
             if let Ok(playlist) = fs::read_to_string(&path) {
@@ -1272,7 +1290,8 @@ async fn an_h264_and_aac_mkv_is_remuxed_over_hls_with_its_audio_copied() {
     );
     // HLS time is the file's time, so Watch State needs no conversion: the playlist cuts where
     // ffmpeg did, from the start of the file to its end.
-    let (ffmpegs, _) = segments(&ffmpegs_own_playlist(&fx, &plan.url).await);
+    let default = fx.server.data_dir().join("transcodes");
+    let (ffmpegs, _) = segments(&ffmpegs_own_playlist(&default, &plan.url).await);
     assert_eq!(durations.len(), ffmpegs.len());
     for (ours, theirs) in durations.iter().zip(&ffmpegs) {
         assert!(

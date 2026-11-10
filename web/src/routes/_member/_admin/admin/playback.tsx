@@ -4,15 +4,19 @@ import { CircleCheck, CircleSlash } from "lucide-react";
 
 import { AdminList, AdminRow } from "@/components/admin-list";
 import { Page } from "@/components/page";
+import { SegmentFolder, playbackSettingsQuery } from "@/components/segment-folder";
 import { StateLabel } from "@/components/state-label";
 import { type FoundProgram, ServerService } from "@/gen/nama/v1/server_pb";
 
 export const Route = createFileRoute("/_member/_admin/admin/playback")({
   loader: ({ context: { queryClient, transport } }) =>
-    queryClient.query({
-      ...createQueryOptions(ServerService.method.getPlaybackStatus, {}, { transport }),
-      staleTime: "static",
-    }),
+    Promise.all([
+      queryClient.query({
+        ...createQueryOptions(ServerService.method.getPlaybackStatus, {}, { transport }),
+        staleTime: "static",
+      }),
+      queryClient.query(playbackSettingsQuery(transport)),
+    ]),
   component: Playback,
 });
 
@@ -38,6 +42,7 @@ function Playback() {
         <ProgramRow name="ffmpeg" found={ffmpeg} problem={ffmpegProblem} />
         <ProgramRow name="ffprobe" found={ffprobe} problem={ffprobeProblem} />
       </AdminList>
+      <SegmentFolder />
     </Page>
   );
 }
