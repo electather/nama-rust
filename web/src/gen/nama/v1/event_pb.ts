@@ -367,7 +367,9 @@ export const ScanFinishedSchema: GenMessage<ScanFinished> = /*@__PURE__*/
 /**
  * A scan's Matching decided what it could about the Library's Items. Sent even when no metadata
  * Provider could answer, which leaves Items undecided; a scan that fails or is cancelled sends
- * none. To wait for the one covering a `ScanLibrary` call, see that call.
+ * none. To wait for the one covering a `ScanLibrary` call, subscribe to events about the Library
+ * first, then make the call, then skip to the next `ScanStarted`: the first `MatchingFinished`
+ * after it covers the call.
  *
  * @generated from message nama.v1.MatchingFinished
  */
@@ -412,7 +414,9 @@ export const MatchingFinishedSchema: GenMessage<MatchingFinished> = /*@__PURE__*
  * scan left was probed, or ffprobe couldn't be run, which leaves the rest for the next scan. Sent
  * after `MatchingFinished`, at once on a Server without ffprobe. Probing that ends after a later
  * scan of the Library started sends none, leaving it to that scan; one that fails or is cancelled
- * sends none. To wait for the one covering a `ScanLibrary` call, see that call.
+ * sends none. To wait for the one covering a `ScanLibrary` call, subscribe to events about the
+ * Library first, then make the call, then skip to the next `ScanStarted`: the first
+ * `ProbingFinished` after it covers the call.
  *
  * @generated from message nama.v1.ProbingFinished
  */
