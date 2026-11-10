@@ -377,37 +377,6 @@ fn hdr_from_columns(
     })
 }
 
-#[cfg(test)]
-impl Tracks {
-    /// The probe version that read the Version `version`, if it has been probed.
-    pub(crate) async fn probe_version_of(&self, version: i64) -> Option<i64> {
-        sqlx::query_scalar!(
-            "SELECT probe_version FROM version_probes WHERE version_id = ?",
-            version
-        )
-        .fetch_optional(self.db.reader())
-        .await
-        .unwrap()
-    }
-
-    /// Marks the Version `version` as probed by the version before the current one.
-    pub(crate) async fn read_by_older_probe(&self, version: i64) {
-        self.db
-            .write(move |tx| {
-                Box::pin(async move {
-                    sqlx::query!(
-                        "UPDATE version_probes SET probe_version = ? - 1 WHERE version_id = ?",
-                        PROBE_VERSION,
-                        version
-                    )
-                    .execute(&mut **tx)
-                    .await
-                })
-            })
-            .await
-            .unwrap();
-    }
-}
 /// `track` as the API shows it.
 pub(crate) fn track_to_proto(track: &Track) -> proto::Track {
     // 0 is what the proto says for a fact the file doesn't give. Stored ones are never negative.
@@ -476,5 +445,37 @@ fn hdr_to_proto(hdr: Option<Hdr>) -> (proto::HdrFormat, Option<proto::DolbyVisio
                 Some(dolby_vision),
             )
         }
+    }
+}
+
+#[cfg(test)]
+impl Tracks {
+    /// The probe version that read the Version `version`, if it has been probed.
+    pub(crate) async fn probe_version_of(&self, version: i64) -> Option<i64> {
+        sqlx::query_scalar!(
+            "SELECT probe_version FROM version_probes WHERE version_id = ?",
+            version
+        )
+        .fetch_optional(self.db.reader())
+        .await
+        .unwrap()
+    }
+
+    /// Marks the Version `version` as probed by the version before the current one.
+    pub(crate) async fn read_by_older_probe(&self, version: i64) {
+        self.db
+            .write(move |tx| {
+                Box::pin(async move {
+                    sqlx::query!(
+                        "UPDATE version_probes SET probe_version = ? - 1 WHERE version_id = ?",
+                        PROBE_VERSION,
+                        version
+                    )
+                    .execute(&mut **tx)
+                    .await
+                })
+            })
+            .await
+            .unwrap();
     }
 }

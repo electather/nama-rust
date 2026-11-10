@@ -5586,8 +5586,8 @@ pub const __PLAYBACK_STARTED_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::
     is_wkt: false,
 };
 /// A Remux or Transcode stopped: its player asked for none of its files for 60 seconds, as when it
-/// stopped or its tab closed, or the Server shut down. A Direct Play runs nothing on the Server,
-/// so it has no end to tell.
+/// stopped or its tab closed, or the Server shut down, which may end it before this is delivered.
+/// A Direct Play runs nothing on the Server, so it has no end to tell.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]

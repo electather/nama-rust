@@ -23,7 +23,9 @@ impl Plugin for LogEvents {
         Manifest {
             id: Self::ID,
             name: "Event log".to_owned(),
-            description: "Writes everything that happens on the Server to its log.".to_owned(),
+            description:
+                "Writes when the Server starts, and when each playback starts and ends, to its log."
+                    .to_owned(),
             version: env!("CARGO_PKG_VERSION").to_owned(),
             settings: SettingsSchema::default(),
             extension_points: vec![

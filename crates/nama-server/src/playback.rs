@@ -170,12 +170,12 @@ pub(crate) async fn plan(
 /// What Observers are told of `caller` playing the Version `version` by `plan`, or `None` if it
 /// can't be played.
 fn playback(caller: &Caller, version: i64, plan: &Plan) -> Option<proto::Playback> {
-    plan.method?;
+    let method = plan.method?;
     Some(proto::Playback {
         user_id: caller.user.id,
         device_id: caller.device.id,
         version_id: version,
-        method: method_to_proto(plan.method).into(),
+        method: method_to_proto(Some(method)).into(),
         tracks: plan.tracks.iter().map(track_to_proto).collect(),
         reasons: plan.reasons.clone(),
         ..Default::default()
