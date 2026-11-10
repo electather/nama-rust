@@ -2,7 +2,7 @@ import type { VariantProps } from "class-variance-authority";
 import { cn } from "cn";
 import { Link, type LinkOptions } from "@tanstack/react-router";
 import { ArrowLeft, Maximize, Minimize, Pause, Play, Volume2, VolumeX } from "lucide-react";
-import { type ReactNode, type RefObject, useRef, useState } from "react";
+import { type ReactNode, type RefObject, useCallback, useRef, useState } from "react";
 
 import { PlaybackInfo } from "@/components/playback-info";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -18,6 +18,7 @@ import {
   useAwake,
   useIsFullscreen,
   usePlaybackPlan,
+  usePlaybackSource,
   useShortcuts,
   useVideo,
 } from "@/lib/playback";
@@ -42,18 +43,13 @@ export interface PlayerProps {
 export function Player(props: PlayerProps) {
   const plan = usePlaybackPlan(props.versionId, props.watchState);
   const [cantPlay, setCantPlay] = useState(false);
+  // Stable, so hls.js isn't restarted each time the player renders.
+  const onCantPlay = useCallback(() => {
+    setCantPlay(true);
+  }, []);
   if (plan.url === "") return <CantPlay back={props.back} reasons={plan.reasons} />;
   if (cantPlay) return <CantPlay back={props.back} reasons={[]} />;
-  return (
-    <VideoPlayer
-      {...props}
-      url={plan.url}
-      playbackInfo={<PlaybackInfo plan={plan} />}
-      onCantPlay={() => {
-        setCantPlay(true);
-      }}
-    />
-  );
+  return <VideoPlayer {...props} plan={plan} onCantPlay={onCantPlay} />;
 }
 
 function VideoPlayer({
@@ -61,12 +57,12 @@ function VideoPlayer({
   versionId,
   watchState,
   back,
-  url,
-  playbackInfo,
+  plan,
   onCantPlay,
-}: PlayerProps & { url: string; playbackInfo: ReactNode; onCantPlay: () => void }) {
+}: PlayerProps & { plan: ReturnType<typeof usePlaybackPlan>; onCantPlay: () => void }) {
   const playerRef = useRef<HTMLDivElement>(null);
   const { ref: videoRef, events, ...video } = useVideo();
+  const src = usePlaybackSource(videoRef, plan, onCantPlay);
   useWatchState(videoRef, versionId, watchState);
   const [awake, wake] = useAwake();
   useShortcuts(videoRef, playerRef, back, wake);
@@ -83,7 +79,7 @@ function VideoPlayer({
       {/* oxlint-disable-next-line jsx-a11y/media-has-caption -- Versions carry no caption files yet. */}
       <video
         ref={videoRef}
-        src={url}
+        src={src}
         aria-label={title}
         autoPlay
         playsInline
@@ -97,7 +93,7 @@ function VideoPlayer({
       />
       {/* Any key brings the controls back, so a focused control shows its ring when it's used. */}
       <div className="pointer-events-none absolute inset-0 flex flex-col justify-between transition-opacity duration-500 ease-out-expo group-data-controls-hidden:opacity-0 motion-reduce:transition-none">
-        <TopBar title={title} back={back} playbackInfo={playbackInfo} />
+        <TopBar title={title} back={back} playbackInfo={<PlaybackInfo plan={plan} />} />
         <BottomBar video={video} playerRef={playerRef} />
       </div>
     </div>

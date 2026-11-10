@@ -191,7 +191,7 @@ impl Fixture {
     }
 
     /// The Admin's Playback Plan for the Version `version`, on a Device that decodes H.264 and AAC
-    /// in MP4.
+    /// in MP4, and plays HLS through Media Source Extensions, as Chrome does.
     async fn plan(&self, version: i64) -> Result<PlaybackPlan, ConnectError> {
         let config = self.server.client_config();
         let content_types = [
@@ -204,6 +204,7 @@ impl Fixture {
                 version_id: version,
                 device_decoding: DeviceDecoding {
                     content_types: content_types.map(str::to_owned).to_vec(),
+                    mse: true,
                     ..Default::default()
                 }
                 .into(),
@@ -1045,7 +1046,8 @@ async fn an_h264_and_aac_mp4_direct_plays_through_its_plans_url() {
         plan.reasons,
         [
             "Its Tracks need no change",
-            "This Device decodes its container and Tracks"
+            "This Device decodes its container and Tracks",
+            "This Server lacks ffmpeg or ffprobe, so it can only Direct Play"
         ]
     );
     let played = fetch(&fx.server, &plan.url, Some(&fx.server.admin_token)).await;
@@ -1067,9 +1069,208 @@ async fn without_ffprobe_a_version_direct_plays_and_its_plan_says_its_tracks_are
         plan.reasons,
         [
             "Its Tracks aren't known, so they're taken to need no change",
-            "Its Tracks aren't known, so this Device is taken to decode them"
+            "Its Tracks aren't known, so this Device is taken to decode them",
+            "This Server lacks ffmpeg or ffprobe, so it can only Direct Play"
         ]
     );
+}
+
+/// The ffmpeg and ffprobe on `PATH`, which these tests need.
+fn system_ffmpeg() -> Ffmpeg {
+    let path = std::env::var_os("PATH").unwrap_or_default();
+    let ffmpeg = Ffmpeg::find(&Config::default(), &path);
+    assert!(
+        ffmpeg.ffmpeg.is_ok() && ffmpeg.ffprobe.is_ok(),
+        "this test needs ffmpeg and ffprobe on PATH"
+    );
+    ffmpeg
+}
+
+#[expect(
+    clippy::unwrap_used,
+    clippy::indexing_slicing,
+    reason = "a test helper fails its test by panicking"
+)]
+impl Fixture {
+    /// Starts a Server with `ffmpeg` and a Movies Library holding Alien as an H.264 + AAC MKV,
+    /// and returns it with that Version's id.
+    async fn alien_mkv(ffmpeg: Ffmpeg) -> (Self, i64) {
+        let fx = Self::start_with_ffmpeg(LibraryKind::LIBRARY_KIND_MOVIES, ffmpeg).await;
+        let file = fx.folder.join("Alien (1979)/Alien (1979).mkv");
+        fs::create_dir_all(file.parent().unwrap()).unwrap();
+        ffmpeg::write_h264_and_aac(&file).unwrap();
+        fx.scan_until_decided(1).await;
+        let version = fx.version_ids(ALIEN).await[0];
+        (fx, version)
+    }
+
+    /// The body of `path` on the Server, fetched as the Admin, which must be served.
+    async fn fetch_ok(&self, path: &str) -> Vec<u8> {
+        let reply = fetch(&self.server, path, Some(&self.server.admin_token)).await;
+        assert_eq!(reply.status, 200, "{path}");
+        reply.body
+    }
+}
+
+/// Each segment's duration in a playlist, as written, and the files it lists.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+fn segments(playlist: &str) -> (Vec<f64>, Vec<&str>) {
+    let durations = (playlist.lines())
+        .filter_map(|line| line.strip_prefix("#EXTINF:"))
+        .map(|rest| rest.trim_end_matches(',').parse().unwrap())
+        .collect();
+    let files = (playlist.lines())
+        .filter(|line| !line.starts_with('#'))
+        .collect();
+    (durations, files)
+}
+
+/// `url` with its last part replaced by `file`.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+fn beside(url: &str, file: &str) -> String {
+    let (folder, _) = url.rsplit_once('/').unwrap();
+    format!("{folder}/{file}")
+}
+
+/// The HLS playlist ffmpeg wrote for the plan at `url`, once it's done.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn ffmpegs_own_playlist(fx: &Fixture, url: &str) -> String {
+    let id = url.split('/').nth(3).unwrap();
+    let path = fx
+        .server
+        .data_dir()
+        .join("transcodes")
+        .join(id)
+        .join("ffmpeg.m3u8");
+    tokio::time::timeout(WAIT, async {
+        loop {
+            if let Ok(playlist) = fs::read_to_string(&path) {
+                return playlist;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    })
+    .await
+    .unwrap()
+}
+
+#[tokio::test]
+async fn an_h264_and_aac_mkv_is_remuxed_over_hls_because_of_its_container() {
+    let (fx, version) = Fixture::alien_mkv(system_ffmpeg()).await;
+
+    let plan = fx.plan(version).await.unwrap();
+
+    assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_REMUX);
+    assert_eq!(codecs(&plan), ["h264", "aac"]);
+    assert_eq!(
+        plan.reasons[1],
+        "This Device can't decode its Matroska container, so it can't be Direct Played"
+    );
+    let reply = fetch(&fx.server, &plan.url, Some(&fx.server.admin_token)).await;
+    assert_eq!(
+        reply.header("content-type"),
+        "application/vnd.apple.mpegurl"
+    );
+    let playlist = String::from_utf8(reply.body).unwrap();
+    assert!(
+        playlist.contains("#EXT-X-MAP:URI=\"init.mp4\""),
+        "{playlist}"
+    );
+    assert!(playlist.ends_with("#EXT-X-ENDLIST\n"), "{playlist}");
+    let (durations, files) = segments(&playlist);
+    assert_eq!(files, ["0.m4s", "1.m4s", "2.m4s"]);
+    let init = fx.fetch_ok(&beside(&plan.url, "init.mp4")).await;
+    assert_eq!(
+        init.get(4..8),
+        Some(&b"ftyp"[..]),
+        "an MP4 starts with its type"
+    );
+    for file in files {
+        let segment = fx.fetch_ok(&beside(&plan.url, file)).await;
+        assert_ne!(segment.len(), 0, "{file}");
+    }
+    // HLS time is the file's time, so Watch State needs no conversion: the playlist cuts where
+    // ffmpeg did, from the start of the file to its end.
+    let (ffmpegs, _) = segments(&ffmpegs_own_playlist(&fx, &plan.url).await);
+    assert_eq!(durations.len(), ffmpegs.len());
+    for (ours, theirs) in durations.iter().zip(&ffmpegs) {
+        assert!(
+            (ours - theirs).abs() < 0.1,
+            "{durations:?} against {ffmpegs:?}"
+        );
+    }
+}
+
+/// A Server whose ffprobe, a shell script in `bin`, writes the arguments of each run to `log`
+/// and then runs the ffprobe on `PATH`.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+#[cfg(unix)]
+fn ffprobe_logging_its_runs(bin: &Path, log: &Path) -> Ffmpeg {
+    use std::os::unix::fs::PermissionsExt;
+
+    let ffmpeg = system_ffmpeg();
+    let real = ffmpeg.ffprobe.unwrap().path;
+    let path = bin.join("ffprobe");
+    let script = format!(
+        "#!/bin/sh\necho \"$*\" >> '{}'\nexec '{}' \"$@\"\n",
+        log.display(),
+        real.display()
+    );
+    fs::write(&path, script).unwrap();
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
+    Ffmpeg {
+        ffprobe: Ok(FoundProgram {
+            path,
+            version: "7.1.1".to_owned(),
+        }),
+        ..ffmpeg
+    }
+}
+
+// The logging ffprobe is a shell script.
+#[cfg(unix)]
+#[tokio::test]
+async fn remuxing_a_version_again_reuses_the_keyframes_listed_the_first_time() {
+    let bin = tempfile::tempdir().unwrap();
+    let log = bin.path().join("runs.log");
+    let (fx, version) = Fixture::alien_mkv(ffprobe_logging_its_runs(bin.path(), &log)).await;
+
+    let first = fx.plan(version).await.unwrap();
+    let second = fx.plan(version).await.unwrap();
+
+    assert_ne!(first.url, second.url, "each plan runs on its own");
+    assert_eq!(
+        fx.fetch_ok(&first.url).await,
+        fx.fetch_ok(&second.url).await
+    );
+    let runs = fs::read_to_string(&log).unwrap();
+    let listings = runs.lines().filter(|run| run.contains("packet=pts_time"));
+    assert_eq!(listings.count(), 1, "{runs}");
+}
+
+/// As for Direct Play, the session cookie is what lets a browser's HLS player fetch them.
+#[tokio::test]
+async fn a_remuxs_playlist_and_segments_without_a_session_are_refused() {
+    let (fx, version) = Fixture::alien_mkv(system_ffmpeg()).await;
+    let plan = fx.plan(version).await.unwrap();
+
+    for path in [plan.url.clone(), beside(&plan.url, "0.m4s")] {
+        let reply = fetch(&fx.server, &path, None).await;
+
+        assert_eq!(reply.status, 401, "{path}");
+    }
 }
 
 #[tokio::test]
