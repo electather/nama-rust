@@ -305,6 +305,11 @@ jobs:
       # setup-ffmpeg has no macOS build for arm64, which `macos-latest` is.
       - if: runner.os == 'macOS'
         run: brew install ffmpeg
+      # The tests that load the test Plugin build it themselves into `CARGO_TARGET_TMPDIR`'s
+      # `test-plugin` (crates/nama-server/tests/support/test_plugin.rs). Its dependencies take over a
+      # minute to build in release on a runner, and the first test to need them would pay that
+      # inside its 90 s nextest timeout.
+      - run: cargo build --release --locked --package nama-test-plugin --target wasm32-unknown-unknown --target-dir target/tmp/test-plugin
       # nextest builds every target it runs, so there's no separate `cargo build`. The `ci` profile
       # (.config/nextest.toml) retries, kills hung tests and writes a JUnit report. `count`
       # deals each binary's tests out in turn, so its slow ones land on both shards.
