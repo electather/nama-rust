@@ -269,7 +269,8 @@ export const ServerService: GenService<{
   },
   /**
    * Returns the ffmpeg and ffprobe the Server found at startup, which it needs to Remux and
-   * Transcode, or why it can't use them; without both it only Direct Plays. Needs `PERMISSION_ADMIN`.
+   * Transcode, or why it can't use them; without both it only Direct Plays. Needs
+   * `PERMISSION_ADMIN`.
    *
    * @generated from rpc nama.v1.ServerService.GetPlaybackStatus
    */

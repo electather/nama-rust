@@ -90,14 +90,18 @@ fn not_on_path(name: &str) -> String {
 
 /// `name` at the path the config sets, or why it can't be run.
 fn at_configured_path(name: &str, path: &Path) -> Result<FoundProgram, String> {
+    // Relative to the working directory, like `data_dir`. Left relative, a bare `ffmpeg` would
+    // be looked up on `PATH` when run.
+    let path = std::path::absolute(path).unwrap_or_else(|_| path.to_owned());
     if !path.is_file() {
         return Err(format!(
             "{name} wasn't found at the configured path {}",
             path.display()
         ));
     }
-    run(name, path.to_owned())
-        .ok_or_else(|| format!("{name} at the configured path {} won't run", path.display()))
+    let shown = path.display().to_string();
+    run(name, path)
+        .ok_or_else(|| format!("{name} at the configured path {shown} won't run or isn't {name}"))
 }
 
 /// The first `name` in the directories of `path` that runs and says which version it is.
@@ -129,7 +133,7 @@ fn run(name: &str, path: PathBuf) -> Option<FoundProgram> {
 /// Whether `version` is a release older than [`MINIMUM`].
 fn is_too_old(version: &str) -> bool {
     // A release says `7.1.1`, `n7.0` or `4.4.2-0ubuntu0.22.04.1`. A build from git says
-    // `N-113021-g5b3fc5d`, with no release number, and is newer than any release.
+    // `N-113021-g5b3fc5d`, with no release number, so it gets the benefit of the doubt.
     let mut numbers = version
         .trim_start_matches('n')
         .split(|c: char| !c.is_ascii_digit())
@@ -308,8 +312,28 @@ mod tests {
         assert_eq!(
             found.ffprobe,
             Err(format!(
-                "ffprobe at the configured path {} won't run",
+                "ffprobe at the configured path {} won't run or isn't ffprobe",
                 configured.path().join("ffprobe").display()
+            ))
+        );
+    }
+
+    #[test]
+    fn a_relative_configured_path_is_from_the_working_directory_not_path() {
+        let on_path = tempfile::tempdir().unwrap();
+        fake(on_path.path(), "ffmpeg", "ffmpeg version 7.1.1");
+        let config = Config {
+            ffmpeg: Some("ffmpeg".into()),
+            ..Config::default()
+        };
+
+        let found = find(&config, on_path.path().as_os_str());
+
+        assert_eq!(
+            found.ffmpeg,
+            Err(format!(
+                "ffmpeg wasn't found at the configured path {}",
+                std::env::current_dir().unwrap().join("ffmpeg").display()
             ))
         );
     }
