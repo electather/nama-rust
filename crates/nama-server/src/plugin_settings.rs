@@ -1,26 +1,30 @@
 //! The Server's Plugins as stored: whether each is enabled, and its settings, kept in the
 //! database. They come from the config's `[plugins.*]` tables once, on the first start; from then
-//! on the database is the only store. [`PluginSettings::start`] enables the Plugins stored as on.
+//! on the database is the only store. [`PluginSettings::start`] enables the Plugins stored as on,
+//! and every later change to one goes through [`PluginSettings`] (the crate's `AGENTS.md`).
 
 use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
 
 use nama_plugin_api::{
     PluginId,
     auth::Authenticator,
-    settings::{SettingValue, Settings},
+    settings::{Choices, SettingKind, SettingValue, Settings, SettingsError, SettingsSchema},
 };
-use nama_proto::nama::v1::PluginKind;
+use nama_proto::nama::v1::{PluginKind, Quality};
 use thiserror::Error;
 use tokio::{
-    sync::{Mutex, MutexGuard},
-    task::{self, JoinError},
+    sync::{Mutex, MutexGuard, mpsc},
+    task::{self, JoinError, JoinHandle},
 };
-use tracing::{info, warn};
+use tracing::{error, info, warn};
 
 use crate::{
     config::{Config, InvalidPluginTable, PluginConfig},
     db::Database,
-    plugins::{Listed, Registry, installed, log_not_enabled},
+    plugins::{
+        CheckError, EnableError, LastProvider, Listed, Registry, installed, log_not_enabled,
+    },
+    qualities,
 };
 
 /// The `schema_meta` key whose presence records that the config was imported.
@@ -39,6 +43,9 @@ pub struct PluginSettings {
     /// changes at once can't leave it running otherwise than the database says.
     // ponytail: one lock for every Plugin; one per Plugin if Admins ever wait on each other.
     changing: Arc<Mutex<()>>,
+    /// The task saving each Plugin disabled for crashing as disabled, until
+    /// [`PluginSettings::shutdown`].
+    saving_crashed: Arc<std::sync::Mutex<Option<JoinHandle<()>>>>,
 }
 
 /// A Plugin the Server has, with what is stored for it.
@@ -72,6 +79,54 @@ pub enum StartError {
     /// On the first start, the config's tables couldn't be imported.
     #[error("could not import the plugin settings: {0}")]
     Import(sqlx::Error),
+}
+
+/// Why a Plugin couldn't be changed or its settings checked.
+#[derive(Debug, Error)]
+pub enum ChangeError {
+    /// No Plugin has the id.
+    #[error("there is no plugin {0}")]
+    Unknown(PluginId),
+    /// The Server refused the Plugin, for the reason given.
+    #[error("the Server refused plugin {plugin}: {reason}")]
+    Refused {
+        /// The Plugin.
+        plugin: PluginId,
+        /// Why the Server refused it.
+        reason: String,
+    },
+    /// The settings don't fit the Plugin's schema.
+    #[error("the settings don't fit the plugin: {0}")]
+    InvalidSettings(SettingsError),
+    /// A choice setting's value isn't one the Plugin's settings check offers.
+    #[error("{value} isn't one of the choices for the setting {key}")]
+    NotOffered {
+        /// The Plugin.
+        plugin: PluginId,
+        /// The choice setting.
+        key: String,
+        /// Its value.
+        value: String,
+    },
+    /// The Plugin's settings check failed or timed out.
+    #[error("{error}")]
+    Check {
+        /// The Plugin.
+        plugin: PluginId,
+        /// Why it failed.
+        error: CheckError,
+        /// The choice setting a save was refused for, if any.
+        setting: Option<String>,
+    },
+    /// The Plugin couldn't be enabled.
+    #[error(transparent)]
+    Enable(EnableError),
+    /// Disabling the Plugin would leave no Authenticator, so nobody could sign in.
+    #[error(transparent)]
+    LastAuthenticator(LastProvider),
+    /// The stored settings couldn't be read or written.
+    #[error("could not read or save the plugin settings: {0}")]
+    Database(#[from] sqlx::Error),
 }
 
 /// Why the Plugins couldn't be listed.
@@ -125,6 +180,7 @@ impl PluginSettings {
             registry,
             data_dir: config.data_dir.clone(),
             changing: Arc::default(),
+            saving_crashed: Arc::default(),
         };
         let starting = plugins.clone();
         // Blocking: reading an Installed Plugin compiles it, and so does enabling it.
@@ -149,7 +205,40 @@ impl PluginSettings {
                 .map_err(StartError::Import)?;
             info!(imported = ?in_config, "imported plugin settings from the config");
         }
+        let crashed = plugins.registry.crashed();
+        let saving_crashed = task::spawn(plugins.clone().save_crashed(crashed));
+        *lock_ignoring_poison(&plugins.saving_crashed) = Some(saving_crashed);
         Ok(plugins)
+    }
+
+    /// Stops saving the Plugins disabled for crashing. One disabled but not saved yet runs again
+    /// after a restart.
+    pub async fn shutdown(&self) {
+        let Some(saving_crashed) = lock_ignoring_poison(&self.saving_crashed).take() else {
+            return;
+        };
+        saving_crashed.abort();
+        if let Err(err) = saving_crashed.await
+            && err.is_panic()
+        {
+            error!("saving the Plugins disabled for crashing panicked: {err}");
+        }
+    }
+
+    /// Saves each Plugin the registry disables for crashing as disabled, as an admin's disable is,
+    /// so it stays disabled across a restart until an admin enables it again. Runs until aborted,
+    /// or until the registry hands a later caller of [`Registry::crashed`] the crashes instead.
+    async fn save_crashed(self, mut crashed: mpsc::UnboundedReceiver<PluginId>) {
+        while let Some(id) = crashed.recv().await {
+            let _changing = self.lock().await;
+            // An admin may have enabled it again since.
+            if self.registry.enabled().contains(&id) {
+                continue;
+            }
+            if let Err(err) = set_enabled(&self.db, id.as_str(), false).await {
+                error!(plugin = %id, "could not save that the crashed plugin is disabled: {err}");
+            }
+        }
     }
 
     /// Enables each Plugin the registry knows that `settings` store as enabled, or that starts
@@ -239,14 +328,262 @@ impl PluginSettings {
         Ok(Some(with_stored(plugin, &mut self.stored().await?)))
     }
 
+    /// Saves `sent` as the Plugin `id`'s settings, a secret left out keeping its stored value, then
+    /// applies them if it is stored as enabled, so a restart retries settings that fail to enable
+    /// it (ADR 0028). Returns the Plugin as it is now, enabled only if running, with what is
+    /// stored for it.
+    ///
+    /// # Errors
+    ///
+    /// If no Plugin has the id or the Server refused it, the settings don't fit its schema, its
+    /// settings check fails or doesn't offer a choice setting's value, or the database can't be
+    /// read or written. A refused change saves nothing.
+    pub async fn update(
+        &self,
+        id: &PluginId,
+        sent: BTreeMap<String, SettingValue>,
+    ) -> Result<StoredPlugin, ChangeError> {
+        let _changing = self.lock().await;
+        let StoredPlugin { plugin, stored } = self.listed(id).await?;
+        let settings = with_stored_secrets(&plugin.settings_schema, sent, &stored.settings);
+        Settings::new(settings.clone())
+            .resolve(&plugin.settings_schema)
+            .map_err(ChangeError::InvalidSettings)?;
+        // ponytail: checked under `changing`, so a slow outside service holds up other Plugin
+        // changes for up to SETTINGS_CHECK_TIMEOUT; check before locking if that bites.
+        self.check_choices(&plugin, &settings).await?;
+        save(&self.db, id.as_str(), stored.enabled, &settings).await?;
+        // Enabled again even if it isn't running, such as TMDB left disabled without its key, and
+        // disabled first so nothing it registered with its old settings stays.
+        if stored.enabled {
+            self.registry.disable(id);
+            if let Err(err) = self
+                .registry
+                .enable_by_id(id, Settings::new(settings.clone()))
+            {
+                error!(plugin = %id, "could not enable the plugin with its new settings: {err}");
+            }
+        }
+        let enabled = self.registry.enabled().contains(id);
+        Ok(StoredPlugin {
+            plugin: Listed { enabled, ..plugin },
+            stored: PluginConfig {
+                enabled: stored.enabled,
+                settings,
+            },
+        })
+    }
+
+    /// Enables the Plugin `id` with its stored settings, then saves it as enabled, so a refused
+    /// enable saves nothing (ADR 0028). Enabling one already running saves it again, which is how
+    /// a retry fixes a save that failed.
+    ///
+    /// # Errors
+    ///
+    /// If the Plugin can't be enabled, or the database can't be read or written. Should the save
+    /// fail, the Plugin stays enabled until a restart.
+    pub async fn enable(&self, id: &PluginId) -> Result<(), ChangeError> {
+        let _changing = self.lock().await;
+        let settings = self
+            .get(id)
+            .await?
+            .map(|found| found.stored.settings)
+            .unwrap_or_default();
+        match self.registry.enable_by_id(id, Settings::new(settings)) {
+            Ok(()) | Err(EnableError::AlreadyEnabled(_)) => {}
+            Err(err) => return Err(ChangeError::Enable(err)),
+        }
+        set_enabled(&self.db, id.as_str(), true).await?;
+        Ok(())
+    }
+
+    /// Saves the Plugin `id` as disabled, then disables it, so should the save fail it keeps
+    /// running as stored (ADR 0028).
+    ///
+    /// # Errors
+    ///
+    /// If no Plugin has the id or the Server refused it, it may be the last enabled Plugin that
+    /// provides an [`Authenticator`], since then nobody could sign in, or the database can't be
+    /// read or written. A refused disable saves nothing.
+    pub async fn disable(&self, id: &PluginId) -> Result<(), ChangeError> {
+        let _changing = self.lock().await;
+        self.listed(id).await?;
+        if let Some(last) = self.registry.last_provider::<dyn Authenticator>(id) {
+            return Err(ChangeError::LastAuthenticator(last));
+        }
+        set_enabled(&self.db, id.as_str(), false).await?;
+        // ponytail: an Installed Authenticator crashing since the check can leave none running, as
+        // a crash can anyway; the next start then refuses until an admin enables one.
+        self.registry.disable(id);
+        Ok(())
+    }
+
+    /// Runs the Plugin `id`'s settings check on `sent`, a secret left out keeping its stored value,
+    /// and returns the choices it offers. Saves nothing.
+    ///
+    /// # Errors
+    ///
+    /// If no Plugin has the id or the Server refused it, the settings don't fit, the check fails
+    /// or times out, or the database can't be read.
+    pub async fn check(
+        &self,
+        id: &PluginId,
+        sent: BTreeMap<String, SettingValue>,
+    ) -> Result<Choices, ChangeError> {
+        let StoredPlugin { plugin, stored } = self.listed(id).await?;
+        let settings = with_stored_secrets(&plugin.settings_schema, sent, &stored.settings);
+        self.run_check(id, settings).await
+    }
+
+    /// Runs the Plugin `id`'s settings check on its stored settings, and returns the choices it
+    /// offers.
+    ///
+    /// # Errors
+    ///
+    /// As [`PluginSettings::check`].
+    pub async fn check_stored(&self, id: &PluginId) -> Result<Choices, ChangeError> {
+        let StoredPlugin { stored, .. } = self.listed(id).await?;
+        self.run_check(id, stored.settings).await
+    }
+
+    /// The Plugin `id`'s Qualities, in the order the admin listed them.
+    pub(crate) async fn qualities(&self, id: &PluginId) -> Result<Vec<Quality>, ChangeError> {
+        self.listed(id).await?;
+        let mut conn = self.db.reader().acquire().await?;
+        Ok(qualities::list(&mut conn, id).await?)
+    }
+
+    /// Replaces the Plugin `id`'s Qualities with `listed` and returns them as saved, or why
+    /// [`qualities::check`] refused them against the profiles its stored settings' check offers.
+    pub(crate) async fn replace_qualities(
+        &self,
+        id: &PluginId,
+        listed: Vec<Quality>,
+    ) -> Result<Result<Vec<Quality>, qualities::Invalid>, ChangeError> {
+        // Only a list with Qualities asks the settings check, so a Fulfiller that's down can still
+        // have its list cleared.
+        let offered = if listed.is_empty() {
+            self.listed(id).await?;
+            Choices::new()
+        } else {
+            self.check_stored(id).await?
+        };
+        if let Err(invalid) = qualities::check(&listed, &offered) {
+            return Ok(Err(invalid));
+        }
+        Ok(Ok(qualities::replace(&self.db, id.clone(), listed).await?))
+    }
+
+    async fn run_check(
+        &self,
+        id: &PluginId,
+        settings: BTreeMap<String, SettingValue>,
+    ) -> Result<Choices, ChangeError> {
+        self.registry
+            .check_settings(id, Settings::new(settings))
+            .await
+            .map_err(|error| ChangeError::Check {
+                plugin: id.clone(),
+                error,
+                setting: None,
+            })
+    }
+
+    /// The Plugin `id` with what is stored for it, unless no Plugin has the id or the Server
+    /// refused it.
+    async fn listed(&self, id: &PluginId) -> Result<StoredPlugin, ChangeError> {
+        let found = self
+            .get(id)
+            .await?
+            .ok_or_else(|| ChangeError::Unknown(id.clone()))?;
+        match found.plugin.refused_reason {
+            Some(reason) => Err(ChangeError::Refused {
+                plugin: found.plugin.id,
+                reason,
+            }),
+            None => Ok(found),
+        }
+    }
+
+    /// Refuses `settings` for `plugin` unless its settings check passes on them and offers each
+    /// choice setting's value. The check runs only when some choice setting has a value.
+    async fn check_choices(
+        &self,
+        plugin: &Listed,
+        settings: &BTreeMap<String, SettingValue>,
+    ) -> Result<(), ChangeError> {
+        let chosen: Vec<_> = plugin
+            .settings_schema
+            .fields
+            .iter()
+            .filter(|field| field.kind == SettingKind::Choice)
+            .filter_map(|field| match settings.get(&field.key) {
+                Some(SettingValue::Text(value)) => Some((field.key.as_str(), value)),
+                _ => None,
+            })
+            .collect();
+        let Some(&(first, _)) = chosen.first() else {
+            return Ok(());
+        };
+        let offered = self
+            .registry
+            .check_settings(&plugin.id, Settings::new(settings.clone()))
+            .await
+            .map_err(|error| ChangeError::Check {
+                plugin: plugin.id.clone(),
+                error,
+                setting: Some(first.to_owned()),
+            })?;
+        for (key, value) in chosen {
+            let is_offered = offered
+                .get(key)
+                .is_some_and(|choices| choices.iter().any(|choice| choice.value == *value));
+            if !is_offered {
+                return Err(ChangeError::NotOffered {
+                    plugin: plugin.id.clone(),
+                    key: key.to_owned(),
+                    value: value.clone(),
+                });
+            }
+        }
+        Ok(())
+    }
+
     /// Takes the lock every change to a Plugin holds until it is saved.
-    pub(crate) async fn lock(&self) -> MutexGuard<'_, ()> {
+    async fn lock(&self) -> MutexGuard<'_, ()> {
         self.changing.lock().await
     }
 
     async fn stored(&self) -> Result<BTreeMap<String, PluginConfig>, sqlx::Error> {
         Ok(stored(&self.db).await?.unwrap_or_default())
     }
+}
+
+/// The settings `sent` for a Plugin with `schema`: the ones it names, with a secret left out
+/// keeping its `stored` value, so a form can replace a secret without showing it.
+fn with_stored_secrets(
+    schema: &SettingsSchema,
+    mut sent: BTreeMap<String, SettingValue>,
+    stored: &BTreeMap<String, SettingValue>,
+) -> BTreeMap<String, SettingValue> {
+    schema
+        .fields
+        .iter()
+        .filter_map(|field| {
+            let kept = || {
+                let secret = field.kind == SettingKind::Secret;
+                stored.get(&field.key).filter(|_| secret).cloned()
+            };
+            Some((field.key.clone(), sent.remove(&field.key).or_else(kept)?))
+        })
+        .collect()
+}
+
+// No code that could panic runs while it is held, so a poisoned lock's handle is still whole.
+fn lock_ignoring_poison<T>(mutex: &std::sync::Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    mutex
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 /// `plugin` with what `stored` holds for it, taken out of `stored`.
@@ -340,11 +677,7 @@ async fn import(
 }
 
 /// Stores whether the Plugin `id` is enabled and its `settings`, replacing any stored.
-///
-/// # Errors
-///
-/// If the database can't be written.
-pub async fn save(
+async fn save(
     db: &Database,
     id: &str,
     enabled: bool,
@@ -372,11 +705,7 @@ pub async fn save(
 }
 
 /// Saves whether the Plugin `plugin_id` is enabled, keeping its stored settings.
-///
-/// # Errors
-///
-/// If the database can't be written.
-pub async fn set_enabled(db: &Database, plugin_id: &str, enabled: bool) -> Result<(), sqlx::Error> {
+async fn set_enabled(db: &Database, plugin_id: &str, enabled: bool) -> Result<(), sqlx::Error> {
     let plugin_id = plugin_id.to_owned();
     db.write(move |tx| {
         Box::pin(async move {
