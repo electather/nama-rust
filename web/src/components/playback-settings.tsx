@@ -68,9 +68,9 @@ export function PlaybackSettingsForm() {
         label="Transcodes at once"
         name="maxTranscodes"
         type="number"
-        min={0}
+        min={1}
         defaultValue={settings.maxTranscodes}
-        hint="The most the Server runs at once. Remuxes don’t count. While that many run, a Device that can play a Remux gets one instead, and one that can’t is told the Server is busy. 0 turns Transcoding off."
+        hint="The most the Server runs at once. Remuxes don’t count. While that many run, a Device that can play a Remux gets one instead, and one that can’t is told the Server is busy."
       />
       <FormEnd
         action={update.isPending ? "Saving playback settings…" : "Save playback settings"}

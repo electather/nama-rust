@@ -99,6 +99,7 @@ test("a segment folder that isn't an absolute path is refused under its field", 
       signedIn: admin,
       serverService: {
         getPlaybackStatus: () => ({}),
+        getPlaybackSettings: () => ({ settings: { maxTranscodes: 2 } }),
         updatePlaybackSettings: () => {
           throw refused(Code.InvalidArgument, "the segment folder must be an absolute path", {
             reason: RefusalReason.FOLDER_NOT_ABSOLUTE,

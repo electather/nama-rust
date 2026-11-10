@@ -376,8 +376,8 @@ export const PlaybackService: GenService<{
    * Returns a Playback Plan for playing a Version on the caller's Device, probing the Version
    * first if the Server has no current Tracks for it. Fails with `not_found` if there is no such
    * Version, and is refused with `REFUSAL_REASON_SERVER_BUSY` when only a Transcode would play it
-   * and the Server is already running as many as it may; the caller's own Device's don't count,
-   * as a new plan replaces the one it plays.
+   * and the Server is already running as many as it may; one of the caller's own Device's doesn't
+   * count, as a new plan replaces the one it plays.
    *
    * @generated from rpc nama.v1.PlaybackService.PlanPlayback
    */

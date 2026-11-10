@@ -4003,9 +4003,8 @@ pub struct PlaybackSettingsView<'a> {
     ///
     /// Field 1: `segment_folder`
     pub segment_folder: &'a str,
-    /// The most Transcodes the Server runs at once, 2 out of the box; Remuxes don't count. A plan
-    /// that only a Transcode would play is refused while that many run. 0 for none: the Server never
-    /// Transcodes.
+    /// The most Transcodes the Server runs at once, at least 1, and 2 out of the box; Remuxes don't
+    /// count. A plan that only a Transcode would play is refused while that many run.
     ///
     /// Field 2: `max_transcodes`
     pub max_transcodes: u32,
@@ -4249,9 +4248,8 @@ impl PlaybackSettingsOwnedView {
     pub fn segment_folder(&self) -> &'_ str {
         self.0.reborrow().segment_folder
     }
-    /// The most Transcodes the Server runs at once, 2 out of the box; Remuxes don't count. A plan
-    /// that only a Transcode would play is refused while that many run. 0 for none: the Server never
-    /// Transcodes.
+    /// The most Transcodes the Server runs at once, at least 1, and 2 out of the box; Remuxes don't
+    /// count. A plan that only a Transcode would play is refused while that many run.
     ///
     /// Field 2: `max_transcodes`
     #[must_use]

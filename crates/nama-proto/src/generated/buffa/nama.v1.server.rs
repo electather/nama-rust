@@ -1969,9 +1969,8 @@ pub struct PlaybackSettings {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub segment_folder: ::buffa::alloc::string::String,
-    /// The most Transcodes the Server runs at once, 2 out of the box; Remuxes don't count. A plan
-    /// that only a Transcode would play is refused while that many run. 0 for none: the Server never
-    /// Transcodes.
+    /// The most Transcodes the Server runs at once, at least 1, and 2 out of the box; Remuxes don't
+    /// count. A plan that only a Transcode would play is refused while that many run.
     ///
     /// Field 2: `max_transcodes`
     #[serde(

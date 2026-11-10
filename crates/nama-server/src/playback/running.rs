@@ -205,17 +205,18 @@ impl RunningPlans {
         &self.inner.max_transcodes
     }
 
-    /// The most Transcodes the Server may run at once, if Devices other than `device` already
-    /// run that many. `device`'s own don't count, as the plan it asks for replaces the one it
-    /// plays, which it stops only once the new one plays.
-    // shortcut: two Devices planning at the same moment can both find room, passing the cap by
+    /// The most Transcodes the Server may run at once, if that many already run, leaving out one
+    /// of `device`'s own: the plan it asks for replaces the one it plays, which it stops only
+    /// once the new one plays.
+    // ponytail: two Devices planning at the same moment can both find room, passing the cap by
     // one until a Transcode ends; reserve room under the plans' lock if that ever matters.
     pub(crate) fn transcodes_full(&self, device: i64) -> Option<u32> {
         let max = self.inner.max_transcodes.get();
-        let running = (lock(&self.inner.plans).values())
-            .filter(|plan| plan.playback.device_id != device)
+        let plans = lock(&self.inner.plans);
+        let (own, others): (Vec<_>, Vec<_>) = (plans.values())
             .filter(|plan| (plan.hls.as_ref()).is_some_and(|hls| hls.method == Method::Transcode))
-            .count();
+            .partition(|plan| plan.playback.device_id == device);
+        let running = others.len() + own.len().saturating_sub(1);
         (u32::try_from(running).unwrap_or(u32::MAX) >= max).then_some(max)
     }
 
@@ -1153,8 +1154,24 @@ mod tests {
         plans.stop_for(first, 7).await;
 
         assert_eq!(full, Some(2), "out of the box");
-        assert_eq!(for_its_own_device, None);
+        assert_eq!(
+            for_its_own_device, None,
+            "the one its new plan replaces doesn't count"
+        );
         assert_eq!(plans.transcodes_full(8), None);
+    }
+
+    // The fake ffmpeg is `sleep`.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_device_leaves_only_one_of_its_own_transcodes_out_of_the_count() {
+        let data = tempfile::tempdir().unwrap();
+        let plans = running_plans(data.path()).await;
+        for _ in 0..3 {
+            start_method_writing_nothing(&plans, Method::Transcode, every_two_seconds()).await;
+        }
+
+        assert_eq!(plans.transcodes_full(7), Some(2));
     }
 
     #[test]

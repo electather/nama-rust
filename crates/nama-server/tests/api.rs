@@ -271,6 +271,7 @@ fn set_segment_folder(folder: &str) -> UpdatePlaybackSettingsRequest {
     UpdatePlaybackSettingsRequest {
         settings: PlaybackSettings {
             segment_folder: folder.to_owned(),
+            max_transcodes: 2,
             ..Default::default()
         }
         .into(),
@@ -317,6 +318,31 @@ async fn the_transcode_cap_is_2_until_an_admin_sets_it() {
 
     assert_eq!(unset, 2);
     assert_eq!(settings().await, 1);
+}
+
+#[tokio::test]
+async fn a_transcode_cap_of_0_or_left_out_is_refused_naming_it_and_nothing_changes() {
+    let server = TestServer::builder().start().await;
+    let client = ServerServiceClient::new(HttpClient::plaintext(), server.client_config());
+
+    let updated = client
+        .update_playback_settings(UpdatePlaybackSettingsRequest {
+            settings: PlaybackSettings {
+                segment_folder: "/dev/shm/nama".to_owned(),
+                ..Default::default()
+            }
+            .into(),
+            ..Default::default()
+        })
+        .await;
+
+    let refusal = assert_refused(
+        updated,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
+    );
+    assert_eq!(refusal.field, "settings.max_transcodes");
+    assert_eq!(segment_folder(&client).await, "");
 }
 
 #[tokio::test]

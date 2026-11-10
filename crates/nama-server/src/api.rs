@@ -544,12 +544,22 @@ impl ServerService for ServerServiceHandler {
             .param("folder", &folder)
             .into());
         }
+        let max_transcodes = request.settings.max_transcodes;
+        if max_transcodes == 0 {
+            // proto3 sends 0 for a field left out, so 0 is missing, not "never Transcode".
+            return Err(refuse(
+                RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
+                "the most Transcodes at once must be at least 1",
+            )
+            .field("settings.max_transcodes")
+            .into());
+        }
         self.segment_folder
             .save(&self.db, folder)
             .await
             .map_err(database_failed)?;
         self.max_transcodes
-            .save(&self.db, request.settings.max_transcodes)
+            .save(&self.db, max_transcodes)
             .await
             .map_err(database_failed)?;
         Response::ok(UpdatePlaybackSettingsResponse {

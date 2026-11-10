@@ -1075,6 +1075,7 @@ async fn a_remux_writes_its_segments_to_the_segment_folder_an_admin_set() {
         .update_playback_settings(UpdatePlaybackSettingsRequest {
             settings: PlaybackSettings {
                 segment_folder: tmpfs.path().to_str().unwrap().to_owned(),
+                max_transcodes: 2,
                 ..Default::default()
             }
             .into(),
@@ -1090,28 +1091,16 @@ async fn a_remux_writes_its_segments_to_the_segment_folder_an_admin_set() {
 
 /// A Server whose ffprobe, a shell script in `bin`, reads every file as an H.264 + AAC MP4.
 #[cfg(unix)]
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
 fn ffprobe_reading_h264_and_aac(bin: &Path) -> Ffmpeg {
-    use std::os::unix::fs::PermissionsExt;
-
-    let path = bin.join("ffprobe");
-    let script = r#"#!/bin/sh
+    let ffprobe = r#"#!/bin/sh
 cat <<'EOF'
 {"streams": [{"codec_name": "h264", "codec_type": "video"},
              {"codec_name": "aac", "codec_type": "audio", "disposition": {"default": 1}}],
  "format": {"format_name": "mov,mp4,m4a,3gp,3g2,mj2"}}
 EOF
 "#;
-    fs::write(&path, script).unwrap();
-    fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
     Ffmpeg {
-        ffprobe: Ok(FoundProgram {
-            path,
-            version: "7.1.1".to_owned(),
-        }),
+        ffprobe: Ok(script(bin, "ffprobe", ffprobe)),
         ..Ffmpeg::default()
     }
 }
@@ -1584,23 +1573,15 @@ fn cuts(durations: &[f64]) -> Vec<f64> {
 )]
 #[cfg(unix)]
 fn ffprobe_logging_its_runs(bin: &Path, log: &Path) -> Ffmpeg {
-    use std::os::unix::fs::PermissionsExt;
-
     let ffmpeg = system_ffmpeg();
     let real = ffmpeg.ffprobe.unwrap().path;
-    let path = bin.join("ffprobe");
-    let script = format!(
+    let ffprobe = format!(
         "#!/bin/sh\necho \"$*\" >> '{}'\nexec '{}' \"$@\"\n",
         log.display(),
         real.display()
     );
-    fs::write(&path, script).unwrap();
-    fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
     Ffmpeg {
-        ffprobe: Ok(FoundProgram {
-            path,
-            version: "7.1.1".to_owned(),
-        }),
+        ffprobe: Ok(script(bin, "ffprobe", &ffprobe)),
         ..ffmpeg
     }
 }
