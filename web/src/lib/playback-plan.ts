@@ -8,8 +8,10 @@ import {
   PlaybackPlanSchema,
   PlaybackService,
 } from "@/gen/nama/v1/playback_pb";
+import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { findDeviceDecoding } from "@/lib/device-decoding";
 import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
+import { refusalOf } from "@/lib/forms";
 import { toMs } from "@/lib/watch-state";
 
 /** What the player asks a plan for, beside the Version. */
@@ -76,7 +78,10 @@ export function usePlaybackPlan({
   return { plan, startPositionMs, gaveUp, onCantPlay, audioTrack, chooseAudio };
 }
 
-/** The plan for Version `versionId` as `asking` says, asked for once and never reused after. */
+/**
+ * The plan for Version `versionId` as `asking` says, asked for once and never reused after. A
+ * Server too busy to Transcode it gives a plan that can't play, saying so.
+ */
 function usePlan(versionId: bigint, asking: Asking) {
   const transport = useTransport();
   const { failedMethods, startPositionMs, audioTrack } = asking;
@@ -91,12 +96,28 @@ function usePlan(versionId: bigint, asking: Asking) {
     queryFn: async () => {
       const deviceDecoding = await findDeviceDecoding();
       const input = { versionId, deviceDecoding, ...asking };
-      const response = await callUnaryMethod(transport, PlaybackService.method.planPlayback, input);
-      return create(PlaybackPlanSchema, response.plan);
+      try {
+        const response = await callUnaryMethod(
+          transport,
+          PlaybackService.method.planPlayback,
+          input,
+        );
+        return create(PlaybackPlanSchema, response.plan);
+      } catch (error) {
+        const { reason, params } = refusalOf(error);
+        if (reason !== RefusalReason.SERVER_BUSY) throw error;
+        return create(PlaybackPlanSchema, { reasons: [serverBusy(params["maxTranscodes"])] });
+      }
     },
     staleTime: "static",
     gcTime: 0,
   }).data;
+}
+
+/** Why the Server, running `maxTranscodes` Transcodes at once, can't play a Version here now. */
+function serverBusy(maxTranscodes = "") {
+  const most = maxTranscodes === "" ? "" : ` (${maxTranscodes})`;
+  return `The Server is busy: only a Transcode plays this here, and it’s already running as many as it’s set to run at once${most}. Try again once one ends.`;
 }
 
 /**

@@ -107,7 +107,7 @@ use crate::{
     rate_limits::{Blocked, SignInCodeLimits, SignInLimits},
     requests::{self, Found, FoundShow, Requests},
     scanner::Scanner,
-    server_settings::{SegmentFolder, ServerUrl},
+    server_settings::{MaxTranscodes, SegmentFolder, ServerUrl},
     sessions::{cleared_session_cookie, identify_caller, in_session_cookie, session_cookie},
     sign_in_codes::{self, Poll, SignInCodes},
     tracks::{Tracks, track_to_proto},
@@ -158,6 +158,7 @@ pub(crate) fn router(
             db: Arc::clone(&db),
             server_url,
             segment_folder,
+            max_transcodes: running.max_transcodes().clone(),
             ffmpeg,
         }))
         .add_service(Arc::new(SignInServiceHandler {
@@ -427,6 +428,7 @@ struct ServerServiceHandler {
     db: Arc<Database>,
     server_url: ServerUrl,
     segment_folder: SegmentFolder,
+    max_transcodes: MaxTranscodes,
     ffmpeg: Arc<Ffmpeg>,
 }
 
@@ -546,6 +548,10 @@ impl ServerService for ServerServiceHandler {
             .save(&self.db, folder)
             .await
             .map_err(database_failed)?;
+        self.max_transcodes
+            .save(&self.db, request.settings.max_transcodes)
+            .await
+            .map_err(database_failed)?;
         Response::ok(UpdatePlaybackSettingsResponse {
             settings: self.playback_settings().into(),
             ..Default::default()
@@ -564,6 +570,7 @@ impl ServerServiceHandler {
     fn playback_settings(&self) -> PlaybackSettings {
         PlaybackSettings {
             segment_folder: self.segment_folder.get(),
+            max_transcodes: self.max_transcodes.get(),
             ..Default::default()
         }
     }
@@ -1332,6 +1339,15 @@ impl PlaybackService for PlaybackServiceHandler {
         .await
         .map_err(|err| match err {
             StartError::Database(err) => database_failed(err),
+            StartError::Busy(max) => refuse(
+                RefusalReason::REFUSAL_REASON_SERVER_BUSY,
+                format!(
+                    "only a Transcode would play it here, and the Server is already running as \
+                     many as it may at once, {max}; try again once one ends"
+                ),
+            )
+            .param("maxTranscodes", &max)
+            .into(),
             err @ (StartError::Keyframes(_) | StartError::Run(_)) => {
                 tracing::error!(
                     version = request.version_id,
@@ -3091,9 +3107,9 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         R::REFUSAL_REASON_PERMISSION_REQUIRED
         | R::REFUSAL_REASON_WRONG_SETUP_CODE
         | R::REFUSAL_REASON_QUALITY_NOT_ALLOWED => ErrorCode::PermissionDenied,
-        R::REFUSAL_REASON_TOO_MANY_ATTEMPTS | R::REFUSAL_REASON_TOO_MANY_PENDING_SIGN_INS => {
-            ErrorCode::ResourceExhausted
-        }
+        R::REFUSAL_REASON_TOO_MANY_ATTEMPTS
+        | R::REFUSAL_REASON_TOO_MANY_PENDING_SIGN_INS
+        | R::REFUSAL_REASON_SERVER_BUSY => ErrorCode::ResourceExhausted,
         R::REFUSAL_REASON_ALREADY_SET_UP
         | R::REFUSAL_REASON_SIGN_IN_CODE_ALREADY_APPROVED
         | R::REFUSAL_REASON_LAST_ADMIN

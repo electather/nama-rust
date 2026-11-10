@@ -294,6 +294,32 @@ async fn the_segment_folder_is_empty_until_an_admin_sets_it() {
 }
 
 #[tokio::test]
+async fn the_transcode_cap_is_2_until_an_admin_sets_it() {
+    let server = TestServer::builder().start().await;
+    let client = ServerServiceClient::new(HttpClient::plaintext(), server.client_config());
+    let settings = async || {
+        let got = client.get_playback_settings(GetPlaybackSettingsRequest::default());
+        got.await.unwrap().into_owned().settings.max_transcodes
+    };
+    let unset = settings().await;
+
+    client
+        .update_playback_settings(UpdatePlaybackSettingsRequest {
+            settings: PlaybackSettings {
+                max_transcodes: 1,
+                ..Default::default()
+            }
+            .into(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    assert_eq!(unset, 2);
+    assert_eq!(settings().await, 1);
+}
+
+#[tokio::test]
 async fn a_segment_folder_that_isnt_an_absolute_path_is_refused_naming_it_and_nothing_changes() {
     let server = TestServer::builder().start().await;
     let client = ServerServiceClient::new(HttpClient::plaintext(), server.client_config());

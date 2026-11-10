@@ -152,7 +152,9 @@ pub const PLAYBACK_SERVICE_STOP_PLAYBACK_SPEC: ::connectrpc::Spec = ::connectrpc
 pub trait PlaybackService: Send + Sync + 'static {
     /// Returns a Playback Plan for playing a Version on the caller's Device, probing the Version
     /// first if the Server has no current Tracks for it. Fails with `not_found` if there is no such
-    /// Version.
+    /// Version, and is refused with `REFUSAL_REASON_SERVER_BUSY` when only a Transcode would play it
+    /// and the Server is already running as many as it may; the caller's own Device's don't count,
+    /// as a new plan replaces the one it plays.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///

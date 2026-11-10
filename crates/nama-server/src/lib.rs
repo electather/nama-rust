@@ -45,7 +45,7 @@ use crate::{
     plugin_settings::PluginSettings,
     requests::{PROGRESS_EVERY, Requests},
     scanner::Scanner,
-    server_settings::{SegmentFolder, ServerUrl},
+    server_settings::{MaxTranscodes, SegmentFolder, ServerUrl},
     tracks::Tracks,
     users::SetupCode,
 };
@@ -106,13 +106,18 @@ pub fn serve(
     let matcher = Matcher::new(Arc::clone(&db), registry.clone(), events.clone());
     let requests = Requests::new(Arc::clone(&db), matcher, events.clone(), registry.clone());
     let segment_folder = SegmentFolder::new(config.data_dir.join("transcodes"));
-    let load_settings = load_settings(server_url.clone(), segment_folder.clone(), Arc::clone(&db));
     let running = RunningPlans::new(
         segment_folder.clone(),
         Arc::clone(&ffmpeg),
         Contents::new(Arc::clone(&db)),
         Tracks::new(Arc::clone(&db)),
         events.clone(),
+    );
+    let load_settings = load_settings(
+        server_url.clone(),
+        segment_folder.clone(),
+        running.max_transcodes().clone(),
+        Arc::clone(&db),
     );
     let app = api::router(
         config,
@@ -176,9 +181,14 @@ pub fn serve(
     }
 }
 
-/// Reads the Server URL and the segment folder from `db`, logging a failure and going on with the
-/// default, then sweeps the segment files an earlier run left.
-async fn load_settings(server_url: ServerUrl, segment_folder: SegmentFolder, db: Arc<Database>) {
+/// Reads the Server URL, the segment folder and the Transcode cap from `db`, logging a failure and
+/// going on with the default, then sweeps the segment files an earlier run left.
+async fn load_settings(
+    server_url: ServerUrl,
+    segment_folder: SegmentFolder,
+    max_transcodes: MaxTranscodes,
+    db: Arc<Database>,
+) {
     if let Err(err) = server_url.load(&db).await {
         tracing::error!("reading the Server URL failed, so notifications have no links: {err}");
     }
@@ -186,6 +196,9 @@ async fn load_settings(server_url: ServerUrl, segment_folder: SegmentFolder, db:
         tracing::error!(
             "reading the segment folder failed, so segment files go to the default: {err}"
         );
+    }
+    if let Err(err) = max_transcodes.load(&db).await {
+        tracing::error!("reading the Transcode cap failed, so it's the default: {err}");
     }
     playback::running::sweep_leftovers(&segment_folder).await;
 }

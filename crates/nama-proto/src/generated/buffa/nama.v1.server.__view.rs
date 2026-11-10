@@ -4003,6 +4003,12 @@ pub struct PlaybackSettingsView<'a> {
     ///
     /// Field 1: `segment_folder`
     pub segment_folder: &'a str,
+    /// The most Transcodes the Server runs at once, 2 out of the box; Remuxes don't count. A plan
+    /// that only a Transcode would play is refused while that many run. 0 for none: the Server never
+    /// Transcodes.
+    ///
+    /// Field 2: `max_transcodes`
+    pub max_transcodes: u32,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for PlaybackSettingsView<'a> {
@@ -4042,6 +4048,13 @@ impl<'a> ::buffa::MessageView<'a> for PlaybackSettingsView<'a> {
                 )?;
                 view.segment_folder = ::buffa::types::borrow_str(&mut cur)?;
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.max_transcodes = ::buffa::types::decode_uint32(&mut cur)?;
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -4065,6 +4078,7 @@ impl<'a> ::buffa::MessageView<'a> for PlaybackSettingsView<'a> {
         let _ = __buffa_src;
         ::core::result::Result::Ok(super::super::PlaybackSettings {
             segment_folder: self.segment_folder.to_string(),
+            max_transcodes: self.max_transcodes,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -4081,6 +4095,10 @@ impl<'a> ::buffa::ViewEncode<'a> for PlaybackSettingsView<'a> {
                 += 1u64
                     + ::buffa::types::string_encoded_len(&self.segment_folder) as u64;
         }
+        if self.max_transcodes != 0u32 {
+            size
+                += 1u64 + ::buffa::types::uint32_encoded_len(self.max_transcodes) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -4094,6 +4112,9 @@ impl<'a> ::buffa::ViewEncode<'a> for PlaybackSettingsView<'a> {
         use ::buffa::Enumeration as _;
         if !self.segment_folder.is_empty() {
             ::buffa::types::put_string_field(1u32, &self.segment_folder, buf);
+        }
+        if self.max_transcodes != 0u32 {
+            ::buffa::types::put_uint32_field(2u32, self.max_transcodes, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -4118,6 +4139,13 @@ impl<'__a> ::serde::Serialize for PlaybackSettingsView<'__a> {
         let mut __map = __s.serialize_map(::core::option::Option::None)?;
         if !::buffa::json_helpers::skip_if::is_empty_str(self.segment_folder) {
             __map.serialize_entry("segmentFolder", self.segment_folder)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_zero_u32(&self.max_transcodes) {
+            __map
+                .serialize_entry(
+                    "maxTranscodes",
+                    &::buffa::json_helpers::ProtoJson(&self.max_transcodes),
+                )?;
         }
         __map.end()
     }
@@ -4220,6 +4248,15 @@ impl PlaybackSettingsOwnedView {
     #[must_use]
     pub fn segment_folder(&self) -> &'_ str {
         self.0.reborrow().segment_folder
+    }
+    /// The most Transcodes the Server runs at once, 2 out of the box; Remuxes don't count. A plan
+    /// that only a Transcode would play is refused while that many run. 0 for none: the Server never
+    /// Transcodes.
+    ///
+    /// Field 2: `max_transcodes`
+    #[must_use]
+    pub fn max_transcodes(&self) -> u32 {
+        self.0.reborrow().max_transcodes
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<PlaybackSettingsView<'static>>>

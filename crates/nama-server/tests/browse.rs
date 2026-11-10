@@ -288,12 +288,7 @@ impl Fixture {
         &self,
         request: PlanPlaybackRequest,
     ) -> Result<PlaybackPlan, ConnectError> {
-        let config = self.server.client_config();
-        let response = PlaybackServiceClient::new(HttpClient::plaintext(), config)
-            .plan_playback(request)
-            .await?
-            .into_owned();
-        Ok(response.plan.into_option().unwrap())
+        ask_for_plan_as(self.server.client_config(), request).await
     }
 
     /// The ids of the Versions of the Movie with the TMDB id `tmdb`, by path.
@@ -1151,11 +1146,165 @@ async fn an_h264_and_aac_mp4_direct_plays_through_its_plans_url() {
             "This Device decodes its container and Tracks",
             "This Server lacks ffmpeg or ffprobe, so it can only Direct Play",
             "Nothing has failed to play it on this Device",
-            "It plays the file's own audio Track"
+            "It plays the file's own audio Track",
+            "This Server isn't running as many Transcodes as it may at once"
         ]
     );
     let played = fetch(&fx.server, &plan.url, Some(&fx.server.admin_token)).await;
     assert_eq!(played.body, b"video");
+}
+
+/// A Server whose ffmpeg and ffprobe are shell scripts in `bin`: ffprobe reads a file whose name
+/// says 2160p as an HEVC and AAC MKV and any other as an H.264 and AAC one, and ffmpeg writes
+/// nothing until it's stopped.
+#[cfg(unix)]
+fn ffmpeg_writing_nothing(bin: &Path) -> Ffmpeg {
+    let ffprobe = r#"#!/bin/sh
+case "$*" in *2160p*) video=hevc ;; *) video=h264 ;; esac
+cat <<EOF
+{"streams": [{"codec_name": "$video", "codec_type": "video"},
+             {"codec_name": "aac", "codec_type": "audio", "disposition": {"default": 1}}],
+ "format": {"format_name": "matroska,webm"}}
+EOF
+"#;
+    Ffmpeg {
+        ffmpeg: Ok(script(bin, "ffmpeg", "#!/bin/sh\nexec sleep 600\n")),
+        ffprobe: Ok(script(bin, "ffprobe", ffprobe)),
+    }
+}
+
+/// The program `name`, the shell script `body` written to `bin`.
+#[cfg(unix)]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+fn script(bin: &Path, name: &str, body: &str) -> FoundProgram {
+    use std::os::unix::fs::PermissionsExt;
+
+    let path = bin.join(name);
+    fs::write(&path, body).unwrap();
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
+    FoundProgram {
+        path,
+        version: "7.1.1".to_owned(),
+    }
+}
+
+#[cfg(unix)]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+impl Fixture {
+    /// Starts a Server with [`ffmpeg_writing_nothing`] in `bin` that runs one Transcode at once,
+    /// and a Movies Library holding Alien in 1080p and 2160p, and returns it with the ids of those
+    /// Versions, which Chrome Remuxes and Transcodes.
+    async fn alien_with_room_for_one_transcode(bin: &Path) -> (Self, [i64; 2]) {
+        let fx = Self::start_with_ffmpeg(
+            LibraryKind::LIBRARY_KIND_MOVIES,
+            ffmpeg_writing_nothing(bin),
+        )
+        .await;
+        fx.write(ALIEN_1080P, b"video");
+        fx.write(ALIEN_2160P, b"video");
+        fx.scan_until_decided(2).await;
+        ServerServiceClient::new(HttpClient::plaintext(), fx.server.client_config())
+            .update_playback_settings(UpdatePlaybackSettingsRequest {
+                settings: PlaybackSettings {
+                    max_transcodes: 1,
+                    ..Default::default()
+                }
+                .into(),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        let versions = fx.version_ids(ALIEN).await.try_into().unwrap();
+        (fx, versions)
+    }
+
+    /// The Admin's Device's Transcode of the Version `version`.
+    async fn transcode(&self, version: i64) -> PlaybackPlan {
+        let plan = self.plan(version).await.unwrap();
+        assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_TRANSCODE);
+        plan
+    }
+}
+
+/// `who`'s Playback Plan for the Version `version`, on their own Device, which is [`chrome`].
+#[cfg(unix)]
+async fn plan_as(who: &SignedIn, version: i64) -> Result<PlaybackPlan, ConnectError> {
+    let request = PlanPlaybackRequest {
+        version_id: version,
+        device_decoding: chrome().into(),
+        ..Default::default()
+    };
+    ask_for_plan_as(who.client_config(), request).await
+}
+
+// The fake ffmpeg and ffprobe are shell scripts.
+#[cfg(unix)]
+#[tokio::test]
+async fn with_the_cap_at_1_a_second_device_that_needs_a_transcode_is_told_the_server_is_busy() {
+    let bin = tempfile::tempdir().unwrap();
+    let (fx, [_, hevc]) = Fixture::alien_with_room_for_one_transcode(bin.path()).await;
+    let bishop = fx.server.user_with_default_permissions("Bishop").await;
+    fx.transcode(hevc).await;
+
+    let planned = plan_as(&bishop, hevc).await;
+
+    let refusal = assert_refused(
+        planned,
+        ErrorCode::ResourceExhausted,
+        RefusalReason::REFUSAL_REASON_SERVER_BUSY,
+    );
+    assert_eq!(
+        refusal.params.get("maxTranscodes").map(String::as_str),
+        Some("1")
+    );
+}
+
+// The fake ffmpeg and ffprobe are shell scripts.
+#[cfg(unix)]
+#[tokio::test]
+async fn with_the_cap_full_a_device_that_plays_a_remux_gets_one_and_the_plan_says_why() {
+    let bin = tempfile::tempdir().unwrap();
+    let (fx, [h264, hevc]) = Fixture::alien_with_room_for_one_transcode(bin.path()).await;
+    let bishop = fx.server.user_with_default_permissions("Bishop").await;
+    fx.transcode(hevc).await;
+
+    let plan = plan_as(&bishop, h264).await.unwrap();
+
+    assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_REMUX);
+    assert_eq!(
+        plan.reasons.last().map(String::as_str),
+        Some(
+            "This Server is busy, running as many Transcodes as it may at once (1), so it can't \
+             Transcode it"
+        )
+    );
+}
+
+// The fake ffmpeg and ffprobe are shell scripts.
+#[cfg(unix)]
+#[tokio::test]
+async fn when_a_transcodes_session_ends_its_slot_frees_up_for_the_next() {
+    let bin = tempfile::tempdir().unwrap();
+    let (fx, [_, hevc]) = Fixture::alien_with_room_for_one_transcode(bin.path()).await;
+    let bishop = fx.server.user_with_default_permissions("Bishop").await;
+    let admins = fx.transcode(hevc).await;
+
+    PlaybackServiceClient::new(HttpClient::plaintext(), fx.server.client_config())
+        .stop_playback(StopPlaybackRequest {
+            plan_id: admins.id,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    let plan = plan_as(&bishop, hevc).await.unwrap();
+    assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_TRANSCODE);
 }
 
 // ADR 0026.
@@ -1176,7 +1325,8 @@ async fn without_ffprobe_a_version_direct_plays_and_its_plan_says_its_tracks_are
             "Its Tracks aren't known, so this Device is taken to decode them",
             "This Server lacks ffmpeg or ffprobe, so it can only Direct Play",
             "Nothing has failed to play it on this Device",
-            "It plays the file's own audio Track"
+            "It plays the file's own audio Track",
+            "This Server isn't running as many Transcodes as it may at once"
         ]
     );
 }
@@ -1252,6 +1402,22 @@ fn chrome() -> DeviceDecoding {
         mse: true,
         ..Default::default()
     }
+}
+
+/// The Playback Plan `request` asks for, asked as `who`.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn ask_for_plan_as(
+    who: ClientConfig,
+    request: PlanPlaybackRequest,
+) -> Result<PlaybackPlan, ConnectError> {
+    let response = PlaybackServiceClient::new(HttpClient::plaintext(), who)
+        .plan_playback(request)
+        .await?
+        .into_owned();
+    Ok(response.plan.into_option().unwrap())
 }
 
 /// The ffmpeg and ffprobe on `PATH`, which these tests need.
