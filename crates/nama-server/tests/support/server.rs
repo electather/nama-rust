@@ -3,7 +3,13 @@
 #[path = "tmdb.rs"]
 pub(crate) mod tmdb;
 
-use std::{net::SocketAddr, path::Path, sync::Arc, time::Duration};
+use std::{
+    fs,
+    net::SocketAddr,
+    path::{Path, PathBuf},
+    sync::Arc,
+    time::Duration,
+};
 
 use connectrpc::{
     ConnectError,
@@ -12,8 +18,9 @@ use connectrpc::{
 use nama_plugin_local_auth::LocalAuth;
 use nama_plugin_tmdb::testing::FakeTmdb;
 use nama_proto::nama::v1::{
-    __buffa::view::SubscribeResponseView, CreateUserRequest, EventServiceClient, EventType,
-    Permission, SessionDelivery, SetPermissionsRequest, SetupRequest, SignInRequest,
+    __buffa::view::SubscribeResponseView, CreateLibraryRequest, CreateUserRequest,
+    EventServiceClient, EventType, LibraryKind, LibraryServiceClient, Permission,
+    ScanLibraryRequest, SessionDelivery, SetPermissionsRequest, SetupRequest, SignInRequest,
     SignInServiceClient, SubscribeRequest, SubscribeResponse, UserServiceClient, event,
     subscribe_response,
 };
@@ -220,6 +227,86 @@ impl TestServer {
         self.sign_in(id, name).await
     }
 
+    /// Creates a Library of `kind` as the Admin, over a fresh folder holding stand-in videos at
+    /// `files`, and starts scanning it without waiting for the scan.
+    pub(crate) async fn library(&self, kind: LibraryKind, files: &[&str]) -> Library {
+        let library = self.create_library(kind, files).await;
+        self.scan(library.id).await;
+        library
+    }
+
+    /// [`Self::library`], returning once one Item per file has Matched. Every file must Match:
+    /// an Unmatched decision sends no event, so a test expecting one waits for it on its own.
+    pub(crate) async fn matched_library(&self, kind: LibraryKind, files: &[&str]) -> Library {
+        let library = self.create_library(kind, files).await;
+        let only = SubscribeRequest {
+            types: vec![EventType::EVENT_TYPE_ITEM_MATCHED.into()],
+            library_ids: vec![library.id],
+            ..Default::default()
+        };
+        // Matching runs after the scan's `ScanFinished`, so only its own events say it's done.
+        // shortcut: counts one event per file, so a file holding several Episodes returns early;
+        // count Items once a test needs every Episode of such a file Matched.
+        let mut matched = subscribe_with(&self.client_config(), only).await;
+        self.scan(library.id).await;
+        for _ in files {
+            matched.next().await;
+        }
+        library
+    }
+
+    /// [`Self::library`] without the scan, for a test that watches or times the scan itself.
+    #[expect(
+        clippy::unwrap_used,
+        reason = "a test helper fails its test by panicking"
+    )]
+    pub(crate) async fn create_library(&self, kind: LibraryKind, files: &[&str]) -> Library {
+        let dir = tempfile::tempdir().unwrap();
+        // The Server stores and sends a folder's canonical path, which a temp dir's may not be.
+        let folder = dir.path().canonicalize().unwrap();
+        let id = self
+            .libraries()
+            .create_library(CreateLibraryRequest {
+                name: "Media".to_owned(),
+                kind: kind.into(),
+                folders: vec![folder.to_str().unwrap().to_owned()],
+                ..Default::default()
+            })
+            .await
+            .unwrap()
+            .into_owned()
+            .library
+            .into_option()
+            .unwrap()
+            .id;
+        let library = Library {
+            id,
+            folder,
+            _dir: dir,
+        };
+        library.add(files);
+        library
+    }
+
+    /// Starts scanning the Library `id` as the Admin, without waiting for the scan.
+    #[expect(
+        clippy::unwrap_used,
+        reason = "a test helper fails its test by panicking"
+    )]
+    pub(crate) async fn scan(&self, id: i64) {
+        self.libraries()
+            .scan_library(ScanLibraryRequest {
+                id,
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+    }
+
+    fn libraries(&self) -> LibraryServiceClient<HttpClient> {
+        LibraryServiceClient::new(HttpClient::plaintext(), self.client_config())
+    }
+
     fn users(&self) -> UserServiceClient<HttpClient> {
         UserServiceClient::new(HttpClient::plaintext(), self.client_config())
     }
@@ -266,6 +353,47 @@ impl TestServer {
             client_config: self.client_config_as(&token),
             token,
         }
+    }
+}
+
+/// A Library a test made, over a folder of its own that lives as long as the Library does.
+pub(crate) struct Library {
+    pub(crate) id: i64,
+    folder: PathBuf,
+    _dir: TempDir,
+}
+
+impl Library {
+    /// The Library's folder, as the Server stores it.
+    pub(crate) fn folder(&self) -> &Path {
+        &self.folder
+    }
+
+    /// The absolute path of the file at `relative` in the Library's folder, as the Server sends it.
+    #[expect(
+        clippy::unwrap_used,
+        reason = "a test helper fails its test by panicking"
+    )]
+    pub(crate) fn path(&self, relative: &str) -> String {
+        self.folder.join(relative).to_str().unwrap().to_owned()
+    }
+
+    /// Writes stand-in videos at `files`, relative to the Library's folder.
+    pub(crate) fn add(&self, files: &[&str]) {
+        for file in files {
+            self.write(file, b"video");
+        }
+    }
+
+    /// Writes `contents` to the file at `relative`, creating the folders it is in.
+    #[expect(
+        clippy::unwrap_used,
+        reason = "a test helper fails its test by panicking"
+    )]
+    pub(crate) fn write(&self, relative: &str, contents: &[u8]) {
+        let path = self.folder.join(relative);
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(path, contents).unwrap();
     }
 }
 
