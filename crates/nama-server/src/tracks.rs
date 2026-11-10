@@ -72,6 +72,7 @@ impl LastingReason {
 /// Why ffprobe couldn't read a file this time, as `probe_failures.reason` stores it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum PassingReason {
+    /// ffprobe ran past its timeout, as on a slow or unmounted share or a busy disk.
     TimedOut,
 }
 
@@ -207,9 +208,9 @@ impl Tracks {
     }
 
     /// Those of `files` the current [`PROBE_VERSION`] read, or failed to read for a
-    /// [`LastingReason`] or [`PROBE_ATTEMPTS`] times at the current [`PROBE_FAILURE_VERSION`], at the size and
-    /// modified time `Contents` stores for the file now, which the probe pass skips. A failed one
-    /// has no Tracks, so [`Self::of`] leaves it out.
+    /// [`LastingReason`] or [`PROBE_ATTEMPTS`] times at the current [`PROBE_FAILURE_VERSION`], at
+    /// the size and modified time `Contents` stores for the file now, which the probe pass skips.
+    /// A failed one has no Tracks, so [`Self::of`] leaves it out.
     pub(crate) async fn current(&self, files: &[Stored]) -> Result<HashSet<i64>, sqlx::Error> {
         let versions: Vec<i64> = files.iter().map(|file| file.id).collect();
         let versions = json_array(&versions);
