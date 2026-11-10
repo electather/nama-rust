@@ -20,7 +20,7 @@ import {
   PlaybackPlanSchema,
   PlaybackService,
 } from "@/gen/nama/v1/playback_pb";
-import { findDeviceDecoding } from "@/lib/device-decoding";
+import { findDeviceDecoding, playsHlsNatively } from "@/lib/device-decoding";
 import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
 
 /** How long the controls stay after the pointer or keyboard was last used, while playing. */
@@ -62,9 +62,7 @@ export function usePlaybackSource(
   { url, method }: Pick<PlaybackPlan, "url" | "method">,
   onCantPlay: () => void,
 ) {
-  const throughHlsJs =
-    method !== PlaybackMethod.DIRECT_PLAY &&
-    document.createElement("video").canPlayType("application/vnd.apple.mpegurl") === "";
+  const throughHlsJs = method !== PlaybackMethod.DIRECT_PLAY && !playsHlsNatively();
   useEffect(() => {
     const video = videoRef.current;
     return throughHlsJs && video ? playThroughHlsJs(video, url, onCantPlay) : undefined;

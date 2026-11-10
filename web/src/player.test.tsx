@@ -11,6 +11,8 @@ import {
   PlaybackService,
 } from "@/gen/nama/v1/playback_pb";
 
+import type { WatchStateSchema } from "@/gen/nama/v1/watch_state_pb";
+
 import { fakeServer, newUser, openApp } from "./test-app";
 
 /** What each hls.js player was given: the playlist it loads and the `<video>` it plays in. */
@@ -62,9 +64,13 @@ const remux: Planned = () => ({
 /**
  * A Server whose Library 1 has The Matrix in three Versions, the largest being Version 8, and
  * whose plans are `planned`'s, by default Direct Playing each from an address of its own with
- * `plannedTracks`. Each plan request goes in `asked`.
+ * `plannedTracks`. Each plan request goes in `asked`. The Movie's Watch State is `watchState`.
  */
-const serverPlanning = (planned = directPlay, asked: PlanPlaybackRequest[] = []) =>
+const serverPlanning = (
+  planned = directPlay,
+  asked: PlanPlaybackRequest[] = [],
+  watchState?: MessageInitShape<typeof WatchStateSchema>,
+) =>
   fakeServer({ signedIn: newUser, libraries }, {}, {}, (router) => {
     router.service(PlaybackService, {
       planPlayback: (request) => {
@@ -77,6 +83,7 @@ const serverPlanning = (planned = directPlay, asked: PlanPlaybackRequest[] = [])
         movie: {
           id: { id: { case: "tmdb", value: 603n } },
           title: "The Matrix",
+          watchState,
           versions: [
             { id: 7n, fileName: "The Matrix (1999) 720p.mkv", size: 2_000_000_000n },
             { id: 8n, fileName: "The Matrix (1999) 2160p.mkv", size: 40_000_000_000n },
@@ -147,6 +154,29 @@ test("a Remux plays its HLS playlist through hls.js in a browser without HLS of 
     expect(hlsJs.played).toEqual([{ url: "/media/plans/0/index.m3u8", video }]);
   });
   expect(video.getAttribute("src")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Playback info" }));
+  const panel = within(screen.getByRole("region", { name: "Playback info" }));
+  expect(panel.getByText("Remux")).toBeDefined();
+  expect(
+    panel.getByText(
+      "This Device can't decode its Matroska container, so it can't be Direct Played",
+    ),
+  ).toBeDefined();
+});
+
+// The playlist lists the whole Version from its start, so a Remux's time is the file's.
+test("a Remux resumes from the Watch State's point in the file", async () => {
+  const watchState = { positionMs: 600_000n, durationMs: 7_000_000n };
+  openApp("/libraries/1/movies/tmdb-603/play", serverPlanning(remux, [], watchState));
+  const video = await screen.findByLabelText<HTMLVideoElement>("The Matrix");
+  await waitFor(() => {
+    expect(hlsJs.played).toHaveLength(1);
+  });
+
+  Object.defineProperty(video, "duration", { value: 7000 });
+  fireEvent(video, new Event("loadedmetadata"));
+
+  expect(video.currentTime).toBe(600);
 });
 
 test("a Remux plays its HLS playlist natively in a browser with HLS of its own", async () => {
