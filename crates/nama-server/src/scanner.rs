@@ -101,7 +101,7 @@ impl From<matching::Error> for Error {
     }
 }
 
-/// Why probing a Version found nothing.
+/// Why probing a Version right away failed.
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum ProbeNowError {
     /// ffprobe couldn't read it, or the Server has no ffprobe ([`ProbeError::Unavailable`]).
@@ -330,7 +330,8 @@ impl Scanner {
 
     /// Probes the Version `version` now, without waiting for a background pass to reach it, and
     /// stores and returns what it holds. If something is probing it already, waits for that and
-    /// returns what it stored instead; if it has been probed, returns what was stored.
+    /// returns what it stored instead, or probes it itself if that stored nothing; if it has been
+    /// probed, returns what was stored.
     #[cfg_attr(
         not(test),
         expect(
@@ -341,6 +342,8 @@ impl Scanner {
     pub(crate) async fn probe_now(&self, version: i64) -> Result<Probe, ProbeNowError> {
         let path = (self.inner.contents.version_path(version).await?)
             .ok_or(ProbeNowError::NoSuchVersion(version))?;
+        // ponytail: not held to PROBES_AT_ONCE, so a play press never queues; limit it apart if
+        // many at once swamp the disk.
         let claim = self.claim(version).await;
         self.probe_claimed(&path, &claim).await
     }
@@ -388,7 +391,7 @@ impl Scanner {
         match self.probe_claimed(&path, &claim).await {
             Ok(_) => {}
             Err(ProbeNowError::Database(err)) => {
-                tracing::error!("could not store what {path} holds: {err}");
+                tracing::error!("could not read or store what {path} holds: {err}");
             }
             Err(err) => tracing::warn!("could not probe {path}: {err}"),
         }
