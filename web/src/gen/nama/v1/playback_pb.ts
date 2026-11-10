@@ -73,9 +73,10 @@ export type PlanPlaybackRequest = Message<"nama.v1.PlanPlaybackRequest"> & {
   audioTrack?: number | undefined;
 
   /**
-   * The subtitle Track the caller chose to burn into the picture, which makes the plan a
-   * Transcode, by its place in the Version's `tracks`, counting from 0. Unset for none, as when
-   * the player shows a text subtitle from `PlaybackPlan.subtitles` itself.
+   * The subtitle Track the caller chose to burn into the picture, an image one such as PGS or an
+   * ASS or SSA one with its styling, which makes the plan a Transcode, by its place in the
+   * Version's `tracks`, counting from 0. Unset for none, as when the player shows a text subtitle
+   * from `PlaybackPlan.subtitles` itself.
    *
    * @generated from field: optional uint32 subtitle_track = 4;
    */

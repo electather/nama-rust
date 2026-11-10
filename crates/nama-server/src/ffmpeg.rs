@@ -432,7 +432,7 @@ fn transcoded_video(
                 .map(str::to_owned)
                 .into();
         }
-        // shortcut: assumes ffmpeg has libass, as it does libx264 (#446). Each run reads the
+        // ponytail: assumes ffmpeg has libass, as it does libx264 (#446). Each run reads the
         // whole file for the subtitle first, attached fonts and all; read it once into the
         // subtitle cache instead if seeking in a styled subtitle's Transcode is too slow.
         Some(BurnIn::Text { subtitle }) => Some(format!(

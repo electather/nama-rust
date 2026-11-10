@@ -510,9 +510,10 @@ pub struct PlanPlaybackRequestView<'a> {
     ///
     /// Field 3: `audio_track`
     pub audio_track: ::core::option::Option<u32>,
-    /// The subtitle Track the caller chose to burn into the picture, which makes the plan a
-    /// Transcode, by its place in the Version's `tracks`, counting from 0. Unset for none, as when
-    /// the player shows a text subtitle from `PlaybackPlan.subtitles` itself.
+    /// The subtitle Track the caller chose to burn into the picture, an image one such as PGS or an
+    /// ASS or SSA one with its styling, which makes the plan a Transcode, by its place in the
+    /// Version's `tracks`, counting from 0. Unset for none, as when the player shows a text subtitle
+    /// from `PlaybackPlan.subtitles` itself.
     ///
     /// Field 4: `subtitle_track`
     pub subtitle_track: ::core::option::Option<u32>,
@@ -969,9 +970,10 @@ impl PlanPlaybackRequestOwnedView {
     pub fn audio_track(&self) -> ::core::option::Option<u32> {
         self.0.reborrow().audio_track
     }
-    /// The subtitle Track the caller chose to burn into the picture, which makes the plan a
-    /// Transcode, by its place in the Version's `tracks`, counting from 0. Unset for none, as when
-    /// the player shows a text subtitle from `PlaybackPlan.subtitles` itself.
+    /// The subtitle Track the caller chose to burn into the picture, an image one such as PGS or an
+    /// ASS or SSA one with its styling, which makes the plan a Transcode, by its place in the
+    /// Version's `tracks`, counting from 0. Unset for none, as when the player shows a text subtitle
+    /// from `PlaybackPlan.subtitles` itself.
     ///
     /// Field 4: `subtitle_track`
     #[must_use]

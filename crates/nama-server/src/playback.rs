@@ -136,8 +136,9 @@ impl DeviceDecoding {
 /// Plans playing the Version `version` on `caller`'s Device, which decodes `decoding`, by any
 /// method but those that just `failed` there, with the audio Track at the place `audio` in the
 /// Version's Tracks, or else its own, within the Playback Limit `limit`, `None` being Original,
-/// with the subtitle Track at the place `subtitle` burned into the picture, if any, probing the Version first unless its Tracks are current, and keeps a playable plan in
-/// `running`, which starts its ffmpeg if it needs one. `None` if there is no such Version, and
+/// with the subtitle Track at the place `subtitle` burned into the picture, if any, probing the
+/// Version first unless its Tracks are current, and keeps a playable plan in `running`, which
+/// starts its ffmpeg if it needs one. `None` if there is no such Version, and
 /// [`StartError::Busy`] if only a Transcode would play it and the Server is running as many as it
 /// may.
 #[expect(
@@ -538,9 +539,9 @@ fn chosen_subtitle(facts: &Facts) -> Narrowing {
     }
 }
 
-/// How a Transcode burns in the subtitle Track the User chose, if ffmpeg draws it: an image one,
-/// such as PGS, or a text one, such as ASS with its styling. Any other choice, as when the Version
-/// changed since the User saw it, is the same as none.
+/// How a Transcode burns in the subtitle Track the User chose, if it's one a browser can't show as
+/// it should: an image one, such as PGS, or ASS or SSA, with its styling. Any other choice, as when
+/// the Version changed since the User saw it, is the same as none.
 fn burn_in(facts: &Facts) -> Option<BurnIn> {
     let probe = facts.probe.as_ref()?;
     let place = facts.subtitle?;
@@ -551,7 +552,9 @@ fn burn_in(facts: &Facts) -> Option<BurnIn> {
             subtitle,
             picture: picture(facts),
         }),
-        _ if track.is_text_subtitle() => Some(BurnIn::Text { subtitle }),
+        TrackKind::Subtitle { image: false } if matches!(track.codec.as_str(), "ass" | "ssa") => {
+            Some(BurnIn::Text { subtitle })
+        }
         TrackKind::Video { .. } | TrackKind::Audio { .. } | TrackKind::Subtitle { .. } => None,
     }
 }
@@ -1770,10 +1773,10 @@ mod tests {
     }
 
     #[test]
-    fn a_subtitle_choice_that_isnt_a_subtitle_ffmpeg_draws_burns_nothing_in() {
+    fn a_subtitle_choice_that_isnt_an_image_or_ass_subtitle_burns_nothing_in() {
         let teletext = track("dvb_teletext", false, TrackKind::Subtitle { image: false });
-        let tracks = vec![video("h264"), audio("aac", true), teletext];
-        for chosen in [None, Some(1), Some(2), Some(9)] {
+        let tracks = vec![video("h264"), audio("aac", true), teletext, subtitle()];
+        for chosen in [None, Some(1), Some(2), Some(3), Some(9)] {
             let facts = Facts {
                 subtitle: chosen,
                 ..facts(Some(tracks.clone()))

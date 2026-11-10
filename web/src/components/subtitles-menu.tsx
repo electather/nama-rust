@@ -70,7 +70,7 @@ export function SubtitlesMenu({
         >
           <DropdownMenuRadioItem value="">Off</DropdownMenuRadioItem>
           {subtitles.map(({ track, url }) => (
-            <SubtitleItem key={url} track={track} value={url} more={stateText(states[url])} />
+            <SubtitleItem key={url} track={track} value={url} note={stateText(states[url])} />
           ))}
           {burnable.map((place) => (
             <BurnInItem key={place} track={tracks[place]} place={place} />
@@ -104,22 +104,22 @@ function stateText(state: SubtitleState | undefined) {
 /** The item burning in `track`, at `place` in the Version's Tracks. */
 function BurnInItem({ track, place }: { track: Track | undefined; place: number }) {
   // An image one has no styling to tell it from.
-  const more = isImageSubtitle(track) ? "" : "With styling";
-  return <SubtitleItem track={track} value={place} more={more} />;
+  const note = isImageSubtitle(track) ? "" : "With styling";
+  return <SubtitleItem track={track} value={place} note={note} />;
 }
 
-/** `track`'s item, choosing `value`, with `more` said after its details. */
+/** `track`'s item, choosing `value`, with `note` said after its details. */
 function SubtitleItem({
   track,
   value,
-  more: after,
+  note,
 }: {
   track: Track | undefined;
   value: SubtitleChoice;
-  more: string;
+  note: string;
 }) {
   const { name, details } = trackLabel(track);
-  const more = [details, after].filter((text) => text !== "").join(" · ");
+  const more = [details, note].filter((text) => text !== "").join(" · ");
   return (
     <DropdownMenuRadioItem value={value}>
       {name}
