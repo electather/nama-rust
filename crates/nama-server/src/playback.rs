@@ -901,8 +901,7 @@ mod tests {
     }
 
     #[test]
-    fn the_plan_offers_the_text_subtitles_by_their_place_in_the_version_but_not_image_or_teletext()
-    {
+    fn a_direct_play_or_remux_offers_the_text_subtitles_by_their_place_but_not_image_or_teletext() {
         let english = track("subrip", false, TrackKind::Subtitle { image: false });
         let pgs = track(
             "hdmv_pgs_subtitle",
@@ -923,21 +922,23 @@ mod tests {
             french.clone(),
         ];
 
-        let plan = build(&facts(Some(tracks)), &STEPS);
+        let offered = [
+            Subtitle {
+                track: english,
+                url: "/media/versions/7/subtitles/1".to_owned(),
+            },
+            Subtitle {
+                track: french,
+                url: "/media/versions/7/subtitles/5".to_owned(),
+            },
+        ];
 
-        assert_eq!(
-            plan.subtitles,
-            [
-                Subtitle {
-                    track: english,
-                    url: "/media/versions/7/subtitles/1".to_owned(),
-                },
-                Subtitle {
-                    track: french,
-                    url: "/media/versions/7/subtitles/5".to_owned(),
-                },
-            ]
-        );
+        for (container, method) in [(MP4, Method::DirectPlay), (MKV, Method::Remux)] {
+            let plan = build(&in_container(container, Some(tracks.clone())), &STEPS);
+
+            assert_eq!(plan.method, Some(method), "{container}");
+            assert_eq!(plan.subtitles, offered, "{container}");
+        }
     }
 
     #[test]
