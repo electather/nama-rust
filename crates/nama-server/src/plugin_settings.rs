@@ -409,11 +409,12 @@ impl PluginSettings {
             let _changing = this.lock().await;
             let settings = this.listed(&id).await?.stored.settings;
             match this.registry.enable_by_id(&id, Settings::new(settings)) {
-                // Queued even if it was running, so enabling it again retries a failed hand-off.
-                Ok(()) | Err(EnableError::AlreadyEnabled(_)) => this.queue_came_up(&id),
+                Ok(()) | Err(EnableError::AlreadyEnabled(_)) => {}
                 Err(err) => return Err(ChangeError::Enable(err)),
             }
             set_enabled(&this.db, id.as_str(), true).await?;
+            // Queued even if it was running, so enabling it again retries a failed hand-off.
+            this.queue_came_up(&id);
             Ok(())
         })
         .await
