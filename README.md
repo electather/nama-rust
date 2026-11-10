@@ -39,7 +39,7 @@ Approved Movie Requests go to Radarr through the Radarr Plugin ([`plugins/radarr
 
 ## Docker
 
-Each release, prereleases aside, is also a Docker image for amd64 and arm64, `ghcr.io/electather/nama-server`, with [jellyfin-ffmpeg](https://github.com/jellyfin/jellyfin-ffmpeg) as its ffmpeg and ffprobe, the easiest way to get hardware Transcoding. It runs as user 1000, keeps its state in `/data`, and reads `/data/nama.toml` if there is one. Mount each Library's folder and give the Library the path inside the container:
+Each release, prereleases aside, is also a Docker image for amd64 and arm64, `ghcr.io/electather/nama-server`, with [jellyfin-ffmpeg](https://github.com/jellyfin/jellyfin-ffmpeg) as its ffmpeg and ffprobe, the easiest way to get hardware Transcoding. It runs as user 1000, keeps its state in `/data`, and reads `/data/nama.toml` if there is one. The image sets `data_dir`, `ffmpeg` and `ffprobe` through `NAMA_*` variables, which beat that file, so change those with `-e`. Mount each Library's folder and give the Library the path inside the container:
 
 ```sh
 docker run -d --name nama -p 7980:7980 \
