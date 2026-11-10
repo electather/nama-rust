@@ -18,9 +18,9 @@
 //! Tracks, never probed or changed or read by an older probe version since, are probed in the
 //! background, a few at a time, and their Tracks stored (see [`crate::tracks`]), without holding
 //! up the next scan. A file ffprobe couldn't read is skipped the same way until it changes, as
-//! probing it again would fail again, unless it failed for a passing reason such as a timeout. A
-//! Version can also be probed right away ([`Scanner::probe_now`]), which waits for a background
-//! probe of it rather than probe it twice.
+//! probing it again would fail again. One that failed for a passing reason, such as a timeout,
+//! is tried again on the next few passes first. A Version can also be probed right away
+//! ([`Scanner::probe_now`]), which waits for a background probe of it rather than probe it twice.
 
 mod names;
 
@@ -657,7 +657,7 @@ mod tests {
         playback::{self, running::RunningPlans},
         plugins::Registry,
         server_settings::{SegmentFolder, ServerUrl},
-        tracks::{Hdr, PROBE_VERSION, Probe, Track, TrackKind, Tracks},
+        tracks::{Hdr, PROBE_ATTEMPTS, PROBE_VERSION, Probe, Track, TrackKind, Tracks},
         users::{Caller, Device, Permissions, User},
     };
 
@@ -1707,5 +1707,35 @@ echo '{{"format": {{"format_name": "matroska,webm"}}, "streams": [{{"codec_type"
 
         assert_eq!(media.channels(alien).await, Some(10));
         assert_eq!(media.tracks.failure_reason_of(version).await, None);
+    }
+
+    // The fake ffprobe is a shell script.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_file_that_keeps_failing_for_a_passing_reason_is_given_up_on() {
+        let bin = tempfile::tempdir().unwrap();
+        let ffmpeg = counting_ffprobe(bin.path());
+        let ffprobe = bin.path().join("ffprobe");
+        let script = fs::read(&ffprobe).unwrap();
+        let media = Fixture::with_ffmpeg(Kind::Movies, ffmpeg).await;
+        let alien = "Alien (1979)/Alien (1979).mkv";
+        media.write(alien, 10);
+        fs::remove_file(&ffprobe).unwrap();
+        for _ in 0..PROBE_ATTEMPTS {
+            media.scan_and_probe().await;
+        }
+        fs::write(&ffprobe, script).unwrap();
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(&ffprobe, fs::Permissions::from_mode(0o755)).unwrap();
+        }
+
+        media.scan_and_probe().await;
+        assert_eq!(probe_runs(bin.path()), 0, "probed after too many attempts");
+
+        let version = media.file_id(alien).await;
+        media.tracks.failed_by_older_failure_version(version).await;
+        media.scan_and_probe().await;
+        assert_eq!(media.channels(alien).await, Some(10));
     }
 }

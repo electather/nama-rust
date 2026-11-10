@@ -28,6 +28,11 @@ pub(crate) const PROBE_VERSION: i64 = 3;
 /// [`PROBE_VERSION`] bump retries them too.
 pub(crate) const PROBE_FAILURE_VERSION: i64 = 1;
 
+/// How many times in a row the probe pass tries a file that fails for a passing reason, such as a
+/// timeout, before it skips it like a lasting failure. A file that timed out once may well again,
+/// and each try can hold a probe slot for the whole timeout.
+pub(crate) const PROBE_ATTEMPTS: i64 = 3;
+
 /// What probing a Version found.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Probe {
@@ -115,9 +120,9 @@ impl Tracks {
     }
 
     /// Those of `files` the current [`PROBE_VERSION`] read, or failed to read for a lasting reason
-    /// at the current [`PROBE_FAILURE_VERSION`], at the size and modified time `Contents` stores
-    /// for the file now, which the probe pass skips. A failed one has no Tracks, so [`Self::of`]
-    /// leaves it out.
+    /// or [`PROBE_ATTEMPTS`] times at the current [`PROBE_FAILURE_VERSION`], at the size and
+    /// modified time `Contents` stores for the file now, which the probe pass skips. A failed one
+    /// has no Tracks, so [`Self::of`] leaves it out.
     pub(crate) async fn current(&self, files: &[Stored]) -> Result<HashSet<i64>, sqlx::Error> {
         let versions: Vec<i64> = files.iter().map(|file| file.id).collect();
         let versions = json_array(&versions);
@@ -128,11 +133,12 @@ impl Tracks {
                UNION ALL
                SELECT version_id, size, modified_ns FROM probe_failures
                WHERE probe_version = ?1 AND failure_version = ?3
-                 AND reason IN ('failed', 'unreadable_output')
+                 AND (reason IN ('failed', 'unreadable_output') OR attempts >= ?4)
                  AND version_id IN (SELECT value FROM json_each(?2))"#,
             PROBE_VERSION,
             versions,
-            PROBE_FAILURE_VERSION
+            PROBE_FAILURE_VERSION,
+            PROBE_ATTEMPTS
         )
         .fetch_all(self.db.reader())
         .await?
@@ -160,8 +166,9 @@ impl Tracks {
     /// Stores that the current [`PROBE_VERSION`] couldn't read the Version `version` at its stored
     /// size and modified time, and why (`err`). For a lasting reason, the probe pass skips it until
     /// one of them or [`PROBE_FAILURE_VERSION`] changes; for a passing one, such as a timeout, it
-    /// tries again next pass. Forgets what probing found in it before, so Tracks read from what
-    /// the file held then don't outlive it. A Version removed since stores nothing.
+    /// tries again next pass, until it has failed [`PROBE_ATTEMPTS`] times in a row. Forgets what
+    /// probing found in it before, so Tracks read from what the file held then don't outlive it. A
+    /// Version removed since stores nothing.
     pub(crate) async fn store_failure(
         &self,
         version: Stored,
@@ -179,10 +186,23 @@ impl Tracks {
                     .execute(&mut **tx)
                     .await?;
                     sqlx::query!(
-                        "INSERT OR REPLACE INTO probe_failures
+                        // SET reads the row as it was, so `attempts` counts on only when the
+                        // file and versions it failed at before are the same.
+                        "INSERT INTO probe_failures
                              (version_id, reason, probe_version, failure_version, size,
-                              modified_ns)
-                         VALUES (?, ?, ?, ?, ?, ?)",
+                              modified_ns, attempts)
+                         VALUES (?, ?, ?, ?, ?, ?, 1)
+                         ON CONFLICT (version_id) DO UPDATE SET
+                             attempts = CASE
+                                 WHEN (probe_version, failure_version, size, modified_ns)
+                                    = (excluded.probe_version, excluded.failure_version,
+                                       excluded.size, excluded.modified_ns)
+                                 THEN attempts + 1 ELSE 1 END,
+                             reason = excluded.reason,
+                             probe_version = excluded.probe_version,
+                             failure_version = excluded.failure_version,
+                             size = excluded.size,
+                             modified_ns = excluded.modified_ns",
                         version.id,
                         reason,
                         PROBE_VERSION,
