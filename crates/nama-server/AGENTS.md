@@ -9,6 +9,7 @@
 - **One owner for Plugin changes.** Outside tests, only `src/plugin_settings.rs` enables or disables a Plugin or saves its settings, under its one lock and in ADR 0028's order. Handlers and tasks ask `PluginSettings`; they don't call `Registry::enable_by_id` or `Registry::disable`.
 - **Query data.** After changing a `sqlx::query!` or anything in `migrations/`, regenerate `.sqlx/` at the workspace root and commit it (commands in `README.md`).
 - **Name parser version.** A change to how names are parsed or how Matching decides that could turn an Unmatched Item into a Match bumps `PARSER_VERSION` in `src/scanner/names.rs`, so the next scan parses stored files again and retries their automatic Unmatched decisions (ADR 0023).
+- **Probe version.** A change to what probing reads from a file, or how, bumps `PROBE_VERSION` in `src/tracks.rs`, so the next pass after a scan probes every file again (ADR 0023's pattern).
 - **Whole-Library reads.** Browse reads a Library's whole contents even to find one title. Each such read is marked `// ponytail: whole-Library read`; query by id there once Libraries get big.
 
 ### Security
