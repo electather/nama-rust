@@ -162,13 +162,15 @@ impl RunningPlans {
     }
 
     /// Starts Remuxing the Version `version`, which probing found holds `probe`, for the Device
-    /// `device`, and returns its playlist's URL. Lists the Version's keyframes the first time
-    /// and keeps them. `None` if there is no such Version.
+    /// `device`, with its audio converted to AAC with `aac_channels` channels, or else copied,
+    /// and returns its playlist's URL. Lists the Version's keyframes the first time and keeps
+    /// them. `None` if there is no such Version.
     pub(crate) async fn remux(
         &self,
         version: i64,
         device: i64,
         probe: &Probe,
+        aac_channels: Option<i64>,
     ) -> Result<Option<String>, StartError> {
         let Some((path, _)) = self.inner.contents.version_file(version).await? else {
             return Ok(None);
@@ -177,7 +179,7 @@ impl RunningPlans {
         let timeline = Timeline::new(keyframes, probe.duration_ms.unwrap_or_default());
         let audio = played_audio(probe);
         let ffmpeg = Arc::clone(&self.inner.ffmpeg);
-        let run = move |dir: &Path, from| ffmpeg.remux(&path, audio, dir, from);
+        let run = move |dir: &Path, from| ffmpeg.remux(&path, audio, aac_channels, dir, from);
         let id = self
             .start(device, Method::Remux, timeline, Box::new(run))
             .await?;

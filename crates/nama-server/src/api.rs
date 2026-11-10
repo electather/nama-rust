@@ -89,7 +89,7 @@ use crate::{
     config::Config,
     connections::{self, Connections},
     contents::{Contents, Episode, Item, MatchedTo, Metadata, Movie, Show, Unmatched, Version},
-    db::{Database, now},
+    db::{Database, detached, now},
     events::{EventBus, Filter},
     ffmpeg::{self, Ffmpeg},
     forwarded::{RequestSource, identify_source},
@@ -130,6 +130,7 @@ pub(crate) fn router(
     server_url: ServerUrl,
     setup_code: Option<SetupCode>,
     ffmpeg: Arc<Ffmpeg>,
+    subtitles: playback::subtitles::Cache,
 ) -> axum::Router {
     let plugins = plugin_settings.registry().clone();
     let users = Users::new(Arc::clone(&db), plugins.clone());
@@ -146,7 +147,7 @@ pub(crate) fn router(
         contents,
         Tracks::new(Arc::clone(&db)),
         Arc::clone(&ffmpeg),
-        &config.data_dir,
+        subtitles,
     )
     .merge(playback::running::router(running.clone()));
     let browse = Browse::new(Arc::clone(&db));
@@ -879,7 +880,14 @@ impl LibraryService for LibraryServiceHandler {
         _ctx: RequestContext,
         request: ServiceRequest<'_, DeleteLibraryRequest>,
     ) -> ServiceResult<DeleteLibraryResponse> {
-        self.libraries.delete(request.id).await?;
+        let (libraries, scanner, id) = (self.libraries.clone(), self.scanner.clone(), request.id);
+        // The delete commits even if the caller stops waiting, so its cleanup must follow (ADR 0029).
+        detached(async move {
+            libraries.delete(id).await?;
+            scanner.clean_subtitles().await;
+            Ok::<_, libraries::Error>(())
+        })
+        .await?;
         Response::ok(DeleteLibraryResponse::default())
     }
 
@@ -1257,6 +1265,7 @@ impl PlaybackService for PlaybackServiceHandler {
             content_types: decoding.content_types,
             hdr: decoding.hdr,
             hls: decoding.native_hls || decoding.mse,
+            audio_channels: decoding.audio_channels,
         };
         let failed = (request.failed_methods.iter())
             .filter_map(|method| method_from_proto(*method))

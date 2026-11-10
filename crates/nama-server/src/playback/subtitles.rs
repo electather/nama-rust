@@ -12,9 +12,10 @@
 //! RPC), which, like the Version itself, is served to anyone with a session.
 
 use std::{
+    collections::{HashMap, HashSet},
     io,
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{Arc, Mutex, MutexGuard, PoisonError},
 };
 
 use axum::{
@@ -29,9 +30,9 @@ mod ass;
 
 use crate::{
     artwork::write_atomically,
-    contents::Contents,
+    contents::{Contents, Stored},
     ffmpeg::{Ffmpeg, SubtitleError},
-    tracks::{TrackKind, Tracks},
+    tracks::{PROBE_VERSION, TrackKind, Tracks},
 };
 
 /// The version of how a source makes WebVTT, part of every cache key so what an older one made is
@@ -98,7 +99,8 @@ enum Error {
 
 /// A text subtitle Track inside a Version's file.
 struct Embedded {
-    version: i64,
+    /// The file as stored now, which its Tracks were read from.
+    file: Stored,
     /// Its place in the Version's Tracks.
     track: usize,
     path: String,
@@ -109,17 +111,21 @@ struct Embedded {
 }
 
 impl Embedded {
-    /// The Version `version`'s Track `track`, `None` if there's no such Version or the Track isn't
-    /// a text subtitle.
+    /// The Version `version`'s Track `track`, `None` if there's no such Version, its Tracks weren't
+    /// read from the file stored now, or the Track isn't a text subtitle.
     async fn find(
         contents: &Contents,
         tracks: &Tracks,
         version: i64,
         track: usize,
     ) -> Result<Option<Self>, sqlx::Error> {
-        let Some((path, _)) = contents.version_file(version).await? else {
+        let Some((path, file)) = contents.version_file(version).await? else {
             return Ok(None);
         };
+        // Tracks read from what the file held before would pick the wrong stream out of it now.
+        if !tracks.current(&[file]).await?.contains(&version) {
+            return Ok(None);
+        }
         let Some(probe) = tracks.of(&[version]).await?.remove(&version) else {
             return Ok(None);
         };
@@ -132,7 +138,7 @@ impl Embedded {
             .filter(|earlier| matches!(earlier.kind, TrackKind::Subtitle { .. }))
             .count();
         Ok(Some(Self {
-            version,
+            file,
             track,
             path,
             subtitle,
@@ -142,7 +148,7 @@ impl Embedded {
 
     fn cache_key(&self) -> PathBuf {
         Path::new("versions")
-            .join(self.version.to_string())
+            .join(cache_folder(self.file))
             .join(format!("{}.v{WEBVTT_VERSION}.vtt", self.track))
     }
 
@@ -155,41 +161,116 @@ impl Embedded {
     }
 }
 
+/// The folder the subtitles cached for the Version stored as `file` go in, named so it changes
+/// when the file or how it's probed does, and they're never served for any other.
+fn cache_folder(file: Stored) -> String {
+    format!(
+        "{}.{}.{}.{PROBE_VERSION}",
+        file.id, file.size, file.modified_ns
+    )
+}
+
 /// WebVTT on disk, made by its source the first time it's asked for.
 #[derive(Debug, Clone)]
-pub(super) struct Cache {
+pub(crate) struct Cache {
     dir: PathBuf,
+    /// A lock per subtitle being made, so requests for it at once wait for one making rather
+    /// than each read the file.
+    making_locks: Arc<Mutex<HashMap<PathBuf, Arc<tokio::sync::Mutex<()>>>>>,
 }
 
 impl Cache {
     /// The cache in `data_dir`.
-    pub(super) fn new(data_dir: &Path) -> Self {
+    pub(crate) fn new(data_dir: &Path) -> Self {
         Self {
             dir: data_dir.join("subtitles"),
+            making_locks: Arc::default(),
         }
     }
 
     /// The WebVTT cached at `key`, or else what `make` makes, which is cached there from then on.
+    /// Of the requests for `key` at once, one makes it and the rest wait for it.
     async fn webvtt<E: From<io::Error>>(
         &self,
         key: &Path,
         make: impl Future<Output = Result<Vec<u8>, E>>,
     ) -> Result<Vec<u8>, E> {
         let path = self.dir.join(key);
-        match tokio::fs::read(&path).await {
-            Ok(webvtt) => return Ok(webvtt),
-            Err(err) if err.kind() == io::ErrorKind::NotFound => {}
-            Err(err) => return Err(err.into()),
+        if let Some(webvtt) = cached(&path).await? {
+            return Ok(webvtt);
         }
-        let webvtt = make.await?;
-        write_atomically(&path, &webvtt).await?;
-        Ok(webvtt)
+        let making_lock = Arc::clone(self.making_locks().entry(path.clone()).or_default());
+        let webvtt = async {
+            let _making = making_lock.lock().await;
+            // Whoever held the lock before may have made it.
+            if let Some(webvtt) = cached(&path).await? {
+                return Ok(webvtt);
+            }
+            let webvtt = make.await?;
+            write_atomically(&path, &webvtt).await?;
+            Ok(webvtt)
+        }
+        .await;
+        drop(making_lock);
+        // Also drops the locks of makings cancelled midway, which nothing holds any more.
+        self.making_locks()
+            .retain(|_, lock| Arc::strong_count(lock) > 1);
+        webvtt
+    }
+
+    /// Throws away the subtitles cached for every Version but `stored`, at its file as stored
+    /// now: those of Versions gone, and of files changed or probed differently since.
+    ///
+    /// Nothing is served from what it misses or throws away too soon: a making still running
+    /// caches under the file it read, which the next call throws away if that changed, and what's
+    /// thrown away is made again.
+    pub(crate) async fn keep_only(&self, stored: &[Stored]) -> io::Result<()> {
+        let current: HashSet<String> = stored.iter().copied().map(cache_folder).collect();
+        let mut cached = match tokio::fs::read_dir(self.dir.join("versions")).await {
+            Ok(cached) => cached,
+            Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(()),
+            Err(err) => return Err(err),
+        };
+        while let Some(entry) = cached.next_entry().await? {
+            if entry
+                .file_name()
+                .to_str()
+                .is_some_and(|name| current.contains(name))
+            {
+                continue;
+            }
+            match tokio::fs::remove_dir_all(entry.path()).await {
+                // Thrown away by another call meanwhile.
+                Err(err) if err.kind() != io::ErrorKind::NotFound => return Err(err),
+                _ => {}
+            }
+        }
+        Ok(())
+    }
+
+    fn making_locks(&self) -> MutexGuard<'_, HashMap<PathBuf, Arc<tokio::sync::Mutex<()>>>> {
+        self.making_locks
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+    }
+}
+
+async fn cached(path: &Path) -> io::Result<Option<Vec<u8>>> {
+    match tokio::fs::read(path).await {
+        Ok(webvtt) => Ok(Some(webvtt)),
+        Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(err) => Err(err),
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::{io, path::Path};
+    use std::{
+        io,
+        path::Path,
+        sync::atomic::{AtomicUsize, Ordering},
+        time::Duration,
+    };
 
     use super::Cache;
 
@@ -206,5 +287,24 @@ mod tests {
 
         assert_eq!(made, b"WEBVTT\n");
         assert_eq!(again, b"WEBVTT\n");
+    }
+
+    #[tokio::test]
+    async fn two_first_requests_at_once_share_one_making() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = Cache::new(dir.path());
+        let key = Path::new("versions/7/2.vtt");
+        let makings = AtomicUsize::new(0);
+        let make = || async {
+            makings.fetch_add(1, Ordering::SeqCst);
+            tokio::time::sleep(Duration::from_millis(50)).await;
+            Ok::<_, io::Error>(b"WEBVTT\n".to_vec())
+        };
+
+        let (first, second) = tokio::join!(cache.webvtt(key, make()), cache.webvtt(key, make()));
+
+        assert_eq!(first.unwrap(), b"WEBVTT\n");
+        assert_eq!(second.unwrap(), b"WEBVTT\n");
+        assert_eq!(makings.load(Ordering::SeqCst), 1);
     }
 }

@@ -204,15 +204,21 @@ impl Ffmpeg {
     }
 
     /// Starts ffmpeg copying the first video, and the `audio`th audio Track if any, of the file
-    /// at `path` untouched into fMP4 in `dir`, from the keyframe `from` to the end. It writes a
+    /// at `path` untouched into fMP4 in `dir`, but for converting that audio to AAC with
+    /// `aac_channels` channels if given, from the keyframe `from` to the end. It writes a
     /// file per keyframe, named by its number such as `3.m4s`, and an init segment named by
     /// [`remux_init`] that's whole once `from`'s file is. A run started at any keyframe writes the
     /// same files, so one can pick up where another stopped. Each file appears only once it's
     /// whole. Dropping the child stops ffmpeg.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the plan fixes the first three and each run the last two; a struct would only rename them"
+    )]
     pub(crate) fn remux(
         &self,
         path: &str,
         audio: Option<usize>,
+        aac_channels: Option<i64>,
         dir: &Path,
         from: Keyframe,
     ) -> io::Result<tokio::process::Child> {
@@ -253,8 +259,14 @@ impl Ffmpeg {
         } else {
             "-hls_segment_options"
         };
+        command.args(["-c", "copy"]);
+        if let Some(channels) = aac_channels {
+            command
+                .args(["-c:a", "aac", "-ac"])
+                .arg(channels.to_string());
+        }
         command
-            .args(["-c", "copy", "-f", "hls", "-hls_segment_type", "fmp4"])
+            .args(["-f", "hls", "-hls_segment_type", "fmp4"])
             // ffmpeg cuts at multiples of `-hls_time` from where it started, so a run started
             // elsewhere would cut elsewhere: cutting at every keyframe keeps the cuts put.
             .args(["-hls_time", "0.001", "-hls_playlist_type", "vod"])
@@ -572,18 +584,19 @@ pub fn write_4k_with_5_1(path: &Path, transfer: &str) -> io::Result<()> {
     })
 }
 
-/// Writes 14 seconds of H.264 video with B-frames and a keyframe every 2 seconds, and AAC audio,
-/// as Matroska, to `path`, with the ffmpeg on `PATH`, for a test to Remux.
+/// Writes 14 seconds of H.264 video with B-frames and a keyframe every 2 seconds, and 5.1 audio
+/// encoded with `audio`, such as `aac` or `dca` for DTS, as Matroska, to `path`, with the ffmpeg on
+/// `PATH`, for a test to Remux.
 ///
 /// # Errors
 ///
 /// If ffmpeg can't be run or fails.
 #[cfg(any(test, feature = "testing"))]
-pub fn write_h264_and_aac(path: &Path) -> io::Result<()> {
+pub fn write_h264_with_5_1(path: &Path, audio: &str) -> io::Result<()> {
     write_test_media(path, |ffmpeg| {
         ffmpeg
             .args(["-f", "lavfi", "-i", "testsrc=size=320x240:rate=24"])
-            .args(["-f", "lavfi", "-i", "sine", "-t", "14"])
+            .args(["-f", "lavfi", "-i", "sine,aformat=channel_layouts=5.1", "-t", "14"])
             .args([
                 "-c:v",
                 "libx264",
@@ -597,7 +610,8 @@ pub fn write_h264_and_aac(path: &Path) -> io::Result<()> {
                 "-sc_threshold",
                 "0",
             ])
-            .args(["-c:a", "aac", "-f", "matroska"])
+            // ffmpeg's DTS encoder is marked experimental.
+            .args(["-c:a", audio, "-strict", "experimental", "-f", "matroska"])
     })
 }
 
@@ -877,7 +891,7 @@ mod tests {
                 ms: 0,
                 previous_ms: None,
             };
-            ffmpeg.remux("alien.mkv", None, bin.path(), first)
+            ffmpeg.remux("alien.mkv", None, None, bin.path(), first)
         };
 
         remux.unwrap().wait().await.unwrap();
@@ -1100,7 +1114,7 @@ mod probe_output_tests {
 mod remux_tests {
     use std::{fs, path::Path};
 
-    use super::{Ffmpeg, Keyframe, write_h264_and_aac};
+    use super::{Ffmpeg, Keyframe, write_h264_with_5_1};
     use crate::config::Config;
 
     /// The ffmpeg and ffprobe on `PATH`, which these tests need.
@@ -1117,7 +1131,7 @@ mod remux_tests {
     async fn remux(ffmpeg: &Ffmpeg, path: &Path, dir: &Path, from: Keyframe) {
         fs::create_dir_all(dir).unwrap();
         let path = path.to_str().unwrap();
-        let output = ffmpeg.remux(path, Some(0), dir, from).unwrap();
+        let output = ffmpeg.remux(path, Some(0), None, dir, from).unwrap();
         let output = output.wait_with_output().await.unwrap();
         assert!(output.status.success(), "{output:?}");
     }
@@ -1138,7 +1152,7 @@ mod remux_tests {
         let ffmpeg = system_ffmpeg();
         let work = tempfile::tempdir().unwrap();
         let file = work.path().join("alien.mkv");
-        write_h264_and_aac(&file).unwrap();
+        write_h264_with_5_1(&file, "aac").unwrap();
         // A keyframe every 2 seconds of 14, each starting a file.
         let keyframes = ffmpeg.keyframes(file.to_str().unwrap()).await.unwrap();
         assert_eq!(keyframes.len(), 7);
