@@ -35,7 +35,7 @@ use sqlx::{Sqlite, SqliteConnection, Transaction};
 
 use crate::{
     contents::{self, Contents, Metadata},
-    db::{BoxFuture, Database, now},
+    db::{BoxFuture, Database, detached, now},
     events::{EventBus, event},
     matching::{ManualError, Matcher},
     plugins::Registry,
@@ -2260,17 +2260,6 @@ async fn processing(conn: &mut SqliteConnection) -> Result<Vec<Processing>, sqlx
     .await
 }
 
-/// Runs `work` in a task of its own, so it finishes even if the caller stops waiting: a Request
-/// written Approved must still reach the Fulfiller, and its reference must still be stored.
-async fn detached<T: Send + 'static>(
-    work: impl Future<Output = Result<T, Error>> + Send + 'static,
-) -> Result<T, Error> {
-    // The task is never aborted, so it only fails if it panicked.
-    tokio::spawn(work)
-        .await
-        .unwrap_or_else(|_| Err(sqlx::Error::WorkerCrashed.into()))
-}
-
 /// The id of the Request an ask opened or approved, if `happened` says that, which that ask hands
 /// off if it is Approved.
 fn handed_off_id(happened: &Event) -> Option<i64> {
@@ -2345,6 +2334,7 @@ mod tests {
         libraries::{Kind, Libraries},
         matching::Matcher,
         plugins::Registry,
+        scanner::Scanner,
         server_settings::ServerUrl,
         users::{Permissions, User},
     };
@@ -2841,6 +2831,19 @@ mod tests {
         holding.await.unwrap().unwrap();
     }
 
+    /// Enables `tmdb` as the metadata Provider of `requests`.
+    fn enable_tmdb(requests: &Requests, tmdb: &FakeTmdb) {
+        let settings = Settings::new(BTreeMap::from([(
+            "api_key".to_owned(),
+            SettingValue::Text(API_KEY.to_owned()),
+        )]));
+        requests
+            .hand_off
+            .plugins
+            .enable_with_settings(Arc::new(Tmdb::with_endpoints(tmdb.endpoints())), settings)
+            .unwrap();
+    }
+
     /// A write that tells `writing` it runs, then holds the writer until `released`.
     async fn hold_writer(writing: Arc<Notify>, released: Arc<Notify>) -> Result<(), sqlx::Error> {
         writing.notify_one();
@@ -2865,15 +2868,8 @@ mod tests {
     #[tokio::test]
     async fn an_auto_approved_movie_asked_for_by_a_caller_who_left_is_published_and_handed_off() {
         let tmdb = FakeTmdb::start().await;
-        let settings = Settings::new(BTreeMap::from([(
-            "api_key".to_owned(),
-            SettingValue::Text(API_KEY.to_owned()),
-        )]));
-        let plugins = Registry::new();
-        plugins
-            .enable_with_settings(Arc::new(Tmdb::with_endpoints(tmdb.endpoints())), settings)
-            .unwrap();
-        let (_data, requests) = approved_on(plugins, &[], Arc::new(Asked::default())).await;
+        let (_data, requests) = approved_for(&[], Arc::new(Asked::default())).await;
+        enable_tmdb(&requests, &tmdb);
         let mut published = Box::pin(requests.events.subscribe(Filter::default()));
         let asking = requests.clone();
 
@@ -2940,6 +2936,59 @@ mod tests {
             matches!(withdrawn, Happened::RequestWithdrawn(_)),
             "{withdrawn:?}"
         );
+    }
+
+    #[tokio::test]
+    async fn a_match_pinned_by_a_caller_who_left_publishes_it_and_the_request_it_made_available() {
+        let tmdb = FakeTmdb::start().await;
+        let folder = tempfile::tempdir().unwrap();
+        let (_data, requests) = approved_for(&[949], Arc::new(Asked::default())).await;
+        enable_tmdb(&requests, &tmdb);
+        let root = folder.path().canonicalize().unwrap();
+        let library = Libraries::new(Arc::clone(&requests.db))
+            .create(
+                "Movies",
+                Kind::Movies,
+                vec![root.to_str().unwrap().to_owned()],
+            )
+            .await
+            .unwrap()
+            .id;
+        let heat = Item::Movie {
+            title: "Heat".to_owned(),
+            year: Some(1995),
+            hint: None,
+        };
+        let store = Change::Store {
+            path: "/media/Heat (1995)/Heat (1995).mkv".to_owned(),
+            size: 1,
+            modified_ns: 0,
+            items: vec![heat],
+        };
+        requests.contents.apply(library, vec![store]).await.unwrap();
+        let item = requests.contents.files(library).await.unwrap()[0].items[0].id;
+        let scanner = Scanner::new(
+            Arc::clone(&requests.db),
+            requests.hand_off.plugins.clone(),
+            requests.events.clone(),
+        );
+        let scan = scanner.lock(library).await;
+        let mut published = Box::pin(requests.events.subscribe(Filter::default()));
+        let pinning = requests.matcher.clone();
+
+        leave_once_queued(&requests, async move {
+            pinning.set_match(&scan, item, &ExternalId::Tmdb(949)).await
+        })
+        .await;
+
+        let Happened::ItemMatched(matched) = next_happened(&mut published).await else {
+            panic!("the Match was not published");
+        };
+        assert_eq!(matched.item_id, item);
+        let Happened::RequestStateChanged(available) = next_happened(&mut published).await else {
+            panic!("the Request was not made Available");
+        };
+        assert_eq!(available.request.state, RequestState::Available);
     }
 
     #[tokio::test]

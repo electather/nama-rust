@@ -36,7 +36,7 @@ pub(crate) const PROGRESS_EVERY: Duration = Duration::from_secs(60);
 pub(super) struct HandOff {
     db: Arc<Database>,
     events: EventBus,
-    plugins: Registry,
+    pub(super) plugins: Registry,
     /// The ids of the Requests being handed to a Fulfiller now, each with whether another hand-off
     /// skipped it meanwhile.
     handing: Arc<Mutex<HashMap<i64, bool>>>,

@@ -44,7 +44,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::{
     contents::{Contents, Decided, Decisions, Item, Metadata, Name, Named, Pin},
-    db::Database,
+    db::{Database, detached},
     events::{EventBus, event},
     plugins::Registry,
     scanner::{ScanLock, country_tag},
@@ -612,14 +612,20 @@ impl Matcher {
             "fixing a Match by hand"
         );
         let mut happened = matched_events(named.library, &decided.items);
-        // The Library may have been deleted since its items were read.
-        let made_available = self
-            .contents
-            .pin(named.library, named.name, pin, decided)
-            .await?
-            .ok_or(ManualError::NoSuchItem(item))?;
-        happened.extend(made_available);
-        self.events.publish(happened);
+        let this = self.clone();
+        // The write commits even if the caller stops waiting, so its events must follow (ADR 0029).
+        detached(async move {
+            // The Library may have been deleted since its items were read.
+            let made_available = this
+                .contents
+                .pin(named.library, named.name, pin, decided)
+                .await?
+                .ok_or(ManualError::NoSuchItem(item))?;
+            happened.extend(made_available);
+            this.events.publish(happened);
+            Ok::<_, ManualError>(())
+        })
+        .await?;
         Ok(summary)
     }
 }
