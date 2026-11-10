@@ -25,7 +25,7 @@ export function playbackSettingsQuery(transport: Transport) {
   };
 }
 
-/** The form an Admin sets the folder Remuxes write their segment files to with. */
+/** The form an Admin sets the folder Remuxes and Transcodes write their segment files to with. */
 export function SegmentFolder() {
   const queryClient = useQueryClient();
   const { settings } = useSuspenseQuery(ServerService.method.getPlaybackSettings, {}).data;
@@ -49,7 +49,7 @@ export function SegmentFolder() {
         placeholder="/dev/shm/nama"
         required={false}
         defaultValue={settings?.segmentFolder}
-        hint="Where a Remux writes the files it plays from, such as a tmpfs, until a minute after they’re last played. Leave it empty for the transcodes folder in the Server’s data folder. A change applies from the next Remux."
+        hint="Where a Remux or Transcode writes the files it plays from, such as a tmpfs, until a minute after they’re last played. Leave it empty for the transcodes folder in the Server’s data folder. A change applies from the next one."
         error={errors.segmentFolder}
       />
       <FormEnd

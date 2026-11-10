@@ -1,13 +1,14 @@
 //! Playable plans, from when they're planned until they stop, and the ffmpeg of those that run it:
-//! Remuxes, played over HLS with fMP4 segments. Each plan's start and end are published as
-//! `PlaybackStarted` and `PlaybackEnded`.
+//! Remuxes and Transcodes, played over HLS with fMP4 segments. Each plan's start and end are
+//! published as `PlaybackStarted` and `PlaybackEnded`.
 //!
-//! A plan belongs to the Device it was planned for, and only that Device is served a Remux's
-//! files, at `/media/plans/<id>/`: the playlist `index.m3u8`, then `init.mp4` and the segments
-//! `<n>.m4s`. The playlist lists the whole Version up front, cut at keyframes where it will be
-//! cut, so HLS time is the file's time and Watch State needs no conversion. ffmpeg writes a file
-//! per keyframe to `nama-plan-<id>/` in the segment folder, and a segment joins its keyframes'
-//! files.
+//! A plan belongs to the Device it was planned for, and only that Device is served its files, at
+//! `/media/plans/<id>/`: the playlist `index.m3u8`, then `init.mp4` and the segments `<n>.m4s`.
+//! The playlist lists the whole Version up front, cut at keyframes where it will be cut, so HLS
+//! time is the file's time and Watch State needs no conversion. ffmpeg writes a file per keyframe
+//! to `nama-plan-<id>/` in the segment folder, and a segment joins its keyframes' files. A Remux
+//! keeps the Version's own keyframes; a Transcode forces one every [`SEGMENT_MS`], so each of its
+//! segments is one file.
 //!
 //! A segment asked for waits for ffmpeg to write its files. One far past what ffmpeg has written
 //! restarts ffmpeg at it, and ffmpeg stops once it's [`RUN_AHEAD_MS`] past the last segment asked
@@ -47,7 +48,7 @@ use super::{Method, played_audio};
 use crate::{
     contents::Contents,
     events::{EventBus, event},
-    ffmpeg::{Ffmpeg, Keyframe, ProbeError, remux_init},
+    ffmpeg::{Ffmpeg, Keyframe, ProbeError, hls_init},
     server_settings::SegmentFolder,
     tracks::{Probe, Tracks},
     users::Caller,
@@ -63,10 +64,11 @@ const SEGMENT_MS: i64 = 6000;
 /// milliseconds.
 const RUN_AHEAD_MS: i64 = 120_000;
 
-/// How far past what ffmpeg has written a file asked for can be and still be waited for, in
-/// milliseconds. ffmpeg restarts at one further on, since a Remux writes this much in a second or
-/// two but a seek far ahead would wait for everything before it.
-const WAIT_AHEAD_MS: i64 = 30_000;
+/// How far past what a Remux's ffmpeg has written a file asked for can be and still be waited
+/// for, in milliseconds. ffmpeg restarts at one further on, since a Remux writes this much in a
+/// second or two but a seek far ahead would wait for everything before it. A software Transcode
+/// writes about as fast as it plays, so it waits only for the segment ffmpeg is on.
+const REMUX_WAIT_AHEAD_MS: i64 = 30_000;
 
 /// What a plan's folder in the segment folder is named, before its id. The sweep deletes only
 /// folders named so, since the admin may set a segment folder that holds other files.
@@ -126,11 +128,8 @@ struct Plan {
 /// A plan's HLS files, and the ffmpeg writing them.
 struct Running {
     id: u64,
-    /// So the Transcode cap (#321) can leave Remuxes out.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "the Transcode cap (#321) is the first to read it")
-    )]
+    /// How far ahead a request waits for ffmpeg, and so the Transcode cap (#321) can leave
+    /// Remuxes out.
     method: Method,
     timeline: Timeline,
     dir: PathBuf,
@@ -220,7 +219,40 @@ impl RunningPlans {
         let id = self
             .start(playback, Method::Remux, timeline, Box::new(run))
             .await?;
-        Ok(Some((id, format!("/media/plans/{id}/{PLAYLIST}"))))
+        Ok(Some((id, playlist_url(id))))
+    }
+
+    /// Starts Transcoding the Version `playback` plays, which probing found holds `probe`, for
+    /// the Device it plays on, with its audio converted to AAC with `aac_channels` channels, and
+    /// returns its id and its playlist's URL. Its segments are [`SEGMENT_MS`] each, as it forces a
+    /// keyframe at each. `None` if there is no such Version.
+    pub(crate) async fn transcode(
+        &self,
+        playback: Playback,
+        probe: &Probe,
+        aac_channels: Option<i64>,
+    ) -> Result<Option<(u64, String)>, StartError> {
+        let Some((path, _)) = (self.inner.contents)
+            .version_file(playback.version_id)
+            .await?
+        else {
+            return Ok(None);
+        };
+        let duration_ms = probe.duration_ms.unwrap_or_default();
+        // At least one, so a Version whose length isn't known still has a segment.
+        let segments = (duration_ms.max(1) + SEGMENT_MS - 1) / SEGMENT_MS;
+        let cuts: Vec<i64> = (0..segments).map(|n| n * SEGMENT_MS).collect();
+        let timeline = Timeline::new(cuts.clone(), duration_ms);
+        let audio = played_audio(probe).zip(aac_channels);
+        let ffmpeg = Arc::clone(&self.inner.ffmpeg);
+        let run = move |dir: &Path, from: Keyframe| {
+            let from_on = cuts.get(from.n..).unwrap_or_default();
+            ffmpeg.transcode(&path, audio, dir, from.n, from_on)
+        };
+        let id = self
+            .start(playback, Method::Transcode, timeline, Box::new(run))
+            .await?;
+        Ok(Some((id, playlist_url(id))))
     }
 
     /// Keeps a plan playing `playback` that runs nothing, a Direct Play, and returns its id.
@@ -362,6 +394,10 @@ impl RunningPlans {
         };
         self.inner.events.publish(vec![event(ended)]);
     }
+}
+
+fn playlist_url(plan: u64) -> String {
+    format!("/media/plans/{plan}/{PLAYLIST}")
 }
 
 /// Every [`CHECK_UNUSED_EVERY`], stops the plans unused for [`STOP_UNUSED_AFTER`], until `inner`
@@ -535,7 +571,7 @@ impl Running {
             // Read `stopped` before looking, so a file written just before ffmpeg stopped is
             // still found. A run is only started at a keyframe whose file isn't written.
             if tokio::fs::try_exists(self.keyframe_path(from)).await? {
-                return tokio::fs::read(self.dir.join(remux_init(from)))
+                return tokio::fs::read(self.dir.join(hls_init(from)))
                     .await
                     .map(Some);
             }
@@ -565,10 +601,19 @@ impl Running {
         Ok(true)
     }
 
+    /// How far past what ffmpeg has written a file asked for can be and still be waited for, in
+    /// milliseconds, as [`REMUX_WAIT_AHEAD_MS`] says.
+    const fn wait_ahead_ms(&self) -> i64 {
+        match self.method {
+            Method::Remux | Method::DirectPlay => REMUX_WAIT_AHEAD_MS,
+            Method::Transcode => SEGMENT_MS,
+        }
+    }
+
     /// Whether ffmpeg is on its way to keyframe `n`'s file, for segment `segment`, restarting it
-    /// there unless it's at most [`WAIT_AHEAD_MS`] short of it. `false` once a run started there
-    /// has stopped, or once a later request asked for a segment more than [`WAIT_AHEAD_MS`] away,
-    /// so ffmpeg isn't started over and over.
+    /// there unless it's at most [`Self::wait_ahead_ms`] short of it. `false` once a run started
+    /// there has stopped, or once a later request asked for a segment more than that away, so
+    /// ffmpeg isn't started over and over.
     async fn will_write(self: &Arc<Self>, n: usize, segment: usize) -> io::Result<bool> {
         let mut ffmpeg = self.ffmpeg.lock().await;
         if self.closed.load(Ordering::Acquire) {
@@ -585,14 +630,14 @@ impl Running {
             }
             let written_to = (self.timeline).keyframe_ms(run.written_to.load(Ordering::Relaxed));
             let short = self.timeline.keyframe_ms(n).saturating_sub(written_to);
-            if !stopped && run.from <= n && short <= WAIT_AHEAD_MS {
+            if !stopped && run.from <= n && short <= self.wait_ahead_ms() {
                 return Ok(true);
             }
             // A player fetching the next segment alongside this one mustn't leave it behind.
             let last_asked = self.last_asked.load(Ordering::Relaxed);
             let apart = (self.timeline.segment_start_ms(last_asked))
                 .abs_diff(self.timeline.segment_start_ms(segment));
-            if apart > WAIT_AHEAD_MS.unsigned_abs() {
+            if apart > self.wait_ahead_ms().unsigned_abs() {
                 return Ok(false);
             }
             task.abort();
@@ -781,9 +826,18 @@ mod tests {
         Timeline::new((0..500).map(|n| n * 2000).collect(), 1_000_000)
     }
 
-    /// Starts a plan for the Device 7 whose ffmpeg writes nothing, and returns its id with the
+    /// Starts a Remux for the Device 7 whose ffmpeg writes nothing, and returns its id with the
     /// keyframes each run of ffmpeg started at.
     async fn start_writing_nothing(plans: &RunningPlans) -> (u64, Arc<Mutex<Vec<usize>>>) {
+        start_method_writing_nothing(plans, Method::Remux, every_two_seconds()).await
+    }
+
+    /// As [`start_writing_nothing`], for a plan by `method` cut as `timeline` says.
+    async fn start_method_writing_nothing(
+        plans: &RunningPlans,
+        method: Method,
+        timeline: Timeline,
+    ) -> (u64, Arc<Mutex<Vec<usize>>>) {
         let starts = Arc::new(Mutex::new(vec![]));
         let started = Arc::clone(&starts);
         let run = move |_: &Path, from: Keyframe| {
@@ -794,15 +848,29 @@ mod tests {
                 .spawn()
         };
         let id = plans
-            .start(
-                playback(7),
-                Method::Remux,
-                every_two_seconds(),
-                Box::new(run),
-            )
+            .start(playback(7), method, timeline, Box::new(run))
             .await
             .unwrap();
         (id, starts)
+    }
+
+    // The fake ffmpeg is `sleep`.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn seeking_a_transcode_past_the_segment_ffmpeg_is_on_restarts_it_there() {
+        let data = tempfile::tempdir().unwrap();
+        let plans = running_plans(data.path()).await;
+        let every_six_seconds = Timeline::new((0..167).map(|n| n * 6000).collect(), 1_000_000);
+        let (id, starts) =
+            start_method_writing_nothing(&plans, Method::Transcode, every_six_seconds).await;
+        let plan = hls(&plans, id, 7);
+
+        // A Remux would wait for this, 18 seconds on.
+        let eighteen_seconds = tokio::spawn(async move { plan.segment(3).await });
+
+        assert_eq!(until_started(&starts, 2).await, [0, 3]);
+        write_keyframes(data.path(), id, 3..4);
+        assert_eq!(answer(eighteen_seconds).await.unwrap().unwrap(), b"3");
     }
 
     /// Writes the files of `keyframes` for the plan `id` as ffmpeg would, each holding its number.

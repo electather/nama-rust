@@ -50,9 +50,14 @@ const REMUX_BACK_AT_MOST_MS: i64 = 500;
 /// which would put it out of step with runs started later.
 const REMUX_LATER_BY_MS: i64 = 1000;
 
-/// The name of the init segment a Remux started at keyframe `n` writes beside its files. Every
+/// How much later than in its file a Transcode times everything, in milliseconds, so the
+/// encoder's delay never times a frame before 0, which ffmpeg would shift, putting the run started
+/// at the file's start out of step with those started later.
+const TRANSCODE_LATER_BY_MS: i64 = 1000;
+
+/// The name of the init segment a Remux or Transcode started at file `n` writes beside its files. Every
 /// run's is the same, but each writes its own, since ffmpeg writes it from empty as a run goes.
-pub(crate) fn remux_init(n: usize) -> String {
+pub(crate) fn hls_init(n: usize) -> String {
     format!("init-{n}.mp4")
 }
 
@@ -210,7 +215,7 @@ impl Ffmpeg {
     /// at `path` untouched into fMP4 in `dir`, but for converting that audio to AAC with
     /// `aac_channels` channels if given, from the keyframe `from` to the end. It writes a
     /// file per keyframe, named by its number such as `3.m4s`, and an init segment named by
-    /// [`remux_init`] that's whole once `from`'s file is. A run started at any keyframe writes the
+    /// [`hls_init`] that's whole once `from`'s file is. A run started at any keyframe writes the
     /// same files, so one can pick up where another stopped. Each file appears only once it's
     /// whole. Dropping the child stops ffmpeg.
     #[expect(
@@ -252,42 +257,56 @@ impl Ffmpeg {
             &start,
         ];
         command.args(times);
-        command.args(["-map", "0:V:0"]);
-        if let Some(audio) = audio {
-            command.arg("-map").arg(format!("0:a:{audio}"));
-        }
-        // ffmpeg 5.0 renamed it; 6.0 dropped the old name.
-        let segment_options = if is_release_before(&ffmpeg.version, (5, 0)) {
-            "-hls_ts_options"
-        } else {
-            "-hls_segment_options"
-        };
+        map(&mut command, audio);
         command.args(["-c", "copy"]);
-        if let Some(channels) = aac_channels {
-            command
-                .args(["-c:a", "aac", "-ac"])
-                .arg(channels.to_string());
+        aac(&mut command, aac_channels);
+        spawn_hls(command, &ffmpeg.version, dir, from.n)
+    }
+
+    /// Starts ffmpeg converting the first video of the file at `path` to 8-bit H.264 in software,
+    /// and its `audio`th audio Track, if given, to AAC with the channels given beside it, into fMP4
+    /// in `dir`, from `cuts[0]` to the end. It cuts a file at each of `cuts`, in milliseconds,
+    /// numbered from `n`, such as `3.m4s`, and writes an init segment named by [`hls_init`]
+    /// that's whole once the first file is. A run started at any cut writes the same files, so one
+    /// can pick up where another stopped. Each file appears only once it's whole. Dropping the
+    /// child stops ffmpeg.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "as for `remux`: the plan fixes the first two and each run the rest"
+    )]
+    pub(crate) fn transcode(
+        &self,
+        path: &str,
+        audio: Option<(usize, i64)>,
+        dir: &Path,
+        n: usize,
+        cuts: &[i64],
+    ) -> io::Result<tokio::process::Child> {
+        let ffmpeg = (self.ffmpeg.as_ref()).map_err(|why| io::Error::other(why.clone()))?;
+        let mut command = tokio::process::Command::new(&ffmpeg.path);
+        command.args(["-v", "error", "-nostdin"]);
+        let start_ms = cuts.first().copied().unwrap_or_default();
+        if start_ms > 0 {
+            // Decodes from the keyframe before it and drops the frames before it.
+            command.args(["-ss", &seconds(start_ms)]);
         }
+        command.arg("-i").arg(path);
+        // Times as in the file, so the keyframes forced below fall at the same frames whichever
+        // cut a run starts at: `-force_key_frames` expressions time frames from the run's first.
+        command.args(["-copyts", "-start_at_zero"]);
+        map(&mut command, audio.map(|(audio, _)| audio));
+        // ponytail: a 5-hour Version's cuts near Windows' 32K command line; read them from a
+        // file if longer ones fail to Transcode there.
+        let cuts: Vec<String> = cuts.iter().map(|&cut| seconds(cut)).collect();
         command
-            .args(["-f", "hls", "-hls_segment_type", "fmp4"])
-            // ffmpeg cuts at multiples of `-hls_time` from where it started, so a run started
-            // elsewhere would cut elsewhere: cutting at every keyframe keeps the cuts put.
-            .args(["-hls_time", "0.001", "-hls_playlist_type", "vod"])
-            .args(["-hls_flags", "temp_file", "-hls_fmp4_init_filename"])
-            .arg(remux_init(from.n))
-            // Or each run's fragments would be timed from where it started.
-            .args([segment_options, "movflags=+frag_discont"])
-            .arg("-start_number")
-            .arg(from.n.to_string())
-            .arg("-hls_segment_filename")
-            .arg(dir.join("%d.m4s"))
-            // The Server serves a playlist of its own, listing the whole Version up front.
-            .arg(dir.join("ffmpeg.m3u8"))
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::piped())
-            .kill_on_drop(true)
-            .spawn()
+            .args(["-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p"])
+            // Keyframes only where forced, so each cut starts a file and nothing else does.
+            .args(["-x264-params", "keyint=infinite:scenecut=0"])
+            .arg("-force_key_frames")
+            .arg(cuts.join(","));
+        aac(&mut command, audio.map(|(_, channels)| channels));
+        command.args(["-output_ts_offset", &seconds(TRANSCODE_LATER_BY_MS)]);
+        spawn_hls(command, &ffmpeg.version, dir, n)
     }
 
     /// The file at `path`'s subtitle stream `subtitle`, counting only its subtitle streams from 0,
@@ -316,6 +335,59 @@ impl Ffmpeg {
         }
         Ok(output.stdout)
     }
+}
+
+/// Has `command` take the first video, and the `audio`th audio Track if given.
+fn map(command: &mut tokio::process::Command, audio: Option<usize>) {
+    command.args(["-map", "0:V:0"]);
+    if let Some(audio) = audio {
+        command.arg("-map").arg(format!("0:a:{audio}"));
+    }
+}
+
+/// Has `command` convert its audio to AAC with `channels` channels, if given.
+fn aac(command: &mut tokio::process::Command, channels: Option<i64>) {
+    if let Some(channels) = channels {
+        command
+            .args(["-c:a", "aac", "-ac"])
+            .arg(channels.to_string());
+    }
+}
+
+/// Starts `command`, ffmpeg at `version` given its input and codecs, writing HLS with fMP4 to
+/// `dir`: a file per keyframe, numbered from `n`, and an init segment named by [`hls_init`].
+fn spawn_hls(
+    mut command: tokio::process::Command,
+    version: &str,
+    dir: &Path,
+    n: usize,
+) -> io::Result<tokio::process::Child> {
+    // ffmpeg 5.0 renamed it; 6.0 dropped the old name.
+    let segment_options = if is_release_before(version, (5, 0)) {
+        "-hls_ts_options"
+    } else {
+        "-hls_segment_options"
+    };
+    command
+        .args(["-f", "hls", "-hls_segment_type", "fmp4"])
+        // ffmpeg cuts at multiples of `-hls_time` from where it started, so a run started
+        // elsewhere would cut elsewhere: cutting at every keyframe keeps the cuts put.
+        .args(["-hls_time", "0.001", "-hls_playlist_type", "vod"])
+        .args(["-hls_flags", "temp_file", "-hls_fmp4_init_filename"])
+        .arg(hls_init(n))
+        // Or each run's fragments would be timed from where it started.
+        .args([segment_options, "movflags=+frag_discont"])
+        .arg("-start_number")
+        .arg(n.to_string())
+        .arg("-hls_segment_filename")
+        .arg(dir.join("%d.m4s"))
+        // The Server serves a playlist of its own, listing the whole Version up front.
+        .arg(dir.join("ffmpeg.m3u8"))
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .kill_on_drop(true)
+        .spawn()
 }
 
 /// The keyframes in what `ffprobe -show_entries packet=pts_time,flags:format=start_time -of
@@ -615,6 +687,32 @@ pub fn write_h264_with_5_1(path: &Path, audio: &str) -> io::Result<()> {
             ])
             // ffmpeg's DTS encoder is marked experimental.
             .args(["-c:a", audio, "-strict", "experimental", "-f", "matroska"])
+    })
+}
+
+/// Writes 20 seconds of HEVC video at 23.976 frames a second, whose frames don't fall on whole
+/// seconds, with 5.1 AC-3 audio, as Matroska, to `path`, with the ffmpeg on `PATH`, for a test to
+/// Transcode.
+///
+/// # Errors
+///
+/// If ffmpeg can't be run or fails.
+#[cfg(any(test, feature = "testing"))]
+pub fn write_hevc_with_5_1(path: &Path) -> io::Result<()> {
+    write_test_media(path, |ffmpeg| {
+        ffmpeg
+            .args(["-f", "lavfi", "-i", "testsrc=size=320x240:rate=24000/1001"])
+            .args([
+                "-f",
+                "lavfi",
+                "-i",
+                "sine,aformat=channel_layouts=5.1",
+                "-t",
+                "20",
+            ])
+            .args(["-c:v", "libx265", "-preset", "ultrafast"])
+            .args(["-x265-params", "log-level=error"])
+            .args(["-c:a", "ac3", "-f", "matroska"])
     })
 }
 
@@ -1114,10 +1212,10 @@ mod probe_output_tests {
 }
 
 #[cfg(test)]
-mod remux_tests {
+mod hls_tests {
     use std::{fs, path::Path};
 
-    use super::{Ffmpeg, Keyframe, write_h264_with_5_1};
+    use super::{Ffmpeg, Keyframe, write_h264_with_5_1, write_hevc_with_5_1};
     use crate::config::Config;
 
     /// The ffmpeg and ffprobe on `PATH`, which these tests need.
@@ -1148,6 +1246,38 @@ mod remux_tests {
         } else {
             u32::from_be_bytes(time[..4].try_into().unwrap()).into()
         }
+    }
+
+    /// Transcodes the file at `path` into `dir`, cut every 6 seconds of its 20, from cut `n`,
+    /// until ffmpeg is done.
+    async fn transcode(ffmpeg: &Ffmpeg, path: &Path, dir: &Path, n: usize) {
+        fs::create_dir_all(dir).unwrap();
+        let cuts = [0, 6000, 12_000, 18_000];
+        let output = ffmpeg
+            .transcode(path.to_str().unwrap(), Some((0, 2)), dir, n, &cuts[n..])
+            .unwrap();
+        let output = output.wait_with_output().await.unwrap();
+        assert!(output.status.success(), "{output:?}");
+    }
+
+    #[tokio::test]
+    async fn a_transcode_started_at_a_cut_writes_the_same_files_from_there_on() {
+        let ffmpeg = system_ffmpeg();
+        let work = tempfile::tempdir().unwrap();
+        let file = work.path().join("alien.mkv");
+        write_hevc_with_5_1(&file).unwrap();
+        let (whole, restarted) = (work.path().join("whole"), work.path().join("restarted"));
+        transcode(&ffmpeg, &file, &whole, 0).await;
+
+        transcode(&ffmpeg, &file, &restarted, 2).await;
+
+        assert!(!restarted.join("1.m4s").exists());
+        for n in 2..4 {
+            let segment = |dir: &Path| fs::read(dir.join(format!("{n}.m4s"))).unwrap();
+            let (expected, actual) = (starts_at(&segment(&whole)), starts_at(&segment(&restarted)));
+            assert_eq!(actual, expected, "{n}.m4s");
+        }
+        assert!(!restarted.join("4.m4s").exists());
     }
 
     #[tokio::test]

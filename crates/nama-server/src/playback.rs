@@ -150,18 +150,25 @@ pub(crate) async fn plan(
         return Ok(Some(plan));
     };
     // Only a probed Version gets this far: without its Tracks, nothing rules out Direct Play.
-    if plan.method == Some(Method::Remux)
-        && let Some(probed) = &facts.probe
-    {
-        let aac = aac_channels(probed, &facts.device);
-        let Some((id, url)) = running.remux(playback, probed, aac).await? else {
-            return Ok(None);
-        };
-        plan.id = Some(id);
-        plan.url = Some(url);
-    } else {
-        plan.id = Some(running.direct_play(playback));
-    }
+    let started = match (plan.method, &facts.probe) {
+        (Some(Method::Remux), Some(probed)) => {
+            let aac = aac_channels(probed, &facts.device);
+            running.remux(playback, probed, aac).await?
+        }
+        (Some(Method::Transcode), Some(probed)) => {
+            let aac = converted_channels(probed, &facts.device);
+            running.transcode(playback, probed, aac).await?
+        }
+        _ => {
+            plan.id = Some(running.direct_play(playback));
+            return Ok(Some(plan));
+        }
+    };
+    let Some((id, url)) = started else {
+        return Ok(None);
+    };
+    plan.id = Some(id);
+    plan.url = Some(url);
     Ok(Some(plan))
 }
 
@@ -233,21 +240,14 @@ fn build(facts: &Facts, steps: &[Step]) -> Plan {
         allowed.retain(|method| allows.contains(method));
         reasons.push(reason);
     }
-    // ponytail: Transcodes aren't served yet (#321).
-    let method = allowed
-        .into_iter()
-        .find(|method| *method != Method::Transcode);
-    let mut tracks = facts.probe.as_ref().map(played_tracks).unwrap_or_default();
-    if method == Some(Method::Remux)
-        && let Some(channels) =
-            (facts.probe.as_ref()).and_then(|probe| aac_channels(probe, &facts.device))
-    {
-        tracks = converted_to_aac(tracks, channels);
-    }
+    let method = allowed.into_iter().next();
+    let tracks = (facts.probe.as_ref())
+        .map(|probe| played_as(method, probe, &facts.device))
+        .unwrap_or_default();
     Plan {
         id: None,
         method,
-        // A Remux's URL is its running plan's, which `plan` starts.
+        // A Remux's or Transcode's URL is its running plan's, which `plan` starts.
         url: (method == Some(Method::DirectPlay)).then(|| direct_play_url(facts.version)),
         tracks,
         reasons,
@@ -307,13 +307,16 @@ fn device_decoding(facts: &Facts) -> Narrowing {
     if !decodes_video {
         return Narrowing {
             allows: BTreeSet::from([Method::Transcode]),
-            reason,
+            reason: format!(
+                "{reason} or Remuxed, and a Transcode converts it to {}",
+                transcode_in_words(probe, &facts.device)
+            ),
         };
     }
     let reason = match aac_channels(probe, &facts.device) {
         Some(channels) => format!(
             "{reason}, and a Remux converts that audio to {}",
-            aac_in_words(probe, &facts.device, channels)
+            aac_in_words(probe, &facts.device, channels, Method::Remux)
         ),
         None => reason,
     };
@@ -414,13 +417,63 @@ fn undecodable(track: &Track, device: &DeviceDecoding) -> Vec<String> {
     cant
 }
 
+/// What a Transcode of `probe` for `device` makes, in plain words, such as "H.264 and stereo AAC".
+fn transcode_in_words(probe: &Probe, device: &DeviceDecoding) -> String {
+    let audio = converted_channels(probe, device).map(|channels| {
+        let aac = aac_in_words(probe, device, channels, Method::Transcode);
+        format!(" and {aac}")
+    });
+    // ponytail: a Transcode doesn't tone-map HDR to SDR yet; #323 does, in software.
+    let washed_out = played_video(probe).and_then(|video| {
+        let TrackKind::Video { hdr: Some(hdr), .. } = video.kind else {
+            return None;
+        };
+        Some(format!(
+            ", without tone-mapping its {} picture, so its colours look washed out",
+            hdr_name(hdr)
+        ))
+    });
+    format!(
+        "H.264{}{}",
+        audio.unwrap_or_default(),
+        washed_out.unwrap_or_default()
+    )
+}
+
+/// The Tracks a plan playing `probe` on `device` by `method` plays, once converted, or as they
+/// are when it can't be played.
+fn played_as(method: Option<Method>, probe: &Probe, device: &DeviceDecoding) -> Vec<Track> {
+    let tracks = played_tracks(probe);
+    let channels = match method {
+        None | Some(Method::DirectPlay) => None,
+        Some(Method::Remux) => aac_channels(probe, device),
+        Some(Method::Transcode) => converted_channels(probe, device),
+    };
+    let tracks = match channels {
+        Some(channels) => converted_to_aac(tracks, channels),
+        None => tracks,
+    };
+    if method == Some(Method::Transcode) {
+        converted_to_h264(tracks)
+    } else {
+        tracks
+    }
+}
+
 /// How many channels a Remux converts `probe`'s played audio to, as AAC, if `device` can't decode
-/// it: as many as it has, up to 5.1 if `device` plays 5.1 and stereo otherwise.
+/// it, as [`converted_channels`] says.
 fn aac_channels(probe: &Probe, device: &DeviceDecoding) -> Option<i64> {
     let audio = played_audio_track(probe)?;
     if undecodable(audio, device).is_empty() {
         return None;
     }
+    converted_channels(probe, device)
+}
+
+/// How many channels `probe`'s played audio has once converted to AAC for `device`, if it has
+/// audio: as many as it has, up to 5.1 if `device` plays 5.1 and stereo otherwise.
+fn converted_channels(probe: &Probe, device: &DeviceDecoding) -> Option<i64> {
+    played_audio_track(probe)?;
     let most = if device.audio_channels >= 6 { 6 } else { 2 };
     // Stereo when the file doesn't say, which every Device plays.
     Some(played_channels(probe).unwrap_or(2).min(most))
@@ -445,9 +498,20 @@ fn converted_to_aac(mut tracks: Vec<Track>, channels: i64) -> Vec<Track> {
     tracks
 }
 
+/// `tracks` with their video converted to 8-bit H.264, as a Transcode makes it.
+fn converted_to_h264(mut tracks: Vec<Track>) -> Vec<Track> {
+    for track in &mut tracks {
+        if let TrackKind::Video { bit_depth, .. } = &mut track.kind {
+            "h264".clone_into(&mut track.codec);
+            *bit_depth = Some(8);
+        }
+    }
+    tracks
+}
+
 /// AAC with `channels` channels in plain words, such as "5.1 AAC", saying why when that's fewer
-/// than `probe`'s played audio has.
-fn aac_in_words(probe: &Probe, device: &DeviceDecoding, channels: i64) -> String {
+/// than `probe`'s played audio has, which `method` converts it to.
+fn aac_in_words(probe: &Probe, device: &DeviceDecoding, channels: i64, method: Method) -> String {
     let name = match channels {
         1 => "mono".to_owned(),
         2 => "stereo".to_owned(),
@@ -457,7 +521,7 @@ fn aac_in_words(probe: &Probe, device: &DeviceDecoding, channels: i64) -> String
     let why = if channels >= played_channels(probe).unwrap_or_default() {
         ""
     } else if device.audio_channels >= 6 {
-        ", the most a Remux makes"
+        &format!(", the most a {} makes", method.name())
     } else if device.audio_channels == 0 {
         ", as this Device doesn't say it plays more"
     } else {
@@ -732,10 +796,13 @@ mod tests {
         for (container, tracks, cant) in cases {
             let plan = build(&in_container(container, Some(tracks)), &STEPS);
 
-            assert_eq!(plan.method, None, "{cant}");
-            assert_eq!(
-                plan.reasons[1],
-                format!("This Device can't decode its {cant}, so it can't be Direct Played")
+            assert_eq!(plan.method, Some(Method::Transcode), "{cant}");
+            let cant_direct_play =
+                format!("This Device can't decode its {cant}, so it can't be Direct Played");
+            assert!(
+                plan.reasons[1].starts_with(&cant_direct_play),
+                "{}",
+                plan.reasons[1]
             );
         }
     }
@@ -1061,6 +1128,65 @@ mod tests {
                 ),
             );
         }
+    }
+
+    #[test]
+    fn video_the_device_cant_decode_is_transcoded_to_h264_and_aac_and_the_plan_says_so() {
+        let hevc = Track {
+            kind: TrackKind::Video {
+                width: Some(1920),
+                height: Some(1080),
+                frame_rate: Some(24.0),
+                bit_depth: Some(10),
+                hdr: None,
+            },
+            ..video("hevc")
+        };
+        let facts = in_container(MKV, Some(vec![hevc, audio_with("aac", true, Some(6))]));
+
+        let plan = build(&facts, &STEPS);
+
+        assert_eq!(plan.method, Some(Method::Transcode));
+        assert_eq!(plan.url, None, "a Transcode's URL is its running plan's");
+        assert_eq!(
+            plan.tracks,
+            [video("h264"), audio_with("aac", true, Some(2))]
+        );
+        assert_eq!(
+            plan.reasons[1],
+            "This Device can't decode its Matroska container or HEVC video, so it can't be \
+             Direct Played or Remuxed, and a Transcode converts it to H.264 and stereo AAC, as \
+             this Device doesn't play 5.1"
+        );
+    }
+
+    #[test]
+    fn a_transcode_of_hdr_video_says_its_colours_look_washed_out() {
+        let facts = in_container(MP4, Some(vec![hdr_video("hevc", Some(Hdr::Hdr10))]));
+
+        let plan = build(&facts, &STEPS);
+
+        assert_eq!(plan.method, Some(Method::Transcode));
+        assert_eq!(
+            plan.reasons[1],
+            "This Device can't decode its HEVC video or HDR10 picture, so it can't be Direct \
+             Played or Remuxed, and a Transcode converts it to H.264, without tone-mapping its \
+             HDR10 picture, so its colours look washed out"
+        );
+    }
+
+    #[test]
+    fn a_transcode_of_a_version_without_audio_says_only_h264() {
+        let facts = in_container(MP4, Some(vec![video("hevc")]));
+
+        let plan = build(&facts, &STEPS);
+
+        assert_eq!(plan.method, Some(Method::Transcode));
+        assert_eq!(
+            plan.reasons[1],
+            "This Device can't decode its HEVC video, so it can't be Direct Played or Remuxed, \
+             and a Transcode converts it to H.264"
+        );
     }
 
     #[test]
