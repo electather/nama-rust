@@ -1309,6 +1309,7 @@ impl PlaybackService for PlaybackServiceHandler {
         let caller = caller(&ctx)?;
         // The rest of the request is for steps still to come (ADR 0027).
         let request = request.to_owned_message();
+        let audio = (request.audio_track).and_then(|place| usize::try_from(place).ok());
         let decoding = request.device_decoding.into_option().unwrap_or_default();
         let decoding = DeviceDecoding {
             content_types: decoding.content_types,
@@ -1326,6 +1327,7 @@ impl PlaybackService for PlaybackServiceHandler {
             request.version_id,
             decoding,
             failed,
+            audio,
         )
         .await
         .map_err(|err| match err {

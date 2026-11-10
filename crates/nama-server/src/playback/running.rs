@@ -43,7 +43,7 @@ use axum::{
 use nama_proto::nama::v1::{Playback, PlaybackEnded, PlaybackStarted};
 use tokio::{process::Child, task::JoinHandle};
 
-use super::{Method, played_audio};
+use super::Method;
 use crate::{
     contents::Contents,
     events::{EventBus, event},
@@ -199,13 +199,15 @@ impl RunningPlans {
     }
 
     /// Starts Remuxing the Version `playback` plays, which probing found holds `probe`, for the
-    /// Device it plays on, with its audio converted to AAC with `aac_channels` channels, or else
-    /// copied, and returns its id and its playlist's URL. Lists the Version's keyframes the first
-    /// time and keeps them. `None` if there is no such Version.
+    /// Device it plays on, with its audio Track `audio`, counting only its audio from 0, converted
+    /// to AAC with `aac_channels` channels, or else copied, and returns its id and its playlist's
+    /// URL. Lists the Version's keyframes the first time and keeps them. `None` if there is no
+    /// such Version.
     pub(crate) async fn remux(
         &self,
         playback: Playback,
         probe: &Probe,
+        audio: Option<usize>,
         aac_channels: Option<i64>,
     ) -> Result<Option<(u64, String)>, StartError> {
         let version = playback.version_id;
@@ -214,7 +216,6 @@ impl RunningPlans {
         };
         let keyframes = self.keyframes(version, &path).await?;
         let timeline = Timeline::new(keyframes, probe.duration_ms.unwrap_or_default());
-        let audio = played_audio(probe);
         let ffmpeg = Arc::clone(&self.inner.ffmpeg);
         let run = move |dir: &Path, from| ffmpeg.remux(&path, audio, aac_channels, dir, from);
         let id = self
