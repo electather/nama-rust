@@ -145,6 +145,7 @@ pub(crate) async fn plan(
         probe,
         device: decoding,
         ffmpeg: running.can_run(),
+        zscale: running.can_tone_map().await,
         failed,
         audio,
     };
@@ -159,8 +160,8 @@ pub(crate) async fn plan(
             running.remux(playback, probed, played, aac).await?
         }
         (Some(Method::Transcode), Some(probed)) => {
-            let (played, aac) = (played_audio(&facts), channels_as_aac(plan.method, &facts));
-            running.transcode(playback, probed, played, aac).await?
+            let converted = played_audio(&facts).zip(channels_as_aac(plan.method, &facts));
+            (running.transcode(playback, probed, converted, tone_maps(&facts))).await?
         }
         _ => {
             plan.id = Some(running.direct_play(playback));
@@ -214,6 +215,9 @@ struct Facts {
     /// Whether the Server has ffmpeg and ffprobe, which every method but Direct Play needs
     /// (ADR 0026).
     ffmpeg: bool,
+    /// Whether its ffmpeg has zscale, which tone-maps HDR to SDR in software and a system ffmpeg
+    /// may lack (ADR 0026).
+    zscale: bool,
     /// The methods that just failed to play it on the Device. The Server never stores them.
     failed: BTreeSet<Method>,
     /// The audio Track the User chose, by its place in the Version's Tracks, if they chose one.
@@ -330,19 +334,46 @@ fn device_decoding(facts: &Facts) -> Narrowing {
     }
 }
 
-/// The step for the Server's ffmpeg: without it, only Direct Play (ADR 0026).
+/// The step for the Server's ffmpeg: without it, only Direct Play (ADR 0026), and with it, a
+/// Transcode tone-maps HDR the Device can't show to SDR, if it can.
 fn server_ffmpeg(facts: &Facts) -> Narrowing {
-    if facts.ffmpeg {
-        Narrowing {
-            allows: BTreeSet::from(Method::ALL),
-            reason: "This Server has ffmpeg".to_owned(),
-        }
-    } else {
-        Narrowing {
+    if !facts.ffmpeg {
+        return Narrowing {
             allows: BTreeSet::from([Method::DirectPlay]),
             reason: "This Server lacks ffmpeg or ffprobe, so it can only Direct Play".to_owned(),
-        }
+        };
     }
+    let reason = match played_hdr(facts) {
+        // Its picture is in Dolby Vision's own colours, which only a Dolby Vision player knows.
+        Some(Hdr::DolbyVision { profile: 5, .. }) => {
+            return Narrowing {
+                allows: BTreeSet::from([Method::DirectPlay, Method::Remux]),
+                reason: "This Server has ffmpeg, but it can't Transcode a Dolby Vision profile 5 \
+                         picture, which has no HDR10 base layer to tone-map in software"
+                    .to_owned(),
+            };
+        }
+        Some(hdr) if tone_maps(facts) => format!(
+            "This Server has ffmpeg, which tone-maps its {} picture to SDR in a Transcode",
+            hdr_name(hdr)
+        ),
+        Some(hdr) if !facts.device.hdr => format!(
+            "This Server's ffmpeg lacks zscale, so a Transcode can't tone-map its {} picture to \
+             SDR and its colours look washed out",
+            hdr_name(hdr)
+        ),
+        _ => "This Server has ffmpeg".to_owned(),
+    };
+    Narrowing {
+        allows: BTreeSet::from(Method::ALL),
+        reason,
+    }
+}
+
+/// Whether a Transcode tone-maps the played video's HDR to SDR: when the Device can't show it and
+/// ffmpeg has zscale.
+fn tone_maps(facts: &Facts) -> bool {
+    facts.zscale && !facts.device.hdr && played_hdr(facts).is_some()
 }
 
 /// The step for the audio Track the User chose: Direct Play only if it's the one browsers play
@@ -445,21 +476,7 @@ fn transcode_in_words(facts: &Facts) -> String {
         let aac = aac_in_words(facts, channels, Method::Transcode);
         format!(" and {aac}")
     });
-    // ponytail: a Transcode doesn't tone-map HDR to SDR yet; #323 does, in software.
-    let washed_out = (facts.probe.as_ref().and_then(played_video)).and_then(|video| {
-        let TrackKind::Video { hdr: Some(hdr), .. } = video.kind else {
-            return None;
-        };
-        Some(format!(
-            ", without tone-mapping its {} picture, so its colours look washed out",
-            hdr_name(hdr)
-        ))
-    });
-    format!(
-        "H.264{}{}",
-        audio.unwrap_or_default(),
-        washed_out.unwrap_or_default()
-    )
+    format!("H.264{}", audio.unwrap_or_default())
 }
 
 /// The Tracks a plan by `method` plays, once converted, or as they
@@ -610,6 +627,14 @@ fn played_video(probe: &Probe) -> Option<&Track> {
     (probe.tracks.iter()).find(|track| matches!(track.kind, TrackKind::Video { .. }))
 }
 
+/// How the played video's picture is HDR, or `None` for SDR or no video.
+fn played_hdr(facts: &Facts) -> Option<Hdr> {
+    let TrackKind::Video { hdr, .. } = facts.probe.as_ref().and_then(played_video)?.kind else {
+        return None;
+    };
+    hdr
+}
+
 /// The Track [`played_audio`] counts to.
 fn played_audio_track(facts: &Facts) -> Option<&Track> {
     let probe = facts.probe.as_ref()?;
@@ -717,7 +742,7 @@ mod tests {
 
     use super::{
         DeviceDecoding, Facts, Method, Narrowing, Plan, STEPS, Subtitle, aac_channels, build,
-        device_decoding, failed_on_device, played_audio,
+        device_decoding, failed_on_device, played_audio, tone_maps,
     };
     use crate::tracks::{Hdr, Probe, Track, TrackKind};
 
@@ -797,6 +822,7 @@ mod tests {
             }),
             device: firefox(),
             ffmpeg: true,
+            zscale: true,
             failed: BTreeSet::new(),
             audio: None,
         }
@@ -1281,17 +1307,82 @@ mod tests {
     }
 
     #[test]
-    fn a_transcode_of_hdr_video_says_its_colours_look_washed_out() {
-        let facts = in_container(MP4, Some(vec![hdr_video("hevc", Some(Hdr::Hdr10))]));
+    fn hdr_transcoded_for_a_device_that_cant_show_it_is_tone_mapped_and_the_plan_says_so() {
+        let dolby_vision_8 = Hdr::DolbyVision {
+            profile: 8,
+            hdr10_base_layer: true,
+        };
+        let cases = [
+            (Hdr::Hdr10, "HDR10"),
+            (Hdr::Hlg, "HLG"),
+            (dolby_vision_8, "Dolby Vision"),
+        ];
+        for (hdr, name) in cases {
+            let facts = in_container(MP4, Some(vec![hdr_video("hevc", Some(hdr))]));
+
+            let plan = build(&facts, &STEPS);
+
+            assert_eq!(plan.method, Some(Method::Transcode), "{name}");
+            assert!(tone_maps(&facts), "{name}");
+            assert_eq!(
+                plan.reasons[2],
+                format!(
+                    "This Server has ffmpeg, which tone-maps its {name} picture to SDR in a Transcode"
+                )
+            );
+        }
+    }
+
+    #[test]
+    fn without_zscale_hdr_isnt_tone_mapped_and_the_plan_says_its_colours_look_washed_out() {
+        let facts = Facts {
+            zscale: false,
+            ..in_container(MP4, Some(vec![hdr_video("hevc", Some(Hdr::Hdr10))]))
+        };
 
         let plan = build(&facts, &STEPS);
 
         assert_eq!(plan.method, Some(Method::Transcode));
+        assert!(!tone_maps(&facts));
         assert_eq!(
             plan.reasons[1],
             "This Device can't decode its HEVC video or HDR10 picture, so it can't be Direct \
-             Played or Remuxed, and a Transcode converts it to H.264, without tone-mapping its \
-             HDR10 picture, so its colours look washed out"
+             Played or Remuxed, and a Transcode converts it to H.264"
+        );
+        assert_eq!(
+            plan.reasons[2],
+            "This Server's ffmpeg lacks zscale, so a Transcode can't tone-map its HDR10 picture \
+             to SDR and its colours look washed out"
+        );
+    }
+
+    #[test]
+    fn hdr_transcoded_for_a_device_that_shows_it_isnt_tone_mapped() {
+        let mut facts = in_container(MP4, Some(vec![hdr_video("hevc", Some(Hdr::Hdr10))]));
+        facts.device.hdr = true;
+
+        let plan = build(&facts, &STEPS);
+
+        assert_eq!(plan.method, Some(Method::Transcode));
+        assert!(!tone_maps(&facts));
+        assert_eq!(plan.reasons[2], "This Server has ffmpeg");
+    }
+
+    #[test]
+    fn dolby_vision_profile_5_isnt_transcoded_so_a_device_that_cant_decode_it_cant_play_it() {
+        let profile_5 = Hdr::DolbyVision {
+            profile: 5,
+            hdr10_base_layer: false,
+        };
+        let facts = in_container(MP4, Some(vec![hdr_video("hevc", Some(profile_5))]));
+
+        let plan = build(&facts, &STEPS);
+
+        assert_eq!(plan.method, None);
+        assert_eq!(
+            plan.reasons[2],
+            "This Server has ffmpeg, but it can't Transcode a Dolby Vision profile 5 picture, \
+             which has no HDR10 base layer to tone-map in software"
         );
     }
 
