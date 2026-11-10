@@ -5,6 +5,8 @@
 mod fake_sonarr;
 #[path = "support/refused.rs"]
 mod refused;
+#[path = "support/servarr.rs"]
+mod servarr;
 #[expect(dead_code, reason = "the harness's plain `start` has no use here")]
 #[path = "support/server.rs"]
 mod server;
@@ -17,7 +19,7 @@ use connectrpc::{
 };
 use fake_sonarr::{API_KEY as SONARR_KEY, DARK_TVDB, FakeSonarr};
 use nama_plugin_api::{
-    fulfiller::{Fulfiller, Shows},
+    fulfiller::Shows,
     settings::{SettingValue, Settings},
 };
 use nama_plugin_tmdb::{
@@ -30,14 +32,14 @@ use nama_proto::nama::v1::{
     CreateUserRequest, DeclineRequestRequest, Download, DownloadStatus, EnablePluginRequest,
     EventServiceClient, EventType, ExtensionPoint, FollowedShow, GetRequestRequest,
     ListDefaultQualitiesRequest, ListPluginsRequest, ListShowQualitiesRequest, LookUpShowRequest,
-    Permission, PluginServiceClient, Quality, RefusalReason, ReplaceQualitiesRequest, Request,
-    RequestServiceClient, RequestState, RequestedQuality, RetryRequestRequest, SessionDelivery,
-    SetDefaultQualityRequest, SetPermissionsRequest, SignInRequest, SignInServiceClient,
-    SubscribeRequest, SubscribeResponse, TestPluginSettingsRequest, TestPluginSettingsResponse,
-    UpdatePluginSettingsRequest, event, setting_value::Value, subscribe_response,
+    Permission, Quality, RefusalReason, ReplaceQualitiesRequest, Request, RequestServiceClient,
+    RequestState, RequestedQuality, RetryRequestRequest, SessionDelivery, SetDefaultQualityRequest,
+    SetPermissionsRequest, SignInRequest, SignInServiceClient, SubscribeRequest, SubscribeResponse,
+    UpdatePluginSettingsRequest, event, subscribe_response,
 };
 use nama_server::{config::Config, db::Database, plugin_settings, plugins::Registry};
 use refused::assert_refused;
+use servarr::{ServarrFixture, choices, quality, text};
 use server::{PASSWORD, TestServer};
 
 /// Shows the fake TMDB knows, by TMDB id. Sonarr can find Dark, but not The Office.
@@ -62,6 +64,23 @@ struct Fixture {
     plugins: Registry,
     sonarr: FakeSonarr,
     _tmdb: FakeTmdb,
+}
+
+impl ServarrFixture for Fixture {
+    const PLUGIN: &'static str = "sonarr";
+    type Kind = Shows;
+
+    fn server(&self) -> &TestServer {
+        &self.server
+    }
+
+    fn registry(&self) -> &Registry {
+        &self.plugins
+    }
+
+    fn servarr_url(&self) -> String {
+        self.sonarr.url()
+    }
 }
 
 #[expect(
@@ -104,7 +123,7 @@ impl Fixture {
     /// and enabled it.
     async fn with_sonarr_enabled() -> Self {
         let fixture = Self::start().await;
-        let mut settings = fixture.sonarr_settings(SONARR_KEY);
+        let mut settings = fixture.settings(SONARR_KEY);
         settings.extend([("quality_profile", "4"), ("root_folder", "/tv")].map(text));
         fixture
             .plugins()
@@ -124,40 +143,6 @@ impl Fixture {
             .await
             .unwrap();
         fixture
-    }
-
-    /// The fake Sonarr's URL and `api_key` as Sonarr's settings.
-    fn sonarr_settings(&self, api_key: &str) -> Vec<(String, nama_proto::nama::v1::SettingValue)> {
-        vec![
-            text(("url", &self.sonarr.url())),
-            text(("api_key", api_key)),
-        ]
-    }
-
-    /// Tests Sonarr's settings with the fake Sonarr's URL and `api_key`, as the Plugins page's
-    /// "Test" does.
-    async fn test_settings(
-        &self,
-        api_key: &str,
-    ) -> Result<TestPluginSettingsResponse, ConnectError> {
-        let request = TestPluginSettingsRequest {
-            id: "sonarr".to_owned(),
-            settings: self.sonarr_settings(api_key).into_iter().collect(),
-            ..Default::default()
-        };
-        Ok(self
-            .plugins()
-            .test_plugin_settings(request)
-            .await?
-            .into_owned())
-    }
-
-    fn plugins(&self) -> PluginServiceClient<HttpClient> {
-        PluginServiceClient::new(HttpClient::plaintext(), self.server.client_config())
-    }
-
-    fn requests(&self) -> RequestServiceClient<HttpClient> {
-        RequestServiceClient::new(HttpClient::plaintext(), self.server.client_config())
     }
 
     /// The Seasons `seasons` of the Show `show`, asked for by the Admin and so Approved at once, as
@@ -318,19 +303,6 @@ impl Fixture {
             .unwrap();
     }
 
-    /// Asks the Show Fulfiller, Sonarr, what it is downloading for `references`, with its error
-    /// as Users would see it.
-    async fn progress(&self, references: &[String]) -> Result<Vec<String>, String> {
-        self.plugins
-            .call_provider::<dyn Fulfiller<Shows>, _, _>(|sonarr| async move {
-                sonarr.progress(references).await
-            })
-            .await
-            .unwrap()
-            .map(|by_reference| by_reference.into_keys().collect())
-            .map_err(|error| error.to_string())
-    }
-
     /// Subscribes as the Admin to the progress of every Request.
     async fn subscribe_to_progress(&self) -> Subscription {
         let only = SubscribeRequest {
@@ -474,39 +446,9 @@ async fn ask_one(
         .remove(0)
 }
 
-/// A new Quality offering the Sonarr profile `profile_id` as `name`.
-fn quality(profile_id: &str, name: &str, is_default: bool) -> Quality {
-    Quality {
-        profile_id: profile_id.to_owned(),
-        name: name.to_owned(),
-        is_default,
-        ..Default::default()
-    }
-}
-
 /// The id and name of `quality`, if a Request or Show has one.
 fn named(quality: Option<&RequestedQuality>) -> Option<(i64, &str)> {
     quality.map(|quality| (quality.id, quality.name.as_str()))
-}
-
-/// `(key, value)` as the Plugins page sends a text setting.
-fn text((key, value): (&str, &str)) -> (String, nama_proto::nama::v1::SettingValue) {
-    let value = nama_proto::nama::v1::SettingValue {
-        value: Some(Value::TextValue(value.to_owned())),
-        ..Default::default()
-    };
-    (key.to_owned(), value)
-}
-
-/// The `(value, label)` of each choice `tested` offers for the setting `key`.
-fn choices<'a>(tested: &'a TestPluginSettingsResponse, key: &str) -> Vec<(&'a str, &'a str)> {
-    tested.choices.get(key).map_or_else(Vec::new, |offered| {
-        offered
-            .choices
-            .iter()
-            .map(|choice| (choice.value.as_str(), choice.label.as_str()))
-            .collect()
-    })
 }
 
 fn states(requests: &[Request]) -> Vec<Option<RequestState>> {
