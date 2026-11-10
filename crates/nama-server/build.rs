@@ -73,6 +73,7 @@ fn build_bundled() -> Result<(), Box<dyn Error>> {
     let sources = [
         "crates/nama-pdk",
         "crates/nama-proto",
+        "plugins/servarr",
         "Cargo.toml",
         "Cargo.lock",
     ];

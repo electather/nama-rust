@@ -1,0 +1,15 @@
+[package]
+name = "nama-servarr"
+version = "0.1.0"
+description = "What the Sonarr and Radarr Installed Plugins share: the client for their service's API"
+license = "AGPL-3.0-only"
+edition.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+nama-pdk = { version = "0.1.0", path = "../../crates/nama-pdk" }
+serde = { version = "1", features = ["derive"] }
+
+[lints]
+workspace = true
