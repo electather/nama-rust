@@ -47,7 +47,7 @@ function ProgramRow({ name, found }: { name: string; found: FoundProgram | undef
           <p className="text-sm text-muted-foreground">{name} wasn’t found on the PATH.</p>
         ) : (
           <>
-            <p className="text-sm">Version {found.version}</p>
+            <p className="text-sm">version {found.version}</p>
             <p className="text-sm break-all text-muted-foreground">{found.path}</p>
           </>
         )}

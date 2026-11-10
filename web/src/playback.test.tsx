@@ -21,7 +21,7 @@ test("an Admin sees the path and version of the ffmpeg and ffprobe the Server fo
 
   expect(await screen.findByText("/usr/bin/ffmpeg")).toBeDefined();
   expect(screen.getByText("/usr/bin/ffprobe")).toBeDefined();
-  expect(screen.getAllByText("Version 7.1.1")).toHaveLength(2);
+  expect(screen.getAllByText("version 7.1.1")).toHaveLength(2);
   expect(screen.queryByText(/can only Direct Play/u)).toBeNull();
 });
 
