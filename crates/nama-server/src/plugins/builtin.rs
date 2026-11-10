@@ -10,7 +10,7 @@ use tracing::{error, info};
 
 use nama_proto::nama::v1::PluginKind;
 
-use super::{Described, Registry, contain_sync, kept_logo, log_not_enabled};
+use super::{Described, Make, Registry, contain_sync, kept_logo, log_not_enabled};
 use crate::config::PluginConfig;
 
 fn all() -> Vec<fn() -> Arc<dyn Plugin>> {
@@ -33,55 +33,67 @@ impl Registry {
     pub fn with_builtins(config: &BTreeMap<String, PluginConfig>) -> Self {
         let registry = Self::new();
         for make in all() {
-            let plugin = match contain_sync(make) {
-                Ok(plugin) => plugin,
-                Err(message) => {
-                    error!(message, "a built-in plugin panicked while being made");
-                    continue;
-                }
-            };
-            // A Plugin's `manifest` and `settings_check` are Plugin code, so a panic in them is
-            // contained.
-            let manifest = match contain_sync(|| plugin.manifest()) {
-                Ok(manifest) => manifest,
-                Err(message) => {
-                    error!(
-                        message,
-                        "a built-in plugin panicked while giving its manifest"
-                    );
-                    continue;
-                }
-            };
-            let id = manifest.id;
-            let checks_settings = match contain_sync(|| plugin.settings_check().is_some()) {
-                Ok(checks_settings) => checks_settings,
-                Err(message) => {
-                    error!(plugin = %id, message, "a built-in plugin panicked while describing itself");
-                    continue;
-                }
-            };
-            let described = Described {
-                kind: PluginKind::PLUGIN_KIND_BUILT_IN,
-                make: Ok(Arc::new(make)),
-                name: manifest.name,
-                description: manifest.description,
-                version: manifest.version,
-                settings_schema: manifest.settings,
-                checks_settings,
-                extension_points: manifest.extension_points,
-                logo_svg: manifest.logo_svg.and_then(|logo| kept_logo(&id, logo)),
-            };
-            registry.write(|state| state.known.insert(id.clone(), described));
-            let config = config.get(id.as_str()).cloned().unwrap_or_default();
-            if !config.enabled {
-                info!(plugin = %id, "plugin disabled in its settings");
-                continue;
-            }
-            if let Err(err) = registry.enable_with_settings(plugin, Settings::new(config.settings))
-            {
-                log_not_enabled(&id, &err);
-            }
+            registry.add_builtin(Arc::new(make), config);
         }
         registry
+    }
+
+    /// Adds the Plugin `make` makes as a Built-in one, enabled with no settings, so that what
+    /// asks for a Plugin the Server knows, such as its settings check, reaches a test's fake.
+    #[cfg(feature = "testing")]
+    pub fn add_test_builtin(&self, make: impl Fn() -> Arc<dyn Plugin> + Send + Sync + 'static) {
+        self.add_builtin(Arc::new(make), &BTreeMap::new());
+    }
+
+    /// Knows the Plugin `make` makes as Built-in and enables it with its settings from `config`,
+    /// as [`Registry::with_builtins`] does each one.
+    fn add_builtin(&self, make: Make, config: &BTreeMap<String, PluginConfig>) {
+        let plugin = match contain_sync(|| make()) {
+            Ok(plugin) => plugin,
+            Err(message) => {
+                error!(message, "a built-in plugin panicked while being made");
+                return;
+            }
+        };
+        // A Plugin's `manifest` and `settings_check` are Plugin code, so a panic in them is
+        // contained.
+        let manifest = match contain_sync(|| plugin.manifest()) {
+            Ok(manifest) => manifest,
+            Err(message) => {
+                error!(
+                    message,
+                    "a built-in plugin panicked while giving its manifest"
+                );
+                return;
+            }
+        };
+        let id = manifest.id;
+        let checks_settings = match contain_sync(|| plugin.settings_check().is_some()) {
+            Ok(checks_settings) => checks_settings,
+            Err(message) => {
+                error!(plugin = %id, message, "a built-in plugin panicked while describing itself");
+                return;
+            }
+        };
+        let described = Described {
+            kind: PluginKind::PLUGIN_KIND_BUILT_IN,
+            make: Ok(make),
+            name: manifest.name,
+            description: manifest.description,
+            version: manifest.version,
+            settings_schema: manifest.settings,
+            checks_settings,
+            extension_points: manifest.extension_points,
+            logo_svg: manifest.logo_svg.and_then(|logo| kept_logo(&id, logo)),
+        };
+        self.write(|state| state.known.insert(id.clone(), described));
+        let config = config.get(id.as_str()).cloned().unwrap_or_default();
+        if !config.enabled {
+            info!(plugin = %id, "plugin disabled in its settings");
+            return;
+        }
+        if let Err(err) = self.enable_with_settings(plugin, Settings::new(config.settings)) {
+            log_not_enabled(&id, &err);
+        }
     }
 }

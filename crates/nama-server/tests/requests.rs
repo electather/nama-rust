@@ -36,7 +36,7 @@ use nama_plugin_api::{
     BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
     fulfiller::{Download, DownloadStatus, Fulfilled, Fulfiller, Movies, Shows},
     notifier::{Notification, Notifier, Recipient},
-    settings::{SettingValue, Settings, SettingsSchema},
+    settings::{Choice, Choices, SettingValue, Settings, SettingsCheck, SettingsSchema},
 };
 use nama_plugin_test_choices as test_choices;
 use nama_plugin_tmdb::{
@@ -52,10 +52,11 @@ use nama_proto::nama::v1::{
     EventType, FollowedShow, FoundMovie, FoundShow, GetRequestRequest, LibraryKind,
     LibraryServiceClient, ListMoviesRequest, ListPluginsRequest, ListRequestsRequest,
     ListRequestsResponse, ListShowsRequest, LookUpMovieRequest, LookUpShowRequest, Permission,
-    PluginServiceClient, RefusalReason, Request, RequestServiceClient, RequestState,
-    RetryRequestRequest, ScanLibraryRequest, SearchMoviesRequest, SearchShowsRequest,
-    SessionDelivery, SetPermissionsRequest, SignInRequest, SignInServiceClient, SubscribeRequest,
-    SubscribeResponse, UpdatePluginSettingsRequest, UserServiceClient, WithdrawFollowedShowRequest,
+    PluginServiceClient, Quality, RefusalReason, ReplaceQualitiesRequest, Request,
+    RequestServiceClient, RequestState, RetryRequestRequest, ScanLibraryRequest,
+    SearchMoviesRequest, SearchShowsRequest, SessionDelivery, SetDefaultQualityRequest,
+    SetPermissionsRequest, SignInRequest, SignInServiceClient, SubscribeRequest, SubscribeResponse,
+    UpdatePluginSettingsRequest, UserServiceClient, WithdrawFollowedShowRequest,
     WithdrawRequestRequest, event, setting_value, subscribe_response,
 };
 use nama_server::{
@@ -91,6 +92,20 @@ const WAIT: Duration = Duration::from_secs(10);
 
 /// What a new User gets: `REQUEST` and `VIEW_REQUESTS`.
 const NEW_USER: [Permission; 2] = [Permission::Request, Permission::ViewRequests];
+/// A new User's Permissions and `CHOOSE_QUALITY`.
+const CHOOSER: [Permission; 3] = [
+    Permission::Request,
+    Permission::ViewRequests,
+    Permission::ChooseQuality,
+];
+
+/// The ids of the Plugins providing the fake Fulfillers, for Movies and for Shows.
+const MOVIE_FULFILLER: &str = "fake-fulfiller";
+const SHOWS_FULFILLER: &str = "fake-shows-fulfiller";
+
+/// Quality profiles a fake Fulfiller can offer, by id.
+const HD_PROFILE: &str = "4";
+const ULTRA_HD_PROFILE: &str = "5";
 
 /// A Server with the TMDB Plugin enabled against a fake TMDB, and an Admin.
 struct Fixture {
@@ -112,18 +127,16 @@ impl Fixture {
     /// A Fixture whose Movie Fulfiller is `fulfiller`.
     async fn with_fulfiller(fulfiller: &FakeFulfiller) -> Self {
         let plugins = Registry::new();
-        plugins
-            .enable(Arc::new(FulfillerPlugin(fulfiller.clone())))
-            .unwrap();
+        let fulfiller = fulfiller.clone();
+        plugins.add_test_builtin(move || Arc::new(FulfillerPlugin(fulfiller.clone())));
         Self::start_with(plugins).await
     }
 
     /// A Fixture whose Fulfiller for Shows is `fulfiller`.
     async fn with_shows_fulfiller(fulfiller: &FakeFulfiller) -> Self {
         let plugins = Registry::new();
-        plugins
-            .enable(Arc::new(ShowsFulfillerPlugin(fulfiller.clone())))
-            .unwrap();
+        let fulfiller = fulfiller.clone();
+        plugins.add_test_builtin(move || Arc::new(ShowsFulfillerPlugin(fulfiller.clone())));
         Self::start_with(plugins).await
     }
 
@@ -268,17 +281,49 @@ impl Fixture {
 
     /// Approves the Request `id` as the Admin, and returns it as the approval left it.
     async fn approve(&self, id: i64) -> Request {
-        requests(self.server.client_config())
+        self.approve_at(id, None).await.unwrap()
+    }
+
+    /// [`Self::approve`], changing its Quality to `quality` if given.
+    async fn approve_at(&self, id: i64, quality: Option<i64>) -> Result<Request, ConnectError> {
+        let approved = requests(self.server.client_config())
             .approve_request(ApproveRequestRequest {
                 id,
+                quality_id: quality,
                 ..Default::default()
             })
-            .await
-            .unwrap()
-            .into_owned()
-            .request
-            .into_option()
-            .unwrap()
+            .await?;
+        Ok(approved.into_owned().request.into_option().unwrap())
+    }
+
+    /// Replaces the Plugin `plugin`'s Qualities with `qualities` as the Admin, returning them as
+    /// saved.
+    async fn replace_qualities(
+        &self,
+        plugin: &str,
+        qualities: Vec<Quality>,
+    ) -> Result<Vec<Quality>, ConnectError> {
+        let replaced = self
+            .plugin_service()
+            .replace_qualities(ReplaceQualitiesRequest {
+                id: plugin.to_owned(),
+                qualities,
+                ..Default::default()
+            })
+            .await?;
+        Ok(replaced.into_owned().qualities)
+    }
+
+    /// Has `fulfiller`, the fake of the Plugin `plugin`, offer [`HD_PROFILE`] and
+    /// [`ULTRA_HD_PROFILE`], and the Admin offer them as "HD", the default, and "4K". Returns them
+    /// as saved.
+    async fn offer_hd_and_4k(&self, fulfiller: &FakeFulfiller, plugin: &str) -> Vec<Quality> {
+        fulfiller.offer_profiles(&[HD_PROFILE, ULTRA_HD_PROFILE]);
+        let qualities = vec![
+            quality(HD_PROFILE, "HD", true),
+            quality(ULTRA_HD_PROFILE, "4K", false),
+        ];
+        self.replace_qualities(plugin, qualities).await.unwrap()
     }
 
     /// Creates a User named `name` with `permissions`, signs them in, and returns their ID and
@@ -1004,6 +1049,12 @@ struct FakeFulfiller {
     downloading: Arc<Mutex<HashMap<String, Vec<Download>>>>,
     /// Whether it fails to say what it is downloading.
     progress_fails: Arc<AtomicBool>,
+    /// The quality profiles its settings check offers.
+    profiles: Arc<Mutex<Vec<String>>>,
+    /// Whether its settings check fails.
+    check_fails: Arc<AtomicBool>,
+    /// The profile id and name it reports it used on each hand-off, if any.
+    used: Arc<Mutex<Option<(String, String)>>>,
 }
 
 impl FakeFulfiller {
@@ -1031,6 +1082,40 @@ impl FakeFulfiller {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .insert(format!("movie-{tmdb_id}"), downloads);
+    }
+
+    /// Has its settings check offer the quality profiles `profiles` from now on.
+    fn offer_profiles(&self, profiles: &[&str]) {
+        *self.profiles.lock().unwrap_or_else(PoisonError::into_inner) =
+            profiles.iter().map(|&profile| profile.to_owned()).collect();
+    }
+
+    /// Has its settings check fail from now on.
+    fn fail_checks(&self) {
+        self.check_fails.store(true, Ordering::Relaxed);
+    }
+
+    /// Reports the profile `profile_id`, named `profile_name`, as the one it used on each hand-off
+    /// from now on, as a service that already had the title would.
+    fn report_used(&self, profile_id: &str, profile_name: &str) {
+        *self.used.lock().unwrap_or_else(PoisonError::into_inner) =
+            Some((profile_id.to_owned(), profile_name.to_owned()));
+    }
+
+    /// What it fulfilled a hand-off with `reference`.
+    fn fulfilled(&self, reference: String) -> Fulfilled {
+        let (profile_id, profile_name) = self
+            .used
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
+            .unwrap_or_default();
+        Fulfilled {
+            reference,
+            profile_id,
+            profile_name,
+            ..Fulfilled::default()
+        }
     }
 
     fn handed(&self) -> Vec<i64> {
@@ -1066,14 +1151,12 @@ impl Fulfiller<Movies> for FakeFulfiller {
             .unwrap_or_else(PoisonError::into_inner)
             .push(tmdb_id);
         let refuses = self.refuses.load(Ordering::Relaxed);
+        let fulfilled = self.fulfilled(format!("movie-{tmdb_id}"));
         Box::pin(async move {
             if refuses {
                 return Err("Radarr is unreachable".into());
             }
-            Ok(Fulfilled {
-                reference: format!("movie-{tmdb_id}"),
-                ..Fulfilled::default()
-            })
+            Ok(fulfilled)
         })
     }
 
@@ -1110,6 +1193,7 @@ impl Fulfiller<Shows> for FakeFulfiller {
             .push((show, season.show_tvdb_id, season_number, follow));
         let refuses = self.refuses.load(Ordering::Relaxed);
         let refuses_to_follow = follow && self.refuses_following.load(Ordering::Relaxed);
+        let fulfilled = self.fulfilled(format!("show-{show}-season-{season_number}"));
         Box::pin(async move {
             if refuses {
                 return Err("Sonarr is unreachable".into());
@@ -1117,10 +1201,7 @@ impl Fulfiller<Shows> for FakeFulfiller {
             if refuses_to_follow {
                 return Err("Sonarr can't follow this Show".into());
             }
-            Ok(Fulfilled {
-                reference: format!("show-{show}-season-{season_number}"),
-                ..Fulfilled::default()
-            })
+            Ok(fulfilled)
         })
     }
 
@@ -1140,13 +1221,38 @@ impl Fulfiller<Shows> for FakeFulfiller {
     }
 }
 
+/// Offers the profiles a test set for `quality_profile`, unless told to fail.
+impl SettingsCheck for FakeFulfiller {
+    fn check<'a>(&'a self, _settings: &'a Settings) -> BoxFuture<'a, Result<Choices, PluginError>> {
+        let fails = self.check_fails.load(Ordering::Relaxed);
+        let profiles = self
+            .profiles
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone();
+        Box::pin(async move {
+            if fails {
+                return Err("the service is unreachable".into());
+            }
+            let choices = profiles.into_iter().map(|profile| Choice {
+                value: profile.clone(),
+                label: profile,
+            });
+            Ok(Choices::from([(
+                "quality_profile".to_owned(),
+                choices.collect(),
+            )]))
+        })
+    }
+}
+
 /// A test Plugin providing a [`FakeFulfiller`] for Shows.
 struct ShowsFulfillerPlugin(FakeFulfiller);
 
 impl Plugin for ShowsFulfillerPlugin {
     fn manifest(&self) -> Manifest {
         Manifest {
-            id: PluginId::from_static("fake-shows-fulfiller"),
+            id: PluginId::from_static(SHOWS_FULFILLER),
             name: String::new(),
             description: String::new(),
             version: "0.0.0".to_owned(),
@@ -1154,6 +1260,10 @@ impl Plugin for ShowsFulfillerPlugin {
             extension_points: vec![PointKey::provide::<dyn Fulfiller<Shows>>()],
             logo_svg: None,
         }
+    }
+
+    fn settings_check(&self) -> Option<&dyn SettingsCheck> {
+        Some(&self.0)
     }
 
     fn register(&self, registrar: &mut Registrar) {
@@ -1167,7 +1277,7 @@ struct FulfillerPlugin(FakeFulfiller);
 impl Plugin for FulfillerPlugin {
     fn manifest(&self) -> Manifest {
         Manifest {
-            id: PluginId::from_static("fake-fulfiller"),
+            id: PluginId::from_static(MOVIE_FULFILLER),
             name: String::new(),
             description: String::new(),
             version: "0.0.0".to_owned(),
@@ -1175,6 +1285,10 @@ impl Plugin for FulfillerPlugin {
             extension_points: vec![PointKey::provide::<dyn Fulfiller<Movies>>()],
             logo_svg: None,
         }
+    }
+
+    fn settings_check(&self) -> Option<&dyn SettingsCheck> {
+        Some(&self.0)
     }
 
     fn register(&self, registrar: &mut Registrar) {
@@ -1478,9 +1592,19 @@ async fn retrying_a_request_that_isnt_failed_is_refused() {
 
 /// Retries the Request `id` as the Admin.
 async fn retry(fixture: &Fixture, id: i64) -> Result<Request, ConnectError> {
+    retry_at(fixture, id, None).await
+}
+
+/// [`retry`], changing its Quality to `quality` if given.
+async fn retry_at(
+    fixture: &Fixture,
+    id: i64,
+    quality: Option<i64>,
+) -> Result<Request, ConnectError> {
     let retried = requests(fixture.server.client_config())
         .retry_request(RetryRequestRequest {
             id,
+            quality_id: quality,
             ..Default::default()
         })
         .await?;
@@ -2908,18 +3032,31 @@ async fn follow(
     client: &RequestServiceClient<HttpClient>,
     show: i64,
 ) -> (FollowedShow, Vec<Request>) {
+    follow_at(client, show, None).await.unwrap()
+}
+
+/// [`follow`], at the Quality `quality` if given.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn follow_at(
+    client: &RequestServiceClient<HttpClient>,
+    show: i64,
+    quality: Option<i64>,
+) -> Result<(FollowedShow, Vec<Request>), ConnectError> {
     let followed = client
         .create_followed_show(CreateFollowedShowRequest {
             show_tmdb_id: show,
+            quality,
             ..Default::default()
         })
-        .await
-        .unwrap()
+        .await?
         .into_owned();
-    (
+    Ok((
         followed.followed_show.into_option().unwrap(),
         followed.requests,
-    )
+    ))
 }
 
 /// Follows Dark as the caller of `client` as if it had two Seasons then: the fake TMDB has no
@@ -2960,14 +3097,24 @@ async fn follow_dark_before_season_3(
 }
 
 /// Approves the Followed Show `id` as the Admin, and returns it as the approval left it.
+async fn approve_followed(fixture: &Fixture, id: i64) -> Result<FollowedShow, ConnectError> {
+    approve_followed_at(fixture, id, None).await
+}
+
+/// [`approve_followed`], changing the Show's Quality to `quality` if given.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
-async fn approve_followed(fixture: &Fixture, id: i64) -> Result<FollowedShow, ConnectError> {
+async fn approve_followed_at(
+    fixture: &Fixture,
+    id: i64,
+    quality: Option<i64>,
+) -> Result<FollowedShow, ConnectError> {
     requests(fixture.server.client_config())
         .approve_followed_show(ApproveFollowedShowRequest {
             id,
+            quality_id: quality,
             ..Default::default()
         })
         .await
@@ -3780,39 +3927,34 @@ async fn a_season_request_a_followed_show_opened_isnt_opened_again_once_cancelle
     assert_eq!(dark_seasons_requested(&ada).await, [1, 2]);
 }
 
-/// Has the fake Fulfiller for Shows offer one Quality, named `name` and so the default, in place of
-/// any it offered. Written straight to the database, since the fake has no settings check for an
-/// Admin's list to be checked against.
+/// A Quality an Admin offers, of the service's profile `profile_id`, named `name`.
+fn quality(profile_id: &str, name: &str, is_default: bool) -> Quality {
+    Quality {
+        profile_id: profile_id.to_owned(),
+        name: name.to_owned(),
+        is_default,
+        ..Default::default()
+    }
+}
+
+/// Offers one Quality for Shows as the Admin, of the profile `name` and named after it, and so the
+/// default, in place of any offered before.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
-async fn offer_only_show_quality(fixture: &Fixture, name: &'static str) {
+async fn offer_only_show_quality(fixture: &Fixture, name: &str) {
     fixture
-        .db
-        .write(move |tx| {
-            Box::pin(async move {
-                sqlx::query("DELETE FROM qualities")
-                    .execute(&mut **tx)
-                    .await?;
-                sqlx::query(
-                    "INSERT INTO qualities (plugin_id, position, profile_id, name, description,
-                                            is_default)
-                     VALUES ('fake-shows-fulfiller', 0, ?, ?, '', 1)",
-                )
-                .bind(name)
-                .bind(name)
-                .execute(&mut **tx)
-                .await
-            })
-        })
+        .replace_qualities(SHOWS_FULFILLER, vec![quality(name, name, true)])
         .await
         .unwrap();
 }
 
 #[tokio::test]
 async fn a_season_that_comes_out_later_opens_its_request_at_the_followed_shows_quality() {
-    let fixture = Fixture::with_shows_fulfiller(&FakeFulfiller::default()).await;
+    let fulfiller = FakeFulfiller::default();
+    fulfiller.offer_profiles(&["4K", "HD"]);
+    let fixture = Fixture::with_shows_fulfiller(&fulfiller).await;
     offer_only_show_quality(&fixture, "4K").await;
     let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
     let (followed, _) = follow_dark_before_season_3(&fixture, &requests(as_ada.clone())).await;
@@ -3831,6 +3973,314 @@ async fn a_season_that_comes_out_later_opens_its_request_at_the_followed_shows_q
     assert_eq!(season_of(&created.request), Some(("Dark", 3)));
     assert_eq!(followed.quality.name, "4K");
     assert_eq!(created.request.quality.name, "4K");
+}
+
+/// Asks for the Movie `tmdb_id` as the caller of `client`, at the Quality `quality` if given.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn ask_at(
+    client: &RequestServiceClient<HttpClient>,
+    tmdb_id: i64,
+    quality: Option<i64>,
+) -> Result<Request, ConnectError> {
+    let asked = client
+        .create_request(CreateRequestRequest {
+            movie_tmdb_id: tmdb_id,
+            quality,
+            ..Default::default()
+        })
+        .await?;
+    Ok(asked.into_owned().request.into_option().unwrap())
+}
+
+/// Asks for the Seasons `seasons` of the Show `show` as the caller of `client`, at the Quality
+/// `quality` if given.
+async fn ask_seasons_at(
+    client: &RequestServiceClient<HttpClient>,
+    show: i64,
+    seasons: &[u32],
+    quality: Option<i64>,
+) -> Result<Vec<Request>, ConnectError> {
+    let asked = client
+        .create_season_requests(CreateSeasonRequestsRequest {
+            quality,
+            ..season_request(show, seasons)
+        })
+        .await?;
+    Ok(asked.into_owned().requests)
+}
+
+#[tokio::test]
+async fn asking_for_a_movie_takes_the_askers_default_quality_and_refuses_one_not_offered() {
+    let fulfiller = FakeFulfiller::default();
+    let fixture = Fixture::with_fulfiller(&fulfiller).await;
+    let offered = fixture.offer_hd_and_4k(&fulfiller, MOVIE_FULFILLER).await;
+    let (_, as_ada) = fixture.user("Ada", &CHOOSER).await;
+    let ada = requests(as_ada);
+    ada.set_default_quality(SetDefaultQualityRequest {
+        plugin_id: MOVIE_FULFILLER.to_owned(),
+        quality: Some(offered[1].id),
+        ..Default::default()
+    })
+    .await
+    .unwrap();
+
+    let defaulted = ask_at(&ada, ALIEN, None).await.unwrap();
+    let not_offered = ask_at(&ada, HEAT, Some(999)).await;
+
+    assert_eq!(defaulted.quality.name, "4K");
+    let refusal = assert_refused(
+        not_offered,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_QUALITY_NOT_OFFERED,
+    );
+    assert_eq!(refusal.field, "quality");
+}
+
+#[tokio::test]
+async fn asking_for_seasons_takes_the_shows_quality_and_refuses_another() {
+    let fulfiller = FakeFulfiller::default();
+    let fixture = Fixture::with_shows_fulfiller(&fulfiller).await;
+    let offered = fixture.offer_hd_and_4k(&fulfiller, SHOWS_FULFILLER).await;
+    let (_, as_ada) = fixture.user("Ada", &CHOOSER).await;
+    let ada = requests(as_ada);
+    ask_seasons_at(&ada, DARK, &[1], Some(offered[1].id))
+        .await
+        .unwrap();
+
+    let later = ask_seasons_at(&ada, DARK, &[2], None).await.unwrap();
+    let other = ask_seasons_at(&ada, DARK, &[3], Some(offered[0].id)).await;
+
+    assert_eq!(later[0].quality.name, "4K");
+    let refusal = assert_refused(
+        other,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_SHOW_HAS_QUALITY,
+    );
+    assert_eq!(refusal.field, "quality");
+}
+
+#[tokio::test]
+async fn following_a_show_at_a_quality_opens_its_season_requests_at_it_unless_the_asker_may_not_choose()
+ {
+    let fulfiller = FakeFulfiller::default();
+    let fixture = Fixture::with_shows_fulfiller(&fulfiller).await;
+    let offered = fixture.offer_hd_and_4k(&fulfiller, SHOWS_FULFILLER).await;
+    let (_, as_ada) = fixture.user("Ada", &CHOOSER).await;
+    let (_, as_bob) = fixture.user("Bob", &NEW_USER).await;
+
+    let (followed, asked) = follow_at(&requests(as_ada), DARK, Some(offered[1].id))
+        .await
+        .unwrap();
+    let not_allowed = follow_at(&requests(as_bob), DARK, Some(offered[1].id)).await;
+
+    assert_eq!(followed.quality.name, "4K");
+    let asked_at: Vec<_> = asked
+        .iter()
+        .map(|request| request.quality.name.as_str())
+        .collect();
+    assert_eq!(asked_at, ["4K"; 3]);
+    let refusal = assert_refused(
+        not_allowed,
+        ErrorCode::PermissionDenied,
+        RefusalReason::REFUSAL_REASON_QUALITY_NOT_ALLOWED,
+    );
+    assert_eq!(refusal.field, "quality");
+}
+
+#[tokio::test]
+async fn approving_a_season_at_another_quality_moves_its_show_and_once_handed_off_refuses_another()
+{
+    let fulfiller = FakeFulfiller::default();
+    let fixture = Fixture::with_shows_fulfiller(&fulfiller).await;
+    let offered = fixture.offer_hd_and_4k(&fulfiller, SHOWS_FULFILLER).await;
+    let (_, as_ada) = fixture.user("Ada", &CHOOSER).await;
+    let (_, asked) = follow_at(&requests(as_ada), DARK, Some(offered[1].id))
+        .await
+        .unwrap();
+
+    let approved = fixture
+        .approve_at(asked[0].id, Some(offered[0].id))
+        .await
+        .unwrap();
+    let fixed = fixture.approve_at(asked[1].id, Some(offered[1].id)).await;
+
+    assert_eq!(approved.state, RequestState::Processing);
+    assert_eq!(approved.quality.name, "HD");
+    let change = &approved.quality_change;
+    assert_eq!(change.changed_by.as_deref(), Some("Admin"));
+    assert_eq!(change.previous_name.as_deref(), Some("4K"));
+    let admin = requests(fixture.server.client_config());
+    assert_eq!(get(&admin, asked[1].id).await.quality.name, "HD");
+    assert_eq!(list_followed(&admin).await[0].quality.name, "HD");
+    let refusal = assert_refused(
+        fixed,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_SHOW_HAS_QUALITY,
+    );
+    assert_eq!(refusal.field, "quality_id");
+}
+
+#[tokio::test]
+async fn approving_a_followed_show_at_another_quality_hands_off_its_season_requests_at_that_one() {
+    let fulfiller = FakeFulfiller::default();
+    let fixture = Fixture::with_shows_fulfiller(&fulfiller).await;
+    let offered = fixture.offer_hd_and_4k(&fulfiller, SHOWS_FULFILLER).await;
+    let (_, as_ada) = fixture.user("Ada", &CHOOSER).await;
+    let (followed, asked) = follow_at(&requests(as_ada), DARK, Some(offered[1].id))
+        .await
+        .unwrap();
+
+    let approved = approve_followed_at(&fixture, followed.id, Some(offered[0].id))
+        .await
+        .unwrap();
+    let season_1 = get(&requests(fixture.server.client_config()), asked[0].id).await;
+
+    assert_eq!(approved.quality.name, "HD");
+    assert_eq!(season_1.state, RequestState::Processing);
+    assert_eq!(season_1.quality.name, "HD");
+}
+
+#[tokio::test]
+async fn retrying_a_failed_request_at_another_quality_hands_it_off_at_that_one_and_refuses_one_not_offered()
+ {
+    let fulfiller = FakeFulfiller::refusing();
+    let fixture = Fixture::with_fulfiller(&fulfiller).await;
+    let offered = fixture.offer_hd_and_4k(&fulfiller, MOVIE_FULFILLER).await;
+    let failed = ask(&requests(fixture.server.client_config()), HEAT).await;
+    fulfiller.recover();
+
+    let not_offered = retry_at(&fixture, failed.id, Some(999)).await;
+    let retried = retry_at(&fixture, failed.id, Some(offered[1].id))
+        .await
+        .unwrap();
+
+    assert_eq!(failed.state, RequestState::Failed);
+    assert_eq!(retried.state, RequestState::Processing);
+    assert_eq!(retried.quality.name, "4K");
+    assert_eq!(retried.quality_change.previous_name.as_deref(), Some("HD"));
+    let refusal = assert_refused(
+        not_offered,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_QUALITY_NOT_OFFERED,
+    );
+    assert_eq!(refusal.field, "quality_id");
+}
+
+#[tokio::test]
+async fn an_auto_approved_joiners_quality_approves_a_pending_request_at_it_and_another_joiners_does_not()
+ {
+    let fulfiller = FakeFulfiller::default();
+    let fixture = Fixture::with_fulfiller(&fulfiller).await;
+    let offered = fixture.offer_hd_and_4k(&fulfiller, MOVIE_FULFILLER).await;
+    let (_, as_ada) = fixture.user("Ada", &CHOOSER).await;
+    let (_, as_bob) = fixture.user("Bob", &CHOOSER).await;
+    let auto_approved = [
+        Permission::Request,
+        Permission::AutoApproveMovie,
+        Permission::ChooseQuality,
+    ];
+    let (_, as_grace) = fixture.user("Grace", &auto_approved).await;
+    ask_at(&requests(as_ada), HEAT, Some(offered[1].id))
+        .await
+        .unwrap();
+
+    let pending = ask_at(&requests(as_bob), HEAT, Some(offered[0].id))
+        .await
+        .unwrap();
+    let approved = ask_at(&requests(as_grace), HEAT, Some(offered[0].id))
+        .await
+        .unwrap();
+
+    assert_eq!(pending.state, RequestState::Pending);
+    assert_eq!(pending.quality.name, "4K");
+    assert_eq!(approved.state, RequestState::Processing);
+    assert_eq!(approved.quality.name, "HD");
+    let change = &approved.quality_change;
+    assert_eq!(change.changed_by.as_deref(), Some("Grace"));
+    assert_eq!(change.previous_name.as_deref(), Some("4K"));
+}
+
+#[tokio::test]
+async fn a_hand_off_shows_the_quality_whose_profile_the_fulfiller_reports_it_used() {
+    let fulfiller = FakeFulfiller::default();
+    let fixture = Fixture::with_fulfiller(&fulfiller).await;
+    let offered = fixture.offer_hd_and_4k(&fulfiller, MOVIE_FULFILLER).await;
+    fulfiller.report_used(ULTRA_HD_PROFILE, "Ultra-HD");
+
+    let handed_off = ask(&requests(fixture.server.client_config()), HEAT).await;
+
+    assert_eq!(handed_off.quality.name, "HD");
+    let used = &handed_off.quality_used;
+    assert_eq!((used.id, used.name.as_str()), (offered[1].id, "4K"));
+}
+
+#[tokio::test]
+async fn a_request_keeps_its_quality_and_profile_after_the_admin_removes_it_from_the_list() {
+    let fulfiller = FakeFulfiller::default();
+    let fixture = Fixture::with_fulfiller(&fulfiller).await;
+    let offered = fixture.offer_hd_and_4k(&fulfiller, MOVIE_FULFILLER).await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let pending = ask(&requests(as_ada), HEAT).await;
+    let only_4k = Quality {
+        is_default: true,
+        ..offered[1].clone()
+    };
+
+    fixture
+        .replace_qualities(MOVIE_FULFILLER, vec![only_4k])
+        .await
+        .unwrap();
+    let approved = fixture.approve(pending.id).await;
+
+    let kept = &approved.quality;
+    assert_eq!(
+        (kept.name.as_str(), kept.profile_id.as_str()),
+        ("HD", HD_PROFILE)
+    );
+}
+
+#[tokio::test]
+async fn saving_qualities_the_list_rules_refuse_or_while_the_fulfillers_check_fails_is_refused() {
+    let fulfiller = FakeFulfiller::default();
+    let fixture = Fixture::with_fulfiller(&fulfiller).await;
+    fulfiller.offer_profiles(&[HD_PROFILE]);
+    let hd = || quality(HD_PROFILE, "HD", true);
+
+    let not_offered = fixture
+        .replace_qualities(
+            MOVIE_FULFILLER,
+            vec![hd(), quality(ULTRA_HD_PROFILE, "4K", false)],
+        )
+        .await;
+    let repeated = fixture
+        .replace_qualities(
+            MOVIE_FULFILLER,
+            vec![hd(), quality(HD_PROFILE, "Full HD", false)],
+        )
+        .await;
+    fulfiller.fail_checks();
+    let check_failed = fixture.replace_qualities(MOVIE_FULFILLER, vec![hd()]).await;
+
+    let refusal = assert_refused(
+        not_offered,
+        ErrorCode::FailedPrecondition,
+        RefusalReason::REFUSAL_REASON_CHOICE_NOT_OFFERED,
+    );
+    assert_eq!(refusal.field, "qualities[1].profile_id");
+    let repeated = assert_refused(
+        repeated,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_QUALITY_REPEATED,
+    );
+    assert_eq!(repeated.field, "qualities[1].profile_id");
+    assert_refused(
+        check_failed,
+        ErrorCode::FailedPrecondition,
+        RefusalReason::REFUSAL_REASON_SETTINGS_CHECK_FAILED,
+    );
 }
 
 /// What a [`FakeNotifier`] does with a notification.
