@@ -5,6 +5,8 @@
 mod fake_radarr;
 #[path = "support/refused.rs"]
 mod refused;
+#[path = "support/servarr.rs"]
+mod servarr;
 #[expect(dead_code, reason = "the harness's plain `start` has no use here")]
 #[path = "support/server.rs"]
 mod server;
@@ -17,7 +19,7 @@ use connectrpc::{
 };
 use fake_radarr::{API_KEY as RADARR_KEY, FakeRadarr};
 use nama_plugin_api::{
-    fulfiller::{Fulfiller, Movies},
+    fulfiller::Movies,
     settings::{SettingValue, Settings},
 };
 use nama_plugin_tmdb::{
@@ -29,16 +31,16 @@ use nama_proto::nama::v1::{
     CreateUserRequest, DefaultQuality, Download, DownloadStatus, EnablePluginRequest,
     EventServiceClient, EventType, ExtensionPoint, ListDefaultQualitiesRequest,
     ListMovieQualitiesRequest, ListOfferedQualitiesRequest, ListPluginsRequest,
-    ListQualitiesRequest, Permission, PluginServiceClient, Quality, RefusalReason,
-    ReplaceQualitiesRequest, Request, RequestServiceClient, RequestState, RetryRequestRequest,
-    SessionDelivery, SetDefaultQualityRequest, SetPermissionsRequest, SignInRequest,
-    SignInServiceClient, SubscribeRequest, SubscribeResponse, TestPluginSettingsRequest,
-    TestPluginSettingsResponse, TitleKind, UpdatePluginSettingsRequest, event,
-    setting_value::Value, subscribe_response,
+    ListQualitiesRequest, Permission, Quality, RefusalReason, ReplaceQualitiesRequest, Request,
+    RequestServiceClient, RequestState, RetryRequestRequest, SessionDelivery,
+    SetDefaultQualityRequest, SetPermissionsRequest, SignInRequest, SignInServiceClient,
+    SubscribeRequest, SubscribeResponse, TitleKind, UpdatePluginSettingsRequest, event,
+    subscribe_response,
 };
 use nama_server::{config::Config, plugin_settings, plugins::Registry};
 use refused::assert_refused;
 use serde_json::json;
+use servarr::{ServarrFixture, choices, quality, text};
 use server::{PASSWORD, TestServer};
 
 /// Quality profiles the fake Radarr offers, by id.
@@ -64,6 +66,23 @@ struct Fixture {
     plugins: Registry,
     radarr: FakeRadarr,
     _tmdb: FakeTmdb,
+}
+
+impl ServarrFixture for Fixture {
+    const PLUGIN: &'static str = "radarr";
+    type Kind = Movies;
+
+    fn server(&self) -> &TestServer {
+        &self.server
+    }
+
+    fn registry(&self) -> &Registry {
+        &self.plugins
+    }
+
+    fn servarr_url(&self) -> String {
+        self.radarr.url()
+    }
 }
 
 #[expect(
@@ -110,7 +129,7 @@ impl Fixture {
     /// [`Self::with_radarr_enabled`], with the Radarr quality profile `profile` as its setting.
     async fn with_radarr_enabled_at(profile: &str) -> Self {
         let fixture = Self::start().await;
-        let mut settings = fixture.radarr_settings(RADARR_KEY);
+        let mut settings = fixture.settings(RADARR_KEY);
         settings.extend([("quality_profile", profile), ("root_folder", "/movies")].map(text));
         fixture
             .plugins()
@@ -130,40 +149,6 @@ impl Fixture {
             .await
             .unwrap();
         fixture
-    }
-
-    /// The fake Radarr's URL and `api_key` as Radarr's settings.
-    fn radarr_settings(&self, api_key: &str) -> Vec<(String, nama_proto::nama::v1::SettingValue)> {
-        vec![
-            text(("url", &self.radarr.url())),
-            text(("api_key", api_key)),
-        ]
-    }
-
-    /// Tests Radarr's settings with the fake Radarr's URL and `api_key`, as the Plugins page's
-    /// "Test" does.
-    async fn test_settings(
-        &self,
-        api_key: &str,
-    ) -> Result<TestPluginSettingsResponse, ConnectError> {
-        let request = TestPluginSettingsRequest {
-            id: "radarr".to_owned(),
-            settings: self.radarr_settings(api_key).into_iter().collect(),
-            ..Default::default()
-        };
-        Ok(self
-            .plugins()
-            .test_plugin_settings(request)
-            .await?
-            .into_owned())
-    }
-
-    fn plugins(&self) -> PluginServiceClient<HttpClient> {
-        PluginServiceClient::new(HttpClient::plaintext(), self.server.client_config())
-    }
-
-    fn requests(&self) -> RequestServiceClient<HttpClient> {
-        RequestServiceClient::new(HttpClient::plaintext(), self.server.client_config())
     }
 
     /// The Movie `tmdb_id`, asked for by the new User `member` and so Pending, then Approved by
@@ -229,19 +214,6 @@ impl Fixture {
             })
             .await?;
         Ok(retried.into_owned().request.into_option().unwrap())
-    }
-
-    /// Asks the Movie Fulfiller, Radarr, what it is downloading for `references`, with its error
-    /// as Users would see it.
-    async fn progress(&self, references: &[String]) -> Result<Vec<String>, String> {
-        self.plugins
-            .call_provider::<dyn Fulfiller<Movies>, _, _>(|radarr| async move {
-                radarr.progress(references).await
-            })
-            .await
-            .unwrap()
-            .map(|by_reference| by_reference.into_keys().collect())
-            .map_err(|error| error.to_string())
     }
 
     /// Subscribes as the Admin to the progress of every Request.
@@ -383,42 +355,12 @@ async fn personal_default(member: &ClientConfig) -> Option<i64> {
         .personal_default
 }
 
-/// A new Quality offering the Radarr profile `profile_id` as `name`.
-fn quality(profile_id: &str, name: &str, is_default: bool) -> Quality {
-    Quality {
-        profile_id: profile_id.to_owned(),
-        name: name.to_owned(),
-        is_default,
-        ..Default::default()
-    }
-}
-
 /// "HD" (HD-1080p, the default) and "4K" (Ultra-HD), as an Admin offers them.
 fn hd_and_4k() -> Vec<Quality> {
     vec![
         quality(HD_1080P, "HD", true),
         quality(ULTRA_HD, "4K", false),
     ]
-}
-
-/// `(key, value)` as the Plugins page sends a text setting.
-fn text((key, value): (&str, &str)) -> (String, nama_proto::nama::v1::SettingValue) {
-    let value = nama_proto::nama::v1::SettingValue {
-        value: Some(Value::TextValue(value.to_owned())),
-        ..Default::default()
-    };
-    (key.to_owned(), value)
-}
-
-/// The `(value, label)` of each choice `tested` offers for the setting `key`.
-fn choices<'a>(tested: &'a TestPluginSettingsResponse, key: &str) -> Vec<(&'a str, &'a str)> {
-    tested.choices.get(key).map_or_else(Vec::new, |offered| {
-        offered
-            .choices
-            .iter()
-            .map(|choice| (choice.value.as_str(), choice.label.as_str()))
-            .collect()
-    })
 }
 
 #[tokio::test]
