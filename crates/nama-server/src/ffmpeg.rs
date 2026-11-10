@@ -27,11 +27,16 @@ const MINIMUM: (u32, u32) = (4, 4);
 const PROBE_TIMEOUT: Duration = Duration::from_secs(60);
 
 /// How long ffmpeg may take to read one subtitle out of a file. Matroska interleaves it with the
-/// video, so the whole file is read, which takes up to a minute from a slow disk.
+/// video, so the whole file is read: about a minute from a slow disk, so this leaves room for a
+/// slower one.
 const SUBTITLE_TIMEOUT: Duration = Duration::from_secs(300);
 
 /// Subtitle codecs, as ffprobe names them, that are bitmaps rather than text.
 const IMAGE_SUBTITLES: &[&str] = &["dvb_subtitle", "dvd_subtitle", "hdmv_pgs_subtitle", "xsub"];
+
+/// Subtitle codecs, as ffprobe names them, that are text [`Ffmpeg::webvtt`] can convert. Others
+/// that aren't images either, such as teletext, need a library ffmpeg may lack, or are unknown.
+pub(crate) const TEXT_SUBTITLES: &[&str] = &["subrip", "mov_text", "webvtt", "ass", "ssa"];
 
 /// Why probing a file failed.
 #[derive(Debug, thiserror::Error)]

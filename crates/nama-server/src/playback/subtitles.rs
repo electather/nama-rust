@@ -27,7 +27,7 @@ use crate::{
     artwork::write_atomically,
     contents::Contents,
     ffmpeg::{Ffmpeg, SubtitleError},
-    tracks::{TrackKind, Tracks},
+    tracks::{Track, TrackKind, Tracks},
 };
 
 /// Where clients fetch the Version `version`'s Track `track`, by its place in the Version's
@@ -113,7 +113,7 @@ impl Embedded {
         let Some(probe) = tracks.of(&[version]).await?.remove(&version) else {
             return Ok(None);
         };
-        let is_text = (probe.tracks.get(track)).is_some_and(|found| found.kind.is_text_subtitle());
+        let is_text = (probe.tracks.get(track)).is_some_and(Track::is_text_subtitle);
         if !is_text {
             return Ok(None);
         }

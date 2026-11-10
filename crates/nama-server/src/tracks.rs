@@ -12,7 +12,7 @@ use std::{
 
 use sqlx::SqliteConnection;
 
-use crate::{contents::Stored, db::Database};
+use crate::{contents::Stored, db::Database, ffmpeg::TEXT_SUBTITLES};
 
 /// The version of how probing reads a file, stored with what it read like the name parser's
 /// (ADR 0023). A Version read by an older one is probed again; when to bump it is in `AGENTS.md`.
@@ -71,11 +71,12 @@ pub(crate) enum TrackKind {
     },
 }
 
-impl TrackKind {
-    /// Whether it's a text subtitle, such as SRT, which a browser shows, unlike an image one such
-    /// as PGS.
-    pub(crate) const fn is_text_subtitle(&self) -> bool {
-        matches!(self, Self::Subtitle { image: false })
+impl Track {
+    /// Whether it's a text subtitle, such as SRT, which a browser shows as WebVTT, unlike an image
+    /// one such as PGS.
+    pub(crate) fn is_text_subtitle(&self) -> bool {
+        matches!(self.kind, TrackKind::Subtitle { .. })
+            && TEXT_SUBTITLES.contains(&self.codec.as_str())
     }
 }
 

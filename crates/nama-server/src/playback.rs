@@ -161,7 +161,7 @@ fn played_tracks(probe: &Probe) -> Vec<Track> {
 /// The Version's text subtitle Tracks.
 fn text_subtitles(version: i64, probe: &Probe) -> Vec<Subtitle> {
     (probe.tracks.iter().enumerate())
-        .filter(|(_, track)| track.kind.is_text_subtitle())
+        .filter(|(_, track)| track.is_text_subtitle())
         .map(|(position, track)| Subtitle {
             track: track.clone(),
             url: subtitles::url(version, position),
@@ -317,13 +317,15 @@ mod tests {
     }
 
     #[test]
-    fn the_plan_offers_the_text_subtitles_by_their_place_in_the_version_but_not_image_ones() {
+    fn the_plan_offers_the_text_subtitles_by_their_place_in_the_version_but_not_image_or_teletext()
+    {
         let english = track("subrip", false, TrackKind::Subtitle { image: false });
         let pgs = track(
             "hdmv_pgs_subtitle",
             false,
             TrackKind::Subtitle { image: true },
         );
+        let teletext = track("dvb_teletext", false, TrackKind::Subtitle { image: false });
         let french = Track {
             language: Some("fre".to_owned()),
             ..english.clone()
@@ -333,6 +335,7 @@ mod tests {
             english.clone(),
             audio("aac", true),
             pgs,
+            teletext,
             french.clone(),
         ];
 
@@ -347,7 +350,7 @@ mod tests {
                 },
                 Subtitle {
                     track: french,
-                    url: "/media/versions/7/subtitles/4".to_owned(),
+                    url: "/media/versions/7/subtitles/5".to_owned(),
                 },
             ]
         );
