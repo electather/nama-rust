@@ -32,6 +32,7 @@ use nama_proto::nama::v1::{
 };
 use serde::{Deserialize, Serialize};
 use sqlx::{Sqlite, SqliteConnection, Transaction};
+use tokio::sync::mpsc::UnboundedReceiver;
 
 use crate::{
     contents::{self, Contents, Metadata},
@@ -696,17 +697,14 @@ impl Requests {
             .await
     }
 
-    /// Hands each Approved Request, oldest first, to its Fulfiller, as [`Self::hand_off_waiting`]
-    /// does, if the enabled Plugin `plugin` provides a Fulfiller. Finishes even if the caller stops
-    /// waiting.
-    pub(crate) async fn hand_off_waiting_to(&self, plugin: &PluginId) {
-        self.hand_off.waiting_to(plugin).await;
-    }
-
-    /// Hands each Approved Request, oldest first, to its Fulfiller, such as those that waited for
-    /// one to be enabled. A failure is only logged, and leaves the rest waiting.
-    pub(crate) async fn hand_off_waiting(&self) {
-        self.hand_off.waiting().await;
+    /// Hands each Approved Request, oldest first, to its Fulfiller whenever a Plugin `came_up`
+    /// names provides one. A failure is only logged, and leaves the rest waiting. Runs until
+    /// `came_up` closes or it is dropped.
+    pub(crate) async fn hand_off_as_fulfillers_come_up(
+        &self,
+        came_up: UnboundedReceiver<PluginId>,
+    ) {
+        self.hand_off.as_fulfillers_come_up(came_up).await;
     }
 
     /// Asks the Fulfillers how their Processing Requests are progressing, every `interval` while any
@@ -2514,16 +2512,6 @@ mod tests {
         }
     }
 
-    impl Gated {
-        /// Lets it take each Request it is handed until it has been handed `count`.
-        async fn take_until_handed(&self, count: usize) {
-            while self.handed.load(Ordering::SeqCst) < count {
-                self.open.notify_one();
-                tokio::task::yield_now().await;
-            }
-        }
-    }
-
     /// A Movie Fulfiller that takes every Request at once, giving its TMDB id as the reference,
     /// and keeps each batch of references it is asked about.
     #[derive(Default)]
@@ -2765,7 +2753,7 @@ mod tests {
         let asked = Arc::new(Asked::default());
         let fulfiller = Arc::clone(&asked);
         let (_data, requests) = approved_for(&[949, 438_631, 603], fulfiller).await;
-        requests.hand_off_waiting().await;
+        come_up(&requests, "gated").await;
         match_in_a_library(&requests.db, &[603]).await;
 
         let any = requests.hand_off.poll_progress().await.unwrap();
@@ -2786,7 +2774,7 @@ mod tests {
         let follow = tokio::spawn(async move { following.follow_progress(EVERY).await });
         let nothing_processing = asked_while(&asked, EVERY * 10).await;
 
-        requests.hand_off_waiting().await;
+        come_up(&requests, "gated").await;
         until_asked_about(&asked, &["438631", "949"]).await;
         match_in_a_library(&requests.db, &[949, 438_631]).await;
         // Asked once more at most, if it was already asking as they became Available.
@@ -2807,12 +2795,12 @@ mod tests {
     async fn a_request_being_handed_off_is_not_handed_to_the_fulfiller_again() {
         let (_data, requests, gated) = approved_for_gated(&[949]).await;
         let handing_first = requests.clone();
-        let first = tokio::spawn(async move { handing_first.hand_off_waiting().await });
+        let first = tokio::spawn(async move { come_up(&handing_first, "gated").await });
         while gated.handed.load(Ordering::SeqCst) == 0 {
             tokio::task::yield_now().await;
         }
 
-        tokio::time::timeout(Duration::from_secs(1), requests.hand_off_waiting())
+        tokio::time::timeout(Duration::from_secs(1), come_up(&requests, "gated"))
             .await
             .expect("the second hand-off waited on the Fulfiller");
         gated.open.notify_one();
@@ -2822,18 +2810,21 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn enabling_a_fulfiller_hands_it_every_waiting_request_even_if_the_admin_stops_waiting() {
-        let (_data, requests, gated) = approved_for_gated(&[949, 438_631]).await;
-        let id = PluginId::from_static("gated");
-        let enabling = tokio::spawn(async move { requests.hand_off_waiting_to(&id).await });
-        while gated.handed.load(Ordering::SeqCst) == 0 {
-            tokio::task::yield_now().await;
-        }
+    async fn a_plugin_that_provides_no_fulfiller_coming_up_hands_nothing_off() {
+        let (_data, requests, gated) = approved_for_gated(&[949]).await;
 
-        enabling.abort();
-        tokio::time::timeout(Duration::from_secs(1), gated.take_until_handed(2))
-            .await
-            .expect("the second Request was never handed to the Fulfiller");
+        come_up(&requests, "tmdb").await;
+
+        assert_eq!(gated.handed.load(Ordering::SeqCst), 0);
+    }
+
+    /// Tells `requests` the Plugin `plugin` came up, and waits until it has handed off what that
+    /// asks for.
+    async fn come_up(requests: &Requests, plugin: &'static str) {
+        let (came_up, queue) = tokio::sync::mpsc::unbounded_channel();
+        came_up.send(PluginId::from_static(plugin)).unwrap();
+        drop(came_up);
+        requests.hand_off_as_fulfillers_come_up(queue).await;
     }
 
     /// Ada, the User the tests ask as, holding `permissions`.

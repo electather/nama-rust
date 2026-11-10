@@ -146,6 +146,23 @@ impl Fixture {
         Self::start_with(plugins).await
     }
 
+    /// A Fixture whose Movie Fulfiller `fulfiller` is a Built-in Plugin stored as disabled.
+    async fn with_fulfiller_disabled(fulfiller: &FakeFulfiller) -> Self {
+        let disabled = PluginConfig {
+            enabled: false,
+            settings: BTreeMap::new(),
+        };
+        let stored = BTreeMap::from([(MOVIE_FULFILLER.to_owned(), disabled)]);
+        let config = Figment::from(Serialized::defaults(Config::default()))
+            .merge(Serialized::default("plugins", stored))
+            .extract()
+            .unwrap();
+        let plugins = Registry::new();
+        let made = fulfiller.clone();
+        plugins.describe_builtin(move || Arc::new(FulfillerPlugin(made.clone())));
+        Self::start_with_config(plugins, config).await
+    }
+
     /// A Fixture with the Plugins enabled in `plugins` too.
     async fn start_with(plugins: Registry) -> Self {
         Self::start_with_config(plugins, Config::default()).await
@@ -231,9 +248,14 @@ impl Fixture {
 
     /// Enables the Built-in Plugin `test-choices`, as the Admin.
     async fn enable_test_choices(&self) -> Result<(), ConnectError> {
-        PluginServiceClient::new(HttpClient::plaintext(), self.server.client_config())
+        self.enable(test_choices::ID).await
+    }
+
+    /// Enables the Plugin `id`, as the Admin.
+    async fn enable(&self, id: &str) -> Result<(), ConnectError> {
+        self.plugin_service()
             .enable_plugin(EnablePluginRequest {
-                id: test_choices::ID.to_owned(),
+                id: id.to_owned(),
                 ..Default::default()
             })
             .await
@@ -510,6 +532,29 @@ fn season_of(request: &Request) -> Option<(&str, u32)> {
 
 async fn list(client: &RequestServiceClient<HttpClient>) -> Vec<Request> {
     list_in(client, RequestState::Unspecified).await.0
+}
+
+/// [`list`], once none of the Requests is Approved, as after enabling their Fulfiller hands them
+/// off in the background.
+#[expect(
+    clippy::expect_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn list_once_handed_off(client: &RequestServiceClient<HttpClient>) -> Vec<Request> {
+    tokio::time::timeout(WAIT, async {
+        loop {
+            let listed = list(client).await;
+            if listed
+                .iter()
+                .all(|request| request.state != RequestState::Approved)
+            {
+                return listed;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("a Request stayed Approved")
 }
 
 #[expect(
@@ -1055,6 +1100,8 @@ struct FakeFulfiller {
     /// Each Season it was handed, in order.
     handed_seasons: Arc<Mutex<Vec<HandedSeason>>>,
     refuses: Arc<AtomicBool>,
+    /// Whether it never answers a hand-off.
+    stalls: Arc<AtomicBool>,
     /// Whether it refuses the hand-offs that ask it to follow a Show.
     refuses_following: Arc<AtomicBool>,
     /// The TMDB id of each Show it was told to stop following, in order.
@@ -1075,6 +1122,12 @@ impl FakeFulfiller {
     fn refusing() -> Self {
         let fulfiller = Self::default();
         fulfiller.refuses.store(true, Ordering::Relaxed);
+        fulfiller
+    }
+
+    fn stalling() -> Self {
+        let fulfiller = Self::default();
+        fulfiller.stalls.store(true, Ordering::Relaxed);
         fulfiller
     }
 
@@ -1165,8 +1218,12 @@ impl Fulfiller<Movies> for FakeFulfiller {
             .unwrap_or_else(PoisonError::into_inner)
             .push(tmdb_id);
         let refuses = self.refuses.load(Ordering::Relaxed);
+        let stalls = self.stalls.load(Ordering::Relaxed);
         let fulfilled = self.fulfilled(format!("movie-{tmdb_id}"));
         Box::pin(async move {
+            if stalls {
+                future::pending::<()>().await;
+            }
             if refuses {
                 return Err("Radarr is unreachable".into());
             }
@@ -1949,7 +2006,7 @@ async fn enabling_a_shows_fulfiller_hands_it_the_season_requests_approved_while_
     fixture.enable_test_choices().await.unwrap();
 
     assert_eq!(
-        states(&list(&ada).await),
+        states(&list_once_handed_off(&ada).await),
         [
             (approved[1].id, RequestState::Processing),
             (approved[0].id, RequestState::Processing)
@@ -1982,7 +2039,7 @@ async fn enabling_a_movie_fulfiller_hands_it_the_requests_approved_while_there_w
     fixture.enable_test_choices().await.unwrap();
 
     assert_eq!(
-        states(&list(&ada).await),
+        states(&list_once_handed_off(&ada).await),
         [
             (approved[1].id, RequestState::Processing),
             (approved[0].id, RequestState::Processing)
@@ -1990,10 +2047,32 @@ async fn enabling_a_movie_fulfiller_hands_it_the_requests_approved_while_there_w
     );
 }
 
+#[tokio::test]
+async fn enabling_a_movie_fulfiller_answers_without_waiting_for_it_to_take_the_waiting_requests() {
+    let fulfiller = FakeFulfiller::stalling();
+    let fixture = Fixture::with_fulfiller_disabled(&fulfiller).await;
+    let as_ada = fixture.server.user("Ada", &NEW_USER).await.client_config();
+    let pending = ask(&requests(as_ada), HEAT).await;
+    fixture.approve(pending.id).await;
+
+    tokio::time::timeout(WAIT, fixture.enable(MOVIE_FULFILLER))
+        .await
+        .expect("enabling waited for the Fulfiller to take the Request")
+        .unwrap();
+
+    tokio::time::timeout(WAIT, async {
+        while fulfiller.handed().is_empty() {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("the waiting Request never went to the Fulfiller");
+    assert_eq!(fulfiller.handed(), [HEAT]);
+}
+
 /// Ada's Request for Heat, approved while there was no Movie Fulfiller, once it has left Approved
 /// after the Server is started again with `fulfiller` as the Movie Fulfiller.
 #[expect(
-    clippy::expect_used,
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
@@ -2005,23 +2084,13 @@ async fn waiting_request_after_starting_with(fulfiller: &FakeFulfiller) -> Reque
     let approved = fixture.approve(pending.id).await;
     assert_eq!(approved.state, RequestState::Approved);
     let restarted = Registry::new();
-    restarted
-        .enable(Arc::new(FulfillerPlugin(fulfiller.clone())))
-        .unwrap();
+    let fulfiller = fulfiller.clone();
+    restarted.describe_builtin(move || Arc::new(FulfillerPlugin(fulfiller.clone())));
 
     fixture.serve_again(restarted).await;
 
-    tokio::time::timeout(WAIT, async {
-        loop {
-            let [request] = list(&ada).await.try_into().unwrap();
-            if request.state != RequestState::Approved {
-                return request;
-            }
-            tokio::time::sleep(Duration::from_millis(10)).await;
-        }
-    })
-    .await
-    .expect("the waiting Request never went to the Movie Fulfiller")
+    let [request] = list_once_handed_off(&ada).await.try_into().unwrap();
+    request
 }
 
 #[tokio::test]

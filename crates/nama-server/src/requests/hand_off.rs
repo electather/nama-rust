@@ -16,7 +16,10 @@ use nama_plugin_api::{
 };
 use nama_proto::nama::v1::{Request, RequestProgress, RequestState};
 use sqlx::{Sqlite, Transaction};
-use tokio::{sync::Notify, time::error::Elapsed};
+use tokio::{
+    sync::{Notify, mpsc::UnboundedReceiver},
+    time::error::Elapsed,
+};
 use tracing::{error, warn};
 
 use super::{
@@ -189,32 +192,25 @@ impl HandOff {
         Ok(value.handed_back(&handed))
     }
 
-    /// Hands each Approved Request, oldest first, to its Fulfiller, as [`Self::waiting`] does, if
-    /// the enabled Plugin `plugin` provides a Fulfiller.
-    ///
-    /// Runs in a task of its own, so a caller that stops waiting leaves none of them waiting.
-    pub(super) async fn waiting_to(&self, plugin: &PluginId) {
-        if !self.plugins.provides::<dyn Fulfiller<Movies>>(plugin)
-            && !self.plugins.provides::<dyn Fulfiller<Shows>>(plugin)
-        {
-            return;
-        }
-        let hand_off = self.clone();
-        if let Err(err) = detached(async move { hand_off.try_waiting().await }).await {
-            error!("handing the waiting Requests to their Fulfillers failed: {err}");
-        }
-    }
-
-    /// Hands each Approved Request, oldest first, to its Fulfiller as [`Self::request`] does, such
-    /// as those that waited for one to be enabled. A failure is only logged, and leaves the rest
-    /// waiting.
-    pub(super) async fn waiting(&self) {
-        if let Err(err) = self.try_waiting().await {
-            error!("handing the waiting Requests to their Fulfillers failed: {err}");
+    /// Hands each Approved Request, oldest first, to its Fulfiller as [`Self::request`] does
+    /// whenever a Plugin `came_up` names provides a Fulfiller, which keeps the promise
+    /// [`Fulfiller`]'s docs make. A failure is only logged, and leaves the rest waiting for the
+    /// next. Runs until `came_up` closes or it is dropped.
+    pub(super) async fn as_fulfillers_come_up(&self, mut came_up: UnboundedReceiver<PluginId>) {
+        while let Some(plugin) = came_up.recv().await {
+            // One disabled since it came up provides nothing.
+            if !self.plugins.provides::<dyn Fulfiller<Movies>>(&plugin)
+                && !self.plugins.provides::<dyn Fulfiller<Shows>>(&plugin)
+            {
+                continue;
+            }
+            if let Err(err) = self.hand_off_waiting().await {
+                error!("handing the waiting Requests to their Fulfillers failed: {err}");
+            }
         }
     }
 
-    async fn try_waiting(&self) -> Result<(), Error> {
+    async fn hand_off_waiting(&self) -> Result<(), Error> {
         let mut conn = self.db.reader().acquire().await?;
         // ponytail: reads every Request to find the Approved ones; filter in SQL if there get many.
         let all = load(&mut conn, None, None).await?;
