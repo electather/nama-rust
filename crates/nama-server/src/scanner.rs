@@ -25,7 +25,7 @@ mod names;
 pub(crate) use names::{PARSER_VERSION, country_tag};
 
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{HashMap, HashSet, hash_map::Entry},
     ffi::OsStr,
     path::{Path, PathBuf},
     sync::{Arc, Mutex, PoisonError},
@@ -34,6 +34,7 @@ use std::{
 
 use futures_util::StreamExt;
 use nama_proto::nama::v1::{ScanFinished, ScanProgress, ScanStarted};
+use tokio::sync::watch;
 use tokio_util::{sync::CancellationToken, task::TaskTracker};
 use walkdir::{DirEntry, WalkDir};
 
@@ -106,13 +107,23 @@ impl From<matching::Error> for Error {
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum ProbeNowError {
     /// ffprobe couldn't read it, or the Server has no ffprobe ([`ProbeError::Unavailable`]).
+    /// Shared, as whoever waited for the same probe gets it too.
     #[error(transparent)]
-    Probe(#[from] ProbeError),
+    Probe(Arc<ProbeError>),
     #[error("there is no Version {0}")]
     NoSuchVersion(i64),
     #[error("database error: {0}")]
     Database(#[from] sqlx::Error),
 }
+
+impl From<ProbeError> for ProbeNowError {
+    fn from(err: ProbeError) -> Self {
+        Self::Probe(Arc::new(err))
+    }
+}
+
+/// What probing a file found, or why it couldn't, as handed to whoever waited for it.
+type Probed = Result<Probe, Arc<ProbeError>>;
 
 /// Scans Libraries, one scan per Library at a time, either now or in the background.
 #[derive(Debug, Clone)]
@@ -138,10 +149,10 @@ struct Inner {
     running: Mutex<HashMap<i64, Arc<tokio::sync::Mutex<()>>>>,
     /// A permit per probe running, [`PROBES_AT_ONCE`] in all.
     probing: tokio::sync::Semaphore,
-    /// The Versions being probed, each by one [`Claim`] holder, so a pass after another scan of
-    /// their Library leaves them to it and [`Scanner::probe_now`] waits for its result, rather
-    /// than probe them twice.
-    claimed: tokio::sync::watch::Sender<HashSet<i64>>,
+    /// The Versions being probed, each by one [`Claim`] holder, and where it sends what it found,
+    /// so a pass after another scan of their Library leaves them to it and
+    /// [`Scanner::probe_now`] waits for its result, rather than probe them twice.
+    claimed: Mutex<HashMap<i64, watch::Receiver<Option<Probed>>>>,
 }
 
 /// A Library's scan lock: while it's held, no scan of the Library runs or starts, so the
@@ -180,7 +191,7 @@ impl Scanner {
                 queued: Mutex::default(),
                 running: Mutex::default(),
                 probing: tokio::sync::Semaphore::new(PROBES_AT_ONCE),
-                claimed: tokio::sync::watch::Sender::default(),
+                claimed: Mutex::default(),
             }),
         }
     }
@@ -331,8 +342,8 @@ impl Scanner {
 
     /// Probes the Version `version` now, without waiting for a background pass to reach it, and
     /// stores and returns what it holds. If something is probing it already, waits for that and
-    /// returns what it stored instead, or probes it itself if that stored nothing; if its Tracks
-    /// are current, returns them.
+    /// returns what it found instead, or probes it itself if that gave up without finding
+    /// anything; if its Tracks are current, returns them.
     #[cfg_attr(
         not(test),
         expect(
@@ -345,37 +356,36 @@ impl Scanner {
             .ok_or(ProbeNowError::NoSuchVersion(version))?;
         // ponytail: not held to PROBES_AT_ONCE, so a play press never queues; limit it apart if
         // many at once swamp the disk.
-        let claim = self.claim(file).await;
-        self.probe_claimed(&path, &claim).await
-    }
-
-    /// Claims the stored file `file`, once whoever is probing it has finished.
-    async fn claim(&self, file: Stored) -> Claim<'_> {
-        let mut claimed = self.inner.claimed.subscribe();
         loop {
-            if let Some(claim) = self.try_claim(file) {
-                return claim;
+            let mut prober = match self.try_claim(file) {
+                Ok(claim) => return self.probe_claimed(&path, claim).await,
+                Err(prober) => prober,
+            };
+            // An error means the prober gave up without a result, as when it was cancelled
+            // midway, so it's probed here instead.
+            if let Ok(found) = prober.wait_for(Option::is_some).await
+                && let Some(found) = Option::clone(&found)
+            {
+                return found.map_err(ProbeNowError::Probe);
             }
-            // Never fails, as the sender lives as long as `self`.
-            drop(
-                claimed
-                    .wait_for(|claimed| !claimed.contains(&file.id))
-                    .await,
-            );
         }
     }
 
-    /// Claims the stored file `file`, unless something is probing it.
-    fn try_claim(&self, file: Stored) -> Option<Claim<'_>> {
-        let unclaimed = self
-            .inner
-            .claimed
-            .send_if_modified(|claimed| claimed.insert(file.id));
-        // Not `then_some`: a `Claim` made when this one failed would give up the holder's.
-        unclaimed.then(|| Claim {
-            scanner: self,
-            file,
-        })
+    /// Claims the stored file `file`, or if something is probing it, hands back where that will
+    /// send what it found.
+    fn try_claim(&self, file: Stored) -> Result<Claim<'_>, watch::Receiver<Option<Probed>>> {
+        match lock(&self.inner.claimed).entry(file.id) {
+            Entry::Occupied(prober) => Err(prober.get().clone()),
+            Entry::Vacant(unclaimed) => {
+                let (found, waiting) = watch::channel(None);
+                unclaimed.insert(waiting);
+                Ok(Claim {
+                    scanner: self,
+                    file,
+                    found,
+                })
+            }
+        }
     }
 
     /// Probes the file at `path`, stored as `file`, and stores what it holds, or logs why not and
@@ -386,10 +396,10 @@ impl Scanner {
             return;
         };
         // Claimed only now, so `probe_now` doesn't wait for a file still queued here.
-        let Some(claim) = self.try_claim(file) else {
+        let Ok(claim) = self.try_claim(file) else {
             return;
         };
-        match self.probe_claimed(&path, &claim).await {
+        match self.probe_claimed(&path, claim).await {
             Ok(_) => {}
             Err(ProbeNowError::Database(err)) => {
                 tracing::error!("could not read or store what {path} holds: {err}");
@@ -398,11 +408,24 @@ impl Scanner {
         }
     }
 
-    /// Probes the file at `path`, stored as the file `claim` is for, and stores and returns what
-    /// it holds, unless its Tracks became current since whoever claimed it found them stale. Forgets
-    /// what it held before if ffprobe can't read it.
-    async fn probe_claimed(&self, path: &str, claim: &Claim<'_>) -> Result<Probe, ProbeNowError> {
-        let file = claim.file;
+    /// Probes the file at `path`, stored as the file `claim` is for, like
+    /// [`Self::probe_and_store`], and sends what it found to whoever waited for it.
+    async fn probe_claimed(&self, path: &str, claim: Claim<'_>) -> Result<Probe, ProbeNowError> {
+        let probed = self.probe_and_store(path, claim.file).await;
+        let found = match &probed {
+            Ok(probe) => Ok(probe.clone()),
+            Err(ProbeNowError::Probe(err)) => Err(Arc::clone(err)),
+            // Nothing was found, so a waiter probes it itself.
+            Err(ProbeNowError::NoSuchVersion(_) | ProbeNowError::Database(_)) => return probed,
+        };
+        claim.found.send_replace(Some(found));
+        probed
+    }
+
+    /// Probes the file at `path`, stored as `file`, and stores and returns what it holds, unless
+    /// its Tracks became current since whoever claimed it found them stale. Forgets what it held
+    /// before if ffprobe can't read it.
+    async fn probe_and_store(&self, path: &str, file: Stored) -> Result<Probe, ProbeNowError> {
         if self.inner.tracks.current(&[file]).await?.contains(&file.id)
             && let Some(probe) = self.inner.tracks.of(&[file.id]).await?.remove(&file.id)
         {
@@ -429,13 +452,14 @@ impl Scanner {
 struct Claim<'a> {
     scanner: &'a Scanner,
     file: Stored,
+    /// Where what probing found goes to whoever waits for it. Dropped with nothing sent, it
+    /// tells them to probe the file themselves.
+    found: watch::Sender<Option<Probed>>,
 }
 
 impl Drop for Claim<'_> {
     fn drop(&mut self) {
-        self.scanner.inner.claimed.send_modify(|claimed| {
-            claimed.remove(&self.file.id);
-        });
+        lock(&self.scanner.inner.claimed).remove(&self.file.id);
     }
 }
 
@@ -1154,7 +1178,7 @@ mod tests {
         let probed = media.scanner.probe_now(media.file_id(alien).await).await;
 
         assert!(
-            matches!(probed, Err(ProbeNowError::Probe(ProbeError::Unavailable))),
+            matches!(&probed, Err(ProbeNowError::Probe(err)) if matches!(**err, ProbeError::Unavailable)),
             "{probed:?}"
         );
     }
@@ -1307,6 +1331,33 @@ EOF"#,
             .unwrap();
 
         assert_eq!(probe.container, "matroska,webm");
+        media.scanner.idle().await;
+        assert_eq!(fs::read_to_string(&runs).unwrap(), "run\n");
+    }
+
+    // The fake ffprobe is a shell script.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn probing_a_version_right_away_while_the_background_probe_fails_returns_that_failure() {
+        let bin = tempfile::tempdir().unwrap();
+        let runs = bin.path().join("runs");
+        let ffmpeg = fake_ffprobe(
+            bin.path(),
+            &format!("echo run >> '{}'\nsleep 1\nexit 1", runs.display()),
+        );
+        let media = Fixture::with_ffmpeg(Kind::Movies, ffmpeg).await;
+        let alien = "Alien (1979)/Alien (1979).mkv";
+        media.write(alien, 10);
+        media.scan().await;
+        media.match_to_alien().await;
+        wait_for_probe(&runs).await;
+
+        let probed = media.scanner.probe_now(media.file_id(alien).await).await;
+
+        assert!(
+            matches!(&probed, Err(ProbeNowError::Probe(err)) if matches!(**err, ProbeError::Failed(_))),
+            "{probed:?}"
+        );
         media.scanner.idle().await;
         assert_eq!(fs::read_to_string(&runs).unwrap(), "run\n");
     }
