@@ -51,18 +51,19 @@ use nama_proto::nama::v1::{
     DeleteUserResponse, DisablePluginRequest, DisablePluginResponse, EnablePluginRequest,
     EnablePluginResponse, EventService, EventType, FoundProgram, GetDefaultPermissionsRequest,
     GetDefaultPermissionsResponse, GetLibraryRequest, GetLibraryResponse, GetMovieRequest,
-    GetMovieResponse, GetPlaybackStatusRequest, GetPlaybackStatusResponse, GetPluginRequest,
-    GetPluginResponse, GetRequestRequest, GetRequestResponse, GetServerInfoRequest,
-    GetServerInfoResponse, GetServerSettingsRequest, GetServerSettingsResponse, GetShowRequest,
-    GetShowResponse, LibraryKind, LibraryService, ListContinueWatchingRequest,
-    ListContinueWatchingResponse, ListDevicesRequest, ListDevicesResponse, ListEpisodesRequest,
-    ListEpisodesResponse, ListLibrariesRequest, ListLibrariesResponse, ListMoviesRequest,
-    ListMoviesResponse, ListPluginConnectionsRequest, ListPluginConnectionsResponse,
-    ListPluginsRequest, ListPluginsResponse, ListRequestsRequest, ListRequestsResponse,
-    ListShowsRequest, ListShowsResponse, ListUnmatchedItemsRequest, ListUnmatchedItemsResponse,
-    ListUsersRequest, ListUsersResponse, LookUpMovieRequest, LookUpMovieResponse,
-    LookUpShowRequest, LookUpShowResponse, LookUpSignInCodeRequest, LookUpSignInCodeResponse,
-    MatchService, Permission, PlanPlaybackRequest, PlanPlaybackResponse, PlaybackService,
+    GetMovieResponse, GetPlaybackSettingsRequest, GetPlaybackSettingsResponse,
+    GetPlaybackStatusRequest, GetPlaybackStatusResponse, GetPluginRequest, GetPluginResponse,
+    GetRequestRequest, GetRequestResponse, GetServerInfoRequest, GetServerInfoResponse,
+    GetServerSettingsRequest, GetServerSettingsResponse, GetShowRequest, GetShowResponse,
+    LibraryKind, LibraryService, ListContinueWatchingRequest, ListContinueWatchingResponse,
+    ListDevicesRequest, ListDevicesResponse, ListEpisodesRequest, ListEpisodesResponse,
+    ListLibrariesRequest, ListLibrariesResponse, ListMoviesRequest, ListMoviesResponse,
+    ListPluginConnectionsRequest, ListPluginConnectionsResponse, ListPluginsRequest,
+    ListPluginsResponse, ListRequestsRequest, ListRequestsResponse, ListShowsRequest,
+    ListShowsResponse, ListUnmatchedItemsRequest, ListUnmatchedItemsResponse, ListUsersRequest,
+    ListUsersResponse, LookUpMovieRequest, LookUpMovieResponse, LookUpShowRequest,
+    LookUpShowResponse, LookUpSignInCodeRequest, LookUpSignInCodeResponse, MatchService,
+    Permission, PlanPlaybackRequest, PlanPlaybackResponse, PlaybackService, PlaybackSettings,
     PluginConnection, PluginConnectionState, PluginService, PollSignInCodeRequest,
     PollSignInCodeResponse, ReauthenticateRequest, ReauthenticateResponse, Refusal, RefusalReason,
     ReportProgressRequest, ReportProgressResponse, RequestService, RequestState,
@@ -74,9 +75,10 @@ use nama_proto::nama::v1::{
     SetPermissionsRequest, SetPermissionsResponse, SetPlayedRequest, SetPlayedResponse,
     SetupRequest, SetupResponse, SignInCodeStatus, SignInRequest, SignInResponse, SignInService,
     SignOutRequest, SignOutResponse, StartPluginConnectionRequest, StartPluginConnectionResponse,
-    StartSignInCodeRequest, StartSignInCodeResponse, SubscribeRequest, SubscribeResponse,
-    TestPluginSettingsRequest, TestPluginSettingsResponse, UpdateLibraryRequest,
-    UpdateLibraryResponse, UpdatePluginSettingsRequest, UpdatePluginSettingsResponse,
+    StartSignInCodeRequest, StartSignInCodeResponse, StopPlaybackRequest, StopPlaybackResponse,
+    SubscribeRequest, SubscribeResponse, TestPluginSettingsRequest, TestPluginSettingsResponse,
+    UpdateLibraryRequest, UpdateLibraryResponse, UpdatePlaybackSettingsRequest,
+    UpdatePlaybackSettingsResponse, UpdatePluginSettingsRequest, UpdatePluginSettingsResponse,
     UpdateServerSettingsRequest, UpdateServerSettingsResponse, UserService, WatchStateService,
     WhoAmIRequest, WhoAmIResponse, WithdrawFollowedShowRequest, WithdrawFollowedShowResponse,
     WithdrawRequestRequest, WithdrawRequestResponse, external_id, reauthenticate_request::Proof,
@@ -89,23 +91,26 @@ use crate::{
     config::Config,
     connections::{self, Connections},
     contents::{Contents, Episode, Item, MatchedTo, Metadata, Movie, Show, Unmatched, Version},
-    db::{Database, now},
+    db::{Database, detached, now},
     events::{EventBus, Filter},
     ffmpeg::{self, Ffmpeg},
     forwarded::{RequestSource, identify_source},
     libraries::{self, FolderProblem, Kind, Libraries, Library},
     matching::{ManualError, Matcher},
-    playback::{self, DeviceDecoding, Method, Plan},
+    playback::{
+        self, DeviceDecoding, Method, Plan, method_to_proto,
+        running::{RunningPlans, StartError},
+    },
     plugin_settings::{ChangeError, ListError, PluginSettings, StoredPlugin},
     plugins::{CheckError, EnableError, Listed},
     qualities,
     rate_limits::{Blocked, SignInCodeLimits, SignInLimits},
     requests::{self, Found, FoundShow, Requests},
     scanner::Scanner,
-    server_settings::ServerUrl,
+    server_settings::{SegmentFolder, ServerUrl},
     sessions::{cleared_session_cookie, identify_caller, in_session_cookie, session_cookie},
     sign_in_codes::{self, Poll, SignInCodes},
-    tracks::{Hdr, Track, TrackKind},
+    tracks::{Tracks, track_to_proto},
     users::{self, Caller, NewDevice, Permissions, SetupCode, SignedIn, Users},
     watch_states::{Progress, WatchState, WatchStates},
 };
@@ -125,15 +130,25 @@ pub(crate) fn router(
     events: EventBus,
     requests: Requests,
     server_url: ServerUrl,
+    segment_folder: SegmentFolder,
+    running: RunningPlans,
     setup_code: Option<SetupCode>,
     ffmpeg: Arc<Ffmpeg>,
+    subtitles: playback::subtitles::Cache,
 ) -> axum::Router {
     let plugins = plugin_settings.registry().clone();
     let users = Users::new(Arc::clone(&db), plugins.clone());
     let contents = Contents::new(Arc::clone(&db));
     let artwork = Artwork::new(&config.data_dir, plugins.clone());
     let artwork_router = artwork::router(artwork.clone(), contents.clone());
-    let media = playback::router(contents);
+    let media = playback::router(
+        contents,
+        running.clone(),
+        Tracks::new(Arc::clone(&db)),
+        Arc::clone(&ffmpeg),
+        subtitles,
+    )
+    .merge(playback::running::router(running.clone()));
     let browse = Browse::new(Arc::clone(&db));
     let connections = Connections::new(Arc::clone(&db), plugins.clone());
     connectrpc::Router::new()
@@ -142,6 +157,7 @@ pub(crate) fn router(
             users: users.clone(),
             db: Arc::clone(&db),
             server_url,
+            segment_folder,
             ffmpeg,
         }))
         .add_service(Arc::new(SignInServiceHandler {
@@ -167,6 +183,7 @@ pub(crate) fn router(
         }))
         .add_service(Arc::new(PlaybackServiceHandler {
             scanner: scanner.clone(),
+            running,
         }))
         .add_service(Arc::new(RequestServiceHandler { requests, artwork }))
         .add_service(Arc::new(PluginServiceHandler { plugin_settings }))
@@ -232,6 +249,8 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::SERVER_SERVICE_GET_SERVER_SETTINGS_SPEC.procedure,    MANAGE_SETTINGS),
     (proto::SERVER_SERVICE_UPDATE_SERVER_SETTINGS_SPEC.procedure, MANAGE_SETTINGS),
     (proto::SERVER_SERVICE_GET_PLAYBACK_STATUS_SPEC.procedure,    ADMIN),
+    (proto::SERVER_SERVICE_GET_PLAYBACK_SETTINGS_SPEC.procedure,  ADMIN),
+    (proto::SERVER_SERVICE_UPDATE_PLAYBACK_SETTINGS_SPEC.procedure, ADMIN),
     (proto::SIGN_IN_SERVICE_SETUP_SPEC.procedure,                 Access::Anyone),
     (proto::SIGN_IN_SERVICE_SIGN_IN_SPEC.procedure,               Access::Anyone),
     (proto::SIGN_IN_SERVICE_SIGN_OUT_SPEC.procedure,              Access::SignedIn),
@@ -260,6 +279,7 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::WATCH_STATE_SERVICE_REPORT_PROGRESS_SPEC.procedure,   Access::SignedIn),
     (proto::WATCH_STATE_SERVICE_SET_PLAYED_SPEC.procedure,        Access::SignedIn),
     (proto::PLAYBACK_SERVICE_PLAN_PLAYBACK_SPEC.procedure,        Access::SignedIn),
+    (proto::PLAYBACK_SERVICE_STOP_PLAYBACK_SPEC.procedure,        Access::SignedIn),
     (proto::EVENT_SERVICE_SUBSCRIBE_SPEC.procedure,               Access::SignedIn),
     (proto::USER_SERVICE_CREATE_USER_SPEC.procedure,              MANAGE_USERS),
     (proto::USER_SERVICE_LIST_USERS_SPEC.procedure,               MANAGE_USERS),
@@ -406,6 +426,7 @@ struct ServerServiceHandler {
     users: Users,
     db: Arc<Database>,
     server_url: ServerUrl,
+    segment_folder: SegmentFolder,
     ffmpeg: Arc<Ffmpeg>,
 }
 
@@ -492,12 +513,57 @@ impl ServerService for ServerServiceHandler {
             ..Default::default()
         }))
     }
+
+    fn get_playback_settings<'a>(
+        &'a self,
+        _ctx: RequestContext,
+        _request: ServiceRequest<'_, GetPlaybackSettingsRequest>,
+    ) -> impl Future<
+        Output = ServiceResult<impl Encodable<GetPlaybackSettingsResponse> + Send + use<'a>>,
+    > + Send {
+        future::ready(Response::ok(GetPlaybackSettingsResponse {
+            settings: self.playback_settings().into(),
+            ..Default::default()
+        }))
+    }
+
+    async fn update_playback_settings(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, UpdatePlaybackSettingsRequest>,
+    ) -> ServiceResult<UpdatePlaybackSettingsResponse> {
+        let folder = request.settings.segment_folder.trim().to_owned();
+        if !SegmentFolder::accepts(&folder) {
+            return Err(refuse(
+                RefusalReason::REFUSAL_REASON_FOLDER_NOT_ABSOLUTE,
+                "the segment folder must be an absolute path, such as /dev/shm/nama",
+            )
+            .field("settings.segment_folder")
+            .param("folder", &folder)
+            .into());
+        }
+        self.segment_folder
+            .save(&self.db, folder)
+            .await
+            .map_err(database_failed)?;
+        Response::ok(UpdatePlaybackSettingsResponse {
+            settings: self.playback_settings().into(),
+            ..Default::default()
+        })
+    }
 }
 
 impl ServerServiceHandler {
     fn server_settings(&self) -> ServerSettings {
         ServerSettings {
             url: self.server_url.get(),
+            ..Default::default()
+        }
+    }
+
+    fn playback_settings(&self) -> PlaybackSettings {
+        PlaybackSettings {
+            segment_folder: self.segment_folder.get(),
             ..Default::default()
         }
     }
@@ -863,7 +929,14 @@ impl LibraryService for LibraryServiceHandler {
         _ctx: RequestContext,
         request: ServiceRequest<'_, DeleteLibraryRequest>,
     ) -> ServiceResult<DeleteLibraryResponse> {
-        self.libraries.delete(request.id).await?;
+        let (libraries, scanner, id) = (self.libraries.clone(), self.scanner.clone(), request.id);
+        // The delete commits even if the caller stops waiting, so its cleanup must follow (ADR 0029).
+        detached(async move {
+            libraries.delete(id).await?;
+            scanner.clean_subtitles().await;
+            Ok::<_, libraries::Error>(())
+        })
+        .await?;
         Response::ok(DeleteLibraryResponse::default())
     }
 
@@ -1219,6 +1292,7 @@ fn version_not_found() -> ConnectError {
 /// `nama.v1.PlaybackService`: how each signed-in User's Device plays a Version.
 struct PlaybackServiceHandler {
     scanner: Scanner,
+    running: RunningPlans,
 }
 
 #[expect(
@@ -1229,24 +1303,56 @@ struct PlaybackServiceHandler {
 impl PlaybackService for PlaybackServiceHandler {
     async fn plan_playback(
         &self,
-        _ctx: RequestContext,
+        ctx: RequestContext,
         request: ServiceRequest<'_, PlanPlaybackRequest>,
     ) -> ServiceResult<PlanPlaybackResponse> {
+        let caller = caller(&ctx)?;
         // The rest of the request is for steps still to come (ADR 0027).
         let request = request.to_owned_message();
         let decoding = request.device_decoding.into_option().unwrap_or_default();
-        let device = DeviceDecoding {
+        let decoding = DeviceDecoding {
             content_types: decoding.content_types,
             hdr: decoding.hdr,
+            hls: decoding.native_hls || decoding.mse,
+            audio_channels: decoding.audio_channels,
         };
-        let plan = playback::plan(&self.scanner, request.version_id, device)
-            .await
-            .map_err(database_failed)?
-            .ok_or_else(version_not_found)?;
+        let failed = (request.failed_methods.iter())
+            .filter_map(|method| method_from_proto(*method))
+            .collect();
+        let plan = playback::plan(
+            &self.scanner,
+            &self.running,
+            caller,
+            request.version_id,
+            decoding,
+            failed,
+        )
+        .await
+        .map_err(|err| match err {
+            StartError::Database(err) => database_failed(err),
+            err @ (StartError::Keyframes(_) | StartError::Run(_)) => {
+                tracing::error!(
+                    version = request.version_id,
+                    "could not start a plan: {err}"
+                );
+                ConnectError::internal("the Server failed")
+            }
+        })?
+        .ok_or_else(version_not_found)?;
         Response::ok(PlanPlaybackResponse {
             plan: plan_to_proto(plan).into(),
             ..Default::default()
         })
+    }
+
+    async fn stop_playback(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, StopPlaybackRequest>,
+    ) -> ServiceResult<StopPlaybackResponse> {
+        let device = caller(&ctx)?.device.id;
+        self.running.stop_for(request.plan_id, device).await;
+        Response::ok(StopPlaybackResponse::default())
     }
 }
 
@@ -2046,6 +2152,7 @@ impl EventService for EventServiceHandler {
                 // `VIEW_REQUESTS` sees everyone's Request events until they resubscribe. End
                 // streams on a Permission change if that matters.
                 requester: requests::visible_to(&caller.user),
+                player: playback::visible_to(&caller.user),
             };
             let signed_out = self.users.signed_out(caller.device.id);
             let events = self.events.subscribe(filter).take_until(signed_out);
@@ -2317,87 +2424,35 @@ fn version_to_proto(version: &Version) -> proto::Version {
     }
 }
 
-/// `hdr` as a video Track's `hdr` and `dolby_vision`.
-fn hdr_to_proto(hdr: Option<Hdr>) -> (proto::HdrFormat, Option<proto::DolbyVision>) {
-    match hdr {
-        None => (proto::HdrFormat::HDR_FORMAT_UNSPECIFIED, None),
-        Some(Hdr::Hdr10) => (proto::HdrFormat::HDR_FORMAT_HDR10, None),
-        Some(Hdr::Hlg) => (proto::HdrFormat::HDR_FORMAT_HLG, None),
-        Some(Hdr::DolbyVision {
-            profile,
-            hdr10_base_layer,
-        }) => {
-            let dolby_vision = proto::DolbyVision {
-                // ffprobe reads it from a byte, so it's never negative.
-                profile: u32::try_from(profile).unwrap_or_default(),
-                hdr10_base_layer,
-                ..Default::default()
-            };
-            (
-                proto::HdrFormat::HDR_FORMAT_DOLBY_VISION,
-                Some(dolby_vision),
-            )
+/// `None` for no method, or one newer than this Server, which it can't plan anyway.
+fn method_from_proto(method: EnumValue<proto::PlaybackMethod>) -> Option<Method> {
+    match method {
+        EnumValue::Known(proto::PlaybackMethod::PLAYBACK_METHOD_DIRECT_PLAY) => {
+            Some(Method::DirectPlay)
         }
+        EnumValue::Known(proto::PlaybackMethod::PLAYBACK_METHOD_REMUX) => Some(Method::Remux),
+        EnumValue::Known(proto::PlaybackMethod::PLAYBACK_METHOD_TRANSCODE) => {
+            Some(Method::Transcode)
+        }
+        EnumValue::Known(proto::PlaybackMethod::PLAYBACK_METHOD_UNSPECIFIED)
+        | EnumValue::Unknown(_) => None,
     }
 }
 
 fn plan_to_proto(plan: Plan) -> proto::PlaybackPlan {
-    let method = match plan.method {
-        None => proto::PlaybackMethod::PLAYBACK_METHOD_UNSPECIFIED,
-        Some(Method::DirectPlay) => proto::PlaybackMethod::PLAYBACK_METHOD_DIRECT_PLAY,
-        Some(Method::Remux) => proto::PlaybackMethod::PLAYBACK_METHOD_REMUX,
-        Some(Method::Transcode) => proto::PlaybackMethod::PLAYBACK_METHOD_TRANSCODE,
-    };
     proto::PlaybackPlan {
-        method: method.into(),
+        id: plan.id.unwrap_or_default(),
+        method: method_to_proto(plan.method).into(),
         url: plan.url.unwrap_or_default(),
         tracks: plan.tracks.iter().map(track_to_proto).collect(),
         reasons: plan.reasons,
-        ..Default::default()
-    }
-}
-
-fn track_to_proto(track: &Track) -> proto::Track {
-    // 0 is what the proto says for a fact the file doesn't give. Stored ones are never negative.
-    let known = |n: Option<i64>| n.and_then(|n| u32::try_from(n).ok()).unwrap_or_default();
-    let kind = match track.kind {
-        TrackKind::Video {
-            width,
-            height,
-            frame_rate,
-            bit_depth,
-            hdr,
-        } => {
-            let (hdr, dolby_vision) = hdr_to_proto(hdr);
-            proto::VideoTrack {
-                width: known(width),
-                height: known(height),
-                frame_rate: frame_rate.unwrap_or_default(),
-                bit_depth: known(bit_depth),
-                hdr: hdr.into(),
-                dolby_vision: dolby_vision.into(),
+        subtitles: (plan.subtitles.iter())
+            .map(|subtitle| proto::PlaybackSubtitle {
+                track: track_to_proto(&subtitle.track).into(),
+                url: subtitle.url.clone(),
                 ..Default::default()
-            }
-            .into()
-        }
-        TrackKind::Audio { channels } => proto::AudioTrack {
-            channels: known(channels),
-            ..Default::default()
-        }
-        .into(),
-        TrackKind::Subtitle { image } => proto::SubtitleTrack {
-            image,
-            ..Default::default()
-        }
-        .into(),
-    };
-    proto::Track {
-        codec: track.codec.clone(),
-        language: track.language.clone(),
-        title: track.title.clone(),
-        default: track.default,
-        forced: track.forced,
-        kind,
+            })
+            .collect(),
         ..Default::default()
     }
 }

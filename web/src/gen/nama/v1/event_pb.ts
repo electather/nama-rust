@@ -4,6 +4,10 @@
 
 import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
+import type { Track } from "./browse_pb";
+import { file_nama_v1_browse } from "./browse_pb";
+import type { PlaybackMethod } from "./playback_pb";
+import { file_nama_v1_playback } from "./playback_pb";
 import type { FollowedShow, Request } from "./request_pb";
 import { file_nama_v1_request } from "./request_pb";
 import type { Message, UnknownEnum } from "@bufbuild/protobuf";
@@ -12,7 +16,7 @@ import type { Message, UnknownEnum } from "@bufbuild/protobuf";
  * Describes the file nama/v1/event.proto.
  */
 export const file_nama_v1_event: GenFile = /*@__PURE__*/
-  fileDesc("ChNuYW1hL3YxL2V2ZW50LnByb3RvEgduYW1hLnYxIkoKEFN1YnNjcmliZVJlcXVlc3QSIQoFdHlwZXMYASADKA4yEi5uYW1hLnYxLkV2ZW50VHlwZRITCgtsaWJyYXJ5X2lkcxgCIAMoAyJiChFTdWJzY3JpYmVSZXNwb25zZRIfCgVldmVudBgBIAEoCzIOLm5hbWEudjEuRXZlbnRIABIhCgZsYWdnZWQYAiABKAsyDy5uYW1hLnYxLkxhZ2dlZEgAQgkKB21lc3NhZ2UiGQoGTGFnZ2VkEg8KB2Ryb3BwZWQYASABKAQi9ggKBUV2ZW50EiwKDHNjYW5fc3RhcnRlZBgBIAEoCzIULm5hbWEudjEuU2NhblN0YXJ0ZWRIABIuCg1zY2FuX3Byb2dyZXNzGAIgASgLMhUubmFtYS52MS5TY2FuUHJvZ3Jlc3NIABIuCg1zY2FuX2ZpbmlzaGVkGAMgASgLMhUubmFtYS52MS5TY2FuRmluaXNoZWRIABI3ChJsaWJyYXJ5X2l0ZW1fYWRkZWQYBCABKAsyGS5uYW1hLnYxLkxpYnJhcnlJdGVtQWRkZWRIABI7ChRsaWJyYXJ5X2l0ZW1fcmVtb3ZlZBgFIAEoCzIbLm5hbWEudjEuTGlicmFyeUl0ZW1SZW1vdmVkSAASLAoMaXRlbV9tYXRjaGVkGAYgASgLMhQubmFtYS52MS5JdGVtTWF0Y2hlZEgAEjIKD3JlcXVlc3RfY3JlYXRlZBgHIAEoCzIXLm5hbWEudjEuUmVxdWVzdENyZWF0ZWRIABIyCg9yZXF1ZXN0ZXJfYWRkZWQYCCABKAsyFy5uYW1hLnYxLlJlcXVlc3RlckFkZGVkSAASPQoVcmVxdWVzdF9zdGF0ZV9jaGFuZ2VkGAkgASgLMhwubmFtYS52MS5SZXF1ZXN0U3RhdGVDaGFuZ2VkSAASNgoRcmVxdWVzdF9jYW5jZWxsZWQYCiABKAsyGS5uYW1hLnYxLlJlcXVlc3RDYW5jZWxsZWRIABI2ChFyZXF1ZXN0ZXJfcmVtb3ZlZBgLIAEoCzIZLm5hbWEudjEuUmVxdWVzdGVyUmVtb3ZlZEgAEjYKEXJlcXVlc3Rfd2l0aGRyYXduGAwgASgLMhkubmFtYS52MS5SZXF1ZXN0V2l0aGRyYXduSAASNAoQcmVxdWVzdF9wcm9ncmVzcxgNIAEoCzIYLm5hbWEudjEuUmVxdWVzdFByb2dyZXNzSAASPQoVZm9sbG93ZWRfc2hvd19jcmVhdGVkGA4gASgLMhwubmFtYS52MS5Gb2xsb3dlZFNob3dDcmVhdGVkSAASTAodZm9sbG93ZWRfc2hvd19yZXF1ZXN0ZXJfYWRkZWQYDyABKAsyIy5uYW1hLnYxLkZvbGxvd2VkU2hvd1JlcXVlc3RlckFkZGVkSAASSAobZm9sbG93ZWRfc2hvd19zdGF0ZV9jaGFuZ2VkGBAgASgLMiEubmFtYS52MS5Gb2xsb3dlZFNob3dTdGF0ZUNoYW5nZWRIABJBChdmb2xsb3dlZF9zaG93X2NhbmNlbGxlZBgRIAEoCzIeLm5hbWEudjEuRm9sbG93ZWRTaG93Q2FuY2VsbGVkSAASUAofZm9sbG93ZWRfc2hvd19yZXF1ZXN0ZXJfcmVtb3ZlZBgSIAEoCzIlLm5hbWEudjEuRm9sbG93ZWRTaG93UmVxdWVzdGVyUmVtb3ZlZEgAEkEKF2ZvbGxvd2VkX3Nob3dfd2l0aGRyYXduGBMgASgLMh4ubmFtYS52MS5Gb2xsb3dlZFNob3dXaXRoZHJhd25IAEIHCgVldmVudCIhCgtTY2FuU3RhcnRlZBISCgpsaWJyYXJ5X2lkGAEgASgDIksKDFNjYW5Qcm9ncmVzcxISCgpsaWJyYXJ5X2lkGAEgASgDEhIKCmZpbGVzX2RvbmUYAiABKAQSEwoLZmlsZXNfdG90YWwYAyABKAQiZgoMU2NhbkZpbmlzaGVkEhIKCmxpYnJhcnlfaWQYASABKAMSDQoFYWRkZWQYAiABKAQSDwoHdXBkYXRlZBgDIAEoBBIPCgdyZW1vdmVkGAQgASgEEhEKCXVuY2hhbmdlZBgFIAEoBCJFChBMaWJyYXJ5SXRlbUFkZGVkEhIKCmxpYnJhcnlfaWQYASABKAMSDwoHaXRlbV9pZBgCIAEoAxIMCgRwYXRoGAMgASgJIjkKEkxpYnJhcnlJdGVtUmVtb3ZlZBISCgpsaWJyYXJ5X2lkGAEgASgDEg8KB2l0ZW1faWQYAiABKAMiQQoLSXRlbU1hdGNoZWQSEgoKbGlicmFyeV9pZBgBIAEoAxIPCgdpdGVtX2lkGAIgASgDEg0KBXRpdGxlGAMgASgJIjMKDlJlcXVlc3RDcmVhdGVkEiEKB3JlcXVlc3QYASABKAsyEC5uYW1hLnYxLlJlcXVlc3QiRAoOUmVxdWVzdGVyQWRkZWQSIQoHcmVxdWVzdBgBIAEoCzIQLm5hbWEudjEuUmVxdWVzdBIPCgd1c2VyX2lkGAIgASgDIjgKE1JlcXVlc3RTdGF0ZUNoYW5nZWQSIQoHcmVxdWVzdBgBIAEoCzIQLm5hbWEudjEuUmVxdWVzdCI1ChBSZXF1ZXN0Q2FuY2VsbGVkEiEKB3JlcXVlc3QYASABKAsyEC5uYW1hLnYxLlJlcXVlc3QiRgoQUmVxdWVzdGVyUmVtb3ZlZBIhCgdyZXF1ZXN0GAEgASgLMhAubmFtYS52MS5SZXF1ZXN0Eg8KB3VzZXJfaWQYAiABKAMiNQoQUmVxdWVzdFdpdGhkcmF3bhIhCgdyZXF1ZXN0GAEgASgLMhAubmFtYS52MS5SZXF1ZXN0IjQKD1JlcXVlc3RQcm9ncmVzcxIhCgdyZXF1ZXN0GAEgASgLMhAubmFtYS52MS5SZXF1ZXN0IkMKE0ZvbGxvd2VkU2hvd0NyZWF0ZWQSLAoNZm9sbG93ZWRfc2hvdxgBIAEoCzIVLm5hbWEudjEuRm9sbG93ZWRTaG93IlsKGkZvbGxvd2VkU2hvd1JlcXVlc3RlckFkZGVkEiwKDWZvbGxvd2VkX3Nob3cYASABKAsyFS5uYW1hLnYxLkZvbGxvd2VkU2hvdxIPCgd1c2VyX2lkGAIgASgDIkgKGEZvbGxvd2VkU2hvd1N0YXRlQ2hhbmdlZBIsCg1mb2xsb3dlZF9zaG93GAEgASgLMhUubmFtYS52MS5Gb2xsb3dlZFNob3ciRQoVRm9sbG93ZWRTaG93Q2FuY2VsbGVkEiwKDWZvbGxvd2VkX3Nob3cYASABKAsyFS5uYW1hLnYxLkZvbGxvd2VkU2hvdyJdChxGb2xsb3dlZFNob3dSZXF1ZXN0ZXJSZW1vdmVkEiwKDWZvbGxvd2VkX3Nob3cYASABKAsyFS5uYW1hLnYxLkZvbGxvd2VkU2hvdxIPCgd1c2VyX2lkGAIgASgDIkUKFUZvbGxvd2VkU2hvd1dpdGhkcmF3bhIsCg1mb2xsb3dlZF9zaG93GAEgASgLMhUubmFtYS52MS5Gb2xsb3dlZFNob3cq0gUKCUV2ZW50VHlwZRIaChZFVkVOVF9UWVBFX1VOU1BFQ0lGSUVEEAASGwoXRVZFTlRfVFlQRV9TQ0FOX1NUQVJURUQQARIcChhFVkVOVF9UWVBFX1NDQU5fUFJPR1JFU1MQAhIcChhFVkVOVF9UWVBFX1NDQU5fRklOSVNIRUQQAxIhCh1FVkVOVF9UWVBFX0xJQlJBUllfSVRFTV9BRERFRBAEEiMKH0VWRU5UX1RZUEVfTElCUkFSWV9JVEVNX1JFTU9WRUQQBRIbChdFVkVOVF9UWVBFX0lURU1fTUFUQ0hFRBAGEh4KGkVWRU5UX1RZUEVfUkVRVUVTVF9DUkVBVEVEEAcSHgoaRVZFTlRfVFlQRV9SRVFVRVNURVJfQURERUQQCBIkCiBFVkVOVF9UWVBFX1JFUVVFU1RfU1RBVEVfQ0hBTkdFRBAJEiAKHEVWRU5UX1RZUEVfUkVRVUVTVF9DQU5DRUxMRUQQChIgChxFVkVOVF9UWVBFX1JFUVVFU1RFUl9SRU1PVkVEEAsSIAocRVZFTlRfVFlQRV9SRVFVRVNUX1dJVEhEUkFXThAMEh8KG0VWRU5UX1RZUEVfUkVRVUVTVF9QUk9HUkVTUxANEiQKIEVWRU5UX1RZUEVfRk9MTE9XRURfU0hPV19DUkVBVEVEEA4SLAooRVZFTlRfVFlQRV9GT0xMT1dFRF9TSE9XX1JFUVVFU1RFUl9BRERFRBAPEioKJkVWRU5UX1RZUEVfRk9MTE9XRURfU0hPV19TVEFURV9DSEFOR0VEEBASJgoiRVZFTlRfVFlQRV9GT0xMT1dFRF9TSE9XX0NBTkNFTExFRBAREi4KKkVWRU5UX1RZUEVfRk9MTE9XRURfU0hPV19SRVFVRVNURVJfUkVNT1ZFRBASEiYKIkVWRU5UX1RZUEVfRk9MTE9XRURfU0hPV19XSVRIRFJBV04QEzJZCgxFdmVudFNlcnZpY2USSQoJU3Vic2NyaWJlEhkubmFtYS52MS5TdWJzY3JpYmVSZXF1ZXN0GhoubmFtYS52MS5TdWJzY3JpYmVSZXNwb25zZSIDkAIBMAFiBnByb3RvMw", [file_nama_v1_request]);
+  fileDesc("ChNuYW1hL3YxL2V2ZW50LnByb3RvEgduYW1hLnYxIkoKEFN1YnNjcmliZVJlcXVlc3QSIQoFdHlwZXMYASADKA4yEi5uYW1hLnYxLkV2ZW50VHlwZRITCgtsaWJyYXJ5X2lkcxgCIAMoAyJiChFTdWJzY3JpYmVSZXNwb25zZRIfCgVldmVudBgBIAEoCzIOLm5hbWEudjEuRXZlbnRIABIhCgZsYWdnZWQYAiABKAsyDy5uYW1hLnYxLkxhZ2dlZEgAQgkKB21lc3NhZ2UiGQoGTGFnZ2VkEg8KB2Ryb3BwZWQYASABKAQi3gkKBUV2ZW50EiwKDHNjYW5fc3RhcnRlZBgBIAEoCzIULm5hbWEudjEuU2NhblN0YXJ0ZWRIABIuCg1zY2FuX3Byb2dyZXNzGAIgASgLMhUubmFtYS52MS5TY2FuUHJvZ3Jlc3NIABIuCg1zY2FuX2ZpbmlzaGVkGAMgASgLMhUubmFtYS52MS5TY2FuRmluaXNoZWRIABI3ChJsaWJyYXJ5X2l0ZW1fYWRkZWQYBCABKAsyGS5uYW1hLnYxLkxpYnJhcnlJdGVtQWRkZWRIABI7ChRsaWJyYXJ5X2l0ZW1fcmVtb3ZlZBgFIAEoCzIbLm5hbWEudjEuTGlicmFyeUl0ZW1SZW1vdmVkSAASLAoMaXRlbV9tYXRjaGVkGAYgASgLMhQubmFtYS52MS5JdGVtTWF0Y2hlZEgAEjIKD3JlcXVlc3RfY3JlYXRlZBgHIAEoCzIXLm5hbWEudjEuUmVxdWVzdENyZWF0ZWRIABIyCg9yZXF1ZXN0ZXJfYWRkZWQYCCABKAsyFy5uYW1hLnYxLlJlcXVlc3RlckFkZGVkSAASPQoVcmVxdWVzdF9zdGF0ZV9jaGFuZ2VkGAkgASgLMhwubmFtYS52MS5SZXF1ZXN0U3RhdGVDaGFuZ2VkSAASNgoRcmVxdWVzdF9jYW5jZWxsZWQYCiABKAsyGS5uYW1hLnYxLlJlcXVlc3RDYW5jZWxsZWRIABI2ChFyZXF1ZXN0ZXJfcmVtb3ZlZBgLIAEoCzIZLm5hbWEudjEuUmVxdWVzdGVyUmVtb3ZlZEgAEjYKEXJlcXVlc3Rfd2l0aGRyYXduGAwgASgLMhkubmFtYS52MS5SZXF1ZXN0V2l0aGRyYXduSAASNAoQcmVxdWVzdF9wcm9ncmVzcxgNIAEoCzIYLm5hbWEudjEuUmVxdWVzdFByb2dyZXNzSAASPQoVZm9sbG93ZWRfc2hvd19jcmVhdGVkGA4gASgLMhwubmFtYS52MS5Gb2xsb3dlZFNob3dDcmVhdGVkSAASTAodZm9sbG93ZWRfc2hvd19yZXF1ZXN0ZXJfYWRkZWQYDyABKAsyIy5uYW1hLnYxLkZvbGxvd2VkU2hvd1JlcXVlc3RlckFkZGVkSAASSAobZm9sbG93ZWRfc2hvd19zdGF0ZV9jaGFuZ2VkGBAgASgLMiEubmFtYS52MS5Gb2xsb3dlZFNob3dTdGF0ZUNoYW5nZWRIABJBChdmb2xsb3dlZF9zaG93X2NhbmNlbGxlZBgRIAEoCzIeLm5hbWEudjEuRm9sbG93ZWRTaG93Q2FuY2VsbGVkSAASUAofZm9sbG93ZWRfc2hvd19yZXF1ZXN0ZXJfcmVtb3ZlZBgSIAEoCzIlLm5hbWEudjEuRm9sbG93ZWRTaG93UmVxdWVzdGVyUmVtb3ZlZEgAEkEKF2ZvbGxvd2VkX3Nob3dfd2l0aGRyYXduGBMgASgLMh4ubmFtYS52MS5Gb2xsb3dlZFNob3dXaXRoZHJhd25IABI0ChBwbGF5YmFja19zdGFydGVkGBQgASgLMhgubmFtYS52MS5QbGF5YmFja1N0YXJ0ZWRIABIwCg5wbGF5YmFja19lbmRlZBgVIAEoCzIWLm5hbWEudjEuUGxheWJhY2tFbmRlZEgAQgcKBWV2ZW50IiEKC1NjYW5TdGFydGVkEhIKCmxpYnJhcnlfaWQYASABKAMiSwoMU2NhblByb2dyZXNzEhIKCmxpYnJhcnlfaWQYASABKAMSEgoKZmlsZXNfZG9uZRgCIAEoBBITCgtmaWxlc190b3RhbBgDIAEoBCJmCgxTY2FuRmluaXNoZWQSEgoKbGlicmFyeV9pZBgBIAEoAxINCgVhZGRlZBgCIAEoBBIPCgd1cGRhdGVkGAMgASgEEg8KB3JlbW92ZWQYBCABKAQSEQoJdW5jaGFuZ2VkGAUgASgEIkUKEExpYnJhcnlJdGVtQWRkZWQSEgoKbGlicmFyeV9pZBgBIAEoAxIPCgdpdGVtX2lkGAIgASgDEgwKBHBhdGgYAyABKAkiOQoSTGlicmFyeUl0ZW1SZW1vdmVkEhIKCmxpYnJhcnlfaWQYASABKAMSDwoHaXRlbV9pZBgCIAEoAyJBCgtJdGVtTWF0Y2hlZBISCgpsaWJyYXJ5X2lkGAEgASgDEg8KB2l0ZW1faWQYAiABKAMSDQoFdGl0bGUYAyABKAkiMwoOUmVxdWVzdENyZWF0ZWQSIQoHcmVxdWVzdBgBIAEoCzIQLm5hbWEudjEuUmVxdWVzdCJECg5SZXF1ZXN0ZXJBZGRlZBIhCgdyZXF1ZXN0GAEgASgLMhAubmFtYS52MS5SZXF1ZXN0Eg8KB3VzZXJfaWQYAiABKAMiOAoTUmVxdWVzdFN0YXRlQ2hhbmdlZBIhCgdyZXF1ZXN0GAEgASgLMhAubmFtYS52MS5SZXF1ZXN0IjUKEFJlcXVlc3RDYW5jZWxsZWQSIQoHcmVxdWVzdBgBIAEoCzIQLm5hbWEudjEuUmVxdWVzdCJGChBSZXF1ZXN0ZXJSZW1vdmVkEiEKB3JlcXVlc3QYASABKAsyEC5uYW1hLnYxLlJlcXVlc3QSDwoHdXNlcl9pZBgCIAEoAyI1ChBSZXF1ZXN0V2l0aGRyYXduEiEKB3JlcXVlc3QYASABKAsyEC5uYW1hLnYxLlJlcXVlc3QiNAoPUmVxdWVzdFByb2dyZXNzEiEKB3JlcXVlc3QYASABKAsyEC5uYW1hLnYxLlJlcXVlc3QiQwoTRm9sbG93ZWRTaG93Q3JlYXRlZBIsCg1mb2xsb3dlZF9zaG93GAEgASgLMhUubmFtYS52MS5Gb2xsb3dlZFNob3ciWwoaRm9sbG93ZWRTaG93UmVxdWVzdGVyQWRkZWQSLAoNZm9sbG93ZWRfc2hvdxgBIAEoCzIVLm5hbWEudjEuRm9sbG93ZWRTaG93Eg8KB3VzZXJfaWQYAiABKAMiSAoYRm9sbG93ZWRTaG93U3RhdGVDaGFuZ2VkEiwKDWZvbGxvd2VkX3Nob3cYASABKAsyFS5uYW1hLnYxLkZvbGxvd2VkU2hvdyJFChVGb2xsb3dlZFNob3dDYW5jZWxsZWQSLAoNZm9sbG93ZWRfc2hvdxgBIAEoCzIVLm5hbWEudjEuRm9sbG93ZWRTaG93Il0KHEZvbGxvd2VkU2hvd1JlcXVlc3RlclJlbW92ZWQSLAoNZm9sbG93ZWRfc2hvdxgBIAEoCzIVLm5hbWEudjEuRm9sbG93ZWRTaG93Eg8KB3VzZXJfaWQYAiABKAMiRQoVRm9sbG93ZWRTaG93V2l0aGRyYXduEiwKDWZvbGxvd2VkX3Nob3cYASABKAsyFS5uYW1hLnYxLkZvbGxvd2VkU2hvdyI2Cg9QbGF5YmFja1N0YXJ0ZWQSIwoIcGxheWJhY2sYASABKAsyES5uYW1hLnYxLlBsYXliYWNrIjQKDVBsYXliYWNrRW5kZWQSIwoIcGxheWJhY2sYASABKAsyES5uYW1hLnYxLlBsYXliYWNrIpwBCghQbGF5YmFjaxIPCgd1c2VyX2lkGAEgASgDEhEKCWRldmljZV9pZBgCIAEoAxISCgp2ZXJzaW9uX2lkGAMgASgDEicKBm1ldGhvZBgEIAEoDjIXLm5hbWEudjEuUGxheWJhY2tNZXRob2QSHgoGdHJhY2tzGAUgAygLMg4ubmFtYS52MS5UcmFjaxIPCgdyZWFzb25zGAYgAygJKpIGCglFdmVudFR5cGUSGgoWRVZFTlRfVFlQRV9VTlNQRUNJRklFRBAAEhsKF0VWRU5UX1RZUEVfU0NBTl9TVEFSVEVEEAESHAoYRVZFTlRfVFlQRV9TQ0FOX1BST0dSRVNTEAISHAoYRVZFTlRfVFlQRV9TQ0FOX0ZJTklTSEVEEAMSIQodRVZFTlRfVFlQRV9MSUJSQVJZX0lURU1fQURERUQQBBIjCh9FVkVOVF9UWVBFX0xJQlJBUllfSVRFTV9SRU1PVkVEEAUSGwoXRVZFTlRfVFlQRV9JVEVNX01BVENIRUQQBhIeChpFVkVOVF9UWVBFX1JFUVVFU1RfQ1JFQVRFRBAHEh4KGkVWRU5UX1RZUEVfUkVRVUVTVEVSX0FEREVEEAgSJAogRVZFTlRfVFlQRV9SRVFVRVNUX1NUQVRFX0NIQU5HRUQQCRIgChxFVkVOVF9UWVBFX1JFUVVFU1RfQ0FOQ0VMTEVEEAoSIAocRVZFTlRfVFlQRV9SRVFVRVNURVJfUkVNT1ZFRBALEiAKHEVWRU5UX1RZUEVfUkVRVUVTVF9XSVRIRFJBV04QDBIfChtFVkVOVF9UWVBFX1JFUVVFU1RfUFJPR1JFU1MQDRIkCiBFVkVOVF9UWVBFX0ZPTExPV0VEX1NIT1dfQ1JFQVRFRBAOEiwKKEVWRU5UX1RZUEVfRk9MTE9XRURfU0hPV19SRVFVRVNURVJfQURERUQQDxIqCiZFVkVOVF9UWVBFX0ZPTExPV0VEX1NIT1dfU1RBVEVfQ0hBTkdFRBAQEiYKIkVWRU5UX1RZUEVfRk9MTE9XRURfU0hPV19DQU5DRUxMRUQQERIuCipFVkVOVF9UWVBFX0ZPTExPV0VEX1NIT1dfUkVRVUVTVEVSX1JFTU9WRUQQEhImCiJFVkVOVF9UWVBFX0ZPTExPV0VEX1NIT1dfV0lUSERSQVdOEBMSHwobRVZFTlRfVFlQRV9QTEFZQkFDS19TVEFSVEVEEBQSHQoZRVZFTlRfVFlQRV9QTEFZQkFDS19FTkRFRBAVMlkKDEV2ZW50U2VydmljZRJJCglTdWJzY3JpYmUSGS5uYW1hLnYxLlN1YnNjcmliZVJlcXVlc3QaGi5uYW1hLnYxLlN1YnNjcmliZVJlc3BvbnNlIgOQAgEwAWIGcHJvdG8z", [file_nama_v1_browse, file_nama_v1_playback, file_nama_v1_request]);
 
 /**
  * @generated from message nama.v1.SubscribeRequest
@@ -218,6 +222,18 @@ export type Event = Message<"nama.v1.Event"> & {
      */
     value: FollowedShowWithdrawn;
     case: "followedShowWithdrawn";
+  } | {
+    /**
+     * @generated from field: nama.v1.PlaybackStarted playback_started = 20;
+     */
+    value: PlaybackStarted;
+    case: "playbackStarted";
+  } | {
+    /**
+     * @generated from field: nama.v1.PlaybackEnded playback_ended = 21;
+     */
+    value: PlaybackEnded;
+    case: "playbackEnded";
   } | { case: undefined; value?: undefined };
 };
 
@@ -718,6 +734,106 @@ export const FollowedShowWithdrawnSchema: GenMessage<FollowedShowWithdrawn> = /*
   messageDesc(file_nama_v1_event, 22);
 
 /**
+ * A Device was given a Playback Plan it can play: the first for a Version, or one that replaces
+ * another, which gets an event of its own. Playback events reach the User playing, and subscribers
+ * with `PERMISSION_ADMIN`.
+ *
+ * @generated from message nama.v1.PlaybackStarted
+ */
+export type PlaybackStarted = Message<"nama.v1.PlaybackStarted"> & {
+  /**
+   * @generated from field: nama.v1.Playback playback = 1;
+   */
+  playback?: Playback | undefined;
+};
+
+/**
+ * Describes the message nama.v1.PlaybackStarted.
+ * Use `create(PlaybackStartedSchema)` to create a new message.
+ */
+export const PlaybackStartedSchema: GenMessage<PlaybackStarted> = /*@__PURE__*/
+  messageDesc(file_nama_v1_event, 23);
+
+/**
+ * A plan that `PlaybackStarted` told of stopped: its player stopped it (`StopPlayback`), or went 60
+ * seconds without asking for it, as when its tab closed, or the Server shut down, which may end it
+ * before this is delivered.
+ *
+ * @generated from message nama.v1.PlaybackEnded
+ */
+export type PlaybackEnded = Message<"nama.v1.PlaybackEnded"> & {
+  /**
+   * As its `PlaybackStarted` told it.
+   *
+   * @generated from field: nama.v1.Playback playback = 1;
+   */
+  playback?: Playback | undefined;
+};
+
+/**
+ * Describes the message nama.v1.PlaybackEnded.
+ * Use `create(PlaybackEndedSchema)` to create a new message.
+ */
+export const PlaybackEndedSchema: GenMessage<PlaybackEnded> = /*@__PURE__*/
+  messageDesc(file_nama_v1_event, 24);
+
+/**
+ * One Playback Plan playing a Version on a Device.
+ *
+ * @generated from message nama.v1.Playback
+ */
+export type Playback = Message<"nama.v1.Playback"> & {
+  /**
+   * The User playing.
+   *
+   * @generated from field: int64 user_id = 1;
+   */
+  userId: bigint;
+
+  /**
+   * The Device playing.
+   *
+   * @generated from field: int64 device_id = 2;
+   */
+  deviceId: bigint;
+
+  /**
+   * The Version played.
+   *
+   * @generated from field: int64 version_id = 3;
+   */
+  versionId: bigint;
+
+  /**
+   * How the plan plays it.
+   *
+   * @generated from field: nama.v1.PlaybackMethod method = 4;
+   */
+  method: PlaybackMethod;
+
+  /**
+   * The Tracks it plays, as its plan lists them.
+   *
+   * @generated from field: repeated nama.v1.Track tracks = 5;
+   */
+  tracks: Track[];
+
+  /**
+   * Why it plays this way, as its plan says.
+   *
+   * @generated from field: repeated string reasons = 6;
+   */
+  reasons: string[];
+};
+
+/**
+ * Describes the message nama.v1.Playback.
+ * Use `create(PlaybackSchema)` to create a new message.
+ */
+export const PlaybackSchema: GenMessage<Playback> = /*@__PURE__*/
+  messageDesc(file_nama_v1_event, 25);
+
+/**
  * The kinds of `Event`, one per field of its `event`.
  *
  * @generated from enum nama.v1.EventType
@@ -822,6 +938,16 @@ export const EventType = {
    * @generated from enum value: EVENT_TYPE_FOLLOWED_SHOW_WITHDRAWN = 19;
    */
   FOLLOWED_SHOW_WITHDRAWN: 19,
+
+  /**
+   * @generated from enum value: EVENT_TYPE_PLAYBACK_STARTED = 20;
+   */
+  PLAYBACK_STARTED: 20,
+
+  /**
+   * @generated from enum value: EVENT_TYPE_PLAYBACK_ENDED = 21;
+   */
+  PLAYBACK_ENDED: 21,
 } as const;
 
 /**

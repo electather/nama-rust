@@ -294,7 +294,8 @@ export const RefusalReason = {
   PASSWORD_REJECTED: 31,
 
   /**
-   * `invalid_argument`: a Library's folder isn't an absolute path. Params: `folder`.
+   * `invalid_argument`: a Library's folder, or the segment folder, isn't an absolute path. Params:
+   * `folder`.
    *
    * @generated from enum value: REFUSAL_REASON_FOLDER_NOT_ABSOLUTE = 32;
    */

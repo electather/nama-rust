@@ -1,6 +1,7 @@
 import { createQueryOptions, useSuspenseQuery } from "@connectrpc/connect-query";
 import { createFileRoute } from "@tanstack/react-router";
 
+import { AdminList } from "@/components/admin-list";
 import { CreateUser } from "@/components/create-user";
 import { Page } from "@/components/page";
 import { DefaultPermissionsEditor } from "@/components/permissions-editor";
@@ -27,12 +28,11 @@ function Users() {
   const { signedIn } = Route.useRouteContext();
   return (
     <Page heading="Users">
-      {/* Pulled out by the rows' own padding, so the names line up with the heading. */}
-      <ul className="mt-8 -mx-3 flex max-w-2xl flex-col">
+      <AdminList>
         {data.users.map((user) => (
           <UserRow key={user.id} user={user} you={signedIn.user} />
         ))}
-      </ul>
+      </AdminList>
       <section aria-labelledby="create-user" className="mt-12 max-w-sm">
         <h2 id="create-user" className="font-medium">
           Create a User

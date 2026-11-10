@@ -45,6 +45,7 @@ use crate::{
     ffmpeg::{Ffmpeg, ProbeError},
     libraries::{self, Kind, Libraries},
     matching::{self, ManualError, Matcher, count},
+    playback::subtitles,
     plugins::Registry,
     tracks::{Probe, Tracks},
 };
@@ -139,6 +140,7 @@ struct Inner {
     events: EventBus,
     tracks: Tracks,
     ffmpeg: Arc<Ffmpeg>,
+    subtitles: subtitles::Cache,
     /// Background scans and probes, so shutting down can wait for them.
     tasks: TaskTracker,
     /// Cancelled when the Server shuts down.
@@ -171,12 +173,14 @@ impl ScanLock {
 }
 
 impl Scanner {
-    /// Probes files with `ffmpeg`'s ffprobe, or not at all without one.
+    /// Probes files with `ffmpeg`'s ffprobe, or not at all without one, and throws away what
+    /// `subtitles` caches for files gone or changed.
     pub(crate) fn new(
         db: Arc<Database>,
         plugins: Registry,
         events: EventBus,
         ffmpeg: Arc<Ffmpeg>,
+        subtitles: subtitles::Cache,
     ) -> Self {
         Self {
             inner: Arc::new(Inner {
@@ -185,6 +189,7 @@ impl Scanner {
                 events,
                 tracks: Tracks::new(Arc::clone(&db)),
                 ffmpeg,
+                subtitles,
                 contents: Contents::new(db),
                 tasks: TaskTracker::new(),
                 cancel: CancellationToken::new(),
@@ -296,6 +301,7 @@ impl Scanner {
                 .events
                 .publish(std::iter::once(progress).chain(items).collect());
         }
+        self.clean_subtitles().await;
         tracing::info!(library = id, ?summary, "scanned a Library");
         self.inner.events.publish(vec![event(ScanFinished {
             library_id: id,
@@ -308,6 +314,23 @@ impl Scanner {
         self.inner.matcher.match_library(scan, &cancel).await?;
         self.probe_in_background(id);
         Ok(summary)
+    }
+
+    /// Throws away the subtitles cached for files gone, such as a deleted Library's, or changed
+    /// since they were cached. Logs why it couldn't.
+    pub(crate) async fn clean_subtitles(&self) {
+        // ponytail: reads every stored file after each scan; clean only the Library scanned once
+        // Libraries get big.
+        let cleaned = match self.inner.contents.every_stored().await {
+            Ok(stored) => self.inner.subtitles.keep_only(&stored).await,
+            Err(err) => {
+                tracing::error!("could not read which files to keep subtitles for: {err}");
+                return;
+            }
+        };
+        if let Err(err) = cleaned {
+            tracing::error!("could not throw away subtitles of files gone or changed: {err}");
+        }
     }
 
     /// Probes the Library `library`'s files without current Tracks in the background, unless the
@@ -610,7 +633,7 @@ impl Scanner {
 
 #[cfg(test)]
 mod tests {
-    use std::{fs, path::PathBuf, sync::Arc, time::Duration};
+    use std::{collections::BTreeSet, fs, path::PathBuf, sync::Arc, time::Duration};
 
     use futures_util::StreamExt;
     use nama_plugin_api::{
@@ -628,10 +651,11 @@ mod tests {
         events::{EventBus, Filter},
         ffmpeg::{self, Ffmpeg, FoundProgram, ProbeError},
         libraries::{self, Kind, Libraries},
-        playback,
+        playback::{self, running::RunningPlans},
         plugins::Registry,
-        server_settings::ServerUrl,
+        server_settings::{SegmentFolder, ServerUrl},
         tracks::{Hdr, PROBE_VERSION, Track, TrackKind, Tracks},
+        users::{Caller, Device, Permissions, User},
     };
 
     /// How many events a [`Fixture`]'s subscribers may fall behind.
@@ -678,6 +702,7 @@ mod tests {
                     Registry::new(),
                     events.clone(),
                     Arc::new(ffmpeg),
+                    playback::subtitles::Cache::new(data.path()),
                 ),
                 tracks: Tracks::new(Arc::clone(&db)),
                 contents: Contents::new(db),
@@ -1067,6 +1092,7 @@ mod tests {
                     title: None,
                     default: false,
                     forced: false,
+                    sdh: false,
                     kind: TrackKind::Video {
                         width: Some(3840),
                         height: Some(2160),
@@ -1081,6 +1107,7 @@ mod tests {
                     title: None,
                     default: false,
                     forced: false,
+                    sdh: false,
                     kind: TrackKind::Audio { channels: Some(6) },
                 },
             ]
@@ -1214,9 +1241,41 @@ EOF"#,
         media.match_to_alien().await;
         let version = media.file_id(alien).await;
 
-        let plan = playback::plan(&media.scanner, version, playback::DeviceDecoding::default())
-            .await
-            .unwrap();
+        let transcodes = tempfile::tempdir().unwrap();
+        let running = RunningPlans::new(
+            SegmentFolder::new(transcodes.path().to_owned()),
+            Arc::new(Ffmpeg::default()),
+            media.contents.clone(),
+            media.tracks.clone(),
+            media.events.clone(),
+        );
+        let decoding = playback::DeviceDecoding::default();
+        let caller = Caller {
+            user: User {
+                id: 1,
+                name: "Ripley".to_owned(),
+                permissions: Permissions::NEW_USER,
+                created_at: 0,
+            },
+            device: Device {
+                id: 1,
+                name: "Nostromo".to_owned(),
+                created_at: 0,
+                last_seen_at: 0,
+                authenticated_at: 0,
+            },
+        };
+
+        let plan = playback::plan(
+            &media.scanner,
+            &running,
+            &caller,
+            version,
+            decoding,
+            BTreeSet::new(),
+        )
+        .await
+        .unwrap();
 
         let tracks = plan.map(|plan| plan.tracks).unwrap_or_default();
         let codecs: Vec<&str> = tracks.iter().map(|track| track.codec.as_str()).collect();

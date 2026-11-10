@@ -3,11 +3,11 @@
 include!("nama.v1.match.rs");
 include!("nama.v1.watch_state.rs");
 include!("nama.v1.browse.rs");
+include!("nama.v1.playback.rs");
 include!("nama.v1.plugin.rs");
 include!("nama.v1.request.rs");
 include!("nama.v1.event.rs");
 include!("nama.v1.library.rs");
-include!("nama.v1.playback.rs");
 include!("nama.v1.refusal.rs");
 include!("nama.v1.server.rs");
 include!("nama.v1.sign_in.rs");
@@ -32,11 +32,11 @@ pub mod __buffa {
         include!("nama.v1.match.__view.rs");
         include!("nama.v1.watch_state.__view.rs");
         include!("nama.v1.browse.__view.rs");
+        include!("nama.v1.playback.__view.rs");
         include!("nama.v1.plugin.__view.rs");
         include!("nama.v1.request.__view.rs");
         include!("nama.v1.event.__view.rs");
         include!("nama.v1.library.__view.rs");
-        include!("nama.v1.playback.__view.rs");
         include!("nama.v1.refusal.__view.rs");
         include!("nama.v1.server.__view.rs");
         include!("nama.v1.sign_in.__view.rs");
@@ -104,6 +104,13 @@ pub mod __buffa {
         reg.register_json_any(super::__CONTINUE_WATCHING_ENTRY_JSON_ANY);
         reg.register_json_any(super::__LIST_CONTINUE_WATCHING_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_CONTINUE_WATCHING_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__STOP_PLAYBACK_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__STOP_PLAYBACK_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__PLAN_PLAYBACK_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__DEVICE_DECODING_JSON_ANY);
+        reg.register_json_any(super::__PLAN_PLAYBACK_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__PLAYBACK_PLAN_JSON_ANY);
+        reg.register_json_any(super::__PLAYBACK_SUBTITLE_JSON_ANY);
         reg.register_json_any(super::__LIST_PLUGINS_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_PLUGINS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__GET_PLUGIN_REQUEST_JSON_ANY);
@@ -210,6 +217,9 @@ pub mod __buffa {
         reg.register_json_any(super::__FOLLOWED_SHOW_CANCELLED_JSON_ANY);
         reg.register_json_any(super::__FOLLOWED_SHOW_REQUESTER_REMOVED_JSON_ANY);
         reg.register_json_any(super::__FOLLOWED_SHOW_WITHDRAWN_JSON_ANY);
+        reg.register_json_any(super::__PLAYBACK_STARTED_JSON_ANY);
+        reg.register_json_any(super::__PLAYBACK_ENDED_JSON_ANY);
+        reg.register_json_any(super::__PLAYBACK_JSON_ANY);
         reg.register_json_any(super::__LIBRARY_JSON_ANY);
         reg.register_json_any(super::__CREATE_LIBRARY_REQUEST_JSON_ANY);
         reg.register_json_any(super::__CREATE_LIBRARY_RESPONSE_JSON_ANY);
@@ -223,10 +233,6 @@ pub mod __buffa {
         reg.register_json_any(super::__DELETE_LIBRARY_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__SCAN_LIBRARY_REQUEST_JSON_ANY);
         reg.register_json_any(super::__SCAN_LIBRARY_RESPONSE_JSON_ANY);
-        reg.register_json_any(super::__PLAN_PLAYBACK_REQUEST_JSON_ANY);
-        reg.register_json_any(super::__DEVICE_DECODING_JSON_ANY);
-        reg.register_json_any(super::__PLAN_PLAYBACK_RESPONSE_JSON_ANY);
-        reg.register_json_any(super::__PLAYBACK_PLAN_JSON_ANY);
         reg.register_json_any(super::__REFUSAL_JSON_ANY);
         reg.register_json_any(super::__GET_SERVER_INFO_REQUEST_JSON_ANY);
         reg.register_json_any(super::__GET_SERVER_INFO_RESPONSE_JSON_ANY);
@@ -238,6 +244,11 @@ pub mod __buffa {
         reg.register_json_any(super::__GET_PLAYBACK_STATUS_REQUEST_JSON_ANY);
         reg.register_json_any(super::__GET_PLAYBACK_STATUS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__FOUND_PROGRAM_JSON_ANY);
+        reg.register_json_any(super::__GET_PLAYBACK_SETTINGS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__GET_PLAYBACK_SETTINGS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__UPDATE_PLAYBACK_SETTINGS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__UPDATE_PLAYBACK_SETTINGS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__PLAYBACK_SETTINGS_JSON_ANY);
         reg.register_json_any(super::__USER_JSON_ANY);
         reg.register_json_any(super::__DEVICE_JSON_ANY);
         reg.register_json_any(super::__SETUP_REQUEST_JSON_ANY);
@@ -447,6 +458,34 @@ pub use self::__buffa::view::ListContinueWatchingRequestOwnedView;
 pub use self::__buffa::view::ListContinueWatchingResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::ListContinueWatchingResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::StopPlaybackRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::StopPlaybackRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::StopPlaybackResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::StopPlaybackResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PlanPlaybackRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::PlanPlaybackRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::DeviceDecodingView;
+#[doc(inline)]
+pub use self::__buffa::view::DeviceDecodingOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PlanPlaybackResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::PlanPlaybackResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PlaybackPlanView;
+#[doc(inline)]
+pub use self::__buffa::view::PlaybackPlanOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PlaybackSubtitleView;
+#[doc(inline)]
+pub use self::__buffa::view::PlaybackSubtitleOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::ListPluginsRequestView;
 #[doc(inline)]
@@ -872,6 +911,18 @@ pub use self::__buffa::view::FollowedShowWithdrawnView;
 #[doc(inline)]
 pub use self::__buffa::view::FollowedShowWithdrawnOwnedView;
 #[doc(inline)]
+pub use self::__buffa::view::PlaybackStartedView;
+#[doc(inline)]
+pub use self::__buffa::view::PlaybackStartedOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PlaybackEndedView;
+#[doc(inline)]
+pub use self::__buffa::view::PlaybackEndedOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PlaybackView;
+#[doc(inline)]
+pub use self::__buffa::view::PlaybackOwnedView;
+#[doc(inline)]
 pub use self::__buffa::view::LibraryView;
 #[doc(inline)]
 pub use self::__buffa::view::LibraryOwnedView;
@@ -924,22 +975,6 @@ pub use self::__buffa::view::ScanLibraryResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::ScanLibraryResponseOwnedView;
 #[doc(inline)]
-pub use self::__buffa::view::PlanPlaybackRequestView;
-#[doc(inline)]
-pub use self::__buffa::view::PlanPlaybackRequestOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::DeviceDecodingView;
-#[doc(inline)]
-pub use self::__buffa::view::DeviceDecodingOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::PlanPlaybackResponseView;
-#[doc(inline)]
-pub use self::__buffa::view::PlanPlaybackResponseOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::PlaybackPlanView;
-#[doc(inline)]
-pub use self::__buffa::view::PlaybackPlanOwnedView;
-#[doc(inline)]
 pub use self::__buffa::view::RefusalView;
 #[doc(inline)]
 pub use self::__buffa::view::RefusalOwnedView;
@@ -983,6 +1018,26 @@ pub use self::__buffa::view::GetPlaybackStatusResponseOwnedView;
 pub use self::__buffa::view::FoundProgramView;
 #[doc(inline)]
 pub use self::__buffa::view::FoundProgramOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetPlaybackSettingsRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::GetPlaybackSettingsRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetPlaybackSettingsResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::GetPlaybackSettingsResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::UpdatePlaybackSettingsRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::UpdatePlaybackSettingsRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::UpdatePlaybackSettingsResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::UpdatePlaybackSettingsResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PlaybackSettingsView;
+#[doc(inline)]
+pub use self::__buffa::view::PlaybackSettingsOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::UserView;
 #[doc(inline)]

@@ -10,13 +10,14 @@ use std::{
     sync::Arc,
 };
 
+use nama_proto::nama::v1 as proto;
 use sqlx::SqliteConnection;
 
-use crate::{contents::Stored, db::Database};
+use crate::{contents::Stored, db::Database, ffmpeg::TEXT_SUBTITLES};
 
 /// The version of how probing reads a file, stored with what it read like the name parser's
 /// (ADR 0023). A Version read by an older one is probed again; when to bump it is in `AGENTS.md`.
-pub(crate) const PROBE_VERSION: i64 = 2;
+pub(crate) const PROBE_VERSION: i64 = 3;
 
 /// What probing a Version found.
 #[derive(Debug, Clone, PartialEq)]
@@ -32,6 +33,11 @@ pub(crate) struct Probe {
 
 /// One video, audio or subtitle stream inside a Version.
 #[derive(Debug, Clone, PartialEq)]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "each is a separate flag the file sets on the Track, as ffprobe's disposition and \
+              the proto's `Track` have them"
+)]
 pub(crate) struct Track {
     pub(crate) codec: String,
     /// As the file tags it, usually ISO 639-2, such as `eng`.
@@ -39,6 +45,8 @@ pub(crate) struct Track {
     pub(crate) title: Option<String>,
     pub(crate) default: bool,
     pub(crate) forced: bool,
+    /// Marked for the deaf and hard of hearing, as subtitles that also describe sounds.
+    pub(crate) sdh: bool,
     pub(crate) kind: TrackKind,
 }
 
@@ -62,6 +70,15 @@ pub(crate) enum TrackKind {
         /// A bitmap, such as PGS, rather than text, such as SRT.
         image: bool,
     },
+}
+
+impl Track {
+    /// Whether it's a text subtitle, such as SRT, which a browser shows as WebVTT, unlike an image
+    /// one such as PGS.
+    pub(crate) fn is_text_subtitle(&self) -> bool {
+        matches!(self.kind, TrackKind::Subtitle { .. })
+            && TEXT_SUBTITLES.contains(&self.codec.as_str())
+    }
 }
 
 /// How a video [`Track`]'s picture is HDR.
@@ -140,6 +157,44 @@ impl Tracks {
             .await
     }
 
+    /// When each keyframe of the Version `version`'s first video falls, in milliseconds, if
+    /// they've been kept since it was last probed.
+    pub(crate) async fn keyframes(&self, version: i64) -> Result<Option<Vec<i64>>, sqlx::Error> {
+        let keyframes = sqlx::query_scalar!(
+            "SELECT keyframes_ms FROM version_probes WHERE version_id = ?",
+            version
+        )
+        .fetch_optional(self.db.reader())
+        .await?
+        .flatten();
+        // Only `store_keyframes` writes them, as JSON it made.
+        Ok(keyframes.and_then(|json| serde_json::from_str(&json).ok()))
+    }
+
+    /// Keeps `keyframes` as the Version `version`'s until it's next probed. A Version not probed
+    /// keeps nothing.
+    pub(crate) async fn store_keyframes(
+        &self,
+        version: i64,
+        keyframes: &[i64],
+    ) -> Result<(), sqlx::Error> {
+        let keyframes = json_array(keyframes);
+        self.db
+            .write(move |tx| {
+                Box::pin(async move {
+                    sqlx::query!(
+                        "UPDATE version_probes SET keyframes_ms = ? WHERE version_id = ?",
+                        keyframes,
+                        version
+                    )
+                    .execute(&mut **tx)
+                    .await
+                    .map(drop)
+                })
+            })
+            .await
+    }
+
     /// What probing found in each of the Versions `versions` that has been probed.
     pub(crate) async fn of(&self, versions: &[i64]) -> Result<HashMap<i64, Probe>, sqlx::Error> {
         let versions = json_array(versions);
@@ -164,7 +219,7 @@ impl Tracks {
             .collect();
         let tracks = sqlx::query!(
             r#"SELECT version_id, kind, codec, language, title, is_default AS "default: bool",
-                      forced AS "forced: bool", width, height, frame_rate, bit_depth, hdr,
+                      forced AS "forced: bool", sdh AS "sdh: bool", width, height, frame_rate, bit_depth, hdr,
                       dolby_vision_profile,
                       dolby_vision_hdr10_base_layer AS "dolby_vision_hdr10_base_layer: bool",
                       channels, image AS "image: bool"
@@ -201,6 +256,7 @@ impl Tracks {
                 title: row.title,
                 default: row.default,
                 forced: row.forced,
+                sdh: row.sdh,
                 kind,
             };
             if let Some(probe) = probes.get_mut(&row.version_id) {
@@ -261,10 +317,10 @@ async fn store(
         let (hdr, dolby_vision_profile, dolby_vision_hdr10_base_layer) = hdr_columns(hdr);
         sqlx::query!(
             "INSERT INTO tracks (version_id, position, kind, codec, language, title, is_default,
-                                 forced, width, height, frame_rate, bit_depth, hdr,
+                                 forced, sdh, width, height, frame_rate, bit_depth, hdr,
                                  dolby_vision_profile, dolby_vision_hdr10_base_layer, channels,
                                  image)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             version,
             position,
             kind,
@@ -273,6 +329,7 @@ async fn store(
             track.title,
             track.default,
             track.forced,
+            track.sdh,
             width,
             height,
             frame_rate,
@@ -318,6 +375,77 @@ fn hdr_from_columns(
             hdr10_base_layer: dolby_vision_hdr10_base_layer.unwrap_or_default(),
         },
     })
+}
+
+/// `track` as the API shows it.
+pub(crate) fn track_to_proto(track: &Track) -> proto::Track {
+    // 0 is what the proto says for a fact the file doesn't give. Stored ones are never negative.
+    let known = |n: Option<i64>| n.and_then(|n| u32::try_from(n).ok()).unwrap_or_default();
+    let kind = match track.kind {
+        TrackKind::Video {
+            width,
+            height,
+            frame_rate,
+            bit_depth,
+            hdr,
+        } => {
+            let (hdr, dolby_vision) = hdr_to_proto(hdr);
+            proto::VideoTrack {
+                width: known(width),
+                height: known(height),
+                frame_rate: frame_rate.unwrap_or_default(),
+                bit_depth: known(bit_depth),
+                hdr: hdr.into(),
+                dolby_vision: dolby_vision.into(),
+                ..Default::default()
+            }
+            .into()
+        }
+        TrackKind::Audio { channels } => proto::AudioTrack {
+            channels: known(channels),
+            ..Default::default()
+        }
+        .into(),
+        TrackKind::Subtitle { image } => proto::SubtitleTrack {
+            image,
+            ..Default::default()
+        }
+        .into(),
+    };
+    proto::Track {
+        codec: track.codec.clone(),
+        language: track.language.clone(),
+        title: track.title.clone(),
+        default: track.default,
+        forced: track.forced,
+        sdh: track.sdh,
+        kind,
+        ..Default::default()
+    }
+}
+
+/// `hdr` as a video Track's `hdr` and `dolby_vision`.
+fn hdr_to_proto(hdr: Option<Hdr>) -> (proto::HdrFormat, Option<proto::DolbyVision>) {
+    match hdr {
+        None => (proto::HdrFormat::HDR_FORMAT_UNSPECIFIED, None),
+        Some(Hdr::Hdr10) => (proto::HdrFormat::HDR_FORMAT_HDR10, None),
+        Some(Hdr::Hlg) => (proto::HdrFormat::HDR_FORMAT_HLG, None),
+        Some(Hdr::DolbyVision {
+            profile,
+            hdr10_base_layer,
+        }) => {
+            let dolby_vision = proto::DolbyVision {
+                // ffprobe reads it from a byte, so it's never negative.
+                profile: u32::try_from(profile).unwrap_or_default(),
+                hdr10_base_layer,
+                ..Default::default()
+            };
+            (
+                proto::HdrFormat::HDR_FORMAT_DOLBY_VISION,
+                Some(dolby_vision),
+            )
+        }
+    }
 }
 
 #[cfg(test)]

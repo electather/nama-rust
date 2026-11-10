@@ -62,6 +62,7 @@ export function fakeServer(
           setupRequired: state.setupRequired ?? false,
         }),
       getServerSettings: () => ({ settings: {} }),
+      getPlaybackSettings: () => ({ settings: {} }),
       ...state.serverService,
     });
     router.service(SignInService, {
