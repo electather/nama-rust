@@ -22,8 +22,6 @@ permissions:
 env:
   CARGO_TERM_COLOR: always
   CARGO_PROFILE_DEV_DEBUG: 0
-  # A fixed path, so rust-cache restores it (see ci.yml).
-  CARGO_TARGET_DIR: /home/runner/target
   GH_TOKEN: ${{ github.token }}
   GH_REPO: ${{ github.repository }}
   RUN_ID: ${{ github.event.workflow_run.id }}
@@ -34,7 +32,7 @@ jobs:
   report:
     # A cancelled run is partial, and a skipped one (a closed PR's) ran nothing.
     if: contains(fromJSON('["success", "failure"]'), github.event.workflow_run.conclusion)
-    runs-on: [self-hosted, nama-rust]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - name: Download the test reports
@@ -55,10 +53,6 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
       - if: steps.reports.outputs.found
         uses: Swatinem/rust-cache@v2
-        with:
-          # ponytail: tied to the checkout's depth, as in ci.yml; fix the runner's work directory
-          # to drop it.
-          workspaces: . -> ../../../../home/runner/target
       - name: Read the history and the flaky-test issues
         if: steps.reports.outputs.found
         run: |
