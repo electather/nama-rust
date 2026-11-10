@@ -1191,7 +1191,7 @@ async fn without_view_requests_a_user_sees_the_progress_of_only_their_own_proces
     let listed = requests(as_grace.clone()).list().await;
     assert_eq!(states(&listed), [(graces.id, RequestState::Processing)]);
     assert_eq!(listed[0].downloads, [dune]);
-    let got = requests(fixture.server.client_config()).get(adas.id).await;
+    let got = fixture.server.admin_requests().get(adas.id).await;
     assert_eq!(got.downloads, [heat]);
 }
 
@@ -2027,11 +2027,13 @@ async fn a_decline_reason_is_kept_without_its_surrounding_spaces() {
 async fn cancelling_removes_a_request_and_tells_its_requesters() {
     let fixture = Fixture::start().await;
     let as_ada = fixture.server.user("Ada", &NEW_USER).await.client_config();
-    let approved = requests(fixture.server.client_config()).ask(HEAT).await;
+    let approved = fixture.server.admin_requests().ask(HEAT).await;
     let joined = requests(as_ada.clone()).ask(HEAT).await;
     let mut adas_events = subscribe_to_requests(&as_ada).await;
 
-    requests(fixture.server.client_config())
+    fixture
+        .server
+        .admin_requests()
         .cancel_request(CancelRequestRequest {
             id: approved.id,
             ..Default::default()
@@ -2054,7 +2056,9 @@ async fn approving_a_request_that_isnt_pending_is_refused() {
     let pending = requests(as_ada).ask(HEAT).await;
     fixture.server.decline(pending.id, "").await;
 
-    let refused = requests(fixture.server.client_config())
+    let refused = fixture
+        .server
+        .admin_requests()
         .approve_request(ApproveRequestRequest {
             id: pending.id,
             ..Default::default()
@@ -2073,7 +2077,9 @@ async fn approving_a_request_that_isnt_pending_is_refused() {
 async fn approving_a_request_that_doesnt_exist_is_refused() {
     let fixture = Fixture::start().await;
 
-    let refused = requests(fixture.server.client_config())
+    let refused = fixture
+        .server
+        .admin_requests()
         .approve_request(ApproveRequestRequest {
             id: 7,
             ..Default::default()
@@ -2932,7 +2938,9 @@ async fn follow_dark_before_season_3(
     let (followed, mut asked) = client.follow(DARK).await;
     let season_3 = asked.pop().unwrap();
     assert_eq!(season_of(&season_3), Some(("Dark", 3)));
-    requests(fixture.server.client_config())
+    fixture
+        .server
+        .admin_requests()
         .cancel_request(CancelRequestRequest {
             id: season_3.id,
             ..Default::default()
@@ -2970,7 +2978,9 @@ async fn approve_followed_at(
     id: i64,
     quality: Option<i64>,
 ) -> Result<FollowedShow, ConnectError> {
-    requests(fixture.server.client_config())
+    fixture
+        .server
+        .admin_requests()
         .approve_followed_show(ApproveFollowedShowRequest {
             id,
             quality_id: quality,
@@ -3000,7 +3010,7 @@ async fn a_pending_followed_show_and_each_of_its_pending_season_requests_count_o
     let as_ada = fixture.server.user("Ada", &NEW_USER).await.client_config();
     let ada_requests = requests(as_ada);
     let heat = ada_requests.ask(HEAT).await;
-    let as_admin = requests(fixture.server.client_config());
+    let as_admin = fixture.server.admin_requests();
     assert_eq!(count_pending(&as_admin).await.unwrap(), 1);
 
     let (_, asked) = ada_requests.follow(DARK).await;
@@ -3027,7 +3037,7 @@ async fn without_view_requests_a_request_manager_counts_only_the_pending_request
     grace_requests.ask(ALIEN).await;
 
     assert_eq!(count_pending(&grace_requests).await.unwrap(), 1);
-    let as_admin = requests(fixture.server.client_config());
+    let as_admin = fixture.server.admin_requests();
     assert_eq!(count_pending(&as_admin).await.unwrap(), 6);
 }
 
@@ -3154,7 +3164,9 @@ async fn a_declined_followed_show_declines_its_season_requests_and_opens_no_requ
     let ada = requests(as_ada);
     let (followed, asked) = follow_dark_before_season_3(&fixture, &ada).await;
 
-    let declined = requests(fixture.server.client_config())
+    let declined = fixture
+        .server
+        .admin_requests()
         .decline_followed_show(DeclineFollowedShowRequest {
             id: followed.id,
             reason: " Not yet ".to_owned(),
@@ -3193,7 +3205,9 @@ async fn a_cancelled_followed_show_leaves_its_season_requests_and_opens_no_reque
     let (followed, asked) = follow_dark_before_season_3(&fixture, &ada).await;
     approve_followed(&fixture, followed.id).await.unwrap();
 
-    requests(fixture.server.client_config())
+    fixture
+        .server
+        .admin_requests()
         .cancel_followed_show(CancelFollowedShowRequest {
             id: followed.id,
             ..Default::default()
@@ -3463,7 +3477,9 @@ async fn cancelling_an_approved_followed_show_tells_the_shows_fulfiller_to_stop_
         .client_config();
     let (followed, _) = requests(as_ada).follow(DARK).await;
 
-    requests(fixture.server.client_config())
+    fixture
+        .server
+        .admin_requests()
         .cancel_followed_show(CancelFollowedShowRequest {
             id: followed.id,
             ..Default::default()
@@ -3504,7 +3520,9 @@ async fn cancelling_a_pending_followed_show_tells_the_shows_fulfiller_nothing() 
     let as_ada = fixture.server.user("Ada", &NEW_USER).await.client_config();
     let (followed, _) = requests(as_ada).follow(DARK).await;
 
-    requests(fixture.server.client_config())
+    fixture
+        .server
+        .admin_requests()
         .cancel_followed_show(CancelFollowedShowRequest {
             id: followed.id,
             ..Default::default()
@@ -3630,7 +3648,9 @@ async fn each_change_to_a_followed_show_sends_it_as_it_is_after_or_as_it_was_bef
     let (joined, _) = grace_requests.follow(DARK).await;
     withdraw_followed(&grace_requests, opened.id).await;
     let approved = approve_followed(&fixture, opened.id).await.unwrap();
-    requests(fixture.server.client_config())
+    fixture
+        .server
+        .admin_requests()
         .cancel_followed_show(CancelFollowedShowRequest {
             id: opened.id,
             ..Default::default()
@@ -3679,7 +3699,9 @@ async fn a_followed_show_event_reaches_its_requesters_and_view_requests_subscrib
     let (dark, _) = graces_requests.follow(DARK).await;
     withdraw_followed(&hoppers_requests, office.id).await;
     approve_followed(&fixture, dark.id).await.unwrap();
-    requests(fixture.server.client_config())
+    fixture
+        .server
+        .admin_requests()
         .cancel_followed_show(CancelFollowedShowRequest {
             id: dark.id,
             ..Default::default()
@@ -3808,7 +3830,9 @@ async fn a_season_request_a_followed_show_opened_isnt_opened_again_once_cancelle
         .into_iter()
         .filter(|request| season_of(request) == Some(("Dark", 3)))
         .collect();
-    requests(fixture.server.client_config())
+    fixture
+        .server
+        .admin_requests()
         .cancel_request(CancelRequestRequest {
             id: opened[0].id,
             ..Default::default()
@@ -3972,7 +3996,7 @@ async fn approving_a_season_at_another_quality_moves_its_show_and_once_handed_of
     let change = &approved.quality_change;
     assert_eq!(change.changed_by.as_deref(), Some("Admin"));
     assert_eq!(change.previous_name.as_deref(), Some("4K"));
-    let admin = requests(fixture.server.client_config());
+    let admin = fixture.server.admin_requests();
     let offered_to_managers = admin
         .list_offered_qualities(ListOfferedQualitiesRequest {
             kind: TitleKind::TITLE_KIND_SHOW.into(),
@@ -4004,9 +4028,7 @@ async fn approving_a_followed_show_at_another_quality_hands_off_its_season_reque
     let approved = approve_followed_at(&fixture, followed.id, Some(offered[0].id))
         .await
         .unwrap();
-    let season_1 = requests(fixture.server.client_config())
-        .get(asked[0].id)
-        .await;
+    let season_1 = fixture.server.admin_requests().get(asked[0].id).await;
 
     assert_eq!(approved.quality.name, "HD");
     assert_eq!(season_1.state, RequestState::Processing);
@@ -4019,7 +4041,7 @@ async fn retrying_a_failed_request_at_another_quality_hands_it_off_at_that_one_k
     let fulfiller = FakeFulfiller::refusing();
     let fixture = Fixture::with_fulfiller(&fulfiller).await;
     let offered = fixture.offer_hd_and_4k(&fulfiller, MOVIE_FULFILLER).await;
-    let failed = requests(fixture.server.client_config()).ask(HEAT).await;
+    let failed = fixture.server.admin_requests().ask(HEAT).await;
     let failed_again = fixture.server.retry_at(failed.id, offered[1].id).await;
     fulfiller.recover();
 
@@ -4081,7 +4103,7 @@ async fn a_hand_off_shows_the_quality_whose_profile_the_fulfiller_reports_it_use
     let offered = fixture.offer_hd_and_4k(&fulfiller, MOVIE_FULFILLER).await;
     fulfiller.report_used(ULTRA_HD_PROFILE, "Ultra-HD");
 
-    let handed_off = requests(fixture.server.client_config()).ask(HEAT).await;
+    let handed_off = fixture.server.admin_requests().ask(HEAT).await;
 
     assert_eq!(handed_off.quality.name, "HD");
     let used = &handed_off.quality_used;

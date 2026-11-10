@@ -1,6 +1,6 @@
 //! Asking for Requests as a Requester, and approving, retrying and declining them as a Request
-//! manager. A plain name fails the test on an error; its `try_` twin returns the `Result`, and its
-//! `_at` twin names a Quality by id.
+//! manager. A plain name fails the test on an error; a `try_` twin, there for tests that expect a
+//! Refusal, returns the `Result`, and an `_at` twin names a Quality by id.
 
 use connectrpc::{ConnectError, client::HttpClient};
 use nama_proto::nama::v1::{
@@ -175,6 +175,13 @@ impl TestServer {
     /// Approves the Request `id` as the Request manager `who`.
     pub(crate) async fn approve_as(&self, who: &SignedIn, id: i64) -> Request {
         approve_request(&self.requests(who), id, None)
+            .await
+            .unwrap()
+    }
+
+    /// [`Self::approve_as`], changing its Quality to `quality`.
+    pub(crate) async fn approve_as_at(&self, who: &SignedIn, id: i64, quality: i64) -> Request {
+        approve_request(&self.requests(who), id, Some(quality))
             .await
             .unwrap()
     }
