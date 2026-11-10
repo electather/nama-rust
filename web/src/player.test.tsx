@@ -101,3 +101,14 @@ test("playback info says how the plan plays the Version, why, and with which Tra
   expect(panel.getByText("AAC · English")).toBeDefined();
   expect(panel.getByText("SUBRIP · French")).toBeDefined();
 });
+
+test("Esc on playback info closes it and stays in the player", async () => {
+  openApp("/libraries/1/movies/tmdb-603/play", server);
+  const info = await screen.findByRole("button", { name: "Playback info" });
+  fireEvent.click(info);
+
+  fireEvent.keyDown(info, { key: "Escape" });
+
+  expect(screen.queryByRole("region", { name: "Playback info" })).toBeNull();
+  expect(screen.getByLabelText("The Matrix")).toBeDefined();
+});

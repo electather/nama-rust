@@ -13,7 +13,7 @@ const methodNames: Record<PlaybackMethod, string> = {
   [PlaybackMethod.TRANSCODE]: "Transcode",
 };
 
-const trackKinds: Record<NonNullable<Track["kind"]["case"]>, string> = {
+const trackKindNames: Record<NonNullable<Track["kind"]["case"]>, string> = {
   video: "Video",
   audio: "Audio",
   subtitle: "Subtitles",
@@ -24,7 +24,7 @@ export function PlaybackInfo({ plan }: { plan: PlaybackPlan }) {
   const [open, setOpen] = useState(false);
   const panelId = useId();
   return (
-    <div className="relative ms-auto">
+    <div className="relative">
       <Button
         variant="overlay"
         size="icon"
@@ -33,6 +33,12 @@ export function PlaybackInfo({ plan }: { plan: PlaybackPlan }) {
         aria-controls={panelId}
         onClick={() => {
           setOpen(!open);
+        }}
+        onKeyDown={(event) => {
+          if (event.key !== "Escape" || !open) return;
+          // Esc otherwise leaves the player (`useShortcuts`, listening on the document).
+          event.stopPropagation();
+          setOpen(false);
         }}
       >
         <Info aria-hidden />
@@ -63,7 +69,7 @@ function Tracks({ tracks }: { tracks: Track[] }) {
         // The plan has at most one Track of each kind.
         <div key={track.kind.case} className="flex gap-3">
           <dt className="w-16 shrink-0 text-muted-foreground">
-            {track.kind.case && trackKinds[track.kind.case]}
+            {track.kind.case && trackKindNames[track.kind.case]}
           </dt>
           <dd>{trackLine(track)}</dd>
         </div>

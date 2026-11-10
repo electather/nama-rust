@@ -47,7 +47,7 @@ export function Player(props: PlayerProps) {
     <VideoPlayer
       {...props}
       url={plan.url}
-      info={<PlaybackInfo plan={plan} />}
+      playbackInfo={<PlaybackInfo plan={plan} />}
       onCantPlay={() => {
         setCantPlay(true);
       }}
@@ -61,9 +61,9 @@ function VideoPlayer({
   watchState,
   back,
   url,
-  info,
+  playbackInfo,
   onCantPlay,
-}: PlayerProps & { url: string; info: ReactNode; onCantPlay: () => void }) {
+}: PlayerProps & { url: string; playbackInfo: ReactNode; onCantPlay: () => void }) {
   const playerRef = useRef<HTMLDivElement>(null);
   const { ref: videoRef, events, ...video } = useVideo();
   useWatchState(videoRef, versionId, watchState);
@@ -96,21 +96,29 @@ function VideoPlayer({
       />
       {/* Any key brings the controls back, so a focused control shows its ring when it's used. */}
       <div className="pointer-events-none absolute inset-0 flex flex-col justify-between transition-opacity duration-500 ease-out-expo group-data-controls-hidden:opacity-0 motion-reduce:transition-none">
-        <TopBar title={title} back={back} info={info} />
+        <TopBar title={title} back={back} playbackInfo={playbackInfo} />
         <BottomBar video={video} playerRef={playerRef} />
       </div>
     </div>
   );
 }
 
-function TopBar({ title, back, info }: { title: string; back: LinkOptions; info: ReactNode }) {
+function TopBar({
+  title,
+  back,
+  playbackInfo,
+}: {
+  title: string;
+  back: LinkOptions;
+  playbackInfo: ReactNode;
+}) {
   return (
     <header className="pointer-events-auto flex group-data-controls-hidden:pointer-events-none items-center gap-2 bg-linear-to-b from-scrim px-2 pt-2 pb-10 sm:px-4 sm:pt-4">
       <BackLink back={back} variant="overlay" size="icon" label="Back">
         <ArrowLeft aria-hidden />
       </BackLink>
-      <h1 className="truncate font-medium">{title}</h1>
-      {info}
+      <h1 className="me-auto truncate font-medium">{title}</h1>
+      {playbackInfo}
     </header>
   );
 }
