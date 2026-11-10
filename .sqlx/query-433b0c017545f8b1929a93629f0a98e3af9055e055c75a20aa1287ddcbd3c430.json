@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE requests\n             SET quality_id = ?1, quality_name = ?2, quality_profile_id = ?3,\n                 quality_changed_by = ?4, quality_changed_from = quality_name,\n                 quality_changed_at = ?5\n             WHERE id = ?6 AND quality_id IS NOT ?1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": []
+  },
+  "hash": "433b0c017545f8b1929a93629f0a98e3af9055e055c75a20aa1287ddcbd3c430"
+}

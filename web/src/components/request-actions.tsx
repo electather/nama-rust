@@ -13,7 +13,7 @@ import {
   RequestState,
 } from "@/gen/nama/v1/request_pb";
 import { seasonName } from "@/lib/browse";
-import { formText, refusal } from "@/lib/forms";
+import { formText, refusal, showHasQuality } from "@/lib/forms";
 
 /** The RPCs that change a Request by its ID, what it's called, and what cancelling one does. */
 const requestChanges = {
@@ -231,6 +231,7 @@ function changeRefusal(
       [RefusalReason.NOT_A_REQUESTER]: noLongerRequester,
       [RefusalReason.REQUEST_NOT_FAILED]: { form: `${label} isn’t Failed any more.` },
       [RefusalReason.QUALITY_NOT_OFFERED]: { form: "That Quality isn’t offered any more." },
+      [RefusalReason.SHOW_HAS_QUALITY]: { form: showHasQuality(error, "this Show") },
       [RefusalReason.FOLLOWED_SHOW_NOT_PENDING]: decided,
       [RefusalReason.FOLLOWED_SHOW_NOT_FOUND]: gone,
       [RefusalReason.NOT_A_FOLLOWED_SHOW_REQUESTER]: noLongerRequester,

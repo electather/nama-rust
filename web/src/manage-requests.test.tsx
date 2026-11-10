@@ -231,3 +231,35 @@ test("a Request manager retries a Failed Request at another Quality", async () =
   expect(await screen.findByText("Processing")).toBeDefined();
   expect(screen.getByText(/4K, changed from HD by Sam on .*9.*2026/u)).toBeDefined();
 });
+
+test("approving a Season at another Quality than its Show's says each Season takes the Show's", async () => {
+  const darkSeason2 = create(RequestSchema, {
+    id: 5n,
+    season: { showTmdbId: 70_523n, seasonNumber: 2, showTitle: "Dark" },
+    state: RequestState.PENDING,
+    quality: requested("4K", 2n),
+  });
+  const showHasQuality = refused(Code.InvalidArgument, "the Show's Quality 4K is fixed", {
+    reason: RefusalReason.SHOW_HAS_QUALITY,
+    field: "quality_id",
+    params: { qualityId: "1", showQualityId: "2", showQualityName: "4K" },
+  });
+  const server = fakeServer({ signedIn: admin }, {}, {}, (router) => {
+    router.service(RequestService, {
+      listRequests: () => ({ requests: [darkSeason2] }),
+      countPendingRequests: () => ({}),
+      listOfferedQualities: () => ({ qualities: hdAnd4k }),
+      approveRequest: () => {
+        throw showHasQuality;
+      },
+    });
+  });
+  openApp("/requests", server);
+
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Approve Dark Season 2 at another Quality" }),
+  );
+  fireEvent.click(await screen.findByRole("menuitem", { name: "HD" }));
+
+  expect(await screen.findByText("Each Season of this Show takes its Quality, 4K.")).toBeDefined();
+});
