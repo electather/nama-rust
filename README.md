@@ -57,7 +57,7 @@ Building the Server builds the Plugins it bundles for wasm32 (`crates/nama-serve
 
 It also checks that the generated code and the sqlx query data are current. If you change `proto/`, see [`crates/nama-proto/README.md`](crates/nama-proto/README.md). If you change a query or a migration, see [`crates/nama-server/README.md`](crates/nama-server/README.md).
 
-A `web` job runs the web app's checks ([`web/README.md`](web/README.md), "Checks"). The test job then builds the web app and runs `cargo nextest run -p nama-server --features web --test web` against it.
+Its `checks` job also runs the web app's checks ([`web/README.md`](web/README.md), "Checks"), alongside the `test` job, which builds the web app and runs `cargo nextest run -p nama-server --features web --test web` against it. On a PR, path filters skip the side it doesn't touch: a web-only PR skips the Rust checks and the workspace tests, a Rust-only one the web checks, and one that touches neither, such as docs, runs nothing. A push to main runs everything.
 
 ### Flaky and slow tests
 

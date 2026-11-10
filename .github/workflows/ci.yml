@@ -25,32 +25,74 @@ env:
   CARGO_TARGET_DIR: /home/runner/target
 
 # Jobs run on autoscaled self-hosted runners on the home lab (electather/home-services,
-# runner-scaler in services/lab/docker-compose.yml). There are only a few of them, so a run
-# uses one runner at a time: `lint` first, then `web`, then `test`, which only runs once both
-# pass and the PR isn't a draft.
+# runner-scaler in services/lab/docker-compose.yml), two at a time per run. After `changes`,
+# `checks` and `test` run side by side. The split keeps each runner's build in one mode:
+# `checks` only type-checks (sqlx, clippy and rustdoc share those artifacts), and `test` only
+# builds to run, so neither compiles what the other does and each caches only its own kind.
 
 jobs:
-  # Everything that doesn't depend on the platform, in one job so it needs one runner:
-  # formatting, the schema in proto/ (ADR 0007: lint, no breaking changes against main,
-  # generated code in crates/nama-proto and web/src/gen is current), .sqlx query data, docs,
-  # unused deps and cargo-deny. Runs on drafts too.
-  lint:
-    name: lint
-    # A closed PR's run only cancels the one before it; `web` and `test` need this, so they skip too.
+  # Which side of the repo a PR touches, so a web-only PR skips the Rust work and the other way
+  # round. Pushes to main run everything, keeping main's caches and test history complete.
+  changes:
     if: github.event.action != 'closed'
     runs-on: [self-hosted, nama-rust]
+    outputs:
+      rust: ${{ github.event_name != 'pull_request' || steps.filter.outputs.rust == 'true' }}
+      web: ${{ github.event_name != 'pull_request' || steps.filter.outputs.web == 'true' }}
+    steps:
+      # On a PR it lists the changed files through the API, so it needs no checkout.
+      - id: filter
+        if: github.event_name == 'pull_request'
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          # proto/ generates code on both sides, and a change to this file runs everything.
+          filters: |
+            rust:
+              - 'crates/**'
+              - 'plugins/**'
+              - 'proto/**'
+              - '.sqlx/**'
+              - '.config/**'
+              - '.github/scripts/**'
+              - '.github/workflows/ci.yml'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - 'clippy.toml'
+              - 'rustfmt.toml'
+              - 'deny.toml'
+            web:
+              - 'web/**'
+              - 'proto/**'
+              - '.impeccable/**'
+              - 'DESIGN.md'
+              - '.github/workflows/ci.yml'
+
+  # Everything but the tests, on one runner: formatting, the schema in proto/ (ADR 0007: lint, no
+  # breaking changes against main, generated code in crates/nama-proto and web/src/gen is
+  # current), .sqlx query data, clippy, docs, unused deps, cargo-deny and the web app's checks
+  # (web/README.md, "Checks"). Runs on drafts too.
+  checks:
+    name: checks
+    needs: changes
+    if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.web == 'true'
+    runs-on: [self-hosted, nama-rust]
+    env:
+      RUST: ${{ needs.changes.outputs.rust }}
+      WEB: ${{ needs.changes.outputs.web }}
     steps:
       - uses: actions/checkout@v7
         with:
           # `buf breaking` reads main from the local clone.
           fetch-depth: 0
+      # Also when only web/ changed: installing the codegen tools on a cache miss needs cargo.
       - uses: dtolnay/rust-toolchain@stable
         with:
-          components: rustfmt
-          # Building the Server, as `cargo doc` and `cargo sqlx prepare` do, builds the Plugins it
-          # bundles for wasm32.
+          components: rustfmt, clippy
+          # Building the Server, as clippy, `cargo doc` and `cargo sqlx prepare` do, builds the
+          # Plugins it bundles for wasm32.
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
+        if: env.RUST == 'true'
         with:
           # CARGO_TARGET_DIR, written relative to the checkout (/_work/jit-runner-<id>/nama-rust/
           # nama-rust) because rust-cache joins it onto the workspace root.
@@ -59,7 +101,8 @@ jobs:
           # rust-cache's key leaves out the root Cargo.toml's [profile]s, so a profile change
           # restored builds made with the old one, rebuilt every dependency and never saved them.
           key: ${{ hashFiles('Cargo.toml') }}
-      - run: cargo fmt --all --check
+      - if: env.RUST == 'true'
+        run: cargo fmt --all --check
       - uses: bufbuild/buf-action@v1
         with:
           version: 1.75.0
@@ -99,7 +142,7 @@ jobs:
         run: |
           cargo install --locked protoc-gen-buffa@0.9.2 protoc-gen-buffa-packaging@0.9.2 connectrpc-codegen@0.9.0
           cargo install --locked sqlx-cli@0.9.0 --no-default-features --features sqlite,rustls
-      # Installs web/'s dependencies, protoc-gen-es among them.
+      # Installs web/'s dependencies, protoc-gen-es among them, once for codegen and the web checks.
       - uses: voidzero-dev/setup-vp@cab1ab9eaff52d4857875f4f2c016e36af8f2c76 # v1.22.0
         with:
           working-directory: web
@@ -112,9 +155,37 @@ jobs:
             echo "::error::crates/nama-proto/src/generated or web/src/gen is stale; run 'buf generate' in proto/ and commit the result"
             exit 1
           }
+      - name: Web app checks
+        if: env.WEB == 'true'
+        working-directory: web
+        run: |
+          vp check
+          vp test
+          vp build
+          vp run fallow
+      # For the test-report workflow (ADR 0022). Missing when the tests never ran. Named per
+      # attempt, so a re-run records only the jobs it re-ran. `tree` names the code tested, which
+      # flakes are keyed on: a PR's run tests it merged into main, so it shares a tree, not a
+      # commit, with main's run once the PR is squashed or rebased in.
+      - if: ${{ !cancelled() && hashFiles('web/test-results/vitest.json') != '' }}
+        run: git rev-parse 'HEAD^{tree}' > web/test-results/tree
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() && env.WEB == 'true' }}
+        with:
+          name: test-reports-${{ github.run_attempt }}-vitest
+          path: |
+            web/test-results/vitest.json
+            web/test-results/tree
+          if-no-files-found: ignore
+      # From the repo root, where impeccable finds .impeccable/config.json (which ignores
+      # web/src/gen) and DESIGN.md. From web/ it would read neither.
+      - name: Design check
+        if: env.WEB == 'true'
+        run: vp dlx impeccable@4.8.0 detect --json web/src
       # Queries are checked at compile time against the query data in .sqlx/, so builds need
       # no database. A scratch SQLite file with every migration applied checks it is current.
       - name: .sqlx is up to date
+        if: env.RUST == 'true'
         run: |
           export DATABASE_URL="sqlite://$RUNNER_TEMP/sqlx-check.db"
           sqlx database create
@@ -123,21 +194,31 @@ jobs:
             echo "::error::.sqlx is stale; see crates/nama-server/README.md for how to regenerate it"
             exit 1
           }
+      - if: env.RUST == 'true'
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      # The test Plugin and the bundled ones for wasm32, as Installed Plugins are built: with
+      # nama-pdk, and nama-proto's messages without its ConnectRPC stubs.
+      - if: env.RUST == 'true'
+        run: cargo clippy --package nama-test-plugin --package nama-plugin-radarr --package nama-plugin-sonarr --package nama-plugin-telegram --target wasm32-unknown-unknown --locked -- -D warnings
       # Broken intra-doc links and malformed docs fail the build.
-      - run: cargo doc --workspace --no-deps --locked
+      - if: env.RUST == 'true'
+        run: cargo doc --workspace --no-deps --locked
         env:
           RUSTDOCFLAGS: -D warnings
       - uses: taiki-e/install-action@v2
+        if: env.RUST == 'true'
         with:
           tool: cargo-machete,cargo-deny
       # Dependencies declared in Cargo.toml that no code uses.
-      - run: cargo machete
+      - if: env.RUST == 'true'
+        run: cargo machete
       # Licenses, banned and unknown sources (deny.toml).
-      - run: cargo deny check bans licenses sources
+      - if: env.RUST == 'true'
+        run: cargo deny check bans licenses sources
       # An advisory published against a dependency main already has isn't the PR's to fix, so a
       # PR fails only on one its own Cargo.lock adds. advisories.yml files main's as issues.
       - name: No new advisories
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && env.RUST == 'true'
         env:
           BASE: ${{ github.event.pull_request.base.sha }}
         run: |
@@ -155,54 +236,19 @@ jobs:
             exit 1
           fi
 
-  # The web app (web/README.md, "Checks"). Runs on drafts too. The Server's `web` feature test
-  # runs in `test`, where it shares the workspace's build cache.
-  web:
-    name: web
-    needs: lint
-    runs-on: [self-hosted, nama-rust]
-    steps:
-      - uses: actions/checkout@v7
-      - uses: voidzero-dev/setup-vp@cab1ab9eaff52d4857875f4f2c016e36af8f2c76 # v1.22.0
-        with:
-          working-directory: web
-          cache: true
-      - name: Web app checks
-        working-directory: web
-        run: |
-          vp check
-          vp test
-          vp build
-          vp run fallow
-      # For the test-report workflow (ADR 0022). Missing when the tests never ran. Named per
-      # attempt, so a re-run records only the jobs it re-ran. `tree` names the code tested, which
-      # flakes are keyed on: a PR's run tests it merged into main, so it shares a tree, not a
-      # commit, with main's run once the PR is squashed or rebased in.
-      - if: ${{ !cancelled() && hashFiles('web/test-results/vitest.json') != '' }}
-        run: git rev-parse 'HEAD^{tree}' > web/test-results/tree
-      - uses: actions/upload-artifact@v7
-        if: ${{ !cancelled() }}
-        with:
-          name: test-reports-${{ github.run_attempt }}-vitest
-          path: |
-            web/test-results/vitest.json
-            web/test-results/tree
-          if-no-files-found: ignore
-      # From the repo root, where impeccable finds .impeccable/config.json (which ignores
-      # web/src/gen) and DESIGN.md. From web/ it would read neither.
-      - name: Design check
-        run: vp dlx impeccable@4.8.0 detect --json web/src
-
   # Release builds target Linux, macOS and Windows, and the Server has
   # platform-specific code (shutdown signals), so this should check all three.
   # macOS and Windows are switched off for now: they need GitHub-hosted
   # minutes, which this account has none of. Re-add them to the matrix to
   # turn them back on.
   test:
-    name: clippy, build and test (${{ matrix.os }})
-    needs: web
-    # Draft PRs get lint and web only; marking one ready for review runs this.
-    if: github.event_name == 'push' || !github.event.pull_request.draft
+    name: build and test (${{ matrix.os }})
+    needs: changes
+    # Draft PRs get `checks` only; marking one ready for review runs this. A web-only PR still
+    # runs the Server's `web` feature test, which serves the built app.
+    if: >-
+      (github.event_name == 'push' || !github.event.pull_request.draft) &&
+      (needs.changes.outputs.rust == 'true' || needs.changes.outputs.web == 'true')
     strategy:
       fail-fast: false
       matrix:
@@ -214,36 +260,31 @@ jobs:
           # - os: windows-latest
           #   runner: windows-latest
     runs-on: ${{ matrix.runner }}
+    env:
+      RUST: ${{ needs.changes.outputs.rust }}
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
-          components: clippy
           # The Server bundles Plugins built for wasm32, and its tests build the test Plugin
           # (crates/nama-test-plugin).
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
         with:
-          # CARGO_TARGET_DIR, written relative to the checkout (/_work/jit-runner-<id>/nama-rust/
-          # nama-rust) because rust-cache joins it onto the workspace root.
-          # ponytail: tied to the checkout's depth; fix the runner's work directory to drop it.
+          # As in `checks`.
           workspaces: . -> ../../../../home/runner/target
-          # rust-cache's key leaves out the root Cargo.toml's [profile]s, so a profile change
-          # restored builds made with the old one, rebuilt every dependency and never saved them.
           key: ${{ hashFiles('Cargo.toml') }}
-      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
-      # The test Plugin and the bundled ones for wasm32, as Installed Plugins are built: with
-      # nama-pdk, and nama-proto's messages without its ConnectRPC stubs.
-      - run: cargo clippy --package nama-test-plugin --package nama-plugin-radarr --package nama-plugin-sonarr --package nama-plugin-telegram --target wasm32-unknown-unknown --locked -- -D warnings
+      # The cached target directory can hold an earlier run's reports, which would be uploaded
+      # as this run's.
+      - run: rm -rf "$CARGO_TARGET_DIR/nextest"
       - uses: taiki-e/install-action@nextest
       # nextest builds every target it runs, so there's no separate `cargo build`. The `ci` profile
-      # (.config/nextest.toml) retries, kills hung tests and writes a JUnit report. The cached
-      # target directory can hold an earlier run's report, so it starts empty.
-      - run: |
-          rm -rf "$CARGO_TARGET_DIR/nextest"
-          cargo nextest run --workspace --locked --profile ci
+      # (.config/nextest.toml) retries, kills hung tests and writes a JUnit report.
+      - if: env.RUST == 'true'
+        run: cargo nextest run --workspace --locked --profile ci
       # nextest doesn't run doctests.
-      - run: cargo test --workspace --doc --locked
+      - if: env.RUST == 'true'
+        run: cargo test --workspace --doc --locked
       # The Server with the `web` feature, which embeds the `vp build` output.
       - uses: voidzero-dev/setup-vp@cab1ab9eaff52d4857875f4f2c016e36af8f2c76 # v1.22.0
         with:
@@ -251,7 +292,7 @@ jobs:
           cache: true
       - run: vp -C web build
       - run: cargo nextest run -p nama-server --features web --test web --locked --profile ci-web
-      # For the test-report workflow (ADR 0022), as the web job's.
+      # For the test-report workflow (ADR 0022), as the vitest report in `checks`.
       # ponytail: the history doesn't record the OS; add it before re-enabling macOS or Windows,
       # or a test failing on one OS only counts as flaky.
       - if: ${{ !cancelled() }}

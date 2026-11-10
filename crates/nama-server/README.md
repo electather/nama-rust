@@ -29,7 +29,7 @@ sqlx migrate run --source crates/nama-server/migrations
 cargo sqlx prepare --workspace -- --all-targets
 ```
 
-Commit the changes under `.sqlx/`. CI's `sqlx` job runs `cargo sqlx prepare --check` and fails if they're stale. When you upgrade the `sqlx` crate, bump the `sqlx-cli` version here and in `.github/workflows/ci.yml` to the same minor version.
+Commit the changes under `.sqlx/`. CI's `checks` job runs `cargo sqlx prepare --check` and fails if they're stale. When you upgrade the `sqlx` crate, bump the `sqlx-cli` version here and in `.github/workflows/ci.yml` to the same minor version.
 
 ## Serving the web app
 
