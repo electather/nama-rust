@@ -124,6 +124,23 @@ impl Fixture {
         fx
     }
 
+    /// Starts a Server with the ffmpeg on `PATH` and a Movies Library holding Alien, with English
+    /// SDH and French Forced SRT subtitles, scanned and Matched.
+    async fn subtitled_alien() -> Self {
+        let path = std::env::var_os("PATH").unwrap_or_default();
+        let ffmpeg = Ffmpeg::find(&Config::default(), &path);
+        assert!(
+            ffmpeg.direct_play_only_because().is_none(),
+            "this test needs ffmpeg and ffprobe on PATH"
+        );
+        let fx = Self::start_with_ffmpeg(LibraryKind::LIBRARY_KIND_MOVIES, ffmpeg).await;
+        let file = fx.folder.join(ALIEN_1080P);
+        fs::create_dir_all(file.parent().unwrap()).unwrap();
+        write_english_and_french_srt(&file);
+        fx.scan_until_decided(1).await;
+        fx
+    }
+
     /// Starts a Server with a Movies Library holding Alien, scanned and Matched.
     async fn alien() -> Self {
         let server = TestServer::builder().tmdb().start().await;
@@ -1111,6 +1128,116 @@ async fn planning_an_unknown_version_is_refused() {
         ErrorCode::NotFound,
         RefusalReason::REFUSAL_REASON_VERSION_NOT_FOUND,
     );
+}
+
+/// Writes a second of video with English SDH and French Forced SRT subtitles, as Matroska, to
+/// `path`, with the ffmpeg on `PATH`.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+fn write_english_and_french_srt(path: &Path) {
+    let srt = tempfile::tempdir().unwrap();
+    let (english, french) = (srt.path().join("eng.srt"), srt.path().join("fre.srt"));
+    fs::write(&english, "1\n00:00:00,000 --> 00:00:01,000\nHello\n").unwrap();
+    fs::write(&french, "1\n00:00:00,000 --> 00:00:01,000\nBonjour\n").unwrap();
+    let status = std::process::Command::new("ffmpeg")
+        .args([
+            "-v",
+            "error",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=size=64x64:rate=24",
+        ])
+        .arg("-i")
+        .arg(&english)
+        .arg("-i")
+        .arg(&french)
+        .args([
+            "-map", "0", "-map", "1", "-map", "2", "-t", "1", "-c:v", "ffv1", "-c:s", "srt",
+        ])
+        .args([
+            "-metadata:s:s:0",
+            "language=eng",
+            "-metadata:s:s:0",
+            "title=English SDH",
+        ])
+        .args(["-disposition:s:0", "hearing_impaired"])
+        .args([
+            "-metadata:s:s:1",
+            "language=fre",
+            "-disposition:s:1",
+            "forced",
+        ])
+        .args(["-f", "matroska"])
+        .arg(path)
+        .status()
+        .unwrap();
+    assert!(status.success(), "ffmpeg failed: {status}");
+}
+
+#[tokio::test]
+async fn an_mkvs_srt_tracks_are_offered_with_their_plan_and_served_as_webvtt() {
+    let fx = Fixture::subtitled_alien().await;
+    let version = fx.version_ids(ALIEN).await[0];
+
+    let plan = fx.plan(version).await.unwrap();
+
+    let offered: Vec<_> = (plan.subtitles.iter())
+        .map(|subtitle| {
+            let track = &subtitle.track;
+            let (language, title) = (track.language.as_deref(), track.title.as_deref());
+            (language, title, track.forced, track.sdh)
+        })
+        .collect();
+    assert_eq!(
+        offered,
+        [
+            (Some("eng"), Some("English SDH"), false, true),
+            (Some("fre"), None, true, false),
+        ]
+    );
+    let token = Some(fx.server.admin_token.as_str());
+    let french = fetch(&fx.server, &plan.subtitles[1].url, token).await;
+    assert_eq!(french.status, 200);
+    assert_eq!(french.header("content-type"), "text/vtt; charset=utf-8");
+    let french = String::from_utf8(french.body).unwrap();
+    assert!(french.starts_with("WEBVTT"), "{french}");
+    assert!(
+        french.contains("00:00.000 --> 00:01.000\nBonjour"),
+        "{french}"
+    );
+    let again = fetch(&fx.server, &plan.subtitles[1].url, token).await;
+    assert_eq!(String::from_utf8(again.body).unwrap(), french);
+}
+
+/// Anyone who may play a Version may fetch its subtitles: anyone with a session.
+#[tokio::test]
+async fn a_subtitle_without_a_session_is_refused() {
+    let fx = Fixture::subtitled_alien().await;
+    let version = fx.version_ids(ALIEN).await[0];
+    let plan = fx.plan(version).await.unwrap();
+
+    let reply = fetch(&fx.server, &plan.subtitles[0].url, None).await;
+
+    assert_eq!(reply.status, 401);
+}
+
+#[tokio::test]
+async fn a_track_that_isnt_a_text_subtitle_is_not_found_as_one() {
+    let fx = Fixture::subtitled_alien().await;
+    let version = fx.version_ids(ALIEN).await[0];
+    let token = Some(fx.server.admin_token.as_str());
+
+    let (video, beyond) = (
+        format!("/media/versions/{version}/subtitles/0"),
+        format!("/media/versions/{version}/subtitles/9"),
+    );
+
+    assert_eq!(fetch(&fx.server, &video, token).await.status, 404);
+    assert_eq!(fetch(&fx.server, &beyond, token).await.status, 404);
 }
 
 /// A Season as `GetShow` gives it.

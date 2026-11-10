@@ -2,6 +2,7 @@ import { createQueryOptions, useSuspenseQuery } from "@connectrpc/connect-query"
 import { createFileRoute } from "@tanstack/react-router";
 import { CircleCheck, CircleSlash } from "lucide-react";
 
+import { AdminList, AdminRow } from "@/components/admin-list";
 import { Page } from "@/components/page";
 import { StateLabel } from "@/components/state-label";
 import { type FoundProgram, ServerService } from "@/gen/nama/v1/server_pb";
@@ -33,11 +34,10 @@ function Playback() {
           their paths in the config file, then restart the Server.
         </p>
       )}
-      {/* Pulled out by the rows' own padding, so the names line up with the heading. */}
-      <ul className="mt-8 -mx-3 flex max-w-2xl flex-col">
+      <AdminList>
         <ProgramRow name="ffmpeg" found={ffmpeg} problem={ffmpegProblem} />
         <ProgramRow name="ffprobe" found={ffprobe} problem={ffprobeProblem} />
-      </ul>
+      </AdminList>
     </Page>
   );
 }
@@ -52,23 +52,24 @@ function ProgramRow({
   problem: string;
 }) {
   return (
-    <li className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b px-3 py-3 last:border-b-0">
-      <div className="flex min-w-0 flex-1 basis-64 flex-col items-start">
-        <h2 className="font-medium">{name}</h2>
-        {found === undefined ? (
-          <p className="text-sm text-pretty wrap-anywhere text-muted-foreground">{problem}</p>
+    <AdminRow
+      end={
+        found === undefined ? (
+          <StateLabel label="Can’t use" Icon={CircleSlash} />
         ) : (
-          <>
-            <p className="text-sm">version {found.version}</p>
-            <p className="text-sm break-all text-muted-foreground">{found.path}</p>
-          </>
-        )}
-      </div>
+          <StateLabel label="Found" Icon={CircleCheck} />
+        )
+      }
+    >
+      <h2 className="font-medium">{name}</h2>
       {found === undefined ? (
-        <StateLabel label="Can’t use" Icon={CircleSlash} />
+        <p className="text-sm text-pretty wrap-anywhere text-muted-foreground">{problem}</p>
       ) : (
-        <StateLabel label="Found" Icon={CircleCheck} />
+        <>
+          <p className="text-sm">version {found.version}</p>
+          <p className="text-sm break-all text-muted-foreground">{found.path}</p>
+        </>
       )}
-    </li>
+    </AdminRow>
   );
 }

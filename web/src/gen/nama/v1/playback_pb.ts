@@ -12,7 +12,7 @@ import type { Message, UnknownEnum } from "@bufbuild/protobuf";
  * Describes the file nama/v1/playback.proto.
  */
 export const file_nama_v1_playback: GenFile = /*@__PURE__*/
-  fileDesc("ChZuYW1hL3YxL3BsYXliYWNrLnByb3RvEgduYW1hLnYxIrECChNQbGFuUGxheWJhY2tSZXF1ZXN0EhIKCnZlcnNpb25faWQYASABKAMSGQoRc3RhcnRfcG9zaXRpb25fbXMYAiABKAQSGAoLYXVkaW9fdHJhY2sYAyABKA1IAIgBARIbCg5zdWJ0aXRsZV90cmFjaxgEIAEoDUgBiAEBEi4KDnBsYXliYWNrX2xpbWl0GAUgASgOMhYubmFtYS52MS5QbGF5YmFja0xpbWl0EjAKD2RldmljZV9kZWNvZGluZxgGIAEoCzIXLm5hbWEudjEuRGV2aWNlRGVjb2RpbmcSLwoOZmFpbGVkX21ldGhvZHMYByADKA4yFy5uYW1hLnYxLlBsYXliYWNrTWV0aG9kQg4KDF9hdWRpb190cmFja0IRCg9fc3VidGl0bGVfdHJhY2siVQoORGV2aWNlRGVjb2RpbmcSFQoNY29udGVudF90eXBlcxgBIAMoCRILCgNoZHIYAiABKAgSEgoKbmF0aXZlX2hscxgDIAEoCBILCgNtc2UYBCABKAgiOwoUUGxhblBsYXliYWNrUmVzcG9uc2USIwoEcGxhbhgBIAEoCzIVLm5hbWEudjEuUGxheWJhY2tQbGFuInUKDFBsYXliYWNrUGxhbhInCgZtZXRob2QYASABKA4yFy5uYW1hLnYxLlBsYXliYWNrTWV0aG9kEgsKA3VybBgCIAEoCRIeCgZ0cmFja3MYAyADKAsyDi5uYW1hLnYxLlRyYWNrEg8KB3JlYXNvbnMYBCADKAkqmAEKDVBsYXliYWNrTGltaXQSHgoaUExBWUJBQ0tfTElNSVRfVU5TUEVDSUZJRUQQABIbChdQTEFZQkFDS19MSU1JVF9PUklHSU5BTBABEhgKFFBMQVlCQUNLX0xJTUlUXzEwODBQEAISFwoTUExBWUJBQ0tfTElNSVRfNzIwUBADEhcKE1BMQVlCQUNLX0xJTUlUXzQ4MFAQBCqMAQoOUGxheWJhY2tNZXRob2QSHwobUExBWUJBQ0tfTUVUSE9EX1VOU1BFQ0lGSUVEEAASHwobUExBWUJBQ0tfTUVUSE9EX0RJUkVDVF9QTEFZEAESGQoVUExBWUJBQ0tfTUVUSE9EX1JFTVVYEAISHQoZUExBWUJBQ0tfTUVUSE9EX1RSQU5TQ09ERRADMmMKD1BsYXliYWNrU2VydmljZRJQCgxQbGFuUGxheWJhY2sSHC5uYW1hLnYxLlBsYW5QbGF5YmFja1JlcXVlc3QaHS5uYW1hLnYxLlBsYW5QbGF5YmFja1Jlc3BvbnNlIgOQAgJiBnByb3RvMw", [file_nama_v1_browse]);
+  fileDesc("ChZuYW1hL3YxL3BsYXliYWNrLnByb3RvEgduYW1hLnYxIrECChNQbGFuUGxheWJhY2tSZXF1ZXN0EhIKCnZlcnNpb25faWQYASABKAMSGQoRc3RhcnRfcG9zaXRpb25fbXMYAiABKAQSGAoLYXVkaW9fdHJhY2sYAyABKA1IAIgBARIbCg5zdWJ0aXRsZV90cmFjaxgEIAEoDUgBiAEBEi4KDnBsYXliYWNrX2xpbWl0GAUgASgOMhYubmFtYS52MS5QbGF5YmFja0xpbWl0EjAKD2RldmljZV9kZWNvZGluZxgGIAEoCzIXLm5hbWEudjEuRGV2aWNlRGVjb2RpbmcSLwoOZmFpbGVkX21ldGhvZHMYByADKA4yFy5uYW1hLnYxLlBsYXliYWNrTWV0aG9kQg4KDF9hdWRpb190cmFja0IRCg9fc3VidGl0bGVfdHJhY2siVQoORGV2aWNlRGVjb2RpbmcSFQoNY29udGVudF90eXBlcxgBIAMoCRILCgNoZHIYAiABKAgSEgoKbmF0aXZlX2hscxgDIAEoCBILCgNtc2UYBCABKAgiOwoUUGxhblBsYXliYWNrUmVzcG9uc2USIwoEcGxhbhgBIAEoCzIVLm5hbWEudjEuUGxheWJhY2tQbGFuIqMBCgxQbGF5YmFja1BsYW4SJwoGbWV0aG9kGAEgASgOMhcubmFtYS52MS5QbGF5YmFja01ldGhvZBILCgN1cmwYAiABKAkSHgoGdHJhY2tzGAMgAygLMg4ubmFtYS52MS5UcmFjaxIPCgdyZWFzb25zGAQgAygJEiwKCXN1YnRpdGxlcxgFIAMoCzIZLm5hbWEudjEuUGxheWJhY2tTdWJ0aXRsZSI+ChBQbGF5YmFja1N1YnRpdGxlEh0KBXRyYWNrGAEgASgLMg4ubmFtYS52MS5UcmFjaxILCgN1cmwYAiABKAkqmAEKDVBsYXliYWNrTGltaXQSHgoaUExBWUJBQ0tfTElNSVRfVU5TUEVDSUZJRUQQABIbChdQTEFZQkFDS19MSU1JVF9PUklHSU5BTBABEhgKFFBMQVlCQUNLX0xJTUlUXzEwODBQEAISFwoTUExBWUJBQ0tfTElNSVRfNzIwUBADEhcKE1BMQVlCQUNLX0xJTUlUXzQ4MFAQBCqMAQoOUGxheWJhY2tNZXRob2QSHwobUExBWUJBQ0tfTUVUSE9EX1VOU1BFQ0lGSUVEEAASHwobUExBWUJBQ0tfTUVUSE9EX0RJUkVDVF9QTEFZEAESGQoVUExBWUJBQ0tfTUVUSE9EX1JFTVVYEAISHQoZUExBWUJBQ0tfTUVUSE9EX1RSQU5TQ09ERRADMmMKD1BsYXliYWNrU2VydmljZRJQCgxQbGFuUGxheWJhY2sSHC5uYW1hLnYxLlBsYW5QbGF5YmFja1JlcXVlc3QaHS5uYW1hLnYxLlBsYW5QbGF5YmFja1Jlc3BvbnNlIgOQAgJiBnByb3RvMw", [file_nama_v1_browse]);
 
 /**
  * @generated from message nama.v1.PlanPlaybackRequest
@@ -172,6 +172,14 @@ export type PlaybackPlan = Message<"nama.v1.PlaybackPlan"> & {
    * @generated from field: repeated string reasons = 4;
    */
   reasons: string[];
+
+  /**
+   * The text subtitles the player can turn on and off without a new plan, in the order the
+   * Version holds them. Image subtitles, such as PGS, aren't among them.
+   *
+   * @generated from field: repeated nama.v1.PlaybackSubtitle subtitles = 5;
+   */
+  subtitles: PlaybackSubtitle[];
 };
 
 /**
@@ -180,6 +188,35 @@ export type PlaybackPlan = Message<"nama.v1.PlaybackPlan"> & {
  */
 export const PlaybackPlanSchema: GenMessage<PlaybackPlan> = /*@__PURE__*/
   messageDesc(file_nama_v1_playback, 3);
+
+/**
+ * A text subtitle a player shows as a WebVTT `<track>`.
+ *
+ * @generated from message nama.v1.PlaybackSubtitle
+ */
+export type PlaybackSubtitle = Message<"nama.v1.PlaybackSubtitle"> & {
+  /**
+   * Its Track, for its language, title and whether it's Forced or SDH.
+   *
+   * @generated from field: nama.v1.Track track = 1;
+   */
+  track?: Track | undefined;
+
+  /**
+   * Where to fetch it as WebVTT, on this Server. The first fetch can take up to a minute while
+   * the Server reads it out of the file; later ones are answered at once.
+   *
+   * @generated from field: string url = 2;
+   */
+  url: string;
+};
+
+/**
+ * Describes the message nama.v1.PlaybackSubtitle.
+ * Use `create(PlaybackSubtitleSchema)` to create a new message.
+ */
+export const PlaybackSubtitleSchema: GenMessage<PlaybackSubtitle> = /*@__PURE__*/
+  messageDesc(file_nama_v1_playback, 4);
 
 /**
  * The most a User asks playback to send.

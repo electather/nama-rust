@@ -170,10 +170,17 @@ const keysFocusUses: Record<string, string> = {
 };
 
 function shortcutFor(event: KeyboardEvent): Shortcut | undefined {
-  // Ctrl+F, Alt+arrows and the like belong to the browser, and a prevented key to whatever
-  // already used it, such as Esc closing playback info.
-  if (event.defaultPrevented || hasModifier(event) || focusUses(event)) return undefined;
-  return shortcuts[event.key];
+  return keyIsTaken(event) ? undefined : shortcuts[event.key];
+}
+
+// Ctrl+F, Alt+arrows and the like belong to the browser, every key to an open menu, and a
+// prevented key to whatever already used it, such as Esc closing playback info.
+function keyIsTaken(event: KeyboardEvent) {
+  return event.defaultPrevented || hasModifier(event) || inMenu(event) || focusUses(event);
+}
+
+function inMenu({ target }: KeyboardEvent) {
+  return target instanceof Element && target.closest('[role="menu"]') !== null;
 }
 
 function hasModifier(event: KeyboardEvent) {
