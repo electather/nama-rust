@@ -6,92 +6,23 @@ mod refused;
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 mod server;
 
-use std::{path::PathBuf, sync::Arc};
+use std::sync::Arc;
 
-use connectrpc::{ErrorCode, client::HttpClient};
+use connectrpc::ErrorCode;
 use nama_plugin_api::{
     BoxFuture, Manifest, Observer, Plugin, PluginId, PointKey, Registrar, points,
     settings::SettingsSchema,
 };
 use nama_proto::nama::v1::{
-    CreateLibraryRequest, Event, EventType, LibraryItemAdded, LibraryKind, LibraryServiceClient,
-    RefusalReason, ScanFinished, ScanLibraryRequest, ScanProgress, ScanStarted, SubscribeRequest,
-    event,
+    Event, EventType, LibraryItemAdded, LibraryKind, RefusalReason, ScanFinished, ScanProgress,
+    ScanStarted, SubscribeRequest, event,
 };
 use nama_server::plugins::Registry;
 use refused::assert_refused;
 use server::{Subscription, TestServer, WAIT, subscribe_with};
-use tempfile::TempDir;
 use tokio::sync::mpsc;
 
-/// A Server, a client for its `LibraryService`, and a scratch directory for media folders.
-struct Fixture {
-    libraries: LibraryServiceClient<HttpClient>,
-    media: TempDir,
-    server: TestServer,
-}
-
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
-impl Fixture {
-    async fn start(plugins: Registry) -> Self {
-        let server = TestServer::builder().plugins(plugins).start().await;
-        Self {
-            libraries: LibraryServiceClient::new(HttpClient::plaintext(), server.client_config()),
-            media: tempfile::tempdir().unwrap(),
-            server,
-        }
-    }
-
-    /// Creates a Movies Library named `name` whose folder holds `files`, and returns its id.
-    async fn library(&self, name: &str, files: &[&str]) -> i64 {
-        let folder = self.folder(name);
-        for file in files {
-            let path = folder.join(file);
-            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
-            std::fs::write(path, b"video").unwrap();
-        }
-        std::fs::create_dir_all(&folder).unwrap();
-        self.libraries
-            .create_library(CreateLibraryRequest {
-                name: name.to_owned(),
-                kind: LibraryKind::LIBRARY_KIND_MOVIES.into(),
-                folders: vec![folder.to_str().unwrap().to_owned()],
-                ..Default::default()
-            })
-            .await
-            .unwrap()
-            .into_owned()
-            .library
-            .into_option()
-            .unwrap()
-            .id
-    }
-
-    fn folder(&self, name: &str) -> PathBuf {
-        self.media.path().canonicalize().unwrap().join(name)
-    }
-
-    fn path(&self, name: &str, file: &str) -> String {
-        self.folder(name).join(file).to_str().unwrap().to_owned()
-    }
-
-    async fn scan(&self, id: i64) {
-        self.libraries
-            .scan_library(ScanLibraryRequest {
-                id,
-                ..Default::default()
-            })
-            .await
-            .unwrap();
-    }
-
-    async fn subscribe(&self, request: SubscribeRequest) -> Subscription {
-        subscribe_with(&self.server.client_config(), request).await
-    }
-}
+const MOVIES: LibraryKind = LibraryKind::LIBRARY_KIND_MOVIES;
 
 /// The events on `subscription` up to and including the next `ScanFinished`.
 async fn until_scan_finished(subscription: &mut Subscription) -> Vec<Event> {
@@ -116,13 +47,15 @@ fn event(event: impl Into<event::Event>) -> Event {
 
 #[tokio::test]
 async fn a_subscriber_receives_a_scans_start_progress_added_items_and_finish_in_order() {
-    let fx = Fixture::start(Registry::new()).await;
-    let library = fx
-        .library("Movies", &["Alien (1979)/Alien (1979).mkv"])
+    let server = TestServer::builder().start().await;
+    let media = server
+        .create_library(MOVIES, &["Alien (1979)/Alien (1979).mkv"])
         .await;
-    let mut subscription = fx.subscribe(SubscribeRequest::default()).await;
+    let library = media.id;
+    let mut subscription =
+        subscribe_with(&server.client_config(), SubscribeRequest::default()).await;
 
-    fx.scan(library).await;
+    server.scan(library).await;
 
     assert_eq!(
         until_scan_finished(&mut subscription).await,
@@ -141,7 +74,7 @@ async fn a_subscriber_receives_a_scans_start_progress_added_items_and_finish_in_
                 library_id: library,
                 // The first Item in a fresh database.
                 item_id: 1,
-                path: fx.path("Movies", "Alien (1979)/Alien (1979).mkv"),
+                path: media.path("Alien (1979)/Alien (1979).mkv"),
                 ..Default::default()
             }),
             event(ScanFinished {
@@ -196,19 +129,20 @@ async fn an_observer_is_told_the_same_events_a_subscriber_receives_in_one_batch_
     let (tx, mut observed) = mpsc::unbounded_channel();
     let plugins = Registry::new();
     plugins.enable(Arc::new(Forward(tx))).unwrap();
-    let fx = Fixture::start(plugins).await;
-    let library = fx
-        .library(
-            "Movies",
+    let server = TestServer::builder().plugins(plugins).start().await;
+    let media = server
+        .create_library(
+            MOVIES,
             &[
                 "Alien (1979)/Alien (1979).mkv",
                 "Heat (1995)/Heat (1995).mkv",
             ],
         )
         .await;
-    let mut subscription = fx.subscribe(SubscribeRequest::default()).await;
+    let mut subscription =
+        subscribe_with(&server.client_config(), SubscribeRequest::default()).await;
 
-    fx.scan(library).await;
+    server.scan(media.id).await;
     let streamed = until_scan_finished(&mut subscription).await;
 
     // The start, then the one write's progress and both Items, then the finish.
@@ -228,24 +162,29 @@ async fn an_observer_is_told_the_same_events_a_subscriber_receives_in_one_batch_
 
 #[tokio::test]
 async fn a_subscriber_receives_only_the_event_types_and_libraries_it_asks_for() {
-    let fx = Fixture::start(Registry::new()).await;
-    let ignored = fx
-        .library("Ignored", &["Alien (1979)/Alien (1979).mkv"])
+    let server = TestServer::builder().start().await;
+    let ignored_media = server
+        .create_library(MOVIES, &["Alien (1979)/Alien (1979).mkv"])
         .await;
-    let wanted = fx.library("Wanted", &["Heat (1995)/Heat (1995).mkv"]).await;
-    let mut everything = fx.subscribe(SubscribeRequest::default()).await;
-    let mut filtered = fx
-        .subscribe(SubscribeRequest {
+    let wanted_media = server
+        .create_library(MOVIES, &["Heat (1995)/Heat (1995).mkv"])
+        .await;
+    let (ignored, wanted) = (ignored_media.id, wanted_media.id);
+    let mut everything = subscribe_with(&server.client_config(), SubscribeRequest::default()).await;
+    let mut filtered = subscribe_with(
+        &server.client_config(),
+        SubscribeRequest {
             types: vec![EventType::EVENT_TYPE_SCAN_FINISHED.into()],
             library_ids: vec![wanted],
             ..Default::default()
-        })
-        .await;
+        },
+    )
+    .await;
 
     // One scan after the other, so the first's events come before the second's.
-    fx.scan(ignored).await;
+    server.scan(ignored).await;
     until_scan_finished(&mut everything).await;
-    fx.scan(wanted).await;
+    server.scan(wanted).await;
 
     assert_eq!(
         event(filtered.next().await),
@@ -259,13 +198,15 @@ async fn a_subscriber_receives_only_the_event_types_and_libraries_it_asks_for() 
 
 #[tokio::test]
 async fn subscribing_to_an_unspecified_event_type_is_an_invalid_argument() {
-    let fx = Fixture::start(Registry::new()).await;
-    let mut refused = fx
-        .subscribe(SubscribeRequest {
+    let server = TestServer::builder().start().await;
+    let mut refused = subscribe_with(
+        &server.client_config(),
+        SubscribeRequest {
             types: vec![EventType::EVENT_TYPE_UNSPECIFIED.into()],
             ..Default::default()
-        })
-        .await;
+        },
+    )
+    .await;
 
     let message = refused.message().await;
     let refusal = assert_refused(
@@ -278,10 +219,11 @@ async fn subscribing_to_an_unspecified_event_type_is_an_invalid_argument() {
 
 #[tokio::test]
 async fn shutting_down_the_server_ends_every_subscription() {
-    let fx = Fixture::start(Registry::new()).await;
-    let mut subscription = fx.subscribe(SubscribeRequest::default()).await;
+    let server = TestServer::builder().start().await;
+    let mut subscription =
+        subscribe_with(&server.client_config(), SubscribeRequest::default()).await;
 
-    drop(fx);
+    drop(server);
 
     let ended = subscription.message().await;
     assert!(matches!(ended, Ok(None)), "{ended:?}");

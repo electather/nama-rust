@@ -10,23 +10,23 @@ mod log;
 #[path = "support/server.rs"]
 mod server;
 
-use std::{fs, time::Duration};
+use std::time::Duration;
 
 use connectrpc::client::HttpClient;
 use fake_telegram::{BOT_TOKEN, FakeTelegram};
 use log::Log;
 use nama_proto::nama::v1::{
-    ApproveRequestRequest, CancelRequestRequest, CreateLibraryRequest, CreateRequestRequest,
+    ApproveRequestRequest, CancelRequestRequest, CreateRequestRequest,
     DeletePluginConnectionRequest, DeleteUserRequest, EnablePluginRequest, GetPluginRequest,
-    GetRequestRequest, LibraryKind, LibraryServiceClient, ListPluginConnectionsRequest, Permission,
-    Plugin, PluginConnectionState, PluginServiceClient, Request, RequestServiceClient,
-    RequestState, ScanLibraryRequest, ServerServiceClient, ServerSettings, SetPermissionsRequest,
-    StartPluginConnectionRequest, UpdatePluginSettingsRequest, UpdateServerSettingsRequest,
-    UserServiceClient, setting_value::Value,
+    GetRequestRequest, LibraryKind, ListPluginConnectionsRequest, Permission, Plugin,
+    PluginConnectionState, PluginServiceClient, Request, RequestServiceClient, RequestState,
+    ServerServiceClient, ServerSettings, SetPermissionsRequest, StartPluginConnectionRequest,
+    UpdatePluginSettingsRequest, UpdateServerSettingsRequest, UserServiceClient,
+    setting_value::Value,
 };
 use serde_json::{Value as Json, json};
 use server::{
-    SignedIn, TestServer, WAIT,
+    Library, SignedIn, TestServer, WAIT,
     tmdb::{ALIEN, DUNE},
 };
 
@@ -242,36 +242,13 @@ impl Fixture {
     }
 
     /// Creates a Movies Library holding Alien and starts scanning it.
-    async fn library_with_alien(&self) -> tempfile::TempDir {
-        let media = tempfile::tempdir().unwrap();
-        let folder = media.path().canonicalize().unwrap();
-        let file = folder.join("Alien (1979)/Alien (1979).mkv");
-        fs::create_dir_all(file.parent().unwrap()).unwrap();
-        fs::write(file, b"video").unwrap();
-        let config = self.server.client_config();
-        let libraries = LibraryServiceClient::new(HttpClient::plaintext(), config);
-        let id = libraries
-            .create_library(CreateLibraryRequest {
-                name: "Movies".to_owned(),
-                kind: LibraryKind::LIBRARY_KIND_MOVIES.into(),
-                folders: vec![folder.to_str().unwrap().to_owned()],
-                ..Default::default()
-            })
+    async fn library_with_alien(&self) -> Library {
+        self.server
+            .library(
+                LibraryKind::LIBRARY_KIND_MOVIES,
+                &["Alien (1979)/Alien (1979).mkv"],
+            )
             .await
-            .unwrap()
-            .into_owned()
-            .library
-            .into_option()
-            .unwrap()
-            .id;
-        libraries
-            .scan_library(ScanLibraryRequest {
-                id,
-                ..Default::default()
-            })
-            .await
-            .unwrap();
-        media
     }
 }
 

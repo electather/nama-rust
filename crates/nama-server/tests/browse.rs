@@ -10,14 +10,7 @@ mod refused;
 #[path = "support/server.rs"]
 mod server;
 
-use std::{
-    collections::BTreeSet,
-    fs,
-    path::{Path, PathBuf},
-    slice,
-    sync::Arc,
-    time::Duration,
-};
+use std::{collections::BTreeSet, fs, path::PathBuf, slice, sync::Arc, time::Duration};
 
 use connectrpc::{
     ConnectError, ErrorCode,
@@ -25,13 +18,12 @@ use connectrpc::{
 };
 use http::{fetch, fetch_range};
 use nama_proto::nama::v1::{
-    AudioTrack, BrowseServiceClient, ClearMatchRequest, ContinueWatchingEntry,
-    CreateLibraryRequest, Episode, ExternalId, GetMovieRequest, GetShowRequest, GetShowResponse,
-    HdrFormat, LibraryKind, LibraryServiceClient, ListContinueWatchingRequest, ListEpisodesRequest,
-    ListMoviesRequest, ListShowsRequest, MatchServiceClient, Movie, RefusalReason,
-    ReportProgressRequest, ScanLibraryRequest, Season, SetMatchRequest, SetPlayedRequest, Show,
-    ShowSeason, Track, Version, VideoTrack, WatchState, WatchStateServiceClient,
-    continue_watching_entry, external_id, set_played_request::Target,
+    AudioTrack, BrowseServiceClient, ClearMatchRequest, ContinueWatchingEntry, Episode, ExternalId,
+    GetMovieRequest, GetShowRequest, GetShowResponse, HdrFormat, LibraryKind,
+    ListContinueWatchingRequest, ListEpisodesRequest, ListMoviesRequest, ListShowsRequest,
+    MatchServiceClient, Movie, RefusalReason, ReportProgressRequest, Season, SetMatchRequest,
+    SetPlayedRequest, Show, ShowSeason, Track, Version, VideoTrack, WatchState,
+    WatchStateServiceClient, continue_watching_entry, external_id, set_played_request::Target,
 };
 use nama_server::{
     config::Config,
@@ -40,10 +32,9 @@ use nama_server::{
 };
 use refused::assert_refused;
 use server::{
-    SignedIn, TestServer, WAIT,
+    Library, SignedIn, TestServer, WAIT,
     tmdb::{ALIEN, DARK, THE_OFFICE as THE_OFFICE_US},
 };
-use tempfile::TempDir;
 
 /// TMDB Matches both to Alien.
 const ALIEN_1080P: &str = "Alien (1979)/Alien (1979) - 1080p.mkv";
@@ -75,12 +66,11 @@ const MINUTE: u64 = 60_000;
 struct Fixture {
     library: i64,
     folder: PathBuf,
-    libraries: LibraryServiceClient<HttpClient>,
     browse: BrowseServiceClient<HttpClient>,
     matches: MatchServiceClient<HttpClient>,
     contents: Contents,
     server: TestServer,
-    _media: TempDir,
+    media: Library,
 }
 
 #[expect(
@@ -96,20 +86,21 @@ impl Fixture {
     /// Starts a Server with a Library of `kind` that found `ffmpeg` at startup.
     async fn start_with_ffmpeg(kind: LibraryKind, ffmpeg: Ffmpeg) -> Self {
         let server = TestServer::builder().tmdb().ffmpeg(ffmpeg).start().await;
+        let media = server.create_library(kind, &[]).await;
+        Self::over(server, media)
+    }
+
+    /// The clients for browsing `media` on `server`.
+    fn over(server: TestServer, media: Library) -> Self {
         let config = server.client_config();
-        let libraries = LibraryServiceClient::new(HttpClient::plaintext(), config.clone());
-        let media = tempfile::tempdir().unwrap();
-        let folder = media.path().canonicalize().unwrap();
-        let library = create_library(&libraries, kind, &folder).await;
         Self {
-            library,
-            folder,
-            libraries,
+            library: media.id,
+            folder: media.folder().to_owned(),
             browse: BrowseServiceClient::new(HttpClient::plaintext(), config.clone()),
             matches: MatchServiceClient::new(HttpClient::plaintext(), config),
             contents: Contents::new(Arc::clone(server.db())),
             server,
-            _media: media,
+            media,
         }
     }
 
@@ -126,26 +117,15 @@ impl Fixture {
 
     /// Starts a Server with a Movies Library holding Alien, scanned and Matched.
     async fn alien() -> Self {
-        let fx = Self::start(LibraryKind::LIBRARY_KIND_MOVIES).await;
-        fx.write(ALIEN_1080P, b"video");
-        fx.scan_until_decided(1).await;
-        fx
-    }
-
-    /// Adds a Library of `kind` with a folder of its own holding a file at `relative`, scanned
-    /// and Matched. Returns the Library's id, and its folder, which is deleted when dropped.
-    async fn add_library(&self, kind: LibraryKind, relative: &str) -> (i64, TempDir) {
-        let media = tempfile::tempdir().unwrap();
-        let folder = media.path().canonicalize().unwrap();
-        write(&folder.join(relative), b"video");
-        let library = create_library(&self.libraries, kind, &folder).await;
-        self.scan_until(library, async || self.all_decided(library, 1).await)
+        let server = TestServer::builder().tmdb().start().await;
+        let media = server
+            .matched_library(LibraryKind::LIBRARY_KIND_MOVIES, &[ALIEN_1080P])
             .await;
-        (library, media)
+        Self::over(server, media)
     }
 
     fn write(&self, relative: &str, contents: &[u8]) {
-        write(&self.folder.join(relative), contents);
+        self.media.write(relative, contents);
     }
 
     /// Scans the Library, and waits until `files` files are stored and Matching has decided
@@ -159,13 +139,7 @@ impl Fixture {
 
     /// Scans the Library `library`, and waits until `done` says so.
     async fn scan_until(&self, library: i64, mut done: impl AsyncFnMut() -> bool) {
-        self.libraries
-            .scan_library(ScanLibraryRequest {
-                id: library,
-                ..Default::default()
-            })
-            .await
-            .unwrap();
+        self.server.scan(library).await;
         tokio::time::timeout(WAIT, async {
             while !done().await {
                 tokio::time::sleep(Duration::from_millis(10)).await;
@@ -436,42 +410,6 @@ impl Viewer {
     }
 }
 
-/// Creates a Library of `kind` with the one folder `folder`, and returns its id.
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
-async fn create_library(
-    libraries: &LibraryServiceClient<HttpClient>,
-    kind: LibraryKind,
-    folder: &Path,
-) -> i64 {
-    libraries
-        .create_library(CreateLibraryRequest {
-            name: "Media".to_owned(),
-            kind: kind.into(),
-            folders: vec![folder.to_str().unwrap().to_owned()],
-            ..Default::default()
-        })
-        .await
-        .unwrap()
-        .into_owned()
-        .library
-        .into_option()
-        .unwrap()
-        .id
-}
-
-/// Writes `contents` to the file at `path`, creating the folders it is in.
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
-fn write(path: &Path, contents: &[u8]) {
-    fs::create_dir_all(path.parent().unwrap()).unwrap();
-    fs::write(path, contents).unwrap();
-}
-
 fn tmdb_id(id: i64) -> ExternalId {
     ExternalId {
         id: Some(external_id::Id::Tmdb(id)),
@@ -577,9 +515,7 @@ async fn a_version_has_the_tracks_probing_found_once_a_scan_has_probed_it() {
 
 #[tokio::test]
 async fn an_unmatched_item_is_in_neither_list_movies_nor_get_movie() {
-    let fx = Fixture::start(LibraryKind::LIBRARY_KIND_MOVIES).await;
-    fx.write(ALIEN_1080P, b"1080p");
-    fx.scan_until_decided(1).await;
+    let fx = Fixture::alien().await;
     let item = fx.item(ALIEN_1080P).await;
     fx.matches
         .clear_match(ClearMatchRequest {
@@ -663,9 +599,7 @@ async fn a_shows_library_is_an_invalid_argument() {
 
 #[tokio::test]
 async fn get_movie_for_an_id_nothing_matches_is_not_found() {
-    let fx = Fixture::start(LibraryKind::LIBRARY_KIND_MOVIES).await;
-    fx.write(ALIEN_1080P, b"1080p");
-    fx.scan_until_decided(1).await;
+    let fx = Fixture::alien().await;
 
     let got = fx.get_movie(fx.library, 949).await;
 
@@ -1326,9 +1260,11 @@ fn listed(entries: &[ContinueWatchingEntry]) -> Vec<(i64, Listed<'_>, u64)> {
 #[tokio::test]
 async fn started_movies_and_episodes_are_listed_most_recent_first() {
     let fx = Fixture::alien().await;
-    let (shows, _media) = fx
-        .add_library(LibraryKind::LIBRARY_KIND_SHOWS, DARK_S02E01)
+    let shows_media = fx
+        .server
+        .matched_library(LibraryKind::LIBRARY_KIND_SHOWS, &[DARK_S02E01])
         .await;
+    let shows = shows_media.id;
     let viewer = fx.admin();
     let [alien] = fx.version_ids(ALIEN).await[..] else {
         panic!("Alien has one Version");

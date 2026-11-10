@@ -16,16 +16,14 @@ use std::{
 
 use connectrpc::{ConnectError, ErrorCode, client::HttpClient};
 use nama_proto::nama::v1::{
-    ClearMatchRequest, CreateLibraryRequest, CreateRequestRequest, CreateSeasonRequestsRequest,
-    ExternalId, GetRequestRequest, LibraryKind, LibraryServiceClient, ListUnmatchedItemsRequest,
-    ListUnmatchedItemsResponse, MatchServiceClient, RefusalReason, RequestServiceClient,
-    RequestState, ScanLibraryRequest, SearchMetadataRequest, SetMatchRequest, SetMatchResponse,
-    TitleKind, UnmatchedItem, external_id,
+    ClearMatchRequest, CreateRequestRequest, CreateSeasonRequestsRequest, ExternalId,
+    GetRequestRequest, LibraryKind, ListUnmatchedItemsRequest, ListUnmatchedItemsResponse,
+    MatchServiceClient, RefusalReason, RequestServiceClient, RequestState, SearchMetadataRequest,
+    SetMatchRequest, SetMatchResponse, TitleKind, UnmatchedItem, external_id,
 };
 use nama_server::contents::Contents;
 use refused::assert_refused;
-use server::{Builder, TestServer, WAIT};
-use tempfile::TempDir;
+use server::{Builder, Library, TestServer, WAIT};
 
 /// TMDB finds nothing for this file, so it is Unmatched until Matched by hand.
 const HOME_MOVIES: &str = "Home Movies (2019)/Home Movies (2019).mkv";
@@ -45,11 +43,10 @@ struct Decision {
 struct Fixture {
     library: i64,
     folder: PathBuf,
-    libraries: LibraryServiceClient<HttpClient>,
     matches: MatchServiceClient<HttpClient>,
     contents: Contents,
     server: TestServer,
-    _media: TempDir,
+    media: Library,
 }
 
 #[expect(
@@ -70,49 +67,24 @@ impl Fixture {
     /// Starts the Server `builder` makes, with a Library of `kind`.
     async fn start_with(kind: LibraryKind, builder: Builder) -> Self {
         let server = builder.start().await;
-        let config = server.client_config();
-        let libraries = LibraryServiceClient::new(HttpClient::plaintext(), config.clone());
-        let media = tempfile::tempdir().unwrap();
-        let folder = media.path().canonicalize().unwrap();
-        let library = libraries
-            .create_library(CreateLibraryRequest {
-                name: "Media".to_owned(),
-                kind: kind.into(),
-                folders: vec![folder.to_str().unwrap().to_owned()],
-                ..Default::default()
-            })
-            .await
-            .unwrap()
-            .into_owned()
-            .library
-            .into_option()
-            .unwrap();
+        let media = server.create_library(kind, &[]).await;
         Self {
-            library: library.id,
-            folder,
-            libraries,
-            matches: MatchServiceClient::new(HttpClient::plaintext(), config),
+            library: media.id,
+            folder: media.folder().to_owned(),
+            matches: MatchServiceClient::new(HttpClient::plaintext(), server.client_config()),
             contents: Contents::new(Arc::clone(server.db())),
             server,
-            _media: media,
+            media,
         }
     }
 
     fn write(&self, relative: &str, contents: &[u8]) {
-        let path = self.folder.join(relative);
-        fs::create_dir_all(path.parent().unwrap()).unwrap();
-        fs::write(path, contents).unwrap();
+        self.media.write(relative, contents);
     }
 
     /// Starts a scan of the Library.
     async fn scan(&self) {
-        self.libraries
-            .scan_library(ScanLibraryRequest {
-                id: self.library,
-                ..Default::default()
-            })
-            .await
-            .unwrap();
+        self.server.scan(self.library).await;
     }
 
     /// Scans the Library, and waits until the file at `relative` is stored with an item, whose
@@ -242,7 +214,7 @@ impl Fixture {
 
     /// The absolute path of the file at `relative` in the Library's folder.
     fn path(&self, relative: &str) -> String {
-        self.folder.join(relative).to_str().unwrap().to_owned()
+        self.media.path(relative)
     }
 }
 
