@@ -348,7 +348,8 @@ async function build(issue: Issue): Promise<{ box: Box; body: string }> {
 }
 
 // Waits for the whole CI workflow run on the branch's pushed commit. `gh pr checks --watch` isn't
-// enough: a job behind `needs` (test after lint) has no check until it starts, so it can pass early.
+// enough: a job behind `needs` (checks and test after changes) has no check until it starts, so it
+// can pass early.
 // "stale": another issue merged and the PR now conflicts with main, so this run can't merge.
 async function waitForChecks(issue: Issue): Promise<"pass" | "fail" | "stale"> {
   const branch = branchOf(issue);
