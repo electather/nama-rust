@@ -1039,6 +1039,7 @@ echo "{{\"format\": {{\"format_name\": \"matroska,webm\"}}, \"streams\": [{{\"co
     }
 
     /// How many times [`counting_ffprobe`] in `bin` has run.
+    #[cfg(unix)]
     fn probe_runs(bin: &std::path::Path) -> usize {
         fs::read_to_string(bin.join("runs")).map_or(0, |runs| runs.lines().count())
     }

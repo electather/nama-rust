@@ -94,9 +94,9 @@ impl Tracks {
             .collect())
     }
 
-    /// Stores `probe` as what the current [`PROBE_VERSION`] found in `file` at its stored size and
-    /// modified time, replacing what was stored for it. A file removed since it was probed stores
-    /// nothing.
+    /// Stores `probe` as what the current [`PROBE_VERSION`] found in the Version `file` at its
+    /// stored size and modified time, replacing what was stored for it. A Version removed since it
+    /// was probed stores nothing.
     pub(crate) async fn store(&self, file: Stored, probe: Probe) -> Result<(), sqlx::Error> {
         let stored = self
             .db
