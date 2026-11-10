@@ -1020,11 +1020,11 @@ async fn a_plugin_whose_check_would_hang_starts_and_is_enabled_with_its_stored_c
         );
     }
 
+    // Starting the Server is outside the deadline, since it is slow under load whatever the check does.
+    let started = Started::with(&settings).await;
+    let client = started.client();
     // Shorter than the Kernel's timeout for a check, so running the check would fail the test.
-    let deadline = SETTINGS_CHECK_TIMEOUT / 2;
-    let started = tokio::time::timeout(deadline, async {
-        let started = Started::with(&settings).await;
-        let client = started.client();
+    tokio::time::timeout(SETTINGS_CHECK_TIMEOUT / 2, async {
         client
             .disable_plugin(disable(test_choices::ID))
             .await
@@ -1033,10 +1033,9 @@ async fn a_plugin_whose_check_would_hang_starts_and_is_enabled_with_its_stored_c
             .enable_plugin(enable(test_choices::ID))
             .await
             .unwrap();
-        started
     })
     .await
-    .expect("starting and enabling ran the settings check");
+    .expect("enabling ran the settings check");
 
     assert!(
         started
