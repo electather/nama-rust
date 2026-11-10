@@ -84,9 +84,9 @@ const CHOOSER: [Permission; 3] = [
     Permission::ChooseQuality,
 ];
 
-/// The id of the HD quality profile a fake Fulfiller can offer.
+/// The id of the HD service profile a fake Fulfiller can offer.
 const HD_PROFILE: &str = "4";
-/// The id of the Ultra-HD quality profile a fake Fulfiller can offer.
+/// The id of the Ultra-HD service profile a fake Fulfiller can offer.
 const ULTRA_HD_PROFILE: &str = "5";
 
 /// A Server with TMDB on, and an Admin.
@@ -104,12 +104,12 @@ impl Fixture {
         Self::start_with(Registry::new()).await
     }
 
-    /// A Fixture with a fake Movie Fulfiller offering the quality profiles `profiles`.
+    /// A Fixture with a fake Movie Fulfiller offering the service profiles `profiles`.
     async fn with_fulfiller(profiles: &[&str]) -> Self {
         Self::start_from(TestServer::builder().fulfiller(profiles), Registry::new()).await
     }
 
-    /// A Fixture with a fake Fulfiller for Shows offering the quality profiles `profiles`.
+    /// A Fixture with a fake Fulfiller for Shows offering the service profiles `profiles`.
     async fn with_shows_fulfiller(profiles: &[&str]) -> Self {
         Self::start_from(
             TestServer::builder().shows_fulfiller(profiles),
@@ -279,8 +279,10 @@ impl Fixture {
             .unwrap()
     }
 
-    /// Has the Admin offer the fake Fulfiller's [`HD_PROFILE`] and [`ULTRA_HD_PROFILE`] as
-    /// "HD", the default, and "4K", for the Plugin `plugin`. Returns them as saved.
+    /// Has the Admin offer [`HD_PROFILE`] and [`ULTRA_HD_PROFILE`] as "HD", the default, and "4K",
+    /// for the Plugin `plugin`. Returns them as saved.
+    ///
+    /// The fake Fulfiller must offer both: the Server refuses a Quality its service lacks.
     async fn offer_hd_and_4k(&self, plugin: &str) -> Vec<Quality> {
         let qualities = vec![
             quality(HD_PROFILE, "HD", true),

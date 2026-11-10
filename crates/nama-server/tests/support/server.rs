@@ -90,7 +90,7 @@ impl Builder {
     }
 
     /// Has the Server start with a fake Movie Fulfiller enabled, as the Built-in Plugin
-    /// [`fulfiller::MOVIE_FULFILLER`], whose settings check offers the quality profiles
+    /// [`fulfiller::MOVIE_FULFILLER`], whose settings check offers the service profiles
     /// `profiles`.
     pub(crate) fn fulfiller(self, profiles: &[&str]) -> Self {
         self.fake_fulfiller(Fulfills::Movies, profiles)

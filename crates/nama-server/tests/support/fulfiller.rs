@@ -73,22 +73,19 @@ pub(crate) type HandedSeason = (i64, Option<i64>, u32, bool);
 /// is downloading what the test set.
 #[derive(Clone, Default)]
 pub(crate) struct FakeFulfiller {
-    /// The TMDB id of each Movie it was handed, in order.
     handed: Arc<Mutex<Vec<i64>>>,
-    /// Each Season it was handed, in order.
     handed_seasons: Arc<Mutex<Vec<HandedSeason>>>,
     refuses: Arc<AtomicBool>,
     /// Whether it never answers a hand-off.
     stalls: Arc<AtomicBool>,
     /// Whether it refuses the hand-offs that ask it to follow a Show.
     refuses_following: Arc<AtomicBool>,
-    /// The TMDB id of each Show it was told to stop following, in order.
     unfollowed: Arc<Mutex<Vec<i64>>>,
     /// What it says it is downloading, by reference.
     downloading: Arc<Mutex<HashMap<String, Vec<Download>>>>,
     /// Whether it fails to say what it is downloading.
     progress_fails: Arc<AtomicBool>,
-    /// The quality profiles its settings check offers.
+    /// The service profiles its settings check offers.
     profiles: Arc<Mutex<Vec<String>>>,
     /// Whether its settings check fails.
     check_fails: Arc<AtomicBool>,
@@ -131,7 +128,7 @@ impl FakeFulfiller {
         self.progress_fails.store(true, Ordering::Relaxed);
     }
 
-    /// Has its settings check offer the quality profiles `profiles` from now on.
+    /// Has its settings check offer the service profiles `profiles` from now on.
     pub(crate) fn offer_profiles(&self, profiles: &[&str]) {
         *self.profiles.lock().unwrap_or_else(PoisonError::into_inner) =
             profiles.iter().map(|&profile| profile.to_owned()).collect();
