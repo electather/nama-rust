@@ -17,7 +17,7 @@ test("a User who manages settings changes the Server URL on Settings", async () 
     "/settings",
     fakeServer({
       signedIn: manageSettings,
-      serverSettings: {
+      serverService: {
         getServerSettings: () => ({ settings: { url: "http://nama.lan" } }),
         updateServerSettings: (request) => {
           updates.push(request);
@@ -40,7 +40,7 @@ test("a Server URL that isn't a URL is refused under its field", async () => {
     "/settings",
     fakeServer({
       signedIn: manageSettings,
-      serverSettings: {
+      serverService: {
         updateServerSettings: () => {
           throw refused(Code.InvalidArgument, "the Server URL must be an http or https URL", {
             reason: RefusalReason.NOT_A_URL,

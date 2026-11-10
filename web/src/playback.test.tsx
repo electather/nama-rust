@@ -1,16 +1,20 @@
-import { screen } from "@testing-library/react";
+import { Code } from "@connectrpc/connect";
+import { fireEvent, screen } from "@testing-library/react";
 import { expect, test } from "vite-plus/test";
 
+import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
+import type { UpdatePlaybackSettingsRequest } from "@/gen/nama/v1/server_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
 
-import { admin, fakeServer, openApp } from "./test-app";
+import { admin, fakeServer, fill, openApp } from "./test-app";
+import { expectUnderField, refused } from "./test-refusal";
 
 test("an Admin sees the path and version of the ffmpeg and ffprobe the Server found", async () => {
   openApp(
     "/admin/playback",
     fakeServer({
       signedIn: admin,
-      serverSettings: {
+      serverService: {
         getPlaybackStatus: () => ({
           ffmpeg: { path: "/usr/bin/ffmpeg", version: "7.1.1" },
           ffprobe: { path: "/usr/bin/ffprobe", version: "7.1.1" },
@@ -30,7 +34,7 @@ test("without a usable ffmpeg the Playback page says why and that the Server can
     "/admin/playback",
     fakeServer({
       signedIn: admin,
-      serverSettings: {
+      serverService: {
         getPlaybackStatus: () => ({
           ffmpegProblem:
             "ffmpeg 4.3.1 at /usr/bin/ffmpeg is older than 4.4, the oldest this Server supports",
@@ -55,4 +59,53 @@ test("a User who manages settings but isn’t an Admin can’t open the Playback
   openApp("/admin/playback", fakeServer({ signedIn: [Permission.MANAGE_SETTINGS] }));
 
   expect(await screen.findByRole("heading", { name: "You can’t open this page" })).toBeDefined();
+});
+
+test("an Admin sets the segment folder on the Playback page", async () => {
+  const updates: UpdatePlaybackSettingsRequest[] = [];
+  openApp(
+    "/admin/playback",
+    fakeServer({
+      signedIn: admin,
+      serverService: {
+        getPlaybackStatus: () => ({}),
+        getPlaybackSettings: () => ({ settings: { segmentFolder: "/srv/segments" } }),
+        updatePlaybackSettings: (request) => {
+          updates.push(request);
+          return { settings: request.settings };
+        },
+      },
+    }),
+  );
+
+  expect(await screen.findByLabelText("Segment folder")).toHaveProperty("value", "/srv/segments");
+  fill("Segment folder", "/dev/shm/nama");
+  fireEvent.click(screen.getByRole("button", { name: "Save segment folder" }));
+
+  expect(await screen.findByText("Saved.")).toBeDefined();
+  expect(updates).toMatchObject([{ settings: { segmentFolder: "/dev/shm/nama" } }]);
+});
+
+test("a segment folder that isn't an absolute path is refused under its field", async () => {
+  openApp(
+    "/admin/playback",
+    fakeServer({
+      signedIn: admin,
+      serverService: {
+        getPlaybackStatus: () => ({}),
+        updatePlaybackSettings: () => {
+          throw refused(Code.InvalidArgument, "the segment folder must be an absolute path", {
+            reason: RefusalReason.FOLDER_NOT_ABSOLUTE,
+            field: "settings.segment_folder",
+          });
+        },
+      },
+    }),
+  );
+
+  await screen.findByLabelText("Segment folder");
+  fill("Segment folder", "shm/nama");
+  fireEvent.click(screen.getByRole("button", { name: "Save segment folder" }));
+
+  await expectUnderField("Segment folder", "The segment folder must be an absolute path.");
 });

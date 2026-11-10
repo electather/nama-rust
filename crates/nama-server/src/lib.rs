@@ -35,14 +35,18 @@ use tokio::net::TcpListener;
 
 use crate::{
     config::Config,
+    contents::Contents,
     db::Database,
     events::EventBus,
     ffmpeg::Ffmpeg,
     matching::Matcher,
+    playback::running::RunningPlans,
+    playback::subtitles,
     plugin_settings::PluginSettings,
     requests::{PROGRESS_EVERY, Requests},
     scanner::Scanner,
-    server_settings::ServerUrl,
+    server_settings::{SegmentFolder, ServerUrl},
+    tracks::Tracks,
     users::SetupCode,
 };
 
@@ -61,7 +65,8 @@ use crate::{
 /// Processing Requests are progressing, until `shutdown` resolves.
 ///
 /// While the Server has no Users, `Setup` creates the first Admin for whoever gives `setup_code`.
-/// Admins see the `ffmpeg` found at startup with `GetPlaybackStatus`.
+/// Admins see the `ffmpeg` found at startup with `GetPlaybackStatus`. Plans running when
+/// `shutdown` resolves are stopped and their segment files deleted.
 ///
 /// `Setup` and `SignIn` are rate limited by the client's IP address. That is the peer's, unless the
 /// peer is in [`Config::trusted_proxies`], whose `X-Forwarded-For` names the client.
@@ -90,24 +95,25 @@ pub fn serve(
     let server_url = ServerUrl::default();
     let events = EventBus::new(Arc::clone(&db), registry.clone(), server_url.clone());
     let ffmpeg = Arc::new(ffmpeg);
+    let subtitles = subtitles::Cache::new(&config.data_dir);
     let scanner = Scanner::new(
         Arc::clone(&db),
         registry.clone(),
         events.clone(),
         Arc::clone(&ffmpeg),
+        subtitles.clone(),
     );
     let matcher = Matcher::new(Arc::clone(&db), registry.clone(), events.clone());
     let requests = Requests::new(Arc::clone(&db), matcher, events.clone(), registry.clone());
-    let load_server_url = {
-        let (server_url, db) = (server_url.clone(), Arc::clone(&db));
-        async move {
-            if let Err(err) = server_url.load(&db).await {
-                tracing::error!(
-                    "reading the Server URL failed, so notifications have no links: {err}"
-                );
-            }
-        }
-    };
+    let segment_folder = SegmentFolder::new(config.data_dir.join("transcodes"));
+    let load_settings = load_settings(server_url.clone(), segment_folder.clone(), Arc::clone(&db));
+    let running = RunningPlans::new(
+        segment_folder.clone(),
+        Arc::clone(&ffmpeg),
+        Contents::new(Arc::clone(&db)),
+        Tracks::new(Arc::clone(&db)),
+        events.clone(),
+    );
     let app = api::router(
         config,
         db,
@@ -116,14 +122,18 @@ pub fn serve(
         events.clone(),
         requests.clone(),
         server_url,
+        segment_folder,
+        running.clone(),
         setup_code,
         ffmpeg,
+        subtitles,
     );
     #[cfg(feature = "web")]
     let app = app.layer(axum::middleware::from_fn(web::serve));
     async move {
-        // Before anything can publish an event, so that no notification misses its link.
-        load_server_url.await;
+        // Before anything can publish an event, so that no notification misses its link, and
+        // before serving, so the sweep deletes no plan's files but an earlier run's.
+        load_settings.await;
         scanner.start_all().await;
         // In the background, so a slow Fulfiller doesn't hold up serving.
         let progress = requests.clone();
@@ -142,6 +152,7 @@ pub fn serve(
             events.close();
         })
         .await;
+        running.stop_all().await;
         scanner.shutdown().await;
         // The Requests not handed off yet stay Approved, so the next start hands them off. The one
         // being handed off now runs on in a task of its own (`HandOff::request`), which nothing
@@ -163,4 +174,18 @@ pub fn serve(
         }
         served
     }
+}
+
+/// Reads the Server URL and the segment folder from `db`, logging a failure and going on with the
+/// default, then sweeps the segment files an earlier run left.
+async fn load_settings(server_url: ServerUrl, segment_folder: SegmentFolder, db: Arc<Database>) {
+    if let Err(err) = server_url.load(&db).await {
+        tracing::error!("reading the Server URL failed, so notifications have no links: {err}");
+    }
+    if let Err(err) = segment_folder.load(&db).await {
+        tracing::error!(
+            "reading the segment folder failed, so segment files go to the default: {err}"
+        );
+    }
+    playback::running::sweep_leftovers(&segment_folder).await;
 }

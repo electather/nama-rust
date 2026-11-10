@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file nama/v1/server.proto.
  */
 export const file_nama_v1_server: GenFile = /*@__PURE__*/
-  fileDesc("ChRuYW1hL3YxL3NlcnZlci5wcm90bxIHbmFtYS52MSIWChRHZXRTZXJ2ZXJJbmZvUmVxdWVzdCJOChVHZXRTZXJ2ZXJJbmZvUmVzcG9uc2USDAoEbmFtZRgBIAEoCRIPCgd2ZXJzaW9uGAIgASgJEhYKDnNldHVwX3JlcXVpcmVkGAMgASgIIhoKGEdldFNlcnZlclNldHRpbmdzUmVxdWVzdCJGChlHZXRTZXJ2ZXJTZXR0aW5nc1Jlc3BvbnNlEikKCHNldHRpbmdzGAEgASgLMhcubmFtYS52MS5TZXJ2ZXJTZXR0aW5ncyJIChtVcGRhdGVTZXJ2ZXJTZXR0aW5nc1JlcXVlc3QSKQoIc2V0dGluZ3MYASABKAsyFy5uYW1hLnYxLlNlcnZlclNldHRpbmdzIkkKHFVwZGF0ZVNlcnZlclNldHRpbmdzUmVzcG9uc2USKQoIc2V0dGluZ3MYASABKAsyFy5uYW1hLnYxLlNlcnZlclNldHRpbmdzIh0KDlNlcnZlclNldHRpbmdzEgsKA3VybBgBIAEoCSIaChhHZXRQbGF5YmFja1N0YXR1c1JlcXVlc3QimwEKGUdldFBsYXliYWNrU3RhdHVzUmVzcG9uc2USJQoGZmZtcGVnGAEgASgLMhUubmFtYS52MS5Gb3VuZFByb2dyYW0SJgoHZmZwcm9iZRgCIAEoCzIVLm5hbWEudjEuRm91bmRQcm9ncmFtEhYKDmZmbXBlZ19wcm9ibGVtGAMgASgJEhcKD2ZmcHJvYmVfcHJvYmxlbRgEIAEoCSItCgxGb3VuZFByb2dyYW0SDAoEcGF0aBgBIAEoCRIPCgd2ZXJzaW9uGAIgASgJMpADCg1TZXJ2ZXJTZXJ2aWNlElMKDUdldFNlcnZlckluZm8SHS5uYW1hLnYxLkdldFNlcnZlckluZm9SZXF1ZXN0Gh4ubmFtYS52MS5HZXRTZXJ2ZXJJbmZvUmVzcG9uc2UiA5ACARJfChFHZXRTZXJ2ZXJTZXR0aW5ncxIhLm5hbWEudjEuR2V0U2VydmVyU2V0dGluZ3NSZXF1ZXN0GiIubmFtYS52MS5HZXRTZXJ2ZXJTZXR0aW5nc1Jlc3BvbnNlIgOQAgESaAoUVXBkYXRlU2VydmVyU2V0dGluZ3MSJC5uYW1hLnYxLlVwZGF0ZVNlcnZlclNldHRpbmdzUmVxdWVzdBolLm5hbWEudjEuVXBkYXRlU2VydmVyU2V0dGluZ3NSZXNwb25zZSIDkAICEl8KEUdldFBsYXliYWNrU3RhdHVzEiEubmFtYS52MS5HZXRQbGF5YmFja1N0YXR1c1JlcXVlc3QaIi5uYW1hLnYxLkdldFBsYXliYWNrU3RhdHVzUmVzcG9uc2UiA5ACAWIGcHJvdG8z");
+  fileDesc("ChRuYW1hL3YxL3NlcnZlci5wcm90bxIHbmFtYS52MSIWChRHZXRTZXJ2ZXJJbmZvUmVxdWVzdCJOChVHZXRTZXJ2ZXJJbmZvUmVzcG9uc2USDAoEbmFtZRgBIAEoCRIPCgd2ZXJzaW9uGAIgASgJEhYKDnNldHVwX3JlcXVpcmVkGAMgASgIIhoKGEdldFNlcnZlclNldHRpbmdzUmVxdWVzdCJGChlHZXRTZXJ2ZXJTZXR0aW5nc1Jlc3BvbnNlEikKCHNldHRpbmdzGAEgASgLMhcubmFtYS52MS5TZXJ2ZXJTZXR0aW5ncyJIChtVcGRhdGVTZXJ2ZXJTZXR0aW5nc1JlcXVlc3QSKQoIc2V0dGluZ3MYASABKAsyFy5uYW1hLnYxLlNlcnZlclNldHRpbmdzIkkKHFVwZGF0ZVNlcnZlclNldHRpbmdzUmVzcG9uc2USKQoIc2V0dGluZ3MYASABKAsyFy5uYW1hLnYxLlNlcnZlclNldHRpbmdzIh0KDlNlcnZlclNldHRpbmdzEgsKA3VybBgBIAEoCSIaChhHZXRQbGF5YmFja1N0YXR1c1JlcXVlc3QimwEKGUdldFBsYXliYWNrU3RhdHVzUmVzcG9uc2USJQoGZmZtcGVnGAEgASgLMhUubmFtYS52MS5Gb3VuZFByb2dyYW0SJgoHZmZwcm9iZRgCIAEoCzIVLm5hbWEudjEuRm91bmRQcm9ncmFtEhYKDmZmbXBlZ19wcm9ibGVtGAMgASgJEhcKD2ZmcHJvYmVfcHJvYmxlbRgEIAEoCSItCgxGb3VuZFByb2dyYW0SDAoEcGF0aBgBIAEoCRIPCgd2ZXJzaW9uGAIgASgJIhwKGkdldFBsYXliYWNrU2V0dGluZ3NSZXF1ZXN0IkoKG0dldFBsYXliYWNrU2V0dGluZ3NSZXNwb25zZRIrCghzZXR0aW5ncxgBIAEoCzIZLm5hbWEudjEuUGxheWJhY2tTZXR0aW5ncyJMCh1VcGRhdGVQbGF5YmFja1NldHRpbmdzUmVxdWVzdBIrCghzZXR0aW5ncxgBIAEoCzIZLm5hbWEudjEuUGxheWJhY2tTZXR0aW5ncyJNCh5VcGRhdGVQbGF5YmFja1NldHRpbmdzUmVzcG9uc2USKwoIc2V0dGluZ3MYASABKAsyGS5uYW1hLnYxLlBsYXliYWNrU2V0dGluZ3MiKgoQUGxheWJhY2tTZXR0aW5ncxIWCg5zZWdtZW50X2ZvbGRlchgBIAEoCTLnBAoNU2VydmVyU2VydmljZRJTCg1HZXRTZXJ2ZXJJbmZvEh0ubmFtYS52MS5HZXRTZXJ2ZXJJbmZvUmVxdWVzdBoeLm5hbWEudjEuR2V0U2VydmVySW5mb1Jlc3BvbnNlIgOQAgESXwoRR2V0U2VydmVyU2V0dGluZ3MSIS5uYW1hLnYxLkdldFNlcnZlclNldHRpbmdzUmVxdWVzdBoiLm5hbWEudjEuR2V0U2VydmVyU2V0dGluZ3NSZXNwb25zZSIDkAIBEmgKFFVwZGF0ZVNlcnZlclNldHRpbmdzEiQubmFtYS52MS5VcGRhdGVTZXJ2ZXJTZXR0aW5nc1JlcXVlc3QaJS5uYW1hLnYxLlVwZGF0ZVNlcnZlclNldHRpbmdzUmVzcG9uc2UiA5ACAhJfChFHZXRQbGF5YmFja1N0YXR1cxIhLm5hbWEudjEuR2V0UGxheWJhY2tTdGF0dXNSZXF1ZXN0GiIubmFtYS52MS5HZXRQbGF5YmFja1N0YXR1c1Jlc3BvbnNlIgOQAgESZQoTR2V0UGxheWJhY2tTZXR0aW5ncxIjLm5hbWEudjEuR2V0UGxheWJhY2tTZXR0aW5nc1JlcXVlc3QaJC5uYW1hLnYxLkdldFBsYXliYWNrU2V0dGluZ3NSZXNwb25zZSIDkAIBEm4KFlVwZGF0ZVBsYXliYWNrU2V0dGluZ3MSJi5uYW1hLnYxLlVwZGF0ZVBsYXliYWNrU2V0dGluZ3NSZXF1ZXN0GicubmFtYS52MS5VcGRhdGVQbGF5YmFja1NldHRpbmdzUmVzcG9uc2UiA5ACAmIGcHJvdG8z");
 
 /**
  * @generated from message nama.v1.GetServerInfoRequest
@@ -230,6 +230,95 @@ export const FoundProgramSchema: GenMessage<FoundProgram> = /*@__PURE__*/
   messageDesc(file_nama_v1_server, 9);
 
 /**
+ * @generated from message nama.v1.GetPlaybackSettingsRequest
+ */
+export type GetPlaybackSettingsRequest = Message<"nama.v1.GetPlaybackSettingsRequest"> & {
+};
+
+/**
+ * Describes the message nama.v1.GetPlaybackSettingsRequest.
+ * Use `create(GetPlaybackSettingsRequestSchema)` to create a new message.
+ */
+export const GetPlaybackSettingsRequestSchema: GenMessage<GetPlaybackSettingsRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_server, 10);
+
+/**
+ * @generated from message nama.v1.GetPlaybackSettingsResponse
+ */
+export type GetPlaybackSettingsResponse = Message<"nama.v1.GetPlaybackSettingsResponse"> & {
+  /**
+   * @generated from field: nama.v1.PlaybackSettings settings = 1;
+   */
+  settings?: PlaybackSettings | undefined;
+};
+
+/**
+ * Describes the message nama.v1.GetPlaybackSettingsResponse.
+ * Use `create(GetPlaybackSettingsResponseSchema)` to create a new message.
+ */
+export const GetPlaybackSettingsResponseSchema: GenMessage<GetPlaybackSettingsResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_server, 11);
+
+/**
+ * @generated from message nama.v1.UpdatePlaybackSettingsRequest
+ */
+export type UpdatePlaybackSettingsRequest = Message<"nama.v1.UpdatePlaybackSettingsRequest"> & {
+  /**
+   * @generated from field: nama.v1.PlaybackSettings settings = 1;
+   */
+  settings?: PlaybackSettings | undefined;
+};
+
+/**
+ * Describes the message nama.v1.UpdatePlaybackSettingsRequest.
+ * Use `create(UpdatePlaybackSettingsRequestSchema)` to create a new message.
+ */
+export const UpdatePlaybackSettingsRequestSchema: GenMessage<UpdatePlaybackSettingsRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_server, 12);
+
+/**
+ * @generated from message nama.v1.UpdatePlaybackSettingsResponse
+ */
+export type UpdatePlaybackSettingsResponse = Message<"nama.v1.UpdatePlaybackSettingsResponse"> & {
+  /**
+   * The settings as saved.
+   *
+   * @generated from field: nama.v1.PlaybackSettings settings = 1;
+   */
+  settings?: PlaybackSettings | undefined;
+};
+
+/**
+ * Describes the message nama.v1.UpdatePlaybackSettingsResponse.
+ * Use `create(UpdatePlaybackSettingsResponseSchema)` to create a new message.
+ */
+export const UpdatePlaybackSettingsResponseSchema: GenMessage<UpdatePlaybackSettingsResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_server, 13);
+
+/**
+ * What an admin sets about how the Server plays Versions it changes.
+ *
+ * @generated from message nama.v1.PlaybackSettings
+ */
+export type PlaybackSettings = Message<"nama.v1.PlaybackSettings"> & {
+  /**
+   * The folder a Remux or Transcode writes its segment files to, an absolute path such as a
+   * tmpfs's. Each plan's files go in a folder of their own inside it, deleted a minute after the
+   * plan was last asked for. Empty, the default, for `transcodes` in the Server's data folder.
+   *
+   * @generated from field: string segment_folder = 1;
+   */
+  segmentFolder: string;
+};
+
+/**
+ * Describes the message nama.v1.PlaybackSettings.
+ * Use `create(PlaybackSettingsSchema)` to create a new message.
+ */
+export const PlaybackSettingsSchema: GenMessage<PlaybackSettings> = /*@__PURE__*/
+  messageDesc(file_nama_v1_server, 14);
+
+/**
  * Facts about a Server that any client can read, before signing in, and the Server's settings.
  *
  * @generated from service nama.v1.ServerService
@@ -278,6 +367,28 @@ export const ServerService: GenService<{
     methodKind: "unary";
     input: typeof GetPlaybackStatusRequestSchema;
     output: typeof GetPlaybackStatusResponseSchema;
+  },
+  /**
+   * Returns how the Server plays Versions it changes. Needs `PERMISSION_ADMIN`.
+   *
+   * @generated from rpc nama.v1.ServerService.GetPlaybackSettings
+   */
+  getPlaybackSettings: {
+    methodKind: "unary";
+    input: typeof GetPlaybackSettingsRequestSchema;
+    output: typeof GetPlaybackSettingsResponseSchema;
+  },
+  /**
+   * Replaces how the Server plays Versions it changes, for plans made from then on. Needs
+   * `PERMISSION_ADMIN`. A `segment_folder` that isn't an absolute path is refused with
+   * `REFUSAL_REASON_FOLDER_NOT_ABSOLUTE` naming it, and nothing changes.
+   *
+   * @generated from rpc nama.v1.ServerService.UpdatePlaybackSettings
+   */
+  updatePlaybackSettings: {
+    methodKind: "unary";
+    input: typeof UpdatePlaybackSettingsRequestSchema;
+    output: typeof UpdatePlaybackSettingsResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_nama_v1_server, 0);

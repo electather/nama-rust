@@ -292,6 +292,16 @@ impl Contents {
         .collect())
     }
 
+    /// Every file stored, in every Library.
+    pub(crate) async fn every_stored(&self) -> Result<Vec<Stored>, sqlx::Error> {
+        sqlx::query_as!(
+            Stored,
+            r#"SELECT id AS "id!", size, modified_ns, parser_version FROM library_files"#
+        )
+        .fetch_all(self.db.reader())
+        .await
+    }
+
     /// Returns the events for the Items `changes` removes and adds. Replacing an Item removes what
     /// Matching decided about it.
     pub(crate) async fn apply(

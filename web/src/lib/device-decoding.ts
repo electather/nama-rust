@@ -36,9 +36,24 @@ export async function findDeviceDecoding() {
       ...audioCodecs,
     ],
     hdr: matchMedia("(dynamic-range: high)").matches,
-    nativeHls: video.canPlayType("application/vnd.apple.mpegurl") !== "",
+    nativeHls: playsHlsNatively(),
     mse: "MediaSource" in window || "ManagedMediaSource" in window,
+    audioChannels: audioChannels(),
   };
+}
+
+/** How many audio channels this Device plays out at once, such as 6 for 5.1, or 0 if it can't say. */
+function audioChannels() {
+  if (!("AudioContext" in window)) return 0;
+  const context = new AudioContext();
+  const channels = context.destination.maxChannelCount;
+  void context.close();
+  return channels;
+}
+
+/** Whether this browser's `<video>` plays an HLS playlist itself, without hls.js. */
+export function playsHlsNatively() {
+  return document.createElement("video").canPlayType("application/vnd.apple.mpegurl") !== "";
 }
 
 /** Those of `contentTypes` this Device decodes, as `configuration` asks about each. */

@@ -2955,7 +2955,7 @@ mod tests {
     async fn a_match_pinned_by_a_caller_who_left_publishes_it_and_the_request_it_made_available() {
         let tmdb = FakeTmdb::start().await;
         let folder = tempfile::tempdir().unwrap();
-        let (_data, requests) = approved_for(&[949], Arc::new(Asked::default())).await;
+        let (data, requests) = approved_for(&[949], Arc::new(Asked::default())).await;
         enable_tmdb(&requests, &tmdb);
         let root = folder.path().canonicalize().unwrap();
         let library = Libraries::new(Arc::clone(&requests.db))
@@ -2985,6 +2985,7 @@ mod tests {
             requests.hand_off.plugins.clone(),
             requests.hand_off.events().clone(),
             Arc::new(crate::ffmpeg::Ffmpeg::default()),
+            crate::playback::subtitles::Cache::new(data.path()),
         );
         let scan = scanner.lock(library).await;
         let mut published = Box::pin(requests.hand_off.events().subscribe(Filter::default()));

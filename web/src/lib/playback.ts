@@ -12,9 +12,14 @@ import {
   useSyncExternalStore,
 } from "react";
 
-import { PlaybackPlanSchema, PlaybackService } from "@/gen/nama/v1/playback_pb";
+import {
+  type PlaybackMethod,
+  PlaybackPlanSchema,
+  PlaybackService,
+} from "@/gen/nama/v1/playback_pb";
 import { findDeviceDecoding } from "@/lib/device-decoding";
 import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
+import { toMs } from "@/lib/watch-state";
 
 /** How long the controls stay after the pointer or keyboard was last used, while playing. */
 const CONTROLS_LINGER_MS = 3000;
@@ -22,27 +27,69 @@ const SEEK_STEP_SECONDS = 10;
 const VOLUME_STEP = 0.1;
 
 /**
- * The Server's Playback Plan for Version `versionId` on this Device, starting where `watchState`
- * stopped. The plan is asked for once each time the player opens, and never reused after.
+ * The Server's Playback Plan for Version `versionId` on this Device, the position in milliseconds
+ * it starts from, at first where `watchState` stopped, and `onCantPlay` for when the browser fails
+ * to play it. `onCantPlay` asks for a new plan from where the `<video>` stands, without the method
+ * that failed, or else sets `gaveUp`: only once per method, so a Server that plans it again can't
+ * make the player ask forever. Each plan is asked for once, and never reused after.
  */
-export function usePlaybackPlan(versionId: bigint, watchState: WatchState | undefined) {
+export function usePlaybackPlan({
+  versionId,
+  watchState,
+}: {
+  versionId: bigint;
+  watchState: WatchState | undefined;
+}) {
   const transport = useTransport();
-  // Where it stood on opening: a new plan would reload the `<video>`, so the refetches each Watch
-  // State report causes mustn't ask again.
-  const [startPositionMs] = useState(() =>
-    watchState && !watchState.played ? watchState.positionMs : 0n,
-  );
-  return useSuspenseQuery({
-    queryKey: ["planPlayback", String(versionId)],
+  // Where it stood on opening, until a method fails: a new plan would reload the `<video>`, so the
+  // refetches each Watch State report causes mustn't ask again.
+  const [{ failedMethods, startPositionMs }, setAsking] = useState(() => ({
+    failedMethods: [] as PlaybackMethod[],
+    startPositionMs: watchState && !watchState.played ? watchState.positionMs : 0n,
+  }));
+  const [gaveUp, setGaveUp] = useState(false);
+  const plan = useSuspenseQuery({
+    queryKey: ["planPlayback", String(versionId), failedMethods, String(startPositionMs)],
     queryFn: async () => {
       const deviceDecoding = await findDeviceDecoding();
-      const input = { versionId, startPositionMs, deviceDecoding };
-      const { plan } = await callUnaryMethod(transport, PlaybackService.method.planPlayback, input);
-      return create(PlaybackPlanSchema, plan);
+      const input = { versionId, startPositionMs, deviceDecoding, failedMethods };
+      const response = await callUnaryMethod(transport, PlaybackService.method.planPlayback, input);
+      return create(PlaybackPlanSchema, response.plan);
     },
     staleTime: "static",
     gcTime: 0,
   }).data;
+  // Stable until the plan changes, so hls.js isn't restarted each time the player renders.
+  const onCantPlay = useCallback(
+    (video: HTMLVideoElement) => {
+      // So a failure that leaves its buffer playing isn't heard behind the loading screen.
+      video.pause();
+      // Read here: React may run the updater later, when the `<video>` has moved on.
+      const resumeFrom = resumeFromMs(video, startPositionMs);
+      if (failedMethods.includes(plan.method)) setGaveUp(true);
+      // hls.js and the `<video>` may both report one failure: only the first asks again.
+      else
+        setAsking((asking) =>
+          asking.failedMethods.includes(plan.method)
+            ? asking
+            : {
+                failedMethods: [...asking.failedMethods, plan.method],
+                startPositionMs: resumeFrom,
+              },
+        );
+    },
+    [failedMethods, plan.method, startPositionMs],
+  );
+  return { plan, startPositionMs, gaveUp, onCantPlay };
+}
+
+/**
+ * Where `video` stands in milliseconds, or `startPositionMs` if it never loaded far enough to have
+ * started there.
+ */
+function resumeFromMs(video: HTMLVideoElement, startPositionMs: bigint) {
+  if (video.readyState < HTMLMediaElement.HAVE_METADATA) return startPositionMs;
+  return toMs(video.currentTime);
 }
 
 /** What the controls need of the `<video>`: what it's doing, and a way to act on it. */
@@ -154,10 +201,17 @@ const keysFocusUses: Record<string, string> = {
 };
 
 function shortcutFor(event: KeyboardEvent): Shortcut | undefined {
-  // Ctrl+F, Alt+arrows and the like belong to the browser, and a prevented key to whatever
-  // already used it, such as Esc closing playback info.
-  if (event.defaultPrevented || hasModifier(event) || focusUses(event)) return undefined;
-  return shortcuts[event.key];
+  return keyIsTaken(event) ? undefined : shortcuts[event.key];
+}
+
+// Ctrl+F, Alt+arrows and the like belong to the browser, every key to an open menu, and a
+// prevented key to whatever already used it, such as Esc closing playback info.
+function keyIsTaken(event: KeyboardEvent) {
+  return event.defaultPrevented || hasModifier(event) || inMenu(event) || focusUses(event);
+}
+
+function inMenu({ target }: KeyboardEvent) {
+  return target instanceof Element && target.closest('[role="menu"]') !== null;
 }
 
 function hasModifier(event: KeyboardEvent) {

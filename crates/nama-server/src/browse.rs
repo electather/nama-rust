@@ -452,6 +452,7 @@ mod tests {
                 title: None,
                 default: false,
                 forced: false,
+                sdh: false,
                 kind: TrackKind::Audio { channels: Some(2) },
             }],
         };

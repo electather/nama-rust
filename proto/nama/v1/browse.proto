@@ -98,6 +98,9 @@ message Track {
   bool default = 4;
   // Whether the file marks it to show even when subtitles are off, as for foreign dialogue.
   bool forced = 5;
+  // Whether the file marks it for the deaf and hard of hearing (SDH), as subtitles that also
+  // describe sounds.
+  bool sdh = 9;
   // What kind of Track it is, with the facts only that kind has.
   oneof kind {
     VideoTrack video = 6;

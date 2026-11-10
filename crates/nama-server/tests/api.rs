@@ -10,9 +10,10 @@ use std::net::SocketAddr;
 
 use connectrpc::{ErrorCode, client::HttpClient};
 use nama_proto::nama::v1::{
-    FoundProgram, GetPlaybackStatusRequest, GetPlaybackStatusResponse, GetServerInfoRequest,
-    GetServerInfoResponse, GetServerSettingsRequest, RefusalReason, ServerServiceClient,
-    ServerSettings, UpdateServerSettingsRequest,
+    FoundProgram, GetPlaybackSettingsRequest, GetPlaybackStatusRequest, GetPlaybackStatusResponse,
+    GetServerInfoRequest, GetServerInfoResponse, GetServerSettingsRequest, PlaybackSettings,
+    RefusalReason, ServerServiceClient, ServerSettings, UpdatePlaybackSettingsRequest,
+    UpdateServerSettingsRequest,
 };
 use nama_server::{config::Config, ffmpeg::Ffmpeg};
 use refused::assert_refused;
@@ -249,4 +250,67 @@ async fn the_playback_status_says_why_the_server_cant_use_ffmpeg_or_ffprobe() {
         "ffmpeg wasn't found at the configured path /opt/ffmpeg"
     );
     assert_eq!(status.ffprobe_problem, "ffprobe wasn't found on PATH");
+}
+
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn segment_folder(client: &ServerServiceClient<HttpClient>) -> String {
+    client
+        .get_playback_settings(GetPlaybackSettingsRequest::default())
+        .await
+        .unwrap()
+        .into_owned()
+        .settings
+        .segment_folder
+        .clone()
+}
+
+fn set_segment_folder(folder: &str) -> UpdatePlaybackSettingsRequest {
+    UpdatePlaybackSettingsRequest {
+        settings: PlaybackSettings {
+            segment_folder: folder.to_owned(),
+            ..Default::default()
+        }
+        .into(),
+        ..Default::default()
+    }
+}
+
+#[tokio::test]
+async fn the_segment_folder_is_empty_until_an_admin_sets_it() {
+    let server = TestServer::builder().start().await;
+    let client = ServerServiceClient::new(HttpClient::plaintext(), server.client_config());
+    let unset = segment_folder(&client).await;
+
+    client
+        .update_playback_settings(set_segment_folder(" /dev/shm/nama "))
+        .await
+        .unwrap();
+
+    assert_eq!(unset, "");
+    assert_eq!(segment_folder(&client).await, "/dev/shm/nama");
+}
+
+#[tokio::test]
+async fn a_segment_folder_that_isnt_an_absolute_path_is_refused_naming_it_and_nothing_changes() {
+    let server = TestServer::builder().start().await;
+    let client = ServerServiceClient::new(HttpClient::plaintext(), server.client_config());
+    client
+        .update_playback_settings(set_segment_folder("/dev/shm/nama"))
+        .await
+        .unwrap();
+
+    let updated = client
+        .update_playback_settings(set_segment_folder("shm/nama"))
+        .await;
+
+    let refusal = assert_refused(
+        updated,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_FOLDER_NOT_ABSOLUTE,
+    );
+    assert_eq!(refusal.field, "settings.segment_folder");
+    assert_eq!(segment_folder(&client).await, "/dev/shm/nama");
 }
