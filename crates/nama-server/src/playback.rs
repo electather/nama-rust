@@ -14,9 +14,9 @@
 //! path. The text subtitles a plan offers are served beside it ([`subtitles`]).
 
 pub(crate) mod running;
-mod subtitles;
+pub(crate) mod subtitles;
 
-use std::{collections::BTreeSet, path::Path as FsPath, sync::Arc};
+use std::{collections::BTreeSet, sync::Arc};
 
 use axum::{
     Router,
@@ -501,18 +501,18 @@ fn direct_play_url(version: i64) -> String {
 
 /// Serves `GET /media/versions/<id>` with the file of the Version `id` in `contents`, and 404 if
 /// there is none, and the text subtitles plans offer, read with `ffmpeg` and cached in
-/// `data_dir`. Whether the caller has a session is up to the layers the router is put behind.
+/// `subtitles`. Whether the caller has a session is up to the layers the router is put behind.
 pub(crate) fn router(
     contents: Contents,
     tracks: Tracks,
     ffmpeg: Arc<Ffmpeg>,
-    data_dir: &FsPath,
+    subtitles: subtitles::Cache,
 ) -> Router {
     let subtitles = subtitles::router(subtitles::Subtitles {
         contents: contents.clone(),
         tracks,
         ffmpeg,
-        cache: subtitles::Cache::new(data_dir),
+        cache: subtitles,
     });
     Router::new()
         .route("/media/versions/{id}", get(serve))

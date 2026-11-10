@@ -26,13 +26,14 @@ use connectrpc::{
 };
 use http::{fetch, fetch_range};
 use nama_proto::nama::v1::{
-    AudioTrack, BrowseServiceClient, ClearMatchRequest, ContinueWatchingEntry, DeviceDecoding,
-    Episode, ExternalId, GetMovieRequest, GetShowRequest, GetShowResponse, HdrFormat, LibraryKind,
-    ListContinueWatchingRequest, ListEpisodesRequest, ListMoviesRequest, ListShowsRequest,
-    MatchServiceClient, Movie, PlanPlaybackRequest, PlaybackMethod, PlaybackPlan,
-    PlaybackServiceClient, RefusalReason, ReportProgressRequest, Season, SetMatchRequest,
-    SetPlayedRequest, Show, ShowSeason, Track, Version, VideoTrack, WatchState,
-    WatchStateServiceClient, continue_watching_entry, external_id, set_played_request::Target,
+    AudioTrack, BrowseServiceClient, ClearMatchRequest, ContinueWatchingEntry,
+    DeleteLibraryRequest, DeviceDecoding, Episode, ExternalId, GetMovieRequest, GetShowRequest,
+    GetShowResponse, HdrFormat, LibraryKind, LibraryServiceClient, ListContinueWatchingRequest,
+    ListEpisodesRequest, ListMoviesRequest, ListShowsRequest, MatchServiceClient, Movie,
+    PlanPlaybackRequest, PlaybackMethod, PlaybackPlan, PlaybackServiceClient, RefusalReason,
+    ReportProgressRequest, Season, SetMatchRequest, SetPlayedRequest, Show, ShowSeason, Track,
+    Version, VideoTrack, WatchState, WatchStateServiceClient, continue_watching_entry, external_id,
+    set_played_request::Target,
 };
 use nama_server::{
     config::Config,
@@ -127,7 +128,10 @@ impl Fixture {
     /// Starts a Server with the ffmpeg on `PATH` and a Movies Library holding Alien, with English
     /// SDH and French Forced SRT subtitles, scanned and Matched.
     async fn subtitled_alien() -> Self {
-        Self::alien_written_by(ALIEN_1080P, write_english_and_french_srt).await
+        Self::alien_written_by(ALIEN_1080P, |path| {
+            write_english_and_french_srt(path, "Bonjour");
+        })
+        .await
     }
 
     /// Starts a Server with the ffmpeg on `PATH` and a Movies Library holding Alien as `file`,
@@ -145,6 +149,25 @@ impl Fixture {
         write(&file);
         fx.scan_until_decided(1).await;
         fx
+    }
+
+    /// Fetches Alien's subtitles, so the Server caches them.
+    async fn cache_subtitles(&self) {
+        let version = *self.version_ids(ALIEN).await.first().unwrap();
+        let token = Some(self.server.admin_token.as_str());
+        for subtitle in self.plan(version).await.unwrap().subtitles {
+            assert_eq!(fetch(&self.server, &subtitle.url, token).await.status, 200);
+        }
+        assert_ne!(self.cached_subtitles(), Vec::<PathBuf>::new());
+    }
+
+    /// What the Server's subtitle cache holds a folder for, as the Versions it caches.
+    fn cached_subtitles(&self) -> Vec<PathBuf> {
+        let versions = self.server.data_dir().join("subtitles/versions");
+        fs::read_dir(versions).map_or_else(
+            |_| Vec::new(),
+            |entries| entries.map(|entry| entry.unwrap().path()).collect(),
+        )
     }
 
     /// Starts a Server with a Movies Library holding Alien, scanned and Matched.
@@ -217,14 +240,16 @@ impl Fixture {
     /// The Admin's Playback Plan for the Version `version`, on a Device that decodes H.264 and AAC
     /// in MP4, and plays HLS through Media Source Extensions, as Chrome does.
     async fn plan(&self, version: i64) -> Result<PlaybackPlan, ConnectError> {
-        self.plan_on_device(version, &[], 0).await
+        self.plan_on_device(version, &[], &[], 0).await
     }
 
-    /// As [`Self::plan`], on a Device where the methods `failed` just failed to play it, and
-    /// which plays `audio_channels` channels at once.
+    /// As [`Self::plan`], on a Device that also decodes the content types `also_decodes`, where
+    /// the methods `failed` just failed to play it, and which plays `audio_channels` channels at
+    /// once.
     async fn plan_on_device(
         &self,
         version: i64,
+        also_decodes: &[&str],
         failed: &[PlaybackMethod],
         audio_channels: u32,
     ) -> Result<PlaybackPlan, ConnectError> {
@@ -233,12 +258,14 @@ impl Fixture {
             "video/mp4",
             r#"video/mp4; codecs="avc1.640028""#,
             r#"audio/mp4; codecs="mp4a.40.2""#,
-        ];
+        ]
+        .iter()
+        .chain(also_decodes);
         let response = PlaybackServiceClient::new(HttpClient::plaintext(), config)
             .plan_playback(PlanPlaybackRequest {
                 version_id: version,
                 device_decoding: DeviceDecoding {
-                    content_types: content_types.map(str::to_owned).to_vec(),
+                    content_types: content_types.map(|&kind| kind.to_owned()).collect(),
                     mse: true,
                     audio_channels,
                     ..Default::default()
@@ -1352,7 +1379,7 @@ async fn dts_is_remuxed_as_aac_with_up_to_as_many_channels_as_the_device_plays()
         (6, "aac,6", "5.1 AAC"),
         (2, "aac,2", "stereo AAC, as this Device doesn't play 5.1"),
     ] {
-        let plan = fx.plan_on_device(version, &[], plays).await.unwrap();
+        let plan = fx.plan_on_device(version, &[], &[], plays).await.unwrap();
 
         assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_REMUX);
         assert_eq!(codecs(&plan), ["h264", "aac"]);
@@ -1373,13 +1400,47 @@ async fn a_version_whose_direct_play_just_failed_on_the_device_cant_be_played_an
     let version = fx.version_ids(ALIEN).await[0];
 
     let plan = fx
-        .plan_on_device(version, &[PlaybackMethod::PLAYBACK_METHOD_DIRECT_PLAY], 0)
+        .plan_on_device(
+            version,
+            &[],
+            &[PlaybackMethod::PLAYBACK_METHOD_DIRECT_PLAY],
+            0,
+        )
         .await
         .unwrap();
 
     assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_UNSPECIFIED);
     assert_eq!(plan.url, "");
     assert_eq!(plan.reasons[3], "Direct Play failed on this Device");
+}
+
+#[tokio::test]
+async fn a_version_whose_direct_play_just_failed_on_a_device_that_decodes_it_is_remuxed() {
+    let (fx, version) = Fixture::alien_mkv(system_ffmpeg(), "aac").await;
+    let matroska = "video/x-matroska";
+    let direct_play = fx
+        .plan_on_device(version, &[matroska], &[], 0)
+        .await
+        .unwrap();
+    assert_eq!(
+        direct_play.method,
+        PlaybackMethod::PLAYBACK_METHOD_DIRECT_PLAY
+    );
+
+    let failed = [PlaybackMethod::PLAYBACK_METHOD_DIRECT_PLAY];
+    let plan = fx
+        .plan_on_device(version, &[matroska], &failed, 0)
+        .await
+        .unwrap();
+
+    assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_REMUX);
+    assert!(
+        plan.reasons
+            .iter()
+            .any(|reason| reason == "Direct Play failed on this Device"),
+        "{:?}",
+        plan.reasons
+    );
 }
 
 #[tokio::test]
@@ -1395,17 +1456,21 @@ async fn planning_an_unknown_version_is_refused() {
     );
 }
 
-/// Writes a second of video with English SDH and French Forced SRT subtitles, as Matroska, to
-/// `path`, with the ffmpeg on `PATH`.
+/// Writes a second of video with English SDH and French Forced SRT subtitles, the French saying
+/// `french`, as Matroska, to `path`, with the ffmpeg on `PATH`.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
-fn write_english_and_french_srt(path: &Path) {
+fn write_english_and_french_srt(path: &Path, french_says: &str) {
     let srt = tempfile::tempdir().unwrap();
     let (english, french) = (srt.path().join("eng.srt"), srt.path().join("fre.srt"));
     fs::write(&english, "1\n00:00:00,000 --> 00:00:01,000\nHello\n").unwrap();
-    fs::write(&french, "1\n00:00:00,000 --> 00:00:01,000\nBonjour\n").unwrap();
+    fs::write(
+        &french,
+        format!("1\n00:00:00,000 --> 00:00:01,000\n{french_says}\n"),
+    )
+    .unwrap();
     let status = std::process::Command::new("ffmpeg")
         .args([
             "-v",
@@ -1476,6 +1541,56 @@ async fn an_mkvs_srt_tracks_are_offered_with_their_plan_and_served_as_webvtt() {
     );
     let again = fetch(&fx.server, &plan.subtitles[1].url, token).await;
     assert_eq!(String::from_utf8(again.body).unwrap(), french);
+}
+
+#[tokio::test]
+async fn a_replaced_file_probed_again_serves_its_own_subtitles_not_the_cached_ones() {
+    let fx = Fixture::subtitled_alien().await;
+    let version = fx.version_ids(ALIEN).await[0];
+    let token = Some(fx.server.admin_token.as_str());
+    let old_french = &fx.plan(version).await.unwrap().subtitles[1].url;
+    let cached = fetch(&fx.server, old_french, token).await;
+    assert!(String::from_utf8(cached.body).unwrap().contains("Bonjour"));
+    let before = fx.item(ALIEN_1080P).await;
+
+    write_english_and_french_srt(&fx.folder.join(ALIEN_1080P), "Salut");
+    fx.rescan_until_replaced(ALIEN_1080P, before).await;
+    let french = &fx.plan(version).await.unwrap().subtitles[1].url;
+    let replaced = fetch(&fx.server, french, token).await;
+
+    let replaced = String::from_utf8(replaced.body).unwrap();
+    assert!(
+        replaced.contains("00:00.000 --> 00:01.000\nSalut"),
+        "{replaced}"
+    );
+}
+
+#[tokio::test]
+async fn a_removed_versions_cached_subtitles_are_removed() {
+    let fx = Fixture::subtitled_alien().await;
+    fx.cache_subtitles().await;
+
+    fs::remove_file(fx.folder.join(ALIEN_1080P)).unwrap();
+
+    fx.scan_until(fx.library, async || fx.cached_subtitles().is_empty())
+        .await;
+}
+
+#[tokio::test]
+async fn a_deleted_librarys_cached_subtitles_are_removed() {
+    let fx = Fixture::subtitled_alien().await;
+    fx.cache_subtitles().await;
+
+    let libraries = LibraryServiceClient::new(HttpClient::plaintext(), fx.server.client_config());
+    libraries
+        .delete_library(DeleteLibraryRequest {
+            id: fx.library,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    assert_eq!(fx.cached_subtitles(), Vec::<PathBuf>::new());
 }
 
 #[tokio::test]
