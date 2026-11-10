@@ -2650,10 +2650,19 @@ impl PluginService for PluginServiceHandler {
     ) -> ServiceResult<proto::ReplaceQualitiesResponse> {
         let request = request.to_owned_message();
         let plugin = self.listed(&PluginId::from(request.id))?;
-        qualities::check(&request.qualities)?;
-        if !request.qualities.is_empty() {
-            self.check_profiles(&plugin, &request.qualities).await?;
-        }
+        // Only a list with Qualities asks the settings check, so a Fulfiller that's down can still
+        // have its list cleared.
+        let offered = if request.qualities.is_empty() {
+            settings::Choices::new()
+        } else {
+            let stored = self.stored(&plugin).await?;
+            self.plugins
+                .check_settings(&plugin.id, Settings::new(stored.settings))
+                .await
+                .map_err(|err| check_refused(&plugin.id, err, None))?
+        };
+        qualities::check(&request.qualities, &offered)
+            .map_err(|err| invalid_qualities(err, &plugin.id))?;
         let qualities = qualities::replace(&self.db, plugin.id, request.qualities)
             .await
             .map_err(database_failed)?;
@@ -2726,43 +2735,6 @@ impl PluginServiceHandler {
             }
         }
         Ok(())
-    }
-
-    /// Refuses `qualities` unless `plugin`'s settings check, run on its stored settings, offers
-    /// each one's profile for its `quality_profile` setting.
-    async fn check_profiles(
-        &self,
-        plugin: &Listed,
-        qualities: &[proto::Quality],
-    ) -> Result<(), ConnectError> {
-        let stored = self.stored(plugin).await?;
-        let offered = self
-            .plugins
-            .check_settings(&plugin.id, Settings::new(stored.settings))
-            .await
-            .map_err(|err| check_refused(&plugin.id, err, None))?;
-        let profiles = offered
-            .get(qualities::QUALITY_PROFILE)
-            .map(Vec::as_slice)
-            .unwrap_or_default();
-        let not_offered = qualities.iter().enumerate().find(|(_, quality)| {
-            !profiles
-                .iter()
-                .any(|profile| profile.value == quality.profile_id)
-        });
-        let Some((index, quality)) = not_offered else {
-            return Ok(());
-        };
-        let profile = &quality.profile_id;
-        let message = format!("{} doesn't offer the quality profile {profile}", plugin.id);
-        Err(
-            refuse(RefusalReason::REFUSAL_REASON_CHOICE_NOT_OFFERED, message)
-                .field(&format!("qualities[{index}].{}", qualities::PROFILE))
-                .param("pluginId", &plugin.id)
-                .param("settingKey", &qualities::QUALITY_PROFILE)
-                .param("settingValue", profile)
-                .into(),
-        )
     }
 
     /// What is stored for `plugin`. For one never stored, no settings, and enabled only if it is
@@ -3112,7 +3084,8 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_QUALITY_REPEATED
         | R::REFUSAL_REASON_DEFAULT_QUALITY_REQUIRED
         | R::REFUSAL_REASON_QUALITY_NOT_OFFERED
-        | R::REFUSAL_REASON_PAGE_TOKEN_INVALID => ErrorCode::InvalidArgument,
+        | R::REFUSAL_REASON_PAGE_TOKEN_INVALID
+        | R::REFUSAL_REASON_SHOW_HAS_QUALITY => ErrorCode::InvalidArgument,
         R::REFUSAL_REASON_SIGN_IN_REQUIRED
         | R::REFUSAL_REASON_WRONG_NAME_OR_PASSWORD
         | R::REFUSAL_REASON_WRONG_PASSWORD
@@ -3216,27 +3189,74 @@ fn database_failed(err: sqlx::Error) -> ConnectError {
     ConnectError::internal("the Server's database failed")
 }
 
-/// The refusal of a list of Qualities that breaks a list rule, naming the field at fault.
-impl From<qualities::Invalid> for ConnectError {
-    fn from(err: qualities::Invalid) -> Self {
+/// The refusal of a list of Qualities for the Plugin `plugin` that breaks a list rule, naming the
+/// field at fault.
+fn invalid_qualities(err: qualities::Invalid, plugin: &PluginId) -> ConnectError {
+    use RefusalReason as R;
+    let message = err.to_string();
+    let (reason, field) = match err {
+        qualities::Invalid::Blank(index, part) => (
+            R::REFUSAL_REASON_FIELD_REQUIRED,
+            format!("qualities[{index}].{part}"),
+        ),
+        qualities::Invalid::Repeated(index, part) => (
+            R::REFUSAL_REASON_QUALITY_REPEATED,
+            format!("qualities[{index}].{part}"),
+        ),
+        qualities::Invalid::NotOneDefault => (
+            R::REFUSAL_REASON_DEFAULT_QUALITY_REQUIRED,
+            "qualities".to_owned(),
+        ),
+        qualities::Invalid::ProfileNotOffered(index, profile) => {
+            let field = format!("qualities[{index}].{}", qualities::PROFILE);
+            return refuse(R::REFUSAL_REASON_CHOICE_NOT_OFFERED, message)
+                .field(&field)
+                .param("pluginId", plugin)
+                .param("settingKey", &qualities::QUALITY_PROFILE)
+                .param("settingValue", &profile)
+                .into();
+        }
+    };
+    refuse(reason, message).field(&field).into()
+}
+
+/// The refusal of a Quality a User named, in the field they named it in.
+impl From<qualities::Refused> for ConnectError {
+    fn from(err: qualities::Refused) -> Self {
         use RefusalReason as R;
         let message = err.to_string();
-        let (reason, field) = match err {
-            qualities::Invalid::Blank(index, part) => (
-                R::REFUSAL_REASON_FIELD_REQUIRED,
-                format!("qualities[{index}].{part}"),
-            ),
-            qualities::Invalid::Repeated(index, part) => (
-                R::REFUSAL_REASON_QUALITY_REPEATED,
-                format!("qualities[{index}].{part}"),
-            ),
-            qualities::Invalid::NotOneDefault => (
-                R::REFUSAL_REASON_DEFAULT_QUALITY_REQUIRED,
-                "qualities".to_owned(),
-            ),
+        let refused = match err {
+            qualities::Refused::NotAllowed => {
+                refuse(R::REFUSAL_REASON_QUALITY_NOT_ALLOWED, message).field(qualities::ASKED)
+            }
+            qualities::Refused::NotOffered { id, field } => {
+                refuse(R::REFUSAL_REASON_QUALITY_NOT_OFFERED, message)
+                    .field(field)
+                    .param("qualityId", &id)
+            }
+            qualities::Refused::NotTheShows { named, shows } => {
+                show_has_quality(message, qualities::ASKED, named, &shows)
+            }
+            qualities::Refused::ShowQualityFixed { named, shows } => {
+                show_has_quality(message, qualities::CHANGED, named, &shows)
+            }
         };
-        refuse(reason, message).field(&field).into()
+        refused.into()
     }
+}
+
+/// The refusal of the Quality `named` in `field`, as it isn't the Show's, `shows`.
+fn show_has_quality(
+    message: String,
+    field: &str,
+    named: i64,
+    shows: &proto::RequestedQuality,
+) -> Refused {
+    refuse(RefusalReason::REFUSAL_REASON_SHOW_HAS_QUALITY, message)
+        .field(field)
+        .param("qualityId", &named)
+        .param("showQualityId", &shows.id)
+        .param("showQualityName", &shows.name)
 }
 
 /// The Connect error a client gets for a change to the Users that failed. Server-side failures
@@ -3309,11 +3329,6 @@ impl From<requests::Error> for ConnectError {
             requests::Error::NotFailed(id) => refuse(R::REFUSAL_REASON_REQUEST_NOT_FAILED, message)
                 .field("id")
                 .param("requestId", &id),
-            requests::Error::NewQualityNotOffered(id) => {
-                refuse(R::REFUSAL_REASON_QUALITY_NOT_OFFERED, message)
-                    .field("quality_id")
-                    .param("qualityId", &id)
-            }
             requests::Error::NotARequester(id) => {
                 refuse(R::REFUSAL_REASON_NOT_A_REQUESTER, message)
                     .field("id")
@@ -3356,17 +3371,7 @@ impl From<requests::Error> for ConnectError {
                     .param("seasonNumber", &season)
             }
             requests::Error::Unavailable => refuse(R::REFUSAL_REASON_NO_METADATA_PROVIDER, message),
-            // Each RPC that opens a Request names a Quality the caller may not choose in `quality`.
-            requests::Error::QualityNotAllowed => {
-                refuse(R::REFUSAL_REASON_QUALITY_NOT_ALLOWED, message).field("quality")
-            }
-            // `CreateRequest`, `CreateSeasonRequests`, `CreateFollowedShow` and `SetDefaultQuality`
-            // all name it in `quality`.
-            requests::Error::QualityNotOffered(id) | requests::Error::NotTheShowsQuality(id) => {
-                refuse(R::REFUSAL_REASON_QUALITY_NOT_OFFERED, message)
-                    .field("quality")
-                    .param("qualityId", &id)
-            }
+            requests::Error::Quality(refused) => return refused.into(),
             requests::Error::PageTokenInvalid => {
                 refuse(R::REFUSAL_REASON_PAGE_TOKEN_INVALID, message).field("page_token")
             }

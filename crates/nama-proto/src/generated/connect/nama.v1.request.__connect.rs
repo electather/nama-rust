@@ -1323,7 +1323,7 @@ pub trait RequestService: Send + Sync + 'static {
     /// and `unavailable` if no metadata Provider is enabled, or it failed. A failure changes no
     /// Request. A new Request takes the Show's Quality (`FoundShow.quality`) if it has one, else one
     /// picked as `CreateRequest` picks a Movie's, refusing a Quality as `CreateRequest` does, and one
-    /// other than the Show's with `REFUSAL_REASON_QUALITY_NOT_OFFERED`.
+    /// other than the Show's with `REFUSAL_REASON_SHOW_HAS_QUALITY`.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
@@ -1582,9 +1582,10 @@ pub trait RequestService: Send + Sync + 'static {
     /// that one, keeping the change in `Request.quality_change`, and for a Season Request that of
     /// every open Season Request of its Show. Needs `PERMISSION_MANAGE_REQUESTS`, which manages every
     /// User's Requests. Fails with `not_found` if there is no Request with the ID,
-    /// `failed_precondition` if it isn't Pending, and `invalid_argument` if the Quality isn't offered
-    /// for it (`REFUSAL_REASON_QUALITY_NOT_OFFERED`): not on its Fulfiller's list, or not the Show's
-    /// once another Season of the Show was handed off, which fixes the Show's Quality.
+    /// `failed_precondition` if it isn't Pending, and `invalid_argument` if the Quality isn't on its
+    /// Fulfiller's list (`REFUSAL_REASON_QUALITY_NOT_OFFERED`), or isn't the Show's once another
+    /// Season of the Show was handed off or Approved, which fixes the Show's Quality
+    /// (`REFUSAL_REASON_SHOW_HAS_QUALITY`).
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
@@ -1658,7 +1659,8 @@ pub trait RequestService: Send + Sync + 'static {
     /// Moves a Failed Request back to Approved and hands it to its Fulfiller again, changing its
     /// Quality first as `ApproveRequest` does. Needs `PERMISSION_MANAGE_REQUESTS`. Fails with
     /// `not_found` if there is no Request with the ID, `failed_precondition` if it isn't Failed, and
-    /// `invalid_argument` if the Quality isn't offered for it.
+    /// `invalid_argument` if the Quality isn't offered for it or isn't the Show's, as
+    /// `ApproveRequest` says.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
@@ -1710,7 +1712,7 @@ pub trait RequestService: Send + Sync + 'static {
     /// `quality_id`, it first changes the Show's Quality to that one, as `ApproveRequest` changes a
     /// Season Request's. Needs `PERMISSION_MANAGE_REQUESTS`. Fails with `not_found` if there is no
     /// Followed Show with the ID, `failed_precondition` if it isn't Pending, and `invalid_argument` if
-    /// the Quality isn't offered for the Show, as `ApproveRequest` says.
+    /// the Quality isn't offered for the Show or isn't its fixed Quality, as `ApproveRequest` says.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///

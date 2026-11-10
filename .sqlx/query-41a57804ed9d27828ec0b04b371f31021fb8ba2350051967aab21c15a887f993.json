@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT quality_id, quality_name, quality_profile_id FROM followed_shows\n         WHERE tmdb_id = ? AND state != 'declined'",
+  "describe": {
+    "columns": [
+      {
+        "name": "quality_id",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "followed_shows",
+            "name": "quality_id"
+          }
+        }
+      },
+      {
+        "name": "quality_name",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "followed_shows",
+            "name": "quality_name"
+          }
+        }
+      },
+      {
+        "name": "quality_profile_id",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "followed_shows",
+            "name": "quality_profile_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "41a57804ed9d27828ec0b04b371f31021fb8ba2350051967aab21c15a887f993"
+}
