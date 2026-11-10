@@ -432,7 +432,7 @@ async fn a_disable_is_saved_then_applied() {
 }
 
 #[tokio::test]
-async fn two_changes_at_once_leave_the_stored_state_as_what_is_running() {
+async fn changes_at_once_leave_the_stored_state_as_what_is_running() {
     let (data_dir, db) = open().await;
     let plugins = PluginSettings::start(db, registry(), &config(data_dir.path(), ""))
         .await

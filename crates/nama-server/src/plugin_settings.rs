@@ -380,15 +380,12 @@ impl PluginSettings {
     ///
     /// # Errors
     ///
-    /// If the Plugin can't be enabled, or the database can't be read or written. Should the save
+    /// If no Plugin has the id or the Server refused it, it can't be enabled, or the database can't
+    /// be read or written. Should the save
     /// fail, the Plugin stays enabled until a restart.
     pub async fn enable(&self, id: &PluginId) -> Result<(), ChangeError> {
         let _changing = self.lock().await;
-        let settings = self
-            .get(id)
-            .await?
-            .map(|found| found.stored.settings)
-            .unwrap_or_default();
+        let settings = self.listed(id).await?.stored.settings;
         match self.registry.enable_by_id(id, Settings::new(settings)) {
             Ok(()) | Err(EnableError::AlreadyEnabled(_)) => {}
             Err(err) => return Err(ChangeError::Enable(err)),
@@ -432,18 +429,14 @@ impl PluginSettings {
     ) -> Result<Choices, ChangeError> {
         let StoredPlugin { plugin, stored } = self.listed(id).await?;
         let settings = with_stored_secrets(&plugin.settings_schema, sent, &stored.settings);
-        self.run_check(id, settings).await
+        self.run_check(id, settings, None).await
     }
 
     /// Runs the Plugin `id`'s settings check on its stored settings, and returns the choices it
     /// offers.
-    ///
-    /// # Errors
-    ///
-    /// As [`PluginSettings::check`].
-    pub async fn check_stored(&self, id: &PluginId) -> Result<Choices, ChangeError> {
+    async fn check_stored(&self, id: &PluginId) -> Result<Choices, ChangeError> {
         let StoredPlugin { stored, .. } = self.listed(id).await?;
-        self.run_check(id, stored.settings).await
+        self.run_check(id, stored.settings, None).await
     }
 
     /// The Plugin `id`'s Qualities, in the order the admin listed them.
@@ -474,10 +467,13 @@ impl PluginSettings {
         Ok(Ok(qualities::replace(&self.db, id.clone(), listed).await?))
     }
 
+    /// Runs the Plugin `id`'s settings check on `settings`, naming the choice `setting` a failed
+    /// check refuses, if any.
     async fn run_check(
         &self,
         id: &PluginId,
         settings: BTreeMap<String, SettingValue>,
+        setting: Option<&str>,
     ) -> Result<Choices, ChangeError> {
         self.registry
             .check_settings(id, Settings::new(settings))
@@ -485,7 +481,7 @@ impl PluginSettings {
             .map_err(|error| ChangeError::Check {
                 plugin: id.clone(),
                 error,
-                setting: None,
+                setting: setting.map(str::to_owned),
             })
     }
 
@@ -526,14 +522,8 @@ impl PluginSettings {
             return Ok(());
         };
         let offered = self
-            .registry
-            .check_settings(&plugin.id, Settings::new(settings.clone()))
-            .await
-            .map_err(|error| ChangeError::Check {
-                plugin: plugin.id.clone(),
-                error,
-                setting: Some(first.to_owned()),
-            })?;
+            .run_check(&plugin.id, settings.clone(), Some(first))
+            .await?;
         for (key, value) in chosen {
             let is_offered = offered
                 .get(key)
