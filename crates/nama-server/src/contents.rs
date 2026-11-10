@@ -28,13 +28,13 @@ use crate::{
 
 /// Reads and writes the contents of Libraries.
 #[derive(Debug, Clone)]
-pub struct Contents {
+pub(crate) struct Contents {
     db: Arc<Database>,
 }
 
 /// Something a file holds, as far as its path says.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Item {
+pub(crate) enum Item {
     /// A Movie.
     Movie {
         /// The title, as the folder or file names it.
@@ -264,7 +264,7 @@ pub(crate) struct Episode {
 impl Contents {
     /// The contents of the Libraries in `db`.
     #[must_use]
-    pub const fn new(db: Arc<Database>) -> Self {
+    pub(crate) const fn new(db: Arc<Database>) -> Self {
         Self { db }
     }
 
@@ -1309,50 +1309,50 @@ impl<'a> From<&'a Decided> for MatchRow<'a> {
 }
 
 /// A stored file, with its Items and what Matching stored for each, as tests read them back.
-#[cfg(any(test, feature = "testing"))]
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct File {
+pub(crate) struct File {
     /// The absolute path.
-    pub path: String,
+    pub(crate) path: String,
     /// The size, in bytes.
-    pub size: i64,
+    pub(crate) size: i64,
     /// What the file holds, in the order stored.
-    pub items: Vec<FileItem>,
+    pub(crate) items: Vec<FileItem>,
 }
 
 /// An Item of a [`File`], as tests read it back.
-#[cfg(any(test, feature = "testing"))]
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FileItem {
+pub(crate) struct FileItem {
     /// The Item's id.
-    pub id: i64,
+    pub(crate) id: i64,
     /// What it is.
-    pub item: Item,
+    pub(crate) item: Item,
     /// What Matching stored for it, or `None` while it's undecided.
-    pub recorded: Option<Recorded>,
+    pub(crate) recorded: Option<Recorded>,
 }
 
 /// What Matching stored for an Item, as tests read it back.
-#[cfg(any(test, feature = "testing"))]
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Recorded {
+pub(crate) struct Recorded {
     /// Whether the Item is Matched, rather than Unmatched.
-    pub matched: bool,
+    pub(crate) matched: bool,
     /// The id of the Plugin whose metadata Provider made the Match.
-    pub plugin: Option<String>,
+    pub(crate) plugin: Option<String>,
     /// The Movie's or Episode's external ids.
-    pub ids: ExternalIds,
+    pub(crate) ids: ExternalIds,
     /// For an Episode, its Show's external ids.
-    pub show_ids: ExternalIds,
+    pub(crate) show_ids: ExternalIds,
     /// The Movie's or Episode's title.
-    pub title: Option<String>,
+    pub(crate) title: Option<String>,
     /// For an Episode, its Show's title.
-    pub show_title: Option<String>,
+    pub(crate) show_title: Option<String>,
     /// The poster's image path.
-    pub poster: Option<String>,
+    pub(crate) poster: Option<String>,
 }
 
-#[cfg(any(test, feature = "testing"))]
+#[cfg(test)]
 impl Contents {
     /// The files stored for the Library `library`, by path, with their Items and what Matching
     /// stored for each.
@@ -1360,7 +1360,7 @@ impl Contents {
     /// # Errors
     ///
     /// If the database can't be read.
-    pub async fn files(&self, library: i64) -> Result<Vec<File>, sqlx::Error> {
+    pub(crate) async fn files(&self, library: i64) -> Result<Vec<File>, sqlx::Error> {
         let rows = sqlx::query!(
             r#"SELECT library_files.path, library_files.size,
                       library_items.id AS "item?", library_items.kind AS "kind?: ItemKind",

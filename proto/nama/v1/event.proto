@@ -45,6 +45,8 @@ enum EventType {
   EVENT_TYPE_PLAYBACK_STARTED = 20;
   EVENT_TYPE_PLAYBACK_ENDED = 21;
   EVENT_TYPE_PLAYBACK_CHANGED = 22;
+  EVENT_TYPE_MATCHING_FINISHED = 23;
+  EVENT_TYPE_PROBING_FINISHED = 24;
 }
 
 message SubscribeRequest {
@@ -95,6 +97,8 @@ message Event {
     PlaybackStarted playback_started = 20;
     PlaybackEnded playback_ended = 21;
     PlaybackChanged playback_changed = 22;
+    MatchingFinished matching_finished = 23;
+    ProbingFinished probing_finished = 24;
   }
 }
 
@@ -113,8 +117,8 @@ message ScanProgress {
   uint64 files_total = 3;
 }
 
-// A scan stored every change it found. Matching the new Items follows. A scan that fails or is
-// cancelled sends none.
+// A scan stored every change it found. Matching the new Items follows, and `MatchingFinished` says
+// when it has. A scan that fails or is cancelled sends none.
 message ScanFinished {
   int64 library_id = 1;
   // Files found that weren't stored before.
@@ -126,6 +130,33 @@ message ScanFinished {
   uint64 removed = 4;
   // Stored files left as they were.
   uint64 unchanged = 5;
+}
+
+// A scan's Matching decided what it could about the Library's Items. Sent even when no metadata
+// Provider could answer, which leaves Items undecided; a scan that fails or is cancelled sends
+// none. To wait for the one covering a `ScanLibrary` call, see that call.
+message MatchingFinished {
+  int64 library_id = 1;
+  // Items that now have a Match.
+  uint64 matched = 2;
+  // Items that are now Unmatched.
+  uint64 unmatched = 3;
+  // Items Matching couldn't decide, because no metadata Provider is enabled or it failed. The next
+  // scan tries them again.
+  uint64 undecided = 4;
+}
+
+// Probing has caught up with a Library after a scan: every file without current Tracks that the
+// scan left was probed, or ffprobe couldn't be run, which leaves the rest for the next scan. Sent
+// after `MatchingFinished`, at once on a Server without ffprobe. Probing that ends after a later
+// scan of the Library started sends none, leaving it to that scan; one that fails or is cancelled
+// sends none. To wait for the one covering a `ScanLibrary` call, see that call.
+message ProbingFinished {
+  int64 library_id = 1;
+  // Files whose Tracks were stored.
+  uint64 probed = 2;
+  // Files ffprobe couldn't read.
+  uint64 failed = 3;
 }
 
 // A scan stored an Item, for a new file, one that changed or one a newer name parser read.
