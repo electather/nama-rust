@@ -6,7 +6,7 @@
 mod http;
 #[path = "support/refused.rs"]
 mod refused;
-#[expect(dead_code, reason = "the harness's plain `start` has no use here")]
+#[expect(dead_code, reason = "this binary uses only some of the fixture")]
 #[path = "support/server.rs"]
 mod server;
 
@@ -30,18 +30,22 @@ use nama_plugin_tmdb::{
     testing::{API_KEY, FakeTmdb},
 };
 use nama_proto::nama::v1::{
-    BrowseServiceClient, ClearMatchRequest, ContinueWatchingEntry, CreateLibraryRequest,
-    CreateUserRequest, Episode, ExternalId, GetMovieRequest, GetShowRequest, GetShowResponse,
+    AudioTrack, BrowseServiceClient, ClearMatchRequest, ContinueWatchingEntry,
+    CreateLibraryRequest, Episode, ExternalId, GetMovieRequest, GetShowRequest, GetShowResponse,
     LibraryKind, LibraryServiceClient, ListContinueWatchingRequest, ListEpisodesRequest,
     ListMoviesRequest, ListShowsRequest, MatchServiceClient, Movie, RefusalReason,
-    ReportProgressRequest, ScanLibraryRequest, Season, SessionDelivery, SetMatchRequest,
-    SetPlayedRequest, Show, ShowSeason, SignInRequest, SignInServiceClient, UserServiceClient,
-    Version, WatchState, WatchStateServiceClient, continue_watching_entry, external_id,
-    set_played_request::Target,
+    ReportProgressRequest, ScanLibraryRequest, Season, SetMatchRequest, SetPlayedRequest, Show,
+    ShowSeason, Track, Version, VideoTrack, WatchState, WatchStateServiceClient,
+    continue_watching_entry, external_id, set_played_request::Target,
 };
-use nama_server::{config::Config, contents::Contents, plugins::Registry};
+use nama_server::{
+    config::Config,
+    contents::Contents,
+    ffmpeg::{self, Ffmpeg},
+    plugins::Registry,
+};
 use refused::assert_refused;
-use server::{PASSWORD, TestServer};
+use server::{SignedIn, TestServer};
 use tempfile::TempDir;
 
 /// TMDB Matches both to Alien, TMDB id 348.
@@ -92,8 +96,13 @@ struct Fixture {
     reason = "a test helper fails its test by panicking"
 )]
 impl Fixture {
-    /// Starts a Server with a Library of `kind`.
+    /// Starts a Server with a Library of `kind`, and no ffmpeg.
     async fn start(kind: LibraryKind) -> Self {
+        Self::start_with_ffmpeg(kind, Ffmpeg::default()).await
+    }
+
+    /// Starts a Server with a Library of `kind` that found `ffmpeg` at startup.
+    async fn start_with_ffmpeg(kind: LibraryKind, ffmpeg: Ffmpeg) -> Self {
         let tmdb = FakeTmdb::start().await;
         let plugins = Registry::new();
         let settings = Settings::new(BTreeMap::from([(
@@ -103,7 +112,11 @@ impl Fixture {
         plugins
             .enable_with_settings(Arc::new(Tmdb::with_endpoints(tmdb.endpoints())), settings)
             .unwrap();
-        let (server, db) = TestServer::start_with_db(Config::default(), plugins).await;
+        let server = TestServer::builder()
+            .plugins(plugins)
+            .ffmpeg(ffmpeg)
+            .start()
+            .await;
         let config = server.client_config();
         let libraries = LibraryServiceClient::new(HttpClient::plaintext(), config.clone());
         let media = tempfile::tempdir().unwrap();
@@ -115,7 +128,7 @@ impl Fixture {
             libraries,
             browse: BrowseServiceClient::new(HttpClient::plaintext(), config.clone()),
             matches: MatchServiceClient::new(HttpClient::plaintext(), config),
-            contents: Contents::new(db),
+            contents: Contents::new(Arc::clone(server.db())),
             tmdb,
             server,
             _media: media,
@@ -215,35 +228,6 @@ impl Fixture {
     /// The Admin, browsing and playing.
     fn admin(&self) -> Viewer {
         Viewer::new(self.server.client_config())
-    }
-
-    /// A User named Grace, created with the Permissions new Users get and signed in, browsing and
-    /// playing.
-    async fn member(&self) -> Viewer {
-        UserServiceClient::new(HttpClient::plaintext(), self.server.client_config())
-            .create_user(CreateUserRequest {
-                name: "Grace".to_owned(),
-                password: PASSWORD.to_owned(),
-                ..Default::default()
-            })
-            .await
-            .unwrap();
-        let token = SignInServiceClient::new(
-            HttpClient::plaintext(),
-            self.server.anonymous_client_config(),
-        )
-        .sign_in(SignInRequest {
-            name: "Grace".to_owned(),
-            password: PASSWORD.to_owned(),
-            device_name: "Phone".to_owned(),
-            delivery: SessionDelivery::SESSION_DELIVERY_TOKEN.into(),
-            ..Default::default()
-        })
-        .await
-        .unwrap()
-        .into_owned()
-        .token;
-        Viewer::new(self.server.client_config_as(&token))
     }
 
     /// The ids of the Versions of the Movie with the TMDB id `tmdb`, by path.
@@ -359,6 +343,11 @@ struct Viewer {
     reason = "a test helper fails its test by panicking"
 )]
 impl Viewer {
+    /// Clients that call the Server as the User `user`.
+    fn of(user: &SignedIn) -> Self {
+        Self::new(user.client_config())
+    }
+
     /// Clients that call the Server with `config`'s session.
     fn new(config: ClientConfig) -> Self {
         Self {
@@ -554,6 +543,56 @@ async fn two_files_matching_one_movie_are_one_movie_with_two_versions() {
     let first = got.versions.first().map(|version| version.id);
     let last = got.versions.last().map(|version| version.id);
     assert_ne!(first, last);
+}
+
+#[tokio::test]
+async fn a_version_has_the_tracks_probing_found_once_a_scan_has_probed_it() {
+    let path = std::env::var_os("PATH").unwrap_or_default();
+    let ffmpeg = Ffmpeg::find(&Config::default(), &path);
+    assert!(ffmpeg.ffprobe.is_ok(), "this test needs ffprobe on PATH");
+    let fx = Fixture::start_with_ffmpeg(LibraryKind::LIBRARY_KIND_MOVIES, ffmpeg).await;
+    let file = fx.folder.join(ALIEN_2160P);
+    fs::create_dir_all(file.parent().unwrap()).unwrap();
+    ffmpeg::write_4k_with_5_1(&file).unwrap();
+
+    fx.scan_until(fx.library, async || {
+        fx.get_movie(fx.library, ALIEN).await.is_ok_and(|movie| {
+            movie
+                .versions
+                .iter()
+                .all(|version| !version.tracks.is_empty())
+        })
+    })
+    .await;
+
+    let movie = fx.get_movie(fx.library, ALIEN).await.unwrap();
+    let version = movie.versions.first().unwrap();
+    assert_eq!(
+        version.tracks,
+        [
+            Track {
+                codec: "mpeg4".to_owned(),
+                kind: VideoTrack {
+                    width: 3840,
+                    height: 2160,
+                    frame_rate: 24.0,
+                    ..Default::default()
+                }
+                .into(),
+                ..Default::default()
+            },
+            Track {
+                codec: "ac3".to_owned(),
+                language: Some("eng".to_owned()),
+                kind: AudioTrack {
+                    channels: 6,
+                    ..Default::default()
+                }
+                .into(),
+                ..Default::default()
+            },
+        ]
+    );
 }
 
 #[tokio::test]
@@ -1123,7 +1162,7 @@ async fn a_version_of_an_unmatched_item_is_accepted_and_stores_nothing() {
 async fn two_users_watch_state_for_the_same_movie_are_kept_apart() {
     let fx = Fixture::alien().await;
     let admin = fx.admin();
-    let grace = fx.member().await;
+    let grace = Viewer::of(&fx.server.user_with_default_permissions("Grace").await);
     let [version] = fx.version_ids(ALIEN).await[..] else {
         panic!("Alien has one Version");
     };
@@ -1404,7 +1443,7 @@ async fn a_movie_whose_file_has_gone_is_listed_again_once_a_rescan_matches_it() 
 async fn another_users_progress_never_appears() {
     let fx = Fixture::alien().await;
     let admin = fx.admin();
-    let grace = fx.member().await;
+    let grace = Viewer::of(&fx.server.user_with_default_permissions("Grace").await);
     let [version] = fx.version_ids(ALIEN).await[..] else {
         panic!("Alien has one Version");
     };
@@ -1544,7 +1583,7 @@ async fn marking_a_partly_watched_movie_played_keeps_its_position_and_unplayed_c
 async fn marking_one_users_movie_played_leaves_anothers_alone() {
     let fx = Fixture::alien().await;
     let admin = fx.admin();
-    let grace = fx.member().await;
+    let grace = Viewer::of(&fx.server.user_with_default_permissions("Grace").await);
 
     grace
         .set_played(fx.library, movie(ALIEN), true)

@@ -1,0 +1,158 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT version_id, kind, codec, language, title, is_default AS \"default: bool\",\n                      forced AS \"forced: bool\", width, height, frame_rate, channels,\n                      image AS \"image: bool\"\n               FROM tracks\n               WHERE version_id IN (SELECT value FROM json_each(?))\n               ORDER BY version_id, position",
+  "describe": {
+    "columns": [
+      {
+        "name": "version_id",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "tracks",
+            "name": "version_id"
+          }
+        }
+      },
+      {
+        "name": "kind",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "tracks",
+            "name": "kind"
+          }
+        }
+      },
+      {
+        "name": "codec",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "tracks",
+            "name": "codec"
+          }
+        }
+      },
+      {
+        "name": "language",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "tracks",
+            "name": "language"
+          }
+        }
+      },
+      {
+        "name": "title",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "tracks",
+            "name": "title"
+          }
+        }
+      },
+      {
+        "name": "default: bool",
+        "ordinal": 5,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "tracks",
+            "name": "is_default"
+          }
+        }
+      },
+      {
+        "name": "forced: bool",
+        "ordinal": 6,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "tracks",
+            "name": "forced"
+          }
+        }
+      },
+      {
+        "name": "width",
+        "ordinal": 7,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "tracks",
+            "name": "width"
+          }
+        }
+      },
+      {
+        "name": "height",
+        "ordinal": 8,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "tracks",
+            "name": "height"
+          }
+        }
+      },
+      {
+        "name": "frame_rate",
+        "ordinal": 9,
+        "type_info": "Float",
+        "origin": {
+          "Table": {
+            "table": "tracks",
+            "name": "frame_rate"
+          }
+        }
+      },
+      {
+        "name": "channels",
+        "ordinal": 10,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "tracks",
+            "name": "channels"
+          }
+        }
+      },
+      {
+        "name": "image: bool",
+        "ordinal": 11,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "tracks",
+            "name": "image"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "f582c536e5408836e0227bdd8ba74d0eea274cce13c8c8026bf42aa357964496"
+}

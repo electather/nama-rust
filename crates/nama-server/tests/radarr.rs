@@ -7,7 +7,7 @@ mod fake_radarr;
 mod refused;
 #[path = "support/servarr.rs"]
 mod servarr;
-#[expect(dead_code, reason = "the harness's `data_dir` has no use here")]
+#[expect(dead_code, reason = "this binary uses only some of the fixture")]
 #[path = "support/server.rs"]
 mod server;
 
@@ -15,7 +15,7 @@ use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
 use connectrpc::{
     ErrorCode,
-    client::{ClientConfig, HttpClient, ServerStream},
+    client::{HttpClient, ServerStream},
 };
 use fake_radarr::{API_KEY as RADARR_KEY, FakeRadarr};
 use nama_plugin_api::{
@@ -27,17 +27,16 @@ use nama_plugin_tmdb::{
     testing::{API_KEY as TMDB_KEY, FakeTmdb},
 };
 use nama_proto::nama::v1::{
-    __buffa::view::SubscribeResponseView, ApproveRequestRequest, CreateRequestRequest,
-    CreateUserRequest, Download, DownloadStatus, EnablePluginRequest, EventServiceClient,
-    EventType, Quality, RefusalReason, ReplaceQualitiesRequest, Request, RequestServiceClient,
-    RequestState, RetryRequestRequest, SessionDelivery, SignInRequest, SignInServiceClient,
+    __buffa::view::SubscribeResponseView, ApproveRequestRequest, CreateRequestRequest, Download,
+    DownloadStatus, EnablePluginRequest, EventServiceClient, EventType, Quality, RefusalReason,
+    ReplaceQualitiesRequest, Request, RequestServiceClient, RequestState, RetryRequestRequest,
     SubscribeRequest, SubscribeResponse, UpdatePluginSettingsRequest, event, subscribe_response,
 };
-use nama_server::{config::Config, plugins::Registry};
+use nama_server::plugins::Registry;
 use refused::assert_refused;
 use serde_json::json;
 use servarr::{ServarrFixture, choices, quality, text};
-use server::{PASSWORD, TestServer};
+use server::{SignedIn, TestServer};
 
 /// Quality profiles the fake Radarr offers, by id.
 const ANY: &str = "1";
@@ -96,7 +95,7 @@ impl Fixture {
         plugins
             .enable_with_settings(Arc::new(Tmdb::with_endpoints(tmdb.endpoints())), settings)
             .unwrap();
-        let server = TestServer::start(Config::default(), plugins.clone()).await;
+        let server = TestServer::builder().plugins(plugins.clone()).start().await;
         Self {
             server,
             plugins,
@@ -138,8 +137,8 @@ impl Fixture {
 
     /// The Movie `tmdb_id`, asked for by the new User `member` and so Pending, then Approved by
     /// the Admin, as the approval left it.
-    async fn approve_movie(&self, member: &ClientConfig, tmdb_id: i64) -> Request {
-        let asked = RequestServiceClient::new(HttpClient::plaintext(), member.clone())
+    async fn approve_movie(&self, member: &SignedIn, tmdb_id: i64) -> Request {
+        let asked = RequestServiceClient::new(HttpClient::plaintext(), member.client_config())
             .create_request(CreateRequestRequest {
                 movie_tmdb_id: tmdb_id,
                 ..Default::default()
@@ -197,36 +196,6 @@ impl Fixture {
             .subscribe(only)
             .await
             .unwrap()
-    }
-
-    /// Creates a User with the Permissions a new User gets, signs them in, and returns client
-    /// settings that call as them.
-    async fn member(&self) -> ClientConfig {
-        nama_proto::nama::v1::UserServiceClient::new(
-            HttpClient::plaintext(),
-            self.server.client_config(),
-        )
-        .create_user(CreateUserRequest {
-            name: "Ada".to_owned(),
-            password: PASSWORD.to_owned(),
-            ..Default::default()
-        })
-        .await
-        .unwrap();
-        let signed_in = SignInServiceClient::new(
-            HttpClient::plaintext(),
-            self.server.anonymous_client_config(),
-        )
-        .sign_in(SignInRequest {
-            name: "Ada".to_owned(),
-            password: PASSWORD.to_owned(),
-            device_name: "Phone".to_owned(),
-            delivery: SessionDelivery::SESSION_DELIVERY_TOKEN.into(),
-            ..Default::default()
-        })
-        .await
-        .unwrap();
-        self.server.client_config_as(&signed_in.into_owned().token)
     }
 }
 
@@ -295,7 +264,12 @@ async fn approving_a_movie_request_adds_it_to_radarr_with_the_chosen_profile_and
  {
     let fixture = Fixture::with_radarr_enabled().await;
 
-    let approved = fixture.approve_movie(&fixture.member().await, HEAT).await;
+    let approved = fixture
+        .approve_movie(
+            &fixture.server.user_with_default_permissions("Ada").await,
+            HEAT,
+        )
+        .await;
 
     assert_eq!(approved.state, RequestState::Processing);
     assert!(approved.quality.is_unset());
@@ -318,7 +292,12 @@ async fn with_radarr_down_a_request_fails_in_plain_words_and_retrying_once_it_is
     let mut fixture = Fixture::with_radarr_enabled().await;
     fixture.radarr.go_down();
 
-    let failed = fixture.approve_movie(&fixture.member().await, HEAT).await;
+    let failed = fixture
+        .approve_movie(
+            &fixture.server.user_with_default_permissions("Ada").await,
+            HEAT,
+        )
+        .await;
     fixture.radarr.come_back().await;
     let retried = fixture.retry(failed.id).await;
 
@@ -335,7 +314,12 @@ async fn with_radarr_down_a_request_fails_in_plain_words_and_retrying_once_it_is
 async fn a_movie_radarr_already_has_goes_to_processing() {
     let fixture = Fixture::with_radarr_enabled().await;
 
-    let approved = fixture.approve_movie(&fixture.member().await, ALIEN).await;
+    let approved = fixture
+        .approve_movie(
+            &fixture.server.user_with_default_permissions("Ada").await,
+            ALIEN,
+        )
+        .await;
 
     assert_eq!(approved.state, RequestState::Processing);
 }
@@ -344,7 +328,12 @@ async fn a_movie_radarr_already_has_goes_to_processing() {
 async fn a_movie_radarr_cant_find_fails_with_radarrs_reason() {
     let fixture = Fixture::with_radarr_enabled().await;
 
-    let failed = fixture.approve_movie(&fixture.member().await, DUNE).await;
+    let failed = fixture
+        .approve_movie(
+            &fixture.server.user_with_default_permissions("Ada").await,
+            DUNE,
+        )
+        .await;
 
     assert_eq!(failed.state, RequestState::Failed);
     assert_eq!(
@@ -396,7 +385,7 @@ async fn processing_movie_requests_show_radarrs_queue_as_it_advances_asked_once_
     let fixture = Fixture::with_radarr_enabled().await;
     fixture.radarr.set_queue("queue.json");
     let mut progress = fixture.subscribe_to_progress().await;
-    let ada = fixture.member().await;
+    let ada = fixture.server.user_with_default_permissions("Ada").await;
 
     let heat = fixture.approve_movie(&ada, HEAT).await;
     let first = next_progress(&mut progress).await;
@@ -462,7 +451,12 @@ async fn with_a_quality_a_movie_is_added_to_radarr_at_its_profile() {
     let fixture = Fixture::with_radarr_enabled_at(ANY).await;
     fixture.replace_qualities(hd_and_4k()).await;
 
-    fixture.approve_movie(&fixture.member().await, HEAT).await;
+    fixture
+        .approve_movie(
+            &fixture.server.user_with_default_permissions("Ada").await,
+            HEAT,
+        )
+        .await;
 
     let added = fixture.radarr.added();
     assert_eq!(added.len(), 1);
@@ -475,7 +469,12 @@ async fn a_request_whose_profile_was_removed_from_radarr_fails_naming_it() {
     fixture.replace_qualities(hd_and_4k()).await;
     fixture.radarr.remove_profile(4);
 
-    let failed = fixture.approve_movie(&fixture.member().await, HEAT).await;
+    let failed = fixture
+        .approve_movie(
+            &fixture.server.user_with_default_permissions("Ada").await,
+            HEAT,
+        )
+        .await;
 
     assert_eq!(failed.state, RequestState::Failed);
     assert_eq!(
@@ -492,7 +491,12 @@ async fn a_movie_radarr_already_had_goes_to_processing_at_its_own_profile_though
     fixture.replace_qualities(hd_and_4k()).await;
     fixture.radarr.remove_profile(4);
 
-    let approved = fixture.approve_movie(&fixture.member().await, ALIEN).await;
+    let approved = fixture
+        .approve_movie(
+            &fixture.server.user_with_default_permissions("Ada").await,
+            ALIEN,
+        )
+        .await;
 
     assert_eq!(approved.state, RequestState::Processing);
 }
@@ -504,7 +508,12 @@ async fn a_movie_radarr_already_had_at_a_profile_no_quality_offers_shows_radarrs
         .replace_qualities(vec![quality(HD_1080P, "HD", true)])
         .await;
 
-    let approved = fixture.approve_movie(&fixture.member().await, ALIEN).await;
+    let approved = fixture
+        .approve_movie(
+            &fixture.server.user_with_default_permissions("Ada").await,
+            ALIEN,
+        )
+        .await;
 
     let used = &approved.quality_used;
     assert_eq!(

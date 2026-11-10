@@ -56,7 +56,14 @@ test("a Season the Show doesn't have falls back to its first, after the Specials
       seasons: [{ number: 0 }, { number: 1 }, { number: 2 }],
     }),
     listEpisodes: ({ seasonNumber }) => ({
-      episodes: [{ seasonNumber, episodeNumber: 1, title: `Opener of Season ${seasonNumber}` }],
+      episodes: [
+        {
+          seasonNumber,
+          episodeNumber: 1,
+          title: `Opener of Season ${seasonNumber}`,
+          versions: [{ id: 1n }],
+        },
+      ],
     }),
   });
   openApp("/libraries/2/shows/tmdb-95396?season=9", transport);
@@ -87,4 +94,74 @@ test("a Library's page shows a Movie as soon as it's Matched", async () => {
   match?.();
 
   expect(await screen.findByText("Alien")).toBeDefined();
+});
+
+test("a Movie's page says each Version's picture and sound, such as 4K and 5.1", async () => {
+  const transport = serverToBrowse({
+    getMovie: () => ({
+      movie: {
+        title: "Alien",
+        releaseDate: "1979-05-25",
+        versions: [
+          {
+            id: 1n,
+            fileName: "Alien (1979) - 2160p.mkv",
+            size: 60_000_000_000n,
+            tracks: [
+              { codec: "hevc", kind: { case: "video", value: { width: 3840, height: 1600 } } },
+              { codec: "ac3", kind: { case: "audio", value: { channels: 2 } } },
+              { codec: "truehd", default: true, kind: { case: "audio", value: { channels: 6 } } },
+            ],
+          },
+          {
+            id: 2n,
+            fileName: "Alien (1979) - 720p.mkv",
+            size: 2_000_000_000n,
+            tracks: [
+              { codec: "h264", kind: { case: "video", value: { width: 1280, height: 534 } } },
+              { codec: "aac", kind: { case: "audio", value: { channels: 2 } } },
+            ],
+          },
+          // Not probed yet.
+          { id: 3n, fileName: "Alien (1979).avi", size: 700_000_000n },
+        ],
+      },
+    }),
+  });
+  openApp("/libraries/1/movies/tmdb-348", transport);
+
+  // The largest, which plays unless another is chosen.
+  expect(await screen.findByText("1979 · 4K · 5.1")).toBeDefined();
+  expect(
+    screen.getByRole("option", { name: "Alien (1979) - 720p.mkv (720p · Stereo · 2 GB)" }),
+  ).toBeDefined();
+  expect(screen.getByRole("option", { name: "Alien (1979).avi (0.7 GB)" })).toBeDefined();
+});
+
+test("a Show's Episodes each say the picture and sound of the Version they play", async () => {
+  const transport = serverToBrowse({
+    getShow: () => ({ show: { title: "Severance" }, seasons: [{ number: 1 }] }),
+    listEpisodes: () => ({
+      episodes: [
+        {
+          seasonNumber: 1,
+          episodeNumber: 1,
+          title: "Good News About Hell",
+          airDate: "2022-02-18",
+          versions: [
+            {
+              id: 1n,
+              tracks: [
+                { kind: { case: "video", value: { width: 1920, height: 1080 } } },
+                { kind: { case: "audio", value: { channels: 8 } } },
+              ],
+            },
+          ],
+        },
+      ],
+    }),
+  });
+  openApp("/libraries/2/shows/tmdb-95396", transport);
+
+  expect(await screen.findByText("Feb 18, 2022 · 1080p · 7.1")).toBeDefined();
 });

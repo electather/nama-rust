@@ -22,6 +22,7 @@ mod scanner;
 mod server_settings;
 mod sessions;
 mod sign_in_codes;
+mod tracks;
 pub mod users;
 mod versions;
 mod watch_states;
@@ -52,9 +53,10 @@ use crate::{
 /// What happens is published to clients subscribed through `EventService` and to Observers at
 /// [`nama_plugin_api::points::Events`]. Subscriptions end when `shutdown` resolves.
 ///
-/// Every Library is scanned, and its items Matched, in the background when serving starts. Scans
-/// still running when `shutdown` resolves are cancelled, and the returned future waits for them
-/// to stop. The Approved Requests waiting for a Fulfiller are handed to it in the background
+/// Every Library is scanned, and its items Matched, in the background when serving starts. After
+/// each scan, `ffmpeg`'s ffprobe, if it found one, probes the files not probed yet. Scans and
+/// probes still running when `shutdown` resolves are cancelled, and the returned future waits for
+/// them to stop. The Approved Requests waiting for a Fulfiller are handed to it in the background
 /// whenever `plugins` enables one, startup's included, and the Fulfillers are asked how their
 /// Processing Requests are progressing, until `shutdown` resolves.
 ///
@@ -87,7 +89,13 @@ pub fn serve(
     let registry = plugins.registry();
     let server_url = ServerUrl::default();
     let events = EventBus::new(Arc::clone(&db), registry.clone(), server_url.clone());
-    let scanner = Scanner::new(Arc::clone(&db), registry.clone(), events.clone());
+    let ffmpeg = Arc::new(ffmpeg);
+    let scanner = Scanner::new(
+        Arc::clone(&db),
+        registry.clone(),
+        events.clone(),
+        Arc::clone(&ffmpeg),
+    );
     let matcher = Matcher::new(Arc::clone(&db), registry.clone(), events.clone());
     let requests = Requests::new(Arc::clone(&db), matcher, events.clone(), registry.clone());
     let load_server_url = {

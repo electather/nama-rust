@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT version_id, container, duration_ms, bitrate FROM version_probes\n             WHERE version_id IN (SELECT value FROM json_each(?))",
+  "describe": {
+    "columns": [
+      {
+        "name": "version_id",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "version_probes",
+            "name": "version_id"
+          }
+        }
+      },
+      {
+        "name": "container",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "version_probes",
+            "name": "container"
+          }
+        }
+      },
+      {
+        "name": "duration_ms",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "version_probes",
+            "name": "duration_ms"
+          }
+        }
+      },
+      {
+        "name": "bitrate",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "version_probes",
+            "name": "bitrate"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "f71484a81f4707539dc58425169942c28a77b368c939d6d6d8602f74f08cb5eb"
+}

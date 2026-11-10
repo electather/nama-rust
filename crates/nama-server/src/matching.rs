@@ -760,7 +760,12 @@ mod tests {
             let plugins = Registry::new();
             let events = EventBus::new(Arc::clone(&db), Registry::new(), ServerUrl::default());
             Self {
-                scanner: Scanner::new(Arc::clone(&db), plugins.clone(), events.clone()),
+                scanner: Scanner::new(
+                    Arc::clone(&db),
+                    plugins.clone(),
+                    events.clone(),
+                    Arc::default(),
+                ),
                 matcher: Matcher::new(Arc::clone(&db), plugins.clone(), events.clone()),
                 contents: Contents::new(db),
                 plugins,

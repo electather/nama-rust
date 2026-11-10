@@ -1,16 +1,17 @@
 //! Browse: the Movies and Shows a Library holds, as a User sees them.
 //!
 //! [`Browse`] only reads. It finds titles through [`Contents`], never in the content tables
-//! itself (see `AGENTS.md`), and attaches the User's [`WatchState`]s.
+//! itself (see `AGENTS.md`), and attaches their Versions' Tracks and the User's [`WatchState`]s.
 
 use std::{collections::HashMap, sync::Arc};
 
 use nama_plugin_api::metadata::ExternalId;
 
 use crate::{
-    contents::{Contents, Episode, Movie, Season, Show},
+    contents::{Contents, Episode, Movie, Season, Show, Version},
     db::Database,
     libraries::{self, Kind, Libraries, Library},
+    tracks::Tracks,
     watch_states::{MovieOrEpisode, WatchState, WatchStates},
 };
 
@@ -57,6 +58,7 @@ pub(crate) enum Started {
 pub(crate) struct Browse {
     libraries: Libraries,
     contents: Contents,
+    tracks: Tracks,
     watch_states: WatchStates,
 }
 
@@ -65,6 +67,7 @@ impl Browse {
         Self {
             libraries: Libraries::new(Arc::clone(&db)),
             contents: Contents::new(Arc::clone(&db)),
+            tracks: Tracks::new(Arc::clone(&db)),
             watch_states: WatchStates::new(db),
         }
     }
@@ -76,7 +79,9 @@ impl Browse {
         user: i64,
         library: i64,
     ) -> Result<Vec<(Movie, Option<WatchState>)>, Error> {
-        let movies = self.movies_of(library).await?;
+        let mut movies = self.movies_of(library).await?;
+        self.add_tracks(movies.iter_mut().flat_map(|movie| &mut movie.versions))
+            .await?;
         let ids: Vec<&ExternalId> = movies.iter().map(|movie| &movie.id).collect();
         let states = self.watch_states.of_movies(user, &ids).await?;
         Ok(movies.into_iter().zip(states).collect())
@@ -91,12 +96,13 @@ impl Browse {
         library: i64,
         id: &ExternalId,
     ) -> Result<(Movie, Option<WatchState>), Error> {
-        let movie = self
+        let mut movie = self
             .movies_of(library)
             .await?
             .into_iter()
             .find(|movie| &movie.id == id)
             .ok_or(Error::NothingMatched)?;
+        self.add_tracks(&mut movie.versions).await?;
         let state = self.watch_states.of_movies(user, &[id]).await?.pop();
         Ok((movie, state.flatten()))
     }
@@ -110,7 +116,13 @@ impl Browse {
         show: &ExternalId,
         season: i64,
     ) -> Result<Vec<(Episode, Option<WatchState>)>, Error> {
-        let episodes = self.season(library, show, season).await?.episodes;
+        let mut episodes = self.season(library, show, season).await?.episodes;
+        self.add_tracks(
+            episodes
+                .iter_mut()
+                .flat_map(|episode| &mut episode.versions),
+        )
+        .await?;
         let ids: Vec<&ExternalId> = episodes.iter().map(|episode| &episode.id).collect();
         let states = self.watch_states.of_episodes(user, &ids).await?;
         Ok(episodes.into_iter().zip(states).collect())
@@ -170,10 +182,33 @@ impl Browse {
         for library in self.libraries.list().await.map_err(finding_failed)? {
             found.extend(self.started_in(&library, &mut unfound).await?);
         }
-        Ok(started
+        let mut started: Vec<Started> = started
             .into_iter()
             .filter_map(|(watched, _)| found.remove(&watched))
-            .collect())
+            .collect();
+        self.add_tracks(started.iter_mut().flat_map(|started| match started {
+            Started::Movie { movie, .. } => &mut movie.versions,
+            Started::Episode { episode, .. } => &mut episode.versions,
+        }))
+        .await?;
+        Ok(started)
+    }
+
+    /// Fills in the Tracks of each of `versions` that has been probed.
+    async fn add_tracks(
+        &self,
+        versions: impl IntoIterator<Item = &mut Version>,
+    ) -> Result<(), sqlx::Error> {
+        let mut versions: Vec<&mut Version> = versions.into_iter().collect();
+        let ids: Vec<i64> = versions.iter().map(|version| version.id).collect();
+        let probes = self.tracks.of(&ids).await?;
+        for version in &mut versions {
+            if let Some(probe) = probes.get(&version.id) {
+                // A file holding two Episodes is a Version of each.
+                version.tracks.clone_from(&probe.tracks);
+            }
+        }
+        Ok(())
     }
 
     /// The Movies or Episodes of `library` that `unfound` has the Watch State of, each taken out

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM version_probes WHERE version_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "2aba36bd6bbbd2490d145519a3c8dbc83473e8d47cd4d52d4e5bcd3aa8f4cd95"
+}

@@ -81,6 +81,10 @@ pub mod __buffa {
         reg.register_json_any(super::__SET_PLAYED_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__MOVIE_JSON_ANY);
         reg.register_json_any(super::__VERSION_JSON_ANY);
+        reg.register_json_any(super::__TRACK_JSON_ANY);
+        reg.register_json_any(super::__VIDEO_TRACK_JSON_ANY);
+        reg.register_json_any(super::__AUDIO_TRACK_JSON_ANY);
+        reg.register_json_any(super::__SUBTITLE_TRACK_JSON_ANY);
         reg.register_json_any(super::__LIST_MOVIES_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_MOVIES_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__GET_MOVIE_REQUEST_JSON_ANY);
@@ -352,6 +356,22 @@ pub use self::__buffa::view::MovieOwnedView;
 pub use self::__buffa::view::VersionView;
 #[doc(inline)]
 pub use self::__buffa::view::VersionOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::TrackView;
+#[doc(inline)]
+pub use self::__buffa::view::TrackOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::VideoTrackView;
+#[doc(inline)]
+pub use self::__buffa::view::VideoTrackOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::AudioTrackView;
+#[doc(inline)]
+pub use self::__buffa::view::AudioTrackOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SubtitleTrackView;
+#[doc(inline)]
+pub use self::__buffa::view::SubtitleTrackOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::ListMoviesRequestView;
 #[doc(inline)]

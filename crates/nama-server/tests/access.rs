@@ -5,10 +5,10 @@
 #[path = "support/refused.rs"]
 mod refused;
 #[path = "support/server.rs"]
-#[expect(dead_code, reason = "the harness's `data_dir` has no use here")]
+#[expect(dead_code, reason = "this binary uses only some of the fixture")]
 mod server;
 
-use std::{collections::BTreeSet, net::Ipv4Addr, time::Duration};
+use std::{collections::BTreeSet, time::Duration};
 
 use buffa::Enumeration;
 use connectrpc::{
@@ -18,17 +18,11 @@ use connectrpc::{
 use hyper::{HeaderMap, Method};
 use nama_proto::nama::v1::{
     __buffa::view::SubscribeResponseView, ApproveSignInCodeRequest, CreateLibraryRequest,
-    CreateUserRequest, EventServiceClient, LibraryKind, LibraryServiceClient, ListLibrariesRequest,
-    Permission, PollSignInCodeRequest, RefusalReason, ScanLibraryRequest, SessionDelivery,
-    SetPermissionsRequest, SignInServiceClient, StartSignInCodeRequest, SubscribeRequest,
-    SubscribeResponse, UserServiceClient,
+    EventServiceClient, LibraryKind, LibraryServiceClient, ListLibrariesRequest, Permission,
+    PollSignInCodeRequest, RefusalReason, ScanLibraryRequest, SessionDelivery, SignInServiceClient,
+    StartSignInCodeRequest, SubscribeRequest, SubscribeResponse,
 };
-use nama_server::{
-    config::Config,
-    db::Database,
-    plugins::Registry,
-    users::{NewDevice, Users},
-};
+use nama_server::db::Database;
 use refused::{assert_refused, refusal_of};
 use serde_json::{Value, json};
 use server::{PASSWORD, TestServer};
@@ -200,44 +194,6 @@ async fn post_json(server: &TestServer, path: &str, bearer: Option<&str>) -> Rep
 /// What a new User gets: the Permissions to make Requests, which manage nothing.
 const NEW_USER: [Permission; 2] = [Permission::Request, Permission::ViewRequests];
 
-/// Starts a Server with an Admin, and a User named Grace with `permissions` signed in. Returns her
-/// session token.
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
-async fn start_with_user(permissions: &[Permission]) -> (TestServer, String) {
-    let plugins = Registry::new();
-    let (server, db) = TestServer::start_with_db(Config::default(), plugins.clone()).await;
-    let as_admin = UserServiceClient::new(HttpClient::plaintext(), server.client_config());
-    let grace = as_admin
-        .create_user(CreateUserRequest {
-            name: "Grace".to_owned(),
-            password: PASSWORD.to_owned(),
-            ..Default::default()
-        })
-        .await
-        .unwrap()
-        .into_owned()
-        .id;
-    as_admin
-        .set_permissions(SetPermissionsRequest {
-            user_id: grace,
-            permissions: permissions.iter().map(|&p| p.into()).collect(),
-            ..Default::default()
-        })
-        .await
-        .unwrap();
-    let users = Users::new(db, plugins);
-    let phone = NewDevice {
-        name: "Phone".to_owned(),
-        ip_address: Ipv4Addr::LOCALHOST.into(),
-        user_agent: None,
-    };
-    let signed_in = users.sign_in("Grace", PASSWORD, phone).await.unwrap();
-    (server, signed_in.token().to_owned())
-}
-
 /// Signs a Device in as the Admin by a Sign-in Code the Admin approves, and returns its session
 /// token.
 #[expect(
@@ -387,7 +343,7 @@ async fn subscribe(config: ClientConfig) -> Result<Subscription, ConnectError> {
 
 #[tokio::test]
 async fn an_unauthenticated_call_to_anything_but_the_public_rpcs_is_unauthenticated() {
-    let server = TestServer::start(Config::default(), Registry::new()).await;
+    let server = TestServer::builder().start().await;
 
     for path in managing().chain(&BROWSE).chain(&SIGNED_IN) {
         let reply = post_json(&server, path, None).await;
@@ -412,7 +368,8 @@ async fn an_unauthenticated_call_to_anything_but_the_public_rpcs_is_unauthentica
 #[tokio::test]
 async fn a_new_user_managing_libraries_matches_users_or_settings_is_refused_naming_the_permission()
 {
-    let (server, token) = start_with_user(&NEW_USER).await;
+    let server = TestServer::builder().start().await;
+    let token = server.user("Grace", &NEW_USER).await.token;
 
     assert_refused_for_want_of(
         &server,
@@ -433,7 +390,11 @@ async fn a_new_user_managing_libraries_matches_users_or_settings_is_refused_nami
 
 #[tokio::test]
 async fn a_user_who_manages_settings_may_manage_plugins_but_not_users() {
-    let (server, token) = start_with_user(&[Permission::ManageSettings]).await;
+    let server = TestServer::builder().start().await;
+    let token = server
+        .user("Grace", &[Permission::ManageSettings])
+        .await
+        .token;
 
     assert_allowed(&server, &token, &MANAGE_SETTINGS).await;
     assert_refused_for_want_of(&server, &token, &MANAGE_USERS, Permission::ManageUsers).await;
@@ -441,7 +402,11 @@ async fn a_user_who_manages_settings_may_manage_plugins_but_not_users() {
 
 #[tokio::test]
 async fn a_user_who_manages_libraries_may_manage_libraries_and_matches_but_not_users() {
-    let (server, token) = start_with_user(&[Permission::ManageLibraries]).await;
+    let server = TestServer::builder().start().await;
+    let token = server
+        .user("Grace", &[Permission::ManageLibraries])
+        .await
+        .token;
 
     assert_allowed(&server, &token, &MANAGE_LIBRARIES).await;
     assert_refused_for_want_of(&server, &token, &MANAGE_USERS, Permission::ManageUsers).await;
@@ -449,7 +414,8 @@ async fn a_user_who_manages_libraries_may_manage_libraries_and_matches_but_not_u
 
 #[tokio::test]
 async fn a_user_who_manages_users_may_manage_users_but_not_libraries_or_matches() {
-    let (server, token) = start_with_user(&[Permission::ManageUsers]).await;
+    let server = TestServer::builder().start().await;
+    let token = server.user("Grace", &[Permission::ManageUsers]).await.token;
 
     assert_allowed(&server, &token, &MANAGE_USERS).await;
     assert_refused_for_want_of(
@@ -463,7 +429,7 @@ async fn a_user_who_manages_users_may_manage_users_but_not_libraries_or_matches(
 
 #[tokio::test]
 async fn an_unlisted_rpc_is_the_routers_not_found_with_or_without_a_session() {
-    let server = TestServer::start(Config::default(), Registry::new()).await;
+    let server = TestServer::builder().start().await;
 
     for bearer in [None, Some(server.admin_token.as_str())] {
         let reply = post_json(&server, "/nama.v1.LibraryService/Unlisted", bearer).await;
@@ -483,7 +449,7 @@ async fn an_unlisted_rpc_is_the_routers_not_found_with_or_without_a_session() {
 
 #[tokio::test]
 async fn an_admin_may_manage_libraries_matches_users_and_settings() {
-    let server = TestServer::start(Config::default(), Registry::new()).await;
+    let server = TestServer::builder().start().await;
 
     assert_allowed(&server, &server.admin_token, &MANAGE_LIBRARIES).await;
     assert_allowed(&server, &server.admin_token, &MANAGE_USERS).await;
@@ -493,20 +459,22 @@ async fn an_admin_may_manage_libraries_matches_users_and_settings() {
 
 #[tokio::test]
 async fn a_user_who_manages_everything_but_isnt_an_admin_is_refused_the_admins_rpcs() {
-    let (server, token) = start_with_user(&[
+    let server = TestServer::builder().start().await;
+    let manages_everything = [
         Permission::ManageLibraries,
         Permission::ManageUsers,
         Permission::ManageSettings,
         Permission::ManageRequests,
-    ])
-    .await;
+    ];
+    let token = server.user("Grace", &manages_everything).await.token;
 
     assert_refused_for_want_of(&server, &token, &ADMIN, Permission::Admin).await;
 }
 
 #[tokio::test]
 async fn a_new_user_may_browse() {
-    let (server, token) = start_with_user(&NEW_USER).await;
+    let server = TestServer::builder().start().await;
+    let token = server.user("Grace", &NEW_USER).await.token;
 
     for path in BROWSE {
         let reply = post_json(&server, path, Some(&token)).await;
@@ -522,7 +490,8 @@ async fn a_new_user_may_browse() {
 
 #[tokio::test]
 async fn a_new_user_lists_libraries_without_their_folders() {
-    let (server, token) = start_with_user(&NEW_USER).await;
+    let server = TestServer::builder().start().await;
+    let token = server.user("Grace", &NEW_USER).await.token;
     let folder = tempfile::tempdir().unwrap();
     LibraryServiceClient::new(HttpClient::plaintext(), server.client_config())
         .create_library(CreateLibraryRequest {
@@ -550,7 +519,8 @@ async fn a_new_user_lists_libraries_without_their_folders() {
 
 #[tokio::test]
 async fn a_new_user_receives_events() {
-    let (server, token) = start_with_user(&NEW_USER).await;
+    let server = TestServer::builder().start().await;
+    let token = server.user("Grace", &NEW_USER).await.token;
     let mut events = subscribe(server.client_config_as(&token)).await.unwrap();
 
     let folder = tempfile::tempdir().unwrap();
@@ -584,7 +554,7 @@ async fn a_new_user_receives_events() {
 /// `SameSite` failed, so the Server must not run it as an RPC (ADR 0015).
 #[tokio::test]
 async fn a_text_plain_post_with_a_valid_session_cookie_is_refused() {
-    let server = TestServer::start(Config::default(), Registry::new()).await;
+    let server = TestServer::builder().start().await;
     let cookie = format!("nama_session={}", server.admin_token);
 
     let reply = send(
@@ -608,7 +578,7 @@ async fn a_text_plain_post_with_a_valid_session_cookie_is_refused() {
 /// check, so both are tried.
 #[tokio::test]
 async fn a_cors_preflight_for_a_credentialed_request_is_not_approved() {
-    let server = TestServer::start(Config::default(), Registry::new()).await;
+    let server = TestServer::builder().start().await;
     let preflight = [
         ("origin", "https://elsewhere.example"),
         ("access-control-request-method", "POST"),
@@ -633,7 +603,7 @@ async fn a_cors_preflight_for_a_credentialed_request_is_not_approved() {
 
 #[tokio::test]
 async fn a_device_that_just_set_up_the_server_needs_no_reauthentication() {
-    let server = TestServer::start(Config::default(), Registry::new()).await;
+    let server = TestServer::builder().start().await;
 
     let refused = refused_for_recent_authentication(&server, &server.admin_token).await;
 
@@ -642,8 +612,8 @@ async fn a_device_that_just_set_up_the_server_needs_no_reauthentication() {
 
 #[tokio::test]
 async fn ten_minutes_after_signing_in_only_the_sensitive_rpcs_need_recent_authentication() {
-    let (server, db) = TestServer::start_with_db(Config::default(), Registry::new()).await;
-    authenticated_long_ago(&db).await;
+    let server = TestServer::builder().start().await;
+    authenticated_long_ago(server.db()).await;
 
     for path in SENSITIVE {
         let reply = post_json(&server, path, Some(&server.admin_token)).await;
@@ -661,7 +631,7 @@ async fn ten_minutes_after_signing_in_only_the_sensitive_rpcs_need_recent_authen
 #[tokio::test]
 async fn a_device_signed_in_by_a_sign_in_code_needs_recent_authentication_for_only_the_sensitive_rpcs()
  {
-    let server = TestServer::start(Config::default(), Registry::new()).await;
+    let server = TestServer::builder().start().await;
     let tv = signed_in_by_code(&server).await;
 
     let refused = refused_for_recent_authentication(&server, &tv).await;
@@ -671,7 +641,7 @@ async fn a_device_signed_in_by_a_sign_in_code_needs_recent_authentication_for_on
 
 #[tokio::test]
 async fn reauthenticating_lets_the_same_session_make_sensitive_changes_without_a_new_cookie() {
-    let server = TestServer::start(Config::default(), Registry::new()).await;
+    let server = TestServer::builder().start().await;
     let tv = signed_in_by_code(&server).await;
     let cookie = format!("nama_session={tv}");
 

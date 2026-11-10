@@ -2962,6 +2962,7 @@ mod tests {
             Arc::clone(&requests.db),
             requests.hand_off.plugins.clone(),
             requests.events.clone(),
+            Arc::new(crate::ffmpeg::Ffmpeg::default()),
         );
         let scan = scanner.lock(library).await;
         let mut published = Box::pin(requests.events.subscribe(Filter::default()));

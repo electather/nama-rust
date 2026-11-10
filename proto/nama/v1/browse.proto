@@ -81,6 +81,50 @@ message Version {
   string file_name = 2;
   // In bytes, so a client can default to the largest.
   uint64 size = 3;
+  // Its video, audio and subtitle Tracks, in the order the file holds them. Empty until the
+  // Server has probed it, which it does in the background after a scan, and always on a Server
+  // without ffprobe.
+  repeated Track tracks = 4;
+}
+
+// One video, audio or subtitle stream inside a Version.
+message Track {
+  // As ffprobe names it, such as `hevc`, `eac3` or `subrip`.
+  string codec = 1;
+  // As the file tags it, usually ISO 639-2, such as `eng`.
+  optional string language = 2;
+  optional string title = 3;
+  // Whether the file marks it to play when nothing else is chosen.
+  bool default = 4;
+  // Whether the file marks it to show even when subtitles are off, as for foreign dialogue.
+  bool forced = 5;
+  // What kind of Track it is, with the facts only that kind has.
+  oneof kind {
+    VideoTrack video = 6;
+    AudioTrack audio = 7;
+    SubtitleTrack subtitle = 8;
+  }
+}
+
+// A video Track's own facts. Each is 0 when the file doesn't say.
+message VideoTrack {
+  uint32 width = 1;
+  uint32 height = 2;
+  // In frames per second.
+  double frame_rate = 3;
+}
+
+// An audio Track's own facts.
+message AudioTrack {
+  // How many, such as 6 for 5.1. 0 when the file doesn't say.
+  uint32 channels = 1;
+}
+
+// A subtitle Track's own facts.
+message SubtitleTrack {
+  // Whether it is a bitmap, such as PGS, rather than text, such as SRT, which a client can
+  // restyle.
+  bool image = 1;
 }
 
 message ListMoviesRequest {
