@@ -17,7 +17,7 @@
 pub(crate) mod running;
 pub(crate) mod subtitles;
 
-use std::{collections::BTreeSet, sync::Arc};
+use std::{collections::BTreeSet, net::IpAddr, sync::Arc};
 
 use axum::{
     Router,
@@ -74,6 +74,18 @@ impl PlaybackLimit {
     // 854 is 480 at 16:9, made even.
     pub(crate) const P480: Self = Self::new("480p", 854, 480, 1_500_000);
 
+    const ALL: [Self; 3] = [Self::P1080, Self::P720, Self::P480];
+
+    /// What it's called, such as "720p", which is also how it's stored.
+    pub(crate) const fn name(self) -> &'static str {
+        self.name
+    }
+
+    /// The limit called `name`, if there is one.
+    pub(crate) fn named(name: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|limit| limit.name == name)
+    }
+
     const fn new(name: &'static str, width: i64, height: i64, bits_per_second: u32) -> Self {
         Self {
             name,
@@ -82,6 +94,25 @@ impl PlaybackLimit {
             bits_per_second,
         }
     }
+}
+
+/// The Playback Limit a User picked in the player.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum PickedLimit {
+    /// They haven't picked one, so outside the local network the default for remote playback
+    /// applies.
+    Unpicked,
+    /// They picked this one, `None` being Original.
+    Picked(Option<PlaybackLimit>),
+}
+
+/// Where a Device plays from, as its address says.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Network {
+    Local,
+    /// Outside the local network, with the default Playback Limit for remote playback an admin
+    /// set, `None` being Original.
+    Remote(Option<PlaybackLimit>),
 }
 
 /// How the Server will play one Version on one Device, and why.
@@ -100,6 +131,8 @@ pub(crate) struct Plan {
     pub(crate) reasons: Vec<String>,
     /// The text subtitles a player can turn on without a new plan.
     pub(crate) subtitles: Vec<Subtitle>,
+    /// The Playback Limit it keeps to, `None` being Original.
+    pub(crate) limit: Option<PlaybackLimit>,
 }
 
 /// A text subtitle a player shows as a WebVTT `<track>`.
@@ -135,12 +168,13 @@ impl DeviceDecoding {
 
 /// Plans playing the Version `version` on `caller`'s Device, which decodes `decoding`, by any
 /// method but those that just `failed` there, with the audio Track at the place `audio` in the
-/// Version's Tracks, or else its own, within the Playback Limit `limit`, `None` being Original,
-/// with the subtitle Track at the place `subtitle` burned into the picture, if any, probing the
-/// Version first unless its Tracks are current, and keeps a playable plan in `running`, which
-/// starts its ffmpeg if it needs one. `None` if there is no such Version, and
-/// [`StartError::Busy`] if only a Transcode would play it and the Server is running as many as it
-/// may.
+/// Version's Tracks, or else its own, within the Playback Limit the User `picked`, or else,
+/// while they haven't picked one, `remote_default` (`None` being Original) if the Device's address
+/// `client` is outside the local network, with the subtitle Track at the place `subtitle` burned
+/// into the picture, if any. It probes the Version first unless its Tracks are
+/// current, and keeps a playable plan in `running`, which starts its ffmpeg if it needs one. `None`
+/// if there is no such Version, and [`StartError::Busy`] if only a Transcode would play it and the
+/// Server is running as many as it may.
 #[expect(
     clippy::too_many_arguments,
     reason = "each is its own fact about the request or a service it needs, and a struct would \
@@ -154,7 +188,9 @@ pub(crate) async fn plan(
     decoding: DeviceDecoding,
     failed: BTreeSet<Method>,
     audio: Option<usize>,
-    limit: Option<PlaybackLimit>,
+    picked: PickedLimit,
+    client: IpAddr,
+    remote_default: Option<PlaybackLimit>,
     subtitle: Option<usize>,
 ) -> Result<Option<Plan>, StartError> {
     let probe = match scanner.probe_now(version).await {
@@ -180,7 +216,12 @@ pub(crate) async fn plan(
         failed,
         audio,
         transcodes_full: running.transcodes_full(caller.device.id),
-        limit,
+        picked_limit: picked,
+        network: if on_local_network(client) {
+            Network::Local
+        } else {
+            Network::Remote(remote_default)
+        },
         subtitle,
     };
     let mut plan = build(&facts, &STEPS);
@@ -265,8 +306,8 @@ struct Facts {
     audio: Option<usize>,
     /// The most Transcodes the Server may run at once, if other Devices already run that many.
     transcodes_full: Option<u32>,
-    /// The User's Playback Limit, `None` being Original.
-    limit: Option<PlaybackLimit>,
+    picked_limit: PickedLimit,
+    network: Network,
     /// The subtitle Track the User chose to burn into the picture, by its place in the Version's
     /// Tracks, if they chose one.
     subtitle: Option<usize>,
@@ -281,12 +322,13 @@ struct Narrowing {
 type Step = fn(&Facts) -> Narrowing;
 
 /// In ADR 0027's order. A new input is a new step here.
-const STEPS: [Step; 8] = [
+const STEPS: [Step; 9] = [
     version_tracks,
     device_decoding,
     server_ffmpeg,
     failed_on_device,
     chosen_audio,
+    network,
     playback_limit,
     chosen_subtitle,
     server_busy,
@@ -315,6 +357,7 @@ fn build(facts: &Facts, steps: &[Step]) -> Plan {
             .as_ref()
             .map(|probe| text_subtitles(facts.version, probe))
             .unwrap_or_default(),
+        limit: limit_in_effect(facts),
     }
 }
 
@@ -494,10 +537,50 @@ fn failed_on_device(facts: &Facts) -> Narrowing {
     }
 }
 
-/// The step for the User's Playback Limit: only a Transcode, which scales the picture down to fit
-/// it, when the Version's picture is larger.
+/// The step for where the Device is: it allows every method, and says whether the default
+/// Playback Limit for remote playback chose the limit the next step keeps to.
+fn network(facts: &Facts) -> Narrowing {
+    let reason = match (facts.network, facts.picked_limit) {
+        (Network::Local, _) => "This Device is on the local network".to_owned(),
+        (Network::Remote(default), PickedLimit::Unpicked) => format!(
+            "This Device is outside the local network, so the default Playback Limit for remote \
+             playback, {}, applies",
+            default.map_or("Original", PlaybackLimit::name)
+        ),
+        (Network::Remote(_), PickedLimit::Picked(_)) => {
+            "This Device is outside the local network, but its User picked a Playback Limit in \
+             the player, which applies instead of the default for remote playback"
+                .to_owned()
+        }
+    };
+    Narrowing {
+        allows: BTreeSet::from(Method::ALL),
+        reason,
+    }
+}
+
+/// Whether `address` is on the local network: loopback, private (RFC 1918), link-local, or IPv6
+/// unique-local.
+fn on_local_network(address: IpAddr) -> bool {
+    match address {
+        IpAddr::V4(v4) => v4.is_loopback() || v4.is_private() || v4.is_link_local(),
+        IpAddr::V6(v6) => v6.is_loopback() || v6.is_unicast_link_local() || v6.is_unique_local(),
+    }
+}
+
+/// The Playback Limit in effect: the one the User picked, or else, outside the local network, the
+/// remote default. `None` is Original.
+fn limit_in_effect(facts: &Facts) -> Option<PlaybackLimit> {
+    match (facts.picked_limit, facts.network) {
+        (PickedLimit::Picked(limit), _) | (PickedLimit::Unpicked, Network::Remote(limit)) => limit,
+        (PickedLimit::Unpicked, Network::Local) => None,
+    }
+}
+
+/// The step for the Playback Limit in effect: only a Transcode, which scales the picture down to
+/// fit it, when the Version's picture is larger.
 fn playback_limit(facts: &Facts) -> Narrowing {
-    let Some(PlaybackLimit { name, .. }) = facts.limit else {
+    let Some(PlaybackLimit { name, .. }) = limit_in_effect(facts) else {
         return Narrowing {
             allows: BTreeSet::from(Method::ALL),
             reason: "The Playback Limit is Original".to_owned(),
@@ -559,21 +642,21 @@ fn burn_in(facts: &Facts) -> Option<BurnIn> {
     }
 }
 
-/// How a Transcode keeps the played video within the User's Playback Limit, if they picked one.
+/// How a Transcode keeps the played video within the Playback Limit in effect, if there's one.
 fn video_limit(facts: &Facts) -> Option<VideoLimit> {
     let PlaybackLimit {
         bits_per_second, ..
-    } = facts.limit?;
+    } = limit_in_effect(facts)?;
     Some(VideoLimit {
         size: scaled_size(facts),
         bits_per_second,
     })
 }
 
-/// The size a Transcode scales the played video to, to fit the User's Playback Limit, if it's
+/// The size a Transcode scales the played video to, to fit the Playback Limit in effect, if it's
 /// larger.
 fn scaled_size(facts: &Facts) -> Option<(i64, i64)> {
-    fitted(picture(facts)?, facts.limit?)
+    fitted(picture(facts)?, limit_in_effect(facts)?)
 }
 
 /// The width and height of the played video, if the file says.
@@ -948,9 +1031,9 @@ mod tests {
     use std::collections::BTreeSet;
 
     use super::{
-        DeviceDecoding, Facts, Method, Narrowing, Plan, PlaybackLimit, STEPS, Subtitle,
-        aac_channels, build, device_decoding, failed_on_device, fitted, played_audio, tone_maps,
-        too_busy_to_play,
+        DeviceDecoding, Facts, Method, Narrowing, Network, PickedLimit, Plan, PlaybackLimit, STEPS,
+        Subtitle, aac_channels, build, device_decoding, failed_on_device, fitted, on_local_network,
+        played_audio, tone_maps, too_busy_to_play,
     };
     use crate::tracks::{Hdr, Probe, Track, TrackKind};
 
@@ -1034,7 +1117,8 @@ mod tests {
             failed: BTreeSet::new(),
             audio: None,
             transcodes_full: None,
-            limit: None,
+            picked_limit: PickedLimit::Unpicked,
+            network: Network::Local,
             subtitle: None,
         }
     }
@@ -1063,11 +1147,13 @@ mod tests {
                     "This Server has ffmpeg".to_owned(),
                     "Nothing has failed to play it on this Device".to_owned(),
                     "It plays the file's own audio Track".to_owned(),
+                    "This Device is on the local network".to_owned(),
                     "The Playback Limit is Original".to_owned(),
                     "No subtitles are burned into its picture".to_owned(),
                     "This Server isn't running as many Transcodes as it may at once".to_owned(),
                 ],
                 subtitles: vec![],
+                limit: None,
             }
         );
     }
@@ -1190,6 +1276,7 @@ mod tests {
                 "This Server has ffmpeg",
                 "Nothing has failed to play it on this Device",
                 "It plays the file's own audio Track",
+                "This Device is on the local network",
                 "The Playback Limit is Original",
                 "No subtitles are burned into its picture",
                 "This Server isn't running as many Transcodes as it may at once",
@@ -1292,6 +1379,7 @@ mod tests {
                 "This Server has ffmpeg",
                 "Nothing has failed to play it on this Device",
                 "It plays the file's own audio Track",
+                "This Device is on the local network",
                 "The Playback Limit is Original",
                 "No subtitles are burned into its picture",
                 "This Server isn't running as many Transcodes as it may at once",
@@ -1631,7 +1719,7 @@ mod tests {
 
         assert_eq!(plan.method, Some(Method::Remux));
         assert_eq!(
-            plan.reasons[7],
+            plan.reasons[8],
             "This Server is busy, running as many Transcodes as it may at once (1), so it can't \
              Transcode it"
         );
@@ -1668,7 +1756,7 @@ mod tests {
     #[test]
     fn a_playback_limit_below_the_versions_picture_transcodes_it_down_to_fit_and_says_so() {
         let facts = Facts {
-            limit: Some(PlaybackLimit::P720),
+            picked_limit: PickedLimit::Picked(Some(PlaybackLimit::P720)),
             ..facts(Some(vec![video("h264"), audio("aac", true)]))
         };
 
@@ -1687,10 +1775,61 @@ mod tests {
             [track("h264", false, scaled), audio("aac", true)]
         );
         assert_eq!(
-            plan.reasons[5],
+            plan.reasons[6],
             "Its picture is larger than the 720p Playback Limit, so a Transcode scales it down to \
              1280×720"
         );
+    }
+
+    #[test]
+    fn outside_the_local_network_the_remote_default_limits_a_device_until_its_user_picks_one() {
+        let remote = |picked_limit| Facts {
+            picked_limit,
+            network: Network::Remote(Some(PlaybackLimit::P720)),
+            ..facts(Some(vec![video("h264"), audio("aac", true)]))
+        };
+
+        let defaulted = build(&remote(PickedLimit::Unpicked), &STEPS);
+        let picked = build(&remote(PickedLimit::Picked(None)), &STEPS);
+
+        assert_eq!(defaulted.method, Some(Method::Transcode));
+        assert_eq!(defaulted.limit, Some(PlaybackLimit::P720));
+        assert_eq!(
+            defaulted.reasons[5],
+            "This Device is outside the local network, so the default Playback Limit for remote \
+             playback, 720p, applies"
+        );
+        assert_eq!(picked.method, Some(Method::DirectPlay));
+        assert_eq!(picked.limit, None);
+        assert_eq!(
+            picked.reasons[5],
+            "This Device is outside the local network, but its User picked a Playback Limit in \
+             the player, which applies instead of the default for remote playback"
+        );
+    }
+
+    #[test]
+    fn loopback_private_link_local_and_unique_local_addresses_are_on_the_local_network() {
+        let cases = [
+            ("127.0.0.1", true),
+            ("10.1.2.3", true),
+            ("172.16.0.9", true),
+            ("192.168.1.5", true),
+            ("169.254.10.20", true),
+            ("::1", true),
+            ("fe80::1", true),
+            ("fd12:3456::1", true),
+            ("203.0.113.7", false),
+            ("100.64.0.1", false),
+            ("2001:db8::1", false),
+        ];
+        for (address, local) in cases {
+            assert_eq!(
+                on_local_network(address.parse().unwrap()),
+                local,
+                "{address}"
+            );
+        }
     }
 
     #[test]
@@ -1711,14 +1850,14 @@ mod tests {
         ];
         for (limit, tracks, reason) in cases {
             let facts = Facts {
-                limit,
+                picked_limit: PickedLimit::Picked(limit),
                 ..facts(tracks)
             };
 
             let plan = build(&facts, &STEPS);
 
             assert_eq!(plan.method, Some(Method::DirectPlay), "{reason}");
-            assert_eq!(plan.reasons[5], reason);
+            assert_eq!(plan.reasons[6], reason);
         }
     }
 
@@ -1761,7 +1900,7 @@ mod tests {
 
             assert_eq!(plan.method, Some(Method::Transcode), "{}", chosen.codec);
             assert_eq!(
-                plan.reasons[6],
+                plan.reasons[7],
                 "The subtitles chosen are burned into its picture, which only a Transcode does"
             );
             let busy = Facts {
@@ -1785,7 +1924,7 @@ mod tests {
             let plan = build(&facts, &STEPS);
 
             assert_eq!(plan.method, Some(Method::DirectPlay), "{chosen:?}");
-            assert_eq!(plan.reasons[6], "No subtitles are burned into its picture");
+            assert_eq!(plan.reasons[7], "No subtitles are burned into its picture");
         }
     }
 }

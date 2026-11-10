@@ -44,7 +44,7 @@ export function TrackMenus({
       <SubtitlesMenu tracks={tracks} planned={planned} videoRef={videoRef} container={container} />
       <PlaybackLimitMenu
         tracks={tracks}
-        chosen={planned.playbackLimit}
+        chosen={planned.plan.playbackLimit}
         choose={(limit) => {
           if (videoRef.current) planned.chooseLimit(videoRef.current, limit);
         }}

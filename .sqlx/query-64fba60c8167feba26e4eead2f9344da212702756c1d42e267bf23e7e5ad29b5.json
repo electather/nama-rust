@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT remote_playback_limit FROM server_settings",
+  "describe": {
+    "columns": [
+      {
+        "name": "remote_playback_limit",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "server_settings",
+            "name": "remote_playback_limit"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "64fba60c8167feba26e4eead2f9344da212702756c1d42e267bf23e7e5ad29b5"
+}

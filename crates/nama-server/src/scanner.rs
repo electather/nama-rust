@@ -1310,6 +1310,8 @@ EOF"#,
             decoding,
             BTreeSet::new(),
             None,
+            playback::PickedLimit::Unpicked,
+            std::net::Ipv4Addr::LOCALHOST.into(),
             None,
             None,
         )

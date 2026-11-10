@@ -11,9 +11,9 @@ use std::net::SocketAddr;
 use connectrpc::{ErrorCode, client::HttpClient};
 use nama_proto::nama::v1::{
     FoundProgram, GetPlaybackSettingsRequest, GetPlaybackStatusRequest, GetPlaybackStatusResponse,
-    GetServerInfoRequest, GetServerInfoResponse, GetServerSettingsRequest, PlaybackSettings,
-    RefusalReason, ServerServiceClient, ServerSettings, UpdatePlaybackSettingsRequest,
-    UpdateServerSettingsRequest,
+    GetServerInfoRequest, GetServerInfoResponse, GetServerSettingsRequest, PlaybackLimit,
+    PlaybackSettings, RefusalReason, ServerServiceClient, ServerSettings,
+    UpdatePlaybackSettingsRequest, UpdateServerSettingsRequest,
 };
 use nama_server::{config::Config, ffmpeg::Ffmpeg};
 use refused::assert_refused;
@@ -292,6 +292,37 @@ async fn the_segment_folder_is_empty_until_an_admin_sets_it() {
 
     assert_eq!(unset, "");
     assert_eq!(segment_folder(&client).await, "/dev/shm/nama");
+}
+
+#[tokio::test]
+async fn the_remote_playback_limit_is_original_until_an_admin_sets_it() {
+    let server = TestServer::builder().start().await;
+    let client = ServerServiceClient::new(HttpClient::plaintext(), server.client_config());
+    let settings = || async {
+        (client.get_playback_settings(GetPlaybackSettingsRequest::default()))
+            .await
+            .unwrap()
+            .into_owned()
+            .settings
+            .remote_playback_limit
+    };
+    let unset = settings().await;
+
+    client
+        .update_playback_settings(UpdatePlaybackSettingsRequest {
+            settings: PlaybackSettings {
+                remote_playback_limit: PlaybackLimit::PLAYBACK_LIMIT_720P.into(),
+                max_transcodes: 2,
+                ..Default::default()
+            }
+            .into(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    assert_eq!(unset, PlaybackLimit::PLAYBACK_LIMIT_ORIGINAL);
+    assert_eq!(settings().await, PlaybackLimit::PLAYBACK_LIMIT_720P);
 }
 
 #[tokio::test]

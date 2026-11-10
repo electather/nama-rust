@@ -45,7 +45,7 @@ use crate::{
     plugin_settings::PluginSettings,
     requests::{PROGRESS_EVERY, Requests},
     scanner::Scanner,
-    server_settings::{MaxTranscodes, SegmentFolder, ServerUrl},
+    server_settings::{MaxTranscodes, RemotePlaybackLimit, SegmentFolder, ServerUrl},
     tracks::Tracks,
     users::SetupCode,
 };
@@ -82,6 +82,11 @@ use crate::{
     reason = "each is a separate handle the Server is built from; a struct bundling them would \
               exist only for this call"
 )]
+#[expect(
+    clippy::too_many_lines,
+    reason = "it builds each service from the ones it needs, in order; split up, the parts would \
+              only hand those handles on"
+)]
 pub fn serve(
     listener: TcpListener,
     config: &Config,
@@ -106,6 +111,7 @@ pub fn serve(
     let matcher = Matcher::new(Arc::clone(&db), registry.clone(), events.clone());
     let requests = Requests::new(Arc::clone(&db), matcher, events.clone(), registry.clone());
     let segment_folder = SegmentFolder::new(config.data_dir.join("transcodes"));
+    let remote_limit = RemotePlaybackLimit::default();
     let running = RunningPlans::new(
         segment_folder.clone(),
         Arc::clone(&ffmpeg),
@@ -117,6 +123,7 @@ pub fn serve(
         server_url.clone(),
         segment_folder.clone(),
         running.max_transcodes().clone(),
+        remote_limit.clone(),
         Arc::clone(&db),
     );
     let app = api::router(
@@ -128,6 +135,7 @@ pub fn serve(
         requests.clone(),
         server_url,
         segment_folder,
+        remote_limit,
         running.clone(),
         setup_code,
         ffmpeg,
@@ -181,12 +189,14 @@ pub fn serve(
     }
 }
 
-/// Reads the Server URL, the segment folder and the Transcode cap from `db`, logging a failure and
-/// going on with the default, then sweeps the segment files an earlier run left.
+/// Reads the Server URL, the segment folder, the Transcode cap and the remote Playback Limit from
+/// `db`, logging a failure and going on with the default, then sweeps the segment files an earlier
+/// run left.
 async fn load_settings(
     server_url: ServerUrl,
     segment_folder: SegmentFolder,
     max_transcodes: MaxTranscodes,
+    remote_limit: RemotePlaybackLimit,
     db: Arc<Database>,
 ) {
     if let Err(err) = server_url.load(&db).await {
@@ -199,6 +209,11 @@ async fn load_settings(
     }
     if let Err(err) = max_transcodes.load(&db).await {
         tracing::error!("reading the Transcode cap failed, so it's the default: {err}");
+    }
+    if let Err(err) = remote_limit.load(&db).await {
+        tracing::error!(
+            "reading the remote Playback Limit failed, so remote playback isn't limited: {err}"
+        );
     }
     playback::running::sweep_leftovers(&segment_folder).await;
 }

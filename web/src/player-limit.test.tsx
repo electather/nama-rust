@@ -32,10 +32,14 @@ const LANDSCAPE_1080P = { width: 1920, height: 1080 };
 
 /**
  * A fake Server with Alien in Library 1, whose one Version is H.264 with a `picture`, 1080p unless
- * given. It Direct Plays it unless a Playback Limit below Original is asked for, which it
- * Transcodes, and each plan request goes in `asked`.
+ * given. It Direct Plays it unless the Playback Limit asked for, or else `remoteDefault`, is below
+ * Original, which it Transcodes, and each plan request goes in `asked`.
  */
-function server(asked: PlanPlaybackRequest[], picture = LANDSCAPE_1080P) {
+function server(
+  asked: PlanPlaybackRequest[],
+  picture = LANDSCAPE_1080P,
+  remoteDefault: PlaybackLimit = PlaybackLimit.PLAYBACK_LIMIT_ORIGINAL,
+) {
   const libraries = [{ id: 1n, name: "Films", kind: LibraryKind.MOVIES }];
   const tracks = [
     { codec: "h264", kind: { case: "video", value: picture } },
@@ -54,15 +58,13 @@ function server(asked: PlanPlaybackRequest[], picture = LANDSCAPE_1080P) {
     router.service(PlaybackService, {
       planPlayback: (request) => {
         asked.push(request);
-        const limit = request.playbackLimit;
-        const original =
-          limit === PlaybackLimit.PLAYBACK_LIMIT_UNSPECIFIED ||
-          limit === PlaybackLimit.PLAYBACK_LIMIT_ORIGINAL;
-        return {
-          plan: original
+        const picked = request.playbackLimit;
+        const limit = picked === PlaybackLimit.PLAYBACK_LIMIT_UNSPECIFIED ? remoteDefault : picked;
+        const played =
+          limit === PlaybackLimit.PLAYBACK_LIMIT_ORIGINAL
             ? { method: PlaybackMethod.DIRECT_PLAY, url: "/media/versions/7" }
-            : { method: PlaybackMethod.TRANSCODE, url: `/media/plans/${asked.length}/index.m3u8` },
-        };
+            : { method: PlaybackMethod.TRANSCODE, url: `/media/plans/${asked.length}/index.m3u8` };
+        return { plan: { ...played, playbackLimit: limit } };
       },
     });
   });
@@ -137,4 +139,27 @@ test("choosing 720p mid-play, then Original, asks each time for a plan from wher
   });
   expect(asked[2]?.playbackLimit).toBe(PlaybackLimit.PLAYBACK_LIMIT_ORIGINAL);
   expect(asked[2]?.startPositionMs).toBe(800_000n);
+});
+
+test("away from home the menu shows the remote default the Server chose, until Original is picked", async () => {
+  const asked: PlanPlaybackRequest[] = [];
+  openApp(PLAYER, server(asked, LANDSCAPE_1080P, PlaybackLimit.PLAYBACK_LIMIT_720P));
+  await screen.findByLabelText("Alien");
+
+  const shown = openLimits().map((item) => item.getAttribute("aria-checked"));
+  fireEvent.click(screen.getByRole("menuitemradio", { name: "Original" }));
+
+  expect(asked[0]?.playbackLimit).toBe(PlaybackLimit.PLAYBACK_LIMIT_UNSPECIFIED);
+  expect(shown).toEqual(["false", "true", "false"]);
+  await waitFor(() => {
+    expect(asked).toHaveLength(2);
+  });
+  expect(asked[1]?.playbackLimit).toBe(PlaybackLimit.PLAYBACK_LIMIT_ORIGINAL);
+});
+
+test("a remote default the Version already fits shows as Original", async () => {
+  openApp(PLAYER, server([], { width: 1280, height: 720 }, PlaybackLimit.PLAYBACK_LIMIT_1080P));
+  await screen.findByLabelText("Alien");
+
+  expect(openLimits().map((item) => item.getAttribute("aria-checked"))).toEqual(["true", "false"]);
 });

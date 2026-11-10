@@ -1,6 +1,6 @@
 //! What an admin sets about the Server as a whole, kept in the database: so far its URL, which
 //! notifications link to the web app with, the folder playback writes segment files to, and the
-//! most Transcodes it runs at once.
+//! most Transcodes it runs at once, and the default Playback Limit for remote playback.
 
 use std::{
     path::{Path, PathBuf},
@@ -12,7 +12,7 @@ use std::{
 
 use nama_plugin_api::settings::{SettingKind, SettingValue};
 
-use crate::db::Database;
+use crate::{db::Database, playback::PlaybackLimit};
 
 /// The address people reach the Server at, or `""` for none, held in memory so that building a
 /// notification doesn't read the database. Clones share it.
@@ -218,10 +218,61 @@ impl MaxTranscodes {
     }
 }
 
+/// The Playback Limit for a Device outside the local network until its User picks one, `None`
+/// being Original. Held in memory so that planning doesn't read the database. Clones share it.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct RemotePlaybackLimit(Arc<RwLock<Option<PlaybackLimit>>>);
+
+impl RemotePlaybackLimit {
+    /// Takes the stored limit, if any, as this one.
+    pub(crate) async fn load(&self, db: &Database) -> Result<(), sqlx::Error> {
+        let stored = sqlx::query_scalar!("SELECT remote_playback_limit FROM server_settings")
+            .fetch_optional(db.reader())
+            .await?;
+        self.set(stored.as_deref().and_then(PlaybackLimit::named));
+        Ok(())
+    }
+
+    /// Stores `limit` and uses it for plans made from now on.
+    pub(crate) async fn save(
+        &self,
+        db: &Database,
+        limit: Option<PlaybackLimit>,
+    ) -> Result<(), sqlx::Error> {
+        let this = self.clone();
+        db.write(move |tx| {
+            Box::pin(async move {
+                let name = limit.map_or("", PlaybackLimit::name);
+                sqlx::query!(
+                    "INSERT INTO server_settings (id, url, remote_playback_limit) VALUES (1, '', ?)
+                     ON CONFLICT (id) DO UPDATE
+                     SET remote_playback_limit = excluded.remote_playback_limit",
+                    name
+                )
+                .execute(&mut **tx)
+                .await?;
+                // On the one writer, as `ServerUrl::save` does, so saves take effect in order.
+                this.set(limit);
+                Ok::<_, sqlx::Error>(())
+            })
+        })
+        .await
+    }
+
+    /// The limit, `None` being Original.
+    pub(crate) fn get(&self) -> Option<PlaybackLimit> {
+        *self.0.read().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn set(&self, limit: Option<PlaybackLimit>) {
+        *self.0.write().unwrap_or_else(PoisonError::into_inner) = limit;
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{MaxTranscodes, SegmentFolder, ServerUrl};
-    use crate::db::Database;
+    use super::{MaxTranscodes, RemotePlaybackLimit, SegmentFolder, ServerUrl};
+    use crate::{db::Database, playback::PlaybackLimit};
 
     #[tokio::test]
     async fn a_saved_url_is_loaded_again_after_a_restart() {
@@ -257,6 +308,22 @@ mod tests {
 
         assert_eq!(restarted.path(), std::path::Path::new("/tmp/nama"));
         assert_eq!(url.get(), "https://nama.example.com");
+    }
+
+    #[tokio::test]
+    async fn a_saved_remote_playback_limit_is_loaded_again_after_a_restart_and_starts_original() {
+        let data_dir = tempfile::tempdir().unwrap();
+        let db = Database::open(data_dir.path()).await.unwrap();
+        let fresh = RemotePlaybackLimit::default();
+        fresh.load(&db).await.unwrap();
+        let out_of_the_box = fresh.get();
+        fresh.save(&db, Some(PlaybackLimit::P720)).await.unwrap();
+
+        let restarted = RemotePlaybackLimit::default();
+        restarted.load(&db).await.unwrap();
+
+        assert_eq!(out_of_the_box, None);
+        assert_eq!(restarted.get(), Some(PlaybackLimit::P720));
     }
 
     #[tokio::test]

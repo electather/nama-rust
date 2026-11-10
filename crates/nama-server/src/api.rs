@@ -98,7 +98,7 @@ use crate::{
     libraries::{self, FolderProblem, Kind, Libraries, Library},
     matching::{ManualError, Matcher},
     playback::{
-        self, DeviceDecoding, Method, Plan, PlaybackLimit, method_to_proto,
+        self, DeviceDecoding, Method, PickedLimit, Plan, PlaybackLimit, method_to_proto,
         running::{RunningPlans, StartError},
     },
     plugin_settings::{ChangeError, ListError, PluginSettings, StoredPlugin},
@@ -107,7 +107,7 @@ use crate::{
     rate_limits::{Blocked, SignInCodeLimits, SignInLimits},
     requests::{self, Found, FoundShow, Requests},
     scanner::Scanner,
-    server_settings::{MaxTranscodes, SegmentFolder, ServerUrl},
+    server_settings::{MaxTranscodes, RemotePlaybackLimit, SegmentFolder, ServerUrl},
     sessions::{cleared_session_cookie, identify_caller, in_session_cookie, session_cookie},
     sign_in_codes::{self, Poll, SignInCodes},
     tracks::{Tracks, track_to_proto},
@@ -131,6 +131,7 @@ pub(crate) fn router(
     requests: Requests,
     server_url: ServerUrl,
     segment_folder: SegmentFolder,
+    remote_limit: RemotePlaybackLimit,
     running: RunningPlans,
     setup_code: Option<SetupCode>,
     ffmpeg: Arc<Ffmpeg>,
@@ -159,6 +160,7 @@ pub(crate) fn router(
             server_url,
             segment_folder,
             max_transcodes: running.max_transcodes().clone(),
+            remote_limit: remote_limit.clone(),
             ffmpeg,
         }))
         .add_service(Arc::new(SignInServiceHandler {
@@ -185,6 +187,7 @@ pub(crate) fn router(
         .add_service(Arc::new(PlaybackServiceHandler {
             scanner: scanner.clone(),
             running,
+            remote_limit,
         }))
         .add_service(Arc::new(RequestServiceHandler { requests, artwork }))
         .add_service(Arc::new(PluginServiceHandler { plugin_settings }))
@@ -429,6 +432,7 @@ struct ServerServiceHandler {
     server_url: ServerUrl,
     segment_folder: SegmentFolder,
     max_transcodes: MaxTranscodes,
+    remote_limit: RemotePlaybackLimit,
     ffmpeg: Arc<Ffmpeg>,
 }
 
@@ -562,6 +566,11 @@ impl ServerService for ServerServiceHandler {
             .save(&self.db, max_transcodes)
             .await
             .map_err(database_failed)?;
+        let remote_limit = limit_from_proto(request.settings.remote_playback_limit);
+        self.remote_limit
+            .save(&self.db, remote_limit)
+            .await
+            .map_err(database_failed)?;
         Response::ok(UpdatePlaybackSettingsResponse {
             settings: self.playback_settings().into(),
             ..Default::default()
@@ -581,6 +590,7 @@ impl ServerServiceHandler {
         PlaybackSettings {
             segment_folder: self.segment_folder.get(),
             max_transcodes: self.max_transcodes.get(),
+            remote_playback_limit: limit_to_proto(self.remote_limit.get()).into(),
             ..Default::default()
         }
     }
@@ -1310,6 +1320,7 @@ fn version_not_found() -> ConnectError {
 struct PlaybackServiceHandler {
     scanner: Scanner,
     running: RunningPlans,
+    remote_limit: RemotePlaybackLimit,
 }
 
 #[expect(
@@ -1324,6 +1335,7 @@ impl PlaybackService for PlaybackServiceHandler {
         request: ServiceRequest<'_, PlanPlaybackRequest>,
     ) -> ServiceResult<PlanPlaybackResponse> {
         let caller = caller(&ctx)?;
+        let client = client_ip(&ctx)?;
         // The rest of the request is for steps still to come (ADR 0027).
         let request = request.to_owned_message();
         let audio = (request.audio_track).and_then(|place| usize::try_from(place).ok());
@@ -1346,7 +1358,9 @@ impl PlaybackService for PlaybackServiceHandler {
             decoding,
             failed,
             audio,
-            limit_from_proto(request.playback_limit),
+            picked_limit(request.playback_limit),
+            client,
+            self.remote_limit.get(),
             subtitle,
         )
         .await
@@ -2455,19 +2469,47 @@ fn version_to_proto(version: &Version) -> proto::Version {
     }
 }
 
+/// Each Playback Limit below Original, by the API's name for it.
+const NAMED_LIMITS: [(PlaybackLimit, proto::PlaybackLimit); 3] = [
+    (
+        PlaybackLimit::P1080,
+        proto::PlaybackLimit::PLAYBACK_LIMIT_1080P,
+    ),
+    (
+        PlaybackLimit::P720,
+        proto::PlaybackLimit::PLAYBACK_LIMIT_720P,
+    ),
+    (
+        PlaybackLimit::P480,
+        proto::PlaybackLimit::PLAYBACK_LIMIT_480P,
+    ),
+];
+
 /// The Playback Limit `limit` names, `None` being Original, as is one not picked or one newer
 /// than this Server.
-const fn limit_from_proto(limit: EnumValue<proto::PlaybackLimit>) -> Option<PlaybackLimit> {
-    match limit {
-        EnumValue::Known(proto::PlaybackLimit::PLAYBACK_LIMIT_1080P) => Some(PlaybackLimit::P1080),
-        EnumValue::Known(proto::PlaybackLimit::PLAYBACK_LIMIT_720P) => Some(PlaybackLimit::P720),
-        EnumValue::Known(proto::PlaybackLimit::PLAYBACK_LIMIT_480P) => Some(PlaybackLimit::P480),
-        EnumValue::Known(
-            proto::PlaybackLimit::PLAYBACK_LIMIT_UNSPECIFIED
-            | proto::PlaybackLimit::PLAYBACK_LIMIT_ORIGINAL,
-        )
-        | EnumValue::Unknown(_) => None,
+fn limit_from_proto(limit: EnumValue<proto::PlaybackLimit>) -> Option<PlaybackLimit> {
+    (NAMED_LIMITS.into_iter())
+        .find(|(_, theirs)| EnumValue::Known(*theirs) == limit)
+        .map(|(ours, _)| ours)
+}
+
+/// The Playback Limit the User picked, as [`limit_from_proto`] has it.
+fn picked_limit(limit: EnumValue<proto::PlaybackLimit>) -> PickedLimit {
+    if limit == EnumValue::Known(proto::PlaybackLimit::PLAYBACK_LIMIT_UNSPECIFIED) {
+        PickedLimit::Unpicked
+    } else {
+        PickedLimit::Picked(limit_from_proto(limit))
     }
+}
+
+/// `limit` as the API names it, `None` being Original.
+fn limit_to_proto(limit: Option<PlaybackLimit>) -> proto::PlaybackLimit {
+    (NAMED_LIMITS.into_iter())
+        .find(|(ours, _)| Some(*ours) == limit)
+        .map_or(
+            proto::PlaybackLimit::PLAYBACK_LIMIT_ORIGINAL,
+            |(_, theirs)| theirs,
+        )
 }
 
 /// `None` for no method, or one newer than this Server, which it can't plan anyway.
@@ -2492,6 +2534,7 @@ fn plan_to_proto(plan: Plan) -> proto::PlaybackPlan {
         url: plan.url.unwrap_or_default(),
         tracks: plan.tracks.iter().map(track_to_proto).collect(),
         reasons: plan.reasons,
+        playback_limit: limit_to_proto(plan.limit).into(),
         subtitles: (plan.subtitles.iter())
             .map(|subtitle| proto::PlaybackSubtitle {
                 track: track_to_proto(&subtitle.track).into(),

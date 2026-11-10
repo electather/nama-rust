@@ -8,7 +8,9 @@ import {
 } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
 
-import { FormEnd, FormField } from "@/components/form-field";
+import { FormEnd, FormField, FormSelect } from "@/components/form-field";
+import { belowOriginal } from "@/components/playback-limit-menu";
+import { PlaybackLimit } from "@/gen/nama/v1/playback_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { PlaybackSettingsSchema, ServerService } from "@/gen/nama/v1/server_pb";
 import { formText, onSubmitted, refusal, serverMessage } from "@/lib/forms";
@@ -28,8 +30,8 @@ export function playbackSettingsQuery(transport: Transport) {
 
 /**
  * The form an Admin sets how the Server plays Versions it changes with: the folder Remuxes and
- * Transcodes write their segment files to, and the most Transcodes it runs at once. One form, as
- * saving replaces every Playback setting.
+ * Transcodes write their segment files to, the most Transcodes it runs at once, and the default
+ * Playback Limit for remote playback. One form, as saving replaces every Playback setting.
  */
 export function PlaybackSettingsForm() {
   const queryClient = useQueryClient();
@@ -68,6 +70,7 @@ export function PlaybackSettingsForm() {
         hint="The most the Server runs at once. Remuxes don’t count. While that many run, a Device that can play a Remux gets one instead, and one that can’t is told the Server is busy."
         error={errors.maxTranscodes}
       />
+      <RemoteLimitField saved={settings.remotePlaybackLimit} />
       <FormEnd
         action={update.isPending ? "Saving playback settings…" : "Save playback settings"}
         pending={update.isPending}
@@ -83,7 +86,38 @@ function typedSettings(typed: FormData) {
   return {
     segmentFolder: formText(typed, "segmentFolder"),
     maxTranscodes: Number(formText(typed, "maxTranscodes")),
+    remotePlaybackLimit: limitPicked(formText(typed, "remotePlaybackLimit")),
   };
+}
+
+/** The Playback Limits an Admin can pick from, as the player's menu names them. */
+const limits = [
+  { limit: PlaybackLimit.PLAYBACK_LIMIT_ORIGINAL, name: "Original" },
+  ...belowOriginal,
+];
+
+/** The field for the default Playback Limit for remote playback, showing the `saved` one. */
+function RemoteLimitField({ saved }: { saved: PlaybackLimit }) {
+  return (
+    <FormSelect
+      label="Default Playback Limit for remote playback"
+      name="remotePlaybackLimit"
+      defaultValue={saved}
+      hint="The most a Device outside the local network is sent until its User picks a Playback Limit in the player. Original sends each Version as it is."
+    >
+      {limits.map(({ limit, name }) => (
+        <option key={limit} value={limit}>
+          {name}
+        </option>
+      ))}
+    </FormSelect>
+  );
+}
+
+/** The Playback Limit an `<option>`'s `value` names, or else Original. */
+function limitPicked(value: string) {
+  const picked = limits.find(({ limit }) => String(limit) === value);
+  return picked?.limit ?? PlaybackLimit.PLAYBACK_LIMIT_ORIGINAL;
 }
 
 /** Why the Server refused the Playback settings, under their field, or `{}` while it hasn't. */

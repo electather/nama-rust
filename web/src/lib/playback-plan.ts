@@ -21,7 +21,10 @@ interface Asking {
   startPositionMs: bigint;
   /** The chosen audio Track's place in the Version's Tracks, `undefined` being the file's own. */
   audioTrack: number | undefined;
-  /** The Playback Limit chosen, `PLAYBACK_LIMIT_UNSPECIFIED` until the User picks one. */
+  /**
+   * The Playback Limit chosen, `PLAYBACK_LIMIT_UNSPECIFIED` until the User picks one, when the
+   * Server may pick its default for remote playback.
+   */
   playbackLimit: PlaybackLimit;
   /** The place of the subtitle Track burned into the picture, if any, in the Version's Tracks. */
   subtitleTrack: number | undefined;
@@ -40,7 +43,7 @@ export type SubtitleChoice = string | number | undefined;
  * that failed, or else sets `gaveUp`: only once per method, so a Server that plans it again can't
  * make the player ask forever. `chooseAudio` asks for a new plan from there with the audio Track
  * at a place in the Version's Tracks, which `audioTrack` then holds, and `chooseLimit` with a
- * Playback Limit, which `playbackLimit` then holds. `chooseSubtitle` shows a text subtitle, which
+ * Playback Limit, which the plan's `playbackLimit` then holds. `chooseSubtitle` shows a text subtitle, which
  * `shownSubtitle` then holds, or asks for a new plan from there with a subtitle Track burned in,
  * which `subtitleTrack` then holds.
  */
@@ -60,7 +63,7 @@ export function usePlaybackPlan({
     playbackLimit: PlaybackLimit.PLAYBACK_LIMIT_UNSPECIFIED,
     subtitleTrack: undefined,
   }));
-  const { failedMethods, startPositionMs, audioTrack, playbackLimit, subtitleTrack } = asking;
+  const { failedMethods, startPositionMs, audioTrack, subtitleTrack } = asking;
   const askFromHere = asker(setAsking, startPositionMs);
   const subtitles = useSubtitleChoice(askFromHere, subtitleTrack);
   const [gaveUp, setGaveUp] = useState(false);
@@ -87,7 +90,7 @@ export function usePlaybackPlan({
     },
     [failedMethods, plan.method, startPositionMs],
   );
-  const chosen = { audioTrack, playbackLimit, subtitleTrack, ...choosers(askFromHere) };
+  const chosen = { audioTrack, subtitleTrack, ...choosers(askFromHere) };
   return { plan, startPositionMs, gaveUp, onCantPlay, ...chosen, ...subtitles };
 }
 
