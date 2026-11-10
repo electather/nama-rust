@@ -5,8 +5,8 @@
 -- `version_probes`, never both.
 CREATE TABLE probe_failures (
     version_id INTEGER PRIMARY KEY REFERENCES library_files (id) ON DELETE CASCADE,
-    -- `failed` and `unreadable_output` last; `timed_out` and `not_run` pass.
-    reason TEXT NOT NULL CHECK (reason IN ('failed', 'unreadable_output', 'timed_out', 'not_run')),
+    -- `failed` and `unreadable_output` last; `timed_out` passes.
+    reason TEXT NOT NULL CHECK (reason IN ('failed', 'unreadable_output', 'timed_out')),
     probe_version INTEGER NOT NULL,
     -- Like `probe_version`, but bumped to retry only failed files (`PROBE_FAILURE_VERSION`).
     failure_version INTEGER NOT NULL,

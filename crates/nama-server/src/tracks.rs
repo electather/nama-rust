@@ -168,13 +168,16 @@ impl Tracks {
     /// one of them or [`PROBE_FAILURE_VERSION`] changes; for a passing one, such as a timeout, it
     /// tries again next pass, until it has failed [`PROBE_ATTEMPTS`] times in a row. Forgets what
     /// probing found in it before, so Tracks read from what the file held then don't outlive it. A
-    /// Version removed since stores nothing.
+    /// Version removed since, or an `err` that says nothing about the file, such as ffprobe not
+    /// running, stores and forgets nothing.
     pub(crate) async fn store_failure(
         &self,
         version: Stored,
         err: &ProbeError,
     ) -> Result<(), sqlx::Error> {
-        let reason = failure_reason(err);
+        let Some(reason) = failure_reason(err) else {
+            return Ok(());
+        };
         let stored = self
             .db
             .write(move |tx| {
@@ -339,16 +342,18 @@ impl Tracks {
     }
 }
 
-/// `err` as `probe_failures.reason`, which says whether it lasts.
-const fn failure_reason(err: &ProbeError) -> &'static str {
+/// `err` as `probe_failures.reason`, which says whether it lasts, or none if it says nothing about
+/// the file.
+const fn failure_reason(err: &ProbeError) -> Option<&'static str> {
     match err {
         // ffprobe read the file and refused it, or said something it can't parse: it will again.
-        ProbeError::Failed(_) => "failed",
-        ProbeError::Output(_) => "unreadable_output",
+        ProbeError::Failed(_) => Some("failed"),
+        ProbeError::Output(_) => Some("unreadable_output"),
         // A slow or unmounted share, or a busy disk, may not be slow next time.
-        ProbeError::TimedOut(_) => "timed_out",
-        // Nothing was read. `Unavailable` never reaches here, as nothing is stored without ffprobe.
-        ProbeError::Run(_) | ProbeError::Unavailable => "not_run",
+        ProbeError::TimedOut(_) => Some("timed_out"),
+        // ffprobe never reached the file, so counting it against the file would skip a whole
+        // Library after one bad pass, such as during a package upgrade.
+        ProbeError::Run(_) | ProbeError::Unavailable => None,
     }
 }
 
