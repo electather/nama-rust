@@ -31,8 +31,9 @@ use tower_http::services::ServeFile;
 
 use crate::{
     contents::Contents,
-    ffmpeg::{BurnIn, Ffmpeg, ProbeError, VideoLimit},
+    ffmpeg::{BurnIn, Ffmpeg, Hardware, ProbeError, ToneMapper, VideoConversion, VideoLimit},
     scanner::{ProbeNowError, Scanner},
+    server_settings::HardwareChoice,
     tracks::{Hdr, Probe, Track, TrackKind, Tracks, track_to_proto},
     users::{Caller, User},
 };
@@ -207,7 +208,7 @@ pub(crate) async fn plan(
         Err(ProbeNowError::NoSuchVersion(_)) => return Ok(None),
         Err(ProbeNowError::Database(err)) => return Err(err.into()),
     };
-    let facts = Facts {
+    let mut facts = Facts {
         version,
         probe,
         device: decoding,
@@ -215,7 +216,7 @@ pub(crate) async fn plan(
         zscale: running.can_tone_map().await,
         failed,
         audio,
-        transcodes_full: running.transcodes_full(caller.device.id),
+        transcodes_full: None,
         picked_limit: picked,
         network: if on_local_network(client) {
             Network::Local
@@ -223,7 +224,11 @@ pub(crate) async fn plan(
             Network::Remote(remote_default)
         },
         subtitle,
+        hardware_choice: running.hardware_acceleration().get(),
+        hardware: running.found_hardware().await.to_vec(),
     };
+    facts.transcodes_full =
+        running.transcodes_full(caller.device.id, default_max_transcodes(&facts));
     let mut plan = build(&facts, &STEPS);
     let Some(playback) = playback(caller, version, &plan) else {
         return match too_busy_to_play(facts) {
@@ -239,10 +244,9 @@ pub(crate) async fn plan(
         }
         (Some(Method::Transcode), Some(probed)) => {
             let converted_audio = played_audio(&facts).zip(channels_as_aac(plan.method, &facts));
-            let (video, burned) = (video_limit(&facts), burn_in(&facts));
-            let tone_map = tone_maps(&facts);
+            let video = video_conversion(&facts);
             running
-                .transcode(playback, probed, converted_audio, tone_map, video, burned)
+                .transcode(playback, probed, converted_audio, video, facts.zscale)
                 .await?
         }
         _ => {
@@ -311,6 +315,10 @@ struct Facts {
     /// The subtitle Track the User chose to burn into the picture, by its place in the Version's
     /// Tracks, if they chose one.
     subtitle: Option<usize>,
+    /// What the admin chose for Transcodes to run on.
+    hardware_choice: HardwareChoice,
+    /// The hardware acceleration that passed its test at startup, in the order Automatic picks.
+    hardware: Vec<Hardware>,
 }
 
 /// What one step lets a plan be, and why.
@@ -322,10 +330,11 @@ struct Narrowing {
 type Step = fn(&Facts) -> Narrowing;
 
 /// In ADR 0027's order. A new input is a new step here.
-const STEPS: [Step; 9] = [
+const STEPS: [Step; 10] = [
     version_tracks,
     device_decoding,
     server_ffmpeg,
+    server_encoders,
     failed_on_device,
     chosen_audio,
     network,
@@ -464,12 +473,95 @@ fn server_ffmpeg(facts: &Facts) -> Narrowing {
     }
 }
 
-/// Whether a Transcode tone-maps the played video's HDR to SDR: when the Device can't show it and
-/// ffmpeg has zscale.
+/// Whether a Transcode tone-maps the played video's HDR to SDR, as [`tone_mapper`] says.
+fn tone_maps(facts: &Facts) -> bool {
+    tone_mapper(facts).is_some()
+}
+
+/// What tone-maps the played video's HDR to SDR in a Transcode, when the Device can't show it: the
+/// GPU, if a Transcode runs on one that passed its tone-map test and burns nothing in, which
+/// takes the frames off it, or else zscale, if ffmpeg has it.
 // ponytail: Dolby Vision 8.2's SDR base layer is tone-mapped too, which darkens it; probing would
 // have to store which base layer it has to tell it from 8.4's HLG one.
-fn tone_maps(facts: &Facts) -> bool {
-    facts.zscale && !facts.device.hdr && played_hdr(facts).is_some()
+fn tone_mapper(facts: &Facts) -> Option<ToneMapper> {
+    if facts.device.hdr || played_hdr(facts).is_none() {
+        return None;
+    }
+    match transcodes_on(facts) {
+        Ok(Hardware {
+            tone_maps: true, ..
+        }) if burn_in(facts).is_none() => Some(ToneMapper::Hardware),
+        _ => facts.zscale.then_some(ToneMapper::Software),
+    }
+}
+
+/// The step for the Server's encoders: what a Transcode decodes, scales, tone-maps and encodes on,
+/// which the admin chooses. It rules nothing out.
+// ponytail: Dolby Vision profile 5 stays out of reach: none of these APIs' ffmpeg filters reshape
+// its colours, which only libplacebo does.
+fn server_encoders(facts: &Facts) -> Narrowing {
+    let reason = match transcodes_on(facts) {
+        Err(why) => format!("{why}, so a Transcode runs in software"),
+        Ok(Hardware { accel, .. }) => {
+            let on = format!("A Transcode runs on the GPU with {}", accel.name());
+            match (tone_mapper(facts), played_hdr(facts)) {
+                (Some(ToneMapper::Hardware), Some(hdr)) => {
+                    format!("{on}, which tone-maps its {} picture to SDR", hdr_name(hdr))
+                }
+                (Some(ToneMapper::Software), Some(hdr)) => format!(
+                    "{on}, and tone-maps its {} picture to SDR in software",
+                    hdr_name(hdr)
+                ),
+                _ => on,
+            }
+        }
+    };
+    Narrowing {
+        allows: BTreeSet::from(Method::ALL),
+        reason,
+    }
+}
+
+/// The hardware a Transcode runs on, as the admin chose, or why it runs in software.
+fn transcodes_on(facts: &Facts) -> Result<Hardware, String> {
+    let found = |accel| (facts.hardware.iter()).find(|found| found.accel == accel);
+    match facts.hardware_choice {
+        HardwareChoice::Off => Err("Hardware acceleration is off".to_owned()),
+        HardwareChoice::Automatic => facts.hardware.first().copied().ok_or_else(|| {
+            "No hardware acceleration passed its test when this Server started".to_owned()
+        }),
+        HardwareChoice::Api(accel) => found(accel).copied().ok_or_else(|| {
+            format!(
+                "{} didn't pass its test when this Server started",
+                accel.name()
+            )
+        }),
+    }
+}
+
+/// The most Transcodes the Server runs at once when the admin hasn't set it: no limit while they
+/// run on hardware, which a modest Server has room for, and 2 in software.
+fn default_max_transcodes(facts: &Facts) -> u32 {
+    /// As many as a modest Server's CPU keeps up with.
+    const IN_SOFTWARE: u32 = 2;
+    if transcodes_on(facts).is_ok() {
+        u32::MAX
+    } else {
+        IN_SOFTWARE
+    }
+}
+
+/// How a Transcode for `facts` converts the played video.
+fn video_conversion(facts: &Facts) -> VideoConversion {
+    let hardware = transcodes_on(facts).ok().map(|hardware| hardware.accel);
+    VideoConversion {
+        hardware,
+        tone_map: tone_mapper(facts),
+        limit: video_limit(facts),
+        burn_in: burn_in(facts),
+        // Hardware may fail, and software carry on after its init segment.
+        in_band_headers: hardware.is_some(),
+    }
 }
 
 /// The step for the audio Track the User chose: Direct Play only if it's the one browsers play
@@ -1032,10 +1124,14 @@ mod tests {
 
     use super::{
         DeviceDecoding, Facts, Method, Narrowing, Network, PickedLimit, Plan, PlaybackLimit, STEPS,
-        Subtitle, aac_channels, build, device_decoding, failed_on_device, fitted, on_local_network,
-        played_audio, tone_maps, too_busy_to_play,
+        Subtitle, aac_channels, build, default_max_transcodes, device_decoding, failed_on_device,
+        fitted, on_local_network, played_audio, tone_maps, too_busy_to_play, video_conversion,
     };
-    use crate::tracks::{Hdr, Probe, Track, TrackKind};
+    use crate::{
+        ffmpeg::{Accel, Hardware, ToneMapper, VideoConversion},
+        server_settings::HardwareChoice,
+        tracks::{Hdr, Probe, Track, TrackKind},
+    };
 
     fn track(codec: &str, default: bool, kind: TrackKind) -> Track {
         Track {
@@ -1120,6 +1216,8 @@ mod tests {
             picked_limit: PickedLimit::Unpicked,
             network: Network::Local,
             subtitle: None,
+            hardware_choice: HardwareChoice::Automatic,
+            hardware: vec![],
         }
     }
 
@@ -1145,6 +1243,9 @@ mod tests {
                     "Its Tracks need no change".to_owned(),
                     "This Device decodes its container and Tracks".to_owned(),
                     "This Server has ffmpeg".to_owned(),
+                    "No hardware acceleration passed its test when this Server started, so a \
+                     Transcode runs in software"
+                        .to_owned(),
                     "Nothing has failed to play it on this Device".to_owned(),
                     "It plays the file's own audio Track".to_owned(),
                     "This Device is on the local network".to_owned(),
@@ -1274,6 +1375,8 @@ mod tests {
                 "Its Tracks aren't known, so they're taken to need no change",
                 "Its Tracks aren't known, so this Device is taken to decode them",
                 "This Server has ffmpeg",
+                "No hardware acceleration passed its test when this Server started, so a \
+                 Transcode runs in software",
                 "Nothing has failed to play it on this Device",
                 "It plays the file's own audio Track",
                 "This Device is on the local network",
@@ -1322,7 +1425,7 @@ mod tests {
         assert_eq!(plan.tracks, [video("h264"), commentary]);
         assert_eq!(played_audio(&facts), Some(1), "counting only audio");
         assert_eq!(
-            plan.reasons[4],
+            plan.reasons[5],
             "The audio Track chosen isn't the one browsers play from its file, so it can't be \
              Direct Played"
         );
@@ -1377,6 +1480,8 @@ mod tests {
                 "Its Tracks need no change",
                 "This Device can't decode its Matroska container, so it can't be Direct Played",
                 "This Server has ffmpeg",
+                "No hardware acceleration passed its test when this Server started, so a \
+                 Transcode runs in software",
                 "Nothing has failed to play it on this Device",
                 "It plays the file's own audio Track",
                 "This Device is on the local network",
@@ -1719,7 +1824,7 @@ mod tests {
 
         assert_eq!(plan.method, Some(Method::Remux));
         assert_eq!(
-            plan.reasons[8],
+            plan.reasons[9],
             "This Server is busy, running as many Transcodes as it may at once (1), so it can't \
              Transcode it"
         );
@@ -1775,7 +1880,7 @@ mod tests {
             [track("h264", false, scaled), audio("aac", true)]
         );
         assert_eq!(
-            plan.reasons[6],
+            plan.reasons[7],
             "Its picture is larger than the 720p Playback Limit, so a Transcode scales it down to \
              1280×720"
         );
@@ -1795,14 +1900,14 @@ mod tests {
         assert_eq!(defaulted.method, Some(Method::Transcode));
         assert_eq!(defaulted.limit, Some(PlaybackLimit::P720));
         assert_eq!(
-            defaulted.reasons[5],
+            defaulted.reasons[6],
             "This Device is outside the local network, so the default Playback Limit for remote \
              playback, 720p, applies"
         );
         assert_eq!(picked.method, Some(Method::DirectPlay));
         assert_eq!(picked.limit, None);
         assert_eq!(
-            picked.reasons[5],
+            picked.reasons[6],
             "This Device is outside the local network, but its User picked a Playback Limit in \
              the player, which applies instead of the default for remote playback"
         );
@@ -1857,7 +1962,7 @@ mod tests {
             let plan = build(&facts, &STEPS);
 
             assert_eq!(plan.method, Some(Method::DirectPlay), "{reason}");
-            assert_eq!(plan.reasons[6], reason);
+            assert_eq!(plan.reasons[7], reason);
         }
     }
 
@@ -1900,7 +2005,7 @@ mod tests {
 
             assert_eq!(plan.method, Some(Method::Transcode), "{}", chosen.codec);
             assert_eq!(
-                plan.reasons[7],
+                plan.reasons[8],
                 "The subtitles chosen are burned into its picture, which only a Transcode does"
             );
             let busy = Facts {
@@ -1908,6 +2013,70 @@ mod tests {
                 ..facts
             };
             assert_eq!(too_busy_to_play(busy), Some(1), "{}", chosen.codec);
+        }
+    }
+
+    #[test]
+    fn automatic_transcodes_on_the_first_hardware_found_and_the_plan_says_so() {
+        let facts = hevc_on(HardwareChoice::Automatic, vec![QSV, VAAPI], None);
+
+        let plan = build(&facts, &STEPS);
+
+        assert_eq!(plan.method, Some(Method::Transcode));
+        assert_eq!(
+            plan.reasons[3],
+            "A Transcode runs on the GPU with Intel QSV"
+        );
+        assert_eq!(
+            video_conversion(&facts),
+            VideoConversion {
+                hardware: Some(Accel::Qsv),
+                tone_map: None,
+                limit: None,
+                burn_in: None,
+                in_band_headers: true,
+            }
+        );
+    }
+
+    #[test]
+    fn a_chosen_api_is_used_if_it_was_found_and_else_transcodes_run_in_software() {
+        let cases = [
+            (
+                HardwareChoice::Api(Accel::Vaapi),
+                vec![QSV, VAAPI],
+                Some(Accel::Vaapi),
+                "A Transcode runs on the GPU with VAAPI",
+            ),
+            (
+                HardwareChoice::Api(Accel::Nvenc),
+                vec![VAAPI],
+                None,
+                "NVIDIA NVENC didn't pass its test when this Server started, so a Transcode runs \
+                 in software",
+            ),
+            (
+                HardwareChoice::Off,
+                vec![VAAPI],
+                None,
+                "Hardware acceleration is off, so a Transcode runs in software",
+            ),
+            (
+                HardwareChoice::Automatic,
+                vec![],
+                None,
+                "No hardware acceleration passed its test when this Server started, so a \
+                 Transcode runs in software",
+            ),
+        ];
+        for (choice, found, on, reason) in cases {
+            let facts = hevc_on(choice, found, None);
+
+            let plan = build(&facts, &STEPS);
+
+            assert_eq!(plan.method, Some(Method::Transcode), "{reason}");
+            assert_eq!(plan.reasons[3], reason);
+            assert_eq!(video_conversion(&facts).hardware, on, "{reason}");
         }
     }
 
@@ -1924,7 +2093,82 @@ mod tests {
             let plan = build(&facts, &STEPS);
 
             assert_eq!(plan.method, Some(Method::DirectPlay), "{chosen:?}");
-            assert_eq!(plan.reasons[7], "No subtitles are burned into its picture");
+            assert_eq!(plan.reasons[8], "No subtitles are burned into its picture");
         }
+    }
+
+    const VAAPI: Hardware = Hardware {
+        accel: Accel::Vaapi,
+        tone_maps: false,
+    };
+    const QSV: Hardware = Hardware {
+        accel: Accel::Qsv,
+        tone_maps: true,
+    };
+
+    /// HEVC 4K that Firefox can't decode, on a Server whose ffmpeg found `found` and whose admin
+    /// chose `choice`.
+    fn hevc_on(choice: HardwareChoice, found: Vec<Hardware>, hdr: Option<Hdr>) -> Facts {
+        Facts {
+            hardware_choice: choice,
+            hardware: found,
+            ..in_container(MKV, Some(vec![hdr_video("hevc", hdr), audio("aac", true)]))
+        }
+    }
+
+    #[test]
+    fn hdr_is_tone_mapped_on_the_gpu_if_it_passed_that_test_and_else_in_software() {
+        let cases = [
+            (
+                QSV,
+                Some(ToneMapper::Hardware),
+                "A Transcode runs on the GPU with Intel QSV, which tone-maps its HDR10 picture to \
+                 SDR",
+            ),
+            (
+                VAAPI,
+                Some(ToneMapper::Software),
+                "A Transcode runs on the GPU with VAAPI, and tone-maps its HDR10 picture to SDR \
+                 in software",
+            ),
+        ];
+        for (hardware, tone_map, reason) in cases {
+            let facts = hevc_on(HardwareChoice::Automatic, vec![hardware], Some(Hdr::Hdr10));
+
+            let plan = build(&facts, &STEPS);
+
+            assert_eq!(plan.reasons[3], reason);
+            assert_eq!(video_conversion(&facts).tone_map, tone_map, "{reason}");
+        }
+    }
+
+    #[test]
+    fn without_zscale_hdr_is_tone_mapped_by_hardware_that_can() {
+        let facts = Facts {
+            zscale: false,
+            ..hevc_on(HardwareChoice::Automatic, vec![QSV], Some(Hdr::Hdr10))
+        };
+
+        assert!(tone_maps(&facts));
+        assert_eq!(
+            video_conversion(&facts).tone_map,
+            Some(ToneMapper::Hardware)
+        );
+    }
+
+    #[test]
+    fn the_transcode_cap_is_unlimited_by_default_only_with_hardware_in_use() {
+        assert_eq!(
+            default_max_transcodes(&hevc_on(HardwareChoice::Automatic, vec![VAAPI], None)),
+            u32::MAX
+        );
+        assert_eq!(
+            default_max_transcodes(&hevc_on(HardwareChoice::Off, vec![VAAPI], None)),
+            2
+        );
+        assert_eq!(
+            default_max_transcodes(&hevc_on(HardwareChoice::Automatic, vec![], None)),
+            2
+        );
     }
 }

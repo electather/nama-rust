@@ -103,6 +103,9 @@ pub mod event {
             ::buffa::alloc::boxed::Box<super::super::super::PlaybackStarted>,
         ),
         PlaybackEnded(::buffa::alloc::boxed::Box<super::super::super::PlaybackEnded>),
+        PlaybackChanged(
+            ::buffa::alloc::boxed::Box<super::super::super::PlaybackChanged>,
+        ),
     }
     impl ::buffa::Oneof for Event {}
     impl From<super::super::super::ScanStarted> for Event {
@@ -323,6 +326,16 @@ pub mod event {
             Self::Some(Event::from(v))
         }
     }
+    impl From<super::super::super::PlaybackChanged> for Event {
+        fn from(v: super::super::super::PlaybackChanged) -> Self {
+            Self::PlaybackChanged(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::PlaybackChanged> for ::core::option::Option<Event> {
+        fn from(v: super::super::super::PlaybackChanged) -> Self {
+            Self::Some(Event::from(v))
+        }
+    }
     impl ::serde::Serialize for Event {
         fn serialize<S: ::serde::Serializer>(
             &self,
@@ -393,6 +406,9 @@ pub mod event {
                 }
                 Self::PlaybackEnded(v) => {
                     map.serialize_entry("playbackEnded", &**v)?;
+                }
+                Self::PlaybackChanged(v) => {
+                    map.serialize_entry("playbackChanged", &**v)?;
                 }
             }
             map.end()

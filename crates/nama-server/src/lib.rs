@@ -45,7 +45,7 @@ use crate::{
     plugin_settings::PluginSettings,
     requests::{PROGRESS_EVERY, Requests},
     scanner::Scanner,
-    server_settings::{MaxTranscodes, RemotePlaybackLimit, SegmentFolder, ServerUrl},
+    server_settings::{RemotePlaybackLimit, SegmentFolder, ServerUrl},
     tracks::Tracks,
     users::SetupCode,
 };
@@ -122,8 +122,8 @@ pub fn serve(
     let load_settings = load_settings(
         server_url.clone(),
         segment_folder.clone(),
-        running.max_transcodes().clone(),
         remote_limit.clone(),
+        running.clone(),
         Arc::clone(&db),
     );
     let app = api::router(
@@ -189,14 +189,14 @@ pub fn serve(
     }
 }
 
-/// Reads the Server URL, the segment folder, the Transcode cap and the remote Playback Limit from
-/// `db`, logging a failure and going on with the default, then sweeps the segment files an earlier
+/// Reads the Server URL, the segment folder, the remote Playback Limit, and `running`'s Transcode
+/// cap and what Transcodes run on from `db`, logging a failure and going on with the default, then sweeps the segment files an earlier
 /// run left.
 async fn load_settings(
     server_url: ServerUrl,
     segment_folder: SegmentFolder,
-    max_transcodes: MaxTranscodes,
     remote_limit: RemotePlaybackLimit,
+    running: RunningPlans,
     db: Arc<Database>,
 ) {
     if let Err(err) = server_url.load(&db).await {
@@ -207,13 +207,16 @@ async fn load_settings(
             "reading the segment folder failed, so segment files go to the default: {err}"
         );
     }
-    if let Err(err) = max_transcodes.load(&db).await {
+    if let Err(err) = running.max_transcodes().load(&db).await {
         tracing::error!("reading the Transcode cap failed, so it's the default: {err}");
     }
     if let Err(err) = remote_limit.load(&db).await {
         tracing::error!(
             "reading the remote Playback Limit failed, so remote playback isn't limited: {err}"
         );
+    }
+    if let Err(err) = running.hardware_acceleration().load(&db).await {
+        tracing::error!("reading what Transcodes run on failed, so it's Automatic: {err}");
     }
     playback::running::sweep_leftovers(&segment_folder).await;
 }

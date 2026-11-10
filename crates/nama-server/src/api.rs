@@ -49,39 +49,41 @@ use nama_proto::nama::v1::{
     DeclineRequestRequest, DeclineRequestResponse, DeleteLibraryRequest, DeleteLibraryResponse,
     DeletePluginConnectionRequest, DeletePluginConnectionResponse, DeleteUserRequest,
     DeleteUserResponse, DisablePluginRequest, DisablePluginResponse, EnablePluginRequest,
-    EnablePluginResponse, EventService, EventType, FoundProgram, GetDefaultPermissionsRequest,
-    GetDefaultPermissionsResponse, GetLibraryRequest, GetLibraryResponse, GetMovieRequest,
-    GetMovieResponse, GetPlaybackSettingsRequest, GetPlaybackSettingsResponse,
-    GetPlaybackStatusRequest, GetPlaybackStatusResponse, GetPluginRequest, GetPluginResponse,
-    GetRequestRequest, GetRequestResponse, GetServerInfoRequest, GetServerInfoResponse,
-    GetServerSettingsRequest, GetServerSettingsResponse, GetShowRequest, GetShowResponse,
-    LibraryKind, LibraryService, ListContinueWatchingRequest, ListContinueWatchingResponse,
-    ListDevicesRequest, ListDevicesResponse, ListEpisodesRequest, ListEpisodesResponse,
-    ListLibrariesRequest, ListLibrariesResponse, ListMoviesRequest, ListMoviesResponse,
-    ListPluginConnectionsRequest, ListPluginConnectionsResponse, ListPluginsRequest,
-    ListPluginsResponse, ListRequestsRequest, ListRequestsResponse, ListShowsRequest,
-    ListShowsResponse, ListUnmatchedItemsRequest, ListUnmatchedItemsResponse, ListUsersRequest,
-    ListUsersResponse, LookUpMovieRequest, LookUpMovieResponse, LookUpShowRequest,
-    LookUpShowResponse, LookUpSignInCodeRequest, LookUpSignInCodeResponse, MatchService,
-    Permission, PlanPlaybackRequest, PlanPlaybackResponse, PlaybackService, PlaybackSettings,
-    PluginConnection, PluginConnectionState, PluginService, PollSignInCodeRequest,
-    PollSignInCodeResponse, ReauthenticateRequest, ReauthenticateResponse, Refusal, RefusalReason,
-    ReportProgressRequest, ReportProgressResponse, RequestService, RequestState,
-    ResetPasswordRequest, ResetPasswordResponse, RetryRequestRequest, RetryRequestResponse,
-    RevokeDeviceRequest, RevokeDeviceResponse, ScanLibraryRequest, ScanLibraryResponse,
-    SearchMetadataRequest, SearchMetadataResponse, SearchMoviesRequest, SearchMoviesResponse,
-    SearchShowsRequest, SearchShowsResponse, ServerService, ServerSettings, SessionDelivery,
-    SetDefaultPermissionsRequest, SetDefaultPermissionsResponse, SetMatchRequest, SetMatchResponse,
-    SetPermissionsRequest, SetPermissionsResponse, SetPlayedRequest, SetPlayedResponse,
-    SetupRequest, SetupResponse, SignInCodeStatus, SignInRequest, SignInResponse, SignInService,
-    SignOutRequest, SignOutResponse, StartPluginConnectionRequest, StartPluginConnectionResponse,
-    StartSignInCodeRequest, StartSignInCodeResponse, StopPlaybackRequest, StopPlaybackResponse,
-    SubscribeRequest, SubscribeResponse, TestPluginSettingsRequest, TestPluginSettingsResponse,
-    UpdateLibraryRequest, UpdateLibraryResponse, UpdatePlaybackSettingsRequest,
-    UpdatePlaybackSettingsResponse, UpdatePluginSettingsRequest, UpdatePluginSettingsResponse,
-    UpdateServerSettingsRequest, UpdateServerSettingsResponse, UserService, WatchStateService,
-    WhoAmIRequest, WhoAmIResponse, WithdrawFollowedShowRequest, WithdrawFollowedShowResponse,
-    WithdrawRequestRequest, WithdrawRequestResponse, external_id, reauthenticate_request::Proof,
+    EnablePluginResponse, EventService, EventType, FoundHardware, FoundProgram,
+    GetDefaultPermissionsRequest, GetDefaultPermissionsResponse, GetLibraryRequest,
+    GetLibraryResponse, GetMovieRequest, GetMovieResponse, GetPlaybackSettingsRequest,
+    GetPlaybackSettingsResponse, GetPlaybackStatusRequest, GetPlaybackStatusResponse,
+    GetPluginRequest, GetPluginResponse, GetRequestRequest, GetRequestResponse,
+    GetServerInfoRequest, GetServerInfoResponse, GetServerSettingsRequest,
+    GetServerSettingsResponse, GetShowRequest, GetShowResponse,
+    HardwareAcceleration as HardwareAccelerationProto, LibraryKind, LibraryService,
+    ListContinueWatchingRequest, ListContinueWatchingResponse, ListDevicesRequest,
+    ListDevicesResponse, ListEpisodesRequest, ListEpisodesResponse, ListLibrariesRequest,
+    ListLibrariesResponse, ListMoviesRequest, ListMoviesResponse, ListPluginConnectionsRequest,
+    ListPluginConnectionsResponse, ListPluginsRequest, ListPluginsResponse, ListRequestsRequest,
+    ListRequestsResponse, ListShowsRequest, ListShowsResponse, ListUnmatchedItemsRequest,
+    ListUnmatchedItemsResponse, ListUsersRequest, ListUsersResponse, LookUpMovieRequest,
+    LookUpMovieResponse, LookUpShowRequest, LookUpShowResponse, LookUpSignInCodeRequest,
+    LookUpSignInCodeResponse, MatchService, Permission, PlanPlaybackRequest, PlanPlaybackResponse,
+    PlaybackService, PlaybackSettings, PluginConnection, PluginConnectionState, PluginService,
+    PollSignInCodeRequest, PollSignInCodeResponse, ReauthenticateRequest, ReauthenticateResponse,
+    Refusal, RefusalReason, ReportProgressRequest, ReportProgressResponse, RequestService,
+    RequestState, ResetPasswordRequest, ResetPasswordResponse, RetryRequestRequest,
+    RetryRequestResponse, RevokeDeviceRequest, RevokeDeviceResponse, ScanLibraryRequest,
+    ScanLibraryResponse, SearchMetadataRequest, SearchMetadataResponse, SearchMoviesRequest,
+    SearchMoviesResponse, SearchShowsRequest, SearchShowsResponse, ServerService, ServerSettings,
+    SessionDelivery, SetDefaultPermissionsRequest, SetDefaultPermissionsResponse, SetMatchRequest,
+    SetMatchResponse, SetPermissionsRequest, SetPermissionsResponse, SetPlayedRequest,
+    SetPlayedResponse, SetupRequest, SetupResponse, SignInCodeStatus, SignInRequest,
+    SignInResponse, SignInService, SignOutRequest, SignOutResponse, StartPluginConnectionRequest,
+    StartPluginConnectionResponse, StartSignInCodeRequest, StartSignInCodeResponse,
+    StopPlaybackRequest, StopPlaybackResponse, SubscribeRequest, SubscribeResponse,
+    TestPluginSettingsRequest, TestPluginSettingsResponse, UpdateLibraryRequest,
+    UpdateLibraryResponse, UpdatePlaybackSettingsRequest, UpdatePlaybackSettingsResponse,
+    UpdatePluginSettingsRequest, UpdatePluginSettingsResponse, UpdateServerSettingsRequest,
+    UpdateServerSettingsResponse, UserService, WatchStateService, WhoAmIRequest, WhoAmIResponse,
+    WithdrawFollowedShowRequest, WithdrawFollowedShowResponse, WithdrawRequestRequest,
+    WithdrawRequestResponse, external_id, reauthenticate_request::Proof,
     set_played_request::Target, setting_value,
 };
 
@@ -93,7 +95,7 @@ use crate::{
     contents::{Contents, Episode, Item, MatchedTo, Metadata, Movie, Show, Unmatched, Version},
     db::{Database, detached, now},
     events::{EventBus, Filter},
-    ffmpeg::{self, Ffmpeg},
+    ffmpeg::{self, Accel, Ffmpeg},
     forwarded::{RequestSource, identify_source},
     libraries::{self, FolderProblem, Kind, Libraries, Library},
     matching::{ManualError, Matcher},
@@ -107,7 +109,7 @@ use crate::{
     rate_limits::{Blocked, SignInCodeLimits, SignInLimits},
     requests::{self, Found, FoundShow, Requests},
     scanner::Scanner,
-    server_settings::{MaxTranscodes, RemotePlaybackLimit, SegmentFolder, ServerUrl},
+    server_settings::{HardwareChoice, RemotePlaybackLimit, SegmentFolder, ServerUrl},
     sessions::{cleared_session_cookie, identify_caller, in_session_cookie, session_cookie},
     sign_in_codes::{self, Poll, SignInCodes},
     tracks::{Tracks, track_to_proto},
@@ -159,8 +161,8 @@ pub(crate) fn router(
             db: Arc::clone(&db),
             server_url,
             segment_folder,
-            max_transcodes: running.max_transcodes().clone(),
             remote_limit: remote_limit.clone(),
+            running: running.clone(),
             ffmpeg,
         }))
         .add_service(Arc::new(SignInServiceHandler {
@@ -431,8 +433,9 @@ struct ServerServiceHandler {
     db: Arc<Database>,
     server_url: ServerUrl,
     segment_folder: SegmentFolder,
-    max_transcodes: MaxTranscodes,
     remote_limit: RemotePlaybackLimit,
+    /// For the Transcode cap, what Transcodes run on, and the hardware found.
+    running: RunningPlans,
     ffmpeg: Arc<Ffmpeg>,
 }
 
@@ -494,13 +497,11 @@ impl ServerService for ServerServiceHandler {
         })
     }
 
-    fn get_playback_status<'a>(
-        &'a self,
+    async fn get_playback_status(
+        &self,
         _ctx: RequestContext,
         _request: ServiceRequest<'_, GetPlaybackStatusRequest>,
-    ) -> impl Future<
-        Output = ServiceResult<impl Encodable<GetPlaybackStatusResponse> + Send + use<'a>>,
-    > + Send {
+    ) -> ServiceResult<GetPlaybackStatusResponse> {
         let found = |program: &Result<ffmpeg::FoundProgram, String>| {
             program.as_ref().ok().map(|program| FoundProgram {
                 path: program.path.display().to_string(),
@@ -511,13 +512,21 @@ impl ServerService for ServerServiceHandler {
         let problem = |program: &Result<ffmpeg::FoundProgram, String>| {
             program.as_ref().err().cloned().unwrap_or_default()
         };
-        future::ready(Response::ok(GetPlaybackStatusResponse {
+        let hardware = (self.running.found_hardware().await.iter())
+            .map(|hardware| FoundHardware {
+                api: hardware_choice_to_proto(HardwareChoice::Api(hardware.accel)).into(),
+                tone_maps: hardware.tone_maps,
+                ..Default::default()
+            })
+            .collect();
+        Response::ok(GetPlaybackStatusResponse {
             ffmpeg: found(&self.ffmpeg.ffmpeg).into(),
             ffprobe: found(&self.ffmpeg.ffprobe).into(),
             ffmpeg_problem: problem(&self.ffmpeg.ffmpeg),
             ffprobe_problem: problem(&self.ffmpeg.ffprobe),
+            hardware,
             ..Default::default()
-        }))
+        })
     }
 
     fn get_playback_settings<'a>(
@@ -549,8 +558,9 @@ impl ServerService for ServerServiceHandler {
             .into());
         }
         let max_transcodes = request.settings.max_transcodes;
-        if max_transcodes == 0 {
-            // proto3 sends 0 for a field left out, so 0 is missing, not "never Transcode".
+        if max_transcodes == Some(0) {
+            // A cap of 0 would refuse every Transcode; a client asks for the default by leaving
+            // it out.
             return Err(refuse(
                 RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
                 "the most Transcodes at once must be at least 1",
@@ -562,13 +572,20 @@ impl ServerService for ServerServiceHandler {
             .save(&self.db, folder)
             .await
             .map_err(database_failed)?;
-        self.max_transcodes
+        self.running
+            .max_transcodes()
             .save(&self.db, max_transcodes)
             .await
             .map_err(database_failed)?;
         let remote_limit = limit_from_proto(request.settings.remote_playback_limit);
         self.remote_limit
             .save(&self.db, remote_limit)
+            .await
+            .map_err(database_failed)?;
+        let choice = hardware_choice(request.settings.hardware_acceleration);
+        self.running
+            .hardware_acceleration()
+            .save(&self.db, choice)
             .await
             .map_err(database_failed)?;
         Response::ok(UpdatePlaybackSettingsResponse {
@@ -589,10 +606,45 @@ impl ServerServiceHandler {
     fn playback_settings(&self) -> PlaybackSettings {
         PlaybackSettings {
             segment_folder: self.segment_folder.get(),
-            max_transcodes: self.max_transcodes.get(),
+            max_transcodes: self.running.max_transcodes().get(),
             remote_playback_limit: limit_to_proto(self.remote_limit.get()).into(),
+            hardware_acceleration: hardware_choice_to_proto(
+                self.running.hardware_acceleration().get(),
+            )
+            .into(),
             ..Default::default()
         }
+    }
+}
+
+/// The choice of what Transcodes run on that `choice` names, Automatic for one this Server
+/// doesn't know.
+fn hardware_choice(choice: EnumValue<HardwareAccelerationProto>) -> HardwareChoice {
+    use HardwareAccelerationProto as P;
+    match choice {
+        EnumValue::Known(P::HARDWARE_ACCELERATION_OFF) => HardwareChoice::Off,
+        EnumValue::Known(P::HARDWARE_ACCELERATION_VAAPI) => HardwareChoice::Api(Accel::Vaapi),
+        EnumValue::Known(P::HARDWARE_ACCELERATION_QSV) => HardwareChoice::Api(Accel::Qsv),
+        EnumValue::Known(P::HARDWARE_ACCELERATION_NVENC) => HardwareChoice::Api(Accel::Nvenc),
+        EnumValue::Known(P::HARDWARE_ACCELERATION_VIDEOTOOLBOX) => {
+            HardwareChoice::Api(Accel::VideoToolbox)
+        }
+        EnumValue::Known(P::HARDWARE_ACCELERATION_UNSPECIFIED) | EnumValue::Unknown(_) => {
+            HardwareChoice::Automatic
+        }
+    }
+}
+
+/// `choice` as the API names it.
+const fn hardware_choice_to_proto(choice: HardwareChoice) -> HardwareAccelerationProto {
+    use HardwareAccelerationProto as P;
+    match choice {
+        HardwareChoice::Automatic => P::HARDWARE_ACCELERATION_UNSPECIFIED,
+        HardwareChoice::Off => P::HARDWARE_ACCELERATION_OFF,
+        HardwareChoice::Api(Accel::Vaapi) => P::HARDWARE_ACCELERATION_VAAPI,
+        HardwareChoice::Api(Accel::Qsv) => P::HARDWARE_ACCELERATION_QSV,
+        HardwareChoice::Api(Accel::Nvenc) => P::HARDWARE_ACCELERATION_NVENC,
+        HardwareChoice::Api(Accel::VideoToolbox) => P::HARDWARE_ACCELERATION_VIDEOTOOLBOX,
     }
 }
 

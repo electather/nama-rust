@@ -44,6 +44,7 @@ enum EventType {
   EVENT_TYPE_FOLLOWED_SHOW_WITHDRAWN = 19;
   EVENT_TYPE_PLAYBACK_STARTED = 20;
   EVENT_TYPE_PLAYBACK_ENDED = 21;
+  EVENT_TYPE_PLAYBACK_CHANGED = 22;
 }
 
 message SubscribeRequest {
@@ -93,6 +94,7 @@ message Event {
     FollowedShowWithdrawn followed_show_withdrawn = 19;
     PlaybackStarted playback_started = 20;
     PlaybackEnded playback_ended = 21;
+    PlaybackChanged playback_changed = 22;
   }
 }
 
@@ -248,6 +250,13 @@ message PlaybackStarted {
 // before this is delivered.
 message PlaybackEnded {
   // As its `PlaybackStarted` told it.
+  Playback playback = 1;
+}
+
+// A plan that `PlaybackStarted` told of changed how it plays while playing: its Transcode's
+// hardware acceleration failed, so the rest of it Transcodes in software, as a reason it adds says.
+message PlaybackChanged {
+  // As it plays now.
   Playback playback = 1;
 }
 

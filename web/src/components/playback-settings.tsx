@@ -12,7 +12,11 @@ import { FormEnd, FormField, FormSelect } from "@/components/form-field";
 import { belowOriginal } from "@/components/playback-limit-menu";
 import { PlaybackLimit } from "@/gen/nama/v1/playback_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
-import { PlaybackSettingsSchema, ServerService } from "@/gen/nama/v1/server_pb";
+import {
+  HardwareAcceleration,
+  PlaybackSettingsSchema,
+  ServerService,
+} from "@/gen/nama/v1/server_pb";
 import { formText, onSubmitted, refusal, serverMessage } from "@/lib/forms";
 
 const playbackSettingsKey = createConnectQueryKey({
@@ -28,10 +32,33 @@ export function playbackSettingsQuery(transport: Transport) {
   };
 }
 
+/** What ffmpeg and ffprobe the Server found, and the hardware acceleration that passed its test. */
+export function playbackStatusQuery(transport: Transport) {
+  return {
+    ...createQueryOptions(ServerService.method.getPlaybackStatus, {}, { transport }),
+    staleTime: "static" as const,
+  };
+}
+
+const hardwareNames = new Map<HardwareAcceleration, string>([
+  [HardwareAcceleration.UNSPECIFIED, "Automatic"],
+  [HardwareAcceleration.OFF, "Off"],
+  [HardwareAcceleration.VAAPI, "VAAPI"],
+  [HardwareAcceleration.QSV, "Intel QSV"],
+  [HardwareAcceleration.NVENC, "NVIDIA NVENC"],
+  [HardwareAcceleration.VIDEOTOOLBOX, "Apple VideoToolbox"],
+]);
+
+/** A hardware acceleration API's name in plain words, as the Server's own messages say it. */
+export function hardwareName(api: HardwareAcceleration) {
+  return hardwareNames.get(api) ?? `API ${api}`;
+}
+
 /**
  * The form an Admin sets how the Server plays Versions it changes with: the folder Remuxes and
- * Transcodes write their segment files to, the most Transcodes it runs at once, and the default
- * Playback Limit for remote playback. One form, as saving replaces every Playback setting.
+ * Transcodes write their segment files to, what Transcodes run on, the most it runs at once, and
+ * the default Playback Limit for remote playback. One form, as saving replaces every Playback
+ * setting.
  */
 export function PlaybackSettingsForm() {
   const queryClient = useQueryClient();
@@ -61,13 +88,15 @@ export function PlaybackSettingsForm() {
         hint="Where a Remux or Transcode writes the files it plays from, such as a tmpfs, until a minute after they’re last played. Leave it empty for the transcodes folder in the Server’s data folder. A change applies from the next one."
         error={errors.segmentFolder}
       />
+      <HardwareField saved={settings.hardwareAcceleration} />
       <FormField
         label="Transcodes at once"
         name="maxTranscodes"
         type="number"
         min={1}
+        required={false}
         defaultValue={settings.maxTranscodes}
-        hint="The most the Server runs at once. Remuxes don’t count. While that many run, a Device that can play a Remux gets one instead, and one that can’t is told the Server is busy."
+        hint="The most the Server runs at once. Remuxes don’t count. While that many run, a Device that can play a Remux gets one instead, and one that can’t is told the Server is busy. Leave it empty for no limit while Transcodes use hardware acceleration, or 2 in software."
         error={errors.maxTranscodes}
       />
       <RemoteLimitField saved={settings.remotePlaybackLimit} />
@@ -81,13 +110,50 @@ export function PlaybackSettingsForm() {
   );
 }
 
+/** The choice of what Transcodes run on: Automatic, Off, or an API that passed its test. */
+function HardwareField({ saved }: { saved: HardwareAcceleration }) {
+  const { hardware } = useSuspenseQuery(ServerService.method.getPlaybackStatus, {}).data;
+  const choices = [
+    HardwareAcceleration.UNSPECIFIED,
+    HardwareAcceleration.OFF,
+    ...hardware.map(({ api }) => api),
+  ];
+  // A saved API that didn't pass its test this time stays offered, so saving doesn't change it.
+  if (!choices.includes(saved)) choices.push(saved);
+  return (
+    <FormSelect
+      label="Hardware acceleration"
+      name="hardwareAcceleration"
+      defaultValue={saved}
+      hint="What Transcodes decode, scale and encode video on. Automatic picks the first listed above, and Off runs them in software. One that didn’t pass its test when the Server started leaves them in software. A change applies from the next Transcode."
+    >
+      {choices.map((api) => (
+        <option key={api} value={api}>
+          {hardwareName(api)}
+        </option>
+      ))}
+    </FormSelect>
+  );
+}
+
 /** The Playback settings the form holds `typed`. */
 function typedSettings(typed: FormData) {
+  const maxTranscodes = formText(typed, "maxTranscodes");
   return {
     segmentFolder: formText(typed, "segmentFolder"),
-    maxTranscodes: Number(formText(typed, "maxTranscodes")),
+    // Empty leaves the cap unset, for the Server's default.
+    ...(maxTranscodes !== "" && { maxTranscodes: Number(maxTranscodes) }),
+    hardwareAcceleration: typedHardware(formText(typed, "hardwareAcceleration")),
     remotePlaybackLimit: limitPicked(formText(typed, "remotePlaybackLimit")),
   };
+}
+
+/** The hardware acceleration the option `value` stands for. */
+function typedHardware(value: string): HardwareAcceleration {
+  return (
+    Object.values(HardwareAcceleration).find((api) => String(api) === value) ??
+    HardwareAcceleration.UNSPECIFIED
+  );
 }
 
 /** The Playback Limits an Admin can pick from, as the player's menu names them. */

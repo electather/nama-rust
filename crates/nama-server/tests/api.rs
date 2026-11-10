@@ -11,8 +11,8 @@ use std::net::SocketAddr;
 use connectrpc::{ErrorCode, client::HttpClient};
 use nama_proto::nama::v1::{
     FoundProgram, GetPlaybackSettingsRequest, GetPlaybackStatusRequest, GetPlaybackStatusResponse,
-    GetServerInfoRequest, GetServerInfoResponse, GetServerSettingsRequest, PlaybackLimit,
-    PlaybackSettings, RefusalReason, ServerServiceClient, ServerSettings,
+    GetServerInfoRequest, GetServerInfoResponse, GetServerSettingsRequest, HardwareAcceleration,
+    PlaybackLimit, PlaybackSettings, RefusalReason, ServerServiceClient, ServerSettings,
     UpdatePlaybackSettingsRequest, UpdateServerSettingsRequest,
 };
 use nama_server::{config::Config, ffmpeg::Ffmpeg};
@@ -271,7 +271,6 @@ fn set_segment_folder(folder: &str) -> UpdatePlaybackSettingsRequest {
     UpdatePlaybackSettingsRequest {
         settings: PlaybackSettings {
             segment_folder: folder.to_owned(),
-            max_transcodes: 2,
             ..Default::default()
         }
         .into(),
@@ -312,7 +311,7 @@ async fn the_remote_playback_limit_is_original_until_an_admin_sets_it() {
         .update_playback_settings(UpdatePlaybackSettingsRequest {
             settings: PlaybackSettings {
                 remote_playback_limit: PlaybackLimit::PLAYBACK_LIMIT_720P.into(),
-                max_transcodes: 2,
+                max_transcodes: Some(2),
                 ..Default::default()
             }
             .into(),
@@ -326,19 +325,21 @@ async fn the_remote_playback_limit_is_original_until_an_admin_sets_it() {
 }
 
 #[tokio::test]
-async fn the_transcode_cap_is_2_until_an_admin_sets_it() {
+async fn the_transcode_cap_and_hardware_acceleration_are_the_defaults_until_an_admin_sets_them() {
     let server = TestServer::builder().start().await;
     let client = ServerServiceClient::new(HttpClient::plaintext(), server.client_config());
     let settings = async || {
         let got = client.get_playback_settings(GetPlaybackSettingsRequest::default());
-        got.await.unwrap().into_owned().settings.max_transcodes
+        let settings = got.await.unwrap().into_owned().settings;
+        (settings.max_transcodes, settings.hardware_acceleration)
     };
     let unset = settings().await;
 
     client
         .update_playback_settings(UpdatePlaybackSettingsRequest {
             settings: PlaybackSettings {
-                max_transcodes: 1,
+                max_transcodes: Some(1),
+                hardware_acceleration: HardwareAcceleration::HARDWARE_ACCELERATION_VAAPI.into(),
                 ..Default::default()
             }
             .into(),
@@ -347,12 +348,14 @@ async fn the_transcode_cap_is_2_until_an_admin_sets_it() {
         .await
         .unwrap();
 
-    assert_eq!(unset, 2);
-    assert_eq!(settings().await, 1);
+    let automatic = HardwareAcceleration::HARDWARE_ACCELERATION_UNSPECIFIED.into();
+    assert_eq!(unset, (None, automatic));
+    let vaapi = HardwareAcceleration::HARDWARE_ACCELERATION_VAAPI.into();
+    assert_eq!(settings().await, (Some(1), vaapi));
 }
 
 #[tokio::test]
-async fn a_transcode_cap_of_0_or_left_out_is_refused_naming_it_and_nothing_changes() {
+async fn a_transcode_cap_set_to_0_is_refused_naming_it_and_nothing_changes() {
     let server = TestServer::builder().start().await;
     let client = ServerServiceClient::new(HttpClient::plaintext(), server.client_config());
 
@@ -360,6 +363,7 @@ async fn a_transcode_cap_of_0_or_left_out_is_refused_naming_it_and_nothing_chang
         .update_playback_settings(UpdatePlaybackSettingsRequest {
             settings: PlaybackSettings {
                 segment_folder: "/dev/shm/nama".to_owned(),
+                max_transcodes: Some(0),
                 ..Default::default()
             }
             .into(),
