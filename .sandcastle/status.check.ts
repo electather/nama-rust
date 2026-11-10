@@ -15,6 +15,10 @@ const events: Event[] = [
   { t: at(4), run: old, kind: "note", issue: 73, text: "rebase" },
   { t: at(9), run: old, kind: "done", issue: 73, outcome: "crashed", why: "crashed at ci: push rejected" },
   { t: at(9), run: old, kind: "stage", issue: 80, title: "Orphan", stage: "review" },
+  // #90's implement loop opened its PR; its babysitting hasn't started.
+  { t: at(5), run: old, kind: "stage", issue: 90, title: "Built", stage: "claimed" },
+  { t: at(7), run: old, kind: "pr", issue: 90, pr: "130" },
+  { t: at(8), run: old, kind: "done", issue: 90, outcome: "pr opened" },
   // This run.
   { t: at(10), run, kind: "run-start", slots: 3 },
   { t: at(11), run, kind: "stage", issue: 105, title: "Auth schema", stage: "claimed" },
@@ -33,6 +37,8 @@ assert.match(md, /\| \[#105\]\(https:\/\/github.com\/o\/r\/issues\/105\) \| Auth
 assert.doesNotMatch(md, /#80\]/, "a killed run's leftovers are not in flight");
 assert.match(md, /\| \[#108\]\(.*\) \| blocked by #105 \(open\) \|/);
 assert.match(md, /\| \[#73\]\(.*\) \| ✗ crashed \| \[#116\]\(.*\) \| 8m \| .* \| crashed at ci: push rejected; 2× rebase \|/);
+
+assert.match(md, /\| \[#90\]\(.*\) \| → pr opened \| \[#130\]\(.*\) \| 3m \|/);
 
 const ended = render([...events, { t: at(40), run, kind: "run-end", reason: "queue empty" }], repo, new Date(at(41)));
 assert.match(ended, /\*\*Ended:\*\* \d\d:\d\d · queue empty/);

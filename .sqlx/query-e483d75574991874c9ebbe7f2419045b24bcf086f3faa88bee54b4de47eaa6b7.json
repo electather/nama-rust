@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT library_files.id AS \"file!\", library_files.path, library_files.size,\n                      library_items.season AS \"season!\", library_items.episode AS \"episode!\",\n                      item_matches.plugin AS \"plugin!\", item_matches.tmdb_id,\n                      item_matches.imdb_id, item_matches.tvdb_id, item_matches.show_tmdb_id,\n                      item_matches.show_imdb_id, item_matches.show_tvdb_id,\n                      item_matches.title AS \"title!\", item_matches.show_title AS \"show_title!\",\n                      item_matches.overview, item_matches.release_date,\n                      item_matches.runtime_minutes, item_matches.poster, item_matches.backdrop\n               FROM item_matches\n               JOIN library_items ON library_items.id = item_matches.item_id\n               JOIN library_files ON library_files.id = library_items.file_id\n               WHERE library_files.library_id = ?\n                 AND library_items.kind = 'episode'\n                 AND item_matches.state = 'matched'\n               ORDER BY library_items.season, library_items.episode, library_files.path",
+  "query": "SELECT library_files.id AS \"file!\", library_files.path, library_files.size,\n                      library_files.modified_ns, library_files.parser_version,\n                      library_items.season AS \"season!\", library_items.episode AS \"episode!\",\n                      item_matches.plugin AS \"plugin!\", item_matches.tmdb_id,\n                      item_matches.imdb_id, item_matches.tvdb_id, item_matches.show_tmdb_id,\n                      item_matches.show_imdb_id, item_matches.show_tvdb_id,\n                      item_matches.title AS \"title!\", item_matches.show_title AS \"show_title!\",\n                      item_matches.overview, item_matches.release_date,\n                      item_matches.runtime_minutes, item_matches.poster, item_matches.backdrop\n               FROM item_matches\n               JOIN library_items ON library_items.id = item_matches.item_id\n               JOIN library_files ON library_files.id = library_items.file_id\n               WHERE library_files.library_id = ?\n                 AND library_items.kind = 'episode'\n                 AND item_matches.state = 'matched'\n               ORDER BY library_items.season, library_items.episode, library_files.path",
   "describe": {
     "columns": [
       {
@@ -37,8 +37,30 @@
         }
       },
       {
-        "name": "season!",
+        "name": "modified_ns",
         "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_files",
+            "name": "modified_ns"
+          }
+        }
+      },
+      {
+        "name": "parser_version",
+        "ordinal": 4,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_files",
+            "name": "parser_version"
+          }
+        }
+      },
+      {
+        "name": "season!",
+        "ordinal": 5,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -49,7 +71,7 @@
       },
       {
         "name": "episode!",
-        "ordinal": 4,
+        "ordinal": 6,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -60,7 +82,7 @@
       },
       {
         "name": "plugin!",
-        "ordinal": 5,
+        "ordinal": 7,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -71,7 +93,7 @@
       },
       {
         "name": "tmdb_id",
-        "ordinal": 6,
+        "ordinal": 8,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -82,7 +104,7 @@
       },
       {
         "name": "imdb_id",
-        "ordinal": 7,
+        "ordinal": 9,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -93,7 +115,7 @@
       },
       {
         "name": "tvdb_id",
-        "ordinal": 8,
+        "ordinal": 10,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -104,7 +126,7 @@
       },
       {
         "name": "show_tmdb_id",
-        "ordinal": 9,
+        "ordinal": 11,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -115,7 +137,7 @@
       },
       {
         "name": "show_imdb_id",
-        "ordinal": 10,
+        "ordinal": 12,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -126,7 +148,7 @@
       },
       {
         "name": "show_tvdb_id",
-        "ordinal": 11,
+        "ordinal": 13,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -137,7 +159,7 @@
       },
       {
         "name": "title!",
-        "ordinal": 12,
+        "ordinal": 14,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -148,7 +170,7 @@
       },
       {
         "name": "show_title!",
-        "ordinal": 13,
+        "ordinal": 15,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -159,7 +181,7 @@
       },
       {
         "name": "overview",
-        "ordinal": 14,
+        "ordinal": 16,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -170,7 +192,7 @@
       },
       {
         "name": "release_date",
-        "ordinal": 15,
+        "ordinal": 17,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -181,7 +203,7 @@
       },
       {
         "name": "runtime_minutes",
-        "ordinal": 16,
+        "ordinal": 18,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -192,7 +214,7 @@
       },
       {
         "name": "poster",
-        "ordinal": 17,
+        "ordinal": 19,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -203,7 +225,7 @@
       },
       {
         "name": "backdrop",
-        "ordinal": 18,
+        "ordinal": 20,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -217,6 +239,8 @@
       "Right": 1
     },
     "nullable": [
+      false,
+      false,
       false,
       false,
       false,
@@ -238,5 +262,5 @@
       true
     ]
   },
-  "hash": "be234e8e88f796ee827e3605ada221854d81592dd8536e11cbc38af0f387fc8e"
+  "hash": "e483d75574991874c9ebbe7f2419045b24bcf086f3faa88bee54b4de47eaa6b7"
 }

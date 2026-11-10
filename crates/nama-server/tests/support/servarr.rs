@@ -1,11 +1,11 @@
-//! Helpers the Radarr and Sonarr tests share, as their Plugins share Servarr's settings, Qualities
-//! and progress.
+//! Helpers the Radarr and Sonarr tests share, as their Plugins share Servarr's settings and
+//! progress.
 
 use connectrpc::{ConnectError, client::HttpClient};
 use nama_plugin_api::fulfiller::Fulfiller;
 use nama_proto::nama::v1::{
-    PluginServiceClient, Quality, SettingValue, TestPluginSettingsRequest,
-    TestPluginSettingsResponse, setting_value::Value,
+    PluginServiceClient, SettingValue, TestPluginSettingsRequest, TestPluginSettingsResponse,
+    setting_value::Value,
 };
 use nama_server::plugins::Registry;
 
@@ -95,14 +95,4 @@ pub(crate) fn choices<'a>(
             .map(|choice| (choice.value.as_str(), choice.label.as_str()))
             .collect()
     })
-}
-
-/// A new Quality offering the Servarr's quality profile `profile_id` as `name`.
-pub(crate) fn quality(profile_id: &str, name: &str, is_default: bool) -> Quality {
-    Quality {
-        profile_id: profile_id.to_owned(),
-        name: name.to_owned(),
-        is_default,
-        ..Default::default()
-    }
 }

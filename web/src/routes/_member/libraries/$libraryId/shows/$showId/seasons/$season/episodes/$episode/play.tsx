@@ -41,10 +41,12 @@ function PlayEpisode() {
   const { libraryId, showId } = Route.useParams();
   // An Event may have removed it since the loader ran.
   if (!episode) return <NotFound />;
+  const { id, tracks } = versionToPlay(episode.versions, version);
   return (
     <Player
       title={episode.title}
-      versionId={versionToPlay(episode.versions, version).id}
+      versionId={id}
+      tracks={tracks}
       watchState={episode.watchState}
       back={{
         to: "/libraries/$libraryId/shows/$showId",

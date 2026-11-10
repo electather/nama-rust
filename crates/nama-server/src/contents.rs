@@ -187,9 +187,9 @@ pub(crate) struct Movie {
 /// A stored file that a Movie or Episode is available in.
 #[derive(Debug, Clone)]
 pub(crate) struct Version {
-    pub(crate) id: i64,
+    /// Its file as stored now: its Tracks count only if probing read it at this size and time.
+    pub(crate) file: Stored,
     pub(crate) path: String,
-    pub(crate) size: i64,
     /// Empty as read here: Browse fills them in from [`crate::tracks::Tracks`], which owns them.
     pub(crate) tracks: Vec<Track>,
 }
@@ -590,6 +590,7 @@ impl Contents {
     pub(crate) async fn movies(&self, library: i64) -> Result<Vec<Movie>, sqlx::Error> {
         let rows = sqlx::query!(
             r#"SELECT library_files.id AS "file!", library_files.path, library_files.size,
+                      library_files.modified_ns, library_files.parser_version,
                       item_matches.plugin AS "plugin!", item_matches.tmdb_id,
                       item_matches.imdb_id, item_matches.tvdb_id, item_matches.title AS "title!",
                       item_matches.original_title, item_matches.overview,
@@ -622,9 +623,13 @@ impl Contents {
                 continue;
             };
             let version = Version {
-                id: row.file,
+                file: Stored {
+                    id: row.file,
+                    size: row.size,
+                    modified_ns: row.modified_ns,
+                    parser_version: row.parser_version,
+                },
                 path: row.path,
-                size: row.size,
                 tracks: Vec::new(),
             };
             match movies.last_mut() {
@@ -652,6 +657,7 @@ impl Contents {
     pub(crate) async fn shows(&self, library: i64) -> Result<Vec<Show>, sqlx::Error> {
         let rows = sqlx::query!(
             r#"SELECT library_files.id AS "file!", library_files.path, library_files.size,
+                      library_files.modified_ns, library_files.parser_version,
                       library_items.season AS "season!", library_items.episode AS "episode!",
                       item_matches.plugin AS "plugin!", item_matches.tmdb_id,
                       item_matches.imdb_id, item_matches.tvdb_id, item_matches.show_tmdb_id,
@@ -699,9 +705,13 @@ impl Contents {
                 episodes: Vec::new(),
             });
             let version = Version {
-                id: row.file,
+                file: Stored {
+                    id: row.file,
+                    size: row.size,
+                    modified_ns: row.modified_ns,
+                    parser_version: row.parser_version,
+                },
                 path: row.path,
-                size: row.size,
                 tracks: Vec::new(),
             };
             match season.episodes.last_mut() {

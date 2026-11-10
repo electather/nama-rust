@@ -1,4 +1,6 @@
-// AI factory: ready-for-agent issues → implement → review → PR → CI → squash-merge.
+// AI factory, two loops in one process:
+// - implement: ready-for-agent issues with no open PR → implement → review → push → PR, then lets go.
+// - babysit: qualifying PRs (see babysittable) → CI (rebase / one fix if needed) → squash-merge.
 // Run from the repo root: `npm --prefix .sandcastle run factory`  (the script cd's back to the root)
 import { execFile, execFileSync, spawn, spawnSync } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -20,10 +22,10 @@ const OPUS = sandcastle.claudeCode("claude-opus-5-5", { effort: "high" });
 const SONNET = sandcastle.claudeCode("claude-sonnet-5-5", { effort: "medium" });
 const READY = "ready-for-agent";
 const HUMAN = "ready-for-human";
-const WORKING = "agent-working"; // on while the factory has the issue; off when it merges, is handed back or crashes
+const WORKING = "agent-working"; // on while either loop has the issue; off when that loop lets go of it
 const BASE = "main";
 
-type Issue = { number: number; title: string; parent?: number };
+type Issue = { number: number; title: string; parent?: number; branch: string };
 type Box = Awaited<ReturnType<typeof sandcastle.createSandbox>>;
 class Blocked extends Error {}
 // The issue was closed while being built: drop it, don't count it as a crash.
@@ -214,7 +216,7 @@ function fetchOrigin() {
   }
 }
 
-const branchOf = (i: Issue) => `agent/issue-${i.number}`;
+const branchOf = (i: Issue) => i.branch;
 const ahead = (branch: string) =>
   Number(git("rev-list", "--count", `origin/${BASE}..${branch}`)) > 0;
 
@@ -226,25 +228,73 @@ type ListedIssue = {
   blockedBy: { nodes: { number: number; state: string }[] };
 };
 
+type IssueRef = { number: number; repository: { name: string; owner: { login: string } } };
+type OpenPr = {
+  number: number;
+  isDraft: boolean;
+  isCrossRepository: boolean;
+  headRefName: string;
+  author: { login: string };
+  closingIssuesReferences: IssueRef[];
+};
+const [OWNER, REPO] = gh("repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner").split("/");
+const ME = gh("api", "user", "--jq", ".login");
+const inRepo = (i: IssueRef) => i.repository.owner.login === OWNER && i.repository.name === REPO;
+const openPrs = (): OpenPr[] =>
+  JSON.parse(gh("pr", "list", "--state", "open", "--limit", "100",
+    "--json", "number,isDraft,isCrossRepository,headRefName,author,closingIssuesReferences"));
+// Issue → the open PR that would close it. Any open PR, a draft or one by hand included: the implement loop leaves
+// the issue alone, and the babysitter takes the PR if it qualifies.
+function prsByIssue(prs: OpenPr[]): Map<number, number> {
+  const byIssue = new Map<number, number>();
+  for (const pr of prs) {
+    const fromBranch = pr.headRefName.match(/^agent\/issue-(\d+)$/)?.[1]; // a body that lost its `Closes #N`
+    if (fromBranch) byIssue.set(Number(fromBranch), pr.number);
+    for (const i of pr.closingIssuesReferences.filter(inRepo)) byIssue.set(i.number, pr.number);
+  }
+  return byIssue;
+}
+
 // Unblocked = no open native blocked-by (see docs/agents/issue-tracker.md).
 // An issue with sub-issues is never built itself: its children are, and closeFinishedParents closes it.
-function readyIssues(): { ready: Issue[]; waiting: Waiting[] } {
+function readyIssues(prs = openPrs()): { ready: Issue[]; waiting: Waiting[] } {
   const issues: ListedIssue[] = JSON.parse(
     gh("issue", "list", "--label", READY, "--state", "open", "--limit", "100",
       // blockedBy, not issue_dependencies_summary: the summary lags seconds behind closes/edits
       "--json", "number,title,parent,subIssuesSummary,blockedBy"),
   );
+  const withPr = prsByIssue(prs);
   const ready: Issue[] = [];
   const waiting: Waiting[] = [];
   for (const i of issues.sort((a, b) => a.number - b.number)) {
     if (process.env.ONLY_ISSUE && i.number !== Number(process.env.ONLY_ISSUE)) continue; // ONLY_ISSUE=N → build just #N
     const s = i.subIssuesSummary;
     const blockers = i.blockedBy.nodes.filter((b) => b.state === "OPEN").map((b) => `#${b.number}`);
+    if (withPr.has(i.number)) continue; // the babysitter's, or a person's
     if (s.total > 0) waiting.push({ issue: i.number, why: `parent: waits for ${s.total - s.completed} of ${s.total} sub-issues` });
     else if (blockers.length) waiting.push({ issue: i.number, why: `blocked by ${blockers.join(", ")} (open)` });
-    else ready.push({ number: i.number, title: i.title, parent: i.parent?.number });
+    else ready.push({ number: i.number, title: i.title, parent: i.parent?.number, branch: `agent/issue-${i.number}` });
   }
   return { ready, waiting };
+}
+
+type Job = { pr: string; issue: Issue; box?: Box };
+// PRs to see through to merge: open, not a draft, opened by ME from a branch of this repo (a fork's PR would run
+// its code in a sandbox, then merge), closing an open issue ME wrote that carries READY.
+function babysittable(prs = openPrs()): Job[] {
+  const jobs: Job[] = [];
+  for (const pr of prs.sort((a, b) => a.number - b.number)) {
+    if (pr.isDraft || pr.isCrossRepository || pr.author.login !== ME) continue;
+    for (const ref of pr.closingIssuesReferences.filter(inRepo)) {
+      const i: { title: string; state: string; author: { login: string }; labels: { name: string }[]; parent: { number: number } | null } =
+        JSON.parse(gh("issue", "view", String(ref.number), "--json", "title,state,author,labels,parent"));
+      if (i.state !== "OPEN" || i.author.login !== ME || !i.labels.some((l) => l.name === READY)) continue;
+      // One issue stands for the PR: the one reported on, and handed back if the PR can't be made green.
+      jobs.push({ pr: String(pr.number), issue: { number: ref.number, title: i.title, parent: i.parent?.number, branch: pr.headRefName } });
+      break;
+    }
+  }
+  return jobs;
 }
 
 // GitHub doesn't close a parent when its last sub-issue closes, and issues it blocks would wait forever.
@@ -334,7 +384,6 @@ const serially = queue(); // merges
 const oneSandboxAtATime = queue();
 
 async function build(issue: Issue): Promise<{ box: Box; body: string }> {
-  gh("issue", "edit", String(issue.number), "--add-label", WORKING);
   const box = await oneSandboxAtATime(() =>
     sandcastle.createSandbox({
       branch: branchOf(issue),
@@ -355,29 +404,67 @@ async function build(issue: Issue): Promise<{ box: Box; body: string }> {
   }
 }
 
-// Waits for the whole CI workflow run on the branch's pushed commit. `gh pr checks --watch` isn't
-// enough: a job behind `needs` (every job after `changes`) has no check until it starts, so it can
-// pass early.
-// "stale": another issue merged and the PR now conflicts with main, so this run can't merge.
-async function waitForChecks(issue: Issue): Promise<"pass" | "fail" | "stale"> {
-  const branch = branchOf(issue);
-  const sha = git("rev-parse", branch);
+// The implement loop's whole job: build, push, open the PR. From there the babysitter has it, so a crash
+// later on never builds the issue again.
+async function implement(issue: Issue): Promise<Outcome> {
+  const { box, body } = await build(issue);
+  try {
+    const branch = branchOf(issue);
+    stage(issue, "pr");
+    fetchOrigin(); // the lease needs origin's current view of the branch
+    git("push", "--force-with-lease", "origin", `${branch}:${branch}`);
+    const existing = gh("pr", "list", "--head", branch, "--state", "open", "--json", "number", "--jq", ".[0].number");
+    if (existing) gh("pr", "edit", existing, "--body", body); // resumed run: refresh the body for the new review
+    const pr =
+      existing ||
+      gh("pr", "create", "--base", BASE, "--head", branch, "--title", issue.title, "--body", body)
+        .split("/").pop()!;
+    log(`#${issue.number} PR #${pr}: ${REPO_URL}/pull/${pr}`);
+    record({ kind: "pr", issue: issue.number, pr });
+  } finally {
+    await box.close();
+  }
+  return "pr opened";
+}
+
+// The babysitter opens a sandbox only when a PR needs an agent (a rebase or a CI fix), at origin's tip of the
+// branch: the local branch may be missing (the PR came from another machine or by hand) or behind.
+async function boxFor(job: Job): Promise<Box> {
+  if (!job.box) {
+    const branch = branchOf(job.issue);
+    const box = await oneSandboxAtATime(() =>
+      sandcastle.createSandbox({ branch, baseBranch: `origin/${BASE}`, sandbox: sandbox() }),
+    );
+    await box.exec(`git reset --hard origin/${branch}`);
+    job.box = box;
+  }
+  return job.box;
+}
+const push = (job: Job) => git("push", "--force-with-lease", "origin", `${branchOf(job.issue)}:${branchOf(job.issue)}`);
+
+// Waits for the whole CI workflow run on the PR's head. `gh pr checks --watch` isn't enough: a job behind
+// `needs` (every job after `changes`) has no check until it starts, so it can pass early.
+// "stale": another PR merged and this one now conflicts with main, so it can't merge.
+async function waitForChecks(job: Job): Promise<"pass" | "fail" | "stale"> {
+  const { issue } = job;
+  const head = `origin/${branchOf(issue)}`;
+  const sha = git("rev-parse", head);
   const stale = () => {
     ok("git", "fetch", "origin"); // a failed fetch (another worker's fetch holds the lock) just checks the old ref
-    return conflicts(branch);
+    return conflicts(head);
   };
   let run = "";
   const signal = aborts.get(issue.number)?.signal;
   // 15 minutes: during GitHub incidents a PR's first run has started up to 13 minutes late.
   for (let i = 0; i < 90 && !run; i++) {
-    await sleep(10_000);
+    if (i > 0) await sleep(10_000);
     signal?.throwIfAborted();
     if (stale()) return "stale"; // a conflicting PR gets no run at all
     run = gh("run", "list", "--workflow", "CI", "--commit", sha, "--event", "pull_request",
       "--json", "databaseId", "--jq", ".[0].databaseId // empty");
   }
-  // A missing run is GitHub's fault, not the work's: crash (keeps ready-for-agent, a later run resumes the PR)
-  // rather than hand back.
+  // A missing run is GitHub's fault, not the work's: crash (keeps ready-for-agent, a later run babysits the PR
+  // again) rather than hand back.
   if (!run) throw new Error(`no CI run started for ${sha.slice(0, 7)} within 15 minutes`);
   const url = `${REPO_URL}/actions/runs/${run}`;
   log(`#${issue.number} CI running on ${sha.slice(0, 7)}: ${url}`);
@@ -404,70 +491,59 @@ async function waitForChecks(issue: Issue): Promise<"pass" | "fail" | "stale"> {
 // ponytail: two PRs that merge cleanly but break each other are caught by main's push run, not
 // before the merge. Rebase whenever main moves if that ever lands a red main.
 // merge-tree exits non-zero on a conflict (or any error, which then just rebases).
-const conflicts = (branch: string) => !ok("git", "merge-tree", "--write-tree", `origin/${BASE}`, branch);
+const conflicts = (ref: string) => !ok("git", "merge-tree", "--write-tree", `origin/${BASE}`, ref);
 
-// Rebases onto main if another issue's merge conflicts with this one, then pushes.
-// (A PR that conflicts with main gets no pull_request CI run at all.)
-async function syncAndPush(issue: Issue, box: Box) {
-  const branch = branchOf(issue);
-  fetchOrigin();
-  if (conflicts(branch)) {
-    note(issue, "rebase");
-    await fix(box, issue, `It is behind origin/${BASE} (other issues merged first) and may conflict.`);
-  }
-  git("push", "--force-with-lease", "origin", `${branch}:${branch}`);
+// Another PR's merge conflicts with this one: merge main in, then push.
+async function rebase(job: Job) {
+  note(job.issue, "rebase");
+  await fix(await boxFor(job), job.issue, `It is behind origin/${BASE} (other issues merged first) and conflicts.`);
+  push(job);
 }
 
-// One fix attempt if CI fails. If main moves while CI runs, resync and wait for CI again.
-async function greenCi(issue: Issue, box: Box, pr: string) {
-  const branch = branchOf(issue);
+// One fix attempt if CI fails. If main moves while CI runs, rebase and wait for CI again.
+async function greenCi(job: Job) {
   let fixed = false;
   for (;;) {
-    const result = await waitForChecks(issue);
-    log(`#${issue.number} CI ${result}`);
+    const result = await waitForChecks(job);
+    log(`#${job.issue.number} CI ${result}`);
     if (result === "pass") return;
     if (result === "stale") {
-      await syncAndPush(issue, box);
+      await rebase(job);
       continue;
     }
-    if (fixed) throw new Blocked(`CI still failing on PR #${pr} after one fix attempt`);
-    note(issue, "CI fix");
-    await fix(box, issue, `CI is failing on PR #${pr}.`);
-    git("push", "--force-with-lease", "origin", `${branch}:${branch}`);
+    if (fixed) throw new Blocked(`CI still failing on PR #${job.pr} after one fix attempt`);
+    note(job.issue, "CI fix");
+    await fix(await boxFor(job), job.issue, `CI is failing on PR #${job.pr}.`);
+    push(job);
     fixed = true;
   }
 }
 
-// Runs as soon as review is done, in parallel with the other running issues.
-async function openPr(issue: Issue, box: Box, body: string): Promise<string> {
-  const branch = branchOf(issue);
-  stage(issue, "pr");
-  await syncAndPush(issue, box);
-  const existing = gh("pr", "list", "--head", branch, "--state", "open", "--json", "number", "--jq", ".[0].number");
-  if (existing) gh("pr", "edit", existing, "--body", body); // resumed run: refresh the body for the new review
-  const pr =
-    existing ||
-    gh("pr", "create", "--base", BASE, "--head", branch, "--title", issue.title, "--body", body)
-      .split("/").pop()!;
-  log(`#${issue.number} PR #${pr}: ${REPO_URL}/pull/${pr}`);
-  record({ kind: "pr", issue: issue.number, pr });
-  stage(issue, "ci");
-  await greenCi(issue, box, pr);
-  return pr;
+// Runs one at a time (see `serially`), so each branch is checked against the latest main.
+async function mergePr(job: Job) {
+  stage(job.issue, "merging");
+  fetchOrigin();
+  if (conflicts(`origin/${branchOf(job.issue)}`)) {
+    await rebase(job); // another PR's merge conflicts with this one: CI again on the rebased branch
+    await greenCi(job);
+  }
+  gh("pr", "merge", job.pr, "--squash");
+  log(`✓ #${job.issue.number} merged via PR #${job.pr}`);
+  await afterMerge(job.issue);
 }
 
-// Runs one at a time (see `serially`), so each branch is checked against the latest main.
-async function mergePr(issue: Issue, box: Box, pr: string) {
-  const branch = branchOf(issue);
-  stage(issue, "merging");
-  fetchOrigin();
-  if (conflicts(branch)) {
-    await syncAndPush(issue, box); // another issue's merge conflicts with this one: CI again on the rebased branch
-    await greenCi(issue, box, pr);
+// The babysitter's whole job: green CI, then merge.
+async function babysit(job: Job): Promise<Outcome> {
+  record({ kind: "pr", issue: job.issue.number, pr: job.pr });
+  try {
+    stage(job.issue, "ci");
+    await greenCi(job);
+    await serially(() => mergePr(job));
+  } finally {
+    await job.box?.close();
   }
-  gh("pr", "merge", pr, "--squash");
-  log(`✓ #${issue.number} merged via PR #${pr}`);
-  await afterMerge(issue);
+  ok("git", "branch", "-D", branchOf(job.issue)); // squash-merged; the local branch, if any, is dead weight
+  return "merged";
 }
 
 // After the PR merged, by the factory or by hand. The local branch is deleted by the caller once the
@@ -484,55 +560,43 @@ async function afterMerge(issue: Issue) {
   }
 }
 
-// build → PR → green CI in parallel; only the merge waits its turn.
-// The dispatcher took a slot for this issue. The build uses it, and the issue gives it back before waiting on CI.
-// The sandbox stays open, but idle, while the PR waits, so a fix can run in it later.
-async function pipeline(issue: Issue) {
-  const { box, body } = await build(issue).finally(slots.release);
-  let merged = false;
-  try {
-    const pr = await openPr(issue, box, body);
-    await serially(() => mergePr(issue, box, pr));
-    merged = true;
-  } finally {
-    await box.close();
-    if (merged) ok("git", "branch", "-D", branchOf(issue)); // squash-merged; the local branch is dead weight
-  }
-}
-
-// Factories on other machines: creating a ref on origin is atomic, so only one of them gets an issue.
+// Factories on other machines: creating a ref on origin is atomic, so only one of them gets an issue or a PR.
 // The claim is a fresh commit each time: pushing a commit the ref already points at would "succeed" as up to date.
-const claimRef = (i: Issue) => `refs/claims/issue-${i.number}`;
-function tryClaim(issue: Issue): boolean {
+const issueClaim = (i: Issue) => `refs/claims/issue-${i.number}`;
+const prClaim = (pr: string) => `refs/claims/pr-${pr}`;
+function tryClaim(ref: string, what: string): boolean {
   const commit = git("commit-tree", `origin/${BASE}^{tree}`, "-p", `origin/${BASE}`,
-    "-m", `claim #${issue.number} by ${process.pid}@${hostname()} ${Date.now()}`);
-  return ok("git", "push", `--force-with-lease=${claimRef(issue)}:`, "origin", `${commit}:${claimRef(issue)}`);
+    "-m", `claim ${what} by ${process.pid}@${hostname()} ${Date.now()}`);
+  return ok("git", "push", `--force-with-lease=${ref}:`, "origin", `${commit}:${ref}`);
 }
-// Returns undefined once the issue is ours, or who holds it.
+// Returns undefined once the claim is ours, or who holds it.
 // A claim from this machine whose pid is dead is stale (a killed run): only one factory runs here, so take it over.
-function claim(issue: Issue): string | undefined {
-  if (tryClaim(issue)) return;
-  const owner = claimOwner(issue);
+function claim(ref: string, what: string): string | undefined {
+  if (tryClaim(ref, what)) return;
+  const owner = claimOwner(ref);
   const [pid, host] = owner.split("@");
   if (host !== hostname() || alive(Number(pid))) return owner;
-  log(`#${issue.number} taking over the claim of ${owner}: that run is gone`);
-  ok("git", "push", "origin", "--delete", claimRef(issue));
-  return tryClaim(issue) ? undefined : claimOwner(issue); // another machine may win the gap
+  log(`${what} taking over the claim of ${owner}: that run is gone`);
+  ok("git", "push", "origin", "--delete", ref);
+  return tryClaim(ref, what) ? undefined : claimOwner(ref); // another machine may win the gap
 }
-// Who holds a claim: the claim commit's message says "claim #N by pid@host …".
-function claimOwner(issue: Issue): string {
-  if (!ok("git", "fetch", "origin", claimRef(issue))) return "another factory";
+// Who holds a claim: the claim commit's message says "claim … by pid@host …".
+function claimOwner(ref: string): string {
+  if (!ok("git", "fetch", "origin", ref)) return "another factory";
   return git("log", "-1", "--format=%s", "FETCH_HEAD").match(/ by (\S+)/)?.[1] ?? "another factory";
 }
-function release(issue: Issue) {
+function release(issue: Issue, ref: string) {
   ok("gh", "issue", "edit", String(issue.number), "--remove-label", WORKING);
-  ok("git", "push", "origin", "--delete", claimRef(issue));
+  ok("git", "push", "origin", "--delete", ref);
 }
 
+type Loop = "implement" | "babysit";
 // Never shrinks: a merged issue stays open for a few seconds (`Closes #N` lags), so it mustn't be picked again.
 const taken = new Set<number>();
-const inFlight = new Set<Issue>();
-const claimedElsewhere = new Map<number, string>();
+const watched = new Set<string>(); // PRs, likewise
+// By issue number: one issue is in at most one loop at a time.
+const inFlight = new Map<number, { issue: Issue; loop: Loop; claim: string }>();
+const claimedElsewhere = new Map<number, string>(); // issue → why it waits
 const outcomes: { issue: number; outcome: Outcome }[] = [];
 let crashed = "";
 
@@ -544,7 +608,7 @@ function finish(issue: Issue, outcome: Outcome, why?: string) {
 // Logged and recorded only when it changes, not on every 60s poll.
 let lastWaiting = "";
 function noteWaiting(waiting: Waiting[]) {
-  const all = [...waiting, ...[...claimedElsewhere].map(([issue, who]) => ({ issue, why: `claimed by ${who}` }))];
+  const all = [...waiting, ...[...claimedElsewhere].map(([issue, why]) => ({ issue, why }))];
   const text = all.map((w) => `#${w.issue} ${w.why}`).join("; ");
   if (text === lastWaiting) return;
   lastWaiting = text;
@@ -558,14 +622,16 @@ function pickNext(): Issue | "wait" | "done" {
   for (;;) {
     fetchOrigin();
     closeFinishedParents();
-    const { ready, waiting } = readyIssues();
+    const prs = openPrs();
+    const { ready, waiting } = readyIssues(prs);
     noteWaiting(waiting);
     const issue = ready.find((i) => !taken.has(i.number));
-    if (!issue) return inFlight.size === 0 ? "done" : "wait"; // nothing in flight can unblock anything: done
+    // Done only when nothing anywhere can still unblock an issue: no build, and no PR left to merge.
+    if (!issue) return inFlight.size === 0 && babysittable(prs).length === 0 ? "done" : "wait";
     taken.add(issue.number);
-    const owner = claim(issue);
+    const owner = claim(issueClaim(issue), `#${issue.number}`);
     if (!owner) return issue;
-    claimedElsewhere.set(issue.number, owner);
+    claimedElsewhere.set(issue.number, `claimed by ${owner}`);
     noteWaiting(waiting);
   }
 }
@@ -655,7 +721,7 @@ async function overUsage(): Promise<boolean> {
   return paused();
 }
 
-// Starts an issue whenever a slot is free (see slotPool). Started issues finish in the background.
+// The implement loop: starts an issue whenever a slot is free (see slotPool). Started issues finish in the background.
 async function dispatch() {
   const running = new Set<Promise<void>>();
   for (;;) {
@@ -684,38 +750,93 @@ async function dispatch() {
     }
     if (issue === "wait") {
       slots.release();
-      await sleep(60_000); // paused, slowed, or waiting for an in-flight merge to unblock an issue
+      await sleep(60_000); // paused, slowed, or waiting for a merge to unblock an issue
       continue;
     }
-    const started: Promise<void> = run(issue).finally(() => running.delete(started));
+    const i = issue;
+    // The slot taken above is released when the issue leaves the loop (see track).
+    const started: Promise<void> = track(i, "implement", issueClaim(i), () => implement(i))
+      .finally(() => running.delete(started));
     running.add(started);
   }
   await Promise.all(running);
 }
 
-// One issue from claim to merged, handed back, cancelled or crashed. Holds a slot until build() returns.
-async function run(issue: Issue) {
-  inFlight.add(issue);
-  log(`=== #${issue.number} ${issue.title} (${slots.busy()}/${MAX_PARALLEL} slots busy, ${inFlight.size} in flight) ===`);
+// The babysit loop: every minute, takes every PR that qualifies (see babysittable). Waiting on CI holds no slot;
+// a rebase or CI fix takes one, ahead of new builds (see fix). Ends once the implement loop has ended and no PR is
+// left, since until then a new PR may still come.
+let implementDone = false;
+async function babysitLoop() {
+  const running = new Set<Promise<void>>();
+  for (;;) {
+    if (crashed || existsSync(STOP_FILE)) break;
+    let jobs: Job[] = [];
+    try {
+      jobs = babysittable();
+    } catch (e) {
+      const why = `listing PRs to babysit failed: ${oneLine(e)}`;
+      appendFileSync(`${LOGS}/crash-pick.log`, `${new Date().toISOString()} ${RUN}\n${inspect(e)}\n\n`);
+      log(`✗ ${why} (details: ${LOGS}/crash-pick.log)`);
+      crashed ||= why;
+      break;
+    }
+    let started = 0;
+    for (const job of jobs) {
+      // An issue still in the implement loop opened this PR moments ago: take it on the next pass.
+      if (watched.has(job.pr) || inFlight.has(job.issue.number)) continue;
+      const owner = claim(prClaim(job.pr), `PR #${job.pr}`);
+      if (owner) {
+        claimedElsewhere.set(job.issue.number, `PR #${job.pr} babysat by ${owner}`);
+        continue;
+      }
+      claimedElsewhere.delete(job.issue.number);
+      watched.add(job.pr);
+      started++;
+      const p: Promise<void> = track(job.issue, "babysit", prClaim(job.pr), () => babysit(job))
+        .finally(() => running.delete(p));
+      running.add(p);
+    }
+    if (implementDone && running.size === 0 && started === 0) break;
+    await sleep(60_000);
+  }
+  await Promise.all(running);
+}
+
+// "true" unless gh says the label is gone: only a definite answer stops work.
+const stillReady = (issue: Issue) =>
+  spawnSync("gh", ["issue", "view", String(issue.number), "--json", "labels", "--jq", `[.labels[].name] | index("${READY}") != null`],
+    { encoding: "utf8" }).stdout?.trim() !== "false";
+const prClosed = (issue: Issue) =>
+  spawnSync("gh", ["pr", "view", branchOf(issue), "--json", "state", "--jq", ".state"], { encoding: "utf8" })
+    .stdout?.trim() === "CLOSED";
+
+// One issue through one loop: implement ends at "pr opened", babysit at merged. Either may end handed back,
+// cancelled or crashed instead.
+async function track(issue: Issue, loop: Loop, claimRef: string, work: () => Promise<Outcome>) {
+  inFlight.set(issue.number, { issue, loop, claim: claimRef });
+  log(`=== ${loop} #${issue.number} ${issue.title} (${slots.busy()}/${MAX_PARALLEL} slots busy, ${inFlight.size} in flight) ===`);
   stage(issue, "claimed");
   const started = Date.now();
   aborts.set(issue.number, new AbortController());
-  // Until the merge starts (the merge itself closes the issue), a closed issue stops its build.
-  // A merged PR stops it at any stage; the catch below then records it as merged.
+  // Until the merge starts (the merge itself closes the issue), a closed issue stops its work. A merged PR stops
+  // it at any stage; the catch below then records it as merged. The babysitter also lets go of a PR that's
+  // closed, or whose issue a person took back (no READY label).
   const abort = aborts.get(issue.number)!;
   const watcher = setInterval(() => {
     if (abort.signal.aborted) return;
-    if (prMerged(issue)) {
-      log(`#${issue.number} PR was merged: stopping it`);
-      abort.abort(new Cancelled("the PR was merged"));
-    } else if (stageOf.get(issue.number)?.stage !== "merging" && isClosed(issue)) {
-      log(`#${issue.number} was closed: stopping it`);
-      abort.abort(new Cancelled("the issue was closed"));
-    }
+    const merging = stageOf.get(issue.number)?.stage === "merging";
+    const stop = (why: string) => {
+      log(`#${issue.number} ${why}: stopping it`);
+      abort.abort(new Cancelled(why));
+    };
+    if (prMerged(issue)) stop("the PR was merged");
+    else if (!merging && isClosed(issue)) stop("the issue was closed");
+    else if (loop === "babysit" && !merging && prClosed(issue)) stop("the PR was closed");
+    else if (loop === "babysit" && !merging && !stillReady(issue)) stop(`the issue lost ${READY}`);
   }, 60_000);
   try {
-    await pipeline(issue);
-    finish(issue, "merged");
+    gh("issue", "edit", String(issue.number), "--add-label", WORKING);
+    finish(issue, await work());
   } catch (e) {
     // Checked first: merging by hand makes whatever the factory was doing fail (a rejected push, a
     // cancelled CI run, `gh pr merge` on a merged PR), and none of that is a crash or a hand-back.
@@ -727,7 +848,8 @@ async function run(issue: Issue) {
     // The signal, not `instanceof`: sandcastle may hand the reason back wrapped in an Effect FiberFailure.
     } else if (abort.signal.aborted) {
       const why = `${(abort.signal.reason as Error).message} during ${stageOf.get(issue.number)?.stage ?? "start"}`;
-      ok("gh", "pr", "close", branchOf(issue), "--comment", "🏭 The issue was closed, so the factory stopped building it.");
+      // The babysitter leaves the PR as it is: it may be a person's.
+      if (loop === "implement") ok("gh", "pr", "close", branchOf(issue), "--comment", "🏭 The issue was closed, so the factory stopped building it.");
       log(`⊘ #${issue.number} cancelled: ${why}`);
       finish(issue, "cancelled", why);
     } else if (e instanceof Blocked) {
@@ -735,6 +857,7 @@ async function run(issue: Issue) {
       finish(issue, "handed back", e.message);
     } else {
       // Infra failure (docker, auth, Claude limit): don't relabel; let in-flight issues finish, pick nothing new.
+      // The next run picks the issue (no PR yet) or its PR (babysit) up again.
       const at = stageOf.get(issue.number)?.stage ?? "start";
       const why = `crashed at ${at}: ${oneLine(e)}`;
       appendFileSync(`${LOGS}/crash-issue-${issue.number}.log`, `${new Date().toISOString()} ${RUN}\n${inspect(e)}\n\n`);
@@ -743,24 +866,27 @@ async function run(issue: Issue) {
       crashed ||= `#${issue.number} ${why}`;
     }
   } finally {
-    log(`#${issue.number} done after ${took(started)}`);
-    release(issue);
+    log(`#${issue.number} ${loop} done after ${took(started)}`);
+    release(issue, claimRef);
     clearInterval(watcher);
     aborts.delete(issue.number);
-    inFlight.delete(issue);
+    inFlight.delete(issue.number);
     stageOf.delete(issue.number);
+    if (loop === "implement") slots.release();
   }
 }
 
 function summary(reason: string) {
   log(`=== Run ended: ${reason} ===`);
-  for (const o of ["merged", "handed back", "cancelled", "crashed", "interrupted"] as const) {
+  for (const o of ["merged", "pr opened", "handed back", "cancelled", "crashed", "interrupted"] as const) {
     const list = outcomes.filter((x) => x.outcome === o).map((x) => `#${x.issue}`);
     if (list.length) log(`  ${o}: ${list.join(", ")}`);
   }
   try {
-    const { ready, waiting } = readyIssues();
+    const prs = openPrs();
+    const { ready, waiting } = readyIssues(prs);
     log(`  still ready: ${ready.map((i) => `#${i.number}`).join(", ") || "none"}`);
+    log(`  PRs to babysit: ${babysittable(prs).map((j) => `#${j.pr}`).join(", ") || "none"}`);
     for (const w of waiting) log(`  waiting: #${w.issue} ${w.why}`);
   } catch (e) {
     log(`  couldn't list the queue: ${oneLine(e)}`);
@@ -768,10 +894,10 @@ function summary(reason: string) {
   record({ kind: "run-end", reason });
 }
 
-// Ctrl-C: let go of claimed issues so the next run (here or elsewhere) can resume them.
+// Ctrl-C: let go of claimed issues and PRs so the next run (here or elsewhere) can resume them.
 process.on("SIGINT", () => {
-  for (const issue of inFlight) {
-    release(issue);
+  for (const { issue, claim } of inFlight.values()) {
+    release(issue, claim);
     finish(issue, "interrupted", `Ctrl-C at ${stageOf.get(issue.number)?.stage ?? "start"}`);
   }
   log("=== Run ended: interrupted (Ctrl-C) ===");
@@ -779,9 +905,12 @@ process.on("SIGINT", () => {
   process.exit(130);
 });
 
-log(`=== Factory ${RUN} started: ${MAX_PARALLEL} slots, at most ${MAX_ISSUES} issues ===`);
+log(`=== Factory ${RUN} started: ${MAX_PARALLEL} slots, at most ${MAX_ISSUES} issues, babysitting ${ME}'s PRs ===`);
 record({ kind: "run-start", slots: MAX_PARALLEL });
+const babysitting = babysitLoop();
 await dispatch();
+implementDone = true;
+await babysitting;
 summary(
   crashed ? `${crashed}; finished in-flight work, started nothing new`
   : existsSync(STOP_FILE) ? `${STOP_FILE} found`

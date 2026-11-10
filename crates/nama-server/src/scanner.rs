@@ -443,7 +443,7 @@ impl Scanner {
     /// before if ffprobe can't read it.
     async fn probe_and_store(&self, path: &str, file: Stored) -> Result<Probe, ProbeNowError> {
         if self.inner.tracks.current(&[file]).await?.contains(&file.id)
-            && let Some(probe) = self.inner.tracks.of(&[file.id]).await?.remove(&file.id)
+            && let Some(probe) = self.inner.tracks.of(&[file]).await?.remove(&file.id)
         {
             return Ok(probe);
         }
@@ -646,7 +646,7 @@ mod tests {
     use super::{PROBES_AT_ONCE, ProbeNowError, Scanner, Summary};
     use crate::{
         config::Config,
-        contents::{Change, Contents, Decided, File, Item, Metadata},
+        contents::{Change, Contents, Decided, File, Item, Metadata, Stored},
         db::Database,
         events::{EventBus, Filter},
         ffmpeg::{self, Ffmpeg, FoundProgram, ProbeError},
@@ -654,7 +654,7 @@ mod tests {
         playback::{self, running::RunningPlans},
         plugins::Registry,
         server_settings::{SegmentFolder, ServerUrl},
-        tracks::{Hdr, PROBE_VERSION, Track, TrackKind, Tracks},
+        tracks::{Hdr, PROBE_VERSION, Probe, Track, TrackKind, Tracks},
         users::{Caller, Device, Permissions, User},
     };
 
@@ -737,8 +737,7 @@ mod tests {
         /// The channels of the one audio Track stored for the file at `relative`.
         #[cfg(unix)]
         async fn channels(&self, relative: &str) -> Option<i64> {
-            let version = self.file_id(relative).await;
-            let probe = self.tracks.of(&[version]).await.unwrap().remove(&version)?;
+            let probe = self.probe(relative).await?;
             match probe.tracks.as_slice() {
                 [
                     Track {
@@ -750,10 +749,21 @@ mod tests {
             }
         }
 
+        /// The file stored at `relative`.
+        async fn stored(&self, relative: &str) -> Stored {
+            let path = self.path(relative);
+            self.contents.stored(self.library).await.unwrap()[path.to_str().unwrap()]
+        }
+
         /// The id of the file stored at `relative`.
         async fn file_id(&self, relative: &str) -> i64 {
-            let path = self.path(relative);
-            self.contents.stored(self.library).await.unwrap()[path.to_str().unwrap()].id
+            self.stored(relative).await.id
+        }
+
+        /// What probing found in the file at `relative`, if it read the file as it is stored now.
+        async fn probe(&self, relative: &str) -> Option<Probe> {
+            let file = self.stored(relative).await;
+            self.tracks.of(&[file]).await.unwrap().remove(&file.id)
         }
 
         /// Stores the file at `relative` as holding Alien, as a scan would but without probing it.
@@ -1074,8 +1084,7 @@ mod tests {
         media.scan_and_probe().await;
 
         let version = media.file_id(alien).await;
-        let mut probes = media.tracks.of(&[version]).await.unwrap();
-        let probe = probes.remove(&version).expect("the file wasn't probed");
+        let probe = media.probe(alien).await.expect("the file wasn't probed");
         assert_eq!(probe.container, "matroska,webm");
         // A fifth of a second, give or take a frame and the audio's padding.
         assert!(
@@ -1131,17 +1140,15 @@ mod tests {
         media.scan().await;
         media.scanner.idle().await;
 
-        let versions = [media.file_id(hlg).await, media.file_id(sdr).await];
-        let mut probes = media.tracks.of(&versions).await.unwrap();
-        let mut hdr_of = |version| match probes.remove(&version).map(|probe| probe.tracks) {
+        let hdr_of = async |file| match media.probe(file).await.map(|probe| probe.tracks) {
             Some(tracks) => match tracks.first().map(|track| &track.kind) {
                 Some(TrackKind::Video { hdr, .. }) => *hdr,
                 _ => panic!("no video Track first: {tracks:?}"),
             },
             None => panic!("the file wasn't probed"),
         };
-        assert_eq!(hdr_of(versions[0]), Some(Hdr::Hlg));
-        assert_eq!(hdr_of(versions[1]), None);
+        assert_eq!(hdr_of(hlg).await, Some(Hdr::Hlg));
+        assert_eq!(hdr_of(sdr).await, None);
     }
 
     #[tokio::test]
@@ -1154,7 +1161,7 @@ mod tests {
         media.scanner.idle().await;
 
         let version = media.file_id(alien).await;
-        assert!(media.tracks.of(&[version]).await.unwrap().is_empty());
+        assert_eq!(media.tracks.probe_version_of(version).await, None);
     }
 
     #[tokio::test]
@@ -1183,10 +1190,7 @@ mod tests {
                 &TrackKind::Audio { channels: Some(6) },
             ]
         );
-        assert_eq!(
-            media.tracks.of(&[version]).await.unwrap().remove(&version),
-            Some(probe)
-        );
+        assert_eq!(media.probe(alien).await, Some(probe));
     }
 
     #[tokio::test]
@@ -1273,6 +1277,7 @@ EOF"#,
             version,
             decoding,
             BTreeSet::new(),
+            None,
         )
         .await
         .unwrap();
@@ -1305,9 +1310,9 @@ EOF"#,
         media.scan().await;
         media.scanner.idle().await;
 
-        let version = media.file_id(alien).await;
-        let probe = media.tracks.of(&[version]).await.unwrap().remove(&version);
-        let kind = probe
+        let kind = media
+            .probe(alien)
+            .await
             .and_then(|probe| probe.tracks.into_iter().next())
             .map(|t| t.kind);
         assert_eq!(
@@ -1382,15 +1387,7 @@ EOF"#,
         media.scan_and_probe().await;
 
         assert_eq!(fs::read_to_string(&runs).unwrap(), "run\n");
-        let version = media.file_id(alien).await;
-        assert!(
-            media
-                .tracks
-                .of(&[version])
-                .await
-                .unwrap()
-                .contains_key(&version)
-        );
+        assert!(media.probe(alien).await.is_some());
     }
 
     // The fake ffprobe is a shell script.
@@ -1591,6 +1588,6 @@ echo '{"format": {"format_name": "matroska,webm"}, "streams": [{"codec_type": "a
         media.scan_and_probe().await;
 
         let version = media.file_id(alien).await;
-        assert!(media.tracks.of(&[version]).await.unwrap().is_empty());
+        assert_eq!(media.tracks.probe_version_of(version).await, None);
     }
 }

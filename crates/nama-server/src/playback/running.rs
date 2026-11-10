@@ -44,7 +44,7 @@ use axum::{
 use nama_proto::nama::v1::{Playback, PlaybackEnded, PlaybackStarted};
 use tokio::{process::Child, task::JoinHandle};
 
-use super::{Method, played_audio};
+use super::Method;
 use crate::{
     contents::Contents,
     events::{EventBus, event},
@@ -197,13 +197,15 @@ impl RunningPlans {
     }
 
     /// Starts Remuxing the Version `playback` plays, which probing found holds `probe`, for the
-    /// Device it plays on, with its audio converted to AAC with `aac_channels` channels, or else
-    /// copied, and returns its id and its playlist's URL. Lists the Version's keyframes the first
-    /// time and keeps them. `None` if there is no such Version.
+    /// Device it plays on, with its audio Track `audio`, counting only its audio from 0, converted
+    /// to AAC with `aac_channels` channels, or else copied, and returns its id and its playlist's
+    /// URL. Lists the Version's keyframes the first time and keeps them. `None` if there is no
+    /// such Version.
     pub(crate) async fn remux(
         &self,
         playback: Playback,
         probe: &Probe,
+        audio: Option<usize>,
         aac_channels: Option<i64>,
     ) -> Result<Option<(u64, String)>, StartError> {
         let version = playback.version_id;
@@ -212,7 +214,6 @@ impl RunningPlans {
         };
         let keyframes = self.keyframes(version, &path).await?;
         let timeline = Timeline::new(keyframes, probe.duration_ms.unwrap_or_default());
-        let audio = played_audio(probe);
         let ffmpeg = Arc::clone(&self.inner.ffmpeg);
         let run = move |dir: &Path, from| ffmpeg.remux(&path, audio, aac_channels, dir, from);
         let id = self
@@ -222,7 +223,8 @@ impl RunningPlans {
     }
 
     /// Starts Transcoding the Version `playback` plays, which probing found holds `probe`, for
-    /// the Device it plays on, with its audio converted to AAC with `aac_channels` channels, and
+    /// the Device it plays on, with its audio Track `played_audio`, counting only its audio from
+    /// 0, converted to AAC with `aac_channels` channels, and
     /// returns its id and its playlist's URL. Its segments are [`SEGMENT_MS`] each, as it forces a
     /// keyframe at each. `None` if there is no such Version.
     // ponytail: no cap on how many Transcodes run at once, each a software encode; #340 adds one.
@@ -230,6 +232,7 @@ impl RunningPlans {
         &self,
         playback: Playback,
         probe: &Probe,
+        played_audio: Option<usize>,
         aac_channels: Option<i64>,
     ) -> Result<Option<(u64, String)>, StartError> {
         let Some((path, _)) = (self.inner.contents)
@@ -243,7 +246,7 @@ impl RunningPlans {
         let segments = (duration_ms.max(1) + SEGMENT_MS - 1) / SEGMENT_MS;
         let cuts: Vec<i64> = (0..segments).map(|n| n * SEGMENT_MS).collect();
         let timeline = Timeline::new(cuts.clone(), duration_ms);
-        let audio = played_audio(probe).zip(aac_channels);
+        let audio = played_audio.zip(aac_channels);
         let ffmpeg = Arc::clone(&self.inner.ffmpeg);
         let run = move |dir: &Path, from: Keyframe| {
             let from_on = cuts.get(from.n..).unwrap_or_default();

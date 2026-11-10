@@ -14,7 +14,7 @@ test("an Admin sees the path and version of the ffmpeg and ffprobe the Server fo
     "/admin/playback",
     fakeServer({
       signedIn: admin,
-      serverSettings: {
+      serverService: {
         getPlaybackStatus: () => ({
           ffmpeg: { path: "/usr/bin/ffmpeg", version: "7.1.1" },
           ffprobe: { path: "/usr/bin/ffprobe", version: "7.1.1" },
@@ -34,7 +34,7 @@ test("without a usable ffmpeg the Playback page says why and that the Server can
     "/admin/playback",
     fakeServer({
       signedIn: admin,
-      serverSettings: {
+      serverService: {
         getPlaybackStatus: () => ({
           ffmpegProblem:
             "ffmpeg 4.3.1 at /usr/bin/ffmpeg is older than 4.4, the oldest this Server supports",
@@ -67,7 +67,7 @@ test("an Admin sets the segment folder on the Playback page", async () => {
     "/admin/playback",
     fakeServer({
       signedIn: admin,
-      serverSettings: {
+      serverService: {
         getPlaybackStatus: () => ({}),
         getPlaybackSettings: () => ({ settings: { segmentFolder: "/srv/segments" } }),
         updatePlaybackSettings: (request) => {
@@ -91,7 +91,7 @@ test("a segment folder that isn't an absolute path is refused under its field", 
     "/admin/playback",
     fakeServer({
       signedIn: admin,
-      serverSettings: {
+      serverService: {
         getPlaybackStatus: () => ({}),
         updatePlaybackSettings: () => {
           throw refused(Code.InvalidArgument, "the segment folder must be an absolute path", {
