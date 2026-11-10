@@ -1102,6 +1102,16 @@ pub struct PlaybackPlan {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub reasons: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
+    /// The text subtitles the player can turn on and off without a new plan, in the order the
+    /// Version holds them. Image subtitles, such as PGS, aren't among them.
+    ///
+    /// Field 5: `subtitles`
+    #[serde(
+        rename = "subtitles",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub subtitles: ::buffa::alloc::vec::Vec<PlaybackSubtitle>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -1113,6 +1123,7 @@ impl ::core::fmt::Debug for PlaybackPlan {
             .field("url", &self.url)
             .field("tracks", &self.tracks)
             .field("reasons", &self.reasons)
+            .field("subtitles", &self.subtitles)
             .finish()
     }
 }
@@ -1163,6 +1174,14 @@ impl ::buffa::Message for PlaybackPlan {
         for v in &self.reasons {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
+        for v in &self.subtitles {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -1192,6 +1211,14 @@ impl ::buffa::Message for PlaybackPlan {
         }
         for v in &self.reasons {
             ::buffa::types::put_string_field(4u32, v, buf);
+        }
+        for v in &self.subtitles {
+            ::buffa::types::put_len_delimited_header(
+                5u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -1245,6 +1272,18 @@ impl ::buffa::Message for PlaybackPlan {
                 )?;
                 self.reasons.push(__elem);
             }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.subtitles.push(elem);
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -1257,6 +1296,7 @@ impl ::buffa::Message for PlaybackPlan {
         self.url.clear();
         self.tracks.clear();
         self.reasons.clear();
+        self.subtitles.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -1287,5 +1327,172 @@ pub const __PLAYBACK_PLAN_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buf
     type_url: "type.googleapis.com/nama.v1.PlaybackPlan",
     to_json: ::buffa::type_registry::any_to_json::<PlaybackPlan>,
     from_json: ::buffa::type_registry::any_from_json::<PlaybackPlan>,
+    is_wkt: false,
+};
+/// A text subtitle a player shows as a WebVTT `<track>`.
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct PlaybackSubtitle {
+    /// Its Track, for its language, title and whether it's Forced or SDH.
+    ///
+    /// Field 1: `track`
+    #[serde(
+        rename = "track",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
+    )]
+    pub track: ::buffa::MessageField<Track, ::buffa::Inline<Track>>,
+    /// Where to fetch it as WebVTT, on this Server. The first fetch can take up to a minute while
+    /// the Server reads it out of the file; later ones are answered at once.
+    ///
+    /// Field 2: `url`
+    #[serde(
+        rename = "url",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub url: ::buffa::alloc::string::String,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for PlaybackSubtitle {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("PlaybackSubtitle")
+            .field("track", &self.track)
+            .field("url", &self.url)
+            .finish()
+    }
+}
+impl PlaybackSubtitle {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.PlaybackSubtitle";
+}
+::buffa::impl_default_instance!(PlaybackSubtitle);
+impl ::buffa::MessageName for PlaybackSubtitle {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "PlaybackSubtitle";
+    const FULL_NAME: &'static str = "nama.v1.PlaybackSubtitle";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.PlaybackSubtitle";
+}
+impl ::buffa::Message for PlaybackSubtitle {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.track.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.track.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        if !self.url.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.url) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.track.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.track.write_to(__cache, buf);
+        }
+        if !self.url.is_empty() {
+            ::buffa::types::put_string_field(2u32, &self.url, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.track.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.url, buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.track = ::buffa::MessageField::none();
+        self.url.clear();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for PlaybackSubtitle {
+    const PROTO_FQN: &'static str = "nama.v1.PlaybackSubtitle";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for PlaybackSubtitle {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __PLAYBACK_SUBTITLE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.v1.PlaybackSubtitle",
+    to_json: ::buffa::type_registry::any_to_json::<PlaybackSubtitle>,
+    from_json: ::buffa::type_registry::any_from_json::<PlaybackSubtitle>,
     is_wkt: false,
 };

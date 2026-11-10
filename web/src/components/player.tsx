@@ -5,7 +5,9 @@ import { ArrowLeft, Maximize, Minimize, Pause, Play, Volume2, VolumeX } from "lu
 import { type ReactNode, type RefObject, useRef, useState } from "react";
 
 import { Button, buttonVariants } from "@/components/ui/button";
+import { SubtitleTracks, SubtitlesMenu } from "@/components/subtitles-menu";
 import { Slider } from "@/components/ui/slider";
+import type { PlaybackPlan } from "@/gen/nama/v1/playback_pb";
 import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
 import {
   type Video,
@@ -16,9 +18,10 @@ import {
   togglePlay,
   useAwake,
   useIsFullscreen,
-  usePlaybackUrl,
+  usePlaybackPlan,
   useShortcuts,
   useVideo,
+  // oxlint-disable-next-line import/max-dependencies -- the player puts together the controls these make.
 } from "@/lib/playback";
 import { useWatchState } from "@/lib/watch-state";
 
@@ -38,13 +41,13 @@ export interface PlayerProps {
  * or says so plainly when it can't play here.
  */
 export function Player(props: PlayerProps) {
-  const url = usePlaybackUrl(props.versionId, props.watchState);
+  const plan = usePlaybackPlan(props.versionId, props.watchState);
   const [cantPlay, setCantPlay] = useState(false);
-  if (cantPlay || url === "") return <CantPlay back={props.back} />;
+  if (cantPlay || plan === undefined || plan.url === "") return <CantPlay back={props.back} />;
   return (
     <VideoPlayer
       {...props}
-      url={url}
+      plan={plan}
       onCantPlay={() => {
         setCantPlay(true);
       }}
@@ -57,9 +60,9 @@ function VideoPlayer({
   versionId,
   watchState,
   back,
-  url,
+  plan: { url, subtitles },
   onCantPlay,
-}: PlayerProps & { url: string; onCantPlay: () => void }) {
+}: PlayerProps & { plan: PlaybackPlan; onCantPlay: () => void }) {
   const playerRef = useRef<HTMLDivElement>(null);
   const { ref: videoRef, events, ...video } = useVideo();
   useWatchState(videoRef, versionId, watchState);
@@ -75,7 +78,7 @@ function VideoPlayer({
       onPointerDown={wake}
       className="group fixed inset-0 bg-background data-controls-hidden:cursor-none"
     >
-      {/* oxlint-disable-next-line jsx-a11y/media-has-caption -- Versions carry no caption files yet. */}
+      {/* oxlint-disable-next-line jsx-a11y/media-has-caption -- a Version may have no subtitles. */}
       <video
         ref={videoRef}
         src={url}
@@ -89,11 +92,15 @@ function VideoPlayer({
         }}
         className="size-full object-contain"
         {...events}
-      />
+      >
+        <SubtitleTracks subtitles={subtitles} />
+      </video>
       {/* Any key brings the controls back, so a focused control shows its ring when it's used. */}
       <div className="pointer-events-none absolute inset-0 flex flex-col justify-between transition-opacity duration-500 ease-out-expo group-data-controls-hidden:opacity-0 motion-reduce:transition-none">
         <TopBar title={title} back={back} />
-        <BottomBar video={video} playerRef={playerRef} />
+        <BottomBar video={video} playerRef={playerRef}>
+          <SubtitlesMenu subtitles={subtitles} videoRef={videoRef} container={playerRef} />
+        </BottomBar>
       </div>
     </div>
   );
@@ -110,12 +117,15 @@ function TopBar({ title, back }: { title: string; back: LinkOptions }) {
   );
 }
 
+/** The position, Play and the time, then `children` beside the volume and full screen. */
 function BottomBar({
   video,
   playerRef,
+  children,
 }: {
   video: Video;
   playerRef: RefObject<HTMLDivElement | null>;
+  children: ReactNode;
 }) {
   const { playing, time, duration } = video.state;
   return (
@@ -149,6 +159,7 @@ function BottomBar({
           {clock(time)} / {clock(duration)}
         </span>
         <div className="ms-auto flex items-center gap-1">
+          {children}
           <VolumeControls video={video} />
           <FullscreenButton playerRef={playerRef} />
         </div>

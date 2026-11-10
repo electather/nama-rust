@@ -1,5 +1,6 @@
 import { Menu as MenuPrimitive } from "@base-ui/react/menu";
 import { cn } from "cn";
+import { Check } from "lucide-react";
 
 // shadcn's base-nova dropdown menu, trimmed to the parts we use. DESIGN.md: menus float, so they
 // are Raised black with a hairline and a shadow, and open on an exponential ease-out; a
@@ -16,11 +17,14 @@ function DropdownMenuTrigger(props: MenuPrimitive.Trigger.Props) {
 function DropdownMenuContent({
   align = "end",
   sideOffset = 4,
+  container,
   className,
   ...props
-}: MenuPrimitive.Popup.Props & Pick<MenuPrimitive.Positioner.Props, "align" | "sideOffset">) {
+}: MenuPrimitive.Popup.Props &
+  Pick<MenuPrimitive.Positioner.Props, "align" | "sideOffset"> &
+  Pick<MenuPrimitive.Portal.Props, "container">) {
   return (
-    <MenuPrimitive.Portal>
+    <MenuPrimitive.Portal container={container}>
       <MenuPrimitive.Positioner
         className="isolate z-50 outline-none"
         align={align}
@@ -39,17 +43,46 @@ function DropdownMenuContent({
   );
 }
 
+const itemClassName =
+  "flex min-h-11 cursor-default items-center gap-2 rounded-lg px-3 text-sm outline-hidden select-none data-highlighted:bg-muted data-disabled:pointer-events-none data-disabled:text-muted-foreground";
+
 function DropdownMenuItem({ className, ...props }: MenuPrimitive.Item.Props) {
   return (
     <MenuPrimitive.Item
       data-slot="dropdown-menu-item"
-      className={cn(
-        "flex min-h-11 cursor-default items-center gap-2 rounded-lg px-3 text-sm outline-hidden select-none data-highlighted:bg-muted data-disabled:pointer-events-none data-disabled:text-muted-foreground",
-        className,
-      )}
+      className={cn(itemClassName, className)}
       {...props}
     />
   );
 }
 
-export { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger };
+function DropdownMenuRadioGroup(props: MenuPrimitive.RadioGroup.Props) {
+  return <MenuPrimitive.RadioGroup data-slot="dropdown-menu-radio-group" {...props} />;
+}
+
+/** An item that stays in the menu once chosen, with a check where the chosen one is. */
+function DropdownMenuRadioItem({ className, children, ...props }: MenuPrimitive.RadioItem.Props) {
+  return (
+    <MenuPrimitive.RadioItem
+      data-slot="dropdown-menu-radio-item"
+      className={cn(itemClassName, "ps-2", className)}
+      {...props}
+    >
+      <span className="flex size-4 shrink-0 items-center justify-center">
+        <MenuPrimitive.RadioItemIndicator>
+          <Check aria-hidden className="size-4" />
+        </MenuPrimitive.RadioItemIndicator>
+      </span>
+      {children}
+    </MenuPrimitive.RadioItem>
+  );
+}
+
+export {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+};

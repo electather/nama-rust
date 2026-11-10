@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT version_id, kind, codec, language, title, is_default AS \"default: bool\",\n                      forced AS \"forced: bool\", width, height, frame_rate, bit_depth, hdr,\n                      dolby_vision_profile,\n                      dolby_vision_hdr10_base_layer AS \"dolby_vision_hdr10_base_layer: bool\",\n                      channels, image AS \"image: bool\"\n               FROM tracks\n               WHERE version_id IN (SELECT value FROM json_each(?))\n               ORDER BY version_id, position",
+  "query": "SELECT version_id, kind, codec, language, title, is_default AS \"default: bool\",\n                      forced AS \"forced: bool\", sdh AS \"sdh: bool\", width, height, frame_rate, bit_depth, hdr,\n                      dolby_vision_profile,\n                      dolby_vision_hdr10_base_layer AS \"dolby_vision_hdr10_base_layer: bool\",\n                      channels, image AS \"image: bool\"\n               FROM tracks\n               WHERE version_id IN (SELECT value FROM json_each(?))\n               ORDER BY version_id, position",
   "describe": {
     "columns": [
       {
@@ -81,8 +81,19 @@
         }
       },
       {
-        "name": "width",
+        "name": "sdh: bool",
         "ordinal": 7,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "tracks",
+            "name": "sdh"
+          }
+        }
+      },
+      {
+        "name": "width",
+        "ordinal": 8,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -93,7 +104,7 @@
       },
       {
         "name": "height",
-        "ordinal": 8,
+        "ordinal": 9,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -104,7 +115,7 @@
       },
       {
         "name": "frame_rate",
-        "ordinal": 9,
+        "ordinal": 10,
         "type_info": "Float",
         "origin": {
           "Table": {
@@ -115,7 +126,7 @@
       },
       {
         "name": "bit_depth",
-        "ordinal": 10,
+        "ordinal": 11,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -126,7 +137,7 @@
       },
       {
         "name": "hdr",
-        "ordinal": 11,
+        "ordinal": 12,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -137,7 +148,7 @@
       },
       {
         "name": "dolby_vision_profile",
-        "ordinal": 12,
+        "ordinal": 13,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -148,7 +159,7 @@
       },
       {
         "name": "dolby_vision_hdr10_base_layer: bool",
-        "ordinal": 13,
+        "ordinal": 14,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -159,7 +170,7 @@
       },
       {
         "name": "channels",
-        "ordinal": 14,
+        "ordinal": 15,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -170,7 +181,7 @@
       },
       {
         "name": "image: bool",
-        "ordinal": 15,
+        "ordinal": 16,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -191,6 +202,7 @@
       true,
       false,
       false,
+      false,
       true,
       true,
       true,
@@ -202,5 +214,5 @@
       true
     ]
   },
-  "hash": "0bcf75a465d0aa7772ce896984e56177525239be263b28b6f85c17d1eebaba2e"
+  "hash": "31b88faa8b833a0892940753cb7f6cb2e73feddea5e276edbdf9845f7bd7de3c"
 }

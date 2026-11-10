@@ -16,7 +16,7 @@ use crate::{contents::Stored, db::Database};
 
 /// The version of how probing reads a file, stored with what it read like the name parser's
 /// (ADR 0023). A Version read by an older one is probed again; when to bump it is in `AGENTS.md`.
-pub(crate) const PROBE_VERSION: i64 = 2;
+pub(crate) const PROBE_VERSION: i64 = 3;
 
 /// What probing a Version found.
 #[derive(Debug, Clone, PartialEq)]
@@ -32,6 +32,11 @@ pub(crate) struct Probe {
 
 /// One video, audio or subtitle stream inside a Version.
 #[derive(Debug, Clone, PartialEq)]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "each is a separate flag the file sets on the Track, as ffprobe's disposition and \
+              the proto's `Track` have them"
+)]
 pub(crate) struct Track {
     pub(crate) codec: String,
     /// As the file tags it, usually ISO 639-2, such as `eng`.
@@ -39,6 +44,8 @@ pub(crate) struct Track {
     pub(crate) title: Option<String>,
     pub(crate) default: bool,
     pub(crate) forced: bool,
+    /// Marked for the deaf and hard of hearing, as subtitles that also describe sounds.
+    pub(crate) sdh: bool,
     pub(crate) kind: TrackKind,
 }
 
@@ -164,7 +171,7 @@ impl Tracks {
             .collect();
         let tracks = sqlx::query!(
             r#"SELECT version_id, kind, codec, language, title, is_default AS "default: bool",
-                      forced AS "forced: bool", width, height, frame_rate, bit_depth, hdr,
+                      forced AS "forced: bool", sdh AS "sdh: bool", width, height, frame_rate, bit_depth, hdr,
                       dolby_vision_profile,
                       dolby_vision_hdr10_base_layer AS "dolby_vision_hdr10_base_layer: bool",
                       channels, image AS "image: bool"
@@ -201,6 +208,7 @@ impl Tracks {
                 title: row.title,
                 default: row.default,
                 forced: row.forced,
+                sdh: row.sdh,
                 kind,
             };
             if let Some(probe) = probes.get_mut(&row.version_id) {
@@ -261,10 +269,10 @@ async fn store(
         let (hdr, dolby_vision_profile, dolby_vision_hdr10_base_layer) = hdr_columns(hdr);
         sqlx::query!(
             "INSERT INTO tracks (version_id, position, kind, codec, language, title, is_default,
-                                 forced, width, height, frame_rate, bit_depth, hdr,
+                                 forced, sdh, width, height, frame_rate, bit_depth, hdr,
                                  dolby_vision_profile, dolby_vision_hdr10_base_layer, channels,
                                  image)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             version,
             position,
             kind,
@@ -273,6 +281,7 @@ async fn store(
             track.title,
             track.default,
             track.forced,
+            track.sdh,
             width,
             height,
             frame_rate,

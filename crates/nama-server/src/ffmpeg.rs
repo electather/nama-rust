@@ -26,6 +26,10 @@ const MINIMUM: (u32, u32) = (4, 4);
 /// How long ffprobe may take over one file, such as one on a network share that stopped answering.
 const PROBE_TIMEOUT: Duration = Duration::from_secs(60);
 
+/// How long ffmpeg may take to read one subtitle out of a file. Matroska interleaves it with the
+/// video, so the whole file is read, which takes up to a minute from a slow disk.
+const SUBTITLE_TIMEOUT: Duration = Duration::from_secs(300);
+
 /// Subtitle codecs, as ffprobe names them, that are bitmaps rather than text.
 const IMAGE_SUBTITLES: &[&str] = &["dvb_subtitle", "dvd_subtitle", "hdmv_pgs_subtitle", "xsub"];
 
@@ -42,6 +46,19 @@ pub(crate) enum ProbeError {
     Failed(String),
     #[error("ffprobe's output couldn't be read: {0}")]
     Output(#[from] serde_json::Error),
+}
+
+/// Why reading a subtitle out of a file failed.
+#[derive(Debug, thiserror::Error)]
+pub(crate) enum SubtitleError {
+    #[error("the Server has no ffmpeg")]
+    Unavailable,
+    #[error("ffmpeg couldn't be run: {0}")]
+    Run(#[from] std::io::Error),
+    #[error("ffmpeg took longer than {}s", SUBTITLE_TIMEOUT.as_secs())]
+    TimedOut(#[from] tokio::time::error::Elapsed),
+    #[error("ffmpeg failed: {0}")]
+    Failed(String),
 }
 
 /// A program the Server found and ran.
@@ -117,6 +134,32 @@ impl Ffmpeg {
             return Err(ProbeError::Failed(stderr.trim().to_owned()));
         }
         Ok(parse_probe(&output.stdout)?)
+    }
+
+    /// The file at `path`'s subtitle stream `subtitle`, counting only its subtitle streams from 0,
+    /// as WebVTT.
+    pub(crate) async fn webvtt(
+        &self,
+        path: &str,
+        subtitle: usize,
+    ) -> Result<Vec<u8>, SubtitleError> {
+        let Ok(ffmpeg) = &self.ffmpeg else {
+            return Err(SubtitleError::Unavailable);
+        };
+        let output = tokio::process::Command::new(&ffmpeg.path)
+            .args(["-v", "error", "-nostdin", "-i"])
+            .arg(path)
+            .args(["-map", &format!("0:s:{subtitle}")])
+            .args(["-c:s", "webvtt", "-f", "webvtt", "-"])
+            // A fetch given up on, or cancelled at shutdown, stops ffmpeg too.
+            .kill_on_drop(true)
+            .output();
+        let output = tokio::time::timeout(SUBTITLE_TIMEOUT, output).await??;
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(SubtitleError::Failed(stderr.trim().to_owned()));
+        }
+        Ok(output.stdout)
     }
 }
 
@@ -206,13 +249,14 @@ fn track(mut stream: ProbedStream) -> Option<Track> {
         },
         _ => return None,
     };
-    let (default, forced) = (flag("default"), flag("forced"));
+    let (default, forced, sdh) = (flag("default"), flag("forced"), flag("hearing_impaired"));
     Some(Track {
         codec: stream.codec_name,
         language: stream.tags.remove("language"),
         title: stream.tags.remove("title"),
         default,
         forced,
+        sdh,
         kind,
     })
 }
@@ -606,7 +650,8 @@ mod probe_output_tests {
             {"codec_name": "hdmv_pgs_subtitle", "codec_type": "subtitle",
              "disposition": {"default": 0, "forced": 1}, "tags": {"language": "fre"}},
             {"codec_name": "subrip", "codec_type": "subtitle",
-             "disposition": {"default": 0, "forced": 0}, "tags": {"language": "eng"}},
+             "disposition": {"default": 0, "forced": 0, "hearing_impaired": 1},
+             "tags": {"language": "eng"}},
             {"codec_name": "mjpeg", "codec_type": "video", "width": 600, "height": 900,
              "avg_frame_rate": "0/0", "disposition": {"attached_pic": 1}},
             {"codec_type": "attachment", "tags": {"filename": "font.ttf"}}
@@ -621,6 +666,7 @@ mod probe_output_tests {
             title: None,
             default,
             forced: false,
+            sdh: false,
             kind,
         }
     }
@@ -672,12 +718,15 @@ mod probe_output_tests {
                             TrackKind::Subtitle { image: true },
                         )
                     },
-                    track(
-                        "subrip",
-                        Some("eng"),
-                        false,
-                        TrackKind::Subtitle { image: false },
-                    ),
+                    Track {
+                        sdh: true,
+                        ..track(
+                            "subrip",
+                            Some("eng"),
+                            false,
+                            TrackKind::Subtitle { image: false },
+                        )
+                    },
                 ],
             }
         );
