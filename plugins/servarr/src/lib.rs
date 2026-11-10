@@ -4,11 +4,120 @@
 use std::collections::{HashMap, HashSet};
 
 use nama_pdk::{
-    Download,
-    extism_pdk::{Error, HttpRequest, HttpResponse, Json, json},
-    nama_proto::nama::v1::DownloadStatus,
+    CheckedSettings, Download, Fulfilled, Request,
+    extism_pdk::{Error, HttpRequest, HttpResponse, Json, config, json},
+    nama_proto::nama::{
+        plugin::v1::{SettingField, SettingKind},
+        v1::DownloadStatus,
+    },
 };
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
+
+const URL: &str = "url";
+const API_KEY: &str = "api_key";
+const QUALITY_PROFILE: &str = "quality_profile";
+const ROOT_FOLDER: &str = "root_folder";
+
+/// The four settings of the service `service`, which adds each `added`, such as "Movie", and
+/// listens on `port` by default.
+#[must_use]
+pub fn settings(service: &str, added: &str, port: u16) -> Vec<SettingField> {
+    let setting = |key: &str, label: &str, description: String, kind: SettingKind| SettingField {
+        key: key.to_owned(),
+        label: label.to_owned(),
+        description,
+        kind: kind.into(),
+        required: true,
+        ..SettingField::default()
+    };
+    vec![
+        setting(
+            URL,
+            "URL",
+            format!("Where {service} is, such as http://localhost:{port}."),
+            SettingKind::SETTING_KIND_URL,
+        ),
+        setting(
+            API_KEY,
+            "API key",
+            format!("{service}'s API key, from Settings > General in {service}."),
+            SettingKind::SETTING_KIND_SECRET,
+        ),
+        setting(
+            QUALITY_PROFILE,
+            "Quality profile",
+            format!("The quality {service} downloads each {added} in."),
+            SettingKind::SETTING_KIND_CHOICE,
+        ),
+        setting(
+            ROOT_FOLDER,
+            "Root folder",
+            format!("The folder {service} puts each {added} in."),
+            SettingKind::SETTING_KIND_CHOICE,
+        ),
+    ]
+}
+
+/// The root folder the settings say the service adds into.
+///
+/// # Errors
+/// If it isn't set.
+pub fn root_folder() -> Result<String, Error> {
+    setting(ROOT_FOLDER)
+}
+
+/// The quality profile id `request` asks for: its Quality's, else the setting's.
+///
+/// # Errors
+/// If neither is set, or it isn't an id.
+pub fn quality_profile(request: &Request) -> Result<i64, Error> {
+    let profile = match request.quality.as_option() {
+        Some(quality) => quality.profile_id.clone(),
+        None => setting(QUALITY_PROFILE)?,
+    };
+    profile
+        .parse()
+        .map_err(|err| Error::msg(format!("the quality profile isn't an id: {err}")))
+}
+
+/// What a hand-off reports: its `reference`, and the profile `profile_id` the service has what it
+/// was handed at, named as in `profiles`.
+#[must_use]
+pub fn fulfilled(
+    reference: String,
+    profile_id: Option<i64>,
+    profiles: Vec<QualityProfile>,
+) -> Fulfilled {
+    let used = profiles
+        .into_iter()
+        .find(|profile| Some(profile.id) == profile_id);
+    Fulfilled {
+        reference,
+        profile_id: profile_id.map(|id| id.to_string()).unwrap_or_default(),
+        profile_name: used.map(|used| used.name).unwrap_or_default(),
+        ..Fulfilled::default()
+    }
+}
+
+/// The setting `key`, which the Server sets before every call but a settings check, and for
+/// that one too unless it is a Choice.
+fn setting(key: &str) -> Result<String, Error> {
+    config::get(key)?.ok_or_else(|| Error::msg(format!("the setting {key} isn't set")))
+}
+
+/// A quality profile of the service, which a Request is added at.
+#[derive(Debug, Deserialize)]
+pub struct QualityProfile {
+    /// The service's id for it.
+    pub id: i64,
+    /// What an admin knows it by.
+    pub name: String,
+}
+
+#[derive(Deserialize)]
+struct RootFolder {
+    path: String,
+}
 
 /// A Sonarr or Radarr service's API, as its URL, API key and name say. Its errors name the
 /// service, and never its URL: a Request's reason reaches every Requester.
@@ -29,10 +138,56 @@ impl std::fmt::Debug for Servarr {
 }
 
 impl Servarr {
-    /// The service `name`, such as "Sonarr", at `url` with the key `api_key`.
+    /// The service `name`, such as "Sonarr", where the settings say and with their API key.
+    ///
+    /// # Errors
+    /// If either isn't set.
+    pub fn from_settings(name: &'static str) -> Result<Self, Error> {
+        Ok(Self {
+            name,
+            url: setting(URL)?,
+            api_key: setting(API_KEY)?,
+        })
+    }
+
+    /// The service's quality profiles.
+    ///
+    /// # Errors
+    /// If the service doesn't answer, refuses, or answers with something other than profiles.
+    pub fn quality_profiles(&self) -> Result<Vec<QualityProfile>, Error> {
+        self.get("qualityprofile")
+    }
+
+    /// The settings check: the service's quality profiles, by id, and its root folders, by path,
+    /// to choose from.
+    ///
+    /// # Errors
+    /// If the service doesn't answer, refuses, or answers with something other than them.
+    pub fn checked_settings(&self) -> Result<CheckedSettings, Error> {
+        let profiles: Vec<_> = self
+            .quality_profiles()?
+            .into_iter()
+            .map(|profile| (profile.id.to_string(), profile.name))
+            .collect();
+        let folders: Vec<RootFolder> = self.get("rootfolder")?;
+        let folders = folders
+            .into_iter()
+            .map(|folder| (folder.path.clone(), folder.path))
+            .collect();
+        Ok(nama_pdk::checked_settings([
+            (QUALITY_PROFILE, profiles),
+            (ROOT_FOLDER, folders),
+        ]))
+    }
+
+    /// Why `request` can't go to the service, which has no quality profile `id`.
     #[must_use]
-    pub fn new(name: &'static str, url: String, api_key: String) -> Self {
-        Self { name, url, api_key }
+    pub fn no_such_profile(&self, request: &Request, id: i64) -> Error {
+        let reason = format!("{} has no quality profile with the id {id}", self.name);
+        Error::msg(match request.quality.as_option() {
+            Some(quality) => format!("{reason}, which {} uses", quality.name),
+            None => reason,
+        })
     }
 
     /// What the service answers at the API path `path`, such as `qualityprofile`.
@@ -339,6 +494,8 @@ struct ValidationFailure {
 
 #[cfg(test)]
 mod tests {
+    use nama_pdk::nama_proto::nama::v1::RequestedQuality;
+
     use super::*;
 
     const FAILURES: &[u8] = br#"[
@@ -391,6 +548,102 @@ mod tests {
     #[test]
     fn already_has_it_only_in_a_bad_request() {
         assert!(!already_has("MovieExistsValidator", 409, FAILURES));
+    }
+
+    /// Sonarr, which no test reaches over the network.
+    fn sonarr() -> Servarr {
+        Servarr {
+            name: "Sonarr",
+            url: String::new(),
+            api_key: String::new(),
+        }
+    }
+
+    /// A Request at the Quality `name`.
+    fn requested_at(name: &str) -> Request {
+        Request {
+            quality: RequestedQuality {
+                name: name.to_owned(),
+                ..RequestedQuality::default()
+            }
+            .into(),
+            ..Request::default()
+        }
+    }
+
+    fn profiles() -> Vec<QualityProfile> {
+        vec![
+            QualityProfile {
+                id: 1,
+                name: "Any".to_owned(),
+            },
+            QualityProfile {
+                id: 4,
+                name: "HD-1080p".to_owned(),
+            },
+        ]
+    }
+
+    #[test]
+    fn settings_name_the_service_its_port_and_what_it_adds() {
+        let described: Vec<_> = settings("Radarr", "Movie", 7878)
+            .into_iter()
+            .map(|field| (field.key, field.description))
+            .collect();
+        assert_eq!(
+            described,
+            [
+                ("url", "Where Radarr is, such as http://localhost:7878."),
+                (
+                    "api_key",
+                    "Radarr's API key, from Settings > General in Radarr."
+                ),
+                (
+                    "quality_profile",
+                    "The quality Radarr downloads each Movie in."
+                ),
+                ("root_folder", "The folder Radarr puts each Movie in."),
+            ]
+            .map(|(key, description)| (key.to_owned(), description.to_owned()))
+        );
+    }
+
+    #[test]
+    fn no_such_profile_without_a_quality_names_only_the_id() {
+        assert_eq!(
+            sonarr().no_such_profile(&Request::default(), 4).to_string(),
+            "Sonarr has no quality profile with the id 4"
+        );
+    }
+
+    #[test]
+    fn no_such_profile_names_the_quality_that_uses_it() {
+        assert_eq!(
+            sonarr().no_such_profile(&requested_at("HD"), 4).to_string(),
+            "Sonarr has no quality profile with the id 4, which HD uses"
+        );
+    }
+
+    #[test]
+    fn a_hand_off_names_the_profile_it_went_out_at() {
+        let reported = fulfilled("603".to_owned(), Some(4), profiles());
+        assert_eq!(
+            (
+                reported.reference.as_str(),
+                reported.profile_id.as_str(),
+                reported.profile_name.as_str()
+            ),
+            ("603", "4", "HD-1080p")
+        );
+    }
+
+    #[test]
+    fn a_hand_off_without_a_profile_names_none() {
+        let reported = fulfilled("603".to_owned(), None, profiles());
+        assert_eq!(
+            (reported.profile_id.as_str(), reported.profile_name.as_str()),
+            ("", "")
+        );
     }
 
     #[test]
