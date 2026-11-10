@@ -188,13 +188,15 @@ impl Ffmpeg {
     }
 
     /// Starts ffmpeg copying the first video, and the `audio`th audio Track if any, of the file
-    /// at `path` untouched into HLS with fMP4 segments in `dir`: [`HLS_INIT`], then `0.m4s`,
+    /// at `path` untouched into HLS with fMP4 segments in `dir`, but for converting that audio to
+    /// AAC with `aac_channels` channels if given: [`HLS_INIT`], then `0.m4s`,
     /// `1.m4s` and so on, each cut at the first keyframe at or after the next multiple of
     /// [`HLS_TIME_MS`]. Each file appears only once it's whole. Dropping the child stops ffmpeg.
     pub(crate) fn remux(
         &self,
         path: &str,
         audio: Option<usize>,
+        aac_channels: Option<i64>,
         dir: &Path,
     ) -> io::Result<tokio::process::Child> {
         let ffmpeg = (self.ffmpeg.as_ref()).map_err(|why| io::Error::other(why.clone()))?;
@@ -204,8 +206,14 @@ impl Ffmpeg {
         if let Some(audio) = audio {
             command.arg("-map").arg(format!("0:a:{audio}"));
         }
+        command.args(["-c", "copy"]);
+        if let Some(channels) = aac_channels {
+            command
+                .args(["-c:a", "aac", "-ac"])
+                .arg(channels.to_string());
+        }
         command
-            .args(["-c", "copy", "-f", "hls", "-hls_segment_type", "fmp4"])
+            .args(["-f", "hls", "-hls_segment_type", "fmp4"])
             .arg("-hls_time")
             .arg((HLS_TIME_MS / 1000).to_string())
             .args(["-hls_playlist_type", "vod", "-hls_flags", "temp_file"])
@@ -513,18 +521,19 @@ pub fn write_4k_with_5_1(path: &Path, transfer: &str) -> io::Result<()> {
     })
 }
 
-/// Writes 14 seconds of H.264 video with a keyframe every 2 seconds, and AAC audio, as Matroska,
-/// to `path`, with the ffmpeg on `PATH`, for a test to Remux.
+/// Writes 14 seconds of H.264 video with a keyframe every 2 seconds, and 5.1 audio encoded with
+/// `audio`, such as `aac` or `dca` for DTS, as Matroska, to `path`, with the ffmpeg on `PATH`, for
+/// a test to Remux.
 ///
 /// # Errors
 ///
 /// If ffmpeg can't be run or fails.
 #[cfg(any(test, feature = "testing"))]
-pub fn write_h264_and_aac(path: &Path) -> io::Result<()> {
+pub fn write_h264_and(path: &Path, audio: &str) -> io::Result<()> {
     write_test_media(path, |ffmpeg| {
         ffmpeg
             .args(["-f", "lavfi", "-i", "testsrc=size=320x240:rate=24"])
-            .args(["-f", "lavfi", "-i", "sine", "-t", "14"])
+            .args(["-f", "lavfi", "-i", "sine,aformat=channel_layouts=5.1", "-t", "14"])
             .args([
                 "-c:v",
                 "libx264",
@@ -535,7 +544,8 @@ pub fn write_h264_and_aac(path: &Path) -> io::Result<()> {
                 "-sc_threshold",
                 "0",
             ])
-            .args(["-c:a", "aac", "-f", "matroska"])
+            // ffmpeg's DTS encoder is marked experimental.
+            .args(["-c:a", audio, "-strict", "experimental", "-f", "matroska"])
     })
 }
 

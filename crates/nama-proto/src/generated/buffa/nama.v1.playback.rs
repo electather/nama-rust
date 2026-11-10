@@ -184,7 +184,8 @@ pub enum PlaybackMethod {
     PLAYBACK_METHOD_UNSPECIFIED = 0i32,
     /// Its file exactly as it is.
     PLAYBACK_METHOD_DIRECT_PLAY = 1i32,
-    /// Its Tracks as they are, in a different container.
+    /// Its video as it is, in a different container, with its audio converted to AAC if the
+    /// Device can't decode it.
     PLAYBACK_METHOD_REMUX = 2i32,
     /// With its video re-encoded.
     PLAYBACK_METHOD_TRANSCODE = 3i32,
@@ -758,6 +759,17 @@ pub struct DeviceDecoding {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
     )]
     pub mse: bool,
+    /// How many audio channels it plays out at once, such as 6 for 5.1. 0 when it doesn't say,
+    /// which the Server takes as stereo.
+    ///
+    /// Field 5: `audio_channels`
+    #[serde(
+        rename = "audioChannels",
+        alias = "audio_channels",
+        with = "::buffa::json_helpers::uint32",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
+    )]
+    pub audio_channels: u32,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -769,6 +781,7 @@ impl ::core::fmt::Debug for DeviceDecoding {
             .field("hdr", &self.hdr)
             .field("native_hls", &self.native_hls)
             .field("mse", &self.mse)
+            .field("audio_channels", &self.audio_channels)
             .finish()
     }
 }
@@ -811,6 +824,10 @@ impl ::buffa::Message for DeviceDecoding {
         if self.mse {
             size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
+        if self.audio_channels != 0u32 {
+            size
+                += 1u64 + ::buffa::types::uint32_encoded_len(self.audio_channels) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -832,6 +849,9 @@ impl ::buffa::Message for DeviceDecoding {
         }
         if self.mse {
             ::buffa::types::put_bool_field(4u32, self.mse, buf);
+        }
+        if self.audio_channels != 0u32 {
+            ::buffa::types::put_uint32_field(5u32, self.audio_channels, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -878,6 +898,13 @@ impl ::buffa::Message for DeviceDecoding {
                 )?;
                 self.mse = ::buffa::types::decode_bool(buf)?;
             }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.audio_channels = ::buffa::types::decode_uint32(buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -890,6 +917,7 @@ impl ::buffa::Message for DeviceDecoding {
         self.hdr = false;
         self.native_hls = false;
         self.mse = false;
+        self.audio_channels = 0u32;
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -1083,8 +1111,8 @@ pub struct PlaybackPlan {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub url: ::buffa::alloc::string::String,
-    /// The Tracks it plays: its video, then its audio. Empty when they aren't known, as on a Server
-    /// without ffprobe.
+    /// The Tracks it plays: its video, then its audio, as the Device gets them, so audio a Remux
+    /// converts is AAC here. Empty when they aren't known, as on a Server without ffprobe.
     ///
     /// Field 3: `tracks`
     #[serde(

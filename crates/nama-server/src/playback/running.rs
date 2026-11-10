@@ -114,13 +114,15 @@ impl RunningPlans {
     }
 
     /// Starts Remuxing the Version `version`, which probing found holds `probe`, for the Device
-    /// `device`, and returns its playlist's URL. Lists the Version's keyframes the first time
-    /// and keeps them. `None` if there is no such Version.
+    /// `device`, with its audio converted to AAC with `aac_channels` channels, or else copied,
+    /// and returns its playlist's URL. Lists the Version's keyframes the first time and keeps
+    /// them. `None` if there is no such Version.
     pub(crate) async fn remux(
         &self,
         version: i64,
         device: i64,
         probe: &Probe,
+        aac_channels: Option<i64>,
     ) -> Result<Option<String>, StartError> {
         let Some((path, _)) = self.inner.contents.version_file(version).await? else {
             return Ok(None);
@@ -130,7 +132,7 @@ impl RunningPlans {
         let audio = played_audio(probe);
         let id = self
             .start(device, Method::Remux, segment_ms, |dir| {
-                self.inner.ffmpeg.remux(&path, audio, dir)
+                self.inner.ffmpeg.remux(&path, audio, aac_channels, dir)
             })
             .await?;
         Ok(Some(format!("/media/plans/{id}/{PLAYLIST}")))
@@ -297,8 +299,15 @@ async fn serve(
     let Some(name) = plan.file_name(&file) else {
         return StatusCode::NOT_FOUND.into_response();
     };
-    let path = plan.dir.join(name);
-    match plan.written(&path).await {
+    let path = plan.dir.join(&name);
+    // ffmpeg creates the init segment empty, and fills it in just before it writes the first
+    // segment: slowly enough to be caught half-done when it converts the audio.
+    let whole_once = if name == HLS_INIT {
+        plan.dir.join("0.m4s")
+    } else {
+        path.clone()
+    };
+    match plan.written(&whole_once).await {
         Ok(true) => {}
         Ok(false) => return StatusCode::NOT_FOUND.into_response(),
         Err(err) => {

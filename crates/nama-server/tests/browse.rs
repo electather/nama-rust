@@ -217,14 +217,16 @@ impl Fixture {
     /// The Admin's Playback Plan for the Version `version`, on a Device that decodes H.264 and AAC
     /// in MP4, and plays HLS through Media Source Extensions, as Chrome does.
     async fn plan(&self, version: i64) -> Result<PlaybackPlan, ConnectError> {
-        self.plan_after_failing(version, &[]).await
+        self.plan_on_device(version, &[], 0).await
     }
 
-    /// As [`Self::plan`], on a Device where the methods `failed` just failed to play it.
-    async fn plan_after_failing(
+    /// As [`Self::plan`], on a Device where the methods `failed` just failed to play it, and
+    /// which plays `audio_channels` channels at once.
+    async fn plan_on_device(
         &self,
         version: i64,
         failed: &[PlaybackMethod],
+        audio_channels: u32,
     ) -> Result<PlaybackPlan, ConnectError> {
         let config = self.server.client_config();
         let content_types = [
@@ -238,6 +240,7 @@ impl Fixture {
                 device_decoding: DeviceDecoding {
                     content_types: content_types.map(str::to_owned).to_vec(),
                     mse: true,
+                    audio_channels,
                     ..Default::default()
                 }
                 .into(),
@@ -1128,13 +1131,14 @@ fn system_ffmpeg() -> Ffmpeg {
     reason = "a test helper fails its test by panicking"
 )]
 impl Fixture {
-    /// Starts a Server with `ffmpeg` and a Movies Library holding Alien as an H.264 + AAC MKV,
-    /// and returns it with that Version's id.
-    async fn alien_mkv(ffmpeg: Ffmpeg) -> (Self, i64) {
+    /// Starts a Server with `ffmpeg` and a Movies Library holding Alien as an MKV of H.264 and 5.1
+    /// audio encoded with `audio`, as [`ffmpeg::write_h264_and`] takes it, and returns it with
+    /// that Version's id.
+    async fn alien_mkv(ffmpeg: Ffmpeg, audio: &str) -> (Self, i64) {
         let fx = Self::start_with_ffmpeg(LibraryKind::LIBRARY_KIND_MOVIES, ffmpeg).await;
         let file = fx.folder.join("Alien (1979)/Alien (1979).mkv");
         fs::create_dir_all(file.parent().unwrap()).unwrap();
-        ffmpeg::write_h264_and_aac(&file).unwrap();
+        ffmpeg::write_h264_and(&file, audio).unwrap();
         fx.scan_until_decided(1).await;
         let version = fx.version_ids(ALIEN).await[0];
         (fx, version)
@@ -1201,7 +1205,7 @@ async fn ffmpegs_own_playlist(fx: &Fixture, url: &str) -> String {
 
 #[tokio::test]
 async fn an_h264_and_aac_mkv_is_remuxed_over_hls_because_of_its_container() {
-    let (fx, version) = Fixture::alien_mkv(system_ffmpeg()).await;
+    let (fx, version) = Fixture::alien_mkv(system_ffmpeg(), "aac").await;
 
     let plan = fx.plan(version).await.unwrap();
 
@@ -1234,6 +1238,11 @@ async fn an_h264_and_aac_mkv_is_remuxed_over_hls_because_of_its_container() {
         let segment = fx.fetch_ok(&beside(&plan.url, file)).await;
         assert_ne!(segment.len(), 0, "{file}");
     }
+    assert_eq!(
+        played_audio(&fx, &plan.url).await,
+        "aac,6",
+        "copied, though this Device says it plays only stereo"
+    );
     // HLS time is the file's time, so Watch State needs no conversion: the playlist cuts where
     // ffmpeg did, from the start of the file to its end.
     let (ffmpegs, _) = segments(&ffmpegs_own_playlist(&fx, &plan.url).await);
@@ -1281,7 +1290,7 @@ fn ffprobe_logging_its_runs(bin: &Path, log: &Path) -> Ffmpeg {
 async fn remuxing_a_version_again_reuses_the_keyframes_listed_the_first_time() {
     let bin = tempfile::tempdir().unwrap();
     let log = bin.path().join("runs.log");
-    let (fx, version) = Fixture::alien_mkv(ffprobe_logging_its_runs(bin.path(), &log)).await;
+    let (fx, version) = Fixture::alien_mkv(ffprobe_logging_its_runs(bin.path(), &log), "aac").await;
 
     let first = fx.plan(version).await.unwrap();
     let second = fx.plan(version).await.unwrap();
@@ -1299,7 +1308,7 @@ async fn remuxing_a_version_again_reuses_the_keyframes_listed_the_first_time() {
 /// As for Direct Play, the session cookie is what lets a browser's HLS player fetch them.
 #[tokio::test]
 async fn a_remuxs_playlist_and_segments_without_a_session_are_refused() {
-    let (fx, version) = Fixture::alien_mkv(system_ffmpeg()).await;
+    let (fx, version) = Fixture::alien_mkv(system_ffmpeg(), "aac").await;
     let plan = fx.plan(version).await.unwrap();
 
     for path in [plan.url.clone(), beside(&plan.url, "0.m4s")] {
@@ -1309,13 +1318,62 @@ async fn a_remuxs_playlist_and_segments_without_a_session_are_refused() {
     }
 }
 
+/// The codec and channels of the audio the plan at `url` plays, such as `aac,6`, as ffprobe reads
+/// its init segment and first segment.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn played_audio(fx: &Fixture, url: &str) -> String {
+    let mut mp4 = fx.fetch_ok(&beside(url, "init.mp4")).await;
+    mp4.extend(fx.fetch_ok(&beside(url, "0.m4s")).await);
+    let file = tempfile::NamedTempFile::new().unwrap();
+    fs::write(file.path(), mp4).unwrap();
+    let entries = [
+        "-show_entries",
+        "stream=codec_name,channels",
+        "-of",
+        "csv=p=0",
+    ];
+    let output = std::process::Command::new("ffprobe")
+        .args(["-v", "error", "-select_streams", "a"])
+        .args(entries)
+        .arg(file.path())
+        .output()
+        .unwrap();
+    String::from_utf8(output.stdout).unwrap().trim().to_owned()
+}
+
+#[tokio::test]
+async fn dts_is_remuxed_as_aac_with_up_to_as_many_channels_as_the_device_plays() {
+    let (fx, version) = Fixture::alien_mkv(system_ffmpeg(), "dca").await;
+
+    for (plays, converted, to) in [
+        (6, "aac,6", "5.1 AAC"),
+        (2, "aac,2", "stereo AAC, the most this Device plays"),
+    ] {
+        let plan = fx.plan_on_device(version, &[], plays).await.unwrap();
+
+        assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_REMUX);
+        assert_eq!(codecs(&plan), ["h264", "aac"]);
+        assert_eq!(
+            plan.reasons[1],
+            format!(
+                "This Device can't decode its Matroska container or DTS audio, so it can't be \
+                 Direct Played, and a Remux converts that audio to {to}"
+            )
+        );
+        assert_eq!(played_audio(&fx, &plan.url).await, converted);
+    }
+}
+
 #[tokio::test]
 async fn a_version_whose_direct_play_just_failed_on_the_device_cant_be_played_and_says_why() {
     let fx = Fixture::alien().await;
     let version = fx.version_ids(ALIEN).await[0];
 
     let plan = fx
-        .plan_after_failing(version, &[PlaybackMethod::PLAYBACK_METHOD_DIRECT_PLAY])
+        .plan_on_device(version, &[PlaybackMethod::PLAYBACK_METHOD_DIRECT_PLAY], 0)
         .await
         .unwrap();
 

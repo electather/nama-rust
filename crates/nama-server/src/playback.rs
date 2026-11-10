@@ -89,6 +89,8 @@ pub(crate) struct DeviceDecoding {
     /// Whether it plays HLS, natively or through Media Source Extensions, which every method but
     /// Direct Play needs.
     pub(crate) hls: bool,
+    /// How many audio channels it plays out at once, such as 6 for 5.1; 0 when it doesn't say.
+    pub(crate) audio_channels: u32,
 }
 
 impl DeviceDecoding {
@@ -141,7 +143,8 @@ pub(crate) async fn plan(
     if plan.method == Some(Method::Remux)
         && let Some(probed) = &facts.probe
     {
-        let Some(url) = running.remux(version, device, probed).await? else {
+        let aac = aac_channels(probed, &facts.device);
+        let Some(url) = running.remux(version, device, probed, aac).await? else {
             return Ok(None);
         };
         plan.url = Some(url);
@@ -191,11 +194,18 @@ fn build(facts: &Facts, steps: &[Step]) -> Plan {
     let method = allowed
         .into_iter()
         .find(|method| *method != Method::Transcode);
+    let mut tracks = facts.probe.as_ref().map(played_tracks).unwrap_or_default();
+    if method == Some(Method::Remux)
+        && let Some(channels) =
+            (facts.probe.as_ref()).and_then(|probe| aac_channels(probe, &facts.device))
+    {
+        tracks = converted_to_aac(tracks, channels);
+    }
     Plan {
         method,
         // A Remux's URL is its running plan's, which `plan` starts.
         url: (method == Some(Method::DirectPlay)).then(|| direct_play_url(facts.version)),
-        tracks: facts.probe.as_ref().map(played_tracks).unwrap_or_default(),
+        tracks,
         reasons,
         subtitles: facts
             .probe
@@ -221,7 +231,8 @@ fn version_tracks(facts: &Facts) -> Narrowing {
 }
 
 /// The step for what the Device decodes: Direct Play only if it decodes the Version's container
-/// and the Tracks the plan plays, and its display shows their HDR.
+/// and the Tracks the plan plays, and its display shows their HDR, and a Remux only if it decodes
+/// the video, since a Remux converts only the audio.
 fn device_decoding(facts: &Facts) -> Narrowing {
     let Some(probe) = &facts.probe else {
         // ADR 0026, as for the Tracks step.
@@ -230,11 +241,9 @@ fn device_decoding(facts: &Facts) -> Narrowing {
             reason: "Its Tracks aren't known, so this Device is taken to decode them".to_owned(),
         };
     };
-    let container = undecodable_container(probe, &facts.device);
-    let tracks = undecodable_tracks(probe, &facts.device);
-    let cant: Vec<String> = container
+    let cant: Vec<String> = undecodable_container(probe, &facts.device)
         .into_iter()
-        .chain(tracks.iter().cloned())
+        .chain(undecodable_tracks(probe, &facts.device))
         .collect();
     let Some(cant) = joined(&cant, "or") else {
         return Narrowing {
@@ -249,13 +258,25 @@ fn device_decoding(facts: &Facts) -> Narrowing {
             reason: format!("{reason}, and it can't play HLS, which anything else needs"),
         };
     }
-    // A Remux keeps the Tracks as they are, so it helps only with the container.
-    let allows = if tracks.is_empty() {
-        BTreeSet::from([Method::Remux, Method::Transcode])
-    } else {
-        BTreeSet::from([Method::Transcode])
+    let decodes_video =
+        played_video(probe).is_none_or(|video| undecodable(video, &facts.device).is_empty());
+    if !decodes_video {
+        return Narrowing {
+            allows: BTreeSet::from([Method::Transcode]),
+            reason,
+        };
+    }
+    let reason = match aac_channels(probe, &facts.device) {
+        Some(channels) => format!(
+            "{reason}, and a Remux converts that audio to {}",
+            aac_in_words(probe, channels)
+        ),
+        None => reason,
     };
-    Narrowing { allows, reason }
+    Narrowing {
+        allows: BTreeSet::from([Method::Remux, Method::Transcode]),
+        reason,
+    }
 }
 
 /// The step for the Server's ffmpeg: without it, only Direct Play (ADR 0026).
@@ -325,23 +346,76 @@ fn undecodable_container(probe: &Probe, device: &DeviceDecoding) -> Option<Strin
 
 /// What of the Tracks the plan plays `device` can't decode, in plain words, such as "HEVC video".
 fn undecodable_tracks(probe: &Probe, device: &DeviceDecoding) -> Vec<String> {
+    (played_tracks(probe).iter())
+        .flat_map(|track| undecodable(track, device))
+        .collect()
+}
+
+/// What of `track` `device` can't decode, in plain words, such as "HEVC video" and "HDR10 picture".
+fn undecodable(track: &Track, device: &DeviceDecoding) -> Vec<String> {
     let mut cant = vec![];
-    for track in played_tracks(probe) {
-        let (kind, hdr) = match track.kind {
-            TrackKind::Video { hdr, .. } => ("video", hdr),
-            TrackKind::Audio { .. } => ("audio", None),
-            TrackKind::Subtitle { .. } => ("subtitle", None),
-        };
-        match CODECS.into_iter().find(|(codec, ..)| *codec == track.codec) {
-            Some((_, content_type, _)) if device.decodes(content_type) => {}
-            Some((_, _, name)) => cant.push(format!("{name} {kind}")),
-            None => cant.push(format!("{} {kind}", track.codec)),
-        }
-        if let Some(hdr) = hdr.filter(|_| !device.hdr) {
-            cant.push(format!("{} picture", hdr_name(hdr)));
-        }
+    let (kind, hdr) = match track.kind {
+        TrackKind::Video { hdr, .. } => ("video", hdr),
+        TrackKind::Audio { .. } => ("audio", None),
+        TrackKind::Subtitle { .. } => ("subtitle", None),
+    };
+    match CODECS.into_iter().find(|(codec, ..)| *codec == track.codec) {
+        Some((_, content_type, _)) if device.decodes(content_type) => {}
+        Some((_, _, name)) => cant.push(format!("{name} {kind}")),
+        None => cant.push(format!("{} {kind}", track.codec)),
+    }
+    if let Some(hdr) = hdr.filter(|_| !device.hdr) {
+        cant.push(format!("{} picture", hdr_name(hdr)));
     }
     cant
+}
+
+/// How many channels a Remux converts `probe`'s played audio to, as AAC, if `device` can't decode
+/// it: as many as it has, up to 5.1 if `device` plays 5.1 and stereo otherwise.
+fn aac_channels(probe: &Probe, device: &DeviceDecoding) -> Option<i64> {
+    let audio = played_audio_track(probe)?;
+    if undecodable(audio, device).is_empty() {
+        return None;
+    }
+    let most = if device.audio_channels >= 6 { 6 } else { 2 };
+    // Stereo when the file doesn't say, which every Device plays.
+    Some(played_channels(probe).unwrap_or(2).min(most))
+}
+
+/// How many channels `probe`'s played audio has, if the file says.
+fn played_channels(probe: &Probe) -> Option<i64> {
+    let TrackKind::Audio { channels } = played_audio_track(probe)?.kind else {
+        return None;
+    };
+    channels
+}
+
+/// `tracks` with their audio converted to AAC with `channels` channels.
+fn converted_to_aac(mut tracks: Vec<Track>, channels: i64) -> Vec<Track> {
+    for track in &mut tracks {
+        if let TrackKind::Audio { channels: played } = &mut track.kind {
+            "aac".clone_into(&mut track.codec);
+            *played = Some(channels);
+        }
+    }
+    tracks
+}
+
+/// AAC with `channels` channels in plain words, such as "5.1 AAC", saying why when that's fewer
+/// than `probe`'s played audio has.
+fn aac_in_words(probe: &Probe, channels: i64) -> String {
+    let name = match channels {
+        1 => "mono".to_owned(),
+        2 => "stereo".to_owned(),
+        6 => "5.1".to_owned(),
+        n => format!("{n}-channel"),
+    };
+    let why = if channels < played_channels(probe).unwrap_or_default() {
+        ", the most this Device plays"
+    } else {
+        ""
+    };
+    format!("{name} AAC{why}")
 }
 
 /// The content type of `probe`'s container and its name in plain words, if a browser can play it
@@ -378,9 +452,19 @@ fn joined(items: &[String], conjunction: &str) -> Option<String> {
 
 /// The Tracks a browser plays from the file: its first video, and its [`played_audio`].
 fn played_tracks(probe: &Probe) -> Vec<Track> {
-    let video = (probe.tracks.iter()).find(|track| matches!(track.kind, TrackKind::Video { .. }));
-    let audio = played_audio(probe).and_then(|n| audio_tracks(probe).nth(n));
-    [video, audio].into_iter().flatten().cloned().collect()
+    [played_video(probe), played_audio_track(probe)]
+        .into_iter()
+        .flatten()
+        .cloned()
+        .collect()
+}
+
+fn played_video(probe: &Probe) -> Option<&Track> {
+    (probe.tracks.iter()).find(|track| matches!(track.kind, TrackKind::Video { .. }))
+}
+
+fn played_audio_track(probe: &Probe) -> Option<&Track> {
+    played_audio(probe).and_then(|n| audio_tracks(probe).nth(n))
 }
 
 /// Which of `probe`'s audio Tracks a browser plays, counting from 0: the one the file marks to
@@ -460,8 +544,8 @@ mod tests {
     use std::collections::BTreeSet;
 
     use super::{
-        DeviceDecoding, Facts, Method, Narrowing, Plan, STEPS, Subtitle, build, device_decoding,
-        failed_on_device,
+        DeviceDecoding, Facts, Method, Narrowing, Plan, STEPS, Subtitle, aac_channels, build,
+        device_decoding, failed_on_device,
     };
     use crate::tracks::{Hdr, Probe, Track, TrackKind};
 
@@ -493,7 +577,11 @@ mod tests {
     }
 
     fn audio(codec: &str, default: bool) -> Track {
-        track(codec, default, TrackKind::Audio { channels: Some(2) })
+        audio_with(codec, default, Some(2))
+    }
+
+    fn audio_with(codec: &str, default: bool, channels: Option<i64>) -> Track {
+        track(codec, default, TrackKind::Audio { channels })
     }
 
     const MP4: &str = "mov,mp4,m4a,3gp,3g2,mj2";
@@ -518,6 +606,7 @@ mod tests {
             content_types: content_types.map(str::to_owned).to_vec(),
             hdr: false,
             hls: true,
+            audio_channels: 2,
         }
     }
 
@@ -573,7 +662,6 @@ mod tests {
                 vec![video("hevc"), audio("aac", true)],
                 "Matroska container or HEVC video",
             ),
-            (MP4, vec![video("h264"), audio("dts", true)], "DTS audio"),
             (
                 MP4,
                 vec![hdr_video("av1", hdr10), audio("aac", true)],
@@ -629,14 +717,14 @@ mod tests {
     }
 
     #[test]
-    fn only_a_transcode_helps_with_tracks_the_device_cant_decode() {
+    fn only_a_transcode_helps_with_video_the_device_cant_decode() {
         let remux_or_transcode = BTreeSet::from([Method::Remux, Method::Transcode]);
         let transcode = BTreeSet::from([Method::Transcode]);
         let cases = [
             (
                 MKV,
                 vec![video("h264"), audio("aac", true)],
-                remux_or_transcode,
+                remux_or_transcode.clone(),
             ),
             (
                 MKV,
@@ -646,6 +734,11 @@ mod tests {
             (
                 MP4,
                 vec![video("h264"), audio("dts", true)],
+                remux_or_transcode,
+            ),
+            (
+                MP4,
+                vec![video("hevc"), audio("dts", true)],
                 transcode.clone(),
             ),
             (
@@ -681,7 +774,7 @@ mod tests {
     #[test]
     fn the_plan_plays_the_default_audio_track_and_else_the_first() {
         let subtitle = track("subrip", true, TrackKind::Subtitle { image: false });
-        let (first, default) = (audio("ac3", false), audio("aac", true));
+        let (first, default) = (audio("mp3", false), audio("aac", true));
         let cases = [
             (vec![video("h264"), first.clone(), default.clone()], default),
             (
@@ -839,6 +932,81 @@ mod tests {
         assert_eq!(
             plan.reasons,
             ["ruled out Direct Play", "allowed every method"]
+        );
+    }
+
+    #[test]
+    fn audio_the_device_cant_decode_is_remuxed_to_aac_and_the_plan_says_so() {
+        let dts = audio_with("dts", true, Some(6));
+        let mut facts = in_container(MKV, Some(vec![video("h264"), dts.clone()]));
+        facts.device.audio_channels = 6;
+
+        let plan = build(&facts, &STEPS);
+
+        assert_eq!(plan.method, Some(Method::Remux));
+        let aac = Track {
+            codec: "aac".to_owned(),
+            ..dts
+        };
+        assert_eq!(plan.tracks, [video("h264"), aac]);
+        assert_eq!(
+            plan.reasons[1],
+            "This Device can't decode its Matroska container or DTS audio, so it can't be Direct \
+             Played, and a Remux converts that audio to 5.1 AAC"
+        );
+    }
+
+    #[test]
+    fn converted_audio_has_up_to_as_many_channels_as_the_device_plays_up_to_5_1() {
+        let cases = [
+            (Some(6), 6, Some(6), ""),
+            (Some(8), 8, Some(6), ", the most this Device plays"),
+            (Some(6), 2, Some(2), ", the most this Device plays"),
+            (Some(6), 0, Some(2), ", the most this Device plays"),
+            (Some(2), 6, Some(2), ""),
+            (Some(1), 6, Some(1), ""),
+            (None, 6, Some(2), ""),
+        ];
+        for (source, plays, converted, why) in cases {
+            let mut facts = in_container(
+                MP4,
+                Some(vec![video("h264"), audio_with("dts", true, source)]),
+            );
+            facts.device.audio_channels = plays;
+
+            let plan = build(&facts, &STEPS);
+
+            let to = match converted {
+                Some(1) => "mono",
+                Some(2) => "stereo",
+                _ => "5.1",
+            };
+            assert_eq!(
+                plan.tracks[1],
+                audio_with("aac", true, converted),
+                "{source:?} on {plays}"
+            );
+            assert_eq!(
+                plan.reasons[1],
+                format!(
+                    "This Device can't decode its DTS audio, so it can't be Direct Played, and a \
+                     Remux converts that audio to {to} AAC{why}"
+                ),
+            );
+        }
+    }
+
+    #[test]
+    fn audio_the_device_decodes_is_copied_into_a_remux() {
+        let facts = in_container(MKV, Some(vec![video("h264"), audio("aac", true)]));
+
+        let plan = build(&facts, &STEPS);
+
+        assert_eq!(plan.method, Some(Method::Remux));
+        assert_eq!(plan.tracks, [video("h264"), audio("aac", true)]);
+        assert_eq!(
+            aac_channels(facts.probe.as_ref().unwrap(), &facts.device),
+            None
         );
     }
 }

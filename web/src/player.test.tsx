@@ -38,6 +38,7 @@ afterEach(() => {
   vi.restoreAllMocks();
   // happy-dom has no `navigator.mediaCapabilities`; a test may lend it one.
   Reflect.deleteProperty(navigator, "mediaCapabilities");
+  vi.unstubAllGlobals();
 });
 
 const libraries = [{ id: 1n, name: "Films", kind: LibraryKind.MOVIES }];
@@ -168,12 +169,20 @@ test("the plan request says what this Device decodes", async () => {
     value: { decodingInfo },
     configurable: true,
   });
+  // A Device whose sound goes out over 5.1.
+  vi.stubGlobal(
+    "AudioContext",
+    vi.fn(function audioContext() {
+      return { destination: { maxChannelCount: 6 }, close: () => Promise.resolve() };
+    }),
+  );
   const asked: PlanPlaybackRequest[] = [];
   openApp("/libraries/1/movies/tmdb-603/play", serverPlanning({ asked }));
 
   await findVideo();
 
   expect(asked.map((request) => request.deviceDecoding?.contentTypes)).toEqual([decodable]);
+  expect(asked.map((request) => request.deviceDecoding?.audioChannels)).toEqual([6]);
 });
 
 test("a Remux plays its HLS playlist through hls.js in a browser without HLS of its own", async () => {
