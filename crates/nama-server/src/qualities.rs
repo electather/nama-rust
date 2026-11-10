@@ -228,6 +228,14 @@ pub(crate) async fn offered_to(
     Ok((listed, personal_default))
 }
 
+/// Whether a User's settings show their default for a Fulfiller whose list is `listed`: to pick
+/// one when it has more than one, or to flag `theirs` once an admin removed it from a list that
+/// still has one.
+pub(crate) fn shows_default(listed: &[Quality], theirs: Option<i64>) -> bool {
+    let removed = theirs.is_some_and(|id| listed.iter().all(|quality| quality.id != id));
+    listed.len() > 1 || (removed && !listed.is_empty())
+}
+
 /// Whether `user` may choose a Quality, so naming one or their personal default counts.
 fn may_choose(user: &User) -> bool {
     user.permissions.allow(Permission::ChooseQuality)
@@ -759,7 +767,7 @@ mod tests {
     #[tokio::test]
     async fn a_replaced_list_keeps_an_id_it_had_once_and_gives_the_rest_new_ones() {
         let listed = Listed::new().await;
-        let keeps = |name, is_default| Quality {
+        let with_hds_id = |name, is_default| Quality {
             id: listed.hd,
             ..quality(name, name, is_default)
         };
@@ -767,13 +775,32 @@ mod tests {
         let saved = replace(
             &listed.db,
             listed.plugin.clone(),
-            vec![keeps("HD", true), keeps("8K", false)],
+            vec![with_hds_id("HD", true), with_hds_id("8K", false)],
         )
         .await
         .unwrap();
 
         assert_eq!(saved[0].id, listed.hd);
         assert!(![listed.hd, listed.four_k].contains(&saved[1].id));
+    }
+
+    #[test]
+    fn settings_show_a_default_to_pick_from_two_or_to_flag_one_an_admin_removed() {
+        let hd = Quality {
+            id: 1,
+            ..quality("4", "HD", true)
+        };
+        let four_k = Quality {
+            id: 2,
+            ..quality("5", "4K", false)
+        };
+        let both = [hd, four_k];
+        let hd_only = &both[..1];
+
+        assert!(shows_default(&both, None));
+        assert!(shows_default(hd_only, Some(2)));
+        assert!(!shows_default(hd_only, Some(1)));
+        assert!(!shows_default(&[], Some(2)));
     }
 
     fn requested_as(id: i64, name: &str) -> RequestedQuality {

@@ -39,7 +39,8 @@ impl Registry {
     }
 
     /// Adds the Plugin `make` makes as a Built-in one, enabled with no settings, so that what
-    /// asks for a Plugin the Server knows, such as its settings check, reaches a test's fake.
+    /// asks for a Plugin the Server knows, such as its settings check, reaches a test's fake. A
+    /// Plugin that fails to enable is logged and left disabled, as in [`Registry::with_builtins`].
     #[cfg(feature = "testing")]
     pub fn add_test_builtin(&self, make: impl Fn() -> Arc<dyn Plugin> + Send + Sync + 'static) {
         self.add_builtin(Arc::new(make), &BTreeMap::new());

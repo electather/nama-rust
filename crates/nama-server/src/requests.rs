@@ -377,9 +377,7 @@ impl Requests {
             };
             let qualities = qualities::list(&mut conn, &plugin).await?;
             let quality = qualities::personal_default(&mut conn, user, &plugin).await?;
-            let removed = quality.is_some_and(|id| qualities.iter().all(|listed| listed.id != id));
-            let to_pick_or_flag = qualities.len() > 1 || (removed && !qualities.is_empty());
-            if to_pick_or_flag {
+            if qualities::shows_default(&qualities, quality) {
                 defaults.push(DefaultQuality {
                     quality,
                     plugin_id: plugin.to_string(),

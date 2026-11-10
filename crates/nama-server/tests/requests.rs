@@ -49,15 +49,16 @@ use nama_proto::nama::v1::{
     CountPendingRequestsRequest, CreateFollowedShowRequest, CreateLibraryRequest,
     CreateRequestRequest, CreateSeasonRequestsRequest, CreateUserRequest,
     DeclineFollowedShowRequest, DeclineRequestRequest, EnablePluginRequest, EventServiceClient,
-    EventType, FollowedShow, FoundMovie, FoundShow, GetRequestRequest, LibraryKind,
-    LibraryServiceClient, ListMoviesRequest, ListPluginsRequest, ListRequestsRequest,
-    ListRequestsResponse, ListShowsRequest, LookUpMovieRequest, LookUpShowRequest, Permission,
-    PluginServiceClient, Quality, RefusalReason, ReplaceQualitiesRequest, Request,
-    RequestServiceClient, RequestState, RetryRequestRequest, ScanLibraryRequest,
-    SearchMoviesRequest, SearchShowsRequest, SessionDelivery, SetDefaultQualityRequest,
-    SetPermissionsRequest, SignInRequest, SignInServiceClient, SubscribeRequest, SubscribeResponse,
-    UpdatePluginSettingsRequest, UserServiceClient, WithdrawFollowedShowRequest,
-    WithdrawRequestRequest, event, setting_value, subscribe_response,
+    EventType, ExtensionPoint, FollowedShow, FoundMovie, FoundShow, GetRequestRequest, LibraryKind,
+    LibraryServiceClient, ListDefaultQualitiesRequest, ListMovieQualitiesRequest,
+    ListMoviesRequest, ListOfferedQualitiesRequest, ListPluginsRequest, ListQualitiesRequest,
+    ListRequestsRequest, ListRequestsResponse, ListShowsRequest, LookUpMovieRequest,
+    LookUpShowRequest, Permission, PluginServiceClient, Quality, RefusalReason,
+    ReplaceQualitiesRequest, Request, RequestServiceClient, RequestState, RetryRequestRequest,
+    ScanLibraryRequest, SearchMoviesRequest, SearchShowsRequest, SessionDelivery,
+    SetDefaultQualityRequest, SetPermissionsRequest, SignInRequest, SignInServiceClient,
+    SubscribeRequest, SubscribeResponse, TitleKind, UpdatePluginSettingsRequest, UserServiceClient,
+    WithdrawFollowedShowRequest, WithdrawRequestRequest, event, setting_value, subscribe_response,
 };
 use nama_server::{
     config::{Config, PluginConfig},
@@ -4113,6 +4114,16 @@ async fn approving_a_season_at_another_quality_moves_its_show_and_once_handed_of
     assert_eq!(change.changed_by.as_deref(), Some("Admin"));
     assert_eq!(change.previous_name.as_deref(), Some("4K"));
     let admin = requests(fixture.server.client_config());
+    let offered_to_managers = admin
+        .list_offered_qualities(ListOfferedQualitiesRequest {
+            kind: TitleKind::TITLE_KIND_SHOW.into(),
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_owned()
+        .qualities;
+    assert_eq!(offered_to_managers, offered);
     assert_eq!(get(&admin, asked[1].id).await.quality.name, "HD");
     assert_eq!(list_followed(&admin).await[0].quality.name, "HD");
     let refusal = assert_refused(
@@ -4281,6 +4292,57 @@ async fn saving_qualities_the_list_rules_refuse_or_while_the_fulfillers_check_fa
         ErrorCode::FailedPrecondition,
         RefusalReason::REFUSAL_REASON_SETTINGS_CHECK_FAILED,
     );
+    let listed = fixture
+        .plugin_service()
+        .list_qualities(ListQualitiesRequest {
+            id: MOVIE_FULFILLER.to_owned(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    assert_eq!(listed.into_owned().qualities, []);
+}
+
+#[tokio::test]
+async fn a_default_the_admin_removed_is_flagged_in_settings_and_left_out_of_the_request_dialog() {
+    let fulfiller = FakeFulfiller::default();
+    let fixture = Fixture::with_fulfiller(&fulfiller).await;
+    let offered = fixture.offer_hd_and_4k(&fulfiller, MOVIE_FULFILLER).await;
+    let (_, as_ada) = fixture.user("Ada", &CHOOSER).await;
+    let ada = requests(as_ada);
+    ada.set_default_quality(SetDefaultQualityRequest {
+        plugin_id: MOVIE_FULFILLER.to_owned(),
+        quality: Some(offered[1].id),
+        ..Default::default()
+    })
+    .await
+    .unwrap();
+
+    fixture
+        .replace_qualities(MOVIE_FULFILLER, vec![offered[0].clone()])
+        .await
+        .unwrap();
+    let settings = ada
+        .list_default_qualities(ListDefaultQualitiesRequest::default())
+        .await
+        .unwrap()
+        .into_owned()
+        .defaults;
+    let dialog = ada
+        .list_movie_qualities(ListMovieQualitiesRequest::default())
+        .await
+        .unwrap()
+        .into_owned();
+
+    assert_eq!(settings.len(), 1);
+    assert_eq!(settings[0].plugin_id, MOVIE_FULFILLER);
+    assert_eq!(
+        settings[0].fulfiller,
+        ExtensionPoint::EXTENSION_POINT_MOVIE_FULFILLER
+    );
+    assert_eq!(settings[0].quality, Some(offered[1].id));
+    assert_eq!(dialog.qualities, [offered[0].clone()]);
+    assert_eq!(dialog.personal_default, None);
 }
 
 /// What a [`FakeNotifier`] does with a notification.
