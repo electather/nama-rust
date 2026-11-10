@@ -133,6 +133,29 @@ export function versionLine({ tracks }: Version) {
   return metadataLine(video && pictureOf(video), hdr, soundOf(tracks));
 }
 
+/** A Track in a few words, such as "AAC · English · Commentary": its codec, picture size, language and title. */
+export function trackLine({ codec, language, title, kind }: Track) {
+  const picture = kind.case === "video" ? pictureOf(kind.value) : undefined;
+  return metadataLine(
+    codec.toUpperCase(),
+    picture,
+    language === undefined ? undefined : languageName(language),
+    title,
+  );
+}
+
+const languageNames = new Intl.DisplayNames("en", { type: "language" });
+
+/** A language code as the file tags it, such as `eng`, by name, or as it is if it isn't one. */
+function languageName(code: string) {
+  try {
+    return languageNames.of(code) ?? code;
+  } catch {
+    // A file's tag can be anything, and `of` refuses what isn't a language code.
+    return code;
+  }
+}
+
 /** Picture sizes by name, largest first, with the width or height a picture reaches to be one. */
 const pictureSizes = [
   // A film wider than 16:9 is shorter than its name, such as 3840×1600 for 4K, so width counts.

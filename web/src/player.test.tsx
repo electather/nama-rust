@@ -1,7 +1,8 @@
-import { cleanup, fireEvent, screen } from "@testing-library/react";
+import type { MessageInitShape } from "@bufbuild/protobuf";
+import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
-import { BrowseService } from "@/gen/nama/v1/browse_pb";
+import { BrowseService, type TrackSchema } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
 import { PlaybackMethod, PlaybackService } from "@/gen/nama/v1/playback_pb";
 
@@ -10,15 +11,28 @@ import { fakeServer, newUser, openApp } from "./test-app";
 afterEach(cleanup);
 
 const libraries = [{ id: 1n, name: "Films", kind: LibraryKind.MOVIES }];
+const plannedTracks: MessageInitShape<typeof TrackSchema>[] = [
+  { codec: "h264", kind: { case: "video", value: { width: 1920, height: 1080 } } },
+  { codec: "aac", language: "eng", kind: { case: "audio", value: {} } },
+  { codec: "subrip", language: "fre", kind: { case: "subtitle", value: {} } },
+];
 /**
  * A Server whose Library 1 has The Matrix in three Versions, the largest being Version 8, and
- * whose plans Direct Play each from an address of its own, or, unless `playable`, say it can't play.
+ * whose plans Direct Play each from an address of its own with `plannedTracks`, or, unless
+ * `playable`, say it can't play.
  */
 const serverPlanning = (playable = true) =>
   fakeServer({ signedIn: newUser, libraries }, {}, {}, (router) => {
     router.service(PlaybackService, {
       planPlayback: ({ versionId }) => ({
-        plan: playable ? { method: PlaybackMethod.DIRECT_PLAY, url: `/planned/${versionId}` } : {},
+        plan: playable
+          ? {
+              method: PlaybackMethod.DIRECT_PLAY,
+              url: `/planned/${versionId}`,
+              tracks: plannedTracks,
+              reasons: ["Its Tracks need no change"],
+            }
+          : {},
       }),
     });
     router.service(BrowseService, {
@@ -69,4 +83,21 @@ test("an address with no title to play keeps the app chrome, so there's a way ou
 
   expect(await screen.findByText("Page not found")).toBeDefined();
   expect(screen.getByRole("navigation", { name: "Main" })).toBeDefined();
+});
+
+test("playback info says how the plan plays the Version, why, and with which Tracks", async () => {
+  openApp("/libraries/1/movies/tmdb-603/play", server);
+
+  const info = await screen.findByRole("button", { name: "Playback info" });
+  expect(info.getAttribute("aria-expanded")).toBe("false");
+  // A button, so Enter and Space open it from the keyboard as a click does.
+  fireEvent.click(info);
+
+  expect(info.getAttribute("aria-expanded")).toBe("true");
+  const panel = within(screen.getByRole("region", { name: "Playback info" }));
+  expect(panel.getByText("Direct Play")).toBeDefined();
+  expect(panel.getByText("Its Tracks need no change")).toBeDefined();
+  expect(panel.getByText("H264 · 1080p")).toBeDefined();
+  expect(panel.getByText("AAC · English")).toBeDefined();
+  expect(panel.getByText("SUBRIP · French")).toBeDefined();
 });
