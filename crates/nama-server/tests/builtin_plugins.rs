@@ -130,10 +130,7 @@ fn each_builtin_plugin_registers_at_exactly_the_extension_points_its_manifest_na
     }
 }
 
-/// ADR 0006: Built-in Plugins are separate crates so the compiler keeps them out of Kernel
-/// internals. Of this workspace's crates they may use only the plugin API and the protobuf types,
-/// and an Installed Plugin in `plugins/`, or a library there they share, only `nama-pdk` and those
-/// libraries (`plugins/AGENTS.md`).
+/// ADR 0006: the workspace crates a crate in `plugins/` may depend on, as `plugins/AGENTS.md` says.
 #[test]
 fn plugin_crates_depend_only_on_the_workspace_crates_they_may() {
     let workspace = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
@@ -161,7 +158,6 @@ fn plugin_crates_depend_only_on_the_workspace_crates_they_may() {
             Path::new(package["manifest_path"].as_str().unwrap()).starts_with(&plugins_dir)
         })
         .collect();
-    // Every Plugin is a `nama-plugin-*`, so any other crate here is a shared library.
     let shared = |package: &serde_json::Value| {
         !package["name"]
             .as_str()
@@ -177,13 +173,18 @@ fn plugin_crates_depend_only_on_the_workspace_crates_they_may() {
     );
 
     for package in &in_plugins {
-        let installed_or_shared = shared(package)
-            || package["targets"].as_array().unwrap().iter().any(|target| {
-                target["crate_types"]
-                    .as_array()
-                    .unwrap()
-                    .contains(&"cdylib".into())
-            });
+        let installed = package["targets"].as_array().unwrap().iter().any(|target| {
+            target["crate_types"]
+                .as_array()
+                .unwrap()
+                .contains(&"cdylib".into())
+        });
+        assert!(
+            !(installed && shared(package)),
+            "{} is an Installed Plugin, so its name starts with nama-plugin-",
+            package["name"]
+        );
+        let installed_or_shared = installed || shared(package);
         let allowed: &[&str] = if installed_or_shared {
             &pdk_and_shared
         } else {

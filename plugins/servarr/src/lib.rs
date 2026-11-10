@@ -6,11 +6,20 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 /// A Sonarr or Radarr service's API, as its URL, API key and name say. Its errors name the
 /// service, and never its URL: a Request's reason reaches every Requester.
-#[derive(Debug)]
 pub struct Servarr {
     name: &'static str,
     url: String,
     api_key: String,
+}
+
+// Not derived, so the API key stays out of logs.
+impl std::fmt::Debug for Servarr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Servarr")
+            .field("name", &self.name)
+            .field("url", &self.url)
+            .finish_non_exhaustive()
+    }
 }
 
 impl Servarr {
@@ -54,13 +63,13 @@ impl Servarr {
             .map(drop)
     }
 
-    /// Posts `title` to the API path `path` to add it. Returns `false` if the service already has
+    /// Posts `body` to the API path `path` to add what it describes. Returns `false` if the service already has
     /// it, as it says by the validator `exists`, such as `MovieExistsValidator`.
     ///
     /// # Errors
     /// If the service doesn't answer or refuses for another reason.
-    pub fn add(&self, path: &str, title: impl Serialize, exists: &str) -> Result<bool, Error> {
-        let response = self.send("POST", path, Some(title))?;
+    pub fn add(&self, path: &str, body: impl Serialize, exists: &str) -> Result<bool, Error> {
+        let response = self.send("POST", path, Some(body))?;
         if already_has(exists, response.status_code(), &response.body()) {
             return Ok(false);
         }

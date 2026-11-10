@@ -107,7 +107,7 @@ mod exports {
             // Checked first, as Radarr may add a Movie with a profile it no longer has.
             let profiles: Vec<QualityProfile> = radarr.get("qualityprofile")?;
             let used_id = if profiles.iter().any(|profile| profile.id == asked) {
-                add(&radarr, &request, asked)?
+                add_movie(&radarr, &request, asked)?
             } else {
                 // A Movie Radarr already has keeps its own profile, so the asked one needn't exist.
                 let kept = profile_of(&radarr, tmdb_id)?;
@@ -153,7 +153,7 @@ mod exports {
 
     /// Adds the Movie `request` asks for at the quality profile `profile`, starting a search, and
     /// returns the id of the profile Radarr has it at: its own if it already had it.
-    fn add(radarr: &Servarr, request: &Request, profile: i64) -> Result<Option<i64>, Error> {
+    fn add_movie(radarr: &Servarr, request: &Request, profile: i64) -> Result<Option<i64>, Error> {
         let movie = NewMovie {
             tmdb_id: request.movie.tmdb_id,
             title: request.movie.title.clone(),
