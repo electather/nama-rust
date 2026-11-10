@@ -973,11 +973,11 @@ impl Listed {
 
 /// Aborts the loop `task` holds, if any, and waits for it, logging that `doing` panicked if it did.
 async fn stop(task: &Mutex<Option<JoinHandle<()>>>, doing: &str) {
-    let Some(task) = lock(task).take() else {
+    let Some(handle) = lock(task).take() else {
         return;
     };
-    task.abort();
-    if let Err(err) = task.await
+    handle.abort();
+    if let Err(err) = handle.await
         && err.is_panic()
     {
         tracing::error!("{doing} panicked: {err}");

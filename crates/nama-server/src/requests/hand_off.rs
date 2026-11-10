@@ -452,7 +452,8 @@ impl Drop for Claim {
     }
 }
 
-// Nothing panics while one is held, so a poisoned lock's value is still whole.
+/// Locks `mutex`, taking its value even if poisoned: nothing panics while one is held, so it is
+/// still whole.
 pub(super) fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(PoisonError::into_inner)
 }
