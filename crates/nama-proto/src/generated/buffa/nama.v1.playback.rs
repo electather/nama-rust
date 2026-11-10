@@ -411,7 +411,7 @@ pub struct PlanPlaybackRequest {
         DeviceDecoding,
         ::buffa::Inline<DeviceDecoding>,
     >,
-    /// The Methods that just failed to play this Version on this Device.
+    /// The methods that just failed to play this Version on this Device.
     ///
     /// Field 7: `failed_methods`
     #[serde(

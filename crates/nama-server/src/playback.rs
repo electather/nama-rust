@@ -1,7 +1,7 @@
 //! Playback Plans: how the Server plays one Version on one Device, and why (ADR 0027).
 //!
 //! [`plan`] gathers what a plan is based on, probing the Version first if its Tracks aren't
-//! current, and runs [`STEPS`] over it in order. Each step says which Methods it allows and why,
+//! current, and runs [`STEPS`] over it in order. Each step says which methods it allows and why,
 //! and the plan keeps only what every step allows, so no step can widen what an earlier one ruled
 //! out.
 //!
@@ -114,7 +114,7 @@ fn build(facts: &Facts, steps: &[Step]) -> Plan {
 }
 
 /// The step for the Version's own Tracks. None needs changing to play yet, so it allows every
-/// Method.
+/// method.
 fn version_tracks(facts: &Facts) -> Narrowing {
     let reason = if facts.probe.is_some() {
         "Its Tracks need no change"
@@ -283,7 +283,7 @@ mod tests {
     fn allows_every_method(_: &Facts) -> Narrowing {
         Narrowing {
             allows: BTreeSet::from(Method::ALL),
-            reason: "allowed every Method".to_owned(),
+            reason: "allowed every method".to_owned(),
         }
     }
 
@@ -295,7 +295,7 @@ mod tests {
         assert_eq!(plan.url, None);
         assert_eq!(
             plan.reasons,
-            ["ruled out Direct Play", "allowed every Method"]
+            ["ruled out Direct Play", "allowed every method"]
         );
     }
 }

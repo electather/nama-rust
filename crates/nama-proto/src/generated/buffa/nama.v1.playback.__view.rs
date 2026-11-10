@@ -31,7 +31,7 @@ pub struct PlanPlaybackRequestView<'a> {
     pub device_decoding: ::buffa::MessageFieldView<
         super::super::__buffa::view::DeviceDecodingView<'a>,
     >,
-    /// The Methods that just failed to play this Version on this Device.
+    /// The methods that just failed to play this Version on this Device.
     ///
     /// Field 7: `failed_methods`
     pub failed_methods: ::buffa::RepeatedView<
@@ -500,7 +500,7 @@ impl PlanPlaybackRequestOwnedView {
     > {
         &self.0.reborrow().device_decoding
     }
-    /// The Methods that just failed to play this Version on this Device.
+    /// The methods that just failed to play this Version on this Device.
     ///
     /// Field 7: `failed_methods`
     #[must_use]

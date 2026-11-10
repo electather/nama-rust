@@ -63,7 +63,7 @@ export type PlanPlaybackRequest = Message<"nama.v1.PlanPlaybackRequest"> & {
   deviceDecoding?: DeviceDecoding | undefined;
 
   /**
-   * The Methods that just failed to play this Version on this Device.
+   * The methods that just failed to play this Version on this Device.
    *
    * @generated from field: repeated nama.v1.PlaybackMethod failed_methods = 7;
    */

@@ -32,7 +32,7 @@ message PlanPlaybackRequest {
   PlaybackLimit playback_limit = 5;
   // What the Device can decode, as it found out just now.
   DeviceDecoding device_decoding = 6;
-  // The Methods that just failed to play this Version on this Device.
+  // The methods that just failed to play this Version on this Device.
   repeated PlaybackMethod failed_methods = 7;
 }
 
