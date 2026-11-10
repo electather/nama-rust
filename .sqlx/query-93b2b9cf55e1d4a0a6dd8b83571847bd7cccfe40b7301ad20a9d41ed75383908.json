@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT probe_version FROM version_probes WHERE version_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "probe_version",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "version_probes",
+            "name": "probe_version"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "93b2b9cf55e1d4a0a6dd8b83571847bd7cccfe40b7301ad20a9d41ed75383908"
+}

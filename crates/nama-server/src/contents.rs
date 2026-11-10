@@ -23,6 +23,7 @@ use crate::{
     events::event,
     requests,
     scanner::PARSER_VERSION,
+    tracks::Track,
 };
 
 /// Reads and writes the contents of Libraries.
@@ -189,6 +190,8 @@ pub(crate) struct Version {
     pub(crate) id: i64,
     pub(crate) path: String,
     pub(crate) size: i64,
+    /// Empty as read here: Browse fills them in from [`crate::tracks::Tracks`], which owns them.
+    pub(crate) tracks: Vec<Track>,
 }
 
 /// What [`Contents::matched_to`] found a Version Matched to.
@@ -599,6 +602,7 @@ impl Contents {
                 id: row.file,
                 path: row.path,
                 size: row.size,
+                tracks: Vec::new(),
             };
             match movies.last_mut() {
                 Some(movie) if movie.id == id => movie.versions.push(version),
@@ -675,6 +679,7 @@ impl Contents {
                 id: row.file,
                 path: row.path,
                 size: row.size,
+                tracks: Vec::new(),
             };
             match season.episodes.last_mut() {
                 Some(episode) if episode.id == id => episode.versions.push(version),

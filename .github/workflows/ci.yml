@@ -298,6 +298,9 @@ jobs:
       # as this run's.
       - run: rm -rf target/nextest
       - uses: taiki-e/install-action@nextest
+      # Tests make the media they probe with ffmpeg and probe it with ffprobe
+      # (crates/nama-server/README.md, "ffmpeg").
+      - uses: FedericoCarboni/setup-ffmpeg@37062fbf7149fc5578d6c57e08aed62458b375d6 # v3.1
       # nextest builds every target it runs, so there's no separate `cargo build`. The `ci` profile
       # (.config/nextest.toml) retries, kills hung tests and writes a JUnit report. `count`
       # deals each binary's tests out in turn, so its slow ones land on both shards.

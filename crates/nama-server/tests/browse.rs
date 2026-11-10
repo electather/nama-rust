@@ -30,16 +30,21 @@ use nama_plugin_tmdb::{
     testing::{API_KEY, FakeTmdb},
 };
 use nama_proto::nama::v1::{
-    BrowseServiceClient, ClearMatchRequest, ContinueWatchingEntry, CreateLibraryRequest,
-    CreateUserRequest, Episode, ExternalId, GetMovieRequest, GetShowRequest, GetShowResponse,
-    LibraryKind, LibraryServiceClient, ListContinueWatchingRequest, ListEpisodesRequest,
-    ListMoviesRequest, ListShowsRequest, MatchServiceClient, Movie, RefusalReason,
-    ReportProgressRequest, ScanLibraryRequest, Season, SessionDelivery, SetMatchRequest,
-    SetPlayedRequest, Show, ShowSeason, SignInRequest, SignInServiceClient, UserServiceClient,
-    Version, WatchState, WatchStateServiceClient, continue_watching_entry, external_id,
-    set_played_request::Target,
+    AudioTrack, BrowseServiceClient, ClearMatchRequest, ContinueWatchingEntry,
+    CreateLibraryRequest, CreateUserRequest, Episode, ExternalId, GetMovieRequest, GetShowRequest,
+    GetShowResponse, LibraryKind, LibraryServiceClient, ListContinueWatchingRequest,
+    ListEpisodesRequest, ListMoviesRequest, ListShowsRequest, MatchServiceClient, Movie,
+    RefusalReason, ReportProgressRequest, ScanLibraryRequest, Season, SessionDelivery,
+    SetMatchRequest, SetPlayedRequest, Show, ShowSeason, SignInRequest, SignInServiceClient, Track,
+    UserServiceClient, Version, VideoTrack, WatchState, WatchStateServiceClient,
+    continue_watching_entry, external_id, set_played_request::Target,
 };
-use nama_server::{config::Config, contents::Contents, plugins::Registry};
+use nama_server::{
+    config::Config,
+    contents::Contents,
+    ffmpeg::{self, Ffmpeg},
+    plugins::Registry,
+};
 use refused::assert_refused;
 use server::{PASSWORD, TestServer};
 use tempfile::TempDir;
@@ -92,8 +97,13 @@ struct Fixture {
     reason = "a test helper fails its test by panicking"
 )]
 impl Fixture {
-    /// Starts a Server with a Library of `kind`.
+    /// Starts a Server with a Library of `kind`, and no ffmpeg.
     async fn start(kind: LibraryKind) -> Self {
+        Self::start_with_ffmpeg(kind, Ffmpeg::default()).await
+    }
+
+    /// Starts a Server with a Library of `kind` that found `ffmpeg` at startup.
+    async fn start_with_ffmpeg(kind: LibraryKind, ffmpeg: Ffmpeg) -> Self {
         let tmdb = FakeTmdb::start().await;
         let plugins = Registry::new();
         let settings = Settings::new(BTreeMap::from([(
@@ -103,7 +113,7 @@ impl Fixture {
         plugins
             .enable_with_settings(Arc::new(Tmdb::with_endpoints(tmdb.endpoints())), settings)
             .unwrap();
-        let (server, db) = TestServer::start_with_db(Config::default(), plugins).await;
+        let (server, db) = TestServer::start_with_ffmpeg(Config::default(), plugins, ffmpeg).await;
         let config = server.client_config();
         let libraries = LibraryServiceClient::new(HttpClient::plaintext(), config.clone());
         let media = tempfile::tempdir().unwrap();
@@ -554,6 +564,56 @@ async fn two_files_matching_one_movie_are_one_movie_with_two_versions() {
     let first = got.versions.first().map(|version| version.id);
     let last = got.versions.last().map(|version| version.id);
     assert_ne!(first, last);
+}
+
+#[tokio::test]
+async fn a_version_has_the_tracks_probing_found_once_a_scan_has_probed_it() {
+    let path = std::env::var_os("PATH").unwrap_or_default();
+    let ffmpeg = Ffmpeg::find(&Config::default(), &path);
+    assert!(ffmpeg.ffprobe.is_ok(), "this test needs ffprobe on PATH");
+    let fx = Fixture::start_with_ffmpeg(LibraryKind::LIBRARY_KIND_MOVIES, ffmpeg).await;
+    let file = fx.folder.join(ALIEN_2160P);
+    fs::create_dir_all(file.parent().unwrap()).unwrap();
+    ffmpeg::write_4k_with_5_1(&file).unwrap();
+
+    fx.scan_until(fx.library, async || {
+        fx.get_movie(fx.library, ALIEN).await.is_ok_and(|movie| {
+            movie
+                .versions
+                .iter()
+                .all(|version| !version.tracks.is_empty())
+        })
+    })
+    .await;
+
+    let movie = fx.get_movie(fx.library, ALIEN).await.unwrap();
+    let version = movie.versions.first().unwrap();
+    assert_eq!(
+        version.tracks,
+        [
+            Track {
+                codec: "mpeg4".to_owned(),
+                kind: VideoTrack {
+                    width: 3840,
+                    height: 2160,
+                    frame_rate: 24.0,
+                    ..Default::default()
+                }
+                .into(),
+                ..Default::default()
+            },
+            Track {
+                codec: "ac3".to_owned(),
+                language: Some("eng".to_owned()),
+                kind: AudioTrack {
+                    channels: 6,
+                    ..Default::default()
+                }
+                .into(),
+                ..Default::default()
+            },
+        ]
+    );
 }
 
 #[tokio::test]

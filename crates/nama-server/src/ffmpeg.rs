@@ -2,19 +2,47 @@
 //! come from the system, not the release (ADR 0026).
 
 use std::{
+    collections::HashMap,
     env,
     ffi::OsStr,
     path::{Path, PathBuf},
     process::Command,
+    time::Duration,
 };
 
-use crate::config::Config;
+use serde::Deserialize;
+
+use crate::{
+    config::Config,
+    tracks::{Probe, Track, TrackKind},
+};
 
 /// The oldest ffmpeg and ffprobe the Server uses, as major and minor version. HLS with fMP4
 /// segments, the zscale and tonemap filters and the VAAPI, QSV and NVENC encoders that Remuxing
 /// and Transcoding use all predate 4.4, and it's the oldest a supported LTS distribution ships
 /// (Ubuntu 22.04), so nothing older gets tested.
 const MINIMUM: (u32, u32) = (4, 4);
+
+/// How long ffprobe may take over one file, such as one on a network share that stopped answering.
+const PROBE_TIMEOUT: Duration = Duration::from_secs(60);
+
+/// Subtitle codecs, as ffprobe names them, that are bitmaps rather than text.
+const IMAGE_SUBTITLES: &[&str] = &["dvb_subtitle", "dvd_subtitle", "hdmv_pgs_subtitle", "xsub"];
+
+/// Why probing a file failed.
+#[derive(Debug, thiserror::Error)]
+pub(crate) enum ProbeError {
+    #[error("the Server has no ffprobe")]
+    Unavailable,
+    #[error("ffprobe couldn't be run: {0}")]
+    Run(#[from] std::io::Error),
+    #[error("ffprobe took longer than {}s", PROBE_TIMEOUT.as_secs())]
+    TimedOut(#[from] tokio::time::error::Elapsed),
+    #[error("ffprobe failed: {0}")]
+    Failed(String),
+    #[error("ffprobe's output couldn't be read: {0}")]
+    Output(#[from] serde_json::Error),
+}
 
 /// A program the Server found and ran.
 #[derive(Debug, PartialEq, Eq)]
@@ -65,6 +93,116 @@ impl Ffmpeg {
             .collect();
         (!reasons.is_empty()).then(|| reasons.join(" and "))
     }
+
+    /// Whether the Server can probe files, which needs only ffprobe.
+    pub(crate) const fn can_probe(&self) -> bool {
+        self.ffprobe.is_ok()
+    }
+
+    /// The facts of the file at `path` and its video, audio and subtitle Tracks, as ffprobe reads
+    /// them.
+    pub(crate) async fn probe(&self, path: &str) -> Result<Probe, ProbeError> {
+        let Ok(ffprobe) = &self.ffprobe else {
+            return Err(ProbeError::Unavailable);
+        };
+        let output = tokio::process::Command::new(&ffprobe.path)
+            .args(["-v", "error", "-print_format", "json", "-show_format", "-show_streams"])
+            .arg(path)
+            // A probe given up on, or cancelled at shutdown, stops ffprobe too.
+            .kill_on_drop(true)
+            .output();
+        let output = tokio::time::timeout(PROBE_TIMEOUT, output).await??;
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(ProbeError::Failed(stderr.trim().to_owned()));
+        }
+        Ok(parse_probe(&output.stdout)?)
+    }
+}
+
+/// What `ffprobe -print_format json -show_format -show_streams` printed.
+#[derive(Deserialize)]
+struct ProbeOutput {
+    format: ProbedFormat,
+    #[serde(default)]
+    streams: Vec<ProbedStream>,
+}
+
+#[derive(Deserialize)]
+struct ProbedFormat {
+    format_name: String,
+    /// In seconds, such as `"5.120000"`.
+    duration: Option<String>,
+    bit_rate: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct ProbedStream {
+    codec_type: Option<String>,
+    #[serde(default)]
+    codec_name: String,
+    width: Option<i64>,
+    height: Option<i64>,
+    /// Such as `"24000/1001"`, or `"0/0"` when unknown.
+    avg_frame_rate: Option<String>,
+    channels: Option<i64>,
+    #[serde(default)]
+    disposition: HashMap<String, u8>,
+    #[serde(default)]
+    tags: HashMap<String, String>,
+}
+
+/// The [`Probe`] ffprobe's JSON output describes.
+fn parse_probe(json: &[u8]) -> Result<Probe, serde_json::Error> {
+    let output: ProbeOutput = serde_json::from_slice(json)?;
+    let format = output.format;
+    Ok(Probe {
+        container: format.format_name,
+        duration_ms: format
+            .duration
+            .and_then(|seconds| Duration::try_from_secs_f64(seconds.parse().ok()?).ok())
+            .and_then(|duration| i64::try_from(duration.as_millis()).ok()),
+        bitrate: format.bit_rate.and_then(|bitrate| bitrate.parse().ok()),
+        tracks: output.streams.into_iter().filter_map(track).collect(),
+    })
+}
+
+/// `stream` as a Track, or `None` for a stream that isn't one, such as cover art or a data
+/// stream.
+fn track(mut stream: ProbedStream) -> Option<Track> {
+    let flag = |name: &str| stream.disposition.get(name).is_some_and(|&set| set == 1);
+    let kind = match stream.codec_type.as_deref()? {
+        // Cover art is a one-picture video stream.
+        "video" if flag("attached_pic") => return None,
+        "video" => TrackKind::Video {
+            width: stream.width,
+            height: stream.height,
+            frame_rate: stream.avg_frame_rate.as_deref().and_then(frame_rate),
+        },
+        "audio" => TrackKind::Audio {
+            channels: stream.channels,
+        },
+        "subtitle" => TrackKind::Subtitle {
+            image: IMAGE_SUBTITLES.contains(&stream.codec_name.as_str()),
+        },
+        _ => return None,
+    };
+    let (default, forced) = (flag("default"), flag("forced"));
+    Some(Track {
+        codec: stream.codec_name,
+        language: stream.tags.remove("language"),
+        title: stream.tags.remove("title"),
+        default,
+        forced,
+        kind,
+    })
+}
+
+/// Frames per second from a fraction such as `24000/1001`, or `None` for `0/0`.
+fn frame_rate(fraction: &str) -> Option<f64> {
+    let (numerator, denominator) = fraction.split_once('/')?;
+    let (numerator, denominator): (f64, f64) = (numerator.parse().ok()?, denominator.parse().ok()?);
+    (denominator > 0.0).then(|| numerator / denominator)
 }
 
 /// `name` at `configured`, or else on `path`, if it's new enough, or why the Server can't use it.
@@ -143,6 +281,31 @@ fn is_too_old(version: &str) -> bool {
     };
     let minor = numbers.next().flatten().unwrap_or(0);
     (major, minor) < MINIMUM
+}
+
+/// Writes a fifth of a second of 4K video with English 5.1 audio, as Matroska, to `path`, with the
+/// ffmpeg on `PATH`, for a test to probe. Tests make their media this way, rather than commit
+/// sample files, so they need ffmpeg and ffprobe.
+///
+/// # Errors
+///
+/// If ffmpeg can't be run or fails.
+#[cfg(any(test, feature = "testing"))]
+pub fn write_4k_with_5_1(path: &Path) -> std::io::Result<()> {
+    let status = Command::new("ffmpeg")
+        .args(["-v", "error", "-y"])
+        .args(["-f", "lavfi", "-i", "color=size=3840x2160:rate=24"])
+        .args(["-f", "lavfi", "-i", "anullsrc=channel_layout=5.1"])
+        // Encoders every ffmpeg build has.
+        .args(["-t", "0.2", "-c:v", "mpeg4", "-c:a", "ac3"])
+        .args(["-metadata:s:a:0", "language=eng", "-f", "matroska"])
+        .arg(path)
+        .status()?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(std::io::Error::other(format!("ffmpeg failed: {status}")))
+    }
 }
 
 // The fakes are shell scripts.
@@ -369,5 +532,97 @@ mod tests {
         let found = find_on(bin.path().as_os_str());
 
         assert_eq!(found.direct_play_only_because(), None);
+    }
+}
+
+#[cfg(test)]
+mod probe_output_tests {
+    use super::parse_probe;
+    use crate::tracks::{Probe, Track, TrackKind};
+
+    /// Cut down from ffprobe 7.0's output for a Blu-ray remux with cover art.
+    const BLU_RAY_REMUX: &str = r#"{
+        "streams": [
+            {"codec_name": "hevc", "codec_type": "video", "width": 3840, "height": 1600,
+             "avg_frame_rate": "24000/1001", "disposition": {"default": 1, "forced": 0}},
+            {"codec_name": "truehd", "codec_type": "audio", "channels": 8,
+             "disposition": {"default": 1, "forced": 0},
+             "tags": {"language": "eng", "title": "TrueHD Atmos 7.1"}},
+            {"codec_name": "hdmv_pgs_subtitle", "codec_type": "subtitle",
+             "disposition": {"default": 0, "forced": 1}, "tags": {"language": "fre"}},
+            {"codec_name": "subrip", "codec_type": "subtitle",
+             "disposition": {"default": 0, "forced": 0}, "tags": {"language": "eng"}},
+            {"codec_name": "mjpeg", "codec_type": "video", "width": 600, "height": 900,
+             "avg_frame_rate": "0/0", "disposition": {"attached_pic": 1}},
+            {"codec_type": "attachment", "tags": {"filename": "font.ttf"}}
+        ],
+        "format": {"format_name": "matroska,webm", "duration": "7299.4565", "bit_rate": "61734512"}
+    }"#;
+
+    fn track(codec: &str, language: Option<&str>, default: bool, kind: TrackKind) -> Track {
+        Track {
+            codec: codec.to_owned(),
+            language: language.map(str::to_owned),
+            title: None,
+            default,
+            forced: false,
+            kind,
+        }
+    }
+
+    #[test]
+    fn ffprobe_output_reads_as_tracks_without_cover_art_or_attachments() {
+        let probe = parse_probe(BLU_RAY_REMUX.as_bytes()).unwrap();
+
+        let Some(TrackKind::Video { frame_rate, .. }) = probe.tracks.first().map(|t| &t.kind)
+        else {
+            panic!("no video Track first: {probe:?}");
+        };
+        assert!(frame_rate.is_some_and(|fps| (fps - 23.976).abs() < 0.001));
+        let ntsc = frame_rate.unwrap();
+        assert_eq!(
+            probe,
+            Probe {
+                container: "matroska,webm".to_owned(),
+                duration_ms: Some(7_299_456),
+                bitrate: Some(61_734_512),
+                tracks: vec![
+                    track(
+                        "hevc",
+                        None,
+                        true,
+                        TrackKind::Video {
+                            width: Some(3840),
+                            height: Some(1600),
+                            frame_rate: Some(ntsc),
+                        },
+                    ),
+                    Track {
+                        title: Some("TrueHD Atmos 7.1".to_owned()),
+                        ..track(
+                            "truehd",
+                            Some("eng"),
+                            true,
+                            TrackKind::Audio { channels: Some(8) },
+                        )
+                    },
+                    Track {
+                        forced: true,
+                        ..track(
+                            "hdmv_pgs_subtitle",
+                            Some("fre"),
+                            false,
+                            TrackKind::Subtitle { image: true },
+                        )
+                    },
+                    track(
+                        "subrip",
+                        Some("eng"),
+                        false,
+                        TrackKind::Subtitle { image: false },
+                    ),
+                ],
+            }
+        );
     }
 }

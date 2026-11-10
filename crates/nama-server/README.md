@@ -25,7 +25,9 @@ ffmpeg = "/usr/lib/jellyfin-ffmpeg/ffmpeg"
 ffprobe = "/usr/lib/jellyfin-ffmpeg/ffprobe"
 ```
 
-Without a usable pair it only Direct Plays, and says why in its startup log and on the Playback page.
+Without a usable pair it only Direct Plays, and says why in its startup log and on the Playback page. With ffprobe, each scan is followed by probing, in the background, the files not probed yet for their Tracks.
+
+Tests make the media they probe with ffmpeg rather than commit sample files, so `cargo test` needs ffmpeg and ffprobe on `PATH`.
 
 ## Regenerating `.sqlx/` after a query or migration change
 
