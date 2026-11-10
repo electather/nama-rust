@@ -19,3 +19,7 @@ pr-run-mode = "skip"
 # `vp build` before cargo, since the feature embeds web/dist.
 features = ["web"]
 github-build-setup = "../build-setup.yml"
+# After the GitHub Release, `.github/workflows/docker.yml` builds the Server's image from its Linux
+# binaries and pushes it to GHCR (ADR 0026).
+publish-jobs = ["./docker"]
+github-custom-job-permissions = { "docker" = { packages = "write", contents = "read" } }

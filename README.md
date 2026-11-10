@@ -15,6 +15,7 @@ A self-hosted media server and request manager, with an optional central Hub for
 | [`crates/nama-test-report`](crates/nama-test-report) | CI tooling: records test results and reports flaky and slow tests |
 | [`plugins/`](plugins) | Built-in Plugins, the Installed Plugins the Server bundles, and the libraries they share |
 | [`web/`](web) | The web app the Server serves |
+| [`docker/`](docker) | The Server's Docker image |
 | [`proto/`](proto) | The Protobuf API schema |
 | [`spikes/`](spikes) | Throwaway prototypes, not workspace members |
 
@@ -35,6 +36,29 @@ After that it ignores those tables, and logs that it does, so editing them chang
 ## Requests to Radarr and Sonarr
 
 Approved Movie Requests go to Radarr through the Radarr Plugin ([`plugins/radarr`](plugins/radarr)), and Approved Season Requests to Sonarr through the Sonarr Plugin ([`plugins/sonarr`](plugins/sonarr)), both Installed Plugins bundled in the Server. An Admin enables each on its page under Plugins with its URL and API key, and "Test" offers its quality profiles and root folders to pick from. Sonarr finds a Show by its TVDB id, so a Show the metadata source has none for can't go to Sonarr. Asking for a whole Show also has Sonarr monitor the Show's new Seasons, until its Followed Show ends.
+
+## Docker
+
+Each release, prereleases aside, is also a Docker image for amd64 and arm64, `ghcr.io/electather/nama-server`, with [jellyfin-ffmpeg](https://github.com/jellyfin/jellyfin-ffmpeg) as its ffmpeg and ffprobe, the easiest way to get hardware Transcoding. It runs as user 1000, keeps its state in `/data`, and reads `/data/nama.toml` if there is one. The image sets `data_dir`, `ffmpeg` and `ffprobe` through `NAMA_*` variables, which beat that file, so change those with `-e`. Mount each Library's folder and give the Library the path inside the container:
+
+```sh
+docker run -d --name nama -p 7980:7980 \
+  -v nama-data:/data \
+  -v /srv/movies:/media/movies:ro \
+  ghcr.io/electather/nama-server
+```
+
+User 1000 must be able to read the media, and write `/data` if you mount a host folder there. To run as someone else, pass `--user` with their ids.
+
+For Intel or AMD hardware acceleration (VAAPI and QSV), pass the GPU and the group that may use it:
+
+```sh
+  --device /dev/dri:/dev/dri --group-add "$(stat -c %g /dev/dri/renderD128)"
+```
+
+For NVIDIA (NVENC), install the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) on the host and add `--gpus all`.
+
+An Admin sees which ffmpeg the Server found, and its version, on the Playback page.
 
 ## Checks
 
