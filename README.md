@@ -17,7 +17,6 @@ A self-hosted media server and request manager, with an optional central Hub for
 | [`web/`](web) | The web app the Server serves |
 | [`docker/`](docker) | The Server's Docker image |
 | [`proto/`](proto) | The Protobuf API schema |
-| [`spikes/`](spikes) | Throwaway prototypes, not workspace members |
 
 ## Metadata from TMDB
 
