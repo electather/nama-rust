@@ -106,11 +106,12 @@ use crate::{
     plugin_settings::{ChangeError, ListError, PluginSettings, StoredPlugin},
     plugins::{CheckError, EnableError, Listed},
     qualities,
-    rate_limits::{Blocked, SignInCodeLimits, SignInLimits},
+    rate_limits::{Blocked, SignInCodeLimits},
     requests::{self, Found, FoundShow, Requests},
     scanner::Scanner,
     server_settings::{HardwareChoice, RemotePlaybackLimit, SegmentFolder, ServerUrl},
     sessions::{cleared_session_cookie, identify_caller, in_session_cookie, session_cookie},
+    sign_in::{self, SignIn},
     sign_in_codes::{self, Poll, SignInCodes},
     tracks::{Tracks, track_to_proto},
     users::{self, Caller, NewDevice, Permissions, SetupCode, SignedIn, Users},
@@ -168,7 +169,7 @@ pub(crate) fn router(
         .add_service(Arc::new(SignInServiceHandler {
             users: users.clone(),
             setup_code,
-            sign_in_limits: SignInLimits::default(),
+            sign_in: SignIn::new(users.clone()),
             sign_in_codes: SignInCodes::default(),
             sign_in_code_limits: SignInCodeLimits::default(),
         }))
@@ -653,8 +654,7 @@ struct SignInServiceHandler {
     users: Users,
     /// What `Setup` must be given. `None` once the Server started with Users.
     setup_code: Option<SetupCode>,
-    /// The recent failures of `Setup`, `SignIn` and `Reauthenticate`, which slow guessing down.
-    sign_in_limits: SignInLimits,
+    sign_in: SignIn,
     sign_in_codes: SignInCodes,
     /// The recent failed Sign-in Code lookups and approvals, which slow guessing codes down.
     sign_in_code_limits: SignInCodeLimits,
@@ -692,7 +692,7 @@ impl SignInService for SignInServiceHandler {
         request: ServiceRequest<'_, SetupRequest>,
     ) -> ServiceResult<SetupResponse> {
         let request = request.to_owned_message();
-        let attempt = self.sign_in_limits.admit(client_ip(&ctx)?, None)?;
+        let attempt = self.sign_in.limits.admit(client_ip(&ctx)?, None)?;
         let wants_token = wants_token(request.delivery)?;
         // The Server only made no code because it started with Users. Users are checked before the
         // code, so once there are any every attempt is refused as already set up, as documented.
@@ -708,12 +708,12 @@ impl SignInService for SignInServiceHandler {
             .field("setup_code")
             .into());
         }
-        let device = new_device(request.device_name, &ctx)?;
+        let device = sign_in::named(new_device(request.device_name, &ctx)?)?;
         let signed_in = self
             .users
             .create_first_admin(&request.name, &request.password, device)
             .await?;
-        self.sign_in_limits.succeeded(&attempt);
+        self.sign_in.limits.succeeded(&attempt);
         Ok(hand_out_session(
             signed_in,
             wants_token,
@@ -733,16 +733,13 @@ impl SignInService for SignInServiceHandler {
         request: ServiceRequest<'_, SignInRequest>,
     ) -> ServiceResult<SignInResponse> {
         let request = request.to_owned_message();
-        let attempt = self
-            .sign_in_limits
-            .admit(client_ip(&ctx)?, Some(&request.name))?;
         let wants_token = wants_token(request.delivery)?;
+        let proof = sign_in::Proof::Password {
+            name: request.name,
+            password: request.password,
+        };
         let device = new_device(request.device_name, &ctx)?;
-        let signed_in = self
-            .users
-            .sign_in(&request.name, &request.password, device)
-            .await?;
-        self.sign_in_limits.succeeded(&attempt);
+        let signed_in = self.sign_in.sign_in(proof, device, Instant::now()).await?;
         Ok(hand_out_session(
             signed_in,
             wants_token,
@@ -788,7 +785,8 @@ impl SignInService for SignInServiceHandler {
     ) -> ServiceResult<ReauthenticateResponse> {
         let caller = caller(&ctx)?;
         let attempt = self
-            .sign_in_limits
+            .sign_in
+            .limits
             .admit(client_ip(&ctx)?, Some(&caller.user.name))?;
         let Some(Proof::Password(password)) = request.to_owned_message().proof else {
             return Err(refuse(
@@ -801,7 +799,7 @@ impl SignInService for SignInServiceHandler {
         let reauthenticated = self.users.reauthenticate(caller, &password).await;
         // The Device is only found signed out after the password checked out, so that is no guess.
         if matches!(reauthenticated, Ok(()) | Err(users::Error::SignedOut)) {
-            self.sign_in_limits.succeeded(&attempt);
+            self.sign_in.limits.succeeded(&attempt);
         }
         reauthenticated?;
         Response::ok(ReauthenticateResponse::default())
@@ -2275,18 +2273,10 @@ fn wants_token(delivery: EnumValue<SessionDelivery>) -> Result<bool, ConnectErro
     }
 }
 
-/// The name a signing-in Device gave, or, when it gave none, one made from its `User-Agent`.
-fn device_name(given: String, headers: &HeaderMap) -> String {
-    if !given.trim().is_empty() {
-        return given;
-    }
-    crate::device_names::from_user_agent(user_agent(headers).as_deref())
-}
-
-/// The Device that signs in with the request `ctx`, under the name [`device_name`] makes of `given`.
-fn new_device(given: String, ctx: &RequestContext) -> Result<NewDevice, ConnectError> {
+/// The Device that signs in with the request `ctx`, under the name it gave, which may be blank.
+fn new_device(name: String, ctx: &RequestContext) -> Result<NewDevice, ConnectError> {
     Ok(NewDevice {
-        name: device_name(given, ctx.headers()),
+        name,
         ip_address: client_ip(ctx)?,
         user_agent: user_agent(ctx.headers()),
     })
@@ -3553,6 +3543,16 @@ impl From<Blocked> for ConnectError {
             .param("retryAfterSeconds", &retry_after_secs),
         )
         .with_headers(headers)
+    }
+}
+
+/// The Connect error a client gets for a sign-in attempt that was refused or failed.
+impl From<sign_in::Error> for ConnectError {
+    fn from(err: sign_in::Error) -> Self {
+        match err {
+            sign_in::Error::Blocked(blocked) => blocked.into(),
+            sign_in::Error::Users(err) => err.into(),
+        }
     }
 }
 

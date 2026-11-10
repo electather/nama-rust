@@ -530,24 +530,15 @@ impl Users {
         .await
     }
 
-    /// Signs `device` in as the User named `name`, ignoring case, if `password` is theirs.
-    ///
-    /// # Errors
-    ///
-    /// If the Device name is invalid, the name or password is wrong, the Authenticator fails, or
-    /// the database fails.
-    pub async fn sign_in(
-        &self,
-        name: &str,
-        password: &str,
-        device: NewDevice,
-    ) -> Result<SignedIn, Error> {
-        let device = device.checked()?;
+    /// The User named `name`, ignoring case, and the id of their password Sign-in Method, if
+    /// `password` is theirs. An unknown name takes as long as a wrong password, and is refused the
+    /// same way.
+    pub(crate) async fn verify(&self, name: &str, password: &str) -> Result<(User, i64), Error> {
         let found = self.user_named(name).await?;
         let stored = found.as_ref().and_then(|(_, stored)| stored.as_ref());
         let method = self.verify_password(&Arc::from(password), stored).await?;
         match (found, method) {
-            (Some((user, _)), Some(method)) => self.sign_in_as(user, Some(method), device).await,
+            (Some((user, _)), Some(method)) => Ok((user, method)),
             _ => Err(Error::WrongNameOrPassword),
         }
     }
@@ -1593,6 +1584,15 @@ mod tests {
         }
     }
 
+    /// Signs [`laptop`] in as the User named `name`, whose password is [`PASSWORD`].
+    async fn sign_in_with_password(users: &Users, name: &str) -> SignedIn {
+        let (user, method) = users.verify(name, PASSWORD).await.unwrap();
+        users
+            .sign_in_as(user, Some(method), laptop())
+            .await
+            .unwrap()
+    }
+
     /// How the Device `device` signed in: the name of its Sign-in Method, its IP address and user
     /// agent, and when it last proved who it is.
     async fn sign_in_details(
@@ -1683,7 +1683,7 @@ mod tests {
         users.create(&admin(), "Ada", PASSWORD).await.unwrap();
         let before = now();
 
-        let signed_in = users.sign_in("ada", PASSWORD, laptop()).await.unwrap();
+        let signed_in = sign_in_with_password(&users, "ada").await;
 
         let (method, ip, user_agent, authenticated_at) =
             sign_in_details(&users, signed_in.caller.device.id).await;
@@ -1729,7 +1729,7 @@ mod tests {
         let users = users_with_local_auth(data_dir.path()).await;
         let ada = users.create(&admin(), "Ada", PASSWORD).await.unwrap();
         add_other_sign_in_method(&users, ada).await;
-        let by_password = users.sign_in("Ada", PASSWORD, laptop()).await.unwrap();
+        let by_password = sign_in_with_password(&users, "Ada").await;
         let by_code = users
             .sign_in_as(by_password.caller.user.clone(), None, laptop())
             .await
@@ -1767,7 +1767,7 @@ mod tests {
 
         users.reset_password(&admin(), ada, PASSWORD).await.unwrap();
 
-        users.sign_in("Ada", PASSWORD, laptop()).await.unwrap();
+        users.verify("Ada", PASSWORD).await.unwrap();
         let password = password_method(&users, ada).await;
         // Refused if it were Ada's last Sign-in Method.
         delete_sign_in_method(&users, password).await.unwrap();
