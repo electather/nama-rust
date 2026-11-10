@@ -1,0 +1,117 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id AS \"id!\", state, fulfiller_reference IS NOT NULL AS \"handed_off!: bool\",\n                  quality_id, quality_name, quality_profile_id,\n                  quality_used_id, quality_used_name, quality_used_profile_id\n           FROM requests WHERE tmdb_id = ? AND season IS NOT NULL\n           ORDER BY created_at, id",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "requests",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "state",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "requests",
+            "name": "state"
+          }
+        }
+      },
+      {
+        "name": "handed_off!: bool",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": "Expression"
+      },
+      {
+        "name": "quality_id",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "requests",
+            "name": "quality_id"
+          }
+        }
+      },
+      {
+        "name": "quality_name",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "requests",
+            "name": "quality_name"
+          }
+        }
+      },
+      {
+        "name": "quality_profile_id",
+        "ordinal": 5,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "requests",
+            "name": "quality_profile_id"
+          }
+        }
+      },
+      {
+        "name": "quality_used_id",
+        "ordinal": 6,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "requests",
+            "name": "quality_used_id"
+          }
+        }
+      },
+      {
+        "name": "quality_used_name",
+        "ordinal": 7,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "requests",
+            "name": "quality_used_name"
+          }
+        }
+      },
+      {
+        "name": "quality_used_profile_id",
+        "ordinal": 8,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "requests",
+            "name": "quality_used_profile_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "d70308f33259ffb91e688a1686b98a27de01d33fadcc453893aa9842a8bd9485"
+}

@@ -49,37 +49,37 @@ use nama_proto::nama::v1::{
     DeclineRequestRequest, DeclineRequestResponse, DeleteLibraryRequest, DeleteLibraryResponse,
     DeletePluginConnectionRequest, DeletePluginConnectionResponse, DeleteUserRequest,
     DeleteUserResponse, DisablePluginRequest, DisablePluginResponse, EnablePluginRequest,
-    EnablePluginResponse, EventService, EventType, GetDefaultPermissionsRequest,
+    EnablePluginResponse, EventService, EventType, FoundProgram, GetDefaultPermissionsRequest,
     GetDefaultPermissionsResponse, GetLibraryRequest, GetLibraryResponse, GetMovieRequest,
-    GetMovieResponse, GetPluginRequest, GetPluginResponse, GetRequestRequest, GetRequestResponse,
-    GetServerInfoRequest, GetServerInfoResponse, GetServerSettingsRequest,
-    GetServerSettingsResponse, GetShowRequest, GetShowResponse, LibraryKind, LibraryService,
-    ListContinueWatchingRequest, ListContinueWatchingResponse, ListDevicesRequest,
-    ListDevicesResponse, ListEpisodesRequest, ListEpisodesResponse, ListLibrariesRequest,
-    ListLibrariesResponse, ListMoviesRequest, ListMoviesResponse, ListPluginConnectionsRequest,
-    ListPluginConnectionsResponse, ListPluginsRequest, ListPluginsResponse, ListRequestsRequest,
-    ListRequestsResponse, ListShowsRequest, ListShowsResponse, ListUnmatchedItemsRequest,
-    ListUnmatchedItemsResponse, ListUsersRequest, ListUsersResponse, LookUpMovieRequest,
-    LookUpMovieResponse, LookUpShowRequest, LookUpShowResponse, LookUpSignInCodeRequest,
-    LookUpSignInCodeResponse, MatchService, Permission, PluginConnection, PluginConnectionState,
-    PluginKind, PluginService, PollSignInCodeRequest, PollSignInCodeResponse,
-    ReauthenticateRequest, ReauthenticateResponse, Refusal, RefusalReason, ReportProgressRequest,
-    ReportProgressResponse, RequestService, RequestState, ResetPasswordRequest,
-    ResetPasswordResponse, RetryRequestRequest, RetryRequestResponse, RevokeDeviceRequest,
-    RevokeDeviceResponse, ScanLibraryRequest, ScanLibraryResponse, SearchMetadataRequest,
-    SearchMetadataResponse, SearchMoviesRequest, SearchMoviesResponse, SearchShowsRequest,
-    SearchShowsResponse, ServerService, ServerSettings, SessionDelivery,
-    SetDefaultPermissionsRequest, SetDefaultPermissionsResponse, SetMatchRequest, SetMatchResponse,
-    SetPermissionsRequest, SetPermissionsResponse, SetPlayedRequest, SetPlayedResponse,
-    SetupRequest, SetupResponse, SignInCodeStatus, SignInRequest, SignInResponse, SignInService,
-    SignOutRequest, SignOutResponse, StartPluginConnectionRequest, StartPluginConnectionResponse,
-    StartSignInCodeRequest, StartSignInCodeResponse, SubscribeRequest, SubscribeResponse,
-    TestPluginSettingsRequest, TestPluginSettingsResponse, UpdateLibraryRequest,
-    UpdateLibraryResponse, UpdatePluginSettingsRequest, UpdatePluginSettingsResponse,
-    UpdateServerSettingsRequest, UpdateServerSettingsResponse, UserService, WatchStateService,
-    WhoAmIRequest, WhoAmIResponse, WithdrawFollowedShowRequest, WithdrawFollowedShowResponse,
-    WithdrawRequestRequest, WithdrawRequestResponse, external_id, reauthenticate_request::Proof,
-    set_played_request::Target, setting_value,
+    GetMovieResponse, GetPlaybackStatusRequest, GetPlaybackStatusResponse, GetPluginRequest,
+    GetPluginResponse, GetRequestRequest, GetRequestResponse, GetServerInfoRequest,
+    GetServerInfoResponse, GetServerSettingsRequest, GetServerSettingsResponse, GetShowRequest,
+    GetShowResponse, LibraryKind, LibraryService, ListContinueWatchingRequest,
+    ListContinueWatchingResponse, ListDevicesRequest, ListDevicesResponse, ListEpisodesRequest,
+    ListEpisodesResponse, ListLibrariesRequest, ListLibrariesResponse, ListMoviesRequest,
+    ListMoviesResponse, ListPluginConnectionsRequest, ListPluginConnectionsResponse,
+    ListPluginsRequest, ListPluginsResponse, ListRequestsRequest, ListRequestsResponse,
+    ListShowsRequest, ListShowsResponse, ListUnmatchedItemsRequest, ListUnmatchedItemsResponse,
+    ListUsersRequest, ListUsersResponse, LookUpMovieRequest, LookUpMovieResponse,
+    LookUpShowRequest, LookUpShowResponse, LookUpSignInCodeRequest, LookUpSignInCodeResponse,
+    MatchService, Permission, PluginConnection, PluginConnectionState, PluginKind, PluginService,
+    PollSignInCodeRequest, PollSignInCodeResponse, ReauthenticateRequest, ReauthenticateResponse,
+    Refusal, RefusalReason, ReportProgressRequest, ReportProgressResponse, RequestService,
+    RequestState, ResetPasswordRequest, ResetPasswordResponse, RetryRequestRequest,
+    RetryRequestResponse, RevokeDeviceRequest, RevokeDeviceResponse, ScanLibraryRequest,
+    ScanLibraryResponse, SearchMetadataRequest, SearchMetadataResponse, SearchMoviesRequest,
+    SearchMoviesResponse, SearchShowsRequest, SearchShowsResponse, ServerService, ServerSettings,
+    SessionDelivery, SetDefaultPermissionsRequest, SetDefaultPermissionsResponse, SetMatchRequest,
+    SetMatchResponse, SetPermissionsRequest, SetPermissionsResponse, SetPlayedRequest,
+    SetPlayedResponse, SetupRequest, SetupResponse, SignInCodeStatus, SignInRequest,
+    SignInResponse, SignInService, SignOutRequest, SignOutResponse, StartPluginConnectionRequest,
+    StartPluginConnectionResponse, StartSignInCodeRequest, StartSignInCodeResponse,
+    SubscribeRequest, SubscribeResponse, TestPluginSettingsRequest, TestPluginSettingsResponse,
+    UpdateLibraryRequest, UpdateLibraryResponse, UpdatePluginSettingsRequest,
+    UpdatePluginSettingsResponse, UpdateServerSettingsRequest, UpdateServerSettingsResponse,
+    UserService, WatchStateService, WhoAmIRequest, WhoAmIResponse, WithdrawFollowedShowRequest,
+    WithdrawFollowedShowResponse, WithdrawRequestRequest, WithdrawRequestResponse, external_id,
+    reauthenticate_request::Proof, set_played_request::Target, setting_value,
 };
 
 use crate::{
@@ -90,6 +90,7 @@ use crate::{
     contents::{Contents, Episode, Item, MatchedTo, Metadata, Movie, Show, Unmatched, Version},
     db::{Database, now},
     events::{EventBus, Filter},
+    ffmpeg::{self, Ffmpeg},
     forwarded::{RequestSource, identify_source},
     libraries::{self, FolderProblem, Kind, Libraries, Library},
     matching::{ManualError, Matcher},
@@ -124,6 +125,7 @@ pub(crate) fn router(
     requests: Requests,
     server_url: ServerUrl,
     setup_code: Option<SetupCode>,
+    ffmpeg: Ffmpeg,
 ) -> (axum::Router, impl Future<Output = ()> + Send + 'static) {
     let changing = Arc::default();
     let saving_crashed = save_crashed(
@@ -145,6 +147,7 @@ pub(crate) fn router(
             users: users.clone(),
             db: Arc::clone(&db),
             server_url,
+            ffmpeg,
         }))
         .add_service(Arc::new(SignInServiceHandler {
             users: users.clone(),
@@ -217,6 +220,9 @@ const MANAGE_LIBRARIES: Access = Access::Needs(Permission::ManageLibraries);
 /// Managing Users and their Devices.
 const MANAGE_USERS: Access = Access::Needs(Permission::ManageUsers);
 
+/// What only an Admin may do.
+const ADMIN: Access = Access::Needs(Permission::Admin);
+
 /// Managing the Server's settings, such as its Plugins.
 const MANAGE_SETTINGS: Access = Access::Needs(Permission::ManageSettings);
 
@@ -237,6 +243,7 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::SERVER_SERVICE_GET_SERVER_INFO_SPEC.procedure,        Access::Anyone),
     (proto::SERVER_SERVICE_GET_SERVER_SETTINGS_SPEC.procedure,    MANAGE_SETTINGS),
     (proto::SERVER_SERVICE_UPDATE_SERVER_SETTINGS_SPEC.procedure, MANAGE_SETTINGS),
+    (proto::SERVER_SERVICE_GET_PLAYBACK_STATUS_SPEC.procedure,    ADMIN),
     (proto::SIGN_IN_SERVICE_SETUP_SPEC.procedure,                 Access::Anyone),
     (proto::SIGN_IN_SERVICE_SIGN_IN_SPEC.procedure,               Access::Anyone),
     (proto::SIGN_IN_SERVICE_SIGN_OUT_SPEC.procedure,              Access::SignedIn),
@@ -404,12 +411,13 @@ fn unlisted(path: &str) -> ConnectError {
         .with_http_status(StatusCode::NOT_FOUND)
 }
 
-/// `nama.v1.ServerService`: facts about this Server that any client can read.
+/// `nama.v1.ServerService`: facts about this Server, its settings, and the ffmpeg it found.
 struct ServerServiceHandler {
     name: String,
     users: Users,
     db: Arc<Database>,
     server_url: ServerUrl,
+    ffmpeg: Ffmpeg,
 }
 
 #[expect(
@@ -468,6 +476,27 @@ impl ServerService for ServerServiceHandler {
             settings: self.server_settings().into(),
             ..Default::default()
         })
+    }
+
+    fn get_playback_status<'a>(
+        &'a self,
+        _ctx: RequestContext,
+        _request: ServiceRequest<'_, GetPlaybackStatusRequest>,
+    ) -> impl Future<
+        Output = ServiceResult<impl Encodable<GetPlaybackStatusResponse> + Send + use<'a>>,
+    > + Send {
+        let found = |program: &Option<ffmpeg::FoundProgram>| {
+            program.as_ref().map(|program| FoundProgram {
+                path: program.path.display().to_string(),
+                version: program.version.clone(),
+                ..Default::default()
+            })
+        };
+        future::ready(Response::ok(GetPlaybackStatusResponse {
+            ffmpeg: found(&self.ffmpeg.ffmpeg).into(),
+            ffprobe: found(&self.ffmpeg.ffprobe).into(),
+            ..Default::default()
+        }))
     }
 }
 
@@ -2621,10 +2650,19 @@ impl PluginService for PluginServiceHandler {
     ) -> ServiceResult<proto::ReplaceQualitiesResponse> {
         let request = request.to_owned_message();
         let plugin = self.listed(&PluginId::from(request.id))?;
-        qualities::check(&request.qualities)?;
-        if !request.qualities.is_empty() {
-            self.check_profiles(&plugin, &request.qualities).await?;
-        }
+        // Only a list with Qualities asks the settings check, so a Fulfiller that's down can still
+        // have its list cleared.
+        let offered = if request.qualities.is_empty() {
+            settings::Choices::new()
+        } else {
+            let stored = self.stored(&plugin).await?;
+            self.plugins
+                .check_settings(&plugin.id, Settings::new(stored.settings))
+                .await
+                .map_err(|err| check_refused(&plugin.id, err, None))?
+        };
+        qualities::check(&request.qualities, &offered)
+            .map_err(|err| invalid_qualities(err, &plugin.id))?;
         let qualities = qualities::replace(&self.db, plugin.id, request.qualities)
             .await
             .map_err(database_failed)?;
@@ -2697,43 +2735,6 @@ impl PluginServiceHandler {
             }
         }
         Ok(())
-    }
-
-    /// Refuses `qualities` unless `plugin`'s settings check, run on its stored settings, offers
-    /// each one's profile for its `quality_profile` setting.
-    async fn check_profiles(
-        &self,
-        plugin: &Listed,
-        qualities: &[proto::Quality],
-    ) -> Result<(), ConnectError> {
-        let stored = self.stored(plugin).await?;
-        let offered = self
-            .plugins
-            .check_settings(&plugin.id, Settings::new(stored.settings))
-            .await
-            .map_err(|err| check_refused(&plugin.id, err, None))?;
-        let profiles = offered
-            .get(qualities::QUALITY_PROFILE)
-            .map(Vec::as_slice)
-            .unwrap_or_default();
-        let not_offered = qualities.iter().enumerate().find(|(_, quality)| {
-            !profiles
-                .iter()
-                .any(|profile| profile.value == quality.profile_id)
-        });
-        let Some((index, quality)) = not_offered else {
-            return Ok(());
-        };
-        let profile = &quality.profile_id;
-        let message = format!("{} doesn't offer the quality profile {profile}", plugin.id);
-        Err(
-            refuse(RefusalReason::REFUSAL_REASON_CHOICE_NOT_OFFERED, message)
-                .field(&format!("qualities[{index}].{}", qualities::PROFILE))
-                .param("pluginId", &plugin.id)
-                .param("settingKey", &qualities::QUALITY_PROFILE)
-                .param("settingValue", profile)
-                .into(),
-        )
     }
 
     /// What is stored for `plugin`. For one never stored, no settings, and enabled only if it is
@@ -3083,7 +3084,8 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_QUALITY_REPEATED
         | R::REFUSAL_REASON_DEFAULT_QUALITY_REQUIRED
         | R::REFUSAL_REASON_QUALITY_NOT_OFFERED
-        | R::REFUSAL_REASON_PAGE_TOKEN_INVALID => ErrorCode::InvalidArgument,
+        | R::REFUSAL_REASON_PAGE_TOKEN_INVALID
+        | R::REFUSAL_REASON_SHOW_HAS_QUALITY => ErrorCode::InvalidArgument,
         R::REFUSAL_REASON_SIGN_IN_REQUIRED
         | R::REFUSAL_REASON_WRONG_NAME_OR_PASSWORD
         | R::REFUSAL_REASON_WRONG_PASSWORD
@@ -3187,27 +3189,74 @@ fn database_failed(err: sqlx::Error) -> ConnectError {
     ConnectError::internal("the Server's database failed")
 }
 
-/// The refusal of a list of Qualities that breaks a list rule, naming the field at fault.
-impl From<qualities::Invalid> for ConnectError {
-    fn from(err: qualities::Invalid) -> Self {
+/// The refusal of a list of Qualities for the Plugin `plugin` that breaks a list rule, naming the
+/// field at fault.
+fn invalid_qualities(err: qualities::Invalid, plugin: &PluginId) -> ConnectError {
+    use RefusalReason as R;
+    let message = err.to_string();
+    let (reason, field) = match err {
+        qualities::Invalid::Blank(index, part) => (
+            R::REFUSAL_REASON_FIELD_REQUIRED,
+            format!("qualities[{index}].{part}"),
+        ),
+        qualities::Invalid::Repeated(index, part) => (
+            R::REFUSAL_REASON_QUALITY_REPEATED,
+            format!("qualities[{index}].{part}"),
+        ),
+        qualities::Invalid::NotOneDefault => (
+            R::REFUSAL_REASON_DEFAULT_QUALITY_REQUIRED,
+            "qualities".to_owned(),
+        ),
+        qualities::Invalid::ProfileNotOffered(index, profile) => {
+            let field = format!("qualities[{index}].{}", qualities::PROFILE);
+            return refuse(R::REFUSAL_REASON_CHOICE_NOT_OFFERED, message)
+                .field(&field)
+                .param("pluginId", plugin)
+                .param("settingKey", &qualities::QUALITY_PROFILE)
+                .param("settingValue", &profile)
+                .into();
+        }
+    };
+    refuse(reason, message).field(&field).into()
+}
+
+/// The refusal of a Quality a User named, in the field they named it in.
+impl From<qualities::Refused> for ConnectError {
+    fn from(err: qualities::Refused) -> Self {
         use RefusalReason as R;
         let message = err.to_string();
-        let (reason, field) = match err {
-            qualities::Invalid::Blank(index, part) => (
-                R::REFUSAL_REASON_FIELD_REQUIRED,
-                format!("qualities[{index}].{part}"),
-            ),
-            qualities::Invalid::Repeated(index, part) => (
-                R::REFUSAL_REASON_QUALITY_REPEATED,
-                format!("qualities[{index}].{part}"),
-            ),
-            qualities::Invalid::NotOneDefault => (
-                R::REFUSAL_REASON_DEFAULT_QUALITY_REQUIRED,
-                "qualities".to_owned(),
-            ),
+        let refused = match err {
+            qualities::Refused::NotAllowed => {
+                refuse(R::REFUSAL_REASON_QUALITY_NOT_ALLOWED, message).field(qualities::ASKED)
+            }
+            qualities::Refused::NotOffered { id, field } => {
+                refuse(R::REFUSAL_REASON_QUALITY_NOT_OFFERED, message)
+                    .field(field)
+                    .param("qualityId", &id)
+            }
+            qualities::Refused::NotTheShows { named, shows } => {
+                show_has_quality(message, qualities::ASKED, named, &shows)
+            }
+            qualities::Refused::ShowQualityFixed { named, shows } => {
+                show_has_quality(message, qualities::CHANGED, named, &shows)
+            }
         };
-        refuse(reason, message).field(&field).into()
+        refused.into()
     }
+}
+
+/// The refusal of the Quality `named` in `field`, as it isn't the Show's, `shows`.
+fn show_has_quality(
+    message: String,
+    field: &str,
+    named: i64,
+    shows: &proto::RequestedQuality,
+) -> Refused {
+    refuse(RefusalReason::REFUSAL_REASON_SHOW_HAS_QUALITY, message)
+        .field(field)
+        .param("qualityId", &named)
+        .param("showQualityId", &shows.id)
+        .param("showQualityName", &shows.name)
 }
 
 /// The Connect error a client gets for a change to the Users that failed. Server-side failures
@@ -3280,11 +3329,6 @@ impl From<requests::Error> for ConnectError {
             requests::Error::NotFailed(id) => refuse(R::REFUSAL_REASON_REQUEST_NOT_FAILED, message)
                 .field("id")
                 .param("requestId", &id),
-            requests::Error::NewQualityNotOffered(id) => {
-                refuse(R::REFUSAL_REASON_QUALITY_NOT_OFFERED, message)
-                    .field("quality_id")
-                    .param("qualityId", &id)
-            }
             requests::Error::NotARequester(id) => {
                 refuse(R::REFUSAL_REASON_NOT_A_REQUESTER, message)
                     .field("id")
@@ -3327,17 +3371,7 @@ impl From<requests::Error> for ConnectError {
                     .param("seasonNumber", &season)
             }
             requests::Error::Unavailable => refuse(R::REFUSAL_REASON_NO_METADATA_PROVIDER, message),
-            // Each RPC that opens a Request names a Quality the caller may not choose in `quality`.
-            requests::Error::QualityNotAllowed => {
-                refuse(R::REFUSAL_REASON_QUALITY_NOT_ALLOWED, message).field("quality")
-            }
-            // `CreateRequest`, `CreateSeasonRequests`, `CreateFollowedShow` and `SetDefaultQuality`
-            // all name it in `quality`.
-            requests::Error::QualityNotOffered(id) | requests::Error::NotTheShowsQuality(id) => {
-                refuse(R::REFUSAL_REASON_QUALITY_NOT_OFFERED, message)
-                    .field("quality")
-                    .param("qualityId", &id)
-            }
+            requests::Error::Quality(refused) => return refused.into(),
             requests::Error::PageTokenInvalid => {
                 refuse(R::REFUSAL_REASON_PAGE_TOKEN_INVALID, message).field("page_token")
             }

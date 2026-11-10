@@ -8,6 +8,7 @@ use nama_proto::nama::v1::{SessionDelivery, SetupRequest, SignInServiceClient};
 use nama_server::{
     config::Config,
     db::Database,
+    ffmpeg::Ffmpeg,
     plugins::{EnableError, Registry},
     users::SetupCode,
 };
@@ -35,11 +36,21 @@ impl TestServer {
 
     /// Like [`TestServer::start`], also returning the Server's database, for a test that reads or
     /// changes what the API can't.
+    pub(crate) async fn start_with_db(config: Config, plugins: Registry) -> (Self, Arc<Database>) {
+        Self::start_with_ffmpeg(config, plugins, Ffmpeg::default()).await
+    }
+
+    /// Like [`TestServer::start_with_db`], with `ffmpeg` as what the Server found at startup
+    /// instead of nothing.
     #[expect(
         clippy::unwrap_used,
         reason = "a test helper fails its test by panicking"
     )]
-    pub(crate) async fn start_with_db(config: Config, plugins: Registry) -> (Self, Arc<Database>) {
+    pub(crate) async fn start_with_ffmpeg(
+        config: Config,
+        plugins: Registry,
+        ffmpeg: Ffmpeg,
+    ) -> (Self, Arc<Database>) {
         let enabled = plugins.enable(Arc::new(LocalAuth));
         // Already enabled such as by `Registry::with_builtins`.
         assert!(
@@ -62,6 +73,7 @@ impl TestServer {
             Arc::clone(&db),
             plugins,
             Some(setup_code.clone()),
+            ffmpeg,
             async {
                 let _: Result<(), oneshot::error::RecvError> = stopped.await;
             },

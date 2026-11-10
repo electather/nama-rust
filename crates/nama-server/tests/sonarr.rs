@@ -800,7 +800,7 @@ async fn a_later_season_request_takes_the_shows_quality_and_refuses_another() {
     let refusal = assert_refused(
         other,
         ErrorCode::InvalidArgument,
-        RefusalReason::REFUSAL_REASON_QUALITY_NOT_OFFERED,
+        RefusalReason::REFUSAL_REASON_SHOW_HAS_QUALITY,
     );
     assert_eq!(refusal.field, "quality");
 }
@@ -876,7 +876,7 @@ async fn once_a_season_was_handed_off_approving_a_later_one_at_another_quality_i
     let refusal = assert_refused(
         refused,
         ErrorCode::InvalidArgument,
-        RefusalReason::REFUSAL_REASON_QUALITY_NOT_OFFERED,
+        RefusalReason::REFUSAL_REASON_SHOW_HAS_QUALITY,
     );
     assert_eq!(refusal.field, "quality_id");
     assert_eq!(same.unwrap().state, RequestState::Processing);
@@ -1063,7 +1063,7 @@ async fn following_a_show_with_a_quality_takes_it_and_refuses_another() {
     let refusal = assert_refused(
         other,
         ErrorCode::InvalidArgument,
-        RefusalReason::REFUSAL_REASON_QUALITY_NOT_OFFERED,
+        RefusalReason::REFUSAL_REASON_SHOW_HAS_QUALITY,
     );
     assert_eq!(refusal.field, "quality");
     assert_eq!(
@@ -1091,7 +1091,7 @@ async fn once_a_season_was_handed_off_approving_a_followed_show_at_another_quali
     let refusal = assert_refused(
         refused,
         ErrorCode::InvalidArgument,
-        RefusalReason::REFUSAL_REASON_QUALITY_NOT_OFFERED,
+        RefusalReason::REFUSAL_REASON_SHOW_HAS_QUALITY,
     );
     assert_eq!(refusal.field, "quality_id");
     assert_eq!(same.unwrap().state, RequestState::Approved);
