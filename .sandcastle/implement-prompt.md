@@ -24,7 +24,14 @@ Factory rules on top of the skill:
 
 - Read `AGENTS.md` first. Use `GLOSSARY.md` vocabulary and respect `docs/adr/`.
 - Parent issue: {{PARENT}}. If there is one, read it (`gh issue view`) for the overall picture and its Decisions, but build only this ticket's acceptance criteria. Its sibling sub-issues own the rest of the parent's scope; don't do their work.
+- Scope is this ticket's acceptance criteria. Anything else you find is parked (below).
 - "Typechecking" and "tests" mean the Check section of each area skill the ticket touches, plus anything the issue's acceptance criteria name (for example `buf lint`).
 - Use conventional commit messages that reference `#{{ISSUE_NUMBER}}`. Do not push, open a PR, or close or relabel the issue: the factory does that.
 - If you can't finish (missing info, the spec contradicts an ADR, you're blocked outside the repo), commit what is solid and output `<blocked>one-line reason</blocked>`.
 - When every acceptance criterion is met and the checks pass, output <promise>COMPLETE</promise>.
+
+Park what you find outside the ticket:
+
+<skill name="park">
+!`cat .sandcastle/park.md`
+</skill>

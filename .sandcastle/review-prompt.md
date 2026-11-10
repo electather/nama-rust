@@ -14,6 +14,8 @@ Use the `code-review` skill with fixed point `origin/main`. The spec is issue #{
 
 Fix every hard finding and every Spec gap yourself, on this branch. Fix judgement-call smells only when the fix is clearly better. Don't add scope the issue didn't ask for.
 
+Findings in code this branch doesn't touch are parked (below).
+
 Then run the Check section of each area skill the diff touches, and `web-app`'s Look section if the fixes changed a screen.
 
 Commit the fixes (`refactor:` / `fix:` referencing `#{{ISSUE_NUMBER}}`). Do not push.
@@ -31,3 +33,9 @@ Once the branch meets the spec and every check passes, write the pull request bo
 Use the real output of the checks you just ran as the Evidence. Output the body wrapped in a `pr-body` XML tag (opening and closing). Leave out `Closes #{{ISSUE_NUMBER}}` and any `Part of` line: the factory adds them.
 
 Then output <promise>COMPLETE</promise>.
+
+# PARK
+
+<skill name="park">
+!`cat .sandcastle/park.md`
+</skill>
