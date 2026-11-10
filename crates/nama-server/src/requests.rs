@@ -2764,7 +2764,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_plugin_coming_up_without_a_fulfiller_hands_nothing_off() {
+    async fn a_plugin_that_provides_no_fulfiller_coming_up_hands_nothing_off() {
         let (_data, requests, gated) = approved_for_gated(&[949]).await;
 
         come_up(&requests, "tmdb").await;

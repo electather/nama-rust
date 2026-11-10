@@ -181,6 +181,8 @@ impl PluginSettings {
             }
             None => config.plugins.parse()?,
         };
+        // Unbounded: startup and `enable_again` send from sync code, and a dropped id would leave
+        // its Fulfiller's Requests waiting until it is enabled again.
         let (came_up, came_up_reader) = mpsc::unbounded_channel();
         let plugins = Self {
             db,

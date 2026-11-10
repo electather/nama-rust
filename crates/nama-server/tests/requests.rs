@@ -151,6 +151,23 @@ impl Fixture {
         Self::start_with(plugins).await
     }
 
+    /// A Fixture whose Movie Fulfiller `fulfiller` is a Built-in Plugin stored as disabled.
+    async fn with_fulfiller_disabled(fulfiller: &FakeFulfiller) -> Self {
+        let disabled = PluginConfig {
+            enabled: false,
+            settings: BTreeMap::new(),
+        };
+        let stored = BTreeMap::from([(MOVIE_FULFILLER.to_owned(), disabled)]);
+        let config = Figment::from(Serialized::defaults(Config::default()))
+            .merge(Serialized::default("plugins", stored))
+            .extract()
+            .unwrap();
+        let plugins = Registry::new();
+        let made = fulfiller.clone();
+        plugins.describe_builtin(move || Arc::new(FulfillerPlugin(made.clone())));
+        Self::start_with_config(plugins, config).await
+    }
+
     /// A Fixture with the Plugins enabled in `plugins` too.
     async fn start_with(plugins: Registry) -> Self {
         Self::start_with_config(plugins, Config::default()).await
@@ -233,9 +250,14 @@ impl Fixture {
 
     /// Enables the Built-in Plugin `test-choices`, as the Admin.
     async fn enable_test_choices(&self) -> Result<(), ConnectError> {
-        PluginServiceClient::new(HttpClient::plaintext(), self.server.client_config())
+        self.enable(test_choices::ID).await
+    }
+
+    /// Enables the Plugin `id`, as the Admin.
+    async fn enable(&self, id: &str) -> Result<(), ConnectError> {
+        self.plugin_service()
             .enable_plugin(EnablePluginRequest {
-                id: test_choices::ID.to_owned(),
+                id: id.to_owned(),
                 ..Default::default()
             })
             .await
@@ -1083,6 +1105,8 @@ struct FakeFulfiller {
     /// Each Season it was handed, in order.
     handed_seasons: Arc<Mutex<Vec<HandedSeason>>>,
     refuses: Arc<AtomicBool>,
+    /// Whether it never answers a hand-off.
+    stalls: Arc<AtomicBool>,
     /// Whether it refuses the hand-offs that ask it to follow a Show.
     refuses_following: Arc<AtomicBool>,
     /// The TMDB id of each Show it was told to stop following, in order.
@@ -1103,6 +1127,12 @@ impl FakeFulfiller {
     fn refusing() -> Self {
         let fulfiller = Self::default();
         fulfiller.refuses.store(true, Ordering::Relaxed);
+        fulfiller
+    }
+
+    fn stalling() -> Self {
+        let fulfiller = Self::default();
+        fulfiller.stalls.store(true, Ordering::Relaxed);
         fulfiller
     }
 
@@ -1193,8 +1223,12 @@ impl Fulfiller<Movies> for FakeFulfiller {
             .unwrap_or_else(PoisonError::into_inner)
             .push(tmdb_id);
         let refuses = self.refuses.load(Ordering::Relaxed);
+        let stalls = self.stalls.load(Ordering::Relaxed);
         let fulfilled = self.fulfilled(format!("movie-{tmdb_id}"));
         Box::pin(async move {
+            if stalls {
+                future::pending::<()>().await;
+            }
             if refuses {
                 return Err("Radarr is unreachable".into());
             }
@@ -1993,6 +2027,29 @@ async fn enabling_a_movie_fulfiller_hands_it_the_requests_approved_while_there_w
             (approved[0].id, RequestState::Processing)
         ]
     );
+}
+
+#[tokio::test]
+async fn enabling_a_movie_fulfiller_answers_without_waiting_for_it_to_take_the_waiting_requests() {
+    let fulfiller = FakeFulfiller::stalling();
+    let fixture = Fixture::with_fulfiller_disabled(&fulfiller).await;
+    let (_, as_ada) = fixture.user("Ada", &NEW_USER).await;
+    let pending = ask(&requests(as_ada), HEAT).await;
+    fixture.approve(pending.id).await;
+
+    tokio::time::timeout(WAIT, fixture.enable(MOVIE_FULFILLER))
+        .await
+        .expect("enabling waited for the Fulfiller to take the Request")
+        .unwrap();
+
+    tokio::time::timeout(WAIT, async {
+        while fulfiller.handed().is_empty() {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("the waiting Request never went to the Fulfiller");
+    assert_eq!(fulfiller.handed(), [HEAT]);
 }
 
 /// Ada's Request for Heat, approved while there was no Movie Fulfiller, once it has left Approved
