@@ -5,7 +5,7 @@
 //! Requests and to settle a Hand-off.
 
 use std::{
-    collections::{HashMap, HashSet, hash_map::Entry},
+    collections::{HashMap, hash_map::Entry},
     sync::{Arc, Mutex, MutexGuard, PoisonError},
     time::Duration,
 };
@@ -36,7 +36,8 @@ use crate::{
 /// (ADR 0012).
 pub(crate) const PROGRESS_EVERY: Duration = Duration::from_secs(60);
 
-/// Requests' way to the Fulfillers for Movies and for Shows, where they are enabled.
+/// Requests' way to the Fulfillers for Movies and for Shows, where they are enabled, which also
+/// publishes the changes its writes make.
 #[derive(Debug, Clone)]
 pub(super) struct HandOff {
     db: Arc<Database>,
@@ -63,6 +64,12 @@ impl HandOff {
             progress: Arc::default(),
             became_processing: Arc::default(),
         }
+    }
+
+    /// The bus it publishes on, for a test to subscribe to.
+    #[cfg(test)]
+    pub(super) const fn events(&self) -> &EventBus {
+        &self.events
     }
 
     /// The enabled Plugin providing the Fulfiller of `Kind`, if any.
@@ -107,27 +114,6 @@ impl HandOff {
                 }
             }
         }))
-    }
-
-    /// Each of `requests`, handed off first as [`Self::request`] does if it is Approved and its id
-    /// is in `to_hand_off`, as it is after that.
-    pub(super) async fn these(
-        &self,
-        requests: Vec<Request>,
-        to_hand_off: &HashSet<i64>,
-    ) -> Result<Vec<Request>, Error> {
-        let mut after_hand_off = Vec::with_capacity(requests.len());
-        // ponytail: one hand-off at a time, so a slow Fulfiller takes as long for each Season.
-        for request in requests {
-            let request =
-                if to_hand_off.contains(&request.id) && request.state == RequestState::Approved {
-                    self.request(request).await?
-                } else {
-                    request
-                };
-            after_hand_off.push(request);
-        }
-        Ok(after_hand_off)
     }
 
     /// [`Self::request`] for `request`, which no other hand-off has, as it is in the database now:
@@ -182,8 +168,12 @@ impl HandOff {
             value,
             events,
             hand_off,
+            unfollow,
         } = self.db.write(write).await?;
         self.events.publish(events);
+        if let Some(season) = unfollow {
+            self.unfollow(&season).await;
+        }
         let mut handed = Vec::with_capacity(hand_off.len());
         // ponytail: one Hand-off at a time, so a slow Fulfiller takes as long for each Season.
         for request in hand_off {
@@ -261,7 +251,7 @@ impl HandOff {
     /// Tells the Shows Fulfiller, if one is enabled, to stop following the Show of `season`, the
     /// Season Request of a Followed Show that ended. A failure is only logged: the Followed Show
     /// ended either way.
-    pub(super) async fn unfollow(&self, season: &Request) {
+    async fn unfollow(&self, season: &Request) {
         let unfollowed = self
             .plugins
             .call_provider_blanking_secrets::<dyn Fulfiller<Shows>, _, _>(|fulfiller| async move {
