@@ -12,7 +12,39 @@ import type { Message, UnknownEnum } from "@bufbuild/protobuf";
  * Describes the file nama/v1/playback.proto.
  */
 export const file_nama_v1_playback: GenFile = /*@__PURE__*/
-  fileDesc("ChZuYW1hL3YxL3BsYXliYWNrLnByb3RvEgduYW1hLnYxIrECChNQbGFuUGxheWJhY2tSZXF1ZXN0EhIKCnZlcnNpb25faWQYASABKAMSGQoRc3RhcnRfcG9zaXRpb25fbXMYAiABKAQSGAoLYXVkaW9fdHJhY2sYAyABKA1IAIgBARIbCg5zdWJ0aXRsZV90cmFjaxgEIAEoDUgBiAEBEi4KDnBsYXliYWNrX2xpbWl0GAUgASgOMhYubmFtYS52MS5QbGF5YmFja0xpbWl0EjAKD2RldmljZV9kZWNvZGluZxgGIAEoCzIXLm5hbWEudjEuRGV2aWNlRGVjb2RpbmcSLwoOZmFpbGVkX21ldGhvZHMYByADKA4yFy5uYW1hLnYxLlBsYXliYWNrTWV0aG9kQg4KDF9hdWRpb190cmFja0IRCg9fc3VidGl0bGVfdHJhY2sibQoORGV2aWNlRGVjb2RpbmcSFQoNY29udGVudF90eXBlcxgBIAMoCRILCgNoZHIYAiABKAgSEgoKbmF0aXZlX2hscxgDIAEoCBILCgNtc2UYBCABKAgSFgoOYXVkaW9fY2hhbm5lbHMYBSABKA0iOwoUUGxhblBsYXliYWNrUmVzcG9uc2USIwoEcGxhbhgBIAEoCzIVLm5hbWEudjEuUGxheWJhY2tQbGFuIqMBCgxQbGF5YmFja1BsYW4SJwoGbWV0aG9kGAEgASgOMhcubmFtYS52MS5QbGF5YmFja01ldGhvZBILCgN1cmwYAiABKAkSHgoGdHJhY2tzGAMgAygLMg4ubmFtYS52MS5UcmFjaxIPCgdyZWFzb25zGAQgAygJEiwKCXN1YnRpdGxlcxgFIAMoCzIZLm5hbWEudjEuUGxheWJhY2tTdWJ0aXRsZSI+ChBQbGF5YmFja1N1YnRpdGxlEh0KBXRyYWNrGAEgASgLMg4ubmFtYS52MS5UcmFjaxILCgN1cmwYAiABKAkqmAEKDVBsYXliYWNrTGltaXQSHgoaUExBWUJBQ0tfTElNSVRfVU5TUEVDSUZJRUQQABIbChdQTEFZQkFDS19MSU1JVF9PUklHSU5BTBABEhgKFFBMQVlCQUNLX0xJTUlUXzEwODBQEAISFwoTUExBWUJBQ0tfTElNSVRfNzIwUBADEhcKE1BMQVlCQUNLX0xJTUlUXzQ4MFAQBCqMAQoOUGxheWJhY2tNZXRob2QSHwobUExBWUJBQ0tfTUVUSE9EX1VOU1BFQ0lGSUVEEAASHwobUExBWUJBQ0tfTUVUSE9EX0RJUkVDVF9QTEFZEAESGQoVUExBWUJBQ0tfTUVUSE9EX1JFTVVYEAISHQoZUExBWUJBQ0tfTUVUSE9EX1RSQU5TQ09ERRADMmMKD1BsYXliYWNrU2VydmljZRJQCgxQbGFuUGxheWJhY2sSHC5uYW1hLnYxLlBsYW5QbGF5YmFja1JlcXVlc3QaHS5uYW1hLnYxLlBsYW5QbGF5YmFja1Jlc3BvbnNlIgOQAgJiBnByb3RvMw", [file_nama_v1_browse]);
+  fileDesc("ChZuYW1hL3YxL3BsYXliYWNrLnByb3RvEgduYW1hLnYxIiYKE1N0b3BQbGF5YmFja1JlcXVlc3QSDwoHcGxhbl9pZBgBIAEoBCIWChRTdG9wUGxheWJhY2tSZXNwb25zZSKxAgoTUGxhblBsYXliYWNrUmVxdWVzdBISCgp2ZXJzaW9uX2lkGAEgASgDEhkKEXN0YXJ0X3Bvc2l0aW9uX21zGAIgASgEEhgKC2F1ZGlvX3RyYWNrGAMgASgNSACIAQESGwoOc3VidGl0bGVfdHJhY2sYBCABKA1IAYgBARIuCg5wbGF5YmFja19saW1pdBgFIAEoDjIWLm5hbWEudjEuUGxheWJhY2tMaW1pdBIwCg9kZXZpY2VfZGVjb2RpbmcYBiABKAsyFy5uYW1hLnYxLkRldmljZURlY29kaW5nEi8KDmZhaWxlZF9tZXRob2RzGAcgAygOMhcubmFtYS52MS5QbGF5YmFja01ldGhvZEIOCgxfYXVkaW9fdHJhY2tCEQoPX3N1YnRpdGxlX3RyYWNrIm0KDkRldmljZURlY29kaW5nEhUKDWNvbnRlbnRfdHlwZXMYASADKAkSCwoDaGRyGAIgASgIEhIKCm5hdGl2ZV9obHMYAyABKAgSCwoDbXNlGAQgASgIEhYKDmF1ZGlvX2NoYW5uZWxzGAUgASgNIjsKFFBsYW5QbGF5YmFja1Jlc3BvbnNlEiMKBHBsYW4YASABKAsyFS5uYW1hLnYxLlBsYXliYWNrUGxhbiKvAQoMUGxheWJhY2tQbGFuEicKBm1ldGhvZBgBIAEoDjIXLm5hbWEudjEuUGxheWJhY2tNZXRob2QSCwoDdXJsGAIgASgJEh4KBnRyYWNrcxgDIAMoCzIOLm5hbWEudjEuVHJhY2sSDwoHcmVhc29ucxgEIAMoCRIsCglzdWJ0aXRsZXMYBSADKAsyGS5uYW1hLnYxLlBsYXliYWNrU3VidGl0bGUSCgoCaWQYBiABKAQiPgoQUGxheWJhY2tTdWJ0aXRsZRIdCgV0cmFjaxgBIAEoCzIOLm5hbWEudjEuVHJhY2sSCwoDdXJsGAIgASgJKpgBCg1QbGF5YmFja0xpbWl0Eh4KGlBMQVlCQUNLX0xJTUlUX1VOU1BFQ0lGSUVEEAASGwoXUExBWUJBQ0tfTElNSVRfT1JJR0lOQUwQARIYChRQTEFZQkFDS19MSU1JVF8xMDgwUBACEhcKE1BMQVlCQUNLX0xJTUlUXzcyMFAQAxIXChNQTEFZQkFDS19MSU1JVF80ODBQEAQqjAEKDlBsYXliYWNrTWV0aG9kEh8KG1BMQVlCQUNLX01FVEhPRF9VTlNQRUNJRklFRBAAEh8KG1BMQVlCQUNLX01FVEhPRF9ESVJFQ1RfUExBWRABEhkKFVBMQVlCQUNLX01FVEhPRF9SRU1VWBACEh0KGVBMQVlCQUNLX01FVEhPRF9UUkFOU0NPREUQAzK1AQoPUGxheWJhY2tTZXJ2aWNlElAKDFBsYW5QbGF5YmFjaxIcLm5hbWEudjEuUGxhblBsYXliYWNrUmVxdWVzdBodLm5hbWEudjEuUGxhblBsYXliYWNrUmVzcG9uc2UiA5ACAhJQCgxTdG9wUGxheWJhY2sSHC5uYW1hLnYxLlN0b3BQbGF5YmFja1JlcXVlc3QaHS5uYW1hLnYxLlN0b3BQbGF5YmFja1Jlc3BvbnNlIgOQAgJiBnByb3RvMw", [file_nama_v1_browse]);
+
+/**
+ * @generated from message nama.v1.StopPlaybackRequest
+ */
+export type StopPlaybackRequest = Message<"nama.v1.StopPlaybackRequest"> & {
+  /**
+   * The plan, as `PlaybackPlan.id` names it.
+   *
+   * @generated from field: uint64 plan_id = 1;
+   */
+  planId: bigint;
+};
+
+/**
+ * Describes the message nama.v1.StopPlaybackRequest.
+ * Use `create(StopPlaybackRequestSchema)` to create a new message.
+ */
+export const StopPlaybackRequestSchema: GenMessage<StopPlaybackRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_playback, 0);
+
+/**
+ * @generated from message nama.v1.StopPlaybackResponse
+ */
+export type StopPlaybackResponse = Message<"nama.v1.StopPlaybackResponse"> & {
+};
+
+/**
+ * Describes the message nama.v1.StopPlaybackResponse.
+ * Use `create(StopPlaybackResponseSchema)` to create a new message.
+ */
+export const StopPlaybackResponseSchema: GenMessage<StopPlaybackResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_playback, 1);
 
 /**
  * @generated from message nama.v1.PlanPlaybackRequest
@@ -75,7 +107,7 @@ export type PlanPlaybackRequest = Message<"nama.v1.PlanPlaybackRequest"> & {
  * Use `create(PlanPlaybackRequestSchema)` to create a new message.
  */
 export const PlanPlaybackRequestSchema: GenMessage<PlanPlaybackRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_playback, 0);
+  messageDesc(file_nama_v1_playback, 2);
 
 /**
  * What a Device can decode.
@@ -126,7 +158,7 @@ export type DeviceDecoding = Message<"nama.v1.DeviceDecoding"> & {
  * Use `create(DeviceDecodingSchema)` to create a new message.
  */
 export const DeviceDecodingSchema: GenMessage<DeviceDecoding> = /*@__PURE__*/
-  messageDesc(file_nama_v1_playback, 1);
+  messageDesc(file_nama_v1_playback, 3);
 
 /**
  * @generated from message nama.v1.PlanPlaybackResponse
@@ -143,7 +175,7 @@ export type PlanPlaybackResponse = Message<"nama.v1.PlanPlaybackResponse"> & {
  * Use `create(PlanPlaybackResponseSchema)` to create a new message.
  */
 export const PlanPlaybackResponseSchema: GenMessage<PlanPlaybackResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_playback, 2);
+  messageDesc(file_nama_v1_playback, 4);
 
 /**
  * How the Server will play one Version on one Device, and why.
@@ -188,6 +220,13 @@ export type PlaybackPlan = Message<"nama.v1.PlaybackPlan"> & {
    * @generated from field: repeated nama.v1.PlaybackSubtitle subtitles = 5;
    */
   subtitles: PlaybackSubtitle[];
+
+  /**
+   * Names it to `StopPlayback`. 0 when it can't be played.
+   *
+   * @generated from field: uint64 id = 6;
+   */
+  id: bigint;
 };
 
 /**
@@ -195,7 +234,7 @@ export type PlaybackPlan = Message<"nama.v1.PlaybackPlan"> & {
  * Use `create(PlaybackPlanSchema)` to create a new message.
  */
 export const PlaybackPlanSchema: GenMessage<PlaybackPlan> = /*@__PURE__*/
-  messageDesc(file_nama_v1_playback, 3);
+  messageDesc(file_nama_v1_playback, 5);
 
 /**
  * A text subtitle a player shows as a WebVTT `<track>`.
@@ -224,7 +263,7 @@ export type PlaybackSubtitle = Message<"nama.v1.PlaybackSubtitle"> & {
  * Use `create(PlaybackSubtitleSchema)` to create a new message.
  */
 export const PlaybackSubtitleSchema: GenMessage<PlaybackSubtitle> = /*@__PURE__*/
-  messageDesc(file_nama_v1_playback, 4);
+  messageDesc(file_nama_v1_playback, 6);
 
 /**
  * The most a User asks playback to send.
@@ -344,6 +383,18 @@ export const PlaybackService: GenService<{
     methodKind: "unary";
     input: typeof PlanPlaybackRequestSchema;
     output: typeof PlanPlaybackResponseSchema;
+  },
+  /**
+   * Stops a plan the caller's Device was given, as when its player closes or a new plan replaces
+   * it, so the Server stops any ffmpeg it runs and tells Observers its playback ended. A plan
+   * already stopped, or another Device's, is left alone.
+   *
+   * @generated from rpc nama.v1.PlaybackService.StopPlayback
+   */
+  stopPlayback: {
+    methodKind: "unary";
+    input: typeof StopPlaybackRequestSchema;
+    output: typeof StopPlaybackResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_nama_v1_playback, 0);

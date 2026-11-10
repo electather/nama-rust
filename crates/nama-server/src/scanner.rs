@@ -1269,7 +1269,6 @@ EOF"#,
         let plan = playback::plan(
             &media.scanner,
             &running,
-            &media.events,
             &caller,
             version,
             decoding,

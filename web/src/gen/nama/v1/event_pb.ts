@@ -755,9 +755,9 @@ export const PlaybackStartedSchema: GenMessage<PlaybackStarted> = /*@__PURE__*/
   messageDesc(file_nama_v1_event, 23);
 
 /**
- * A Remux or Transcode stopped: its player asked for none of its files for 60 seconds, as when it
- * stopped or its tab closed, or the Server shut down, which may end it before this is delivered.
- * A Direct Play runs nothing on the Server, so it has no end to tell.
+ * A plan that `PlaybackStarted` told of stopped: its player stopped it (`StopPlayback`), or went 60
+ * seconds without asking for it, as when its tab closed, or the Server shut down, which may end it
+ * before this is delivered.
  *
  * @generated from message nama.v1.PlaybackEnded
  */

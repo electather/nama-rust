@@ -104,6 +104,8 @@ pub mod __buffa {
         reg.register_json_any(super::__CONTINUE_WATCHING_ENTRY_JSON_ANY);
         reg.register_json_any(super::__LIST_CONTINUE_WATCHING_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_CONTINUE_WATCHING_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__STOP_PLAYBACK_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__STOP_PLAYBACK_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__PLAN_PLAYBACK_REQUEST_JSON_ANY);
         reg.register_json_any(super::__DEVICE_DECODING_JSON_ANY);
         reg.register_json_any(super::__PLAN_PLAYBACK_RESPONSE_JSON_ANY);
@@ -456,6 +458,14 @@ pub use self::__buffa::view::ListContinueWatchingRequestOwnedView;
 pub use self::__buffa::view::ListContinueWatchingResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::ListContinueWatchingResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::StopPlaybackRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::StopPlaybackRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::StopPlaybackResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::StopPlaybackResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::PlanPlaybackRequestView;
 #[doc(inline)]

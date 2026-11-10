@@ -75,13 +75,13 @@ use nama_proto::nama::v1::{
     SetPermissionsRequest, SetPermissionsResponse, SetPlayedRequest, SetPlayedResponse,
     SetupRequest, SetupResponse, SignInCodeStatus, SignInRequest, SignInResponse, SignInService,
     SignOutRequest, SignOutResponse, StartPluginConnectionRequest, StartPluginConnectionResponse,
-    StartSignInCodeRequest, StartSignInCodeResponse, SubscribeRequest, SubscribeResponse,
-    TestPluginSettingsRequest, TestPluginSettingsResponse, UpdateLibraryRequest,
-    UpdateLibraryResponse, UpdatePlaybackSettingsRequest, UpdatePlaybackSettingsResponse,
-    UpdatePluginSettingsRequest, UpdatePluginSettingsResponse, UpdateServerSettingsRequest,
-    UpdateServerSettingsResponse, UserService, WatchStateService, WhoAmIRequest, WhoAmIResponse,
-    WithdrawFollowedShowRequest, WithdrawFollowedShowResponse, WithdrawRequestRequest,
-    WithdrawRequestResponse, external_id, reauthenticate_request::Proof,
+    StartSignInCodeRequest, StartSignInCodeResponse, StopPlaybackRequest, StopPlaybackResponse,
+    SubscribeRequest, SubscribeResponse, TestPluginSettingsRequest, TestPluginSettingsResponse,
+    UpdateLibraryRequest, UpdateLibraryResponse, UpdatePlaybackSettingsRequest,
+    UpdatePlaybackSettingsResponse, UpdatePluginSettingsRequest, UpdatePluginSettingsResponse,
+    UpdateServerSettingsRequest, UpdateServerSettingsResponse, UserService, WatchStateService,
+    WhoAmIRequest, WhoAmIResponse, WithdrawFollowedShowRequest, WithdrawFollowedShowResponse,
+    WithdrawRequestRequest, WithdrawRequestResponse, external_id, reauthenticate_request::Proof,
     set_played_request::Target, setting_value,
 };
 
@@ -143,6 +143,7 @@ pub(crate) fn router(
     let artwork_router = artwork::router(artwork.clone(), contents.clone());
     let media = playback::router(
         contents,
+        running.clone(),
         Tracks::new(Arc::clone(&db)),
         Arc::clone(&ffmpeg),
         subtitles,
@@ -183,7 +184,6 @@ pub(crate) fn router(
         .add_service(Arc::new(PlaybackServiceHandler {
             scanner: scanner.clone(),
             running,
-            events: events.clone(),
         }))
         .add_service(Arc::new(RequestServiceHandler { requests, artwork }))
         .add_service(Arc::new(PluginServiceHandler { plugin_settings }))
@@ -279,6 +279,7 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::WATCH_STATE_SERVICE_REPORT_PROGRESS_SPEC.procedure,   Access::SignedIn),
     (proto::WATCH_STATE_SERVICE_SET_PLAYED_SPEC.procedure,        Access::SignedIn),
     (proto::PLAYBACK_SERVICE_PLAN_PLAYBACK_SPEC.procedure,        Access::SignedIn),
+    (proto::PLAYBACK_SERVICE_STOP_PLAYBACK_SPEC.procedure,        Access::SignedIn),
     (proto::EVENT_SERVICE_SUBSCRIBE_SPEC.procedure,               Access::SignedIn),
     (proto::USER_SERVICE_CREATE_USER_SPEC.procedure,              MANAGE_USERS),
     (proto::USER_SERVICE_LIST_USERS_SPEC.procedure,               MANAGE_USERS),
@@ -1292,8 +1293,6 @@ fn version_not_found() -> ConnectError {
 struct PlaybackServiceHandler {
     scanner: Scanner,
     running: RunningPlans,
-    /// Where each plan's `PlaybackStarted` is published.
-    events: EventBus,
 }
 
 #[expect(
@@ -1323,7 +1322,6 @@ impl PlaybackService for PlaybackServiceHandler {
         let plan = playback::plan(
             &self.scanner,
             &self.running,
-            &self.events,
             caller,
             request.version_id,
             decoding,
@@ -1345,6 +1343,16 @@ impl PlaybackService for PlaybackServiceHandler {
             plan: plan_to_proto(plan).into(),
             ..Default::default()
         })
+    }
+
+    async fn stop_playback(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, StopPlaybackRequest>,
+    ) -> ServiceResult<StopPlaybackResponse> {
+        let device = caller(&ctx)?.device.id;
+        self.running.stop_for(request.plan_id, device).await;
+        Response::ok(StopPlaybackResponse::default())
     }
 }
 
@@ -2144,8 +2152,7 @@ impl EventService for EventServiceHandler {
                 // `VIEW_REQUESTS` sees everyone's Request events until they resubscribe. End
                 // streams on a Permission change if that matters.
                 requester: requests::visible_to(&caller.user),
-                player: (!caller.user.permissions.allow(Permission::Admin))
-                    .then_some(caller.user.id),
+                player: playback::visible_to(&caller.user),
             };
             let signed_out = self.users.signed_out(caller.device.id);
             let events = self.events.subscribe(filter).take_until(signed_out);
@@ -2434,6 +2441,7 @@ fn method_from_proto(method: EnumValue<proto::PlaybackMethod>) -> Option<Method>
 
 fn plan_to_proto(plan: Plan) -> proto::PlaybackPlan {
     proto::PlaybackPlan {
+        id: plan.id.unwrap_or_default(),
         method: method_to_proto(plan.method).into(),
         url: plan.url.unwrap_or_default(),
         tracks: plan.tracks.iter().map(track_to_proto).collect(),
