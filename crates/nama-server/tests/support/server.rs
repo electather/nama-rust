@@ -245,7 +245,7 @@ impl TestServer {
             ..Default::default()
         };
         // Matching runs after the scan's `ScanFinished`, so only its own events say it's done.
-        // shortcut: counts one event per file, so a file holding several Episodes returns early;
+        // ponytail: counts one event per file, so a file holding several Episodes returns early;
         // count Items once a test needs every Episode of such a file Matched.
         let mut matched = subscribe_with(&self.client_config(), only).await;
         self.scan(library.id).await;

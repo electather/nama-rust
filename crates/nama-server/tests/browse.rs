@@ -86,8 +86,13 @@ impl Fixture {
     /// Starts a Server with a Library of `kind` that found `ffmpeg` at startup.
     async fn start_with_ffmpeg(kind: LibraryKind, ffmpeg: Ffmpeg) -> Self {
         let server = TestServer::builder().tmdb().ffmpeg(ffmpeg).start().await;
-        let config = server.client_config();
         let media = server.create_library(kind, &[]).await;
+        Self::over(server, media)
+    }
+
+    /// The clients for browsing `media` on `server`.
+    fn over(server: TestServer, media: Library) -> Self {
+        let config = server.client_config();
         Self {
             library: media.id,
             folder: media.folder().to_owned(),
@@ -112,10 +117,11 @@ impl Fixture {
 
     /// Starts a Server with a Movies Library holding Alien, scanned and Matched.
     async fn alien() -> Self {
-        let fx = Self::start(LibraryKind::LIBRARY_KIND_MOVIES).await;
-        fx.write(ALIEN_1080P, b"video");
-        fx.scan_until_decided(1).await;
-        fx
+        let server = TestServer::builder().tmdb().start().await;
+        let media = server
+            .matched_library(LibraryKind::LIBRARY_KIND_MOVIES, &[ALIEN_1080P])
+            .await;
+        Self::over(server, media)
     }
 
     fn write(&self, relative: &str, contents: &[u8]) {
@@ -509,9 +515,7 @@ async fn a_version_has_the_tracks_probing_found_once_a_scan_has_probed_it() {
 
 #[tokio::test]
 async fn an_unmatched_item_is_in_neither_list_movies_nor_get_movie() {
-    let fx = Fixture::start(LibraryKind::LIBRARY_KIND_MOVIES).await;
-    fx.write(ALIEN_1080P, b"1080p");
-    fx.scan_until_decided(1).await;
+    let fx = Fixture::alien().await;
     let item = fx.item(ALIEN_1080P).await;
     fx.matches
         .clear_match(ClearMatchRequest {
@@ -595,9 +599,7 @@ async fn a_shows_library_is_an_invalid_argument() {
 
 #[tokio::test]
 async fn get_movie_for_an_id_nothing_matches_is_not_found() {
-    let fx = Fixture::start(LibraryKind::LIBRARY_KIND_MOVIES).await;
-    fx.write(ALIEN_1080P, b"1080p");
-    fx.scan_until_decided(1).await;
+    let fx = Fixture::alien().await;
 
     let got = fx.get_movie(fx.library, 949).await;
 
