@@ -18,9 +18,8 @@ const API_KEY: &str = "api_key";
 const QUALITY_PROFILE: &str = "quality_profile";
 const ROOT_FOLDER: &str = "root_folder";
 
-/// The settings of the service `service`, which adds each `added`, such as "Movie": where it is,
-/// with its default `port` as the example, its API key, and the quality profile and root folder it
-/// adds with.
+/// The four settings of the service `service`, which adds each `added`, such as "Movie", and
+/// listens on `port` by default.
 #[must_use]
 pub fn settings(service: &str, added: &str, port: u16) -> Vec<SettingField> {
     let setting = |key: &str, label: &str, description: String, kind: SettingKind| SettingField {
@@ -495,6 +494,8 @@ struct ValidationFailure {
 
 #[cfg(test)]
 mod tests {
+    use nama_pdk::nama_proto::nama::v1::RequestedQuality;
+
     use super::*;
 
     const FAILURES: &[u8] = br#"[
@@ -549,22 +550,29 @@ mod tests {
         assert!(!already_has("MovieExistsValidator", 409, FAILURES));
     }
 
-    #[test]
-    fn no_such_profile_without_a_quality_names_only_the_id() {
-        let sonarr = Servarr {
+    /// Sonarr, which no test reaches over the network.
+    fn sonarr() -> Servarr {
+        Servarr {
             name: "Sonarr",
             url: String::new(),
             api_key: String::new(),
-        };
-        assert_eq!(
-            sonarr.no_such_profile(&Request::default(), 4).to_string(),
-            "Sonarr has no quality profile with the id 4"
-        );
+        }
     }
 
-    #[test]
-    fn a_hand_off_names_the_profile_it_went_out_at() {
-        let profiles = vec![
+    /// A Request at the Quality `name`.
+    fn requested_at(name: &str) -> Request {
+        Request {
+            quality: RequestedQuality {
+                name: name.to_owned(),
+                ..RequestedQuality::default()
+            }
+            .into(),
+            ..Request::default()
+        }
+    }
+
+    fn profiles() -> Vec<QualityProfile> {
+        vec![
             QualityProfile {
                 id: 1,
                 name: "Any".to_owned(),
@@ -573,14 +581,68 @@ mod tests {
                 id: 4,
                 name: "HD-1080p".to_owned(),
             },
-        ];
-        let fulfilled = fulfilled("603".to_owned(), Some(4), profiles);
+        ]
+    }
+
+    #[test]
+    fn settings_name_the_service_its_port_and_what_it_adds() {
+        let described: Vec<_> = settings("Radarr", "Movie", 7878)
+            .into_iter()
+            .map(|field| (field.key, field.description))
+            .collect();
+        assert_eq!(
+            described,
+            [
+                ("url", "Where Radarr is, such as http://localhost:7878."),
+                (
+                    "api_key",
+                    "Radarr's API key, from Settings > General in Radarr."
+                ),
+                (
+                    "quality_profile",
+                    "The quality Radarr downloads each Movie in."
+                ),
+                ("root_folder", "The folder Radarr puts each Movie in."),
+            ]
+            .map(|(key, description)| (key.to_owned(), description.to_owned()))
+        );
+    }
+
+    #[test]
+    fn no_such_profile_without_a_quality_names_only_the_id() {
+        assert_eq!(
+            sonarr().no_such_profile(&Request::default(), 4).to_string(),
+            "Sonarr has no quality profile with the id 4"
+        );
+    }
+
+    #[test]
+    fn no_such_profile_names_the_quality_that_uses_it() {
+        assert_eq!(
+            sonarr().no_such_profile(&requested_at("HD"), 4).to_string(),
+            "Sonarr has no quality profile with the id 4, which HD uses"
+        );
+    }
+
+    #[test]
+    fn a_hand_off_names_the_profile_it_went_out_at() {
+        let reported = fulfilled("603".to_owned(), Some(4), profiles());
         assert_eq!(
             (
-                fulfilled.profile_id.as_str(),
-                fulfilled.profile_name.as_str()
+                reported.reference.as_str(),
+                reported.profile_id.as_str(),
+                reported.profile_name.as_str()
             ),
-            ("4", "HD-1080p")
+            ("603", "4", "HD-1080p")
+        );
+    }
+
+    #[test]
+    fn a_hand_off_without_a_profile_names_none() {
+        let reported = fulfilled("603".to_owned(), None, profiles());
+        assert_eq!(
+            (reported.profile_id.as_str(), reported.profile_name.as_str()),
+            ("", "")
         );
     }
 
