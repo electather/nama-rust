@@ -108,10 +108,10 @@ pub fn serve(
             }
         }
     };
-    let (app, saving_crashed) = api::router(
+    let app = api::router(
         config,
         db,
-        plugins,
+        plugins.clone(),
         scanner.clone(),
         events.clone(),
         requests.clone(),
@@ -124,7 +124,6 @@ pub fn serve(
     async move {
         // Before anything can publish an event, so that no notification misses its link.
         load_server_url.await;
-        let saving_crashed = tokio::spawn(saving_crashed);
         scanner.start_all().await;
         // In the background, so a slow Fulfiller doesn't hold up serving.
         let progress = requests.clone();
@@ -143,7 +142,7 @@ pub fn serve(
         .await;
         scanner.shutdown().await;
         // The Requests not handed off yet stay Approved, so the next start hands them off. The one
-        // being handed off now runs on in a task of its own (`Requests::hand_off`), which nothing
+        // being handed off now runs on in a task of its own (`HandOff::request`), which nothing
         // waits for: if the runtime stops first, a Request the Fulfiller took stays Approved and
         // the next start hands it over again, as for an approval in flight.
         handing_off.abort();
@@ -152,13 +151,7 @@ pub fn serve(
         {
             tracing::error!("handing the waiting Requests off panicked: {err}");
         }
-        // A Plugin disabled for crashing but not saved yet runs again after a restart.
-        saving_crashed.abort();
-        if let Err(err) = saving_crashed.await
-            && err.is_panic()
-        {
-            tracing::error!("saving the Plugins disabled for crashing panicked: {err}");
-        }
+        plugins.shutdown().await;
         // Progress is kept in memory only, so stopping mid-poll loses nothing.
         following.abort();
         if let Err(err) = following.await

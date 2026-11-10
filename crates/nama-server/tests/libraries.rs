@@ -3,7 +3,7 @@
 #[path = "support/refused.rs"]
 mod refused;
 #[path = "support/server.rs"]
-#[expect(dead_code, reason = "the harness's `data_dir` has no use here")]
+#[expect(dead_code, reason = "this binary uses only some of the fixture")]
 mod server;
 
 use std::path::{Path, PathBuf};
@@ -14,7 +14,6 @@ use nama_proto::nama::v1::{
     LibraryServiceClient, ListLibrariesRequest, RefusalReason, ScanLibraryRequest,
     UpdateLibraryRequest,
 };
-use nama_server::{config::Config, plugins::Registry};
 use refused::assert_refused;
 use server::TestServer;
 use tempfile::TempDir;
@@ -32,7 +31,7 @@ struct Fixture {
 )]
 impl Fixture {
     async fn start() -> Self {
-        let server = TestServer::start(Config::default(), Registry::new()).await;
+        let server = TestServer::builder().start().await;
         let client = LibraryServiceClient::new(HttpClient::plaintext(), server.client_config());
         Self {
             client,

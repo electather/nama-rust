@@ -6,6 +6,7 @@
 - **One owner for a Library's contents.** Only `src/contents.rs` reads or writes `library_files`, `library_items`, `item_matches` and `match_pins`, tests included. Everything else goes through `Contents`.
 - **One owner for Tracks.** Only `src/tracks.rs` reads or writes `version_probes` and `tracks`, tests included. Browse attaches them to the Versions `Contents` reads.
 - **One owner for Quality rules.** Only `src/qualities.rs` reads or writes `qualities` and `default_qualities`, tests included, and decides which Quality a Request, Show or Followed Show takes (ADR 0025). Requests and handlers ask it.
+- **One owner for Plugin changes.** Outside tests, only `src/plugin_settings.rs` enables or disables a Plugin or saves its settings, under its one lock and in ADR 0028's order. Handlers and tasks ask `PluginSettings`; they don't call `Registry::enable_by_id` or `Registry::disable`.
 - **Query data.** After changing a `sqlx::query!` or anything in `migrations/`, regenerate `.sqlx/` at the workspace root and commit it (commands in `README.md`).
 - **Name parser version.** A change to how names are parsed or how Matching decides that could turn an Unmatched Item into a Match bumps `PARSER_VERSION` in `src/scanner/names.rs`, so the next scan parses stored files again and retries their automatic Unmatched decisions (ADR 0023).
 - **Whole-Library reads.** Browse reads a Library's whole contents even to find one title. Each such read is marked `// ponytail: whole-Library read`; query by id there once Libraries get big.
@@ -21,3 +22,7 @@
 - **Causes stay server-side.** A database or server-side error is logged; the client gets a generic Connect error.
 - **Refusals are typed.** Every error a client can cause carries a `nama.v1.Refusal` detail (ADR 0019). Build it with `refuse` in `src/api.rs`, which sets the Connect code from the `RefusalReason` and fills `debug`; never build a client-caused `ConnectError` directly. The one exception is the router's 404 for a path no `ACCESS` entry lists (see "New RPCs start closed"). A refusal about one request field names it in `field`, and values its message mentions go in `params` (AIP-193: lowerCamelCase keys, units in the key). Server-side failures carry none.
 - **Plugin code runs contained.** Every call into a Plugin, its `Drop` included, goes through `contain_sync` (or its async twin) in `src/plugins.rs`, outside the registry lock.
+
+### Tests
+
+- **One fixture.** Server tests build on `TestServer` in `tests/support`, started through `TestServer::builder()`. Their setup goes through the API, as a client's would; a shared helper never writes the database. A test file adds a fixture of its own only for what that file alone needs, and a shortcut one test needs stays in that test's file.

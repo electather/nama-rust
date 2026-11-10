@@ -404,30 +404,22 @@ impl Registry {
         was_enabled
     }
 
-    /// Disables the Plugin `id` like [`Registry::disable`], unless no other enabled Plugin
-    /// provides `T`, such as the Authenticator a Server can't do without.
-    ///
-    /// # Errors
-    ///
-    /// If `id` is the last enabled Plugin providing `T`, which leaves it enabled. Also if `id`
-    /// isn't enabled and no Plugin provides `T`: what a Plugin that isn't running provides is
-    /// unknown, and it may be one that panicked and would provide `T` after a restart.
-    pub fn disable_unless_last_provider<T: ?Sized + 'static>(
-        &self,
-        id: &PluginId,
-    ) -> Result<bool, LastProvider> {
+    /// The refusal of disabling the Plugin `id` if no other enabled Plugin provides `T`, such as
+    /// the Authenticator a Server can't do without, or `None`. Also refused if `id` isn't enabled
+    /// and no Plugin provides `T`: what a Plugin that isn't running provides is unknown, and it
+    /// may be one that panicked and would provide `T` after a restart.
+    #[must_use]
+    pub fn last_provider<T: ?Sized + 'static>(&self, id: &PluginId) -> Option<LastProvider> {
         let point = PointKey::provide::<T>();
-        self.disable_if(id, |state, enabled| {
+        self.read(|state| {
             let entries = state.points.get(&point).map_or(&[][..], Vec::as_slice);
-            let provides = enabled.is_none() || entries.iter().any(|entry| entry.plugin == *id);
+            let provides =
+                !state.plugins.contains_key(id) || entries.iter().any(|entry| entry.plugin == *id);
             let others = entries.iter().any(|entry| entry.plugin != *id);
-            if provides && !others {
-                return Err(LastProvider {
-                    plugin: id.clone(),
-                    point: point.name(),
-                });
-            }
-            Ok(())
+            (provides && !others).then(|| LastProvider {
+                plugin: id.clone(),
+                point: point.name(),
+            })
         })
     }
 
