@@ -229,8 +229,8 @@ impl Applied<Request> {
     }
 }
 
-/// A write's value, which [`Requests::apply`] returns with each Request it handed off as it is
-/// after.
+/// A write's value that may hold Requests the write hands off, which [`Requests::apply`] swaps
+/// for those Requests as the Hand-off left them.
 trait HandedBack: Sized {
     /// `self` with any of `handed` in place of the Request with its id.
     fn handed_back(self, _handed: &[Request]) -> Self {
@@ -3182,7 +3182,8 @@ mod tests {
             .unwrap()
     }
 
-    fn took() -> Fulfilled {
+    /// What a Fulfiller says when it takes a Request.
+    fn fulfilled() -> Fulfilled {
         Fulfilled {
             reference: "taken".to_owned(),
             ..Fulfilled::default()
@@ -3217,20 +3218,51 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn joining_an_approved_request_hands_nothing_off() {
+    async fn joining_a_request_already_approved_hands_nothing_off() {
         let (_data, db) = ada_and_bob().await;
         ask_for(&db, ADA, 949, RequestState::Approved).await;
+        let processing = ask_for(&db, ADA, 603, RequestState::Approved)
+            .await
+            .value
+            .id;
+        settled(&db, processing, Ok(fulfilled())).await;
+        let failed = ask_for(&db, ADA, 348, RequestState::Approved)
+            .await
+            .value
+            .id;
+        settled(&db, failed, Err("no space".to_owned())).await;
 
-        let joined = ask_for(&db, BOB, 949, RequestState::Approved).await;
+        let mut joined = Vec::new();
+        for tmdb_id in [949, 603, 348] {
+            let applied = ask_for(&db, BOB, tmdb_id, RequestState::Approved).await;
+            assert_eq!(handed_off(&applied), NOTHING);
+            joined.extend(happened(&applied));
+        }
 
-        assert_eq!(happened(&joined), [("joined", RequestState::Approved)]);
-        assert_eq!(handed_off(&joined), NOTHING);
+        assert_eq!(
+            joined,
+            [
+                ("joined", RequestState::Approved),
+                ("joined", RequestState::Processing),
+                ("joined", RequestState::Failed)
+            ]
+        );
     }
 
     #[tokio::test]
-    async fn asking_for_seasons_opens_and_hands_off_a_request_for_each() {
+    async fn asking_again_for_a_request_one_is_on_changes_nothing() {
         let (_data, db) = ada_and_bob().await;
-        let wanted = WantedSeasons {
+        ask_for(&db, ADA, 949, RequestState::Pending).await;
+
+        let again = ask_for(&db, ADA, 949, RequestState::Pending).await;
+
+        assert_eq!(again.events.len(), 0);
+        assert_eq!(handed_off(&again), NOTHING);
+    }
+
+    /// Seasons 1 and 2 of Dark, as the metadata source gives them.
+    fn dark() -> WantedSeasons {
+        WantedSeasons {
             show_tmdb_id: 70523,
             show_ids: ExternalIds::default(),
             show_title: "Dark".to_owned(),
@@ -3244,22 +3276,44 @@ mod tests {
             quality: None,
             quality_chosen: false,
             chosen: None,
-        };
+        }
+    }
 
-        let asked = db
-            .write(move |tx| Box::pin(ask_seasons(tx, ADA, wanted, RequestState::Approved)))
+    #[tokio::test]
+    async fn asking_for_seasons_opens_a_request_for_each_and_hands_off_the_approved_ones() {
+        let (_data, db) = ada_and_bob().await;
+        let pending = db
+            .write(|tx| Box::pin(ask_seasons(tx, ADA, dark(), RequestState::Pending)))
+            .await
+            .unwrap();
+        let first = pending.value[0].id;
+        db.write(move |tx| Box::pin(cancel(tx, first)))
             .await
             .unwrap();
 
-        let ids: Vec<i64> = asked.value.iter().map(|request| request.id).collect();
+        let approved = db
+            .write(|tx| Box::pin(ask_seasons(tx, BOB, dark(), RequestState::Approved)))
+            .await
+            .unwrap();
+
         assert_eq!(
-            happened(&asked),
+            happened(&pending),
             [
-                ("created", RequestState::Approved),
-                ("created", RequestState::Approved)
+                ("created", RequestState::Pending),
+                ("created", RequestState::Pending)
             ]
         );
-        assert_eq!(handed_off(&asked), ids);
+        assert_eq!(handed_off(&pending), NOTHING);
+        assert_eq!(
+            happened(&approved),
+            [
+                ("created", RequestState::Approved),
+                ("joined", RequestState::Pending),
+                ("moved", RequestState::Approved)
+            ]
+        );
+        let ids: Vec<i64> = approved.value.iter().map(|request| request.id).collect();
+        assert_eq!(handed_off(&approved), ids);
     }
 
     #[tokio::test]
@@ -3305,9 +3359,9 @@ mod tests {
             .value
             .id;
 
-        let processing = settled(&db, taken, Ok(took())).await;
+        let processing = settled(&db, taken, Ok(fulfilled())).await;
         let failed = settled(&db, refused, Err("no space".to_owned())).await;
-        let again = settled(&db, taken, Ok(took())).await;
+        let again = settled(&db, taken, Ok(fulfilled())).await;
 
         assert_eq!(happened(&processing), [("moved", RequestState::Processing)]);
         assert_eq!(happened(&failed), [("moved", RequestState::Failed)]);
@@ -3350,14 +3404,23 @@ mod tests {
             .await
             .value
             .id;
-        settled(&db, processing, Ok(took())).await;
+        settled(&db, processing, Ok(fulfilled())).await;
         let declined = ask_for(&db, ADA, 348, RequestState::Pending).await.value.id;
         db.write(move |tx| Box::pin(decline(tx, declined, None)))
             .await
             .unwrap();
+        let approved = ask_for(&db, ADA, 680, RequestState::Approved)
+            .await
+            .value
+            .id;
+        let failed = ask_for(&db, ADA, 155, RequestState::Approved)
+            .await
+            .value
+            .id;
+        settled(&db, failed, Err("no space".to_owned())).await;
 
         let mut cancelled = Vec::new();
-        for id in [pending, processing, declined] {
+        for id in [pending, processing, declined, approved, failed] {
             let applied = db.write(move |tx| Box::pin(cancel(tx, id))).await.unwrap();
             assert_eq!(handed_off(&applied), NOTHING);
             cancelled.extend(happened(&applied));
@@ -3368,7 +3431,9 @@ mod tests {
             [
                 ("cancelled", RequestState::Pending),
                 ("cancelled", RequestState::Processing),
-                ("cancelled", RequestState::Declined)
+                ("cancelled", RequestState::Declined),
+                ("cancelled", RequestState::Approved),
+                ("cancelled", RequestState::Failed)
             ]
         );
     }
