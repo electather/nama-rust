@@ -29,7 +29,12 @@ use nama_proto::nama::v1::{
     TestPluginSettingsRequest, TestPluginSettingsResponse, UpdatePluginSettingsRequest,
     UpdatePluginSettingsResponse, setting_value::Value,
 };
-use nama_server::{config::Config, db::Database, plugin_settings, plugins::Registry};
+use nama_server::{
+    config::Config,
+    db::Database,
+    plugin_settings::{self, PluginSettings},
+    plugins::Registry,
+};
 use refused::assert_refused;
 use server::TestServer;
 use tokio::{
@@ -53,12 +58,8 @@ struct Started {
 )]
 impl Started {
     async fn new() -> Self {
-        let plugins = Registry::with_builtins(&BTreeMap::new());
+        let plugins = Registry::with_builtins();
         let (server, db) = TestServer::start_with_db(Config::default(), plugins.clone()).await;
-        // As on a Server's first start.
-        plugin_settings::import(&db, &BTreeMap::new())
-            .await
-            .unwrap();
         Self {
             server,
             db,
@@ -279,10 +280,15 @@ async fn a_dropped_plugin_is_listed_disabled_observes_scans_only_while_enabled_a
         .await;
 
     // A restart enables what the database holds, as `main` does.
-    let stored = plugin_settings::stored(&started.db).await.unwrap().unwrap();
-    let restarted = Registry::with_builtins(&stored);
-    restarted.load_installed(started.server.data_dir(), &stored);
-    assert!(restarted.enabled().contains(&test_plugin));
+    let config = Config {
+        data_dir: started.server.data_dir().to_owned(),
+        ..Config::default()
+    };
+    let restarted =
+        PluginSettings::start(Arc::clone(&started.db), Registry::with_builtins(), &config)
+            .await
+            .unwrap();
+    assert!(restarted.registry().enabled().contains(&test_plugin));
 
     started
         .client()

@@ -30,6 +30,7 @@ use connectrpc::{
     ConnectError, ErrorCode,
     client::{ClientConfig, HttpClient, ServerStream},
 };
+use figment::{Figment, providers::Serialized};
 use http::fetch;
 use log::Log;
 use nama_plugin_api::{
@@ -38,6 +39,7 @@ use nama_plugin_api::{
     notifier::{Notification, Notifier, Recipient},
     settings::{SettingValue, Settings, SettingsSchema},
 };
+use nama_plugin_local_auth::LocalAuth;
 use nama_plugin_test_choices as test_choices;
 use nama_plugin_tmdb::{
     Tmdb,
@@ -61,7 +63,7 @@ use nama_proto::nama::v1::{
 use nama_server::{
     config::{Config, PluginConfig},
     db::Database,
-    plugin_settings,
+    plugin_settings::{self, PluginSettings},
     plugins::Registry,
 };
 use refused::assert_refused;
@@ -128,6 +130,11 @@ impl Fixture {
 
     /// A Fixture with the Plugins enabled in `plugins` too.
     async fn start_with(plugins: Registry) -> Self {
+        Self::start_with_config(plugins, Config::default()).await
+    }
+
+    /// A Fixture with the Plugins enabled in `plugins` too, started with `config`.
+    async fn start_with_config(plugins: Registry, config: Config) -> Self {
         let tmdb = FakeTmdb::start().await;
         let settings = Settings::new(BTreeMap::from([(
             "api_key".to_owned(),
@@ -136,7 +143,7 @@ impl Fixture {
         plugins
             .enable_with_settings(Arc::new(Tmdb::with_endpoints(tmdb.endpoints())), settings)
             .unwrap();
-        let (server, db) = TestServer::start_with_db(Config::default(), plugins.clone()).await;
+        let (server, db) = TestServer::start_with_db(config, plugins.clone()).await;
         Self {
             server,
             db,
@@ -160,24 +167,31 @@ impl Fixture {
             ]),
         };
         let stored = BTreeMap::from([(test_choices::ID.to_owned(), test_choices)]);
-        let plugins = Registry::with_builtins(&stored);
+        let config = Figment::from(Serialized::defaults(Config::default()))
+            .merge(Serialized::default("plugins", stored))
+            .extract()
+            .unwrap();
+        let plugins = Registry::with_builtins();
         if let Some(fulfiller) = fulfiller {
             plugins
                 .enable(Arc::new(FulfillerPlugin(fulfiller.clone())))
                 .unwrap();
         }
-        let fixture = Self::start_with(plugins).await;
-        plugin_settings::import(&fixture.db, &stored).await.unwrap();
-        fixture
+        Self::start_with_config(plugins, config).await
     }
 
-    /// Serves the Fixture's database again with `plugins`, as a Server restarted with them would.
+    /// Serves the Fixture's database again with the Plugins `plugins` knows and the Built-in
+    /// `local-auth` started, and those it enabled, as a Server restarted with them would.
     async fn serve_again(&self, plugins: Registry) {
         let data_dir = tempfile::tempdir().unwrap();
         let config = Config {
             data_dir: data_dir.path().to_owned(),
             ..Config::default()
         };
+        plugins.describe_builtin(|| Arc::new(LocalAuth));
+        let plugins = PluginSettings::start(Arc::clone(&self.db), plugins, &config)
+            .await
+            .unwrap();
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let served = nama_server::serve(
             listener,
@@ -208,10 +222,6 @@ impl Fixture {
     /// an Admin would, with its text `settings`.
     async fn with_installed_plugin(settings: &[(&str, &str)]) -> Self {
         let fixture = Self::start().await;
-        // As on a Server's first start.
-        plugin_settings::import(&fixture.db, &BTreeMap::new())
-            .await
-            .unwrap();
         let dir = fixture.server.data_dir().join("plugins");
         fs::create_dir_all(&dir).unwrap();
         fs::write(dir.join("test.wasm"), test_plugin::build("")).unwrap();

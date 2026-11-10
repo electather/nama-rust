@@ -29,14 +29,14 @@ use nama_proto::nama::v1::{
     CancelFollowedShowRequest, CreateFollowedShowRequest, CreateSeasonRequestsRequest,
     CreateUserRequest, DeclineRequestRequest, Download, DownloadStatus, EnablePluginRequest,
     EventServiceClient, EventType, ExtensionPoint, FollowedShow, GetRequestRequest,
-    ListDefaultQualitiesRequest, ListPluginsRequest, ListShowQualitiesRequest, LookUpShowRequest,
-    Permission, PluginServiceClient, Quality, RefusalReason, ReplaceQualitiesRequest, Request,
+    ListDefaultQualitiesRequest, ListShowQualitiesRequest, LookUpShowRequest, Permission,
+    PluginServiceClient, Quality, RefusalReason, ReplaceQualitiesRequest, Request,
     RequestServiceClient, RequestState, RequestedQuality, RetryRequestRequest, SessionDelivery,
     SetDefaultQualityRequest, SetPermissionsRequest, SignInRequest, SignInServiceClient,
     SubscribeRequest, SubscribeResponse, TestPluginSettingsRequest, TestPluginSettingsResponse,
     UpdatePluginSettingsRequest, event, setting_value::Value, subscribe_response,
 };
-use nama_server::{config::Config, db::Database, plugin_settings, plugins::Registry};
+use nama_server::{config::Config, db::Database, plugins::Registry};
 use refused::assert_refused;
 use server::{PASSWORD, TestServer};
 
@@ -80,24 +80,13 @@ impl Fixture {
             .enable_with_settings(Arc::new(Tmdb::with_endpoints(tmdb.endpoints())), settings)
             .unwrap();
         let (server, db) = TestServer::start_with_db(Config::default(), plugins.clone()).await;
-        // As on a Server's first start.
-        plugin_settings::import(&db, &BTreeMap::new())
-            .await
-            .unwrap();
-        let fixture = Self {
+        Self {
             server,
             db,
             plugins,
             sonarr: FakeSonarr::start().await,
             _tmdb: tmdb,
-        };
-        // Listing is what reads the Installed Plugins, bundled ones too.
-        fixture
-            .plugins()
-            .list_plugins(ListPluginsRequest::default())
-            .await
-            .unwrap();
-        fixture
+        }
     }
 
     /// A Fixture where an Admin set Sonarr up with the profile HD-1080p and the root folder `/tv`,

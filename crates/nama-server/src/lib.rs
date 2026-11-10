@@ -36,14 +36,14 @@ use crate::{
     db::Database,
     events::EventBus,
     matching::Matcher,
-    plugins::Registry,
+    plugin_settings::PluginSettings,
     requests::{PROGRESS_EVERY, Requests},
     scanner::Scanner,
     server_settings::ServerUrl,
     users::SetupCode,
 };
 
-/// Serves the Server's API on `listener`, backed by `db` and the Plugins enabled in `plugins`,
+/// Serves the Server's API on `listener`, backed by `db` and the Plugins `plugins` started,
 /// until `shutdown` resolves, then lets requests in flight finish. Once the returned future
 /// resolves the API holds no handle to `db`.
 ///
@@ -75,15 +75,16 @@ pub fn serve(
     listener: TcpListener,
     config: &Config,
     db: Arc<Database>,
-    plugins: Registry,
+    plugins: PluginSettings,
     setup_code: Option<SetupCode>,
     shutdown: impl Future<Output = ()> + Send + 'static,
 ) -> impl Future<Output = io::Result<()>> + Send + 'static {
+    let registry = plugins.registry();
     let server_url = ServerUrl::default();
-    let events = EventBus::new(Arc::clone(&db), plugins.clone(), server_url.clone());
-    let scanner = Scanner::new(Arc::clone(&db), plugins.clone(), events.clone());
-    let matcher = Matcher::new(Arc::clone(&db), plugins.clone(), events.clone());
-    let requests = Requests::new(Arc::clone(&db), matcher, events.clone(), plugins.clone());
+    let events = EventBus::new(Arc::clone(&db), registry.clone(), server_url.clone());
+    let scanner = Scanner::new(Arc::clone(&db), registry.clone(), events.clone());
+    let matcher = Matcher::new(Arc::clone(&db), registry.clone(), events.clone());
+    let requests = Requests::new(Arc::clone(&db), matcher, events.clone(), registry.clone());
     let load_server_url = {
         let (server_url, db) = (server_url.clone(), Arc::clone(&db));
         async move {

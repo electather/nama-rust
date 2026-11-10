@@ -12,6 +12,7 @@ use std::{collections::BTreeMap, sync::Arc};
 
 use buffa::Message;
 use connectrpc::{ConnectError, ErrorCode, client::HttpClient};
+use figment::{Figment, providers::Serialized};
 use nama_plugin_api::{
     PluginId, auth::Authenticator, metadata::MetadataProvider, settings::SettingValue,
 };
@@ -26,7 +27,7 @@ use nama_proto::nama::v1::{
 use nama_server::{
     config::{Config, PluginConfig},
     db::Database,
-    plugin_settings,
+    plugin_settings::{self, PluginSettings},
     plugins::{Registry, SETTINGS_CHECK_TIMEOUT},
 };
 use refused::assert_refused;
@@ -47,9 +48,12 @@ impl Started {
         reason = "a test helper fails its test by panicking"
     )]
     async fn with(settings: &BTreeMap<String, PluginConfig>) -> Self {
-        let plugins = Registry::with_builtins(settings);
-        let (server, db) = TestServer::start_with_db(Config::default(), plugins.clone()).await;
-        plugin_settings::import(&db, settings).await.unwrap();
+        let plugins = Registry::with_builtins();
+        let config = Figment::from(Serialized::defaults(Config::default()))
+            .merge(Serialized::default("plugins", settings))
+            .extract()
+            .unwrap();
+        let (server, db) = TestServer::start_with_db(config, plugins.clone()).await;
         Self {
             server,
             db,
@@ -133,6 +137,23 @@ impl Started {
         plugin_settings::stored(&self.db).await.unwrap().unwrap()
     }
 
+    /// The Plugins a restart enables from what is stored, as `main` starts them.
+    #[expect(
+        clippy::unwrap_used,
+        reason = "a test helper fails its test by panicking"
+    )]
+    async fn restart(&self) -> Vec<PluginId> {
+        let config = Config {
+            data_dir: self.server.data_dir().to_owned(),
+            ..Config::default()
+        };
+        PluginSettings::start(Arc::clone(&self.db), Registry::with_builtins(), &config)
+            .await
+            .unwrap()
+            .registry()
+            .enabled()
+    }
+
     /// Whether some enabled Plugin provides `T`, as Matching looks for a metadata Provider to call.
     async fn provides<T: ?Sized + Send + Sync + 'static>(&self) -> bool {
         self.plugins
@@ -203,7 +224,7 @@ fn tmdb_with_key() -> BTreeMap<String, PluginConfig> {
             "api_key".to_owned(),
             SettingValue::Text(TMDB_KEY.to_owned()),
         )]),
-        ..PluginConfig::default()
+        enabled: true,
     };
     BTreeMap::from([("tmdb".to_owned(), tmdb)])
 }
@@ -480,8 +501,12 @@ async fn new_settings_replace_the_running_ones_and_survive_a_restart() {
     );
     assert!(started.can_match().await);
     // A restart enables the Built-in Plugins with what is stored.
-    let restarted = Registry::with_builtins(&started.stored().await);
-    assert!(restarted.enabled().contains(&PluginId::from_static("tmdb")));
+    assert!(
+        started
+            .restart()
+            .await
+            .contains(&PluginId::from_static("tmdb"))
+    );
 }
 
 #[tokio::test]
@@ -515,7 +540,7 @@ async fn a_missing_required_setting_is_refused_naming_it_and_nothing_changes() {
                 "language".to_owned(),
                 SettingValue::Text("de-DE".to_owned()),
             )]),
-            ..PluginConfig::default()
+            enabled: true,
         },
     );
     let started = Started::with(&settings).await;
@@ -634,17 +659,18 @@ async fn a_plugins_enabled_state_survives_a_restart() {
         .unwrap();
 
     // A restart enables what the database holds, as `main` does.
-    let stored = plugin_settings::stored(&started.db).await.unwrap().unwrap();
-    let restarted = Registry::with_builtins(&stored);
     assert_eq!(
-        restarted.enabled(),
+        started.restart().await,
         [
             PluginId::from_static("local-auth"),
             PluginId::from_static("log-events")
         ]
     );
     // Disabling kept the settings it was enabled with.
-    assert_eq!(stored["tmdb"].settings, tmdb_with_key()["tmdb"].settings);
+    assert_eq!(
+        started.stored().await["tmdb"].settings,
+        tmdb_with_key()["tmdb"].settings
+    );
 }
 
 #[tokio::test]
@@ -756,7 +782,7 @@ async fn testing_settings_returns_the_choices_the_check_offers() {
 fn test_choices_with_key(api_key: &str) -> BTreeMap<String, PluginConfig> {
     let config = PluginConfig {
         settings: BTreeMap::from([("api_key".to_owned(), SettingValue::Text(api_key.to_owned()))]),
-        ..PluginConfig::default()
+        enabled: true,
     };
     BTreeMap::from([(test_choices::ID.to_owned(), config)])
 }

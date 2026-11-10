@@ -9,19 +9,16 @@ use std::{
 };
 
 use clap::Parser;
-use nama_plugin_api::{
-    auth::Authenticator,
-    points::{ServerStarted, ServerStartedEvent},
-};
+use nama_plugin_api::points::{ServerStarted, ServerStartedEvent};
 use nama_server::{
     config::{self, Config},
     db::{self, Database},
-    plugin_settings,
+    plugin_settings::PluginSettings,
     plugins::Registry,
     users::{SetupCode, Users},
 };
-use tokio::{net::TcpListener, task};
-use tracing::{error, info, warn};
+use tokio::net::TcpListener;
+use tracing::{error, info};
 use tracing_subscriber::EnvFilter;
 
 #[derive(Debug, Parser)]
@@ -64,11 +61,12 @@ async fn main() -> ExitCode {
     let Some(db) = open_database(&config).await else {
         return ExitCode::FAILURE;
     };
-    let Some(plugins) = enable_plugins(&config, &db).await else {
+    let Some(plugins) = start_plugins(&config, &db).await else {
         close(db).await;
         return ExitCode::FAILURE;
     };
-    let setup_code = match setup_code(Users::new(Arc::clone(&db), plugins.clone())).await {
+    let setup_code = match setup_code(Users::new(Arc::clone(&db), plugins.registry().clone())).await
+    {
         Ok(setup_code) => setup_code,
         Err(err) => {
             error!("could not prepare the Setup Code: {err}");
@@ -95,10 +93,12 @@ async fn main() -> ExitCode {
         }
     }
 
-    plugins.notify::<ServerStarted>(ServerStartedEvent {
-        name: config.name.clone(),
-        version: env!("CARGO_PKG_VERSION").to_owned(),
-    });
+    plugins
+        .registry()
+        .notify::<ServerStarted>(ServerStartedEvent {
+            name: config.name.clone(),
+            version: env!("CARGO_PKG_VERSION").to_owned(),
+        });
 
     let shutdown = async {
         shutdown.await;
@@ -142,6 +142,15 @@ async fn open_database(config: &Config) -> Option<Arc<Database>> {
     Some(Arc::new(db))
 }
 
+/// Starts the Built-in Plugins and the Installed Plugins in the data directory. Returns `None`,
+/// having logged why, if they can't start.
+async fn start_plugins(config: &Config, db: &Arc<Database>) -> Option<PluginSettings> {
+    PluginSettings::start(Arc::clone(db), Registry::with_builtins(), config)
+        .await
+        .inspect_err(|err| error!("{err}"))
+        .ok()
+}
+
 /// A new Setup Code, logged, while the Server has no Users, so whoever can read the log can create
 /// the first Admin.
 async fn setup_code(users: Users) -> Result<Option<SetupCode>, Box<dyn std::error::Error>> {
@@ -160,70 +169,6 @@ async fn close(db: Arc<Database>) {
     } else {
         error!("the database was still in use at shutdown; it was not closed cleanly");
     }
-}
-
-/// Enables the Built-in Plugins and the Installed Plugins in the data directory with the settings
-/// stored in `db`. On the first start there are none yet, so it uses the config's `[plugins.*]`
-/// tables and imports them.
-/// Returns `None`, having logged why, if the settings can't be read or imported, or no Plugin
-/// provides an [`Authenticator`], since then nobody could sign in.
-async fn enable_plugins(config: &Config, db: &Database) -> Option<Registry> {
-    let stored = plugin_settings::stored(db)
-        .await
-        .inspect_err(|err| error!("could not read the plugin settings: {err}"))
-        .ok()?;
-    let in_config: Vec<&str> = config.plugins.ids().collect();
-    let importing = stored.is_none();
-    let settings = match stored {
-        Some(stored) => {
-            if !in_config.is_empty() {
-                warn!(
-                    ignored = ?in_config,
-                    "ignoring the [plugins.*] tables in the config: plugin settings live in the \
-                     database since they were imported"
-                );
-            }
-            stored
-        }
-        None => config
-            .plugins
-            .parse()
-            .inspect_err(|err| error!("could not load config: {err}"))
-            .ok()?,
-    };
-    let plugins = Registry::with_builtins(&settings);
-    let loading = plugins.clone();
-    let data_dir = config.data_dir.clone();
-    let settings = task::spawn_blocking(move || {
-        loading.load_installed(&data_dir, &settings);
-        settings
-    })
-    .await
-    .inspect_err(|err| error!("reading the Installed Plugins failed: {err}"))
-    .ok()?;
-    let enabled: Vec<String> = plugins.enabled().iter().map(ToString::to_string).collect();
-    info!(?enabled, "enabled plugins");
-    let has_authenticator = plugins
-        .call_provider(|_: Arc<dyn Authenticator>| async {})
-        .await
-        .is_some();
-    if !has_authenticator {
-        error!(
-            "no Authenticator is enabled, so nobody could sign in: enable the local-auth plugin \
-             (remove `enabled = false` from [plugins.local-auth] in the config), or another \
-             plugin that provides one"
-        );
-        return None;
-    }
-    // Only once the Server can start, so a config it refuses can still be fixed in the file.
-    if importing {
-        plugin_settings::import(db, &settings)
-            .await
-            .inspect_err(|err| error!("could not import the plugin settings: {err}"))
-            .ok()?;
-        info!(imported = ?in_config, "imported plugin settings from the config");
-    }
-    Some(plugins)
 }
 
 /// Logs to stdout at `info`, or at whatever `RUST_LOG` asks for.
