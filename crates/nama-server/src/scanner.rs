@@ -322,7 +322,8 @@ impl Scanner {
         Ok(())
     }
 
-    /// Probes the file at `path`, stored as `file`, and stores what it holds, or logs why not.
+    /// Probes the file at `path`, stored as `file`, and stores what it holds, or logs why not and
+    /// forgets what it held before.
     async fn probe(&self, path: String, file: Stored) {
         // The semaphore is never closed.
         let Ok(running) = self.inner.probing.acquire().await else {
@@ -334,7 +335,7 @@ impl Scanner {
             Ok(probe) => self.inner.tracks.store(file, probe).await,
             Err(err) => {
                 tracing::warn!("could not probe {path}: {err}");
-                return;
+                self.inner.tracks.forget(file.id).await
             }
         };
         if let Err(err) = stored {
@@ -1007,8 +1008,7 @@ mod tests {
             );
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
-        media.scan().await;
-        media.scanner.idle().await;
+        media.scan_and_probe().await;
 
         assert_eq!(fs::read_to_string(&runs).unwrap(), "run\n");
         let version = media.file_id(alien).await;
@@ -1093,5 +1093,53 @@ echo "{{\"format\": {{\"format_name\": \"matroska,webm\"}}, \"streams\": [{{\"co
 
         assert_eq!(probe_runs(bin.path()), 2);
         assert_eq!(media.channels(alien).await, Some(20));
+    }
+
+    // The fake ffprobe is a shell script.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_file_touched_without_changing_size_is_probed_again() {
+        let bin = tempfile::tempdir().unwrap();
+        let media = Fixture::with_ffmpeg(Kind::Movies, counting_ffprobe(bin.path())).await;
+        let alien = "Alien (1979)/Alien (1979).mkv";
+        media.write(alien, 10);
+        media.scan_and_probe().await;
+
+        let touched = std::time::SystemTime::UNIX_EPOCH + Duration::from_secs(1_000_000);
+        fs::File::options()
+            .write(true)
+            .open(media.path(alien))
+            .unwrap()
+            .set_modified(touched)
+            .unwrap();
+        media.scan_and_probe().await;
+
+        assert_eq!(probe_runs(bin.path()), 2);
+        assert_eq!(media.channels(alien).await, Some(10));
+    }
+
+    // The fake ffprobe is a shell script.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_file_replaced_by_one_that_cant_be_probed_loses_its_old_tracks() {
+        let bin = tempfile::tempdir().unwrap();
+        // Reads a file of up to 10 bytes as one audio Track, and fails on a bigger one.
+        let ffmpeg = fake_ffprobe(
+            bin.path(),
+            r#"for file; do :; done
+[ "$(wc -c < "$file")" -le 10 ] || exit 1
+echo '{"format": {"format_name": "matroska,webm"}, "streams": [{"codec_type": "audio", "codec_name": "ac3", "channels": 2}]}'"#,
+        );
+        let media = Fixture::with_ffmpeg(Kind::Movies, ffmpeg).await;
+        let alien = "Alien (1979)/Alien (1979).mkv";
+        media.write(alien, 10);
+        media.scan_and_probe().await;
+        assert_eq!(media.channels(alien).await, Some(2));
+
+        media.write(alien, 20);
+        media.scan_and_probe().await;
+
+        let version = media.file_id(alien).await;
+        assert!(media.tracks.of(&[version]).await.unwrap().is_empty());
     }
 }

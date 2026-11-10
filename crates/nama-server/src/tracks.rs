@@ -94,18 +94,33 @@ impl Tracks {
             .collect())
     }
 
-    /// Stores `probe` as what the current [`PROBE_VERSION`] found in the Version `file` at its
+    /// Stores `probe` as what the current [`PROBE_VERSION`] found in the Version `version` at its
     /// stored size and modified time, replacing what was stored for it. A Version removed since it
     /// was probed stores nothing.
-    pub(crate) async fn store(&self, file: Stored, probe: Probe) -> Result<(), sqlx::Error> {
+    pub(crate) async fn store(&self, version: Stored, probe: Probe) -> Result<(), sqlx::Error> {
         let stored = self
             .db
-            .write(move |tx| Box::pin(store(tx, file, probe)))
+            .write(move |tx| Box::pin(store(tx, version, probe)))
             .await;
         match stored {
             Err(sqlx::Error::Database(err)) if err.is_foreign_key_violation() => Ok(()),
             stored => stored,
         }
+    }
+
+    /// Forgets what probing found in the Version `version`, once probing it again has failed, so
+    /// Tracks read from what the file held before don't outlive it.
+    pub(crate) async fn forget(&self, version: i64) -> Result<(), sqlx::Error> {
+        self.db
+            .write(move |tx| {
+                Box::pin(async move {
+                    sqlx::query!("DELETE FROM version_probes WHERE version_id = ?", version)
+                        .execute(&mut **tx)
+                        .await
+                        .map(drop)
+                })
+            })
+            .await
     }
 
     /// What probing found in each of the Versions `versions` that has been probed.
@@ -177,8 +192,12 @@ fn json_array(ids: &[i64]) -> String {
     serde_json::Value::from(ids).to_string()
 }
 
-async fn store(conn: &mut SqliteConnection, file: Stored, probe: Probe) -> Result<(), sqlx::Error> {
-    let version = file.id;
+async fn store(
+    conn: &mut SqliteConnection,
+    stored: Stored,
+    probe: Probe,
+) -> Result<(), sqlx::Error> {
+    let version = stored.id;
     sqlx::query!("DELETE FROM version_probes WHERE version_id = ?", version)
         .execute(&mut *conn)
         .await?;
@@ -188,8 +207,8 @@ async fn store(conn: &mut SqliteConnection, file: Stored, probe: Probe) -> Resul
          VALUES (?, ?, ?, ?, ?, ?, ?)",
         version,
         PROBE_VERSION,
-        file.size,
-        file.modified_ns,
+        stored.size,
+        stored.modified_ns,
         probe.container,
         probe.duration_ms,
         probe.bitrate,
