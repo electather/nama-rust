@@ -33,11 +33,11 @@ const directPlayFailed = "Direct Play failed on this Device";
  * failed says it can't play, unless the Server `ignoresFailures`. Each plan request goes in
  * `asked`.
  */
-const serverPlanning = (
+const serverPlanning = ({
   playable = true,
-  asked: PlanPlaybackRequest[] = [],
+  asked = [] as PlanPlaybackRequest[],
   ignoresFailures = false,
-) =>
+} = {}) =>
   fakeServer({ signedIn: newUser, libraries }, {}, {}, (router) => {
     router.service(PlaybackService, {
       planPlayback: (request) => {
@@ -86,7 +86,7 @@ test("without a version, the player plays the largest from where its plan says",
 
 test("a file the browser fails to play is planned again without Direct Play, which says why it can't play", async () => {
   const asked: PlanPlaybackRequest[] = [];
-  openApp("/libraries/1/movies/tmdb-603/play?version=7", serverPlanning(true, asked));
+  openApp("/libraries/1/movies/tmdb-603/play?version=7", serverPlanning({ asked }));
 
   fireEvent.error(await findVideo());
 
@@ -98,7 +98,10 @@ test("a file the browser fails to play is planned again without Direct Play, whi
 
 test("a method that fails again gives up instead of asking for plans in a loop", async () => {
   const asked: PlanPlaybackRequest[] = [];
-  openApp("/libraries/1/movies/tmdb-603/play?version=7", serverPlanning(true, asked, true));
+  openApp(
+    "/libraries/1/movies/tmdb-603/play?version=7",
+    serverPlanning({ asked, ignoresFailures: true }),
+  );
   fireEvent.error(await findVideo());
   // The player is hidden while it asks again, and back once the new plan says Direct Play again.
   await screen.findByRole("button", { name: "Playback info" });
@@ -110,7 +113,7 @@ test("a method that fails again gives up instead of asking for plans in a loop",
 });
 
 test("a Version whose plan says it can't play shows the plan's reasons instead of the player", async () => {
-  openApp("/libraries/1/movies/tmdb-603/play", serverPlanning(false));
+  openApp("/libraries/1/movies/tmdb-603/play", serverPlanning({ playable: false }));
 
   expect(await screen.findByText("This Version can’t play here")).toBeDefined();
   expect(screen.getByText(cantDecode)).toBeDefined();
@@ -132,7 +135,7 @@ test("the plan request says what this Device decodes", async () => {
     configurable: true,
   });
   const asked: PlanPlaybackRequest[] = [];
-  openApp("/libraries/1/movies/tmdb-603/play", serverPlanning(true, asked));
+  openApp("/libraries/1/movies/tmdb-603/play", serverPlanning({ asked }));
 
   await findVideo();
 

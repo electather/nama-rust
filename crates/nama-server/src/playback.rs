@@ -295,7 +295,7 @@ const fn hdr_name(hdr: Hdr) -> &'static str {
     }
 }
 
-/// `items` as "a, b or c" for the `conjunction` "or", or `None` if there are none.
+/// `items` as "a, b <conjunction> c", or `None` if there are none.
 fn joined(items: &[String], conjunction: &str) -> Option<String> {
     let (last, rest) = items.split_last()?;
     Some(if rest.is_empty() {

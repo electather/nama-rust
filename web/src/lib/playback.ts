@@ -27,8 +27,8 @@ const VOLUME_STEP = 0.1;
 
 /**
  * The Server's Playback Plan for Version `versionId` on this Device, starting where `watchState`
- * stopped, and `tryPlanningAgain` for when the browser fails to play it. The plan is asked for once each
- * time the player opens or a method fails, and never reused after.
+ * stopped, and `tryPlanningAgain` for when the browser fails to play it. The plan is asked for once
+ * each time the player opens or a method fails, and never reused after.
  */
 export function usePlaybackPlan(versionId: bigint, watchState: WatchState | undefined) {
   const transport = useTransport();
