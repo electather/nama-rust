@@ -384,8 +384,8 @@ impl Running {
 
     /// Whether ffmpeg is on its way to keyframe `n`'s file, for segment `segment`, restarting it
     /// there unless it's at most [`WAIT_AHEAD_MS`] short of it. `false` once a run started there
-    /// has stopped, or once a later request asked for another segment, so ffmpeg isn't started
-    /// over and over.
+    /// has stopped, or once a later request asked for a segment more than [`WAIT_AHEAD_MS`] away,
+    /// so ffmpeg isn't started over and over.
     async fn will_write(self: &Arc<Self>, n: usize, segment: usize) -> io::Result<bool> {
         let mut ffmpeg = self.ffmpeg.lock().await;
         // Under the lock, since a run started at a written file would write its init again.
@@ -402,7 +402,11 @@ impl Running {
             if !stopped && run.from <= n && short <= WAIT_AHEAD_MS {
                 return Ok(true);
             }
-            if self.last_asked.load(Ordering::Relaxed) != segment {
+            // A player fetching the next segment alongside this one mustn't leave it behind.
+            let last_asked = self.last_asked.load(Ordering::Relaxed);
+            let apart = (self.timeline.segment_start_ms(last_asked))
+                .abs_diff(self.timeline.segment_start_ms(segment));
+            if apart > WAIT_AHEAD_MS.unsigned_abs() {
                 return Ok(false);
             }
             task.abort();
@@ -639,6 +643,28 @@ mod tests {
 
     #[cfg(unix)]
     #[tokio::test]
+    async fn neighbouring_segments_asked_for_at_once_after_a_seek_are_both_served() {
+        let data = tempfile::tempdir().unwrap();
+        let plans = running_plans(data.path()).await;
+        let (id, starts) = start_writing_nothing(&plans).await;
+        let plan = plans.of_device(id, 7).unwrap();
+        let (first, second) = (Arc::clone(&plan), plan);
+
+        let both =
+            tokio::spawn(async move { tokio::join!(first.segment(133), second.segment(134)) });
+
+        until_started(&starts, 2).await;
+        tokio::time::sleep(POLL_EVERY * 3).await;
+        // Whichever restarted ffmpeg first, it ends up at the earlier one.
+        assert_eq!(lock(&starts).last(), Some(&399));
+        write_keyframes(data.path(), id, 399..405);
+        let (seeked_to, after) = answer(both).await;
+        assert_eq!(seeked_to.unwrap().unwrap(), b"399400401");
+        assert_eq!(after.unwrap().unwrap(), b"402403404");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
     async fn a_restart_that_fails_leaves_the_next_request_to_start_ffmpeg_again() {
         let data = tempfile::tempdir().unwrap();
         let plans = running_plans(data.path()).await;
@@ -727,6 +753,26 @@ mod tests {
         assert_eq!(until_started(&starts, 2).await, [0, 60]);
         write_keyframes(data.path(), id, 60..63);
         assert_eq!(answer(next).await.unwrap().unwrap(), b"606162");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn ffmpeg_short_of_two_minutes_past_the_last_segment_asked_for_keeps_running() {
+        let data = tempfile::tempdir().unwrap();
+        let plans = running_plans(data.path()).await;
+        let (id, starts) = start_writing_nothing(&plans).await;
+        let plan = plans.of_device(id, 7).unwrap();
+        // To 118 seconds.
+        write_keyframes(data.path(), id, 0..59);
+        plan.segment(0).await.unwrap().unwrap();
+        tokio::time::sleep(POLL_EVERY * 3).await;
+
+        let next = tokio::spawn(async move { plan.segment(20).await });
+
+        tokio::time::sleep(POLL_EVERY * 3).await;
+        write_keyframes(data.path(), id, 59..63);
+        assert_eq!(answer(next).await.unwrap().unwrap(), b"606162");
+        assert_eq!(*lock(&starts), [0]);
     }
 
     #[cfg(unix)]
