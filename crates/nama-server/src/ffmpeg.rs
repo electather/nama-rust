@@ -31,11 +31,19 @@ const PROBE_TIMEOUT: Duration = Duration::from_secs(60);
 /// file from a slow network share.
 const KEYFRAMES_TIMEOUT: Duration = Duration::from_mins(10);
 
-/// How long a Remux's HLS segments aim to be, in milliseconds: ffmpeg's `-hls_time`.
-pub(crate) const HLS_TIME_MS: i64 = 6000;
+/// A keyframe of a Version's video: its number, from 0, and when it falls, in milliseconds from
+/// the file's start.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Keyframe {
+    pub(crate) n: usize,
+    pub(crate) ms: i64,
+}
 
-/// The name ffmpeg gives a Remux's HLS init segment, beside its segments.
-pub(crate) const HLS_INIT: &str = "init.mp4";
+/// The name of the init segment a Remux started at keyframe `n` writes beside its files. Every
+/// run's is the same, but each writes its own, since ffmpeg writes it from empty as a run goes.
+pub(crate) fn remux_init(n: usize) -> String {
+    format!("init-{n}.mp4")
+}
 
 /// How long ffmpeg may take to read one subtitle out of a file. Matroska interleaves it with the
 /// video, so the whole file is read: about a minute from a slow disk, so this leaves room for a
@@ -188,28 +196,64 @@ impl Ffmpeg {
     }
 
     /// Starts ffmpeg copying the first video, and the `audio`th audio Track if any, of the file
-    /// at `path` untouched into HLS with fMP4 segments in `dir`: [`HLS_INIT`], then `0.m4s`,
-    /// `1.m4s` and so on, each cut at the first keyframe at or after the next multiple of
-    /// [`HLS_TIME_MS`]. Each file appears only once it's whole. Dropping the child stops ffmpeg.
+    /// at `path` untouched into fMP4 in `dir`, from the keyframe `from` to the end: an init
+    /// segment ([`remux_init`]), whole once `from`'s file is, and a file for each keyframe, named by its number such as `3.m4s`, which a segment the
+    /// Server serves joins up. A run started at any keyframe writes the same files, timed as in
+    /// the file, so it can pick up where another stopped. Each file appears only once it's
+    /// whole. Dropping the child stops ffmpeg.
     pub(crate) fn remux(
         &self,
         path: &str,
         audio: Option<usize>,
         dir: &Path,
+        from: Keyframe,
     ) -> io::Result<tokio::process::Child> {
         let ffmpeg = (self.ffmpeg.as_ref()).map_err(|why| io::Error::other(why.clone()))?;
         let mut command = tokio::process::Command::new(&ffmpeg.path);
-        command.args(["-v", "error", "-nostdin", "-i"]).arg(path);
+        command.args(["-v", "error", "-nostdin"]);
+        // Keyframe times are rounded down to the millisecond, so a millisecond before it is past
+        // the keyframe before.
+        let seek = (from.n > 0).then(|| {
+            let ms = from.ms - 1;
+            format!("{}.{:03}", ms / 1000, ms % 1000)
+        });
+        if let Some(seek) = &seek {
+            // Jumps to a keyframe at or before it, which in Matroska can be a few before.
+            command.args(["-ss", seek]);
+        }
+        command.arg("-i").arg(path);
+        if let Some(seek) = &seek {
+            // Drops what's before it, then puts the times back to the file's own.
+            command.args([
+                "-copyts",
+                "-start_at_zero",
+                "-ss",
+                seek,
+                "-output_ts_offset",
+                seek,
+            ]);
+        }
         command.args(["-map", "0:V:0"]);
         if let Some(audio) = audio {
             command.arg("-map").arg(format!("0:a:{audio}"));
         }
+        // ffmpeg 5.0 renamed it; 6.0 dropped the old name.
+        let segment_options = if is_release_before(&ffmpeg.version, (5, 0)) {
+            "-hls_ts_options"
+        } else {
+            "-hls_segment_options"
+        };
         command
             .args(["-c", "copy", "-f", "hls", "-hls_segment_type", "fmp4"])
-            .arg("-hls_time")
-            .arg((HLS_TIME_MS / 1000).to_string())
-            .args(["-hls_playlist_type", "vod", "-hls_flags", "temp_file"])
-            .args(["-hls_fmp4_init_filename", HLS_INIT, "-start_number", "0"])
+            // ffmpeg cuts at multiples of `-hls_time` from where it started, so a run started
+            // elsewhere would cut elsewhere: cutting at every keyframe keeps the cuts put.
+            .args(["-hls_time", "0.001", "-hls_playlist_type", "vod"])
+            .args(["-hls_flags", "temp_file", "-hls_fmp4_init_filename"])
+            .arg(remux_init(from.n))
+            // Fragments timed as in the file, rather than from where this run started.
+            .args([segment_options, "movflags=+frag_discont"])
+            .arg("-start_number")
+            .arg(from.n.to_string())
             .arg("-hls_segment_filename")
             .arg(dir.join("%d.m4s"))
             // The Server serves a playlist of its own, listing the whole Version up front.
@@ -479,6 +523,11 @@ fn run(name: &str, path: PathBuf) -> Option<FoundProgram> {
 
 /// Whether `version` is a release older than [`MINIMUM`].
 fn is_too_old(version: &str) -> bool {
+    is_release_before(version, MINIMUM)
+}
+
+/// Whether `version` is a release older than `release`, as major and minor version.
+fn is_release_before(version: &str, release: (u32, u32)) -> bool {
     // A release says `7.1.1`, `n7.0` or `4.4.2-0ubuntu0.22.04.1`. A build from git says
     // `N-113021-g5b3fc5d`, with no release number, so it gets the benefit of the doubt.
     let mut numbers = version
@@ -489,7 +538,7 @@ fn is_too_old(version: &str) -> bool {
         return false;
     };
     let minor = numbers.next().flatten().unwrap_or(0);
-    (major, minor) < MINIMUM
+    (major, minor) < release
 }
 
 /// Writes a fifth of a second of 10-bit 4K video with English 5.1 audio, as Matroska, to `path`,
@@ -567,7 +616,7 @@ mod tests {
         sync::{PoisonError, RwLock},
     };
 
-    use super::{Ffmpeg, FoundProgram};
+    use super::{Ffmpeg, FoundProgram, Keyframe};
     use crate::config::Config;
 
     /// Held to write a fake, and shared to run them. A child forked while another test has a fake
@@ -781,6 +830,44 @@ mod tests {
 
         assert_eq!(found.direct_play_only_because(), None);
     }
+
+    #[tokio::test]
+    async fn ffmpeg_before_5_0_is_given_segment_options_by_their_old_name() {
+        let bin = tempfile::tempdir().unwrap();
+        let args = bin.path().join("args");
+        let script = format!(
+            "#!/bin/sh\n[ \"$1\" = -version ] && echo 'ffmpeg version 4.4.2' || echo \"$*\" > '{}'\n",
+            args.display()
+        );
+        let ffmpeg = {
+            let _writing = WRITING_FAKES
+                .write()
+                .unwrap_or_else(PoisonError::into_inner);
+            let path = bin.path().join("ffmpeg");
+            fs::write(&path, script).unwrap();
+            fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
+            path
+        };
+        let ffmpeg = Ffmpeg {
+            ffmpeg: Ok(FoundProgram {
+                path: ffmpeg,
+                version: "4.4.2".to_owned(),
+            }),
+            ..Ffmpeg::default()
+        };
+
+        let remux = {
+            let _running = WRITING_FAKES.read().unwrap_or_else(PoisonError::into_inner);
+            ffmpeg.remux("alien.mkv", None, bin.path(), Keyframe { n: 0, ms: 0 })
+        };
+
+        remux.unwrap().wait().await.unwrap();
+        let args = fs::read_to_string(args).unwrap();
+        assert!(
+            args.contains("-hls_ts_options movflags=+frag_discont"),
+            "{args}"
+        );
+    }
 }
 
 #[cfg(test)]
@@ -987,5 +1074,68 @@ mod probe_output_tests {
         let csv = "1.523000,K__\n4.023000,K__\n1.500000\n";
 
         assert_eq!(super::parse_keyframes(csv), [23, 2523]);
+    }
+}
+
+#[cfg(test)]
+mod remux_tests {
+    use std::{fs, path::Path};
+
+    use super::{Ffmpeg, Keyframe, write_h264_and_aac};
+    use crate::config::Config;
+
+    /// The ffmpeg and ffprobe on `PATH`, which these tests need.
+    fn system_ffmpeg() -> Ffmpeg {
+        let ffmpeg = Ffmpeg::find(&Config::default(), &std::env::var_os("PATH").unwrap());
+        assert!(
+            ffmpeg.can_remux(),
+            "this test needs ffmpeg and ffprobe on PATH"
+        );
+        ffmpeg
+    }
+
+    /// Remuxes the file at `path` into `dir` from `from`, until ffmpeg is done.
+    async fn remux(ffmpeg: &Ffmpeg, path: &Path, dir: &Path, from: Keyframe) {
+        fs::create_dir_all(dir).unwrap();
+        let path = path.to_str().unwrap();
+        let output = ffmpeg.remux(path, Some(0), dir, from).unwrap();
+        let output = output.wait_with_output().await.unwrap();
+        assert!(output.status.success(), "{output:?}");
+    }
+
+    /// When the first fragment of an fMP4 segment starts, in its track's own units.
+    fn starts_at(segment: &[u8]) -> u64 {
+        let at = segment.windows(4).position(|name| name == b"tfdt").unwrap() + 4;
+        let (version, time) = (segment[at], &segment[at + 4..]);
+        if version == 1 {
+            u64::from_be_bytes(time[..8].try_into().unwrap())
+        } else {
+            u32::from_be_bytes(time[..4].try_into().unwrap()).into()
+        }
+    }
+
+    #[tokio::test]
+    async fn a_remux_started_at_a_keyframe_writes_its_files_on_timed_as_in_the_file() {
+        let ffmpeg = system_ffmpeg();
+        let work = tempfile::tempdir().unwrap();
+        let file = work.path().join("alien.mkv");
+        write_h264_and_aac(&file).unwrap();
+        let (whole, restarted) = (work.path().join("whole"), work.path().join("restarted"));
+        remux(&ffmpeg, &file, &whole, Keyframe { n: 0, ms: 0 }).await;
+
+        remux(&ffmpeg, &file, &restarted, Keyframe { n: 3, ms: 6000 }).await;
+
+        // A keyframe every 2 seconds of 14, each starting a file.
+        assert!(!restarted.join("2.m4s").exists());
+        for n in 3..7 {
+            let segment = |dir: &Path| fs::read(dir.join(format!("{n}.m4s"))).unwrap();
+            let (expected, actual) = (starts_at(&segment(&whole)), starts_at(&segment(&restarted)));
+            // ffmpeg can cut the first a millisecond differently.
+            assert!(
+                expected.abs_diff(actual) <= expected / 100,
+                "{n}.m4s: {actual} against {expected}"
+            );
+        }
+        assert!(!restarted.join("7.m4s").exists());
     }
 }

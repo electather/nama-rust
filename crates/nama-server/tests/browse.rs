@@ -1235,15 +1235,24 @@ async fn an_h264_and_aac_mkv_is_remuxed_over_hls_because_of_its_container() {
         assert_ne!(segment.len(), 0, "{file}");
     }
     // HLS time is the file's time, so Watch State needs no conversion: the playlist cuts where
-    // ffmpeg did, from the start of the file to its end.
+    // ffmpeg cut a file per keyframe, from the start of the file to its end.
     let (ffmpegs, _) = segments(&ffmpegs_own_playlist(&fx, &plan.url).await);
-    assert_eq!(durations.len(), ffmpegs.len());
-    for (ours, theirs) in durations.iter().zip(&ffmpegs) {
+    let ffmpegs_cuts = cuts(&ffmpegs);
+    for cut in cuts(&durations) {
         assert!(
-            (ours - theirs).abs() < 0.1,
+            ffmpegs_cuts.iter().any(|theirs| (cut - theirs).abs() < 0.1),
             "{durations:?} against {ffmpegs:?}"
         );
     }
+}
+
+/// Where segments lasting `durations` end.
+fn cuts(durations: &[f64]) -> Vec<f64> {
+    let ends = durations.iter().scan(0.0, |end, duration| {
+        *end += duration;
+        Some(*end)
+    });
+    ends.collect()
 }
 
 /// A Server whose ffprobe, a shell script in `bin`, writes the arguments of each run to `log`
