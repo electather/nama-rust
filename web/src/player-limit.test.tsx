@@ -28,22 +28,32 @@ Object.assign(HTMLMediaElement, { HAVE_METADATA: 1 });
 afterEach(cleanup);
 
 const PLAYER = "/libraries/1/movies/tmdb-348/play";
-const LANDSCAPE_1080P = { width: 1920, height: 1080 };
+const {
+  PLAYBACK_LIMIT_ORIGINAL: ORIGINAL,
+  PLAYBACK_LIMIT_720P,
+  PLAYBACK_LIMIT_480P,
+} = PlaybackLimit;
 
 /**
- * A fake Server with Alien in Library 1, whose one Version is H.264 with a `picture`, 1080p unless
- * given. It Direct Plays it unless the Playback Limit asked for, or else `remoteDefault`, is below
- * Original, which it Transcodes, and each plan request goes in `asked`.
+ * A fake Server with Alien in Library 1, whose one Version is 1080p H.264 with English audio and a
+ * commentary. It offers the Playback Limits `offered`, and Direct Plays it unless the one asked
+ * for, or else `remoteDefault`, is below Original, which it Transcodes, unless it `cantTranscode`,
+ * when it drops the limit. Each plan request goes in `asked`.
  */
 function server(
   asked: PlanPlaybackRequest[],
-  picture = LANDSCAPE_1080P,
-  remoteDefault: PlaybackLimit = PlaybackLimit.PLAYBACK_LIMIT_ORIGINAL,
+  {
+    offered = [PLAYBACK_LIMIT_720P, PLAYBACK_LIMIT_480P],
+    remoteDefault = ORIGINAL,
+    cantTranscode = false,
+  }: { offered?: PlaybackLimit[]; remoteDefault?: PlaybackLimit; cantTranscode?: boolean } = {},
 ) {
   const libraries = [{ id: 1n, name: "Films", kind: LibraryKind.MOVIES }];
+  const audio = { case: "audio", value: { channels: 2 } } as const;
   const tracks = [
-    { codec: "h264", kind: { case: "video", value: picture } },
-    { codec: "aac", default: true, kind: { case: "audio", value: { channels: 2 } } },
+    { codec: "h264", kind: { case: "video", value: { width: 1920, height: 1080 } } },
+    { codec: "aac", language: "eng", default: true, kind: audio },
+    { codec: "aac", language: "eng", title: "Commentary", kind: audio },
   ] as const;
   return fakeServer({ signedIn: newUser, libraries }, {}, {}, (router) => {
     router.service(BrowseService, {
@@ -59,12 +69,17 @@ function server(
       planPlayback: (request) => {
         asked.push(request);
         const picked = request.playbackLimit;
-        const limit = picked === PlaybackLimit.PLAYBACK_LIMIT_UNSPECIFIED ? remoteDefault : picked;
+        const applies =
+          picked === PlaybackLimit.PLAYBACK_LIMIT_UNSPECIFIED ? remoteDefault : picked;
+        const limit = cantTranscode ? ORIGINAL : applies;
         const played =
-          limit === PlaybackLimit.PLAYBACK_LIMIT_ORIGINAL
+          limit === ORIGINAL
             ? { method: PlaybackMethod.DIRECT_PLAY, url: "/media/versions/7" }
             : { method: PlaybackMethod.TRANSCODE, url: `/media/plans/${asked.length}/index.m3u8` };
-        return { plan: { ...played, playbackLimit: limit } };
+        const audioTrack = request.audioTrack ?? 1;
+        const reasons = cantTranscode ? ["It can’t be Transcoded here"] : [];
+        const offers = { playbackLimits: offered, audioTracks: [1, 2] };
+        return { plan: { ...played, playbackLimit: limit, audioTrack, reasons, ...offers } };
       },
     });
   });
@@ -98,11 +113,11 @@ test("on a 1080p Version the Playback Limit menu offers Original, 720p and 480p,
   ]);
 });
 
-test("on a portrait 1080p Version the Playback Limit menu offers Original, 720p and 480p", async () => {
-  openApp(PLAYER, server([], { width: 1080, height: 1920 }));
+test("a Version the Server offers no Playback Limit for has no Playback Limit menu", async () => {
+  openApp(PLAYER, server([], { offered: [] }));
   await screen.findByLabelText("Alien");
 
-  expect(openLimits().map((item) => item.textContent)).toEqual(["Original", "720p", "480p"]);
+  expect(screen.queryByRole("button", { name: "Playback Limit" })).toBeNull();
 });
 
 test("choosing 720p mid-play, then Original, asks each time for a plan from where the video stands", async () => {
@@ -143,7 +158,7 @@ test("choosing 720p mid-play, then Original, asks each time for a plan from wher
 
 test("away from home the menu shows the remote default the Server chose, until Original is picked", async () => {
   const asked: PlanPlaybackRequest[] = [];
-  openApp(PLAYER, server(asked, LANDSCAPE_1080P, PlaybackLimit.PLAYBACK_LIMIT_720P));
+  openApp(PLAYER, server(asked, { remoteDefault: PLAYBACK_LIMIT_720P }));
   await screen.findByLabelText("Alien");
 
   const shown = openLimits().map((item) => item.getAttribute("aria-checked"));
@@ -158,8 +173,58 @@ test("away from home the menu shows the remote default the Server chose, until O
 });
 
 test("a remote default the Version already fits shows as Original", async () => {
-  openApp(PLAYER, server([], { width: 1280, height: 720 }, PlaybackLimit.PLAYBACK_LIMIT_1080P));
+  const remoteDefault = PlaybackLimit.PLAYBACK_LIMIT_1080P;
+  openApp(PLAYER, server([], { offered: [PLAYBACK_LIMIT_480P], remoteDefault }));
   await screen.findByLabelText("Alien");
 
   expect(openLimits().map((item) => item.getAttribute("aria-checked"))).toEqual(["true", "false"]);
+});
+
+test("720p picked while the Server can’t Transcode keeps playing at Original, says so, and is forgotten", async () => {
+  const asked: PlanPlaybackRequest[] = [];
+  openApp(PLAYER, server(asked, { cantTranscode: true }));
+  await screen.findByLabelText("Alien");
+
+  openLimits();
+  fireEvent.click(screen.getByRole("menuitemradio", { name: "720p" }));
+
+  expect((await screen.findByRole("status")).textContent).toBe(
+    "Can’t play at 720p here right now. Playback info says why.",
+  );
+  expect(asked[1]?.playbackLimit).toBe(PLAYBACK_LIMIT_720P);
+  expect(openLimits().map((item) => item.getAttribute("aria-checked"))).toEqual([
+    "true",
+    "false",
+    "false",
+  ]);
+
+  fireEvent.click(screen.getByRole("button", { name: "Audio" }));
+  fireEvent.click(screen.getByRole("menuitemradio", { name: /Commentary/u }));
+
+  await waitFor(() => {
+    expect(asked).toHaveLength(3);
+  });
+  expect(asked[2]?.playbackLimit).toBe(ORIGINAL);
+  expect(asked[2]?.audioTrack).toBe(2);
+  expect(screen.queryByRole("status")).toBeNull();
+});
+
+test("a remote default the Server can’t Transcode to plays at Original without a notice, and stays unpicked", async () => {
+  const asked: PlanPlaybackRequest[] = [];
+  openApp(PLAYER, server(asked, { remoteDefault: PLAYBACK_LIMIT_720P, cantTranscode: true }));
+  await screen.findByLabelText("Alien");
+
+  expect(screen.queryByRole("status")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Playback info" }));
+  expect(screen.getByRole("region", { name: "Playback info" }).textContent).toContain(
+    "It can’t be Transcoded here",
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: "Audio" }));
+  fireEvent.click(screen.getByRole("menuitemradio", { name: /Commentary/u }));
+
+  await waitFor(() => {
+    expect(asked).toHaveLength(2);
+  });
+  expect(asked[1]?.playbackLimit).toBe(PlaybackLimit.PLAYBACK_LIMIT_UNSPECIFIED);
 });

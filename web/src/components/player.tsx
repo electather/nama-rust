@@ -4,12 +4,13 @@ import { Link, type LinkOptions } from "@tanstack/react-router";
 import { ArrowLeft, Maximize, Minimize, Pause, Play, Volume2, VolumeX } from "lucide-react";
 import { type PointerEvent, type ReactNode, type RefObject, useRef } from "react";
 
+import { DroppedChoice } from "@/components/dropped-choice";
 import { PlaybackInfo } from "@/components/playback-info";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { SubtitleTracks } from "@/components/subtitles-menu";
 import { TrackMenus } from "@/components/track-menus";
-import { Slider } from "@/components/ui/slider";
 // oxlint-disable-next-line import/max-dependencies -- the player puts together the video, its controls, Tracks, Watch State and playback info
+import { Slider } from "@/components/ui/slider";
 import type { Track } from "@/gen/nama/v1/browse_pb";
 import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
 import {
@@ -51,15 +52,18 @@ export function Player(props: PlayerProps) {
   const { plan } = planned;
   if (plan.url === "") return <CantPlay back={props.back} reasons={plan.reasons} />;
   if (planned.gaveUp) return <CantPlay back={props.back} reasons={[]} />;
+  const topBar = (
+    <TopBar
+      title={props.title}
+      back={props.back}
+      playbackInfo={<PlaybackInfo plan={plan} />}
+      notice={<DroppedChoice justChose={planned.justChose} plan={plan} />}
+    />
+  );
   return (
     // A plan at a new URL plays in a new `<video>`, so it starts where that plan does. ponytail: that one
     // starts unmuted at full volume; carry those over if anyone minds.
-    <VideoPlayer
-      key={plan.url}
-      {...props}
-      planned={planned}
-      playbackInfo={<PlaybackInfo plan={plan} />}
-    />
+    <VideoPlayer key={plan.url} {...props} planned={planned} topBar={topBar} />
   );
 }
 
@@ -74,8 +78,8 @@ function VideoPlayer({
   tracks,
   back,
   planned,
-  playbackInfo,
-}: PlayerProps & { planned: ReturnType<typeof usePlaybackPlan>; playbackInfo: ReactNode }) {
+  topBar,
+}: PlayerProps & { planned: ReturnType<typeof usePlaybackPlan>; topBar: ReactNode }) {
   const { plan, startPositionMs, onCantPlay } = planned;
   const playerRef = useRef<HTMLDivElement>(null);
   const { ref: videoRef, events, ...video } = useVideo();
@@ -110,7 +114,7 @@ function VideoPlayer({
       </video>
       {/* Any key brings the controls back, so a focused control shows its ring when it's used. */}
       <div className="pointer-events-none absolute inset-0 flex flex-col justify-between transition-opacity duration-500 ease-out-expo group-data-controls-hidden:opacity-0 motion-reduce:transition-none">
-        <TopBar title={title} back={back} playbackInfo={playbackInfo} />
+        {topBar}
         <BottomBar video={video} playerRef={playerRef}>
           <TrackMenus tracks={tracks} planned={planned} videoRef={videoRef} container={playerRef} />
         </BottomBar>
@@ -119,23 +123,29 @@ function VideoPlayer({
   );
 }
 
+/** The title bar, with a short `notice` under it. */
 function TopBar({
   title,
   back,
   playbackInfo,
+  notice,
 }: {
   title: string;
   back: LinkOptions;
   playbackInfo: ReactNode;
+  notice: ReactNode;
 }) {
   return (
-    <header className="pointer-events-auto flex group-data-controls-hidden:pointer-events-none items-center gap-2 bg-linear-to-b from-scrim px-2 pt-2 pb-10 sm:px-4 sm:pt-4">
-      <BackLink back={back} variant="overlay" size="icon" label="Back">
-        <ArrowLeft aria-hidden />
-      </BackLink>
-      <h1 className="me-auto truncate font-medium">{title}</h1>
-      {playbackInfo}
-    </header>
+    <div className="bg-linear-to-b from-scrim pb-10">
+      <header className="pointer-events-auto flex group-data-controls-hidden:pointer-events-none items-center gap-2 px-2 pt-2 sm:px-4 sm:pt-4">
+        <BackLink back={back} variant="overlay" size="icon" label="Back">
+          <ArrowLeft aria-hidden />
+        </BackLink>
+        <h1 className="me-auto truncate font-medium">{title}</h1>
+        {playbackInfo}
+      </header>
+      {notice}
+    </div>
   );
 }
 

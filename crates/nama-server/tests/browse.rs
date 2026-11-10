@@ -1173,11 +1173,11 @@ async fn an_h264_and_aac_mp4_direct_plays_through_its_plans_url() {
             "No hardware acceleration passed its test when this Server started, so a Transcode \
              runs in software",
             "Nothing has failed to play it on this Device",
+            "This Server isn't running as many Transcodes as it may at once",
             "It plays the file's own audio Track",
             "This Device is on the local network",
             "The Playback Limit is Original",
             "No subtitles are burned into its picture",
-            "This Server isn't running as many Transcodes as it may at once",
         ]
     );
     let played = fetch(&fx.server, &plan.url, Some(&fx.server.admin_token)).await;
@@ -1308,7 +1308,7 @@ async fn with_the_cap_full_a_device_that_plays_a_remux_gets_one_and_the_plan_say
 
     assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_REMUX);
     assert_eq!(
-        plan.reasons.last().map(String::as_str),
+        plan.reasons.get(5).map(String::as_str),
         Some(
             "This Server is busy, running as many Transcodes as it may at once (1), so it can't \
              Transcode it"
@@ -1396,11 +1396,11 @@ async fn without_ffprobe_a_version_direct_plays_and_its_plan_says_its_tracks_are
             "No hardware acceleration passed its test when this Server started, so a Transcode \
              runs in software",
             "Nothing has failed to play it on this Device",
+            "This Server isn't running as many Transcodes as it may at once",
             "It plays the file's own audio Track",
             "This Device is on the local network",
             "The Playback Limit is Original",
             "No subtitles are burned into its picture",
-            "This Server isn't running as many Transcodes as it may at once",
         ]
     );
 }
@@ -1817,7 +1817,11 @@ async fn switching_to_the_commentary_mid_play_remuxes_it_from_there_with_its_aud
     assert_eq!(commentary.method, PlaybackMethod::PLAYBACK_METHOD_REMUX);
     assert_eq!(commentary.tracks[1].title.as_deref(), Some("Commentary"));
     assert_eq!(
-        commentary.reasons[5],
+        (english.audio_track, commentary.audio_track),
+        (Some(1), Some(2))
+    );
+    assert_eq!(
+        commentary.reasons[6],
         "The audio Track chosen isn't the one browsers play from its file, so it can't be Direct \
          Played"
     );
@@ -1873,7 +1877,7 @@ async fn a_1080p_h264_mkv_limited_to_720p_is_transcoded_down_to_it_and_original_
 
     assert_eq!(at_720p.method, PlaybackMethod::PLAYBACK_METHOD_TRANSCODE);
     assert_eq!(
-        at_720p.reasons[7],
+        at_720p.reasons[8],
         "Its picture is larger than the 720p Playback Limit, so a Transcode scales it down to \
          1280×720"
     );
@@ -1882,7 +1886,35 @@ async fn a_1080p_h264_mkv_limited_to_720p_is_transcoded_down_to_it_and_original_
         "h264,1280,720"
     );
     assert_eq!(original.method, PlaybackMethod::PLAYBACK_METHOD_REMUX);
-    assert_eq!(original.reasons[7], "The Playback Limit is Original");
+    assert_eq!(original.reasons[8], "The Playback Limit is Original");
+    assert_eq!(
+        original.playback_limits,
+        [
+            PlaybackLimit::PLAYBACK_LIMIT_720P,
+            PlaybackLimit::PLAYBACK_LIMIT_480P
+        ]
+    );
+}
+
+#[tokio::test]
+async fn a_720p_limit_picked_after_a_transcode_failed_on_the_device_is_dropped_for_original() {
+    let (fx, version) = Fixture::alien_written(system_ffmpeg(), ffmpeg::write_1080p_h264).await;
+
+    let plan = fx
+        .ask_for_plan(PlanPlaybackRequest {
+            failed_methods: vec![PlaybackMethod::PLAYBACK_METHOD_TRANSCODE.into()],
+            ..picking(version, PlaybackLimit::PLAYBACK_LIMIT_720P)
+        })
+        .await
+        .unwrap();
+
+    assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_REMUX);
+    assert_eq!(plan.playback_limit, PlaybackLimit::PLAYBACK_LIMIT_ORIGINAL);
+    assert_eq!(
+        plan.reasons[8],
+        "The 720p Playback Limit needs a Transcode, which can't play it here, so it's \
+         dropped for Original"
+    );
 }
 
 /// A Server behind a reverse proxy at the test's own address, which it trusts.
@@ -1929,7 +1961,7 @@ async fn a_1080p_h264_mkv_played_from_outside_the_local_network_transcodes_to_th
     let local = fx.ask_for_plan(unpicked).await.unwrap();
 
     assert_eq!(defaulted.method, PlaybackMethod::PLAYBACK_METHOD_TRANSCODE);
-    assert_eq!(defaulted.reasons[6], REMOTE_720P);
+    assert_eq!(defaulted.reasons[7], REMOTE_720P);
     assert_eq!(defaulted.playback_limit, PlaybackLimit::PLAYBACK_LIMIT_720P);
     assert_eq!(
         played_streams(&fx, &defaulted.url, "v", "0.m4s", "width,height").await,
@@ -1940,7 +1972,7 @@ async fn a_1080p_h264_mkv_played_from_outside_the_local_network_transcodes_to_th
         PlaybackMethod::PLAYBACK_METHOD_REMUX
     );
     assert_eq!(local.method, PlaybackMethod::PLAYBACK_METHOD_REMUX);
-    assert_eq!(local.reasons[6], LOCAL);
+    assert_eq!(local.reasons[7], LOCAL);
     assert_eq!(local.playback_limit, PlaybackLimit::PLAYBACK_LIMIT_ORIGINAL);
 }
 
@@ -1961,9 +1993,9 @@ async fn behind_a_trusted_proxy_the_forwarded_client_address_decides_whether_pla
         .await
         .unwrap();
 
-    assert_eq!(remote.reasons[6], REMOTE_720P);
+    assert_eq!(remote.reasons[7], REMOTE_720P);
     assert_eq!(remote.playback_limit, PlaybackLimit::PLAYBACK_LIMIT_720P);
-    assert_eq!(local.reasons[6], LOCAL);
+    assert_eq!(local.reasons[7], LOCAL);
     assert_eq!(local.playback_limit, PlaybackLimit::PLAYBACK_LIMIT_ORIGINAL);
 }
 
@@ -1982,7 +2014,7 @@ async fn behind_an_untrusted_proxy_the_peers_address_decides_whether_playback_is
         .await
         .unwrap();
 
-    assert_eq!(plan.reasons[6], LOCAL);
+    assert_eq!(plan.reasons[7], LOCAL);
     assert_eq!(plan.playback_limit, PlaybackLimit::PLAYBACK_LIMIT_ORIGINAL);
 }
 
@@ -2003,8 +2035,12 @@ async fn a_pgs_track_turned_on_mid_play_is_burned_into_a_transcode_from_there() 
 
     assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_TRANSCODE);
     assert_eq!(
-        plan.reasons[8],
+        plan.reasons[9],
         "The subtitles chosen are burned into its picture, which only a Transcode does"
+    );
+    assert_eq!(
+        (plan.subtitle_track, plan.burn_in_tracks),
+        (Some(1), vec![1])
     );
     // The player asks first for the segment 7 seconds falls in, where ffmpeg starts.
     let picture = last_frame(&fx, &plan.url, "1.m4s").await;
