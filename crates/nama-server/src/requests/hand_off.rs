@@ -33,8 +33,8 @@ use crate::{
 /// (ADR 0012).
 pub(crate) const PROGRESS_EVERY: Duration = Duration::from_secs(60);
 
-/// Requests' way to the Fulfillers for Movies and for Shows, where they are enabled, and the one
-/// place its events are published.
+/// Requests' way to the Fulfillers for Movies and for Shows, where they are enabled, which also
+/// publishes the changes its writes make.
 #[derive(Debug, Clone)]
 pub(super) struct HandOff {
     db: Arc<Database>,

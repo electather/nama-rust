@@ -106,7 +106,7 @@ pub(crate) struct Requests {
     contents: Contents,
     /// Looks up what a new Request asks for: a Movie, or a Show's Seasons.
     matcher: Matcher,
-    /// Its only way to the Fulfillers, and the only one to publish its events.
+    /// Its only way to the Fulfillers, and what publishes the changes its writes make.
     hand_off: HandOff,
 }
 
@@ -1981,8 +1981,8 @@ async fn followed_show_approved(conn: &mut SqliteConnection, id: i64) -> Result<
     .await
 }
 
-/// Removes the Followed Show `id` as [`remove_followed`] does, naming what that returns to
-/// unfollow.
+/// Removes the Followed Show `id` as [`remove_followed`] does, naming the Season Request that
+/// returns, if any, as the one whose Show to stop following.
 async fn cancel_followed(conn: &mut SqliteConnection, id: i64) -> Result<Applied<()>, Error> {
     let followed = load_followed(conn, Some(id), None).await?.pop();
     let followed = followed.ok_or(Error::NoSuchFollowedShow(id))?;
@@ -2027,8 +2027,8 @@ async fn remove_followed(
     Ok(followed_season)
 }
 
-/// Takes `user` off the Followed Show `id`, among those `visible` lets them see, removing it as
-/// [`remove_followed`] does, naming what that returns to unfollow, if they were its last Requester.
+/// Takes `user` off the Followed Show `id`, among those `visible` lets them see. If they were its
+/// last Requester, removes it instead, naming its Season Request as [`cancel_followed`] does.
 async fn withdraw_followed(
     conn: &mut SqliteConnection,
     user: i64,
@@ -2541,24 +2541,24 @@ mod tests {
         }
     }
 
-    /// A Plugin, `gated`, providing a Movie Fulfiller.
-    struct FulfillerPlugin(Arc<dyn Fulfiller<Movies>>);
+    /// A Plugin with the id `.0`, providing `.1` as the Fulfiller of `Kind`, Movies or Shows.
+    struct FulfillerPlugin<Kind>(&'static str, Arc<dyn Fulfiller<Kind>>);
 
-    impl Plugin for FulfillerPlugin {
+    impl<Kind: 'static> Plugin for FulfillerPlugin<Kind> {
         fn manifest(&self) -> Manifest {
             Manifest {
-                id: PluginId::from_static("gated"),
+                id: PluginId::from_static(self.0),
                 name: String::new(),
                 description: String::new(),
                 version: "0.0.0".to_owned(),
                 settings: SettingsSchema::default(),
-                extension_points: vec![PointKey::provide::<dyn Fulfiller<Movies>>()],
+                extension_points: vec![PointKey::provide::<dyn Fulfiller<Kind>>()],
                 logo_svg: None,
             }
         }
 
         fn register(&self, registrar: &mut Registrar) {
-            registrar.provide::<dyn Fulfiller<Movies>>(Priority::DEFAULT, Arc::clone(&self.0));
+            registrar.provide::<dyn Fulfiller<Kind>>(Priority::DEFAULT, Arc::clone(&self.1));
         }
     }
 
@@ -2646,7 +2646,7 @@ mod tests {
         let db = Arc::new(Database::open(data.path()).await.unwrap());
         db.write(|tx| Box::pin(insert_ada(tx))).await.unwrap();
         plugins
-            .enable(Arc::new(FulfillerPlugin(fulfiller)))
+            .enable(Arc::new(FulfillerPlugin("gated", fulfiller)))
             .unwrap();
         let events = EventBus::new(Arc::clone(&db), plugins.clone(), ServerUrl::default());
         let matcher = Matcher::new(Arc::clone(&db), plugins.clone(), events.clone());
@@ -3798,36 +3798,24 @@ mod tests {
         unfollowing.0.lock().unwrap().clone()
     }
 
-    /// A Plugin, `shows`, providing a Shows Fulfiller.
-    struct ShowsPlugin(Arc<dyn Fulfiller<Shows>>);
-
-    impl Plugin for ShowsPlugin {
-        fn manifest(&self) -> Manifest {
-            Manifest {
-                id: PluginId::from_static("shows"),
-                name: String::new(),
-                description: String::new(),
-                version: "0.0.0".to_owned(),
-                settings: SettingsSchema::default(),
-                extension_points: vec![PointKey::provide::<dyn Fulfiller<Shows>>()],
-                logo_svg: None,
-            }
-        }
-
-        fn register(&self, registrar: &mut Registrar) {
-            registrar.provide::<dyn Fulfiller<Shows>>(Priority::DEFAULT, Arc::clone(&self.0));
-        }
+    /// Requests whose Shows Fulfiller is the returned [`Unfollowing`], with Ada following Dark,
+    /// Approved. Returns the Followed Show's id too.
+    async fn following_dark() -> (tempfile::TempDir, Requests, Arc<Unfollowing>, i64) {
+        let unfollowing = Arc::new(Unfollowing::default());
+        let fulfiller = Arc::clone(&unfollowing);
+        let plugins = Registry::new();
+        plugins
+            .enable(Arc::new(FulfillerPlugin("shows", fulfiller)))
+            .unwrap();
+        let (data, requests) = approved_on(plugins, &[], Arc::new(Asked::default())).await;
+        let followed = follow_as(&requests.db, ADA, dark(), RequestState::Approved).await;
+        let id = followed.value.0.id;
+        (data, requests, unfollowing, id)
     }
 
     #[tokio::test]
     async fn a_followed_show_cancelled_by_a_caller_who_left_is_published_and_unfollowed() {
-        let unfollowing = Arc::new(Unfollowing::default());
-        let fulfiller = Arc::clone(&unfollowing);
-        let plugins = Registry::new();
-        plugins.enable(Arc::new(ShowsPlugin(fulfiller))).unwrap();
-        let (_data, requests) = approved_on(plugins, &[], Arc::new(Asked::default())).await;
-        let followed = follow_as(&requests.db, ADA, dark(), RequestState::Approved).await;
-        let id = followed.value.0.id;
+        let (_data, requests, unfollowing, id) = following_dark().await;
         let mut published = Box::pin(requests.hand_off.events().subscribe(Filter::default()));
         let cancelling = requests.clone();
 
@@ -3841,6 +3829,28 @@ mod tests {
         assert!(
             matches!(cancelled, Happened::FollowedShowCancelled(_)),
             "{cancelled:?}"
+        );
+        assert_eq!(unfollowed_shows(&unfollowing).await, [dark().show_tmdb_id]);
+    }
+
+    #[tokio::test]
+    async fn a_followed_show_withdrawn_from_by_its_last_requester_who_left_is_published_and_unfollowed()
+     {
+        let (_data, requests, unfollowing, id) = following_dark().await;
+        let mut published = Box::pin(requests.hand_off.events().subscribe(Filter::default()));
+        let withdrawing = requests.clone();
+
+        leave_once_queued(&requests, async move {
+            withdrawing
+                .withdraw_followed(&ada(Permissions::NEW_USER), id)
+                .await
+        })
+        .await;
+
+        let withdrawn = next_happened(&mut published).await;
+        assert!(
+            matches!(withdrawn, Happened::FollowedShowWithdrawn(_)),
+            "{withdrawn:?}"
         );
         assert_eq!(unfollowed_shows(&unfollowing).await, [dark().show_tmdb_id]);
     }
