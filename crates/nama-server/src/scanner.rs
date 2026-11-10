@@ -56,8 +56,8 @@ const VIDEO_EXTENSIONS: &[&str] = &[
 /// wait long behind a scan.
 const BATCH_SIZE: usize = 200;
 
-/// How many files are probed at once after a scan. Each probe reads only a file's headers, but
-/// from a disk, or a network share, that playback is reading from too.
+/// How many files the Server probes at once, across all Libraries. Each probe reads only a file's
+/// headers, but from a disk, or a network share, that playback is reading from too.
 const PROBES_AT_ONCE: usize = 3;
 
 /// What one scan changed.
@@ -122,6 +122,8 @@ struct Inner {
     queued: Mutex<HashSet<i64>>,
     /// Each Library's scan lock, handed out as a [`ScanLock`].
     running: Mutex<HashMap<i64, Arc<tokio::sync::Mutex<()>>>>,
+    /// A permit per probe running, [`PROBES_AT_ONCE`] in all.
+    probing: tokio::sync::Semaphore,
 }
 
 /// A Library's scan lock: while it's held, no scan of the Library runs or starts, so the
@@ -159,6 +161,7 @@ impl Scanner {
                 cancel: CancellationToken::new(),
                 queued: Mutex::default(),
                 running: Mutex::default(),
+                probing: tokio::sync::Semaphore::new(PROBES_AT_ONCE),
             }),
         }
     }
@@ -292,8 +295,7 @@ impl Scanner {
         });
     }
 
-    /// Probes the Library `library`'s files not probed yet, [`PROBES_AT_ONCE`] at a time, and
-    /// stores what each holds. A file that can't be probed is logged and skipped.
+    /// Probes the Library `library`'s files not probed yet and stores what each holds. A file that can't be probed is logged and skipped.
     async fn probe_unprobed(&self, library: i64) -> Result<(), sqlx::Error> {
         let stored = self.inner.contents.stored(library).await?;
         let ids: Vec<i64> = stored.values().map(|file| file.id).collect();
@@ -309,7 +311,13 @@ impl Scanner {
 
     /// Probes the file at `path`, stored as `version`, and stores what it holds, or logs why not.
     async fn probe(&self, path: String, version: i64) {
-        let stored = match self.inner.ffmpeg.probe(&path).await {
+        // The semaphore is never closed.
+        let Ok(running) = self.inner.probing.acquire().await else {
+            return;
+        };
+        let probed = self.inner.ffmpeg.probe(&path).await;
+        drop(running);
+        let stored = match probed {
             Ok(probe) => self.inner.tracks.store(version, probe).await,
             Err(err) => {
                 tracing::warn!("could not probe {path}: {err}");

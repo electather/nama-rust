@@ -178,6 +178,6 @@ export function versionSearch({ version }: Record<string, unknown>): { version?:
 }
 
 /** The Version `chosen` names, or the largest when it names none of `versions`. */
-export function versionToPlay(versions: Version[], chosen: number | undefined) {
+export function versionToPlay(versions: Version[], chosen?: number) {
   return versions.find(({ id }) => Number(id) === chosen) ?? largestVersion(versions);
 }

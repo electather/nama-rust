@@ -1,5 +1,5 @@
--- What ffprobe found inside each Version: the facts of the whole file, and its Tracks. Only
--- `src/tracks.rs` reads or writes these tables. Rows go with their file.
+-- What ffprobe found inside each Version: the facts of the whole file, and its Tracks (owned as
+-- the crate's `AGENTS.md` says). Rows go with their file.
 
 -- One row per probed Version. A Version without one hasn't been probed yet.
 CREATE TABLE version_probes (

@@ -15,7 +15,7 @@ use sqlx::SqliteConnection;
 use crate::db::Database;
 
 /// The version of how probing reads a file, stored with what it read like the name parser's
-/// (ADR 0023). Bump it when probing would read files differently.
+/// (ADR 0023), so what an older version read can be told apart.
 pub(crate) const PROBE_VERSION: i64 = 1;
 
 /// What probing a Version found.

@@ -56,7 +56,14 @@ test("a Season the Show doesn't have falls back to its first, after the Specials
       seasons: [{ number: 0 }, { number: 1 }, { number: 2 }],
     }),
     listEpisodes: ({ seasonNumber }) => ({
-      episodes: [{ seasonNumber, episodeNumber: 1, title: `Opener of Season ${seasonNumber}` }],
+      episodes: [
+        {
+          seasonNumber,
+          episodeNumber: 1,
+          title: `Opener of Season ${seasonNumber}`,
+          versions: [{ id: 1n }],
+        },
+      ],
     }),
   });
   openApp("/libraries/2/shows/tmdb-95396?season=9", transport);
@@ -129,4 +136,32 @@ test("a Movie's page says each Version's picture and sound, such as 4K and 5.1",
     screen.getByRole("option", { name: "Alien (1979) - 720p.mkv (720p · Stereo · 2 GB)" }),
   ).toBeDefined();
   expect(screen.getByRole("option", { name: "Alien (1979).avi (0.7 GB)" })).toBeDefined();
+});
+
+test("a Show's Episodes each say the picture and sound of the Version they play", async () => {
+  const transport = serverToBrowse({
+    getShow: () => ({ show: { title: "Severance" }, seasons: [{ number: 1 }] }),
+    listEpisodes: () => ({
+      episodes: [
+        {
+          seasonNumber: 1,
+          episodeNumber: 1,
+          title: "Good News About Hell",
+          airDate: "2022-02-18",
+          versions: [
+            {
+              id: 1n,
+              tracks: [
+                { kind: { case: "video", value: { width: 1920, height: 1080 } } },
+                { kind: { case: "audio", value: { channels: 8 } } },
+              ],
+            },
+          ],
+        },
+      ],
+    }),
+  });
+  openApp("/libraries/2/shows/tmdb-95396", transport);
+
+  expect(await screen.findByText("Feb 18, 2022 · 1080p · 7.1")).toBeDefined();
 });
