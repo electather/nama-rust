@@ -101,7 +101,7 @@ fn build(facts: &Facts, steps: &[Step]) -> Plan {
         allowed.retain(|method| allows.contains(method));
         reasons.push(reason);
     }
-    // shortcut: only Direct Play is served; take the first of `allowed` once #319 serves Remux.
+    // ponytail: only Direct Play is served; take the first of `allowed` once #319 serves Remux.
     let method = allowed
         .contains(&Method::DirectPlay)
         .then_some(Method::DirectPlay);

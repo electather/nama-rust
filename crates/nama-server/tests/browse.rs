@@ -1074,11 +1074,10 @@ fn codecs(plan: &PlaybackPlan) -> Vec<&str> {
         .collect()
 }
 
-// The fake ffprobe is a shell script. Nothing waits for the background probe, so the plan has
-// Tracks only because the Version was probed before its plan was built.
+// The fake ffprobe is a shell script.
 #[cfg(unix)]
 #[tokio::test]
-async fn an_h264_and_aac_mp4_is_probed_then_direct_plays_through_its_plans_url() {
+async fn an_h264_and_aac_mp4_direct_plays_through_its_plans_url() {
     let bin = tempfile::tempdir().unwrap();
     let ffmpeg = ffprobe_reading_h264_and_aac(bin.path());
     let fx = Fixture::start_with_ffmpeg(LibraryKind::LIBRARY_KIND_MOVIES, ffmpeg).await;
@@ -1095,7 +1094,7 @@ async fn an_h264_and_aac_mp4_is_probed_then_direct_plays_through_its_plans_url()
     assert_eq!(played.body, b"video");
 }
 
-/// A Server without ffprobe Direct Plays (ADR 0026).
+// ADR 0026.
 #[tokio::test]
 async fn without_ffprobe_a_version_direct_plays_and_its_plan_says_its_tracks_arent_known() {
     let fx = Fixture::alien().await;

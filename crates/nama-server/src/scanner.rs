@@ -628,6 +628,7 @@ mod tests {
         events::{EventBus, Filter},
         ffmpeg::{self, Ffmpeg, FoundProgram, ProbeError},
         libraries::{self, Kind, Libraries},
+        playback,
         plugins::Registry,
         server_settings::ServerUrl,
         tracks::{Hdr, PROBE_VERSION, Track, TrackKind, Tracks},
@@ -1191,6 +1192,33 @@ mod tests {
             }),
             ..Ffmpeg::default()
         }
+    }
+
+    // The fake ffprobe is a shell script. The Version is stored without a scan, so no background
+    // pass probes it.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_version_without_tracks_is_probed_before_its_playback_plan_is_built() {
+        let bin = tempfile::tempdir().unwrap();
+        let ffmpeg = fake_ffprobe(
+            bin.path(),
+            r#"cat <<'EOF'
+{"streams": [{"codec_name": "h264", "codec_type": "video"},
+             {"codec_name": "aac", "codec_type": "audio"}],
+ "format": {"format_name": "mov,mp4,m4a,3gp,3g2,mj2"}}
+EOF"#,
+        );
+        let media = Fixture::with_ffmpeg(Kind::Movies, ffmpeg).await;
+        let alien = "Alien (1979)/Alien (1979).mp4";
+        media.store_alien(alien).await;
+        media.match_to_alien().await;
+        let version = media.file_id(alien).await;
+
+        let plan = playback::plan(&media.scanner, version).await.unwrap();
+
+        let tracks = plan.map(|plan| plan.tracks).unwrap_or_default();
+        let codecs: Vec<&str> = tracks.iter().map(|track| track.codec.as_str()).collect();
+        assert_eq!(codecs, ["h264", "aac"]);
     }
 
     // ffmpeg can't write Dolby Vision, so a fake ffprobe prints what a real one does for it, cut
