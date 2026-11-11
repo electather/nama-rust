@@ -19,7 +19,7 @@ use connectrpc::{
     ConnectError, ErrorCode,
     client::{ClientConfig, HttpClient},
 };
-use http::fetch;
+use http::{fetch, fetch_with};
 use nama_proto::nama::v1::{
     AudioTrack, BrowseServiceClient, ClearMatchRequest, ContinueWatchingEntry, Episode, ExternalId,
     GetMovieRequest, GetShowRequest, GetShowResponse, HdrFormat, LibraryKind,
@@ -688,6 +688,84 @@ async fn a_poster_a_match_stores_is_served_with_its_content_type() {
     assert_eq!(reply.status, 200);
     assert_eq!(reply.header("content-type"), "image/jpeg");
     assert!(reply.body.starts_with(b"\xff\xd8"));
+}
+
+/// A Poster's URL names one image's bytes, so a browser keeps it and never asks again.
+#[tokio::test]
+async fn a_poster_is_cached_for_good_and_never_sniffed() {
+    let fx = Fixture::alien().await;
+    let poster = fx
+        .get_movie(fx.library, ALIEN)
+        .await
+        .unwrap()
+        .poster_url
+        .unwrap();
+
+    let reply = fetch(&fx.server, &poster, Some(&fx.server.admin_token)).await;
+
+    assert_eq!(reply.status, 200);
+    assert_eq!(
+        reply.header("cache-control"),
+        "private, max-age=31536000, immutable"
+    );
+    assert_ne!(reply.header("etag"), "");
+    assert_eq!(reply.header("x-content-type-options"), "nosniff");
+}
+
+#[tokio::test]
+async fn a_poster_the_browser_has_is_not_modified() {
+    let fx = Fixture::alien().await;
+    let poster = fx
+        .get_movie(fx.library, ALIEN)
+        .await
+        .unwrap()
+        .poster_url
+        .unwrap();
+    let token = Some(fx.server.admin_token.as_str());
+    let first = fetch(&fx.server, &poster, token).await;
+
+    let again = fetch_with(
+        &fx.server,
+        &poster,
+        token,
+        &[("if-none-match", first.header("etag"))],
+    )
+    .await;
+
+    assert_eq!(again.status, 304);
+    assert_eq!(again.body, b"");
+    assert_eq!(
+        again.header("cache-control"),
+        "private, max-age=31536000, immutable"
+    );
+}
+
+/// Images downloaded before an upgrade are already stored, so none is downloaded again.
+#[tokio::test]
+async fn a_poster_already_under_artwork_is_served_without_the_provider() {
+    let fx = Fixture::alien().await;
+    let poster = fx
+        .get_movie(fx.library, ALIEN)
+        .await
+        .unwrap()
+        .poster_url
+        .unwrap();
+    let kept = fx
+        .server
+        .data_dir()
+        .join("artwork/tmdb/%2FvfrQk5IPloGg1v9Rzbh2Eg3VGyM.jpg");
+    fs::create_dir_all(kept.parent().unwrap()).unwrap();
+    fs::write(&kept, b"\xff\xd8kept").unwrap();
+
+    let reply = fetch(&fx.server, &poster, Some(&fx.server.admin_token)).await;
+
+    assert_eq!(reply.status, 200);
+    assert_eq!(reply.body, b"\xff\xd8kept");
+    let images = fx.server.tmdb().requests();
+    assert!(
+        !images.iter().any(|request| request.starts_with("/t/p/")),
+        "{images:?}"
+    );
 }
 
 /// Only images some Match stores are served, so clients can't use the cache to fetch others.

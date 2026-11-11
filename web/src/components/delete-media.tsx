@@ -136,7 +136,19 @@ function FilesThatGo({ deletable, chosen }: { deletable: Deletable; chosen: stri
         </ul>
       </div>
       <TakenAlong episodes={data.episodesTakenAlong} />
+      <Watching playing={data.playing} />
     </div>
+  );
+}
+
+/** How many people deleting it stops watching, if anyone. */
+function Watching({ playing }: { playing: number }) {
+  if (playing === 0) return null;
+  return (
+    <p className="font-medium">
+      {playing === 1 ? "1 person is" : `${playing} people are`} watching it now. Deleting it stops
+      their playback.
+    </p>
   );
 }
 

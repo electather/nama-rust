@@ -52,6 +52,7 @@ use crate::{
     events::{EventBus, event},
     libraries::{self, Kind, Libraries, Library},
     matching::{self, Matcher, count},
+    playback::running::RunningPlans,
     plugins::ExtensionPoints,
     probing::Probing,
 };
@@ -123,6 +124,8 @@ struct Inner {
     events: EventBus,
     /// Told when a scan finishes and asked to clean subtitles, unless nothing probes.
     probing: Option<Probing>,
+    /// Asked what plays media about to be deleted, and to end it, unless nothing plays.
+    running: Option<RunningPlans>,
     /// Background scans, so shutting down can wait for them.
     tasks: TaskTracker,
     /// Cancelled when the Server shuts down.
@@ -169,12 +172,13 @@ impl ScanLock {
 
 impl Scanner {
     /// Tells `probing` each Library whose scan finished and has it clean subtitles, or does
-    /// neither where nothing probes.
+    /// neither where nothing probes, and has `running` end the plans playing media it deletes.
     pub(crate) fn new(
         db: Arc<Database>,
         plugins: ExtensionPoints,
         events: EventBus,
         probing: Option<Probing>,
+        running: Option<RunningPlans>,
     ) -> Self {
         let locks = ScanLocks(Arc::default());
         Self {
@@ -189,6 +193,7 @@ impl Scanner {
                 plugins,
                 events,
                 probing,
+                running,
                 contents: Contents::new(db),
                 tasks: TaskTracker::new(),
                 cancel: CancellationToken::new(),
@@ -266,16 +271,19 @@ impl Scanner {
         .await
     }
 
-    /// What [`Self::delete_media`] would delete, deleting nothing.
+    /// What [`Self::delete_media`] would delete and stop playing, deleting nothing.
     pub(crate) async fn preview_delete(&self, doomed: Doomed) -> Result<Deleted, Error> {
-        Ok(tokio::task::spawn_blocking(move || deleting::preview(&doomed)).await?)
+        let playing = (self.inner.running.as_ref())
+            .map_or(0, |running| running.playing(&doomed.version_ids()));
+        let planned = tokio::task::spawn_blocking(move || deleting::preview(&doomed)).await?;
+        Ok(Deleted { playing, ..planned })
     }
 
-    /// Asks every Movies Fulfiller to stop monitoring `doomed`, then deletes it from disk for good,
-    /// removes the Versions whose files went as a scan removes them, and logs that `by` deleted
-    /// them. The one way to delete media (see AGENTS.md, "One path for deleting media"). It holds
-    /// the Library's scan lock, so a scan racing it sees either everything or nothing gone, and
-    /// finishes even if the caller stops waiting (ADR 0029).
+    /// Asks every Movies Fulfiller to stop monitoring `doomed`, then ends the plans playing it,
+    /// deletes it from disk for good, removes the Versions whose files went as a scan removes
+    /// them, and logs that `by` deleted them. The one way to delete media (see AGENTS.md, "One
+    /// path for deleting media"). It holds the Library's scan lock, so a scan racing it sees
+    /// either everything or nothing gone, and finishes even if the caller stops waiting (ADR 0029).
     pub(crate) async fn delete_media(&self, doomed: Doomed, by: String) -> Result<Deleted, Error> {
         let scanner = self.clone();
         detached(async move {
@@ -283,6 +291,11 @@ impl Scanner {
             let not_told = scanner.stop_monitoring(&doomed).await;
             let library = doomed.library.id;
             let _scan = scanner.inner.locks.lock(library).await;
+            // Held until the Versions are gone, so none is served again before.
+            let _ending = match &scanner.inner.running {
+                Some(running) => Some(running.end_for_deleting(&doomed.version_ids()).await),
+                None => None,
+            };
             let folders: Vec<String> = (scanner.inner.libraries.list().await?.into_iter())
                 .flat_map(|other| other.folders)
                 .collect();
@@ -719,6 +732,7 @@ mod tests {
                     ExtensionPoints::default(),
                     events.clone(),
                     probing.clone(),
+                    None,
                 ),
                 probing,
                 contents: Contents::new(db),

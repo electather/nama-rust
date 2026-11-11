@@ -38,9 +38,9 @@ use proto::SubtitleFormat::{
 mod ass;
 
 use crate::{
-    artwork::write_atomically,
     contents::{Contents, Stored},
     ffmpeg::{Ffmpeg, SubtitleError},
+    images::write_atomically,
     tracks::{PROBE_VERSION, Probe, Track, Tracks},
 };
 

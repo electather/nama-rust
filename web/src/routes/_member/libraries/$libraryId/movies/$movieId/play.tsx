@@ -2,24 +2,26 @@ import { useSuspenseQuery } from "@connectrpc/connect-query";
 import { createFileRoute } from "@tanstack/react-router";
 
 import { Player } from "@/components/player";
-import { NotFound } from "@/components/route-error";
+import { DeletedWhilePlaying, NotFound, PlayerError } from "@/components/route-error";
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
-import { loadMovie, versionSearch, versionToPlay } from "@/lib/browse";
+import { isGone, loadMovie, versionSearch, versionToPlay } from "@/lib/browse";
 
 export const Route = createFileRoute("/_member/libraries/$libraryId/movies/$movieId/play")({
   validateSearch: versionSearch,
   loader: ({ context, params }) => loadMovie(context, params),
   staticData: { fullScreen: true },
   notFoundComponent: NotFound,
+  errorComponent: PlayerError,
   component: PlayMovie,
 });
 
 function PlayMovie() {
-  const { movie } = useSuspenseQuery(BrowseService.method.getMovie, Route.useLoaderData()).data;
+  const { data, error } = useSuspenseQuery(BrowseService.method.getMovie, Route.useLoaderData());
+  const { movie } = data;
   const { version } = Route.useSearch();
   const params = Route.useParams();
-  // An Event may have removed it since the loader ran.
-  if (!movie) return <NotFound />;
+  // An Event removed it since the loader ran.
+  if (!movie || isGone(error)) return <DeletedWhilePlaying />;
   const { id, tracks } = versionToPlay(movie.versions, version);
   return (
     <Player

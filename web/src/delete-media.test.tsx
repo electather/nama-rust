@@ -81,6 +81,17 @@ test("the confirmation lists the files that go and the space they free, and can'
   expect(within(dialog).getByText("Alien (1979) - 2160p.mkv")).toBeDefined();
   expect(within(dialog).getByText(/These 3 files go, freeing 68 GB/u)).toBeDefined();
   expect(within(dialog).getByText(/can’t be undone/u)).toBeDefined();
+  expect(within(dialog).queryByText(/watching/u)).toBeNull();
+});
+
+test("the confirmation says how many people are watching it now", async () => {
+  openAlien(deletesMedia, {
+    previewDeleteMedia: () => ({ files: [ALIEN_1080P], bytesFreed: ALIEN_1080P.size, playing: 2 }),
+  });
+
+  const dialog = await openDeleteDialog();
+
+  expect(await within(dialog).findByText(/2 people are watching it now/u)).toBeDefined();
 });
 
 test("deleting one Version deletes only it", async () => {

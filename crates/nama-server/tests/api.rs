@@ -568,6 +568,70 @@ async fn a_transcode_cap_set_to_0_is_refused_naming_it_and_nothing_changes() {
     assert_eq!(segment_folder(&client).await, "");
 }
 
+fn keep_behind(minutes: Option<u32>) -> UpdatePlaybackSettingsRequest {
+    UpdatePlaybackSettingsRequest {
+        settings: PlaybackSettings {
+            keep_behind_minutes: minutes,
+            ..Default::default()
+        }
+        .into(),
+        ..Default::default()
+    }
+}
+
+#[tokio::test]
+async fn keep_for_skipping_back_is_returned_as_saved_and_unset_again_once_cleared() {
+    let server = TestServer::builder().start().await;
+    let client = ServerServiceClient::new(HttpClient::plaintext(), server.client_config());
+    let saved = async || {
+        let got = client.get_playback_settings(GetPlaybackSettingsRequest::default());
+        got.await.unwrap().into_owned().settings.keep_behind_minutes
+    };
+    let unset = saved().await;
+
+    client
+        .update_playback_settings(keep_behind(Some(12)))
+        .await
+        .unwrap();
+    let set = saved().await;
+    client
+        .update_playback_settings(keep_behind(None))
+        .await
+        .unwrap();
+
+    assert_eq!((unset, set, saved().await), (None, Some(12), None));
+}
+
+#[tokio::test]
+async fn keep_for_skipping_back_set_to_0_is_refused_naming_it_and_nothing_changes() {
+    let server = TestServer::builder().start().await;
+    let client = ServerServiceClient::new(HttpClient::plaintext(), server.client_config());
+    client
+        .update_playback_settings(keep_behind(Some(12)))
+        .await
+        .unwrap();
+
+    let updated = client.update_playback_settings(keep_behind(Some(0))).await;
+
+    let refusal = assert_refused(
+        updated,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
+    );
+    assert_eq!(refusal.field, "settings.keep_behind_minutes");
+    assert_eq!(
+        refusal.params.get("minMinutes").map(String::as_str),
+        Some("1")
+    );
+    let got = client
+        .get_playback_settings(GetPlaybackSettingsRequest::default())
+        .await
+        .unwrap()
+        .into_owned()
+        .settings;
+    assert_eq!(got.keep_behind_minutes, Some(12));
+}
+
 #[tokio::test]
 async fn a_segment_folder_that_isnt_an_absolute_path_is_refused_naming_it_and_nothing_changes() {
     let server = TestServer::builder().start().await;

@@ -145,6 +145,7 @@ impl LibraryService for LibraryServiceHandler {
             bytes_freed: planned.bytes_freed(),
             files: planned.files.iter().map(file_to_proto).collect(),
             episodes_taken_along: taken_along.into_iter().map(taken_along_to_proto).collect(),
+            playing: u32::try_from(planned.playing).unwrap_or(u32::MAX),
             ..Default::default()
         })
     }

@@ -29,6 +29,15 @@ pub(crate) struct Doomed {
     pub(crate) taken_along: Vec<Episode>,
 }
 
+impl Doomed {
+    pub(crate) fn version_ids(&self) -> Vec<i64> {
+        self.versions
+            .iter()
+            .map(|version| version.file.id)
+            .collect()
+    }
+}
+
 /// A file on disk.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct File {
@@ -47,6 +56,8 @@ pub(crate) struct Deleted {
     pub(crate) versions: Vec<i64>,
     /// The name of each Fulfiller that couldn't be told to stop monitoring the title.
     pub(crate) fulfillers_not_told: Vec<String>,
+    /// How many Playback Plans play the Versions, as a preview finds them.
+    pub(crate) playing: usize,
 }
 
 impl Deleted {

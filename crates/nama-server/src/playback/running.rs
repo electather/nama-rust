@@ -13,9 +13,10 @@
 //! A segment asked for waits for ffmpeg to write its files, and one whose files have gone since
 //! waits for them to be written again. One far past what ffmpeg has written restarts ffmpeg at it,
 //! and ffmpeg stops once it's [`RUN_AHEAD_MS`] past the last segment asked for, to start again at
-//! the next file asked for that it hasn't written. Every [`TIDY_EVERY`], files ending more than
-//! [`KEEP_BEHIND_MS`] before the last segment asked for are deleted, as are earlier runs' init
-//! files, so a plan's folder stops growing; one asked for again is written again.
+//! the next file asked for that it hasn't written. Every [`TIDY_EVERY`], files ending further
+//! before the last segment asked for than the Playback settings keep for skipping back are
+//! deleted, as are earlier runs' init files, so a plan's folder stops growing; one asked for again
+//! is written again.
 //!
 //! A Transcode on hardware that fails carries on in software from the first file it hadn't
 //! written, takes its software fallback's reasons and publishes `PlaybackChanged`.
@@ -25,10 +26,14 @@
 //! its file at `/media/versions/<id>`, which marks every Direct Play of that Version on the Device
 //! asked for. [`sweep_leftovers`] deletes the folders of plans a run left behind when the next
 //! starts.
+//!
+//! Deleting a Version ends its plans first and cuts off each response serving its file
+//! ([`RunningPlans::end_for_deleting`]): a file open for reading can still be read once it's
+//! deleted.
 
 use std::{
     collections::HashMap,
-    fmt::Write as _,
+    fmt::{self, Write as _},
     io,
     ops::Range,
     path::{Path, PathBuf},
@@ -78,10 +83,6 @@ const RUN_AHEAD_MS: i64 = 120_000;
 /// for, in milliseconds. ffmpeg restarts at one further on, since a Remux writes this much in a
 /// second or two but a seek far ahead would wait for everything before it.
 const REMUX_WAIT_AHEAD_MS: i64 = 30_000;
-
-/// How far behind the start of the last segment asked for a running plan keeps its files, in
-/// milliseconds, so skipping back that far plays at once.
-const KEEP_BEHIND_MS: i64 = 300_000;
 
 /// What a plan's folder in the segment folder is named, before its id. The sweep deletes only
 /// folders named so, since the admin may set a segment folder that holds other files.
@@ -146,6 +147,33 @@ struct Inner {
     tasks: TaskTracker,
     /// Cancelled when the Server shuts down.
     cancel: CancellationToken,
+    /// By Version, cancelled while it's deleted, which cuts off each response serving its file.
+    // ponytail: one kept per Version served since the Server started; drop each once nothing
+    // serves it if that ever adds up.
+    served: Mutex<HashMap<i64, CancellationToken>>,
+}
+
+impl fmt::Debug for RunningPlans {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("RunningPlans").finish_non_exhaustive()
+    }
+}
+
+/// Versions being deleted, each of whose files is cut off as soon as it's served until this is
+/// dropped, once they're gone from disk and the Library.
+#[must_use = "the Versions are served again once it's dropped"]
+pub(crate) struct Deleting {
+    plans: RunningPlans,
+    versions: Vec<i64>,
+}
+
+impl Drop for Deleting {
+    fn drop(&mut self) {
+        let mut served = lock(&self.plans.inner.served);
+        for version in &self.versions {
+            served.remove(version);
+        }
+    }
 }
 
 /// One playable plan.
@@ -232,6 +260,7 @@ impl RunningPlans {
             plans: Mutex::default(),
             tasks: TaskTracker::new(),
             cancel: CancellationToken::new(),
+            served: Mutex::default(),
         });
         inner
             .tasks
@@ -256,13 +285,17 @@ impl RunningPlans {
 
     /// Starts `plan` for `caller`'s Device, telling Observers so, and returns it with its id and
     /// where to play it from. A Remux or a Transcode runs ffmpeg over the Version's file. `None`
-    /// if there is no such Version, or `plan` can't be played.
+    /// if there is no such Version, it's being deleted, or `plan` can't be played.
     pub(crate) async fn start(
         &self,
         caller: &Caller,
         plan: super::Plan,
     ) -> Result<Option<StartedPlan>, StartError> {
-        let Some(playing) = plan.playing.clone() else {
+        let Some(playing) = plan
+            .playing
+            .clone()
+            .filter(|_| !self.deleting(plan.version))
+        else {
             return Ok(None);
         };
         let playback = playback(caller, &plan);
@@ -466,6 +499,48 @@ impl RunningPlans {
         }
     }
 
+    /// How many plans play one of `versions`.
+    pub(crate) fn playing(&self, versions: &[i64]) -> usize {
+        (lock(&self.inner.plans).values())
+            .filter(|plan| versions.contains(&plan.playback.version_id))
+            .count()
+    }
+
+    /// Stops every plan playing one of `versions`, whose files are about to be deleted, and cuts
+    /// off each response serving one of them, until the [`Deleting`] it returns is dropped.
+    // ponytail: a Remux or Transcode already starting as this begins can still start on a file
+    // about to go, and play on until it's unused; check again as it's kept if that ever shows.
+    pub(crate) async fn end_for_deleting(&self, versions: &[i64]) -> Deleting {
+        {
+            let mut served = lock(&self.inner.served);
+            for &version in versions {
+                served.entry(version).or_default().cancel();
+            }
+        }
+        let ending: Vec<(u64, Arc<Plan>)> = lock(&self.inner.plans)
+            .extract_if(|_, plan| versions.contains(&plan.playback.version_id))
+            .collect();
+        for (id, plan) in ending {
+            self.stop(id, &plan).await;
+        }
+        Deleting {
+            plans: self.clone(),
+            versions: versions.to_vec(),
+        }
+    }
+
+    /// Whether the Version `version` is being deleted.
+    fn deleting(&self, version: i64) -> bool {
+        (lock(&self.inner.served).get(&version)).is_some_and(CancellationToken::is_cancelled)
+    }
+
+    /// Cancelled once the Version `version` is being deleted, to cut off a response serving its
+    /// file.
+    pub(crate) fn served(&self, version: i64) -> CancellationToken {
+        let mut served = lock(&self.inner.served);
+        served.entry(version).or_default().child_token()
+    }
+
     /// Stops every plan not asked for in the last `unused_for`, and deletes its files.
     async fn stop_unused(&self, unused_for: Duration) {
         let unused: Vec<(u64, Arc<Plan>)> = lock(&self.inner.plans)
@@ -482,8 +557,9 @@ impl RunningPlans {
         let running: Vec<Arc<Running>> = (lock(&self.inner.plans).values())
             .filter_map(|plan| plan.hls.clone())
             .collect();
+        let keep_behind_ms = self.inner.settings.keep_behind_ms();
         for hls in running {
-            if let Err(err) = hls.delete_behind().await {
+            if let Err(err) = hls.delete_behind(keep_behind_ms).await {
                 tracing::warn!(
                     plan = hls.id,
                     "could not delete files behind playback: {err}"
@@ -693,10 +769,10 @@ impl Running {
         }
     }
 
-    /// Deletes the files of keyframes ending more than [`KEEP_BEHIND_MS`] before the start of the
+    /// Deletes the files of keyframes ending more than `keep_behind_ms` before the start of the
     /// last segment asked for, and the init files of every run but the current one. Files ahead
     /// of it, and those the current run may still be writing, are kept.
-    async fn delete_behind(&self) -> io::Result<()> {
+    async fn delete_behind(&self, keep_behind_ms: i64) -> io::Result<()> {
         // Under the lock a restart takes, so the current run is the one whose init is kept.
         let ffmpeg = self.ffmpeg.lock().await;
         // `stop` takes the run under it, so a stopped plan has none.
@@ -711,7 +787,7 @@ impl Running {
             self.note_written(run).await
         };
         let asked = (self.timeline).segment_start_ms(self.last_asked.load(Ordering::Relaxed));
-        let keep_from_ms = asked - KEEP_BEHIND_MS;
+        let keep_from_ms = asked - keep_behind_ms;
         let mut entries = tokio::fs::read_dir(&self.dir).await?;
         while let Some(entry) = entries.next_entry().await? {
             let name = entry.file_name();
@@ -1512,6 +1588,42 @@ mod tests {
 
     #[cfg(unix)]
     #[tokio::test]
+    async fn a_tick_after_keep_for_skipping_back_is_lowered_deletes_what_it_no_longer_keeps() {
+        let data = tempfile::tempdir().unwrap();
+        let db = database(data.path()).await;
+        let settings = settings(&db, data.path().join("transcodes"));
+        let plans = plans_in(&db, settings.playback());
+        let (id, _) = start_writing_nothing(&plans).await;
+        let plan = hls(&plans, id, 7);
+        // To 400 seconds, played to 360.
+        write_keyframes(data.path(), id, 0..200);
+        plan.segment(60).await.unwrap().unwrap();
+        plans.delete_behind_playback().await;
+
+        settings
+            .change_playback(
+                PlaybackChange {
+                    segment_folder: "",
+                    max_transcodes: None,
+                    keep_behind_minutes: Some(1),
+                    hardware: HardwareChoice::Automatic,
+                    remote_limit: None,
+                },
+                &[],
+            )
+            .await
+            .unwrap();
+        plans.delete_behind_playback().await;
+
+        // Keyframe 149 ends at 300 seconds, a minute before.
+        assert_eq!(
+            keyframes_left(data.path(), id),
+            (149..200).collect::<Vec<_>>()
+        );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
     async fn a_tick_after_a_seek_back_keeps_the_files_ahead_of_it() {
         let data = tempfile::tempdir().unwrap();
         let plans = running_plans(data.path()).await;
@@ -2076,6 +2188,7 @@ mod tests {
                 PlaybackChange {
                     segment_folder: tmpfs.to_str().unwrap(),
                     max_transcodes: None,
+                    keep_behind_minutes: None,
                     hardware: HardwareChoice::Automatic,
                     remote_limit: None,
                 },
@@ -2114,6 +2227,7 @@ mod tests {
                 PlaybackChange {
                     segment_folder: set.to_str().unwrap(),
                     max_transcodes: None,
+                    keep_behind_minutes: None,
                     hardware: HardwareChoice::Automatic,
                     remote_limit: None,
                 },
@@ -2128,5 +2242,55 @@ mod tests {
             assert!(!leftover.exists(), "{}", leftover.display());
         }
         assert!(others.exists());
+    }
+
+    /// A plan Direct Playing the Version `version`.
+    fn direct_play_of(version: i64) -> crate::playback::Plan {
+        crate::playback::Plan {
+            version,
+            playing: Some(crate::playback::Playing::DirectPlay),
+            tracks: vec![],
+            reasons: vec![],
+            subtitles: vec![],
+            limit: None,
+            audio: None,
+            burn_in: None,
+            starting_subtitle: None,
+            offers: crate::playback::Offers::default(),
+        }
+    }
+
+    fn ripley() -> crate::users::Caller {
+        use crate::users::{Caller, Device, Permissions, User};
+
+        Caller {
+            user: User {
+                id: 1,
+                name: "Ripley".to_owned(),
+                permissions: Permissions::NEW_USER,
+                created_at: 0,
+            },
+            device: Device {
+                id: 1,
+                name: "Nostromo".to_owned(),
+                created_at: 0,
+                last_seen_at: 0,
+                authenticated_at: 0,
+            },
+        }
+    }
+
+    #[tokio::test]
+    async fn a_version_being_deleted_starts_no_plan_until_it_is_gone() {
+        let data = tempfile::tempdir().unwrap();
+        let plans = running_plans(data.path()).await;
+        let deleting = plans.end_for_deleting(&[4]).await;
+
+        let while_deleting = plans.start(&ripley(), direct_play_of(4)).await.unwrap();
+        drop(deleting);
+        let after = plans.start(&ripley(), direct_play_of(4)).await.unwrap();
+
+        assert!(while_deleting.is_none());
+        assert!(after.is_some());
     }
 }

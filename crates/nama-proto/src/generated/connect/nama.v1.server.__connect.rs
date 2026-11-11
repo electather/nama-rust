@@ -458,10 +458,11 @@ pub trait ServerService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
-    /// Replaces how the Server plays Versions it changes, for plans made from then on. Needs
-    /// `PERMISSION_ADMIN`. A `segment_folder` that isn't an absolute path is refused with
-    /// `REFUSAL_REASON_FOLDER_NOT_ABSOLUTE` naming it, a `max_transcodes` set to 0 with
-    /// `REFUSAL_REASON_FIELD_REQUIRED` naming it, and nothing changes.
+    /// Replaces how the Server plays Versions it changes, for plans made from then on, and for
+    /// running ones too for `keep_behind_minutes`. Needs `PERMISSION_ADMIN`. A `segment_folder` that
+    /// isn't an absolute path is refused with `REFUSAL_REASON_FOLDER_NOT_ABSOLUTE` naming it, a
+    /// `max_transcodes` or `keep_behind_minutes` set to 0 with `REFUSAL_REASON_FIELD_REQUIRED` naming
+    /// it, and nothing changes.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///

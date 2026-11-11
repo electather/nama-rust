@@ -2841,7 +2841,8 @@ pub const __UPDATE_PLAYBACK_SETTINGS_RESPONSE_JSON_ANY: ::buffa::type_registry::
 #[serde(default)]
 pub struct PlaybackSettings {
     /// The folder a Remux or Transcode writes its segment files to, an absolute path such as a
-    /// tmpfs's. Each plan's files go in a folder of their own inside it, deleted a minute after the
+    /// tmpfs's. Each plan's files go in a folder of their own inside it: those further behind
+    /// playback than `keep_behind_minutes` are deleted as it plays, and the rest a minute after the
     /// plan was last asked for. Empty, the default, for `transcodes` in the Server's data folder.
     ///
     /// Field 1: `segment_folder`
@@ -2898,6 +2899,18 @@ pub struct PlaybackSettings {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
     pub gpu: ::buffa::MessageField<Gpu, ::buffa::Inline<Gpu>>,
+    /// How many minutes behind the last segment asked for a running Remux or Transcode keeps its
+    /// files, so skipping back that far plays at once, at least 1. Unset for the default, 5. A change
+    /// applies to running plans from the Server's next look at them, within about 10 seconds.
+    ///
+    /// Field 6: `keep_behind_minutes`
+    #[serde(
+        rename = "keepBehindMinutes",
+        alias = "keep_behind_minutes",
+        with = "::buffa::json_helpers::opt_uint32",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub keep_behind_minutes: ::core::option::Option<u32>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -2910,6 +2923,7 @@ impl ::core::fmt::Debug for PlaybackSettings {
             .field("remote_playback_limit", &self.remote_playback_limit)
             .field("hardware_acceleration", &self.hardware_acceleration)
             .field("gpu", &self.gpu)
+            .field("keep_behind_minutes", &self.keep_behind_minutes)
             .finish()
     }
 }
@@ -2926,6 +2940,13 @@ impl PlaybackSettings {
     ///Sets [`Self::max_transcodes`] to `Some(value)`, consuming and returning `self`.
     pub fn with_max_transcodes(mut self, value: u32) -> Self {
         self.max_transcodes = Some(value);
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::keep_behind_minutes`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_keep_behind_minutes(mut self, value: u32) -> Self {
+        self.keep_behind_minutes = Some(value);
         self
     }
 }
@@ -2977,6 +2998,9 @@ impl ::buffa::Message for PlaybackSettings {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if let Some(v) = self.keep_behind_minutes {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -3012,6 +3036,9 @@ impl ::buffa::Message for PlaybackSettings {
                 buf,
             );
             self.gpu.write_to(__cache, buf);
+        }
+        if let Some(v) = self.keep_behind_minutes {
+            ::buffa::types::put_uint32_field(6u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -3071,6 +3098,15 @@ impl ::buffa::Message for PlaybackSettings {
                     ctx,
                 )?;
             }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.keep_behind_minutes = ::core::option::Option::Some(
+                    ::buffa::types::decode_uint32(buf)?,
+                );
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -3084,6 +3120,7 @@ impl ::buffa::Message for PlaybackSettings {
         self.remote_playback_limit = ::buffa::EnumValue::from(0);
         self.hardware_acceleration = ::buffa::EnumValue::from(0);
         self.gpu = ::buffa::MessageField::none();
+        self.keep_behind_minutes = ::core::option::Option::None;
         self.__buffa_unknown_fields.clear();
     }
 }

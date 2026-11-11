@@ -20,6 +20,8 @@ mod refused;
 mod server;
 
 use std::fs;
+#[cfg(unix)]
+use std::path::Path;
 
 use browsing::{ALIEN_1080P, ALIEN_2160P, Fixture, tmdb_id};
 use connectrpc::{ConnectError, ErrorCode, client::HttpClient};
@@ -27,18 +29,21 @@ use fake_radarr::{Changed, FakeRadarr};
 use http::fetch;
 use log::Log;
 use nama_proto::nama::v1::{
-    DeleteMediaRequest, DeleteMediaResponse, Episode, EpisodeToDelete, GetShowRequest, LibraryKind,
-    LibraryServiceClient, ListEpisodesRequest, ListMoviesRequest, ListShowsRequest, MediaFile,
-    MediaToDelete, MovieToDelete, Permission, PreviewDeleteMediaRequest,
-    PreviewDeleteMediaResponse, RefusalReason, SeasonToDelete, ShowToDelete, SubscribeRequest,
-    event, media_to_delete,
+    AudioCodec, Container, DeleteMediaRequest, DeleteMediaResponse, DeviceDecoding, Episode,
+    EpisodeToDelete, EventType, GetShowRequest, LibraryKind, LibraryServiceClient,
+    ListEpisodesRequest, ListMoviesRequest, ListShowsRequest, MediaFile, MediaToDelete,
+    MovieToDelete, Permission, PlanPlaybackRequest, PlaybackMethod, PlaybackPlan,
+    PlaybackServiceClient, PreviewDeleteMediaRequest, PreviewDeleteMediaResponse, RefusalReason,
+    SeasonToDelete, ShowToDelete, SubscribeRequest, VideoCodec, event, media_to_delete,
 };
+#[cfg(unix)]
+use nama_server::ffmpeg::{Ffmpeg, fake::script};
 use refused::assert_refused;
 use serde_json::json;
 use server::{
     Builder, TestServer,
     fulfiller::MOVIE_FULFILLER,
-    subscribe_with,
+    subscribe, subscribe_with,
     tmdb::{ALIEN, DARK, DUNE},
 };
 
@@ -229,6 +234,30 @@ impl Fixture {
             })
             .await?;
         Ok(response.into_owned())
+    }
+
+    /// The Admin's Playback Plan for the Version `id`, on a browser that plays H.264 and AAC in
+    /// MP4.
+    async fn plan(&self, id: i64) -> PlaybackPlan {
+        let device = DeviceDecoding {
+            containers: vec![Container::CONTAINER_MP4.into()],
+            video_codecs: vec![VideoCodec::VIDEO_CODEC_H264.into()],
+            audio_codecs: vec![AudioCodec::AUDIO_CODEC_AAC.into()],
+            mse: true,
+            ..Default::default()
+        };
+        let playback =
+            PlaybackServiceClient::new(HttpClient::plaintext(), self.server.client_config());
+        let planned = playback
+            .plan_playback(PlanPlaybackRequest {
+                version_id: id,
+                device_decoding: device.into(),
+                ..Default::default()
+            })
+            .await
+            .unwrap()
+            .into_owned();
+        planned.plan.into_option().unwrap()
     }
 
     fn exists(&self, relative: &str) -> bool {
@@ -724,4 +753,115 @@ async fn a_season_or_episode_version_that_isnt_there_or_a_show_in_a_movies_libra
     );
     assert_eq!(wrong_kind.field, "target.show.library_id");
     assert!(fx.exists(DARK_S01E01) && fx.exists(DARK_S01E01_E02));
+}
+
+/// A Server's ffmpeg and ffprobe, shell scripts in `bin`: ffprobe reads every file as an HEVC and
+/// AAC MKV, which a browser needs Transcoded, and ffmpeg lists libx264 but writes nothing until
+/// it's stopped, keeping its process id in `bin/ffmpeg.pid` while it runs.
+#[cfg(unix)]
+fn ffmpeg_transcoding_forever(bin: &Path) -> Ffmpeg {
+    let ffprobe = r#"#!/bin/sh
+cat <<EOF
+{"streams": [{"codec_name": "hevc", "codec_type": "video"},
+             {"codec_name": "aac", "codec_type": "audio", "disposition": {"default": 1}}],
+ "format": {"format_name": "matroska,webm", "duration": "1.000000"}}
+EOF
+"#;
+    let ffmpeg = "#!/bin/sh\ncase \"$*\" in *-encoders*) echo ' V....D libx264  H.264' ;; \
+                  *-filters*) ;; *) echo $$ > \"$0.pid\"; exec sleep 600 ;; esac\n";
+    Ffmpeg {
+        ffmpeg: Ok(script(bin, "ffmpeg", ffmpeg)),
+        ffprobe: Ok(script(bin, "ffprobe", ffprobe)),
+        gpus: vec![],
+    }
+}
+
+// The fake ffmpeg and ffprobe are shell scripts.
+#[cfg(unix)]
+#[tokio::test]
+async fn deleting_a_version_being_transcoded_ends_its_plan_which_the_preview_counted() {
+    let bin = tempfile::tempdir().unwrap();
+    let ffmpeg = ffmpeg_transcoding_forever(bin.path());
+    let fx = Fixture::start_with_ffmpeg(LibraryKind::LIBRARY_KIND_MOVIES, ffmpeg).await;
+    fx.write(ALIEN_2160P, b"video");
+    fx.scan_and_match().await;
+    let alien = fx.version_ids(ALIEN).await[0];
+    let plan = fx.plan(alien).await;
+    assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_TRANSCODE);
+    let ended = [EventType::EVENT_TYPE_PLAYBACK_ENDED];
+    let mut subscription = subscribe(&fx.server.client_config(), &ended).await;
+
+    let preview = fx.preview(version(alien)).await.unwrap();
+    fx.delete(version(alien)).await.unwrap();
+
+    assert_eq!(preview.playing, 1);
+    let event::Event::PlaybackEnded(told) = subscription.next().await else {
+        panic!("expected its playback ended");
+    };
+    assert_eq!(told.playback.version_id, alien);
+    let token = Some(fx.server.admin_token.as_str());
+    assert_eq!(fetch(&fx.server, &plan.url, token).await.status, 404);
+    let pid = fs::read_to_string(bin.path().join("ffmpeg.pid")).unwrap();
+    let pid = pid.trim();
+    assert!(stops(pid).await, "ffmpeg {pid} still runs");
+}
+
+/// Whether the process `pid` ends, reaped or not, within 10 seconds.
+#[cfg(unix)]
+#[expect(clippy::unwrap_used, reason = "ps failing to run fails the test")]
+async fn stops(pid: &str) -> bool {
+    for _ in 0..100 {
+        let ps = std::process::Command::new("ps")
+            .args(["-o", "stat=", "-p", pid])
+            .output()
+            .unwrap();
+        let state = String::from_utf8_lossy(&ps.stdout);
+        if state.trim().is_empty() || state.trim_start().starts_with('Z') {
+            return true;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    }
+    false
+}
+
+/// Bigger than the sockets between a Server and its client buffer, so serving it whole waits on
+/// the client reading it.
+const BIGGER_THAN_SOCKET_BUFFERS: usize = 64 << 20;
+
+#[tokio::test]
+async fn a_direct_play_of_a_deleted_version_gets_no_more_of_its_file() {
+    use http_body_util::{BodyExt, Empty};
+    use hyper::{Request, body::Bytes, client::conn::http1};
+    use hyper_util::rt::TokioIo;
+
+    let fx = Fixture::alien_and_dune().await;
+    fx.write(DUNE_VIDEO, &vec![0; BIGGER_THAN_SOCKET_BUFFERS]);
+    fx.scan_and_match().await;
+    let dune = fx.version_ids(DUNE).await[0];
+    let plan = fx.plan(dune).await;
+    assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_DIRECT_PLAY);
+    let stream = tokio::net::TcpStream::connect(fx.server.addr)
+        .await
+        .unwrap();
+    let (mut sender, connection) = http1::handshake(TokioIo::new(stream)).await.unwrap();
+    tokio::spawn(connection);
+    let request = Request::get(&plan.url)
+        .header("host", fx.server.addr.to_string())
+        .header("cookie", format!("nama_session={}", fx.server.admin_token))
+        .body(Empty::<Bytes>::new())
+        .unwrap();
+    let mut body = sender.send_request(request).await.unwrap().into_body();
+    let mut received = 0;
+    if let Some(Ok(frame)) = body.frame().await {
+        received += frame.data_ref().map_or(0, Bytes::len);
+    }
+
+    fx.delete(movie(fx.library, DUNE)).await.unwrap();
+
+    while let Some(Ok(frame)) = body.frame().await {
+        received += frame.data_ref().map_or(0, Bytes::len);
+    }
+    assert!(received < BIGGER_THAN_SOCKET_BUFFERS, "{received} bytes");
+    let token = Some(fx.server.admin_token.as_str());
+    assert_eq!(fetch(&fx.server, &plan.url, token).await.status, 404);
 }
