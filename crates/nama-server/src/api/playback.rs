@@ -254,6 +254,7 @@ fn plan_to_proto(planned: Planned) -> proto::PlaybackPlan {
                 place: place(subtitle.place).unwrap_or_default(),
                 url: subtitle.url.clone(),
                 format: subtitle.format.into(),
+                font_urls: subtitle.font_urls.clone(),
                 ..Default::default()
             })
             .collect(),

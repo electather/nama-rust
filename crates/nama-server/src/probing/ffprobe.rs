@@ -21,9 +21,12 @@ const WHOLE_FILE_TIMEOUT: Duration = Duration::from_mins(10);
 /// Subtitle codecs, as ffprobe names them, that are bitmaps rather than text.
 const IMAGE_SUBTITLES: &[&str] = &["dvb_subtitle", "dvd_subtitle", "hdmv_pgs_subtitle", "xsub"];
 
-/// The facts of the file at `path` and its video, audio and subtitle Tracks, as ffprobe reads
-/// them. Reads the whole file when its format doesn't say how long it is, or says so only from
-/// a placeholder header.
+/// The ends of the file names of fonts, for an attachment whose MIME type doesn't say it's one.
+const FONT_EXTENSIONS: &[&str] = &[".ttf", ".otf", ".ttc"];
+
+/// The facts of the file at `path`, its video, audio and subtitle Tracks and the fonts it carries,
+/// as ffprobe reads them. Reads the whole file when its format doesn't say how long it is, or says
+/// so only from a placeholder header.
 pub(super) async fn probe(ffmpeg: &Ffmpeg, path: &str) -> Result<Probe, ProbeError> {
     let args = ["-print_format", "json", "-show_format", "-show_streams"];
     let output = run(ffmpeg, &args, path, PROBE_TIMEOUT).await?;
@@ -214,6 +217,13 @@ fn parse_probe(json: &[u8]) -> Result<Probe, serde_json::Error> {
     let header_unfilled = format.format_name == "avi"
         && (output.streams.iter())
             .any(|stream| stream.nb_frames.as_deref() == Some(AVI_PLACEHOLDER_FRAMES));
+    // ffmpeg's `t:<n>` counts only these, so a font's place is among them.
+    let font_attachments = (output.streams.iter())
+        .filter(|stream| stream.codec_type.as_deref() == Some("attachment"))
+        .enumerate()
+        .filter(|(_, attachment)| is_font(attachment))
+        .map(|(place, _)| place)
+        .collect();
     Ok(Probe {
         container: format.format_name,
         duration_ms: (format.duration.as_deref())
@@ -223,7 +233,18 @@ fn parse_probe(json: &[u8]) -> Result<Probe, serde_json::Error> {
             .filter(|&ms| ms > 0),
         bitrate: format.bit_rate.and_then(|bitrate| bitrate.parse().ok()),
         tracks: output.streams.into_iter().filter_map(track).collect(),
+        font_attachments,
     })
+}
+
+/// Whether `attachment` is a font: its MIME type says so, or failing that its file name ends as a
+/// font's does. Anything else, such as a picture, isn't.
+fn is_font(attachment: &ProbedStream) -> bool {
+    let tag = |name: &str| (attachment.tags.get(name)).map(|value| value.to_ascii_lowercase());
+    // Muxers name fonts `font/ttf`, `application/x-truetype-font`, `application/vnd.ms-opentype`
+    // and more besides.
+    tag("mimetype").is_some_and(|mime| mime.contains("font") || mime.contains("opentype"))
+        || tag("filename").is_some_and(|name| FONT_EXTENSIONS.iter().any(|end| name.ends_with(end)))
 }
 
 /// `stream` as a Track, or `None` for a stream that isn't one, such as cover art or a data
@@ -344,7 +365,7 @@ mod tests {
     }
 
     #[test]
-    fn ffprobe_output_reads_as_tracks_without_cover_art_or_attachments() {
+    fn ffprobe_output_reads_as_tracks_without_cover_art_and_its_attachment_as_a_font() {
         let probe = parse_probe(BLU_RAY_REMUX.as_bytes()).unwrap();
 
         let Some(TrackKind::Video { frame_rate, .. }) = probe.tracks.first().map(|t| &t.kind)
@@ -400,8 +421,34 @@ mod tests {
                         )
                     },
                 ],
+                font_attachments: vec![0],
             }
         );
+    }
+
+    #[test]
+    fn a_font_is_an_attachment_whose_mime_type_or_else_file_name_says_so() {
+        let json = r#"{
+            "streams": [
+                {"codec_name": "ass", "codec_type": "subtitle"},
+                {"codec_type": "attachment",
+                 "tags": {"filename": "cover.jpg", "mimetype": "image/jpeg"}},
+                {"codec_type": "attachment",
+                 "tags": {"filename": "Gandhi Sans", "mimetype": "application/x-truetype-font"}},
+                {"codec_type": "attachment", "tags": {"filename": "vazir.otf"}},
+                {"codec_type": "attachment",
+                 "tags": {"filename": "NotoSansCJK.TTC", "mimetype": "application/octet-stream"}},
+                {"codec_type": "attachment", "tags": {"filename": "chapters.txt"}},
+                {"codec_type": "attachment",
+                 "tags": {"filename": "a", "mimetype": "application/vnd.ms-opentype"}},
+                {"codec_type": "attachment", "tags": {"filename": "b", "mimetype": "font/sfnt"}}
+            ],
+            "format": {"format_name": "matroska,webm"}
+        }"#;
+
+        let probe = parse_probe(json.as_bytes()).unwrap();
+
+        assert_eq!(probe.font_attachments, [1, 2, 3, 5, 6]);
     }
 
     /// ffprobe 7.0's output for a Dolby Vision file of `profile`, whose base layer's

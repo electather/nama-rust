@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT version_id, size, modified_ns, container, duration_ms, bitrate\n             FROM version_probes\n             WHERE version_id IN (SELECT value FROM json_each(?))",
+  "query": "SELECT version_id, size, modified_ns, container, duration_ms, bitrate,\n                    font_attachments\n             FROM version_probes\n             WHERE version_id IN (SELECT value FROM json_each(?))",
   "describe": {
     "columns": [
       {
@@ -68,6 +68,17 @@
             "name": "bitrate"
           }
         }
+      },
+      {
+        "name": "font_attachments",
+        "ordinal": 6,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "version_probes",
+            "name": "font_attachments"
+          }
+        }
       }
     ],
     "parameters": {
@@ -79,8 +90,9 @@
       false,
       false,
       true,
-      true
+      true,
+      false
     ]
   },
-  "hash": "62a33c1cc9558e1ae4673806f69107523350fb3de61fea935cf9ca348e136a62"
+  "hash": "06afd4d0468b2ab0d384ebb5d0059c2cb2812c953e3d82ad38f4540fbc6d5d6c"
 }

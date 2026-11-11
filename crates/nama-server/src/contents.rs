@@ -25,6 +25,9 @@ use crate::{
     scanner::PARSER_VERSION,
 };
 
+#[cfg(test)]
+pub(crate) mod fixture;
+
 /// Reads and writes the contents of Libraries.
 #[derive(Debug, Clone)]
 pub(crate) struct Contents {
@@ -1882,7 +1885,10 @@ mod tests {
     };
     use tempfile::TempDir;
 
-    use super::{Change, Contents, Decided, FileItem, Item, Metadata, Pin};
+    use super::{
+        Change, Contents, Decided, FileItem, Item, Metadata, Pin,
+        fixture::{MatchedMovie, decide, tmdb_movie},
+    };
     use crate::{
         db::Database,
         libraries::{Kind, Libraries},
@@ -2258,7 +2264,7 @@ mod tests {
             items: vec![movie("Heat", 1995)],
         };
         fx.contents.apply(other, vec![store_heat]).await.unwrap();
-        let heat = fx.contents.undecided(other).await.unwrap()[0].0;
+        let heat = fx.contents.files(other).await.unwrap()[0].items[0].id;
         fx.libraries.delete(fx.library).await.unwrap();
 
         let pinned = fx
@@ -2287,35 +2293,22 @@ mod tests {
     }
 
     /// What TMDB says of the Movie `tmdb`, called `title` and released on `release_date`.
-    fn movie_match(tmdb: i64, title: &str, release_date: &str) -> Decided {
-        Decided::Matched(Box::new(Metadata {
-            plugin: PluginId::from_static("tmdb"),
-            ids: ExternalIds {
-                tmdb: Some(tmdb),
-                ..ExternalIds::default()
-            },
-            show_ids: ExternalIds::default(),
-            title: title.to_owned(),
-            original_title: None,
-            show_title: None,
-            overview: None,
+    fn released_movie(tmdb: i64, title: &str, release_date: &str) -> Metadata {
+        Metadata {
             release_date: Some(release_date.to_owned()),
-            runtime_minutes: None,
-            poster: None,
-            backdrop: None,
-        }))
+            ..tmdb_movie(tmdb, title)
+        }
     }
 
     impl Fixture {
         /// Stores a file of its own for the Movie `tmdb` and Matches it to `title`, released on
-        /// `release_date`.
-        async fn match_movie(&self, tmdb: i64, title: &str, release_date: &str) {
+        /// `release_date`. Returns the Item's id.
+        async fn match_movie(&self, tmdb: i64, title: &str, release_date: &str) -> i64 {
             let path = format!("/media/{tmdb}.mkv");
-            let year = release_date.get(..4).unwrap().parse().unwrap();
-            self.store(&path, 10, movie(title, year)).await;
-            let item = self.item(&path).await;
-            let decided = movie_match(tmdb, title, release_date);
-            self.contents.record(vec![(item, decided)]).await.unwrap();
+            let matched = released_movie(tmdb, title, release_date);
+            MatchedMovie::store(&self.contents, self.library, &path, matched)
+                .await
+                .item
         }
 
         /// The titles of the Movies a search for `query` finds, best fit first.
@@ -2404,8 +2397,9 @@ mod tests {
         /// Stores a file of its own in `library` for Episode `number` of Season 1 of The Office,
         /// and decides it as `decided`.
         async fn decide_office_episode(&self, library: i64, number: i64, decided: Decided) {
+            let path = format!("/shows/The Office - S01E0{number}.mkv");
             let file = Change::Store {
-                path: format!("/shows/The Office - S01E0{number}.mkv"),
+                path: path.clone(),
                 size: 10,
                 modified_ns: 0,
                 items: vec![Item::Episode {
@@ -2417,8 +2411,7 @@ mod tests {
                 }],
             };
             self.contents.apply(library, vec![file]).await.unwrap();
-            let (item, _, _) = self.contents.undecided(library).await.unwrap().remove(0);
-            self.contents.record(vec![(item, decided)]).await.unwrap();
+            decide(&self.contents, library, &path, vec![decided]).await;
         }
     }
 
@@ -2461,10 +2454,9 @@ mod tests {
     #[tokio::test]
     async fn a_search_finds_an_item_by_its_latest_match_and_not_once_it_is_unmatched() {
         let fx = Fixture::new().await;
-        fx.match_movie(949, "Heat", "1995-12-15").await;
-        let item = fx.item("/media/949.mkv").await;
+        let item = fx.match_movie(949, "Heat", "1995-12-15").await;
 
-        let ronin = movie_match(8195, "Ronin", "1998-09-25");
+        let ronin = Decided::Matched(Box::new(released_movie(8195, "Ronin", "1998-09-25")));
         fx.contents.record(vec![(item, ronin)]).await.unwrap();
 
         assert_eq!(fx.found_movies("heat").await, Vec::<String>::new());

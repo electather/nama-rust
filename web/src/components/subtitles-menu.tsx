@@ -15,7 +15,7 @@ import type { SubtitleChoice, usePlaybackPlan } from "@/lib/playback-plan";
 import {
   type SubtitleState,
   trackLabel,
-  usePgsSubtitle,
+  useDrawnSubtitle,
   usePickReporter,
   useSubtitles,
 } from "@/lib/subtitles";
@@ -46,9 +46,9 @@ function browserMenuLabel(track: Track | undefined) {
 /**
  * Picks the subtitle shown, or none: one of the plan's subtitles, which the Device shows itself,
  * saying which is still being read out of the file, or one of the Version's `tracks` the plan
- * offers to burn into the picture, an image one it can't draw or an ASS one with its styling. Each
- * pick is reported, so the Server keeps it for the Show or Movie the Version is of. Absent when
- * there's none to pick.
+ * offers to burn into the picture, an image one it can't draw or an ASS one it doesn't draw, with
+ * its styling. Each pick is reported, so the Server keeps it for the Show or Movie the Version is
+ * of. Absent when there's none to pick.
  */
 export function SubtitlesMenu({
   tracks,
@@ -113,11 +113,11 @@ function useShownSubtitles(
   videoRef: RefObject<HTMLVideoElement | null>,
 ) {
   const drawn = plan.subtitles.find(
-    ({ url, format }) => url === shown && format === SubtitleFormat.PGS,
+    ({ url, format }) => url === shown && format !== SubtitleFormat.WEBVTT,
   );
   return {
     ...useSubtitles(videoRef, shown),
-    ...usePgsSubtitle(videoRef, drawn?.url, () => {
+    ...useDrawnSubtitle(videoRef, drawn, () => {
       if (videoRef.current && drawn) chooseSubtitle(videoRef.current, drawn.place);
     }),
   };
