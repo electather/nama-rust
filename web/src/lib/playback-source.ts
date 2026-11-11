@@ -62,11 +62,18 @@ function playThroughHlsJs(
   };
 }
 
+/** The plans a player let go of, by id, each to be stopped once the task that let go ends. */
+const letGo = new Map<bigint, ReturnType<typeof setTimeout>>();
+
 /**
  * Asks for the plan `planId`'s `url` every `KEEP_ALIVE_MS`, until the cleanup it returns, which
  * tells the Server it stopped, so it ends at once rather than a minute later.
  */
 function keepPlaying(transport: Transport, planId: bigint, url: string) {
+  // React may clean up an effect and set it up again for the same plan, as `StrictMode` does on
+  // mounting: a stop sent at once would end the plan the `<video>` goes on playing.
+  clearTimeout(letGo.get(planId));
+  letGo.delete(planId);
   const asking = setInterval(() => {
     // `HEAD`, so a Direct Play's whole file isn't sent. A failed ask is left to the player, which
     // notices when it next needs a segment.
@@ -74,7 +81,11 @@ function keepPlaying(transport: Transport, planId: bigint, url: string) {
   }, KEEP_ALIVE_MS);
   return () => {
     clearInterval(asking);
-    // A failed stop is left to that minute.
-    callUnaryMethod(transport, PlaybackService.method.stopPlayback, { planId }).catch(() => {});
+    const stop = setTimeout(() => {
+      letGo.delete(planId);
+      // A failed stop is left to that minute.
+      callUnaryMethod(transport, PlaybackService.method.stopPlayback, { planId }).catch(() => {});
+    });
+    letGo.set(planId, stop);
   };
 }
