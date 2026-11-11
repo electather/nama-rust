@@ -42,6 +42,8 @@ export interface ServerState {
   events?: ReadableStream<SubscribeResponse>;
   /** How the fake Server answers `ServerService` RPCs, over its defaults: its info, and no settings set. */
   serverService?: Partial<ServiceImpl<typeof ServerService>>;
+  /** How the fake Server answers the rest of `LibraryService`, such as deleting media. */
+  libraryService?: Partial<ServiceImpl<typeof LibraryService>>;
 }
 
 /**
@@ -84,7 +86,10 @@ export function fakeServer(
       getDefaultPermissions: () => ({ permissions: newUser }),
       ...users,
     });
-    router.service(LibraryService, { listLibraries: () => ({ libraries: state.libraries ?? [] }) });
+    router.service(LibraryService, {
+      listLibraries: () => ({ libraries: state.libraries ?? [] }),
+      ...state.libraryService,
+    });
     // Every signed-in page follows the Server's Events.
     router.service(EventService, { subscribe: () => state.events ?? new ReadableStream() });
     more(router);

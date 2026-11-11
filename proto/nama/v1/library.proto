@@ -2,9 +2,11 @@ syntax = "proto3";
 
 package nama.v1;
 
+import "nama/v1/match.proto";
+
 // The Server's Libraries: named collections of one kind of media, each backed by one or more
-// folders on the Server's disk. Every RPC but `ListLibraries` needs `PERMISSION_MANAGE_LIBRARIES`,
-// and fails with `permission_denied` without it.
+// folders on the Server's disk. Every RPC but `ListLibraries` and those deleting media needs
+// `PERMISSION_MANAGE_LIBRARIES`, and fails with `permission_denied` without it.
 service LibraryService {
   // Creates a Library. Fails with `invalid_argument` if the name is blank, the kind is
   // unspecified, or a folder isn't an absolute path to a readable directory, and with
@@ -40,6 +42,20 @@ service LibraryService {
   rpc ScanLibrary(ScanLibraryRequest) returns (ScanLibraryResponse) {
     option idempotency_level = IDEMPOTENT;
   }
+  // Lists the files `DeleteMedia` would delete for the same target, and the bytes they would
+  // free, deleting nothing. Needs `PERMISSION_DELETE_MEDIA`. Fails as `DeleteMedia` does.
+  rpc PreviewDeleteMedia(PreviewDeleteMediaRequest) returns (PreviewDeleteMediaResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Deletes media from disk for good, with nothing to undo it: each Version's file, its sidecars
+  // (the files beside it whose names start with the video's name, without its extension, followed
+  // by `.` or `-`, and that aren't videos), and the folders that leaves empty, never a Library's
+  // own folder or above it. The Versions whose files went are removed as a scan removes them, with
+  // `LibraryItemRemoved`. A file that can't be deleted is listed with why, and the rest still go.
+  // Needs `PERMISSION_DELETE_MEDIA` and Recent Authentication. Fails with `invalid_argument` if
+  // the target is missing, or names a Shows Library as a Movie's, and with `not_found` if there
+  // is no such Library, Movie or Version.
+  rpc DeleteMedia(DeleteMediaRequest) returns (DeleteMediaResponse);
 }
 
 // The kind of media a Library holds. A Library holds exactly one kind.
@@ -120,3 +136,62 @@ message ScanLibraryRequest {
 }
 
 message ScanLibraryResponse {}
+
+message PreviewDeleteMediaRequest {
+  MediaToDelete target = 1;
+}
+
+message PreviewDeleteMediaResponse {
+  // Each file that would go: the Versions' files and their sidecars.
+  repeated MediaFile files = 1;
+  // What deleting `files` would free.
+  uint64 bytes_freed = 2;
+}
+
+message DeleteMediaRequest {
+  MediaToDelete target = 1;
+}
+
+message DeleteMediaResponse {
+  // Each file that went.
+  repeated MediaFile deleted = 1;
+  // What deleting `deleted` freed.
+  uint64 bytes_freed = 2;
+  // Each file that couldn't be deleted. A Version whose own file is here stays, with its
+  // sidecars.
+  repeated FileNotDeleted not_deleted = 3;
+}
+
+// What to delete: a title's every Version, or one Version.
+message MediaToDelete {
+  oneof target {
+    // Every Version of a Movie.
+    MovieToDelete movie = 1;
+    // One Version of a Movie, by its id as browsing gives it.
+    int64 version_id = 2;
+  }
+}
+
+// A Movie, named as `BrowseService.GetMovie` names it.
+message MovieToDelete {
+  // The Movies Library the Movie is in.
+  int64 library_id = 1;
+  // The Movie's id, as `BrowseService.ListMovies` gave it.
+  ExternalId movie_id = 2;
+}
+
+// A file on the Server's disk.
+message MediaFile {
+  // The file's name, without the folders it is in.
+  string file_name = 1;
+  // In bytes.
+  uint64 size = 2;
+}
+
+// A file a delete couldn't delete, and why.
+message FileNotDeleted {
+  // The file's name, without the folders it is in.
+  string file_name = 1;
+  // Why, as the Server's operating system put it, such as "Permission denied".
+  string reason = 2;
+}

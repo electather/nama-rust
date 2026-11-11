@@ -194,6 +194,8 @@ pub enum Permission {
     /// Picks the Quality a title is downloaded at when Requesting it, from its Fulfiller's list
     /// (ADR 0025). About quality alone: never folders, tags or servers.
     PERMISSION_CHOOSE_QUALITY = 13i32,
+    /// Deletes media from the Libraries' folders, for good (ADR 0038).
+    PERMISSION_DELETE_MEDIA = 14i32,
 }
 impl Permission {
     ///Idiomatic alias for [`Self::PERMISSION_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -238,6 +240,9 @@ impl Permission {
     ///Idiomatic alias for [`Self::PERMISSION_CHOOSE_QUALITY`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const ChooseQuality: Self = Self::PERMISSION_CHOOSE_QUALITY;
+    ///Idiomatic alias for [`Self::PERMISSION_DELETE_MEDIA`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const DeleteMedia: Self = Self::PERMISSION_DELETE_MEDIA;
 }
 impl ::core::default::Default for Permission {
     fn default() -> Self {
@@ -347,6 +352,7 @@ impl ::buffa::Enumeration for Permission {
             11i32 => ::core::option::Option::Some(Self::PERMISSION_AUTO_APPROVE_TV),
             12i32 => ::core::option::Option::Some(Self::PERMISSION_VIEW_REQUESTS),
             13i32 => ::core::option::Option::Some(Self::PERMISSION_CHOOSE_QUALITY),
+            14i32 => ::core::option::Option::Some(Self::PERMISSION_DELETE_MEDIA),
             _ => ::core::option::Option::None,
         }
     }
@@ -369,6 +375,7 @@ impl ::buffa::Enumeration for Permission {
             Self::PERMISSION_AUTO_APPROVE_TV => "PERMISSION_AUTO_APPROVE_TV",
             Self::PERMISSION_VIEW_REQUESTS => "PERMISSION_VIEW_REQUESTS",
             Self::PERMISSION_CHOOSE_QUALITY => "PERMISSION_CHOOSE_QUALITY",
+            Self::PERMISSION_DELETE_MEDIA => "PERMISSION_DELETE_MEDIA",
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -413,6 +420,9 @@ impl ::buffa::Enumeration for Permission {
             "PERMISSION_CHOOSE_QUALITY" => {
                 ::core::option::Option::Some(Self::PERMISSION_CHOOSE_QUALITY)
             }
+            "PERMISSION_DELETE_MEDIA" => {
+                ::core::option::Option::Some(Self::PERMISSION_DELETE_MEDIA)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -432,6 +442,7 @@ impl ::buffa::Enumeration for Permission {
             Self::PERMISSION_AUTO_APPROVE_TV,
             Self::PERMISSION_VIEW_REQUESTS,
             Self::PERMISSION_CHOOSE_QUALITY,
+            Self::PERMISSION_DELETE_MEDIA,
         ]
     }
 }

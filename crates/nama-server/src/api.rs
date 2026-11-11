@@ -121,7 +121,9 @@ pub(crate) fn router(
         .add_service(Arc::new(BrowseServiceHandler {
             browse: browse.clone(),
         }))
-        .add_service(Arc::new(WatchStateServiceHandler { browse }))
+        .add_service(Arc::new(WatchStateServiceHandler {
+            browse: browse.clone(),
+        }))
         .add_service(Arc::new(PlaybackServiceHandler {
             probing,
             abilities,
@@ -133,6 +135,7 @@ pub(crate) fn router(
         .add_service(Arc::new(LibraryServiceHandler {
             libraries: Libraries::new(db),
             scanner,
+            browse,
         }))
         .add_service(Arc::new(EventServiceHandler {
             events,
@@ -183,6 +186,9 @@ const REQUEST_MOVIE: Access = Access::Needs(Permission::RequestMovie);
 /// Asking for Seasons of Shows.
 const REQUEST_TV: Access = Access::Needs(Permission::RequestTv);
 
+/// Deleting media from the Libraries' folders.
+const DELETE_MEDIA: Access = Access::Needs(Permission::DeleteMedia);
+
 /// Who may call each RPC, by path; one missing here is refused to everyone (see AGENTS.md, "New
 /// RPCs start closed"). Media has its own entry, [`MEDIA`].
 // One row per RPC reads as a table; rustfmt would split most rows over four lines.
@@ -209,6 +215,8 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::LIBRARY_SERVICE_UPDATE_LIBRARY_SPEC.procedure,        MANAGE_LIBRARIES),
     (proto::LIBRARY_SERVICE_DELETE_LIBRARY_SPEC.procedure,        MANAGE_LIBRARIES),
     (proto::LIBRARY_SERVICE_SCAN_LIBRARY_SPEC.procedure,          MANAGE_LIBRARIES),
+    (proto::LIBRARY_SERVICE_PREVIEW_DELETE_MEDIA_SPEC.procedure,  DELETE_MEDIA),
+    (proto::LIBRARY_SERVICE_DELETE_MEDIA_SPEC.procedure,          DELETE_MEDIA),
     (proto::MATCH_SERVICE_SEARCH_METADATA_SPEC.procedure,         MANAGE_LIBRARIES),
     (proto::MATCH_SERVICE_SET_MATCH_SPEC.procedure,               MANAGE_LIBRARIES),
     (proto::MATCH_SERVICE_CLEAR_MATCH_SPEC.procedure,             MANAGE_LIBRARIES),
@@ -311,10 +319,11 @@ fn permission_required(needed: Permission) -> ConnectError {
     .into()
 }
 
-/// The RPCs that change who can sign in as whom, by path, which need Recent Authentication on top
-/// of their [`Access`] (ADR 0014, and see AGENTS.md). A list of its own, not an `Access` variant:
-/// `SetPermissions` needs a Permission as well, `ChangePassword` only a session.
-const NEEDS_RECENT_AUTHENTICATION: [&str; 6] = [
+/// The RPCs that change who can sign in as whom or delete media, by path, which need Recent
+/// Authentication on top of their [`Access`] (ADR 0014, and see AGENTS.md). A list of its own, not
+/// an `Access` variant: `SetPermissions` needs a Permission as well, `ChangePassword` only a
+/// session.
+const NEEDS_RECENT_AUTHENTICATION: [&str; 7] = [
     proto::USER_SERVICE_CHANGE_PASSWORD_SPEC.procedure,
     proto::USER_SERVICE_RESET_PASSWORD_SPEC.procedure,
     proto::USER_SERVICE_SET_PERMISSIONS_SPEC.procedure,
@@ -322,6 +331,8 @@ const NEEDS_RECENT_AUTHENTICATION: [&str; 6] = [
     proto::USER_SERVICE_SET_DEFAULT_PERMISSIONS_SPEC.procedure,
     proto::USER_SERVICE_DELETE_USER_SPEC.procedure,
     proto::SIGN_IN_SERVICE_APPROVE_SIGN_IN_CODE_SPEC.procedure,
+    // Deleting can't be undone, so someone at an unlocked Device mustn't do it unasked (ADR 0038).
+    proto::LIBRARY_SERVICE_DELETE_MEDIA_SPEC.procedure,
 ];
 
 /// Why `caller` may not request `path` yet, if it needs Recent Authentication their Device lacks.

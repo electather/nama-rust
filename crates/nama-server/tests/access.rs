@@ -1,6 +1,7 @@
 //! Who may call what: a session for everything but the public RPCs, a Permission for managing
-//! Libraries, Matches, Users, settings or Requests and for Requesting, and Recent Authentication
-//! for changing who can sign in as whom, over a real socket and against a real SQLite database.
+//! Libraries, Matches, Users, settings or Requests, for Requesting and for deleting media, and
+//! Recent Authentication for changing who can sign in as whom and for deleting media, over a real
+//! socket and against a real SQLite database.
 
 #[path = "support/refused.rs"]
 mod refused;
@@ -22,6 +23,12 @@ use nama_server::db::Database;
 use refused::{assert_refused, refusal_of};
 use serde_json::{Value, json};
 use server::{PASSWORD, TestServer, subscribe};
+
+/// Every RPC that deletes media, which needs `PERMISSION_DELETE_MEDIA`.
+const DELETE_MEDIA: [&str; 2] = [
+    "/nama.v1.LibraryService/PreviewDeleteMedia",
+    "/nama.v1.LibraryService/DeleteMedia",
+];
 
 /// Every RPC that manages Libraries or Matches, which needs `PERMISSION_MANAGE_LIBRARIES`.
 const MANAGE_LIBRARIES: [&str; 9] = [
@@ -132,7 +139,7 @@ const SIGNED_IN: [&str; 12] = [
 
 /// Each Permission some RPC needs, with every RPC that needs it: kept by hand, as a second
 /// statement of who may call what that doesn't read `ACCESS`.
-const NEEDS_PERMISSION: [(Permission, &[&str]); 7] = [
+const NEEDS_PERMISSION: [(Permission, &[&str]); 8] = [
     (Permission::ManageLibraries, &MANAGE_LIBRARIES),
     (Permission::ManageUsers, &MANAGE_USERS),
     (Permission::ManageSettings, &MANAGE_SETTINGS),
@@ -140,18 +147,21 @@ const NEEDS_PERMISSION: [(Permission, &[&str]); 7] = [
     (Permission::ManageRequests, &MANAGE_REQUESTS),
     (Permission::RequestMovie, &REQUEST_MOVIE),
     (Permission::RequestTv, &REQUEST_TV),
+    (Permission::DeleteMedia, &DELETE_MEDIA),
 ];
 
 const SIGN_OUT: &str = "/nama.v1.SignInService/SignOut";
 
-/// The RPCs that change who can sign in as whom, which need Recent Authentication (ADR 0014).
-const SENSITIVE: [&str; 6] = [
+/// The RPCs that change who can sign in as whom or delete media, which need Recent Authentication
+/// (ADR 0014).
+const SENSITIVE: [&str; 7] = [
     "/nama.v1.UserService/ChangePassword",
     "/nama.v1.UserService/ResetPassword",
     "/nama.v1.UserService/SetPermissions",
     "/nama.v1.UserService/SetDefaultPermissions",
     "/nama.v1.UserService/DeleteUser",
     "/nama.v1.SignInService/ApproveSignInCode",
+    "/nama.v1.LibraryService/DeleteMedia",
 ];
 
 struct Reply {
