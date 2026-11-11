@@ -29,7 +29,7 @@ use crate::{
     playback::running::RunningPlans,
     plugin_settings::PluginSettings,
     probing::Probing,
-    rate_limits::{SignInCodeLimits, SignInLimits},
+    rate_limits::SignInCodeLimits,
     requests::Requests,
     scanner::Scanner,
     server_settings,
@@ -52,6 +52,7 @@ mod sign_in;
 mod users;
 mod watch_states;
 
+use crate::sign_in::SignIn;
 use browse::BrowseServiceHandler;
 use events::EventServiceHandler;
 use libraries::LibraryServiceHandler;
@@ -112,7 +113,7 @@ pub(crate) fn router(
         .add_service(Arc::new(SignInServiceHandler {
             users: users.clone(),
             setup_code,
-            sign_in_limits: SignInLimits::default(),
+            sign_in: SignIn::new(users.clone()),
             sign_in_codes: SignInCodes::default(),
             sign_in_code_limits: SignInCodeLimits::default(),
         }))

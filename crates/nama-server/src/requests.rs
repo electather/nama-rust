@@ -1404,10 +1404,11 @@ pub(crate) async fn make_available(
 }
 
 /// Makes the open Request for each of `seasons`, as the metadata source gave them just now with
-/// their Show's TMDB id, Partially Available or Available by how many of its aired Episodes a
-/// Library has, and returns an event for each Request that changed (ADR 0012). Declined and
-/// Available Requests are closed, so Episodes that air later don't reopen them. A Season that came
-/// out after the Show's Approved Followed Show was opened gets a Request in that state.
+/// their Show's TMDB id, Partially Available (if Processing) or Available by how many of its
+/// aired Episodes a Library has, and returns an event for each Request that changed (ADR 0012).
+/// Declined and Available Requests are closed, so Episodes that air later don't reopen them. A
+/// Season that came out after the Show's Approved Followed Show was opened gets a Request in that
+/// state.
 pub(crate) async fn make_seasons_available(
     conn: &mut SqliteConnection,
     seasons: Vec<(i64, Season)>,
@@ -1499,8 +1500,9 @@ async fn open_followed_season(
     })))
 }
 
-/// Moves the Request `id` to `state`, and returns the event for it, or `None` if it was in
-/// `state` already.
+/// Moves the Request `id` to `state`, Available or Partially Available, and returns the event for
+/// it, or `None` if it didn't move. Only a Processing Request becomes Partially Available: one not
+/// yet handed off keeps its state, so it can still be decided, handed off or retried (ADR 0012).
 async fn change_state(
     conn: &mut SqliteConnection,
     id: i64,
@@ -1508,7 +1510,8 @@ async fn change_state(
 ) -> Result<Option<Event>, sqlx::Error> {
     let state = stored(state);
     let changed = sqlx::query!(
-        "UPDATE requests SET state = ?1, failure_reason = NULL WHERE id = ?2 AND state != ?1",
+        "UPDATE requests SET state = ?1, failure_reason = NULL
+         WHERE id = ?2 AND state != ?1 AND (?1 = 'available' OR state = 'processing')",
         state,
         id
     )
@@ -3573,11 +3576,12 @@ mod tests {
         let available = ask_for(&db, ADA, 157, RequestState::Pending).await.value.id;
         match_in_a_library(&db, &[157]).await;
         let partly = db
-            .write(|tx| Box::pin(ask_seasons(tx, ADA, dark(), RequestState::Pending)))
+            .write(|tx| Box::pin(ask_seasons(tx, ADA, dark(), RequestState::Approved)))
             .await
             .unwrap()
             .value[0]
             .id;
+        settled(&db, partly, Ok(fulfilled())).await;
         match_dark_episodes(&db, 1, &[1]).await;
         scan_dark(&db, &[1]).await;
 
@@ -3941,6 +3945,48 @@ mod tests {
             "{withdrawn:?}"
         );
         assert_eq!(unfollowed_shows(&unfollowing).await, [dark().show_tmdb_id]);
+    }
+
+    #[tokio::test]
+    async fn upgrading_makes_a_season_a_scan_moved_before_hand_off_pending_and_leaves_handed_off_and_followed_shows_seasons()
+     {
+        let data_dir = tempfile::tempdir().unwrap();
+        let options = sqlx::sqlite::SqliteConnectOptions::new()
+            .filename(data_dir.path().join(crate::db::FILE_NAME))
+            .create_if_missing(true);
+        // A raw connection, not `Database::write`: `Database::open` would run every migration.
+        let mut before = sqlx::ConnectOptions::connect(&options).await.unwrap();
+        // The last migration before stuck Requests went back to Pending.
+        sqlx::migrate!().run_to(38, &mut before).await.unwrap();
+        sqlx::query(
+            "INSERT INTO followed_shows (id, tmdb_id, title, state, created_at)
+             VALUES (1, 70523, 'Dark', 'approved', 0);
+             INSERT INTO requests (id, tmdb_id, season, title, state, created_at,
+                                   fulfiller_reference, followed_show_id)
+             VALUES (1, 70523, 1, 'Dark', 'partially_available', 0, NULL, NULL),
+                    (2, 70523, 2, 'Dark', 'partially_available', 0, 'show-70523-season-2', NULL),
+                    (3, 70523, 3, 'Dark', 'partially_available', 0, NULL, 1)",
+        )
+        .execute(&mut before)
+        .await
+        .unwrap();
+        sqlx::Connection::close(before).await.unwrap();
+
+        let db = Database::open(data_dir.path()).await.unwrap();
+        let states: Vec<(i64, String)> =
+            sqlx::query_as("SELECT id, state FROM requests ORDER BY id")
+                .fetch_all(db.reader())
+                .await
+                .unwrap();
+
+        assert_eq!(
+            states,
+            [
+                (1, "pending".to_owned()),
+                (2, "partially_available".to_owned()),
+                (3, "partially_available".to_owned())
+            ]
+        );
     }
 
     /// Dark's Season Requests as a later read shows them, oldest first: each one's Season, state

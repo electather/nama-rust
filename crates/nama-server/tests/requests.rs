@@ -627,18 +627,19 @@ async fn a_page_token_used_with_another_state_or_made_up_is_refused() {
 #[tokio::test]
 async fn listing_by_a_state_gives_only_the_requests_and_followed_shows_in_it_and_no_state_gives_all()
  {
-    let fixture = Fixture::with_fulfiller(&[]).await;
+    let fixture = Fixture::with_shows_fulfiller(&[]).await;
     let fulfiller = fixture.server.fulfiller();
-    fulfiller.refuse();
     let as_ada = fixture.server.user("Ada", &NEW_USER).await.client_config();
     let ada = requests(as_ada.clone());
     let alien = ada.ask(ALIEN).await;
-    let failed = fixture.server.approve(ada.ask(DUNE).await.id).await;
-    fulfiller.recover();
-    let processing = fixture.server.approve(ada.ask(HEAT).await.id).await;
+    // With no Movie Fulfiller, an approved Movie waits Approved.
+    let approved = fixture.server.approve(ada.ask(DUNE).await.id).await;
     let (followed, dark) = ada.follow(DARK).await;
-    let approved = fixture.server.approve(dark[1].id).await;
-    let declined = fixture.server.decline(dark[2].id, "").await;
+    fixture.server.approve(dark[0].id).await;
+    let processing = fixture.server.approve(dark[1].id).await;
+    fulfiller.refuse();
+    let failed = fixture.server.approve(dark[2].id).await;
+    let declined = fixture.server.decline(ada.ask(HEAT).await.id, "").await;
     let pending = ada.ask_seasons(THE_OFFICE, &[1]).await;
     let mut adas_events = subscribe_to_requests(&as_ada).await;
     let _movies = fixture.library_with_alien().await;
@@ -658,10 +659,10 @@ async fn listing_by_a_state_gives_only_the_requests_and_followed_shows_in_it_and
     let newest_first = [
         (pending[0].id, RequestState::Pending),
         (declined.id, RequestState::Declined),
-        (approved.id, RequestState::Approved),
-        (dark[0].id, RequestState::PartiallyAvailable),
-        (processing.id, RequestState::Processing),
         (failed.id, RequestState::Failed),
+        (processing.id, RequestState::Processing),
+        (dark[0].id, RequestState::PartiallyAvailable),
+        (approved.id, RequestState::Approved),
         (alien.id, RequestState::Available),
     ];
     assert_eq!(available, (alien.id, RequestState::Available));
@@ -2368,7 +2369,7 @@ fn state_changed(event: event::Event) -> (i64, RequestState) {
 }
 
 #[tokio::test]
-async fn matching_season_1s_aired_episodes_makes_its_request_partially_available_then_available_live()
+async fn matching_some_of_a_pending_seasons_episodes_leaves_it_pending_and_approvable_then_all_makes_it_available_live()
  {
     let fixture = Fixture::start().await;
     let as_ada = fixture.server.user("Ada", &NEW_USER).await.client_config();
@@ -2381,20 +2382,107 @@ async fn matching_season_1s_aired_episodes_makes_its_request_partially_available
         .server
         .matched_library(LibraryKind::LIBRARY_KIND_SHOWS, &[DARK_S01E01])
         .await;
+    let some_matched = states(&ada.list().await);
+    fixture.server.approve(season_1).await;
+    let approved = state_changed(adas_events.next().await);
+    library.add(&[DARK_S01E02, DARK_S01E03]);
+    fixture.server.scan(library.id).await;
+    let all_matched = state_changed(adas_events.next().await);
+
+    assert_eq!(
+        some_matched,
+        [
+            (season_2, RequestState::Pending),
+            (season_1, RequestState::Pending)
+        ]
+    );
+    assert_eq!(approved, (season_1, RequestState::Approved));
+    assert_eq!(all_matched, (season_1, RequestState::Available));
+}
+
+#[tokio::test]
+async fn a_processing_season_request_becomes_partially_available_then_available_live() {
+    let fixture = Fixture::with_shows_fulfiller(&[]).await;
+    let as_ada = fixture.server.user("Ada", &NEW_USER).await.client_config();
+    let ada = requests(as_ada.clone());
+    let processing = fixture
+        .server
+        .approve(ada.ask_seasons(DARK, &[1]).await[0].id)
+        .await;
+    let mut adas_events = subscribe_to_requests(&as_ada).await;
+
+    let library = fixture
+        .server
+        .matched_library(LibraryKind::LIBRARY_KIND_SHOWS, &[DARK_S01E01])
+        .await;
     let some_matched = state_changed(adas_events.next().await);
     library.add(&[DARK_S01E02, DARK_S01E03]);
     fixture.server.scan(library.id).await;
     let all_matched = state_changed(adas_events.next().await);
 
-    assert_eq!(some_matched, (season_1, RequestState::PartiallyAvailable));
-    assert_eq!(all_matched, (season_1, RequestState::Available));
+    assert_eq!(processing.state, RequestState::Processing);
     assert_eq!(
-        states(&ada.list().await),
-        [
-            (season_2, RequestState::Pending),
-            (season_1, RequestState::Available)
-        ]
+        some_matched,
+        (processing.id, RequestState::PartiallyAvailable)
     );
+    assert_eq!(all_matched, (processing.id, RequestState::Available));
+}
+
+#[tokio::test]
+async fn an_approved_season_request_waiting_for_a_fulfiller_stays_approved_after_a_partial_match_and_is_handed_off_once_one_is_enabled()
+ {
+    let fixture = Fixture::with_test_choices_disabled(None).await;
+    let as_ada = fixture.server.user("Ada", &NEW_USER).await.client_config();
+    let ada = requests(as_ada);
+    let approved = fixture
+        .server
+        .approve(ada.ask_seasons(DARK, &[1]).await[0].id)
+        .await;
+
+    let _media = fixture
+        .server
+        .matched_library(LibraryKind::LIBRARY_KIND_SHOWS, &[DARK_S01E01])
+        .await;
+    let some_matched = states(&ada.list().await);
+    fixture.enable_test_choices().await.unwrap();
+
+    assert_eq!(some_matched, [(approved.id, RequestState::Approved)]);
+    assert_eq!(
+        states(&list_once_handed_off(&ada).await),
+        [(approved.id, RequestState::Processing)]
+    );
+    assert_eq!(
+        fixture.fulfiller_reference(approved.id).await.as_deref(),
+        Some("show-70523-season-1")
+    );
+}
+
+#[tokio::test]
+async fn a_failed_season_request_keeps_its_reason_after_a_partial_match_and_can_be_retried() {
+    let fixture = Fixture::with_shows_fulfiller(&[]).await;
+    let fulfiller = fixture.server.fulfiller();
+    fulfiller.refuse();
+    let as_ada = fixture.server.user("Ada", &NEW_USER).await.client_config();
+    let ada = requests(as_ada);
+    let failed = fixture
+        .server
+        .approve(ada.ask_seasons(DARK, &[1]).await[0].id)
+        .await;
+
+    let _media = fixture
+        .server
+        .matched_library(LibraryKind::LIBRARY_KIND_SHOWS, &[DARK_S01E01])
+        .await;
+    let some_matched = ada.get(failed.id).await;
+    fulfiller.recover();
+    let retried = fixture.server.retry(failed.id).await;
+
+    assert_eq!(some_matched.state, RequestState::Failed);
+    assert_eq!(
+        some_matched.failure_reason.as_deref(),
+        Some("Sonarr is unreachable")
+    );
+    assert_eq!(retried.state, RequestState::Processing);
 }
 
 #[tokio::test]

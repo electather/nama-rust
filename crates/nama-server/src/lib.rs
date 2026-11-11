@@ -23,6 +23,7 @@ mod requests;
 mod scanner;
 mod server_settings;
 mod sessions;
+mod sign_in;
 mod sign_in_codes;
 mod tracks;
 pub mod users;

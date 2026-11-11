@@ -227,7 +227,7 @@ test("a Request its Fulfiller didn't take shows as Failed with the reason, witho
 test("a Season Request shows as Partially Available, then Available, as a scan Matches its Episodes, without a reload", async () => {
   const events = eventFeed();
   const season2 = darkSeason(4n, 2, RequestState.PENDING);
-  let requests = [season2, darkSeason(3n, 1, RequestState.PENDING)];
+  let requests = [season2, darkSeason(3n, 1, RequestState.PROCESSING)];
   openApp(
     "/requests",
     server(() => requests, events.stream),
