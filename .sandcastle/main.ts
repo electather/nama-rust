@@ -12,7 +12,7 @@ import { inspect, parseEnv, promisify } from "node:util";
 import * as sandcastle from "@ai-hero/sandcastle";
 import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
 import { podman } from "@ai-hero/sandcastle/sandboxes/podman";
-import { mergeStep } from "./merge.ts";
+import { mainVerdict, mergeStep } from "./merge.ts";
 import { slotPool } from "./slots.ts";
 import { recorder, type Outcome, type Stage, type Waiting } from "./status.ts";
 
@@ -554,10 +554,16 @@ async function updateBranch(job: Job) {
   await job.box?.exec(`git reset --hard origin/${branchOf(job.issue)}`);
 }
 
-// Whether main's latest finished push run failed (a superseded run is cancelled, so it doesn't count).
-const mainRed = () =>
-  gh("run", "list", "--branch", BASE, "--workflow", "CI", "--event", "push", "--limit", "10", "--json", "conclusion",
-    "--jq", '[.[] | select(.conclusion != "" and .conclusion != "cancelled")][0].conclusion // empty') === "failure";
+// Whether main's newest push run with a verdict (see mainVerdict) is red.
+const mainRed = () => {
+  const runs = gh("run", "list", "--branch", BASE, "--workflow", "CI", "--event", "push", "--limit", "10",
+    "--json", "databaseId", "--jq", ".[].databaseId").split("\n").filter(Boolean);
+  for (const run of runs) {
+    const verdict = mainVerdict(JSON.parse(gh("run", "view", run, "--json", "jobs", "--jq", "[.jobs[] | {name, conclusion}]")));
+    if (verdict !== "unknown") return verdict === "red";
+  }
+  return false;
+};
 
 // A red main fails every PR's run. A fix agent would mend main in each PR, and those PRs would then conflict,
 // so the PR holds no slot and waits until main's own fix has landed. Triage files that fix.
