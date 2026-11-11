@@ -48,7 +48,7 @@ export function RequestRow({ request }: { request: Request | FollowedShow }) {
         <p className="truncate font-medium">{titleOf(request)}</p>
         <p className="text-sm text-muted-foreground">{aboutRequest(request, signedIn.user?.id)}</p>
         <Reason reason={reasonOf(request)} />
-        <FulfillerLink request={request} />
+        <FulfillerLink request={request} mayFix={may(signedIn.user, Permission.MANAGE_SETTINGS)} />
       </div>
       <RequestStateLabel state={request.state} />
       {request.$typeName === "nama.v1.Request" && <RequestProgress request={request} />}
@@ -125,15 +125,14 @@ function Reason({ reason }: { reason: string | undefined }) {
 
 /**
  * For a Failed Request, the link to its Fulfiller's Plugin, where the reason it failed is fixed,
- * shown only to a User who may change the Plugin's settings.
+ * shown only to a User who `mayFix` it there: one with Manage settings.
  */
-function FulfillerLink({ request }: { request: Request | FollowedShow }) {
-  const { signedIn } = useRouteContext({ from: "/_member" });
+function FulfillerLink({ request, mayFix }: { request: Request | FollowedShow; mayFix: boolean }) {
   return (
     request.$typeName === "nama.v1.Request" &&
     request.state === RequestState.FAILED &&
     request.fulfillerPluginId !== undefined &&
-    may(signedIn.user, Permission.MANAGE_SETTINGS) && (
+    mayFix && (
       <Link
         to="/admin/plugins/$pluginId"
         params={{ pluginId: request.fulfillerPluginId }}
