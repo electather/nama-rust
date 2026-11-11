@@ -3,11 +3,6 @@
 
 /// The Plugin's exports. `plugin_fn` drops their doc comments and attributes, so lints about the
 /// code it generates are expected here.
-#[cfg(not(test))]
-#[expect(
-    clippy::cfg_not_test,
-    reason = "a native test binary can't link the exports on Windows (plugins/AGENTS.md)"
-)]
 #[expect(
     clippy::unnecessary_wraps,
     reason = "an export returns `FnResult` even when it can't fail"

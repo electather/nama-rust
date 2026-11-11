@@ -317,13 +317,23 @@ jobs:
       # minute to build in release on a runner, and the first test to need them would pay that
       # inside its 90 s nextest timeout.
       - run: cargo build --release --locked --package nama-test-plugin --target wasm32-unknown-unknown --target-dir target/tmp/test-plugin
+      # Windows' linker refuses a native test binary of a crate built on Extism's PDK: it pulls in
+      # the PDK's calls to the host functions only a Plugin's wasm runtime has, where Linux's and
+      # macOS's drop them unused. Those crates are wasm code, so their tests on the others suffice.
+      - if: runner.os == 'Windows'
+        run: |
+          excluded=$(cargo metadata --format-version 1 --no-deps --locked | jq -r '.packages[]
+            | select(any(.dependencies[]; .name == "nama-pdk" or .name == "extism-pdk"))
+            | "--exclude \(.name)"' | tr -d '\r' | tr '\n' ' ')
+          echo "EXCLUDED=$excluded" >> "$GITHUB_ENV"
       # nextest builds every target it runs, so there's no separate `cargo build`. The `ci` profile
       # (.config/nextest.toml) retries, kills hung tests and writes a JUnit report. `count`
       # deals each binary's tests out in turn, so its slow ones land on both shards.
-      - run: cargo nextest run --workspace --locked --profile ci --partition count:${{ matrix.partition }}/2
+      # $EXCLUDED is unquoted so it splits into arguments.
+      - run: cargo nextest run --workspace $EXCLUDED --locked --profile ci --partition count:${{ matrix.partition }}/2
       # nextest doesn't run doctests.
       - if: matrix.partition == 1
-        run: cargo test --workspace --doc --locked
+        run: cargo test --workspace $EXCLUDED --doc --locked
       # For the test-report workflow (ADR 0022), as the vitest report in `web`.
       # ponytail: Linux only, since the history doesn't record the OS and a test failing on one OS
       # only would count as flaky. Add the OS to nama-test-report to record macOS and Windows.
