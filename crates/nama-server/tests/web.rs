@@ -44,6 +44,43 @@ async fn the_app_s_stylesheet_is_served() {
     assert_eq!(content_type, "text/css; charset=utf-8");
 }
 
+/// A WebAssembly module the app loads, such as the PGS renderer's, is served as one, which
+/// `WebAssembly.instantiateStreaming` needs.
+#[tokio::test]
+async fn the_app_s_webassembly_is_served_as_such() {
+    let server = TestServer::builder().start().await;
+    // Only a chunk loaded on demand names it, not the shell, so it's found where `vp build` wrote it.
+    let assets = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../web/dist/client/assets");
+    let wasm = std::fs::read_dir(assets)
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+        .find(|name| name.ends_with(".wasm"))
+        .unwrap();
+
+    let (status, content_type, _) = http1_get(server.addr, &format!("/assets/{wasm}")).await;
+
+    assert_eq!(status, 200);
+    assert_eq!(content_type, "application/wasm");
+}
+
+/// The ASS renderer ships with the notices of what it bundles, and without its asm.js worker for
+/// browsers without WebAssembly, which the app never lists ASS on.
+#[tokio::test]
+async fn the_app_ships_the_ass_renderer_s_notices_and_not_its_asm_js_worker() {
+    let server = TestServer::builder().start().await;
+    let assets = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../web/dist/client/assets");
+    let legacy = std::fs::read_dir(assets)
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+        .find(|name| name.contains("worker-legacy"));
+
+    let (status, _, notices) = http1_get(server.addr, "/licenses/libass-wasm.txt").await;
+
+    assert_eq!(legacy, None);
+    assert_eq!(status, 200);
+    assert!(String::from_utf8(notices).unwrap().contains("FreeType"));
+}
+
 /// The app never answers for the API or media, so a signed-in client that gets a path wrong sees
 /// a 404. Without a session, media would see a 401 first; an RPC path no `ACCESS` entry lists is
 /// a 404 either way.

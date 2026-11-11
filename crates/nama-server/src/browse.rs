@@ -12,6 +12,7 @@ use crate::{
     contents::{self, Contents, Found, MatchedTo, Stored},
     db::Database,
     libraries::{self, Kind, Libraries, Library},
+    scanner::Doomed,
     tracks::{Probe, Track, Tracks},
     watch_states::{MovieOrEpisode, Progress, WatchState, WatchStates},
 };
@@ -80,6 +81,15 @@ pub(crate) enum Target {
     Episode(ExternalId),
     Season { show: ExternalId, number: i64 },
     Show(ExternalId),
+}
+
+/// What a User deletes: see [`Browse::doomed`].
+#[derive(Debug)]
+pub(crate) enum ToDelete {
+    /// Every Version of a Movie of a Movies Library.
+    Movie { library: i64, id: ExternalId },
+    /// One Version of a Movie.
+    Version(i64),
 }
 
 /// A Library's titles, read whole, with Versions of the form `V`.
@@ -221,6 +231,43 @@ impl Browse {
             Target::Show(id) => titles.show(&id)?.episodes().map(episode).collect(),
         };
         Ok(self.watch_states.mark(user, marked, played).await?)
+    }
+
+    /// The Versions `target` names, with their Library and title. Fails as browsing to its Movie
+    /// does, or with [`Error::NoSuchVersion`] for a Version of no Movie.
+    pub(crate) async fn doomed(&self, target: ToDelete) -> Result<Doomed, Error> {
+        match target {
+            ToDelete::Movie { library, id } => {
+                let library = self.library(library).await?;
+                let movie = self.titles(&library).await?.movie(&id)?;
+                Ok(Doomed {
+                    library,
+                    title: movie.title,
+                    versions: movie.versions,
+                })
+            }
+            ToDelete::Version(version) => self.doomed_version(version).await,
+        }
+    }
+
+    /// The Version `version` of a Movie, with its Library and the Movie's title.
+    async fn doomed_version(&self, version: i64) -> Result<Doomed, Error> {
+        let library = self.contents.library_of_version(version).await?;
+        let library = self.library(library.ok_or(Error::NoSuchVersion)?).await?;
+        let Titles::Movies(movies) = self.titles(&library).await? else {
+            return Err(Error::NoSuchVersion);
+        };
+        let (title, version) = (movies.into_iter())
+            .find_map(|movie| {
+                let version = movie.versions.into_iter().find(|v| v.file.id == version)?;
+                Some((movie.title, version))
+            })
+            .ok_or(Error::NoSuchVersion)?;
+        Ok(Doomed {
+            library,
+            title,
+            versions: vec![version],
+        })
     }
 
     /// The User `user`'s Continue Watching: the Movies and Episodes they've started and not
@@ -431,15 +478,15 @@ fn finding_failed(err: libraries::Error) -> Error {
 mod tests {
     use std::sync::Arc;
 
-    use nama_plugin_api::{
-        PluginId,
-        metadata::{ExternalId, ExternalIds},
-    };
+    use nama_plugin_api::metadata::{ExternalId, ExternalIds};
     use tempfile::TempDir;
 
     use super::{Browse, Error, Started, Target};
     use crate::{
-        contents::{Change, Contents, Decided, Item, Metadata, Stored},
+        contents::{
+            Change, Contents, Decided, Item, Metadata, Stored,
+            fixture::{MatchedMovie, decide, tmdb_movie},
+        },
         db::Database,
         libraries::{Kind, Libraries},
         plugins::Registry,
@@ -488,11 +535,8 @@ mod tests {
             items,
         };
         contents.apply(library, vec![file]).await.unwrap();
-        let undecided = contents.undecided(library).await.unwrap();
-        let ids = undecided.into_iter().map(|(id, _, _)| id);
-        let decisions: Vec<_> = ids.zip(decided).collect();
-        contents.record(decisions).await.unwrap();
-        contents.stored(library).await.unwrap()[&path].id
+        let (version, _items) = decide(&contents, library, &path, decided).await;
+        version
     }
 
     /// Stores the file at `path` in `library`, holding `item`, and Matches the Item to `matched`.
@@ -525,44 +569,9 @@ mod tests {
             .unwrap()
     }
 
-    fn tmdb_metadata(title: &str, tmdb: i64) -> Metadata {
-        Metadata {
-            plugin: PluginId::from_static("tmdb"),
-            ids: ExternalIds {
-                tmdb: Some(tmdb),
-                ..ExternalIds::default()
-            },
-            show_ids: ExternalIds::default(),
-            title: title.to_owned(),
-            original_title: None,
-            show_title: None,
-            overview: None,
-            release_date: None,
-            runtime_minutes: None,
-            poster: None,
-            backdrop: None,
-        }
-    }
-
-    /// Creates a Movies Library on a folder of its own, with one file Matched to Alien, and
-    /// returns the Library and the file's id.
-    async fn library_with_alien(db: &Arc<Database>, name: &str, folder: &TempDir) -> (i64, i64) {
-        let (library, root) = library(db, name, Kind::Movies, folder).await;
-        let alien = Item::Movie {
-            title: "Alien".to_owned(),
-            year: Some(1979),
-            hint: None,
-        };
-        let path = format!("{root}/Alien (1979)/Alien (1979).mkv");
-        let alien = store_matched(
-            db,
-            library,
-            path,
-            alien,
-            tmdb_metadata("Alien", ALIEN_TMDB_ID),
-        )
-        .await;
-        (library, alien)
+    /// A Movies Library on `folder` with one file, Matched to Alien.
+    async fn library_with_alien(db: &Arc<Database>, folder: &TempDir) -> MatchedMovie {
+        MatchedMovie::new(db, folder.path(), tmdb_movie(ALIEN_TMDB_ID, "Alien")).await
     }
 
     fn knight_episode(season: i64, episode: i64) -> Item {
@@ -583,7 +592,7 @@ mod tests {
                 ..ExternalIds::default()
             },
             show_title: Some("A Knight of the Seven Kingdoms".to_owned()),
-            ..tmdb_metadata("An Episode", tmdb)
+            ..tmdb_movie(tmdb, "An Episode")
         }))
     }
 
@@ -653,6 +662,7 @@ mod tests {
             duration_ms: None,
             bitrate: None,
             tracks,
+            font_attachments: vec![],
         }
     }
 
@@ -675,7 +685,7 @@ mod tests {
                 ..ExternalIds::default()
             },
             show_title: Some("A Knight of the Seven Kingdoms".to_owned()),
-            ..tmdb_metadata("The Hedge Knight", KNIGHT_PILOT_TMDB_ID)
+            ..tmdb_movie(KNIGHT_PILOT_TMDB_ID, "The Hedge Knight")
         };
         let path = format!("{root}/A Knight of the Seven Kingdoms/Season 01/S01E01.mkv");
         store_matched(&db, library, path, pilot_file, matched).await;
@@ -717,12 +727,12 @@ mod tests {
         let (older_folder, newer_folder) =
             (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
         let db = Arc::new(Database::open(data.path()).await.unwrap());
-        let (older, older_alien) = library_with_alien(&db, "Older", &older_folder).await;
-        library_with_alien(&db, "Newer", &newer_folder).await;
+        let older = library_with_alien(&db, &older_folder).await;
+        library_with_alien(&db, &newer_folder).await;
         let user = ada(&db).await;
         let browse = Browse::new(db);
         let halfway = Progress::new(1_000, 2_000).unwrap();
-        browse.report(user, older_alien, halfway).await.unwrap();
+        browse.report(user, older.version, halfway).await.unwrap();
 
         let started = browse.continue_watching(user).await.unwrap();
 
@@ -733,7 +743,7 @@ mod tests {
                 Started::Episode { .. } => panic!("Alien is a Movie"),
             })
             .collect();
-        assert_eq!(listed, [(older, ExternalId::Tmdb(ALIEN_TMDB_ID))]);
+        assert_eq!(listed, [(older.library, ExternalId::Tmdb(ALIEN_TMDB_ID))]);
     }
 
     #[tokio::test]
@@ -759,7 +769,7 @@ mod tests {
         let data = tempfile::tempdir().unwrap();
         let folder = tempfile::tempdir().unwrap();
         let db = Arc::new(Database::open(data.path()).await.unwrap());
-        let (library, _) = library_with_alien(&db, "Movies", &folder).await;
+        let library = library_with_alien(&db, &folder).await.library;
         let file = only_file(&db, library).await;
         let before_it_changed = Stored {
             modified_ns: file.modified_ns - 1,
@@ -782,7 +792,11 @@ mod tests {
     async fn progress_on_a_movies_version_is_progress_through_the_movie() {
         let (data, folder) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
         let db = Arc::new(Database::open(data.path()).await.unwrap());
-        let (library, alien) = library_with_alien(&db, "Movies", &folder).await;
+        let MatchedMovie {
+            library,
+            version: alien,
+            ..
+        } = library_with_alien(&db, &folder).await;
         let user = ada(&db).await;
         let browse = Browse::new(db);
 
@@ -861,7 +875,7 @@ mod tests {
     async fn a_movie_marked_played_stays_played_until_marked_unplayed() {
         let (data, folder) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
         let db = Arc::new(Database::open(data.path()).await.unwrap());
-        let (library, _) = library_with_alien(&db, "Movies", &folder).await;
+        let library = library_with_alien(&db, &folder).await.library;
         let user = ada(&db).await;
         let browse = Browse::new(db);
         let alien = ExternalId::Tmdb(ALIEN_TMDB_ID);

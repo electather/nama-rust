@@ -50,6 +50,7 @@ pub mod __buffa {
             include!("nama.v1.plugin.__view_oneof.rs");
             include!("nama.v1.request.__view_oneof.rs");
             include!("nama.v1.event.__view_oneof.rs");
+            include!("nama.v1.library.__view_oneof.rs");
             include!("nama.v1.sign_in.__view_oneof.rs");
         }
     }
@@ -62,6 +63,7 @@ pub mod __buffa {
         include!("nama.v1.plugin.__oneof.rs");
         include!("nama.v1.request.__oneof.rs");
         include!("nama.v1.event.__oneof.rs");
+        include!("nama.v1.library.__oneof.rs");
         include!("nama.v1.sign_in.__oneof.rs");
     }
     /// Register this package's `Any` type entries and extension entries.
@@ -119,6 +121,7 @@ pub mod __buffa {
         reg.register_json_any(super::__PLAN_PLAYBACK_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__PLAYBACK_PLAN_JSON_ANY);
         reg.register_json_any(super::__PLAYBACK_SUBTITLE_JSON_ANY);
+        reg.register_json_any(super::__PLAYBACK_REASON_JSON_ANY);
         reg.register_json_any(super::__LIST_PLUGINS_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_PLUGINS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__GET_PLUGIN_REQUEST_JSON_ANY);
@@ -191,11 +194,13 @@ pub mod __buffa {
         reg.register_json_any(super::__WITHDRAW_FOLLOWED_SHOW_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__LIST_OFFERED_QUALITIES_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_OFFERED_QUALITIES_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__MOVIE_HIT_JSON_ANY);
         reg.register_json_any(super::__FOUND_MOVIE_JSON_ANY);
         reg.register_json_any(super::__SEARCH_MOVIES_REQUEST_JSON_ANY);
         reg.register_json_any(super::__SEARCH_MOVIES_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__LOOK_UP_MOVIE_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LOOK_UP_MOVIE_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__SHOW_HIT_JSON_ANY);
         reg.register_json_any(super::__FOUND_SHOW_JSON_ANY);
         reg.register_json_any(super::__FOUND_SEASON_JSON_ANY);
         reg.register_json_any(super::__SEARCH_SHOWS_REQUEST_JSON_ANY);
@@ -244,6 +249,14 @@ pub mod __buffa {
         reg.register_json_any(super::__DELETE_LIBRARY_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__SCAN_LIBRARY_REQUEST_JSON_ANY);
         reg.register_json_any(super::__SCAN_LIBRARY_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__PREVIEW_DELETE_MEDIA_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__PREVIEW_DELETE_MEDIA_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__DELETE_MEDIA_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__DELETE_MEDIA_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__MEDIA_TO_DELETE_JSON_ANY);
+        reg.register_json_any(super::__MOVIE_TO_DELETE_JSON_ANY);
+        reg.register_json_any(super::__MEDIA_FILE_JSON_ANY);
+        reg.register_json_any(super::__FILE_NOT_DELETED_JSON_ANY);
         reg.register_json_any(super::__REFUSAL_JSON_ANY);
         reg.register_json_any(super::__GET_SERVER_INFO_REQUEST_JSON_ANY);
         reg.register_json_any(super::__GET_SERVER_INFO_RESPONSE_JSON_ANY);
@@ -523,6 +536,10 @@ pub use self::__buffa::view::PlaybackPlanOwnedView;
 pub use self::__buffa::view::PlaybackSubtitleView;
 #[doc(inline)]
 pub use self::__buffa::view::PlaybackSubtitleOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PlaybackReasonView;
+#[doc(inline)]
+pub use self::__buffa::view::PlaybackReasonOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::ListPluginsRequestView;
 #[doc(inline)]
@@ -812,6 +829,10 @@ pub use self::__buffa::view::ListOfferedQualitiesResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::ListOfferedQualitiesResponseOwnedView;
 #[doc(inline)]
+pub use self::__buffa::view::MovieHitView;
+#[doc(inline)]
+pub use self::__buffa::view::MovieHitOwnedView;
+#[doc(inline)]
 pub use self::__buffa::view::FoundMovieView;
 #[doc(inline)]
 pub use self::__buffa::view::FoundMovieOwnedView;
@@ -831,6 +852,10 @@ pub use self::__buffa::view::LookUpMovieRequestOwnedView;
 pub use self::__buffa::view::LookUpMovieResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::LookUpMovieResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ShowHitView;
+#[doc(inline)]
+pub use self::__buffa::view::ShowHitOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::FoundShowView;
 #[doc(inline)]
@@ -1023,6 +1048,38 @@ pub use self::__buffa::view::ScanLibraryRequestOwnedView;
 pub use self::__buffa::view::ScanLibraryResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::ScanLibraryResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PreviewDeleteMediaRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::PreviewDeleteMediaRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PreviewDeleteMediaResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::PreviewDeleteMediaResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::DeleteMediaRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::DeleteMediaRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::DeleteMediaResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::DeleteMediaResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::MediaToDeleteView;
+#[doc(inline)]
+pub use self::__buffa::view::MediaToDeleteOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::MovieToDeleteView;
+#[doc(inline)]
+pub use self::__buffa::view::MovieToDeleteOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::MediaFileView;
+#[doc(inline)]
+pub use self::__buffa::view::MediaFileOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::FileNotDeletedView;
+#[doc(inline)]
+pub use self::__buffa::view::FileNotDeletedOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::RefusalView;
 #[doc(inline)]

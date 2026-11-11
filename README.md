@@ -103,3 +103,5 @@ The Server, Hub, `nama-plugin-api` and Built-in Plugins are AGPL-3.0-only ([`LIC
 ## Attribution
 
 This product uses the TMDB API but is not endorsed or certified by TMDB. Metadata and images are provided by [The Movie Database (TMDB)](https://www.themoviedb.org).
+
+The web app draws ASS subtitles with [`@jellyfin/libass-wasm`](https://github.com/jellyfin/JavascriptSubtitlesOctopus), which bundles libass, FreeType, HarfBuzz, FriBidi and more. Their notices ship with the web app, at `/licenses/libass-wasm.txt` on a Server.

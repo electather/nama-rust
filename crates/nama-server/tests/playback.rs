@@ -27,9 +27,10 @@ use http::{fetch, fetch_range};
 use nama_proto::nama::v1::{
     AudioCodec, ClearMatchRequest, Container, DeleteLibraryRequest, DeviceDecoding, EventType,
     HdrFormat, LibraryKind, LibraryServiceClient, PlanPlaybackRequest, Playback, PlaybackEnded,
-    PlaybackLimit, PlaybackMethod, PlaybackPlan, PlaybackServiceClient, PlaybackSettings,
-    PlaybackStarted, RefusalReason, ServerServiceClient, StopPlaybackRequest, Track,
-    UpdatePlaybackSettingsRequest, Version, VideoCodec, VideoTrack,
+    PlaybackLimit, PlaybackMethod, PlaybackPlan, PlaybackReason, PlaybackReasonKind,
+    PlaybackServiceClient, PlaybackSettings, PlaybackStarted, RefusalReason, ServerServiceClient,
+    StopPlaybackRequest, SubtitleFormat, Track, UpdatePlaybackSettingsRequest, Version, VideoCodec,
+    VideoTrack,
 };
 #[cfg(unix)]
 use nama_server::ffmpeg::fake::script;
@@ -339,19 +340,12 @@ async fn an_h264_and_aac_mp4_direct_plays_through_its_plans_url() {
     assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_DIRECT_PLAY);
     assert_eq!(codecs(&plan), ["h264", "aac"]);
     assert_eq!(
-        plan.reasons,
-        [
-            "Its Tracks need no change",
-            "Its length is known",
-            "This Device decodes its container and Tracks",
-            "This Server lacks ffmpeg or ffprobe, so it can only Direct Play",
-            "Nothing has failed to play it on this Device",
-            "This Server isn't running as many Transcodes as it may at once",
-            "It plays the file's own audio Track",
-            "This Device is on the local network",
-            "The Playback Limit is Original",
-            "No subtitles are burned into its picture",
-        ]
+        kinds(&plan),
+        [PlaybackReasonKind::PLAYBACK_REASON_KIND_SERVER_LACKS_FFMPEG]
+    );
+    assert!(
+        !plan.reasons[0].decided,
+        "it rules out only what Direct Play beats"
     );
     let played = fetch(&fx.server, &plan.url, Some(&fx.server.admin_token)).await;
     assert_eq!(played.body, b"video");
@@ -467,13 +461,9 @@ async fn with_the_cap_full_a_device_that_plays_a_remux_gets_one_and_the_plan_say
     let plan = plan_as(&bishop, h264).await.unwrap();
 
     assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_REMUX);
-    assert_eq!(
-        plan.reasons.get(6).map(String::as_str),
-        Some(
-            "This Server is busy, running as many Transcodes as it may at once (1), so it can't \
-             Transcode it"
-        )
-    );
+    let busy = reason_of(&plan, PlaybackReasonKind::PLAYBACK_REASON_KIND_SERVER_BUSY);
+    assert_eq!(param(busy, "maxTranscodes"), Some("1"));
+    assert!(!busy.decided, "a Remux would play anyway");
 }
 
 // The fake ffmpeg and ffprobe are shell scripts.
@@ -518,9 +508,9 @@ async fn with_an_ffmpeg_lacking_libx264_a_version_needing_a_transcode_cant_be_pl
         needs_transcode.method,
         PlaybackMethod::PLAYBACK_METHOD_UNSPECIFIED
     );
-    assert_eq!(
-        needs_transcode.reasons[3],
-        "This Server's ffmpeg lacks libx264, so it can't Transcode"
+    assert!(
+        kinds(&needs_transcode)
+            .contains(&PlaybackReasonKind::PLAYBACK_REASON_KIND_SERVER_CANT_ENCODE_VIDEO)
     );
     assert_eq!(remux.method, PlaybackMethod::PLAYBACK_METHOD_REMUX);
 }
@@ -575,20 +565,11 @@ async fn without_ffprobe_a_version_direct_plays_and_its_plan_says_its_tracks_are
     assert_eq!(plan.url, format!("/media/versions/{version}"));
     assert_eq!(plan.tracks, []);
     assert_eq!(
-        plan.reasons,
+        kinds(&plan),
         [
-            "Its Tracks aren't known, so they're taken to need no change, and it can only be \
-             Direct Played",
-            "Its length isn't known, which a Remux's or a Transcode's playlist needs, so it can \
-             only be Direct Played",
-            "Its Tracks aren't known, so this Device is taken to decode them",
-            "This Server lacks ffmpeg or ffprobe, so it can only Direct Play",
-            "Nothing has failed to play it on this Device",
-            "This Server isn't running as many Transcodes as it may at once",
-            "It plays the file's own audio Track",
-            "This Device is on the local network",
-            "The Playback Limit is Original",
-            "No subtitles are burned into its picture",
+            PlaybackReasonKind::PLAYBACK_REASON_KIND_TRACKS_UNKNOWN,
+            PlaybackReasonKind::PLAYBACK_REASON_KIND_LENGTH_UNKNOWN,
+            PlaybackReasonKind::PLAYBACK_REASON_KIND_SERVER_LACKS_FFMPEG,
         ]
     );
 }
@@ -1026,9 +1007,32 @@ fn picking(version: i64, picked: PlaybackLimit) -> PlanPlaybackRequest {
     }
 }
 
-const REMOTE_720P: &str = "This Device is outside the local network, so the default Playback \
-                           Limit for remote playback, 720p, applies";
-const LOCAL: &str = "This Device is on the local network";
+/// The kind of each of `plan`'s reasons, in order.
+fn kinds(plan: &PlaybackPlan) -> Vec<PlaybackReasonKind> {
+    (plan.reasons.iter())
+        .filter_map(|reason| reason.kind.as_known())
+        .collect()
+}
+
+/// `plan`'s reason of `kind`, failing the test if it has none.
+#[expect(
+    clippy::panic,
+    reason = "a plan without the reason fails the test that reads it"
+)]
+fn reason_of(plan: &PlaybackPlan, kind: PlaybackReasonKind) -> &PlaybackReason {
+    (plan.reasons.iter())
+        .find(|reason| reason.kind == kind)
+        .unwrap_or_else(|| panic!("no {kind:?} among {:?}", kinds(plan)))
+}
+
+fn param<'a>(reason: &'a PlaybackReason, key: &str) -> Option<&'a str> {
+    reason.params.get(key).map(String::as_str)
+}
+
+/// The reason a plan without Tracks gives for a Playback Limit below Original, so the test can
+/// tell one applied.
+const SIZE_UNKNOWN: PlaybackReasonKind =
+    PlaybackReasonKind::PLAYBACK_REASON_KIND_PICTURE_SIZE_UNKNOWN;
 
 #[tokio::test]
 async fn a_1080p_h264_mkv_played_from_outside_the_local_network_transcodes_to_the_remote_default() {
@@ -1085,9 +1089,9 @@ async fn behind_a_trusted_proxy_the_forwarded_client_address_decides_whether_pla
         .await
         .unwrap();
 
-    assert_eq!(remote.reasons[7], REMOTE_720P);
+    assert_eq!(kinds(&remote).last(), Some(&SIZE_UNKNOWN));
     assert_eq!(remote.playback_limit, PlaybackLimit::PLAYBACK_LIMIT_720P);
-    assert_eq!(local.reasons[7], LOCAL);
+    assert!(!kinds(&local).contains(&SIZE_UNKNOWN));
     assert_eq!(local.playback_limit, PlaybackLimit::PLAYBACK_LIMIT_ORIGINAL);
 }
 
@@ -1106,7 +1110,7 @@ async fn behind_an_untrusted_proxy_the_peers_address_decides_whether_playback_is
         .await
         .unwrap();
 
-    assert_eq!(plan.reasons[7], LOCAL);
+    assert!(!kinds(&plan).contains(&SIZE_UNKNOWN));
     assert_eq!(plan.playback_limit, PlaybackLimit::PLAYBACK_LIMIT_ORIGINAL);
 }
 
@@ -1217,7 +1221,12 @@ async fn a_version_whose_direct_play_just_failed_on_the_device_cant_be_played_an
 
     assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_UNSPECIFIED);
     assert_eq!(plan.url, "");
-    assert_eq!(plan.reasons[4], "Direct Play failed on this Device");
+    let failed = reason_of(
+        &plan,
+        PlaybackReasonKind::PLAYBACK_REASON_KIND_METHOD_FAILED_ON_DEVICE,
+    );
+    assert_eq!(param(failed, "method"), Some("PLAYBACK_METHOD_DIRECT_PLAY"));
+    assert!(failed.decided);
 }
 
 /// The pure tests in `src/playback.rs` cover what these choices do; this checks they reach it.
@@ -1234,11 +1243,13 @@ async fn a_picked_playback_limit_and_a_failed_transcode_reach_the_plan() {
         .await
         .unwrap();
 
-    assert_eq!(plan.reasons[4], "Transcode failed on this Device");
-    assert_eq!(
-        plan.reasons[8],
-        "Its picture size isn't known, so it's taken to fit the 480p Playback Limit"
+    let failed = reason_of(
+        &plan,
+        PlaybackReasonKind::PLAYBACK_REASON_KIND_METHOD_FAILED_ON_DEVICE,
     );
+    assert_eq!(param(failed, "method"), Some("PLAYBACK_METHOD_TRANSCODE"));
+    let limit = reason_of(&plan, SIZE_UNKNOWN);
+    assert_eq!(param(limit, "playbackLimit"), Some("PLAYBACK_LIMIT_480P"));
 }
 
 #[tokio::test]
@@ -1497,6 +1508,157 @@ fn write_subtitled(path: &Path, (name, contents): Script, codec: &str) {
     assert!(status.success(), "ffmpeg failed: {status}");
 }
 
+/// A Server whose ffmpeg and ffprobe are shell scripts in `bin`: ffprobe reads every file as an
+/// H.264 and AAC MKV with a PGS and an SRT subtitle, and ffmpeg, which writes the arguments of
+/// each run to `log`, reads a subtitle out as `PGS` for a `.sup` and `WEBVTT` for WebVTT.
+#[cfg(unix)]
+fn ffmpeg_reading_pgs_and_srt(bin: &Path, log: &Path) -> Ffmpeg {
+    let ffprobe = r#"#!/bin/sh
+cat <<'EOF'
+{"streams": [{"codec_name": "h264", "codec_type": "video"},
+             {"codec_name": "aac", "codec_type": "audio", "disposition": {"default": 1}},
+             {"codec_name": "hdmv_pgs_subtitle", "codec_type": "subtitle"},
+             {"codec_name": "subrip", "codec_type": "subtitle"}],
+ "format": {"format_name": "matroska,webm", "duration": "1.000000"}}
+EOF
+"#;
+    let ffmpeg = format!(
+        "#!/bin/sh\necho \"$*\" >> '{}'\ncase \"$*\" in *'-f sup'*) printf PGS ;; \
+         *'-f webvtt'*) printf WEBVTT ;; esac\n",
+        log.display()
+    );
+    Ffmpeg {
+        ffmpeg: Ok(script(bin, "ffmpeg", &ffmpeg)),
+        ffprobe: Ok(script(bin, "ffprobe", ffprobe)),
+        gpus: vec![],
+    }
+}
+
+// The fake ffmpeg and ffprobe are shell scripts.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_pgs_track_is_read_out_as_sup_once_and_thrown_away_with_its_versions_webvtt() {
+    let bin = tempfile::tempdir().unwrap();
+    let log = bin.path().join("runs.log");
+    let ffmpeg = ffmpeg_reading_pgs_and_srt(bin.path(), &log);
+    let fx = Fixture::start_with_ffmpeg(LibraryKind::LIBRARY_KIND_MOVIES, ffmpeg).await;
+    fx.write(ALIEN_1080P, b"video");
+    fx.scan_and_match().await;
+    let version = fx.version_ids(ALIEN).await[0];
+    let token = Some(fx.server.admin_token.as_str());
+    let plan = fx
+        .ask_for_plan(PlanPlaybackRequest {
+            version_id: version,
+            device_decoding: DeviceDecoding {
+                subtitle_formats: vec![SubtitleFormat::SUBTITLE_FORMAT_PGS.into()],
+                ..chrome()
+            }
+            .into(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let pgs = &plan.subtitles[0];
+    assert_eq!(pgs.format, SubtitleFormat::SUBTITLE_FORMAT_PGS);
+
+    let first = fetch(&fx.server, &pgs.url, token).await;
+    let again = fetch(&fx.server, &pgs.url, token).await;
+    fetch(&fx.server, &plan.subtitles[1].url, token).await;
+
+    assert_eq!(first.status, 200);
+    assert_eq!(first.header("content-type"), "application/octet-stream");
+    assert_eq!((first.body, again.body), (b"PGS".to_vec(), b"PGS".to_vec()));
+    let runs = fs::read_to_string(&log).unwrap();
+    let read_outs: Vec<_> = runs.lines().filter(|run| run.contains("0:s:0")).collect();
+    assert_eq!(read_outs.len(), 1, "{runs}");
+    assert!(read_outs[0].contains("-c:s copy -f sup"), "{runs}");
+    fs::remove_file(fx.folder.join(ALIEN_1080P)).unwrap();
+    fx.scan_and_probe().await;
+    assert_eq!(fx.cached_subtitles(), Vec::<PathBuf>::new());
+}
+
+/// A Server whose ffmpeg and ffprobe are shell scripts in `bin`: ffprobe reads every file as an
+/// H.264 and AAC MKV with an ASS subtitle, a cover picture and a font, and ffmpeg, which writes
+/// the arguments of each run to `log`, reads the subtitle out as `ASS` and an attachment as `FONT`.
+#[cfg(unix)]
+fn ffmpeg_reading_ass_and_a_font(bin: &Path, log: &Path) -> Ffmpeg {
+    let ffprobe = r#"#!/bin/sh
+cat <<'EOF'
+{"streams": [{"codec_name": "h264", "codec_type": "video"},
+             {"codec_name": "aac", "codec_type": "audio", "disposition": {"default": 1}},
+             {"codec_name": "ass", "codec_type": "subtitle"},
+             {"codec_type": "attachment", "tags": {"filename": "cover.jpg", "mimetype": "image/jpeg"}},
+             {"codec_type": "attachment", "tags": {"filename": "vazir.ttf", "mimetype": "font/ttf"}}],
+ "format": {"format_name": "matroska,webm", "duration": "1.000000"}}
+EOF
+"#;
+    // Like ffmpeg, it fails for want of an output file once it has dumped an attachment.
+    let ffmpeg = format!(
+        "#!/bin/sh\necho \"$*\" >> '{}'\ncase \"$*\" in *'-f ass'*) printf ASS ;; \
+         *'-dump_attachment'*) printf FONT; exit 1 ;; esac\n",
+        log.display()
+    );
+    Ffmpeg {
+        ffmpeg: Ok(script(bin, "ffmpeg", &ffmpeg)),
+        ffprobe: Ok(script(bin, "ffprobe", ffprobe)),
+        gpus: vec![],
+    }
+}
+
+// The fake ffmpeg and ffprobe are shell scripts.
+#[cfg(unix)]
+#[tokio::test]
+async fn an_ass_track_is_served_as_ass_with_its_files_fonts_to_a_session_alone() {
+    let bin = tempfile::tempdir().unwrap();
+    let log = bin.path().join("runs.log");
+    let ffmpeg = ffmpeg_reading_ass_and_a_font(bin.path(), &log);
+    let fx = Fixture::start_with_ffmpeg(LibraryKind::LIBRARY_KIND_MOVIES, ffmpeg).await;
+    fx.write(ALIEN_1080P, b"video");
+    fx.scan_and_match().await;
+    let version = fx.version_ids(ALIEN).await[0];
+    let token = Some(fx.server.admin_token.as_str());
+    let plan = fx
+        .ask_for_plan(PlanPlaybackRequest {
+            version_id: version,
+            device_decoding: DeviceDecoding {
+                subtitle_formats: vec![SubtitleFormat::SUBTITLE_FORMAT_ASS.into()],
+                ..chrome()
+            }
+            .into(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let [ass] = plan.subtitles.as_slice() else {
+        panic!("not one subtitle: {:?}", plan.subtitles);
+    };
+    assert_eq!(ass.format, SubtitleFormat::SUBTITLE_FORMAT_ASS);
+    assert_eq!(plan.burn_in_tracks, Vec::<u32>::new());
+    let [font] = ass.font_urls.as_slice() else {
+        panic!("not one font: {:?}", ass.font_urls);
+    };
+
+    let styled = fetch(&fx.server, &ass.url, token).await;
+    let first = fetch(&fx.server, font, token).await;
+    let again = fetch(&fx.server, font, token).await;
+
+    assert_eq!((styled.status, styled.body), (200, b"ASS".to_vec()));
+    assert_eq!(first.status, 200);
+    assert_eq!(first.header("x-content-type-options"), "nosniff");
+    assert_eq!(
+        (first.body, again.body),
+        (b"FONT".to_vec(), b"FONT".to_vec())
+    );
+    let runs = fs::read_to_string(&log).unwrap();
+    let dumps: Vec<_> = runs.lines().filter(|run| run.contains("dump")).collect();
+    // The font is the file's second attachment, after the cover.
+    assert_eq!(dumps.len(), 1, "{runs}");
+    assert!(dumps[0].contains("-dump_attachment:t:1 pipe:1"), "{runs}");
+    let beyond = format!("/media/versions/{version}/fonts/1");
+    assert_eq!(fetch(&fx.server, &beyond, token).await.status, 404);
+    assert_eq!(fetch(&fx.server, font, None).await.status, 401);
+}
+
 /// Anyone who may play a Version may fetch its subtitles: anyone with a session.
 #[tokio::test]
 async fn a_subtitle_without_a_session_is_refused() {
@@ -1510,7 +1672,7 @@ async fn a_subtitle_without_a_session_is_refused() {
 }
 
 #[tokio::test]
-async fn a_track_that_isnt_a_text_subtitle_is_not_found_as_one() {
+async fn a_track_that_isnt_a_subtitle_is_not_found_as_one() {
     let fx = Fixture::subtitled_alien().await;
     let version = fx.version_ids(ALIEN).await[0];
     let token = Some(fx.server.admin_token.as_str());

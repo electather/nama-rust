@@ -54,18 +54,21 @@ const plannedTracks: MessageInitShape<typeof TrackSchema>[] = [
   { codec: "subrip", language: "fre", kind: { case: "subtitle", value: {} } },
 ];
 type Planned = (request: PlanPlaybackRequest) => MessageInitShape<typeof PlaybackPlanSchema>;
+/** Reasons that decided the plan, in the words of a Server newer than this app. */
+const saying = (...texts: string[]) => texts.map((text) => ({ text, decided: true }));
 const directPlay: Planned = (request) => ({
   method: PlaybackMethod.DIRECT_PLAY,
   url: `/planned/${request.versionId}`,
   tracks: plannedTracks,
-  reasons: ["Its Tracks need no change"],
 });
-const cantPlay: Planned = () => ({ reasons: ["Its Tracks need no change", cantDecode] });
-const remux: Planned = () => ({
+const cantPlay: Planned = () => ({
+  reasons: [...saying(cantDecode), { text: "Hardware acceleration is off" }],
+});
+const remux = () => ({
   method: PlaybackMethod.REMUX,
   url: "/media/plans/0/index.m3u8",
   tracks: plannedTracks,
-  reasons: ["This Device can't decode its Matroska container, so it can't be Direct Played"],
+  reasons: saying("This Device can't decode its Matroska container"),
 });
 const directPlayFailed = "Direct Play failed on this Device";
 /**
@@ -92,7 +95,7 @@ const serverPlanning = ({
         asked.push(request);
         const failed =
           !ignoresFailures && request.failedMethods.includes(PlaybackMethod.DIRECT_PLAY);
-        if (failed) return { plan: { reasons: ["Its Tracks need no change", directPlayFailed] } };
+        if (failed) return { plan: { reasons: saying(directPlayFailed) } };
         return { plan: planned(request) };
       },
     });
@@ -162,8 +165,8 @@ test("a file the browser fails to load is planned again from where it started, w
 /** As the real Server plans a file in a container the Device decodes: Direct Play, then a Remux. */
 const remuxOnceDirectPlayFails: Planned = (request) => {
   const failed = (method: PlaybackMethod) => request.failedMethods.includes(method);
-  if (failed(PlaybackMethod.REMUX)) return { reasons: [directPlayFailed, "Remux failed too"] };
-  if (failed(PlaybackMethod.DIRECT_PLAY)) return { ...remux(request), reasons: [directPlayFailed] };
+  if (failed(PlaybackMethod.REMUX)) return { reasons: saying(directPlayFailed, "Remux failed") };
+  if (failed(PlaybackMethod.DIRECT_PLAY)) return { ...remux(), reasons: saying(directPlayFailed) };
   return directPlay(request);
 };
 
@@ -196,7 +199,7 @@ test("a Direct Play that fails mid-film goes on as a Remux from there, until tha
   fireEvent.error(remuxing);
 
   expect(await screen.findByText("This Version can’t play here")).toBeDefined();
-  expect(screen.getByText("Remux failed too")).toBeDefined();
+  expect(screen.getByText("Remux failed")).toBeDefined();
 });
 
 test("a method that fails again gives up instead of asking for plans in a loop", async () => {
@@ -215,11 +218,12 @@ test("a method that fails again gives up instead of asking for plans in a loop",
   expect(asked).toHaveLength(2);
 });
 
-test("a Version whose plan says it can't play shows the plan's reasons instead of the player", async () => {
+test("a Version whose plan says it can't play shows the reasons that decided it instead of the player", async () => {
   openApp("/libraries/1/movies/tmdb-603/play", serverPlanning({ planned: cantPlay }));
 
   expect(await screen.findByText("This Version can’t play here")).toBeDefined();
   expect(screen.getByText(cantDecode)).toBeDefined();
+  expect(screen.queryByText("Hardware acceleration is off")).toBeNull();
   expect(screen.queryByText(/This browser can’t play it/u)).toBeNull();
   expect(screen.queryByLabelText("The Matrix")).toBeNull();
 });
@@ -262,11 +266,7 @@ test("a Remux plays its HLS playlist through hls.js in a browser without HLS of 
   fireEvent.click(screen.getByRole("button", { name: "Playback info" }));
   const panel = within(screen.getByRole("region", { name: "Playback info" }));
   expect(panel.getByText("Remux")).toBeDefined();
-  expect(
-    panel.getByText(
-      "This Device can't decode its Matroska container, so it can't be Direct Played",
-    ),
-  ).toBeDefined();
+  expect(panel.getByText("This Device can't decode its Matroska container")).toBeDefined();
 });
 
 // The playlist lists the whole Version from its start, so a Remux's time is the file's.

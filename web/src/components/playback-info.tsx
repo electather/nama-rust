@@ -3,15 +3,9 @@ import { useEffect, useId, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import type { Track } from "@/gen/nama/v1/browse_pb";
-import { PlaybackMethod, type PlaybackPlan } from "@/gen/nama/v1/playback_pb";
+import type { PlaybackPlan } from "@/gen/nama/v1/playback_pb";
 import { trackLine } from "@/lib/browse";
-
-const methodNames: Record<PlaybackMethod, string> = {
-  [PlaybackMethod.UNSPECIFIED]: "Can’t play here",
-  [PlaybackMethod.DIRECT_PLAY]: "Direct Play",
-  [PlaybackMethod.REMUX]: "Remux",
-  [PlaybackMethod.TRANSCODE]: "Transcode",
-};
+import { methodName, wordReasons } from "@/lib/playback-wording";
 
 const trackKindNames: Record<NonNullable<Track["kind"]["case"]>, string> = {
   video: "Video",
@@ -23,6 +17,7 @@ const trackKindNames: Record<NonNullable<Track["kind"]["case"]>, string> = {
 export function PlaybackInfo({ plan }: { plan: PlaybackPlan }) {
   const [open, setOpen] = useState(false);
   const panelId = useId();
+  const { decided, context } = wordReasons(plan.reasons);
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (!open || event.key !== "Escape") return;
@@ -56,16 +51,35 @@ export function PlaybackInfo({ plan }: { plan: PlaybackPlan }) {
           aria-label="Playback info"
           className="absolute end-0 top-full mt-2 w-72 rounded-xl border bg-popover p-4 text-sm text-popover-foreground shadow-lg"
         >
-          <h2 className="font-medium">{methodNames[plan.method]}</h2>
-          <ul className="mt-1 text-muted-foreground">
-            {plan.reasons.map((reason) => (
-              <li key={reason}>{reason}</li>
-            ))}
-          </ul>
+          <h2 className="font-medium">{methodName(plan.method)}</h2>
+          <Reasons texts={decided} />
+          <MoreReasons texts={context} />
           {plan.tracks.length > 0 && <Tracks tracks={plan.tracks} />}
         </section>
       )}
     </div>
+  );
+}
+
+function Reasons({ texts }: { texts: string[] }) {
+  if (texts.length === 0) return null;
+  return (
+    <ul className="mt-1 space-y-1 text-muted-foreground">
+      {texts.map((text) => (
+        <li key={text}>{text}</li>
+      ))}
+    </ul>
+  );
+}
+
+/** The reasons that are only context, folded away until opened. */
+function MoreReasons({ texts }: { texts: string[] }) {
+  if (texts.length === 0) return null;
+  return (
+    <details className="mt-2">
+      <summary className="cursor-pointer">More</summary>
+      <Reasons texts={texts} />
+    </details>
   );
 }
 

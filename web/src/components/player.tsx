@@ -27,6 +27,7 @@ import {
 } from "@/lib/playback";
 import { usePlaybackPlan } from "@/lib/playback-plan";
 import { usePlaybackSource } from "@/lib/playback-source";
+import { wordReasons } from "@/lib/playback-wording";
 import { useWatchState } from "@/lib/watch-state";
 
 /** What the player plays, and where "back" goes. */
@@ -50,7 +51,8 @@ export interface PlayerProps {
 export function Player(props: PlayerProps) {
   const planned = usePlaybackPlan(props);
   const { plan } = planned;
-  if (plan.url === "") return <CantPlay back={props.back} reasons={plan.reasons} />;
+  if (plan.url === "")
+    return <CantPlay back={props.back} reasons={wordReasons(plan.reasons).decided} />;
   if (planned.gaveUp) return <CantPlay back={props.back} reasons={[]} />;
   const topBar = (
     <TopBar
@@ -112,8 +114,8 @@ function VideoPlayer({
       >
         <SubtitleTracks subtitles={plan.subtitles} />
       </video>
-      {/* Any key brings the controls back, so a focused control shows its ring when it's used. */}
-      <div className="pointer-events-none absolute inset-0 flex flex-col justify-between transition-opacity duration-500 ease-out-expo group-data-controls-hidden:opacity-0 motion-reduce:transition-none">
+      {/* Over drawn subtitles' canvas (libbitsub's is z-10). Any key shows them, so focus rings do. */}
+      <div className="pointer-events-none absolute inset-0 z-20 flex flex-col justify-between transition-opacity duration-500 ease-out-expo group-data-controls-hidden:opacity-0 motion-reduce:transition-none">
         {topBar}
         <BottomBar video={video} playerRef={playerRef}>
           <TrackMenus tracks={tracks} planned={planned} videoRef={videoRef} container={playerRef} />
@@ -253,7 +255,7 @@ function FullscreenButton({ playerRef }: { playerRef: RefObject<HTMLDivElement |
   );
 }
 
-/** Says the Version can't play here: why, as its plan's `reasons` say, or else in general. */
+/** Says the Version can't play here: why, as the reasons that decided its plan say, or else in general. */
 function CantPlay({ back, reasons }: { back: LinkOptions; reasons: string[] }) {
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center px-6">

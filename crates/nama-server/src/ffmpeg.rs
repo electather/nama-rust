@@ -79,15 +79,16 @@ pub(crate) fn hls_init(n: usize) -> String {
 }
 
 /// How long ffmpeg may take to read one subtitle out of a file. Matroska interleaves it with the
-/// video, so the whole file is read: about a minute from a slow disk, so this leaves room for a
-/// slower one.
-const SUBTITLE_TIMEOUT: Duration = Duration::from_secs(300);
+/// video, so the whole file is read. Raised rather than grown with the file's size: an hour reads
+/// 60 GB at 17 MB/s, slower than a spinning disk or a NAS on gigabit, so only a stuck read
+/// outlasts it.
+const SUBTITLE_TIMEOUT: Duration = Duration::from_hours(1);
 
 /// Subtitle codecs, as ffprobe names them, that are text the Server serves as WebVTT. Others that
 /// aren't images either, such as teletext, need a library ffmpeg may lack, or are unknown.
 pub(crate) const TEXT_SUBTITLES: &[&str] = &["subrip", "mov_text", "webvtt", "ass", "ssa"];
 
-/// Why reading a subtitle out of a file failed.
+/// Why reading a subtitle, or a font for one, out of a file failed.
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum SubtitleError {
     #[error("the Server has no ffmpeg")]
@@ -454,31 +455,60 @@ impl Ffmpeg {
     }
 
     /// The file at `path`'s subtitle stream `subtitle`, counting only its subtitle streams from 0,
-    /// in `format`, which names both ffmpeg's encoder and its muxer, such as `webvtt` or `ass`.
+    /// encoded with ffmpeg's `codec`, such as `webvtt`, or `copy` to keep it as it is, and written
+    /// by its `muxer`, such as `webvtt` or `sup`.
     pub(crate) async fn subtitle(
         &self,
         path: &str,
         subtitle: usize,
-        format: &str,
+        codec: &str,
+        muxer: &str,
     ) -> Result<Vec<u8>, SubtitleError> {
+        let map = format!("0:s:{subtitle}");
+        let args = ["-i", path, "-map", &map, "-c:s", codec, "-f", muxer, "-"];
+        let output = self.read_out(&args).await?;
+        if !output.status.success() {
+            return Err(failed(&output));
+        }
+        Ok(output.stdout)
+    }
+
+    /// The file at `path`'s attachment `attachment`, such as a font, counting only its
+    /// attachments from 0.
+    pub(crate) async fn attachment(
+        &self,
+        path: &str,
+        attachment: usize,
+    ) -> Result<Vec<u8>, SubtitleError> {
+        let dump = format!("-dump_attachment:t:{attachment}");
+        let output = self.read_out(&[&dump, "pipe:1", "-i", path]).await?;
+        // With no output file named, ffmpeg dumps it and then fails for want of one, so only
+        // what it wrote says whether it worked.
+        if output.stdout.is_empty() {
+            return Err(failed(&output));
+        }
+        Ok(output.stdout)
+    }
+
+    /// What ffmpeg, quiet but for errors, writes given `args`, within [`SUBTITLE_TIMEOUT`].
+    async fn read_out(&self, args: &[&str]) -> Result<std::process::Output, SubtitleError> {
         let Ok(ffmpeg) = &self.ffmpeg else {
             return Err(SubtitleError::Unavailable);
         };
         let output = tokio::process::Command::new(&ffmpeg.path)
-            .args(["-v", "error", "-nostdin", "-i"])
-            .arg(path)
-            .args(["-map", &format!("0:s:{subtitle}")])
-            .args(["-c:s", format, "-f", format, "-"])
+            .args(["-v", "error", "-nostdin"])
+            .args(args)
             // A fetch given up on, or cancelled at shutdown, stops ffmpeg too.
             .kill_on_drop(true)
             .output();
-        let output = tokio::time::timeout(SUBTITLE_TIMEOUT, output).await??;
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(SubtitleError::Failed(stderr.trim().to_owned()));
-        }
-        Ok(output.stdout)
+        Ok(tokio::time::timeout(SUBTITLE_TIMEOUT, output).await??)
     }
+}
+
+/// A failed read-out, saying what ffmpeg wrote to stderr.
+fn failed(output: &std::process::Output) -> SubtitleError {
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    SubtitleError::Failed(stderr.trim().to_owned())
 }
 
 /// What the Server's ffmpeg can do, as [`Abilities`] hands it back.

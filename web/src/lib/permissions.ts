@@ -25,6 +25,11 @@ export const permissionChoices: PermissionChoice[] = [
     about: "Add, change and scan Libraries, and fix their Matches.",
   },
   {
+    permission: Permission.DELETE_MEDIA,
+    label: "Delete media",
+    about: "Delete Movies and their files from the Server, for good.",
+  },
+  {
     permission: Permission.MANAGE_SETTINGS,
     label: "Manage settings",
     about: "Change the Server’s settings, such as its Plugins.",

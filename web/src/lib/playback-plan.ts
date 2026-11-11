@@ -8,12 +8,13 @@ import {
   type PlaybackMethod,
   type PlaybackPlan,
   PlaybackPlanSchema,
+  PlaybackReasonKind,
   PlaybackService,
 } from "@/gen/nama/v1/playback_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { findDeviceDecoding } from "@/lib/device-decoding";
 import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
-import { refusalOf } from "@/lib/forms";
+import { refusalOf, serverMessage } from "@/lib/forms";
 import { toMs } from "@/lib/watch-state";
 
 /** What the player asks a plan for, beside the Version. */
@@ -39,8 +40,8 @@ interface Asking {
 }
 
 /**
- * A subtitle the User chose: a text one by the URL the player shows it from, one to burn in by its
- * place in the Version's Tracks, or `undefined` for none.
+ * A subtitle the User chose: one the Device shows itself by the URL it's fetched from, one to burn
+ * in by its place in the Version's Tracks, or `undefined` for none.
  */
 export type SubtitleChoice = string | number | undefined;
 
@@ -51,9 +52,9 @@ export type SubtitleChoice = string | number | undefined;
  * that failed, or else sets `gaveUp`: only once per method, so a Server that plans it again can't
  * make the player ask forever. `chooseAudio` asks for a new plan from there with the audio Track
  * at a place in the Version's Tracks, and `chooseLimit` with a Playback Limit. `chooseSubtitle`
- * shows a text subtitle, which `shownSubtitle` then holds, or asks for a new plan from there with a
- * subtitle Track burned in. The plan says which of these it honoured, which may drop
- * `justChose` (ADR 0031).
+ * shows a subtitle the Device shows itself, which `shownSubtitle` then holds, or asks for a new
+ * plan from there with a subtitle Track burned in. The plan says which of these it honoured, which
+ * may drop `justChose` (ADR 0031).
  */
 export function usePlaybackPlan({
   versionId,
@@ -185,9 +186,9 @@ function choosers(askFromHere: ReturnType<typeof asker>) {
 }
 
 /**
- * The text subtitle shown, by URL, kept here so the `<video>` a new plan plays in shows it too,
- * and `chooseSubtitle`, which shows one, and will `askFromHere` when what's burned in changes from
- * `subtitleTrack`.
+ * The subtitle the Device shows itself, by URL, kept here so the `<video>` a new plan plays in
+ * shows it too, and `chooseSubtitle`, which shows one, and will `askFromHere` when what's burned
+ * in changes from `subtitleTrack`.
  */
 function useSubtitleChoice(
   askFromHere: ReturnType<typeof asker>,
@@ -240,18 +241,21 @@ function usePlan(versionId: bigint, asking: Asking) {
       } catch (error) {
         const { reason, params } = refusalOf(error);
         if (reason !== RefusalReason.SERVER_BUSY) throw error;
-        return create(PlaybackPlanSchema, { reasons: [serverBusy(params["maxTranscodes"])] });
+        return create(PlaybackPlanSchema, {
+          reasons: [
+            {
+              kind: PlaybackReasonKind.SERVER_BUSY,
+              params,
+              text: serverMessage(error),
+              decided: true,
+            },
+          ],
+        });
       }
     },
     staleTime: "static",
     gcTime: 0,
   }).data;
-}
-
-/** Why the Server, running `maxTranscodes` Transcodes at once, can't play a Version here now. */
-function serverBusy(maxTranscodes = "") {
-  const most = maxTranscodes === "" ? "" : ` (${maxTranscodes})`;
-  return `The Server is busy: only a Transcode plays this here, and it’s already running as many as it’s set to run at once${most}. Try again once one ends.`;
 }
 
 /**

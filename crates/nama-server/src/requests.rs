@@ -130,19 +130,27 @@ pub(crate) struct Found<M> {
     pub(crate) request: Option<Request>,
 }
 
-/// A Show the metadata source has, as `S` holds it.
+/// A title a search found, which a Request can name by its TMDB id.
 #[derive(Debug)]
-pub(crate) struct FoundShow<S> {
+pub(crate) struct Hit {
+    pub(crate) tmdb_id: i64,
+    /// The Plugin whose metadata Provider found it, which its image paths are for.
+    pub(crate) plugin: PluginId,
+    pub(crate) candidate: Candidate,
+}
+
+/// A Show looked up in the metadata source, and how close it is to being on the Server.
+#[derive(Debug)]
+pub(crate) struct FoundShow {
     pub(crate) tmdb_id: i64,
     /// The Plugin whose metadata Provider gave the Show, which its image paths are for.
     pub(crate) plugin: PluginId,
-    pub(crate) show: S,
-    /// Its Seasons, in order, as the viewer sees them. Only a lookup fills them.
+    pub(crate) show: Show,
+    /// Its Seasons, in order, as the viewer sees them.
     pub(crate) seasons: Vec<FoundSeason>,
-    /// Its open Followed Show, if it has one the viewer may see. Only a lookup fills it.
+    /// Its open Followed Show, if it has one the viewer may see.
     pub(crate) followed_show: Option<FollowedShow>,
-    /// Its Quality, which each of its Season Requests takes, if it has one. Only a lookup fills
-    /// it.
+    /// Its Quality, which each of its Season Requests takes, if it has one.
     pub(crate) quality: Option<RequestedQuality>,
 }
 
@@ -849,7 +857,12 @@ impl Requests {
         let mut conn = self.db.reader().acquire().await?;
         let mut found = Vec::with_capacity(candidates.len());
         // ponytail: two queries per Movie found, which a search caps at a page of 20.
-        for (tmdb_id, plugin, candidate) in candidates {
+        for Hit {
+            tmdb_id,
+            plugin,
+            candidate,
+        } in candidates
+        {
             let movie = self
                 .look_around(&mut conn, viewer, tmdb_id, plugin, candidate)
                 .await?;
@@ -859,31 +872,12 @@ impl Requests {
     }
 
     /// The Shows the metadata source finds titled like `title`, best fit first.
-    pub(crate) async fn search_shows(
-        &self,
-        title: String,
-    ) -> Result<Vec<FoundShow<Candidate>>, Error> {
-        let candidates = self.find(TitleKind::Show, title).await?;
-        Ok(candidates
-            .into_iter()
-            .map(|(tmdb_id, plugin, show)| FoundShow {
-                tmdb_id,
-                plugin,
-                show,
-                seasons: Vec::new(),
-                followed_show: None,
-                quality: None,
-            })
-            .collect())
+    pub(crate) async fn search_shows(&self, title: String) -> Result<Vec<Hit>, Error> {
+        self.find(TitleKind::Show, title).await
     }
 
-    /// The titles of `kind` the metadata source finds titled like `title`, best fit first, each
-    /// with its TMDB id and the Plugin whose Provider found it.
-    async fn find(
-        &self,
-        kind: TitleKind,
-        title: String,
-    ) -> Result<Vec<(i64, PluginId, Candidate)>, Error> {
+    /// The titles of `kind` the metadata source finds titled like `title`, best fit first.
+    async fn find(&self, kind: TitleKind, title: String) -> Result<Vec<Hit>, Error> {
         let query = SearchQuery {
             kind,
             title,
@@ -898,7 +892,11 @@ impl Requests {
         Ok(candidates
             .into_iter()
             .filter_map(|candidate| match candidate.id {
-                ExternalId::Tmdb(tmdb_id) => Some((tmdb_id, plugin.clone(), candidate)),
+                ExternalId::Tmdb(tmdb_id) => Some(Hit {
+                    tmdb_id,
+                    plugin: plugin.clone(),
+                    candidate,
+                }),
                 ExternalId::Imdb(_) | ExternalId::Tvdb(_) => None,
             })
             .collect())
@@ -910,7 +908,7 @@ impl Requests {
         &self,
         viewer: &User,
         tmdb_id: i64,
-    ) -> Result<FoundShow<Show>, Error> {
+    ) -> Result<FoundShow, Error> {
         let (plugin, show) = self
             .metadata
             .show(&ExternalId::Tmdb(tmdb_id))
@@ -2572,7 +2570,10 @@ mod tests {
         withdraw_followed,
     };
     use crate::{
-        contents::{Change, Contents, Decided, Decisions, Item, Metadata},
+        contents::{
+            Change, Contents, Decided, Decisions, Item, Metadata,
+            fixture::{MatchedMovie, movies_library, tmdb_movie},
+        },
         db::Database,
         events::{EventBus, Filter},
         libraries::{Kind, Libraries},
@@ -2984,51 +2985,17 @@ mod tests {
         applied.value.id
     }
 
-    /// A new Library Matches a file to each of the Movies `tmdb_ids`, as a scan does, which makes
-    /// their open Requests Available.
+    /// A new Library Matches a file to each of the Movies `tmdb_ids` in turn, which makes their
+    /// open Requests Available.
     async fn match_in_a_library(db: &Arc<Database>, tmdb_ids: &[i64]) {
         let folder = tempfile::tempdir().unwrap();
-        let root = folder.path().canonicalize().unwrap();
+        let library = movies_library(db, folder.path()).await;
         let contents = Contents::new(Arc::clone(db));
-        let library = Libraries::new(Arc::clone(db))
-            .create(
-                "Movies",
-                Kind::Movies,
-                vec![root.to_str().unwrap().to_owned()],
-            )
-            .await
-            .unwrap()
-            .id;
-        let stores = tmdb_ids
-            .iter()
-            .map(|&tmdb_id| Change::Store {
-                path: format!("/media/{tmdb_id}.mkv"),
-                size: 1,
-                modified_ns: 0,
-                items: vec![Item::Movie {
-                    title: format!("Movie {tmdb_id}"),
-                    year: None,
-                    hint: Some(ExternalId::Tmdb(tmdb_id)),
-                }],
-            })
-            .collect();
-        contents.apply(library, stores).await.unwrap();
-        let files = contents.files(library).await.unwrap();
-        let decided: Vec<_> = files
-            .into_iter()
-            .flat_map(|file| file.items)
-            .map(|stored| {
-                let Item::Movie {
-                    hint: Some(ExternalId::Tmdb(tmdb_id)),
-                    ..
-                } = stored.item
-                else {
-                    panic!("not a Movie stored above: {stored:?}");
-                };
-                (stored.id, matched(tmdb(tmdb_id), ExternalIds::default()))
-            })
-            .collect();
-        contents.record(Decisions::from(decided)).await.unwrap();
+        for &tmdb_id in tmdb_ids {
+            let path = format!("/media/{tmdb_id}.mkv");
+            let movie = tmdb_movie(tmdb_id, &format!("Movie {tmdb_id}"));
+            MatchedMovie::store(&contents, library, &path, movie).await;
+        }
     }
 
     #[tokio::test]

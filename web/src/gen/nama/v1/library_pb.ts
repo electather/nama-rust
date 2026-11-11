@@ -4,13 +4,15 @@
 
 import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
+import type { ExternalId } from "./match_pb";
+import { file_nama_v1_match } from "./match_pb";
 import type { Message, UnknownEnum } from "@bufbuild/protobuf";
 
 /**
  * Describes the file nama/v1/library.proto.
  */
 export const file_nama_v1_library: GenFile = /*@__PURE__*/
-  fileDesc("ChVuYW1hL3YxL2xpYnJhcnkucHJvdG8SB25hbWEudjEiWAoHTGlicmFyeRIKCgJpZBgBIAEoAxIMCgRuYW1lGAIgASgJEiIKBGtpbmQYAyABKA4yFC5uYW1hLnYxLkxpYnJhcnlLaW5kEg8KB2ZvbGRlcnMYBCADKAkiWQoUQ3JlYXRlTGlicmFyeVJlcXVlc3QSDAoEbmFtZRgBIAEoCRIiCgRraW5kGAIgASgOMhQubmFtYS52MS5MaWJyYXJ5S2luZBIPCgdmb2xkZXJzGAMgAygJIjoKFUNyZWF0ZUxpYnJhcnlSZXNwb25zZRIhCgdsaWJyYXJ5GAEgASgLMhAubmFtYS52MS5MaWJyYXJ5IhYKFExpc3RMaWJyYXJpZXNSZXF1ZXN0IjwKFUxpc3RMaWJyYXJpZXNSZXNwb25zZRIjCglsaWJyYXJpZXMYASADKAsyEC5uYW1hLnYxLkxpYnJhcnkiHwoRR2V0TGlicmFyeVJlcXVlc3QSCgoCaWQYASABKAMiNwoSR2V0TGlicmFyeVJlc3BvbnNlEiEKB2xpYnJhcnkYASABKAsyEC5uYW1hLnYxLkxpYnJhcnkiQQoUVXBkYXRlTGlicmFyeVJlcXVlc3QSCgoCaWQYASABKAMSDAoEbmFtZRgCIAEoCRIPCgdmb2xkZXJzGAMgAygJIjoKFVVwZGF0ZUxpYnJhcnlSZXNwb25zZRIhCgdsaWJyYXJ5GAEgASgLMhAubmFtYS52MS5MaWJyYXJ5IiIKFERlbGV0ZUxpYnJhcnlSZXF1ZXN0EgoKAmlkGAEgASgDIhcKFURlbGV0ZUxpYnJhcnlSZXNwb25zZSIgChJTY2FuTGlicmFyeVJlcXVlc3QSCgoCaWQYASABKAMiFQoTU2NhbkxpYnJhcnlSZXNwb25zZSpcCgtMaWJyYXJ5S2luZBIcChhMSUJSQVJZX0tJTkRfVU5TUEVDSUZJRUQQABIXChNMSUJSQVJZX0tJTkRfTU9WSUVTEAESFgoSTElCUkFSWV9LSU5EX1NIT1dTEAIy+gMKDkxpYnJhcnlTZXJ2aWNlEk4KDUNyZWF0ZUxpYnJhcnkSHS5uYW1hLnYxLkNyZWF0ZUxpYnJhcnlSZXF1ZXN0Gh4ubmFtYS52MS5DcmVhdGVMaWJyYXJ5UmVzcG9uc2USUwoNTGlzdExpYnJhcmllcxIdLm5hbWEudjEuTGlzdExpYnJhcmllc1JlcXVlc3QaHi5uYW1hLnYxLkxpc3RMaWJyYXJpZXNSZXNwb25zZSIDkAIBEkoKCkdldExpYnJhcnkSGi5uYW1hLnYxLkdldExpYnJhcnlSZXF1ZXN0GhsubmFtYS52MS5HZXRMaWJyYXJ5UmVzcG9uc2UiA5ACARJTCg1VcGRhdGVMaWJyYXJ5Eh0ubmFtYS52MS5VcGRhdGVMaWJyYXJ5UmVxdWVzdBoeLm5hbWEudjEuVXBkYXRlTGlicmFyeVJlc3BvbnNlIgOQAgISUwoNRGVsZXRlTGlicmFyeRIdLm5hbWEudjEuRGVsZXRlTGlicmFyeVJlcXVlc3QaHi5uYW1hLnYxLkRlbGV0ZUxpYnJhcnlSZXNwb25zZSIDkAICEk0KC1NjYW5MaWJyYXJ5EhsubmFtYS52MS5TY2FuTGlicmFyeVJlcXVlc3QaHC5uYW1hLnYxLlNjYW5MaWJyYXJ5UmVzcG9uc2UiA5ACAmIGcHJvdG8z");
+  fileDesc("ChVuYW1hL3YxL2xpYnJhcnkucHJvdG8SB25hbWEudjEiWAoHTGlicmFyeRIKCgJpZBgBIAEoAxIMCgRuYW1lGAIgASgJEiIKBGtpbmQYAyABKA4yFC5uYW1hLnYxLkxpYnJhcnlLaW5kEg8KB2ZvbGRlcnMYBCADKAkiWQoUQ3JlYXRlTGlicmFyeVJlcXVlc3QSDAoEbmFtZRgBIAEoCRIiCgRraW5kGAIgASgOMhQubmFtYS52MS5MaWJyYXJ5S2luZBIPCgdmb2xkZXJzGAMgAygJIjoKFUNyZWF0ZUxpYnJhcnlSZXNwb25zZRIhCgdsaWJyYXJ5GAEgASgLMhAubmFtYS52MS5MaWJyYXJ5IhYKFExpc3RMaWJyYXJpZXNSZXF1ZXN0IjwKFUxpc3RMaWJyYXJpZXNSZXNwb25zZRIjCglsaWJyYXJpZXMYASADKAsyEC5uYW1hLnYxLkxpYnJhcnkiHwoRR2V0TGlicmFyeVJlcXVlc3QSCgoCaWQYASABKAMiNwoSR2V0TGlicmFyeVJlc3BvbnNlEiEKB2xpYnJhcnkYASABKAsyEC5uYW1hLnYxLkxpYnJhcnkiQQoUVXBkYXRlTGlicmFyeVJlcXVlc3QSCgoCaWQYASABKAMSDAoEbmFtZRgCIAEoCRIPCgdmb2xkZXJzGAMgAygJIjoKFVVwZGF0ZUxpYnJhcnlSZXNwb25zZRIhCgdsaWJyYXJ5GAEgASgLMhAubmFtYS52MS5MaWJyYXJ5IiIKFERlbGV0ZUxpYnJhcnlSZXF1ZXN0EgoKAmlkGAEgASgDIhcKFURlbGV0ZUxpYnJhcnlSZXNwb25zZSIgChJTY2FuTGlicmFyeVJlcXVlc3QSCgoCaWQYASABKAMiFQoTU2NhbkxpYnJhcnlSZXNwb25zZSJDChlQcmV2aWV3RGVsZXRlTWVkaWFSZXF1ZXN0EiYKBnRhcmdldBgBIAEoCzIWLm5hbWEudjEuTWVkaWFUb0RlbGV0ZSJUChpQcmV2aWV3RGVsZXRlTWVkaWFSZXNwb25zZRIhCgVmaWxlcxgBIAMoCzISLm5hbWEudjEuTWVkaWFGaWxlEhMKC2J5dGVzX2ZyZWVkGAIgASgEIjwKEkRlbGV0ZU1lZGlhUmVxdWVzdBImCgZ0YXJnZXQYASABKAsyFi5uYW1hLnYxLk1lZGlhVG9EZWxldGUifQoTRGVsZXRlTWVkaWFSZXNwb25zZRIjCgdkZWxldGVkGAEgAygLMhIubmFtYS52MS5NZWRpYUZpbGUSEwoLYnl0ZXNfZnJlZWQYAiABKAQSLAoLbm90X2RlbGV0ZWQYAyADKAsyFy5uYW1hLnYxLkZpbGVOb3REZWxldGVkIlgKDU1lZGlhVG9EZWxldGUSJwoFbW92aWUYASABKAsyFi5uYW1hLnYxLk1vdmllVG9EZWxldGVIABIUCgp2ZXJzaW9uX2lkGAIgASgDSABCCAoGdGFyZ2V0IkoKDU1vdmllVG9EZWxldGUSEgoKbGlicmFyeV9pZBgBIAEoAxIlCghtb3ZpZV9pZBgCIAEoCzITLm5hbWEudjEuRXh0ZXJuYWxJZCIsCglNZWRpYUZpbGUSEQoJZmlsZV9uYW1lGAEgASgJEgwKBHNpemUYAiABKAQiMwoORmlsZU5vdERlbGV0ZWQSEQoJZmlsZV9uYW1lGAEgASgJEg4KBnJlYXNvbhgCIAEoCSpcCgtMaWJyYXJ5S2luZBIcChhMSUJSQVJZX0tJTkRfVU5TUEVDSUZJRUQQABIXChNMSUJSQVJZX0tJTkRfTU9WSUVTEAESFgoSTElCUkFSWV9LSU5EX1NIT1dTEAIyqAUKDkxpYnJhcnlTZXJ2aWNlEk4KDUNyZWF0ZUxpYnJhcnkSHS5uYW1hLnYxLkNyZWF0ZUxpYnJhcnlSZXF1ZXN0Gh4ubmFtYS52MS5DcmVhdGVMaWJyYXJ5UmVzcG9uc2USUwoNTGlzdExpYnJhcmllcxIdLm5hbWEudjEuTGlzdExpYnJhcmllc1JlcXVlc3QaHi5uYW1hLnYxLkxpc3RMaWJyYXJpZXNSZXNwb25zZSIDkAIBEkoKCkdldExpYnJhcnkSGi5uYW1hLnYxLkdldExpYnJhcnlSZXF1ZXN0GhsubmFtYS52MS5HZXRMaWJyYXJ5UmVzcG9uc2UiA5ACARJTCg1VcGRhdGVMaWJyYXJ5Eh0ubmFtYS52MS5VcGRhdGVMaWJyYXJ5UmVxdWVzdBoeLm5hbWEudjEuVXBkYXRlTGlicmFyeVJlc3BvbnNlIgOQAgISUwoNRGVsZXRlTGlicmFyeRIdLm5hbWEudjEuRGVsZXRlTGlicmFyeVJlcXVlc3QaHi5uYW1hLnYxLkRlbGV0ZUxpYnJhcnlSZXNwb25zZSIDkAICEk0KC1NjYW5MaWJyYXJ5EhsubmFtYS52MS5TY2FuTGlicmFyeVJlcXVlc3QaHC5uYW1hLnYxLlNjYW5MaWJyYXJ5UmVzcG9uc2UiA5ACAhJiChJQcmV2aWV3RGVsZXRlTWVkaWESIi5uYW1hLnYxLlByZXZpZXdEZWxldGVNZWRpYVJlcXVlc3QaIy5uYW1hLnYxLlByZXZpZXdEZWxldGVNZWRpYVJlc3BvbnNlIgOQAgESSAoLRGVsZXRlTWVkaWESGy5uYW1hLnYxLkRlbGV0ZU1lZGlhUmVxdWVzdBocLm5hbWEudjEuRGVsZXRlTWVkaWFSZXNwb25zZWIGcHJvdG8z", [file_nama_v1_match]);
 
 /**
  * A named collection of one kind of media on a Server, backed by one or more folders.
@@ -290,6 +292,219 @@ export const ScanLibraryResponseSchema: GenMessage<ScanLibraryResponse> = /*@__P
   messageDesc(file_nama_v1_library, 12);
 
 /**
+ * @generated from message nama.v1.PreviewDeleteMediaRequest
+ */
+export type PreviewDeleteMediaRequest = Message<"nama.v1.PreviewDeleteMediaRequest"> & {
+  /**
+   * @generated from field: nama.v1.MediaToDelete target = 1;
+   */
+  target?: MediaToDelete | undefined;
+};
+
+/**
+ * Describes the message nama.v1.PreviewDeleteMediaRequest.
+ * Use `create(PreviewDeleteMediaRequestSchema)` to create a new message.
+ */
+export const PreviewDeleteMediaRequestSchema: GenMessage<PreviewDeleteMediaRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_library, 13);
+
+/**
+ * @generated from message nama.v1.PreviewDeleteMediaResponse
+ */
+export type PreviewDeleteMediaResponse = Message<"nama.v1.PreviewDeleteMediaResponse"> & {
+  /**
+   * Each file that would go: the Versions' files and their sidecars.
+   *
+   * @generated from field: repeated nama.v1.MediaFile files = 1;
+   */
+  files: MediaFile[];
+
+  /**
+   * What deleting `files` would free.
+   *
+   * @generated from field: uint64 bytes_freed = 2;
+   */
+  bytesFreed: bigint;
+};
+
+/**
+ * Describes the message nama.v1.PreviewDeleteMediaResponse.
+ * Use `create(PreviewDeleteMediaResponseSchema)` to create a new message.
+ */
+export const PreviewDeleteMediaResponseSchema: GenMessage<PreviewDeleteMediaResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_library, 14);
+
+/**
+ * @generated from message nama.v1.DeleteMediaRequest
+ */
+export type DeleteMediaRequest = Message<"nama.v1.DeleteMediaRequest"> & {
+  /**
+   * @generated from field: nama.v1.MediaToDelete target = 1;
+   */
+  target?: MediaToDelete | undefined;
+};
+
+/**
+ * Describes the message nama.v1.DeleteMediaRequest.
+ * Use `create(DeleteMediaRequestSchema)` to create a new message.
+ */
+export const DeleteMediaRequestSchema: GenMessage<DeleteMediaRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_library, 15);
+
+/**
+ * @generated from message nama.v1.DeleteMediaResponse
+ */
+export type DeleteMediaResponse = Message<"nama.v1.DeleteMediaResponse"> & {
+  /**
+   * Each file that went.
+   *
+   * @generated from field: repeated nama.v1.MediaFile deleted = 1;
+   */
+  deleted: MediaFile[];
+
+  /**
+   * What deleting `deleted` freed.
+   *
+   * @generated from field: uint64 bytes_freed = 2;
+   */
+  bytesFreed: bigint;
+
+  /**
+   * Each file that couldn't be deleted. A Version whose own file is here stays, with its
+   * sidecars.
+   *
+   * @generated from field: repeated nama.v1.FileNotDeleted not_deleted = 3;
+   */
+  notDeleted: FileNotDeleted[];
+};
+
+/**
+ * Describes the message nama.v1.DeleteMediaResponse.
+ * Use `create(DeleteMediaResponseSchema)` to create a new message.
+ */
+export const DeleteMediaResponseSchema: GenMessage<DeleteMediaResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_library, 16);
+
+/**
+ * What to delete: a title's every Version, or one Version.
+ *
+ * @generated from message nama.v1.MediaToDelete
+ */
+export type MediaToDelete = Message<"nama.v1.MediaToDelete"> & {
+  /**
+   * @generated from oneof nama.v1.MediaToDelete.target
+   */
+  target: {
+    /**
+     * Every Version of a Movie.
+     *
+     * @generated from field: nama.v1.MovieToDelete movie = 1;
+     */
+    value: MovieToDelete;
+    case: "movie";
+  } | {
+    /**
+     * One Version of a Movie, by its id as browsing gives it.
+     *
+     * @generated from field: int64 version_id = 2;
+     */
+    value: bigint;
+    case: "versionId";
+  } | { case: undefined; value?: undefined };
+};
+
+/**
+ * Describes the message nama.v1.MediaToDelete.
+ * Use `create(MediaToDeleteSchema)` to create a new message.
+ */
+export const MediaToDeleteSchema: GenMessage<MediaToDelete> = /*@__PURE__*/
+  messageDesc(file_nama_v1_library, 17);
+
+/**
+ * A Movie, named as `BrowseService.GetMovie` names it.
+ *
+ * @generated from message nama.v1.MovieToDelete
+ */
+export type MovieToDelete = Message<"nama.v1.MovieToDelete"> & {
+  /**
+   * The Movies Library the Movie is in.
+   *
+   * @generated from field: int64 library_id = 1;
+   */
+  libraryId: bigint;
+
+  /**
+   * The Movie's id, as `BrowseService.ListMovies` gave it.
+   *
+   * @generated from field: nama.v1.ExternalId movie_id = 2;
+   */
+  movieId?: ExternalId | undefined;
+};
+
+/**
+ * Describes the message nama.v1.MovieToDelete.
+ * Use `create(MovieToDeleteSchema)` to create a new message.
+ */
+export const MovieToDeleteSchema: GenMessage<MovieToDelete> = /*@__PURE__*/
+  messageDesc(file_nama_v1_library, 18);
+
+/**
+ * A file on the Server's disk.
+ *
+ * @generated from message nama.v1.MediaFile
+ */
+export type MediaFile = Message<"nama.v1.MediaFile"> & {
+  /**
+   * The file's name, without the folders it is in.
+   *
+   * @generated from field: string file_name = 1;
+   */
+  fileName: string;
+
+  /**
+   * In bytes.
+   *
+   * @generated from field: uint64 size = 2;
+   */
+  size: bigint;
+};
+
+/**
+ * Describes the message nama.v1.MediaFile.
+ * Use `create(MediaFileSchema)` to create a new message.
+ */
+export const MediaFileSchema: GenMessage<MediaFile> = /*@__PURE__*/
+  messageDesc(file_nama_v1_library, 19);
+
+/**
+ * A file a delete couldn't delete, and why.
+ *
+ * @generated from message nama.v1.FileNotDeleted
+ */
+export type FileNotDeleted = Message<"nama.v1.FileNotDeleted"> & {
+  /**
+   * The file's name, without the folders it is in.
+   *
+   * @generated from field: string file_name = 1;
+   */
+  fileName: string;
+
+  /**
+   * Why, as the Server's operating system put it, such as "Permission denied".
+   *
+   * @generated from field: string reason = 2;
+   */
+  reason: string;
+};
+
+/**
+ * Describes the message nama.v1.FileNotDeleted.
+ * Use `create(FileNotDeletedSchema)` to create a new message.
+ */
+export const FileNotDeletedSchema: GenMessage<FileNotDeleted> = /*@__PURE__*/
+  messageDesc(file_nama_v1_library, 20);
+
+/**
  * The kind of media a Library holds. A Library holds exactly one kind.
  *
  * @generated from enum nama.v1.LibraryKind
@@ -326,8 +541,8 @@ export const LibraryKindSchema: GenEnum<LibraryKind> = /*@__PURE__*/
 
 /**
  * The Server's Libraries: named collections of one kind of media, each backed by one or more
- * folders on the Server's disk. Every RPC but `ListLibraries` needs `PERMISSION_MANAGE_LIBRARIES`,
- * and fails with `permission_denied` without it.
+ * folders on the Server's disk. Every RPC but `ListLibraries` and those deleting media needs
+ * `PERMISSION_MANAGE_LIBRARIES`, and fails with `permission_denied` without it.
  *
  * @generated from service nama.v1.LibraryService
  */
@@ -403,6 +618,34 @@ export const LibraryService: GenService<{
     methodKind: "unary";
     input: typeof ScanLibraryRequestSchema;
     output: typeof ScanLibraryResponseSchema;
+  },
+  /**
+   * Lists the files `DeleteMedia` would delete for the same target, and the bytes they would
+   * free, deleting nothing. Needs `PERMISSION_DELETE_MEDIA`. Fails as `DeleteMedia` does.
+   *
+   * @generated from rpc nama.v1.LibraryService.PreviewDeleteMedia
+   */
+  previewDeleteMedia: {
+    methodKind: "unary";
+    input: typeof PreviewDeleteMediaRequestSchema;
+    output: typeof PreviewDeleteMediaResponseSchema;
+  },
+  /**
+   * Deletes media from disk for good, with nothing to undo it: each Version's file, its sidecars
+   * (the files beside it whose names start with the video's name, without its extension, followed
+   * by `.` or `-`, and that aren't videos), and the folders that leaves empty, never a Library's
+   * own folder or above it. The Versions whose files went are removed as a scan removes them, with
+   * `LibraryItemRemoved`. A file that can't be deleted is listed with why, and the rest still go.
+   * Needs `PERMISSION_DELETE_MEDIA` and Recent Authentication. Fails with `invalid_argument` if
+   * the target is missing, or names a Shows Library as a Movie's, and with `not_found` if there
+   * is no such Library, Movie or Version.
+   *
+   * @generated from rpc nama.v1.LibraryService.DeleteMedia
+   */
+  deleteMedia: {
+    methodKind: "unary";
+    input: typeof DeleteMediaRequestSchema;
+    output: typeof DeleteMediaResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_nama_v1_library, 0);
