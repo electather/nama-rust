@@ -54,6 +54,43 @@ async fn the_database_is_in_wal_mode_and_closing_checkpoints_the_wal() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn closing_after_aborted_reads_still_removes_the_wal() {
+    // Each round aborts reads at whatever point they've reached, as shutdown does, so a round
+    // only sometimes catches one opening or acquiring a reader.
+    const ROUNDS: usize = 20;
+    const READS: usize = 16;
+    for round in 0..ROUNDS {
+        let data_dir = tempfile::tempdir().unwrap();
+        let db = Arc::new(Database::open(data_dir.path()).await.unwrap());
+        insert_rows(&db, 0, 1).await.unwrap();
+        let reads: Vec<_> = (0..READS)
+            .map(|_| tokio::spawn(read_forever(Arc::clone(&db))))
+            .collect();
+        tokio::time::sleep(Duration::from_millis(1)).await;
+        for read in &reads {
+            read.abort();
+        }
+        for read in reads {
+            assert!(read.await.unwrap_err().is_cancelled(), "a read failed");
+        }
+
+        Arc::into_inner(db).unwrap().close().await;
+        let wal = data_dir.path().join(format!("{}-wal", db::FILE_NAME));
+        assert!(
+            !wal.exists(),
+            "round {round}: the WAL outlived the database"
+        );
+    }
+}
+
+#[expect(clippy::infinite_loop, reason = "the test aborts it")]
+async fn read_forever(db: Arc<Database>) {
+    loop {
+        count_rows(&db).await;
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn reads_succeed_while_a_long_series_of_writes_is_running() {
     const WRITES: i64 = 500;
     const ROWS_PER_WRITE: i64 = 20;

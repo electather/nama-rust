@@ -85,8 +85,15 @@ impl Database {
         let mut writer =
             SqliteConnection::connect_with(&options.clone().create_if_missing(true)).await?;
         let migrations_applied = migrate(&mut writer).await?;
+        // Every reader opens here and is never replaced or pinged on acquire: one opened or pinged
+        // in a cancelled caller's future outlives `SqlitePool::close`, and the writer must close
+        // last to remove the WAL.
         let readers = SqlitePoolOptions::new()
             .max_connections(MAX_READERS)
+            .min_connections(MAX_READERS)
+            .idle_timeout(None)
+            .max_lifetime(None)
+            .test_before_acquire(false)
             .connect_with(options.read_only(true))
             .await?;
         let (jobs, queue) = mpsc::channel(WRITE_QUEUE_CAPACITY);

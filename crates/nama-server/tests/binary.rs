@@ -188,14 +188,22 @@ fn server_logs_its_config_creates_its_database_serves_the_api_and_exits_cleanly_
     let output = exited
         .recv_timeout(TIMEOUT)
         .expect("server did not exit after Ctrl-C");
+    // Ends once the server's stdout closes, which its exit does, or after `TIMEOUT` if a child
+    // still holds it open.
+    let last_lines = std::iter::from_fn(|| lines.recv_timeout(TIMEOUT).ok())
+        .collect::<Vec<_>>()
+        .join("\n");
     assert!(
         output.status.success(),
-        "server exited with {}: {}",
+        "server exited with {}: {}\n{last_lines}",
         output.status,
         String::from_utf8_lossy(&output.stderr)
     );
     // The database closed cleanly, checkpointing its WAL, once serving had stopped.
-    assert!(!data_dir.join("nama.db-wal").exists());
+    assert!(
+        !data_dir.join("nama.db-wal").exists(),
+        "the WAL outlived the server, whose last log lines were:\n{last_lines}"
+    );
 }
 
 #[test]
