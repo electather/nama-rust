@@ -203,7 +203,8 @@ impl SignedIn {
 /// A Device about to sign in, and where from.
 #[derive(Debug)]
 pub struct NewDevice {
-    /// What it is called. Signing in checks it, except where the Device was named earlier.
+    /// What it is called, checked before it signs in: by `SignIn` when it gives a password or
+    /// sets up, and when its Sign-in Code was started.
     pub name: String,
     /// The client IP address it signs in from.
     pub ip_address: IpAddr,
@@ -307,8 +308,8 @@ impl Users {
         any_user(&mut *self.db.reader().acquire().await?).await
     }
 
-    /// Creates the first Admin, named `name` with `password`, and signs `device` in as them.
-    /// Checking the Setup Code is the caller's job.
+    /// Creates the first Admin, named `name` with `password`, and signs `device`, whose name has
+    /// been checked, in as them. Checking the Setup Code is the caller's job.
     pub(crate) async fn create_first_admin(
         &self,
         name: &str,
@@ -316,7 +317,6 @@ impl Users {
         device: NewDevice,
     ) -> Result<SignedIn, Error> {
         let name = checked_name("name", "a User's name", name)?;
-        let device = device.checked()?;
         // Before hashing, which is slow, though only the check in the write below is race-free.
         if self.any().await? {
             return Err(Error::AlreadySetUp);
@@ -831,14 +831,6 @@ impl Users {
             .await
             .ok_or(Error::NoAuthenticator)?
             .map_err(|panicked| Error::Authenticator(panicked.to_string()))
-    }
-}
-
-impl NewDevice {
-    /// This Device with its name checked.
-    fn checked(self) -> Result<Self, Error> {
-        let name = checked_name("device_name", "a Device's name", &self.name)?;
-        Ok(Self { name, ..self })
     }
 }
 
