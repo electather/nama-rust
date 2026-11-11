@@ -3,7 +3,7 @@
 //! in that order. Sign-in Codes go through it too. Reauthenticating follows the same order, giving
 //! an existing Device Recent Authentication in place of a session.
 //!
-//! It alone holds the sign-in limits, Sign-in Codes and the Setup Code (the crate's `AGENTS.md`).
+//! Guessable requests go through it (the crate's `AGENTS.md`, "Guessable requests").
 
 use std::{net::IpAddr, time::Instant};
 

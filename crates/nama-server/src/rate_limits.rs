@@ -28,7 +28,7 @@ const FAILURES_PER_IP: usize = 50;
 /// its lookups and approvals are refused.
 const FAILURES_PER_DEVICE: usize = 10;
 
-/// The recent failed Setup, sign-in and Reauthenticate attempts, by client IP and by User name.
+/// The recent failed Setup, signing in and Reauthenticate attempts, by client IP and by User name.
 #[derive(Debug, Default)]
 pub(crate) struct SignInLimits {
     failures: Mutex<Failures>,
