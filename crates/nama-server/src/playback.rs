@@ -28,6 +28,7 @@ use axum::{
     routing::get,
 };
 use nama_proto::nama::v1 as proto;
+use proto::SubtitleFormat::{SUBTITLE_FORMAT_ASS as ASS, SUBTITLE_FORMAT_WEBVTT as WEBVTT};
 use tower_http::services::ServeFile;
 
 use crate::{
@@ -229,6 +230,8 @@ pub(crate) struct Subtitle {
     pub(crate) format: proto::SubtitleFormat,
     /// Where it's served in `format`, on this Server.
     pub(crate) url: String,
+    /// Where the fonts its file carries are served, for one drawn as ASS; empty for any other.
+    pub(crate) font_urls: Vec<String>,
 }
 
 /// What a Device says it can decode, as it found out just now. The Server never stores it.
@@ -555,7 +558,7 @@ fn offers(facts: &Facts, lasting: &BTreeSet<Method>) -> Offers {
     let picture = picture(facts);
     Offers {
         audio,
-        burn_in: places(&|track| burns_in(&facts.device, track)),
+        burn_in: places(&|track| burns_in(&facts.device, probe, track)),
         limits: (PlaybackLimit::ALL.into_iter())
             .filter(|&limit| picture.and_then(|picture| fitted(picture, limit)).is_some())
             .collect(),
@@ -1019,12 +1022,18 @@ fn chosen_subtitle(facts: &Facts, candidates: Option<&Candidates>) -> Narrowing 
     let transcode_burns_in =
         candidates.is_some_and(|candidates| candidates.transcode.video.burn_in.is_some());
     if let Some(track) = chosen_subtitle_track(facts).filter(|_| transcode_burns_in) {
+        let name = subtitle_format_name(&track.codec);
+        // It draws ASS only with fonts its file carries (`draws_with_styling`).
+        let why = if track.is_ass_subtitle() && lists(&facts.device, ASS) {
+            format!("Its file carries no fonts to draw its {name} subtitles with")
+        } else {
+            format!("This Device can't draw {name} subtitles")
+        };
         return Narrowing {
             allows: BTreeSet::from([Method::Transcode]),
             reason: format!(
-                "This Device can't draw {} subtitles, so the ones chosen are burned into its \
-                 picture, which only a Transcode does",
-                subtitle_format_name(&track.codec)
+                "{why}, so the ones chosen are burned into its picture, which only a Transcode \
+                 does"
             ),
         };
     }
@@ -1060,7 +1069,7 @@ fn burn_in(facts: &Facts) -> Option<BurnIn> {
     let place = facts
         .subtitle
         .filter(|_| !facts.dropped.contains(&Choice::Subtitle))?;
-    let track = (probe.tracks.get(place)).filter(|track| burns_in(&facts.device, track))?;
+    let track = (probe.tracks.get(place)).filter(|track| burns_in(&facts.device, probe, track))?;
     let subtitle = probe.ffmpeg_index(place)?;
     Some(
         if matches!(track.kind, TrackKind::Subtitle { image: true }) {
@@ -1074,24 +1083,45 @@ fn burn_in(facts: &Facts) -> Option<BurnIn> {
     )
 }
 
-/// Whether `track` is a subtitle `device` can't show as it should, so a Transcode burns it in: an
-/// image one it doesn't draw, such as PGS, or ASS or SSA, whose styling its WebVTT drops.
-fn burns_in(device: &DeviceDecoding, track: &Track) -> bool {
+/// Whether `track`, in the file `probe` read, is a subtitle `device` can't show as it should, so a
+/// Transcode burns it in: an image one it doesn't draw, such as PGS, or an ASS or SSA one it
+/// doesn't draw, whose styling its WebVTT drops.
+fn burns_in(device: &DeviceDecoding, probe: &Probe, track: &Track) -> bool {
     match track.kind {
         TrackKind::Subtitle { image } => {
-            (image && shown_as(device, track).is_none()) || track.is_ass_subtitle()
+            let drawn = shown_as(device, probe, track).is_some_and(|format| format != WEBVTT);
+            (image || track.is_ass_subtitle()) && !drawn
         }
         TrackKind::Video { .. } | TrackKind::Audio { .. } => false,
     }
 }
 
-/// The format `device` shows `track` in itself, if it does: WebVTT for a text one, which every
-/// Device shows, or else the Track's own, if the Device draws it (ADR 0033).
-fn shown_as(device: &DeviceDecoding, track: &Track) -> Option<proto::SubtitleFormat> {
-    subtitles::served_as(track).filter(|&format| {
-        format == proto::SubtitleFormat::SUBTITLE_FORMAT_WEBVTT
-            || device.subtitle_formats.contains(&format)
-    })
+/// The format `device` shows `track`, in the file `probe` read, in itself, if it does: ASS for
+/// one it [`draws_with_styling`], WebVTT for a text one, which every Device shows, or else the
+/// Track's own, if the Device draws it (ADR 0033).
+fn shown_as(
+    device: &DeviceDecoding,
+    probe: &Probe,
+    track: &Track,
+) -> Option<proto::SubtitleFormat> {
+    if draws_with_styling(device, probe, track) {
+        return Some(ASS);
+    }
+    subtitles::served_as(track).filter(|&format| format == WEBVTT || lists(device, format))
+}
+
+/// Whether `device` draws `track`, in the file `probe` read, as ASS with its styling: only an ASS
+/// or SSA one, on a Device that lists ASS, in a file that carries fonts. A renderer on the Device
+/// sees only the fonts it's handed and one fallback for Latin, Greek and Cyrillic, so a Track in
+/// Persian, Arabic, Chinese or Japanese with no fonts of its own would draw as empty boxes, where
+/// its WebVTT shows in the Device's own fonts.
+fn draws_with_styling(device: &DeviceDecoding, probe: &Probe, track: &Track) -> bool {
+    track.is_ass_subtitle() && lists(device, ASS) && !probe.font_attachments.is_empty()
+}
+
+/// Whether `device` says it draws `format` itself.
+fn lists(device: &DeviceDecoding, format: proto::SubtitleFormat) -> bool {
+    device.subtitle_formats.contains(&format)
 }
 
 /// How a Transcode keeps the played video within the Playback Limit in effect, if there's one.
@@ -1441,10 +1471,19 @@ const fn is_audio(track: &Track) -> bool {
 fn shown_subtitles(version: i64, probe: &Probe, device: &DeviceDecoding) -> Vec<Subtitle> {
     (probe.tracks.iter().enumerate())
         .filter_map(|(position, track)| {
+            let format = shown_as(device, probe, track)?;
+            let fonts = if format == ASS {
+                probe.font_attachments.len()
+            } else {
+                0
+            };
             Some(Subtitle {
                 track: track.clone(),
-                format: shown_as(device, track)?,
-                url: subtitles::url(version, position),
+                format,
+                url: subtitles::url(version, position, format),
+                font_urls: (0..fonts)
+                    .map(|font| subtitles::font_url(version, font))
+                    .collect(),
             })
         })
         .collect()
@@ -1617,6 +1656,7 @@ mod tests {
                 duration_ms: Some(LENGTH_MS),
                 bitrate: Some(5_000_000),
                 tracks,
+                font_attachments: vec![],
             }),
             device: firefox(),
             can_do: CanDo {
@@ -2075,11 +2115,13 @@ mod tests {
                 track: english,
                 format: SubtitleFormat::SUBTITLE_FORMAT_WEBVTT,
                 url: "/media/versions/7/subtitles/1".to_owned(),
+                font_urls: vec![],
             },
             Subtitle {
                 track: french,
                 format: SubtitleFormat::SUBTITLE_FORMAT_WEBVTT,
                 url: "/media/versions/7/subtitles/5".to_owned(),
+                font_urls: vec![],
             },
         ];
 
@@ -2704,11 +2746,13 @@ mod tests {
                         track: pgs(),
                         format: SubtitleFormat::SUBTITLE_FORMAT_PGS,
                         url: "/media/versions/7/subtitles/2".to_owned(),
+                        font_urls: vec![],
                     },
                     Subtitle {
                         track: subtitle(),
                         format: SubtitleFormat::SUBTITLE_FORMAT_WEBVTT,
                         url: "/media/versions/7/subtitles/3".to_owned(),
+                        font_urls: vec![],
                     },
                 ],
                 "{video_codec}"
@@ -2730,6 +2774,96 @@ mod tests {
         assert_eq!(plan.method(), Some(Method::DirectPlay));
         assert_eq!(plan.reasons[10], "No subtitles are burned into its picture");
         assert_eq!(plan.burn_in, None);
+    }
+
+    fn ass() -> Track {
+        track("ass", false, TrackKind::Subtitle { image: false })
+    }
+
+    /// A Device that draws ASS subtitles itself.
+    fn drawing_ass() -> DeviceDecoding {
+        DeviceDecoding {
+            subtitle_formats: vec![SubtitleFormat::SUBTITLE_FORMAT_ASS],
+            ..firefox()
+        }
+    }
+
+    /// [`facts`] for an H.264 and AAC MP4 with an ASS Track third, whose file carries the fonts
+    /// `font_attachments`, played on `device` with the Track at `subtitle` asked to burn in.
+    fn with_ass(
+        font_attachments: Vec<usize>,
+        device: DeviceDecoding,
+        subtitle: Option<usize>,
+    ) -> Facts {
+        let mut facts = Facts {
+            device,
+            subtitle,
+            ..facts(Some(vec![video("h264"), audio("aac", true), ass()]))
+        };
+        if let Some(probe) = &mut facts.probe {
+            probe.font_attachments = font_attachments;
+        }
+        facts
+    }
+
+    #[test]
+    fn an_ass_track_in_a_file_with_fonts_is_drawn_with_them_on_a_device_that_lists_ass() {
+        let mut facts = with_ass(vec![1, 3], drawing_ass(), Some(2));
+
+        let plan = build(&mut facts);
+
+        assert_eq!(plan.method(), Some(Method::DirectPlay));
+        assert_eq!(
+            plan.subtitles,
+            [Subtitle {
+                track: ass(),
+                format: SubtitleFormat::SUBTITLE_FORMAT_ASS,
+                url: "/media/versions/7/subtitles/2/ass".to_owned(),
+                font_urls: vec![
+                    "/media/versions/7/fonts/0".to_owned(),
+                    "/media/versions/7/fonts/1".to_owned(),
+                ],
+            }]
+        );
+        assert_eq!(plan.burn_in, None);
+        assert_eq!(plan.offers.burn_in, Vec::<usize>::new());
+    }
+
+    #[test]
+    fn an_ass_track_in_a_file_without_fonts_is_burned_in_on_a_device_that_lists_ass() {
+        let mut facts = with_ass(vec![], drawing_ass(), Some(2));
+
+        let plan = build(&mut facts);
+
+        assert_eq!(plan.method(), Some(Method::Transcode));
+        assert_eq!(
+            plan.reasons[10],
+            "Its file carries no fonts to draw its ASS subtitles with, so the ones chosen are \
+             burned into its picture, which only a Transcode does"
+        );
+        assert_eq!(plan.burn_in, Some(2));
+        assert_eq!(plan.offers.burn_in, vec![2]);
+        assert_eq!(
+            plan.subtitles[0].format,
+            SubtitleFormat::SUBTITLE_FORMAT_WEBVTT
+        );
+        assert_eq!(plan.subtitles[0].url, "/media/versions/7/subtitles/2");
+    }
+
+    #[test]
+    fn an_ass_track_in_a_file_with_fonts_keeps_both_entries_on_a_device_that_doesnt_list_ass() {
+        let plan = build(&mut with_ass(vec![0], drawing_pgs(), None));
+
+        assert_eq!(
+            plan.subtitles,
+            [Subtitle {
+                track: ass(),
+                format: SubtitleFormat::SUBTITLE_FORMAT_WEBVTT,
+                url: "/media/versions/7/subtitles/2".to_owned(),
+                font_urls: vec![],
+            }]
+        );
+        assert_eq!(plan.offers.burn_in, vec![2]);
     }
 
     #[test]

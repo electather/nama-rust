@@ -653,6 +653,7 @@ mod tests {
             duration_ms: None,
             bitrate: None,
             tracks,
+            font_attachments: vec![],
         }
     }
 

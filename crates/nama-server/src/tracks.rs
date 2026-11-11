@@ -1,5 +1,5 @@
-//! Tracks: what ffprobe found inside each Version, the facts of its whole file and its video, audio
-//! and subtitle Tracks.
+//! Tracks: what ffprobe found inside each Version, the facts of its whole file, its video, audio
+//! and subtitle Tracks and the fonts it carries.
 //!
 //! [`Tracks`] owns `version_probes`, `tracks` and `probe_failures` (see the crate's `AGENTS.md`).
 //! Their rows are keyed by Version id and go when the file goes; which files there are is for
@@ -18,7 +18,7 @@ use crate::{contents::Stored, db::Database, ffmpeg::TEXT_SUBTITLES};
 
 /// The version of how probing reads a file, stored with what it read like the name parser's
 /// (ADR 0023). A Version read by an older one is probed again; when to bump it is in `AGENTS.md`.
-pub(crate) const PROBE_VERSION: i64 = 6;
+pub(crate) const PROBE_VERSION: i64 = 7;
 
 /// Like [`PROBE_VERSION`], but a Version ffprobe lastingly failed on at an older one is tried
 /// again, and those it read are left alone; when to bump it is in `AGENTS.md`. A
@@ -95,6 +95,9 @@ pub(crate) struct Probe {
     pub(crate) bitrate: Option<i64>,
     /// In the order the file holds them.
     pub(crate) tracks: Vec<Track>,
+    /// The fonts the file carries, each by its place among the file's attachments, which is how
+    /// ffmpeg picks one out.
+    pub(crate) font_attachments: Vec<usize>,
 }
 
 impl Probe {
@@ -379,7 +382,8 @@ impl Tracks {
         let ids: Vec<i64> = files.iter().map(|file| file.id).collect();
         let versions = json_array(&ids);
         let probes = sqlx::query!(
-            "SELECT version_id, size, modified_ns, container, duration_ms, bitrate
+            "SELECT version_id, size, modified_ns, container, duration_ms, bitrate,
+                    font_attachments
              FROM version_probes
              WHERE version_id IN (SELECT value FROM json_each(?))",
             versions
@@ -395,6 +399,9 @@ impl Tracks {
                     duration_ms: row.duration_ms,
                     bitrate: row.bitrate,
                     tracks: Vec::new(),
+                    // Only `store` writes them, as JSON it made.
+                    font_attachments: serde_json::from_str(&row.font_attachments)
+                        .unwrap_or_default(),
                 };
                 (row.version_id, probe)
             })
@@ -470,6 +477,7 @@ async fn store(
     probe: Probe,
 ) -> Result<(), sqlx::Error> {
     let version = stored.id;
+    let font_attachments = json_array(&probe.font_attachments);
     sqlx::query!("DELETE FROM version_probes WHERE version_id = ?", version)
         .execute(&mut *conn)
         .await?;
@@ -478,8 +486,8 @@ async fn store(
         .await?;
     sqlx::query!(
         "INSERT INTO version_probes (version_id, probe_version, size, modified_ns, container,
-                                     duration_ms, bitrate)
-         VALUES (?, ?, ?, ?, ?, ?, ?)",
+                                     duration_ms, bitrate, font_attachments)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         version,
         PROBE_VERSION,
         stored.size,
@@ -487,6 +495,7 @@ async fn store(
         probe.container,
         probe.duration_ms,
         probe.bitrate,
+        font_attachments,
     )
     .execute(&mut *conn)
     .await?;
@@ -774,6 +783,7 @@ mod tests {
             container: String::new(),
             duration_ms: None,
             bitrate: None,
+            font_attachments: vec![],
             tracks: vec![
                 video(),
                 audio(),

@@ -88,7 +88,7 @@ const SUBTITLE_TIMEOUT: Duration = Duration::from_hours(1);
 /// aren't images either, such as teletext, need a library ffmpeg may lack, or are unknown.
 pub(crate) const TEXT_SUBTITLES: &[&str] = &["subrip", "mov_text", "webvtt", "ass", "ssa"];
 
-/// Why reading a subtitle out of a file failed.
+/// Why reading a subtitle, or a font for one, out of a file failed.
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum SubtitleError {
     #[error("the Server has no ffmpeg")]
@@ -477,6 +477,32 @@ impl Ffmpeg {
             .output();
         let output = tokio::time::timeout(SUBTITLE_TIMEOUT, output).await??;
         if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(SubtitleError::Failed(stderr.trim().to_owned()));
+        }
+        Ok(output.stdout)
+    }
+
+    /// The file at `path`'s attachment `attachment`, such as a font, counting only its
+    /// attachments from 0.
+    pub(crate) async fn attachment(
+        &self,
+        path: &str,
+        attachment: usize,
+    ) -> Result<Vec<u8>, SubtitleError> {
+        let Ok(ffmpeg) = &self.ffmpeg else {
+            return Err(SubtitleError::Unavailable);
+        };
+        let output = tokio::process::Command::new(&ffmpeg.path)
+            .args(["-v", "error", "-nostdin"])
+            .args([&format!("-dump_attachment:t:{attachment}"), "pipe:1", "-i"])
+            .arg(path)
+            .kill_on_drop(true)
+            .output();
+        let output = tokio::time::timeout(SUBTITLE_TIMEOUT, output).await??;
+        // With no output file named, ffmpeg dumps it and then fails for want of one, so only
+        // what it wrote says whether it worked.
+        if output.stdout.is_empty() {
             let stderr = String::from_utf8_lossy(&output.stderr);
             return Err(SubtitleError::Failed(stderr.trim().to_owned()));
         }

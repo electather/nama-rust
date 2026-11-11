@@ -1,10 +1,27 @@
+import { readFileSync } from "node:fs";
+
 import tailwindcss from "@tailwindcss/vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import viteReact from "@vitejs/plugin-react";
-import { defineConfig } from "vite-plus";
+import { type Plugin, defineConfig } from "vite-plus";
 
 // The Server `vp dev` forwards RPCs and media to, so the browser sees one origin (ADR 0015).
 const serverUrl = process.env["NAMA_SERVER_URL"] ?? "http://localhost:7980";
+
+// The ASS renderer bundles libass, FreeType, HarfBuzz, FriBidi and more, whose licenses ask for
+// their notices to ship with it. Its package lists them all in one file.
+const libassNotices: Plugin = {
+  name: "libass-notices",
+  applyToEnvironment: (environment) => environment.name === "client",
+  generateBundle() {
+    const notices = import.meta.resolve("@jellyfin/libass-wasm/dist/js/COPYRIGHT");
+    this.emitFile({
+      type: "asset",
+      fileName: "licenses/libass-wasm.txt",
+      source: readFileSync(new URL(notices)),
+    });
+  },
+};
 
 // CI sets `CI`. There a failed test is retried twice and the results go to a report that
 // `nama-test-report` reads (ADR 0022); locally a flaky test fails, so you notice it.
@@ -17,7 +34,7 @@ export default defineConfig({
   resolve: { tsconfigPaths: true },
   // SPA mode: the build prerenders one `_shell.html` that the Server embeds and serves for every
   // page (ADR 0004). The router's automatic code splitting is on by default.
-  plugins: [tailwindcss(), tanstackStart({ spa: { enabled: true } }), viteReact()],
+  plugins: [tailwindcss(), tanstackStart({ spa: { enabled: true } }), viteReact(), libassNotices],
   server: {
     proxy: {
       // Connect paths (`/nama.v1.ServerService/GetServerInfo` and the like) and media: the same

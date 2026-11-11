@@ -13,7 +13,7 @@ import {
 import { type Track, TrackSchema } from "@/gen/nama/v1/browse_pb";
 import { type PlaybackSubtitle, SubtitleFormat } from "@/gen/nama/v1/playback_pb";
 import type { SubtitleChoice, usePlaybackPlan } from "@/lib/playback-plan";
-import { type SubtitleState, trackLabel, usePgsSubtitle, useSubtitles } from "@/lib/subtitles";
+import { type SubtitleState, trackLabel, useDrawnSubtitle, useSubtitles } from "@/lib/subtitles";
 
 /**
  * The `<video>`'s `<track>`s, one per text subtitle, which the browser fetches only once shown.
@@ -41,8 +41,8 @@ function browserMenuLabel(track: Track | undefined) {
 /**
  * Picks the subtitle shown, or none: one of the plan's subtitles, which the Device shows itself,
  * saying which is still being read out of the file, or one of the Version's `tracks` the plan
- * offers to burn into the picture, an image one it can't draw or an ASS one with its styling.
- * Absent when there's none to pick.
+ * offers to burn into the picture, an image one it can't draw or an ASS one it doesn't draw, with
+ * its styling. Absent when there's none to pick.
  */
 export function SubtitlesMenu({
   tracks,
@@ -100,11 +100,11 @@ function useShownSubtitles(
   videoRef: RefObject<HTMLVideoElement | null>,
 ) {
   const drawn = plan.subtitles.find(
-    ({ url, format }) => url === shown && format === SubtitleFormat.PGS,
+    ({ url, format }) => url === shown && format !== SubtitleFormat.WEBVTT,
   );
   return {
     ...useSubtitles(videoRef, shown),
-    ...usePgsSubtitle(videoRef, drawn?.url, () => {
+    ...useDrawnSubtitle(videoRef, drawn, () => {
       if (videoRef.current && drawn)
         chooseSubtitle(videoRef.current, placeIn(tracks, plan.subtitles, drawn));
     }),
