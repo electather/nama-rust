@@ -237,7 +237,7 @@ What a User wants subtitles to start as when they play something: none, or a lan
 _Avoid_: default subtitle, remembered subtitle, sticky subtitle, subtitle choice (a pick in one playback)
 
 **GPU**:
-A graphics processor in the Server's machine that a Transcode can run on, either dedicated or integrated into the CPU. An Admin picks one, or leaves the Server to prefer a dedicated one.
+A graphics processor in the Server's machine that a Transcode can run on, either dedicated or integrated into the CPU. An Admin picks one, or leaves the Server to prefer a dedicated one. The Server names each it finds, such as "AMD Radeon RX 9070 XT".
 _Avoid_: device (that's a client), card, adapter, render node
 
 ## Requests

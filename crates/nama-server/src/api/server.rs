@@ -100,8 +100,15 @@ impl ServerService for ServerServiceHandler {
         let can_do = self.abilities.can_do().await;
         let automatic = can_do.automatic();
         let hardware = (can_do.hardware.iter())
-            .map(|&hardware| FoundHardware {
+            .map(|hardware| FoundHardware {
                 api: hardware_choice_to_proto(HardwareChoice::Api(hardware.accel)).into(),
+                gpu: (hardware.gpu.as_ref())
+                    .map(|gpu| proto::Gpu {
+                        id: gpu.id().to_owned(),
+                        name: gpu.name(),
+                        ..Default::default()
+                    })
+                    .into(),
                 tone_maps: hardware.tone_maps,
                 tone_mapping: tone_mapping_to_proto(can_do.tone_mapper(Some(hardware))).into(),
                 automatic: automatic == Some(hardware),

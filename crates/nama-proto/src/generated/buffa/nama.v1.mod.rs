@@ -255,6 +255,7 @@ pub mod __buffa {
         reg.register_json_any(super::__GET_PLAYBACK_STATUS_REQUEST_JSON_ANY);
         reg.register_json_any(super::__GET_PLAYBACK_STATUS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__FOUND_HARDWARE_JSON_ANY);
+        reg.register_json_any(super::__GPU_JSON_ANY);
         reg.register_json_any(super::__FOUND_PROGRAM_JSON_ANY);
         reg.register_json_any(super::__GET_PLAYBACK_SETTINGS_REQUEST_JSON_ANY);
         reg.register_json_any(super::__GET_PLAYBACK_SETTINGS_RESPONSE_JSON_ANY);
@@ -1066,6 +1067,10 @@ pub use self::__buffa::view::GetPlaybackStatusResponseOwnedView;
 pub use self::__buffa::view::FoundHardwareView;
 #[doc(inline)]
 pub use self::__buffa::view::FoundHardwareOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GpuView;
+#[doc(inline)]
+pub use self::__buffa::view::GpuOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::FoundProgramView;
 #[doc(inline)]

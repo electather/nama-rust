@@ -2182,8 +2182,8 @@ pub struct GetPlaybackStatusResponseView<'a> {
     ///
     /// Field 4: `ffprobe_problem`
     pub ffprobe_problem: &'a str,
-    /// The hardware acceleration APIs that passed a test encode at startup. Empty without ffmpeg, a
-    /// GPU, or an ffmpeg built for one.
+    /// The hardware acceleration APIs that passed a test encode at startup, one per API and GPU, in the
+    /// order Automatic prefers them. Empty without ffmpeg, a GPU, or an ffmpeg built for one.
     ///
     /// Field 5: `hardware`
     pub hardware: ::buffa::RepeatedView<
@@ -2671,8 +2671,8 @@ impl GetPlaybackStatusResponseOwnedView {
     pub fn ffprobe_problem(&self) -> &'_ str {
         self.0.reborrow().ffprobe_problem
     }
-    /// The hardware acceleration APIs that passed a test encode at startup. Empty without ffmpeg, a
-    /// GPU, or an ffmpeg built for one.
+    /// The hardware acceleration APIs that passed a test encode at startup, one per API and GPU, in the
+    /// order Automatic prefers them. Empty without ffmpeg, a GPU, or an ffmpeg built for one.
     ///
     /// Field 5: `hardware`
     #[must_use]
@@ -2736,13 +2736,18 @@ impl ::serde::Serialize for GetPlaybackStatusResponseOwnedView {
         ::serde::Serialize::serialize(&self.0, __s)
     }
 }
-/// A hardware acceleration API that passed its test encode at startup.
+/// A hardware acceleration API that passed its test encode at startup, on one GPU.
 #[derive(Clone, Debug, Default)]
 pub struct FoundHardwareView<'a> {
     /// Which API. Never `HARDWARE_ACCELERATION_UNSPECIFIED` or `HARDWARE_ACCELERATION_OFF`.
     ///
     /// Field 1: `api`
     pub api: ::buffa::EnumValue<super::super::HardwareAcceleration>,
+    /// The GPU it runs on. Unset where ffmpeg picks one: for NVENC, VideoToolbox, and VAAPI and QSV
+    /// when the Server found no GPU.
+    ///
+    /// Field 5: `gpu`
+    pub gpu: ::buffa::MessageFieldView<super::super::__buffa::view::GpuView<'a>>,
     /// Whether it also passed tone-mapping HDR to SDR on the GPU. `tone_mapping` says what
     /// tone-maps on it.
     ///
@@ -2797,6 +2802,27 @@ impl<'a> ::buffa::MessageView<'a> for FoundHardwareView<'a> {
                     ::buffa::types::decode_int32(&mut cur)?,
                 );
             }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                match view.gpu.as_mut() {
+                    Some(existing) => {
+                        ::buffa::MessageView::merge_into_view(existing, sub, __sub_ctx)?
+                    }
+                    None => {
+                        view.gpu = ::buffa::MessageFieldView::set(
+                            <super::super::__buffa::view::GpuView as ::buffa::MessageView>::decode_view_ctx(
+                                sub,
+                                __sub_ctx,
+                            )?,
+                        );
+                    }
+                }
+            }
             2u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -2843,6 +2869,15 @@ impl<'a> ::buffa::MessageView<'a> for FoundHardwareView<'a> {
         let _ = __buffa_src;
         ::core::result::Result::Ok(super::super::FoundHardware {
             api: self.api,
+            gpu: match self.gpu.as_option() {
+                Some(v) => {
+                    ::buffa::MessageField::<
+                        super::super::Gpu,
+                        ::buffa::Inline<super::super::Gpu>,
+                    >::some(v.to_owned_from_source(__buffa_src)?)
+                }
+                None => ::buffa::MessageField::none(),
+            },
             tone_maps: self.tone_maps,
             tone_mapping: self.tone_mapping,
             automatic: self.automatic,
@@ -2853,7 +2888,7 @@ impl<'a> ::buffa::MessageView<'a> for FoundHardwareView<'a> {
 }
 impl<'a> ::buffa::ViewEncode<'a> for FoundHardwareView<'a> {
     #[allow(clippy::needless_borrow, clippy::let_and_return)]
-    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
@@ -2875,13 +2910,21 @@ impl<'a> ::buffa::ViewEncode<'a> for FoundHardwareView<'a> {
         if self.automatic {
             size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
+        if self.gpu.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.gpu.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
     #[allow(clippy::needless_borrow)]
     fn write_to(
         &self,
-        _cache: &mut ::buffa::SizeCache,
+        __cache: &mut ::buffa::SizeCache,
         buf: &mut impl ::buffa::EncodeSink,
     ) {
         #[allow(unused_imports)]
@@ -2903,6 +2946,14 @@ impl<'a> ::buffa::ViewEncode<'a> for FoundHardwareView<'a> {
         }
         if self.automatic {
             ::buffa::types::put_bool_field(4u32, self.automatic, buf);
+        }
+        if self.gpu.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                5u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.gpu.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2927,6 +2978,11 @@ impl<'__a> ::serde::Serialize for FoundHardwareView<'__a> {
         let mut __map = __s.serialize_map(::core::option::Option::None)?;
         if !::buffa::json_helpers::skip_if::is_default_enum_value(&self.api) {
             __map.serialize_entry("api", &self.api)?;
+        }
+        {
+            if let ::core::option::Option::Some(__v) = self.gpu.as_option() {
+                __map.serialize_entry("gpu", __v)?;
+            }
         }
         if self.tone_maps {
             __map.serialize_entry("toneMaps", &self.tone_maps)?;
@@ -3035,6 +3091,16 @@ impl FoundHardwareOwnedView {
     pub fn api(&self) -> ::buffa::EnumValue<super::super::HardwareAcceleration> {
         self.0.reborrow().api
     }
+    /// The GPU it runs on. Unset where ffmpeg picks one: for NVENC, VideoToolbox, and VAAPI and QSV
+    /// when the Server found no GPU.
+    ///
+    /// Field 5: `gpu`
+    #[must_use]
+    pub fn gpu(
+        &self,
+    ) -> &::buffa::MessageFieldView<super::super::__buffa::view::GpuView<'_>> {
+        &self.0.reborrow().gpu
+    }
     /// Whether it also passed tone-mapping HDR to SDR on the GPU. `tone_mapping` says what
     /// tone-maps on it.
     ///
@@ -3081,6 +3147,277 @@ impl ::buffa::HasMessageView for super::super::FoundHardware {
     type ViewHandle = FoundHardwareOwnedView;
 }
 impl ::serde::Serialize for FoundHardwareOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+/// A GPU the Server found.
+#[derive(Clone, Debug, Default)]
+pub struct GpuView<'a> {
+    /// Its PCI address, such as `0000:03:00.0`, which stays the same across restarts.
+    ///
+    /// Field 1: `id`
+    pub id: &'a str,
+    /// Its name in plain words, such as "AMD Radeon RX 9070 XT" or "Intel integrated GPU".
+    ///
+    /// Field 2: `name`
+    pub name: &'a str,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for GpuView<'a> {
+    type Owned = super::super::Gpu;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.id = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.name = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<super::super::Gpu, ::buffa::DecodeError> {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<super::super::Gpu, ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::Gpu {
+            id: self.id.to_string(),
+            name: self.name.to_string(),
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for GpuView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if !self.id.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.id) as u64;
+        }
+        if !self.name.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.name) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.id.is_empty() {
+            ::buffa::types::put_string_field(1u32, &self.id, buf);
+        }
+        if !self.name.is_empty() {
+            ::buffa::types::put_string_field(2u32, &self.name, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for GpuView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.id) {
+            __map.serialize_entry("id", self.id)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.name) {
+            __map.serialize_entry("name", self.name)?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for GpuView<'a> {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "Gpu";
+    const FULL_NAME: &'static str = "nama.v1.Gpu";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.Gpu";
+}
+::buffa::impl_default_view_instance!(GpuView);
+::buffa::impl_view_reborrow!(GpuView);
+/** Self-contained, `'static` owned view of a `Gpu` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`GpuView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`GpuView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct GpuOwnedView(::buffa::OwnedView<GpuView<'static>>);
+impl GpuOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(GpuOwnedView(::buffa::OwnedView::decode(bytes)?))
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            GpuOwnedView(::buffa::OwnedView::decode_with_options(bytes, opts)?),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::Gpu,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(GpuOwnedView(::buffa::OwnedView::from_owned(msg)?))
+    }
+    /// Borrow the full [`GpuView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &GpuView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::Gpu {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// Its PCI address, such as `0000:03:00.0`, which stays the same across restarts.
+    ///
+    /// Field 1: `id`
+    #[must_use]
+    pub fn id(&self) -> &'_ str {
+        self.0.reborrow().id
+    }
+    /// Its name in plain words, such as "AMD Radeon RX 9070 XT" or "Intel integrated GPU".
+    ///
+    /// Field 2: `name`
+    #[must_use]
+    pub fn name(&self) -> &'_ str {
+        self.0.reborrow().name
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<GpuView<'static>>> for GpuOwnedView {
+    fn from(inner: ::buffa::OwnedView<GpuView<'static>>) -> Self {
+        GpuOwnedView(inner)
+    }
+}
+impl ::core::convert::From<GpuOwnedView> for ::buffa::OwnedView<GpuView<'static>> {
+    fn from(wrapper: GpuOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<GpuView<'static>>> for GpuOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<GpuView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::Gpu {
+    type View<'a> = GpuView<'a>;
+    type ViewHandle = GpuOwnedView;
+}
+impl ::serde::Serialize for GpuOwnedView {
     fn serialize<__S: ::serde::Serializer>(
         &self,
         __s: __S,

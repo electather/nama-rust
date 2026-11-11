@@ -87,8 +87,8 @@ function HardwareSection({ status }: { status: GetPlaybackStatusResponse }) {
         Hardware acceleration
       </h2>
       <p className="mt-2 max-w-prose text-pretty text-muted-foreground">
-        {hardwareIntro(status)} The Server tests VAAPI, Intel QSV, NVIDIA NVENC and Apple
-        VideoToolbox when it starts, so restart it after adding a GPU.
+        {hardwareIntro(status)} The Server tests VAAPI on each GPU, Intel QSV on each Intel one, and
+        NVIDIA NVENC and Apple VideoToolbox when it starts, so restart it after adding a GPU.
       </p>
       {hardware.length === 0 ? (
         <p className="mt-4 max-w-prose text-pretty">
@@ -99,7 +99,11 @@ function HardwareSection({ status }: { status: GetPlaybackStatusResponse }) {
       ) : (
         <AdminList>
           {hardware.map((found) => (
-            <HardwareRow key={found.api} found={found} canTranscode={canTranscode} />
+            <HardwareRow
+              key={`${found.api}@${found.gpu?.id ?? ""}`}
+              found={found}
+              canTranscode={canTranscode}
+            />
           ))}
         </AdminList>
       )}
@@ -157,13 +161,17 @@ function ProgramRow({
 }
 
 /**
- * A hardware acceleration API that passed its test encode. Unless the Server `canTranscode`,
- * tone-mapping and Automatic don't apply yet.
+ * A hardware acceleration API that passed its test encode, on its GPU if the Server names one.
+ * Unless the Server `canTranscode`, tone-mapping and Automatic don't apply yet.
  */
 function HardwareRow({ found, canTranscode }: { found: FoundHardware; canTranscode: boolean }) {
   return (
     <AdminRow end={<StateLabel label="Passed" Icon={CircleCheck} />}>
-      <h3 className="font-medium">{hardwareName(found.api)}</h3>
+      <h3 className="font-medium first-letter:uppercase">
+        {found.gpu === undefined
+          ? hardwareName(found.api)
+          : `${found.gpu.name} · ${hardwareName(found.api)}`}
+      </h3>
       {canTranscode && (
         <p className="text-sm text-pretty text-muted-foreground">
           {toneMappings.get(found.toneMapping)}
