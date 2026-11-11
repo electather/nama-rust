@@ -14,7 +14,7 @@ import type { Message, UnknownEnum } from "@bufbuild/protobuf";
  * Describes the file nama/v1/browse.proto.
  */
 export const file_nama_v1_browse: GenFile = /*@__PURE__*/
-  fileDesc("ChRuYW1hL3YxL2Jyb3dzZS5wcm90bxIHbmFtYS52MSKLAwoFTW92aWUSHwoCaWQYASABKAsyEy5uYW1hLnYxLkV4dGVybmFsSWQSDQoFdGl0bGUYAiABKAkSGwoOb3JpZ2luYWxfdGl0bGUYAyABKAlIAIgBARIVCghvdmVydmlldxgEIAEoCUgBiAEBEhkKDHJlbGVhc2VfZGF0ZRgFIAEoCUgCiAEBEhwKD3J1bnRpbWVfbWludXRlcxgGIAEoDUgDiAEBEhcKCnBvc3Rlcl91cmwYByABKAlIBIgBARIZCgxiYWNrZHJvcF91cmwYCCABKAlIBYgBARIiCgh2ZXJzaW9ucxgJIAMoCzIQLm5hbWEudjEuVmVyc2lvbhIoCgt3YXRjaF9zdGF0ZRgKIAEoCzITLm5hbWEudjEuV2F0Y2hTdGF0ZUIRCg9fb3JpZ2luYWxfdGl0bGVCCwoJX292ZXJ2aWV3Qg8KDV9yZWxlYXNlX2RhdGVCEgoQX3J1bnRpbWVfbWludXRlc0INCgtfcG9zdGVyX3VybEIPCg1fYmFja2Ryb3BfdXJsIlYKB1ZlcnNpb24SCgoCaWQYASABKAMSEQoJZmlsZV9uYW1lGAIgASgJEgwKBHNpemUYAyABKAQSHgoGdHJhY2tzGAQgAygLMg4ubmFtYS52MS5UcmFjayKGAgoFVHJhY2sSDQoFY29kZWMYASABKAkSFQoIbGFuZ3VhZ2UYAiABKAlIAYgBARISCgV0aXRsZRgDIAEoCUgCiAEBEg8KB2RlZmF1bHQYBCABKAgSDgoGZm9yY2VkGAUgASgIEgsKA3NkaBgJIAEoCBIkCgV2aWRlbxgGIAEoCzITLm5hbWEudjEuVmlkZW9UcmFja0gAEiQKBWF1ZGlvGAcgASgLMhMubmFtYS52MS5BdWRpb1RyYWNrSAASKgoIc3VidGl0bGUYCCABKAsyFi5uYW1hLnYxLlN1YnRpdGxlVHJhY2tIAEIGCgRraW5kQgsKCV9sYW5ndWFnZUIICgZfdGl0bGUinwEKClZpZGVvVHJhY2sSDQoFd2lkdGgYASABKA0SDgoGaGVpZ2h0GAIgASgNEhIKCmZyYW1lX3JhdGUYAyABKAESEQoJYml0X2RlcHRoGAQgASgNEh8KA2hkchgFIAEoDjISLm5hbWEudjEuSGRyRm9ybWF0EioKDGRvbGJ5X3Zpc2lvbhgGIAEoCzIULm5hbWEudjEuRG9sYnlWaXNpb24iXgoLRG9sYnlWaXNpb24SDwoHcHJvZmlsZRgBIAEoDRImCgpiYXNlX2xheWVyGAMgASgOMhIubmFtYS52MS5CYXNlTGF5ZXJKBAgCEANSEGhkcjEwX2Jhc2VfbGF5ZXIiHgoKQXVkaW9UcmFjaxIQCghjaGFubmVscxgBIAEoDSIeCg1TdWJ0aXRsZVRyYWNrEg0KBWltYWdlGAEgASgIIicKEUxpc3RNb3ZpZXNSZXF1ZXN0EhIKCmxpYnJhcnlfaWQYASABKAMiNAoSTGlzdE1vdmllc1Jlc3BvbnNlEh4KBm1vdmllcxgBIAMoCzIOLm5hbWEudjEuTW92aWUiTAoPR2V0TW92aWVSZXF1ZXN0EhIKCmxpYnJhcnlfaWQYASABKAMSJQoIbW92aWVfaWQYAiABKAsyEy5uYW1hLnYxLkV4dGVybmFsSWQiMQoQR2V0TW92aWVSZXNwb25zZRIdCgVtb3ZpZRgBIAEoCzIOLm5hbWEudjEuTW92aWUiigEKBFNob3cSHwoCaWQYASABKAsyEy5uYW1hLnYxLkV4dGVybmFsSWQSDQoFdGl0bGUYAiABKAkSFwoKcG9zdGVyX3VybBgDIAEoCUgAiAEBEhkKDGJhY2tkcm9wX3VybBgEIAEoCUgBiAEBQg0KC19wb3N0ZXJfdXJsQg8KDV9iYWNrZHJvcF91cmwiQAoGU2Vhc29uEg4KBm51bWJlchgBIAEoDRIXCgpwb3N0ZXJfdXJsGAIgASgJSACIAQFCDQoLX3Bvc3Rlcl91cmwisAIKB0VwaXNvZGUSHwoCaWQYASABKAsyEy5uYW1hLnYxLkV4dGVybmFsSWQSFQoNc2Vhc29uX251bWJlchgCIAEoDRIWCg5lcGlzb2RlX251bWJlchgDIAEoDRINCgV0aXRsZRgEIAEoCRIVCghvdmVydmlldxgFIAEoCUgAiAEBEhUKCGFpcl9kYXRlGAYgASgJSAGIAQESHAoPcnVudGltZV9taW51dGVzGAcgASgNSAKIAQESIgoIdmVyc2lvbnMYCCADKAsyEC5uYW1hLnYxLlZlcnNpb24SKAoLd2F0Y2hfc3RhdGUYCSABKAsyEy5uYW1hLnYxLldhdGNoU3RhdGVCCwoJX292ZXJ2aWV3QgsKCV9haXJfZGF0ZUISChBfcnVudGltZV9taW51dGVzIiYKEExpc3RTaG93c1JlcXVlc3QSEgoKbGlicmFyeV9pZBgBIAEoAyIxChFMaXN0U2hvd3NSZXNwb25zZRIcCgVzaG93cxgBIAMoCzINLm5hbWEudjEuU2hvdyJKCg5HZXRTaG93UmVxdWVzdBISCgpsaWJyYXJ5X2lkGAEgASgDEiQKB3Nob3dfaWQYAiABKAsyEy5uYW1hLnYxLkV4dGVybmFsSWQiUAoPR2V0U2hvd1Jlc3BvbnNlEhsKBHNob3cYASABKAsyDS5uYW1hLnYxLlNob3cSIAoHc2Vhc29ucxgCIAMoCzIPLm5hbWEudjEuU2Vhc29uImYKE0xpc3RFcGlzb2Rlc1JlcXVlc3QSEgoKbGlicmFyeV9pZBgBIAEoAxIkCgdzaG93X2lkGAIgASgLMhMubmFtYS52MS5FeHRlcm5hbElkEhUKDXNlYXNvbl9udW1iZXIYAyABKA0iOgoUTGlzdEVwaXNvZGVzUmVzcG9uc2USIgoIZXBpc29kZXMYASADKAsyEC5uYW1hLnYxLkVwaXNvZGUiogEKFUNvbnRpbnVlV2F0Y2hpbmdFbnRyeRISCgpsaWJyYXJ5X2lkGAEgASgDEh8KBW1vdmllGAIgASgLMg4ubmFtYS52MS5Nb3ZpZUgAEiMKB2VwaXNvZGUYAyABKAsyEC5uYW1hLnYxLkVwaXNvZGVIABIbCgRzaG93GAQgASgLMg0ubmFtYS52MS5TaG93QhIKEG1vdmllX29yX2VwaXNvZGUiHQobTGlzdENvbnRpbnVlV2F0Y2hpbmdSZXF1ZXN0Ik8KHExpc3RDb250aW51ZVdhdGNoaW5nUmVzcG9uc2USLwoHZW50cmllcxgBIAMoCzIeLm5hbWEudjEuQ29udGludWVXYXRjaGluZ0VudHJ5Km4KCUhkckZvcm1hdBIaChZIRFJfRk9STUFUX1VOU1BFQ0lGSUVEEAASFAoQSERSX0ZPUk1BVF9IRFIxMBABEhIKDkhEUl9GT1JNQVRfSExHEAISGwoXSERSX0ZPUk1BVF9ET0xCWV9WSVNJT04QAyplCglCYXNlTGF5ZXISGgoWQkFTRV9MQVlFUl9VTlNQRUNJRklFRBAAEhIKDkJBU0VfTEFZRVJfU0RSEAESFAoQQkFTRV9MQVlFUl9IRFIxMBACEhIKDkJBU0VfTEFZRVJfSExHEAMy6QMKDUJyb3dzZVNlcnZpY2USSgoKTGlzdE1vdmllcxIaLm5hbWEudjEuTGlzdE1vdmllc1JlcXVlc3QaGy5uYW1hLnYxLkxpc3RNb3ZpZXNSZXNwb25zZSIDkAIBEkQKCEdldE1vdmllEhgubmFtYS52MS5HZXRNb3ZpZVJlcXVlc3QaGS5uYW1hLnYxLkdldE1vdmllUmVzcG9uc2UiA5ACARJHCglMaXN0U2hvd3MSGS5uYW1hLnYxLkxpc3RTaG93c1JlcXVlc3QaGi5uYW1hLnYxLkxpc3RTaG93c1Jlc3BvbnNlIgOQAgESQQoHR2V0U2hvdxIXLm5hbWEudjEuR2V0U2hvd1JlcXVlc3QaGC5uYW1hLnYxLkdldFNob3dSZXNwb25zZSIDkAIBElAKDExpc3RFcGlzb2RlcxIcLm5hbWEudjEuTGlzdEVwaXNvZGVzUmVxdWVzdBodLm5hbWEudjEuTGlzdEVwaXNvZGVzUmVzcG9uc2UiA5ACARJoChRMaXN0Q29udGludWVXYXRjaGluZxIkLm5hbWEudjEuTGlzdENvbnRpbnVlV2F0Y2hpbmdSZXF1ZXN0GiUubmFtYS52MS5MaXN0Q29udGludWVXYXRjaGluZ1Jlc3BvbnNlIgOQAgFiBnByb3RvMw", [file_nama_v1_match, file_nama_v1_watch_state]);
+  fileDesc("ChRuYW1hL3YxL2Jyb3dzZS5wcm90bxIHbmFtYS52MSKLAwoFTW92aWUSHwoCaWQYASABKAsyEy5uYW1hLnYxLkV4dGVybmFsSWQSDQoFdGl0bGUYAiABKAkSGwoOb3JpZ2luYWxfdGl0bGUYAyABKAlIAIgBARIVCghvdmVydmlldxgEIAEoCUgBiAEBEhkKDHJlbGVhc2VfZGF0ZRgFIAEoCUgCiAEBEhwKD3J1bnRpbWVfbWludXRlcxgGIAEoDUgDiAEBEhcKCnBvc3Rlcl91cmwYByABKAlIBIgBARIZCgxiYWNrZHJvcF91cmwYCCABKAlIBYgBARIiCgh2ZXJzaW9ucxgJIAMoCzIQLm5hbWEudjEuVmVyc2lvbhIoCgt3YXRjaF9zdGF0ZRgKIAEoCzITLm5hbWEudjEuV2F0Y2hTdGF0ZUIRCg9fb3JpZ2luYWxfdGl0bGVCCwoJX292ZXJ2aWV3Qg8KDV9yZWxlYXNlX2RhdGVCEgoQX3J1bnRpbWVfbWludXRlc0INCgtfcG9zdGVyX3VybEIPCg1fYmFja2Ryb3BfdXJsIlYKB1ZlcnNpb24SCgoCaWQYASABKAMSEQoJZmlsZV9uYW1lGAIgASgJEgwKBHNpemUYAyABKAQSHgoGdHJhY2tzGAQgAygLMg4ubmFtYS52MS5UcmFjayKGAgoFVHJhY2sSDQoFY29kZWMYASABKAkSFQoIbGFuZ3VhZ2UYAiABKAlIAYgBARISCgV0aXRsZRgDIAEoCUgCiAEBEg8KB2RlZmF1bHQYBCABKAgSDgoGZm9yY2VkGAUgASgIEgsKA3NkaBgJIAEoCBIkCgV2aWRlbxgGIAEoCzITLm5hbWEudjEuVmlkZW9UcmFja0gAEiQKBWF1ZGlvGAcgASgLMhMubmFtYS52MS5BdWRpb1RyYWNrSAASKgoIc3VidGl0bGUYCCABKAsyFi5uYW1hLnYxLlN1YnRpdGxlVHJhY2tIAEIGCgRraW5kQgsKCV9sYW5ndWFnZUIICgZfdGl0bGUinwEKClZpZGVvVHJhY2sSDQoFd2lkdGgYASABKA0SDgoGaGVpZ2h0GAIgASgNEhIKCmZyYW1lX3JhdGUYAyABKAESEQoJYml0X2RlcHRoGAQgASgNEh8KA2hkchgFIAEoDjISLm5hbWEudjEuSGRyRm9ybWF0EioKDGRvbGJ5X3Zpc2lvbhgGIAEoCzIULm5hbWEudjEuRG9sYnlWaXNpb24iXgoLRG9sYnlWaXNpb24SDwoHcHJvZmlsZRgBIAEoDRImCgpiYXNlX2xheWVyGAMgASgOMhIubmFtYS52MS5CYXNlTGF5ZXJKBAgCEANSEGhkcjEwX2Jhc2VfbGF5ZXIiHgoKQXVkaW9UcmFjaxIQCghjaGFubmVscxgBIAEoDSIeCg1TdWJ0aXRsZVRyYWNrEg0KBWltYWdlGAEgASgIIicKEUxpc3RNb3ZpZXNSZXF1ZXN0EhIKCmxpYnJhcnlfaWQYASABKAMiNAoSTGlzdE1vdmllc1Jlc3BvbnNlEh4KBm1vdmllcxgBIAMoCzIOLm5hbWEudjEuTW92aWUiTAoPR2V0TW92aWVSZXF1ZXN0EhIKCmxpYnJhcnlfaWQYASABKAMSJQoIbW92aWVfaWQYAiABKAsyEy5uYW1hLnYxLkV4dGVybmFsSWQiMQoQR2V0TW92aWVSZXNwb25zZRIdCgVtb3ZpZRgBIAEoCzIOLm5hbWEudjEuTW92aWUiigEKBFNob3cSHwoCaWQYASABKAsyEy5uYW1hLnYxLkV4dGVybmFsSWQSDQoFdGl0bGUYAiABKAkSFwoKcG9zdGVyX3VybBgDIAEoCUgAiAEBEhkKDGJhY2tkcm9wX3VybBgEIAEoCUgBiAEBQg0KC19wb3N0ZXJfdXJsQg8KDV9iYWNrZHJvcF91cmwiQAoGU2Vhc29uEg4KBm51bWJlchgBIAEoDRIXCgpwb3N0ZXJfdXJsGAIgASgJSACIAQFCDQoLX3Bvc3Rlcl91cmwisAIKB0VwaXNvZGUSHwoCaWQYASABKAsyEy5uYW1hLnYxLkV4dGVybmFsSWQSFQoNc2Vhc29uX251bWJlchgCIAEoDRIWCg5lcGlzb2RlX251bWJlchgDIAEoDRINCgV0aXRsZRgEIAEoCRIVCghvdmVydmlldxgFIAEoCUgAiAEBEhUKCGFpcl9kYXRlGAYgASgJSAGIAQESHAoPcnVudGltZV9taW51dGVzGAcgASgNSAKIAQESIgoIdmVyc2lvbnMYCCADKAsyEC5uYW1hLnYxLlZlcnNpb24SKAoLd2F0Y2hfc3RhdGUYCSABKAsyEy5uYW1hLnYxLldhdGNoU3RhdGVCCwoJX292ZXJ2aWV3QgsKCV9haXJfZGF0ZUISChBfcnVudGltZV9taW51dGVzIiYKEExpc3RTaG93c1JlcXVlc3QSEgoKbGlicmFyeV9pZBgBIAEoAyIxChFMaXN0U2hvd3NSZXNwb25zZRIcCgVzaG93cxgBIAMoCzINLm5hbWEudjEuU2hvdyJKCg5HZXRTaG93UmVxdWVzdBISCgpsaWJyYXJ5X2lkGAEgASgDEiQKB3Nob3dfaWQYAiABKAsyEy5uYW1hLnYxLkV4dGVybmFsSWQiUAoPR2V0U2hvd1Jlc3BvbnNlEhsKBHNob3cYASABKAsyDS5uYW1hLnYxLlNob3cSIAoHc2Vhc29ucxgCIAMoCzIPLm5hbWEudjEuU2Vhc29uImYKE0xpc3RFcGlzb2Rlc1JlcXVlc3QSEgoKbGlicmFyeV9pZBgBIAEoAxIkCgdzaG93X2lkGAIgASgLMhMubmFtYS52MS5FeHRlcm5hbElkEhUKDXNlYXNvbl9udW1iZXIYAyABKA0iOgoUTGlzdEVwaXNvZGVzUmVzcG9uc2USIgoIZXBpc29kZXMYASADKAsyEC5uYW1hLnYxLkVwaXNvZGUiogEKFUNvbnRpbnVlV2F0Y2hpbmdFbnRyeRISCgpsaWJyYXJ5X2lkGAEgASgDEh8KBW1vdmllGAIgASgLMg4ubmFtYS52MS5Nb3ZpZUgAEiMKB2VwaXNvZGUYAyABKAsyEC5uYW1hLnYxLkVwaXNvZGVIABIbCgRzaG93GAQgASgLMg0ubmFtYS52MS5TaG93QhIKEG1vdmllX29yX2VwaXNvZGUiHQobTGlzdENvbnRpbnVlV2F0Y2hpbmdSZXF1ZXN0Ik8KHExpc3RDb250aW51ZVdhdGNoaW5nUmVzcG9uc2USLwoHZW50cmllcxgBIAMoCzIeLm5hbWEudjEuQ29udGludWVXYXRjaGluZ0VudHJ5IicKFlNlYXJjaExpYnJhcmllc1JlcXVlc3QSDQoFcXVlcnkYASABKAkilgEKF1NlYXJjaExpYnJhcmllc1Jlc3BvbnNlEicKBm1vdmllcxgBIAMoCzIXLm5hbWEudjEuTW92aWVJbkxpYnJhcnkSJQoFc2hvd3MYAiADKAsyFi5uYW1hLnYxLlNob3dJbkxpYnJhcnkSKwoIZXBpc29kZXMYAyADKAsyGS5uYW1hLnYxLkVwaXNvZGVJbkxpYnJhcnkiqAEKDk1vdmllSW5MaWJyYXJ5EhIKCmxpYnJhcnlfaWQYASABKAMSHwoCaWQYAiABKAsyEy5uYW1hLnYxLkV4dGVybmFsSWQSDQoFdGl0bGUYAyABKAkSGQoMcmVsZWFzZV9kYXRlGAQgASgJSACIAQESFwoKcG9zdGVyX3VybBgFIAEoCUgBiAEBQg8KDV9yZWxlYXNlX2RhdGVCDQoLX3Bvc3Rlcl91cmwiewoNU2hvd0luTGlicmFyeRISCgpsaWJyYXJ5X2lkGAEgASgDEh8KAmlkGAIgASgLMhMubmFtYS52MS5FeHRlcm5hbElkEg0KBXRpdGxlGAMgASgJEhcKCnBvc3Rlcl91cmwYBCABKAlIAIgBAUINCgtfcG9zdGVyX3VybCK/AQoQRXBpc29kZUluTGlicmFyeRISCgpsaWJyYXJ5X2lkGAEgASgDEh8KAmlkGAIgASgLMhMubmFtYS52MS5FeHRlcm5hbElkEiQKB3Nob3dfaWQYAyABKAsyEy5uYW1hLnYxLkV4dGVybmFsSWQSEgoKc2hvd190aXRsZRgEIAEoCRIVCg1zZWFzb25fbnVtYmVyGAUgASgNEhYKDmVwaXNvZGVfbnVtYmVyGAYgASgNEg0KBXRpdGxlGAcgASgJKm4KCUhkckZvcm1hdBIaChZIRFJfRk9STUFUX1VOU1BFQ0lGSUVEEAASFAoQSERSX0ZPUk1BVF9IRFIxMBABEhIKDkhEUl9GT1JNQVRfSExHEAISGwoXSERSX0ZPUk1BVF9ET0xCWV9WSVNJT04QAyplCglCYXNlTGF5ZXISGgoWQkFTRV9MQVlFUl9VTlNQRUNJRklFRBAAEhIKDkJBU0VfTEFZRVJfU0RSEAESFAoQQkFTRV9MQVlFUl9IRFIxMBACEhIKDkJBU0VfTEFZRVJfSExHEAMyxAQKDUJyb3dzZVNlcnZpY2USSgoKTGlzdE1vdmllcxIaLm5hbWEudjEuTGlzdE1vdmllc1JlcXVlc3QaGy5uYW1hLnYxLkxpc3RNb3ZpZXNSZXNwb25zZSIDkAIBEkQKCEdldE1vdmllEhgubmFtYS52MS5HZXRNb3ZpZVJlcXVlc3QaGS5uYW1hLnYxLkdldE1vdmllUmVzcG9uc2UiA5ACARJHCglMaXN0U2hvd3MSGS5uYW1hLnYxLkxpc3RTaG93c1JlcXVlc3QaGi5uYW1hLnYxLkxpc3RTaG93c1Jlc3BvbnNlIgOQAgESQQoHR2V0U2hvdxIXLm5hbWEudjEuR2V0U2hvd1JlcXVlc3QaGC5uYW1hLnYxLkdldFNob3dSZXNwb25zZSIDkAIBElAKDExpc3RFcGlzb2RlcxIcLm5hbWEudjEuTGlzdEVwaXNvZGVzUmVxdWVzdBodLm5hbWEudjEuTGlzdEVwaXNvZGVzUmVzcG9uc2UiA5ACARJoChRMaXN0Q29udGludWVXYXRjaGluZxIkLm5hbWEudjEuTGlzdENvbnRpbnVlV2F0Y2hpbmdSZXF1ZXN0GiUubmFtYS52MS5MaXN0Q29udGludWVXYXRjaGluZ1Jlc3BvbnNlIgOQAgESWQoPU2VhcmNoTGlicmFyaWVzEh8ubmFtYS52MS5TZWFyY2hMaWJyYXJpZXNSZXF1ZXN0GiAubmFtYS52MS5TZWFyY2hMaWJyYXJpZXNSZXNwb25zZSIDkAIBYgZwcm90bzM", [file_nama_v1_match, file_nama_v1_watch_state]);
 
 /**
  * A Movie some items of a Library are Matched to, with the metadata its Match stores.
@@ -783,6 +783,198 @@ export const ListContinueWatchingResponseSchema: GenMessage<ListContinueWatching
   messageDesc(file_nama_v1_browse, 22);
 
 /**
+ * @generated from message nama.v1.SearchLibrariesRequest
+ */
+export type SearchLibrariesRequest = Message<"nama.v1.SearchLibrariesRequest"> & {
+  /**
+   * The words to search for. One without letters or digits finds nothing.
+   *
+   * @generated from field: string query = 1;
+   */
+  query: string;
+};
+
+/**
+ * Describes the message nama.v1.SearchLibrariesRequest.
+ * Use `create(SearchLibrariesRequestSchema)` to create a new message.
+ */
+export const SearchLibrariesRequestSchema: GenMessage<SearchLibrariesRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_browse, 23);
+
+/**
+ * What `SearchLibraries` found, each kind best fit first. A Movie, Show or Episode in two
+ * Libraries is found in each.
+ *
+ * @generated from message nama.v1.SearchLibrariesResponse
+ */
+export type SearchLibrariesResponse = Message<"nama.v1.SearchLibrariesResponse"> & {
+  /**
+   * @generated from field: repeated nama.v1.MovieInLibrary movies = 1;
+   */
+  movies: MovieInLibrary[];
+
+  /**
+   * @generated from field: repeated nama.v1.ShowInLibrary shows = 2;
+   */
+  shows: ShowInLibrary[];
+
+  /**
+   * @generated from field: repeated nama.v1.EpisodeInLibrary episodes = 3;
+   */
+  episodes: EpisodeInLibrary[];
+};
+
+/**
+ * Describes the message nama.v1.SearchLibrariesResponse.
+ * Use `create(SearchLibrariesResponseSchema)` to create a new message.
+ */
+export const SearchLibrariesResponseSchema: GenMessage<SearchLibrariesResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_browse, 24);
+
+/**
+ * A Movie a search found, with what a client needs to show it and open it with `GetMovie`.
+ *
+ * @generated from message nama.v1.MovieInLibrary
+ */
+export type MovieInLibrary = Message<"nama.v1.MovieInLibrary"> & {
+  /**
+   * The Library it is in.
+   *
+   * @generated from field: int64 library_id = 1;
+   */
+  libraryId: bigint;
+
+  /**
+   * As `ListMovies` gives it.
+   *
+   * @generated from field: nama.v1.ExternalId id = 2;
+   */
+  id?: ExternalId | undefined;
+
+  /**
+   * @generated from field: string title = 3;
+   */
+  title: string;
+
+  /**
+   * When it was released, as `YYYY-MM-DD`.
+   *
+   * @generated from field: optional string release_date = 4;
+   */
+  releaseDate?: string | undefined;
+
+  /**
+   * The poster's URL, under `/media/artwork/` on this Server.
+   *
+   * @generated from field: optional string poster_url = 5;
+   */
+  posterUrl?: string | undefined;
+};
+
+/**
+ * Describes the message nama.v1.MovieInLibrary.
+ * Use `create(MovieInLibrarySchema)` to create a new message.
+ */
+export const MovieInLibrarySchema: GenMessage<MovieInLibrary> = /*@__PURE__*/
+  messageDesc(file_nama_v1_browse, 25);
+
+/**
+ * A Show a search found, with what a client needs to show it and open it with `GetShow`.
+ *
+ * @generated from message nama.v1.ShowInLibrary
+ */
+export type ShowInLibrary = Message<"nama.v1.ShowInLibrary"> & {
+  /**
+   * The Library it is in.
+   *
+   * @generated from field: int64 library_id = 1;
+   */
+  libraryId: bigint;
+
+  /**
+   * As `ListShows` gives it.
+   *
+   * @generated from field: nama.v1.ExternalId id = 2;
+   */
+  id?: ExternalId | undefined;
+
+  /**
+   * @generated from field: string title = 3;
+   */
+  title: string;
+
+  /**
+   * A Season's poster's URL, under `/media/artwork/` on this Server.
+   *
+   * @generated from field: optional string poster_url = 4;
+   */
+  posterUrl?: string | undefined;
+};
+
+/**
+ * Describes the message nama.v1.ShowInLibrary.
+ * Use `create(ShowInLibrarySchema)` to create a new message.
+ */
+export const ShowInLibrarySchema: GenMessage<ShowInLibrary> = /*@__PURE__*/
+  messageDesc(file_nama_v1_browse, 26);
+
+/**
+ * An Episode a search found, with what a client needs to show it and open its Season with
+ * `ListEpisodes`.
+ *
+ * @generated from message nama.v1.EpisodeInLibrary
+ */
+export type EpisodeInLibrary = Message<"nama.v1.EpisodeInLibrary"> & {
+  /**
+   * The Library it is in.
+   *
+   * @generated from field: int64 library_id = 1;
+   */
+  libraryId: bigint;
+
+  /**
+   * As `ListEpisodes` gives it.
+   *
+   * @generated from field: nama.v1.ExternalId id = 2;
+   */
+  id?: ExternalId | undefined;
+
+  /**
+   * Its Show's id, as `ListShows` gives it.
+   *
+   * @generated from field: nama.v1.ExternalId show_id = 3;
+   */
+  showId?: ExternalId | undefined;
+
+  /**
+   * @generated from field: string show_title = 4;
+   */
+  showTitle: string;
+
+  /**
+   * @generated from field: uint32 season_number = 5;
+   */
+  seasonNumber: number;
+
+  /**
+   * @generated from field: uint32 episode_number = 6;
+   */
+  episodeNumber: number;
+
+  /**
+   * @generated from field: string title = 7;
+   */
+  title: string;
+};
+
+/**
+ * Describes the message nama.v1.EpisodeInLibrary.
+ * Use `create(EpisodeInLibrarySchema)` to create a new message.
+ */
+export const EpisodeInLibrarySchema: GenMessage<EpisodeInLibrary> = /*@__PURE__*/
+  messageDesc(file_nama_v1_browse, 27);
+
+/**
  * How a video Track's picture is HDR.
  *
  * @generated from enum nama.v1.HdrFormat
@@ -945,6 +1137,22 @@ export const BrowseService: GenService<{
     methodKind: "unary";
     input: typeof ListContinueWatchingRequestSchema;
     output: typeof ListContinueWatchingResponseSchema;
+  },
+  /**
+   * Searches every Library for the Movies, Shows and Episodes whose titles have each word of the
+   * query, ignoring case, accents and the marks that join words, so "amelie" finds Amélie and
+   * "spiderman" finds Spider-Man. Each word matches the start of a word, so a client can search
+   * as the User types. A last word of four digits after others is a year, which keeps only those
+   * released or aired that year, or with it in their title: "dune 2021" finds the 2021 Dune. A
+   * Show counts as of every year one of its Episodes aired. A Show is found by its own title,
+   * and an Episode by its own, not its Show's.
+   *
+   * @generated from rpc nama.v1.BrowseService.SearchLibraries
+   */
+  searchLibraries: {
+    methodKind: "unary";
+    input: typeof SearchLibrariesRequestSchema;
+    output: typeof SearchLibrariesResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_nama_v1_browse, 0);

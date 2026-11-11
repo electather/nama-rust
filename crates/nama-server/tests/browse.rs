@@ -6,6 +6,9 @@
 mod http;
 #[path = "support/refused.rs"]
 mod refused;
+#[cfg(unix)]
+#[path = "support/script.rs"]
+mod script;
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 #[path = "support/server.rs"]
 mod server;
@@ -31,19 +34,22 @@ use nama_proto::nama::v1::{
     ListContinueWatchingRequest, ListEpisodesRequest, ListMoviesRequest, ListShowsRequest,
     MatchServiceClient, Movie, PlanPlaybackRequest, Playback, PlaybackEnded, PlaybackLimit,
     PlaybackMethod, PlaybackPlan, PlaybackServiceClient, PlaybackSettings, PlaybackStarted,
-    ProbingFinished, RefusalReason, ReportProgressRequest, Season, ServerServiceClient,
-    SetMatchRequest, SetPlayedRequest, Show, ShowSeason, StopPlaybackRequest, Track,
-    UpdatePlaybackSettingsRequest, Version, VideoTrack, WatchState, WatchStateServiceClient,
-    continue_watching_entry, event, external_id, set_played_request::Target,
+    ProbingFinished, RefusalReason, ReportProgressRequest, SearchLibrariesRequest,
+    SearchLibrariesResponse, Season, ServerServiceClient, SetMatchRequest, SetPlayedRequest, Show,
+    ShowSeason, StopPlaybackRequest, Track, UpdatePlaybackSettingsRequest, Version, VideoTrack,
+    WatchState, WatchStateServiceClient, continue_watching_entry, event, external_id,
+    set_played_request::Target,
 };
 use nama_server::{
     config::Config,
-    ffmpeg::{self, Ffmpeg, FoundProgram},
+    ffmpeg::{self, Ffmpeg},
 };
 use refused::assert_refused;
+#[cfg(unix)]
+use script::script;
 use server::{
     Builder, Library, SignedIn, TestServer, WAIT, subscribe,
-    tmdb::{ALIEN, DARK, THE_OFFICE as THE_OFFICE_US},
+    tmdb::{ALIEN, DARK, DUNE, THE_OFFICE as THE_OFFICE_US},
 };
 
 /// TMDB Matches both to Alien.
@@ -65,6 +71,12 @@ const BEGINNINGS_AND_ENDINGS: i64 = 1_803_405;
 
 /// Both the US and the UK Office fit, so this is Unmatched.
 const THE_OFFICE: &str = "The Office/Season 01/The Office - S01E01.mkv";
+
+/// The Office (US) by an ID hint, since TMDB's search fits the UK one too.
+const THE_OFFICE_US_S01E02: &str = "The Office {tmdb-2316}/Season 01/The Office - S01E02.mkv";
+
+/// TMDB Matches it to the 2021 Dune.
+const DUNE_2021: &str = "Dune (2021)/Dune (2021).mkv";
 
 /// Two hours, in milliseconds: the length a test's player reports.
 const TWO_HOURS: u64 = 7_200_000;
@@ -301,6 +313,18 @@ impl Fixture {
     )]
     fn item(&self, relative: &str) -> i64 {
         self.items[relative]
+    }
+
+    /// The Admin's search of every Library for `query`.
+    async fn search(&self, query: &str) -> SearchLibrariesResponse {
+        self.browse
+            .search_libraries(SearchLibrariesRequest {
+                query: query.to_owned(),
+                ..Default::default()
+            })
+            .await
+            .unwrap()
+            .into_owned()
     }
 
     async fn list_movies(&self, library: i64) -> Result<Vec<Movie>, ConnectError> {
@@ -1097,7 +1121,7 @@ fn ffprobe_reading_h264_and_aac(bin: &Path) -> Ffmpeg {
 cat <<'EOF'
 {"streams": [{"codec_name": "h264", "codec_type": "video"},
              {"codec_name": "aac", "codec_type": "audio", "disposition": {"default": 1}}],
- "format": {"format_name": "mov,mp4,m4a,3gp,3g2,mj2"}}
+ "format": {"format_name": "mov,mp4,m4a,3gp,3g2,mj2", "duration": "1.000000"}}
 EOF
 "#;
     Ffmpeg {
@@ -1133,6 +1157,7 @@ async fn an_h264_and_aac_mp4_direct_plays_through_its_plans_url() {
         plan.reasons,
         [
             "Its Tracks need no change",
+            "Its length is known",
             "This Device decodes its container and Tracks",
             "This Server lacks ffmpeg or ffprobe, so it can only Direct Play",
             "No hardware acceleration passed its test when this Server started, so a Transcode \
@@ -1159,7 +1184,7 @@ case "$*" in *2160p*) video=hevc ;; *) video=h264 ;; esac
 cat <<EOF
 {"streams": [{"codec_name": "$video", "codec_type": "video"},
              {"codec_name": "aac", "codec_type": "audio", "disposition": {"default": 1}}],
- "format": {"format_name": "matroska,webm"}}
+ "format": {"format_name": "matroska,webm", "duration": "1.000000"}}
 EOF
 "#;
     let ffmpeg = format!(
@@ -1169,24 +1194,6 @@ EOF
     Ffmpeg {
         ffmpeg: Ok(script(bin, "ffmpeg", &ffmpeg)),
         ffprobe: Ok(script(bin, "ffprobe", ffprobe)),
-    }
-}
-
-/// The program `name`, the shell script `body` written to `bin`.
-#[cfg(unix)]
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
-fn script(bin: &Path, name: &str, body: &str) -> FoundProgram {
-    use std::os::unix::fs::PermissionsExt;
-
-    let path = bin.join(name);
-    fs::write(&path, body).unwrap();
-    fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
-    FoundProgram {
-        path,
-        version: "7.1.1".to_owned(),
     }
 }
 
@@ -1277,7 +1284,7 @@ async fn with_the_cap_full_a_device_that_plays_a_remux_gets_one_and_the_plan_say
 
     assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_REMUX);
     assert_eq!(
-        plan.reasons.get(5).map(String::as_str),
+        plan.reasons.get(6).map(String::as_str),
         Some(
             "This Server is busy, running as many Transcodes as it may at once (1), so it can't \
              Transcode it"
@@ -1328,7 +1335,7 @@ async fn with_an_ffmpeg_lacking_libx264_a_version_needing_a_transcode_cant_be_pl
         PlaybackMethod::PLAYBACK_METHOD_UNSPECIFIED
     );
     assert_eq!(
-        needs_transcode.reasons[2],
+        needs_transcode.reasons[3],
         "This Server's ffmpeg lacks libx264, so it can't Transcode"
     );
     assert_eq!(remux.method, PlaybackMethod::PLAYBACK_METHOD_REMUX);
@@ -1387,6 +1394,8 @@ async fn without_ffprobe_a_version_direct_plays_and_its_plan_says_its_tracks_are
         [
             "Its Tracks aren't known, so they're taken to need no change, and it can only be \
              Direct Played",
+            "Its length isn't known, which a Remux's or a Transcode's playlist needs, so it can \
+             only be Direct Played",
             "Its Tracks aren't known, so this Device is taken to decode them",
             "This Server lacks ffmpeg or ffprobe, so it can only Direct Play",
             "No hardware acceleration passed its test when this Server started, so a Transcode \
@@ -1896,9 +1905,9 @@ async fn behind_a_trusted_proxy_the_forwarded_client_address_decides_whether_pla
         .await
         .unwrap();
 
-    assert_eq!(remote.reasons[7], REMOTE_720P);
+    assert_eq!(remote.reasons[8], REMOTE_720P);
     assert_eq!(remote.playback_limit, PlaybackLimit::PLAYBACK_LIMIT_720P);
-    assert_eq!(local.reasons[7], LOCAL);
+    assert_eq!(local.reasons[8], LOCAL);
     assert_eq!(local.playback_limit, PlaybackLimit::PLAYBACK_LIMIT_ORIGINAL);
 }
 
@@ -1917,7 +1926,7 @@ async fn behind_an_untrusted_proxy_the_peers_address_decides_whether_playback_is
         .await
         .unwrap();
 
-    assert_eq!(plan.reasons[7], LOCAL);
+    assert_eq!(plan.reasons[8], LOCAL);
     assert_eq!(plan.playback_limit, PlaybackLimit::PLAYBACK_LIMIT_ORIGINAL);
 }
 
@@ -2028,7 +2037,7 @@ async fn a_version_whose_direct_play_just_failed_on_the_device_cant_be_played_an
 
     assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_UNSPECIFIED);
     assert_eq!(plan.url, "");
-    assert_eq!(plan.reasons[4], "Direct Play failed on this Device");
+    assert_eq!(plan.reasons[5], "Direct Play failed on this Device");
 }
 
 /// The pure tests in `src/playback.rs` cover what these choices do; this checks they reach it.
@@ -2045,9 +2054,9 @@ async fn a_picked_playback_limit_and_a_failed_transcode_reach_the_plan() {
         .await
         .unwrap();
 
-    assert_eq!(plan.reasons[4], "Transcode failed on this Device");
+    assert_eq!(plan.reasons[5], "Transcode failed on this Device");
     assert_eq!(
-        plan.reasons[8],
+        plan.reasons[9],
         "Its picture size isn't known, so it's taken to fit the 480p Playback Limit"
     );
 }
@@ -2978,4 +2987,50 @@ async fn marking_a_movie_of_a_shows_library_or_a_show_of_a_movies_library_is_inv
         RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
     );
     assert_eq!(refusal.field, "target");
+}
+
+#[tokio::test]
+async fn a_search_finds_a_show_by_its_title_and_an_episode_with_its_show_and_season() {
+    let fx = Fixture::start(LibraryKind::LIBRARY_KIND_SHOWS).await;
+    fx.write(THE_OFFICE_US_S01E02, b"video");
+    fx.scan_and_match().await;
+
+    let office = fx.search("office").await;
+    let diversity = fx.search("diversity").await;
+
+    let shows: Vec<_> = (office.shows.iter())
+        .map(|show| (show.library_id, &*show.id, show.title.as_str()))
+        .collect();
+    assert_eq!(shows, [(fx.library, &tmdb_id(THE_OFFICE_US), "The Office")]);
+    let episodes: Vec<_> = (diversity.episodes.iter())
+        .map(|episode| {
+            let numbers = (episode.season_number, episode.episode_number);
+            (
+                episode.library_id,
+                &*episode.show_id,
+                episode.show_title.as_str(),
+                numbers,
+            )
+        })
+        .collect();
+    let office_us = tmdb_id(THE_OFFICE_US);
+    assert_eq!(episodes, [(fx.library, &office_us, "The Office", (1, 2))]);
+    assert_eq!(diversity.episodes[0].title, "Diversity Day");
+}
+
+#[tokio::test]
+async fn a_movie_a_scan_matches_is_found_right_after_it_and_not_once_its_file_is_removed() {
+    let fx = Fixture::start(LibraryKind::LIBRARY_KIND_MOVIES).await;
+    fx.write(DUNE_2021, b"video");
+    fx.scan_and_match().await;
+
+    let found = fx.search("dune 2021").await.movies;
+
+    let movies: Vec<_> = (found.iter())
+        .map(|movie| (movie.library_id, &*movie.id, movie.title.as_str()))
+        .collect();
+    assert_eq!(movies, [(fx.library, &tmdb_id(DUNE), "Dune")]);
+    fs::remove_file(fx.folder.join(DUNE_2021)).unwrap();
+    fx.scan_and_match().await;
+    assert_eq!(fx.search("dune").await.movies, []);
 }

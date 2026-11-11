@@ -3,7 +3,7 @@
 ### Data
 
 - **One database writer.** Every write goes through `Database::write` or `Database::write_then` in `src/db.rs`, on the one writable SQLite connection. Long jobs such as a scan write in small batches.
-- **One owner for a Library's contents.** Only `src/contents.rs` reads or writes `library_files`, `library_items`, `item_matches` and `match_pins`, tests included. Everything else goes through `Contents`.
+- **One owner for a Library's contents.** Only `src/contents.rs` reads or writes `library_files`, `library_items`, `item_matches`, `match_pins` and `title_search`, tests included. Everything else goes through `Contents`.
 - **One owner for Tracks.** Only `src/tracks.rs` reads or writes `version_probes`, `tracks` and `probe_failures`, tests included. Browse attaches them to the Versions `Contents` reads.
 - **One owner for probing.** Only `src/probing.rs` runs ffprobe on stored files and decides what a probe failure means for trying it again (`ProbeFailure`); Tracks stores it.
 - **One owner for Quality rules.** Only `src/qualities.rs` reads or writes `qualities` and `default_qualities`, tests included, and decides which Quality a Request, Show or Followed Show takes (ADR 0025). Requests and handlers ask it.
@@ -12,7 +12,7 @@
 - **Requester rules once.** What a Request and a Followed Show share (Requesters, the guarded Pending decision, who may see one) is written once in `src/requests/asked.rs`; each keeps only what differs.
 - **One owner for Plugin changes.** Outside tests, only `src/plugin_settings.rs` enables or disables a Plugin or saves its settings, under its one lock and in ADR 0028's order. Handlers and tasks ask `PluginSettings`; they don't call `Registry::enable_by_id` or `Registry::disable`.
 - **Query data.** After changing a `sqlx::query!` or anything in `migrations/`, regenerate `.sqlx/` at the workspace root and commit it (commands in `README.md`).
-- **Name parser version.** A change to how names are parsed or how Matching decides that could turn an Unmatched Item into a Match bumps `PARSER_VERSION` in `src/scanner/names.rs`, so the next scan parses stored files again and retries their automatic Unmatched decisions (ADR 0023).
+- **Name parser version.** A change to how names are parsed or how Matching decides that could turn an Unmatched Item into a Match bumps `PARSER_VERSION` in `src/scanner/names.rs`, so the next scan parses stored files again and retries their automatic Unmatched decisions (ADR 0023). So does a change to what Matching stores about an automatic Unmatched decision, such as why it was made, so decisions stored before it get it.
 - **Probe version.** A change to what probing reads from a file, or how, bumps `PROBE_VERSION` in `src/tracks.rs`, so the next pass after a scan probes every file again (ADR 0023's pattern).
 - **Probe failure version.** A change that may let ffprobe read files it lastingly failed on before, without changing what probing reads from a file that it could read, bumps `PROBE_FAILURE_VERSION` in `src/tracks.rs`, so the next pass tries again only those files.
 - **WebVTT version.** A change to the WebVTT a subtitle source makes bumps `WEBVTT_VERSION` in `src/playback/subtitles.rs`, so what the cache kept from before is made again.

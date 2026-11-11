@@ -13,13 +13,13 @@ use nama_proto::nama::v1::PluginKind;
 use super::{Described, Registry, contain_sync, kept_logo};
 
 fn all() -> Vec<fn() -> Arc<dyn Plugin>> {
-    let mut all: Vec<fn() -> Arc<dyn Plugin>> =
-        vec![|| Arc::new(LocalAuth), || Arc::new(LogEvents), || {
-            Arc::new(Tmdb::new())
-        }];
-    #[cfg(feature = "testing")]
-    all.push(|| Arc::new(nama_plugin_test_choices::TestChoices));
-    all
+    vec![
+        || Arc::new(LocalAuth),
+        || Arc::new(LogEvents),
+        || Arc::new(Tmdb::new()),
+        #[cfg(feature = "testing")]
+        || Arc::new(nama_plugin_test_choices::TestChoices),
+    ]
 }
 
 impl Registry {

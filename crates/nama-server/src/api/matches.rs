@@ -1,7 +1,7 @@
 //! Fixing Matches by hand: `nama.v1.MatchService`.
 
 use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
-use nama_plugin_api::metadata::{Candidate, SearchQuery};
+use nama_plugin_api::metadata::SearchQuery;
 use nama_proto::nama::v1::{
     self as proto, ClearMatchRequest, ClearMatchResponse, ListUnmatchedItemsRequest,
     ListUnmatchedItemsResponse, MatchService, RefusalReason, SearchMetadataRequest,
@@ -9,7 +9,7 @@ use nama_proto::nama::v1::{
 };
 
 use crate::{
-    contents::{Contents, Item, Unmatched},
+    contents::{Contents, Item, TiedTitle, Unmatched, UnmatchedReason},
     libraries::Libraries,
     matching::{ManualError, Matcher},
     scanner::Scanner,
@@ -58,7 +58,7 @@ impl MatchService for MatchServiceHandler {
         Response::ok(SearchMetadataResponse {
             candidates: candidates
                 .into_iter()
-                .map(|(_, candidate)| candidate_to_proto(candidate))
+                .map(|(_, candidate)| title_to_proto(candidate.into()))
                 .collect(),
             ..Default::default()
         })
@@ -131,13 +131,28 @@ impl MatchService for MatchServiceHandler {
     }
 }
 
-fn candidate_to_proto(candidate: Candidate) -> proto::TitleCandidate {
+fn title_to_proto(title: TiedTitle) -> proto::TitleCandidate {
     proto::TitleCandidate {
-        id: external_id_to_proto(candidate.id).into(),
-        title: candidate.title,
-        original_title: candidate.original_title,
-        year: candidate.year,
+        id: external_id_to_proto(title.id).into(),
+        title: title.title,
+        original_title: title.original_title,
+        year: title.year,
         ..Default::default()
+    }
+}
+
+fn reason_to_proto(
+    reason: Option<UnmatchedReason>,
+) -> (proto::UnmatchedReason, Vec<proto::TitleCandidate>) {
+    use proto::UnmatchedReason as R;
+    match reason {
+        None => (R::UNMATCHED_REASON_UNSPECIFIED, Vec::new()),
+        Some(UnmatchedReason::Ambiguous(tied)) => (
+            R::UNMATCHED_REASON_AMBIGUOUS,
+            tied.into_iter().map(title_to_proto).collect(),
+        ),
+        Some(UnmatchedReason::NoTitleFits) => (R::UNMATCHED_REASON_NO_TITLE_FITS, Vec::new()),
+        Some(UnmatchedReason::UnknownIdHint) => (R::UNMATCHED_REASON_UNKNOWN_ID_HINT, Vec::new()),
     }
 }
 
@@ -157,6 +172,7 @@ fn unmatched_to_proto(unmatched: Unmatched) -> proto::UnmatchedItem {
             Some((season, episode)),
         ),
     };
+    let (reason, tied_titles) = reason_to_proto(unmatched.reason);
     proto::UnmatchedItem {
         item_id: unmatched.id,
         path: unmatched.path,
@@ -165,6 +181,8 @@ fn unmatched_to_proto(unmatched: Unmatched) -> proto::UnmatchedItem {
         year: year.and_then(int32),
         season: numbers.and_then(|(season, _)| int32(season)),
         episode: numbers.and_then(|(_, episode)| int32(episode)),
+        reason: reason.into(),
+        tied_titles,
         ..Default::default()
     }
 }
