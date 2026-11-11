@@ -26,7 +26,6 @@ use crate::{
     ffmpeg::Ffmpeg,
     forwarded::{RequestSource, identify_source},
     libraries::Libraries,
-    matching::Matcher,
     metadata::MetadataSource,
     playback::running::RunningPlans,
     plugin_settings::PluginSettings,
@@ -113,11 +112,10 @@ pub(crate) fn router(
             sign_in: SignIn::new(users.clone(), setup_code),
         }))
         .add_service(Arc::new(MatchServiceHandler {
-            matcher: Matcher::new(Arc::clone(&db), plugins.clone(), events.clone()),
+            matcher: scanner.matcher().clone(),
             metadata: MetadataSource::new(plugins),
             contents: Contents::new(Arc::clone(&db)),
             libraries: Libraries::new(Arc::clone(&db)),
-            scanner: scanner.clone(),
         }))
         .add_service(Arc::new(BrowseServiceHandler {
             browse: browse.clone(),

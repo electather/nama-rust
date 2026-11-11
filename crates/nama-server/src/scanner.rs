@@ -47,7 +47,7 @@ use crate::{
     db::{Database, detached},
     events::{EventBus, event},
     libraries::{self, Kind, Libraries, Library},
-    matching::{self, ManualError, Matcher, count},
+    matching::{self, Matcher, count},
     plugins::Registry,
     probing::Probing,
 };
@@ -126,13 +126,28 @@ struct Inner {
     /// How many scans of each Library have published `ScanStarted`, so Probing knows whether a
     /// later scan has. Held while publishing either, so none comes out of order.
     started: Mutex<HashMap<i64, u64>>,
-    /// Each Library's scan lock, handed out as a [`ScanLock`].
-    running: Mutex<HashMap<i64, Arc<tokio::sync::Mutex<()>>>>,
+    locks: ScanLocks,
     watches: watch::Watches,
 }
 
+/// Each Library's scan lock, shared by the [`Scanner`] and its [`Matcher`]. Only
+/// [`Scanner::new`] makes one, so no Matcher fixes a Match under locks a scan doesn't take.
+#[derive(Debug, Clone)]
+pub(crate) struct ScanLocks(Arc<Mutex<HashMap<i64, Arc<tokio::sync::Mutex<()>>>>>);
+
+impl ScanLocks {
+    /// Waits for any scan of the Library `id` to finish, then takes its scan lock.
+    pub(crate) async fn lock(&self, id: i64) -> ScanLock {
+        let mutex = Arc::clone(lock(&self.0).entry(id).or_default());
+        ScanLock {
+            library: id,
+            _guard: mutex.lock_owned().await,
+        }
+    }
+}
+
 /// A Library's scan lock: while it's held, no scan of the Library runs or starts, so the
-/// Library's items don't change. Only the [`Scanner`] makes one.
+/// Library's items don't change. Only [`ScanLocks`] makes one.
 #[derive(Debug)]
 pub(crate) struct ScanLock {
     library: i64,
@@ -155,10 +170,11 @@ impl Scanner {
         events: EventBus,
         probing: Option<Probing>,
     ) -> Self {
+        let locks = ScanLocks(Arc::default());
         Self {
             inner: Arc::new(Inner {
                 libraries: Libraries::new(Arc::clone(&db)),
-                matcher: Matcher::new(Arc::clone(&db), plugins, events.clone()),
+                matcher: Matcher::new(Arc::clone(&db), plugins, events.clone(), locks.clone()),
                 events,
                 probing,
                 contents: Contents::new(db),
@@ -166,7 +182,7 @@ impl Scanner {
                 cancel: CancellationToken::new(),
                 queued: Mutex::default(),
                 started: Mutex::default(),
-                running: Mutex::default(),
+                locks,
                 watches: watch::Watches::default(),
             }),
         }
@@ -238,6 +254,11 @@ impl Scanner {
         .await
     }
 
+    /// The Matcher that fixes a Match by hand, waiting for a scan of the item's Library.
+    pub(crate) fn matcher(&self) -> &Matcher {
+        &self.inner.matcher
+    }
+
     /// Cancels the scans running or waiting, waits for them to stop, and starts no more.
     pub(crate) async fn shutdown(&self) {
         self.inner.cancel.cancel();
@@ -252,7 +273,7 @@ impl Scanner {
         }
         let scanner = self.clone();
         self.inner.tasks.spawn(async move {
-            let scan = scanner.lock(id).await;
+            let scan = scanner.inner.locks.lock(id).await;
             lock(&scanner.inner.queued).remove(&id);
             match scanner.scan_locked(&scan).await {
                 // The Library was deleted after the scan was asked for.
@@ -260,27 +281,6 @@ impl Scanner {
                 Err(err) => tracing::error!(library = id, "scanning a Library failed: {err}"),
             }
         });
-    }
-
-    /// Waits for any scan of the Library `id` to finish, then takes its scan lock.
-    pub(crate) async fn lock(&self, id: i64) -> ScanLock {
-        let mutex = Arc::clone(lock(&self.inner.running).entry(id).or_default());
-        ScanLock {
-            library: id,
-            _guard: mutex.lock_owned().await,
-        }
-    }
-
-    /// Takes the scan lock of the Library the item `item` is in, refusing an unknown item as
-    /// [`ManualError::NoSuchItem`].
-    pub(crate) async fn lock_library_of(&self, item: i64) -> Result<ScanLock, ManualError> {
-        let library = self
-            .inner
-            .contents
-            .library_of(item)
-            .await?
-            .ok_or(ManualError::NoSuchItem(item))?;
-        Ok(self.lock(library).await)
     }
 
     async fn scan_locked(&self, scan: &ScanLock) -> Result<Summary, Error> {
@@ -524,6 +524,11 @@ impl Scanner {
     pub(crate) async fn scan(&self, id: i64) -> Result<Summary, Error> {
         let scan = self.lock(id).await;
         self.scan_locked(&scan).await
+    }
+
+    /// Takes the scan lock a scan of the Library `id` takes, to hold it as a scan would.
+    pub(crate) async fn lock(&self, id: i64) -> ScanLock {
+        self.inner.locks.lock(id).await
     }
 
     /// Waits until no background scan is running or waiting.

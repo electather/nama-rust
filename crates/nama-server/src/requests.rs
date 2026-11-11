@@ -2485,7 +2485,6 @@ mod tests {
         db::Database,
         events::{EventBus, Filter},
         libraries::{Kind, Libraries},
-        matching::Matcher,
         plugins::Registry,
         scanner::Scanner,
         server_settings::ServerUrl,
@@ -3291,16 +3290,11 @@ mod tests {
             requests.hand_off.events().clone(),
             None,
         );
-        let scan = scanner.lock(library).await;
         let mut published = subscribe(&requests);
-        let pinning = Matcher::new(
-            Arc::clone(&requests.db),
-            requests.hand_off.plugins.clone(),
-            requests.hand_off.events().clone(),
-        );
+        let pinning = scanner.matcher().clone();
 
         leave_once_queued(&requests, async move {
-            pinning.set_match(&scan, item, &ExternalId::Tmdb(949)).await
+            pinning.set_match(item, &ExternalId::Tmdb(949)).await
         })
         .await;
 
