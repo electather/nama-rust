@@ -181,7 +181,7 @@ impl PendingEpisode {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Miss {
-    /// With why, where Matching stores it.
+    /// With why, or `None` where Matching stores none: a pin, or an Episode its Show doesn't have.
     Unmatched(Option<UnmatchedReason>),
     /// The metadata Provider couldn't answer: the item is Unmatched for now, but undecided, so
     /// the next scan tries again.

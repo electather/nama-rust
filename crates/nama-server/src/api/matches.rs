@@ -1,7 +1,7 @@
 //! Fixing Matches by hand: `nama.v1.MatchService`.
 
 use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
-use nama_plugin_api::metadata::{Candidate, SearchQuery};
+use nama_plugin_api::metadata::SearchQuery;
 use nama_proto::nama::v1::{
     self as proto, ClearMatchRequest, ClearMatchResponse, ListUnmatchedItemsRequest,
     ListUnmatchedItemsResponse, MatchService, RefusalReason, SearchMetadataRequest,
@@ -58,7 +58,7 @@ impl MatchService for MatchServiceHandler {
         Response::ok(SearchMetadataResponse {
             candidates: candidates
                 .into_iter()
-                .map(|(_, candidate)| candidate_to_proto(candidate))
+                .map(|(_, candidate)| title_to_proto(candidate.into()))
                 .collect(),
             ..Default::default()
         })
@@ -131,11 +131,7 @@ impl MatchService for MatchServiceHandler {
     }
 }
 
-fn candidate_to_proto(candidate: Candidate) -> proto::TitleCandidate {
-    tied_title_to_proto(candidate.into())
-}
-
-fn tied_title_to_proto(title: TiedTitle) -> proto::TitleCandidate {
+fn title_to_proto(title: TiedTitle) -> proto::TitleCandidate {
     proto::TitleCandidate {
         id: external_id_to_proto(title.id).into(),
         title: title.title,
@@ -153,7 +149,7 @@ fn reason_to_proto(
         None => (R::UNMATCHED_REASON_UNSPECIFIED, Vec::new()),
         Some(UnmatchedReason::Ambiguous(tied)) => (
             R::UNMATCHED_REASON_AMBIGUOUS,
-            tied.into_iter().map(tied_title_to_proto).collect(),
+            tied.into_iter().map(title_to_proto).collect(),
         ),
         Some(UnmatchedReason::NoTitleFits) => (R::UNMATCHED_REASON_NO_TITLE_FITS, Vec::new()),
         Some(UnmatchedReason::UnknownIdHint) => (R::UNMATCHED_REASON_UNKNOWN_ID_HINT, Vec::new()),

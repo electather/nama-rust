@@ -72,6 +72,7 @@ function parsedAs(item: UnmatchedItem) {
   return `${title} · Season ${item.season}, Episode ${item.episode}`;
 }
 
+// "en-GB" for "A, B or C", without the serial comma, as the rest of the app writes lists.
 const titleList = new Intl.ListFormat("en-GB", { type: "disjunction" });
 
 /** Why automatic Matching left `item` Unmatched, which says how to fix it, or "" if not known. */
