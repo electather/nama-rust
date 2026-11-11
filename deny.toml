@@ -34,6 +34,8 @@ exceptions = [
   # Mozilla's root certificates, as data. Extism's HTTP client for Installed Plugins (ureq) turns
   # them on, and a dependent can't turn a dependency's default features off.
   { allow = ["CDLA-Permissive-2.0"], crate = "webpki-roots" },
+  # Public domain, the file watcher the scanner uses (#115).
+  { allow = ["CC0-1.0"], crate = "notify" },
 ]
 
 [bans]
