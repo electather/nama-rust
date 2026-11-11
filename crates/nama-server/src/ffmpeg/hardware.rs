@@ -42,6 +42,11 @@ impl Hardware {
             None => self.accel.name().to_owned(),
         }
     }
+
+    /// Whether it is `accel` on the GPU at the PCI address `gpu_id`.
+    pub(crate) fn is_pair(&self, accel: Accel, gpu_id: &str) -> bool {
+        self.accel == accel && (self.gpu.as_ref()).is_some_and(|gpu| gpu.id() == gpu_id)
+    }
 }
 
 /// A GPU the Server found: a render node backed by a PCI function.

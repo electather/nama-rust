@@ -41,3 +41,4 @@
 0041_unmatched_reason.sql
 0042_title_search.sql
 0043_font_attachments.sql
+0044_hardware_gpu.sql

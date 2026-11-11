@@ -956,32 +956,71 @@ fn hdr_reason(kind: Kind, hdr: Hdr, text: String) -> Reason {
 
 /// The hardware a Transcode runs on, as the admin chose, or why it runs in software.
 fn transcodes_on(facts: &Facts) -> Result<Hardware, Reason> {
-    let found = |accel| (facts.can_do.hardware.iter()).find(|found| found.accel == accel);
-    match facts.hardware_choice {
+    let can_do = &facts.can_do;
+    let failed = |accel, text: String| {
+        accel_reason(
+            Kind::PLAYBACK_REASON_KIND_HARDWARE_ACCELERATION_FAILED_TEST,
+            accel,
+            text,
+        )
+    };
+    match &facts.hardware_choice {
         HardwareChoice::Off => Err(Reason::new(
             Kind::PLAYBACK_REASON_KIND_HARDWARE_ACCELERATION_OFF,
             "Hardware acceleration is off, so it Transcodes in software",
         )),
-        HardwareChoice::Automatic => facts.can_do.automatic().cloned().ok_or_else(|| {
+        HardwareChoice::Automatic => can_do.automatic().cloned().ok_or_else(|| {
             Reason::new(
                 Kind::PLAYBACK_REASON_KIND_NO_HARDWARE_ACCELERATION_PASSED,
                 "No hardware acceleration passed its test when this Server started, so it \
                  Transcodes in software",
             )
         }),
-        // Stored before GPUs were told apart, it means the API on whichever GPU Automatic prefers.
-        HardwareChoice::Api(accel) => found(accel).cloned().ok_or_else(|| {
-            let text = format!(
-                "{} didn't pass its test when this Server started, so it Transcodes in software",
-                accel.name()
-            );
-            accel_reason(
-                Kind::PLAYBACK_REASON_KIND_HARDWARE_ACCELERATION_FAILED_TEST,
-                accel,
-                text,
-            )
-        }),
+        // Stored before GPUs could be picked, or where none was found, it means the API on
+        // whichever GPU Automatic prefers.
+        HardwareChoice::Api(accel, None) => (can_do.hardware.iter())
+            .find(|found| found.accel == *accel)
+            .cloned()
+            .ok_or_else(|| {
+                failed(
+                    *accel,
+                    format!(
+                        "{} didn't pass its test when this Server started, so it Transcodes in \
+                         software",
+                        accel.name()
+                    ),
+                )
+            }),
+        // Software, not Automatic's pick: an Admin may have picked this GPU to keep another free.
+        HardwareChoice::Api(accel, Some(picked)) => (can_do.hardware.iter())
+            .find(|found| found.is_pair(*accel, &picked.id))
+            .cloned()
+            .ok_or_else(|| {
+                // The name leads the sentence, and an integrated GPU's starts lowercase.
+                let named = capitalised(&picked.name);
+                let text = if can_do.gpus.iter().any(|gpu| gpu.id() == picked.id) {
+                    format!(
+                        "{named} didn't pass its {} test when this Server started, so it \
+                         Transcodes in software",
+                        accel.name()
+                    )
+                } else {
+                    format!(
+                        "{named} wasn't found when this Server started, so it Transcodes in \
+                         software"
+                    )
+                };
+                failed(*accel, text)
+            }),
     }
+}
+
+/// `text` with its first letter upper case.
+fn capitalised(text: &str) -> String {
+    let mut chars = text.chars();
+    chars.next().map_or_else(String::new, |first| {
+        first.to_uppercase().chain(chars).collect()
+    })
 }
 
 /// The most Transcodes the Server runs at once when the admin hasn't set it: no limit while they
@@ -1733,7 +1772,7 @@ mod tests {
             Accel, CanDo, Hardware, Remux, RemuxAudio, ToneMapper, Transcode, VideoConversion,
             VideoLimit,
         },
-        server_settings::HardwareChoice,
+        server_settings::{HardwareChoice, PickedGpu},
         tracks::{BaseLayer, Hdr, Probe, Track, TrackKind},
     };
 
@@ -1837,6 +1876,7 @@ mod tests {
                 zscale: true,
                 libx264: true,
                 hardware: vec![],
+                gpus: vec![],
             },
             failed: BTreeSet::new(),
             audio: None,
@@ -3167,7 +3207,7 @@ mod tests {
     fn a_chosen_api_is_used_if_it_was_found_and_else_transcodes_run_in_software() {
         let cases = [
             (
-                HardwareChoice::Api(Accel::Vaapi),
+                HardwareChoice::Api(Accel::Vaapi, None),
                 vec![QSV, VAAPI],
                 Some(Accel::Vaapi),
                 (
@@ -3176,7 +3216,7 @@ mod tests {
                 ),
             ),
             (
-                HardwareChoice::Api(Accel::Nvenc),
+                HardwareChoice::Api(Accel::Nvenc, None),
                 vec![VAAPI],
                 None,
                 (
@@ -3201,16 +3241,17 @@ mod tests {
             ),
         ];
         for (choice, found, on, reason) in cases {
+            let label = format!("{choice:?}");
             let mut facts = hevc_on(choice, found, None);
 
             let plan = build(&mut facts);
 
-            assert_eq!(given(&plan).last(), Some(&reason), "{choice:?}");
+            assert_eq!(given(&plan).last(), Some(&reason), "{label}");
             let accel = transcoded(&plan)
                 .video
                 .hardware
                 .map(|hardware| hardware.accel);
-            assert_eq!(accel, on, "{choice:?}");
+            assert_eq!(accel, on, "{label}");
         }
     }
 
@@ -3243,15 +3284,22 @@ mod tests {
     };
 
     /// VAAPI on a dedicated AMD Radeon RX 9070 XT, then on an integrated AMD GPU, as Automatic
-    /// orders them.
+    /// orders them, with the integrated one on `renderD128`.
     #[cfg(unix)]
     fn vaapi_on_two_gpus(root: &std::path::Path) -> Vec<Hardware> {
+        vaapi_on_two_gpus_at(root, ["renderD128", "renderD129"])
+    }
+
+    /// As [`vaapi_on_two_gpus`], with the integrated GPU and the dedicated one on `nodes`.
+    #[cfg(unix)]
+    fn vaapi_on_two_gpus_at(root: &std::path::Path, nodes: [&str; 2]) -> Vec<Hardware> {
         use crate::ffmpeg::{fake, find_gpus};
 
         let (sys, dri) = (root.join("sys"), root.join("dri"));
-        fake::gpu(&sys, &dri, "renderD128", "0000:18:00.0", "0x1002");
+        let [integrated, dedicated] = nodes;
+        fake::gpu(&sys, &dri, integrated, "0000:18:00.0", "0x1002");
         fake::pci_function(&sys, "0000:18:00.2", "0x1022");
-        fake::gpu(&sys, &dri, "renderD129", "0000:03:00.0", "0x1002");
+        fake::gpu(&sys, &dri, dedicated, "0000:03:00.0", "0x1002");
         let mesa = "VAAPI driver: Mesa Gallium driver 26.2.6 for AMD Radeon RX 9070 XT (radeonsi)";
         find_gpus(&dri, &sys.join("class/drm"))
             .into_iter()
@@ -3271,8 +3319,11 @@ mod tests {
     fn a_stored_api_runs_on_the_first_gpu_that_passed_with_it_and_the_plan_names_it() {
         let root = tempfile::tempdir().unwrap();
         let found = vaapi_on_two_gpus(root.path());
-        for choice in [HardwareChoice::Automatic, HardwareChoice::Api(Accel::Vaapi)] {
-            let mut facts = hevc_on(choice, found.clone(), None);
+        for choice in [
+            HardwareChoice::Automatic,
+            HardwareChoice::Api(Accel::Vaapi, None),
+        ] {
+            let mut facts = hevc_on(choice.clone(), found.clone(), None);
 
             let plan = build(&mut facts);
 
@@ -3307,8 +3358,80 @@ mod tests {
             hardware_choice: choice,
             ..in_container(MKV, Some(vec![hdr_video("hevc", hdr), audio("aac", true)]))
         };
+        facts.can_do.gpus = found.iter().filter_map(|found| found.gpu.clone()).collect();
         facts.can_do.hardware = found;
         facts
+    }
+
+    /// The choice of VAAPI on the GPU at the PCI address `id`, last found as `name`.
+    fn vaapi_picked(id: &str, name: &str) -> HardwareChoice {
+        let gpu = PickedGpu {
+            id: id.to_owned(),
+            name: name.to_owned(),
+        };
+        HardwareChoice::Api(Accel::Vaapi, Some(gpu))
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_picked_gpu_runs_every_transcode_and_is_found_by_its_address_whatever_its_render_node() {
+        for nodes in [["renderD128", "renderD129"], ["renderD129", "renderD128"]] {
+            let root = tempfile::tempdir().unwrap();
+            let found = vaapi_on_two_gpus_at(root.path(), nodes);
+            let picked = vaapi_picked("0000:18:00.0", "AMD integrated GPU");
+            let mut facts = hevc_on(picked, found.clone(), None);
+
+            let plan = build(&mut facts);
+
+            assert_eq!(
+                plan.reasons.last().unwrap().text,
+                "It Transcodes on the AMD integrated GPU with VAAPI"
+            );
+            assert_eq!(transcoded(&plan).video.hardware.as_ref(), found.get(1));
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_picked_gpu_missing_at_startup_leaves_transcodes_in_software_though_another_passed() {
+        let root = tempfile::tempdir().unwrap();
+        let found = vaapi_on_two_gpus(root.path());
+        let mut facts = hevc_on(
+            vaapi_picked("0000:0a:00.0", "integrated GPU (AMD Ryzen 7 7840U)"),
+            found,
+            None,
+        );
+
+        let plan = build(&mut facts);
+
+        assert_eq!(
+            plan.reasons.last().unwrap().text,
+            "Integrated GPU (AMD Ryzen 7 7840U) wasn't found when this Server started, so it \
+             Transcodes in software"
+        );
+        assert_eq!(transcoded(&plan).video.hardware, None);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_picked_gpu_that_failed_its_test_leaves_transcodes_in_software_and_says_so() {
+        let root = tempfile::tempdir().unwrap();
+        let found = vaapi_on_two_gpus(root.path());
+        let mut facts = hevc_on(
+            vaapi_picked("0000:18:00.0", "AMD integrated GPU"),
+            found,
+            None,
+        );
+        facts.can_do.hardware.truncate(1);
+
+        let plan = build(&mut facts);
+
+        assert_eq!(
+            plan.reasons.last().unwrap().text,
+            "AMD integrated GPU didn't pass its VAAPI test when this Server started, so it \
+             Transcodes in software"
+        );
+        assert_eq!(transcoded(&plan).video.hardware, None);
     }
 
     #[test]

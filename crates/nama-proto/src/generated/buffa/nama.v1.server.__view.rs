@@ -4860,6 +4860,14 @@ pub struct PlaybackSettingsView<'a> {
     ///
     /// Field 4: `hardware_acceleration`
     pub hardware_acceleration: ::buffa::EnumValue<super::super::HardwareAcceleration>,
+    /// The GPU `hardware_acceleration` runs every Transcode on: one it passed its test on at startup,
+    /// as `GetPlaybackStatusResponse.hardware` lists them, or the one already saved. Unset for the
+    /// first GPU it passed on, and always for Automatic, Off, NVENC and VideoToolbox. A saved GPU
+    /// missing or failing its test at startup leaves Transcodes in software, and keeps its last
+    /// name. A save reads only its `id`.
+    ///
+    /// Field 5: `gpu`
+    pub gpu: ::buffa::MessageFieldView<super::super::__buffa::view::GpuView<'a>>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for PlaybackSettingsView<'a> {
@@ -4924,6 +4932,27 @@ impl<'a> ::buffa::MessageView<'a> for PlaybackSettingsView<'a> {
                     ::buffa::types::decode_int32(&mut cur)?,
                 );
             }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                match view.gpu.as_mut() {
+                    Some(existing) => {
+                        ::buffa::MessageView::merge_into_view(existing, sub, __sub_ctx)?
+                    }
+                    None => {
+                        view.gpu = ::buffa::MessageFieldView::set(
+                            <super::super::__buffa::view::GpuView as ::buffa::MessageView>::decode_view_ctx(
+                                sub,
+                                __sub_ctx,
+                            )?,
+                        );
+                    }
+                }
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -4950,6 +4979,15 @@ impl<'a> ::buffa::MessageView<'a> for PlaybackSettingsView<'a> {
             max_transcodes: self.max_transcodes,
             remote_playback_limit: self.remote_playback_limit,
             hardware_acceleration: self.hardware_acceleration,
+            gpu: match self.gpu.as_option() {
+                Some(v) => {
+                    ::buffa::MessageField::<
+                        super::super::Gpu,
+                        ::buffa::Inline<super::super::Gpu>,
+                    >::some(v.to_owned_from_source(__buffa_src)?)
+                }
+                None => ::buffa::MessageField::none(),
+            },
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -4957,7 +4995,7 @@ impl<'a> ::buffa::MessageView<'a> for PlaybackSettingsView<'a> {
 }
 impl<'a> ::buffa::ViewEncode<'a> for PlaybackSettingsView<'a> {
     #[allow(clippy::needless_borrow, clippy::let_and_return)]
-    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
@@ -4981,13 +5019,21 @@ impl<'a> ::buffa::ViewEncode<'a> for PlaybackSettingsView<'a> {
                 size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
             }
         }
+        if self.gpu.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.gpu.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
     #[allow(clippy::needless_borrow)]
     fn write_to(
         &self,
-        _cache: &mut ::buffa::SizeCache,
+        __cache: &mut ::buffa::SizeCache,
         buf: &mut impl ::buffa::EncodeSink,
     ) {
         #[allow(unused_imports)]
@@ -5009,6 +5055,14 @@ impl<'a> ::buffa::ViewEncode<'a> for PlaybackSettingsView<'a> {
             if val != 0 {
                 ::buffa::types::put_int32_field(4u32, val, buf);
             }
+        }
+        if self.gpu.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                5u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.gpu.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -5050,6 +5104,11 @@ impl<'__a> ::serde::Serialize for PlaybackSettingsView<'__a> {
             &self.hardware_acceleration,
         ) {
             __map.serialize_entry("hardwareAcceleration", &self.hardware_acceleration)?;
+        }
+        {
+            if let ::core::option::Option::Some(__v) = self.gpu.as_option() {
+                __map.serialize_entry("gpu", __v)?;
+            }
         }
         __map.end()
     }
@@ -5181,6 +5240,19 @@ impl PlaybackSettingsOwnedView {
         &self,
     ) -> ::buffa::EnumValue<super::super::HardwareAcceleration> {
         self.0.reborrow().hardware_acceleration
+    }
+    /// The GPU `hardware_acceleration` runs every Transcode on: one it passed its test on at startup,
+    /// as `GetPlaybackStatusResponse.hardware` lists them, or the one already saved. Unset for the
+    /// first GPU it passed on, and always for Automatic, Off, NVENC and VideoToolbox. A saved GPU
+    /// missing or failing its test at startup leaves Transcodes in software, and keeps its last
+    /// name. A save reads only its `id`.
+    ///
+    /// Field 5: `gpu`
+    #[must_use]
+    pub fn gpu(
+        &self,
+    ) -> &::buffa::MessageFieldView<super::super::__buffa::view::GpuView<'_>> {
+        &self.0.reborrow().gpu
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<PlaybackSettingsView<'static>>>

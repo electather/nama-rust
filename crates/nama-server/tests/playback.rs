@@ -25,15 +25,15 @@ use connectrpc::{
 };
 use http::{fetch, fetch_range};
 use nama_proto::nama::v1::{
-    AudioCodec, ClearMatchRequest, Container, DeleteLibraryRequest, DeviceDecoding, EventType,
-    HdrFormat, LibraryKind, LibraryServiceClient, PlanPlaybackRequest, Playback, PlaybackEnded,
-    PlaybackLimit, PlaybackMethod, PlaybackPlan, PlaybackReason, PlaybackReasonKind,
-    PlaybackServiceClient, PlaybackSettings, PlaybackStarted, RefusalReason, ServerServiceClient,
-    StopPlaybackRequest, SubtitleFormat, Track, UpdatePlaybackSettingsRequest, Version, VideoCodec,
-    VideoTrack,
+    AudioCodec, ClearMatchRequest, Container, DeleteLibraryRequest, DeviceDecoding, EventType, Gpu,
+    HardwareAcceleration, HdrFormat, LibraryKind, LibraryServiceClient, PlanPlaybackRequest,
+    Playback, PlaybackEnded, PlaybackLimit, PlaybackMethod, PlaybackPlan, PlaybackReason,
+    PlaybackReasonKind, PlaybackServiceClient, PlaybackSettings, PlaybackStarted, RefusalReason,
+    ServerServiceClient, StopPlaybackRequest, SubtitleFormat, Track, UpdatePlaybackSettingsRequest,
+    Version, VideoCodec, VideoTrack,
 };
 #[cfg(unix)]
-use nama_server::ffmpeg::fake::script;
+use nama_server::ffmpeg::{fake, fake::script};
 use nama_server::{
     config::Config,
     ffmpeg::{self, Ffmpeg},
@@ -487,6 +487,63 @@ async fn when_a_transcodes_session_ends_its_slot_frees_up_for_the_next() {
     assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_TRANSCODE);
 }
 
+// The fake ffmpeg and ffprobe are shell scripts.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_transcode_runs_on_the_gpu_an_admin_picked_and_its_plan_names_it() {
+    let bin = tempfile::tempdir().unwrap();
+    let (sys, dri) = (bin.path().join("sys"), bin.path().join("dri"));
+    fake::gpu(&sys, &dri, "renderD128", "0000:03:00.0", "0x1002");
+    fake::gpu(&sys, &dri, "renderD129", "0000:18:00.0", "0x1002");
+    fake::pci_function(&sys, "0000:18:00.2", "0x1022");
+    let runs = bin.path().join("transcodes.log");
+    // Passes every test encode, and logs a Transcode's arguments.
+    let ffmpeg = format!(
+        "#!/bin/sh\ncase \"$*\" in *-encoders*) printf ' V....D %s  H.264\\n' libx264 \
+         h264_vaapi ;; *-filters*) ;; *Alien*) echo \"$*\" >> '{}' ; exec sleep 600 ;; esac\n",
+        runs.display()
+    );
+    let ffmpeg = Ffmpeg {
+        ffmpeg: Ok(script(bin.path(), "ffmpeg-on-gpus", &ffmpeg)),
+        gpus: ffmpeg::find_gpus(&dri, &sys.join("class/drm")),
+        ..ffmpeg_writing_nothing(bin.path(), "libx264")
+    };
+    let fx = Fixture::start_with_ffmpeg(LibraryKind::LIBRARY_KIND_MOVIES, ffmpeg).await;
+    fx.write(ALIEN_2160P, b"video");
+    fx.scan_and_match().await;
+    ServerServiceClient::new(HttpClient::plaintext(), fx.server.client_config())
+        .update_playback_settings(UpdatePlaybackSettingsRequest {
+            settings: PlaybackSettings {
+                hardware_acceleration: HardwareAcceleration::HARDWARE_ACCELERATION_VAAPI.into(),
+                gpu: Gpu {
+                    id: "0000:18:00.0".to_owned(),
+                    ..Default::default()
+                }
+                .into(),
+                ..Default::default()
+            }
+            .into(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let [hevc] = fx.version_ids(ALIEN).await.try_into().unwrap();
+
+    let plan = fx.transcode(hevc).await;
+
+    assert_eq!(
+        reason_of(
+            &plan,
+            PlaybackReasonKind::PLAYBACK_REASON_KIND_TRANSCODES_ON_HARDWARE
+        )
+        .text,
+        "It Transcodes on the AMD integrated GPU with VAAPI"
+    );
+    let transcoded = written(&runs).await;
+    let integrated = format!("vaapi=nama:{}", dri.join("renderD129").display());
+    assert!(transcoded.contains(&integrated), "{transcoded}");
+}
+
 // ADR 0026. The fake ffmpeg and ffprobe are shell scripts.
 #[cfg(unix)]
 #[tokio::test]
@@ -749,11 +806,19 @@ fn beside(url: &str, file: &str) -> String {
 )]
 async fn ffmpegs_own_playlist(folder: &Path, url: &str) -> String {
     let id = url.split('/').nth(3).unwrap();
-    let path = folder.join(format!("nama-plan-{id}")).join("ffmpeg.m3u8");
+    written(&folder.join(format!("nama-plan-{id}")).join("ffmpeg.m3u8")).await
+}
+
+/// What the file at `path` holds once something writes it.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn written(path: &Path) -> String {
     tokio::time::timeout(WAIT, async {
         loop {
-            if let Ok(playlist) = fs::read_to_string(&path) {
-                return playlist;
+            if let Ok(written) = fs::read_to_string(path) {
+                return written;
             }
             tokio::time::sleep(Duration::from_millis(50)).await;
         }

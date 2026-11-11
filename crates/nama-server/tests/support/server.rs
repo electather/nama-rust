@@ -118,6 +118,26 @@ impl Builder {
         reason = "a test helper fails its test by panicking"
     )]
     pub(crate) async fn start(self) -> TestServer {
+        self.serve(tempfile::tempdir().unwrap(), None).await
+    }
+
+    /// Stops `server` and starts serving its data directory again, as a restart does, with its
+    /// Admin still signed in.
+    pub(crate) async fn restart(self, server: TestServer) -> TestServer {
+        let TestServer {
+            admin_token,
+            data_dir,
+            ..
+        } = server;
+        self.serve(data_dir, Some(admin_token)).await
+    }
+
+    /// Serves `data_dir`, signed in as `admin_token`, or else setting the first Admin up.
+    #[expect(
+        clippy::unwrap_used,
+        reason = "a test helper fails its test by panicking"
+    )]
+    async fn serve(self, data_dir: TempDir, admin_token: Option<String>) -> TestServer {
         let Self {
             config,
             plugins,
@@ -135,7 +155,6 @@ impl Builder {
         } else {
             None
         };
-        let data_dir = tempfile::tempdir().unwrap();
         let config = Config {
             data_dir: data_dir.path().to_owned(),
             ..config
@@ -146,20 +165,23 @@ impl Builder {
             .unwrap();
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
-        let setup_code = SetupCode::generate().unwrap();
+        let setup_code = (admin_token.is_none()).then(|| SetupCode::generate().unwrap());
         let (stop, stopped) = oneshot::channel::<()>();
         tokio::spawn(nama_server::serve(
             listener,
             &config,
             Arc::clone(&db),
             plugins,
-            Some(setup_code.clone()),
+            setup_code.clone(),
             ffmpeg,
             async {
                 let _: Result<(), oneshot::error::RecvError> = stopped.await;
             },
         ));
-        let admin_token = set_up(anonymous_config(addr), &setup_code).await;
+        let admin_token = match admin_token {
+            Some(token) => token,
+            None => set_up(anonymous_config(addr), &setup_code.unwrap()).await,
+        };
         TestServer {
             addr,
             admin_token,

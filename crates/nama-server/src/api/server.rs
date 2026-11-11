@@ -18,7 +18,7 @@ use nama_proto::nama::v1::{
 use crate::{
     ffmpeg::{self, Abilities, Accel, Ffmpeg, ToneMapper},
     playback::{accel_to_proto, limit_to_proto},
-    server_settings::{self, HardwareChoice, Invalid, PlaybackChange, PlaybackValues},
+    server_settings::{self, HardwareChoice, Invalid, PickedGpu, PlaybackChange, PlaybackValues},
     users::Users,
 };
 
@@ -98,13 +98,9 @@ impl ServerService for ServerServiceHandler {
         let automatic = can_do.automatic();
         let hardware = (can_do.hardware.iter())
             .map(|hardware| FoundHardware {
-                api: hardware_choice_to_proto(HardwareChoice::Api(hardware.accel)).into(),
+                api: accel_to_proto(hardware.accel).into(),
                 gpu: (hardware.gpu.as_ref())
-                    .map(|gpu| proto::Gpu {
-                        id: gpu.id().to_owned(),
-                        name: gpu.name(),
-                        ..Default::default()
-                    })
+                    .map(|gpu| gpu_to_proto(gpu.id().to_owned(), gpu.name()))
                     .into(),
                 tone_maps: hardware.tone_maps,
                 tone_mapping: tone_mapping_to_proto(can_do.tone_mapper(Some(hardware))).into(),
@@ -143,14 +139,22 @@ impl ServerService for ServerServiceHandler {
         _ctx: RequestContext,
         request: ServiceRequest<'_, UpdatePlaybackSettingsRequest>,
     ) -> ServiceResult<UpdatePlaybackSettingsResponse> {
+        let settings = &request.settings;
+        // An empty id is no GPU, as one stored with none reads back.
+        let gpu = (settings.gpu.as_option())
+            .map(|gpu| gpu.id)
+            .filter(|id| !id.is_empty());
+        let hardware = hardware_choice(settings.hardware_acceleration, gpu)
+            .map_err(|invalid| settings_change_failed(invalid.into()))?;
         let change = PlaybackChange {
-            segment_folder: request.settings.segment_folder,
-            max_transcodes: request.settings.max_transcodes,
-            hardware: hardware_choice(request.settings.hardware_acceleration),
-            remote_limit: limit_from_proto(request.settings.remote_playback_limit),
+            segment_folder: settings.segment_folder,
+            max_transcodes: settings.max_transcodes,
+            hardware,
+            remote_limit: limit_from_proto(settings.remote_playback_limit),
         };
-        let stored =
-            (self.settings.change_playback(change).await).map_err(settings_change_failed)?;
+        let passed = self.abilities.can_do().await.hardware;
+        let stored = (self.settings.change_playback(change, &passed).await)
+            .map_err(settings_change_failed)?;
         Response::ok(UpdatePlaybackSettingsResponse {
             settings: playback_settings_to_proto(stored).into(),
             ..Default::default()
@@ -172,7 +176,10 @@ fn playback_settings_to_proto(settings: PlaybackValues) -> proto::PlaybackSettin
         segment_folder: settings.segment_folder,
         max_transcodes: settings.max_transcodes.map(NonZeroU32::get),
         remote_playback_limit: limit_to_proto(settings.remote_limit).into(),
-        hardware_acceleration: hardware_choice_to_proto(settings.hardware).into(),
+        hardware_acceleration: hardware_choice_to_proto(&settings.hardware).into(),
+        gpu: (settings.hardware.gpu())
+            .map(|gpu| gpu_to_proto(gpu.id.clone(), gpu.name.clone()))
+            .into(),
         ..Default::default()
     }
 }
@@ -199,35 +206,63 @@ fn settings_change_failed(err: server_settings::ChangeError) -> ConnectError {
             "the most Transcodes at once must be at least 1",
         )
         .field("settings.max_transcodes"),
+        Refused(Invalid::GpuNotOffered { id }) => refuse(
+            RefusalReason::REFUSAL_REASON_GPU_NOT_OFFERED,
+            "the GPU must be one the hardware acceleration passed its test on when the Server \
+             started, as the Playback status lists them",
+        )
+        .field("settings.gpu")
+        .param("gpuId", &id),
     }
     .into()
 }
 
 /// The choice of what Transcodes run on that `choice` names, Automatic for one this Server
-/// doesn't know.
-fn hardware_choice(choice: EnumValue<HardwareAccelerationProto>) -> HardwareChoice {
+/// doesn't know, on the GPU at the PCI address `gpu` if given, which [`Settings`] names.
+///
+/// # Errors
+///
+/// [`Invalid::GpuNotOffered`] for a GPU with Automatic or Off.
+///
+/// [`Settings`]: server_settings::Settings
+fn hardware_choice(
+    choice: EnumValue<HardwareAccelerationProto>,
+    gpu: Option<&str>,
+) -> Result<HardwareChoice, Invalid> {
     use HardwareAccelerationProto as P;
-    match choice {
-        EnumValue::Known(P::HARDWARE_ACCELERATION_OFF) => HardwareChoice::Off,
-        EnumValue::Known(P::HARDWARE_ACCELERATION_VAAPI) => HardwareChoice::Api(Accel::Vaapi),
-        EnumValue::Known(P::HARDWARE_ACCELERATION_QSV) => HardwareChoice::Api(Accel::Qsv),
-        EnumValue::Known(P::HARDWARE_ACCELERATION_NVENC) => HardwareChoice::Api(Accel::Nvenc),
-        EnumValue::Known(P::HARDWARE_ACCELERATION_VIDEOTOOLBOX) => {
-            HardwareChoice::Api(Accel::VideoToolbox)
-        }
+    let accel = match choice {
+        EnumValue::Known(P::HARDWARE_ACCELERATION_VAAPI) => Accel::Vaapi,
+        EnumValue::Known(P::HARDWARE_ACCELERATION_QSV) => Accel::Qsv,
+        EnumValue::Known(P::HARDWARE_ACCELERATION_NVENC) => Accel::Nvenc,
+        EnumValue::Known(P::HARDWARE_ACCELERATION_VIDEOTOOLBOX) => Accel::VideoToolbox,
+        _ if let Some(id) = gpu => return Err(Invalid::GpuNotOffered { id: id.to_owned() }),
+        EnumValue::Known(P::HARDWARE_ACCELERATION_OFF) => return Ok(HardwareChoice::Off),
         EnumValue::Known(P::HARDWARE_ACCELERATION_UNSPECIFIED) | EnumValue::Unknown(_) => {
-            HardwareChoice::Automatic
+            return Ok(HardwareChoice::Automatic);
         }
+    };
+    let gpu = gpu.map(|id| PickedGpu {
+        id: id.to_owned(),
+        name: String::new(),
+    });
+    Ok(HardwareChoice::Api(accel, gpu))
+}
+
+/// `choice`'s API as the API names it.
+const fn hardware_choice_to_proto(choice: &HardwareChoice) -> HardwareAccelerationProto {
+    match choice {
+        HardwareChoice::Automatic => HardwareAccelerationProto::HARDWARE_ACCELERATION_UNSPECIFIED,
+        HardwareChoice::Off => HardwareAccelerationProto::HARDWARE_ACCELERATION_OFF,
+        HardwareChoice::Api(accel, _) => accel_to_proto(*accel),
     }
 }
 
-/// `choice` as the API names it.
-const fn hardware_choice_to_proto(choice: HardwareChoice) -> HardwareAccelerationProto {
-    use HardwareAccelerationProto as P;
-    match choice {
-        HardwareChoice::Automatic => P::HARDWARE_ACCELERATION_UNSPECIFIED,
-        HardwareChoice::Off => P::HARDWARE_ACCELERATION_OFF,
-        HardwareChoice::Api(accel) => accel_to_proto(accel),
+/// The GPU with the PCI address `id`, called `name`, as the API has it.
+fn gpu_to_proto(id: String, name: String) -> proto::Gpu {
+    proto::Gpu {
+        id,
+        name,
+        ..Default::default()
     }
 }
 
