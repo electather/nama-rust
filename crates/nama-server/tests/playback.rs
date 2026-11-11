@@ -1796,8 +1796,12 @@ impl Fixture {
     /// Starts a Server with a Shows Library holding Dark's S01E01 and S02E01, each with English and
     /// German subtitles and a German dub, scanned and Matched, and gives the Versions of those two
     /// Episodes.
-    async fn subtitled_dark(bin: &Path) -> (Self, [i64; 2]) {
-        let ffmpeg = ffprobe_reading_english_and_german_tracks(bin);
+    async fn dark_in_english_and_german(bin: &Path) -> (Self, [i64; 2]) {
+        Self::dark_probed_by(ffprobe_reading_english_and_german_tracks(bin)).await
+    }
+
+    /// [`Self::dark_in_english_and_german`], on a Server running `ffmpeg`.
+    async fn dark_probed_by(ffmpeg: Ffmpeg) -> (Self, [i64; 2]) {
         let mut fx = Self::start_with_ffmpeg(LibraryKind::LIBRARY_KIND_SHOWS, ffmpeg).await;
         fx.write(DARK_S01E01, b"video");
         fx.write(DARK_S02E01, b"video");
@@ -1855,7 +1859,7 @@ impl Fixture {
 #[tokio::test]
 async fn a_subtitle_picked_in_an_episode_starts_the_shows_next_episode_until_turned_off() {
     let bin = tempfile::tempdir().unwrap();
-    let (fx, [first, second]) = Fixture::subtitled_dark(bin.path()).await;
+    let (fx, [first, second]) = Fixture::dark_in_english_and_german(bin.path()).await;
     let before = fx.plan(first).await.unwrap();
 
     fx.pick_subtitle(first, Some(GERMAN)).await.unwrap();
@@ -1882,7 +1886,7 @@ async fn a_subtitle_picked_in_an_episode_starts_the_shows_next_episode_until_tur
 #[tokio::test]
 async fn a_shows_subtitle_preference_is_its_users_alone_and_a_request_for_none_gets_none() {
     let bin = tempfile::tempdir().unwrap();
-    let (fx, [first, second]) = Fixture::subtitled_dark(bin.path()).await;
+    let (fx, [first, second]) = Fixture::dark_in_english_and_german(bin.path()).await;
     let ripley = fx.server.user("Ripley", &[]).await;
     fx.pick_subtitle(first, Some(GERMAN)).await.unwrap();
 
@@ -1905,7 +1909,7 @@ async fn a_shows_subtitle_preference_is_its_users_alone_and_a_request_for_none_g
 #[tokio::test]
 async fn picking_a_track_that_isnt_a_subtitle_or_on_no_version_is_refused() {
     let bin = tempfile::tempdir().unwrap();
-    let (fx, [first, _]) = Fixture::subtitled_dark(bin.path()).await;
+    let (fx, [first, _]) = Fixture::dark_in_english_and_german(bin.path()).await;
 
     let audio = fx.pick_subtitle(first, Some(1)).await;
     let past_the_end = fx.pick_subtitle(first, Some(9)).await;
@@ -1948,7 +1952,7 @@ async fn a_subtitle_picked_in_one_version_of_a_movie_starts_its_other_versions()
 #[tokio::test]
 async fn a_plan_request_that_names_a_subtitle_is_no_pick() {
     let bin = tempfile::tempdir().unwrap();
-    let (fx, [first, second]) = Fixture::subtitled_dark(bin.path()).await;
+    let (fx, [first, second]) = Fixture::dark_in_english_and_german(bin.path()).await;
 
     fx.ask_for_plan(PlanPlaybackRequest {
         version_id: first,
@@ -1966,7 +1970,7 @@ async fn a_plan_request_that_names_a_subtitle_is_no_pick() {
 #[tokio::test]
 async fn a_pick_in_a_version_of_an_unmatched_item_is_accepted_and_keeps_nothing() {
     let bin = tempfile::tempdir().unwrap();
-    let (fx, [first, second]) = Fixture::subtitled_dark(bin.path()).await;
+    let (fx, [first, second]) = Fixture::dark_in_english_and_german(bin.path()).await;
     let item = fx.item(DARK_S01E01);
     fx.matches
         .clear_match(ClearMatchRequest {
@@ -1994,7 +1998,7 @@ async fn a_pick_in_a_version_of_an_unmatched_item_is_accepted_and_keeps_nothing(
 #[tokio::test]
 async fn a_user_with_a_subtitle_preference_can_be_deleted() {
     let bin = tempfile::tempdir().unwrap();
-    let (fx, [first, _]) = Fixture::subtitled_dark(bin.path()).await;
+    let (fx, [first, _]) = Fixture::dark_in_english_and_german(bin.path()).await;
     let ripley = fx.server.user("Ripley", &[]).await;
     PlaybackServiceClient::new(HttpClient::plaintext(), ripley.client_config())
         .report_track_pick(ReportTrackPickRequest {
@@ -2018,13 +2022,21 @@ async fn a_user_with_a_subtitle_preference_can_be_deleted() {
 
 const AUDIO: PickedTrackKind = PickedTrackKind::PICKED_TRACK_KIND_AUDIO;
 
-// With no ffmpeg on this Server, a dub the Device would need Remuxed is dropped, and the reason
-// says the Server chose it.
+// The fake ffmpeg and ffprobe are shell scripts.
 #[cfg(unix)]
 #[tokio::test]
 async fn an_audio_track_picked_in_an_episode_is_chosen_for_the_shows_next_episode() {
     let bin = tempfile::tempdir().unwrap();
-    let (fx, [first, second]) = Fixture::subtitled_dark(bin.path()).await;
+    let remuxing = Ffmpeg {
+        // Lists no encoders or filters, and Remuxes by writing nothing until it's stopped.
+        ffmpeg: Ok(script(
+            bin.path(),
+            "ffmpeg",
+            "#!/bin/sh\ncase \"$*\" in *-encoders*|*-filters*) ;; *) exec sleep 600 ;; esac\n",
+        )),
+        ..ffprobe_reading_english_and_german_tracks(bin.path())
+    };
+    let (fx, [first, second]) = Fixture::dark_probed_by(remuxing).await;
     let ripley = fx.server.user("Ripley", &[]).await;
     let before = fx.plan(second).await.unwrap();
 
@@ -2032,19 +2044,32 @@ async fn an_audio_track_picked_in_an_episode_is_chosen_for_the_shows_next_episod
     let next = fx.plan(second).await.unwrap();
     let ripleys = plan_as(&ripley, second).await.unwrap();
 
+    assert_eq!(before.audio_track, Some(1), "the file's own");
+    assert_eq!(next.audio_track, Some(GERMAN_AUDIO));
+    assert_eq!(next.method, PlaybackMethod::PLAYBACK_METHOD_REMUX);
+    assert_eq!(ripleys.audio_track, Some(1), "it is the Admin's alone");
+}
+
+// With no ffmpeg on this Server, the dub, which the Device would need Remuxed, can't be played.
+#[cfg(unix)]
+#[tokio::test]
+async fn an_audio_track_kept_for_a_show_is_dropped_with_the_reason_when_it_cant_be_played() {
+    let bin = tempfile::tempdir().unwrap();
+    let (fx, [first, second]) = Fixture::dark_in_english_and_german(bin.path()).await;
+
+    fx.pick(first, AUDIO, Some(GERMAN_AUDIO)).await.unwrap();
+    let next = fx.plan(second).await.unwrap();
+
     let dropped = PlaybackReasonKind::PLAYBACK_REASON_KIND_CHOSEN_AUDIO_DROPPED;
-    let drops = |plan: &PlaybackPlan| plan.reasons.iter().any(|reason| reason.kind == dropped);
-    assert!(!drops(&before));
-    assert!(drops(&next), "{:?}", next.reasons);
+    assert!(reason_of(&next, dropped).decided);
     assert_eq!(next.audio_track, Some(1), "the file's own plays instead");
-    assert!(!drops(&ripleys), "it is the Admin's alone");
 }
 
 #[cfg(unix)]
 #[tokio::test]
 async fn picking_no_audio_track_or_one_that_isnt_audio_is_refused() {
     let bin = tempfile::tempdir().unwrap();
-    let (fx, [first, _]) = Fixture::subtitled_dark(bin.path()).await;
+    let (fx, [first, _]) = Fixture::dark_in_english_and_german(bin.path()).await;
 
     let none = fx.pick(first, AUDIO, None).await;
     let subtitle = fx.pick(first, AUDIO, Some(GERMAN)).await;
