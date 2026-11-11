@@ -234,7 +234,7 @@ mod tests {
         }
     }
 
-    /// The names of the files `deleted` lists, sorted.
+    /// The names of `files`, sorted.
     fn names(files: &[super::File]) -> Vec<String> {
         let mut names: Vec<_> = (files.iter())
             .map(|file| file.path.file_name().unwrap().to_str().unwrap().to_owned())

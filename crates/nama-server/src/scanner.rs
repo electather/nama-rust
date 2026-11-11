@@ -263,30 +263,20 @@ impl Scanner {
     }
 
     /// Deletes `doomed` from disk for good, then removes the Versions whose files went as a scan
-    /// removes them, and logs that `by` deleted them. The Kernel's one way to delete media
-    /// (ADR 0038). It holds the Library's scan lock, so a scan racing it sees either everything
+    /// removes them, and logs that `by` deleted them. The one way to delete media (see AGENTS.md,
+    /// "One path for deleting media"). It holds the Library's scan lock, so a scan racing it sees either everything
     /// or nothing gone, and finishes even if the caller stops waiting (ADR 0029).
     pub(crate) async fn delete_media(&self, doomed: Doomed, by: String) -> Result<Deleted, Error> {
         let scanner = self.clone();
         detached(async move {
             let library = doomed.library.id;
-            let scan = scanner.inner.locks.lock(library).await;
+            let _scan = scanner.inner.locks.lock(library).await;
             let (doomed, deleted) = tokio::task::spawn_blocking(move || {
                 let deleted = deleting::delete(&doomed);
                 (doomed, deleted)
             })
             .await?;
-            let removed = deleted.versions.iter().copied().map(Change::Remove);
-            let events = scanner
-                .inner
-                .contents
-                .apply(library, removed.collect())
-                .await?;
-            if let Some(probing) = &scanner.inner.probing {
-                probing.clean_subtitles().await;
-            }
-            scanner.inner.events.publish(events);
-            drop(scan);
+            // Before anything else can fail: the files are gone for good.
             let files: Vec<_> = deleted.files.iter().map(|file| &file.path).collect();
             tracing::info!(
                 by = %by,
@@ -297,6 +287,16 @@ impl Scanner {
                 not_deleted = ?deleted.failed,
                 "deleted media"
             );
+            let removed = deleted.versions.iter().copied().map(Change::Remove);
+            let events = scanner
+                .inner
+                .contents
+                .apply(library, removed.collect())
+                .await?;
+            if let Some(probing) = &scanner.inner.probing {
+                probing.clean_subtitles().await;
+            }
+            scanner.inner.events.publish(events);
             Ok(deleted)
         })
         .await

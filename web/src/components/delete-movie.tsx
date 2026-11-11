@@ -10,11 +10,11 @@ import type { ExternalId } from "@/gen/nama/v1/match_pb";
 import { metadataLine, sizeOf, versionLine } from "@/lib/browse";
 import { formText, refusal } from "@/lib/forms";
 
-/** Which Versions a delete takes: every one, or the one with this id. */
+/** The choice that deletes every Version, where any other choice is one Version's id. */
 const EVERY_VERSION = "every";
 
 /** A Movie, as deleting it needs it. */
-export interface MovieToDelete {
+export interface DeletableMovie {
   libraryId: bigint;
   movieId: ExternalId;
   title: string;
@@ -28,7 +28,7 @@ export interface MovieToDelete {
 export function DeleteMovie({
   onDeletedEveryVersion,
   ...movie
-}: MovieToDelete & {
+}: DeletableMovie & {
   /** Called once every Version went, so the page can leave the Movie that's gone. */
   onDeletedEveryVersion: () => Promise<unknown>;
 }) {
@@ -59,7 +59,7 @@ export function DeleteMovie({
 }
 
 /** The choice of Version, when there are several, and the files the choice deletes. */
-function WhatGoes(movie: MovieToDelete) {
+function WhatGoes(movie: DeletableMovie) {
   const [chosen, setChosen] = useState(EVERY_VERSION);
   return (
     <>
@@ -86,7 +86,7 @@ function WhatGoes(movie: MovieToDelete) {
 }
 
 /** The files deleting `chosen` of `movie` takes, and the space that frees, as the Server previews it. */
-function FilesThatGo({ movie, chosen }: { movie: MovieToDelete; chosen: string }) {
+function FilesThatGo({ movie, chosen }: { movie: DeletableMovie; chosen: string }) {
   const { data, error } = useQuery(LibraryService.method.previewDeleteMedia, {
     target: targetOf(movie, chosen),
   });
@@ -135,7 +135,7 @@ function NotDeleted({ files }: { files: FileNotDeleted[] }) {
 }
 
 /** What deleting `chosen` of `movie` names: every Version, or the one with that id. */
-function targetOf({ libraryId, movieId }: MovieToDelete, chosen: string) {
+function targetOf({ libraryId, movieId }: DeletableMovie, chosen: string) {
   return chosen === EVERY_VERSION
     ? { target: { case: "movie" as const, value: { libraryId, movieId } } }
     : { target: { case: "versionId" as const, value: BigInt(chosen) } };
