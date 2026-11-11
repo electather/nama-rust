@@ -39,6 +39,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+use nama_plugin_api::fulfiller::{Fulfiller, Movies, StopMonitoring, stop_monitoring::Title};
 use nama_proto::nama::v1::{
     MatchingFinished, ProbingFinished, ScanFinished, ScanProgress, ScanStarted,
 };
@@ -117,6 +118,8 @@ struct Inner {
     contents: Contents,
     libraries: Libraries,
     matcher: Matcher,
+    /// Asks Fulfillers to stop monitoring what a delete takes.
+    plugins: ExtensionPoints,
     events: EventBus,
     /// Told when a scan finishes and asked to clean subtitles, unless nothing probes.
     probing: Option<Probing>,
@@ -177,7 +180,13 @@ impl Scanner {
         Self {
             inner: Arc::new(Inner {
                 libraries: Libraries::new(Arc::clone(&db)),
-                matcher: Matcher::new(Arc::clone(&db), plugins, events.clone(), locks.clone()),
+                matcher: Matcher::new(
+                    Arc::clone(&db),
+                    plugins.clone(),
+                    events.clone(),
+                    locks.clone(),
+                ),
+                plugins,
                 events,
                 probing,
                 contents: Contents::new(db),
@@ -262,24 +271,28 @@ impl Scanner {
         Ok(tokio::task::spawn_blocking(move || deleting::preview(&doomed)).await?)
     }
 
-    /// Deletes `doomed` from disk for good, then removes the Versions whose files went as a scan
-    /// removes them, and logs that `by` deleted them. The one way to delete media (see AGENTS.md,
-    /// "One path for deleting media"). It holds the Library's scan lock, so a scan racing it sees
-    /// either everything or nothing gone, and finishes even if the caller stops waiting (ADR 0029).
+    /// Asks the Movies Fulfiller to stop monitoring `doomed`, then deletes it from disk for good,
+    /// removes the Versions whose files went as a scan removes them, and logs that `by` deleted
+    /// them. The one way to delete media (see AGENTS.md, "One path for deleting media"). It holds
+    /// the Library's scan lock, so a scan racing it sees either everything or nothing gone, and
+    /// finishes even if the caller stops waiting (ADR 0029).
     pub(crate) async fn delete_media(&self, doomed: Doomed, by: String) -> Result<Deleted, Error> {
         let scanner = self.clone();
         detached(async move {
+            // First, so the service can't see the file missing and download it again (ADR 0038).
+            let not_told = scanner.stop_monitoring(&doomed).await;
             let library = doomed.library.id;
             let _scan = scanner.inner.locks.lock(library).await;
             let folders: Vec<String> = (scanner.inner.libraries.list().await?.into_iter())
                 .flat_map(|other| other.folders)
                 .collect();
-            let (doomed, deleted) = tokio::task::spawn_blocking(move || {
+            let (doomed, mut deleted) = tokio::task::spawn_blocking(move || {
                 let kept: Vec<&Path> = folders.iter().map(Path::new).collect();
                 let deleted = deleting::delete(&doomed, &kept);
                 (doomed, deleted)
             })
             .await?;
+            deleted.fulfillers_not_told.extend(not_told);
             // Before anything else can fail: the files are gone for good.
             let files: Vec<_> = deleted.files.iter().map(|file| &file.path).collect();
             tracing::info!(
@@ -304,6 +317,30 @@ impl Scanner {
             Ok(deleted)
         })
         .await
+    }
+
+    /// Asks the Movies Fulfiller, if one is enabled, to stop monitoring `doomed`'s Movie. Returns
+    /// the name of a Fulfiller that couldn't be told, which isn't asked again.
+    async fn stop_monitoring(&self, doomed: &Doomed) -> Option<String> {
+        let title = StopMonitoring {
+            title: Some(Title::MovieTmdbId(doomed.tmdb_id?)),
+            ..Default::default()
+        };
+        let plugins = &self.inner.plugins;
+        let answer = plugins
+            .ask_first(|fulfiller: Arc<dyn Fulfiller<Movies>>| {
+                let title = &title;
+                async move { fulfiller.stop_monitoring(title).await }
+            })
+            .await?;
+        let failure = answer.result.err()?;
+        tracing::warn!(
+            plugin = %answer.plugin,
+            title = %doomed.title,
+            reason = failure.message,
+            "a Fulfiller didn't stop monitoring a deleted title, so it may download it again"
+        );
+        Some(plugins.name(&answer.plugin))
     }
 
     /// The Matcher that fixes a Match by hand, waiting for a scan of the item's Library.

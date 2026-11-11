@@ -1,6 +1,7 @@
 import { useSuspenseQuery } from "@connectrpc/connect-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
 
+import { MayDownloadAgain } from "@/components/delete-movie";
 import { Page } from "@/components/page";
 import { NotFound } from "@/components/route-error";
 import { Poster, PosterGrid, posterLink } from "@/components/poster";
@@ -9,6 +10,15 @@ import { LibraryKind } from "@/gen/nama/v1/library_pb";
 import { libraryFromParam, queryOrNotFound, titleParam, yearOf } from "@/lib/browse";
 
 export const Route = createFileRoute("/_member/libraries/$libraryId/")({
+  // A title just deleted, with the Fulfillers that couldn't be told, which the page says.
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { deleted?: string | undefined; notTold?: string[] | undefined } => {
+    const { deleted, notTold } = { deleted: search["deleted"], notTold: search["notTold"] };
+    // Set even when unknown: the router keeps the raw value under any key this leaves out.
+    const unknown = { deleted: undefined, notTold: undefined };
+    return typeof deleted === "string" && isNames(notTold) ? { deleted, notTold } : unknown;
+  },
   loader: async ({ context, params }) => {
     const library = await libraryFromParam(context, params.libraryId);
     const input = { libraryId: library.id };
@@ -23,8 +33,14 @@ export const Route = createFileRoute("/_member/libraries/$libraryId/")({
 
 function Library() {
   const library = Route.useLoaderData();
+  const { deleted, notTold } = Route.useSearch();
   return (
     <Page heading={library.name}>
+      {deleted !== undefined && (
+        <div className="mt-2">
+          <MayDownloadAgain title={deleted} fulfillers={notTold ?? []} />
+        </div>
+      )}
       {library.kind === LibraryKind.SHOWS ? (
         <Shows libraryId={library.id} />
       ) : (
@@ -75,6 +91,10 @@ function Shows({ libraryId }: { libraryId: bigint }) {
       ))}
     </PosterGrid>
   );
+}
+
+function isNames(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((name) => typeof name === "string");
 }
 
 function EmptyLibrary({ titles }: { titles: "Movies" | "Shows" }) {

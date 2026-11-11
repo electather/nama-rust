@@ -52,6 +52,8 @@ service LibraryService {
   // by `.` or `-`, and that aren't videos), and the folders that leaves empty, never a Library's
   // own folder or above it. The Versions whose files went are removed as a scan removes them, with
   // `LibraryItemRemoved`. A file that can't be deleted is listed with why, and the rest still go.
+  // Before deleting anything, it asks the enabled Fulfiller of its kind, such as Radarr, to stop
+  // monitoring the title, which it keeps; one that can't be told is listed, and doesn't stop it.
   // Needs `PERMISSION_DELETE_MEDIA` and Recent Authentication. Fails with `invalid_argument` if
   // the target is missing, or names a Shows Library as a Movie's, and with `not_found` if there
   // is no such Library, Movie or Version.
@@ -160,6 +162,9 @@ message DeleteMediaResponse {
   // Each file that couldn't be deleted. A Version whose own file is here stays, with its
   // sidecars.
   repeated FileNotDeleted not_deleted = 3;
+  // The name of each Fulfiller that couldn't be told to stop monitoring what was deleted, so its
+  // service may download it again. The Server doesn't try it again.
+  repeated string fulfillers_not_told = 4;
 }
 
 // What to delete: a title's every Version, or one Version.

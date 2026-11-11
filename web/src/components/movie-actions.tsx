@@ -38,8 +38,12 @@ export function MovieActions({
           movieId={movieId}
           title={movie.title}
           versions={movie.versions}
-          onDeletedEveryVersion={() =>
-            navigate({ to: "/libraries/$libraryId", params: { libraryId: String(libraryId) } })
+          onDeletedEveryVersion={(notTold) =>
+            navigate({
+              to: "/libraries/$libraryId",
+              params: { libraryId: String(libraryId) },
+              search: notTold.length > 0 ? { deleted: movie.title, notTold } : {},
+            })
           }
         />
       )}

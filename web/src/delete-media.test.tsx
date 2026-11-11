@@ -148,6 +148,38 @@ test("files that couldn't be deleted are listed with why", async () => {
   expect(screen.getByText("Alien (1979) - 2160p.mkv: Permission denied")).toBeDefined();
 });
 
+test("deleting every Version when Radarr couldn't be told says on the Library it may download the Movie again", async () => {
+  openAlien(deletesMedia, {
+    deleteMedia: () => ({ deleted: [ALIEN_2160P, ALIEN_1080P], fulfillersNotTold: ["Radarr"] }),
+  });
+  const dialog = await openDeleteDialog();
+
+  fireEvent.click(within(dialog).getByRole("button", { name: "Delete" }));
+
+  expect(await screen.findByRole("heading", { name: "Films" })).toBeDefined();
+  expect(
+    screen.getByText("Radarr couldn’t be told about the delete, so it may download Alien again."),
+  ).toBeDefined();
+});
+
+test("deleting one Version when Radarr couldn't be told says so on the Movie", async () => {
+  openAlien(deletesMedia, {
+    deleteMedia: () => ({ deleted: [ALIEN_1080P], fulfillersNotTold: ["Radarr"] }),
+  });
+  const dialog = await openDeleteDialog();
+  await within(dialog).findByText("Alien (1979) - 2160p.mkv");
+
+  fireEvent.change(within(dialog).getByLabelText("What to delete"), { target: { value: "1" } });
+  fireEvent.click(within(dialog).getByRole("button", { name: "Delete" }));
+
+  expect(
+    await screen.findByText(
+      "Radarr couldn’t be told about the delete, so it may download Alien again.",
+    ),
+  ).toBeDefined();
+  expect(screen.getByRole("button", { name: "Delete Alien" })).toBeDefined();
+});
+
 test("Delete media is a Permission an Admin can give", async () => {
   openApp(
     "/admin/users",

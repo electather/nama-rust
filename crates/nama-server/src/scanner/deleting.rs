@@ -17,6 +17,9 @@ use crate::{contents::Version, libraries::Library};
 pub(crate) struct Doomed {
     pub(crate) library: Library,
     pub(crate) title: String,
+    /// The Movie's TMDB id, which the Movies Fulfiller is asked to stop monitoring. `None` for a
+    /// Movie Matched without one, which no Fulfiller knows.
+    pub(crate) tmdb_id: Option<i64>,
     pub(crate) versions: Vec<Version>,
 }
 
@@ -36,6 +39,8 @@ pub(crate) struct Deleted {
     pub(crate) failed: Vec<(PathBuf, io::Error)>,
     /// The Versions whose own files went.
     pub(crate) versions: Vec<i64>,
+    /// The name of each Fulfiller that couldn't be told to stop monitoring the title.
+    pub(crate) fulfillers_not_told: Vec<String>,
 }
 
 impl Deleted {
@@ -231,6 +236,7 @@ mod tests {
                     folders: vec![self.path("")],
                 },
                 title: "Title".to_owned(),
+                tmdb_id: None,
                 versions: versions.collect(),
             }
         }

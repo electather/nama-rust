@@ -5,7 +5,11 @@ import { ConfirmDialog } from "@/components/confirm-dialog";
 import { useSensitiveMutation } from "@/components/confirm-its-you";
 import { FormSelect } from "@/components/form-field";
 import type { Version } from "@/gen/nama/v1/browse_pb";
-import { type FileNotDeleted, LibraryService } from "@/gen/nama/v1/library_pb";
+import {
+  type DeleteMediaResponse,
+  type FileNotDeleted,
+  LibraryService,
+} from "@/gen/nama/v1/library_pb";
 import type { ExternalId } from "@/gen/nama/v1/match_pb";
 import { metadataLine, sizeOf, versionLine } from "@/lib/browse";
 import { formText, refusal } from "@/lib/forms";
@@ -23,16 +27,20 @@ export interface DeletableMovie {
 
 /**
  * Deletes the Movie's every Version, or one of them, once confirmed with the files that go and the
- * space they free. A file that couldn't be deleted is listed afterwards, with why.
+ * space they free. A file that couldn't be deleted is listed afterwards, with why, and so is each
+ * Fulfiller that couldn't be told, which may download the Movie again.
  */
 export function DeleteMovie({
   onDeletedEveryVersion,
   ...movie
 }: DeletableMovie & {
-  /** Called once every Version went, so the page can leave the Movie that's gone. */
-  onDeletedEveryVersion: () => Promise<unknown>;
+  /**
+   * Called once every Version went, so the page can leave the Movie that's gone, with the names of
+   * the Fulfillers that couldn't be told.
+   */
+  onDeletedEveryVersion: (fulfillersNotTold: string[]) => Promise<unknown>;
 }) {
-  const [notDeleted, setNotDeleted] = useState<FileNotDeleted[]>([]);
+  const [result, setResult] = useState<Outcome>({ notDeleted: [], fulfillersNotTold: [] });
   const remove = useSensitiveMutation(LibraryService.method.deleteMedia);
   return (
     <>
@@ -44,16 +52,17 @@ export function DeleteMovie({
         onConfirm={async (typed) => {
           const chosen = formText(typed, "version") || EVERY_VERSION;
           const deleted = await remove.mutateAsync({ target: targetOf(movie, chosen) });
-          setNotDeleted(deleted.notDeleted);
+          setResult(deleted);
           if (chosen === EVERY_VERSION && deleted.notDeleted.length === 0) {
-            await onDeletedEveryVersion();
+            await onDeletedEveryVersion(deleted.fulfillersNotTold);
           }
         }}
         refusal={(error) => refusal(error, "delete it", {}).form}
       >
         <WhatGoes {...movie} />
       </ConfirmDialog>
-      <NotDeleted files={notDeleted} />
+      <NotDeleted files={result.notDeleted} />
+      <MayDownloadAgain title={movie.title} fulfillers={result.fulfillersNotTold} />
     </>
   );
 }
@@ -134,6 +143,20 @@ function NotDeleted({ files }: { files: FileNotDeleted[] }) {
     </div>
   );
 }
+
+/** Says which Fulfillers couldn't be told a delete of `title` happened, so they may download it again. */
+export function MayDownloadAgain({ title, fulfillers }: { title: string; fulfillers: string[] }) {
+  const names = new Intl.ListFormat("en", { type: "conjunction" }).format(fulfillers);
+  return (
+    <output className="block basis-full text-sm text-pretty empty:hidden">
+      {fulfillers.length > 0 &&
+        `${names} couldn’t be told about the delete, so ${fulfillers.length === 1 ? "it" : "they"} may download ${title} again.`}
+    </output>
+  );
+}
+
+/** What the last delete reports: the files it couldn't delete and the Fulfillers it couldn't tell. */
+type Outcome = Pick<DeleteMediaResponse, "notDeleted" | "fulfillersNotTold">;
 
 /** What deleting `chosen` of `movie` names: every Version, or the one with that id. */
 function targetOf({ libraryId, movieId }: DeletableMovie, chosen: string) {

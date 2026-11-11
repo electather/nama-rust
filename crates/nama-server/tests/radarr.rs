@@ -1,6 +1,7 @@
 //! The Radarr Installed Plugin, bundled in the Server, against a fake Radarr: its settings check
 //! on the Plugins page, Movie Requests handed to it once Approved, and their download progress.
 
+#[expect(dead_code, reason = "this binary deletes no media")]
 #[path = "support/fake_radarr.rs"]
 mod fake_radarr;
 #[path = "support/refused.rs"]

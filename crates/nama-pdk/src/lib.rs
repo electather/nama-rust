@@ -51,7 +51,7 @@ pub use nama_proto::{
     self,
     nama::{
         plugin::v1::{
-            CheckedSettings, ConnectionStarted, Fulfilled, Manifest, Notification,
+            CheckedSettings, ConnectionStarted, Fulfilled, Manifest, Notification, StopMonitoring,
             delivery::Recipient,
         },
         v1::{Download, Request},
@@ -151,6 +151,18 @@ pub trait Fulfiller {
         Ok(())
     }
 
+    /// Stops the service monitoring `title`, which is being deleted, so it doesn't download it
+    /// again. The service keeps the title, and one it doesn't have means nothing to do. Separate
+    /// from [`Fulfiller::unfollow`]: a Show's new Seasons still come.
+    ///
+    /// # Errors
+    ///
+    /// When the service couldn't be told. The delete goes ahead, and the person deleting is told
+    /// the service may download the title again.
+    fn stop_monitoring(_title: StopMonitoring) -> Result<(), Error> {
+        Ok(())
+    }
+
     /// What the service is downloading for each of `references`, by reference. A reference with
     /// nothing downloading may be left out.
     ///
@@ -160,7 +172,7 @@ pub trait Fulfiller {
     fn progress(references: Vec<String>) -> Result<HashMap<String, Vec<Download>>, Error>;
 }
 
-/// Exports a [`Fulfiller`] as the Plugin's `fulfill`, `unfollow` and `progress`, taking and
+/// Exports a [`Fulfiller`] as the Plugin's `fulfill`, `unfollow`, `stop_monitoring` and `progress`, taking and
 /// returning the `nama.plugin.v1` messages the Server exchanges with them.
 #[macro_export]
 macro_rules! fulfiller {
@@ -168,7 +180,7 @@ macro_rules! fulfiller {
         const _: () = {
             // `plugin_fn` expands to paths starting with `extism_pdk`.
             use $crate::{
-                Buffa, FnResult, Fulfiller, Request, extism_pdk,
+                Buffa, FnResult, Fulfiller, Request, StopMonitoring, extism_pdk,
                 nama_proto::nama::plugin::v1::{Downloads, Fulfilled, Progress, ProgressAsked},
                 plugin_fn,
             };
@@ -181,6 +193,11 @@ macro_rules! fulfiller {
             #[plugin_fn]
             pub fn unfollow(Buffa(request): Buffa<Request>) -> FnResult<()> {
                 Ok(<$fulfiller as Fulfiller>::unfollow(request)?)
+            }
+
+            #[plugin_fn]
+            pub fn stop_monitoring(Buffa(title): Buffa<StopMonitoring>) -> FnResult<()> {
+                Ok(<$fulfiller as Fulfiller>::stop_monitoring(title)?)
             }
 
             #[plugin_fn]

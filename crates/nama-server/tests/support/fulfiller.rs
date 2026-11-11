@@ -12,7 +12,7 @@ use std::{
 
 use nama_plugin_api::{
     BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
-    fulfiller::{Download, Fulfilled, Fulfiller, Movies, Shows},
+    fulfiller::{Download, Fulfilled, Fulfiller, Movies, Shows, StopMonitoring, stop_monitoring},
     settings::{Choice, Choices, Settings, SettingsCheck},
 };
 use nama_proto::nama::v1::{
@@ -83,6 +83,8 @@ pub(crate) struct FakeFulfiller {
     /// Whether it refuses the hand-offs that ask it to follow a Show.
     refuses_following: Arc<AtomicBool>,
     unfollowed: Arc<Mutex<Vec<i64>>>,
+    /// The TMDB id of each Movie it was told to stop monitoring, in order.
+    stopped_monitoring: Arc<Mutex<Vec<i64>>>,
     /// What it says it is downloading, by reference.
     downloading: Arc<Mutex<HashMap<String, Vec<Download>>>>,
     /// Whether it fails to say what it is downloading.
@@ -96,7 +98,7 @@ pub(crate) struct FakeFulfiller {
 }
 
 impl FakeFulfiller {
-    /// Refuses every Request it is handed from now on.
+    /// Refuses every Request it is handed, and fails to stop monitoring, from now on.
     pub(crate) fn refuse(&self) {
         self.refuses.store(true, Ordering::Relaxed);
     }
@@ -180,6 +182,14 @@ impl FakeFulfiller {
             .clone()
     }
 
+    /// The TMDB id of each Movie it was told to stop monitoring, in order.
+    pub(crate) fn stopped_monitoring(&self) -> Vec<i64> {
+        self.stopped_monitoring
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
+    }
+
     /// The TMDB id of each Show it was told to stop following, in order.
     pub(crate) fn unfollowed(&self) -> Vec<i64> {
         self.unfollowed
@@ -228,6 +238,27 @@ impl Fulfiller<Movies> for FakeFulfiller {
                 return Err("Radarr is unreachable".into());
             }
             Ok(fulfilled)
+        })
+    }
+
+    #[expect(clippy::panic, reason = "a test helper fails its test by panicking")]
+    fn stop_monitoring<'a>(
+        &'a self,
+        title: &'a StopMonitoring,
+    ) -> BoxFuture<'a, Result<(), PluginError>> {
+        let Some(stop_monitoring::Title::MovieTmdbId(tmdb_id)) = title.title else {
+            panic!("a Movies Fulfiller was told to stop monitoring {title:?}");
+        };
+        self.stopped_monitoring
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push(tmdb_id);
+        let refuses = self.refuses.load(Ordering::Relaxed);
+        Box::pin(async move {
+            if refuses {
+                return Err("Radarr is unreachable".into());
+            }
+            Ok(())
         })
     }
 

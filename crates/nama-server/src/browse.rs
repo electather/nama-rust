@@ -242,6 +242,7 @@ impl Browse {
                 let movie = self.titles(&library).await?.movie(&id)?;
                 Ok(Doomed {
                     library,
+                    tmdb_id: tmdb_id_of(&movie.id),
                     title: movie.title,
                     versions: movie.versions,
                 })
@@ -257,15 +258,20 @@ impl Browse {
         let Titles::Movies(movies) = self.titles(&library).await? else {
             return Err(Error::NoSuchVersion);
         };
-        let (title, version) = (movies.into_iter())
+        let (movie, version) = (movies.into_iter())
             .find_map(|movie| {
-                let version = movie.versions.into_iter().find(|v| v.file.id == version)?;
-                Some((movie.title, version))
+                let version = movie
+                    .versions
+                    .iter()
+                    .find(|v| v.file.id == version)?
+                    .clone();
+                Some((movie, version))
             })
             .ok_or(Error::NoSuchVersion)?;
         Ok(Doomed {
             library,
-            title,
+            tmdb_id: tmdb_id_of(&movie.id),
+            title: movie.title,
             versions: vec![version],
         })
     }
@@ -453,6 +459,14 @@ fn started_episodes(
         }
     }
     started
+}
+
+/// The TMDB id `id` is, if it is one.
+const fn tmdb_id_of(id: &ExternalId) -> Option<i64> {
+    match id {
+        ExternalId::Tmdb(tmdb) => Some(*tmdb),
+        ExternalId::Imdb(_) | ExternalId::Tvdb(_) => None,
+    }
 }
 
 /// What [`Libraries::get`] or [`Libraries::list`] failing means to Browse.

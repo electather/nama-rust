@@ -1,5 +1,5 @@
-//! The Radarr Installed Plugin: hands Approved Movie Requests to Radarr (ADR 0003), and says how
-//! their downloads are progressing. The Server builds it for wasm32 and bundles it in its binary.
+//! The Radarr Installed Plugin: hands Approved Movie Requests to Radarr (ADR 0003), says how
+//! their downloads are progressing, and has Radarr stop monitoring a deleted Movie (ADR 0038). The Server builds it for wasm32 and bundles it in its binary.
 
 /// The Plugin's exports. `plugin_fn` drops their doc comments and attributes, so lints about the
 /// code it generates are expected here.
@@ -12,9 +12,10 @@ mod exports {
 
     use nama_pdk::{
         Buffa, CheckedSettings, Download, FnResult, Fulfilled, Fulfiller, Manifest, Request,
+        StopMonitoring,
         extism_pdk::{self, Error},
         nama_proto::nama::{
-            plugin::v1::ProvidePoint,
+            plugin::v1::{ProvidePoint, stop_monitoring::Title},
             v1::{RequestedMovie, request::MovieOrSeason},
         },
         plugin_fn,
@@ -66,6 +67,23 @@ mod exports {
                 used_id,
                 profiles,
             ))
+        }
+
+        /// Unmonitors the Movie, which Radarr keeps, so it doesn't download it again.
+        fn stop_monitoring(title: StopMonitoring) -> Result<(), Error> {
+            let Some(Title::MovieTmdbId(tmdb_id)) = title.title else {
+                return Err(Error::msg("Radarr stops monitoring only Movies"));
+            };
+            let radarr = radarr()?;
+            let movies: Vec<AddedMovie> = radarr.get(&format!("movie?tmdbId={tmdb_id}"))?;
+            if movies.is_empty() {
+                return Ok(());
+            }
+            let editor = MovieEditor {
+                movie_ids: movies.iter().map(|movie| movie.id).collect(),
+                monitored: false,
+            };
+            radarr.change("PUT", "movie/editor", editor)
         }
 
         /// Reads Radarr's whole queue in one call, whatever the number of `references`. A Movie
@@ -147,7 +165,16 @@ mod exports {
     #[derive(Deserialize)]
     #[serde(rename_all = "camelCase")]
     struct AddedMovie {
+        id: i64,
         quality_profile_id: i64,
+    }
+
+    /// What `PUT /api/v3/movie/editor` takes to change only the fields it names of several Movies.
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct MovieEditor {
+        movie_ids: Vec<i64>,
+        monitored: bool,
     }
 
     /// What `POST /api/v3/movie` takes to add a Movie.
