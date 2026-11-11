@@ -54,13 +54,16 @@ const plannedTracks: MessageInitShape<typeof TrackSchema>[] = [
   { codec: "subrip", language: "fre", kind: { case: "subtitle", value: {} } },
 ];
 type Planned = (request: PlanPlaybackRequest) => MessageInitShape<typeof PlaybackPlanSchema>;
-const saying = (...texts: string[]) => texts.map((text) => ({ text }));
+/** Reasons that decided the plan, in the words of a Server newer than this app. */
+const saying = (...texts: string[]) => texts.map((text) => ({ text, decided: true }));
 const directPlay: Planned = (request) => ({
   method: PlaybackMethod.DIRECT_PLAY,
   url: `/planned/${request.versionId}`,
   tracks: plannedTracks,
 });
-const cantPlay: Planned = () => ({ reasons: saying(cantDecode) });
+const cantPlay: Planned = () => ({
+  reasons: [...saying(cantDecode), { text: "Hardware acceleration is off" }],
+});
 const remux = () => ({
   method: PlaybackMethod.REMUX,
   url: "/media/plans/0/index.m3u8",
@@ -215,11 +218,12 @@ test("a method that fails again gives up instead of asking for plans in a loop",
   expect(asked).toHaveLength(2);
 });
 
-test("a Version whose plan says it can't play shows the plan's reasons instead of the player", async () => {
+test("a Version whose plan says it can't play shows the reasons that decided it instead of the player", async () => {
   openApp("/libraries/1/movies/tmdb-603/play", serverPlanning({ planned: cantPlay }));
 
   expect(await screen.findByText("This Version can’t play here")).toBeDefined();
   expect(screen.getByText(cantDecode)).toBeDefined();
+  expect(screen.queryByText("Hardware acceleration is off")).toBeNull();
   expect(screen.queryByText(/This browser can’t play it/u)).toBeNull();
   expect(screen.queryByLabelText("The Matrix")).toBeNull();
 });
