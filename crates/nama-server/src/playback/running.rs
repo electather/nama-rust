@@ -131,6 +131,8 @@ struct Inner {
     ffmpeg: Arc<Ffmpeg>,
     /// Whether `ffmpeg` has zscale, once it answered.
     zscale: tokio::sync::OnceCell<bool>,
+    /// Whether `ffmpeg` has libx264, once it answered.
+    libx264: tokio::sync::OnceCell<bool>,
     /// The hardware acceleration that passed its test, once tested.
     hardware: tokio::sync::OnceCell<Vec<Hardware>>,
     contents: Contents,
@@ -215,6 +217,7 @@ impl RunningPlans {
             settings,
             ffmpeg,
             zscale: tokio::sync::OnceCell::new(),
+            libx264: tokio::sync::OnceCell::new(),
             hardware: tokio::sync::OnceCell::new(),
             contents,
             tracks,
@@ -273,20 +276,18 @@ impl RunningPlans {
     /// Whether a Transcode can tone-map HDR to SDR in software, as ffmpeg said the first time it
     /// answered.
     pub(crate) async fn can_tone_map(&self) -> bool {
-        let ffmpeg = &self.inner.ffmpeg;
-        // Only an answer is kept, so a check that timed out on a busy host is asked again.
-        match self
-            .inner
-            .zscale
-            .get_or_try_init(|| ffmpeg.has_zscale())
-            .await
-        {
-            Ok(&zscale) => zscale,
-            Err(err) => {
-                tracing::warn!("could not ask ffmpeg whether it has zscale: {err}");
-                false
-            }
-        }
+        answered_once(&self.inner.zscale, "zscale", self.inner.ffmpeg.has_zscale()).await
+    }
+
+    /// Whether a Transcode can encode H.264 in software, as ffmpeg said the first time it
+    /// answered.
+    pub(crate) async fn can_encode_h264(&self) -> bool {
+        answered_once(
+            &self.inner.libx264,
+            "libx264",
+            self.inner.ffmpeg.has_libx264(),
+        )
+        .await
     }
 
     /// Starts `plan` for `caller`'s Device, telling Observers so, and returns it with its id and
@@ -994,6 +995,23 @@ async fn serve(
         Err(err) => {
             tracing::error!(plan = id, "could not serve {file}: {err}");
             StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+    }
+}
+
+/// Whether ffmpeg has `named`, as `cell` keeps from `ask`'s first answer, or `false` while it
+/// can't say.
+async fn answered_once(
+    cell: &tokio::sync::OnceCell<bool>,
+    named: &str,
+    ask: impl Future<Output = Result<bool, String>>,
+) -> bool {
+    // Only an answer is kept, so a check that timed out on a busy host is asked again.
+    match cell.get_or_try_init(|| ask).await {
+        Ok(&has) => has,
+        Err(err) => {
+            tracing::warn!("could not ask ffmpeg whether it has {named}: {err}");
+            false
         }
     }
 }

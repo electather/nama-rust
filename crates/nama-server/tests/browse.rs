@@ -1153,8 +1153,8 @@ async fn an_h264_and_aac_mp4_direct_plays_through_its_plans_url() {
 }
 
 /// A Server whose ffmpeg and ffprobe are shell scripts in `bin`: ffprobe reads a file whose name
-/// says 2160p as an HEVC and AAC MKV and any other as an H.264 and AAC one, and ffmpeg writes
-/// nothing until it's stopped.
+/// says 2160p as an HEVC and AAC MKV and any other as an H.264 and AAC one, and ffmpeg lists
+/// libx264 among its encoders but writes nothing until it's stopped.
 #[cfg(unix)]
 fn ffmpeg_writing_nothing(bin: &Path) -> Ffmpeg {
     let ffprobe = r#"#!/bin/sh
@@ -1165,8 +1165,11 @@ cat <<EOF
  "format": {"format_name": "matroska,webm"}}
 EOF
 "#;
+    let ffmpeg = r#"#!/bin/sh
+case "$*" in *-encoders*) echo ' V....D libx264  libx264 H.264' ;; *) exec sleep 600 ;; esac
+"#;
     Ffmpeg {
-        ffmpeg: Ok(script(bin, "ffmpeg", "#!/bin/sh\nexec sleep 600\n")),
+        ffmpeg: Ok(script(bin, "ffmpeg", ffmpeg)),
         ffprobe: Ok(script(bin, "ffprobe", ffprobe)),
     }
 }

@@ -289,6 +289,7 @@ pub(crate) async fn plan(
         device: decoding,
         ffmpeg: running.can_run(),
         zscale: running.can_tone_map().await,
+        libx264: running.can_encode_h264().await,
         failed,
         audio,
         transcodes_full: None,
@@ -334,6 +335,10 @@ pub(crate) const fn method_to_proto(method: Option<Method>) -> proto::PlaybackMe
 }
 
 /// What a plan is based on.
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "each is a separate fact a step reads, not a state"
+)]
 struct Facts {
     version: i64,
     /// What probing found in the Version, or `None` if it couldn't be probed.
@@ -345,6 +350,9 @@ struct Facts {
     /// Whether its ffmpeg has zscale, which tone-maps HDR to SDR in software and a system ffmpeg
     /// may lack (ADR 0026).
     zscale: bool,
+    /// Whether its ffmpeg has libx264, which a Transcode encodes with in software and a system
+    /// ffmpeg may lack (ADR 0026).
+    libx264: bool,
     /// The methods that just failed to play it on the Device. The Server never stores them.
     failed: BTreeSet<Method>,
     /// The audio Track the User chose, by its place in the Version's Tracks, if they chose one.
@@ -598,13 +606,21 @@ fn device_decoding(facts: &Facts, candidates: Option<&Candidates>) -> Narrowing 
     }
 }
 
-/// The step for the Server's ffmpeg: without it, only Direct Play (ADR 0026), and with it, a
-/// Transcode tone-maps HDR the Device can't show to SDR, if it can.
+/// The step for the Server's ffmpeg: without it, only Direct Play (ADR 0026), without libx264, no
+/// Transcode, and with it, a Transcode tone-maps HDR the Device can't show to SDR, if it can.
 fn server_ffmpeg(facts: &Facts, candidates: Option<&Candidates>) -> Narrowing {
     if !facts.ffmpeg {
         return Narrowing {
             allows: BTreeSet::from([Method::DirectPlay]),
             reason: "This Server lacks ffmpeg or ffprobe, so it can only Direct Play".to_owned(),
+        };
+    }
+    // ponytail: a Transcode on hardware needs no libx264, but its software fallback does; allow
+    // one there once a failed run there can't fall back to software.
+    if !facts.libx264 {
+        return Narrowing {
+            allows: BTreeSet::from([Method::DirectPlay, Method::Remux]),
+            reason: "This Server's ffmpeg lacks libx264, so it can't Transcode".to_owned(),
         };
     }
     let reason = match played_hdr(facts) {
@@ -1461,6 +1477,7 @@ mod tests {
             device: firefox(),
             ffmpeg: true,
             zscale: true,
+            libx264: true,
             failed: BTreeSet::new(),
             audio: None,
             transcodes_full: None,
@@ -1877,6 +1894,27 @@ mod tests {
             "This Device can't decode its Matroska container, so it can't be Direct Played, \
              and it can't play HLS, which anything else needs"
         );
+    }
+
+    #[test]
+    fn without_libx264_on_the_server_a_version_isnt_transcoded_but_still_remuxes_or_direct_plays() {
+        let without_libx264 = |container, tracks| Facts {
+            libx264: false,
+            ..in_container(container, Some(tracks))
+        };
+        let mut transcode = without_libx264(MP4, vec![video("hevc"), audio("aac", true)]);
+        let mut remux = without_libx264(MKV, vec![video("h264"), audio("aac", true)]);
+        let mut direct_play = without_libx264(MP4, vec![video("h264"), audio("aac", true)]);
+
+        let transcode = build(&mut transcode);
+
+        assert_eq!(transcode.method(), None);
+        assert_eq!(
+            transcode.reasons[2],
+            "This Server's ffmpeg lacks libx264, so it can't Transcode"
+        );
+        assert_eq!(build(&mut remux).method(), Some(Method::Remux));
+        assert_eq!(build(&mut direct_play).method(), Some(Method::DirectPlay));
     }
 
     fn rules_out_direct_play(_: &Facts, _: Option<&Candidates>) -> Narrowing {
