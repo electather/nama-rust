@@ -168,7 +168,7 @@ fn plan_to_proto(plan: Plan) -> proto::PlaybackPlan {
     let places = |places: Vec<usize>| places.into_iter().filter_map(place).collect();
     proto::PlaybackPlan {
         id: plan.id.unwrap_or_default(),
-        method: method_to_proto(plan.method).into(),
+        method: method_to_proto(plan.method()).into(),
         url: plan.url.unwrap_or_default(),
         tracks: plan.tracks.iter().map(track_to_proto).collect(),
         reasons: plan.reasons,
