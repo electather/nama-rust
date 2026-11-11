@@ -492,9 +492,8 @@ async fn crash_fulfiller(plugins: &PluginSettings) {
     while plugins.registry().enabled().contains(&crashes()) {
         plugins
             .registry()
-            .call_provider(|fulfiller: Arc<dyn Fulfiller<Movies>>| async move {
-                let _crashed: Result<Fulfilled, PluginError> =
-                    fulfiller.fulfill(&Request::default()).await;
+            .ask_first(|fulfiller: Arc<dyn Fulfiller<Movies>>| async move {
+                fulfiller.fulfill(&Request::default()).await
             })
             .await;
     }

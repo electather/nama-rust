@@ -206,12 +206,7 @@ impl PluginSettings {
         })
         .await
         .map_err(StartError::Panicked)?;
-        let has_authenticator = plugins
-            .registry
-            .call_provider(|_: Arc<dyn Authenticator>| async {})
-            .await
-            .is_some();
-        if !has_authenticator {
+        if plugins.registry.providers::<dyn Authenticator>().is_empty() {
             return Err(StartError::NoAuthenticator);
         }
         if importing {

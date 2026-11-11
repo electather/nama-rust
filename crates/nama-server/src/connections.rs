@@ -86,9 +86,10 @@ impl Connections {
         )
         .fetch_all(self.db.reader())
         .await?;
-        let connectors = self.plugins.enabled().into_iter();
-        let connectors = connectors.filter(|plugin| self.plugins.provides::<dyn Connector>(plugin));
-        Ok(connectors
+        Ok(self
+            .plugins
+            .providers::<dyn Connector>()
+            .into_iter()
             .map(|plugin| {
                 let state = if connected.iter().any(|id| id == plugin.as_str()) {
                     State::Connected
@@ -109,19 +110,14 @@ impl Connections {
         let code = codes::random_secret()?;
         let started = self
             .plugins
-            .call_provider_of_blanking_secrets::<dyn Connector, _, _>(plugin, |connector| {
+            .ask(plugin, |connector: Arc<dyn Connector>| {
                 let code = &code;
-                // Inside the call, so formatting and dropping the Plugin's error are contained.
-                async move {
-                    connector
-                        .start_connection(code)
-                        .await
-                        .map_err(|error| error.to_string())
-                }
+                async move { connector.start_connection(code).await }
             })
             .await
             .ok_or(StartError::NoConnector)?
-            .map_err(StartError::Failed)?;
+            .result
+            .map_err(|failure| StartError::Failed(failure.message))?;
         let waiter = (user, plugin.clone());
         self.lock().insert(waiter.clone(), code.clone());
         tokio::spawn(self.clone().wait_for(waiter, code, started.pending));
@@ -193,17 +189,13 @@ impl Connections {
         plugin: &PluginId,
         pending: &str,
     ) -> Option<Result<Option<String>, String>> {
-        self.plugins
-            .call_provider_of_blanking_secrets::<dyn Connector, _, _>(plugin, |connector| {
-                // Inside the call, so formatting and dropping the Plugin's error are contained.
-                async move {
-                    connector
-                        .poll_connection(pending)
-                        .await
-                        .map_err(|error| error.to_string())
-                }
+        let polled = self
+            .plugins
+            .ask(plugin, |connector: Arc<dyn Connector>| async move {
+                connector.poll_connection(pending).await
             })
-            .await
+            .await?;
+        Some(polled.result.map_err(|failure| failure.message))
     }
 
     /// Stores `connection` as the Plugin Connection of the User `waiter` names, unless their link

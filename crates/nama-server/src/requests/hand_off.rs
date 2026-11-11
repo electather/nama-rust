@@ -21,7 +21,7 @@ use tracing::{error, warn};
 use super::{Error, Requests, as_handed_off, load, load_one, lock};
 use crate::{
     db::{BoxFuture, Database, detached},
-    plugins::Registry,
+    plugins::{Answer, Registry},
 };
 
 /// Requests' way to the Fulfillers for Movies and for Shows, where they are enabled.
@@ -98,16 +98,12 @@ impl HandOff {
         };
         let handed = as_handed_off(&mut conn, current.clone()).await?;
         drop(conn);
-        // Before the call, so a Plugin disabled or swapped during it isn't the one the Request names.
-        let plugin = requests.fulfiller_of(&current);
         let Some(fulfilled) = self.fulfill(&handed).await else {
             return Ok(current);
         };
-        let took = fulfilled.is_ok();
+        let took = fulfilled.result.is_ok();
         let asked = current.quality.as_option().cloned();
-        let settled = requests
-            .settle_hand_off(id, fulfilled, asked, plugin)
-            .await?;
+        let settled = requests.settle_hand_off(id, fulfilled, asked).await?;
         if took && settled.is_none() {
             warn!(
                 request = id,
@@ -134,9 +130,9 @@ impl HandOff {
     ) {
         while let Some(plugin) = came_up.recv().await {
             // One disabled since it came up provides nothing.
-            if !self.plugins.provides::<dyn Fulfiller<Movies>>(&plugin)
-                && !self.plugins.provides::<dyn Fulfiller<Shows>>(&plugin)
-            {
+            let movies = self.plugins.providers::<dyn Fulfiller<Movies>>();
+            let shows = self.plugins.providers::<dyn Fulfiller<Shows>>();
+            if !movies.contains(&plugin) && !shows.contains(&plugin) {
                 continue;
             }
             if let Err(err) = self.hand_off_waiting(requests).await {
@@ -162,33 +158,28 @@ impl HandOff {
     }
 
     /// What the Fulfiller for `request`'s kind says to it, if one is enabled: what it reports once
-    /// it takes it, or why it doesn't, with no secret setting's value in it.
-    async fn fulfill(&self, request: &Request) -> Option<Result<Fulfilled, String>> {
+    /// it takes it, or why it doesn't.
+    async fn fulfill(&self, request: &Request) -> Option<Answer<Fulfilled>> {
         let fulfilled = if request.movie.is_unset() {
             self.fulfill_as::<Shows>(request).await
         } else {
             self.fulfill_as::<Movies>(request).await
         }?;
-        Some(fulfilled.inspect_err(|reason| {
+        if let Err(failure) = &fulfilled.result {
             warn!(
                 request = request.id,
-                reason, "the Fulfiller didn't take the Request"
+                reason = failure.message,
+                "the Fulfiller didn't take the Request"
             );
-        }))
+        }
+        Some(fulfilled)
     }
 
     /// [`Self::fulfill`] by the Fulfiller of `Kind`.
-    async fn fulfill_as<Kind: 'static>(
-        &self,
-        request: &Request,
-    ) -> Option<Result<Fulfilled, String>> {
+    async fn fulfill_as<Kind: 'static>(&self, request: &Request) -> Option<Answer<Fulfilled>> {
         self.plugins
-            .call_provider_blanking_secrets::<dyn Fulfiller<Kind>, _, _>(|fulfiller| async move {
-                // Inside the call, so formatting and dropping the Plugin's error are contained.
-                fulfiller
-                    .fulfill(request)
-                    .await
-                    .map_err(|error| error.to_string())
+            .ask_first(|fulfiller: Arc<dyn Fulfiller<Kind>>| async move {
+                fulfiller.fulfill(request).await
             })
             .await
     }
@@ -199,17 +190,19 @@ impl HandOff {
     pub(super) async fn unfollow(&self, season: &Request) {
         let unfollowed = self
             .plugins
-            .call_provider_blanking_secrets::<dyn Fulfiller<Shows>, _, _>(|fulfiller| async move {
-                fulfiller
-                    .unfollow(season)
-                    .await
-                    .map_err(|error| error.to_string())
+            .ask_first(|fulfiller: Arc<dyn Fulfiller<Shows>>| async move {
+                fulfiller.unfollow(season).await
             })
             .await;
-        if let Some(Err(reason)) = unfollowed {
+        if let Some(Answer {
+            result: Err(failure),
+            ..
+        }) = unfollowed
+        {
             warn!(
                 show = season.season.show_tmdb_id,
-                reason, "the Shows Fulfiller didn't stop following the Show"
+                reason = failure.message,
+                "the Shows Fulfiller didn't stop following the Show"
             );
         }
     }

@@ -38,7 +38,7 @@ use crate::{
     db::{BoxFuture, Database, detached, now},
     events::{EventBus, event},
     metadata::{self, MetadataSource},
-    plugins::Registry,
+    plugins::{Answer, Registry},
     qualities,
     users::User,
 };
@@ -419,27 +419,23 @@ impl Requests {
         Ok(value.handed_back(&handed))
     }
 
-    /// Settles the Hand-off of the Request `id`, asked for at the Quality `asked`, with what the
-    /// Fulfiller from the Plugin `plugin` answered, through [`Self::apply`]'s path in the
-    /// Hand-off's own task. Returns the Request as it is now, or `None` if it was changed meanwhile.
+    /// Settles the Hand-off of the Request `id`, asked for at the Quality `asked`, with what its
+    /// Fulfiller answered, through [`Self::apply`]'s path in the Hand-off's own task. Returns the
+    /// Request as it is now, or `None` if it was changed meanwhile.
     async fn settle_hand_off(
         &self,
         id: i64,
-        fulfilled: Result<Fulfilled, String>,
+        fulfilled: Answer<Fulfilled>,
         asked: Option<RequestedQuality>,
-        plugin: Option<PluginId>,
     ) -> Result<Option<Request>, Error> {
         // Not detached again: the Hand-off already is.
-        self.applied(move |tx| Box::pin(settle(tx, id, fulfilled, asked, plugin)))
+        self.applied(move |tx| Box::pin(settle(tx, id, fulfilled, asked)))
             .await
     }
 
     /// The enabled Plugin providing the Fulfiller of `Kind`, if any.
     fn fulfiller<Kind: 'static>(&self) -> Option<PluginId> {
-        self.plugins
-            .enabled()
-            .into_iter()
-            .find(|plugin| self.plugins.provides::<dyn Fulfiller<Kind>>(plugin))
+        self.plugins.providers::<dyn Fulfiller<Kind>>().pop_first()
     }
 
     /// The enabled Plugin providing the Fulfiller for `request`'s kind, Movies or Shows, if any.
@@ -1965,24 +1961,21 @@ async fn show_requests(
     })
 }
 
-/// Moves the Approved Request `id`, asked at the Quality `asked`, on as its Fulfiller, from the
-/// Plugin `plugin`, said: to Processing, keeping its reference and the Quality used, or to Failed,
-/// keeping why. Either way it keeps `plugin`. Returns it as it is now, or `None` if it isn't
-/// Approved any more.
+/// Moves the Approved Request `id`, asked at the Quality `asked`, on as its Fulfiller said: to
+/// Processing, keeping its reference and the Quality used, or to Failed, keeping why. Either way
+/// it keeps the Plugin that answered. Returns it as it is now, or `None` if it isn't Approved any
+/// more.
 async fn settle(
     conn: &mut SqliteConnection,
     id: i64,
-    fulfilled: Result<Fulfilled, String>,
+    answered: Answer<Fulfilled>,
     asked: Option<RequestedQuality>,
-    plugin: Option<PluginId>,
 ) -> Result<Applied<Option<Request>>, Error> {
+    let Answer { plugin, result } = answered;
     // In the same write as the reference, so a failed read can't lose a Request the Fulfiller took.
-    let (state, reference, used, reason) = match fulfilled {
+    let (state, reference, used, reason) = match result {
         Ok(fulfilled) => {
-            let listed = match &plugin {
-                Some(plugin) => qualities::list(conn, plugin).await?,
-                None => Vec::new(),
-            };
+            let listed = qualities::list(conn, &plugin).await?;
             let used = qualities::used(asked.as_ref(), &listed, &fulfilled);
             (
                 RequestState::Processing,
@@ -1991,11 +1984,11 @@ async fn settle(
                 None,
             )
         }
-        Err(reason) => (RequestState::Failed, None, None, Some(reason)),
+        Err(failure) => (RequestState::Failed, None, None, Some(failure.message)),
     };
     let state = stored(state);
     let (used_id, used_name, used_profile_id) = quality_columns(used.as_ref());
-    let plugin = plugin.as_ref().map(PluginId::as_str);
+    let plugin = plugin.as_str();
     let settled = sqlx::query!(
         "UPDATE requests SET state = ?, fulfiller_reference = ?, failure_reason = ?,
                              fulfiller_plugin_id = ?,
@@ -2562,7 +2555,7 @@ mod tests {
         db::Database,
         events::{EventBus, Filter},
         libraries::{Kind, Libraries},
-        plugins::Registry,
+        plugins::{Answer, Failure, Registry},
         qualities,
         scanner::Scanner,
         server_settings::ServerUrl,
@@ -3619,15 +3612,24 @@ mod tests {
             .unwrap()
     }
 
-    /// The Fulfiller took the Approved Request `id`, or didn't, and why.
+    /// The Fulfiller of the Plugin `fulfiller` took the Approved Request `id`, or didn't, and why.
     async fn settled(
         db: &Database,
         id: i64,
         fulfilled: Result<Fulfilled, String>,
     ) -> Applied<Option<Request>> {
-        db.write(move |tx| Box::pin(settle(tx, id, fulfilled, None, None)))
+        let fulfilled = answered("fulfiller", fulfilled);
+        db.write(move |tx| Box::pin(settle(tx, id, fulfilled, None)))
             .await
             .unwrap()
+    }
+
+    /// What the Plugin `plugin`'s Fulfiller answered, as the Registry hands it back.
+    fn answered(plugin: &'static str, fulfilled: Result<Fulfilled, String>) -> Answer<Fulfilled> {
+        Answer {
+            plugin: PluginId::from_static(plugin),
+            result: fulfilled.map_err(|message| Failure { kind: (), message }),
+        }
     }
 
     /// What a Fulfiller says when it takes a Request.
@@ -3904,10 +3906,10 @@ mod tests {
             .await
             .value
             .id;
-        let radarr = Some(PluginId::from_static("radarr"));
+        let failed_by_radarr = answered("radarr", Err("no space".to_owned()));
 
         let failed = db
-            .write(move |tx| Box::pin(settle(tx, id, Err("no space".to_owned()), None, radarr)))
+            .write(move |tx| Box::pin(settle(tx, id, failed_by_radarr, None)))
             .await
             .unwrap()
             .value

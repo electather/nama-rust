@@ -6,7 +6,7 @@ pub mod installed;
 
 use std::{
     any::Any,
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, BTreeSet, HashMap},
     convert::Infallible,
     fmt,
     future::Future,
@@ -17,8 +17,8 @@ use std::{
 
 use futures_util::FutureExt;
 use nama_plugin_api::{
-    InterceptPoint, Manifest, ObservePoint, Observer, OnFailure, Plugin, PluginError, PluginId,
-    PointKey, Priority, Registrar, Registration, Verdict,
+    InterceptPoint, Manifest, ObservePoint, Observer, OnFailure, Plugin, PluginId, PointKey,
+    Priority, Registrar, Registration, Verdict,
     fulfiller::{Fulfiller, Movies, Shows},
     settings::{Choices, SettingKind, Settings, SettingsError, SettingsSchema},
 };
@@ -142,6 +142,52 @@ pub enum Outcome<A> {
         /// What went wrong.
         error: String,
     },
+}
+
+/// A Provider's answer, and the Plugin whose Provider gave it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Answer<R, K = ()> {
+    /// The Plugin whose Provider answered.
+    pub plugin: PluginId,
+    /// What it answered, or why it failed.
+    pub result: Result<R, Failure<K>>,
+}
+
+/// Why a Provider failed, as the Kernel's own data: the Plugin's error was formatted and dropped
+/// inside containment, and the message has the Plugin's secret settings blanked.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Failure<K = ()> {
+    /// The kind of failure, for a caller that branches on it.
+    pub kind: K,
+    /// What the Plugin's error said.
+    pub message: String,
+}
+
+impl<K> Failure<K> {
+    fn blanked(self, secrets: &[String]) -> Self {
+        let message = without_secrets(self.message, secrets);
+        Self { message, ..self }
+    }
+}
+
+/// An error a Provider call may end in, which the Registry turns into a [`Failure`] of the kind
+/// `K` before it leaves containment.
+// `K` is a parameter, not an associated type, so a caller's own kind can stay private to it.
+pub trait ProviderError<K> {
+    /// What kind of failure this is and what it says. Called inside containment, since formatting
+    /// and dropping a Plugin's error run Plugin code.
+    fn failure(self) -> Failure<K>;
+}
+
+// For any lifetime, not just `PluginError`'s `'static`: an `async` caller's error may be inferred
+// with a shorter one.
+impl ProviderError<()> for Box<dyn std::error::Error + Send + Sync + '_> {
+    fn failure(self) -> Failure {
+        Failure {
+            kind: (),
+            message: self.to_string(),
+        }
+    }
 }
 
 /// Why a Plugin couldn't be enabled.
@@ -512,14 +558,6 @@ impl Registry {
         checked
     }
 
-    /// Whether the enabled Plugin `plugin` provides a `T`.
-    #[must_use]
-    pub fn provides<T: ?Sized + 'static>(&self, plugin: &PluginId) -> bool {
-        self.entries(PointKey::provide::<T>())
-            .iter()
-            .any(|entry| entry.plugin == *plugin)
-    }
-
     /// The ids of the enabled Plugins, sorted.
     #[must_use]
     pub fn enabled(&self) -> Vec<PluginId> {
@@ -631,93 +669,47 @@ impl Registry {
         Outcome::Proceed(action)
     }
 
-    /// Calls `call` with the Provider of `T` that comes first: those the admin ranked with
+    /// Asks the Provider of `T` that comes first: those the admin ranked with
     /// [`Registry::set_provider_precedence`] in that order, then the rest in [`Priority`] order.
     ///
-    /// A Provider that panics is disabled and the next one is called instead. Returns `None` when
+    /// A Provider that panics is disabled and the next one is asked instead. Returns `None` when
     /// no Provider of `T` is left.
-    pub async fn call_provider<T, R, F>(&self, call: impl Fn(Arc<T>) -> F) -> Option<R>
+    pub async fn ask_first<T, R, K, E, F>(&self, call: impl Fn(Arc<T>) -> F) -> Option<Answer<R, K>>
     where
         T: ?Sized + Send + Sync + 'static,
-        F: Future<Output = R>,
+        F: Future<Output = Result<R, E>>,
+        E: ProviderError<K>,
     {
-        self.call_providers(None, call)
-            .await
-            .map(|(_, result)| result)
+        self.ask_in_turn(None, call).await
     }
 
-    /// Like [`Registry::call_provider`], for a call whose error Users may see: an `Err`'s message
-    /// comes back with the value of each secret setting of the Plugin that answered blanked out.
-    pub async fn call_provider_blanking_secrets<T, V, F>(
-        &self,
-        call: impl Fn(Arc<T>) -> F,
-    ) -> Option<Result<V, String>>
-    where
-        T: ?Sized + Send + Sync + 'static,
-        F: Future<Output = Result<V, String>>,
-    {
-        let (entry, result) = self.call_providers(None, call).await?;
-        Some(result.map_err(|message| without_secrets(message, &entry.secrets)))
-    }
-
-    /// Like [`Registry::call_provider_of`], with an `Err`'s message blanked as
-    /// [`Registry::call_provider_blanking_secrets`] blanks it.
-    pub async fn call_provider_of_blanking_secrets<T, V, F>(
+    /// Asks the Plugin `plugin`'s Provider of `T`, such as for something that Provider handed out
+    /// earlier. Returns `None` if the Plugin isn't enabled, doesn't provide `T`, or panics, which
+    /// disables it.
+    pub async fn ask<T, R, K, E, F>(
         &self,
         plugin: &PluginId,
         call: impl Fn(Arc<T>) -> F,
-    ) -> Option<Result<V, String>>
+    ) -> Option<Answer<R, K>>
     where
         T: ?Sized + Send + Sync + 'static,
-        F: Future<Output = Result<V, String>>,
+        F: Future<Output = Result<R, E>>,
+        E: ProviderError<K>,
     {
-        let (entry, result) = self.call_providers(Some(plugin), call).await?;
-        Some(result.map_err(|message| without_secrets(message, &entry.secrets)))
+        self.ask_in_turn(Some(plugin), call).await
     }
 
-    /// Like [`Registry::call_provider`], but also says which Plugin's Provider answered, so the
-    /// caller can go back to it with [`Registry::call_provider_of`].
-    pub async fn call_provider_with_id<T, R, F>(
-        &self,
-        call: impl Fn(Arc<T>) -> F,
-    ) -> Option<(PluginId, R)>
-    where
-        T: ?Sized + Send + Sync + 'static,
-        F: Future<Output = R>,
-    {
-        self.call_providers(None, call)
-            .await
-            .map(|(entry, result)| (entry.plugin, result))
-    }
-
-    /// Calls `call` with the Plugin `plugin`'s Provider of `T`, such as to fetch something that
-    /// Provider handed out earlier. Returns `None` if the Plugin isn't enabled, doesn't provide
-    /// `T`, or panics, which disables it.
-    pub async fn call_provider_of<T, R, F>(
-        &self,
-        plugin: &PluginId,
-        call: impl Fn(Arc<T>) -> F,
-    ) -> Option<R>
-    where
-        T: ?Sized + Send + Sync + 'static,
-        F: Future<Output = R>,
-    {
-        self.call_providers(Some(plugin), call)
-            .await
-            .map(|(_, result)| result)
-    }
-
-    /// Calls `call` with the first Provider of `T` that answers without panicking, in the order
-    /// [`Registry::call_provider`] describes, considering only `only`'s if given. Returns the
-    /// Provider's entry with its answer.
-    async fn call_providers<T, R, F>(
+    /// Asks the Providers of `T` in the order [`Registry::ask_first`] describes, considering only
+    /// `only`'s if given, until one answers without panicking.
+    async fn ask_in_turn<T, R, K, E, F>(
         &self,
         only: Option<&PluginId>,
         call: impl Fn(Arc<T>) -> F,
-    ) -> Option<(Entry, R)>
+    ) -> Option<Answer<R, K>>
     where
         T: ?Sized + Send + Sync + 'static,
-        F: Future<Output = R>,
+        F: Future<Output = Result<R, E>>,
+        E: ProviderError<K>,
     {
         let point = PointKey::provide::<T>();
         let mut entries = self.entries(point);
@@ -738,44 +730,50 @@ impl Registry {
             if !self.is_current(&entry) {
                 continue;
             }
-            match contain(|| call(provider)).await {
-                Ok(result) => return Some((entry, result)),
+            match contain(|| formatted(call(provider))).await {
+                Ok(result) => {
+                    let result = result.map_err(|failure| failure.blanked(&entry.secrets));
+                    return Some(Answer {
+                        plugin: entry.plugin,
+                        result,
+                    });
+                }
                 Err(message) => self.disable_after_panic(&entry, point.name(), &message),
             }
         }
         None
     }
 
-    /// Calls `call` with every Provider of `T`, and the id of the Plugin providing it, each as its
-    /// own task, without waiting for them.
+    /// Tells every Provider of `T`, given the id of the Plugin providing it, each as its own task,
+    /// without waiting for them.
     ///
-    /// An error is logged, without the Plugin's secret settings, and not retried. A Provider that
+    /// A failure is logged, without the Plugin's secret settings, and not retried. A Provider that
     /// panics is disabled. Must be called within a Tokio runtime.
-    pub fn call_each_provider<T, F>(
-        &self,
-        call: impl Fn(PluginId, Arc<T>) -> F + Clone + Send + 'static,
-    ) where
+    pub fn tell_each<T, E, F>(&self, call: impl Fn(PluginId, Arc<T>) -> F + Clone + Send + 'static)
+    where
         T: ?Sized + Send + Sync + 'static,
-        F: Future<Output = Result<(), PluginError>> + Send + 'static,
+        F: Future<Output = Result<(), E>> + Send + 'static,
+        E: ProviderError<()> + 'static,
     {
         for entry in self.entries(PointKey::provide::<T>()) {
             if let Some(provider) = entry.registration.provider::<T>() {
-                tokio::spawn(self.clone().call_one(entry, provider, call.clone()));
+                tokio::spawn(self.clone().tell_one(entry, provider, call.clone()));
             }
         }
     }
 
-    /// The task [`Registry::call_each_provider`] runs for one Provider.
-    async fn call_one<T, F>(
+    /// The task [`Registry::tell_each`] runs for one Provider.
+    async fn tell_one<T, E, F>(
         self,
         entry: Entry,
         provider: Arc<T>,
         call: impl FnOnce(PluginId, Arc<T>) -> F,
     ) where
         T: ?Sized,
-        F: Future<Output = Result<(), PluginError>>,
+        F: Future<Output = Result<(), E>>,
+        E: ProviderError<()>,
     {
-        self.call_if_current(&entry, Arc::clone(&provider), call)
+        self.tell_if_current(&entry, Arc::clone(&provider), call)
             .await;
         // This task may hold the last handle on a Plugin disabled meanwhile, and its `Drop` is
         // Plugin code.
@@ -785,34 +783,38 @@ impl Registry {
         }
     }
 
-    /// Calls `call` with `provider`, logging its error, unless `entry`'s Plugin has been disabled
-    /// since [`Registry::call_each_provider`].
-    async fn call_if_current<T, F>(
+    /// Calls `call` with `provider`, logging its failure, unless `entry`'s Plugin has been
+    /// disabled since [`Registry::tell_each`].
+    async fn tell_if_current<T, E, F>(
         &self,
         entry: &Entry,
         provider: Arc<T>,
         call: impl FnOnce(PluginId, Arc<T>) -> F,
     ) where
         T: ?Sized,
-        F: Future<Output = Result<(), PluginError>>,
+        F: Future<Output = Result<(), E>>,
+        E: ProviderError<()>,
     {
         if !self.is_current(entry) {
             return;
         }
         let point = entry.registration.point().name();
-        // The error is Plugin code too: its message and its `Drop` stay contained.
-        let called = contain(|| {
-            let answer = call(entry.plugin.clone(), provider);
-            async move { answer.await.map_err(|error| error.to_string()) }
-        });
+        let called = contain(|| formatted(call(entry.plugin.clone(), provider)));
         match called.await {
             Ok(Ok(())) => {}
-            Ok(Err(error)) => {
-                let error = without_secrets(error, &entry.secrets);
+            Ok(Err(failure)) => {
+                let error = failure.blanked(&entry.secrets).message;
                 warn!(plugin = %entry.plugin, point, error, "provider failed");
             }
             Err(message) => self.disable_after_panic(entry, point, &message),
         }
+    }
+
+    /// The enabled Plugins that provide a `T`, sorted by id.
+    #[must_use]
+    pub fn providers<T: ?Sized + 'static>(&self) -> BTreeSet<PluginId> {
+        let entries = self.entries(PointKey::provide::<T>());
+        entries.into_iter().map(|entry| entry.plugin).collect()
     }
 
     /// Sets which Plugins' Providers of `T` come first, and in what order, overriding their
@@ -1027,6 +1029,13 @@ fn why_not_svg(text: &str) -> Option<String> {
             (!svg).then(|| format!("its root is <{}>", root.name()))
         }
     }
+}
+
+/// `answer`, its error turned into a [`Failure`] once it is ready, for [`contain`] to await.
+async fn formatted<R, K, E: ProviderError<K>>(
+    answer: impl Future<Output = Result<R, E>>,
+) -> Result<R, Failure<K>> {
+    answer.await.map_err(ProviderError::failure)
 }
 
 pub(crate) fn contain_sync<T>(call: impl FnOnce() -> T) -> Result<T, String> {

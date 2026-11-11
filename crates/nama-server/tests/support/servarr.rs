@@ -1,6 +1,8 @@
 //! Helpers the Radarr and Sonarr tests share, as their Plugins share Servarr's settings and
 //! progress.
 
+use std::sync::Arc;
+
 use connectrpc::{ConnectError, client::HttpClient};
 use nama_plugin_api::fulfiller::Fulfiller;
 use nama_proto::nama::v1::{
@@ -64,13 +66,14 @@ pub(crate) trait ServarrFixture {
     )]
     async fn progress(&self, references: &[String]) -> Result<Vec<String>, String> {
         self.registry()
-            .call_provider::<dyn Fulfiller<Self::Kind>, _, _>(|fulfiller| async move {
+            .ask_first(|fulfiller: Arc<dyn Fulfiller<Self::Kind>>| async move {
                 fulfiller.progress(references).await
             })
             .await
             .unwrap()
+            .result
             .map(|by_reference| by_reference.into_keys().collect())
-            .map_err(|error| error.to_string())
+            .map_err(|failure| failure.message)
     }
 }
 
