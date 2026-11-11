@@ -1,12 +1,13 @@
-import { useRouteContext } from "@tanstack/react-router";
+import { Link, useRouteContext } from "@tanstack/react-router";
 
 import { RequestActions } from "@/components/request-actions";
 import { RequestProgress, RequestStateLabel } from "@/components/request-state";
-import type {
-  FollowedShow,
-  QualityChange,
-  Request,
-  RequestedQuality,
+import {
+  type FollowedShow,
+  type QualityChange,
+  type Request,
+  type RequestedQuality,
+  RequestState,
 } from "@/gen/nama/v1/request_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { dayOf, metadataLine, seasonName, yearOf } from "@/lib/browse";
@@ -47,6 +48,7 @@ export function RequestRow({ request }: { request: Request | FollowedShow }) {
         <p className="truncate font-medium">{titleOf(request)}</p>
         <p className="text-sm text-muted-foreground">{aboutRequest(request, signedIn.user?.id)}</p>
         <Reason reason={reasonOf(request)} />
+        <FulfillerLink request={request} />
       </div>
       <RequestStateLabel state={request.state} />
       {request.$typeName === "nama.v1.Request" && <RequestProgress request={request} />}
@@ -117,6 +119,28 @@ function Reason({ reason }: { reason: string | undefined }) {
   return (
     reason !== undefined && (
       <p className="text-sm text-pretty wrap-break-word text-muted-foreground">Reason: {reason}</p>
+    )
+  );
+}
+
+/**
+ * For a Failed Request, the link to its Fulfiller's Plugin, where the reason it failed is fixed,
+ * shown only to a User who may change the Plugin's settings.
+ */
+function FulfillerLink({ request }: { request: Request | FollowedShow }) {
+  const { signedIn } = useRouteContext({ from: "/_member" });
+  return (
+    request.$typeName === "nama.v1.Request" &&
+    request.state === RequestState.FAILED &&
+    request.fulfillerPluginId !== undefined &&
+    may(signedIn.user, Permission.MANAGE_SETTINGS) && (
+      <Link
+        to="/admin/plugins/$pluginId"
+        params={{ pluginId: request.fulfillerPluginId }}
+        className="rounded-sm text-sm underline decoration-muted-foreground underline-offset-4 outline-none hover:decoration-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+      >
+        Fix it in the Plugin’s settings
+      </Link>
     )
   );
 }

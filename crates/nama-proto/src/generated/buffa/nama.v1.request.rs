@@ -528,6 +528,16 @@ pub struct Request {
         QualityChange,
         ::buffa::Inline<QualityChange>,
     >,
+    /// The ID of the Plugin that is its Fulfiller, as of its latest Hand-off: the one that took it or
+    /// failed it. Unset until it is handed off.
+    ///
+    /// Field 14: `fulfiller_plugin_id`
+    #[serde(
+        rename = "fulfillerPluginId",
+        alias = "fulfiller_plugin_id",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub fulfiller_plugin_id: ::core::option::Option<::buffa::alloc::string::String>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -548,6 +558,7 @@ impl ::core::fmt::Debug for Request {
             .field("quality", &self.quality)
             .field("quality_used", &self.quality_used)
             .field("quality_change", &self.quality_change)
+            .field("fulfiller_plugin_id", &self.fulfiller_plugin_id)
             .finish()
     }
 }
@@ -584,6 +595,16 @@ impl Request {
     ///Sets [`Self::followed_show_id`] to `Some(value)`, consuming and returning `self`.
     pub fn with_followed_show_id(mut self, value: i64) -> Self {
         self.followed_show_id = Some(value);
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::fulfiller_plugin_id`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_fulfiller_plugin_id(
+        mut self,
+        value: impl Into<::buffa::alloc::string::String>,
+    ) -> Self {
+        self.fulfiller_plugin_id = Some(value.into());
         self
     }
 }
@@ -684,6 +705,9 @@ impl ::buffa::Message for Request {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if let Some(ref v) = self.fulfiller_plugin_id {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -770,6 +794,9 @@ impl ::buffa::Message for Request {
                 buf,
             );
             self.quality_change.write_to(__cache, buf);
+        }
+        if let Some(ref v) = self.fulfiller_plugin_id {
+            ::buffa::types::put_string_field(14u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -919,6 +946,18 @@ impl ::buffa::Message for Request {
                     ctx,
                 )?;
             }
+            14u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(
+                    self
+                        .fulfiller_plugin_id
+                        .get_or_insert_with(::buffa::alloc::string::String::new),
+                    buf,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -940,6 +979,7 @@ impl ::buffa::Message for Request {
         self.quality = ::buffa::MessageField::none();
         self.quality_used = ::buffa::MessageField::none();
         self.quality_change = ::buffa::MessageField::none();
+        self.fulfiller_plugin_id = ::core::option::Option::None;
         self.__buffa_unknown_fields.clear();
     }
 }
