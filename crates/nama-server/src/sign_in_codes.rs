@@ -34,7 +34,7 @@ struct Pending {
     /// As [`users::normalized_code`] makes it.
     code: String,
     device_name: String,
-    wants_token: bool,
+    delivery: Delivery,
     expires_at: Instant,
     approved_by: Option<User>,
 }
@@ -45,17 +45,27 @@ pub(crate) struct Started {
     pub(crate) handle: String,
 }
 
+/// How the Device that started a Sign-in Code asked to be handed its session. Kept with the code
+/// and given back when it signs in; only the API module acts on it (ADR 0015).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Delivery {
+    /// In a cookie.
+    Cookie,
+    /// In the response body.
+    Token,
+}
+
 #[derive(Debug)]
 pub(crate) enum Poll {
     Waiting,
     /// Not approved, or not polled once approved, within [`LIFETIME`].
     Expired,
-    /// Approved by `user`, so the Device `device_name` signs in as them, given its session as a
-    /// token if it `wants_token`. Answered once: the sign-in is forgotten.
+    /// Approved by `user`, so the Device `device_name` signs in as them, given its session by
+    /// `delivery`. Answered once: the sign-in is forgotten.
     Approved {
         user: User,
         device_name: String,
-        wants_token: bool,
+        delivery: Delivery,
     },
 }
 
@@ -85,7 +95,7 @@ impl SignInCodes {
     pub(crate) fn start(
         &self,
         device_name: String,
-        wants_token: bool,
+        delivery: Delivery,
         now: Instant,
     ) -> Result<Started, Error> {
         let handle = users::random_secret()?;
@@ -110,7 +120,7 @@ impl SignInCodes {
             Pending {
                 code,
                 device_name,
-                wants_token,
+                delivery,
                 expires_at: now + LIFETIME,
                 approved_by: None,
             },
@@ -146,7 +156,7 @@ impl SignInCodes {
         let Some(Pending {
             approved_by: Some(user),
             device_name,
-            wants_token,
+            delivery,
             ..
         }) = pending.remove(handle)
         else {
@@ -155,7 +165,7 @@ impl SignInCodes {
         Ok(Poll::Approved {
             user,
             device_name,
-            wants_token,
+            delivery,
         })
     }
 
@@ -200,7 +210,9 @@ mod tests {
 
     /// A sign-in started at `now` for the Device "Living room TV", wanting a token.
     fn start(codes: &SignInCodes, now: Instant) -> Started {
-        codes.start("Living room TV".to_owned(), true, now).unwrap()
+        codes
+            .start("Living room TV".to_owned(), Delivery::Token, now)
+            .unwrap()
     }
 
     #[test]
@@ -232,14 +244,14 @@ mod tests {
         let Ok(Poll::Approved {
             user,
             device_name,
-            wants_token,
+            delivery,
         }) = first
         else {
             panic!("not approved: {first:?}");
         };
         assert_eq!(
-            (user.id, device_name.as_str(), wants_token),
-            (1, "Living room TV", true)
+            (user.id, device_name.as_str(), delivery),
+            (1, "Living room TV", Delivery::Token)
         );
         assert!(matches!(again, Err(Error::HandleNotFound)), "{again:?}");
     }
@@ -345,7 +357,7 @@ mod tests {
     }
 
     #[test]
-    fn an_unknown_handle_polls_as_nothing() {
+    fn an_unknown_handle_is_refused_when_polled() {
         let codes = SignInCodes::default();
 
         let polled = codes.poll("made-up", Instant::now());

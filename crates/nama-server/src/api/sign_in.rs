@@ -23,7 +23,7 @@ use crate::{
     rate_limits::Blocked,
     sessions::session_cookie,
     sign_in::{self, Polled, SignIn},
-    sign_in_codes,
+    sign_in_codes::{self, Delivery},
     users::{self, Caller, NewDevice, SetupCode, SignedIn, Users},
 };
 
@@ -53,7 +53,7 @@ impl SignInService for SignInServiceHandler {
     ) -> ServiceResult<SetupResponse> {
         let request = request.to_owned_message();
         let attempt = self.sign_in.limits.admit(client_ip(&ctx)?, None)?;
-        let wants_token = wants_token(request.delivery)?;
+        let delivery = delivery(request.delivery)?;
         // The Server only made no code because it started with Users. Users are checked before the
         // code, so once there are any every attempt is refused as already set up, as documented.
         let setup_code = self.setup_code.as_ref().ok_or(users::Error::AlreadySetUp)?;
@@ -76,7 +76,7 @@ impl SignInService for SignInServiceHandler {
         self.sign_in.limits.succeeded(&attempt);
         Ok(hand_out_session(
             signed_in,
-            wants_token,
+            delivery,
             &ctx,
             |caller, token| SetupResponse {
                 user: user_to_proto(caller.user).into(),
@@ -93,7 +93,7 @@ impl SignInService for SignInServiceHandler {
         request: ServiceRequest<'_, SignInRequest>,
     ) -> ServiceResult<SignInResponse> {
         let request = request.to_owned_message();
-        let wants_token = wants_token(request.delivery)?;
+        let delivery = delivery(request.delivery)?;
         let proof = sign_in::Proof::Password {
             name: request.name,
             password: request.password,
@@ -102,7 +102,7 @@ impl SignInService for SignInServiceHandler {
         let signed_in = self.sign_in.sign_in(proof, device, Instant::now()).await?;
         Ok(hand_out_session(
             signed_in,
-            wants_token,
+            delivery,
             &ctx,
             |caller, token| SignInResponse {
                 user: user_to_proto(caller.user).into(),
@@ -173,12 +173,12 @@ impl SignInService for SignInServiceHandler {
         Output = ServiceResult<impl Encodable<StartSignInCodeResponse> + Send + use<'a>>,
     > + Send {
         let request = request.to_owned_message();
-        let started = wants_token(request.delivery).and_then(|wants_token| {
+        let started = delivery(request.delivery).and_then(|delivery| {
             let user_agent = user_agent(ctx.headers());
             Ok(self.sign_in.start_code(
                 request.device_name,
                 user_agent.as_deref(),
-                wants_token,
+                delivery,
                 Instant::now(),
             )?)
         });
@@ -231,7 +231,7 @@ impl SignInService for SignInServiceHandler {
         ctx: RequestContext,
         request: ServiceRequest<'_, PollSignInCodeRequest>,
     ) -> ServiceResult<PollSignInCodeResponse> {
-        // Before `poll`, which uses up an approved code: failing after it would lose the sign-in.
+        // Before `poll_code`, which uses up an approved code: failing after it would lose the sign-in.
         let ip_address = client_ip(&ctx)?;
         let polled = self
             .sign_in
@@ -242,17 +242,17 @@ impl SignInService for SignInServiceHandler {
                 Instant::now(),
             )
             .await?;
-        let (signed_in, wants_token) = match polled {
+        let (signed_in, delivery) = match polled {
             Polled::Waiting => return poll_status(SignInCodeStatus::SIGN_IN_CODE_STATUS_WAITING),
             Polled::Expired => return poll_status(SignInCodeStatus::SIGN_IN_CODE_STATUS_EXPIRED),
             Polled::SignedIn {
                 signed_in,
-                wants_token,
-            } => (signed_in, wants_token),
+                delivery,
+            } => (signed_in, delivery),
         };
         Ok(hand_out_session(
             signed_in,
-            wants_token,
+            delivery,
             &ctx,
             |caller, token| PollSignInCodeResponse {
                 status: SignInCodeStatus::SIGN_IN_CODE_STATUS_SIGNED_IN.into(),
@@ -273,12 +273,11 @@ fn poll_status(status: SignInCodeStatus) -> ServiceResult<PollSignInCodeResponse
     })
 }
 
-/// Whether a client asking for `delivery` wants its session token in the response body, rather
-/// than as a cookie.
-fn wants_token(delivery: EnumValue<SessionDelivery>) -> Result<bool, ConnectError> {
+/// How a client asking for `delivery` wants its session handed out.
+fn delivery(delivery: EnumValue<SessionDelivery>) -> Result<Delivery, ConnectError> {
     match delivery {
-        EnumValue::Known(SessionDelivery::SESSION_DELIVERY_TOKEN) => Ok(true),
-        EnumValue::Known(SessionDelivery::SESSION_DELIVERY_COOKIE) => Ok(false),
+        EnumValue::Known(SessionDelivery::SESSION_DELIVERY_TOKEN) => Ok(Delivery::Token),
+        EnumValue::Known(SessionDelivery::SESSION_DELIVERY_COOKIE) => Ok(Delivery::Cookie),
         EnumValue::Known(SessionDelivery::SESSION_DELIVERY_UNSPECIFIED) | EnumValue::Unknown(_) => {
             Err(unknown_enum_value(
                 "delivery",
@@ -305,20 +304,21 @@ fn user_agent(headers: &HeaderMap) -> Option<String> {
     Some(value.chars().take(LONGEST).collect())
 }
 
-/// The response `body` makes for a Device just `signed_in`, with its session token in the body for
-/// a client that `wants_token`, or else in a cookie and not in the body.
+/// The response `body` makes for a Device just `signed_in`, with its session token handed out by
+/// `delivery`: in the body, or in a cookie and not in the body.
 fn hand_out_session<M>(
     signed_in: SignedIn,
-    wants_token: bool,
+    delivery: Delivery,
     ctx: &RequestContext,
     body: impl FnOnce(Caller, String) -> M,
 ) -> Response<M> {
     let SignedIn { caller, token } = signed_in;
-    if wants_token {
-        Response::new(body(caller, token))
-    } else {
-        let cookie = session_cookie(&token, ctx.extensions());
-        Response::new(body(caller, String::new())).with_header(SET_COOKIE, cookie)
+    match delivery {
+        Delivery::Token => Response::new(body(caller, token)),
+        Delivery::Cookie => {
+            let cookie = session_cookie(&token, ctx.extensions());
+            Response::new(body(caller, String::new())).with_header(SET_COOKIE, cookie)
+        }
     }
 }
 

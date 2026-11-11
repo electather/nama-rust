@@ -7,11 +7,11 @@ use std::{net::IpAddr, time::Instant};
 use crate::{
     device_names,
     rate_limits::{Blocked, SignInCodeLimits, SignInLimits},
-    sign_in_codes::{self, Poll, SignInCodes, Started},
+    sign_in_codes::{self, Delivery, Poll, SignInCodes, Started},
     users::{self, Caller, NewDevice, SignedIn, Users},
 };
 
-/// Signs Devices in, counting every attempt as a guess until its proof checks out.
+/// Signs Devices in, with a proof or a Sign-in Code, under the sign-in limits.
 pub(crate) struct SignIn {
     users: Users,
     /// The recent failed attempts. `Setup` and `Reauthenticate` still count theirs here from their
@@ -36,11 +36,11 @@ pub(crate) enum Polled {
     Waiting,
     /// Not approved, or not polled once approved, within the code's lifetime.
     Expired,
-    /// Approved, so the polling Device is signed in as the approver, given its session as a token
-    /// if it `wants_token`, as it asked when it started the code.
+    /// Approved, so the polling Device is signed in as the approver, to be given its session by
+    /// `delivery`, as it asked when it started the code.
     SignedIn {
         signed_in: SignedIn,
-        wants_token: bool,
+        delivery: Delivery,
     },
 }
 
@@ -86,16 +86,16 @@ impl SignIn {
     }
 
     /// Starts signing in, with a Sign-in Code, the Device `device_name` that sent `user_agent`, at
-    /// `now`. `wants_token` is kept for the poll that signs it in, unread.
+    /// `now`. `delivery` is kept for the poll that signs it in, unread.
     pub(crate) fn start_code(
         &self,
         device_name: String,
         user_agent: Option<&str>,
-        wants_token: bool,
+        delivery: Delivery,
         now: Instant,
     ) -> Result<Started, Error> {
         let device_name = checked_device_name(device_name, user_agent)?;
-        Ok(self.codes.start(device_name, wants_token, now)?)
+        Ok(self.codes.start(device_name, delivery, now)?)
     }
 
     /// The name of the Device that the code `entered` would sign in, looked up by `caller` at
@@ -131,14 +131,14 @@ impl SignIn {
         user_agent: Option<String>,
         now: Instant,
     ) -> Result<Polled, Error> {
-        let (user, device_name, wants_token) = match self.codes.poll(handle, now)? {
+        let (user, device_name, delivery) = match self.codes.poll(handle, now)? {
             Poll::Waiting => return Ok(Polled::Waiting),
             Poll::Expired => return Ok(Polled::Expired),
             Poll::Approved {
                 user,
                 device_name,
-                wants_token,
-            } => (user, device_name, wants_token),
+                delivery,
+            } => (user, device_name, delivery),
         };
         let device = NewDevice {
             name: device_name,
@@ -148,7 +148,7 @@ impl SignIn {
         let signed_in = self.users.sign_in_as(user, None, device).await?;
         Ok(Polled::SignedIn {
             signed_in,
-            wants_token,
+            delivery,
         })
     }
 
@@ -257,7 +257,7 @@ mod tests {
     }
 
     /// How long `refused` says to wait, if it was blocked.
-    fn retry_after_secs(refused: Result<SignedIn, Error>) -> Option<u64> {
+    fn retry_after_secs<T>(refused: Result<T, Error>) -> Option<u64> {
         match refused {
             Err(Error::Blocked(blocked)) => Some(blocked.retry_after_secs()),
             _ => None,
@@ -372,7 +372,7 @@ mod tests {
     /// Starts a Sign-in Code at `now` for the Device "Living room TV", wanting a token.
     fn start_code(sign_in: &SignIn, now: Instant) -> Started {
         sign_in
-            .start_code("Living room TV".to_owned(), None, true, now)
+            .start_code("Living room TV".to_owned(), None, Delivery::Token, now)
             .unwrap()
     }
 
@@ -386,7 +386,7 @@ mod tests {
         let ada = ada_on_a_new_device(&sign_in, now).await;
 
         let started = sign_in
-            .start_code(" ".to_owned(), Some(MAC_CHROME), true, now)
+            .start_code(" ".to_owned(), Some(MAC_CHROME), Delivery::Token, now)
             .unwrap();
         let device_name = sign_in.look_up_code(&ada, &started.code, now).unwrap();
 
@@ -415,15 +415,15 @@ mod tests {
 
         let Ok(Polled::SignedIn {
             signed_in,
-            wants_token,
+            delivery,
         }) = first
         else {
             panic!("not signed in");
         };
         let tv = signed_in.caller;
         assert_eq!(
-            (tv.user.id, tv.device.name.as_str(), wants_token),
-            (ada.user.id, "Living room TV", true)
+            (tv.user.id, tv.device.name.as_str(), delivery),
+            (ada.user.id, "Living room TV", Delivery::Token)
         );
         assert!(
             matches!(
@@ -453,6 +453,37 @@ mod tests {
         assert!(matches!(expired, Ok(Polled::Expired)));
     }
 
+    #[tokio::test]
+    async fn refusals_of_a_code_never_show_the_code_or_its_handle() {
+        let data_dir = tempfile::tempdir().unwrap();
+        let sign_in = sign_in_with_ada(data_dir.path()).await;
+        let now = Instant::now();
+        let ada = ada_on_a_new_device(&sign_in, now).await;
+        let started = start_code(&sign_in, now);
+        sign_in.approve_code(&ada, &started.code, now).unwrap();
+
+        let approved_again = sign_in.approve_code(&ada, &started.code, now).err();
+        poll_code(&sign_in, &started.handle, now).await.unwrap();
+        let looked_up_once_used = sign_in.look_up_code(&ada, &started.code, now).err();
+        let polled_again = poll_code(&sign_in, &started.handle, now).await.err();
+
+        let secrets = [
+            started.code.clone(),
+            started.code.replace('-', ""),
+            started.handle.clone(),
+        ];
+        for refused in [approved_again, looked_up_once_used, polled_again] {
+            let refused = refused.expect("refused");
+            let shown = format!("{refused} {refused:?}");
+            assert!(
+                secrets
+                    .iter()
+                    .all(|secret| !shown.contains(secret.as_str())),
+                "{shown}"
+            );
+        }
+    }
+
     /// Fails `times` times to look up `code`, unknown or expired, as `caller` at `now`.
     fn fail_look_up(sign_in: &SignIn, caller: &Caller, code: &str, times: usize, now: Instant) {
         for _ in 0..times {
@@ -461,14 +492,6 @@ mod tests {
                 matches!(refused, Err(Error::Code(sign_in_codes::Error::NotFound))),
                 "{refused:?}"
             );
-        }
-    }
-
-    /// How long `refused` says to wait, if it was blocked.
-    fn code_retry_after_secs<T>(refused: Result<T, Error>) -> Option<u64> {
-        match refused {
-            Err(Error::Blocked(blocked)) => Some(blocked.retry_after_secs()),
-            _ => None,
         }
     }
 
@@ -483,7 +506,7 @@ mod tests {
 
         let blocked = sign_in.look_up_code(&ada, &started.code, now);
 
-        assert_eq!(code_retry_after_secs(blocked), Some(15 * 60));
+        assert_eq!(retry_after_secs(blocked), Some(15 * 60));
     }
 
     #[tokio::test]
@@ -504,7 +527,7 @@ mod tests {
 
         let blocked = sign_in.approve_code(&ada, &started.code, now);
 
-        assert_eq!(code_retry_after_secs(blocked), Some(15 * 60));
+        assert_eq!(retry_after_secs(blocked), Some(15 * 60));
     }
 
     #[tokio::test]
@@ -520,7 +543,7 @@ mod tests {
 
         let blocked = sign_in.look_up_code(&ada, &started.code, expired_at);
 
-        assert_eq!(code_retry_after_secs(blocked), Some(15 * 60));
+        assert_eq!(retry_after_secs(blocked), Some(15 * 60));
     }
 
     #[tokio::test]
@@ -562,10 +585,15 @@ mod tests {
             sign_in.look_up_code(&ada, &approved.code, now).unwrap();
         }
         sign_in.approve_code(&ada, &approved.code, now).unwrap();
-        for _ in 0..10 {
-            let again = sign_in.approve_code(&ada, &approved.code, now);
+        let refused_again = (0..10).flat_map(|_| {
+            [
+                sign_in.look_up_code(&ada, &approved.code, now).map(|_| ()),
+                sign_in.approve_code(&ada, &approved.code, now),
+            ]
+        });
+        for refused in refused_again {
             assert!(matches!(
-                again,
+                refused,
                 Err(Error::Code(sign_in_codes::Error::AlreadyApproved))
             ));
         }
