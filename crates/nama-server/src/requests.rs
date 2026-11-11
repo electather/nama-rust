@@ -2431,7 +2431,7 @@ mod tests {
         BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
         fulfiller::{Download, Fulfilled, Fulfiller, Movies, Shows},
         metadata::{Episode, ExternalId, ExternalIds, Season},
-        settings::{SettingValue, Settings, SettingsSchema},
+        settings::{SettingValue, Settings},
     };
     use nama_plugin_tmdb::{
         Tmdb,
@@ -2674,13 +2674,9 @@ mod tests {
     impl<Kind: 'static> Plugin for FulfillerPlugin<Kind> {
         fn manifest(&self) -> Manifest {
             Manifest {
-                id: PluginId::from_static(self.0),
-                name: String::new(),
-                description: String::new(),
                 version: "0.0.0".to_owned(),
-                settings: SettingsSchema::default(),
                 extension_points: vec![PointKey::provide::<dyn Fulfiller<Kind>>()],
-                logo_svg: None,
+                ..Manifest::new(PluginId::from_static(self.0))
             }
         }
 

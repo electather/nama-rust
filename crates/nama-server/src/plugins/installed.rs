@@ -16,7 +16,7 @@ use std::{
 use buffa::Message;
 use extism::{CompiledPlugin, PluginBuilder, Wasm};
 use nama_plugin_api::{
-    BoxFuture, Observer, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
+    BoxFuture, Manifest, Observer, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
     connector::{ConnectionStarted, Connector},
     fulfiller::{Download, Fulfiller, Movies, Shows},
     notifier::{Notification, Notifier, Recipient, RecipientGone},
@@ -31,8 +31,8 @@ use nama_proto::{
     nama::{
         plugin::v1::{
             self as wire, Channel, CheckedSettings, ConnectionPoll, ConnectionPolled,
-            ConnectionStart, Delivered, Delivery, Fulfilled, Manifest, ObservePoint,
-            ObservedEvents, Progress, ProgressAsked, ProvidePoint, setting_value,
+            ConnectionStart, Delivered, Delivery, Fulfilled, ObservePoint, ObservedEvents,
+            Progress, ProgressAsked, ProvidePoint, setting_value,
         },
         v1::{Event, PluginKind, Request},
     },
@@ -102,23 +102,23 @@ enum Refused {
 /// An Installed Plugin the Server read and checked, ready to enable.
 #[derive(Clone)]
 struct Installed {
-    manifest: Arc<Manifest>,
-    settings_schema: SettingsSchema,
+    /// What its package says about it, as the Kernel reads it.
+    manifest: Manifest,
+    /// Its package's own Manifest, for what only an Installed Plugin says, such as its hosts.
+    package: Arc<wire::Manifest>,
     /// The `.wasm` file's contents. Extism fixes the hosts a Plugin may reach and the settings it
     /// reads when it compiles it, so each enabling compiles them again.
     wasm: Arc<[u8]>,
     cache_config: Arc<Path>,
     /// Whether it exports [`CHECK_SETTINGS`].
     checks_settings: bool,
-    /// Its Manifest's logo, if [`kept_logo`] kept it.
-    logo_svg: Option<String>,
 }
 
 /// An enabled Installed Plugin, compiled once with its allowed hosts and settings. Each call into
 /// it gets a fresh instance, so one that traps or times out leaves nothing behind for the next.
 #[derive(Clone)]
 struct Running {
-    manifest: Arc<Manifest>,
+    package: Arc<wire::Manifest>,
     compiled: Arc<CompiledPlugin>,
     /// The values of its secret settings, which the failures it logs mustn't show.
     secrets: Arc<[String]>,
@@ -172,7 +172,7 @@ impl Running {
     fn observer_failed(&self, err: &extism::Error) {
         let cause = without_secrets(err.root_cause().to_string(), &self.secrets);
         let failed = if is_crash(err) { "crashed" } else { "failed" };
-        warn!(plugin = %self.manifest.id, "observer {failed}: {cause}");
+        warn!(plugin = %self.package.id, "observer {failed}: {cause}");
         self.count_crash(err, &cause);
     }
 
@@ -210,21 +210,13 @@ fn is_timeout(err: &extism::Error) -> bool {
 
 impl Installed {
     fn id(&self) -> PluginId {
-        PluginId::from(self.manifest.id.clone())
+        self.manifest.id.clone()
     }
 }
 
 impl Plugin for Installed {
-    fn manifest(&self) -> nama_plugin_api::Manifest {
-        nama_plugin_api::Manifest {
-            id: self.id(),
-            name: self.manifest.name.clone(),
-            description: self.manifest.description.clone(),
-            version: self.manifest.version.clone(),
-            settings: self.settings_schema.clone(),
-            extension_points: extension_points(&self.manifest),
-            logo_svg: self.logo_svg.clone(),
-        }
+    fn manifest(&self) -> Manifest {
+        self.manifest.clone()
     }
 
     fn settings_check(&self) -> Option<&dyn SettingsCheck> {
@@ -235,8 +227,9 @@ impl Plugin for Installed {
     // cache makes that quick, so spawn_blocking only if a Plugin is slow to enable.
     fn register(&self, registrar: &mut Registrar) {
         let settings = registrar.settings();
-        let hosts = allowed_hosts(&self.manifest, &self.settings_schema, settings);
-        let config = extism_config(&self.settings_schema, settings);
+        let schema = &self.manifest.settings;
+        let hosts = allowed_hosts(&self.package, schema, settings);
+        let config = extism_config(schema, settings);
         let compiled = match compile(&self.wasm, &self.cache_config, hosts, config) {
             Ok(compiled) => compiled,
             #[expect(
@@ -246,9 +239,9 @@ impl Plugin for Installed {
             Err(err) => panic!("could not compile it with its settings: {err:#}"),
         };
         let running = Running {
-            manifest: Arc::clone(&self.manifest),
+            package: Arc::clone(&self.package),
             compiled: Arc::new(compiled),
-            secrets: secret_values(&self.settings_schema, settings).into(),
+            secrets: secret_values(schema, settings).into(),
             crashes: Arc::default(),
         };
         // Each counting its own crashes, so its Observer working between them doesn't hide them.
@@ -261,7 +254,7 @@ impl Plugin for Installed {
         let fulfiller = with_own_crash_count();
         // The Kernel refuses a Plugin registering at a point its Manifest doesn't name, so read
         // them from the same list the Kernel checks.
-        let declared = extension_points(&self.manifest);
+        let declared = &self.manifest.extension_points;
         let names = |point| declared.contains(&point);
         if names(PointKey::provide::<dyn Fulfiller<Movies>>()) {
             registrar.provide::<dyn Fulfiller<Movies>>(
@@ -284,11 +277,11 @@ impl Plugin for Installed {
     }
 }
 
-/// The Extension Points `manifest` names, which [`Installed::register`] registers at. One this
+/// The Extension Points `package` names, which [`Installed::register`] registers at. One this
 /// Server doesn't know is left out: one the Plugin can do without, since its nama-api requirement
 /// admits this Server.
-fn extension_points(manifest: &Manifest) -> Vec<PointKey> {
-    let providers = manifest.providers.iter().filter_map(|point| {
+fn extension_points(package: &wire::Manifest) -> Vec<PointKey> {
+    let providers = package.providers.iter().filter_map(|point| {
         Some(match point.as_known()? {
             ProvidePoint::PROVIDE_POINT_MOVIE_FULFILLER => {
                 PointKey::provide::<dyn Fulfiller<Movies>>()
@@ -301,7 +294,7 @@ fn extension_points(manifest: &Manifest) -> Vec<PointKey> {
             ProvidePoint::PROVIDE_POINT_UNSPECIFIED => return None,
         })
     });
-    let observers = manifest
+    let observers = package
         .observers
         .iter()
         .filter_map(|point| match point.as_known()? {
@@ -420,7 +413,7 @@ impl Observer<Events> for Running {
             match self.call_blocking("observe_events", input).await {
                 Ok(Ok(_)) => self.crashes.store(0, Ordering::Relaxed),
                 Ok(Err(err)) => self.observer_failed(&err),
-                Err(err) => warn!(plugin = %self.manifest.id, "observer failed: {err}"),
+                Err(err) => warn!(plugin = %self.package.id, "observer failed: {err}"),
             }
         })
     }
@@ -428,8 +421,9 @@ impl Observer<Events> for Running {
 
 impl SettingsCheck for Installed {
     fn check<'a>(&'a self, settings: &'a Settings) -> BoxFuture<'a, Result<Choices, PluginError>> {
-        let hosts = allowed_hosts(&self.manifest, &self.settings_schema, settings);
-        let config = extism_config(&self.settings_schema, settings);
+        let schema = &self.manifest.settings;
+        let hosts = allowed_hosts(&self.package, schema, settings);
+        let config = extism_config(schema, settings);
         let wasm = Arc::clone(&self.wasm);
         let cache_config = Arc::clone(&self.cache_config);
         Box::pin(async move {
@@ -524,11 +518,11 @@ impl Registry {
         });
         let mut described = Vec::new();
         for (file, plugin) in found.0 {
-            let (id, plugin) = describe(&file, plugin, &taken);
-            if plugin.make.is_ok() {
+            let (id, listing) = describe(&file, plugin, &taken);
+            if listing.plugin.is_ok() {
                 taken.push(id.clone());
             }
-            described.push((id, plugin));
+            described.push((id, listing));
         }
         self.write(|state| {
             let enabled = &state.plugins;
@@ -555,17 +549,12 @@ fn describe(
     });
     match plugin {
         Ok(plugin) => {
-            let id = plugin.id();
+            let (id, manifest) = (plugin.id(), plugin.manifest.clone());
+            let checks_settings = plugin.checks_settings;
             let described = Described {
                 kind: PluginKind::PLUGIN_KIND_INSTALLED,
-                name: plugin.manifest.name.clone(),
-                description: plugin.manifest.description.clone(),
-                version: plugin.manifest.version.clone(),
-                settings_schema: plugin.settings_schema.clone(),
-                checks_settings: plugin.checks_settings,
-                extension_points: extension_points(&plugin.manifest),
-                logo_svg: plugin.logo_svg.clone(),
-                make: Ok(Arc::new(move || Arc::new(plugin.clone()))),
+                plugin: Ok((Arc::new(move || Arc::new(plugin.clone())), manifest)),
+                checks_settings,
             };
             (id, described)
         }
@@ -573,14 +562,8 @@ fn describe(
             let name = file.file_name().unwrap_or_default().to_string_lossy();
             let described = Described {
                 kind: PluginKind::PLUGIN_KIND_INSTALLED,
-                name: String::new(),
-                description: String::new(),
-                version: String::new(),
-                settings_schema: SettingsSchema::default(),
+                plugin: Err(refused.to_string()),
                 checks_settings: false,
-                extension_points: Vec::new(),
-                logo_svg: None,
-                make: Err(refused.to_string()),
             };
             (PluginId::from(name.into_owned()), described)
         }
@@ -674,20 +657,32 @@ fn load(wasm: Vec<u8>, cache_config: &Path) -> Result<Installed, Refused> {
         Ok((bytes, plugin.function_exists(CHECK_SETTINGS)))
     })
     .map_err(Refused::Panicked)??;
-    let mut manifest = Manifest::decode_from_slice(&bytes).map_err(Refused::Decode)?;
-    check_nama_api(&manifest.nama_api)?;
-    check_allowed_hosts(&manifest.allowed_hosts)?;
-    let settings_schema = settings_schema(&manifest)?;
-    // Taken out, so the Manifest kept with the Plugin never holds a logo the Server dropped.
-    let logo = mem::take(&mut manifest.logo_svg);
-    let logo_svg = kept_logo(&PluginId::from(manifest.id.clone()), logo);
+    let mut package = wire::Manifest::decode_from_slice(&bytes).map_err(Refused::Decode)?;
+    check_nama_api(&package.nama_api)?;
+    check_allowed_hosts(&package.allowed_hosts)?;
     Ok(Installed {
-        logo_svg,
-        manifest: Arc::new(manifest),
-        settings_schema,
+        manifest: manifest(&mut package)?,
+        package: Arc::new(package),
         wasm: wasm.into(),
         cache_config: cache_config.into(),
         checks_settings,
+    })
+}
+
+/// What `package` says about its Plugin, as the Kernel reads it. Its logo is taken out, so the
+/// package kept with the Plugin never holds one the Server dropped.
+fn manifest(package: &mut wire::Manifest) -> Result<Manifest, Refused> {
+    let settings = settings_schema(package)?;
+    let id = PluginId::from(package.id.clone());
+    let logo_svg = kept_logo(&id, mem::take(&mut package.logo_svg));
+    Ok(Manifest {
+        id,
+        name: package.name.clone(),
+        description: package.description.clone(),
+        version: package.version.clone(),
+        settings,
+        extension_points: extension_points(package),
+        logo_svg,
     })
 }
 
@@ -713,7 +708,11 @@ fn compile(
 
 /// The hosts a Plugin enabled with `settings` may send HTTP requests to: those its Manifest
 /// names, and the host of each of its URL settings (ADR 0006).
-fn allowed_hosts(manifest: &Manifest, schema: &SettingsSchema, settings: &Settings) -> Vec<String> {
+fn allowed_hosts(
+    package: &wire::Manifest,
+    schema: &SettingsSchema,
+    settings: &Settings,
+) -> Vec<String> {
     // Extism reads every allowed host as a glob, and a URL's host may hold `*` or, for IPv6, `[`:
     // escaped, it names only itself.
     let url_hosts = schema
@@ -721,7 +720,7 @@ fn allowed_hosts(manifest: &Manifest, schema: &SettingsSchema, settings: &Settin
         .iter()
         .filter(|field| field.kind == SettingKind::Url)
         .filter_map(|field| Some(glob::Pattern::escape(settings.url(&field.key)?.host_str()?)));
-    manifest
+    package
         .allowed_hosts
         .iter()
         .cloned()
@@ -770,8 +769,8 @@ fn check_allowed_hosts(hosts: &[String]) -> Result<(), Refused> {
     }
 }
 
-fn settings_schema(manifest: &Manifest) -> Result<SettingsSchema, Refused> {
-    let fields = manifest
+fn settings_schema(package: &wire::Manifest) -> Result<SettingsSchema, Refused> {
+    let fields = package
         .settings
         .iter()
         .map(|field| {

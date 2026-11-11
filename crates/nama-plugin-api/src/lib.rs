@@ -102,6 +102,23 @@ pub struct Manifest {
     pub logo_svg: Option<String>,
 }
 
+impl Manifest {
+    /// A Manifest for the Plugin `id` that says nothing else about it. Fill in what it does say
+    /// with struct update syntax.
+    #[must_use]
+    pub fn new(id: PluginId) -> Self {
+        Self {
+            id,
+            name: String::new(),
+            description: String::new(),
+            version: String::new(),
+            settings: SettingsSchema::default(),
+            extension_points: Vec::new(),
+            logo_svg: None,
+        }
+    }
+}
+
 /// A unit of trusted functionality that plugs into a Server through Extension Points.
 ///
 /// The Kernel contains a panic in any of these methods or in a handler: it logs it and disables

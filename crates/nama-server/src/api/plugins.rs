@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 use buffa::{EnumValue, Enumeration};
 use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
 use nama_plugin_api::{
-    PluginId, PointKey,
+    Manifest, PluginId, PointKey,
     auth::Authenticator,
     connector::Connector,
     fulfiller::{Fulfiller, Movies, Shows},
@@ -323,23 +323,24 @@ fn plugin_summary_to_proto(
     plugin: Listed,
     stored: BTreeMap<String, settings::SettingValue>,
 ) -> proto::PluginSummary {
+    let (manifest, refused_reason) = manifest_and_refusal(&plugin.id, plugin.manifest);
     // `EnablePlugin`'s own check, so the list offers Set up exactly where enabling would be refused
     // for a missing setting.
     let settings_missing = matches!(
-        Settings::new(stored).resolve(&plugin.settings_schema),
+        Settings::new(stored).resolve(&manifest.settings),
         Err(SettingsError::Missing(_))
     );
     proto::PluginSummary {
         settings_missing,
-        extension_points: extension_points_to_proto(&plugin.extension_points),
+        extension_points: extension_points_to_proto(&manifest.extension_points),
         id: plugin.id.to_string(),
-        name: plugin.name,
-        description: plugin.description,
-        version: plugin.version,
+        name: manifest.name,
+        description: manifest.description,
+        version: manifest.version,
         kind: plugin.kind.into(),
         enabled: plugin.enabled,
-        refused_reason: plugin.refused_reason.unwrap_or_default(),
-        logo_svg: plugin.logo_svg.unwrap_or_default(),
+        refused_reason,
+        logo_svg: manifest.logo_svg.unwrap_or_default(),
         ..Default::default()
     }
 }
@@ -348,24 +349,34 @@ fn plugin_to_proto(
     plugin: Listed,
     stored: &BTreeMap<String, settings::SettingValue>,
 ) -> proto::Plugin {
+    let (manifest, refused_reason) = manifest_and_refusal(&plugin.id, plugin.manifest);
     proto::Plugin {
         id: plugin.id.to_string(),
-        name: plugin.name,
-        description: plugin.description,
-        version: plugin.version,
+        name: manifest.name,
+        description: manifest.description,
+        version: manifest.version,
         kind: plugin.kind.into(),
-        refused_reason: plugin.refused_reason.unwrap_or_default(),
+        refused_reason,
         enabled: plugin.enabled,
         checks_settings: plugin.checks_settings,
-        extension_points: extension_points_to_proto(&plugin.extension_points),
-        logo_svg: plugin.logo_svg.unwrap_or_default(),
-        settings: plugin
-            .settings_schema
+        extension_points: extension_points_to_proto(&manifest.extension_points),
+        logo_svg: manifest.logo_svg.unwrap_or_default(),
+        settings: manifest
+            .settings
             .fields
             .iter()
             .map(|field| setting_to_proto(field, stored.get(&field.key)))
             .collect(),
         ..Default::default()
+    }
+}
+
+/// The Plugin `id`'s Manifest as `listed`, and why the Server refused it, empty if it didn't. A
+/// refused Plugin has no Manifest, so it is shown with an empty one: nothing but its id.
+fn manifest_and_refusal(id: &PluginId, listed: Result<Manifest, String>) -> (Manifest, String) {
+    match listed {
+        Ok(manifest) => (manifest, String::new()),
+        Err(reason) => (Manifest::new(id.clone()), reason),
     }
 }
 
