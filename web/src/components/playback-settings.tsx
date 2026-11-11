@@ -9,7 +9,6 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 
 import { FormEnd, FormField, FormSelect } from "@/components/form-field";
-import { belowOriginal } from "@/components/playback-limit-menu";
 import { PlaybackLimit } from "@/gen/nama/v1/playback_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import {
@@ -20,6 +19,7 @@ import {
   ServerService,
 } from "@/gen/nama/v1/server_pb";
 import { formText, onSubmitted, refusal, serverMessage } from "@/lib/forms";
+import { belowOriginal, hardwareName } from "@/lib/playback-wording";
 
 const playbackSettingsKey = createConnectQueryKey({
   schema: ServerService.method.getPlaybackSettings,
@@ -40,20 +40,6 @@ export function playbackStatusQuery(transport: Transport) {
     ...createQueryOptions(ServerService.method.getPlaybackStatus, {}, { transport }),
     staleTime: "static" as const,
   };
-}
-
-const hardwareNames = new Map<HardwareAcceleration, string>([
-  [HardwareAcceleration.UNSPECIFIED, "Automatic"],
-  [HardwareAcceleration.OFF, "Off"],
-  [HardwareAcceleration.VAAPI, "VAAPI"],
-  [HardwareAcceleration.QSV, "Intel QSV"],
-  [HardwareAcceleration.NVENC, "NVIDIA NVENC"],
-  [HardwareAcceleration.VIDEOTOOLBOX, "Apple VideoToolbox"],
-]);
-
-/** A hardware acceleration API's name in plain words, as the Server's own messages say it. */
-function hardwareName(api: HardwareAcceleration) {
-  return hardwareNames.get(api) ?? `API ${api}`;
 }
 
 /** An API on a GPU, such as "AMD Radeon RX 9070 XT · VAAPI", or the API alone without one. */

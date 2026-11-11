@@ -273,6 +273,9 @@ jobs:
             || fromJSON('["ubuntu-latest"]') }}
         partition: [1, 2]
     runs-on: ${{ matrix.os }}
+    # A healthy Windows shard takes under 20 minutes. Without a cap a hung one runs GitHub's default
+    # 6 hours, and main's run stays unfinished, which the factory reads as main's last result.
+    timeout-minutes: 30
     defaults:
       run:
         # Git Bash on Windows, so the steps below are one script for all three.

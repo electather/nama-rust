@@ -9,7 +9,7 @@
 //! Once the Server is serving, a Library is also scanned when its folders change (see [`watch`]).
 //!
 //! Files are only listed and their metadata read, never opened: sidecars such as `.nfo` files
-//! are ignored.
+//! are ignored, except that deleting media deletes them too (see [`deleting`]).
 //!
 //! A scan publishes its start, then after each batch is written its progress and the Items it
 //! added and removed, then its finish, then once Matching has decided what it could
@@ -23,8 +23,11 @@
 //! that one pass is done (ADR 0030): a pass waits for the files it left to another prober, and
 //! one whose Probing ends after a later scan of the Library started sends nothing.
 
+pub(crate) mod deleting;
 mod names;
 mod watch;
+
+pub(crate) use deleting::{Deleted, Doomed};
 
 pub(crate) use names::{PARSER_VERSION, country_tag};
 
@@ -254,6 +257,55 @@ impl Scanner {
         .await
     }
 
+    /// What [`Self::delete_media`] would delete, deleting nothing.
+    pub(crate) async fn preview_delete(&self, doomed: Doomed) -> Result<Deleted, Error> {
+        Ok(tokio::task::spawn_blocking(move || deleting::preview(&doomed)).await?)
+    }
+
+    /// Deletes `doomed` from disk for good, then removes the Versions whose files went as a scan
+    /// removes them, and logs that `by` deleted them. The one way to delete media (see AGENTS.md,
+    /// "One path for deleting media"). It holds the Library's scan lock, so a scan racing it sees
+    /// either everything or nothing gone, and finishes even if the caller stops waiting (ADR 0029).
+    pub(crate) async fn delete_media(&self, doomed: Doomed, by: String) -> Result<Deleted, Error> {
+        let scanner = self.clone();
+        detached(async move {
+            let library = doomed.library.id;
+            let _scan = scanner.inner.locks.lock(library).await;
+            let folders: Vec<String> = (scanner.inner.libraries.list().await?.into_iter())
+                .flat_map(|other| other.folders)
+                .collect();
+            let (doomed, deleted) = tokio::task::spawn_blocking(move || {
+                let kept: Vec<&Path> = folders.iter().map(Path::new).collect();
+                let deleted = deleting::delete(&doomed, &kept);
+                (doomed, deleted)
+            })
+            .await?;
+            // Before anything else can fail: the files are gone for good.
+            let files: Vec<_> = deleted.files.iter().map(|file| &file.path).collect();
+            tracing::info!(
+                by = %by,
+                title = %doomed.title,
+                library,
+                ?files,
+                bytes_freed = deleted.bytes_freed(),
+                not_deleted = ?deleted.failed,
+                "deleted media"
+            );
+            let removed = deleted.versions.iter().copied().map(Change::Remove);
+            let events = scanner
+                .inner
+                .contents
+                .apply(library, removed.collect())
+                .await?;
+            if let Some(probing) = &scanner.inner.probing {
+                probing.clean_subtitles().await;
+            }
+            scanner.inner.events.publish(events);
+            Ok(deleted)
+        })
+        .await
+    }
+
     /// The Matcher that fixes a Match by hand, waiting for a scan of the item's Library.
     pub(crate) fn matcher(&self) -> &Matcher {
         &self.inner.matcher
@@ -435,13 +487,16 @@ fn is_hidden(name: &OsStr) -> bool {
     name.as_encoded_bytes().starts_with(b".") || name == "@eaDir"
 }
 
+/// Whether `path`'s extension is a video's.
+fn is_video(path: &Path) -> bool {
+    path.extension()
+        .and_then(OsStr::to_str)
+        .is_some_and(|ext| VIDEO_EXTENSIONS.contains(&ext.to_ascii_lowercase().as_str()))
+}
+
 fn video_file(root: &Path, entry: &DirEntry) -> Result<Option<Found>, walkdir::Error> {
     let path = entry.path();
-    let is_video = path
-        .extension()
-        .and_then(OsStr::to_str)
-        .is_some_and(|ext| VIDEO_EXTENSIONS.contains(&ext.to_ascii_lowercase().as_str()));
-    if !entry.file_type().is_file() || !is_video {
+    if !entry.file_type().is_file() || !is_video(path) {
         return Ok(None);
     }
     let Ok(relative) = path.strip_prefix(root) else {
