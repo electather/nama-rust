@@ -277,10 +277,16 @@ message ContinueWatchingEntry {
   // It, with its Versions and the caller's Watch State, as browsing describes it.
   oneof movie_or_episode {
     Movie movie = 2;
-    Episode episode = 3;
+    ContinueWatchingEpisode episode = 3;
   }
-  // For an Episode, the Show it is of. Unset for a Movie.
-  Show show = 4;
+  reserved 4;
+  reserved "show";
+}
+
+// An Episode in Continue Watching, with the Show it is of.
+message ContinueWatchingEpisode {
+  Episode episode = 1;
+  Show show = 2;
 }
 
 message ListContinueWatchingRequest {}

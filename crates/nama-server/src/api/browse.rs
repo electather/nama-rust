@@ -217,26 +217,29 @@ fn movie_to_proto(movie: Movie, watch_state: Option<WatchState>) -> proto::Movie
 
 /// A Continue Watching entry as clients see it.
 fn started_to_proto(started: Started) -> proto::ContinueWatchingEntry {
-    let (library_id, movie_or_episode, show) = match started {
+    let (library_id, movie_or_episode) = match started {
         Started::Movie {
             library,
             movie,
             state,
-        } => (library, movie_to_proto(movie, Some(state)).into(), None),
+        } => (library, movie_to_proto(movie, Some(state)).into()),
         Started::Episode {
             library,
             show,
             episode,
             state,
         } => {
-            let episode = episode_to_proto(episode, Some(state));
-            (library, episode.into(), Some(show_to_proto(&show)))
+            let episode = proto::ContinueWatchingEpisode {
+                episode: episode_to_proto(episode, Some(state)).into(),
+                show: show_to_proto(&show).into(),
+                ..Default::default()
+            };
+            (library, episode.into())
         }
     };
     proto::ContinueWatchingEntry {
         library_id,
         movie_or_episode: Some(movie_or_episode),
-        show: show.into(),
         ..Default::default()
     }
 }

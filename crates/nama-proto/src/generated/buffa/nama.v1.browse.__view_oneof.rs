@@ -35,7 +35,9 @@ pub mod continue_watching_entry {
         ),
         Episode(
             ::buffa::alloc::boxed::Box<
-                super::super::super::super::__buffa::view::EpisodeView<'a>,
+                super::super::super::super::__buffa::view::ContinueWatchingEpisodeView<
+                    'a,
+                >,
             >,
         ),
     }

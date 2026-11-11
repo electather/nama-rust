@@ -4656,14 +4656,6 @@ pub struct ContinueWatchingEntry {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i64"
     )]
     pub library_id: i64,
-    /// For an Episode, the Show it is of. Unset for a Movie.
-    ///
-    /// Field 4: `show`
-    #[serde(
-        rename = "show",
-        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
-    )]
-    pub show: ::buffa::MessageField<Show, ::buffa::Inline<Show>>,
     #[serde(flatten)]
     pub movie_or_episode: ::core::option::Option<
         __buffa::oneof::continue_watching_entry::MovieOrEpisode,
@@ -4676,7 +4668,6 @@ impl ::core::fmt::Debug for ContinueWatchingEntry {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
         f.debug_struct("ContinueWatchingEntry")
             .field("library_id", &self.library_id)
-            .field("show", &self.show)
             .field("movie_or_episode", &self.movie_or_episode)
             .finish()
     }
@@ -4731,14 +4722,6 @@ impl ::buffa::Message for ContinueWatchingEntry {
                 }
             }
         }
-        if self.show.is_set() {
-            let __slot = __cache.reserve();
-            let inner_size = self.show.compute_size(__cache);
-            __cache.set(__slot, inner_size);
-            size
-                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
-                    + inner_size as u64;
-        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -4771,14 +4754,6 @@ impl ::buffa::Message for ContinueWatchingEntry {
                     x.write_to(__cache, buf);
                 }
             }
-        }
-        if self.show.is_set() {
-            ::buffa::types::put_len_delimited_header(
-                4u32,
-                u64::from(__cache.consume_next()),
-                buf,
-            );
-            self.show.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -4844,17 +4819,6 @@ impl ::buffa::Message for ContinueWatchingEntry {
                     );
                 }
             }
-            4u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::LengthDelimited,
-                )?;
-                ::buffa::Message::merge_length_delimited(
-                    self.show.get_or_insert_default(),
-                    buf,
-                    ctx,
-                )?;
-            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -4865,7 +4829,6 @@ impl ::buffa::Message for ContinueWatchingEntry {
     fn clear(&mut self) {
         self.library_id = 0i64;
         self.movie_or_episode = ::core::option::Option::None;
-        self.show = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -4897,9 +4860,6 @@ impl<'de> ::serde::Deserialize<'de> for ContinueWatchingEntry {
                 mut map: A,
             ) -> ::core::result::Result<ContinueWatchingEntry, A::Error> {
                 let mut __f_library_id: ::core::option::Option<i64> = None;
-                let mut __f_show: ::core::option::Option<
-                    ::buffa::MessageField<Show, ::buffa::Inline<Show>>,
-                > = None;
                 let mut __oneof_movie_or_episode: ::core::option::Option<
                     __buffa::oneof::continue_watching_entry::MovieOrEpisode,
                 > = None;
@@ -4919,14 +4879,6 @@ impl<'de> ::serde::Deserialize<'de> for ContinueWatchingEntry {
                                 }
                                 map.next_value_seed(_S)?
                             });
-                        }
-                        "show" => {
-                            __f_show = Some(
-                                map
-                                    .next_value::<
-                                        ::buffa::MessageField<Show, ::buffa::Inline<Show>>,
-                                    >()?,
-                            );
                         }
                         "movie" => {
                             let v: ::core::option::Option<Movie> = map
@@ -4953,11 +4905,11 @@ impl<'de> ::serde::Deserialize<'de> for ContinueWatchingEntry {
                             }
                         }
                         "episode" => {
-                            let v: ::core::option::Option<Episode> = map
+                            let v: ::core::option::Option<ContinueWatchingEpisode> = map
                                 .next_value_seed(
                                     ::buffa::json_helpers::NullableDeserializeSeed(
                                         ::buffa::json_helpers::DefaultDeserializeSeed::<
-                                            Episode,
+                                            ContinueWatchingEpisode,
                                         >::new(),
                                     ),
                                 )?;
@@ -4984,9 +4936,6 @@ impl<'de> ::serde::Deserialize<'de> for ContinueWatchingEntry {
                 let mut __r = <ContinueWatchingEntry as ::core::default::Default>::default();
                 if let ::core::option::Option::Some(v) = __f_library_id {
                     __r.library_id = v;
-                }
-                if let ::core::option::Option::Some(v) = __f_show {
-                    __r.show = v;
                 }
                 __r.movie_or_episode = __oneof_movie_or_episode;
                 Ok(__r)
@@ -5023,6 +4972,181 @@ pub mod continue_watching_entry {
     #[doc(inline)]
     pub use super::__buffa::view::oneof::continue_watching_entry::MovieOrEpisode as MovieOrEpisodeView;
 }
+/// An Episode in Continue Watching, with the Show it is of.
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct ContinueWatchingEpisode {
+    /// Field 1: `episode`
+    #[serde(
+        rename = "episode",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
+    )]
+    pub episode: ::buffa::MessageField<Episode, ::buffa::Inline<Episode>>,
+    /// Field 2: `show`
+    #[serde(
+        rename = "show",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
+    )]
+    pub show: ::buffa::MessageField<Show, ::buffa::Inline<Show>>,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for ContinueWatchingEpisode {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("ContinueWatchingEpisode")
+            .field("episode", &self.episode)
+            .field("show", &self.show)
+            .finish()
+    }
+}
+impl ContinueWatchingEpisode {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.ContinueWatchingEpisode";
+}
+::buffa::impl_default_instance!(ContinueWatchingEpisode);
+impl ::buffa::MessageName for ContinueWatchingEpisode {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "ContinueWatchingEpisode";
+    const FULL_NAME: &'static str = "nama.v1.ContinueWatchingEpisode";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.ContinueWatchingEpisode";
+}
+impl ::buffa::Message for ContinueWatchingEpisode {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.episode.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.episode.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        if self.show.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.show.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.episode.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.episode.write_to(__cache, buf);
+        }
+        if self.show.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                2u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.show.write_to(__cache, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.episode.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.show.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.episode = ::buffa::MessageField::none();
+        self.show = ::buffa::MessageField::none();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for ContinueWatchingEpisode {
+    const PROTO_FQN: &'static str = "nama.v1.ContinueWatchingEpisode";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for ContinueWatchingEpisode {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __CONTINUE_WATCHING_EPISODE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.v1.ContinueWatchingEpisode",
+    to_json: ::buffa::type_registry::any_to_json::<ContinueWatchingEpisode>,
+    from_json: ::buffa::type_registry::any_from_json::<ContinueWatchingEpisode>,
+    is_wkt: false,
+};
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
