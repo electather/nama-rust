@@ -173,8 +173,8 @@ pub(crate) async fn replace(
     .await
 }
 
-/// What an ask says about Quality, which [`for_request`] makes and Requests carries to the Requests
-/// it opens or joins.
+/// What an ask says about Quality, which [`for_request`] and [`ShowRequests`] make and Requests
+/// carries to the Requests it opens or joins.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub(crate) struct Ask {
     /// The Quality a new Request for it takes, if its Fulfiller has any.
@@ -182,6 +182,7 @@ pub(crate) struct Ask {
     /// Whether the asker chose `taken`, by picking it or as their personal default, so it replaces
     /// a Pending Request's when their ask approves it.
     chosen: bool,
+    /// The id of the Quality the asker named, if they did, which must be the Show's if it has one.
     named: Option<i64>,
 }
 
@@ -228,18 +229,18 @@ fn pick(
     personal_default: Option<i64>,
 ) -> Result<Ask, Refused> {
     let find = |id| listed.iter().find(|quality| quality.id == id);
-    let chosen = |quality| Ask {
+    let as_chosen = |quality| Ask {
         taken: Some(requested(quality)),
         chosen: true,
         named,
     };
     if let Some(id) = named {
         return find(id)
-            .map(chosen)
+            .map(as_chosen)
             .ok_or(Refused::NotOffered { id, field: ASKED });
     }
     if let Some(quality) = personal_default.and_then(find) {
-        return Ok(chosen(quality));
+        return Ok(as_chosen(quality));
     }
     let default = listed.iter().find(|quality| quality.is_default);
     Ok(Ask {
