@@ -28,6 +28,7 @@ use crate::{
     matching::Matcher,
     playback::running::RunningPlans,
     plugin_settings::PluginSettings,
+    probing::Probing,
     requests::Requests,
     scanner::Scanner,
     server_settings,
@@ -74,6 +75,7 @@ pub(crate) fn router(
     db: Arc<Database>,
     plugin_settings: PluginSettings,
     scanner: Scanner,
+    probing: Probing,
     events: EventBus,
     requests: Requests,
     settings: server_settings::Settings,
@@ -126,7 +128,7 @@ pub(crate) fn router(
             browse,
         }))
         .add_service(Arc::new(PlaybackServiceHandler {
-            scanner: scanner.clone(),
+            probing: probing.clone(),
             running,
             settings: playback,
         }))
@@ -135,6 +137,7 @@ pub(crate) fn router(
         .add_service(Arc::new(LibraryServiceHandler {
             libraries: Libraries::new(db),
             scanner,
+            probing,
         }))
         .add_service(Arc::new(EventServiceHandler {
             events,

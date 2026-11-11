@@ -13,11 +13,7 @@ use std::{
 use nama_proto::nama::v1 as proto;
 use sqlx::SqliteConnection;
 
-use crate::{
-    contents::Stored,
-    db::Database,
-    ffmpeg::{ProbeError, TEXT_SUBTITLES},
-};
+use crate::{contents::Stored, db::Database, ffmpeg::TEXT_SUBTITLES};
 
 /// The version of how probing reads a file, stored with what it read like the name parser's
 /// (ADR 0023). A Version read by an older one is probed again; when to bump it is in `AGENTS.md`.
@@ -32,6 +28,61 @@ pub(crate) const PROBE_FAILURE_VERSION: i64 = 1;
 /// timeout, before it skips it like a lasting failure. A file that timed out once may well again,
 /// and each try can hold a probe slot for the whole timeout.
 pub(crate) const PROBE_ATTEMPTS: i64 = 3;
+
+/// What a failure to probe a Version means for trying it again. Only `crate::probing` decides
+/// which a failure is; Tracks stores the last two.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ProbeFailure {
+    /// It says nothing about the file and would fail the same on every other, as when ffprobe
+    /// can't be run, so the pass stops and the next one tries them all.
+    StopsPass,
+    /// It says nothing about the file, as when the file couldn't be opened, so it's tried again
+    /// next pass.
+    Retried,
+    /// The file will fail the same way until it changes.
+    Lasting(LastingReason),
+    /// It may not happen next time, so it's tried again up to [`PROBE_ATTEMPTS`] times.
+    Passing(PassingReason),
+}
+
+/// Why ffprobe lastingly couldn't read a file, as `probe_failures.reason` stores it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum LastingReason {
+    /// ffprobe read the file and refused it.
+    Failed,
+    /// ffprobe said something probing can't parse.
+    UnreadableOutput,
+}
+
+impl LastingReason {
+    /// Every one, which [`Tracks::current`] skips.
+    const ALL: [Self; 2] = match Self::Failed {
+        // Names every variant, so a new one fails to compile here until it's listed.
+        Self::Failed | Self::UnreadableOutput => [Self::Failed, Self::UnreadableOutput],
+    };
+
+    const fn stored(self) -> &'static str {
+        match self {
+            Self::Failed => "failed",
+            Self::UnreadableOutput => "unreadable_output",
+        }
+    }
+}
+
+/// Why ffprobe couldn't read a file this time, as `probe_failures.reason` stores it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum PassingReason {
+    /// ffprobe ran past its timeout, as on a slow or unmounted share or a busy disk.
+    TimedOut,
+}
+
+impl PassingReason {
+    const fn stored(self) -> &'static str {
+        match self {
+            Self::TimedOut => "timed_out",
+        }
+    }
+}
 
 /// What probing a Version found.
 #[derive(Debug, Clone, PartialEq)]
@@ -156,13 +207,14 @@ impl Tracks {
         Self { db }
     }
 
-    /// Those of `files` the current [`PROBE_VERSION`] read, or failed to read for a lasting reason
-    /// or [`PROBE_ATTEMPTS`] times at the current [`PROBE_FAILURE_VERSION`], at the size and
-    /// modified time `Contents` stores for the file now, which the probe pass skips. A failed one
-    /// has no Tracks, so [`Self::of`] leaves it out.
+    /// Those of `files` the current [`PROBE_VERSION`] read, or failed to read for a
+    /// [`LastingReason`] or [`PROBE_ATTEMPTS`] times at the current [`PROBE_FAILURE_VERSION`], at
+    /// the size and modified time `Contents` stores for the file now, which the probe pass skips.
+    /// A failed one has no Tracks, so [`Self::of`] leaves it out.
     pub(crate) async fn current(&self, files: &[Stored]) -> Result<HashSet<i64>, sqlx::Error> {
         let versions: Vec<i64> = files.iter().map(|file| file.id).collect();
         let versions = json_array(&versions);
+        let lasting = json_array(&LastingReason::ALL.map(LastingReason::stored));
         let read_at: HashSet<(i64, i64, i64)> = sqlx::query!(
             r#"SELECT version_id AS "version_id!", size AS "size!", modified_ns AS "modified_ns!"
                FROM version_probes
@@ -170,12 +222,13 @@ impl Tracks {
                UNION ALL
                SELECT version_id, size, modified_ns FROM probe_failures
                WHERE probe_version = ?1 AND failure_version = ?3
-                 AND (reason IN ('failed', 'unreadable_output') OR attempts >= ?4)
+                 AND (reason IN (SELECT value FROM json_each(?5)) OR attempts >= ?4)
                  AND version_id IN (SELECT value FROM json_each(?2))"#,
             PROBE_VERSION,
             versions,
             PROBE_FAILURE_VERSION,
-            PROBE_ATTEMPTS
+            PROBE_ATTEMPTS,
+            lasting
         )
         .fetch_all(self.db.reader())
         .await?
@@ -201,19 +254,20 @@ impl Tracks {
     }
 
     /// Stores that the current [`PROBE_VERSION`] couldn't read the Version `version` at its stored
-    /// size and modified time, and why (`err`). For a lasting reason, the probe pass skips it until
-    /// one of them or [`PROBE_FAILURE_VERSION`] changes; for a passing one, such as a timeout, it
-    /// tries again next pass, until it has failed [`PROBE_ATTEMPTS`] times in a row. Forgets what
-    /// probing found in it before, so Tracks read from what the file held then don't outlive it. A
-    /// Version removed since, or an `err` that says nothing about the file, such as ffprobe not
-    /// running, stores and forgets nothing.
+    /// size and modified time, and why (`failure`). For a lasting reason, the probe pass skips it
+    /// until one of them or [`PROBE_FAILURE_VERSION`] changes; for a passing one, it tries again
+    /// next pass, until it has failed [`PROBE_ATTEMPTS`] times in a row. Forgets what probing found
+    /// in it before, so Tracks read from what the file held then don't outlive it. A Version
+    /// removed since, or a `failure` that says nothing about the file, stores and forgets nothing.
     pub(crate) async fn store_failure(
         &self,
         version: Stored,
-        err: &ProbeError,
+        failure: ProbeFailure,
     ) -> Result<(), sqlx::Error> {
-        let Some(reason) = failure_reason(err) else {
-            return Ok(());
+        let reason = match failure {
+            ProbeFailure::StopsPass | ProbeFailure::Retried => return Ok(()),
+            ProbeFailure::Lasting(reason) => reason.stored(),
+            ProbeFailure::Passing(reason) => reason.stored(),
         };
         let stored = self
             .db
@@ -379,21 +433,6 @@ impl Tracks {
     }
 }
 
-/// `err` as `probe_failures.reason`, which says whether it lasts, or none if it says nothing about
-/// the file.
-const fn failure_reason(err: &ProbeError) -> Option<&'static str> {
-    match err {
-        // ffprobe read the file and refused it, or said something it can't parse: it will again.
-        ProbeError::Failed(_) => Some("failed"),
-        ProbeError::Output(_) => Some("unreadable_output"),
-        // A slow or unmounted share, or a busy disk, may not be slow next time.
-        ProbeError::TimedOut(_) => Some("timed_out"),
-        // ffprobe never reached the file, so counting it against the file would skip a whole
-        // Library after one bad pass, such as during a package upgrade.
-        ProbeError::Run(_) | ProbeError::Unavailable => None,
-    }
-}
-
 /// `written`, but a write about a Version removed meanwhile is no error: what it said goes with
 /// the Version.
 fn ignore_removed(written: Result<(), sqlx::Error>) -> Result<(), sqlx::Error> {
@@ -403,10 +442,10 @@ fn ignore_removed(written: Result<(), sqlx::Error>) -> Result<(), sqlx::Error> {
     }
 }
 
-/// `ids` as a JSON array, which SQLite's `json_each` turns into rows, since a query can't bind a
-/// list.
-fn json_array(ids: &[i64]) -> String {
-    serde_json::Value::from(ids).to_string()
+/// `values` as a JSON array, which SQLite's `json_each` turns into rows, since a query can't bind
+/// a list.
+fn json_array<T: Clone + Into<serde_json::Value>>(values: &[T]) -> String {
+    serde_json::Value::from(values).to_string()
 }
 
 async fn store(

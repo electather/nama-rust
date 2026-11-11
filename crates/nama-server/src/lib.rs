@@ -16,6 +16,7 @@ mod matching;
 mod playback;
 pub mod plugin_settings;
 pub mod plugins;
+mod probing;
 mod qualities;
 mod rate_limits;
 mod requests;
@@ -37,7 +38,7 @@ use tokio::net::TcpListener;
 use crate::{
     config::Config, contents::Contents, db::Database, events::EventBus, ffmpeg::Ffmpeg,
     matching::Matcher, playback::running::RunningPlans, playback::subtitles,
-    plugin_settings::PluginSettings, requests::Requests, scanner::Scanner,
+    plugin_settings::PluginSettings, probing::Probing, requests::Requests, scanner::Scanner,
     server_settings::Settings, tracks::Tracks, users::SetupCode,
 };
 
@@ -87,12 +88,12 @@ pub fn serve(
     let events = EventBus::new(Arc::clone(&db), registry.clone(), settings.server_url());
     let ffmpeg = Arc::new(ffmpeg);
     let subtitles = subtitles::Cache::new(&config.data_dir);
+    let probing = Probing::new(Arc::clone(&db), Arc::clone(&ffmpeg), subtitles.clone());
     let scanner = Scanner::new(
         Arc::clone(&db),
         registry.clone(),
         events.clone(),
-        Arc::clone(&ffmpeg),
-        subtitles.clone(),
+        Some(probing.clone()),
     );
     let matcher = Matcher::new(Arc::clone(&db), registry.clone(), events.clone());
     let requests = Requests::new(Arc::clone(&db), matcher, events.clone(), registry.clone());
@@ -109,6 +110,7 @@ pub fn serve(
         db,
         plugins.clone(),
         scanner.clone(),
+        probing.clone(),
         events.clone(),
         requests.clone(),
         settings,
@@ -137,7 +139,9 @@ pub fn serve(
         })
         .await;
         running.stop_all().await;
+        // The Scanner first, so a scan finishing now can't start a pass once Probing has stopped.
         scanner.shutdown().await;
+        probing.shutdown().await;
         // Before the Plugin settings, which save a Plugin that crashes as it is asked about progress.
         requests.shutdown().await;
         plugins.shutdown().await;

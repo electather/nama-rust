@@ -1,16 +1,16 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT requesters.request_id, requesters.user_id, users.display_username,\n                requesters.requested_at\n         FROM requesters\n         JOIN users ON users.id = requesters.user_id\n         WHERE ?1 IS NULL OR requesters.request_id = ?1\n         ORDER BY requesters.requested_at, requesters.rowid",
+  "query": "SELECT r.followed_show_id AS \"asked_id!\", r.user_id,\n                        users.display_username AS name, r.requested_at\n                 FROM followed_show_requesters AS r\n                 JOIN users ON users.id = r.user_id\n                 WHERE ?1 IS NULL OR r.followed_show_id = ?1\n                 ORDER BY r.requested_at, r.rowid",
   "describe": {
     "columns": [
       {
-        "name": "request_id",
+        "name": "asked_id!",
         "ordinal": 0,
         "type_info": "Integer",
         "origin": {
           "Table": {
-            "table": "requesters",
-            "name": "request_id"
+            "table": "followed_show_requesters",
+            "name": "followed_show_id"
           }
         }
       },
@@ -20,13 +20,13 @@
         "type_info": "Integer",
         "origin": {
           "Table": {
-            "table": "requesters",
+            "table": "followed_show_requesters",
             "name": "user_id"
           }
         }
       },
       {
-        "name": "display_username",
+        "name": "name",
         "ordinal": 2,
         "type_info": "Text",
         "origin": {
@@ -42,7 +42,7 @@
         "type_info": "Integer",
         "origin": {
           "Table": {
-            "table": "requesters",
+            "table": "followed_show_requesters",
             "name": "requested_at"
           }
         }
@@ -58,5 +58,5 @@
       false
     ]
   },
-  "hash": "aa2406ff83515daeea22140386f547fbccd8035e5ae9a6371262738976d5f829"
+  "hash": "f92ec49bb624cd8f0606f61b5358832f4e906b39f40408ea7bdeea6d391f6161"
 }

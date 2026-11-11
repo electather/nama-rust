@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT EXISTS (SELECT 1 FROM followed_shows WHERE id = ? AND latest_season >= ?)\n           AS \"is!: bool\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "is!: bool",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "f380337d19ffb6fb4f098095a0e6fedf8847d594b2820617060ca9e4a8ae543c"
+}
