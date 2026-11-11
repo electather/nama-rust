@@ -39,6 +39,9 @@ importers:
       '@fontsource-variable/geist':
         specifier: ^5.3.0
         version: 5.3.0
+      '@jellyfin/libass-wasm':
+        specifier: 4.2.4
+        version: 4.2.4
       '@tanstack/react-query':
         specifier: ^5.106.1
         version: 5.106.1(@types/react@19.3.0)(react@19.3.1)
@@ -398,6 +401,9 @@ packages:
 
   '@isaacs/nonrecursive-glob-match@1.1.0':
     resolution: {integrity: sha512-GPm/Dbvk5RLmhRnxXIa7nTpK0xtl4E0wj0MslsuNiJ1FIROU+2+9lgUC/dgF7Ey4QCWhfEsgxilMRMCdHPfDfw==}
+
+  '@jellyfin/libass-wasm@4.2.4':
+    resolution: {integrity: sha512-xgOxp0Lmg7djdRpC+RRFaN28QeoMr46tOgL9/xbXqM46RjjVruFC3iK7K8AuGNUZ11Ysil23p0kACQw06GuaRw==}
 
   '@jridgewell/gen-mapping@0.3.13':
     resolution: {integrity: sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==}
@@ -3164,6 +3170,8 @@ snapshots:
   '@fontsource-variable/geist@5.3.0': {}
 
   '@isaacs/nonrecursive-glob-match@1.1.0': {}
+
+  '@jellyfin/libass-wasm@4.2.4': {}
 
   '@jridgewell/gen-mapping@0.3.13':
     dependencies:

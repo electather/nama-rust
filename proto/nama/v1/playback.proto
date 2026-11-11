@@ -43,9 +43,10 @@ message PlanPlaybackRequest {
   // Unset for the one the Version plays by default.
   optional uint32 audio_track = 3;
   // The subtitle Track the caller chose to burn into the picture, one the Device can't draw such
-  // as PGS on a Device that doesn't list it, or an ASS or SSA one with its styling, which makes the
-  // plan a Transcode, by its place in the Version's `tracks`, counting from 0. Unset for none, as
-  // when the player shows a subtitle from `PlaybackPlan.subtitles` itself.
+  // as PGS on a Device that doesn't list it, or an ASS or SSA one it doesn't draw, with its
+  // styling, which makes the plan a Transcode, by its place in the Version's `tracks`, counting
+  // from 0. Unset for none, as when the player shows a subtitle from `PlaybackPlan.subtitles`
+  // itself.
   optional uint32 subtitle_track = 4;
   // The Playback Limit the caller picked. Unset until they pick one, when a Device outside the
   // local network gets the Server's default for remote playback.
@@ -98,6 +99,8 @@ enum SubtitleFormat {
   SUBTITLE_FORMAT_WEBVTT = 1;
   // Blu-ray's image subtitles, as the Track's own `.sup`.
   SUBTITLE_FORMAT_PGS = 2;
+  // ASS or SSA with its styling, as the Track's own `.ass`, drawn with the fonts its file carries.
+  SUBTITLE_FORMAT_ASS = 3;
 }
 
 // A container the Server knows whether a Device plays.
@@ -184,8 +187,8 @@ message PlaybackPlan {
   // busy Server or a method that failed on the Device rules out for now: the audio Tracks it can
   // play, by their place in the Version's `tracks`, in that order.
   repeated uint32 audio_tracks = 10;
-  // The subtitle Tracks it can burn into the picture, likewise: those the Device can't draw, and
-  // ASS or SSA ones, whose styling their WebVTT among `subtitles` drops.
+  // The subtitle Tracks it can burn into the picture, likewise: those the Device can't draw, such
+  // as ASS or SSA ones it doesn't draw, whose styling their WebVTT among `subtitles` drops.
   repeated uint32 burn_in_tracks = 11;
   // The Playback Limits below Original it can scale the picture down to, largest first.
   repeated PlaybackLimit playback_limits = 12;
@@ -200,6 +203,9 @@ message PlaybackSubtitle {
   string url = 2;
   // The format it's fetched in.
   SubtitleFormat format = 3;
+  // Where to fetch the fonts its file carries, on this Server, for an ASS one to be drawn with.
+  // Empty for any other format.
+  repeated string font_urls = 4;
 }
 
 // One fact that shaped a Playback Plan (ADR 0034).
@@ -261,6 +267,9 @@ enum PlaybackReasonKind {
   PLAYBACK_REASON_KIND_PICTURE_SCALED_DOWN = 14;
   // Rules out Direct Play and Remux: the subtitles chosen need Burn-in.
   PLAYBACK_REASON_KIND_SUBTITLES_BURNED_IN = 15;
+  // Rules out Direct Play and Remux: the ASS subtitles chosen need Burn-in on a Device that draws
+  // ASS, because their file carries no fonts to draw them with (ADR 0033).
+  PLAYBACK_REASON_KIND_SUBTITLES_FILE_CARRIES_NO_FONTS = 31;
 
   // The rest rule nothing out.
 

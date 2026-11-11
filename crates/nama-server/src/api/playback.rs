@@ -175,6 +175,7 @@ fn plan_to_proto(planned: Planned) -> proto::PlaybackPlan {
                 track: track_to_proto(&subtitle.track).into(),
                 url: subtitle.url.clone(),
                 format: subtitle.format.into(),
+                font_urls: subtitle.font_urls.clone(),
                 ..Default::default()
             })
             .collect(),
