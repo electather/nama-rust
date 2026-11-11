@@ -14,7 +14,7 @@ use nama_plugin_api::{
 use nama_proto::nama::v1::{Permission, Quality, RequestState, RequestedQuality};
 use sqlx::SqliteConnection;
 
-use crate::{db::Database, users::User};
+use crate::{db::Database, requests, users::User};
 
 /// The choice setting whose choices are the profiles a Fulfiller's Qualities may offer. A
 /// Fulfiller takes a Request's profile in its place, so the setting stays the fallback.
@@ -363,10 +363,8 @@ pub(crate) struct Moves {
 }
 
 impl SeasonRequest {
-    /// Whether it is still open: Declined and Available ones are closed, and Cancelled or
-    /// Withdrawn ones are gone.
     fn is_open(&self) -> bool {
-        !matches!(self.state, RequestState::Declined | RequestState::Available)
+        requests::is_open(self.state)
     }
 
     /// The Quality it holds its Show to: what the service used, as Sonarr keeps a series'
