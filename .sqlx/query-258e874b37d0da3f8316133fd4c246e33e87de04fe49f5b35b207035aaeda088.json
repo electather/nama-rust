@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM followed_shows WHERE id = ?1 AND NOT EXISTS (SELECT 1 FROM followed_show_requesters WHERE followed_show_id = ?1)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "258e874b37d0da3f8316133fd4c246e33e87de04fe49f5b35b207035aaeda088"
+}
