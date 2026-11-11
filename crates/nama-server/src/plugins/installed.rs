@@ -32,7 +32,7 @@ use nama_proto::{
         plugin::v1::{
             self as wire, Channel, CheckedSettings, ConnectionPoll, ConnectionPolled,
             ConnectionStart, Delivered, Delivery, Fulfilled, ObservePoint, ObservedEvents,
-            Progress, ProgressAsked, ProvidePoint, setting_value,
+            Progress, ProgressAsked, ProvidePoint,
         },
         v1::{Event, PluginKind, Request},
     },
@@ -925,28 +925,17 @@ fn settings_schema(package: &wire::Manifest) -> Result<SettingsSchema, Refused> 
         .settings
         .iter()
         .map(|field| {
-            let kind = match field.kind.as_known() {
-                Some(wire::SettingKind::SETTING_KIND_TEXT) => SettingKind::Text,
-                Some(wire::SettingKind::SETTING_KIND_SECRET) => SettingKind::Secret,
-                Some(wire::SettingKind::SETTING_KIND_BOOL) => SettingKind::Bool,
-                Some(wire::SettingKind::SETTING_KIND_INTEGER) => SettingKind::Integer,
-                Some(wire::SettingKind::SETTING_KIND_URL) => SettingKind::Url,
-                Some(wire::SettingKind::SETTING_KIND_CHOICE) => SettingKind::Choice,
-                Some(wire::SettingKind::SETTING_KIND_UNSPECIFIED) | None => {
-                    return Err(Refused::UnknownSettingKind {
-                        key: field.key.clone(),
-                    });
-                }
-            };
+            let kind = field
+                .kind
+                .as_known()
+                .and_then(SettingKind::from_proto)
+                .ok_or_else(|| Refused::UnknownSettingKind {
+                    key: field.key.clone(),
+                })?;
             let default = field
                 .default_value
                 .as_option()
-                .and_then(|default| default.value.as_ref())
-                .map(|value| match value {
-                    setting_value::Value::Bool(on) => SettingValue::Bool(*on),
-                    setting_value::Value::Integer(number) => SettingValue::Integer(*number),
-                    setting_value::Value::Text(text) => SettingValue::Text(text.clone()),
-                });
+                .and_then(SettingValue::from_proto);
             if default.as_ref().is_some_and(|default| !default.is(kind)) {
                 return Err(Refused::DefaultWrongKind {
                     key: field.key.clone(),
@@ -977,7 +966,10 @@ mod tests {
     };
     use nama_proto::{
         NAMA_API_VERSION,
-        nama::plugin::v1::{self as wire, Manifest, ObservePoint, ProvidePoint, setting_value},
+        nama::{
+            plugin::v1::{self as wire, Manifest, ObservePoint, ProvidePoint},
+            v1::{self as proto, setting_value},
+        },
     };
 
     use super::{
@@ -1115,15 +1107,15 @@ mod tests {
         assert_eq!(config, expected);
     }
 
-    fn manifest(kind: wire::SettingKind) -> Manifest {
+    fn manifest(kind: proto::SettingKind) -> Manifest {
         let field = wire::SettingField {
             key: "api_key".to_owned(),
             label: "API key".to_owned(),
             description: "The key.".to_owned(),
             kind: kind.into(),
             required: true,
-            default_value: wire::SettingValue {
-                value: Some(setting_value::Value::Text("none".to_owned())),
+            default_value: proto::SettingValue {
+                value: Some(setting_value::Value::TextValue("none".to_owned())),
                 ..Default::default()
             }
             .into(),
@@ -1137,7 +1129,7 @@ mod tests {
 
     #[test]
     fn a_manifests_settings_become_its_settings_schema() {
-        let schema = settings_schema(&manifest(wire::SettingKind::SETTING_KIND_SECRET)).ok();
+        let schema = settings_schema(&manifest(proto::SettingKind::SETTING_KIND_SECRET)).ok();
 
         let expected = SettingField {
             key: "api_key".to_owned(),
@@ -1152,7 +1144,7 @@ mod tests {
 
     #[test]
     fn a_default_of_another_kind_refuses_the_plugin() {
-        let refused = settings_schema(&manifest(wire::SettingKind::SETTING_KIND_BOOL));
+        let refused = settings_schema(&manifest(proto::SettingKind::SETTING_KIND_BOOL));
 
         assert_eq!(
             refused.err().map(|refused| refused.to_string()),
@@ -1162,7 +1154,7 @@ mod tests {
 
     #[test]
     fn a_setting_of_no_known_kind_refuses_the_plugin() {
-        let refused = settings_schema(&manifest(wire::SettingKind::SETTING_KIND_UNSPECIFIED));
+        let refused = settings_schema(&manifest(proto::SettingKind::SETTING_KIND_UNSPECIFIED));
 
         assert_eq!(
             refused.err().map(|refused| refused.to_string()),
@@ -1237,8 +1229,8 @@ mod tests {
 
     #[test]
     fn each_thing_a_manifest_can_get_wrong_refuses_it_saying_what() {
-        let text = |text: &str| wire::SettingValue {
-            value: Some(setting_value::Value::Text(text.to_owned())),
+        let text = |text: &str| proto::SettingValue {
+            value: Some(setting_value::Value::TextValue(text.to_owned())),
             ..Default::default()
         };
         let wrong = [
@@ -1272,7 +1264,7 @@ mod tests {
             Manifest {
                 settings: vec![wire::SettingField {
                     key: "count".to_owned(),
-                    kind: wire::SettingKind::SETTING_KIND_INTEGER.into(),
+                    kind: proto::SettingKind::SETTING_KIND_INTEGER.into(),
                     default_value: text("three").into(),
                     ..Default::default()
                 }],
@@ -1339,6 +1331,53 @@ mod tests {
 
             assert_eq!(refused.map(|refused| refused.to_string()), None, "{file}");
         }
+    }
+
+    #[test]
+    fn every_bundled_plugin_declares_its_settings_kinds_and_defaults() {
+        let data_dir = tempfile::tempdir().unwrap();
+        let cache_config = write_cache_config(data_dir.path()).unwrap();
+        let servarr = [
+            ("url", SettingKind::Url, None),
+            ("api_key", SettingKind::Secret, None),
+            ("quality_profile", SettingKind::Choice, None),
+            ("root_folder", SettingKind::Choice, None),
+        ];
+        let telegram = [
+            ("bot_token", SettingKind::Secret, None),
+            ("channel", SettingKind::Text, None),
+            (
+                "api_url",
+                SettingKind::Url,
+                Some(text("https://api.telegram.org")),
+            ),
+        ];
+
+        let declared = BUNDLED.iter().map(|(_, wasm)| {
+            let installed = load(wasm.to_vec(), &cache_config).unwrap();
+            installed
+                .manifest
+                .settings
+                .fields
+                .into_iter()
+                .map(|field| (field.key, field.kind, field.default))
+                .collect::<Vec<_>>()
+        });
+
+        let declared_as = |settings: &[(&str, SettingKind, Option<SettingValue>)]| {
+            settings
+                .iter()
+                .map(|(key, kind, default)| ((*key).to_owned(), *kind, default.clone()))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            declared.collect::<Vec<_>>(),
+            [
+                declared_as(&servarr),
+                declared_as(&servarr),
+                declared_as(&telegram)
+            ]
+        );
     }
 
     fn refused_for_lacking(named: ProvidePoint, export: &str) -> Option<String> {

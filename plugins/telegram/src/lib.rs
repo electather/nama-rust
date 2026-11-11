@@ -21,8 +21,9 @@ mod exports {
         Buffa, ConnectionStarted, Connector, FnResult, Manifest, Notification, Notifier, Recipient,
         RecipientGone,
         extism_pdk::{self, Error, HttpRequest, HttpResponse, Json, config},
-        nama_proto::nama::plugin::v1::{
-            ProvidePoint, SettingField, SettingKind, SettingValue, setting_value,
+        nama_proto::nama::{
+            plugin::v1::{ProvidePoint, SettingField},
+            v1::{SettingKind, SettingValue, setting_value},
         },
         plugin_fn,
     };
@@ -71,7 +72,7 @@ mod exports {
                 ),
                 SettingField {
                     default_value: SettingValue {
-                        value: Some(setting_value::Value::Text(
+                        value: Some(setting_value::Value::TextValue(
                             "https://api.telegram.org".to_owned(),
                         )),
                         ..SettingValue::default()

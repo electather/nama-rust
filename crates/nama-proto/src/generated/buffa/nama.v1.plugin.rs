@@ -389,21 +389,26 @@ impl ::buffa::Enumeration for ExtensionPoint {
         ]
     }
 }
-/// What kind of value a setting takes.
+/// What kind of value a setting takes. An Installed Plugin's Manifest declares its settings' kinds
+/// with it too (`nama.plugin.v1.SettingField`).
 #[allow(non_camel_case_types)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 #[repr(i32)]
 pub enum SettingKind {
     SETTING_KIND_UNSPECIFIED = 0i32,
+    /// Text.
     SETTING_KIND_TEXT = 1i32,
-    /// Text that is never sent back, such as an API key.
+    /// Text that is never sent back or logged, such as an API key.
     SETTING_KIND_SECRET = 2i32,
+    /// On or off.
     SETTING_KIND_BOOL = 3i32,
+    /// A whole number.
     SETTING_KIND_INTEGER = 4i32,
-    /// Text picked from the choices the Plugin's settings check offers (`TestPluginSettings`).
+    /// Text picked from the choices the Plugin's settings check offers (`TestPluginSettings`), which
+    /// for an Installed Plugin is its `check_settings()` export.
     SETTING_KIND_CHOICE = 5i32,
     /// An http or https URL, such as a Sonarr address. An Installed Plugin may send HTTP requests
-    /// to its host.
+    /// to its host, as if its Manifest's `allowed_hosts` named it.
     SETTING_KIND_URL = 6i32,
 }
 impl SettingKind {

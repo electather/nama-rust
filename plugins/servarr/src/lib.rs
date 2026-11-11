@@ -7,8 +7,8 @@ use nama_pdk::{
     CheckedSettings, Download, Fulfilled, Request,
     extism_pdk::{Error, HttpRequest, HttpResponse, Json, config, json},
     nama_proto::nama::{
-        plugin::v1::{SettingField, SettingKind},
-        v1::DownloadStatus,
+        plugin::v1::SettingField,
+        v1::{DownloadStatus, SettingKind},
     },
 };
 use serde::{Deserialize, Serialize, de::DeserializeOwned};

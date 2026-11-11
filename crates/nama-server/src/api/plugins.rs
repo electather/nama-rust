@@ -19,7 +19,6 @@ use nama_proto::nama::v1::{
     EnablePluginResponse, GetPluginRequest, GetPluginResponse, ListPluginsRequest,
     ListPluginsResponse, PluginService, RefusalReason, TestPluginSettingsRequest,
     TestPluginSettingsResponse, UpdatePluginSettingsRequest, UpdatePluginSettingsResponse,
-    setting_value,
 };
 
 use crate::{
@@ -306,7 +305,7 @@ fn settings_refused(err: SettingsError) -> ConnectError {
         )
         .setting(&key),
         SettingsError::WrongKind { key, expected } => {
-            let kind = setting_kind_to_proto(expected).proto_name();
+            let kind = proto::SettingKind::from(expected).proto_name();
             refuse(
                 RefusalReason::REFUSAL_REASON_SETTING_WRONG_KIND,
                 format!("the setting {key} must be {kind}"),
@@ -425,29 +424,21 @@ fn setting_to_proto(
 ) -> proto::Setting {
     let secret = field.kind == settings::SettingKind::Secret;
     let shown = |value: Option<&settings::SettingValue>| {
-        value.filter(|_| !secret).map(setting_value_to_proto).into()
+        value
+            .filter(|_| !secret)
+            .map(proto::SettingValue::from)
+            .into()
     };
     proto::Setting {
         key: field.key.clone(),
         label: field.label.clone(),
         description: field.description.clone(),
-        kind: setting_kind_to_proto(field.kind).into(),
+        kind: proto::SettingKind::from(field.kind).into(),
         required: field.required,
         default_value: shown(field.default.as_ref()),
         value: shown(stored),
         secret_set: secret && stored.is_some(),
         ..Default::default()
-    }
-}
-
-const fn setting_kind_to_proto(kind: settings::SettingKind) -> proto::SettingKind {
-    match kind {
-        settings::SettingKind::Text => proto::SettingKind::SETTING_KIND_TEXT,
-        settings::SettingKind::Secret => proto::SettingKind::SETTING_KIND_SECRET,
-        settings::SettingKind::Bool => proto::SettingKind::SETTING_KIND_BOOL,
-        settings::SettingKind::Integer => proto::SettingKind::SETTING_KIND_INTEGER,
-        settings::SettingKind::Choice => proto::SettingKind::SETTING_KIND_CHOICE,
-        settings::SettingKind::Url => proto::SettingKind::SETTING_KIND_URL,
     }
 }
 
@@ -477,24 +468,8 @@ fn setting_choices_to_proto(choices: Vec<settings::Choice>) -> proto::SettingCho
 /// `value` as a setting's value, or `None` if it has none or is blank, which leaves the setting
 /// out.
 fn setting_value_from_proto(value: &proto::SettingValue) -> Option<settings::SettingValue> {
-    Some(match value.value.as_ref()? {
-        setting_value::Value::TextValue(text) if text.is_empty() => return None,
-        setting_value::Value::TextValue(text) => settings::SettingValue::Text(text.clone()),
-        setting_value::Value::BoolValue(on) => settings::SettingValue::Bool(*on),
-        setting_value::Value::IntegerValue(number) => settings::SettingValue::Integer(*number),
-    })
-}
-
-fn setting_value_to_proto(value: &settings::SettingValue) -> proto::SettingValue {
-    let value = match value {
-        settings::SettingValue::Text(text) => setting_value::Value::TextValue(text.clone()),
-        settings::SettingValue::Bool(on) => setting_value::Value::BoolValue(*on),
-        settings::SettingValue::Integer(number) => setting_value::Value::IntegerValue(*number),
-    };
-    proto::SettingValue {
-        value: Some(value),
-        ..Default::default()
-    }
+    settings::SettingValue::from_proto(value)
+        .filter(|value| !matches!(value, settings::SettingValue::Text(text) if text.is_empty()))
 }
 
 /// The Connect error a client gets when the Plugins couldn't be listed, logged as
