@@ -67,7 +67,7 @@ function NeedsAttention() {
 function EnableOrSetUp({ plugin }: { plugin: PluginSummary }) {
   // Enabling it would only be refused, so it goes to its settings form instead.
   if (!plugin.enabled && plugin.settingsMissing) return <SetUp plugin={plugin} />;
-  return <PluginToggle plugin={plugin} />;
+  return <PluginToggle summary={plugin} />;
 }
 
 function SetUp({ plugin }: { plugin: PluginSummary }) {

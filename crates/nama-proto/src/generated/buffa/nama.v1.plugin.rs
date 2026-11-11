@@ -3255,12 +3255,12 @@ pub const __REPLACE_QUALITIES_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAny
     from_json: ::buffa::type_registry::any_from_json::<ReplaceQualitiesResponse>,
     is_wkt: false,
 };
-/// A Plugin as `ListPlugins` lists it: a `Plugin` without its settings.
+/// What `ListPlugins` lists of a Plugin, and `Plugin` holds: all but its settings.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct PluginSummary {
-    /// As `Plugin.id`.
+    /// Its stable, unique name, such as `tmdb`.
     ///
     /// Field 1: `id`
     #[serde(
@@ -3283,7 +3283,8 @@ pub struct PluginSummary {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_default_enum_value"
     )]
     pub kind: ::buffa::EnumValue<PluginKind>,
-    /// As `Plugin.enabled`.
+    /// Whether it is running. A Plugin missing a required setting isn't, and an Installed Plugin
+    /// starts disabled.
     ///
     /// Field 4: `enabled`
     #[serde(
@@ -3292,7 +3293,9 @@ pub struct PluginSummary {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
     )]
     pub enabled: bool,
-    /// As `Plugin.refused_reason`.
+    /// Why the Server refused it, in plain words, such as an Installed Plugin built for another Nama
+    /// API version. Empty unless it was refused. A refused Plugin can't be enabled, and its `id` is
+    /// its file's name, since the Server may not have learnt the id it gives itself.
     ///
     /// Field 5: `refused_reason`
     #[serde(
@@ -3314,7 +3317,7 @@ pub struct PluginSummary {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
     )]
     pub settings_missing: bool,
-    /// As `Plugin.name`.
+    /// What admins know it by, such as "TMDB". Empty if it gives none, when `id` stands in.
     ///
     /// Field 7: `name`
     #[serde(
@@ -3323,7 +3326,7 @@ pub struct PluginSummary {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub name: ::buffa::alloc::string::String,
-    /// As `Plugin.description`.
+    /// What it does, in one sentence its author wrote. Empty if it gives none.
     ///
     /// Field 8: `description`
     #[serde(
@@ -3332,7 +3335,8 @@ pub struct PluginSummary {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub description: ::buffa::alloc::string::String,
-    /// As `Plugin.extension_points`.
+    /// The Extension Points it takes part at, as its Manifest names them, whether it is enabled or
+    /// not. Empty for a refused Plugin.
     ///
     /// Field 9: `extension_points`
     #[serde(
@@ -3342,7 +3346,9 @@ pub struct PluginSummary {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec"
     )]
     pub extension_points: ::buffa::alloc::vec::Vec<::buffa::EnumValue<ExtensionPoint>>,
-    /// As `Plugin.logo_svg`.
+    /// Its logo, an SVG document's text, or empty if it has none. An Installed Plugin's author wrote
+    /// it, so show it only as an image, such as from a `data:image/svg+xml` URL, never inline in a
+    /// page, where its scripts would run.
     ///
     /// Field 10: `logo_svg`
     #[serde(
@@ -3659,39 +3665,14 @@ pub const __PLUGIN_SUMMARY_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::bu
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct Plugin {
-    /// Its stable, unique name, such as `tmdb`.
+    /// Its id, name, whether it is enabled and the rest that `ListPlugins` lists.
     ///
-    /// Field 1: `id`
+    /// Field 12: `summary`
     #[serde(
-        rename = "id",
-        with = "::buffa::json_helpers::proto_string",
-        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+        rename = "summary",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
-    pub id: ::buffa::alloc::string::String,
-    /// Field 2: `version`
-    #[serde(
-        rename = "version",
-        with = "::buffa::json_helpers::proto_string",
-        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
-    )]
-    pub version: ::buffa::alloc::string::String,
-    /// Field 3: `kind`
-    #[serde(
-        rename = "kind",
-        with = "::buffa::json_helpers::proto_enum",
-        skip_serializing_if = "::buffa::json_helpers::skip_if::is_default_enum_value"
-    )]
-    pub kind: ::buffa::EnumValue<PluginKind>,
-    /// Whether it is running. A Plugin missing a required setting isn't, and an Installed Plugin
-    /// starts disabled.
-    ///
-    /// Field 4: `enabled`
-    #[serde(
-        rename = "enabled",
-        with = "::buffa::json_helpers::proto_bool",
-        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
-    )]
-    pub enabled: bool,
+    pub summary: ::buffa::MessageField<PluginSummary, ::buffa::Inline<PluginSummary>>,
     /// Every setting it takes, in the order a form shows them.
     ///
     /// Field 5: `settings`
@@ -3711,59 +3692,6 @@ pub struct Plugin {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
     )]
     pub checks_settings: bool,
-    /// Why the Server refused it, in plain words, such as an Installed Plugin built for another Nama
-    /// API version. Empty unless it was refused. A refused Plugin can't be enabled, and its `id` is
-    /// its file's name, since the Server may not have learnt the id it gives itself.
-    ///
-    /// Field 7: `refused_reason`
-    #[serde(
-        rename = "refusedReason",
-        alias = "refused_reason",
-        with = "::buffa::json_helpers::proto_string",
-        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
-    )]
-    pub refused_reason: ::buffa::alloc::string::String,
-    /// What admins know it by, such as "TMDB". Empty if it gives none, when `id` stands in.
-    ///
-    /// Field 8: `name`
-    #[serde(
-        rename = "name",
-        with = "::buffa::json_helpers::proto_string",
-        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
-    )]
-    pub name: ::buffa::alloc::string::String,
-    /// What it does, in one sentence its author wrote. Empty if it gives none.
-    ///
-    /// Field 9: `description`
-    #[serde(
-        rename = "description",
-        with = "::buffa::json_helpers::proto_string",
-        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
-    )]
-    pub description: ::buffa::alloc::string::String,
-    /// The Extension Points it takes part at, as its Manifest names them, whether it is enabled or
-    /// not. Empty for a refused Plugin.
-    ///
-    /// Field 10: `extension_points`
-    #[serde(
-        rename = "extensionPoints",
-        alias = "extension_points",
-        with = "::buffa::json_helpers::repeated_enum",
-        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec"
-    )]
-    pub extension_points: ::buffa::alloc::vec::Vec<::buffa::EnumValue<ExtensionPoint>>,
-    /// Its logo, an SVG document's text, or empty if it has none. An Installed Plugin's author wrote
-    /// it, so show it only as an image, such as from a `data:image/svg+xml` URL, never inline in a
-    /// page, where its scripts would run.
-    ///
-    /// Field 11: `logo_svg`
-    #[serde(
-        rename = "logoSvg",
-        alias = "logo_svg",
-        with = "::buffa::json_helpers::proto_string",
-        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
-    )]
-    pub logo_svg: ::buffa::alloc::string::String,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -3771,17 +3699,9 @@ pub struct Plugin {
 impl ::core::fmt::Debug for Plugin {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
         f.debug_struct("Plugin")
-            .field("id", &self.id)
-            .field("version", &self.version)
-            .field("kind", &self.kind)
-            .field("enabled", &self.enabled)
+            .field("summary", &self.summary)
             .field("settings", &self.settings)
             .field("checks_settings", &self.checks_settings)
-            .field("refused_reason", &self.refused_reason)
-            .field("name", &self.name)
-            .field("description", &self.description)
-            .field("extension_points", &self.extension_points)
-            .field("logo_svg", &self.logo_svg)
             .finish()
     }
 }
@@ -3812,21 +3732,6 @@ impl ::buffa::Message for Plugin {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
-        if !self.id.is_empty() {
-            size += 1u64 + ::buffa::types::string_encoded_len(&self.id) as u64;
-        }
-        if !self.version.is_empty() {
-            size += 1u64 + ::buffa::types::string_encoded_len(&self.version) as u64;
-        }
-        {
-            let val = self.kind.to_i32();
-            if val != 0 {
-                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
-            }
-        }
-        if self.enabled {
-            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
-        }
         for v in &self.settings {
             let __slot = __cache.reserve();
             let inner_size = v.compute_size(__cache);
@@ -3838,27 +3743,13 @@ impl ::buffa::Message for Plugin {
         if self.checks_settings {
             size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
-        if !self.refused_reason.is_empty() {
+        if self.summary.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.summary.compute_size(__cache);
+            __cache.set(__slot, inner_size);
             size
-                += 1u64
-                    + ::buffa::types::string_encoded_len(&self.refused_reason) as u64;
-        }
-        if !self.name.is_empty() {
-            size += 1u64 + ::buffa::types::string_encoded_len(&self.name) as u64;
-        }
-        if !self.description.is_empty() {
-            size += 1u64 + ::buffa::types::string_encoded_len(&self.description) as u64;
-        }
-        if !self.extension_points.is_empty() {
-            let payload: u64 = self
-                .extension_points
-                .iter()
-                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
-                .sum::<u64>();
-            size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
-        }
-        if !self.logo_svg.is_empty() {
-            size += 1u64 + ::buffa::types::string_encoded_len(&self.logo_svg) as u64;
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
@@ -3870,21 +3761,6 @@ impl ::buffa::Message for Plugin {
     ) {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
-        if !self.id.is_empty() {
-            ::buffa::types::put_string_field(1u32, &self.id, buf);
-        }
-        if !self.version.is_empty() {
-            ::buffa::types::put_string_field(2u32, &self.version, buf);
-        }
-        {
-            let val = self.kind.to_i32();
-            if val != 0 {
-                ::buffa::types::put_int32_field(3u32, val, buf);
-            }
-        }
-        if self.enabled {
-            ::buffa::types::put_bool_field(4u32, self.enabled, buf);
-        }
         for v in &self.settings {
             ::buffa::types::put_len_delimited_header(
                 5u32,
@@ -3896,28 +3772,13 @@ impl ::buffa::Message for Plugin {
         if self.checks_settings {
             ::buffa::types::put_bool_field(6u32, self.checks_settings, buf);
         }
-        if !self.refused_reason.is_empty() {
-            ::buffa::types::put_string_field(7u32, &self.refused_reason, buf);
-        }
-        if !self.name.is_empty() {
-            ::buffa::types::put_string_field(8u32, &self.name, buf);
-        }
-        if !self.description.is_empty() {
-            ::buffa::types::put_string_field(9u32, &self.description, buf);
-        }
-        if !self.extension_points.is_empty() {
-            let payload: u64 = self
-                .extension_points
-                .iter()
-                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
-                .sum::<u64>();
-            ::buffa::types::put_len_delimited_header(10u32, payload, buf);
-            for v in &self.extension_points {
-                ::buffa::types::encode_int32(v.to_i32(), buf);
-            }
-        }
-        if !self.logo_svg.is_empty() {
-            ::buffa::types::put_string_field(11u32, &self.logo_svg, buf);
+        if self.summary.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                12u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.summary.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -3932,34 +3793,6 @@ impl ::buffa::Message for Plugin {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         match tag.field_number() {
-            1u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::LengthDelimited,
-                )?;
-                ::buffa::types::merge_string(&mut self.id, buf)?;
-            }
-            2u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::LengthDelimited,
-                )?;
-                ::buffa::types::merge_string(&mut self.version, buf)?;
-            }
-            3u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::Varint,
-                )?;
-                self.kind = ::buffa::EnumValue::from(::buffa::types::decode_int32(buf)?);
-            }
-            4u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::Varint,
-                )?;
-                self.enabled = ::buffa::types::decode_bool(buf)?;
-            }
             5u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -3979,71 +3812,16 @@ impl ::buffa::Message for Plugin {
                 )?;
                 self.checks_settings = ::buffa::types::decode_bool(buf)?;
             }
-            7u32 => {
+            12u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
                     ::buffa::encoding::WireType::LengthDelimited,
                 )?;
-                ::buffa::types::merge_string(&mut self.refused_reason, buf)?;
-            }
-            8u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::LengthDelimited,
+                ::buffa::Message::merge_length_delimited(
+                    self.summary.get_or_insert_default(),
+                    buf,
+                    ctx,
                 )?;
-                ::buffa::types::merge_string(&mut self.name, buf)?;
-            }
-            9u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::LengthDelimited,
-                )?;
-                ::buffa::types::merge_string(&mut self.description, buf)?;
-            }
-            10u32 => {
-                if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
-                    let len = ::buffa::encoding::decode_varint(buf)?;
-                    let len = usize::try_from(len)
-                        .map_err(|_| ::buffa::DecodeError::MessageTooLarge)?;
-                    if buf.remaining() < len {
-                        return ::core::result::Result::Err(
-                            ::buffa::DecodeError::UnexpectedEof,
-                        );
-                    }
-                    self.extension_points.reserve(len);
-                    let mut limited = buf.take(len);
-                    while limited.has_remaining() {
-                        self.extension_points
-                            .push(
-                                ::buffa::EnumValue::from(
-                                    ::buffa::types::decode_int32_packed(&mut limited)?,
-                                ),
-                            );
-                    }
-                    let leftover = limited.remaining();
-                    if leftover > 0 {
-                        limited.advance(leftover);
-                    }
-                } else if tag.wire_type() == ::buffa::encoding::WireType::Varint {
-                    self.extension_points
-                        .push(
-                            ::buffa::EnumValue::from(::buffa::types::decode_int32(buf)?),
-                        );
-                } else {
-                    return ::core::result::Result::Err(
-                        ::buffa::encoding::wire_type_mismatch(
-                            tag,
-                            ::buffa::encoding::WireType::LengthDelimited,
-                        ),
-                    );
-                }
-            }
-            11u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::LengthDelimited,
-                )?;
-                ::buffa::types::merge_string(&mut self.logo_svg, buf)?;
             }
             _ => {
                 self.__buffa_unknown_fields
@@ -4053,17 +3831,9 @@ impl ::buffa::Message for Plugin {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.id.clear();
-        self.version.clear();
-        self.kind = ::buffa::EnumValue::from(0);
-        self.enabled = false;
         self.settings.clear();
         self.checks_settings = false;
-        self.refused_reason.clear();
-        self.name.clear();
-        self.description.clear();
-        self.extension_points.clear();
-        self.logo_svg.clear();
+        self.summary = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
     }
 }

@@ -4,15 +4,15 @@ package nama.v1;
 
 // The Server's Plugins and their settings. Needs `PERMISSION_MANAGE_SETTINGS`, and fails with
 // `permission_denied` without it. A secret setting's value never leaves the Server. Every call
-// but `GetPlugin` naming a Plugin the Server refused (see `Plugin.refused_reason`) fails with
+// but `GetPlugin` naming a Plugin the Server refused (see `PluginSummary.refused_reason`) fails with
 // `REFUSAL_REASON_PLUGIN_REFUSED`.
 service PluginService {
   // Lists every Plugin on the Server, by id, without its settings.
   rpc ListPlugins(ListPluginsRequest) returns (ListPluginsResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
-  // Returns one Plugin with its settings. A refused Plugin comes with its `refused_reason` and no
-  // settings. Fails with `not_found` for an unknown Plugin.
+  // Returns one Plugin with its settings. A refused Plugin comes with its summary's
+  // `refused_reason` and no settings. Fails with `not_found` for an unknown Plugin.
   rpc GetPlugin(GetPluginRequest) returns (GetPluginResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
@@ -188,32 +188,8 @@ enum PluginKind {
   PLUGIN_KIND_INSTALLED = 2;
 }
 
-// A Plugin as `ListPlugins` lists it: a `Plugin` without its settings.
+// What `ListPlugins` lists of a Plugin, and `Plugin` holds: all but its settings.
 message PluginSummary {
-  // As `Plugin.id`.
-  string id = 1;
-  string version = 2;
-  PluginKind kind = 3;
-  // As `Plugin.enabled`.
-  bool enabled = 4;
-  // As `Plugin.refused_reason`.
-  string refused_reason = 5;
-  // Whether a required setting has no value, no default and no stored secret, so `EnablePlugin`
-  // would refuse it with `REFUSAL_REASON_FIELD_REQUIRED`. An enabled Plugin may have one too, such
-  // as an Installed Plugin upgraded with a new required setting.
-  bool settings_missing = 6;
-  // As `Plugin.name`.
-  string name = 7;
-  // As `Plugin.description`.
-  string description = 8;
-  // As `Plugin.extension_points`.
-  repeated ExtensionPoint extension_points = 9;
-  // As `Plugin.logo_svg`.
-  string logo_svg = 10;
-}
-
-// A unit of trusted functionality that plugs into a Server.
-message Plugin {
   // Its stable, unique name, such as `tmdb`.
   string id = 1;
   string version = 2;
@@ -221,25 +197,38 @@ message Plugin {
   // Whether it is running. A Plugin missing a required setting isn't, and an Installed Plugin
   // starts disabled.
   bool enabled = 4;
+  // Why the Server refused it, in plain words, such as an Installed Plugin built for another Nama
+  // API version. Empty unless it was refused. A refused Plugin can't be enabled, and its `id` is
+  // its file's name, since the Server may not have learnt the id it gives itself.
+  string refused_reason = 5;
+  // Whether a required setting has no value, no default and no stored secret, so `EnablePlugin`
+  // would refuse it with `REFUSAL_REASON_FIELD_REQUIRED`. An enabled Plugin may have one too, such
+  // as an Installed Plugin upgraded with a new required setting.
+  bool settings_missing = 6;
+  // What admins know it by, such as "TMDB". Empty if it gives none, when `id` stands in.
+  string name = 7;
+  // What it does, in one sentence its author wrote. Empty if it gives none.
+  string description = 8;
+  // The Extension Points it takes part at, as its Manifest names them, whether it is enabled or
+  // not. Empty for a refused Plugin.
+  repeated ExtensionPoint extension_points = 9;
+  // Its logo, an SVG document's text, or empty if it has none. An Installed Plugin's author wrote
+  // it, so show it only as an image, such as from a `data:image/svg+xml` URL, never inline in a
+  // page, where its scripts would run.
+  string logo_svg = 10;
+}
+
+// A unit of trusted functionality that plugs into a Server.
+message Plugin {
+  // Held what `summary` holds now.
+  reserved 1, 2, 3, 4, 7, 8, 9, 10, 11;
+  reserved "id", "version", "kind", "enabled", "refused_reason", "name", "description", "extension_points", "logo_svg";
+  // Its id, name, whether it is enabled and the rest that `ListPlugins` lists.
+  PluginSummary summary = 12;
   // Every setting it takes, in the order a form shows them.
   repeated Setting settings = 5;
   // Whether it has a settings check, which `TestPluginSettings` runs.
   bool checks_settings = 6;
-  // Why the Server refused it, in plain words, such as an Installed Plugin built for another Nama
-  // API version. Empty unless it was refused. A refused Plugin can't be enabled, and its `id` is
-  // its file's name, since the Server may not have learnt the id it gives itself.
-  string refused_reason = 7;
-  // What admins know it by, such as "TMDB". Empty if it gives none, when `id` stands in.
-  string name = 8;
-  // What it does, in one sentence its author wrote. Empty if it gives none.
-  string description = 9;
-  // The Extension Points it takes part at, as its Manifest names them, whether it is enabled or
-  // not. Empty for a refused Plugin.
-  repeated ExtensionPoint extension_points = 10;
-  // Its logo, an SVG document's text, or empty if it has none. An Installed Plugin's author wrote
-  // it, so show it only as an image, such as from a `data:image/svg+xml` URL, never inline in a
-  // page, where its scripts would run.
-  string logo_svg = 11;
 }
 
 // A place in the Server a Plugin takes part at. Unlike the Plugin-facing `ProvidePoint` and

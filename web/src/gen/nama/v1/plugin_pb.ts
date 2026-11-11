@@ -10,7 +10,7 @@ import type { Message, UnknownEnum } from "@bufbuild/protobuf";
  * Describes the file nama/v1/plugin.proto.
  */
 export const file_nama_v1_plugin: GenFile = /*@__PURE__*/
-  fileDesc("ChRuYW1hL3YxL3BsdWdpbi5wcm90bxIHbmFtYS52MSIUChJMaXN0UGx1Z2luc1JlcXVlc3QiTwoTTGlzdFBsdWdpbnNSZXNwb25zZRIpCglzdW1tYXJpZXMYAiADKAsyFi5uYW1hLnYxLlBsdWdpblN1bW1hcnlKBAgBEAJSB3BsdWdpbnMiHgoQR2V0UGx1Z2luUmVxdWVzdBIKCgJpZBgBIAEoCSI0ChFHZXRQbHVnaW5SZXNwb25zZRIfCgZwbHVnaW4YASABKAsyDy5uYW1hLnYxLlBsdWdpbiK3AQobVXBkYXRlUGx1Z2luU2V0dGluZ3NSZXF1ZXN0EgoKAmlkGAEgASgJEkQKCHNldHRpbmdzGAIgAygLMjIubmFtYS52MS5VcGRhdGVQbHVnaW5TZXR0aW5nc1JlcXVlc3QuU2V0dGluZ3NFbnRyeRpGCg1TZXR0aW5nc0VudHJ5EgsKA2tleRgBIAEoCRIkCgV2YWx1ZRgCIAEoCzIVLm5hbWEudjEuU2V0dGluZ1ZhbHVlOgI4ASI/ChxVcGRhdGVQbHVnaW5TZXR0aW5nc1Jlc3BvbnNlEh8KBnBsdWdpbhgBIAEoCzIPLm5hbWEudjEuUGx1Z2luIiEKE0VuYWJsZVBsdWdpblJlcXVlc3QSCgoCaWQYASABKAkiFgoURW5hYmxlUGx1Z2luUmVzcG9uc2UiswEKGVRlc3RQbHVnaW5TZXR0aW5nc1JlcXVlc3QSCgoCaWQYASABKAkSQgoIc2V0dGluZ3MYAiADKAsyMC5uYW1hLnYxLlRlc3RQbHVnaW5TZXR0aW5nc1JlcXVlc3QuU2V0dGluZ3NFbnRyeRpGCg1TZXR0aW5nc0VudHJ5EgsKA2tleRgBIAEoCRIkCgV2YWx1ZRgCIAEoCzIVLm5hbWEudjEuU2V0dGluZ1ZhbHVlOgI4ASKoAQoaVGVzdFBsdWdpblNldHRpbmdzUmVzcG9uc2USQQoHY2hvaWNlcxgBIAMoCzIwLm5hbWEudjEuVGVzdFBsdWdpblNldHRpbmdzUmVzcG9uc2UuQ2hvaWNlc0VudHJ5GkcKDENob2ljZXNFbnRyeRILCgNrZXkYASABKAkSJgoFdmFsdWUYAiABKAsyFy5uYW1hLnYxLlNldHRpbmdDaG9pY2VzOgI4ASIyCg5TZXR0aW5nQ2hvaWNlcxIgCgdjaG9pY2VzGAEgAygLMg8ubmFtYS52MS5DaG9pY2UiJgoGQ2hvaWNlEg0KBXZhbHVlGAEgASgJEg0KBWxhYmVsGAIgASgJIiIKFERpc2FibGVQbHVnaW5SZXF1ZXN0EgoKAmlkGAEgASgJIhcKFURpc2FibGVQbHVnaW5SZXNwb25zZSJgCgdRdWFsaXR5EgoKAmlkGAEgASgDEhIKCnByb2ZpbGVfaWQYAiABKAkSDAoEbmFtZRgDIAEoCRITCgtkZXNjcmlwdGlvbhgEIAEoCRISCgppc19kZWZhdWx0GAUgASgIIiIKFExpc3RRdWFsaXRpZXNSZXF1ZXN0EgoKAmlkGAEgASgJIjwKFUxpc3RRdWFsaXRpZXNSZXNwb25zZRIjCglxdWFsaXRpZXMYASADKAsyEC5uYW1hLnYxLlF1YWxpdHkiSgoXUmVwbGFjZVF1YWxpdGllc1JlcXVlc3QSCgoCaWQYASABKAkSIwoJcXVhbGl0aWVzGAIgAygLMhAubmFtYS52MS5RdWFsaXR5Ij8KGFJlcGxhY2VRdWFsaXRpZXNSZXNwb25zZRIjCglxdWFsaXRpZXMYASADKAsyEC5uYW1hLnYxLlF1YWxpdHki+gEKDVBsdWdpblN1bW1hcnkSCgoCaWQYASABKAkSDwoHdmVyc2lvbhgCIAEoCRIhCgRraW5kGAMgASgOMhMubmFtYS52MS5QbHVnaW5LaW5kEg8KB2VuYWJsZWQYBCABKAgSFgoOcmVmdXNlZF9yZWFzb24YBSABKAkSGAoQc2V0dGluZ3NfbWlzc2luZxgGIAEoCBIMCgRuYW1lGAcgASgJEhMKC2Rlc2NyaXB0aW9uGAggASgJEjEKEGV4dGVuc2lvbl9wb2ludHMYCSADKA4yFy5uYW1hLnYxLkV4dGVuc2lvblBvaW50EhAKCGxvZ29fc3ZnGAogASgJIpYCCgZQbHVnaW4SCgoCaWQYASABKAkSDwoHdmVyc2lvbhgCIAEoCRIhCgRraW5kGAMgASgOMhMubmFtYS52MS5QbHVnaW5LaW5kEg8KB2VuYWJsZWQYBCABKAgSIgoIc2V0dGluZ3MYBSADKAsyEC5uYW1hLnYxLlNldHRpbmcSFwoPY2hlY2tzX3NldHRpbmdzGAYgASgIEhYKDnJlZnVzZWRfcmVhc29uGAcgASgJEgwKBG5hbWUYCCABKAkSEwoLZGVzY3JpcHRpb24YCSABKAkSMQoQZXh0ZW5zaW9uX3BvaW50cxgKIAMoDjIXLm5hbWEudjEuRXh0ZW5zaW9uUG9pbnQSEAoIbG9nb19zdmcYCyABKAki2AEKB1NldHRpbmcSCwoDa2V5GAEgASgJEg0KBWxhYmVsGAIgASgJEhMKC2Rlc2NyaXB0aW9uGAMgASgJEiIKBGtpbmQYBCABKA4yFC5uYW1hLnYxLlNldHRpbmdLaW5kEhAKCHJlcXVpcmVkGAUgASgIEiwKDWRlZmF1bHRfdmFsdWUYBiABKAsyFS5uYW1hLnYxLlNldHRpbmdWYWx1ZRIkCgV2YWx1ZRgHIAEoCzIVLm5hbWEudjEuU2V0dGluZ1ZhbHVlEhIKCnNlY3JldF9zZXQYCCABKAgiXAoMU2V0dGluZ1ZhbHVlEhQKCnRleHRfdmFsdWUYASABKAlIABIUCgpib29sX3ZhbHVlGAIgASgISAASFwoNaW50ZWdlcl92YWx1ZRgDIAEoA0gAQgcKBXZhbHVlKl4KClBsdWdpbktpbmQSGwoXUExVR0lOX0tJTkRfVU5TUEVDSUZJRUQQABIYChRQTFVHSU5fS0lORF9CVUlMVF9JThABEhkKFVBMVUdJTl9LSU5EX0lOU1RBTExFRBACKtMCCg5FeHRlbnNpb25Qb2ludBIfChtFWFRFTlNJT05fUE9JTlRfVU5TUEVDSUZJRUQQABIjCh9FWFRFTlNJT05fUE9JTlRfTU9WSUVfRlVMRklMTEVSEAESIgoeRVhURU5TSU9OX1BPSU5UX1NIT1dfRlVMRklMTEVSEAISHAoYRVhURU5TSU9OX1BPSU5UX05PVElGSUVSEAMSHQoZRVhURU5TSU9OX1BPSU5UX0NPTk5FQ1RPUhAEEiEKHUVYVEVOU0lPTl9QT0lOVF9BVVRIRU5USUNBVE9SEAUSJQohRVhURU5TSU9OX1BPSU5UX01FVEFEQVRBX1BST1ZJREVSEAYSIwofRVhURU5TSU9OX1BPSU5UX0VWRU5UU19PQlNFUlZFUhAHEisKJ0VYVEVOU0lPTl9QT0lOVF9TRVJWRVJfU1RBUlRFRF9PQlNFUlZFUhAIKrsBCgtTZXR0aW5nS2luZBIcChhTRVRUSU5HX0tJTkRfVU5TUEVDSUZJRUQQABIVChFTRVRUSU5HX0tJTkRfVEVYVBABEhcKE1NFVFRJTkdfS0lORF9TRUNSRVQQAhIVChFTRVRUSU5HX0tJTkRfQk9PTBADEhgKFFNFVFRJTkdfS0lORF9JTlRFR0VSEAQSFwoTU0VUVElOR19LSU5EX0NIT0lDRRAFEhQKEFNFVFRJTkdfS0lORF9VUkwQBjLMBQoNUGx1Z2luU2VydmljZRJNCgtMaXN0UGx1Z2lucxIbLm5hbWEudjEuTGlzdFBsdWdpbnNSZXF1ZXN0GhwubmFtYS52MS5MaXN0UGx1Z2luc1Jlc3BvbnNlIgOQAgESRwoJR2V0UGx1Z2luEhkubmFtYS52MS5HZXRQbHVnaW5SZXF1ZXN0GhoubmFtYS52MS5HZXRQbHVnaW5SZXNwb25zZSIDkAIBEmgKFFVwZGF0ZVBsdWdpblNldHRpbmdzEiQubmFtYS52MS5VcGRhdGVQbHVnaW5TZXR0aW5nc1JlcXVlc3QaJS5uYW1hLnYxLlVwZGF0ZVBsdWdpblNldHRpbmdzUmVzcG9uc2UiA5ACAhJQCgxFbmFibGVQbHVnaW4SHC5uYW1hLnYxLkVuYWJsZVBsdWdpblJlcXVlc3QaHS5uYW1hLnYxLkVuYWJsZVBsdWdpblJlc3BvbnNlIgOQAgISXwoSVGVzdFBsdWdpblNldHRpbmdzEiIubmFtYS52MS5UZXN0UGx1Z2luU2V0dGluZ3NSZXF1ZXN0GiMubmFtYS52MS5UZXN0UGx1Z2luU2V0dGluZ3NSZXNwb25zZSIAElMKDURpc2FibGVQbHVnaW4SHS5uYW1hLnYxLkRpc2FibGVQbHVnaW5SZXF1ZXN0Gh4ubmFtYS52MS5EaXNhYmxlUGx1Z2luUmVzcG9uc2UiA5ACAhJTCg1MaXN0UXVhbGl0aWVzEh0ubmFtYS52MS5MaXN0UXVhbGl0aWVzUmVxdWVzdBoeLm5hbWEudjEuTGlzdFF1YWxpdGllc1Jlc3BvbnNlIgOQAgESXAoQUmVwbGFjZVF1YWxpdGllcxIgLm5hbWEudjEuUmVwbGFjZVF1YWxpdGllc1JlcXVlc3QaIS5uYW1hLnYxLlJlcGxhY2VRdWFsaXRpZXNSZXNwb25zZSIDkAICYgZwcm90bzM");
+  fileDesc("ChRuYW1hL3YxL3BsdWdpbi5wcm90bxIHbmFtYS52MSIUChJMaXN0UGx1Z2luc1JlcXVlc3QiTwoTTGlzdFBsdWdpbnNSZXNwb25zZRIpCglzdW1tYXJpZXMYAiADKAsyFi5uYW1hLnYxLlBsdWdpblN1bW1hcnlKBAgBEAJSB3BsdWdpbnMiHgoQR2V0UGx1Z2luUmVxdWVzdBIKCgJpZBgBIAEoCSI0ChFHZXRQbHVnaW5SZXNwb25zZRIfCgZwbHVnaW4YASABKAsyDy5uYW1hLnYxLlBsdWdpbiK3AQobVXBkYXRlUGx1Z2luU2V0dGluZ3NSZXF1ZXN0EgoKAmlkGAEgASgJEkQKCHNldHRpbmdzGAIgAygLMjIubmFtYS52MS5VcGRhdGVQbHVnaW5TZXR0aW5nc1JlcXVlc3QuU2V0dGluZ3NFbnRyeRpGCg1TZXR0aW5nc0VudHJ5EgsKA2tleRgBIAEoCRIkCgV2YWx1ZRgCIAEoCzIVLm5hbWEudjEuU2V0dGluZ1ZhbHVlOgI4ASI/ChxVcGRhdGVQbHVnaW5TZXR0aW5nc1Jlc3BvbnNlEh8KBnBsdWdpbhgBIAEoCzIPLm5hbWEudjEuUGx1Z2luIiEKE0VuYWJsZVBsdWdpblJlcXVlc3QSCgoCaWQYASABKAkiFgoURW5hYmxlUGx1Z2luUmVzcG9uc2UiswEKGVRlc3RQbHVnaW5TZXR0aW5nc1JlcXVlc3QSCgoCaWQYASABKAkSQgoIc2V0dGluZ3MYAiADKAsyMC5uYW1hLnYxLlRlc3RQbHVnaW5TZXR0aW5nc1JlcXVlc3QuU2V0dGluZ3NFbnRyeRpGCg1TZXR0aW5nc0VudHJ5EgsKA2tleRgBIAEoCRIkCgV2YWx1ZRgCIAEoCzIVLm5hbWEudjEuU2V0dGluZ1ZhbHVlOgI4ASKoAQoaVGVzdFBsdWdpblNldHRpbmdzUmVzcG9uc2USQQoHY2hvaWNlcxgBIAMoCzIwLm5hbWEudjEuVGVzdFBsdWdpblNldHRpbmdzUmVzcG9uc2UuQ2hvaWNlc0VudHJ5GkcKDENob2ljZXNFbnRyeRILCgNrZXkYASABKAkSJgoFdmFsdWUYAiABKAsyFy5uYW1hLnYxLlNldHRpbmdDaG9pY2VzOgI4ASIyCg5TZXR0aW5nQ2hvaWNlcxIgCgdjaG9pY2VzGAEgAygLMg8ubmFtYS52MS5DaG9pY2UiJgoGQ2hvaWNlEg0KBXZhbHVlGAEgASgJEg0KBWxhYmVsGAIgASgJIiIKFERpc2FibGVQbHVnaW5SZXF1ZXN0EgoKAmlkGAEgASgJIhcKFURpc2FibGVQbHVnaW5SZXNwb25zZSJgCgdRdWFsaXR5EgoKAmlkGAEgASgDEhIKCnByb2ZpbGVfaWQYAiABKAkSDAoEbmFtZRgDIAEoCRITCgtkZXNjcmlwdGlvbhgEIAEoCRISCgppc19kZWZhdWx0GAUgASgIIiIKFExpc3RRdWFsaXRpZXNSZXF1ZXN0EgoKAmlkGAEgASgJIjwKFUxpc3RRdWFsaXRpZXNSZXNwb25zZRIjCglxdWFsaXRpZXMYASADKAsyEC5uYW1hLnYxLlF1YWxpdHkiSgoXUmVwbGFjZVF1YWxpdGllc1JlcXVlc3QSCgoCaWQYASABKAkSIwoJcXVhbGl0aWVzGAIgAygLMhAubmFtYS52MS5RdWFsaXR5Ij8KGFJlcGxhY2VRdWFsaXRpZXNSZXNwb25zZRIjCglxdWFsaXRpZXMYASADKAsyEC5uYW1hLnYxLlF1YWxpdHki+gEKDVBsdWdpblN1bW1hcnkSCgoCaWQYASABKAkSDwoHdmVyc2lvbhgCIAEoCRIhCgRraW5kGAMgASgOMhMubmFtYS52MS5QbHVnaW5LaW5kEg8KB2VuYWJsZWQYBCABKAgSFgoOcmVmdXNlZF9yZWFzb24YBSABKAkSGAoQc2V0dGluZ3NfbWlzc2luZxgGIAEoCBIMCgRuYW1lGAcgASgJEhMKC2Rlc2NyaXB0aW9uGAggASgJEjEKEGV4dGVuc2lvbl9wb2ludHMYCSADKA4yFy5uYW1hLnYxLkV4dGVuc2lvblBvaW50EhAKCGxvZ29fc3ZnGAogASgJIv8BCgZQbHVnaW4SJwoHc3VtbWFyeRgMIAEoCzIWLm5hbWEudjEuUGx1Z2luU3VtbWFyeRIiCghzZXR0aW5ncxgFIAMoCzIQLm5hbWEudjEuU2V0dGluZxIXCg9jaGVja3Nfc2V0dGluZ3MYBiABKAhKBAgBEAJKBAgCEANKBAgDEARKBAgEEAVKBAgHEAhKBAgIEAlKBAgJEApKBAgKEAtKBAgLEAxSAmlkUgd2ZXJzaW9uUgRraW5kUgdlbmFibGVkUg5yZWZ1c2VkX3JlYXNvblIEbmFtZVILZGVzY3JpcHRpb25SEGV4dGVuc2lvbl9wb2ludHNSCGxvZ29fc3ZnItgBCgdTZXR0aW5nEgsKA2tleRgBIAEoCRINCgVsYWJlbBgCIAEoCRITCgtkZXNjcmlwdGlvbhgDIAEoCRIiCgRraW5kGAQgASgOMhQubmFtYS52MS5TZXR0aW5nS2luZBIQCghyZXF1aXJlZBgFIAEoCBIsCg1kZWZhdWx0X3ZhbHVlGAYgASgLMhUubmFtYS52MS5TZXR0aW5nVmFsdWUSJAoFdmFsdWUYByABKAsyFS5uYW1hLnYxLlNldHRpbmdWYWx1ZRISCgpzZWNyZXRfc2V0GAggASgIIlwKDFNldHRpbmdWYWx1ZRIUCgp0ZXh0X3ZhbHVlGAEgASgJSAASFAoKYm9vbF92YWx1ZRgCIAEoCEgAEhcKDWludGVnZXJfdmFsdWUYAyABKANIAEIHCgV2YWx1ZSpeCgpQbHVnaW5LaW5kEhsKF1BMVUdJTl9LSU5EX1VOU1BFQ0lGSUVEEAASGAoUUExVR0lOX0tJTkRfQlVJTFRfSU4QARIZChVQTFVHSU5fS0lORF9JTlNUQUxMRUQQAirTAgoORXh0ZW5zaW9uUG9pbnQSHwobRVhURU5TSU9OX1BPSU5UX1VOU1BFQ0lGSUVEEAASIwofRVhURU5TSU9OX1BPSU5UX01PVklFX0ZVTEZJTExFUhABEiIKHkVYVEVOU0lPTl9QT0lOVF9TSE9XX0ZVTEZJTExFUhACEhwKGEVYVEVOU0lPTl9QT0lOVF9OT1RJRklFUhADEh0KGUVYVEVOU0lPTl9QT0lOVF9DT05ORUNUT1IQBBIhCh1FWFRFTlNJT05fUE9JTlRfQVVUSEVOVElDQVRPUhAFEiUKIUVYVEVOU0lPTl9QT0lOVF9NRVRBREFUQV9QUk9WSURFUhAGEiMKH0VYVEVOU0lPTl9QT0lOVF9FVkVOVFNfT0JTRVJWRVIQBxIrCidFWFRFTlNJT05fUE9JTlRfU0VSVkVSX1NUQVJURURfT0JTRVJWRVIQCCq7AQoLU2V0dGluZ0tpbmQSHAoYU0VUVElOR19LSU5EX1VOU1BFQ0lGSUVEEAASFQoRU0VUVElOR19LSU5EX1RFWFQQARIXChNTRVRUSU5HX0tJTkRfU0VDUkVUEAISFQoRU0VUVElOR19LSU5EX0JPT0wQAxIYChRTRVRUSU5HX0tJTkRfSU5URUdFUhAEEhcKE1NFVFRJTkdfS0lORF9DSE9JQ0UQBRIUChBTRVRUSU5HX0tJTkRfVVJMEAYyzAUKDVBsdWdpblNlcnZpY2USTQoLTGlzdFBsdWdpbnMSGy5uYW1hLnYxLkxpc3RQbHVnaW5zUmVxdWVzdBocLm5hbWEudjEuTGlzdFBsdWdpbnNSZXNwb25zZSIDkAIBEkcKCUdldFBsdWdpbhIZLm5hbWEudjEuR2V0UGx1Z2luUmVxdWVzdBoaLm5hbWEudjEuR2V0UGx1Z2luUmVzcG9uc2UiA5ACARJoChRVcGRhdGVQbHVnaW5TZXR0aW5ncxIkLm5hbWEudjEuVXBkYXRlUGx1Z2luU2V0dGluZ3NSZXF1ZXN0GiUubmFtYS52MS5VcGRhdGVQbHVnaW5TZXR0aW5nc1Jlc3BvbnNlIgOQAgISUAoMRW5hYmxlUGx1Z2luEhwubmFtYS52MS5FbmFibGVQbHVnaW5SZXF1ZXN0Gh0ubmFtYS52MS5FbmFibGVQbHVnaW5SZXNwb25zZSIDkAICEl8KElRlc3RQbHVnaW5TZXR0aW5ncxIiLm5hbWEudjEuVGVzdFBsdWdpblNldHRpbmdzUmVxdWVzdBojLm5hbWEudjEuVGVzdFBsdWdpblNldHRpbmdzUmVzcG9uc2UiABJTCg1EaXNhYmxlUGx1Z2luEh0ubmFtYS52MS5EaXNhYmxlUGx1Z2luUmVxdWVzdBoeLm5hbWEudjEuRGlzYWJsZVBsdWdpblJlc3BvbnNlIgOQAgISUwoNTGlzdFF1YWxpdGllcxIdLm5hbWEudjEuTGlzdFF1YWxpdGllc1JlcXVlc3QaHi5uYW1hLnYxLkxpc3RRdWFsaXRpZXNSZXNwb25zZSIDkAIBElwKEFJlcGxhY2VRdWFsaXRpZXMSIC5uYW1hLnYxLlJlcGxhY2VRdWFsaXRpZXNSZXF1ZXN0GiEubmFtYS52MS5SZXBsYWNlUXVhbGl0aWVzUmVzcG9uc2UiA5ACAmIGcHJvdG8z");
 
 /**
  * @generated from message nama.v1.ListPluginsRequest
@@ -415,93 +415,11 @@ export const ReplaceQualitiesResponseSchema: GenMessage<ReplaceQualitiesResponse
   messageDesc(file_nama_v1_plugin, 18);
 
 /**
- * A Plugin as `ListPlugins` lists it: a `Plugin` without its settings.
+ * What `ListPlugins` lists of a Plugin, and `Plugin` holds: all but its settings.
  *
  * @generated from message nama.v1.PluginSummary
  */
 export type PluginSummary = Message<"nama.v1.PluginSummary"> & {
-  /**
-   * As `Plugin.id`.
-   *
-   * @generated from field: string id = 1;
-   */
-  id: string;
-
-  /**
-   * @generated from field: string version = 2;
-   */
-  version: string;
-
-  /**
-   * @generated from field: nama.v1.PluginKind kind = 3;
-   */
-  kind: PluginKind;
-
-  /**
-   * As `Plugin.enabled`.
-   *
-   * @generated from field: bool enabled = 4;
-   */
-  enabled: boolean;
-
-  /**
-   * As `Plugin.refused_reason`.
-   *
-   * @generated from field: string refused_reason = 5;
-   */
-  refusedReason: string;
-
-  /**
-   * Whether a required setting has no value, no default and no stored secret, so `EnablePlugin`
-   * would refuse it with `REFUSAL_REASON_FIELD_REQUIRED`. An enabled Plugin may have one too, such
-   * as an Installed Plugin upgraded with a new required setting.
-   *
-   * @generated from field: bool settings_missing = 6;
-   */
-  settingsMissing: boolean;
-
-  /**
-   * As `Plugin.name`.
-   *
-   * @generated from field: string name = 7;
-   */
-  name: string;
-
-  /**
-   * As `Plugin.description`.
-   *
-   * @generated from field: string description = 8;
-   */
-  description: string;
-
-  /**
-   * As `Plugin.extension_points`.
-   *
-   * @generated from field: repeated nama.v1.ExtensionPoint extension_points = 9;
-   */
-  extensionPoints: ExtensionPoint[];
-
-  /**
-   * As `Plugin.logo_svg`.
-   *
-   * @generated from field: string logo_svg = 10;
-   */
-  logoSvg: string;
-};
-
-/**
- * Describes the message nama.v1.PluginSummary.
- * Use `create(PluginSummarySchema)` to create a new message.
- */
-export const PluginSummarySchema: GenMessage<PluginSummary> = /*@__PURE__*/
-  messageDesc(file_nama_v1_plugin, 19);
-
-/**
- * A unit of trusted functionality that plugs into a Server.
- *
- * @generated from message nama.v1.Plugin
- */
-export type Plugin = Message<"nama.v1.Plugin"> & {
   /**
    * Its stable, unique name, such as `tmdb`.
    *
@@ -528,6 +446,76 @@ export type Plugin = Message<"nama.v1.Plugin"> & {
   enabled: boolean;
 
   /**
+   * Why the Server refused it, in plain words, such as an Installed Plugin built for another Nama
+   * API version. Empty unless it was refused. A refused Plugin can't be enabled, and its `id` is
+   * its file's name, since the Server may not have learnt the id it gives itself.
+   *
+   * @generated from field: string refused_reason = 5;
+   */
+  refusedReason: string;
+
+  /**
+   * Whether a required setting has no value, no default and no stored secret, so `EnablePlugin`
+   * would refuse it with `REFUSAL_REASON_FIELD_REQUIRED`. An enabled Plugin may have one too, such
+   * as an Installed Plugin upgraded with a new required setting.
+   *
+   * @generated from field: bool settings_missing = 6;
+   */
+  settingsMissing: boolean;
+
+  /**
+   * What admins know it by, such as "TMDB". Empty if it gives none, when `id` stands in.
+   *
+   * @generated from field: string name = 7;
+   */
+  name: string;
+
+  /**
+   * What it does, in one sentence its author wrote. Empty if it gives none.
+   *
+   * @generated from field: string description = 8;
+   */
+  description: string;
+
+  /**
+   * The Extension Points it takes part at, as its Manifest names them, whether it is enabled or
+   * not. Empty for a refused Plugin.
+   *
+   * @generated from field: repeated nama.v1.ExtensionPoint extension_points = 9;
+   */
+  extensionPoints: ExtensionPoint[];
+
+  /**
+   * Its logo, an SVG document's text, or empty if it has none. An Installed Plugin's author wrote
+   * it, so show it only as an image, such as from a `data:image/svg+xml` URL, never inline in a
+   * page, where its scripts would run.
+   *
+   * @generated from field: string logo_svg = 10;
+   */
+  logoSvg: string;
+};
+
+/**
+ * Describes the message nama.v1.PluginSummary.
+ * Use `create(PluginSummarySchema)` to create a new message.
+ */
+export const PluginSummarySchema: GenMessage<PluginSummary> = /*@__PURE__*/
+  messageDesc(file_nama_v1_plugin, 19);
+
+/**
+ * A unit of trusted functionality that plugs into a Server.
+ *
+ * @generated from message nama.v1.Plugin
+ */
+export type Plugin = Message<"nama.v1.Plugin"> & {
+  /**
+   * Its id, name, whether it is enabled and the rest that `ListPlugins` lists.
+   *
+   * @generated from field: nama.v1.PluginSummary summary = 12;
+   */
+  summary?: PluginSummary | undefined;
+
+  /**
    * Every setting it takes, in the order a form shows them.
    *
    * @generated from field: repeated nama.v1.Setting settings = 5;
@@ -540,46 +528,6 @@ export type Plugin = Message<"nama.v1.Plugin"> & {
    * @generated from field: bool checks_settings = 6;
    */
   checksSettings: boolean;
-
-  /**
-   * Why the Server refused it, in plain words, such as an Installed Plugin built for another Nama
-   * API version. Empty unless it was refused. A refused Plugin can't be enabled, and its `id` is
-   * its file's name, since the Server may not have learnt the id it gives itself.
-   *
-   * @generated from field: string refused_reason = 7;
-   */
-  refusedReason: string;
-
-  /**
-   * What admins know it by, such as "TMDB". Empty if it gives none, when `id` stands in.
-   *
-   * @generated from field: string name = 8;
-   */
-  name: string;
-
-  /**
-   * What it does, in one sentence its author wrote. Empty if it gives none.
-   *
-   * @generated from field: string description = 9;
-   */
-  description: string;
-
-  /**
-   * The Extension Points it takes part at, as its Manifest names them, whether it is enabled or
-   * not. Empty for a refused Plugin.
-   *
-   * @generated from field: repeated nama.v1.ExtensionPoint extension_points = 10;
-   */
-  extensionPoints: ExtensionPoint[];
-
-  /**
-   * Its logo, an SVG document's text, or empty if it has none. An Installed Plugin's author wrote
-   * it, so show it only as an image, such as from a `data:image/svg+xml` URL, never inline in a
-   * page, where its scripts would run.
-   *
-   * @generated from field: string logo_svg = 11;
-   */
-  logoSvg: string;
 };
 
 /**
@@ -882,7 +830,7 @@ export const SettingKindSchema: GenEnum<SettingKind> = /*@__PURE__*/
 /**
  * The Server's Plugins and their settings. Needs `PERMISSION_MANAGE_SETTINGS`, and fails with
  * `permission_denied` without it. A secret setting's value never leaves the Server. Every call
- * but `GetPlugin` naming a Plugin the Server refused (see `Plugin.refused_reason`) fails with
+ * but `GetPlugin` naming a Plugin the Server refused (see `PluginSummary.refused_reason`) fails with
  * `REFUSAL_REASON_PLUGIN_REFUSED`.
  *
  * @generated from service nama.v1.PluginService
@@ -899,8 +847,8 @@ export const PluginService: GenService<{
     output: typeof ListPluginsResponseSchema;
   },
   /**
-   * Returns one Plugin with its settings. A refused Plugin comes with its `refused_reason` and no
-   * settings. Fails with `not_found` for an unknown Plugin.
+   * Returns one Plugin with its settings. A refused Plugin comes with its summary's
+   * `refused_reason` and no settings. Fails with `not_found` for an unknown Plugin.
    *
    * @generated from rpc nama.v1.PluginService.GetPlugin
    */
