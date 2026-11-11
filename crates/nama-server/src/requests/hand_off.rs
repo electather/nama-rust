@@ -291,4 +291,14 @@ mod tests {
         assert!(kept.release().is_none());
         assert!(Claim::take(&handing, 1).is_some());
     }
+
+    #[test]
+    fn a_dropped_claim_lets_the_request_be_claimed_again() {
+        let handing = Arc::default();
+        let claim = Claim::take(&handing, 1).unwrap();
+
+        drop(claim);
+
+        assert!(Claim::take(&handing, 1).is_some());
+    }
 }

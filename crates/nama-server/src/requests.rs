@@ -3313,6 +3313,11 @@ mod tests {
         tokio::time::timeout(Duration::from_secs(1), come_up(&requests, "gated"))
             .await
             .expect("the came-up hand-off waited on the Fulfiller");
+        assert_eq!(
+            gated.handed().len(),
+            1,
+            "the came-up hand-off took the second Request"
+        );
         gated.open.notify_one();
         while gated.handed().len() < 2 {
             tokio::task::yield_now().await;
