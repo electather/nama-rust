@@ -617,8 +617,8 @@ pub trait LibraryService: Send + Sync + 'static {
     /// own folder or above it. The Versions whose files went are removed as a scan removes them, with
     /// `LibraryItemRemoved`. A file that can't be deleted is listed with why, and the rest still go.
     /// Needs `PERMISSION_DELETE_MEDIA` and Recent Authentication. Fails with `invalid_argument` if
-    /// the target is missing, or names a Shows Library as a Movie's, and with `not_found` if there
-    /// is no such Library, Movie or Version.
+    /// the target is missing, or names a Library of the wrong kind, and with `not_found` if there is
+    /// no such Library, title, Season or Version.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///

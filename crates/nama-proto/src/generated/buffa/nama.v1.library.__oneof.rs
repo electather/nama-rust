@@ -8,6 +8,9 @@ pub mod media_to_delete {
     pub enum Target {
         Movie(::buffa::alloc::boxed::Box<super::super::super::MovieToDelete>),
         VersionId(i64),
+        Show(::buffa::alloc::boxed::Box<super::super::super::ShowToDelete>),
+        Season(::buffa::alloc::boxed::Box<super::super::super::SeasonToDelete>),
+        Episode(::buffa::alloc::boxed::Box<super::super::super::EpisodeToDelete>),
     }
     impl ::buffa::Oneof for Target {}
     impl From<super::super::super::MovieToDelete> for Target {
@@ -17,6 +20,36 @@ pub mod media_to_delete {
     }
     impl From<super::super::super::MovieToDelete> for ::core::option::Option<Target> {
         fn from(v: super::super::super::MovieToDelete) -> Self {
+            Self::Some(Target::from(v))
+        }
+    }
+    impl From<super::super::super::ShowToDelete> for Target {
+        fn from(v: super::super::super::ShowToDelete) -> Self {
+            Self::Show(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::ShowToDelete> for ::core::option::Option<Target> {
+        fn from(v: super::super::super::ShowToDelete) -> Self {
+            Self::Some(Target::from(v))
+        }
+    }
+    impl From<super::super::super::SeasonToDelete> for Target {
+        fn from(v: super::super::super::SeasonToDelete) -> Self {
+            Self::Season(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::SeasonToDelete> for ::core::option::Option<Target> {
+        fn from(v: super::super::super::SeasonToDelete) -> Self {
+            Self::Some(Target::from(v))
+        }
+    }
+    impl From<super::super::super::EpisodeToDelete> for Target {
+        fn from(v: super::super::super::EpisodeToDelete) -> Self {
+            Self::Episode(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::EpisodeToDelete> for ::core::option::Option<Target> {
+        fn from(v: super::super::super::EpisodeToDelete) -> Self {
             Self::Some(Target::from(v))
         }
     }
@@ -36,6 +69,15 @@ pub mod media_to_delete {
                         "versionId",
                         &::buffa::json_helpers::ProtoJson(v),
                     )?;
+                }
+                Self::Show(v) => {
+                    map.serialize_entry("show", &**v)?;
+                }
+                Self::Season(v) => {
+                    map.serialize_entry("season", &**v)?;
+                }
+                Self::Episode(v) => {
+                    map.serialize_entry("episode", &**v)?;
                 }
             }
             map.end()

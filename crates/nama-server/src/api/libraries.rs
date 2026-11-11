@@ -6,20 +6,21 @@ use buffa::EnumValue;
 use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
 use nama_proto::nama::v1::{
     self as proto, CreateLibraryRequest, CreateLibraryResponse, DeleteLibraryRequest,
-    DeleteLibraryResponse, DeleteMediaRequest, DeleteMediaResponse, FileNotDeleted,
-    GetLibraryRequest, GetLibraryResponse, LibraryKind, LibraryService, ListLibrariesRequest,
-    ListLibrariesResponse, MediaFile, MediaToDelete, Permission, PreviewDeleteMediaRequest,
-    PreviewDeleteMediaResponse, RefusalReason, ScanLibraryRequest, ScanLibraryResponse,
-    UpdateLibraryRequest, UpdateLibraryResponse, media_to_delete,
+    DeleteLibraryResponse, DeleteMediaRequest, DeleteMediaResponse, EpisodeTakenAlong,
+    FileNotDeleted, GetLibraryRequest, GetLibraryResponse, LibraryKind, LibraryService,
+    ListLibrariesRequest, ListLibrariesResponse, MediaFile, MediaToDelete, Permission,
+    PreviewDeleteMediaRequest, PreviewDeleteMediaResponse, RefusalReason, ScanLibraryRequest,
+    ScanLibraryResponse, UpdateLibraryRequest, UpdateLibraryResponse, media_to_delete,
 };
 
 use crate::{
-    browse::{self, Browse, ToDelete},
+    browse::{self, Browse, Target, ToDelete},
+    contents::Episode,
     libraries::{self, FolderProblem, Kind, Libraries, Library},
     scanner::{self, Deleted, Scanner},
 };
 
-use super::{caller, database_failed, refuse, required_id, unknown_enum_value};
+use super::{caller, database_failed, proto_number, refuse, required_id, unknown_enum_value};
 
 /// `nama.v1.LibraryService`: managing the Server's Libraries. Needs `PERMISSION_MANAGE_LIBRARIES`,
 /// which [`require_access`](super::require_access) enforces, except listing them, which any
@@ -135,12 +136,15 @@ impl LibraryService for LibraryServiceHandler {
         request: ServiceRequest<'_, PreviewDeleteMediaRequest>,
     ) -> ServiceResult<PreviewDeleteMediaResponse> {
         let target = to_delete_from_proto(request.to_owned_message().target.into_option())?;
-        let doomed = self.browse.doomed(target).await.map_err(target_refused)?;
+        let refused = target_refused(&target);
+        let mut doomed = self.browse.doomed(target).await.map_err(refused)?;
+        let taken_along = std::mem::take(&mut doomed.taken_along);
         let planned = self.scanner.preview_delete(doomed).await;
         let planned = planned.map_err(deleting_failed)?;
         Response::ok(PreviewDeleteMediaResponse {
             bytes_freed: planned.bytes_freed(),
             files: planned.files.iter().map(file_to_proto).collect(),
+            episodes_taken_along: taken_along.into_iter().map(taken_along_to_proto).collect(),
             ..Default::default()
         })
     }
@@ -152,23 +156,45 @@ impl LibraryService for LibraryServiceHandler {
     ) -> ServiceResult<DeleteMediaResponse> {
         let by = caller(&ctx)?.user.name.clone();
         let target = to_delete_from_proto(request.to_owned_message().target.into_option())?;
-        let doomed = self.browse.doomed(target).await.map_err(target_refused)?;
+        let refused = target_refused(&target);
+        let doomed = self.browse.doomed(target).await.map_err(refused)?;
         let deleted = self.scanner.delete_media(doomed, by).await;
         Response::ok(deleted_to_proto(deleted.map_err(deleting_failed)?))
     }
 }
 
 fn to_delete_from_proto(target: Option<MediaToDelete>) -> Result<ToDelete, ConnectError> {
+    use media_to_delete::Target as T;
+    let title = |library, title| Ok(ToDelete::Title { library, title });
     match target.and_then(|target| target.target) {
-        Some(media_to_delete::Target::Movie(movie)) => Ok(ToDelete::Movie {
-            library: movie.library_id,
-            id: required_id(
-                movie.movie_id.into_option(),
-                "target.movie.movie_id",
-                "Movie",
-            )?,
-        }),
-        Some(media_to_delete::Target::VersionId(version)) => Ok(ToDelete::Version(version)),
+        Some(T::Movie(movie)) => {
+            let id = movie.movie_id.into_option();
+            let id = required_id(id, "target.movie.movie_id", "Movie")?;
+            title(movie.library_id, Target::Movie(id))
+        }
+        Some(T::VersionId(version)) => Ok(ToDelete::Version(version)),
+        Some(T::Show(show)) => {
+            let id = required_id(show.show_id.into_option(), "target.show.show_id", "Show")?;
+            title(show.library_id, Target::Show(id))
+        }
+        Some(T::Season(season)) => {
+            let show = season.show_id.into_option();
+            let show = required_id(show, "target.season.show_id", "Show")?;
+            let number = i64::from(season.season_number);
+            title(season.library_id, Target::Season { show, number })
+        }
+        Some(T::Episode(episode)) => {
+            let id = episode.episode_id.into_option();
+            let id = required_id(id, "target.episode.episode_id", "Episode")?;
+            match episode.version_id {
+                Some(version) => Ok(ToDelete::EpisodeVersion {
+                    library: episode.library_id,
+                    episode: id,
+                    version,
+                }),
+                None => title(episode.library_id, Target::Episode(id)),
+            }
+        }
         None => Err(refuse(
             RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
             "say what to delete",
@@ -178,9 +204,34 @@ fn to_delete_from_proto(target: Option<MediaToDelete>) -> Result<ToDelete, Conne
     }
 }
 
-/// The Connect error for a delete's target that Browse didn't find, naming the request's field.
-fn target_refused(err: browse::Error) -> ConnectError {
-    super::browse::refused(err, "target.movie.library_id", "target.version_id")
+/// What makes the Connect error for a delete's target that Browse didn't find, naming the
+/// request's fields for the Library and the Version.
+fn target_refused(target: &ToDelete) -> impl FnOnce(browse::Error) -> ConnectError + use<> {
+    let (library, version) = match target {
+        ToDelete::Title { title, .. } => {
+            let library = match title {
+                Target::Movie(_) => "target.movie.library_id",
+                Target::Show(_) => "target.show.library_id",
+                Target::Season { .. } => "target.season.library_id",
+                Target::Episode(_) => "target.episode.library_id",
+            };
+            (library, "target.version_id")
+        }
+        ToDelete::Version(_) => ("target.movie.library_id", "target.version_id"),
+        ToDelete::EpisodeVersion { .. } => {
+            ("target.episode.library_id", "target.episode.version_id")
+        }
+    };
+    move |err| super::browse::refused(err, library, version)
+}
+
+fn taken_along_to_proto(episode: Episode) -> EpisodeTakenAlong {
+    EpisodeTakenAlong {
+        season_number: proto_number(episode.season),
+        episode_number: proto_number(episode.number),
+        title: episode.title,
+        ..Default::default()
+    }
 }
 
 fn deleted_to_proto(deleted: Deleted) -> DeleteMediaResponse {

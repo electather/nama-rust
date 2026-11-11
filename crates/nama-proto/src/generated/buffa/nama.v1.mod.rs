@@ -257,6 +257,10 @@ pub mod __buffa {
         reg.register_json_any(super::__DELETE_MEDIA_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__MEDIA_TO_DELETE_JSON_ANY);
         reg.register_json_any(super::__MOVIE_TO_DELETE_JSON_ANY);
+        reg.register_json_any(super::__SHOW_TO_DELETE_JSON_ANY);
+        reg.register_json_any(super::__SEASON_TO_DELETE_JSON_ANY);
+        reg.register_json_any(super::__EPISODE_TO_DELETE_JSON_ANY);
+        reg.register_json_any(super::__EPISODE_TAKEN_ALONG_JSON_ANY);
         reg.register_json_any(super::__MEDIA_FILE_JSON_ANY);
         reg.register_json_any(super::__FILE_NOT_DELETED_JSON_ANY);
         reg.register_json_any(super::__REFUSAL_JSON_ANY);
@@ -1082,6 +1086,22 @@ pub use self::__buffa::view::MediaToDeleteOwnedView;
 pub use self::__buffa::view::MovieToDeleteView;
 #[doc(inline)]
 pub use self::__buffa::view::MovieToDeleteOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ShowToDeleteView;
+#[doc(inline)]
+pub use self::__buffa::view::ShowToDeleteOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SeasonToDeleteView;
+#[doc(inline)]
+pub use self::__buffa::view::SeasonToDeleteOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::EpisodeToDeleteView;
+#[doc(inline)]
+pub use self::__buffa::view::EpisodeToDeleteOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::EpisodeTakenAlongView;
+#[doc(inline)]
+pub use self::__buffa::view::EpisodeTakenAlongOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::MediaFileView;
 #[doc(inline)]

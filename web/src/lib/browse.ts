@@ -41,6 +41,14 @@ export async function queryOrNotFound<I extends DescMessage, O extends DescMessa
   }
 }
 
+/**
+ * Whether a browse query's last refetch found its title gone, such as one deleted since. A failed
+ * refetch keeps the data read before, so a page has to ask.
+ */
+export function isGone(error: unknown) {
+  return isCode(error, Code.NotFound);
+}
+
 export async function libraryFromParam(context: RouterContext, param: string) {
   const { libraries } = await queryOrNotFound(context, LibraryService.method.listLibraries, {});
   const library = libraries.find(({ id }) => String(id) === param);
