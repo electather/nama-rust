@@ -159,7 +159,7 @@ The tall image that stands for a Movie, Show or Season.
 _Avoid_: cover, thumbnail, primary image
 
 **Backdrop**:
-The wide image shown behind a Movie's or Show's page.
+The wide image shown behind a Movie's or Show's page, and the one a Library is shown by. A Library's is that of the title most recently added to it.
 _Avoid_: fanart, art, background, banner
 
 **Custom Image**:
