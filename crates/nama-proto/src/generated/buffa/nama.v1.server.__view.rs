@@ -4839,7 +4839,8 @@ impl ::serde::Serialize for UpdatePlaybackSettingsResponseOwnedView {
 #[derive(Clone, Debug, Default)]
 pub struct PlaybackSettingsView<'a> {
     /// The folder a Remux or Transcode writes its segment files to, an absolute path such as a
-    /// tmpfs's. Each plan's files go in a folder of their own inside it, deleted a minute after the
+    /// tmpfs's. Each plan's files go in a folder of their own inside it: those further behind
+    /// playback than `keep_behind_minutes` are deleted as it plays, and the rest a minute after the
     /// plan was last asked for. Empty, the default, for `transcodes` in the Server's data folder.
     ///
     /// Field 1: `segment_folder`
@@ -4868,6 +4869,12 @@ pub struct PlaybackSettingsView<'a> {
     ///
     /// Field 5: `gpu`
     pub gpu: ::buffa::MessageFieldView<super::super::__buffa::view::GpuView<'a>>,
+    /// How many minutes behind the last segment asked for a running Remux or Transcode keeps its
+    /// files, so skipping back that far plays at once, at least 1. Unset for the default, 5. A change
+    /// applies to running plans from the Server's next look at them, within about 10 seconds.
+    ///
+    /// Field 6: `keep_behind_minutes`
+    pub keep_behind_minutes: ::core::option::Option<u32>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for PlaybackSettingsView<'a> {
@@ -4953,6 +4960,15 @@ impl<'a> ::buffa::MessageView<'a> for PlaybackSettingsView<'a> {
                     }
                 }
             }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.keep_behind_minutes = Some(
+                    ::buffa::types::decode_uint32(&mut cur)?,
+                );
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -4988,6 +5004,7 @@ impl<'a> ::buffa::MessageView<'a> for PlaybackSettingsView<'a> {
                 }
                 None => ::buffa::MessageField::none(),
             },
+            keep_behind_minutes: self.keep_behind_minutes,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -5027,6 +5044,9 @@ impl<'a> ::buffa::ViewEncode<'a> for PlaybackSettingsView<'a> {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if let Some(v) = self.keep_behind_minutes {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -5063,6 +5083,9 @@ impl<'a> ::buffa::ViewEncode<'a> for PlaybackSettingsView<'a> {
                 buf,
             );
             self.gpu.write_to(__cache, buf);
+        }
+        if let Some(v) = self.keep_behind_minutes {
+            ::buffa::types::put_uint32_field(6u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -5109,6 +5132,13 @@ impl<'__a> ::serde::Serialize for PlaybackSettingsView<'__a> {
             if let ::core::option::Option::Some(__v) = self.gpu.as_option() {
                 __map.serialize_entry("gpu", __v)?;
             }
+        }
+        if let ::core::option::Option::Some(__v) = self.keep_behind_minutes {
+            __map
+                .serialize_entry(
+                    "keepBehindMinutes",
+                    &::buffa::json_helpers::ProtoJson(&__v),
+                )?;
         }
         __map.end()
     }
@@ -5204,7 +5234,8 @@ impl PlaybackSettingsOwnedView {
         self.0.into_bytes()
     }
     /// The folder a Remux or Transcode writes its segment files to, an absolute path such as a
-    /// tmpfs's. Each plan's files go in a folder of their own inside it, deleted a minute after the
+    /// tmpfs's. Each plan's files go in a folder of their own inside it: those further behind
+    /// playback than `keep_behind_minutes` are deleted as it plays, and the rest a minute after the
     /// plan was last asked for. Empty, the default, for `transcodes` in the Server's data folder.
     ///
     /// Field 1: `segment_folder`
@@ -5253,6 +5284,15 @@ impl PlaybackSettingsOwnedView {
         &self,
     ) -> &::buffa::MessageFieldView<super::super::__buffa::view::GpuView<'_>> {
         &self.0.reborrow().gpu
+    }
+    /// How many minutes behind the last segment asked for a running Remux or Transcode keeps its
+    /// files, so skipping back that far plays at once, at least 1. Unset for the default, 5. A change
+    /// applies to running plans from the Server's next look at them, within about 10 seconds.
+    ///
+    /// Field 6: `keep_behind_minutes`
+    #[must_use]
+    pub fn keep_behind_minutes(&self) -> ::core::option::Option<u32> {
+        self.0.reborrow().keep_behind_minutes
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<PlaybackSettingsView<'static>>>

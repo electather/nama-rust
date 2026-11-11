@@ -13,9 +13,10 @@
 //! A segment asked for waits for ffmpeg to write its files, and one whose files have gone since
 //! waits for them to be written again. One far past what ffmpeg has written restarts ffmpeg at it,
 //! and ffmpeg stops once it's [`RUN_AHEAD_MS`] past the last segment asked for, to start again at
-//! the next file asked for that it hasn't written. Every [`TIDY_EVERY`], files ending more than
-//! [`KEEP_BEHIND_MS`] before the last segment asked for are deleted, as are earlier runs' init
-//! files, so a plan's folder stops growing; one asked for again is written again.
+//! the next file asked for that it hasn't written. Every [`TIDY_EVERY`], files ending further
+//! before the last segment asked for than the Playback settings keep for skipping back are
+//! deleted, as are earlier runs' init files, so a plan's folder stops growing; one asked for again
+//! is written again.
 //!
 //! A Transcode on hardware that fails carries on in software from the first file it hadn't
 //! written, takes its software fallback's reasons and publishes `PlaybackChanged`.
@@ -78,10 +79,6 @@ const RUN_AHEAD_MS: i64 = 120_000;
 /// for, in milliseconds. ffmpeg restarts at one further on, since a Remux writes this much in a
 /// second or two but a seek far ahead would wait for everything before it.
 const REMUX_WAIT_AHEAD_MS: i64 = 30_000;
-
-/// How far behind the start of the last segment asked for a running plan keeps its files, in
-/// milliseconds, so skipping back that far plays at once.
-const KEEP_BEHIND_MS: i64 = 300_000;
 
 /// What a plan's folder in the segment folder is named, before its id. The sweep deletes only
 /// folders named so, since the admin may set a segment folder that holds other files.
@@ -482,8 +479,9 @@ impl RunningPlans {
         let running: Vec<Arc<Running>> = (lock(&self.inner.plans).values())
             .filter_map(|plan| plan.hls.clone())
             .collect();
+        let keep_behind_ms = self.inner.settings.keep_behind_ms();
         for hls in running {
-            if let Err(err) = hls.delete_behind().await {
+            if let Err(err) = hls.delete_behind(keep_behind_ms).await {
                 tracing::warn!(
                     plan = hls.id,
                     "could not delete files behind playback: {err}"
@@ -693,10 +691,10 @@ impl Running {
         }
     }
 
-    /// Deletes the files of keyframes ending more than [`KEEP_BEHIND_MS`] before the start of the
+    /// Deletes the files of keyframes ending more than `keep_behind_ms` before the start of the
     /// last segment asked for, and the init files of every run but the current one. Files ahead
     /// of it, and those the current run may still be writing, are kept.
-    async fn delete_behind(&self) -> io::Result<()> {
+    async fn delete_behind(&self, keep_behind_ms: i64) -> io::Result<()> {
         // Under the lock a restart takes, so the current run is the one whose init is kept.
         let ffmpeg = self.ffmpeg.lock().await;
         // `stop` takes the run under it, so a stopped plan has none.
@@ -711,7 +709,7 @@ impl Running {
             self.note_written(run).await
         };
         let asked = (self.timeline).segment_start_ms(self.last_asked.load(Ordering::Relaxed));
-        let keep_from_ms = asked - KEEP_BEHIND_MS;
+        let keep_from_ms = asked - keep_behind_ms;
         let mut entries = tokio::fs::read_dir(&self.dir).await?;
         while let Some(entry) = entries.next_entry().await? {
             let name = entry.file_name();
@@ -1512,6 +1510,42 @@ mod tests {
 
     #[cfg(unix)]
     #[tokio::test]
+    async fn a_tick_after_keep_for_skipping_back_is_lowered_deletes_what_it_no_longer_keeps() {
+        let data = tempfile::tempdir().unwrap();
+        let db = database(data.path()).await;
+        let settings = settings(&db, data.path().join("transcodes"));
+        let plans = plans_in(&db, settings.playback());
+        let (id, _) = start_writing_nothing(&plans).await;
+        let plan = hls(&plans, id, 7);
+        // To 400 seconds, played to 360.
+        write_keyframes(data.path(), id, 0..200);
+        plan.segment(60).await.unwrap().unwrap();
+        plans.delete_behind_playback().await;
+
+        settings
+            .change_playback(
+                PlaybackChange {
+                    segment_folder: "",
+                    max_transcodes: None,
+                    keep_behind_minutes: Some(1),
+                    hardware: HardwareChoice::Automatic,
+                    remote_limit: None,
+                },
+                &[],
+            )
+            .await
+            .unwrap();
+        plans.delete_behind_playback().await;
+
+        // Keyframe 149 ends at 300 seconds, a minute before.
+        assert_eq!(
+            keyframes_left(data.path(), id),
+            (149..200).collect::<Vec<_>>()
+        );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
     async fn a_tick_after_a_seek_back_keeps_the_files_ahead_of_it() {
         let data = tempfile::tempdir().unwrap();
         let plans = running_plans(data.path()).await;
@@ -2076,6 +2110,7 @@ mod tests {
                 PlaybackChange {
                     segment_folder: tmpfs.to_str().unwrap(),
                     max_transcodes: None,
+                    keep_behind_minutes: None,
                     hardware: HardwareChoice::Automatic,
                     remote_limit: None,
                 },
@@ -2114,6 +2149,7 @@ mod tests {
                 PlaybackChange {
                     segment_folder: set.to_str().unwrap(),
                     max_transcodes: None,
+                    keep_behind_minutes: None,
                     hardware: HardwareChoice::Automatic,
                     remote_limit: None,
                 },
