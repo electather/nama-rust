@@ -78,9 +78,10 @@ impl Progress {
         }
     }
 
-    /// Asks each enabled Fulfiller once, waiting `every` at most, what it is downloading for the
-    /// Requests it has that aren't Available yet, keeps the answers in place of the last ones, and
-    /// publishes each Request whose downloads changed. Returns whether there are any such Requests.
+    /// Asks each enabled Fulfiller once, waiting `every` at most for each, what it is downloading
+    /// for the Requests it has that aren't Available yet, keeps the answers in place of the last
+    /// ones, and publishes each Request whose downloads changed. Returns whether there are any such
+    /// Requests.
     pub(super) async fn poll(&self, every: Duration) -> Result<bool, sqlx::Error> {
         let fulfilling = fulfilling(&mut *self.db.reader().acquire().await?).await?;
         let (movies, seasons): (Vec<_>, Vec<_>) =

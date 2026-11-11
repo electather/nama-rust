@@ -2,8 +2,7 @@
 //! Shows Fulfiller to stop following a Show. Asking how the Requests it took are progressing is
 //! [`super::progress`]'s.
 //!
-//! It holds no SQL, since [`super`] alone owns its tables: it calls Requests' functions to read
-//! Requests and to settle a Hand-off.
+//! It holds no SQL: it calls Requests' functions to read Requests and to settle a Hand-off.
 
 use std::{
     collections::{HashMap, hash_map::Entry},
