@@ -485,23 +485,20 @@ impl Users {
         .await
     }
 
-    /// Gives `caller`'s Device Recent Authentication if `password` is their User's.
-    pub(crate) async fn reauthenticate(
-        &self,
-        caller: &Caller,
-        password: &str,
-    ) -> Result<(), Error> {
-        // Users are never renamed, so the caller's name still finds them.
-        let found = self.user_named(&caller.user.name).await?;
+    /// Checks that `password` is `user`'s, refusing it with [`Error::WrongPassword`] if not.
+    pub(crate) async fn confirm_password(&self, user: &User, password: &str) -> Result<(), Error> {
+        // Users are never renamed, so their name still finds them.
+        let found = self.user_named(&user.name).await?;
         let stored = found.as_ref().and_then(|(_, stored)| stored.as_ref());
-        if self
-            .verify_password(&Arc::from(password), stored)
-            .await?
-            .is_none()
-        {
-            return Err(Error::WrongPassword);
+        match self.verify_password(&Arc::from(password), stored).await? {
+            Some(_) => Ok(()),
+            None => Err(Error::WrongPassword),
         }
-        let device = caller.device.id;
+    }
+
+    /// Gives the Device `device` Recent Authentication, failing with [`Error::SignedOut`] if it
+    /// was signed out meanwhile.
+    pub(crate) async fn record_authentication(&self, device: i64) -> Result<(), Error> {
         self.db
             .write(move |tx| Box::pin(async move { record_authentication(tx, device).await }))
             .await

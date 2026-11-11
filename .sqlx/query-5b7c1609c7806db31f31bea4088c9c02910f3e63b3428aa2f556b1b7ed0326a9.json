@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE followed_shows SET latest_season = ?\n                 WHERE id = ? AND (latest_season IS NULL OR latest_season < ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "5b7c1609c7806db31f31bea4088c9c02910f3e63b3428aa2f556b1b7ed0326a9"
+}

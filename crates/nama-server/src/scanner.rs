@@ -264,6 +264,11 @@ impl Scanner {
                 .publish(std::iter::once(progress).chain(items).collect());
         }
         tracing::info!(library = id, ?summary, "scanned a Library");
+        if let Some(probing) = &self.inner.probing {
+            // Before `ScanFinished`, so a client that waited for the scan isn't served a gone or
+            // changed file's subtitles.
+            probing.clean_subtitles().await;
+        }
         self.inner.events.publish(vec![event(ScanFinished {
             library_id: id,
             added: summary.added,
@@ -283,11 +288,9 @@ impl Scanner {
         match &self.inner.probing {
             Some(probing) => {
                 let scanner = self.clone();
-                probing
-                    .files_changed(id, move |probed| {
-                        scanner.publish_probed(scan_number, probed);
-                    })
-                    .await;
+                probing.files_changed(id, move |probed| {
+                    scanner.publish_probed(scan_number, probed);
+                });
             }
             // Nothing probes, so Probing has caught up already.
             None => self.publish_probed(
