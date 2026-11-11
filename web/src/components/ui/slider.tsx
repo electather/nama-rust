@@ -3,7 +3,7 @@ import { cn } from "cn";
 
 // DESIGN.md: an inactive track in Muted, a progress fill in Signal Green and any other level in
 // ink (The One Voice Rule), and the green focus ring at full strength, since the slider sits over
-// video.
+// video. A disabled thumb is Quiet ink, never faded, as DESIGN.md says of a disabled button.
 // Restyled from shadcn's to one value, so its thumb can carry the label.
 function Slider({
   className,
@@ -41,7 +41,7 @@ function Slider({
           data-slot="slider-thumb"
           aria-label={label}
           aria-valuetext={valueText}
-          className="relative block size-3.5 shrink-0 rounded-full bg-foreground ring-ring/50 transition-shadow select-none after:absolute after:-inset-2 hover:ring-3 has-focus-visible:ring-3 has-focus-visible:ring-ring motion-reduce:transition-none"
+          className="relative block size-3.5 shrink-0 rounded-full bg-foreground ring-ring/50 data-disabled:pointer-events-none data-disabled:bg-muted-foreground transition-shadow select-none after:absolute after:-inset-2 hover:ring-3 has-focus-visible:ring-3 has-focus-visible:ring-ring motion-reduce:transition-none"
         />
       </SliderPrimitive.Control>
     </SliderPrimitive.Root>

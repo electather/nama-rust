@@ -122,6 +122,27 @@ test("without a version, the player plays the largest from where its plan says",
   expect(screen.queryByRole("navigation", { name: "Main" })).toBeNull();
 });
 
+// Base UI warns on a 0..0 range even when the slider is disabled, so an unknown duration stands in 0..1.
+test("the Position slider is disabled until the video knows a finite duration, then seeks", async () => {
+  openApp("/libraries/1/movies/tmdb-603/play", server);
+  const video = await screen.findByLabelText<HTMLVideoElement>("The Matrix");
+  const position = screen.getByLabelText<HTMLInputElement>("Position");
+  expect(position.disabled).toBe(true);
+  expect(position.max).toBe("1");
+
+  Object.defineProperty(video, "duration", { value: Infinity, configurable: true });
+  fireEvent(video, new Event("durationchange"));
+  expect(position.disabled).toBe(true);
+
+  Object.defineProperty(video, "duration", { value: 7000 });
+  fireEvent(video, new Event("durationchange"));
+
+  expect(position.disabled).toBe(false);
+  expect(position.max).toBe("7000");
+  fireEvent.keyDown(position, { key: "End" });
+  expect(video.currentTime).toBe(7000);
+});
+
 test("a file the browser fails to load is planned again from where it started, without Direct Play, which says why it can't play", async () => {
   const asked: PlanPlaybackRequest[] = [];
   const watchState = { positionMs: 600_000n, durationMs: 7_000_000n };

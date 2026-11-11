@@ -167,8 +167,9 @@ function BottomBar({
           progress
           label="Position"
           valueText={`${clock(time)} of ${clock(duration)}`}
-          value={time}
-          max={duration}
+          disabled={!duration}
+          value={Math.min(time, duration)}
+          max={duration || 1}
           onValueChange={(seconds) => {
             video.control((element) => {
               element.currentTime = seconds;
