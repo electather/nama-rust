@@ -2,7 +2,7 @@
 // - triage: needs-triage issues, one at a time → an agent closes, specifies (ready-for-agent), splits, or asks
 //   (needs-decision).
 // - implement: ready-for-agent issues with no open PR → implement → review → push → PR, then lets go.
-// - babysit: qualifying PRs (see babysittable) → CI (rebase / one fix if needed) → squash-merge.
+// - babysit: qualifying PRs (see babysittable) → CI (rebase / one fix if needed) → up to main's tip → squash-merge.
 // Run from the repo root: `npm --prefix .sandcastle run factory`  (the script cd's back to the root)
 import { execFile, execFileSync, spawn, spawnSync } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -12,6 +12,7 @@ import { inspect, parseEnv, promisify } from "node:util";
 import * as sandcastle from "@ai-hero/sandcastle";
 import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
 import { podman } from "@ai-hero/sandcastle/sandboxes/podman";
+import { mergeStep } from "./merge.ts";
 import { slotPool } from "./slots.ts";
 import { recorder, type Outcome, type Stage, type Waiting } from "./status.ts";
 
@@ -513,12 +514,11 @@ async function waitForChecks(job: Job): Promise<"pass" | "fail" | "stale"> {
   return code === 0 ? "pass" : "fail";
 }
 
-// Only a conflict with main needs a rebase (and a fresh CI run): a PR that's merely behind still
-// squash-merges cleanly, and its pull_request run already tested it merged into main.
-// ponytail: two PRs that merge cleanly but break each other are caught by main's push run, not
-// before the merge. Rebase whenever main moves if that ever lands a red main.
+// A conflict needs an agent (rebase); a PR merely behind main is updated on GitHub (updateBranch). Either way it
+// runs CI again before merging: see merge.ts for why (#561).
 // merge-tree exits non-zero on a conflict (or any error, which then just rebases).
 const conflicts = (ref: string) => !ok("git", "merge-tree", "--write-tree", `origin/${BASE}`, ref);
+const behind = (ref: string) => !ok("git", "merge-base", "--is-ancestor", `origin/${BASE}`, ref);
 
 // Another PR's merge conflicts with this one: merge main in, then push.
 async function rebase(job: Job) {
@@ -527,7 +527,34 @@ async function rebase(job: Job) {
   push(job);
 }
 
-// One fix attempt if CI fails. If main moves while CI runs, rebase and wait for CI again.
+// Main moved but doesn't conflict: GitHub merges it into the PR's branch, which starts a new CI run. No agent, no
+// slot. A sandbox already open for this PR is moved to the new head, or a later rebase would push over it.
+async function updateBranch(job: Job) {
+  note(job.issue, "update to main");
+  gh("pr", "update-branch", job.pr);
+  fetchOrigin();
+  await job.box?.exec(`git reset --hard origin/${branchOf(job.issue)}`);
+}
+
+// Whether main's latest finished push run failed (a superseded run is cancelled, so it doesn't count).
+const mainRed = () =>
+  gh("run", "list", "--branch", BASE, "--workflow", "CI", "--event", "push", "--limit", "10", "--json", "conclusion",
+    "--jq", '[.[] | select(.conclusion != "" and .conclusion != "cancelled")][0].conclusion // empty') === "failure";
+
+// A red main fails every PR's run. A fix agent would mend main in each PR, and those PRs would then conflict,
+// so the PR holds no slot and waits until main's own fix has landed. Triage files that fix.
+async function waitForGreenMain(job: Job) {
+  log(`#${job.issue.number} CI failed while main is red: waiting for main`);
+  note(job.issue, "waited for a red main");
+  const signal = aborts.get(job.issue.number)?.signal;
+  while (mainRed()) {
+    await sleep(60_000);
+    signal?.throwIfAborted();
+  }
+  fetchOrigin();
+}
+
+// One fix attempt if CI fails, unless main is red. If main moves while CI runs, rebase and wait for CI again.
 async function greenCi(job: Job) {
   let fixed = false;
   for (;;) {
@@ -538,6 +565,14 @@ async function greenCi(job: Job) {
       await rebase(job);
       continue;
     }
+    if (mainRed()) {
+      await waitForGreenMain(job);
+      const head = `origin/${branchOf(job.issue)}`;
+      const step = mergeStep({ conflicts: conflicts(head), behind: behind(head) });
+      if (step === "rebase") await rebase(job);
+      if (step === "update") await updateBranch(job);
+      if (step !== "merge") continue; // else main was red for another reason: this failure is the PR's own
+    }
     if (fixed) throw new Blocked(`CI still failing on PR #${job.pr} after one fix attempt`);
     note(job.issue, "CI fix");
     await fix(await boxFor(job), job.issue, `CI is failing on PR #${job.pr}.`, "CI fix");
@@ -546,15 +581,22 @@ async function greenCi(job: Job) {
   }
 }
 
-// Runs one at a time (see `serially`), so each branch is checked against the latest main.
+// Runs one at a time (see `serially`), so no other factory merge lands between the last green run and the merge.
+// The cost is that merges land at least one CI run apart, as in a merge queue. Main is fetched again after each
+// run, since a hand merge may have moved it meanwhile.
 async function mergePr(job: Job) {
   stage(job.issue, "merging");
-  fetchOrigin();
-  if (conflicts(`origin/${branchOf(job.issue)}`)) {
-    await rebase(job); // another PR's merge conflicts with this one: CI again on the rebased branch
+  const head = `origin/${branchOf(job.issue)}`;
+  for (;;) {
+    fetchOrigin();
+    const step = mergeStep({ conflicts: conflicts(head), behind: behind(head) });
+    if (step === "merge") break;
+    if (step === "rebase") await rebase(job);
+    else await updateBranch(job);
     await greenCi(job);
   }
-  gh("pr", "merge", job.pr, "--squash");
+  // A push between the check and here (an agent, by hand) would merge an untested head; GitHub refuses that.
+  gh("pr", "merge", job.pr, "--squash", "--match-head-commit", git("rev-parse", head));
   log(`✓ #${job.issue.number} merged via PR #${job.pr}`);
   await afterMerge(job.issue);
 }
