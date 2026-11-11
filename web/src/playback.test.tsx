@@ -52,6 +52,29 @@ test("without a usable ffmpeg the Playback page says why and that the Server can
   expect(screen.getByText(/can only Direct Play/u)).toBeDefined();
 });
 
+test("without ffmpeg or hardware the Playback page doesn't say hardware passed its test", async () => {
+  openApp(
+    "/admin/playback",
+    fakeServer({
+      signedIn: admin,
+      serverService: {
+        getPlaybackStatus: () => ({
+          ffmpegProblem: "ffmpeg wasn't found on the PATH",
+          ffprobeProblem: "ffprobe wasn't found on the PATH",
+        }),
+      },
+    }),
+  );
+
+  expect(await screen.findByText(/What Transcodes can run on besides software/u)).toBeDefined();
+  expect(screen.queryByText(/hardware below passed its test/u)).toBeNull();
+});
+
+const ffmpegFound = {
+  ffmpeg: { path: "/usr/bin/ffmpeg", version: "7.1.1" },
+  ffprobe: { path: "/usr/bin/ffprobe", version: "7.1.1" },
+};
+
 test("an Admin sees the hardware acceleration that passed its test and whether it tone-maps", async () => {
   openApp(
     "/admin/playback",
@@ -59,6 +82,7 @@ test("an Admin sees the hardware acceleration that passed its test and whether i
       signedIn: admin,
       serverService: {
         getPlaybackStatus: () => ({
+          ...ffmpegFound,
           hardware: [
             { api: HardwareAcceleration.NVENC, toneMaps: true },
             { api: HardwareAcceleration.VAAPI, toneMaps: false },
@@ -76,11 +100,6 @@ test("an Admin sees the hardware acceleration that passed its test and whether i
   expect(screen.getByText(/in software, between decoding/u)).toBeDefined();
   expect(screen.queryByText(/Transcodes run in software/u)).toBeNull();
 });
-
-const ffmpegFound = {
-  ffmpeg: { path: "/usr/bin/ffmpeg", version: "7.1.1" },
-  ffprobe: { path: "/usr/bin/ffprobe", version: "7.1.1" },
-};
 
 test("without hardware acceleration the Playback page says Transcodes run in software", async () => {
   openApp(
@@ -132,6 +151,55 @@ test("an ffmpeg without libx264 lists hardware that passed without saying Transc
   ).toBeDefined();
   expect(screen.queryByText(/What Transcodes can run on besides software/u)).toBeNull();
   expect(screen.queryByText(/Tone-maps HDR to SDR/u)).toBeNull();
+  expect(screen.queryByText(/Automatic picks this one/u)).toBeNull();
+});
+
+test("without ffprobe the Playback page lists hardware that passed without saying Transcodes run on it", async () => {
+  openApp(
+    "/admin/playback",
+    fakeServer({
+      signedIn: admin,
+      serverService: {
+        getPlaybackStatus: () => ({
+          ffmpeg: ffmpegFound.ffmpeg,
+          ffprobeProblem: "ffprobe wasn't found on the PATH",
+          hardware: [{ api: HardwareAcceleration.NVENC, toneMaps: true }],
+          hasLibx264: true,
+          hasZscale: true,
+        }),
+      },
+    }),
+  );
+
+  expect(await screen.findByRole("heading", { name: "NVIDIA NVENC" })).toBeDefined();
+  expect(screen.getByText("Passed")).toBeDefined();
+  expect(screen.getByText(/no Transcode runs on it until the Server finds ffprobe/u)).toBeDefined();
+  expect(screen.queryByText(/What Transcodes can run on besides software/u)).toBeNull();
+  expect(screen.queryByText(/Tone-maps HDR to SDR/u)).toBeNull();
+  expect(screen.queryByText(/Automatic picks this one/u)).toBeNull();
+});
+
+test("without ffprobe or libx264 the Playback page says hardware waits for both", async () => {
+  openApp(
+    "/admin/playback",
+    fakeServer({
+      signedIn: admin,
+      serverService: {
+        getPlaybackStatus: () => ({
+          ffmpeg: ffmpegFound.ffmpeg,
+          ffprobeProblem: "ffprobe wasn't found on the PATH",
+          hardware: [{ api: HardwareAcceleration.NVENC, toneMaps: true }],
+          hasZscale: true,
+        }),
+      },
+    }),
+  );
+
+  expect(
+    await screen.findByText(
+      /no Transcode runs on it until the Server finds ffprobe and its ffmpeg has libx264/u,
+    ),
+  ).toBeDefined();
   expect(screen.queryByText(/Automatic picks this one/u)).toBeNull();
 });
 
