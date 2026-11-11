@@ -47,6 +47,15 @@ service BrowseService {
   rpc ListContinueWatching(ListContinueWatchingRequest) returns (ListContinueWatchingResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
+  // Searches every Library for the Movies, Shows and Episodes whose titles have each word of the
+  // query, ignoring case, accents and the marks that join words, so "amelie" finds Amélie and
+  // "spiderman" finds Spider-Man. Each word matches the start of a word, so a client can search
+  // as the User types. A last word of four digits after others is a year, which keeps only the
+  // titles released or aired that year, or with it in their title: "dune 2021" finds the 2021
+  // Dune. A Show is found by its own title, and an Episode by its own, not its Show's.
+  rpc SearchLibraries(SearchLibrariesRequest) returns (SearchLibrariesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
 }
 
 // A Movie some items of a Library are Matched to, with the metadata its Match stores.
@@ -278,4 +287,56 @@ message ListContinueWatchingRequest {}
 message ListContinueWatchingResponse {
   // Most recent first.
   repeated ContinueWatchingEntry entries = 1;
+}
+
+message SearchLibrariesRequest {
+  // The words to search for. One without letters or digits finds nothing.
+  string query = 1;
+}
+
+// What `SearchLibraries` found, each kind best fit first. A title in two Libraries is found in
+// each.
+message SearchLibrariesResponse {
+  repeated MovieInLibrary movies = 1;
+  repeated ShowInLibrary shows = 2;
+  repeated EpisodeInLibrary episodes = 3;
+}
+
+// A Movie a search found, with what a client needs to show it and open it with `GetMovie`.
+message MovieInLibrary {
+  // The Library it is in.
+  int64 library_id = 1;
+  // As `ListMovies` gives it.
+  ExternalId id = 2;
+  string title = 3;
+  // When it was released, as `YYYY-MM-DD`.
+  optional string release_date = 4;
+  // The poster's URL, under `/media/artwork/` on this Server.
+  optional string poster_url = 5;
+}
+
+// A Show a search found, with what a client needs to show it and open it with `GetShow`.
+message ShowInLibrary {
+  // The Library it is in.
+  int64 library_id = 1;
+  // As `ListShows` gives it.
+  ExternalId id = 2;
+  string title = 3;
+  // A Season's poster's URL, under `/media/artwork/` on this Server.
+  optional string poster_url = 4;
+}
+
+// An Episode a search found, with what a client needs to show it and open its Season with
+// `ListEpisodes`.
+message EpisodeInLibrary {
+  // The Library it is in.
+  int64 library_id = 1;
+  // As `ListEpisodes` gives it.
+  ExternalId id = 2;
+  // Its Show's id, as `ListShows` gives it.
+  ExternalId show_id = 3;
+  string show_title = 4;
+  uint32 season_number = 5;
+  uint32 episode_number = 6;
+  string title = 7;
 }
