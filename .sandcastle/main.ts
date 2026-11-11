@@ -407,8 +407,8 @@ function queue() {
 const serially = queue(); // merges
 // Concurrent `git worktree add`s race on .git/worktrees (one reads another's half-written commondir).
 const oneSandboxAtATime = queue();
-const newBox = (branch: string) =>
-  oneSandboxAtATime(() =>
+async function newBox(branch: string): Promise<Box> {
+  const box = await oneSandboxAtATime(() =>
     sandcastle.createSandbox({
       branch,
       baseBranch: `origin/${BASE}`,
@@ -418,6 +418,18 @@ const newBox = (branch: string) =>
       timeouts: { gitSetupMs: 120_000 },
     }),
   );
+  // Agents share the host's .git, and in a container every other sandbox's worktree path looks missing, so an
+  // agent's `git worktree prune` wiped them all (then sandcastle's next prune deleted their folders). Prune skips
+  // locked worktrees; sandcastle's `worktree remove --force` doesn't, hence the unlock before close.
+  git("worktree", "lock", "--reason", `sandcastle factory ${RUN}`, box.worktreePath);
+  const close = box.close.bind(box);
+  return Object.assign(box, {
+    close: () => {
+      ok("git", "worktree", "unlock", box.worktreePath);
+      return close();
+    },
+  });
+}
 
 async function build(issue: Issue): Promise<{ box: Box; body: string }> {
   const box = await newBox(branchOf(issue));
