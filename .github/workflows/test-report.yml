@@ -70,7 +70,8 @@ jobs:
             done | uniq); do
             cat "history/$month.jsonl" 2> /dev/null || true
           done > "$RUNNER_TEMP/recent.jsonl"
-          gh issue list --app github-actions --state all --limit 1000 \
+          # Not `--app github-actions`: it returns none of the issues github-actions opened.
+          gh issue list --search "author:app/github-actions" --state all --limit 1000 \
             --json number,state,title,body > "$RUNNER_TEMP/issues.json"
       - name: Report
         if: steps.reports.outputs.found
