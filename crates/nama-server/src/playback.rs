@@ -470,6 +470,8 @@ fn build(facts: &mut Facts) -> Plan {
         allowed.retain(|method| allows.contains(method));
         reasons.push(reason);
     }
+    // Never `None` once a Remux or Transcode is allowed: `version_length` rules both out first and
+    // says why.
     let duration_ms = facts.probe.as_ref().and_then(|probe| probe.duration_ms);
     let playing = allowed.first().and_then(|method| match method {
         Method::DirectPlay => Some(Playing::DirectPlay),
@@ -483,7 +485,10 @@ fn build(facts: &mut Facts) -> Plan {
         }),
     });
     let audio = candidates.and_then(|candidates| candidates.audio);
-    let burns_in = matches!(playing, Some(Playing::Transcode { transcode, .. }) if transcode.video.burn_in.is_some());
+    let burns_in = matches!(
+        playing,
+        Some(Playing::Transcode { transcode, .. }) if transcode.video.burn_in.is_some()
+    );
     Plan {
         version: facts.version,
         playing,
@@ -1439,6 +1444,9 @@ mod tests {
         tracks::{BaseLayer, Hdr, Probe, Track, TrackKind},
     };
 
+    /// How long the Version in [`facts`] is.
+    const LENGTH_MS: i64 = 7_200_000;
+
     fn track(codec: &str, default: bool, kind: TrackKind) -> Track {
         Track {
             codec: codec.to_owned(),
@@ -1524,7 +1532,7 @@ mod tests {
             version: 7,
             probe: tracks.map(|tracks| Probe {
                 container: container.to_owned(),
-                duration_ms: Some(7_200_000),
+                duration_ms: Some(LENGTH_MS),
                 bitrate: Some(5_000_000),
                 tracks,
             }),
@@ -1561,7 +1569,7 @@ mod tests {
                     aac_channels,
                 }),
             },
-            duration_ms: 7_200_000,
+            duration_ms: LENGTH_MS,
         }
     }
 
@@ -1746,7 +1754,7 @@ mod tests {
             matches!(
                 remux.playing,
                 Some(Playing::Remux {
-                    duration_ms: 7_200_000,
+                    duration_ms: LENGTH_MS,
                     ..
                 })
             ),
@@ -1757,7 +1765,7 @@ mod tests {
             matches!(
                 transcode.playing,
                 Some(Playing::Transcode {
-                    duration_ms: 7_200_000,
+                    duration_ms: LENGTH_MS,
                     ..
                 })
             ),
