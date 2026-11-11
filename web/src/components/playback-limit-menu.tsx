@@ -10,13 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { PlaybackLimit } from "@/gen/nama/v1/playback_pb";
-
-/** The Playback Limits below Original, largest first. */
-export const belowOriginal = [
-  { limit: PlaybackLimit.PLAYBACK_LIMIT_1080P, name: "1080p" },
-  { limit: PlaybackLimit.PLAYBACK_LIMIT_720P, name: "720p" },
-  { limit: PlaybackLimit.PLAYBACK_LIMIT_480P, name: "480p" },
-];
+import { belowOriginal } from "@/lib/playback-wording";
 
 /**
  * Picks the Playback Limit with `choose`: Original, or one of those `offered` below it. Absent when
