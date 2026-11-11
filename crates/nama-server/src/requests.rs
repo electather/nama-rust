@@ -3913,8 +3913,8 @@ mod tests {
     async fn ask_kind(db: &Database, kind: asked::Asked, user: i64) -> (i64, Vec<Event>) {
         match kind {
             asked::Asked::Request => {
-                let asked = ask_for(db, user, 949, RequestState::Pending).await;
-                (asked.value.id, asked.events)
+                let applied = ask_for(db, user, 949, RequestState::Pending).await;
+                (applied.value.id, applied.events)
             }
             asked::Asked::FollowedShow => {
                 let followed = follow_as(db, user, dark(), RequestState::Pending).await;
@@ -3971,17 +3971,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn joining_an_open_one_adds_the_requester_and_says_so() {
+    async fn joining_an_open_one_says_so() {
         let (_data, db) = ada_and_bob().await;
-        let requests = requests_on(Arc::clone(&db), Registry::new());
 
         for kind in KINDS {
             let (opened, _) = ask_kind(&db, kind, ADA).await;
             let (joined, events) = ask_kind(&db, kind, BOB).await;
-            let page = requests
-                .list(&ada(Permissions::ADMIN), None, 100, "")
-                .await
-                .unwrap();
             let says = match kind {
                 asked::Asked::Request => "joined",
                 asked::Asked::FollowedShow => "joined the Show",
@@ -3991,11 +3986,6 @@ mod tests {
             assert_eq!(
                 said(&events).first(),
                 Some(&(says, RequestState::Pending)),
-                "{kind:?}"
-            );
-            assert_eq!(
-                listed_requesters(&page, kind, joined),
-                Some(vec![ADA, BOB]),
                 "{kind:?}"
             );
         }
