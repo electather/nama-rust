@@ -85,7 +85,7 @@ pub(crate) fn router(
     ffmpeg: Arc<Ffmpeg>,
     subtitles: crate::playback::subtitles::Cache,
 ) -> axum::Router {
-    let plugins = plugin_settings.registry().clone();
+    let plugins = plugin_settings.extension_points();
     let users = Users::new(Arc::clone(&db), plugins.clone());
     let contents = Contents::new(Arc::clone(&db));
     let artwork = Artwork::new(&config.data_dir, plugins.clone());

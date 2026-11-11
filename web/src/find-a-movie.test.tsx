@@ -5,7 +5,9 @@ import { afterEach, expect, test } from "vite-plus/test";
 
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import {
+  type FoundMovie,
   FoundMovieSchema,
+  MovieHitSchema,
   RequestSchema,
   RequestService,
   RequestState,
@@ -33,7 +35,7 @@ function searchableServer(movies: Found[], permissions = newUser) {
   return fakeServer({ signedIn: permissions }, {}, {}, (router) => {
     router.service(RequestService, {
       listRequests: () => ({}),
-      searchMovies: () => ({ movies: [...found.values()] }),
+      searchMovies: () => ({ movies: [...found.values()].map((movie) => hitOf(movie)) }),
       searchShows: () => ({}),
       lookUpMovie: ({ movieTmdbId }) => ({ movie: found.get(movieTmdbId) }),
       createRequest: ({ movieTmdbId }) => {
@@ -48,9 +50,14 @@ function searchableServer(movies: Found[], permissions = newUser) {
   });
 }
 
-const notOnTheServer: Found = { tmdbId: 438_631n, title: "Dune", year: 2021 };
-const inALibrary: Found = { tmdbId: 348n, title: "Alien", year: 1979, libraryId: 4n };
-const askedForByAda: Found = {
+function hitOf({ tmdbId, title, year, posterUrl, libraryId, request }: FoundMovie) {
+  return { tmdbId, title, year, posterUrl, libraryId, request };
+}
+
+// Untyped, as each serves as a hit as well as a looked-up Movie, holding only what both have.
+const notOnTheServer = { tmdbId: 438_631n, title: "Dune", year: 2021 };
+const inALibrary = { tmdbId: 348n, title: "Alien", year: 1979, libraryId: 4n };
+const askedForByAda = {
   tmdbId: 949n,
   title: "Heat",
   year: 1995,
@@ -158,7 +165,7 @@ test("a Movie's page is not found for a User who may not Request Movies", async 
 });
 
 test("Requesting a Movie a scan Matched meanwhile shows it in its Library", async () => {
-  const movie = create(FoundMovieSchema, notOnTheServer);
+  const movie = create(MovieHitSchema, notOnTheServer);
   const transport = fakeServer({ signedIn: newUser }, {}, {}, (router) => {
     router.service(RequestService, {
       listRequests: () => ({}),

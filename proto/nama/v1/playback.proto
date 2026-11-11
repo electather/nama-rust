@@ -42,10 +42,10 @@ message PlanPlaybackRequest {
   // The audio Track the caller chose, by its place in the Version's `tracks`, counting from 0.
   // Unset for the one the Version plays by default.
   optional uint32 audio_track = 3;
-  // The subtitle Track the caller chose to burn into the picture, an image one such as PGS or an
-  // ASS or SSA one with its styling, which makes the plan a Transcode, by its place in the
-  // Version's `tracks`, counting from 0. Unset for none, as when the player shows a text subtitle
-  // from `PlaybackPlan.subtitles` itself.
+  // The subtitle Track the caller chose to burn into the picture, one the Device can't draw such
+  // as PGS on a Device that doesn't list it, or an ASS or SSA one with its styling, which makes the
+  // plan a Transcode, by its place in the Version's `tracks`, counting from 0. Unset for none, as
+  // when the player shows a subtitle from `PlaybackPlan.subtitles` itself.
   optional uint32 subtitle_track = 4;
   // The Playback Limit the caller picked. Unset until they pick one, when a Device outside the
   // local network gets the Server's default for remote playback.
@@ -86,6 +86,18 @@ message DeviceDecoding {
   // How many audio channels it plays out at once, such as 6 for 5.1. 0 when it doesn't say,
   // which the Server takes as stereo.
   uint32 audio_channels = 5;
+  // The subtitle formats it draws itself, over the video. WebVTT is never listed: every Device
+  // shows it (ADR 0033).
+  repeated SubtitleFormat subtitle_formats = 9;
+}
+
+// A format the Server serves a subtitle Track in, for a Device to show it itself.
+enum SubtitleFormat {
+  SUBTITLE_FORMAT_UNSPECIFIED = 0;
+  // Text, which a player shows as a `<track>`.
+  SUBTITLE_FORMAT_WEBVTT = 1;
+  // Blu-ray's image subtitles, as the Track's own `.sup`.
+  SUBTITLE_FORMAT_PGS = 2;
 }
 
 // A container the Server knows whether a Device plays.
@@ -151,8 +163,9 @@ message PlaybackPlan {
   // The facts that shaped it, in the order the steps that found them ran. A step that changes
   // nothing gives none, so a Direct Play nothing stood in the way of has none.
   repeated PlaybackReason reasons = 13;
-  // The text subtitles the player can turn on and off without a new plan, in the order the
-  // Version holds them. Image subtitles, such as PGS, aren't among them.
+  // The subtitles the Device shows itself, which the player turns on and off without a new plan,
+  // in the order the Version holds them: the text ones, and those in a format the Device draws
+  // (ADR 0033). A Track here in a format the Device draws isn't among `burn_in_tracks`.
   repeated PlaybackSubtitle subtitles = 5;
   // Names it to `StopPlayback`. 0 when it can't be played.
   uint64 id = 6;
@@ -171,19 +184,22 @@ message PlaybackPlan {
   // busy Server or a method that failed on the Device rules out for now: the audio Tracks it can
   // play, by their place in the Version's `tracks`, in that order.
   repeated uint32 audio_tracks = 10;
-  // The subtitle Tracks it can burn into the picture, likewise.
+  // The subtitle Tracks it can burn into the picture, likewise: those the Device can't draw, and
+  // ASS or SSA ones, whose styling their WebVTT among `subtitles` drops.
   repeated uint32 burn_in_tracks = 11;
   // The Playback Limits below Original it can scale the picture down to, largest first.
   repeated PlaybackLimit playback_limits = 12;
 }
 
-// A text subtitle a player shows as a WebVTT `<track>`.
+// A subtitle the Device shows itself: a text one as a WebVTT `<track>`, or one it draws.
 message PlaybackSubtitle {
   // Its Track, for its language, title and whether it's Forced or SDH.
   Track track = 1;
-  // Where to fetch it as WebVTT, on this Server. The first fetch can take up to a minute while
-  // the Server reads it out of the file; later ones are answered at once.
+  // Where to fetch it in `format`, on this Server. The first fetch can take minutes while the
+  // Server reads it out of the file; later ones are answered at once.
   string url = 2;
+  // The format it's fetched in.
+  SubtitleFormat format = 3;
 }
 
 // One fact that shaped a Playback Plan (ADR 0034).

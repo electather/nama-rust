@@ -510,10 +510,10 @@ pub struct PlanPlaybackRequestView<'a> {
     ///
     /// Field 3: `audio_track`
     pub audio_track: ::core::option::Option<u32>,
-    /// The subtitle Track the caller chose to burn into the picture, an image one such as PGS or an
-    /// ASS or SSA one with its styling, which makes the plan a Transcode, by its place in the
-    /// Version's `tracks`, counting from 0. Unset for none, as when the player shows a text subtitle
-    /// from `PlaybackPlan.subtitles` itself.
+    /// The subtitle Track the caller chose to burn into the picture, one the Device can't draw such
+    /// as PGS on a Device that doesn't list it, or an ASS or SSA one with its styling, which makes the
+    /// plan a Transcode, by its place in the Version's `tracks`, counting from 0. Unset for none, as
+    /// when the player shows a subtitle from `PlaybackPlan.subtitles` itself.
     ///
     /// Field 4: `subtitle_track`
     pub subtitle_track: ::core::option::Option<u32>,
@@ -971,10 +971,10 @@ impl PlanPlaybackRequestOwnedView {
     pub fn audio_track(&self) -> ::core::option::Option<u32> {
         self.0.reborrow().audio_track
     }
-    /// The subtitle Track the caller chose to burn into the picture, an image one such as PGS or an
-    /// ASS or SSA one with its styling, which makes the plan a Transcode, by its place in the
-    /// Version's `tracks`, counting from 0. Unset for none, as when the player shows a text subtitle
-    /// from `PlaybackPlan.subtitles` itself.
+    /// The subtitle Track the caller chose to burn into the picture, one the Device can't draw such
+    /// as PGS on a Device that doesn't list it, or an ASS or SSA one with its styling, which makes the
+    /// plan a Transcode, by its place in the Version's `tracks`, counting from 0. Unset for none, as
+    /// when the player shows a subtitle from `PlaybackPlan.subtitles` itself.
     ///
     /// Field 4: `subtitle_track`
     #[must_use]
@@ -1081,6 +1081,14 @@ pub struct DeviceDecodingView<'a> {
     ///
     /// Field 5: `audio_channels`
     pub audio_channels: u32,
+    /// The subtitle formats it draws itself, over the video. WebVTT is never listed: every Device
+    /// shows it (ADR 0033).
+    ///
+    /// Field 9: `subtitle_formats`
+    pub subtitle_formats: ::buffa::RepeatedView<
+        'a,
+        ::buffa::EnumValue<super::super::SubtitleFormat>,
+    >,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for DeviceDecodingView<'a> {
@@ -1228,6 +1236,36 @@ impl<'a> ::buffa::MessageView<'a> for DeviceDecodingView<'a> {
                     );
                 }
             }
+            9u32 => {
+                if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
+                    let payload = ::buffa::types::borrow_bytes(&mut cur)?;
+                    view.subtitle_formats
+                        .reserve(::buffa::encoding::count_varints(payload));
+                    let mut pcur: &[u8] = payload;
+                    while !pcur.is_empty() {
+                        view.subtitle_formats
+                            .push(
+                                ::buffa::EnumValue::from(
+                                    ::buffa::types::decode_int32_packed(&mut pcur)?,
+                                ),
+                            );
+                    }
+                } else if tag.wire_type() == ::buffa::encoding::WireType::Varint {
+                    view.subtitle_formats
+                        .push(
+                            ::buffa::EnumValue::from(
+                                ::buffa::types::decode_int32(&mut cur)?,
+                            ),
+                        );
+                } else {
+                    return Err(
+                        ::buffa::encoding::wire_type_mismatch(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        ),
+                    );
+                }
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -1257,6 +1295,7 @@ impl<'a> ::buffa::MessageView<'a> for DeviceDecodingView<'a> {
             native_hls: self.native_hls,
             mse: self.mse,
             audio_channels: self.audio_channels,
+            subtitle_formats: self.subtitle_formats.to_vec(),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -1300,6 +1339,14 @@ impl<'a> ::buffa::ViewEncode<'a> for DeviceDecodingView<'a> {
         if !self.audio_codecs.is_empty() {
             let payload: u64 = self
                 .audio_codecs
+                .iter()
+                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                .sum::<u64>();
+            size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
+        }
+        if !self.subtitle_formats.is_empty() {
+            let payload: u64 = self
+                .subtitle_formats
                 .iter()
                 .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
                 .sum::<u64>();
@@ -1361,6 +1408,17 @@ impl<'a> ::buffa::ViewEncode<'a> for DeviceDecodingView<'a> {
                 ::buffa::types::encode_int32(v.to_i32(), buf);
             }
         }
+        if !self.subtitle_formats.is_empty() {
+            let payload: u64 = self
+                .subtitle_formats
+                .iter()
+                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                .sum::<u64>();
+            ::buffa::types::put_len_delimited_header(9u32, payload, buf);
+            for v in &self.subtitle_formats {
+                ::buffa::types::encode_int32(v.to_i32(), buf);
+            }
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
 }
@@ -1417,6 +1475,13 @@ impl<'__a> ::serde::Serialize for DeviceDecodingView<'__a> {
                 .serialize_entry(
                     "audioChannels",
                     &::buffa::json_helpers::ProtoJson(&self.audio_channels),
+                )?;
+        }
+        if !self.subtitle_formats.is_empty() {
+            __map
+                .serialize_entry(
+                    "subtitleFormats",
+                    &::buffa::json_helpers::EnumSeqJson(&self.subtitle_formats),
                 )?;
         }
         __map.end()
@@ -1567,6 +1632,16 @@ impl DeviceDecodingOwnedView {
     #[must_use]
     pub fn audio_channels(&self) -> u32 {
         self.0.reborrow().audio_channels
+    }
+    /// The subtitle formats it draws itself, over the video. WebVTT is never listed: every Device
+    /// shows it (ADR 0033).
+    ///
+    /// Field 9: `subtitle_formats`
+    #[must_use]
+    pub fn subtitle_formats(
+        &self,
+    ) -> &::buffa::RepeatedView<'_, ::buffa::EnumValue<super::super::SubtitleFormat>> {
+        &self.0.reborrow().subtitle_formats
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<DeviceDecodingView<'static>>>
@@ -1917,8 +1992,9 @@ pub struct PlaybackPlanView<'a> {
         'a,
         super::super::__buffa::view::PlaybackReasonView<'a>,
     >,
-    /// The text subtitles the player can turn on and off without a new plan, in the order the
-    /// Version holds them. Image subtitles, such as PGS, aren't among them.
+    /// The subtitles the Device shows itself, which the player turns on and off without a new plan,
+    /// in the order the Version holds them: the text ones, and those in a format the Device draws
+    /// (ADR 0033). A Track here in a format the Device draws isn't among `burn_in_tracks`.
     ///
     /// Field 5: `subtitles`
     pub subtitles: ::buffa::RepeatedView<
@@ -1952,7 +2028,8 @@ pub struct PlaybackPlanView<'a> {
     ///
     /// Field 10: `audio_tracks`
     pub audio_tracks: ::buffa::RepeatedView<'a, u32>,
-    /// The subtitle Tracks it can burn into the picture, likewise.
+    /// The subtitle Tracks it can burn into the picture, likewise: those the Device can't draw, and
+    /// ASS or SSA ones, whose styling their WebVTT among `subtitles` drops.
     ///
     /// Field 11: `burn_in_tracks`
     pub burn_in_tracks: ::buffa::RepeatedView<'a, u32>,
@@ -2591,8 +2668,9 @@ impl PlaybackPlanOwnedView {
     > {
         &self.0.reborrow().reasons
     }
-    /// The text subtitles the player can turn on and off without a new plan, in the order the
-    /// Version holds them. Image subtitles, such as PGS, aren't among them.
+    /// The subtitles the Device shows itself, which the player turns on and off without a new plan,
+    /// in the order the Version holds them: the text ones, and those in a format the Device draws
+    /// (ADR 0033). A Track here in a format the Device draws isn't among `burn_in_tracks`.
     ///
     /// Field 5: `subtitles`
     #[must_use]
@@ -2646,7 +2724,8 @@ impl PlaybackPlanOwnedView {
     pub fn audio_tracks(&self) -> &::buffa::RepeatedView<'_, u32> {
         &self.0.reborrow().audio_tracks
     }
-    /// The subtitle Tracks it can burn into the picture, likewise.
+    /// The subtitle Tracks it can burn into the picture, likewise: those the Device can't draw, and
+    /// ASS or SSA ones, whose styling their WebVTT among `subtitles` drops.
     ///
     /// Field 11: `burn_in_tracks`
     #[must_use]
@@ -2693,18 +2772,22 @@ impl ::serde::Serialize for PlaybackPlanOwnedView {
         ::serde::Serialize::serialize(&self.0, __s)
     }
 }
-/// A text subtitle a player shows as a WebVTT `<track>`.
+/// A subtitle the Device shows itself: a text one as a WebVTT `<track>`, or one it draws.
 #[derive(Clone, Debug, Default)]
 pub struct PlaybackSubtitleView<'a> {
     /// Its Track, for its language, title and whether it's Forced or SDH.
     ///
     /// Field 1: `track`
     pub track: ::buffa::MessageFieldView<super::super::__buffa::view::TrackView<'a>>,
-    /// Where to fetch it as WebVTT, on this Server. The first fetch can take up to a minute while
-    /// the Server reads it out of the file; later ones are answered at once.
+    /// Where to fetch it in `format`, on this Server. The first fetch can take minutes while the
+    /// Server reads it out of the file; later ones are answered at once.
     ///
     /// Field 2: `url`
     pub url: &'a str,
+    /// The format it's fetched in.
+    ///
+    /// Field 3: `format`
+    pub format: ::buffa::EnumValue<super::super::SubtitleFormat>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for PlaybackSubtitleView<'a> {
@@ -2765,6 +2848,15 @@ impl<'a> ::buffa::MessageView<'a> for PlaybackSubtitleView<'a> {
                 )?;
                 view.url = ::buffa::types::borrow_str(&mut cur)?;
             }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.format = ::buffa::EnumValue::from(
+                    ::buffa::types::decode_int32(&mut cur)?,
+                );
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -2797,6 +2889,7 @@ impl<'a> ::buffa::MessageView<'a> for PlaybackSubtitleView<'a> {
                 None => ::buffa::MessageField::none(),
             },
             url: self.url.to_string(),
+            format: self.format,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -2819,6 +2912,12 @@ impl<'a> ::buffa::ViewEncode<'a> for PlaybackSubtitleView<'a> {
         if !self.url.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.url) as u64;
         }
+        {
+            let val = self.format.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -2840,6 +2939,12 @@ impl<'a> ::buffa::ViewEncode<'a> for PlaybackSubtitleView<'a> {
         }
         if !self.url.is_empty() {
             ::buffa::types::put_string_field(2u32, &self.url, buf);
+        }
+        {
+            let val = self.format.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(3u32, val, buf);
+            }
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2869,6 +2974,9 @@ impl<'__a> ::serde::Serialize for PlaybackSubtitleView<'__a> {
         }
         if !::buffa::json_helpers::skip_if::is_empty_str(self.url) {
             __map.serialize_entry("url", self.url)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_default_enum_value(&self.format) {
+            __map.serialize_entry("format", &self.format)?;
         }
         __map.end()
     }
@@ -2972,13 +3080,20 @@ impl PlaybackSubtitleOwnedView {
     ) -> &::buffa::MessageFieldView<super::super::__buffa::view::TrackView<'_>> {
         &self.0.reborrow().track
     }
-    /// Where to fetch it as WebVTT, on this Server. The first fetch can take up to a minute while
-    /// the Server reads it out of the file; later ones are answered at once.
+    /// Where to fetch it in `format`, on this Server. The first fetch can take minutes while the
+    /// Server reads it out of the file; later ones are answered at once.
     ///
     /// Field 2: `url`
     #[must_use]
     pub fn url(&self) -> &'_ str {
         self.0.reborrow().url
+    }
+    /// The format it's fetched in.
+    ///
+    /// Field 3: `format`
+    #[must_use]
+    pub fn format(&self) -> ::buffa::EnumValue<super::super::SubtitleFormat> {
+        self.0.reborrow().format
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<PlaybackSubtitleView<'static>>>

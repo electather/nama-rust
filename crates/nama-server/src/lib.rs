@@ -95,19 +95,19 @@ pub fn serve(
     ffmpeg: Ffmpeg,
     shutdown: impl Future<Output = ()> + Send + 'static,
 ) -> impl Future<Output = io::Result<()>> + Send + 'static {
-    let registry = plugins.registry();
+    let points = plugins.extension_points();
     let settings = Settings::new(Arc::clone(&db), config.data_dir.join("transcodes"));
-    let events = EventBus::new(Arc::clone(&db), registry.clone(), settings.server_url());
+    let events = EventBus::new(Arc::clone(&db), points.clone(), settings.server_url());
     let ffmpeg = Arc::new(ffmpeg);
     let subtitles = subtitles::Cache::new(&config.data_dir);
     let probing = Probing::new(Arc::clone(&db), Arc::clone(&ffmpeg), subtitles.clone());
     let scanner = Scanner::new(
         Arc::clone(&db),
-        registry.clone(),
+        points.clone(),
         events.clone(),
         Some(probing.clone()),
     );
-    let requests = Requests::new(Arc::clone(&db), events.clone(), registry.clone());
+    let requests = Requests::new(Arc::clone(&db), events.clone(), points);
     let running = RunningPlans::new(
         settings.playback(),
         Arc::clone(&ffmpeg),

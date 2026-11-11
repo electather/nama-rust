@@ -49,7 +49,7 @@ use crate::{
     db::{Database, detached},
     events::{EventBus, event},
     metadata::{self, MetadataSource},
-    plugins::Registry,
+    plugins::ExtensionPoints,
     scanner::{ScanLock, ScanLocks, country_tag},
 };
 
@@ -228,7 +228,7 @@ impl Matcher {
     /// Shares `locks` with the Scanner, so a Match fixed by hand waits for a scan of its Library.
     pub(crate) const fn new(
         db: Arc<Database>,
-        plugins: Registry,
+        plugins: ExtensionPoints,
         events: EventBus,
         locks: ScanLocks,
     ) -> Self {
@@ -619,7 +619,7 @@ mod tests {
         db::Database,
         events::{EventBus, Filter, event},
         libraries::{Kind, Libraries},
-        plugins::Registry,
+        plugins::{ExtensionPoints, Registry},
         scanner::Scanner,
         server_settings::ServerUrl,
     };
@@ -683,8 +683,17 @@ mod tests {
             let movies = create("Movies", Kind::Movies).await;
             let shows = create("Shows", Kind::Shows).await;
             let plugins = Registry::new();
-            let events = EventBus::new(Arc::clone(&db), Registry::new(), ServerUrl::default());
-            let scanner = Scanner::new(Arc::clone(&db), plugins.clone(), events.clone(), None);
+            let events = EventBus::new(
+                Arc::clone(&db),
+                ExtensionPoints::default(),
+                ServerUrl::default(),
+            );
+            let scanner = Scanner::new(
+                Arc::clone(&db),
+                plugins.extension_points(),
+                events.clone(),
+                None,
+            );
             Self {
                 matcher: scanner.matcher().clone(),
                 scanner,

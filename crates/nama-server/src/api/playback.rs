@@ -54,6 +54,7 @@ impl PlaybackService for PlaybackServiceHandler {
                 hdr: decoding.hdr,
                 hls: decoding.native_hls || decoding.mse,
                 audio_channels: decoding.audio_channels,
+                subtitle_formats: known(&decoding.subtitle_formats),
             },
             failed: (request.failed_methods.iter())
                 .filter_map(|method| method_from_proto(*method))
@@ -173,6 +174,7 @@ fn plan_to_proto(planned: Planned) -> proto::PlaybackPlan {
             .map(|subtitle| proto::PlaybackSubtitle {
                 track: track_to_proto(&subtitle.track).into(),
                 url: subtitle.url.clone(),
+                format: subtitle.format.into(),
                 ..Default::default()
             })
             .collect(),

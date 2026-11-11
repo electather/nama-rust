@@ -12,7 +12,7 @@ import type { Message, UnknownEnum } from "@bufbuild/protobuf";
  * Describes the file nama/v1/playback.proto.
  */
 export const file_nama_v1_playback: GenFile = /*@__PURE__*/
-  fileDesc("ChZuYW1hL3YxL3BsYXliYWNrLnByb3RvEgduYW1hLnYxIiYKE1N0b3BQbGF5YmFja1JlcXVlc3QSDwoHcGxhbl9pZBgBIAEoBCIWChRTdG9wUGxheWJhY2tSZXNwb25zZSKxAgoTUGxhblBsYXliYWNrUmVxdWVzdBISCgp2ZXJzaW9uX2lkGAEgASgDEhkKEXN0YXJ0X3Bvc2l0aW9uX21zGAIgASgEEhgKC2F1ZGlvX3RyYWNrGAMgASgNSACIAQESGwoOc3VidGl0bGVfdHJhY2sYBCABKA1IAYgBARIuCg5wbGF5YmFja19saW1pdBgFIAEoDjIWLm5hbWEudjEuUGxheWJhY2tMaW1pdBIwCg9kZXZpY2VfZGVjb2RpbmcYBiABKAsyFy5uYW1hLnYxLkRldmljZURlY29kaW5nEi8KDmZhaWxlZF9tZXRob2RzGAcgAygOMhcubmFtYS52MS5QbGF5YmFja01ldGhvZEIOCgxfYXVkaW9fdHJhY2tCEQoPX3N1YnRpdGxlX3RyYWNrIukBCg5EZXZpY2VEZWNvZGluZxImCgpjb250YWluZXJzGAYgAygOMhIubmFtYS52MS5Db250YWluZXISKQoMdmlkZW9fY29kZWNzGAcgAygOMhMubmFtYS52MS5WaWRlb0NvZGVjEikKDGF1ZGlvX2NvZGVjcxgIIAMoDjITLm5hbWEudjEuQXVkaW9Db2RlYxILCgNoZHIYAiABKAgSEgoKbmF0aXZlX2hscxgDIAEoCBILCgNtc2UYBCABKAgSFgoOYXVkaW9fY2hhbm5lbHMYBSABKA1KBAgBEAJSDWNvbnRlbnRfdHlwZXMiOwoUUGxhblBsYXliYWNrUmVzcG9uc2USIwoEcGxhbhgBIAEoCzIVLm5hbWEudjEuUGxheWJhY2tQbGFuIrcDCgxQbGF5YmFja1BsYW4SJwoGbWV0aG9kGAEgASgOMhcubmFtYS52MS5QbGF5YmFja01ldGhvZBILCgN1cmwYAiABKAkSHgoGdHJhY2tzGAMgAygLMg4ubmFtYS52MS5UcmFjaxIoCgdyZWFzb25zGA0gAygLMhcubmFtYS52MS5QbGF5YmFja1JlYXNvbhIsCglzdWJ0aXRsZXMYBSADKAsyGS5uYW1hLnYxLlBsYXliYWNrU3VidGl0bGUSCgoCaWQYBiABKAQSLgoOcGxheWJhY2tfbGltaXQYByABKA4yFi5uYW1hLnYxLlBsYXliYWNrTGltaXQSGAoLYXVkaW9fdHJhY2sYCCABKA1IAIgBARIbCg5zdWJ0aXRsZV90cmFjaxgJIAEoDUgBiAEBEhQKDGF1ZGlvX3RyYWNrcxgKIAMoDRIWCg5idXJuX2luX3RyYWNrcxgLIAMoDRIvCg9wbGF5YmFja19saW1pdHMYDCADKA4yFi5uYW1hLnYxLlBsYXliYWNrTGltaXRCDgoMX2F1ZGlvX3RyYWNrQhEKD19zdWJ0aXRsZV90cmFja0oECAQQBSI+ChBQbGF5YmFja1N1YnRpdGxlEh0KBXRyYWNrGAEgASgLMg4ubmFtYS52MS5UcmFjaxILCgN1cmwYAiABKAkivgEKDlBsYXliYWNrUmVhc29uEikKBGtpbmQYASABKA4yGy5uYW1hLnYxLlBsYXliYWNrUmVhc29uS2luZBIzCgZwYXJhbXMYAiADKAsyIy5uYW1hLnYxLlBsYXliYWNrUmVhc29uLlBhcmFtc0VudHJ5EgwKBHRleHQYAyABKAkSDwoHZGVjaWRlZBgEIAEoCBotCgtQYXJhbXNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBKpgBCg1QbGF5YmFja0xpbWl0Eh4KGlBMQVlCQUNLX0xJTUlUX1VOU1BFQ0lGSUVEEAASGwoXUExBWUJBQ0tfTElNSVRfT1JJR0lOQUwQARIYChRQTEFZQkFDS19MSU1JVF8xMDgwUBACEhcKE1BMQVlCQUNLX0xJTUlUXzcyMFAQAxIXChNQTEFZQkFDS19MSU1JVF80ODBQEAQqZQoJQ29udGFpbmVyEhkKFUNPTlRBSU5FUl9VTlNQRUNJRklFRBAAEhEKDUNPTlRBSU5FUl9NUDQQARISCg5DT05UQUlORVJfV0VCTRACEhYKEkNPTlRBSU5FUl9NQVRST1NLQRADKpQBCgpWaWRlb0NvZGVjEhsKF1ZJREVPX0NPREVDX1VOU1BFQ0lGSUVEEAASFAoQVklERU9fQ09ERUNfSDI2NBABEhQKEFZJREVPX0NPREVDX0hFVkMQAhITCg9WSURFT19DT0RFQ19WUDgQAxITCg9WSURFT19DT0RFQ19WUDkQBBITCg9WSURFT19DT0RFQ19BVjEQBSrvAQoKQXVkaW9Db2RlYxIbChdBVURJT19DT0RFQ19VTlNQRUNJRklFRBAAEhMKD0FVRElPX0NPREVDX0FBQxABEhMKD0FVRElPX0NPREVDX01QMxACEhMKD0FVRElPX0NPREVDX0FDMxADEhQKEEFVRElPX0NPREVDX0VBQzMQBBIUChBBVURJT19DT0RFQ19PUFVTEAUSFgoSQVVESU9fQ09ERUNfVk9SQklTEAYSFAoQQVVESU9fQ09ERUNfRkxBQxAHEhMKD0FVRElPX0NPREVDX0RUUxAIEhYKEkFVRElPX0NPREVDX1RSVUVIRBAJKowBCg5QbGF5YmFja01ldGhvZBIfChtQTEFZQkFDS19NRVRIT0RfVU5TUEVDSUZJRUQQABIfChtQTEFZQkFDS19NRVRIT0RfRElSRUNUX1BMQVkQARIZChVQTEFZQkFDS19NRVRIT0RfUkVNVVgQAhIdChlQTEFZQkFDS19NRVRIT0RfVFJBTlNDT0RFEAMq/AsKElBsYXliYWNrUmVhc29uS2luZBIkCiBQTEFZQkFDS19SRUFTT05fS0lORF9VTlNQRUNJRklFRBAAEicKI1BMQVlCQUNLX1JFQVNPTl9LSU5EX1RSQUNLU19VTktOT1dOEAESJwojUExBWUJBQ0tfUkVBU09OX0tJTkRfTEVOR1RIX1VOS05PV04QAhI1CjFQTEFZQkFDS19SRUFTT05fS0lORF9ERVZJQ0VfQ0FOVF9ERUNPREVfQ09OVEFJTkVSEAMSMQotUExBWUJBQ0tfUkVBU09OX0tJTkRfREVWSUNFX0NBTlRfREVDT0RFX1ZJREVPEAQSMQotUExBWUJBQ0tfUkVBU09OX0tJTkRfREVWSUNFX0NBTlRfREVDT0RFX0FVRElPEAUSLQopUExBWUJBQ0tfUkVBU09OX0tJTkRfREVWSUNFX0NBTlRfU0hPV19IRFIQBhItCilQTEFZQkFDS19SRUFTT05fS0lORF9ERVZJQ0VfQ0FOVF9QTEFZX0hMUxAHEiwKKFBMQVlCQUNLX1JFQVNPTl9LSU5EX1NFUlZFUl9MQUNLU19GRk1QRUcQCBIxCi1QTEFZQkFDS19SRUFTT05fS0lORF9TRVJWRVJfQ0FOVF9FTkNPREVfVklERU8QCRI2CjJQTEFZQkFDS19SRUFTT05fS0lORF9ET0xCWV9WSVNJT05fTkVFRFNfQkFTRV9MQVlFUhAKEjAKLFBMQVlCQUNLX1JFQVNPTl9LSU5EX01FVEhPRF9GQUlMRURfT05fREVWSUNFEAsSJAogUExBWUJBQ0tfUkVBU09OX0tJTkRfU0VSVkVSX0JVU1kQDBIzCi9QTEFZQkFDS19SRUFTT05fS0lORF9DSE9TRU5fQVVESU9fTk9UX0ZJTEVTX09XThANEiwKKFBMQVlCQUNLX1JFQVNPTl9LSU5EX1BJQ1RVUkVfU0NBTEVEX0RPV04QDhIsCihQTEFZQkFDS19SRUFTT05fS0lORF9TVUJUSVRMRVNfQlVSTkVEX0lOEA8SNAowUExBWUJBQ0tfUkVBU09OX0tJTkRfREVWSUNFX1BMQVlTX0ZFV0VSX0NIQU5ORUxTEBASMAosUExBWUJBQ0tfUkVBU09OX0tJTkRfREVWSUNFX0NIQU5ORUxTX1VOS05PV04QERIzCi9QTEFZQkFDS19SRUFTT05fS0lORF9DT05WRVJTSU9OX0NIQU5ORUxTX0NBUFBFRBASEigKJFBMQVlCQUNLX1JFQVNPTl9LSU5EX0hEUl9UT05FX01BUFBFRBATEiwKKFBMQVlCQUNLX1JFQVNPTl9LSU5EX0hEUl9OT1RfVE9ORV9NQVBQRUQQFBItCilQTEFZQkFDS19SRUFTT05fS0lORF9SRU1PVEVfREVGQVVMVF9MSU1JVBAVEi0KKVBMQVlCQUNLX1JFQVNPTl9LSU5EX1BJQ1RVUkVfU0laRV9VTktOT1dOEBYSLQopUExBWUJBQ0tfUkVBU09OX0tJTkRfQ0hPU0VOX0FVRElPX0RST1BQRUQQFxIvCitQTEFZQkFDS19SRUFTT05fS0lORF9QTEFZQkFDS19MSU1JVF9EUk9QUEVEEBgSMQotUExBWUJBQ0tfUkVBU09OX0tJTkRfQ0hPU0VOX1NVQlRJVExFU19EUk9QUEVEEBkSLworUExBWUJBQ0tfUkVBU09OX0tJTkRfVFJBTlNDT0RFU19PTl9IQVJEV0FSRRAaEjIKLlBMQVlCQUNLX1JFQVNPTl9LSU5EX0hBUkRXQVJFX0FDQ0VMRVJBVElPTl9PRkYQGxI4CjRQTEFZQkFDS19SRUFTT05fS0lORF9OT19IQVJEV0FSRV9BQ0NFTEVSQVRJT05fUEFTU0VEEBwSOgo2UExBWUJBQ0tfUkVBU09OX0tJTkRfSEFSRFdBUkVfQUNDRUxFUkFUSU9OX0ZBSUxFRF9URVNUEB0SMAosUExBWUJBQ0tfUkVBU09OX0tJTkRfSEFSRFdBUkVfRkFJTEVEX1BBUlRXQVkQHjK1AQoPUGxheWJhY2tTZXJ2aWNlElAKDFBsYW5QbGF5YmFjaxIcLm5hbWEudjEuUGxhblBsYXliYWNrUmVxdWVzdBodLm5hbWEudjEuUGxhblBsYXliYWNrUmVzcG9uc2UiA5ACAhJQCgxTdG9wUGxheWJhY2sSHC5uYW1hLnYxLlN0b3BQbGF5YmFja1JlcXVlc3QaHS5uYW1hLnYxLlN0b3BQbGF5YmFja1Jlc3BvbnNlIgOQAgJiBnByb3RvMw", [file_nama_v1_browse]);
+  fileDesc("ChZuYW1hL3YxL3BsYXliYWNrLnByb3RvEgduYW1hLnYxIiYKE1N0b3BQbGF5YmFja1JlcXVlc3QSDwoHcGxhbl9pZBgBIAEoBCIWChRTdG9wUGxheWJhY2tSZXNwb25zZSKxAgoTUGxhblBsYXliYWNrUmVxdWVzdBISCgp2ZXJzaW9uX2lkGAEgASgDEhkKEXN0YXJ0X3Bvc2l0aW9uX21zGAIgASgEEhgKC2F1ZGlvX3RyYWNrGAMgASgNSACIAQESGwoOc3VidGl0bGVfdHJhY2sYBCABKA1IAYgBARIuCg5wbGF5YmFja19saW1pdBgFIAEoDjIWLm5hbWEudjEuUGxheWJhY2tMaW1pdBIwCg9kZXZpY2VfZGVjb2RpbmcYBiABKAsyFy5uYW1hLnYxLkRldmljZURlY29kaW5nEi8KDmZhaWxlZF9tZXRob2RzGAcgAygOMhcubmFtYS52MS5QbGF5YmFja01ldGhvZEIOCgxfYXVkaW9fdHJhY2tCEQoPX3N1YnRpdGxlX3RyYWNrIpwCCg5EZXZpY2VEZWNvZGluZxImCgpjb250YWluZXJzGAYgAygOMhIubmFtYS52MS5Db250YWluZXISKQoMdmlkZW9fY29kZWNzGAcgAygOMhMubmFtYS52MS5WaWRlb0NvZGVjEikKDGF1ZGlvX2NvZGVjcxgIIAMoDjITLm5hbWEudjEuQXVkaW9Db2RlYxILCgNoZHIYAiABKAgSEgoKbmF0aXZlX2hscxgDIAEoCBILCgNtc2UYBCABKAgSFgoOYXVkaW9fY2hhbm5lbHMYBSABKA0SMQoQc3VidGl0bGVfZm9ybWF0cxgJIAMoDjIXLm5hbWEudjEuU3VidGl0bGVGb3JtYXRKBAgBEAJSDWNvbnRlbnRfdHlwZXMiOwoUUGxhblBsYXliYWNrUmVzcG9uc2USIwoEcGxhbhgBIAEoCzIVLm5hbWEudjEuUGxheWJhY2tQbGFuIrcDCgxQbGF5YmFja1BsYW4SJwoGbWV0aG9kGAEgASgOMhcubmFtYS52MS5QbGF5YmFja01ldGhvZBILCgN1cmwYAiABKAkSHgoGdHJhY2tzGAMgAygLMg4ubmFtYS52MS5UcmFjaxIoCgdyZWFzb25zGA0gAygLMhcubmFtYS52MS5QbGF5YmFja1JlYXNvbhIsCglzdWJ0aXRsZXMYBSADKAsyGS5uYW1hLnYxLlBsYXliYWNrU3VidGl0bGUSCgoCaWQYBiABKAQSLgoOcGxheWJhY2tfbGltaXQYByABKA4yFi5uYW1hLnYxLlBsYXliYWNrTGltaXQSGAoLYXVkaW9fdHJhY2sYCCABKA1IAIgBARIbCg5zdWJ0aXRsZV90cmFjaxgJIAEoDUgBiAEBEhQKDGF1ZGlvX3RyYWNrcxgKIAMoDRIWCg5idXJuX2luX3RyYWNrcxgLIAMoDRIvCg9wbGF5YmFja19saW1pdHMYDCADKA4yFi5uYW1hLnYxLlBsYXliYWNrTGltaXRCDgoMX2F1ZGlvX3RyYWNrQhEKD19zdWJ0aXRsZV90cmFja0oECAQQBSJnChBQbGF5YmFja1N1YnRpdGxlEh0KBXRyYWNrGAEgASgLMg4ubmFtYS52MS5UcmFjaxILCgN1cmwYAiABKAkSJwoGZm9ybWF0GAMgASgOMhcubmFtYS52MS5TdWJ0aXRsZUZvcm1hdCK+AQoOUGxheWJhY2tSZWFzb24SKQoEa2luZBgBIAEoDjIbLm5hbWEudjEuUGxheWJhY2tSZWFzb25LaW5kEjMKBnBhcmFtcxgCIAMoCzIjLm5hbWEudjEuUGxheWJhY2tSZWFzb24uUGFyYW1zRW50cnkSDAoEdGV4dBgDIAEoCRIPCgdkZWNpZGVkGAQgASgIGi0KC1BhcmFtc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEqmAEKDVBsYXliYWNrTGltaXQSHgoaUExBWUJBQ0tfTElNSVRfVU5TUEVDSUZJRUQQABIbChdQTEFZQkFDS19MSU1JVF9PUklHSU5BTBABEhgKFFBMQVlCQUNLX0xJTUlUXzEwODBQEAISFwoTUExBWUJBQ0tfTElNSVRfNzIwUBADEhcKE1BMQVlCQUNLX0xJTUlUXzQ4MFAQBCpmCg5TdWJ0aXRsZUZvcm1hdBIfChtTVUJUSVRMRV9GT1JNQVRfVU5TUEVDSUZJRUQQABIaChZTVUJUSVRMRV9GT1JNQVRfV0VCVlRUEAESFwoTU1VCVElUTEVfRk9STUFUX1BHUxACKmUKCUNvbnRhaW5lchIZChVDT05UQUlORVJfVU5TUEVDSUZJRUQQABIRCg1DT05UQUlORVJfTVA0EAESEgoOQ09OVEFJTkVSX1dFQk0QAhIWChJDT05UQUlORVJfTUFUUk9TS0EQAyqUAQoKVmlkZW9Db2RlYxIbChdWSURFT19DT0RFQ19VTlNQRUNJRklFRBAAEhQKEFZJREVPX0NPREVDX0gyNjQQARIUChBWSURFT19DT0RFQ19IRVZDEAISEwoPVklERU9fQ09ERUNfVlA4EAMSEwoPVklERU9fQ09ERUNfVlA5EAQSEwoPVklERU9fQ09ERUNfQVYxEAUq7wEKCkF1ZGlvQ29kZWMSGwoXQVVESU9fQ09ERUNfVU5TUEVDSUZJRUQQABITCg9BVURJT19DT0RFQ19BQUMQARITCg9BVURJT19DT0RFQ19NUDMQAhITCg9BVURJT19DT0RFQ19BQzMQAxIUChBBVURJT19DT0RFQ19FQUMzEAQSFAoQQVVESU9fQ09ERUNfT1BVUxAFEhYKEkFVRElPX0NPREVDX1ZPUkJJUxAGEhQKEEFVRElPX0NPREVDX0ZMQUMQBxITCg9BVURJT19DT0RFQ19EVFMQCBIWChJBVURJT19DT0RFQ19UUlVFSEQQCSqMAQoOUGxheWJhY2tNZXRob2QSHwobUExBWUJBQ0tfTUVUSE9EX1VOU1BFQ0lGSUVEEAASHwobUExBWUJBQ0tfTUVUSE9EX0RJUkVDVF9QTEFZEAESGQoVUExBWUJBQ0tfTUVUSE9EX1JFTVVYEAISHQoZUExBWUJBQ0tfTUVUSE9EX1RSQU5TQ09ERRADKvwLChJQbGF5YmFja1JlYXNvbktpbmQSJAogUExBWUJBQ0tfUkVBU09OX0tJTkRfVU5TUEVDSUZJRUQQABInCiNQTEFZQkFDS19SRUFTT05fS0lORF9UUkFDS1NfVU5LTk9XThABEicKI1BMQVlCQUNLX1JFQVNPTl9LSU5EX0xFTkdUSF9VTktOT1dOEAISNQoxUExBWUJBQ0tfUkVBU09OX0tJTkRfREVWSUNFX0NBTlRfREVDT0RFX0NPTlRBSU5FUhADEjEKLVBMQVlCQUNLX1JFQVNPTl9LSU5EX0RFVklDRV9DQU5UX0RFQ09ERV9WSURFTxAEEjEKLVBMQVlCQUNLX1JFQVNPTl9LSU5EX0RFVklDRV9DQU5UX0RFQ09ERV9BVURJTxAFEi0KKVBMQVlCQUNLX1JFQVNPTl9LSU5EX0RFVklDRV9DQU5UX1NIT1dfSERSEAYSLQopUExBWUJBQ0tfUkVBU09OX0tJTkRfREVWSUNFX0NBTlRfUExBWV9ITFMQBxIsCihQTEFZQkFDS19SRUFTT05fS0lORF9TRVJWRVJfTEFDS1NfRkZNUEVHEAgSMQotUExBWUJBQ0tfUkVBU09OX0tJTkRfU0VSVkVSX0NBTlRfRU5DT0RFX1ZJREVPEAkSNgoyUExBWUJBQ0tfUkVBU09OX0tJTkRfRE9MQllfVklTSU9OX05FRURTX0JBU0VfTEFZRVIQChIwCixQTEFZQkFDS19SRUFTT05fS0lORF9NRVRIT0RfRkFJTEVEX09OX0RFVklDRRALEiQKIFBMQVlCQUNLX1JFQVNPTl9LSU5EX1NFUlZFUl9CVVNZEAwSMwovUExBWUJBQ0tfUkVBU09OX0tJTkRfQ0hPU0VOX0FVRElPX05PVF9GSUxFU19PV04QDRIsCihQTEFZQkFDS19SRUFTT05fS0lORF9QSUNUVVJFX1NDQUxFRF9ET1dOEA4SLAooUExBWUJBQ0tfUkVBU09OX0tJTkRfU1VCVElUTEVTX0JVUk5FRF9JThAPEjQKMFBMQVlCQUNLX1JFQVNPTl9LSU5EX0RFVklDRV9QTEFZU19GRVdFUl9DSEFOTkVMUxAQEjAKLFBMQVlCQUNLX1JFQVNPTl9LSU5EX0RFVklDRV9DSEFOTkVMU19VTktOT1dOEBESMwovUExBWUJBQ0tfUkVBU09OX0tJTkRfQ09OVkVSU0lPTl9DSEFOTkVMU19DQVBQRUQQEhIoCiRQTEFZQkFDS19SRUFTT05fS0lORF9IRFJfVE9ORV9NQVBQRUQQExIsCihQTEFZQkFDS19SRUFTT05fS0lORF9IRFJfTk9UX1RPTkVfTUFQUEVEEBQSLQopUExBWUJBQ0tfUkVBU09OX0tJTkRfUkVNT1RFX0RFRkFVTFRfTElNSVQQFRItCilQTEFZQkFDS19SRUFTT05fS0lORF9QSUNUVVJFX1NJWkVfVU5LTk9XThAWEi0KKVBMQVlCQUNLX1JFQVNPTl9LSU5EX0NIT1NFTl9BVURJT19EUk9QUEVEEBcSLworUExBWUJBQ0tfUkVBU09OX0tJTkRfUExBWUJBQ0tfTElNSVRfRFJPUFBFRBAYEjEKLVBMQVlCQUNLX1JFQVNPTl9LSU5EX0NIT1NFTl9TVUJUSVRMRVNfRFJPUFBFRBAZEi8KK1BMQVlCQUNLX1JFQVNPTl9LSU5EX1RSQU5TQ09ERVNfT05fSEFSRFdBUkUQGhIyCi5QTEFZQkFDS19SRUFTT05fS0lORF9IQVJEV0FSRV9BQ0NFTEVSQVRJT05fT0ZGEBsSOAo0UExBWUJBQ0tfUkVBU09OX0tJTkRfTk9fSEFSRFdBUkVfQUNDRUxFUkFUSU9OX1BBU1NFRBAcEjoKNlBMQVlCQUNLX1JFQVNPTl9LSU5EX0hBUkRXQVJFX0FDQ0VMRVJBVElPTl9GQUlMRURfVEVTVBAdEjAKLFBMQVlCQUNLX1JFQVNPTl9LSU5EX0hBUkRXQVJFX0ZBSUxFRF9QQVJUV0FZEB4ytQEKD1BsYXliYWNrU2VydmljZRJQCgxQbGFuUGxheWJhY2sSHC5uYW1hLnYxLlBsYW5QbGF5YmFja1JlcXVlc3QaHS5uYW1hLnYxLlBsYW5QbGF5YmFja1Jlc3BvbnNlIgOQAgISUAoMU3RvcFBsYXliYWNrEhwubmFtYS52MS5TdG9wUGxheWJhY2tSZXF1ZXN0Gh0ubmFtYS52MS5TdG9wUGxheWJhY2tSZXNwb25zZSIDkAICYgZwcm90bzM", [file_nama_v1_browse]);
 
 /**
  * @generated from message nama.v1.StopPlaybackRequest
@@ -73,10 +73,10 @@ export type PlanPlaybackRequest = Message<"nama.v1.PlanPlaybackRequest"> & {
   audioTrack?: number | undefined;
 
   /**
-   * The subtitle Track the caller chose to burn into the picture, an image one such as PGS or an
-   * ASS or SSA one with its styling, which makes the plan a Transcode, by its place in the
-   * Version's `tracks`, counting from 0. Unset for none, as when the player shows a text subtitle
-   * from `PlaybackPlan.subtitles` itself.
+   * The subtitle Track the caller chose to burn into the picture, one the Device can't draw such
+   * as PGS on a Device that doesn't list it, or an ASS or SSA one with its styling, which makes the
+   * plan a Transcode, by its place in the Version's `tracks`, counting from 0. Unset for none, as
+   * when the player shows a subtitle from `PlaybackPlan.subtitles` itself.
    *
    * @generated from field: optional uint32 subtitle_track = 4;
    */
@@ -167,6 +167,14 @@ export type DeviceDecoding = Message<"nama.v1.DeviceDecoding"> & {
    * @generated from field: uint32 audio_channels = 5;
    */
   audioChannels: number;
+
+  /**
+   * The subtitle formats it draws itself, over the video. WebVTT is never listed: every Device
+   * shows it (ADR 0033).
+   *
+   * @generated from field: repeated nama.v1.SubtitleFormat subtitle_formats = 9;
+   */
+  subtitleFormats: SubtitleFormat[];
 };
 
 /**
@@ -231,8 +239,9 @@ export type PlaybackPlan = Message<"nama.v1.PlaybackPlan"> & {
   reasons: PlaybackReason[];
 
   /**
-   * The text subtitles the player can turn on and off without a new plan, in the order the
-   * Version holds them. Image subtitles, such as PGS, aren't among them.
+   * The subtitles the Device shows itself, which the player turns on and off without a new plan,
+   * in the order the Version holds them: the text ones, and those in a format the Device draws
+   * (ADR 0033). A Track here in a format the Device draws isn't among `burn_in_tracks`.
    *
    * @generated from field: repeated nama.v1.PlaybackSubtitle subtitles = 5;
    */
@@ -281,7 +290,8 @@ export type PlaybackPlan = Message<"nama.v1.PlaybackPlan"> & {
   audioTracks: number[];
 
   /**
-   * The subtitle Tracks it can burn into the picture, likewise.
+   * The subtitle Tracks it can burn into the picture, likewise: those the Device can't draw, and
+   * ASS or SSA ones, whose styling their WebVTT among `subtitles` drops.
    *
    * @generated from field: repeated uint32 burn_in_tracks = 11;
    */
@@ -303,7 +313,7 @@ export const PlaybackPlanSchema: GenMessage<PlaybackPlan> = /*@__PURE__*/
   messageDesc(file_nama_v1_playback, 5);
 
 /**
- * A text subtitle a player shows as a WebVTT `<track>`.
+ * A subtitle the Device shows itself: a text one as a WebVTT `<track>`, or one it draws.
  *
  * @generated from message nama.v1.PlaybackSubtitle
  */
@@ -316,12 +326,19 @@ export type PlaybackSubtitle = Message<"nama.v1.PlaybackSubtitle"> & {
   track?: Track | undefined;
 
   /**
-   * Where to fetch it as WebVTT, on this Server. The first fetch can take up to a minute while
-   * the Server reads it out of the file; later ones are answered at once.
+   * Where to fetch it in `format`, on this Server. The first fetch can take minutes while the
+   * Server reads it out of the file; later ones are answered at once.
    *
    * @generated from field: string url = 2;
    */
   url: string;
+
+  /**
+   * The format it's fetched in.
+   *
+   * @generated from field: nama.v1.SubtitleFormat format = 3;
+   */
+  format: SubtitleFormat;
 };
 
 /**
@@ -425,6 +442,45 @@ export const PlaybackLimitSchema: GenEnum<PlaybackLimit> = /*@__PURE__*/
   enumDesc(file_nama_v1_playback, 0);
 
 /**
+ * A format the Server serves a subtitle Track in, for a Device to show it itself.
+ *
+ * @generated from enum nama.v1.SubtitleFormat
+ */
+export const SubtitleFormat = {
+  /**
+   * @generated from enum value: SUBTITLE_FORMAT_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED: 0,
+
+  /**
+   * Text, which a player shows as a `<track>`.
+   *
+   * @generated from enum value: SUBTITLE_FORMAT_WEBVTT = 1;
+   */
+  WEBVTT: 1,
+
+  /**
+   * Blu-ray's image subtitles, as the Track's own `.sup`.
+   *
+   * @generated from enum value: SUBTITLE_FORMAT_PGS = 2;
+   */
+  PGS: 2,
+} as const;
+
+/**
+ * A format the Server serves a subtitle Track in, for a Device to show it itself.
+ *
+ * @generated from enum nama.v1.SubtitleFormat
+ */
+export type SubtitleFormat = (typeof SubtitleFormat)[keyof typeof SubtitleFormat] | UnknownEnum;
+
+/**
+ * Describes the enum nama.v1.SubtitleFormat.
+ */
+export const SubtitleFormatSchema: GenEnum<SubtitleFormat> = /*@__PURE__*/
+  enumDesc(file_nama_v1_playback, 1);
+
+/**
  * A container the Server knows whether a Device plays.
  *
  * @generated from enum nama.v1.Container
@@ -462,7 +518,7 @@ export type Container = (typeof Container)[keyof typeof Container] | UnknownEnum
  * Describes the enum nama.v1.Container.
  */
 export const ContainerSchema: GenEnum<Container> = /*@__PURE__*/
-  enumDesc(file_nama_v1_playback, 1);
+  enumDesc(file_nama_v1_playback, 2);
 
 /**
  * A video codec the Server knows whether a Device decodes.
@@ -512,7 +568,7 @@ export type VideoCodec = (typeof VideoCodec)[keyof typeof VideoCodec] | UnknownE
  * Describes the enum nama.v1.VideoCodec.
  */
 export const VideoCodecSchema: GenEnum<VideoCodec> = /*@__PURE__*/
-  enumDesc(file_nama_v1_playback, 2);
+  enumDesc(file_nama_v1_playback, 3);
 
 /**
  * An audio codec the Server knows whether a Device decodes.
@@ -582,7 +638,7 @@ export type AudioCodec = (typeof AudioCodec)[keyof typeof AudioCodec] | UnknownE
  * Describes the enum nama.v1.AudioCodec.
  */
 export const AudioCodecSchema: GenEnum<AudioCodec> = /*@__PURE__*/
-  enumDesc(file_nama_v1_playback, 3);
+  enumDesc(file_nama_v1_playback, 4);
 
 /**
  * How a Playback Plan plays a Version.
@@ -631,7 +687,7 @@ export type PlaybackMethod = (typeof PlaybackMethod)[keyof typeof PlaybackMethod
  * Describes the enum nama.v1.PlaybackMethod.
  */
 export const PlaybackMethodSchema: GenEnum<PlaybackMethod> = /*@__PURE__*/
-  enumDesc(file_nama_v1_playback, 4);
+  enumDesc(file_nama_v1_playback, 5);
 
 /**
  * The kinds of fact that shape a Playback Plan. A kind, its params and the methods it rules out
@@ -888,7 +944,7 @@ export type PlaybackReasonKind = (typeof PlaybackReasonKind)[keyof typeof Playba
  * Describes the enum nama.v1.PlaybackReasonKind.
  */
 export const PlaybackReasonKindSchema: GenEnum<PlaybackReasonKind> = /*@__PURE__*/
-  enumDesc(file_nama_v1_playback, 5);
+  enumDesc(file_nama_v1_playback, 6);
 
 /**
  * How the signed-in caller's Device plays a Version.

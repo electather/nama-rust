@@ -27,7 +27,7 @@ use crate::{
     connections,
     db::Database,
     playback,
-    plugins::{Failure, ProviderError, Registry},
+    plugins::{ExtensionPoints, Failure, ProviderError},
     requests,
     server_settings::ServerUrl,
     users::User,
@@ -49,7 +49,7 @@ pub(crate) struct EventBus {
     sender: broadcast::Sender<Event>,
     /// Where the Plugin Connections of the Users a notification is for are.
     db: Arc<Database>,
-    plugins: Registry,
+    plugins: ExtensionPoints,
     /// What a notification's link to its Request starts with.
     server_url: ServerUrl,
     /// Cancelled when the Server shuts down, which ends every subscription.
@@ -91,14 +91,14 @@ impl EventBus {
     /// A bus that also tells the Observers and Notifiers enabled in `plugins`, linking
     /// notifications to their Requests at `server_url`, and finding the Users' Plugin Connections
     /// in `db`.
-    pub(crate) fn new(db: Arc<Database>, plugins: Registry, server_url: ServerUrl) -> Self {
+    pub(crate) fn new(db: Arc<Database>, plugins: ExtensionPoints, server_url: ServerUrl) -> Self {
         Self::with_capacity(db, plugins, server_url, BUFFERED)
     }
 
     /// A bus on which subscribers may fall `capacity` events behind.
     pub(crate) fn with_capacity(
         db: Arc<Database>,
-        plugins: Registry,
+        plugins: ExtensionPoints,
         server_url: ServerUrl,
         capacity: usize,
     ) -> Self {

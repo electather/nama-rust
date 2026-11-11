@@ -345,7 +345,7 @@ mod tests {
         plugins
             .enable(Arc::new(nama_plugin_local_auth::LocalAuth))
             .unwrap();
-        let user = Users::new(Arc::clone(&db), plugins)
+        let user = Users::new(Arc::clone(&db), plugins.extension_points())
             .create(&root, "Ada", "correct horse battery staple")
             .await
             .unwrap();

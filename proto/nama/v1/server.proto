@@ -85,8 +85,8 @@ message GetPlaybackStatusResponse {
   string ffmpeg_problem = 3;
   // Why the Server can't use ffprobe, in plain words. Empty when it can.
   string ffprobe_problem = 4;
-  // The hardware acceleration APIs that passed a test encode at startup. Empty without ffmpeg, a
-  // GPU, or an ffmpeg built for one.
+  // The hardware acceleration APIs that passed a test encode at startup, one per API and GPU, in the
+  // order Automatic prefers them. Empty without ffmpeg, a GPU, or an ffmpeg built for one.
   repeated FoundHardware hardware = 5;
   // Whether ffmpeg has libx264, which a Transcode encodes with in software. Without it no
   // Transcode runs, even on hardware. False when the Server can't use ffmpeg.
@@ -99,10 +99,13 @@ message GetPlaybackStatusResponse {
   bool can_transcode = 8;
 }
 
-// A hardware acceleration API that passed its test encode at startup.
+// A hardware acceleration API that passed its test encode at startup, on one GPU.
 message FoundHardware {
   // Which API. Never `HARDWARE_ACCELERATION_UNSPECIFIED` or `HARDWARE_ACCELERATION_OFF`.
   HardwareAcceleration api = 1;
+  // The GPU it runs on. Unset where ffmpeg picks one: for NVENC, VideoToolbox, and VAAPI and QSV
+  // when the Server found no GPU.
+  Gpu gpu = 5;
   // Whether it also passed tone-mapping HDR to SDR on the GPU. `tone_mapping` says what
   // tone-maps on it.
   bool tone_maps = 2;
@@ -110,6 +113,14 @@ message FoundHardware {
   ToneMapping tone_mapping = 3;
   // Whether Automatic picks it.
   bool automatic = 4;
+}
+
+// A GPU the Server found.
+message Gpu {
+  // Its PCI address, such as `0000:03:00.0`, which stays the same across restarts.
+  string id = 1;
+  // Its name in plain words, such as "AMD Radeon RX 9070 XT" or "Intel integrated GPU".
+  string name = 2;
 }
 
 // What tone-maps HDR to SDR in a Transcode.

@@ -1,5 +1,5 @@
 import { Code } from "@connectrpc/connect";
-import { fireEvent, screen } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
 import { expect, test } from "vite-plus/test";
 
 import { PlaybackLimit } from "@/gen/nama/v1/playback_pb";
@@ -91,6 +91,32 @@ test("an Admin chooses hardware acceleration that passed its test", async () => 
 
   expect(await screen.findByText("Saved.")).toBeDefined();
   expect(updates).toMatchObject([{ settings: { hardwareAcceleration: HardwareAcceleration.QSV } }]);
+});
+
+test("an API that passed on two GPUs is offered once", async () => {
+  openApp(
+    "/admin/playback",
+    fakeServer({
+      signedIn: admin,
+      serverService: {
+        getPlaybackStatus: () => ({
+          hardware: [
+            { api: HardwareAcceleration.VAAPI, gpu: { id: "0000:03:00.0", name: "AMD GPU" } },
+            { api: HardwareAcceleration.VAAPI, gpu: { id: "0000:18:00.0", name: "AMD iGPU" } },
+          ],
+        }),
+        getPlaybackSettings: () => ({ settings: {} }),
+      },
+    }),
+  );
+
+  const choice = await screen.findByRole("combobox", { name: "Hardware acceleration" });
+
+  expect(
+    within(choice)
+      .getAllByRole("option")
+      .map((option) => option.textContent),
+  ).toEqual(["Automatic", "Off", "VAAPI"]);
 });
 
 test("a saved hardware acceleration that didn't pass its test stays chosen", async () => {

@@ -48,7 +48,7 @@ use crate::{
     events::{EventBus, event},
     libraries::{self, Kind, Libraries, Library},
     matching::{self, Matcher, count},
-    plugins::Registry,
+    plugins::ExtensionPoints,
     probing::Probing,
 };
 
@@ -166,7 +166,7 @@ impl Scanner {
     /// neither where nothing probes.
     pub(crate) fn new(
         db: Arc<Database>,
-        plugins: Registry,
+        plugins: ExtensionPoints,
         events: EventBus,
         probing: Option<Probing>,
     ) -> Self {
@@ -556,7 +556,7 @@ mod tests {
         ffmpeg::Ffmpeg,
         libraries::{self, Kind, Libraries},
         playback::subtitles,
-        plugins::Registry,
+        plugins::ExtensionPoints,
         probing::Probing,
         server_settings::ServerUrl,
     };
@@ -602,7 +602,7 @@ mod tests {
                 .unwrap();
             let events = EventBus::with_capacity(
                 Arc::clone(&db),
-                Registry::new(),
+                ExtensionPoints::default(),
                 ServerUrl::default(),
                 BUFFERED,
             );
@@ -613,7 +613,7 @@ mod tests {
             Self {
                 scanner: Scanner::new(
                     Arc::clone(&db),
-                    Registry::new(),
+                    ExtensionPoints::default(),
                     events.clone(),
                     probing.clone(),
                 ),

@@ -102,6 +102,34 @@ test("an Admin sees the hardware acceleration that passed its test and whether i
   expect(screen.queryByText(/Transcodes run in software/u)).toBeNull();
 });
 
+test("an Admin sees a row for each API on each GPU that passed its test", async () => {
+  const dedicated = { id: "0000:03:00.0", name: "AMD Radeon RX 9070 XT" };
+  const integrated = { id: "0000:18:00.0", name: "integrated GPU (AMD Ryzen 9 7950X3D)" };
+  openApp(
+    "/admin/playback",
+    fakeServer({
+      signedIn: admin,
+      serverService: {
+        getPlaybackStatus: () => ({
+          ...ffmpegFound,
+          hardware: [
+            { api: HardwareAcceleration.VAAPI, gpu: dedicated, automatic: true },
+            { api: HardwareAcceleration.VAAPI, gpu: integrated },
+          ],
+          hasLibx264: true,
+          canTranscode: true,
+        }),
+      },
+    }),
+  );
+
+  const rows = await screen.findAllByRole("heading", { name: /· VAAPI$/u });
+  expect(rows.map((row) => row.textContent)).toEqual([
+    "AMD Radeon RX 9070 XT · VAAPI",
+    "integrated GPU (AMD Ryzen 9 7950X3D) · VAAPI",
+  ]);
+});
+
 test("without hardware acceleration the Playback page says Transcodes run in software", async () => {
   openApp(
     "/admin/playback",

@@ -12,7 +12,7 @@ import type { Message, UnknownEnum } from "@bufbuild/protobuf";
  * Describes the file nama/v1/server.proto.
  */
 export const file_nama_v1_server: GenFile = /*@__PURE__*/
-  fileDesc("ChRuYW1hL3YxL3NlcnZlci5wcm90bxIHbmFtYS52MSIWChRHZXRTZXJ2ZXJJbmZvUmVxdWVzdCJOChVHZXRTZXJ2ZXJJbmZvUmVzcG9uc2USDAoEbmFtZRgBIAEoCRIPCgd2ZXJzaW9uGAIgASgJEhYKDnNldHVwX3JlcXVpcmVkGAMgASgIIhoKGEdldFNlcnZlclNldHRpbmdzUmVxdWVzdCJGChlHZXRTZXJ2ZXJTZXR0aW5nc1Jlc3BvbnNlEikKCHNldHRpbmdzGAEgASgLMhcubmFtYS52MS5TZXJ2ZXJTZXR0aW5ncyJIChtVcGRhdGVTZXJ2ZXJTZXR0aW5nc1JlcXVlc3QSKQoIc2V0dGluZ3MYASABKAsyFy5uYW1hLnYxLlNlcnZlclNldHRpbmdzIkkKHFVwZGF0ZVNlcnZlclNldHRpbmdzUmVzcG9uc2USKQoIc2V0dGluZ3MYASABKAsyFy5uYW1hLnYxLlNlcnZlclNldHRpbmdzIh0KDlNlcnZlclNldHRpbmdzEgsKA3VybBgBIAEoCSIaChhHZXRQbGF5YmFja1N0YXR1c1JlcXVlc3QihQIKGUdldFBsYXliYWNrU3RhdHVzUmVzcG9uc2USJQoGZmZtcGVnGAEgASgLMhUubmFtYS52MS5Gb3VuZFByb2dyYW0SJgoHZmZwcm9iZRgCIAEoCzIVLm5hbWEudjEuRm91bmRQcm9ncmFtEhYKDmZmbXBlZ19wcm9ibGVtGAMgASgJEhcKD2ZmcHJvYmVfcHJvYmxlbRgEIAEoCRIoCghoYXJkd2FyZRgFIAMoCzIWLm5hbWEudjEuRm91bmRIYXJkd2FyZRITCgtoYXNfbGlieDI2NBgGIAEoCBISCgpoYXNfenNjYWxlGAcgASgIEhUKDWNhbl90cmFuc2NvZGUYCCABKAgijQEKDUZvdW5kSGFyZHdhcmUSKgoDYXBpGAEgASgOMh0ubmFtYS52MS5IYXJkd2FyZUFjY2VsZXJhdGlvbhIRCgl0b25lX21hcHMYAiABKAgSKgoMdG9uZV9tYXBwaW5nGAMgASgOMhQubmFtYS52MS5Ub25lTWFwcGluZxIRCglhdXRvbWF0aWMYBCABKAgiLQoMRm91bmRQcm9ncmFtEgwKBHBhdGgYASABKAkSDwoHdmVyc2lvbhgCIAEoCSIcChpHZXRQbGF5YmFja1NldHRpbmdzUmVxdWVzdCJKChtHZXRQbGF5YmFja1NldHRpbmdzUmVzcG9uc2USKwoIc2V0dGluZ3MYASABKAsyGS5uYW1hLnYxLlBsYXliYWNrU2V0dGluZ3MiTAodVXBkYXRlUGxheWJhY2tTZXR0aW5nc1JlcXVlc3QSKwoIc2V0dGluZ3MYASABKAsyGS5uYW1hLnYxLlBsYXliYWNrU2V0dGluZ3MiTQoeVXBkYXRlUGxheWJhY2tTZXR0aW5nc1Jlc3BvbnNlEisKCHNldHRpbmdzGAEgASgLMhkubmFtYS52MS5QbGF5YmFja1NldHRpbmdzIs8BChBQbGF5YmFja1NldHRpbmdzEhYKDnNlZ21lbnRfZm9sZGVyGAEgASgJEhsKDm1heF90cmFuc2NvZGVzGAIgASgNSACIAQESNQoVcmVtb3RlX3BsYXliYWNrX2xpbWl0GAMgASgOMhYubmFtYS52MS5QbGF5YmFja0xpbWl0EjwKFWhhcmR3YXJlX2FjY2VsZXJhdGlvbhgEIAEoDjIdLm5hbWEudjEuSGFyZHdhcmVBY2NlbGVyYXRpb25CEQoPX21heF90cmFuc2NvZGVzKnMKC1RvbmVNYXBwaW5nEhwKGFRPTkVfTUFQUElOR19VTlNQRUNJRklFRBAAEhUKEVRPTkVfTUFQUElOR19OT05FEAESFAoQVE9ORV9NQVBQSU5HX0dQVRACEhkKFVRPTkVfTUFQUElOR19TT0ZUV0FSRRADKuUBChRIYXJkd2FyZUFjY2VsZXJhdGlvbhIlCiFIQVJEV0FSRV9BQ0NFTEVSQVRJT05fVU5TUEVDSUZJRUQQABIdChlIQVJEV0FSRV9BQ0NFTEVSQVRJT05fT0ZGEAESHwobSEFSRFdBUkVfQUNDRUxFUkFUSU9OX1ZBQVBJEAISHQoZSEFSRFdBUkVfQUNDRUxFUkFUSU9OX1FTVhADEh8KG0hBUkRXQVJFX0FDQ0VMRVJBVElPTl9OVkVOQxAEEiYKIkhBUkRXQVJFX0FDQ0VMRVJBVElPTl9WSURFT1RPT0xCT1gQBTLnBAoNU2VydmVyU2VydmljZRJTCg1HZXRTZXJ2ZXJJbmZvEh0ubmFtYS52MS5HZXRTZXJ2ZXJJbmZvUmVxdWVzdBoeLm5hbWEudjEuR2V0U2VydmVySW5mb1Jlc3BvbnNlIgOQAgESXwoRR2V0U2VydmVyU2V0dGluZ3MSIS5uYW1hLnYxLkdldFNlcnZlclNldHRpbmdzUmVxdWVzdBoiLm5hbWEudjEuR2V0U2VydmVyU2V0dGluZ3NSZXNwb25zZSIDkAIBEmgKFFVwZGF0ZVNlcnZlclNldHRpbmdzEiQubmFtYS52MS5VcGRhdGVTZXJ2ZXJTZXR0aW5nc1JlcXVlc3QaJS5uYW1hLnYxLlVwZGF0ZVNlcnZlclNldHRpbmdzUmVzcG9uc2UiA5ACAhJfChFHZXRQbGF5YmFja1N0YXR1cxIhLm5hbWEudjEuR2V0UGxheWJhY2tTdGF0dXNSZXF1ZXN0GiIubmFtYS52MS5HZXRQbGF5YmFja1N0YXR1c1Jlc3BvbnNlIgOQAgESZQoTR2V0UGxheWJhY2tTZXR0aW5ncxIjLm5hbWEudjEuR2V0UGxheWJhY2tTZXR0aW5nc1JlcXVlc3QaJC5uYW1hLnYxLkdldFBsYXliYWNrU2V0dGluZ3NSZXNwb25zZSIDkAIBEm4KFlVwZGF0ZVBsYXliYWNrU2V0dGluZ3MSJi5uYW1hLnYxLlVwZGF0ZVBsYXliYWNrU2V0dGluZ3NSZXF1ZXN0GicubmFtYS52MS5VcGRhdGVQbGF5YmFja1NldHRpbmdzUmVzcG9uc2UiA5ACAmIGcHJvdG8z", [file_nama_v1_playback]);
+  fileDesc("ChRuYW1hL3YxL3NlcnZlci5wcm90bxIHbmFtYS52MSIWChRHZXRTZXJ2ZXJJbmZvUmVxdWVzdCJOChVHZXRTZXJ2ZXJJbmZvUmVzcG9uc2USDAoEbmFtZRgBIAEoCRIPCgd2ZXJzaW9uGAIgASgJEhYKDnNldHVwX3JlcXVpcmVkGAMgASgIIhoKGEdldFNlcnZlclNldHRpbmdzUmVxdWVzdCJGChlHZXRTZXJ2ZXJTZXR0aW5nc1Jlc3BvbnNlEikKCHNldHRpbmdzGAEgASgLMhcubmFtYS52MS5TZXJ2ZXJTZXR0aW5ncyJIChtVcGRhdGVTZXJ2ZXJTZXR0aW5nc1JlcXVlc3QSKQoIc2V0dGluZ3MYASABKAsyFy5uYW1hLnYxLlNlcnZlclNldHRpbmdzIkkKHFVwZGF0ZVNlcnZlclNldHRpbmdzUmVzcG9uc2USKQoIc2V0dGluZ3MYASABKAsyFy5uYW1hLnYxLlNlcnZlclNldHRpbmdzIh0KDlNlcnZlclNldHRpbmdzEgsKA3VybBgBIAEoCSIaChhHZXRQbGF5YmFja1N0YXR1c1JlcXVlc3QihQIKGUdldFBsYXliYWNrU3RhdHVzUmVzcG9uc2USJQoGZmZtcGVnGAEgASgLMhUubmFtYS52MS5Gb3VuZFByb2dyYW0SJgoHZmZwcm9iZRgCIAEoCzIVLm5hbWEudjEuRm91bmRQcm9ncmFtEhYKDmZmbXBlZ19wcm9ibGVtGAMgASgJEhcKD2ZmcHJvYmVfcHJvYmxlbRgEIAEoCRIoCghoYXJkd2FyZRgFIAMoCzIWLm5hbWEudjEuRm91bmRIYXJkd2FyZRITCgtoYXNfbGlieDI2NBgGIAEoCBISCgpoYXNfenNjYWxlGAcgASgIEhUKDWNhbl90cmFuc2NvZGUYCCABKAgiqAEKDUZvdW5kSGFyZHdhcmUSKgoDYXBpGAEgASgOMh0ubmFtYS52MS5IYXJkd2FyZUFjY2VsZXJhdGlvbhIZCgNncHUYBSABKAsyDC5uYW1hLnYxLkdwdRIRCgl0b25lX21hcHMYAiABKAgSKgoMdG9uZV9tYXBwaW5nGAMgASgOMhQubmFtYS52MS5Ub25lTWFwcGluZxIRCglhdXRvbWF0aWMYBCABKAgiHwoDR3B1EgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkiLQoMRm91bmRQcm9ncmFtEgwKBHBhdGgYASABKAkSDwoHdmVyc2lvbhgCIAEoCSIcChpHZXRQbGF5YmFja1NldHRpbmdzUmVxdWVzdCJKChtHZXRQbGF5YmFja1NldHRpbmdzUmVzcG9uc2USKwoIc2V0dGluZ3MYASABKAsyGS5uYW1hLnYxLlBsYXliYWNrU2V0dGluZ3MiTAodVXBkYXRlUGxheWJhY2tTZXR0aW5nc1JlcXVlc3QSKwoIc2V0dGluZ3MYASABKAsyGS5uYW1hLnYxLlBsYXliYWNrU2V0dGluZ3MiTQoeVXBkYXRlUGxheWJhY2tTZXR0aW5nc1Jlc3BvbnNlEisKCHNldHRpbmdzGAEgASgLMhkubmFtYS52MS5QbGF5YmFja1NldHRpbmdzIs8BChBQbGF5YmFja1NldHRpbmdzEhYKDnNlZ21lbnRfZm9sZGVyGAEgASgJEhsKDm1heF90cmFuc2NvZGVzGAIgASgNSACIAQESNQoVcmVtb3RlX3BsYXliYWNrX2xpbWl0GAMgASgOMhYubmFtYS52MS5QbGF5YmFja0xpbWl0EjwKFWhhcmR3YXJlX2FjY2VsZXJhdGlvbhgEIAEoDjIdLm5hbWEudjEuSGFyZHdhcmVBY2NlbGVyYXRpb25CEQoPX21heF90cmFuc2NvZGVzKnMKC1RvbmVNYXBwaW5nEhwKGFRPTkVfTUFQUElOR19VTlNQRUNJRklFRBAAEhUKEVRPTkVfTUFQUElOR19OT05FEAESFAoQVE9ORV9NQVBQSU5HX0dQVRACEhkKFVRPTkVfTUFQUElOR19TT0ZUV0FSRRADKuUBChRIYXJkd2FyZUFjY2VsZXJhdGlvbhIlCiFIQVJEV0FSRV9BQ0NFTEVSQVRJT05fVU5TUEVDSUZJRUQQABIdChlIQVJEV0FSRV9BQ0NFTEVSQVRJT05fT0ZGEAESHwobSEFSRFdBUkVfQUNDRUxFUkFUSU9OX1ZBQVBJEAISHQoZSEFSRFdBUkVfQUNDRUxFUkFUSU9OX1FTVhADEh8KG0hBUkRXQVJFX0FDQ0VMRVJBVElPTl9OVkVOQxAEEiYKIkhBUkRXQVJFX0FDQ0VMRVJBVElPTl9WSURFT1RPT0xCT1gQBTLnBAoNU2VydmVyU2VydmljZRJTCg1HZXRTZXJ2ZXJJbmZvEh0ubmFtYS52MS5HZXRTZXJ2ZXJJbmZvUmVxdWVzdBoeLm5hbWEudjEuR2V0U2VydmVySW5mb1Jlc3BvbnNlIgOQAgESXwoRR2V0U2VydmVyU2V0dGluZ3MSIS5uYW1hLnYxLkdldFNlcnZlclNldHRpbmdzUmVxdWVzdBoiLm5hbWEudjEuR2V0U2VydmVyU2V0dGluZ3NSZXNwb25zZSIDkAIBEmgKFFVwZGF0ZVNlcnZlclNldHRpbmdzEiQubmFtYS52MS5VcGRhdGVTZXJ2ZXJTZXR0aW5nc1JlcXVlc3QaJS5uYW1hLnYxLlVwZGF0ZVNlcnZlclNldHRpbmdzUmVzcG9uc2UiA5ACAhJfChFHZXRQbGF5YmFja1N0YXR1cxIhLm5hbWEudjEuR2V0UGxheWJhY2tTdGF0dXNSZXF1ZXN0GiIubmFtYS52MS5HZXRQbGF5YmFja1N0YXR1c1Jlc3BvbnNlIgOQAgESZQoTR2V0UGxheWJhY2tTZXR0aW5ncxIjLm5hbWEudjEuR2V0UGxheWJhY2tTZXR0aW5nc1JlcXVlc3QaJC5uYW1hLnYxLkdldFBsYXliYWNrU2V0dGluZ3NSZXNwb25zZSIDkAIBEm4KFlVwZGF0ZVBsYXliYWNrU2V0dGluZ3MSJi5uYW1hLnYxLlVwZGF0ZVBsYXliYWNrU2V0dGluZ3NSZXF1ZXN0GicubmFtYS52MS5VcGRhdGVQbGF5YmFja1NldHRpbmdzUmVzcG9uc2UiA5ACAmIGcHJvdG8z", [file_nama_v1_playback]);
 
 /**
  * @generated from message nama.v1.GetServerInfoRequest
@@ -196,8 +196,8 @@ export type GetPlaybackStatusResponse = Message<"nama.v1.GetPlaybackStatusRespon
   ffprobeProblem: string;
 
   /**
-   * The hardware acceleration APIs that passed a test encode at startup. Empty without ffmpeg, a
-   * GPU, or an ffmpeg built for one.
+   * The hardware acceleration APIs that passed a test encode at startup, one per API and GPU, in the
+   * order Automatic prefers them. Empty without ffmpeg, a GPU, or an ffmpeg built for one.
    *
    * @generated from field: repeated nama.v1.FoundHardware hardware = 5;
    */
@@ -236,7 +236,7 @@ export const GetPlaybackStatusResponseSchema: GenMessage<GetPlaybackStatusRespon
   messageDesc(file_nama_v1_server, 8);
 
 /**
- * A hardware acceleration API that passed its test encode at startup.
+ * A hardware acceleration API that passed its test encode at startup, on one GPU.
  *
  * @generated from message nama.v1.FoundHardware
  */
@@ -247,6 +247,14 @@ export type FoundHardware = Message<"nama.v1.FoundHardware"> & {
    * @generated from field: nama.v1.HardwareAcceleration api = 1;
    */
   api: HardwareAcceleration;
+
+  /**
+   * The GPU it runs on. Unset where ffmpeg picks one: for NVENC, VideoToolbox, and VAAPI and QSV
+   * when the Server found no GPU.
+   *
+   * @generated from field: nama.v1.Gpu gpu = 5;
+   */
+  gpu?: Gpu | undefined;
 
   /**
    * Whether it also passed tone-mapping HDR to SDR on the GPU. `tone_mapping` says what
@@ -279,6 +287,34 @@ export const FoundHardwareSchema: GenMessage<FoundHardware> = /*@__PURE__*/
   messageDesc(file_nama_v1_server, 9);
 
 /**
+ * A GPU the Server found.
+ *
+ * @generated from message nama.v1.Gpu
+ */
+export type Gpu = Message<"nama.v1.Gpu"> & {
+  /**
+   * Its PCI address, such as `0000:03:00.0`, which stays the same across restarts.
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * Its name in plain words, such as "AMD Radeon RX 9070 XT" or "Intel integrated GPU".
+   *
+   * @generated from field: string name = 2;
+   */
+  name: string;
+};
+
+/**
+ * Describes the message nama.v1.Gpu.
+ * Use `create(GpuSchema)` to create a new message.
+ */
+export const GpuSchema: GenMessage<Gpu> = /*@__PURE__*/
+  messageDesc(file_nama_v1_server, 10);
+
+/**
  * A program the Server found and runs, such as ffmpeg.
  *
  * @generated from message nama.v1.FoundProgram
@@ -304,7 +340,7 @@ export type FoundProgram = Message<"nama.v1.FoundProgram"> & {
  * Use `create(FoundProgramSchema)` to create a new message.
  */
 export const FoundProgramSchema: GenMessage<FoundProgram> = /*@__PURE__*/
-  messageDesc(file_nama_v1_server, 10);
+  messageDesc(file_nama_v1_server, 11);
 
 /**
  * @generated from message nama.v1.GetPlaybackSettingsRequest
@@ -317,7 +353,7 @@ export type GetPlaybackSettingsRequest = Message<"nama.v1.GetPlaybackSettingsReq
  * Use `create(GetPlaybackSettingsRequestSchema)` to create a new message.
  */
 export const GetPlaybackSettingsRequestSchema: GenMessage<GetPlaybackSettingsRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_server, 11);
+  messageDesc(file_nama_v1_server, 12);
 
 /**
  * @generated from message nama.v1.GetPlaybackSettingsResponse
@@ -334,7 +370,7 @@ export type GetPlaybackSettingsResponse = Message<"nama.v1.GetPlaybackSettingsRe
  * Use `create(GetPlaybackSettingsResponseSchema)` to create a new message.
  */
 export const GetPlaybackSettingsResponseSchema: GenMessage<GetPlaybackSettingsResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_server, 12);
+  messageDesc(file_nama_v1_server, 13);
 
 /**
  * @generated from message nama.v1.UpdatePlaybackSettingsRequest
@@ -351,7 +387,7 @@ export type UpdatePlaybackSettingsRequest = Message<"nama.v1.UpdatePlaybackSetti
  * Use `create(UpdatePlaybackSettingsRequestSchema)` to create a new message.
  */
 export const UpdatePlaybackSettingsRequestSchema: GenMessage<UpdatePlaybackSettingsRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_server, 13);
+  messageDesc(file_nama_v1_server, 14);
 
 /**
  * @generated from message nama.v1.UpdatePlaybackSettingsResponse
@@ -370,7 +406,7 @@ export type UpdatePlaybackSettingsResponse = Message<"nama.v1.UpdatePlaybackSett
  * Use `create(UpdatePlaybackSettingsResponseSchema)` to create a new message.
  */
 export const UpdatePlaybackSettingsResponseSchema: GenMessage<UpdatePlaybackSettingsResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_server, 14);
+  messageDesc(file_nama_v1_server, 15);
 
 /**
  * What an admin sets about how the Server plays Versions it changes.
@@ -418,7 +454,7 @@ export type PlaybackSettings = Message<"nama.v1.PlaybackSettings"> & {
  * Use `create(PlaybackSettingsSchema)` to create a new message.
  */
 export const PlaybackSettingsSchema: GenMessage<PlaybackSettings> = /*@__PURE__*/
-  messageDesc(file_nama_v1_server, 15);
+  messageDesc(file_nama_v1_server, 16);
 
 /**
  * What tone-maps HDR to SDR in a Transcode.

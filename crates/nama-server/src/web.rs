@@ -37,6 +37,8 @@ fn content_type(path: &str) -> &'static str {
         Some("svg") => "image/svg+xml",
         Some("png") => "image/png",
         Some("ico") => "image/x-icon",
+        // `WebAssembly.instantiateStreaming` refuses any other.
+        Some("wasm") => "application/wasm",
         _ => "application/octet-stream",
     }
 }

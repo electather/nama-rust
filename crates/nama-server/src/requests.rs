@@ -39,7 +39,7 @@ use crate::{
     db::{BoxFuture, Database, detached, now},
     events::{EventBus, event},
     metadata::{self, MetadataSource},
-    plugins::{Answer, Registry},
+    plugins::{Answer, ExtensionPoints},
     qualities,
     users::User,
 };
@@ -106,7 +106,7 @@ pub(crate) struct Requests {
     /// What [`Self::apply`] publishes the changes its writes make on.
     events: EventBus,
     /// Where the Fulfillers are.
-    plugins: Registry,
+    plugins: ExtensionPoints,
     /// Its way to hand Requests to the Fulfillers.
     hand_off: HandOff,
     /// What the Fulfillers say they are downloading for the Requests they have.
@@ -130,19 +130,27 @@ pub(crate) struct Found<M> {
     pub(crate) request: Option<Request>,
 }
 
-/// A Show the metadata source has, as `S` holds it.
+/// A title a search found, which a Request can name by its TMDB id.
 #[derive(Debug)]
-pub(crate) struct FoundShow<S> {
+pub(crate) struct Hit {
+    pub(crate) tmdb_id: i64,
+    /// The Plugin whose metadata Provider found it, which its image paths are for.
+    pub(crate) plugin: PluginId,
+    pub(crate) candidate: Candidate,
+}
+
+/// A Show looked up in the metadata source, and how close it is to being on the Server.
+#[derive(Debug)]
+pub(crate) struct FoundShow {
     pub(crate) tmdb_id: i64,
     /// The Plugin whose metadata Provider gave the Show, which its image paths are for.
     pub(crate) plugin: PluginId,
-    pub(crate) show: S,
-    /// Its Seasons, in order, as the viewer sees them. Only a lookup fills them.
+    pub(crate) show: Show,
+    /// Its Seasons, in order, as the viewer sees them.
     pub(crate) seasons: Vec<FoundSeason>,
-    /// Its open Followed Show, if it has one the viewer may see. Only a lookup fills it.
+    /// Its open Followed Show, if it has one the viewer may see.
     pub(crate) followed_show: Option<FollowedShow>,
-    /// Its Quality, which each of its Season Requests takes, if it has one. Only a lookup fills
-    /// it.
+    /// Its Quality, which each of its Season Requests takes, if it has one.
     pub(crate) quality: Option<RequestedQuality>,
 }
 
@@ -279,7 +287,7 @@ pub(crate) fn visible_to(viewer: &User) -> Option<i64> {
 impl Requests {
     /// The Requests in `db`, looking titles up through the metadata Provider and handing Approved
     /// ones to the Fulfillers in `plugins`, publishing on `events`.
-    pub(crate) fn new(db: Arc<Database>, events: EventBus, plugins: Registry) -> Self {
+    pub(crate) fn new(db: Arc<Database>, events: EventBus, plugins: ExtensionPoints) -> Self {
         let progress = Progress::new(Arc::clone(&db), events.clone(), plugins.clone());
         Self {
             contents: Contents::new(Arc::clone(&db)),
@@ -849,7 +857,12 @@ impl Requests {
         let mut conn = self.db.reader().acquire().await?;
         let mut found = Vec::with_capacity(candidates.len());
         // ponytail: two queries per Movie found, which a search caps at a page of 20.
-        for (tmdb_id, plugin, candidate) in candidates {
+        for Hit {
+            tmdb_id,
+            plugin,
+            candidate,
+        } in candidates
+        {
             let movie = self
                 .look_around(&mut conn, viewer, tmdb_id, plugin, candidate)
                 .await?;
@@ -859,31 +872,12 @@ impl Requests {
     }
 
     /// The Shows the metadata source finds titled like `title`, best fit first.
-    pub(crate) async fn search_shows(
-        &self,
-        title: String,
-    ) -> Result<Vec<FoundShow<Candidate>>, Error> {
-        let candidates = self.find(TitleKind::Show, title).await?;
-        Ok(candidates
-            .into_iter()
-            .map(|(tmdb_id, plugin, show)| FoundShow {
-                tmdb_id,
-                plugin,
-                show,
-                seasons: Vec::new(),
-                followed_show: None,
-                quality: None,
-            })
-            .collect())
+    pub(crate) async fn search_shows(&self, title: String) -> Result<Vec<Hit>, Error> {
+        self.find(TitleKind::Show, title).await
     }
 
-    /// The titles of `kind` the metadata source finds titled like `title`, best fit first, each
-    /// with its TMDB id and the Plugin whose Provider found it.
-    async fn find(
-        &self,
-        kind: TitleKind,
-        title: String,
-    ) -> Result<Vec<(i64, PluginId, Candidate)>, Error> {
+    /// The titles of `kind` the metadata source finds titled like `title`, best fit first.
+    async fn find(&self, kind: TitleKind, title: String) -> Result<Vec<Hit>, Error> {
         let query = SearchQuery {
             kind,
             title,
@@ -898,7 +892,11 @@ impl Requests {
         Ok(candidates
             .into_iter()
             .filter_map(|candidate| match candidate.id {
-                ExternalId::Tmdb(tmdb_id) => Some((tmdb_id, plugin.clone(), candidate)),
+                ExternalId::Tmdb(tmdb_id) => Some(Hit {
+                    tmdb_id,
+                    plugin: plugin.clone(),
+                    candidate,
+                }),
                 ExternalId::Imdb(_) | ExternalId::Tvdb(_) => None,
             })
             .collect())
@@ -910,7 +908,7 @@ impl Requests {
         &self,
         viewer: &User,
         tmdb_id: i64,
-    ) -> Result<FoundShow<Show>, Error> {
+    ) -> Result<FoundShow, Error> {
         let (plugin, show) = self
             .metadata
             .show(&ExternalId::Tmdb(tmdb_id))
@@ -2576,7 +2574,7 @@ mod tests {
         db::Database,
         events::{EventBus, Filter},
         libraries::{Kind, Libraries},
-        plugins::{Answer, Failure, Registry},
+        plugins::{Answer, ExtensionPoints, Failure, Registry},
         qualities,
         scanner::Scanner,
         server_settings::ServerUrl,
@@ -2924,12 +2922,12 @@ mod tests {
         tmdb_ids: &[i64],
         fulfiller: Arc<dyn Fulfiller<Movies>>,
     ) -> (tempfile::TempDir, Requests) {
-        approved_on(Registry::new(), tmdb_ids, fulfiller).await
+        approved_on(&Registry::new(), tmdb_ids, fulfiller).await
     }
 
     /// [`approved_for`], with `plugins` enabled too, and `fulfiller` as the Fulfiller of `Kind`.
     async fn approved_on<Kind: 'static>(
-        plugins: Registry,
+        plugins: &Registry,
         tmdb_ids: &[i64],
         fulfiller: Arc<dyn Fulfiller<Kind>>,
     ) -> (tempfile::TempDir, Requests) {
@@ -2939,7 +2937,7 @@ mod tests {
         plugins
             .enable(Arc::new(FulfillerPlugin("gated", fulfiller)))
             .unwrap();
-        let requests = requests_on(db, plugins);
+        let requests = requests_on(db, plugins.extension_points());
         for &tmdb_id in tmdb_ids {
             ask_as(&requests, Permissions::ADMIN, tmdb_id).await;
         }
@@ -2947,7 +2945,7 @@ mod tests {
     }
 
     /// Requests in `db`, handing off to the Fulfillers in `plugins`.
-    fn requests_on(db: Arc<Database>, plugins: Registry) -> Requests {
+    fn requests_on(db: Arc<Database>, plugins: ExtensionPoints) -> Requests {
         let events = EventBus::new(Arc::clone(&db), plugins.clone(), ServerUrl::default());
         Requests::new(db, events, plugins)
     }
@@ -3233,6 +3231,7 @@ mod tests {
         plugins
             .enable(Arc::new(FulfillerPlugin("sonarr", fulfiller)))
             .unwrap();
+        let plugins = plugins.extension_points();
         let bus = EventBus::new(Arc::clone(&db), plugins.clone(), ServerUrl::default());
         let requests = Requests::new(Arc::clone(&db), bus.clone(), plugins);
         let season_1 = WantedSeasons {
@@ -3302,7 +3301,7 @@ mod tests {
     async fn a_fulfiller_coming_up_leaves_the_requests_an_ask_is_handing_off_to_it() {
         let gated = Arc::new(Gated::default());
         let fulfiller: Arc<dyn Fulfiller<Shows>> = Arc::<Gated>::clone(&gated);
-        let (_data, requests) = approved_on(Registry::new(), &[], fulfiller).await;
+        let (_data, requests) = approved_on(&Registry::new(), &[], fulfiller).await;
         let asking = requests.clone();
         let ask = tokio::spawn(async move {
             asking
@@ -3397,14 +3396,13 @@ mod tests {
         holding.await.unwrap().unwrap();
     }
 
-    /// Enables `tmdb` as the metadata Provider of `requests`.
-    fn enable_tmdb(requests: &Requests, tmdb: &FakeTmdb) {
+    /// Enables `tmdb` as the metadata Provider in `plugins`.
+    fn enable_tmdb(plugins: &Registry, tmdb: &FakeTmdb) {
         let settings = Settings::new(BTreeMap::from([(
             "api_key".to_owned(),
             SettingValue::Text(API_KEY.to_owned()),
         )]));
-        requests
-            .plugins
+        plugins
             .enable_with_settings(Arc::new(Tmdb::with_endpoints(tmdb.endpoints())), settings)
             .unwrap();
     }
@@ -3438,8 +3436,10 @@ mod tests {
     #[tokio::test]
     async fn an_auto_approved_movie_asked_for_by_a_caller_who_left_is_published_and_handed_off() {
         let tmdb = FakeTmdb::start().await;
-        let (_data, requests) = approved_for(&[], Arc::new(Asked::default())).await;
-        enable_tmdb(&requests, &tmdb);
+        let plugins = Registry::new();
+        enable_tmdb(&plugins, &tmdb);
+        let (_data, requests) =
+            approved_on::<Movies>(&plugins, &[], Arc::new(Asked::default())).await;
         let mut published = subscribe(&requests);
         let asking = requests.clone();
 
@@ -3512,8 +3512,10 @@ mod tests {
     async fn a_match_pinned_by_a_caller_who_left_publishes_it_and_the_request_it_made_available() {
         let tmdb = FakeTmdb::start().await;
         let folder = tempfile::tempdir().unwrap();
-        let (_data, requests) = approved_for(&[949], Arc::new(Asked::default())).await;
-        enable_tmdb(&requests, &tmdb);
+        let plugins = Registry::new();
+        enable_tmdb(&plugins, &tmdb);
+        let (_data, requests) =
+            approved_on::<Movies>(&plugins, &[949], Arc::new(Asked::default())).await;
         let root = folder.path().canonicalize().unwrap();
         let library = Libraries::new(Arc::clone(&requests.db))
             .create(
@@ -4407,7 +4409,7 @@ mod tests {
     #[tokio::test]
     async fn requesters_are_listed_in_the_order_they_asked() {
         let (_data, db) = ada_and_bob().await;
-        let requests = requests_on(Arc::clone(&db), Registry::new());
+        let requests = requests_on(Arc::clone(&db), ExtensionPoints::default());
 
         for kind in KINDS {
             let id = ask_kind(&db, kind, BOB).await.value;
@@ -4462,7 +4464,7 @@ mod tests {
     #[tokio::test]
     async fn joining_one_twice_changes_nothing() {
         let (_data, db) = ada_and_bob().await;
-        let requests = requests_on(Arc::clone(&db), Registry::new());
+        let requests = requests_on(Arc::clone(&db), ExtensionPoints::default());
 
         for kind in KINDS {
             let opened = ask_kind(&db, kind, ADA).await.value;
@@ -4486,7 +4488,7 @@ mod tests {
     #[tokio::test]
     async fn a_requester_leaving_takes_only_them_off() {
         let (_data, db) = ada_and_bob().await;
-        let requests = requests_on(Arc::clone(&db), Registry::new());
+        let requests = requests_on(Arc::clone(&db), ExtensionPoints::default());
         let bob = user(BOB, Permissions::from_iter([Permission::ViewRequests]));
 
         for kind in KINDS {
@@ -4514,7 +4516,7 @@ mod tests {
     #[tokio::test]
     async fn the_last_requester_leaving_removes_it() {
         let (_data, db) = ada_and_bob().await;
-        let requests = requests_on(Arc::clone(&db), Registry::new());
+        let requests = requests_on(Arc::clone(&db), ExtensionPoints::default());
 
         for kind in KINDS {
             let id = ask_kind(&db, kind, ADA).await.value;
@@ -4533,7 +4535,7 @@ mod tests {
     #[tokio::test]
     async fn a_non_requester_withdrawing_is_not_found_unless_they_may_see_it_even_once_approved() {
         let (_data, db) = ada_and_bob().await;
-        let requests = requests_on(Arc::clone(&db), Registry::new());
+        let requests = requests_on(Arc::clone(&db), ExtensionPoints::default());
         let viewer = user(BOB, Permissions::from_iter([Permission::ViewRequests]));
         let non_viewer = user(BOB, Permissions::from_iter([]));
 
@@ -4588,7 +4590,7 @@ mod tests {
     #[tokio::test]
     async fn only_a_pending_one_is_decided_and_declining_keeps_its_reason() {
         let (_data, db) = ada_and_bob().await;
-        let requests = requests_on(Arc::clone(&db), Registry::new());
+        let requests = requests_on(Arc::clone(&db), ExtensionPoints::default());
 
         for kind in KINDS {
             let declined = ask_kind(&db, kind, ADA).await.value;
@@ -4621,7 +4623,7 @@ mod tests {
     #[tokio::test]
     async fn only_its_requesters_and_those_who_may_view_requests_see_one() {
         let (_data, db) = ada_and_bob().await;
-        let requests = requests_on(Arc::clone(&db), Registry::new());
+        let requests = requests_on(Arc::clone(&db), ExtensionPoints::default());
         let nothing = Permissions::from_iter([]);
         let view_requests = Permissions::from_iter([Permission::ViewRequests]);
 
@@ -4640,7 +4642,7 @@ mod tests {
     #[tokio::test]
     async fn the_pending_count_is_as_many_as_the_pending_list_shows() {
         let (_data, db) = ada_and_bob().await;
-        let requests = requests_on(Arc::clone(&db), Registry::new());
+        let requests = requests_on(Arc::clone(&db), ExtensionPoints::default());
         ask_for(&db, ADA, 949, RequestState::Pending).await;
         ask_for(&db, ADA, 603, RequestState::Approved).await;
         follow_as(&db, ADA, dark(), RequestState::Pending).await;
@@ -4717,7 +4719,7 @@ mod tests {
             .enable(Arc::new(FulfillerPlugin("shows", fulfiller)))
             .unwrap();
         let (data, requests) =
-            approved_on::<Movies>(plugins, &[], Arc::new(Asked::default())).await;
+            approved_on::<Movies>(&plugins, &[], Arc::new(Asked::default())).await;
         let followed = follow_as(&requests.db, ADA, dark(), RequestState::Approved).await;
         let id = followed.value.0.id;
         (data, requests, unfollowing, id)
