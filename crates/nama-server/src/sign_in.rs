@@ -2,6 +2,8 @@
 //! past the sign-in limits, checks its proof or the Setup Code and has [`Users`] issue the session,
 //! in that order. Sign-in Codes go through it too. Reauthenticating follows the same order, giving
 //! an existing Device Recent Authentication in place of a session.
+//!
+//! Guessable requests go through it (the crate's `AGENTS.md`, "Guessable requests").
 
 use std::{net::IpAddr, time::Instant};
 
@@ -19,7 +21,7 @@ pub(crate) struct SignIn {
     setup_code: Option<SetupCode>,
     /// The recent failed attempts of Setup, signing in and Reauthenticate alike, so they share one
     /// limit per client IP.
-    pub(crate) limits: SignInLimits,
+    limits: SignInLimits,
     codes: SignInCodes,
     /// The recent failed Sign-in Code lookups and approvals, which slow guessing codes down.
     code_limits: SignInCodeLimits,
