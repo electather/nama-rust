@@ -121,7 +121,7 @@ function ffmpegLacksLibx264({ ffmpeg, hasLibx264 }: GetPlaybackStatusResponse) {
 
 function whatHardwareIsFor(lacksLibx264: boolean) {
   return lacksLibx264
-    ? "What passed its test, though no Transcode runs on it, or in software, until the Server’s ffmpeg has libx264."
+    ? "The hardware below passed its test, but no Transcode runs on it, or in software, until the Server’s ffmpeg has libx264."
     : "What Transcodes can run on besides software.";
 }
 
