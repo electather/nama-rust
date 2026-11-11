@@ -10,4 +10,4 @@ The `.proto` files in `proto/` are the single source of truth. Buf generates the
 ## Consequences
 
 - `connectrpc` is pre-1.0, which is a known risk.
-- Protobuf field-number rules make backward compatibility something every change has to consider.
+- Protobuf field-number rules make backward compatibility something every change has to consider. A change that breaks it on purpose declares the break (ADR 0032).

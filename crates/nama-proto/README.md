@@ -42,3 +42,15 @@ buf generate
 ```
 
 `buf generate` empties `src/generated/` before writing to it, so deleted protos leave nothing behind. When you upgrade `connectrpc` or `buffa` in `Cargo.toml`, upgrade the plugins to the same minor version and regenerate.
+
+## Breaking the schema on purpose
+
+CI runs `buf breaking` against main and fails a change that breaks the schema, such as changing a field's type or moving it into a oneof. To make such a change on purpose, add an entry to the top of [`proto/BREAKING.md`](../../proto/BREAKING.md) in the same change, holding what the top of that file lists. CI then prints the breaks and passes (ADR 0032).
+
+To see what CI will report, run from the repo root:
+
+```sh
+.github/scripts/buf-breaking.sh origin/main
+```
+
+It prints each break by file, and passes once the entry is there. For each break's rule, which the entry names, run `buf breaking --against '../.git#ref=origin/main,subdir=proto' --error-format json` in `proto/` and read `type`.
