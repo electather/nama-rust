@@ -1201,8 +1201,8 @@ fn network(facts: &Facts, _: Option<&Candidates>) -> Vec<Reason> {
                 Kind::PLAYBACK_REASON_KIND_REMOTE_DEFAULT_LIMIT,
                 limit,
                 format!(
-                    "This Device is outside the local network, so the default Playback Limit for \
-                     remote playback, {}, applies",
+                    "This Device is outside the local network, so it asks for the default \
+                     Playback Limit for remote playback, {}",
                     limit.name
                 ),
             )]
@@ -4015,6 +4015,22 @@ echo '{"streams": [{"codec_name": "h264", "codec_type": "video"},
                 assert_eq!(too_busy_to_play(facts), None, "{case}");
             }
         }
+    }
+
+    #[test]
+    fn the_remote_default_s_text_holds_when_the_limit_is_dropped() {
+        let mut facts = direct_played();
+        remote_at_720p(&mut facts);
+        without_ffmpeg(&mut facts);
+
+        let plan = build(&mut facts);
+
+        reason_of(&plan, Kind::PLAYBACK_REASON_KIND_PLAYBACK_LIMIT_DROPPED);
+        assert_eq!(
+            reason_of(&plan, Kind::PLAYBACK_REASON_KIND_REMOTE_DEFAULT_LIMIT).text,
+            "This Device is outside the local network, so it asks for the default Playback \
+             Limit for remote playback, 720p"
+        );
     }
 
     #[test]
