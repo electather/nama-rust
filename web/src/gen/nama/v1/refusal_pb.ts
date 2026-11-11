@@ -454,7 +454,7 @@ export const RefusalReason = {
   /**
    * `failed_precondition`: the Server refused the Plugin, such as an Installed Plugin built for
    * another Nama API version, so it can't be enabled. The message says why. Params: `pluginId`,
-   * `reason` (in plain words, as `Plugin.refused_reason`).
+   * `reason` (in plain words, as `PluginSummary.refused_reason`).
    *
    * @generated from enum value: REFUSAL_REASON_PLUGIN_REFUSED = 52;
    */

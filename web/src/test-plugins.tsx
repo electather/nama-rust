@@ -132,41 +132,43 @@ const plugins = [
   },
 ];
 
+/** What `ListPlugins` lists of one of `plugins`, and its `Plugin` holds. */
+function summaryOf({
+  id,
+  name = "",
+  description = "",
+  version,
+  kind,
+  enabled,
+  refusedReason = "",
+  settingsMissing = false,
+  extensionPoints = [],
+  logoSvg = "",
+}: (typeof plugins)[number]) {
+  return {
+    id,
+    name,
+    description,
+    version,
+    kind,
+    enabled,
+    refusedReason,
+    settingsMissing,
+    extensionPoints,
+    logoSvg,
+  };
+}
+
 /** A fake Server that lists `plugins`, gets each by id, and answers other calls with `changes`. */
 function pluginServer(changes: Partial<ServiceImpl<typeof PluginService>>) {
   return fakeServer({ signedIn: [Permission.MANAGE_SETTINGS] }, {}, {}, (router) => {
     router.service(PluginService, {
-      listPlugins: () => ({
-        summaries: plugins.map(
-          ({
-            id,
-            name = "",
-            description = "",
-            version,
-            kind,
-            enabled,
-            refusedReason = "",
-            settingsMissing = false,
-            extensionPoints = [],
-            logoSvg = "",
-          }) => ({
-            id,
-            name,
-            description,
-            version,
-            kind,
-            enabled,
-            refusedReason,
-            settingsMissing,
-            extensionPoints,
-            logoSvg,
-          }),
-        ),
-      }),
+      listPlugins: () => ({ summaries: plugins.map((listed) => summaryOf(listed)) }),
       getPlugin: ({ id }) => {
         const found = plugins.find((listed) => listed.id === id);
         if (!found) throw new ConnectError(`there is no Plugin ${id}`, Code.NotFound);
-        return { plugin: found };
+        // Sending it drops what `Plugin` has no field for: those are the summary's.
+        return { plugin: { ...found, summary: summaryOf(found) } };
       },
       ...changes,
     });

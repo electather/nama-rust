@@ -8,7 +8,6 @@ import { AddQuality, QualityFields } from "@/components/quality-fields";
 import {
   type Choice,
   ExtensionPoint,
-  type Plugin,
   PluginService,
   type Quality,
   QualitySchema,
@@ -16,15 +15,15 @@ import {
 } from "@/gen/nama/v1/plugin_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { formText, onSubmitted, refusal, refusalOf, serverMessage } from "@/lib/forms";
-import { pluginName } from "@/lib/plugins";
+import { type PluginDetails, pluginName } from "@/lib/plugins";
 
 /** The choice setting whose choices a Fulfiller's Qualities offer (`qualities.rs` on the Server). */
 const qualityProfile = "quality_profile";
 
 /** Whether `plugin` takes Qualities: a Fulfiller with the `quality_profile` choice setting. */
-function takesQualities(plugin: Plugin) {
+function takesQualities(plugin: PluginDetails) {
   return (
-    plugin.extensionPoints.some(
+    plugin.summary.extensionPoints.some(
       (point) =>
         point === ExtensionPoint.MOVIE_FULFILLER || point === ExtensionPoint.SHOW_FULFILLER,
     ) &&
@@ -49,20 +48,20 @@ function keyed(qualities: Quality[]): Row[] {
  * as its settings check offers them on the stored settings, under friendly names. Nothing for a
  * Plugin that takes none.
  */
-export function PluginQualities({ plugin }: { plugin: Plugin }) {
+export function PluginQualities({ plugin }: { plugin: PluginDetails }) {
   return takesQualities(plugin) && <QualitiesSection plugin={plugin} />;
 }
 
-function QualitiesSection({ plugin }: { plugin: Plugin }) {
-  const listed = useQuery(PluginService.method.listQualities, { id: plugin.id });
+function QualitiesSection({ plugin }: { plugin: PluginDetails }) {
+  const listed = useQuery(PluginService.method.listQualities, { id: plugin.summary.id });
   return (
     <section aria-labelledby="qualities" className="mt-10">
       <h2 id="qualities" className="font-medium">
         Qualities
       </h2>
       <p className="mt-1 max-w-prose text-sm text-pretty text-muted-foreground">
-        What Requests are downloaded at: {pluginName(plugin)}’s quality profiles under names you
-        choose. A new Request gets the default. With none, the Quality profile setting applies.
+        What Requests are downloaded at: {pluginName(plugin.summary)}’s quality profiles under names
+        you choose. A new Request gets the default. With none, the Quality profile setting applies.
       </p>
       {listed.data ? (
         <QualitiesForm plugin={plugin} saved={listed.data.qualities} />
@@ -75,7 +74,7 @@ function QualitiesSection({ plugin }: { plugin: Plugin }) {
   );
 }
 
-function QualitiesForm({ plugin, saved }: { plugin: Plugin; saved: Quality[] }) {
+function QualitiesForm({ plugin, saved }: { plugin: PluginDetails; saved: Quality[] }) {
   const [rows, setRows] = useState(() => keyed(saved));
   const queryClient = useQueryClient();
   const replace = useMutation(PluginService.method.replaceQualities, {
@@ -90,7 +89,7 @@ function QualitiesForm({ plugin, saved }: { plugin: Plugin; saved: Quality[] }) 
     <form
       className="mt-4 flex max-w-md flex-col gap-5"
       onSubmit={onSubmitted((typed) => {
-        replace.mutate({ id: plugin.id, qualities: qualitiesTyped(typed, rows) });
+        replace.mutate({ id: plugin.summary.id, qualities: qualitiesTyped(typed, rows) });
       })}
     >
       <p role="alert" className="text-sm text-destructive empty:hidden">
@@ -131,12 +130,12 @@ function QualitiesForm({ plugin, saved }: { plugin: Plugin; saved: Quality[] }) 
  * failed, and a flag under each of `rows` whose profile it doesn't offer. A secret isn't sent, so
  * the Server uses the stored one.
  */
-function useProfiles(plugin: Plugin, rows: Row[]) {
+function useProfiles(plugin: PluginDetails, rows: Row[]) {
   const stored = Object.fromEntries(
     plugin.settings.flatMap(({ key, value }) => (value ? [[key, value]] : [])),
   );
   const offered = useQuery(PluginService.method.testPluginSettings, {
-    id: plugin.id,
+    id: plugin.summary.id,
     settings: stored,
   });
   const profiles = offered.data?.choices[qualityProfile]?.choices;
@@ -145,12 +144,12 @@ function useProfiles(plugin: Plugin, rows: Row[]) {
     gone: profilesGone(rows, profiles, plugin),
     unoffered:
       offered.error &&
-      `Couldn’t get ${pluginName(plugin)}’s quality profiles: ${serverMessage(offered.error)}`,
+      `Couldn’t get ${pluginName(plugin.summary)}’s quality profiles: ${serverMessage(offered.error)}`,
   };
 }
 
 /** A flag under each of `rows` whose saved profile `plugin` doesn't offer now, as `profiles` says. */
-function profilesGone(rows: Row[], profiles: Choice[] | undefined, plugin: Plugin) {
+function profilesGone(rows: Row[], profiles: Choice[] | undefined, plugin: PluginDetails) {
   if (profiles === undefined) return {};
   const gone = rows.filter(
     ({ quality: { profileId } }) =>
@@ -174,7 +173,7 @@ function qualitiesTyped(typed: FormData, rows: Row[]) {
 function qualityErrors(
   error: unknown,
   rows: Row[],
-  plugin: Plugin,
+  plugin: PluginDetails,
 ): Record<string, string | undefined> {
   const { reason, field } = refusalOf(error);
   const named = refusedInput(field, rows);
@@ -206,7 +205,7 @@ function formRefused(error: unknown) {
 
 /** Why the Server refused a Quality's name or profile, by its Refusal's reason. */
 function inputRefused(
-  plugin: Plugin,
+  plugin: PluginDetails,
 ): Record<"name" | "profile", Partial<Record<RefusalReason, string>>> {
   return {
     name: { [RefusalReason.QUALITY_REPEATED]: "Another Quality has this name." },
@@ -217,6 +216,6 @@ function inputRefused(
   };
 }
 
-function notOffered(plugin: Plugin) {
-  return `${pluginName(plugin)} doesn’t offer this profile now.`;
+function notOffered(plugin: PluginDetails) {
+  return `${pluginName(plugin.summary)} doesn’t offer this profile now.`;
 }

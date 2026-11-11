@@ -141,7 +141,7 @@ pub enum RefusalReason {
     REFUSAL_REASON_NOT_A_FOLLOWED_SHOW_REQUESTER = 51i32,
     /// `failed_precondition`: the Server refused the Plugin, such as an Installed Plugin built for
     /// another Nama API version, so it can't be enabled. The message says why. Params: `pluginId`,
-    /// `reason` (in plain words, as `Plugin.refused_reason`).
+    /// `reason` (in plain words, as `PluginSummary.refused_reason`).
     REFUSAL_REASON_PLUGIN_REFUSED = 52i32,
     /// `invalid_argument`: the field isn't an http or https URL with a host, or has a query or fragment
     /// where links are added to its end.

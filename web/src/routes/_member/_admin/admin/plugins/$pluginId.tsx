@@ -7,10 +7,10 @@ import { PluginQualities } from "@/components/plugin-qualities";
 import { PluginSettings } from "@/components/plugin-settings";
 import { PluginToggle } from "@/components/plugin-toggle";
 import { NotFound } from "@/components/route-error";
-import { type Plugin, PluginService } from "@/gen/nama/v1/plugin_pb";
+import { PluginService } from "@/gen/nama/v1/plugin_pb";
 import { queryOrNotFound } from "@/lib/browse";
 // oxlint-disable-next-line import/max-dependencies -- the page puts together a section per part of a Plugin's setup: settings, Qualities
-import { kindAndVersion, pluginName } from "@/lib/plugins";
+import { hasSummary, kindAndVersion, type PluginDetails, pluginName } from "@/lib/plugins";
 
 export const Route = createFileRoute("/_member/_admin/admin/plugins/$pluginId")({
   loader: ({ context, params }) =>
@@ -22,37 +22,38 @@ export const Route = createFileRoute("/_member/_admin/admin/plugins/$pluginId")(
 function PluginPage() {
   const { pluginId } = Route.useParams();
   const { plugin } = useSuspenseQuery(PluginService.method.getPlugin, { id: pluginId }).data;
-  if (!plugin) throw notFound();
+  if (!hasSummary(plugin)) throw notFound();
+  const { summary } = plugin;
   return (
-    <Page heading={pluginName(plugin)}>
+    <Page heading={pluginName(summary)}>
       <div className="mt-3 flex items-center gap-3">
-        <PluginLogo plugin={plugin} />
+        <PluginLogo plugin={summary} />
         <p className="text-sm text-muted-foreground">
-          <span>{plugin.id}</span> · <span>{kindAndVersion(plugin)}</span>
+          <span>{summary.id}</span> · <span>{kindAndVersion(summary)}</span>
         </p>
       </div>
-      {plugin.description !== "" && (
-        <p className="mt-3 max-w-prose text-pretty">{plugin.description}</p>
+      {summary.description !== "" && (
+        <p className="mt-3 max-w-prose text-pretty">{summary.description}</p>
       )}
-      <ExtensionPoints extensionPoints={plugin.extensionPoints} />
+      <ExtensionPoints extensionPoints={summary.extensionPoints} />
       <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2">
-        <PluginToggle plugin={plugin} />
+        <PluginToggle summary={summary} settings={plugin.settings} />
       </div>
-      {plugin.refusedReason === "" ? (
+      {summary.refusedReason === "" ? (
         <>
           <Settings plugin={plugin} />
           <PluginQualities plugin={plugin} />
         </>
       ) : (
         <p className="mt-6 max-w-prose text-sm text-pretty text-muted-foreground">
-          The Server can’t run it: {plugin.refusedReason}.
+          The Server can’t run it: {summary.refusedReason}.
         </p>
       )}
     </Page>
   );
 }
 
-function Settings({ plugin }: { plugin: Plugin }) {
+function Settings({ plugin }: { plugin: PluginDetails }) {
   return (
     <section aria-labelledby="settings" className="mt-10">
       <h2 id="settings" className="font-medium">

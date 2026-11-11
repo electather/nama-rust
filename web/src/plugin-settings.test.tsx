@@ -19,7 +19,7 @@ function openToSave(id: string) {
     openPlugin(id, {
       updatePluginSettings: (request) => {
         resolve(request);
-        return { plugin: { id, enabled: true } };
+        return { plugin: { summary: { id, enabled: true } } };
       },
     });
   });

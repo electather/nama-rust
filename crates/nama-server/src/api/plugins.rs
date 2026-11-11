@@ -68,11 +68,10 @@ impl PluginService for PluginServiceHandler {
         request: ServiceRequest<'_, GetPluginRequest>,
     ) -> ServiceResult<GetPluginResponse> {
         // Doesn't read `plugins/` again as listing does: the details page opens from the list.
-        // A refused Plugin has no settings schema, so it comes with none.
         let StoredPlugin { plugin, stored } =
             self.known(&PluginId::from(request.id.to_owned())).await?;
         Response::ok(GetPluginResponse {
-            plugin: plugin_to_proto(plugin, &stored.settings).into(),
+            plugin: plugin_to_proto(plugin, stored.settings).into(),
             ..Default::default()
         })
     }
@@ -90,7 +89,7 @@ impl PluginService for PluginServiceHandler {
             .await
             .map_err(change_refused)?;
         Response::ok(UpdatePluginSettingsResponse {
-            plugin: plugin_to_proto(plugin, &stored.settings).into(),
+            plugin: plugin_to_proto(plugin, stored.settings).into(),
             ..Default::default()
         })
     }
@@ -347,26 +346,19 @@ fn plugin_summary_to_proto(
 
 fn plugin_to_proto(
     plugin: Listed,
-    stored: &BTreeMap<String, settings::SettingValue>,
+    stored: BTreeMap<String, settings::SettingValue>,
 ) -> proto::Plugin {
-    let (manifest, refused_reason) = manifest_and_refusal(&plugin.id, plugin.manifest);
+    // A refused Plugin has no settings schema, so it comes with none.
+    let settings = plugin
+        .manifest
+        .iter()
+        .flat_map(|manifest| &manifest.settings.fields)
+        .map(|field| setting_to_proto(field, stored.get(&field.key)))
+        .collect();
     proto::Plugin {
-        id: plugin.id.to_string(),
-        name: manifest.name,
-        description: manifest.description,
-        version: manifest.version,
-        kind: plugin.kind.into(),
-        refused_reason,
-        enabled: plugin.enabled,
         checks_settings: plugin.checks_settings,
-        extension_points: extension_points_to_proto(&manifest.extension_points),
-        logo_svg: manifest.logo_svg.unwrap_or_default(),
-        settings: manifest
-            .settings
-            .fields
-            .iter()
-            .map(|field| setting_to_proto(field, stored.get(&field.key)))
-            .collect(),
+        settings,
+        summary: plugin_summary_to_proto(plugin, stored).into(),
         ..Default::default()
     }
 }

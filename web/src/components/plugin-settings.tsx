@@ -7,22 +7,22 @@ import { ChoiceInput, TestButton, testPassed, useSettingsTest } from "@/componen
 import { Button } from "@/components/ui/button";
 import {
   type Choice,
-  type Plugin,
   PluginService,
+  type PluginSummary,
   type Setting,
   SettingKind,
   type SettingValue,
 } from "@/gen/nama/v1/plugin_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { formText, onSubmitted, refusal, refusalOf, serverMessage } from "@/lib/forms";
-import { pluginsKey } from "@/lib/plugins";
+import { type PluginDetails, pluginsKey } from "@/lib/plugins";
 
 /**
  * The form an Admin changes `plugin`'s settings with, checked against its schema as they type. A
  * Plugin with a settings check can test what was typed, which offers the choices for its choice
  * settings.
  */
-export function PluginSettings({ plugin }: { plugin: Plugin }) {
+export function PluginSettings({ plugin }: { plugin: PluginDetails }) {
   const queryClient = useQueryClient();
   const update = useMutation(PluginService.method.updatePluginSettings, {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: pluginsKey }),
@@ -35,7 +35,7 @@ export function PluginSettings({ plugin }: { plugin: Plugin }) {
       className="mt-4 flex max-w-md flex-col gap-5"
       onSubmit={onSubmitted((typed) => {
         test.reset();
-        update.mutate({ id: plugin.id, settings: settingsTyped(typed, plugin.settings) });
+        update.mutate({ id: plugin.summary.id, settings: settingsTyped(typed, plugin.settings) });
       })}
     >
       {plugin.settings.map((setting) => (
@@ -51,7 +51,7 @@ export function PluginSettings({ plugin }: { plugin: Plugin }) {
         action={update.isPending ? "Saving…" : "Save"}
         variant="ghost"
         pending={update.isPending}
-        done={update.isSuccess ? saved(update.data.plugin) : testPassed(test.isSuccess)}
+        done={update.isSuccess ? saved(update.data.plugin?.summary) : testPassed(test.isSuccess)}
         refusal={errors["form"]}
       >
         <TestButton
@@ -59,7 +59,7 @@ export function PluginSettings({ plugin }: { plugin: Plugin }) {
           pending={test.isPending}
           onTest={(typed) => {
             update.reset();
-            test.mutate({ id: plugin.id, settings: settingsTyped(typed, plugin.settings) });
+            test.mutate({ id: plugin.summary.id, settings: settingsTyped(typed, plugin.settings) });
           }}
         />
       </FormEnd>
@@ -253,9 +253,9 @@ const settingRefused: Partial<Record<RefusalReason, string>> = {
     "The Plugin doesn’t offer this choice now. Test the settings and pick again.",
 };
 
-/** What saving did, by whether `plugin` runs with the new settings now. */
-function saved(plugin: Plugin | undefined) {
-  return plugin?.enabled === true
+/** What saving did, by whether the Plugin `summary` runs with the new settings now. */
+function saved(summary: PluginSummary | undefined) {
+  return summary?.enabled === true
     ? "Saved, and in use now."
     : "Saved. They’re used once the Plugin is enabled.";
 }
