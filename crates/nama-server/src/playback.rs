@@ -32,7 +32,10 @@ use tower_http::services::ServeFile;
 
 use crate::{
     contents::Contents,
-    ffmpeg::{BurnIn, Ffmpeg, Hardware, ProbeError, ToneMapper, VideoConversion, VideoLimit},
+    ffmpeg::{
+        BurnIn, Ffmpeg, Hardware, ProbeError, Remux, RemuxAudio, ToneMapper, Transcode,
+        TranscodeAudio, VideoConversion, VideoLimit,
+    },
     probing::{self, Probing},
     server_settings::{HardwareChoice, PlaybackValues},
     tracks::{Hdr, Probe, Track, TrackKind, Tracks, track_to_proto},
@@ -269,14 +272,11 @@ pub(crate) async fn plan(
     // only Direct Play.
     let started = match (plan.method, &facts.probe) {
         (Some(Method::Remux), Some(probed)) => {
-            let (played, aac) = (played_audio(&facts), channels_as_aac(plan.method, &facts));
-            running.remux(playback, probed, played, aac).await?
+            running.remux(playback, probed, remux(&facts)).await?
         }
         (Some(Method::Transcode), Some(probed)) => {
-            let converted_audio = played_audio(&facts).zip(channels_as_aac(plan.method, &facts));
-            let video = video_conversion(&facts);
             running
-                .transcode(playback, probed, converted_audio, video, facts.zscale)
+                .transcode(playback, probed, transcode(&facts), facts.zscale)
                 .await?
         }
         _ => {
@@ -668,6 +668,30 @@ fn video_conversion(facts: &Facts) -> VideoConversion {
         burn_in: burn_in(facts),
         // Hardware may fail, and software carry on after its init segment.
         in_band_headers: hardware.is_some(),
+    }
+}
+
+/// What a Remux for `facts` converts.
+fn remux(facts: &Facts) -> Remux {
+    let audio = played_audio(facts).map(|track| RemuxAudio {
+        track,
+        aac_channels: aac_channels(facts),
+    });
+    Remux { audio }
+}
+
+/// What a Transcode for `facts` converts.
+fn transcode(facts: &Facts) -> Transcode {
+    let audio =
+        (played_audio(facts).zip(converted_channels(facts))).map(|(track, aac_channels)| {
+            TranscodeAudio {
+                track,
+                aac_channels,
+            }
+        });
+    Transcode {
+        audio,
+        video: video_conversion(facts),
     }
 }
 
