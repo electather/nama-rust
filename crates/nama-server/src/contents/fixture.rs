@@ -79,6 +79,11 @@ pub(crate) async fn decide(
     let file = contents.files(library).await.unwrap();
     let file = file.into_iter().find(|file| file.path == path).unwrap();
     let items: Vec<_> = file.items.iter().map(|stored| stored.id).collect();
+    assert_eq!(
+        items.len(),
+        decided.len(),
+        "one decision per Item of {path}"
+    );
     let decisions: Vec<_> = items.iter().copied().zip(decided).collect();
     contents.record(decisions).await.unwrap();
     (version, items)

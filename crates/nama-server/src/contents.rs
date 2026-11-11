@@ -2265,7 +2265,7 @@ mod tests {
     }
 
     /// What TMDB says of the Movie `tmdb`, called `title` and released on `release_date`.
-    fn movie_match(tmdb: i64, title: &str, release_date: &str) -> Metadata {
+    fn released_movie(tmdb: i64, title: &str, release_date: &str) -> Metadata {
         Metadata {
             release_date: Some(release_date.to_owned()),
             ..tmdb_movie(tmdb, title)
@@ -2277,7 +2277,7 @@ mod tests {
         /// `release_date`. Returns the Item's id.
         async fn match_movie(&self, tmdb: i64, title: &str, release_date: &str) -> i64 {
             let path = format!("/media/{tmdb}.mkv");
-            let matched = movie_match(tmdb, title, release_date);
+            let matched = released_movie(tmdb, title, release_date);
             MatchedMovie::store(&self.contents, self.library, &path, matched)
                 .await
                 .item
@@ -2428,7 +2428,7 @@ mod tests {
         let fx = Fixture::new().await;
         let item = fx.match_movie(949, "Heat", "1995-12-15").await;
 
-        let ronin = Decided::Matched(Box::new(movie_match(8195, "Ronin", "1998-09-25")));
+        let ronin = Decided::Matched(Box::new(released_movie(8195, "Ronin", "1998-09-25")));
         fx.contents.record(vec![(item, ronin)]).await.unwrap();
 
         assert_eq!(fx.found_movies("heat").await, Vec::<String>::new());
