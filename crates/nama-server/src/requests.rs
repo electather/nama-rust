@@ -1258,7 +1258,8 @@ impl<'a> Asker<'a> {
     }
 
     /// Records that the Followed Show this way asks for covers the Season `season` from then on,
-    /// so one it opened and someone declined, cancelled or withdrew from isn't opened again.
+    /// so one it opened or joined and someone declined, cancelled or withdrew from isn't opened
+    /// again.
     async fn cover(&self, conn: &mut SqliteConnection, season: u32) -> Result<(), sqlx::Error> {
         if let Some(followed_show) = self.followed_show() {
             // Joining may ask for a Season before the latest one covered, which stays covered.
