@@ -133,21 +133,22 @@ test("an ffmpeg without zscale makes the Playback page say it can’t tone-map H
   expect(screen.queryByText(/Tone-maps HDR to SDR in software/u)).toBeNull();
 });
 
-test("without ffmpeg the Playback page says only that the Server can only Direct Play", async () => {
-  openApp(
-    "/admin/playback",
-    fakeServer({
-      signedIn: admin,
-      serverService: {
-        getPlaybackStatus: () => ({ ffmpegProblem: "ffmpeg wasn't found on PATH" }),
-      },
-    }),
-  );
+test.each([
+  ["ffmpeg", { ffmpegProblem: "ffmpeg wasn't found on PATH" }],
+  ["ffprobe", { ffmpeg: ffmpegFound.ffmpeg, ffprobeProblem: "ffprobe wasn't found on PATH" }],
+])(
+  "without %s the Playback page says it can only Direct Play, not what ffmpeg lacks",
+  async (_missing, status) => {
+    openApp(
+      "/admin/playback",
+      fakeServer({ signedIn: admin, serverService: { getPlaybackStatus: () => status } }),
+    );
 
-  expect(await screen.findByText(/can only Direct Play/u)).toBeDefined();
-  expect(screen.queryByText(/libx264/u)).toBeNull();
-  expect(screen.queryByText(/zscale/u)).toBeNull();
-});
+    expect(await screen.findByText(/can only Direct Play/u)).toBeDefined();
+    expect(screen.queryByText(/libx264/u)).toBeNull();
+    expect(screen.queryByText(/zscale/u)).toBeNull();
+  },
+);
 
 test("a User who manages settings but isn’t an Admin can’t open the Playback page", async () => {
   openApp("/admin/playback", fakeServer({ signedIn: [Permission.MANAGE_SETTINGS] }));

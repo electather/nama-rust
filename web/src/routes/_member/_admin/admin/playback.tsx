@@ -37,13 +37,14 @@ function Playback() {
         can’t play it, it needs ffmpeg and ffprobe, which it looks for when it starts: at the paths
         set in its config file, or else on the PATH.
       </p>
-      {(ffmpeg === undefined || ffprobe === undefined) && (
+      {ffmpeg === undefined || ffprobe === undefined ? (
         <p className="mt-4 max-w-prose text-pretty">
           Without them it can only Direct Play. Install ffmpeg, which comes with ffprobe, or set
           their paths in the config file, then restart the Server.
         </p>
+      ) : (
+        <MissingFromFfmpeg status={status} />
       )}
-      {ffmpeg !== undefined && <MissingFromFfmpeg status={status} />}
       <AdminList>
         <ProgramRow name="ffmpeg" found={ffmpeg} problem={ffmpegProblem} />
         <ProgramRow name="ffprobe" found={ffprobe} problem={ffprobeProblem} />

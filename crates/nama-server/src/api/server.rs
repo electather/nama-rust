@@ -106,6 +106,7 @@ impl ServerService for ServerServiceHandler {
                 ..Default::default()
             })
             .collect();
+        // Asked together, as planning asks them, so a busy host waits out one listing's timeout.
         let (has_libx264, has_zscale) = tokio::join!(
             self.running.can_encode_in_software(),
             self.running.can_tone_map()
