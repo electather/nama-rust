@@ -924,8 +924,9 @@ fn parse_probe(json: &[u8]) -> Result<Probe, serde_json::Error> {
     let format = output.format;
     // An AVI written to a pipe can't go back to fill in its header, which keeps ffmpeg's
     // placeholder frame counts, and ffprobe works its duration out from those.
-    let header_unfilled = (output.streams.iter())
-        .any(|stream| stream.nb_frames.as_deref() == Some(AVI_PLACEHOLDER_FRAMES));
+    let header_unfilled = format.format_name == "avi"
+        && (output.streams.iter())
+            .any(|stream| stream.nb_frames.as_deref() == Some(AVI_PLACEHOLDER_FRAMES));
     Ok(Probe {
         container: format.format_name,
         duration_ms: (format.duration.as_deref())
@@ -2233,6 +2234,17 @@ mod probe_output_tests {
 
         assert_eq!(avi_with("1073741824"), None);
         assert_eq!(avi_with("68793"), Some(2_866_375));
+    }
+
+    #[test]
+    fn only_an_avi_reads_the_placeholder_frame_count_as_unfilled() {
+        let json = r#"{"format": {"format_name": "matroska,webm", "duration": "2.000000"},
+            "streams": [{"codec_type": "video", "nb_frames": "1073741824"}]}"#;
+
+        assert_eq!(
+            parse_probe(json.as_bytes()).unwrap().duration_ms,
+            Some(2000)
+        );
     }
 
     #[test]
