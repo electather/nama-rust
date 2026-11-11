@@ -87,8 +87,8 @@ function HardwareSection({ status }: { status: GetPlaybackStatusResponse }) {
         Hardware acceleration
       </h2>
       <p className="mt-2 max-w-prose text-pretty text-muted-foreground">
-        {whatHardwareIsFor(status, canTranscode)} The Server tests VAAPI, Intel QSV, NVIDIA NVENC
-        and Apple VideoToolbox when it starts, so restart it after adding a GPU.
+        {hardwareIntro(status)} The Server tests VAAPI, Intel QSV, NVIDIA NVENC and Apple
+        VideoToolbox when it starts, so restart it after adding a GPU.
       </p>
       {hardware.length === 0 ? (
         <p className="mt-4 max-w-prose text-pretty">
@@ -125,8 +125,8 @@ function serverCanTranscode({ ffmpeg, ffprobe, hasLibx264 }: GetPlaybackStatusRe
   return ffmpeg !== undefined && ffprobe !== undefined && hasLibx264;
 }
 
-function whatHardwareIsFor(status: GetPlaybackStatusResponse, canTranscode: boolean) {
-  return status.hardware.length === 0 || canTranscode
+function hardwareIntro(status: GetPlaybackStatusResponse) {
+  return status.hardware.length === 0 || serverCanTranscode(status)
     ? "What Transcodes can run on besides software."
     : whyNoTranscodeRunsOnHardware(status);
 }
