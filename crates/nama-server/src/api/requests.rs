@@ -27,7 +27,7 @@ use crate::{
     artwork::Artwork,
     contents::Metadata,
     qualities,
-    requests::{self, Found, FoundShow, Requests},
+    requests::{self, Asked, Found, FoundShow, Requests},
 };
 
 use super::{Refused, caller, database_failed, refuse, title_kind_from_proto};
@@ -570,12 +570,12 @@ impl From<requests::Error> for ConnectError {
             // and `LookUpMovie` name a Movie, both in `movie_tmdb_id`, and only
             // `CreateSeasonRequests`, `CreateFollowedShow` and `LookUpShow` a Show, all in
             // `show_tmdb_id`.
-            requests::Error::NoSuchRequest(id) => {
+            requests::Error::NoSuch(Asked::Request, id) => {
                 refuse(R::REFUSAL_REASON_REQUEST_NOT_FOUND, message)
                     .field("id")
                     .param("requestId", &id)
             }
-            requests::Error::NotPending(id) => {
+            requests::Error::NotPending(Asked::Request, id) => {
                 refuse(R::REFUSAL_REASON_REQUEST_NOT_PENDING, message)
                     .field("id")
                     .param("requestId", &id)
@@ -583,22 +583,22 @@ impl From<requests::Error> for ConnectError {
             requests::Error::NotFailed(id) => refuse(R::REFUSAL_REASON_REQUEST_NOT_FAILED, message)
                 .field("id")
                 .param("requestId", &id),
-            requests::Error::NotARequester(id) => {
+            requests::Error::NotARequester(Asked::Request, id) => {
                 refuse(R::REFUSAL_REASON_NOT_A_REQUESTER, message)
                     .field("id")
                     .param("requestId", &id)
             }
-            requests::Error::NoSuchFollowedShow(id) => {
+            requests::Error::NoSuch(Asked::FollowedShow, id) => {
                 refuse(R::REFUSAL_REASON_FOLLOWED_SHOW_NOT_FOUND, message)
                     .field("id")
                     .param("followedShowId", &id)
             }
-            requests::Error::FollowedShowNotPending(id) => {
+            requests::Error::NotPending(Asked::FollowedShow, id) => {
                 refuse(R::REFUSAL_REASON_FOLLOWED_SHOW_NOT_PENDING, message)
                     .field("id")
                     .param("followedShowId", &id)
             }
-            requests::Error::NotAFollowedShowRequester(id) => {
+            requests::Error::NotARequester(Asked::FollowedShow, id) => {
                 refuse(R::REFUSAL_REASON_NOT_A_FOLLOWED_SHOW_REQUESTER, message)
                     .field("id")
                     .param("followedShowId", &id)
