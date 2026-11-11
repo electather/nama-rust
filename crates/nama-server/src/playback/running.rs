@@ -1478,7 +1478,7 @@ mod tests {
             settings(&db, data.path().join("transcodes")).playback(),
             &events,
         );
-        let mut subscription = Box::pin(events.subscribe(Filter::default()));
+        let mut subscription = Box::pin(events.subscribe_as_admin(Filter::default()));
         let starts = Arc::new(Mutex::new(vec![]));
         let (on_hardware, in_software) = (Arc::clone(&starts), Arc::clone(&starts));
         let hardware = move |_: &Path, from: Keyframe| {
@@ -1680,7 +1680,7 @@ mod tests {
             settings(&db, data.path().join("transcodes")).playback(),
             &events,
         );
-        let mut subscription = Box::pin(events.subscribe(Filter::default()));
+        let mut subscription = Box::pin(events.subscribe_as_admin(Filter::default()));
         start_sleeping(&plans, 7).await;
 
         plans.stop_unused(Duration::ZERO).await;
@@ -1714,7 +1714,7 @@ mod tests {
         let (device, another) = (7, 8);
         let id = start_sleeping(&plans, device).await;
         let dir = hls(&plans, id, device).dir.clone();
-        let mut subscription = Box::pin(events.subscribe(Filter::default()));
+        let mut subscription = Box::pin(events.subscribe_as_admin(Filter::default()));
 
         plans.stop_for(id, another).await;
         assert!(plans.ask(id, device).is_some());

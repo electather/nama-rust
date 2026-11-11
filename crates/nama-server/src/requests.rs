@@ -1939,14 +1939,10 @@ async fn withdraw(
     visible: Option<i64>,
     id: i64,
 ) -> Result<Applied<()>, Error> {
-    let request = load(conn, Some(id), visible)
-        .await?
-        .into_iter()
-        .next()
-        .ok_or(Error::NoSuch(Asked::Request, id))?;
-    if !asked::is_requester(user, &request.requesters) {
-        return Err(Error::NotARequester(Asked::Request, id));
-    }
+    let found = load(conn, Some(id), visible).await?.pop();
+    let request = asked::requested_by(Asked::Request, id, user, found, |request| {
+        &request.requesters
+    })?;
     if request.state != RequestState::Pending {
         return Err(Error::NotPending(Asked::Request, id));
     }
@@ -2181,11 +2177,10 @@ async fn withdraw_followed(
     visible: Option<i64>,
     id: i64,
 ) -> Result<Applied<()>, Error> {
-    let followed = load_followed(conn, Some(id), visible).await?.pop();
-    let followed = followed.ok_or(Error::NoSuch(Asked::FollowedShow, id))?;
-    if !asked::is_requester(user, &followed.requesters) {
-        return Err(Error::NotARequester(Asked::FollowedShow, id));
-    }
+    let found = load_followed(conn, Some(id), visible).await?.pop();
+    let followed = asked::requested_by(Asked::FollowedShow, id, user, found, |followed| {
+        &followed.requesters
+    })?;
     let followed_season = followed_season(conn, id).await?;
     let was_last = asked::leave(conn, Asked::FollowedShow, id, user).await?;
     if was_last {
@@ -2406,6 +2401,7 @@ fn read_state(stored: &str) -> RequestState {
 mod tests {
     use std::{
         collections::{BTreeMap, HashMap, HashSet},
+        pin::Pin,
         sync::{
             Arc,
             atomic::{AtomicUsize, Ordering},
@@ -2920,7 +2916,7 @@ mod tests {
         come_up(&requests, "sonarr").await;
         match_dark_episodes(&db, 1, &[1]).await;
         scan_dark(&db, &[1]).await;
-        let mut events = Box::pin(requests.hand_off.events().subscribe(Filter::default()));
+        let mut events = subscribe(&requests);
 
         let any = requests.hand_off.poll_progress().await.unwrap();
         let Happened::RequestProgress(progress) = next_happened(&mut events).await else {
@@ -3049,6 +3045,16 @@ mod tests {
         Ok(())
     }
 
+    /// Every event `requests` publishes from now on.
+    fn subscribe(requests: &Requests) -> Pin<Box<impl Stream<Item = SubscribeResponse> + use<>>> {
+        Box::pin(
+            requests
+                .hand_off
+                .events()
+                .subscribe_as_admin(Filter::default()),
+        )
+    }
+
     /// What the next event `published` lets through says happened, waiting a second at most.
     async fn next_happened(
         published: &mut (impl Stream<Item = SubscribeResponse> + Unpin),
@@ -3068,7 +3074,7 @@ mod tests {
         let tmdb = FakeTmdb::start().await;
         let (_data, requests) = approved_for(&[], Arc::new(Asked::default())).await;
         enable_tmdb(&requests, &tmdb);
-        let mut published = Box::pin(requests.hand_off.events().subscribe(Filter::default()));
+        let mut published = subscribe(&requests);
         let asking = requests.clone();
 
         leave_once_queued(&requests, async move {
@@ -3091,7 +3097,7 @@ mod tests {
     async fn a_request_declined_by_a_caller_who_left_is_published() {
         let (_data, requests) = approved_for(&[], Arc::new(Asked::default())).await;
         ask_as(&requests, Permissions::NEW_USER, 949).await;
-        let mut published = Box::pin(requests.hand_off.events().subscribe(Filter::default()));
+        let mut published = subscribe(&requests);
         let declining = requests.clone();
 
         leave_once_queued(&requests, async move { declining.decline(1, "").await }).await;
@@ -3105,7 +3111,7 @@ mod tests {
     #[tokio::test]
     async fn a_request_cancelled_by_a_caller_who_left_is_published() {
         let (_data, requests) = approved_for(&[949], Arc::new(Asked::default())).await;
-        let mut published = Box::pin(requests.hand_off.events().subscribe(Filter::default()));
+        let mut published = subscribe(&requests);
         let cancelling = requests.clone();
 
         leave_once_queued(&requests, async move { cancelling.cancel(1).await }).await;
@@ -3121,7 +3127,7 @@ mod tests {
     async fn a_request_withdrawn_by_a_caller_who_left_is_published() {
         let (_data, requests) = approved_for(&[], Arc::new(Asked::default())).await;
         ask_as(&requests, Permissions::NEW_USER, 949).await;
-        let mut published = Box::pin(requests.hand_off.events().subscribe(Filter::default()));
+        let mut published = subscribe(&requests);
         let withdrawing = requests.clone();
 
         leave_once_queued(&requests, async move {
@@ -3172,7 +3178,7 @@ mod tests {
             None,
         );
         let scan = scanner.lock(library).await;
-        let mut published = Box::pin(requests.hand_off.events().subscribe(Filter::default()));
+        let mut published = subscribe(&requests);
         let pinning = Matcher::new(
             Arc::clone(&requests.db),
             requests.hand_off.plugins.clone(),
@@ -4157,6 +4163,30 @@ mod tests {
         }
     }
 
+    #[tokio::test]
+    async fn a_non_requester_withdrawing_is_not_found_unless_they_may_see_it_even_once_approved() {
+        let (_data, db) = ada_and_bob().await;
+        let requests = requests_on(Arc::clone(&db), Registry::new());
+        let viewer = user(BOB, Permissions::from_iter([Permission::ViewRequests]));
+        let non_viewer = user(BOB, Permissions::from_iter([]));
+
+        for kind in KINDS {
+            let id = ask_kind(&db, kind, ADA).await.value;
+            approve_kind(&requests, kind, id).await.unwrap();
+            let unseen = withdraw_kind(&requests, kind, &non_viewer, id).await;
+            let seen = withdraw_kind(&requests, kind, &viewer, id).await;
+
+            assert!(
+                matches!(unseen, Err(Error::NoSuch(k, i)) if k == kind && i == id),
+                "{unseen:?}"
+            );
+            assert!(
+                matches!(seen, Err(Error::NotARequester(k, i)) if k == kind && i == id),
+                "{seen:?}"
+            );
+        }
+    }
+
     /// A Request manager approves the `kind` with the ID `id`.
     async fn approve_kind(requests: &Requests, kind: asked::Asked, id: i64) -> Result<(), Error> {
         let manager = ada(Permissions::ADMIN);
@@ -4325,7 +4355,7 @@ mod tests {
     #[tokio::test]
     async fn a_followed_show_cancelled_by_a_caller_who_left_is_published_and_unfollowed() {
         let (_data, requests, unfollowing, id) = following_dark().await;
-        let mut published = Box::pin(requests.hand_off.events().subscribe(Filter::default()));
+        let mut published = subscribe(&requests);
         let cancelling = requests.clone();
 
         leave_once_queued(
@@ -4346,7 +4376,7 @@ mod tests {
     async fn a_followed_show_withdrawn_from_by_its_last_requester_who_left_is_published_and_unfollowed()
      {
         let (_data, requests, unfollowing, id) = following_dark().await;
-        let mut published = Box::pin(requests.hand_off.events().subscribe(Filter::default()));
+        let mut published = subscribe(&requests);
         let withdrawing = requests.clone();
 
         leave_once_queued(&requests, async move {

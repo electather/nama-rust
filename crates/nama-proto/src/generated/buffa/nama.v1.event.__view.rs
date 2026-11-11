@@ -4357,7 +4357,8 @@ pub struct LibraryItemAddedView<'a> {
     pub library_id: i64,
     /// Field 2: `item_id`
     pub item_id: i64,
-    /// The absolute path, on the Server, of the file holding the Item.
+    /// The absolute path, on the Server, of the file holding the Item. Empty unless the subscriber has
+    /// `PERMISSION_MANAGE_LIBRARIES`.
     ///
     /// Field 3: `path`
     pub path: &'a str,
@@ -4620,7 +4621,8 @@ impl LibraryItemAddedOwnedView {
     pub fn item_id(&self) -> i64 {
         self.0.reborrow().item_id
     }
-    /// The absolute path, on the Server, of the file holding the Item.
+    /// The absolute path, on the Server, of the file holding the Item. Empty unless the subscriber has
+    /// `PERMISSION_MANAGE_LIBRARIES`.
     ///
     /// Field 3: `path`
     #[must_use]

@@ -167,7 +167,8 @@ message ProbingFinished {
 message LibraryItemAdded {
   int64 library_id = 1;
   int64 item_id = 2;
-  // The absolute path, on the Server, of the file holding the Item.
+  // The absolute path, on the Server, of the file holding the Item. Empty unless the subscriber has
+  // `PERMISSION_MANAGE_LIBRARIES`.
   string path = 3;
 }
 
