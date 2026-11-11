@@ -1,6 +1,7 @@
-// Agents run in MAX_PARALLEL slots. An issue holds one while it's built and again for each fix, but not while its
-// PR waits for CI or its turn to merge, so a slow CI run doesn't stop the next issue from starting.
-// A fix goes ahead of a new build in the queue, because finishing a PR matters more than starting another issue.
+// Agents run in pools of slots: builds (MAX_PARALLEL), fixes (FIX_PARALLEL) and triages (TRIAGE_PARALLEL). An issue
+// holds a build slot while it's built and a fix slot for each rebase or CI fix, but none while its PR waits for CI
+// or its turn to merge, so a slow CI run doesn't stop the next issue from starting.
+// `first` puts a waiter ahead of the others in its pool.
 export function slotPool(size: number) {
   let free = size;
   const urgent: (() => void)[] = [];
