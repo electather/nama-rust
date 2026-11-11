@@ -97,4 +97,4 @@ Failures:
 - **Babysat PR closed, or its issue closed or without `ready-for-agent`:** the babysitter lets go within a minute and leaves the PR as it is.
 - **No CI run starts within 15 minutes** (GitHub delays them during incidents): an infra error, below.
 - **PR merged by hand:** the factory notices within a minute, at any stage, stops that issue and records it as merged ("merged by hand"), closing finished parents as usual.
-- **Infra error (Docker, auth, Claude usage limit):** nothing is relabelled. The run finishes what's in flight, then exits with code 1. Rerun once the problem is fixed: an issue without a PR is built again, one with a PR is only babysat.
+- **Infra error (Docker, auth, Claude usage limit):** nothing is relabelled. The run starts no new builds or triages but keeps babysitting PRs, each at most once more, then exits with code 1. Rerun once the problem is fixed: an issue without a PR is built again, one with a PR is only babysat.

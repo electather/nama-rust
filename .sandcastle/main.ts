@@ -186,6 +186,8 @@ async function agent(box: Box, issue: Issue, step: string, extra: Record<string,
     maxIterations: 3,
     signal: aborts.get(issue.number)?.signal, // aborting kills the agent and rejects with the reason (a Cancelled)
     idleTimeoutSeconds: 1800, // cold cargo builds are silent for a long time
+    // sandcastle's 10s default ran out on `git rev-parse` while five builds loaded the host, crashing the run.
+    timeouts: { gitSetupMs: 120_000 },
   });
   const reason = [...result.stdout.matchAll(/<blocked>(.*?)<\/blocked>/g)]
     .map((m) => m[1])
@@ -824,12 +826,13 @@ async function dispatch() {
 
 // The babysit loop: every minute, takes every PR that qualifies (see babysittable). Waiting on CI holds no slot;
 // a rebase or CI fix takes one, ahead of new builds (see fix). Ends once the implement loop has ended and no PR is
-// left, since until then a new PR may still come.
+// left, since until then a new PR may still come. A crash elsewhere doesn't stop it: PRs opened after one would
+// otherwise sit until the next run, and a PR that crashes here isn't taken again this run (`watched`).
 let implementDone = false;
 async function babysitLoop() {
   const running = new Set<Promise<void>>();
   for (;;) {
-    if (crashed || existsSync(STOP_FILE)) break;
+    if (existsSync(STOP_FILE)) break;
     let jobs: Job[] = [];
     try {
       jobs = babysittable();
