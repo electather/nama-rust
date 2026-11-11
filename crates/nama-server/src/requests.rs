@@ -1260,12 +1260,14 @@ impl<'a> Asker<'a> {
     /// Records that the Followed Show this way asks for covers the Season `season` from then on,
     /// so one it opened and someone declined, cancelled or withdrew from isn't opened again.
     async fn cover(&self, conn: &mut SqliteConnection, season: u32) -> Result<(), sqlx::Error> {
-        // Following covers its Seasons as it opens the Followed Show.
-        if let (Way::Scanning, Some(followed_show)) = (self.way, self.followed_show()) {
+        if let Some(followed_show) = self.followed_show() {
+            // Joining may ask for a Season before the latest one covered, which stays covered.
             sqlx::query!(
-                "UPDATE followed_shows SET latest_season = ? WHERE id = ?",
+                "UPDATE followed_shows SET latest_season = ?
+                 WHERE id = ? AND (latest_season IS NULL OR latest_season < ?)",
                 season,
-                followed_show.id
+                followed_show.id,
+                season
             )
             .execute(&mut *conn)
             .await?;
@@ -4331,6 +4333,91 @@ mod tests {
         assert_eq!(
             dark_seasons(&db).await,
             opened_by_ada_following_dark(RequestState::Approved)
+        );
+    }
+
+    /// Ada follows Dark while Seasons 1 and 2 are out, Pending, then Bob joins her Followed Show
+    /// once Season 3 has aired. Returns the Followed Show's id and Season 3's Request id.
+    async fn bob_joins_following_dark_after_season_3_aired(db: &Database) -> (i64, i64) {
+        follow_as(db, ADA, dark(), RequestState::Pending).await;
+        let mut to_season_3 = dark();
+        to_season_3.seasons.push(dark_season(3));
+        let joined = follow_as(db, BOB, to_season_3, RequestState::Pending).await;
+        let season_3 = joined.value.1.last().expect("Season 3's Request");
+        assert_eq!(season_3.season.season_number, 3);
+        (joined.value.0.id, season_3.id)
+    }
+
+    /// Approves the Pending Followed Show `id`, and with it its Pending Season Requests.
+    async fn approve_followed(db: &Database, id: i64) {
+        db.write(move |tx| Box::pin(decide_followed(tx, id, RequestState::Approved, None, None)))
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn a_scan_opens_no_season_asked_for_by_joining_a_followed_show_and_declined() {
+        let (_data, db) = ada_and_bob().await;
+        let (followed, season_3) = bob_joins_following_dark_after_season_3_aired(&db).await;
+        db.write(move |tx| Box::pin(decline(tx, season_3, None)))
+            .await
+            .unwrap();
+        approve_followed(&db, followed).await;
+        match_dark_episodes(&db, 3, &[1, 2]).await;
+
+        let scanned = scan_dark(&db, &[3]).await;
+
+        assert_eq!(said(&scanned), []);
+        assert_eq!(
+            dark_seasons(&db).await.last(),
+            Some(&(3, RequestState::Declined, vec![BOB]))
+        );
+    }
+
+    #[tokio::test]
+    async fn a_scan_opens_no_season_asked_for_by_joining_a_followed_show_and_cancelled_once_approved()
+     {
+        let (_data, db) = ada_and_bob().await;
+        let (followed, season_3) = bob_joins_following_dark_after_season_3_aired(&db).await;
+        approve_followed(&db, followed).await;
+        db.write(move |tx| Box::pin(cancel(tx, season_3)))
+            .await
+            .unwrap();
+        match_dark_episodes(&db, 3, &[1, 2]).await;
+
+        let scanned = scan_dark(&db, &[3]).await;
+
+        assert_eq!(said(&scanned), []);
+        assert_eq!(
+            dark_seasons(&db).await.last(),
+            Some(&(2, RequestState::Approved, vec![ADA, BOB]))
+        );
+    }
+
+    #[tokio::test]
+    async fn asking_for_a_season_on_its_own_leaves_which_seasons_the_followed_show_covers() {
+        let (_data, db) = ada_and_bob().await;
+        follow_as(&db, ADA, dark(), RequestState::Approved).await;
+        let season_3 = WantedSeasons {
+            seasons: vec![dark_season(3)],
+            ..dark()
+        };
+        let asked = db
+            .write(|tx| Box::pin(ask_seasons(tx, BOB, season_3, RequestState::Pending)))
+            .await
+            .unwrap();
+        let asked_id = asked.value[0].id;
+        db.write(move |tx| Box::pin(decline(tx, asked_id, None)))
+            .await
+            .unwrap();
+        match_dark_episodes(&db, 3, &[1, 2]).await;
+
+        let scanned = scan_dark(&db, &[3]).await;
+
+        assert_eq!(said(&scanned), [("created", RequestState::Available)]);
+        assert_eq!(
+            dark_seasons(&db).await.last(),
+            Some(&(3, RequestState::Available, vec![ADA]))
         );
     }
 }
