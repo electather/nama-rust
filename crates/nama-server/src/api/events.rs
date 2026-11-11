@@ -11,7 +11,6 @@ use nama_proto::nama::v1::{EventService, EventType, SubscribeRequest, SubscribeR
 
 use crate::{
     events::{EventBus, Filter},
-    playback, requests,
     users::Users,
 };
 
@@ -44,14 +43,12 @@ impl EventService for EventServiceHandler {
             let filter = Filter {
                 types,
                 libraries: request.library_ids,
-                // ponytail: Permissions as the stream opened, like any request's, so one who loses
-                // `VIEW_REQUESTS` sees everyone's Request events until they resubscribe. End
-                // streams on a Permission change if that matters.
-                requester: requests::visible_to(&caller.user),
-                player: playback::visible_to(&caller.user),
             };
             let signed_out = self.users.signed_out(caller.device.id);
-            let events = self.events.subscribe(filter).take_until(signed_out);
+            let events = self
+                .events
+                .subscribe(&caller.user, filter)
+                .take_until(signed_out);
             let stream: ServiceStream<SubscribeResponse> = Box::pin(events.map(Ok));
             Response::ok(stream)
         });

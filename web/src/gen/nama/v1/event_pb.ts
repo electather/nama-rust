@@ -465,7 +465,8 @@ export type LibraryItemAdded = Message<"nama.v1.LibraryItemAdded"> & {
   itemId: bigint;
 
   /**
-   * The absolute path, on the Server, of the file holding the Item.
+   * The absolute path, on the Server, of the file holding the Item. Empty unless the subscriber has
+   * `PERMISSION_MANAGE_LIBRARIES`.
    *
    * @generated from field: string path = 3;
    */

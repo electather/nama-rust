@@ -2419,6 +2419,7 @@ fn read_state(stored: &str) -> RequestState {
 mod tests {
     use std::{
         collections::{BTreeMap, HashMap, HashSet},
+        pin::Pin,
         sync::{
             Arc,
             atomic::{AtomicUsize, Ordering},
@@ -2934,7 +2935,7 @@ mod tests {
         come_up(&requests, "sonarr").await;
         match_dark_episodes(&db, 1, &[1]).await;
         scan_dark(&db, &[1]).await;
-        let mut events = Box::pin(requests.hand_off.events().subscribe(Filter::default()));
+        let mut events = subscribe(&requests);
 
         let any = requests.hand_off.poll_progress().await.unwrap();
         let Happened::RequestProgress(progress) = next_happened(&mut events).await else {
@@ -3063,6 +3064,16 @@ mod tests {
         Ok(())
     }
 
+    /// Every event `requests` publishes from now on.
+    fn subscribe(requests: &Requests) -> Pin<Box<impl Stream<Item = SubscribeResponse> + use<>>> {
+        Box::pin(
+            requests
+                .hand_off
+                .events()
+                .subscribe_as_admin(Filter::default()),
+        )
+    }
+
     /// What the next event `published` lets through says happened, waiting a second at most.
     async fn next_happened(
         published: &mut (impl Stream<Item = SubscribeResponse> + Unpin),
@@ -3082,7 +3093,7 @@ mod tests {
         let tmdb = FakeTmdb::start().await;
         let (_data, requests) = approved_for(&[], Arc::new(Asked::default())).await;
         enable_tmdb(&requests, &tmdb);
-        let mut published = Box::pin(requests.hand_off.events().subscribe(Filter::default()));
+        let mut published = subscribe(&requests);
         let asking = requests.clone();
 
         leave_once_queued(&requests, async move {
@@ -3105,7 +3116,7 @@ mod tests {
     async fn a_request_declined_by_a_caller_who_left_is_published() {
         let (_data, requests) = approved_for(&[], Arc::new(Asked::default())).await;
         ask_as(&requests, Permissions::NEW_USER, 949).await;
-        let mut published = Box::pin(requests.hand_off.events().subscribe(Filter::default()));
+        let mut published = subscribe(&requests);
         let declining = requests.clone();
 
         leave_once_queued(&requests, async move { declining.decline(1, "").await }).await;
@@ -3119,7 +3130,7 @@ mod tests {
     #[tokio::test]
     async fn a_request_cancelled_by_a_caller_who_left_is_published() {
         let (_data, requests) = approved_for(&[949], Arc::new(Asked::default())).await;
-        let mut published = Box::pin(requests.hand_off.events().subscribe(Filter::default()));
+        let mut published = subscribe(&requests);
         let cancelling = requests.clone();
 
         leave_once_queued(&requests, async move { cancelling.cancel(1).await }).await;
@@ -3135,7 +3146,7 @@ mod tests {
     async fn a_request_withdrawn_by_a_caller_who_left_is_published() {
         let (_data, requests) = approved_for(&[], Arc::new(Asked::default())).await;
         ask_as(&requests, Permissions::NEW_USER, 949).await;
-        let mut published = Box::pin(requests.hand_off.events().subscribe(Filter::default()));
+        let mut published = subscribe(&requests);
         let withdrawing = requests.clone();
 
         leave_once_queued(&requests, async move {
@@ -3186,7 +3197,7 @@ mod tests {
             None,
         );
         let scan = scanner.lock(library).await;
-        let mut published = Box::pin(requests.hand_off.events().subscribe(Filter::default()));
+        let mut published = subscribe(&requests);
         let pinning = requests.matcher.clone();
 
         leave_once_queued(&requests, async move {
@@ -4335,7 +4346,7 @@ mod tests {
     #[tokio::test]
     async fn a_followed_show_cancelled_by_a_caller_who_left_is_published_and_unfollowed() {
         let (_data, requests, unfollowing, id) = following_dark().await;
-        let mut published = Box::pin(requests.hand_off.events().subscribe(Filter::default()));
+        let mut published = subscribe(&requests);
         let cancelling = requests.clone();
 
         leave_once_queued(
@@ -4356,7 +4367,7 @@ mod tests {
     async fn a_followed_show_withdrawn_from_by_its_last_requester_who_left_is_published_and_unfollowed()
      {
         let (_data, requests, unfollowing, id) = following_dark().await;
-        let mut published = Box::pin(requests.hand_off.events().subscribe(Filter::default()));
+        let mut published = subscribe(&requests);
         let withdrawing = requests.clone();
 
         leave_once_queued(&requests, async move {
