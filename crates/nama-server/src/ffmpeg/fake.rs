@@ -10,12 +10,13 @@ use super::FoundProgram;
 
 /// The program `name`, the shell script `body` written to `bin`.
 ///
-/// A child `sh` writes it, since a child forked while this process holds it open for writing
-/// keeps it open, and running it then fails with "Text file busy" (`crates/nama-server/AGENTS.md`,
-/// Tests).
+/// A child `sh` writes it, lest a fork hold it open and make it "Text file busy" (`AGENTS.md`).
+///
+/// # Panics
+///
+/// If writing it fails.
 #[expect(
     clippy::unwrap_used,
-    clippy::missing_panics_doc,
     reason = "a test helper fails its test by panicking"
 )]
 #[expect(
