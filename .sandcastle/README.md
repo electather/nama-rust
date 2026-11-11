@@ -1,24 +1,25 @@
 # AI factory (sandcastle)
 
-One process runs two loops:
+One process runs three loops:
 
+- **Triage:** open `needs-triage` issues that you (the `gh` user) or the flaky-test reporter opened, oldest first and up to 10 at once (`TRIAGE_PARALLEL=N` to change), each through one Opus agent (`triage-prompt.md`) on a clean checkout of `main`. It checks the issue against main, then settles it itself: closes it as fixed or a duplicate, appends Triage / Fix / Acceptance criteria and labels it `ready-for-agent`, or splits it into `ready-for-agent` sub-issues. What needs your product call (a feature's scope, behaviour nothing settles, whether to do it at all) gets `needs-decision` and a comment with the options, its pick and the question; what needs a person's hands gets `ready-for-human`. It never changes code. An issue it can't settle goes to `needs-decision` too, so nothing is triaged twice. Triages have their own slots, so they never hold up a build or a fix. Two near-duplicate issues triaged at once can't see each other's decision. `TRIAGE=off` leaves `needs-triage` to you.
 - **Implement:** open `ready-for-agent` issues with no open blockers and no open PR, each through
   `implement` skill → `code-review` skill + fixes → push → PR (`Closes #N`). There the issue leaves this loop.
 - **Babysit:** every minute it takes each open PR that is not a draft, was opened by you (the `gh` user) from a branch of this repo (never a fork), and closes an open issue you wrote that carries `ready-for-agent`. Each goes through CI (a rebase when another merge conflicts with it, one auto-fix attempt when it fails) → squash-merge, one merge at a time. It opens a sandbox only when a PR needs an agent. PRs you open by hand qualify too.
 
 So a crash after the PR is open never builds the issue again: the next run babysits the PR. An issue with any open PR, a draft included, is left to that PR.
-At most 2 agents run at once (`MAX_PARALLEL=N` to change). A build takes a slot from claim to PR, and each rebase or CI fix takes one, ahead of new builds waiting for a slot. Waiting on CI holds none.
+At most 2 agents run at once (`MAX_PARALLEL=N` to change). A build takes a slot from claim to PR, and each rebase or CI fix takes one, ahead of new builds waiting for a slot. Waiting on CI holds none. Triages don't count: they have their own `TRIAGE_PARALLEL` slots.
 While a loop has an issue it carries `agent-working`; the label comes off when that loop lets go of it.
-Only one factory runs per machine (`~/.cache/nama-sandcastle/factory.pid`). Factories on different machines can run at once: each claims an issue by creating `refs/claims/issue-N` on origin (a PR: `refs/claims/pr-N`), which only one of them can do, and deletes it when done or on Ctrl-C. A run that was killed outright leaves its claims behind. The next run on the same machine takes them over; free one for another machine with `git push origin --delete refs/claims/issue-N` and remove the issue's `agent-working` label.
+Only one factory runs per machine (`~/.cache/nama-sandcastle/factory.pid`). Factories on different machines can run at once: each claims an issue by creating `refs/claims/issue-N` on origin (a PR: `refs/claims/pr-N`, a triage: `refs/claims/triage-N`), which only one of them can do, and deletes it when done or on Ctrl-C. A run that was killed outright leaves its claims behind. The next run on the same machine takes them over; free one for another machine with `git push origin --delete refs/claims/issue-N` and remove the issue's `agent-working` label.
 Anything stuck is relabelled `ready-for-human` with a comment.
 
 It builds web tickets as well as Rust ones. The image (`Dockerfile`, on `node:26-bookworm`) holds the Rust toolchain with the `wasm32` target (linking with `mold`, at most 4 cargo jobs, line-table debug info, so two sandboxes fit in OrbStack's memory), `buf`, `gh`, Claude Code, Vite+ (`vp`) with the Node 26 and pnpm 12 that `web/` pins, and Playwright's headless Chromium. On a ticket that touches `web/`, agents run CI's web checks and screenshot the screens they changed at phone and desktop widths to check them against `DESIGN.md`. The cargo registry and the pnpm store are cached on the host in `~/.cache/nama-sandcastle/`, so each sandbox doesn't download them again.
 
-Agents stay on their ticket's PR. What they find elsewhere they park as a `needs-triage` issue (`.sandcastle/park.md`, inlined into each prompt; never `ready-for-agent`) for you to triage. Their `GH_TOKEN` comes from `.sandcastle/.env`.
+Agents stay on their ticket's PR. What they find elsewhere they park as a `needs-triage` issue (`.sandcastle/park.md`, inlined into each prompt; never `ready-for-agent`), which the triage loop picks up. Their `GH_TOKEN` comes from `.sandcastle/.env`.
 
 An issue with sub-issues is never built directly, and it doesn't carry `ready-for-agent` (see `docs/agents/triage-labels.md`). The factory builds its labelled sub-issues (each gets the parent as context) and closes the parent once the last one is closed.
 
-Agents are Claude Code in Docker: implement and review run `claude-opus-5-5` at effort `high`; fix (merging main, mending CI) runs `claude-sonnet-5-5` at effort `medium` and retries once on Opus if Sonnet gives up. Their skills are the repo's own: third-party ones live in `.agents/skills`, linked from `.claude/skills` and pinned in `skills-lock.json`, so each worktree brings them from `origin/main`. A skill change reaches the factory only once it's merged. The implement step also inlines `clean-code` and `ponytail`, and the review step writes the PR body with `pr`. What to write, check and review for each part of the repo lives in the repo's area skills, `.claude/skills/rust-crates` and `.claude/skills/web-app`, which every step loads for the parts a ticket touches. They pull in `rust-best-practices`, `tokio-async-code-review` and `impeccable`.
+Agents are Claude Code in Docker: triage, implement and review run `claude-opus-5-5` at effort `high`; fix (merging main, mending CI) runs `claude-sonnet-5-5` at effort `medium` and retries once on Opus if Sonnet gives up. Their skills are the repo's own: third-party ones live in `.agents/skills`, linked from `.claude/skills` and pinned in `skills-lock.json`, so each worktree brings them from `origin/main`. A skill change reaches the factory only once it's merged. The implement step also inlines `clean-code` and `ponytail`, and the review step writes the PR body with `pr`. What to write, check and review for each part of the repo lives in the repo's area skills, `.claude/skills/rust-crates` and `.claude/skills/web-app`, which every step loads for the parts a ticket touches. They pull in `rust-best-practices`, `tokio-async-code-review` and `impeccable`.
 
 `ponytail` is still a host skill, mounted read-only from `~/.agents/skills/ponytail`:
 
@@ -74,7 +75,7 @@ Unattended (one supervisor per machine, `flock`). Once the queue is drained it r
 
 Logs, all in `.sandcastle/logs/`:
 
-- `status.md`: what is in flight in either loop (stage, PR, CI run; an issue whose PR is open shows "→ pr opened" under Done, then comes back in flight while it's babysat), what is waiting and why (blocked, a parent, claimed by another factory), and the last 20 finished issues. It's rewritten on every change and covers this machine's factory only.
+- `status.md`: what is in flight in either loop (stage, PR, CI run; an issue whose PR is open shows "→ pr opened" under Done, then comes back in flight while it's babysat), what each queue (babysit, build, triage) is waiting on and why (a slot, a usage pause, a blocker, a parent, another factory's claim, a crash or STOP until the next run), and the last 20 finished issues. It's rewritten on every change, and the waiting list at least once a minute. It covers this machine's factory only.
 - `events.jsonl`: one JSON event per line, the record `status.md` is rendered from (`status.ts`). It keeps the history across runs.
 - `launchd.log`: one timestamped line per event, stage changes with timings, and a summary of why the run ended and what is still queued.
 - `crash-issue-N.log`: the full error behind a one-line crash in `launchd.log`.
@@ -83,7 +84,7 @@ Logs, all in `.sandcastle/logs/`:
 
 `npm --prefix .sandcastle run check` checks the `status.md` renderer.
 
-Claude usage: before picking each issue the factory reads the 5-hour and weekly usage from the rate-limit headers of a 1-token Haiku call. At 95% of the 5-hour limit (`USAGE_PAUSE`) or 92% of the weekly limit (`WEEKLY_STOP`) it starts nothing new until that window resets, while running issues carry on. Past 80% of the 5-hour limit (`SLOW_5H`) or 85% of the weekly limit (`SLOW_WEEKLY`) it starts a new issue only while fewer than `SLOW_PARALLEL` (default 1) slots are busy. `launchd.log` says when it pauses (⏸), resumes (▶), slows down (🐢) and speeds up again (🐇).
+Claude usage: before picking each issue the factory reads the 5-hour and weekly usage from the rate-limit headers of a 1-token Haiku call. At 95% of the 5-hour limit (`USAGE_PAUSE`) or 92% of the weekly limit (`WEEKLY_STOP`) it starts nothing new until that window resets, while running issues carry on. Past 80% of the 5-hour limit (`SLOW_5H`) or 85% of the weekly limit (`SLOW_WEEKLY`) it starts a new build or triage only while fewer than `SLOW_PARALLEL` (default 1) agents run, triages included. `launchd.log` says when it pauses (⏸), resumes (▶), slows down (🐢) and speeds up again (🐇).
 
 Stopping gracefully: `touch .sandcastle/STOP`. Builds already running finish with their PR, PRs already babysat finish (merged or handed back), nothing new starts, and the run exits. Later runs, such as a scheduled one, exit at once while the file exists. `rm .sandcastle/STOP` to resume.
 
@@ -96,4 +97,4 @@ Failures:
 - **Babysat PR closed, or its issue closed or without `ready-for-agent`:** the babysitter lets go within a minute and leaves the PR as it is.
 - **No CI run starts within 15 minutes** (GitHub delays them during incidents): an infra error, below.
 - **PR merged by hand:** the factory notices within a minute, at any stage, stops that issue and records it as merged ("merged by hand"), closing finished parents as usual.
-- **Infra error (Docker, auth, Claude usage limit):** nothing is relabelled. The run finishes what's in flight, then exits with code 1. Rerun once the problem is fixed: an issue without a PR is built again, one with a PR is only babysat.
+- **Infra error (Docker, auth, Claude usage limit):** nothing is relabelled. The run starts no new builds or triages but keeps babysitting PRs, each at most once more, then exits with code 1. Rerun once the problem is fixed: an issue without a PR is built again, one with a PR is only babysat.

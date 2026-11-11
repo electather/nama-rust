@@ -9,7 +9,10 @@ The skills speak in terms of five canonical triage roles. This file maps those r
 | `ready-for-agent`          | `ready-for-agent`    | Fully specified, ready for an AFK agent  |
 | `ready-for-human`          | `ready-for-human`    | Requires human implementation            |
 | `wontfix`                  | `wontfix`            | Will not be actioned                     |
-| —                          | `agent-working`      | The sandcastle factory is building it (set and cleared by `.sandcastle/main.ts`) |
+| —                          | `agent-working`      | The sandcastle factory is triaging or building it (set and cleared by `.sandcastle/main.ts`) |
+| —                          | `needs-decision`     | Triaged, but only the maintainer can settle it: the triage comment holds the options, a pick and the question |
+
+The factory triages `needs-triage` issues itself (`.sandcastle/triage-prompt.md`): it closes, specifies, splits or asks. It applies `needs-decision` where the skills would ask the maintainer, and never `wontfix`.
 
 `ready-for-agent` goes on the issues the factory builds, never on a parent. A parent with sub-issues isn't built itself: its children carry the label, and the factory closes the parent once they're all closed.
 

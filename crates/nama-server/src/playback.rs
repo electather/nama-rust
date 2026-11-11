@@ -554,8 +554,9 @@ fn version_tracks(facts: &Facts, _: Option<&Candidates>) -> Narrowing {
 }
 
 /// The step for what the Device decodes: Direct Play only if it decodes the Version's container
-/// and the Tracks the plan plays, and its display shows their HDR, and a Remux only if it decodes
-/// the video, since a Remux converts only the audio.
+/// and the Tracks the plan plays, and its display shows their HDR, a Remux only if it decodes the
+/// video, since a Remux converts only the audio, and neither a Remux nor a Transcode unless it
+/// plays HLS.
 fn device_decoding(facts: &Facts, candidates: Option<&Candidates>) -> Narrowing {
     let (Some(probe), Some(candidates)) = (&facts.probe, candidates) else {
         // `version_tracks` already leaves only Direct Play, so this step needn't rule anything out.
@@ -569,9 +570,17 @@ fn device_decoding(facts: &Facts, candidates: Option<&Candidates>) -> Narrowing 
         .chain(undecodable_tracks(probe, candidates.audio, &facts.device))
         .collect();
     let Some(cant) = joined(&cant, "or") else {
-        return Narrowing {
-            allows: BTreeSet::from(Method::ALL),
-            reason: "This Device decodes its container and Tracks".to_owned(),
+        let reason = "This Device decodes its container and Tracks";
+        return if facts.device.hls {
+            Narrowing {
+                allows: BTreeSet::from(Method::ALL),
+                reason: reason.to_owned(),
+            }
+        } else {
+            Narrowing {
+                allows: BTreeSet::from([Method::DirectPlay]),
+                reason: format!("{reason}, but it can't play HLS, which anything else needs"),
+            }
         };
     };
     let reason = format!("This Device can't decode its {cant}, so it can't be Direct Played");
@@ -2917,6 +2926,47 @@ echo '{"streams": [{"codec_name": "h264", "codec_type": "video"},
         }
     }
 
+    fn without_hls(facts: &mut Facts) {
+        facts.device.hls = false;
+    }
+
+    fn choosing_the_second_audio_track(facts: &mut Facts) {
+        facts.audio = Some(2);
+    }
+
+    #[test]
+    fn a_device_without_hls_that_decodes_everything_direct_plays_or_nothing_whatever_is_chosen() {
+        let choices: [(&str, Change); 2] = [
+            ("the second audio Track", choosing_the_second_audio_track),
+            ("720p", picking_720p),
+        ];
+        for (chosen, choose) in choices {
+            let chosen_without_hls = || {
+                let mut facts = direct_played();
+                choose(&mut facts);
+                without_hls(&mut facts);
+                facts
+            };
+            let mut facts = chosen_without_hls();
+            let mut after_a_failed_direct_play = chosen_without_hls();
+            after_a_failed_direct_play.failed = BTreeSet::from([Method::DirectPlay]);
+
+            let played = build(&mut facts);
+            let unplayable = build(&mut after_a_failed_direct_play);
+
+            assert_eq!(played.method(), Some(Method::DirectPlay), "{chosen}");
+            assert_eq!(unplayable.method(), None, "{chosen}");
+            for plan in [played, unplayable] {
+                assert_eq!(
+                    plan.reasons[1],
+                    "This Device decodes its container and Tracks, but it can't play HLS, which \
+                     anything else needs",
+                    "{chosen}"
+                );
+            }
+        }
+    }
+
     #[test]
     fn a_plan_offers_the_choices_its_lasting_facts_allow_whatever_is_busy_or_failed() {
         let everything = || Offers {
@@ -2924,10 +2974,18 @@ echo '{"streams": [{"codec_name": "h264", "codec_type": "video"},
             burn_in: vec![3],
             limits: vec![PlaybackLimit::P720, PlaybackLimit::P480],
         };
-        let cases: [(&str, Change, Offers); 4] = [
+        let cases: [(&str, Change, Offers); 5] = [
             (
                 "no ffmpeg",
                 without_ffmpeg,
+                Offers {
+                    audio: vec![1],
+                    ..Offers::default()
+                },
+            ),
+            (
+                "no HLS",
+                without_hls,
                 Offers {
                     audio: vec![1],
                     ..Offers::default()

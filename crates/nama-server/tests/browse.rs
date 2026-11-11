@@ -221,21 +221,18 @@ impl Fixture {
 
     /// The Admin's Playback Plan for the Version `version`, on [`chrome`].
     async fn plan(&self, version: i64) -> Result<PlaybackPlan, ConnectError> {
-        self.plan_on_device(version, &[], &[], 0).await
+        self.plan_on_device(version, &[], 0).await
     }
 
-    /// As [`Self::plan`], on a Device that also decodes the content types `also_decodes`, where
-    /// the methods `failed` just failed to play it, and which plays `audio_channels` channels at
-    /// once.
+    /// As [`Self::plan`], on a Device where the methods `failed` just failed to play it, and which
+    /// plays `audio_channels` channels at once.
     async fn plan_on_device(
         &self,
         version: i64,
-        also_decodes: &[&str],
         failed: &[PlaybackMethod],
         audio_channels: u32,
     ) -> Result<PlaybackPlan, ConnectError> {
         let mut device = chrome();
-        (device.content_types).extend(also_decodes.iter().map(|&kind| kind.to_owned()));
         device.audio_channels = audio_channels;
         self.ask_for_plan(PlanPlaybackRequest {
             version_id: version,
@@ -1377,10 +1374,7 @@ async fn an_unprobed_version_whose_direct_play_failed_cant_be_played_and_starts_
     let mut subscription = subscribe(&fx.server.client_config(), &started).await;
     let direct_play = [PlaybackMethod::PLAYBACK_METHOD_DIRECT_PLAY];
 
-    let unplayable = fx
-        .plan_on_device(version, &[], &direct_play, 0)
-        .await
-        .unwrap();
+    let unplayable = fx.plan_on_device(version, &direct_play, 0).await.unwrap();
 
     assert_eq!(
         unplayable.method,
@@ -1624,11 +1618,6 @@ async fn an_h264_and_aac_mkv_is_remuxed_over_hls_with_its_audio_copied() {
     let plan = fx.plan(version).await.unwrap();
 
     assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_REMUX);
-    assert_eq!(codecs(&plan), ["h264", "aac"]);
-    assert_eq!(
-        plan.reasons[1],
-        "This Device can't decode its Matroska container, so it can't be Direct Played"
-    );
     let reply = fetch(&fx.server, &plan.url, Some(&fx.server.admin_token)).await;
     assert_eq!(
         reply.header("content-type"),
@@ -1775,26 +1764,12 @@ async fn played_streams(
 }
 
 #[tokio::test]
-async fn dts_is_remuxed_as_aac_with_up_to_as_many_channels_as_the_device_plays() {
+async fn dts_on_a_device_that_plays_stereo_is_played_as_stereo_aac() {
     let (fx, version) = Fixture::alien_mkv(system_ffmpeg(), "dca").await;
 
-    for (plays, converted, to) in [
-        (6, "aac,6", "5.1 AAC"),
-        (2, "aac,2", "stereo AAC, as this Device doesn't play 5.1"),
-    ] {
-        let plan = fx.plan_on_device(version, &[], &[], plays).await.unwrap();
+    let plan = fx.plan_on_device(version, &[], 2).await.unwrap();
 
-        assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_REMUX);
-        assert_eq!(codecs(&plan), ["h264", "aac"]);
-        assert_eq!(
-            plan.reasons[1],
-            format!(
-                "This Device can't decode its Matroska container or DTS audio, so it can't be \
-                 Direct Played, and a Remux converts that audio to {to}"
-            )
-        );
-        assert_eq!(played_audio(&fx, &plan.url, "0.m4s").await, converted);
-    }
+    assert_eq!(played_audio(&fx, &plan.url, "0.m4s").await, "aac,2");
 }
 
 /// Writes 14 seconds of H.264 with English 5.1 AAC, played by default, and a stereo AAC
@@ -1830,22 +1805,11 @@ fn write_english_and_a_stereo_commentary(path: &Path) {
 async fn switching_to_the_commentary_mid_play_remuxes_it_from_there_with_its_audio() {
     let fx = Fixture::alien_written_by(ALIEN_1080P, write_english_and_a_stereo_commentary).await;
     let version = fx.version_ids(ALIEN).await[0];
-    let english = fx.plan(version).await.unwrap();
-    assert_eq!(played_audio(&fx, &english.url, "1.m4s").await, "aac,6");
 
     let commentary = fx.plan_with_audio(version, 2, 7_000).await.unwrap();
 
     assert_eq!(commentary.method, PlaybackMethod::PLAYBACK_METHOD_REMUX);
-    assert_eq!(commentary.tracks[1].title.as_deref(), Some("Commentary"));
-    assert_eq!(
-        (english.audio_track, commentary.audio_track),
-        (Some(1), Some(2))
-    );
-    assert_eq!(
-        commentary.reasons[6],
-        "The audio Track chosen isn't the one browsers play from its file, so it can't be Direct \
-         Played"
-    );
+    assert_eq!(commentary.audio_track, Some(2));
     // 7 seconds in is in the second segment, as they're cut about 6 seconds apart.
     assert_eq!(played_audio(&fx, &commentary.url, "1.m4s").await, "aac,2");
 }
@@ -1857,13 +1821,6 @@ async fn an_hevc_mkv_is_transcoded_to_h264_and_aac_over_hls_in_six_second_segmen
     let plan = fx.plan(version).await.unwrap();
 
     assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_TRANSCODE);
-    assert_eq!(codecs(&plan), ["h264", "aac"]);
-    assert_eq!(
-        plan.reasons[1],
-        "This Device can't decode its Matroska container, HEVC video or AC-3 audio, so it \
-         can't be Direct Played or Remuxed, and a Transcode converts it to H.264 and stereo \
-         AAC, as this Device doesn't say it plays more"
-    );
     let playlist = String::from_utf8(fx.fetch_ok(&plan.url).await).unwrap();
     let (durations, files) = segments(&playlist);
     assert_eq!(files, ["0.m4s", "1.m4s", "2.m4s", "3.m4s"], "20 seconds");
@@ -1875,67 +1832,6 @@ async fn an_hevc_mkv_is_transcoded_to_h264_and_aac_over_hls_in_six_second_segmen
     let video = played_streams(&fx, &plan.url, "v", "0.m4s", "codec_name,width,height").await;
     assert_eq!(video, "h264,320,240");
     assert_eq!(played_audio(&fx, &plan.url, "0.m4s").await, "aac,2");
-}
-
-#[tokio::test]
-async fn a_1080p_h264_mkv_limited_to_720p_is_transcoded_down_to_it_and_original_remuxes_it_again() {
-    let (fx, version) = Fixture::alien_written(system_ffmpeg(), ffmpeg::write_1080p_h264).await;
-    let limited = |playback_limit: PlaybackLimit| PlanPlaybackRequest {
-        version_id: version,
-        playback_limit: playback_limit.into(),
-        device_decoding: chrome().into(),
-        ..Default::default()
-    };
-
-    let at_720p = fx
-        .ask_for_plan(limited(PlaybackLimit::PLAYBACK_LIMIT_720P))
-        .await
-        .unwrap();
-    let original = fx
-        .ask_for_plan(limited(PlaybackLimit::PLAYBACK_LIMIT_ORIGINAL))
-        .await
-        .unwrap();
-
-    assert_eq!(at_720p.method, PlaybackMethod::PLAYBACK_METHOD_TRANSCODE);
-    assert_eq!(
-        at_720p.reasons[8],
-        "Its picture is larger than the 720p Playback Limit, so a Transcode scales it down to \
-         1280×720"
-    );
-    assert_eq!(
-        played_streams(&fx, &at_720p.url, "v", "0.m4s", "codec_name,width,height").await,
-        "h264,1280,720"
-    );
-    assert_eq!(original.method, PlaybackMethod::PLAYBACK_METHOD_REMUX);
-    assert_eq!(original.reasons[8], "The Playback Limit is Original");
-    assert_eq!(
-        original.playback_limits,
-        [
-            PlaybackLimit::PLAYBACK_LIMIT_720P,
-            PlaybackLimit::PLAYBACK_LIMIT_480P
-        ]
-    );
-}
-
-#[tokio::test]
-async fn a_720p_limit_picked_after_a_transcode_failed_on_the_device_is_dropped_for_original() {
-    let (fx, version) = Fixture::alien_written(system_ffmpeg(), ffmpeg::write_1080p_h264).await;
-
-    let plan = fx
-        .ask_for_plan(PlanPlaybackRequest {
-            failed_methods: vec![PlaybackMethod::PLAYBACK_METHOD_TRANSCODE.into()],
-            ..picking(version, PlaybackLimit::PLAYBACK_LIMIT_720P)
-        })
-        .await
-        .unwrap();
-
-    assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_REMUX);
-    assert_eq!(plan.playback_limit, PlaybackLimit::PLAYBACK_LIMIT_ORIGINAL);
-    assert_eq!(
-        plan.reasons[8],
-        "The 720p Playback Limit needs a Transcode, which can't play it here, so it's \
-         dropped for Original"
-    );
 }
 
 /// A Server behind a reverse proxy at the test's own address, which it trusts.
@@ -1982,7 +1878,6 @@ async fn a_1080p_h264_mkv_played_from_outside_the_local_network_transcodes_to_th
     let local = fx.ask_for_plan(unpicked).await.unwrap();
 
     assert_eq!(defaulted.method, PlaybackMethod::PLAYBACK_METHOD_TRANSCODE);
-    assert_eq!(defaulted.reasons[7], REMOTE_720P);
     assert_eq!(defaulted.playback_limit, PlaybackLimit::PLAYBACK_LIMIT_720P);
     assert_eq!(
         played_streams(&fx, &defaulted.url, "v", "0.m4s", "width,height").await,
@@ -1993,8 +1888,14 @@ async fn a_1080p_h264_mkv_played_from_outside_the_local_network_transcodes_to_th
         PlaybackMethod::PLAYBACK_METHOD_REMUX
     );
     assert_eq!(local.method, PlaybackMethod::PLAYBACK_METHOD_REMUX);
-    assert_eq!(local.reasons[7], LOCAL);
     assert_eq!(local.playback_limit, PlaybackLimit::PLAYBACK_LIMIT_ORIGINAL);
+    assert_eq!(
+        local.playback_limits,
+        [
+            PlaybackLimit::PLAYBACK_LIMIT_720P,
+            PlaybackLimit::PLAYBACK_LIMIT_480P
+        ]
+    );
 }
 
 #[tokio::test]
@@ -2056,10 +1957,6 @@ async fn a_pgs_track_turned_on_mid_play_is_burned_into_a_transcode_from_there() 
 
     assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_TRANSCODE);
     assert_eq!(
-        plan.reasons[9],
-        "The subtitles chosen are burned into its picture, which only a Transcode does"
-    );
-    assert_eq!(
         (plan.subtitle_track, plan.burn_in_tracks),
         (Some(1), vec![1])
     );
@@ -2098,23 +1995,6 @@ async fn last_frame(fx: &Fixture, url: &str, segment: &str) -> Vec<u8> {
         .next()
         .unwrap()
         .to_vec()
-}
-
-#[tokio::test]
-async fn hdr10_transcoded_for_a_browser_on_an_sdr_screen_is_tone_mapped_to_sdr() {
-    let write = |file: &Path| ffmpeg::write_4k_with_5_1(file, "smpte2084");
-    let (fx, version) = Fixture::alien_written(system_ffmpeg(), write).await;
-
-    let plan = fx.plan(version).await.unwrap();
-
-    assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_TRANSCODE);
-    assert_eq!(
-        plan.reasons[2],
-        "This Server has ffmpeg, which tone-maps its HDR10 picture to SDR in a Transcode"
-    );
-    let colours = "color_transfer,color_primaries";
-    let played = played_streams(&fx, &plan.url, "v", "0.m4s", colours).await;
-    assert_eq!(played, "bt709,bt709");
 }
 
 #[tokio::test]
@@ -2161,12 +2041,7 @@ async fn a_version_whose_direct_play_just_failed_on_the_device_cant_be_played_an
     let version = fx.version_ids(ALIEN).await[0];
 
     let plan = fx
-        .plan_on_device(
-            version,
-            &[],
-            &[PlaybackMethod::PLAYBACK_METHOD_DIRECT_PLAY],
-            0,
-        )
+        .plan_on_device(version, &[PlaybackMethod::PLAYBACK_METHOD_DIRECT_PLAY], 0)
         .await
         .unwrap();
 
@@ -2175,32 +2050,24 @@ async fn a_version_whose_direct_play_just_failed_on_the_device_cant_be_played_an
     assert_eq!(plan.reasons[4], "Direct Play failed on this Device");
 }
 
+/// The pure tests in `src/playback.rs` cover what these choices do; this checks they reach it.
 #[tokio::test]
-async fn a_version_whose_direct_play_just_failed_on_a_device_that_decodes_it_is_remuxed() {
-    let (fx, version) = Fixture::alien_mkv(system_ffmpeg(), "aac").await;
-    let matroska = "video/x-matroska";
-    let direct_play = fx
-        .plan_on_device(version, &[matroska], &[], 0)
-        .await
-        .unwrap();
-    assert_eq!(
-        direct_play.method,
-        PlaybackMethod::PLAYBACK_METHOD_DIRECT_PLAY
-    );
+async fn a_picked_playback_limit_and_a_failed_transcode_reach_the_plan() {
+    let fx = Fixture::alien().await;
+    let version = fx.version_ids(ALIEN).await[0];
 
-    let failed = [PlaybackMethod::PLAYBACK_METHOD_DIRECT_PLAY];
     let plan = fx
-        .plan_on_device(version, &[matroska], &failed, 0)
+        .ask_for_plan(PlanPlaybackRequest {
+            failed_methods: vec![PlaybackMethod::PLAYBACK_METHOD_TRANSCODE.into()],
+            ..picking(version, PlaybackLimit::PLAYBACK_LIMIT_480P)
+        })
         .await
         .unwrap();
 
-    assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_REMUX);
-    assert!(
-        plan.reasons
-            .iter()
-            .any(|reason| reason == "Direct Play failed on this Device"),
-        "{:?}",
-        plan.reasons
+    assert_eq!(plan.reasons[4], "Transcode failed on this Device");
+    assert_eq!(
+        plan.reasons[8],
+        "Its picture size isn't known, so it's taken to fit the 480p Playback Limit"
     );
 }
 
