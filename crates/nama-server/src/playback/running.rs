@@ -47,7 +47,7 @@ use axum::{
 use nama_proto::nama::v1::{Playback, PlaybackChanged, PlaybackEnded, PlaybackStarted};
 use tokio::{process::Child, task::JoinHandle};
 
-use super::Method;
+use super::{Method, Playing, StartedPlan, direct_play_url, method_to_proto};
 use crate::{
     contents::Contents,
     events::{EventBus, event},
@@ -56,7 +56,7 @@ use crate::{
         VideoConversion, hls_init,
     },
     server_settings::PlaybackSettings,
-    tracks::{Probe, Tracks},
+    tracks::{Tracks, track_to_proto},
     users::Caller,
 };
 
@@ -105,6 +105,12 @@ pub(crate) enum StartError {
 
 /// Starts ffmpeg writing a plan's files, from a keyframe on, to the folder it's given.
 type Run = dyn Fn(&Path, Keyframe) -> io::Result<Child> + Send + Sync;
+
+/// What starts ffmpeg writing a plan's files: `run`, or once a run on hardware fails, `fallback`.
+struct Runs {
+    run: Box<Run>,
+    fallback: Option<Fallback>,
+}
 
 /// What a Transcode on hardware runs instead once a run there fails.
 struct Fallback {
@@ -283,41 +289,69 @@ impl RunningPlans {
         }
     }
 
-    /// Starts Remuxing the Version `playback` plays, which probing found holds `probe`, for the
-    /// Device it plays on, converting what `remux` says, and returns its id and its playlist's
-    /// URL. Lists the Version's keyframes the first time and keeps them. `None` if there is no
-    /// such Version.
-    pub(crate) async fn remux(
+    /// Starts `plan` for `caller`'s Device, telling Observers so, and returns it with its id and
+    /// where to play it from. A Remux or a Transcode runs ffmpeg over the Version's file, whose
+    /// length is `duration_ms` if known. `None` if there is no such Version, or `plan` can't be
+    /// played.
+    pub(crate) async fn start(
+        &self,
+        caller: &Caller,
+        plan: super::Plan,
+        duration_ms: Option<i64>,
+    ) -> Result<Option<StartedPlan>, StartError> {
+        let Some(playing) = plan.playing else {
+            return Ok(None);
+        };
+        let playback = playback(caller, &plan);
+        let started = match playing {
+            Playing::DirectPlay => {
+                Some((self.direct_play(playback), direct_play_url(plan.version)))
+            }
+            Playing::Remux(remux) => self.remux(playback, remux, duration_ms).await?,
+            Playing::Transcode(transcode) => {
+                self.transcode(playback, transcode, duration_ms).await?
+            }
+        };
+        Ok(started.map(|(id, url)| StartedPlan { id, url, plan }))
+    }
+
+    /// Starts Remuxing the Version `playback` plays, `duration_ms` long, for the Device it plays
+    /// on, converting what `remux` says, and returns its id and its playlist's URL. Lists the
+    /// Version's keyframes the first time and keeps them. `None` if there is no such Version.
+    async fn remux(
         &self,
         playback: Playback,
-        probe: &Probe,
         remux: Remux,
+        duration_ms: Option<i64>,
     ) -> Result<Option<(u64, String)>, StartError> {
         let version = playback.version_id;
         let Some((path, _)) = self.inner.contents.version_file(version).await? else {
             return Ok(None);
         };
         let keyframes = self.keyframes(version, &path).await?;
-        let timeline = Timeline::new(keyframes, probe.duration_ms.unwrap_or_default());
+        let timeline = Timeline::new(keyframes, duration_ms.unwrap_or_default());
         let ffmpeg = Arc::clone(&self.inner.ffmpeg);
         let run = move |dir: &Path, from| ffmpeg.remux(&path, &remux, dir, from)?.spawn();
+        let runs = Runs {
+            run: Box::new(run),
+            fallback: None,
+        };
         let id = self
-            .start(playback, Method::Remux, timeline, Box::new(run), None)
+            .start_hls(playback, Method::Remux, timeline, runs)
             .await?;
         Ok(Some((id, playlist_url(id))))
     }
 
-    /// Starts Transcoding the Version `playback` plays, which probing found holds `probe`, for
-    /// the Device it plays on, converting what `transcode` says, and returns its id and its
-    /// playlist's URL. Its segments are [`SEGMENT_MS`] each, as it forces a keyframe at each. On
-    /// hardware, it falls back to software, tone-mapping there only if `zscale`. `None` if there
-    /// is no such Version.
-    pub(crate) async fn transcode(
+    /// Starts Transcoding the Version `playback` plays, `duration_ms` long, for the Device it
+    /// plays on, converting what `transcode` says, and returns its id and its playlist's URL. Its
+    /// segments are [`SEGMENT_MS`] each, as it forces a keyframe at each. On hardware, it falls
+    /// back to software, tone-mapping there only if [`Self::can_tone_map`]. `None` if there is no
+    /// such Version.
+    async fn transcode(
         &self,
         playback: Playback,
-        probe: &Probe,
         transcode: Transcode,
-        zscale: bool,
+        duration_ms: Option<i64>,
     ) -> Result<Option<(u64, String)>, StartError> {
         let Some((path, _)) = (self.inner.contents)
             .version_file(playback.version_id)
@@ -325,7 +359,7 @@ impl RunningPlans {
         else {
             return Ok(None);
         };
-        let duration_ms = probe.duration_ms.unwrap_or_default();
+        let duration_ms = duration_ms.unwrap_or_default();
         // At least one, so a Version whose length isn't known still has a segment.
         let segments = (duration_ms.max(1) + SEGMENT_MS - 1) / SEGMENT_MS;
         let cuts: Vec<i64> = (0..segments).map(|n| n * SEGMENT_MS).collect();
@@ -340,6 +374,9 @@ impl RunningPlans {
             })
         };
         let video = transcode.video;
+        // Kept once answered, so this is the answer the plan was built with unless that check failed.
+        let zscale =
+            video.hardware.is_some() && video.tone_map.is_some() && self.can_tone_map().await;
         let fallback = video.hardware.map(|accel| {
             let software = VideoConversion {
                 hardware: None,
@@ -364,20 +401,18 @@ impl RunningPlans {
                 ),
             }
         });
+        let runs = Runs {
+            run: run(transcode),
+            fallback,
+        };
         let id = self
-            .start(
-                playback,
-                Method::Transcode,
-                timeline,
-                run(transcode),
-                fallback,
-            )
+            .start_hls(playback, Method::Transcode, timeline, runs)
             .await?;
         Ok(Some((id, playlist_url(id))))
     }
 
     /// Keeps a plan playing `playback` that runs nothing, a Direct Play, and returns its id.
-    pub(crate) fn direct_play(&self, playback: Playback) -> u64 {
+    fn direct_play(&self, playback: Playback) -> u64 {
         let id = self.inner.next_id.fetch_add(1, Ordering::Relaxed);
         self.insert(id, playback, None);
         id
@@ -397,19 +432,14 @@ impl RunningPlans {
         Ok(keyframes)
     }
 
-    /// Starts a plan playing `playback`, cut as `timeline` says, whose files `run` starts
-    /// ffmpeg writing, or `fallback` once a run fails, and returns the plan's id.
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "each is its own part of the plan, and a struct would only rename them"
-    )]
-    async fn start(
+    /// Starts a plan playing `playback`, cut as `timeline` says, whose files `runs` starts
+    /// ffmpeg writing, and returns the plan's id.
+    async fn start_hls(
         &self,
         playback: Playback,
         method: Method,
         timeline: Timeline,
-        run: Box<Run>,
-        fallback: Option<Fallback>,
+        Runs { run, fallback }: Runs,
     ) -> io::Result<u64> {
         let id = self.inner.next_id.fetch_add(1, Ordering::Relaxed);
         let dir = self
@@ -531,6 +561,19 @@ impl RunningPlans {
             ..Default::default()
         };
         self.inner.events.publish(vec![event(ended)]);
+    }
+}
+
+/// What Observers are told of `caller` playing by `plan`.
+fn playback(caller: &Caller, plan: &super::Plan) -> Playback {
+    Playback {
+        user_id: caller.user.id,
+        device_id: caller.device.id,
+        version_id: plan.version,
+        method: method_to_proto(plan.method()).into(),
+        tracks: plan.tracks.iter().map(track_to_proto).collect(),
+        reasons: plan.reasons.clone(),
+        ..Default::default()
     }
 }
 
@@ -977,7 +1020,7 @@ mod tests {
     };
 
     use super::{
-        Fallback, Method, POLL_EVERY, Running, RunningPlans, Timeline, lock, sweep_leftovers,
+        Fallback, Method, POLL_EVERY, Running, RunningPlans, Runs, Timeline, lock, sweep_leftovers,
     };
     use crate::{
         contents::Contents,
@@ -1063,7 +1106,15 @@ mod tests {
                 .spawn()
         };
         let id = plans
-            .start(playback(7), method, timeline, Box::new(run), None)
+            .start_hls(
+                playback(7),
+                method,
+                timeline,
+                Runs {
+                    run: Box::new(run),
+                    fallback: None,
+                },
+            )
             .await
             .unwrap();
         (id, starts)
@@ -1190,12 +1241,14 @@ mod tests {
                 .spawn(),
         };
         let id = plans
-            .start(
+            .start_hls(
                 playback(7),
                 Method::Remux,
                 every_two_seconds(),
-                Box::new(second_fails),
-                None,
+                Runs {
+                    run: Box::new(second_fails),
+                    fallback: None,
+                },
             )
             .await
             .unwrap();
@@ -1391,15 +1444,17 @@ mod tests {
         };
         let reason = "VAAPI failed partway, so the rest of it Transcodes in software";
         let id = plans
-            .start(
+            .start_hls(
                 playback(7),
                 Method::Transcode,
                 every_two_seconds(),
-                Box::new(hardware),
-                Some(Fallback {
-                    run: Box::new(software),
-                    why: reason.to_owned(),
-                }),
+                Runs {
+                    run: Box::new(hardware),
+                    fallback: Some(Fallback {
+                        run: Box::new(software),
+                        why: reason.to_owned(),
+                    }),
+                },
             )
             .await
             .unwrap();
@@ -1476,17 +1531,19 @@ mod tests {
     /// Starts a plan for the Device `device` whose ffmpeg is `sleep`, and returns its id.
     async fn start_sleeping(plans: &RunningPlans, device: i64) -> u64 {
         plans
-            .start(
+            .start_hls(
                 playback(device),
                 Method::Remux,
                 every_two_seconds(),
-                Box::new(|_: &Path, _: Keyframe| {
-                    tokio::process::Command::new("sleep")
-                        .arg("60")
-                        .kill_on_drop(true)
-                        .spawn()
-                }),
-                None,
+                Runs {
+                    run: Box::new(|_: &Path, _: Keyframe| {
+                        tokio::process::Command::new("sleep")
+                            .arg("60")
+                            .kill_on_drop(true)
+                            .spawn()
+                    }),
+                    fallback: None,
+                },
             )
             .await
             .unwrap()

@@ -38,7 +38,7 @@ use crate::{
     },
     probing::{self, Probing},
     server_settings::{HardwareChoice, PlaybackValues},
-    tracks::{Hdr, Probe, Track, TrackKind, Tracks, track_to_proto},
+    tracks::{Hdr, Probe, Track, TrackKind, Tracks},
     users::{Caller, User},
 };
 use running::{RunningPlans, StartError};
@@ -123,13 +123,10 @@ enum Network {
 /// How the Server will play one Version on one Device, and why.
 #[derive(Debug, PartialEq)]
 pub(crate) struct Plan {
-    /// What [`RunningPlans`] keeps it by, once [`plan`] started it; `None` when it can't be
-    /// played.
-    pub(crate) id: Option<u64>,
+    /// The Version it plays, by id.
+    pub(crate) version: i64,
     /// How it plays the Version and what that converts, `None` when it can't be played.
     pub(crate) playing: Option<Playing>,
-    /// Where to play it from, on this Server. `None` when it can't be played.
-    pub(crate) url: Option<String>,
     /// Its video, then its audio. Empty when its Tracks aren't known.
     pub(crate) tracks: Vec<Track>,
     /// Why, one for each step, in the order they ran.
@@ -155,6 +152,24 @@ impl Plan {
             Some(Playing::Transcode(_)) => Some(Method::Transcode),
         }
     }
+}
+
+/// A plan [`RunningPlans`] started, which it keeps until it stops.
+#[derive(Debug)]
+pub(crate) struct StartedPlan {
+    /// What [`RunningPlans`] keeps it by.
+    pub(crate) id: u64,
+    /// Where to play it from, on this Server.
+    pub(crate) url: String,
+    pub(crate) plan: Plan,
+}
+
+/// What [`plan`] answers.
+#[derive(Debug)]
+pub(crate) enum Planned {
+    Started(StartedPlan),
+    /// A plan that can't be played, which nothing keeps.
+    Unplayable(Plan),
 }
 
 /// How a plan plays a Version, with what its method converts.
@@ -216,34 +231,44 @@ impl DeviceDecoding {
     }
 }
 
-/// Plans playing the Version `version` on `caller`'s Device, which decodes `decoding`, by any
-/// method but those that just `failed` there, with the audio Track at the place `audio` in the
-/// Version's Tracks, or else its own, within the Playback Limit the User `picked`, or else,
-/// while they haven't picked one, the remote Playback Limit in `settings` if the Device's address
-/// `client` is outside the local network, with the subtitle Track at the place `subtitle` burned
-/// into the picture, if any, by the Transcode cap and hardware choice in `settings`. It probes the
-/// Version first unless its Tracks are current, and keeps a playable plan in `running`, which
-/// starts its ffmpeg if it needs one. `None` if there is no such Version, and
-/// [`StartError::Busy`] if only a Transcode would play it and the Server is running as many as it
-/// may.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "each is its own fact about the request or a service it needs, and a struct would \
-              only rename them"
-)]
+/// What a request for a plan asks.
+#[derive(Debug)]
+pub(crate) struct Asked {
+    /// The Version to play, by id.
+    pub(crate) version: i64,
+    pub(crate) decoding: DeviceDecoding,
+    /// The methods that just failed to play it on the Device.
+    pub(crate) failed: BTreeSet<Method>,
+    /// The audio Track chosen, by its place in the Version's Tracks, if one was.
+    pub(crate) audio: Option<usize>,
+    /// The subtitle Track chosen to burn into the picture, by its place in the Version's Tracks,
+    /// if one was.
+    pub(crate) subtitle: Option<usize>,
+    pub(crate) limit: PickedLimit,
+    /// The Device's address, which says whether it's on the local network.
+    pub(crate) client: IpAddr,
+}
+
+/// Plans what `asked` asks on `caller`'s Device, by the Playback settings `settings`, and starts
+/// it in `running` if it plays. It probes the Version first unless its Tracks are current. `None`
+/// if there is no such Version, and [`StartError::Busy`] if only a Transcode would play it and
+/// the Server is running as many as it may.
 pub(crate) async fn plan(
     probing: &Probing,
     running: &RunningPlans,
     caller: &Caller,
-    version: i64,
-    decoding: DeviceDecoding,
-    failed: BTreeSet<Method>,
-    audio: Option<usize>,
-    picked: PickedLimit,
-    client: IpAddr,
+    asked: Asked,
     settings: PlaybackValues,
-    subtitle: Option<usize>,
-) -> Result<Option<Plan>, StartError> {
+) -> Result<Option<Planned>, StartError> {
+    let Asked {
+        version,
+        decoding,
+        failed,
+        audio,
+        subtitle,
+        limit,
+        client,
+    } = asked;
     let probe = match probing.current(version).await {
         Ok(probe) => Some(probe),
         Err(probing::Error::Probe(err)) => {
@@ -267,7 +292,7 @@ pub(crate) async fn plan(
         failed,
         audio,
         transcodes_full: None,
-        picked_limit: picked,
+        picked_limit: limit,
         network: if on_local_network(client) {
             Network::Local
         } else {
@@ -281,49 +306,16 @@ pub(crate) async fn plan(
     let max_transcodes =
         (settings.max_transcodes).map_or_else(|| default_max_transcodes(&facts), NonZeroU32::get);
     facts.transcodes_full = running.transcodes_full(caller.device.id, max_transcodes);
-    let mut plan = build(&mut facts);
-    let Some(playback) = playback(caller, version, &plan) else {
+    let plan = build(&mut facts);
+    if plan.playing.is_none() {
         return match too_busy_to_play(facts) {
             Some(max) => Err(StartError::Busy(max)),
-            None => Ok(Some(plan)),
+            None => Ok(Some(Planned::Unplayable(plan))),
         };
-    };
-    // Only a probed Version has `Candidates`, so only it is Remuxed or Transcoded.
-    let started = match (plan.playing, &facts.probe) {
-        (Some(Playing::Remux(remux)), Some(probed)) => {
-            running.remux(playback, probed, remux).await?
-        }
-        (Some(Playing::Transcode(transcode)), Some(probed)) => {
-            running
-                .transcode(playback, probed, transcode, facts.zscale)
-                .await?
-        }
-        _ => {
-            plan.id = Some(running.direct_play(playback));
-            return Ok(Some(plan));
-        }
-    };
-    let Some((id, url)) = started else {
-        return Ok(None);
-    };
-    plan.id = Some(id);
-    plan.url = Some(url);
-    Ok(Some(plan))
-}
-
-/// What Observers are told of `caller` playing the Version `version` by `plan`, or `None` if it
-/// can't be played.
-fn playback(caller: &Caller, version: i64, plan: &Plan) -> Option<proto::Playback> {
-    let method = plan.method()?;
-    Some(proto::Playback {
-        user_id: caller.user.id,
-        device_id: caller.device.id,
-        version_id: version,
-        method: method_to_proto(Some(method)).into(),
-        tracks: plan.tracks.iter().map(track_to_proto).collect(),
-        reasons: plan.reasons.clone(),
-        ..Default::default()
-    })
+    }
+    let duration_ms = facts.probe.and_then(|probed| probed.duration_ms);
+    let started = running.start(caller, plan, duration_ms).await?;
+    Ok(started.map(Planned::Started))
 }
 
 /// Whose playback events `viewer` may see: everyone's (`None`) with `ADMIN`, or else only their own.
@@ -465,10 +457,8 @@ fn build(facts: &mut Facts) -> Plan {
     let burns_in =
         matches!(playing, Some(Playing::Transcode(transcode)) if transcode.video.burn_in.is_some());
     Plan {
-        id: None,
+        version: facts.version,
         playing,
-        // A Remux's or Transcode's URL is its running plan's, which `plan` starts.
-        url: (playing == Some(Playing::DirectPlay)).then(|| direct_play_url(facts.version)),
         tracks: (facts.probe.as_ref())
             .map(|probe| played_by(playing.as_ref(), played_tracks(probe, audio)))
             .unwrap_or_default(),
@@ -1506,15 +1496,14 @@ mod tests {
     }
 
     #[test]
-    fn an_h264_and_aac_mp4_direct_plays_from_its_versions_url_because_its_tracks_need_no_change() {
+    fn an_h264_and_aac_mp4_direct_plays_because_its_tracks_need_no_change() {
         let plan = build(&mut facts(Some(vec![video("h264"), audio("aac", true)])));
 
         assert_eq!(
             plan,
             Plan {
-                id: None,
+                version: 7,
                 playing: Some(Playing::DirectPlay),
-                url: Some("/media/versions/7".to_owned()),
                 tracks: vec![video("h264"), audio("aac", true)],
                 reasons: vec![
                     "Its Tracks need no change".to_owned(),
@@ -1677,7 +1666,7 @@ mod tests {
 
         let plan = build(&mut facts);
 
-        assert_eq!((plan.method(), plan.url), (None, None));
+        assert_eq!(plan.method(), None);
     }
 
     #[test]
@@ -1776,7 +1765,6 @@ mod tests {
         ));
 
         assert_eq!(plan.method(), Some(Method::Remux));
-        assert_eq!(plan.url, None, "a Remux's URL is its running plan's");
         assert_eq!(
             plan.reasons,
             [
@@ -2010,7 +1998,6 @@ mod tests {
         let plan = build(&mut facts);
 
         assert_eq!(plan.method(), Some(Method::Transcode));
-        assert_eq!(plan.url, None, "a Transcode's URL is its running plan's");
         assert_eq!(
             plan.tracks,
             [video("h264"), audio_with("aac", true, Some(2))]
@@ -2639,7 +2626,7 @@ echo '{"streams": [{"codec_name": "h264", "codec_type": "video"},
             events::EventBus,
             ffmpeg::Ffmpeg,
             libraries::{Kind, Libraries},
-            playback::{plan, running::RunningPlans, subtitles},
+            playback::{Asked, Planned, StartedPlan, plan, running::RunningPlans, subtitles},
             plugins::Registry,
             probing::Probing,
             server_settings::{ServerUrl, Settings},
@@ -2668,23 +2655,31 @@ echo '{"streams": [{"codec_name": "h264", "codec_type": "video"},
             EventBus::new(db, Registry::new(), ServerUrl::default()),
         );
 
-        let plan = plan(
+        let asked = Asked {
+            version,
+            decoding: DeviceDecoding::default(),
+            failed: BTreeSet::new(),
+            audio: None,
+            subtitle: None,
+            limit: PickedLimit::Unpicked,
+            client: std::net::Ipv4Addr::LOCALHOST.into(),
+        };
+        let planned = plan(
             &probing,
             &running,
             &ripley_on_the_nostromo(),
-            version,
-            DeviceDecoding::default(),
-            BTreeSet::new(),
-            None,
-            PickedLimit::Unpicked,
-            std::net::Ipv4Addr::LOCALHOST.into(),
+            asked,
             settings.playback().now(),
-            None,
         )
         .await
         .unwrap();
 
-        let tracks = plan.map(|plan| plan.tracks).unwrap_or_default();
+        let tracks = match planned {
+            Some(Planned::Started(StartedPlan { plan, .. }) | Planned::Unplayable(plan)) => {
+                plan.tracks
+            }
+            None => vec![],
+        };
         let codecs: Vec<&str> = tracks.iter().map(|track| track.codec.as_str()).collect();
         assert_eq!(codecs, ["h264", "aac"]);
     }
