@@ -306,7 +306,8 @@ impl Ffmpeg {
     }
 
     /// The facts of the file at `path` and its video, audio and subtitle Tracks, as ffprobe reads
-    /// them. Reads the whole file when its format doesn't say how long it is.
+    /// them. Reads the whole file when its format doesn't say how long it is, or says so only from
+    /// a placeholder header.
     pub(crate) async fn probe(&self, path: &str) -> Result<Probe, ProbeError> {
         let args = ["-print_format", "json", "-show_format", "-show_streams"];
         let output = self.run_ffprobe(&args, path, PROBE_TIMEOUT).await?;
@@ -927,10 +928,11 @@ fn parse_probe(json: &[u8]) -> Result<Probe, serde_json::Error> {
         .any(|stream| stream.nb_frames.as_deref() == Some(AVI_PLACEHOLDER_FRAMES));
     Ok(Probe {
         container: format.format_name,
-        // A playlist can't be cut from a length of 0, so it reads as unknown.
         duration_ms: (format.duration.as_deref())
+            .filter(|_| !header_unfilled)
             .and_then(millis)
-            .filter(|&ms| ms > 0 && !header_unfilled),
+            // A playlist can't be cut from a length of 0, so it reads as unknown.
+            .filter(|&ms| ms > 0),
         bitrate: format.bit_rate.and_then(|bitrate| bitrate.parse().ok()),
         tracks: output.streams.into_iter().filter_map(track).collect(),
     })
@@ -2220,7 +2222,7 @@ mod probe_output_tests {
     }
 
     #[test]
-    fn an_avi_whose_streams_count_avis_placeholder_frames_has_no_known_duration() {
+    fn an_avi_with_the_placeholder_frame_count_has_no_known_duration() {
         let avi_with = |nb_frames: &str| {
             let json = format!(
                 r#"{{"format": {{"format_name": "avi", "duration": "2866.375000"}},
@@ -2500,8 +2502,8 @@ mod hls_tests {
             .args(["-v", "error", "-f", "lavfi"])
             .args(["-i", "testsrc=duration=20:size=320x240:rate=24"])
             .args(["-f", "lavfi", "-i", "sine=duration=20"])
-            .args(["-c:v", "libx264", "-preset", "ultrafast", "-c:a", "aac"])
-            .args(["-f", "avi", "pipe:1"])
+            // Not `ultrafast`, whose AVI skips a frame's time after the first packet.
+            .args(["-c:v", "libx264", "-c:a", "aac", "-f", "avi", "pipe:1"])
             .stdout(fs::File::create(&file).unwrap())
             .status()
             .unwrap();
