@@ -1690,6 +1690,13 @@ mod hls_run_tests {
         in_band_headers: false,
     };
 
+    /// The filters that tone-map HDR to SDR in software, pinned apart from the `TONE_MAP` they
+    /// test.
+    const ZSCALE_TONE_MAP: &str = "setparams=color_primaries=bt2020:colorspace=bt2020nc,\
+                                   zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,\
+                                   tonemap=tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv,\
+                                   format=yuv420p";
+
     /// The arguments for a run of `remux` of `alien.mkv` from `from`, with ffmpeg 7.1.1.
     fn remux_args(remux: Remux, from: Keyframe) -> Vec<String> {
         let run = ffmpeg("7.1.1").remux("alien.mkv", &remux, Path::new("plan"), from);
@@ -1885,10 +1892,7 @@ mod hls_run_tests {
 
         let args = transcode_args(tone_mapped);
 
-        let filters = "setparams=color_primaries=bt2020:colorspace=bt2020nc,\
-                       zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,\
-                       tonemap=tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv,format=yuv420p";
-        assert_eq!(value_of(&args, "-vf"), Some(filters));
+        assert_eq!(value_of(&args, "-vf"), Some(ZSCALE_TONE_MAP));
     }
 
     #[test]
@@ -1973,34 +1977,32 @@ mod hls_run_tests {
     }
 
     /// What a Transcode on `accel`, tone-mapping with `tone_map`, starts ffmpeg with up to the
-    /// keyframes it forces, which the software tests pin from there on. `None` where the plan never
-    /// asks for it: only an API with a tone-mapping filter passes its test tone-map.
+    /// keyframes it forces, which the software tests pin from there on, as words split at spaces.
+    /// `None` for tone-mapping on the GPU of an API with no filter for it, which the plan never
+    /// asks for: only an API with one can pass its tone-map test at startup.
     fn pinned_hardware_args(accel: Accel, tone_map: Option<ToneMapper>) -> Option<String> {
-        const ZSCALE: &str = "setparams=color_primaries=bt2020:colorspace=bt2020nc,\
-                              zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,\
-                              tonemap=tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv,\
-                              format=yuv420p";
-        const HEADERS: &str = "-bsf:v dump_extra=freq=keyframe -tag:v avc3";
+        const IN_BAND_HEADERS: &str = "-bsf:v dump_extra=freq=keyframe -tag:v avc3";
         let args = match (accel, tone_map) {
             (Accel::Nvenc, None) => format!(
                 "-v error -nostdin -init_hw_device cuda=nama -filter_hw_device nama \
                  -hwaccel cuda -hwaccel_device nama -hwaccel_output_format cuda \
                  -i alien.mkv -copyts -start_at_zero -map 0:V:0 \
                  -vf format=nv12|p010le|cuda,hwupload,scale_cuda=format=nv12 \
-                 -c:v h264_nvenc -g 10000000 -forced-idr 1 -no-scenecut 1 {HEADERS}"
+                 -c:v h264_nvenc -g 10000000 -forced-idr 1 -no-scenecut 1 {IN_BAND_HEADERS}"
             ),
             (Accel::Nvenc, Some(ToneMapper::Software)) => format!(
                 "-v error -nostdin -init_hw_device cuda=nama -filter_hw_device nama \
                  -hwaccel cuda -hwaccel_device nama \
-                 -i alien.mkv -copyts -start_at_zero -map 0:V:0 -vf {ZSCALE},format=nv12 \
-                 -c:v h264_nvenc -g 10000000 -forced-idr 1 -no-scenecut 1 {HEADERS}"
+                 -i alien.mkv -copyts -start_at_zero -map 0:V:0 \
+                 -vf {ZSCALE_TONE_MAP},format=nv12 \
+                 -c:v h264_nvenc -g 10000000 -forced-idr 1 -no-scenecut 1 {IN_BAND_HEADERS}"
             ),
             (Accel::Qsv, None) => format!(
                 "-v error -nostdin -init_hw_device qsv=nama -filter_hw_device nama \
                  -hwaccel qsv -hwaccel_device nama -hwaccel_output_format qsv \
                  -i alien.mkv -copyts -start_at_zero -map 0:V:0 \
                  -vf format=nv12|p010le|qsv,hwupload=extra_hw_frames=64,scale_qsv=format=nv12 \
-                 -c:v h264_qsv -g 10000000 -forced_idr 1 {HEADERS}"
+                 -c:v h264_qsv -g 10000000 -forced_idr 1 {IN_BAND_HEADERS}"
             ),
             (Accel::Qsv, Some(ToneMapper::Hardware)) => format!(
                 "-v error -nostdin -init_hw_device qsv=nama -filter_hw_device nama \
@@ -2008,21 +2010,21 @@ mod hls_run_tests {
                  -i alien.mkv -copyts -start_at_zero -map 0:V:0 \
                  -vf format=nv12|p010le|qsv,hwupload=extra_hw_frames=64,\
                  vpp_qsv=tonemap=1:format=nv12,scale_qsv=format=nv12 \
-                 -c:v h264_qsv -g 10000000 -forced_idr 1 {HEADERS}"
+                 -c:v h264_qsv -g 10000000 -forced_idr 1 {IN_BAND_HEADERS}"
             ),
             (Accel::Qsv, Some(ToneMapper::Software)) => format!(
                 "-v error -nostdin -init_hw_device qsv=nama -filter_hw_device nama \
                  -hwaccel qsv -hwaccel_device nama \
                  -i alien.mkv -copyts -start_at_zero -map 0:V:0 \
-                 -vf {ZSCALE},format=nv12,hwupload=extra_hw_frames=64 \
-                 -c:v h264_qsv -g 10000000 -forced_idr 1 {HEADERS}"
+                 -vf {ZSCALE_TONE_MAP},format=nv12,hwupload=extra_hw_frames=64 \
+                 -c:v h264_qsv -g 10000000 -forced_idr 1 {IN_BAND_HEADERS}"
             ),
             (Accel::Vaapi, None) => format!(
                 "-v error -nostdin -init_hw_device vaapi=nama -filter_hw_device nama \
                  -hwaccel vaapi -hwaccel_device nama -hwaccel_output_format vaapi \
                  -i alien.mkv -copyts -start_at_zero -map 0:V:0 \
                  -vf format=nv12|p010le|vaapi,hwupload,scale_vaapi=format=nv12 \
-                 -c:v h264_vaapi -g 10000000 {HEADERS}"
+                 -c:v h264_vaapi -g 10000000 {IN_BAND_HEADERS}"
             ),
             (Accel::Vaapi, Some(ToneMapper::Hardware)) => format!(
                 "-v error -nostdin -init_hw_device vaapi=nama -filter_hw_device nama \
@@ -2030,23 +2032,25 @@ mod hls_run_tests {
                  -i alien.mkv -copyts -start_at_zero -map 0:V:0 \
                  -vf format=nv12|p010le|vaapi,hwupload,\
                  tonemap_vaapi=format=nv12:t=bt709:m=bt709:p=bt709,scale_vaapi=format=nv12 \
-                 -c:v h264_vaapi -g 10000000 {HEADERS}"
+                 -c:v h264_vaapi -g 10000000 {IN_BAND_HEADERS}"
             ),
             (Accel::Vaapi, Some(ToneMapper::Software)) => format!(
                 "-v error -nostdin -init_hw_device vaapi=nama -filter_hw_device nama \
                  -hwaccel vaapi -hwaccel_device nama \
                  -i alien.mkv -copyts -start_at_zero -map 0:V:0 \
-                 -vf {ZSCALE},format=nv12,hwupload -c:v h264_vaapi -g 10000000 {HEADERS}"
+                 -vf {ZSCALE_TONE_MAP},format=nv12,hwupload \
+                 -c:v h264_vaapi -g 10000000 {IN_BAND_HEADERS}"
             ),
             (Accel::VideoToolbox, None) => format!(
                 "-v error -nostdin -hwaccel videotoolbox \
                  -i alien.mkv -copyts -start_at_zero -map 0:V:0 -vf format=nv12 \
-                 -c:v h264_videotoolbox -g 10000000 {HEADERS}"
+                 -c:v h264_videotoolbox -g 10000000 {IN_BAND_HEADERS}"
             ),
             (Accel::VideoToolbox, Some(ToneMapper::Software)) => format!(
                 "-v error -nostdin -hwaccel videotoolbox \
-                 -i alien.mkv -copyts -start_at_zero -map 0:V:0 -vf {ZSCALE},format=nv12 \
-                 -c:v h264_videotoolbox -g 10000000 {HEADERS}"
+                 -i alien.mkv -copyts -start_at_zero -map 0:V:0 \
+                 -vf {ZSCALE_TONE_MAP},format=nv12 \
+                 -c:v h264_videotoolbox -g 10000000 {IN_BAND_HEADERS}"
             ),
             (Accel::Nvenc | Accel::VideoToolbox, Some(ToneMapper::Hardware)) => return None,
         };
@@ -2066,10 +2070,10 @@ mod hls_run_tests {
                 );
                 continue;
             };
-            // As the plan converts it, so software can carry on if the hardware fails.
             let video = VideoConversion {
                 hardware: Some(accel),
                 tone_map,
+                // As the plan sets it on hardware, so software can carry on if the hardware fails.
                 in_band_headers: true,
                 ..SOFTWARE
             };
@@ -2084,6 +2088,38 @@ mod hls_run_tests {
                 expected.split(' ').collect::<Vec<_>>(),
                 "{accel:?} tone-mapped by {tone_map:?}"
             );
+        }
+    }
+
+    #[test]
+    fn a_playback_limit_on_hardware_scales_the_picture_on_its_gpu_if_it_can() {
+        for accel in Accel::ALL {
+            let limited = VideoConversion {
+                hardware: Some(accel),
+                limit: Some(VideoLimit {
+                    size: Some((1280, 720)),
+                    bits_per_second: 4_000_000,
+                }),
+                in_band_headers: true,
+                ..SOFTWARE
+            };
+
+            let args = transcode_args(limited);
+
+            let filters = match accel {
+                Accel::Nvenc => {
+                    "format=nv12|p010le|cuda,hwupload,scale_cuda=w=1280:h=720:format=nv12"
+                }
+                Accel::Qsv => {
+                    "format=nv12|p010le|qsv,hwupload=extra_hw_frames=64,\
+                     scale_qsv=w=1280:h=720:format=nv12"
+                }
+                Accel::Vaapi => {
+                    "format=nv12|p010le|vaapi,hwupload,scale_vaapi=w=1280:h=720:format=nv12"
+                }
+                Accel::VideoToolbox => "scale=1280:720,format=nv12",
+            };
+            assert_eq!(value_of(&args, "-vf"), Some(filters), "{accel:?}");
         }
     }
 
