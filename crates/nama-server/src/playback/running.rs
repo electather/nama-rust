@@ -15,7 +15,7 @@
 //! for, to start again at the next file asked for that it hasn't written.
 //!
 //! A Transcode on hardware that fails carries on in software from the first file it hadn't
-//! written, adds why to its plan's reasons and publishes `PlaybackChanged`.
+//! written, takes its software fallback's reasons and publishes `PlaybackChanged`.
 //!
 //! A plan is stopped, and its folder deleted, when its player says it stopped, [`STOP_UNUSED_AFTER`]
 //! after it was last asked for, or as the Server shuts down. A Direct Play is asked for through
@@ -44,11 +44,13 @@ use axum::{
     response::{IntoResponse, Response},
     routing::get,
 };
-use nama_proto::nama::v1::{Playback, PlaybackChanged, PlaybackEnded, PlaybackStarted};
+use nama_proto::nama::v1::{
+    Playback, PlaybackChanged, PlaybackEnded, PlaybackReason, PlaybackStarted,
+};
 use tokio::{process::Child, task::JoinHandle};
 use tokio_util::{sync::CancellationToken, task::TaskTracker};
 
-use super::{Method, Playing, StartedPlan, direct_play_url, method_to_proto};
+use super::{Method, Playing, StartedPlan, direct_play_url, method_to_proto, reason_to_proto};
 use crate::{
     contents::Contents,
     events::{EventBus, event},
@@ -114,8 +116,8 @@ struct Runs {
 /// What a Transcode on hardware runs instead once a run there fails.
 struct FallbackRun {
     run: Box<Run>,
-    /// Why, as its plan's reasons then say.
-    why: String,
+    /// Its plan's reasons from then on, which say why.
+    reasons: Vec<PlaybackReason>,
 }
 
 /// The playable plans, by id.
@@ -339,10 +341,10 @@ impl RunningPlans {
         let fallback = fallback.map(
             |super::Fallback {
                  transcode: software,
-                 why,
+                 reasons,
              }| FallbackRun {
                 run: run(software),
-                why,
+                reasons: reasons.iter().map(reason_to_proto).collect(),
             },
         );
         let runs = Runs {
@@ -506,7 +508,7 @@ fn playback(caller: &Caller, plan: &super::Plan) -> Playback {
         version_id: plan.version,
         method: method_to_proto(plan.method()).into(),
         tracks: plan.tracks.iter().map(track_to_proto).collect(),
-        reasons: plan.reasons.clone(),
+        reasons: plan.reasons.iter().map(reason_to_proto).collect(),
         ..Default::default()
     }
 }
@@ -775,13 +777,13 @@ impl Running {
         Ok(true)
     }
 
-    /// How it plays now: as it started, and why it fell back if it did.
+    /// How it plays now: as it started, with its fallback's reasons if it fell back.
     fn playback_now(&self) -> Playback {
         let mut playback = self.playback.clone();
-        if let Some(FallbackRun { why, .. }) =
+        if let Some(FallbackRun { reasons, .. }) =
             (self.fallback.as_ref()).filter(|_| self.fell_back.load(Ordering::Acquire))
         {
-            playback.reasons.push(why.clone());
+            playback.reasons.clone_from(reasons);
         }
         playback
     }
@@ -819,15 +821,18 @@ impl Running {
     /// Once `run`, the plan's current run of ffmpeg, failed on hardware, starts its fallback from
     /// the first file it hadn't written, and tells Observers so. Only the first failure does.
     async fn fall_back(self: &Arc<Self>, run: &Arc<FfmpegRun>) {
-        let Some(FallbackRun { why, .. }) = &self.fallback else {
+        if self.fallback.is_none() {
             return;
-        };
+        }
         // Before waiting for the lock, so a seek that restarts ffmpeg meanwhile, aborting this
         // task, restarts it in software.
         if self.fell_back.swap(true, Ordering::AcqRel) {
             return;
         }
-        tracing::warn!(plan = self.id, "{why}");
+        tracing::warn!(
+            plan = self.id,
+            "hardware acceleration failed partway, so the rest Transcodes in software"
+        );
         let changed = PlaybackChanged {
             playback: self.playback_now().into(),
             ..Default::default()
@@ -961,7 +966,8 @@ mod tests {
 
     use futures_util::StreamExt;
     use nama_proto::nama::v1::{
-        Playback, PlaybackChanged, PlaybackEnded, PlaybackMethod, PlaybackStarted,
+        Playback, PlaybackChanged, PlaybackEnded, PlaybackMethod, PlaybackReason,
+        PlaybackReasonKind, PlaybackStarted,
     };
 
     use super::{
@@ -1008,6 +1014,14 @@ mod tests {
             method: PlaybackMethod::PLAYBACK_METHOD_REMUX.into(),
             ..Default::default()
         }
+    }
+
+    /// A playback's reasons when it has only one, of `kind`.
+    fn only_reason(kind: PlaybackReasonKind) -> Vec<PlaybackReason> {
+        vec![PlaybackReason {
+            kind: kind.into(),
+            ..Default::default()
+        }]
     }
 
     /// The HLS files of the plan `id`, as asked for by the Device `device`.
@@ -1392,17 +1406,22 @@ mod tests {
                 .kill_on_drop(true)
                 .spawn()
         };
-        let reason = "VAAPI failed partway, so the rest of it Transcodes in software";
+        let started = Playback {
+            reasons: only_reason(PlaybackReasonKind::PLAYBACK_REASON_KIND_TRANSCODES_ON_HARDWARE),
+            ..playback(7)
+        };
+        let software_reasons =
+            only_reason(PlaybackReasonKind::PLAYBACK_REASON_KIND_HARDWARE_FAILED_PARTWAY);
         let id = plans
             .start_hls(
-                playback(7),
+                started,
                 Method::Transcode,
                 every_two_seconds(),
                 Runs {
                     run: Box::new(hardware),
                     fallback: Some(FallbackRun {
                         run: Box::new(software),
-                        why: reason.to_owned(),
+                        reasons: software_reasons.clone(),
                     }),
                 },
             )
@@ -1418,7 +1437,7 @@ mod tests {
         write_keyframes(data.path(), id, 0..6);
         assert_eq!(answer(later).await.unwrap().unwrap(), b"345");
         let changed = Playback {
-            reasons: vec![reason.to_owned()],
+            reasons: software_reasons,
             ..playback(7)
         };
         subscription.next().await.unwrap();

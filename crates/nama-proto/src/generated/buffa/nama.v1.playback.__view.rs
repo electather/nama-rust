@@ -1909,10 +1909,14 @@ pub struct PlaybackPlanView<'a> {
     ///
     /// Field 3: `tracks`
     pub tracks: ::buffa::RepeatedView<'a, super::super::__buffa::view::TrackView<'a>>,
-    /// Why it plays this way, in plain words, one for each step, in the order they ran.
+    /// The facts that shaped it, in the order the steps that found them ran. A step that changes
+    /// nothing gives none, so a Direct Play nothing stood in the way of has none.
     ///
-    /// Field 4: `reasons`
-    pub reasons: ::buffa::RepeatedView<'a, &'a str>,
+    /// Field 13: `reasons`
+    pub reasons: ::buffa::RepeatedView<
+        'a,
+        super::super::__buffa::view::PlaybackReasonView<'a>,
+    >,
     /// The text subtitles the player can turn on and off without a new plan, in the order the
     /// Version holds them. Image subtitles, such as PGS, aren't among them.
     ///
@@ -2055,16 +2059,25 @@ impl<'a> ::buffa::MessageView<'a> for PlaybackPlanView<'a> {
                         )?,
                     );
             }
-            4u32 => {
+            13u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
                     ::buffa::encoding::WireType::LengthDelimited,
                 )?;
-                let __elem = ::buffa::types::borrow_str(&mut cur)?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
                 ctx.register_element_memory(
-                    ::buffa::__private::element_footprint(&__elem),
+                    ::core::mem::size_of::<
+                        super::super::__buffa::view::PlaybackReasonView,
+                    >(),
                 )?;
-                view.reasons.push(__elem);
+                view.reasons
+                    .push(
+                        <super::super::__buffa::view::PlaybackReasonView as ::buffa::MessageView>::decode_view_ctx(
+                            sub,
+                            __sub_ctx,
+                        )?,
+                    );
             }
             5u32 => {
                 ::buffa::encoding::check_wire_type(
@@ -2183,7 +2196,11 @@ impl<'a> ::buffa::MessageView<'a> for PlaybackPlanView<'a> {
                 .iter()
                 .map(|v| v.to_owned_from_source(__buffa_src))
                 .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
-            reasons: self.reasons.iter().map(|s| s.to_string()).collect(),
+            reasons: self
+                .reasons
+                .iter()
+                .map(|v| v.to_owned_from_source(__buffa_src))
+                .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
             subtitles: self
                 .subtitles
                 .iter()
@@ -2223,9 +2240,6 @@ impl<'a> ::buffa::ViewEncode<'a> for PlaybackPlanView<'a> {
             size
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
-        }
-        for v in &self.reasons {
-            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
         for v in &self.subtitles {
             let __slot = __cache.reserve();
@@ -2274,6 +2288,14 @@ impl<'a> ::buffa::ViewEncode<'a> for PlaybackPlanView<'a> {
                 .sum::<u64>();
             size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
         }
+        for v in &self.reasons {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -2301,9 +2323,6 @@ impl<'a> ::buffa::ViewEncode<'a> for PlaybackPlanView<'a> {
                 buf,
             );
             v.write_to(__cache, buf);
-        }
-        for v in &self.reasons {
-            ::buffa::types::put_string_field(4u32, v, buf);
         }
         for v in &self.subtitles {
             ::buffa::types::put_len_delimited_header(
@@ -2360,6 +2379,14 @@ impl<'a> ::buffa::ViewEncode<'a> for PlaybackPlanView<'a> {
             for v in &self.playback_limits {
                 ::buffa::types::encode_int32(v.to_i32(), buf);
             }
+        }
+        for v in &self.reasons {
+            ::buffa::types::put_len_delimited_header(
+                13u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2551,11 +2578,17 @@ impl PlaybackPlanOwnedView {
     ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::TrackView<'_>> {
         &self.0.reborrow().tracks
     }
-    /// Why it plays this way, in plain words, one for each step, in the order they ran.
+    /// The facts that shaped it, in the order the steps that found them ran. A step that changes
+    /// nothing gives none, so a Direct Play nothing stood in the way of has none.
     ///
-    /// Field 4: `reasons`
+    /// Field 13: `reasons`
     #[must_use]
-    pub fn reasons(&self) -> &::buffa::RepeatedView<'_, &'_ str> {
+    pub fn reasons(
+        &self,
+    ) -> &::buffa::RepeatedView<
+        '_,
+        super::super::__buffa::view::PlaybackReasonView<'_>,
+    > {
         &self.0.reborrow().reasons
     }
     /// The text subtitles the player can turn on and off without a new plan, in the order the
@@ -2971,6 +3004,429 @@ impl ::buffa::HasMessageView for super::super::PlaybackSubtitle {
     type ViewHandle = PlaybackSubtitleOwnedView;
 }
 impl ::serde::Serialize for PlaybackSubtitleOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+/// One fact that shaped a Playback Plan (ADR 0034).
+#[derive(Clone, Debug, Default)]
+pub struct PlaybackReasonView<'a> {
+    /// Field 1: `kind`
+    pub kind: ::buffa::EnumValue<super::super::PlaybackReasonKind>,
+    /// The values the reason mentions. Keys are lowerCamelCase with the unit in the key (AIP-193);
+    /// each kind lists its own.
+    ///
+    /// Field 2: `params` (map)
+    pub params: ::buffa::MapView<'a, &'a str, &'a str>,
+    /// The Server's English sentence, for a client that doesn't know the kind. Not API contract.
+    ///
+    /// Field 3: `text`
+    pub text: &'a str,
+    /// Whether it decided the plan, or is context. It decided the plan if it rules out a method the
+    /// plan would rather have used than the one it plays (Direct Play before Remux before
+    /// Transcode), or any method when the plan can't play, or if it says what the method it plays
+    /// changes or that a choice was dropped.
+    ///
+    /// Field 4: `decided`
+    pub decided: bool,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for PlaybackReasonView<'a> {
+    type Owned = super::super::PlaybackReason;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.kind = ::buffa::EnumValue::from(
+                    ::buffa::types::decode_int32(&mut cur)?,
+                );
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.text = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.decided = ::buffa::types::decode_bool(&mut cur)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let entry_bytes = ::buffa::types::borrow_bytes(&mut cur)?;
+                let mut entry_cur: &'a [u8] = entry_bytes;
+                let mut key = "";
+                let mut val = "";
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&key)
+                        + ::buffa::__private::element_footprint(&val),
+                )?;
+                while !entry_cur.is_empty() {
+                    let entry_tag = ::buffa::encoding::Tag::decode(&mut entry_cur)?;
+                    match entry_tag.field_number() {
+                        1 => {
+                            ::buffa::encoding::check_wire_type(
+                                entry_tag,
+                                ::buffa::encoding::WireType::LengthDelimited,
+                            )?;
+                            key = ::buffa::types::borrow_str(&mut entry_cur)?;
+                        }
+                        2 => {
+                            ::buffa::encoding::check_wire_type(
+                                entry_tag,
+                                ::buffa::encoding::WireType::LengthDelimited,
+                            )?;
+                            val = ::buffa::types::borrow_str(&mut entry_cur)?;
+                        }
+                        _ => {
+                            ::buffa::encoding::skip_field_depth(
+                                entry_tag,
+                                &mut entry_cur,
+                                ctx.depth(),
+                            )?;
+                        }
+                    }
+                }
+                view.params.push(key, val);
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<super::super::PlaybackReason, ::buffa::DecodeError> {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<super::super::PlaybackReason, ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::PlaybackReason {
+            kind: self.kind,
+            params: self
+                .params
+                .iter()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect(),
+            text: self.text.to_string(),
+            decided: self.decided,
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for PlaybackReasonView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        {
+            let val = self.kind.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
+        }
+        #[allow(clippy::for_kv_map)]
+        for (k, v) in &self.params {
+            let entry_size: u64 = 1u64 + ::buffa::types::string_encoded_len(k) as u64
+                + 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+            size += 1u64 + ::buffa::encoding::varint_len(entry_size) as u64 + entry_size;
+        }
+        if !self.text.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.text) as u64;
+        }
+        if self.decided {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        {
+            let val = self.kind.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(1u32, val, buf);
+            }
+        }
+        for (k, v) in &self.params {
+            let entry_size: u64 = 1u64 + ::buffa::types::string_encoded_len(k) as u64
+                + 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+            ::buffa::encoding::Tag::new(
+                    2u32,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )
+                .encode(buf);
+            ::buffa::encoding::encode_varint(entry_size, buf);
+            ::buffa::encoding::Tag::new(
+                    1u32,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )
+                .encode(buf);
+            ::buffa::types::encode_string(k, buf);
+            ::buffa::encoding::Tag::new(
+                    2u32,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )
+                .encode(buf);
+            ::buffa::types::encode_string(v, buf);
+        }
+        if !self.text.is_empty() {
+            ::buffa::types::put_string_field(3u32, &self.text, buf);
+        }
+        if self.decided {
+            ::buffa::types::put_bool_field(4u32, self.decided, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for PlaybackReasonView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_default_enum_value(&self.kind) {
+            __map.serialize_entry("kind", &self.kind)?;
+        }
+        if !self.params.is_empty() {
+            struct _WM<'__a, '__x>(&'__x ::buffa::MapView<'__x, &'__a str, &'__a str>);
+            impl<'__a> ::serde::Serialize for _WM<'__a, '_> {
+                fn serialize<__S: ::serde::Serializer>(
+                    &self,
+                    __s: __S,
+                ) -> ::core::result::Result<__S::Ok, __S::Error> {
+                    use ::serde::ser::SerializeMap as _;
+                    let mut __m = __s
+                        .serialize_map(::core::option::Option::Some(self.0.len()))?;
+                    for (k, v) in self.0.iter_unique() {
+                        __m.serialize_entry(k, v)?;
+                    }
+                    __m.end()
+                }
+            }
+            __map.serialize_entry("params", &_WM(&self.params))?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.text) {
+            __map.serialize_entry("text", self.text)?;
+        }
+        if self.decided {
+            __map.serialize_entry("decided", &self.decided)?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for PlaybackReasonView<'a> {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "PlaybackReason";
+    const FULL_NAME: &'static str = "nama.v1.PlaybackReason";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.PlaybackReason";
+}
+::buffa::impl_default_view_instance!(PlaybackReasonView);
+::buffa::impl_view_reborrow!(PlaybackReasonView);
+/** Self-contained, `'static` owned view of a `PlaybackReason` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`PlaybackReasonView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`PlaybackReasonView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct PlaybackReasonOwnedView(::buffa::OwnedView<PlaybackReasonView<'static>>);
+impl PlaybackReasonOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            PlaybackReasonOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            PlaybackReasonOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::PlaybackReason,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            PlaybackReasonOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`PlaybackReasonView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &PlaybackReasonView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::PlaybackReason {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// Field 1: `kind`
+    #[must_use]
+    pub fn kind(&self) -> ::buffa::EnumValue<super::super::PlaybackReasonKind> {
+        self.0.reborrow().kind
+    }
+    /// The values the reason mentions. Keys are lowerCamelCase with the unit in the key (AIP-193);
+    /// each kind lists its own.
+    ///
+    /// Field 2: `params` (map)
+    #[must_use]
+    pub fn params(&self) -> &::buffa::MapView<'_, &'_ str, &'_ str> {
+        &self.0.reborrow().params
+    }
+    /// The Server's English sentence, for a client that doesn't know the kind. Not API contract.
+    ///
+    /// Field 3: `text`
+    #[must_use]
+    pub fn text(&self) -> &'_ str {
+        self.0.reborrow().text
+    }
+    /// Whether it decided the plan, or is context. It decided the plan if it rules out a method the
+    /// plan would rather have used than the one it plays (Direct Play before Remux before
+    /// Transcode), or any method when the plan can't play, or if it says what the method it plays
+    /// changes or that a choice was dropped.
+    ///
+    /// Field 4: `decided`
+    #[must_use]
+    pub fn decided(&self) -> bool {
+        self.0.reborrow().decided
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<PlaybackReasonView<'static>>>
+for PlaybackReasonOwnedView {
+    fn from(inner: ::buffa::OwnedView<PlaybackReasonView<'static>>) -> Self {
+        PlaybackReasonOwnedView(inner)
+    }
+}
+impl ::core::convert::From<PlaybackReasonOwnedView>
+for ::buffa::OwnedView<PlaybackReasonView<'static>> {
+    fn from(wrapper: PlaybackReasonOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<PlaybackReasonView<'static>>>
+for PlaybackReasonOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<PlaybackReasonView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::PlaybackReason {
+    type View<'a> = PlaybackReasonView<'a>;
+    type ViewHandle = PlaybackReasonOwnedView;
+}
+impl ::serde::Serialize for PlaybackReasonOwnedView {
     fn serialize<__S: ::serde::Serializer>(
         &self,
         __s: __S,

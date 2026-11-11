@@ -240,7 +240,9 @@ function usePlan(versionId: bigint, asking: Asking) {
       } catch (error) {
         const { reason, params } = refusalOf(error);
         if (reason !== RefusalReason.SERVER_BUSY) throw error;
-        return create(PlaybackPlanSchema, { reasons: [serverBusy(params["maxTranscodes"])] });
+        return create(PlaybackPlanSchema, {
+          reasons: [{ text: serverBusy(params["maxTranscodes"]) }],
+        });
       }
     },
     staleTime: "static",
