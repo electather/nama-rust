@@ -1129,6 +1129,13 @@ mod tests {
         }
     }
 
+    fn delete_keyframes(data: &Path, id: u64, keyframes: std::ops::Range<usize>) {
+        let dir = data.join("transcodes").join(format!("nama-plan-{id}"));
+        for n in keyframes {
+            fs::remove_file(dir.join(format!("{n}.m4s"))).unwrap();
+        }
+    }
+
     /// What `request` answers, failing the test if it doesn't within 10 seconds.
     async fn answer<T>(request: tokio::task::JoinHandle<T>) -> T {
         let answered = tokio::time::timeout(Duration::from_secs(10), request).await;
@@ -1357,19 +1364,11 @@ mod tests {
         fs::write(dir.join("init-0.mp4"), "init").unwrap();
         write_keyframes(data.path(), id, 0..1);
         tokio::time::sleep(POLL_EVERY * 3).await;
-        fs::remove_file(dir.join("0.m4s")).unwrap();
+        delete_keyframes(data.path(), id, 0..1);
 
         let init = tokio::spawn(async move { plan.init().await });
 
         assert_eq!(answer(init).await.unwrap().unwrap(), b"init");
-    }
-
-    /// Deletes the files of `keyframes` for the plan `id`.
-    fn delete_keyframes(data: &Path, id: u64, keyframes: std::ops::Range<usize>) {
-        let dir = data.join("transcodes").join(format!("nama-plan-{id}"));
-        for n in keyframes {
-            fs::remove_file(dir.join(format!("{n}.m4s"))).unwrap();
-        }
     }
 
     #[cfg(unix)]
@@ -1390,31 +1389,51 @@ mod tests {
         assert_eq!(answer(again).await.unwrap().unwrap(), b"345");
     }
 
+    // No lock spans finding a file and reading it, so the test can't pause between the two: it
+    // deletes the file over and over instead, which failed reads within a few requests when they
+    // checked first.
     #[cfg(unix)]
-    #[tokio::test]
-    async fn a_file_gone_between_found_written_and_read_is_waited_for_and_served() {
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_segment_whose_file_is_deleted_again_and_again_while_asked_for_is_served() {
         let data = tempfile::tempdir().unwrap();
         let plans = running_plans(data.path()).await;
-        let (id, starts) = start_writing_nothing(&plans).await;
+        let (id, _) = start_writing_nothing(&plans).await;
         let plan = hls(&plans, id, 7);
-        let held = plan.ffmpeg.lock().await;
-        let asking = Arc::clone(&plan);
-        let request = tokio::spawn(async move { asking.segment(1).await });
-        // Long enough for the request to wait for the lock its check that file 3 is written takes.
-        tokio::time::sleep(POLL_EVERY * 3).await;
         write_keyframes(data.path(), id, 3..6);
-        drop(held);
+        let until = std::time::Instant::now() + Duration::from_millis(500);
+        let dir = plan.dir.clone();
+        let flickering = std::thread::spawn(move || delete_and_write_again(&dir, 3, until));
 
-        // Queued behind the request's check, so held once it found file 3 written.
-        let found = plan.ffmpeg.lock().await;
-        delete_keyframes(data.path(), id, 3..4);
-        drop(found);
+        let mut asking = tokio::task::JoinSet::new();
+        for _ in 0..8 {
+            asking.spawn(serves_segment_one_until(Arc::clone(&plan), until));
+        }
+        while let Some(asked) = asking.join_next().await {
+            asked.unwrap();
+        }
+        flickering.join().unwrap();
+    }
 
-        tokio::time::sleep(POLL_EVERY * 3).await;
-        assert!(!request.is_finished());
-        write_keyframes(data.path(), id, 3..4);
-        assert_eq!(answer(request).await.unwrap().unwrap(), b"345");
-        assert_eq!(*lock(&starts), [0]);
+    /// Deletes keyframe `n`'s file in `dir` and writes it again as ffmpeg would, over and over
+    /// until `until`.
+    fn delete_and_write_again(dir: &Path, n: usize, until: std::time::Instant) {
+        let (file, whole) = (
+            dir.join(format!("{n}.m4s")),
+            dir.join(format!("{n}.m4s.tmp")),
+        );
+        while std::time::Instant::now() < until {
+            fs::write(&whole, n.to_string()).unwrap();
+            // Gone only briefly, so the requests that find it gone and wait leave many more.
+            fs::remove_file(&file).unwrap();
+            fs::rename(&whole, &file).unwrap();
+        }
+    }
+
+    /// Asks `plan` for segment 1 over and over until `until`, failing unless it's keyframes 3 to 5.
+    async fn serves_segment_one_until(plan: Arc<Running>, until: std::time::Instant) {
+        while std::time::Instant::now() < until {
+            assert_eq!(plan.segment(1).await.unwrap().unwrap(), b"345");
+        }
     }
 
     // The fake ffmpegs are `sh`, failing once told to, and `sleep`.
